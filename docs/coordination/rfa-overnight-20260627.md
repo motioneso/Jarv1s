@@ -16,10 +16,9 @@ builder pane `w1:p3Z` was closed, and its worktree/local+remote branch were remo
 mandatory coordinator relay. Successor must first claim the `Coordinator` lock with its own session
 id. New coordinator session `019f0ae5-0afd-7092-911e-6c2e987df7f2` has claimed the lock; old
 coordinator session `019f0ad6-e0f5-7ab3-af48-e4e06b175eba` was reaped after handoff verification.
-Continue by releasing newly unblocked queued lanes: #527 is unblocked by #526/#529, #532 is
-unblocked by #528/#529/#530, and #525 was already unblocked by #530; respect the collision map and
-migration ordering. Design PR #549 is outside the RFA queue, fully green, and local shared `main`
-in the design pane was left unpushed/unreset.
+Successor released #527 and #532 as the next collision-safe wave; #525 remains held because it shares
+chat hidden-context/runTurn surfaces with #532. Design PR #549 is outside the RFA queue, fully
+green, and its pane was nudged to refresh/check current `main` before proceeding.
 
 ## Base
 
@@ -49,9 +48,9 @@ in the design pane was left unpushed/unreset.
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | MERGED via PR #548 at merge commit `af205ad`; issue #534 closed; pane/worktree reaped | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | MERGED via replacement PR #551 at merge commit `4e9f128`; issue #529 closed; pane/worktree/branch reaped | Codex | Opus security QA | `rfa-529-memory-distillation` | #551 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | MERGED via replacement PR #550 at merge commit `90d590d`; issue #530 closed; pane/worktree reaped | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #550 |
-| #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | unblocked after #526/#529; next coordinator may spawn if collision-safe | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
-| #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | unblocked after #528/#529/#530; next coordinator may spawn if collision-safe | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
-| #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | unblocked after #530; next coordinator may spawn if collision-safe | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
+| #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | BUILDING in pane `w1:p4C`; handoff commit `31c970e`; migration slot `0120_usefulness_feedback_signals.sql` | Codex fallback after opencode spawn risk | Codex security QA | `rfa-527-usefulness-feedback` | - |
+| #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | BUILDING in pane `w1:p4D`; handoff commit `3054b19`; migration slot `0121_confidence_aware_memory_records.sql` | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
+| #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | held after #530: unblocked but shares chat hidden-context/runTurn surface with active #532 lane | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
 | #533 | `docs/superpowers/specs/2026-06-27-user-editable-memory-dashboard.md` | security | queued after #532 | opencode/GLM | Codex security QA | `rfa-533-memory-dashboard` | - |
 | #531 | `docs/superpowers/specs/2026-06-27-restrained-proactive-monitoring.md` | security | queued after #526/#527 | Codex | AGY security QA | `rfa-531-proactive-monitoring` | - |
 | #535 | `docs/superpowers/specs/2026-06-27-long-running-jarvis-goals.md` | security | queued after #526/#527/#528/#532/#533/#534 | AGY | opencode/GLM security QA | `rfa-535-long-running-goals` | - |
@@ -60,7 +59,9 @@ in the design pane was left unpushed/unreset.
 | #538 | `docs/superpowers/specs/2026-06-27-unified-person-contact-model.md` | security | queued after #525/#528/#532/#533/#537 | opencode/GLM | Codex security QA | `rfa-538-person-contact-model` | - |
 | #520 | - | routine | blocked: no approved spec found | - | - | - | - |
 
-Excluded by launch rule: #539, #540, #541 are open but labeled `needs-spec`, not `RFA`.
+Launch note: #539, #540, #541 were excluded at launch as `needs-spec`; GitHub now shows them as
+RFA, but they are not admitted to this run until the coordinator extends the dependency/collision
+map.
 
 ## Dependency / Merge Order
 
@@ -85,6 +86,8 @@ Excluded by launch rule: #539, #540, #541 are open but labeled `needs-spec`, not
 - Agents must stage explicit paths only; no `git add -A`.
 - Migration numbering is a merge-order concern. Agents must not assume a global migration number
   when a predecessor in the chain is unmerged.
+- Current assigned slots: #527 uses `0120_usefulness_feedback_signals.sql`; #532 uses
+  `0121_confidence_aware_memory_records.sql`; #525 is held until #532 clears the chat surface.
 - Shared surfaces to watch:
   - memory schema/package/API: #528, #529, #532, #533, #535, #537, #538;
   - chat `runTurn` and hidden context injection: #525, #529, #530, #532;
@@ -283,8 +286,18 @@ None.
 - #534: PR #548 head `a0ffbdc` had red `Verify foundation and app` in CI run `28297366163`;
   coordinator routed the red gate back to AGY pane `w1:p3N`.
 - design-session/Claude pane `w1:p1B` asked to commit two apps/web-only files to `main`. Coordinator
-  told it to hold until #545 landed. Since #545 is now merged, successor should signal it may proceed
-  after it refreshes/checks current `main`.
+- #527: successor coordinator created top-level worktree
+  `~/Jarv1s/.claude/worktrees/rfa-527-usefulness-feedback`, committed branch-local handoff
+  `31c970e`, and launched Codex build pane `w1:p4C`. The original queue preferred opencode/GLM,
+  but opencode run mode is non-resident and earlier opencode spawns in this run failed to stick, so
+  Codex was used as the resident fallback.
+- #532: successor coordinator created top-level worktree
+  `~/Jarv1s/.claude/worktrees/rfa-532-confidence-aware-memory`, committed branch-local handoff
+  `3054b19`, and launched Codex build pane `w1:p4D`.
+- #525: held while #532 plans/builds because both touch chat hidden-context/runTurn behavior.
+- design-session/Claude pane `w1:p1B` asked to commit two apps/web-only files to `main`. Coordinator
+  told it to hold until #545 landed, then successor signaled it may proceed after refreshing/checking
+  current `main`.
 
 ## Reaped Sessions
 
@@ -302,6 +315,8 @@ None.
   `019f0a96-2978-7c63-93ea-0221bb1666a0` claimed the `Coordinator` label and manifest lock.
 - Closed old coordinator pane `w1:p44` after successor Codex session
   `019f0ad6-e0f5-7ab3-af48-e4e06b175eba` claimed the `Coordinator` label and manifest lock.
+- Closed old coordinator pane `w1:p49` after successor Codex session
+  `019f0ae5-0afd-7092-911e-6c2e987df7f2` claimed the `Coordinator` label and manifest lock.
 - Closed completed security QA pane `QA-548 Security` (`w1:p45`) after GREEN verdict was posted to
   PR #548 and surfaced for Ben sign-off.
 - Closed completed `Opus Review 548` pane (`w1:p48`) after fresh Opus 4.8 review returned GREEN
