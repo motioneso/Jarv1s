@@ -133,7 +133,8 @@ export function decideCandidatePromotion(input: PromotionDecisionInput): Promoti
   if (candidate.provenance === "inferred") return { status: "pending", reason: "inferred" };
   if (candidate.isSensitive) return { status: "pending", reason: "sensitive" };
   if (isCommitment(candidate)) return { status: "pending", reason: "commitment_pending_537" };
-  if (input.conflicts && !input.groundedSupersedes) return { status: "pending", reason: "conflict" };
+  if (input.conflicts && !input.groundedSupersedes)
+    return { status: "pending", reason: "conflict" };
 
   if (candidate.kind === "supersession") {
     return input.groundedSupersedes && candidate.confidence >= 0.85
@@ -203,7 +204,10 @@ function parseFact(value: unknown): MemoryCandidate["fact"] | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
   if (typeof raw.subject !== "string" || !raw.subject.trim()) return undefined;
-  if (typeof raw.predicate !== "string" || !FACT_PREDICATES.has(raw.predicate as MemoryFactPredicate)) {
+  if (
+    typeof raw.predicate !== "string" ||
+    !FACT_PREDICATES.has(raw.predicate as MemoryFactPredicate)
+  ) {
     return undefined;
   }
   const objectText = typeof raw.objectText === "string" ? raw.objectText.trim() : "";
