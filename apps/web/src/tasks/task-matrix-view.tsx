@@ -1,5 +1,3 @@
-import { LayoutGrid } from "lucide-react";
-
 import { QUADRANTS, type TaskDto, type TaskListDto } from "@jarv1s/shared";
 
 import { listColorMap, TaskRow } from "./task-list-view";
@@ -25,12 +23,6 @@ export function TaskMatrixView(props: {
 
   return (
     <div>
-      <div className="tk-matrix-cap">
-        <span className="ic">
-          <LayoutGrid size={14} aria-hidden="true" />
-        </span>
-        Your tasks sorted by importance (priority) and urgency (whether they have a due date).
-      </div>
       <div className="tk-matrix" role="grid" aria-label="Eisenhower matrix">
         {QUADRANTS.map((quadrant) => {
           const tasks = tasksByQuadrant[quadrant.key];

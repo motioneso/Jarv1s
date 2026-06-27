@@ -13,6 +13,7 @@ import {
   Menu,
   MessageSquare,
   Newspaper,
+  Search,
   Settings
 } from "lucide-react";
 import {
@@ -206,6 +207,15 @@ export function AppShell(props: AppShellProps) {
           ) : null}
 
           <div className="topbar-actions">
+            <button
+              aria-label="Open command palette"
+              className="icon-button"
+              title="Command palette"
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("jarvis:open-command-palette"))}
+            >
+              <Search size={19} aria-hidden="true" />
+            </button>
             <button
               aria-label="Chat with Jarvis"
               aria-pressed={chatOpen}
