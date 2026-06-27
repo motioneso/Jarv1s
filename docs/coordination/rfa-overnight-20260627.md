@@ -31,10 +31,10 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | RED QA; build lane fixing CI image failure + two blocking findings (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | blocker fix pushed at `e923424`; CI run `28286935159` in progress, QA rerun pending green checks (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | plan approved; AGY implementation active in policy/gateway/tests (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
-| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | spawned stacked on #528; premise-check done, plan being written (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
+| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | stacked on #528; passive recall commits landed, lane DB full gate running (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | queued after #530 | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
@@ -89,8 +89,13 @@ None.
 - #520: RFA-labeled but missing approved spec. Do not spawn until a spec exists or Ben waives the
   spec gate.
 - Security-tier PRs: build and QA may proceed; merge waits for Ben's explicit sign-off.
-- #534: AGY quota reached at spawn; retry same pane after quota reset or reassign only if this
-  blocks useful progress after #526/#528 plan gates.
+- #534: plan reviewed against current seams in `packages/module-sdk`, `packages/ai`, `packages/db`,
+  and tasks settings/routes; no spec drift found. Coordinator approval was sent to pane `w1:p3N`
+  with explicit constraints to keep the gateway as the single decision point, keep destructive and
+  external actions hard-confirm, use one shared canonical+legacy compatibility helper for
+  `tasks/task_changes`, keep canonical+legacy writes transactional, and avoid a second executor or
+  global automation switch. The lane is already mid-implementation while the approval message sits
+  queued behind active work.
 - #526: plan approved from `docs/superpowers/plans/2026-06-27-unified-priority-model.md`; scope
   constrained to pure scorer, owner-scoped preference API/UI, and thin consumers over already-loaded
   candidates. Task 1 focused unit suite passed before commit `3f1abb1`. After Task 5, gate was red
@@ -107,7 +112,12 @@ None.
   green, but rerun QA still found one blocking issue: `packages/settings/src/priority-routes.ts`
   persisted nested anchor objects verbatim, allowing unknown nested fields and potential secret/raw
   payload persistence inside `priority.model.v1`. That blocker is now routed to the build lane with
-  explicit regression-test requirement.
+  explicit regression-test requirement. The salvage lane fixed that issue in commit `e923424`
+  (`fix(priority): reject unknown anchor fields (#526)`), added a regression that rejects
+  `rawSourceBody` with 400, reran focused `priority-api` plus `format:check`, `lint`, `typecheck`,
+  `verify:foundation`, `audit:preflight`, and `audit:release-hardening` with green exit codes, then
+  pushed PR #544 at head `e9234242e090df8bd523db223c851b357f42e853`. GitHub CI run `28286935159`
+  is now in progress; do not spend another QA pass until those checks are green.
 - #528: plan approved from `docs/superpowers/plans/2026-06-26-memory-graph-substrate.md`;
   plan committed as `150544c`; coordinator assigned next free global migration number `0118` for
   `packages/memory/sql/0118_memory_graph_substrate.sql`. Task 1 schema, Task 2 repository, and Task 3
@@ -126,8 +136,14 @@ None.
   sign-off. Branch `rfa-530-passive-context-retrieval` is based on `origin/rfa-528-memory-graph-substrate`
   at `519ad54`; handoff commit `d3b7aaa`. PR base should stay `rfa-528-memory-graph-substrate` until
   #528 lands. Initial Codex pane `w1:p3T` hit a model-limit prompt, switched to `gpt-5.5 medium`,
-  and resumed. The lane has verified the chat runtime seam can take a graph-recall port via route
-  deps/module registry and is writing its plan for coordinator approval.
+  and resumed. The lane verified the chat runtime seam can take a graph-recall port via route deps
+  and module registry, wrote `docs/superpowers/plans/2026-06-27-rfa-530-passive-context-retrieval.md`,
+  received coordinator approval, then committed `3980da5` (`feat(chat): wire passive memory graph
+  recall`) and `3449d0c` (`test(chat): cover passive context retrieval`). A targeted integration
+  initially failed because the stub embedding threshold was too fuzzy for the test phrase; the lane
+  narrowed the query to the exact remembered phrase without changing runtime behavior, committed
+  cleanup `8877e5e` (`chore(chat): format passive retrieval plan`), and is now running the longer
+  lane-DB full gate before PR/open report.
 
 ## Reaped Sessions
 
