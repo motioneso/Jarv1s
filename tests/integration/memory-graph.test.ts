@@ -31,6 +31,7 @@ const graphTables = [
   "memory_aliases",
   "memory_search_documents",
   "memory_legacy_fact_migrations",
+  "memory_conflict_groups",
   "memory_candidates"
 ] as const;
 
@@ -103,6 +104,23 @@ describe("memory graph schema and RLS", () => {
       expect(roles).toContain("jarvis_app_runtime");
       expect(roles).toContain("jarvis_worker_runtime");
     }
+
+    const factColumns = await sql<{ column_name: string }>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'app'
+        AND table_name = 'memory_facts'
+      ORDER BY column_name
+    `.execute(migrationDb);
+    expect(factColumns.rows.map((r) => r.column_name)).toEqual(
+      expect.arrayContaining([
+        "record_kind",
+        "stale_at",
+        "superseded_by_fact_id",
+        "conflict_group_id",
+        "last_confirmed_at"
+      ])
+    );
   });
 
   it("prevents cross-user reads and writes through app and worker roles", async () => {
@@ -160,8 +178,118 @@ describe("MemoryGraphRepository", () => {
         const docs = await repo.listSearchDocumentsForOwner(db, ids.userA);
         expect(alias.normalizedAlias).toBe("remodel");
         expect(fact.sources).toHaveLength(1);
+        expect(fact).toMatchObject({
+          recordKind: "constraint",
+          confidenceTier: "confirmed",
+          status: "active",
+          staleAt: null,
+          supersededByFactId: null,
+          conflictGroupId: null
+        });
         expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(`entity:${project.id}`);
         expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(`fact:${fact.id}`);
+      }
+    );
+  });
+
+  it("confirms, stales, rejects, and corrects facts with search document updates", async () => {
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:status-flows" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `status flow ${randomUUID()}`,
+          confidence: 0.62,
+          provenance: "inferred",
+          source: { sourceKind: "manual", sourceRef: "manual:status", excerpt: "status flow" }
+        });
+
+        const confirmed = await repo.confirmFact(db, ids.userA, fact.id);
+        expect(confirmed).toMatchObject({
+          confidenceTier: "confirmed",
+          provenance: "confirmed",
+          status: "active"
+        });
+        expect(confirmed?.confidence).toBeGreaterThanOrEqual(0.9);
+
+        const stale = await repo.markFactStale(db, ids.userA, fact.id);
+        expect(stale?.status).toBe("stale");
+        expect(stale?.staleAt).toBeInstanceOf(Date);
+        let docs = await repo.listSearchDocumentsForOwner(db, ids.userA);
+        expect(docs.find((d) => d.targetId === fact.id)?.status).toBe("active");
+
+        const rejected = await repo.patchFactStatus(db, ids.userA, fact.id, {
+          status: "rejected"
+        });
+        expect(rejected?.status).toBe("rejected");
+        docs = await repo.listSearchDocumentsForOwner(db, ids.userA);
+        expect(docs.find((d) => d.targetId === fact.id)?.status).toBe("inactive");
+
+        const corrected = await repo.correctFact(db, ids.userA, {
+          targetFactId: fact.id,
+          replacementText: "replacement status flow"
+        });
+        expect(corrected).toMatchObject({
+          objectText: "replacement status flow",
+          status: "active",
+          provenance: "confirmed"
+        });
+      }
+    );
+  });
+
+  it("rejects generic status changes for conflict groups and resolves by confirm", async () => {
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:conflict-resolution" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const first = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "prefers",
+          objectText: `conflict first ${randomUUID()}`,
+          confidence: 0.7,
+          provenance: "inferred",
+          source: { sourceKind: "manual", sourceRef: "manual:conflict-1", excerpt: "first" }
+        });
+        const second = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "prefers",
+          objectText: `conflict second ${randomUUID()}`,
+          confidence: 0.8,
+          provenance: "volunteered",
+          source: { sourceKind: "manual", sourceRef: "manual:conflict-2", excerpt: "second" }
+        });
+        const group = await sql<{ id: string }>`
+          INSERT INTO app.memory_conflict_groups (owner_user_id)
+          VALUES (${ids.userA}::uuid)
+          RETURNING id
+        `.execute(db.db);
+        const groupId = group.rows[0]?.id ?? "";
+        await sql`
+          UPDATE app.memory_facts
+          SET status = 'conflicting', conflict_group_id = ${groupId}::uuid
+          WHERE owner_user_id = ${ids.userA}::uuid
+            AND id IN (${first.id}::uuid, ${second.id}::uuid)
+        `.execute(db.db);
+
+        await expect(
+          repo.patchFactStatus(db, ids.userA, first.id, { status: "rejected" })
+        ).rejects.toThrow(/confirm or correct/);
+
+        const confirmed = await repo.confirmFact(db, ids.userA, first.id);
+        const sibling = await serviceFact(db, second.id);
+        const resolved = await sql<{ status: string }>`
+          SELECT status
+          FROM app.memory_conflict_groups
+          WHERE owner_user_id = ${ids.userA}::uuid
+            AND id = ${groupId}::uuid
+        `.execute(db.db);
+
+        expect(confirmed).toMatchObject({ status: "active", conflictGroupId: null });
+        expect(sibling).toMatchObject({ status: "superseded", superseded_by_fact_id: first.id });
+        expect(resolved.rows[0]?.status).toBe("resolved");
       }
     );
   });
@@ -348,6 +476,57 @@ describe("GraphMemoryRecallService", () => {
     expect(result.core.items.map((item) => item.id)).not.toContain(result.supersededId);
     expect(result.core.items.length).toBeLessThanOrEqual(20);
   });
+
+  it("excludes stale and low-confidence recall by default unless explicitly included", async () => {
+    const service = new GraphMemoryRecallService(new StubEmbeddingProvider());
+    const token = `recall gates ${randomUUID()}`;
+
+    const result = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-graph:gates" },
+      async (db) => {
+        const active = await service.remember(db, ids.userA, {
+          predicate: "related_to",
+          objectText: `${token} active`,
+          confidence: 0.8,
+          provenance: "volunteered",
+          source: { sourceKind: "manual", sourceRef: "manual:active", excerpt: "active" }
+        });
+        const weak = await service.remember(db, ids.userA, {
+          predicate: "related_to",
+          objectText: `weak unrelated ${randomUUID()}`,
+          confidence: 0.4,
+          provenance: "inferred",
+          source: { sourceKind: "manual", sourceRef: "manual:weak", excerpt: "weak" }
+        });
+        const stale = await service.remember(db, ids.userA, {
+          predicate: "related_to",
+          objectText: `${token} stale`,
+          confidence: 0.8,
+          provenance: "volunteered",
+          source: { sourceKind: "manual", sourceRef: "manual:stale", excerpt: "stale" }
+        });
+        await new MemoryGraphRepository().markFactStale(db, ids.userA, stale.fact.id);
+        return {
+          activeId: active.fact.id,
+          weakId: weak.fact.id,
+          staleId: stale.fact.id,
+          normal: await service.recall(db, ids.userA, token, { limit: 10 }),
+          low: await service.recall(db, ids.userA, token, {
+            limit: 10,
+            includeStale: true,
+            includeLowConfidence: true
+          }),
+          withStale: await service.recall(db, ids.userA, token, { limit: 10, includeStale: true })
+        };
+      }
+    );
+
+    expect(result.normal.items.map((item) => item.id)).toContain(result.activeId);
+    expect(result.normal.items.map((item) => item.id)).not.toContain(result.weakId);
+    expect(result.normal.items.map((item) => item.id)).not.toContain(result.staleId);
+    expect(result.low.items.map((item) => item.id)).toContain(result.weakId);
+    expect(result.withStale.items.map((item) => item.id)).toContain(result.staleId);
+  });
 });
 
 describe("memory graph API routes", () => {
@@ -413,6 +592,45 @@ describe("memory graph API routes", () => {
       payload: { pinned: true }
     });
     expect(pin.statusCode).toBe(204);
+
+    const confirm = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${factId}/confirm`,
+      headers: userAHeaders(),
+      payload: {}
+    });
+    expect(confirm.statusCode).toBe(200);
+    expect(confirm.json<{ fact: { confidence: number; confidenceTier: string } }>().fact).toEqual(
+      expect.objectContaining({ confidenceTier: "confirmed" })
+    );
+
+    const stale = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${factId}/mark-stale`,
+      headers: userAHeaders(),
+      payload: {}
+    });
+    expect(stale.statusCode).toBe(200);
+    expect(stale.json<{ fact: { status: string } }>().fact.status).toBe("stale");
+
+    const status = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${factId}/status`,
+      headers: userAHeaders(),
+      payload: { status: "active" }
+    });
+    expect(status.statusCode).toBe(200);
+
+    const correction = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${factId}/correct`,
+      headers: userAHeaders(),
+      payload: { replacementText: "corrected route mobile responses" }
+    });
+    expect(correction.statusCode).toBe(200);
+    expect(correction.json<{ fact: { objectText: string } }>().fact.objectText).toBe(
+      "corrected route mobile responses"
+    );
 
     const supersede = await graphServer.inject({
       method: "POST",
@@ -509,6 +727,16 @@ async function insertEntity(
   `.execute(scopedDb.db);
 
   return inserted.rows[0]?.id ?? "";
+}
+
+async function serviceFact(scopedDb: DataContextDb, factId: string) {
+  const result = await sql<{ status: string; superseded_by_fact_id: string | null }>`
+    SELECT status, superseded_by_fact_id::text
+    FROM app.memory_facts
+    WHERE owner_user_id = ${ids.userA}::uuid
+      AND id = ${factId}::uuid
+  `.execute(scopedDb.db);
+  return result.rows[0];
 }
 
 async function seedOtherUserGraph(): Promise<void> {

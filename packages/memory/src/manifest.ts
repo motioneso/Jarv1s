@@ -4,9 +4,13 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   getMemoryGraphCoreRouteSchema,
   getMemoryGraphRecallRouteSchema,
+  postMemoryGraphConfirmRouteSchema,
+  postMemoryGraphCorrectRouteSchema,
   postMemoryGraphEntityRouteSchema,
   postMemoryGraphFactRouteSchema,
+  postMemoryGraphMarkStaleRouteSchema,
   postMemoryGraphPinRouteSchema,
+  postMemoryGraphStatusRouteSchema,
   postMemoryGraphSupersedeRouteSchema
 } from "@jarv1s/shared";
 import { memoryForgetExecute, memoryRecallExecute, memoryRememberExecute } from "./graph-tools.js";
@@ -91,6 +95,7 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       "app.memory_aliases",
       "app.memory_search_documents",
       "app.memory_legacy_fact_migrations",
+      "app.memory_conflict_groups",
       "app.memory_candidates"
     ]
   },
@@ -123,6 +128,30 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       method: "POST",
       path: "/api/memory/graph/facts/:id/pin",
       requestSchema: postMemoryGraphPinRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/facts/:id/confirm",
+      requestSchema: postMemoryGraphConfirmRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/facts/:id/correct",
+      requestSchema: postMemoryGraphCorrectRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/facts/:id/status",
+      requestSchema: postMemoryGraphStatusRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/facts/:id/mark-stale",
+      requestSchema: postMemoryGraphMarkStaleRouteSchema.body,
       permissionId: "memory.manage"
     },
     {

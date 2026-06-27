@@ -4,9 +4,13 @@ import type { AccessContext, DataContextRunner, DataContextDb } from "@jarv1s/db
 import {
   getMemoryGraphCoreRouteSchema,
   getMemoryGraphRecallRouteSchema,
+  postMemoryGraphConfirmRouteSchema,
+  postMemoryGraphCorrectRouteSchema,
   postMemoryGraphEntityRouteSchema,
   postMemoryGraphFactRouteSchema,
+  postMemoryGraphMarkStaleRouteSchema,
   postMemoryGraphPinRouteSchema,
+  postMemoryGraphStatusRouteSchema,
   postMemoryGraphSupersedeRouteSchema
 } from "@jarv1s/shared";
 import { RuntimeConfigResolver } from "@jarv1s/settings";
@@ -41,11 +45,16 @@ export function registerMemoryGraphRoutes(
         const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.trunc(rawLimit)) : undefined;
         const includeInactive =
           (request.query as { includeInactive?: unknown }).includeInactive === true;
+        const includeStale = (request.query as { includeStale?: unknown }).includeStale === true;
+        const includeLowConfidence =
+          (request.query as { includeLowConfidence?: unknown }).includeLowConfidence === true;
         if (!query) return reply.code(400).send({ error: "q is required" });
         return dependencies.dataContext.withDataContext(access, async (scopedDb) =>
           (await createGraphService(scopedDb)).recall(scopedDb, access.actorUserId, query, {
             limit,
-            includeInactive
+            includeInactive,
+            includeStale,
+            includeLowConfidence
           })
         );
       } catch (error) {
@@ -126,6 +135,92 @@ export function registerMemoryGraphRoutes(
   );
 
   server.post<{ Params: { id: string } }>(
+    "/api/memory/graph/facts/:id/confirm",
+    { schema: postMemoryGraphConfirmRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const fact = await dependencies.dataContext.withDataContext(access, async (scopedDb) =>
+          (await createGraphService(scopedDb)).confirm(scopedDb, access.actorUserId, {
+            factId: request.params.id
+          })
+        );
+        if (!fact) return reply.code(404).send({ error: "Memory fact not found" });
+        return { fact };
+      } catch (error) {
+        return handleMemoryGraphRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/memory/graph/facts/:id/correct",
+    { schema: postMemoryGraphCorrectRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const body = request.body as { replacementText: string; correctionReason?: string };
+        const fact = await dependencies.dataContext.withDataContext(access, async (scopedDb) =>
+          (await createGraphService(scopedDb)).correct(scopedDb, access.actorUserId, {
+            targetFactId: request.params.id,
+            replacementText: body.replacementText,
+            correctionReason: body.correctionReason
+          })
+        );
+        if (!fact) return reply.code(404).send({ error: "Memory fact not found" });
+        return { fact };
+      } catch (error) {
+        return handleMemoryGraphRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/memory/graph/facts/:id/status",
+    { schema: postMemoryGraphStatusRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const body = request.body as {
+          status: "active" | "stale" | "expired" | "rejected";
+          reason?: string;
+        };
+        const fact = await dependencies.dataContext.withDataContext(access, async (scopedDb) =>
+          (await createGraphService(scopedDb)).patchStatus(
+            scopedDb,
+            access.actorUserId,
+            request.params.id,
+            body
+          )
+        );
+        if (!fact) return reply.code(404).send({ error: "Memory fact not found" });
+        return { fact };
+      } catch (error) {
+        return handleMemoryGraphRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
+    "/api/memory/graph/facts/:id/mark-stale",
+    { schema: postMemoryGraphMarkStaleRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const fact = await dependencies.dataContext.withDataContext(access, async (scopedDb) =>
+          (await createGraphService(scopedDb)).markStale(scopedDb, access.actorUserId, {
+            factId: request.params.id
+          })
+        );
+        if (!fact) return reply.code(404).send({ error: "Memory fact not found" });
+        return { fact };
+      } catch (error) {
+        return handleMemoryGraphRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post<{ Params: { id: string } }>(
     "/api/memory/graph/facts/:id/supersede",
     { schema: postMemoryGraphSupersedeRouteSchema },
     async (request, reply) => {
@@ -175,6 +270,9 @@ function handleMemoryGraphRouteError(error: unknown, reply: FastifyReply) {
     return reply.code(401).send({ error: "Unauthorized" });
   }
   if (error instanceof Error && error.message.includes("requires exactly one object target")) {
+    return reply.code(400).send({ error: error.message });
+  }
+  if (error instanceof Error && error.message.includes("conflict-group memory")) {
     return reply.code(400).send({ error: error.message });
   }
   throw error;

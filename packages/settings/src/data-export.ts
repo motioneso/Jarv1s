@@ -40,6 +40,7 @@ export interface UserDataExportTables {
   readonly memoryChunks: readonly ExportRow[];
   readonly memoryAliases: readonly ExportRow[];
   readonly memoryCandidates: readonly ExportRow[];
+  readonly memoryConflictGroups: readonly ExportRow[];
   readonly memoryEntities: readonly ExportRow[];
   readonly memoryEpisodes: readonly ExportRow[];
   readonly memoryFacts: readonly ExportRow[];
@@ -97,6 +98,7 @@ async function readExportTables(
     memoryFactSources: await readRows(scopedDb.db, memoryFactSourcesQuery(userId)),
     memoryAliases: await readRows(scopedDb.db, memoryAliasesQuery(userId)),
     memoryCandidates: await readRows(scopedDb.db, memoryCandidatesQuery(userId)),
+    memoryConflictGroups: await readRows(scopedDb.db, memoryConflictGroupsQuery(userId)),
     memorySearchDocuments: await readRows(scopedDb.db, memorySearchDocumentsQuery(userId)),
     memoryLegacyFactMigrations: await readRows(
       scopedDb.db,
@@ -496,11 +498,15 @@ function memoryFactsQuery(userId: string) {
       predicate,
       object_entity_id::text AS "objectEntityId",
       object_text AS "objectText",
+      record_kind AS "recordKind",
       confidence,
       provenance,
       status,
       valid_from AS "validFrom",
       valid_to AS "validTo",
+      stale_at AS "staleAt",
+      superseded_by_fact_id::text AS "supersededByFactId",
+      conflict_group_id::text AS "conflictGroupId",
       last_confirmed_at AS "lastConfirmedAt",
       importance,
       pinned,
@@ -554,6 +560,20 @@ function memoryAliasesQuery(userId: string) {
       created_at AS "createdAt",
       updated_at AS "updatedAt"
     FROM app.memory_aliases
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryConflictGroupsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      owner_user_id::text AS "ownerUserId",
+      id::text AS id,
+      status,
+      created_at AS "createdAt",
+      resolved_at AS "resolvedAt"
+    FROM app.memory_conflict_groups
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
   `;

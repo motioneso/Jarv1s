@@ -7,9 +7,12 @@ import type {
   MemoryFactRecallCandidate,
   MemoryFactRecord,
   MemoryForgetResult,
+  MemoryCorrectionInput,
   MemoryRecallItem,
+  MemoryRecallOptions,
   MemoryRecallResult,
   MemoryRememberInput,
+  MemoryStatusPatchInput,
   MemorySupersedeInput,
   MemoryWriteResult,
   NewMemoryFact
@@ -56,7 +59,7 @@ export class GraphMemoryRecallService {
     scopedDb: DataContextDb,
     ownerUserId: string,
     query: string,
-    options: { readonly limit?: number; readonly includeInactive?: boolean } = {}
+    options: MemoryRecallOptions = {}
   ): Promise<MemoryRecallResult> {
     assertDataContextDb(scopedDb);
     const trimmedQuery = query.trim();
@@ -67,11 +70,17 @@ export class GraphMemoryRecallService {
       scopedDb,
       ownerUserId,
       queryEmbedding,
-      { includeInactive: options.includeInactive }
+      { includeInactive: options.includeInactive, includeStale: options.includeStale }
     );
     const items = candidates
       .map((candidate) => toRecallItem(candidate, trimmedQuery))
       .filter((item) => options.includeInactive || item.score > 0)
+      .filter(
+        (item) =>
+          options.includeLowConfidence ||
+          item.confidence >= 0.6 ||
+          directMatchScore(trimmedQuery, item.text) >= 0.85
+      )
       .sort((a, b) => b.score - a.score || b.confidence - a.confidence)
       .slice(0, options.limit ?? DEFAULT_RECALL_LIMIT);
 
@@ -115,6 +124,43 @@ export class GraphMemoryRecallService {
     };
   }
 
+  async confirm(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    target: { readonly factId: string }
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    return this.repository.confirmFact(scopedDb, ownerUserId, target.factId);
+  }
+
+  async correct(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    input: MemoryCorrectionInput
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    return this.repository.correctFact(scopedDb, ownerUserId, input);
+  }
+
+  async patchStatus(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string,
+    input: MemoryStatusPatchInput
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    return this.repository.patchFactStatus(scopedDb, ownerUserId, factId, input);
+  }
+
+  async markStale(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    target: { readonly factId: string }
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    return this.repository.markFactStale(scopedDb, ownerUserId, target.factId);
+  }
+
   async link(
     scopedDb: DataContextDb,
     ownerUserId: string,
@@ -155,12 +201,22 @@ function factToRecallItem(fact: MemoryFactRecord, score: number): MemoryRecallIt
     title: fact.predicate,
     text: fact.objectText ?? fact.objectEntityId ?? "",
     score,
+    recordKind: fact.recordKind,
+    status: fact.status,
     confidence: fact.confidence,
+    confidenceTier: fact.confidenceTier,
     provenance: fact.provenance,
     validFrom: fact.validFrom,
     validTo: fact.validTo,
+    staleAt: fact.staleAt,
+    supersededByFactId: fact.supersededByFactId,
+    conflictGroupId: fact.conflictGroupId,
     sources: fact.sources
   };
+}
+
+function directMatchScore(query: string, text: string): number {
+  return keywordScore(query, text);
 }
 
 function factSearchText(fact: MemoryFactRecord): string {

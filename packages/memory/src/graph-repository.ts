@@ -4,6 +4,8 @@ import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 
 import type {
   MemoryAliasRecord,
+  MemoryConfidenceTier,
+  MemoryCorrectionInput,
   MemoryEntityKind,
   MemoryEntityRecord,
   MemoryEntityStatus,
@@ -13,8 +15,10 @@ import type {
   MemoryFactProvenance,
   MemoryFactRecord,
   MemoryFactStatus,
+  MemoryRecordKind,
   MemorySearchDocumentRecord,
   MemorySearchTargetKind,
+  MemoryStatusPatchInput,
   MemorySourceInput,
   MemorySourceSummary,
   NewMemoryEntity,
@@ -41,11 +45,15 @@ interface FactRow {
   readonly predicate: MemoryFactPredicate;
   readonly object_entity_id: string | null;
   readonly object_text: string | null;
+  readonly record_kind: MemoryRecordKind;
   readonly confidence: string | number;
   readonly provenance: MemoryFactProvenance;
   readonly status: MemoryFactStatus;
   readonly valid_from: Date | null;
   readonly valid_to: Date | null;
+  readonly stale_at: Date | null;
+  readonly superseded_by_fact_id: string | null;
+  readonly conflict_group_id: string | null;
   readonly last_confirmed_at: Date | null;
   readonly importance: string | number;
   readonly pinned: boolean;
@@ -186,6 +194,7 @@ export class MemoryGraphRepository {
         predicate,
         object_entity_id,
         object_text,
+        record_kind,
         confidence,
         provenance,
         importance,
@@ -197,6 +206,7 @@ export class MemoryGraphRepository {
         ${input.predicate},
         ${input.objectEntityId ?? null}::uuid,
         ${input.objectText ?? null},
+        ${input.recordKind ?? recordKindForPredicate(input.predicate, input.provenance)},
         ${input.confidence ?? 0.6},
         ${input.provenance ?? "inferred"},
         ${input.importance ?? 0.5},
@@ -294,6 +304,7 @@ export class MemoryGraphRepository {
         predicate,
         object_entity_id,
         object_text,
+        record_kind,
         confidence,
         provenance,
         importance,
@@ -305,6 +316,7 @@ export class MemoryGraphRepository {
         ${input.predicate},
         ${input.objectEntityId ?? null}::uuid,
         ${input.objectText ?? null},
+        ${input.recordKind ?? recordKindForPredicate(input.predicate, input.provenance)},
         ${input.confidence ?? 0.6},
         ${input.provenance ?? "inferred"},
         ${input.importance ?? 0.5},
@@ -392,6 +404,23 @@ export class MemoryGraphRepository {
     `.execute(scopedDb.db);
   }
 
+  async setSearchDocumentStatus(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    targetKind: MemorySearchTargetKind,
+    targetId: string,
+    status: "active" | "inactive"
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`
+      UPDATE app.memory_search_documents
+      SET status = ${status}, updated_at = now()
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND target_kind = ${targetKind}
+        AND target_id = ${targetId}::uuid
+    `.execute(scopedDb.db);
+  }
+
   async listSearchDocumentsForOwner(
     scopedDb: DataContextDb,
     ownerUserId: string
@@ -442,7 +471,7 @@ export class MemoryGraphRepository {
     scopedDb: DataContextDb,
     ownerUserId: string,
     queryEmbedding: readonly number[],
-    options: { readonly includeInactive?: boolean } = {}
+    options: { readonly includeInactive?: boolean; readonly includeStale?: boolean } = {}
   ): Promise<MemoryFactRecallCandidate[]> {
     assertDataContextDb(scopedDb);
     const vectorLiteral = toVectorLiteral(queryEmbedding);
@@ -463,13 +492,16 @@ export class MemoryGraphRepository {
         ON d.owner_user_id = f.owner_user_id
        AND d.target_kind = 'fact'
        AND d.target_id = f.id
-       AND d.status = 'active'
+       AND (${options.includeInactive ?? false} OR d.status = 'active')
       WHERE f.owner_user_id = ${ownerUserId}::uuid
+        AND (f.valid_from IS NULL OR f.valid_from <= now())
         AND (
           ${options.includeInactive ?? false}
           OR (
-            f.status = 'active'
+            (f.status IN ('active', 'conflicting')
+              OR (${options.includeStale ?? false} AND f.status = 'stale'))
             AND (f.valid_to IS NULL OR f.valid_to > now())
+            AND (${options.includeStale ?? false} OR f.stale_at IS NULL OR f.stale_at > now())
           )
         )
       ORDER BY f.pinned DESC, f.importance DESC, f.updated_at DESC
@@ -497,7 +529,12 @@ export class MemoryGraphRepository {
       WHERE owner_user_id = ${ownerUserId}::uuid
         AND status = 'active'
         AND (valid_to IS NULL OR valid_to > now())
-        AND (pinned = true OR provenance IN ('confirmed', 'volunteered'))
+        AND (stale_at IS NULL OR stale_at > now())
+        AND (
+          (pinned = true AND confidence >= 0.70)
+          OR provenance = 'confirmed'
+          OR confidence >= 0.80
+        )
       ORDER BY pinned DESC, importance DESC, last_confirmed_at DESC NULLS LAST, updated_at DESC
       LIMIT ${limit}
     `.execute(scopedDb.db);
@@ -580,6 +617,211 @@ export class MemoryGraphRepository {
     return result.rows.length > 0;
   }
 
+  async confirmFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    const existing = await this.getFact(scopedDb, ownerUserId, factId);
+    if (!existing) return undefined;
+
+    if (existing.conflictGroupId) {
+      await sql`
+        UPDATE app.memory_facts
+        SET status = 'superseded',
+            superseded_by_fact_id = ${factId}::uuid,
+            valid_to = COALESCE(valid_to, now()),
+            updated_at = now()
+        WHERE owner_user_id = ${ownerUserId}::uuid
+          AND conflict_group_id = ${existing.conflictGroupId}::uuid
+          AND id <> ${factId}::uuid
+      `.execute(scopedDb.db);
+      await sql`
+        UPDATE app.memory_conflict_groups
+        SET status = 'resolved', resolved_at = now()
+        WHERE owner_user_id = ${ownerUserId}::uuid
+          AND id = ${existing.conflictGroupId}::uuid
+      `.execute(scopedDb.db);
+      await this.deactivateConflictGroupSearchDocuments(
+        scopedDb,
+        ownerUserId,
+        existing.conflictGroupId,
+        factId
+      );
+    }
+
+    const result = await sql<FactRow>`
+      UPDATE app.memory_facts
+      SET provenance = 'confirmed',
+          confidence = GREATEST(confidence, 0.90),
+          status = 'active',
+          conflict_group_id = NULL,
+          last_confirmed_at = now(),
+          updated_at = now()
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${factId}::uuid
+      RETURNING *
+    `.execute(scopedDb.db);
+
+    await this.setSearchDocumentStatus(scopedDb, ownerUserId, "fact", factId, "active");
+    return this.mapFactRow(scopedDb, ownerUserId, result.rows[0]);
+  }
+
+  async markFactStale(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string
+  ): Promise<MemoryFactRecord | undefined> {
+    return this.patchFactStatus(scopedDb, ownerUserId, factId, { status: "stale" });
+  }
+
+  async patchFactStatus(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string,
+    input: MemoryStatusPatchInput
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    const existing = await this.getFact(scopedDb, ownerUserId, factId);
+    if (!existing) return undefined;
+    if (existing.conflictGroupId) {
+      throw new Error("conflict-group memory must be resolved with confirm or correct");
+    }
+
+    const result = await sql<FactRow>`
+      UPDATE app.memory_facts
+      SET status = ${input.status},
+          stale_at = CASE WHEN ${input.status} = 'stale' THEN now() ELSE stale_at END,
+          valid_to = CASE WHEN ${input.status} = 'expired' THEN COALESCE(valid_to, now()) ELSE valid_to END,
+          updated_at = now()
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${factId}::uuid
+      RETURNING *
+    `.execute(scopedDb.db);
+
+    await this.setSearchDocumentStatus(
+      scopedDb,
+      ownerUserId,
+      "fact",
+      factId,
+      input.status === "expired" || input.status === "rejected" ? "inactive" : "active"
+    );
+    return this.mapFactRow(scopedDb, ownerUserId, result.rows[0]);
+  }
+
+  async correctFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    input: MemoryCorrectionInput
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    const existing = await this.getFact(scopedDb, ownerUserId, input.targetFactId);
+    if (!existing) return undefined;
+
+    const source = existing.sources[0];
+    const replacement = await this.createFact(scopedDb, ownerUserId, {
+      subjectEntityId: existing.subjectEntityId,
+      predicate: existing.predicate,
+      objectEntityId: null,
+      objectText: input.replacementText,
+      recordKind: existing.recordKind,
+      confidence: Math.max(existing.confidence, 0.9),
+      provenance: "confirmed",
+      importance: existing.importance,
+      pinned: existing.pinned,
+      source: {
+        sourceKind: source?.sourceKind ?? "manual",
+        sourceRef: source?.sourceRef ?? `memory:${existing.id}`,
+        sourceLabel: source?.sourceLabel ?? "Memory correction",
+        occurredAt: source?.occurredAt ?? null,
+        excerpt: source?.excerpt ?? ""
+      }
+    });
+
+    if (existing.conflictGroupId) {
+      await sql`
+        UPDATE app.memory_facts
+        SET status = 'superseded',
+            superseded_by_fact_id = ${replacement.id}::uuid,
+            valid_to = COALESCE(valid_to, now()),
+            updated_at = now()
+        WHERE owner_user_id = ${ownerUserId}::uuid
+          AND conflict_group_id = ${existing.conflictGroupId}::uuid
+      `.execute(scopedDb.db);
+      await sql`
+        UPDATE app.memory_conflict_groups
+        SET status = 'resolved', resolved_at = now()
+        WHERE owner_user_id = ${ownerUserId}::uuid
+          AND id = ${existing.conflictGroupId}::uuid
+      `.execute(scopedDb.db);
+      await this.deactivateConflictGroupSearchDocuments(
+        scopedDb,
+        ownerUserId,
+        existing.conflictGroupId,
+        replacement.id
+      );
+    } else {
+      await sql`
+        UPDATE app.memory_facts
+        SET status = 'superseded',
+            superseded_by_fact_id = ${replacement.id}::uuid,
+            valid_to = COALESCE(valid_to, now()),
+            updated_at = now()
+        WHERE owner_user_id = ${ownerUserId}::uuid
+          AND id = ${existing.id}::uuid
+      `.execute(scopedDb.db);
+    }
+
+    await this.deactivateSearchDocument(scopedDb, ownerUserId, "fact", existing.id);
+    return replacement;
+  }
+
+  private async getFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string
+  ): Promise<MemoryFactRecord | undefined> {
+    const result = await sql<FactRow>`
+      SELECT *
+      FROM app.memory_facts
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${factId}::uuid
+    `.execute(scopedDb.db);
+    return this.mapFactRow(scopedDb, ownerUserId, result.rows[0]);
+  }
+
+  private async deactivateConflictGroupSearchDocuments(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    conflictGroupId: string,
+    exceptFactId: string
+  ): Promise<void> {
+    await sql`
+      UPDATE app.memory_search_documents
+      SET status = 'inactive', updated_at = now()
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND target_kind = 'fact'
+        AND target_id IN (
+          SELECT id
+          FROM app.memory_facts
+          WHERE owner_user_id = ${ownerUserId}::uuid
+            AND conflict_group_id = ${conflictGroupId}::uuid
+            AND id <> ${exceptFactId}::uuid
+        )
+    `.execute(scopedDb.db);
+  }
+
+  private async mapFactRow(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    row: FactRow | undefined
+  ): Promise<MemoryFactRecord | undefined> {
+    return row
+      ? mapFact(row, await this.listSourcesForFact(scopedDb, ownerUserId, row.id))
+      : undefined;
+  }
+
   private async listSourcesForFact(
     scopedDb: DataContextDb,
     ownerUserId: string,
@@ -628,6 +870,7 @@ function mapEntity(row: EntityRow): MemoryEntityRecord {
 }
 
 function mapFact(row: FactRow, sources: readonly MemorySourceSummary[]): MemoryFactRecord {
+  const confidence = Number(row.confidence);
   return {
     id: row.id,
     ownerUserId: row.owner_user_id,
@@ -635,11 +878,16 @@ function mapFact(row: FactRow, sources: readonly MemorySourceSummary[]): MemoryF
     predicate: row.predicate,
     objectEntityId: row.object_entity_id,
     objectText: row.object_text,
-    confidence: Number(row.confidence),
+    recordKind: row.record_kind,
+    confidence,
+    confidenceTier: confidenceTier(confidence, row.provenance, row.last_confirmed_at),
     provenance: row.provenance,
     status: row.status,
     validFrom: row.valid_from,
     validTo: row.valid_to,
+    staleAt: row.stale_at,
+    supersededByFactId: row.superseded_by_fact_id,
+    conflictGroupId: row.conflict_group_id,
     lastConfirmedAt: row.last_confirmed_at,
     importance: Number(row.importance),
     pinned: row.pinned,
@@ -647,6 +895,39 @@ function mapFact(row: FactRow, sources: readonly MemorySourceSummary[]): MemoryF
     updatedAt: row.updated_at,
     sources
   };
+}
+
+function confidenceTier(
+  confidence: number,
+  provenance: MemoryFactProvenance,
+  lastConfirmedAt: Date | null
+): MemoryConfidenceTier {
+  if ((provenance === "confirmed" || lastConfirmedAt) && confidence >= 0.9) return "confirmed";
+  if (confidence >= 0.8) return "high";
+  if (confidence >= 0.6) return "medium";
+  return "low";
+}
+
+function recordKindForPredicate(
+  predicate: MemoryFactPredicate,
+  provenance: MemoryFactProvenance | undefined
+): MemoryRecordKind {
+  switch (predicate) {
+    case "prefers":
+      return "preference";
+    case "has_goal":
+      return "goal";
+    case "has_constraint":
+      return "constraint";
+    case "decided":
+      return "decision";
+    case "alias_of":
+      return "alias";
+    case "related_to":
+      return "relationship";
+    default:
+      return provenance === "inferred" ? "inference" : "fact";
+  }
 }
 
 function mapSource(row: SourceRow): MemorySourceSummary {

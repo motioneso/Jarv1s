@@ -100,6 +100,7 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   ["app.memory_aliases", "owner_user_id = $1::uuid"],
   ["app.memory_search_documents", "owner_user_id = $1::uuid"],
   ["app.memory_legacy_fact_migrations", "owner_user_id = $1::uuid"],
+  ["app.memory_conflict_groups", "owner_user_id = $1::uuid"],
   ["app.memory_candidates", "owner_user_id = $1::uuid"],
   // Structured-state (0031): commitments/entities/preferences.
   ["app.commitments", "owner_user_id = $1::uuid"],

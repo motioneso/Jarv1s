@@ -23,10 +23,16 @@ const memoryRecallItemSchema = {
     "title",
     "text",
     "score",
+    "recordKind",
+    "status",
     "confidence",
+    "confidenceTier",
     "provenance",
     "validFrom",
     "validTo",
+    "staleAt",
+    "supersededByFactId",
+    "conflictGroupId",
     "sources"
   ],
   properties: {
@@ -35,10 +41,31 @@ const memoryRecallItemSchema = {
     title: { type: "string" },
     text: { type: "string" },
     score: { type: "number" },
+    recordKind: {
+      type: "string",
+      enum: [
+        "fact",
+        "preference",
+        "goal",
+        "constraint",
+        "decision",
+        "relationship",
+        "alias",
+        "inference"
+      ]
+    },
+    status: {
+      type: "string",
+      enum: ["active", "stale", "expired", "superseded", "rejected", "conflicting"]
+    },
     confidence: { type: "number" },
+    confidenceTier: { type: "string", enum: ["confirmed", "high", "medium", "low"] },
     provenance: { type: "string", enum: ["volunteered", "inferred", "confirmed", "imported"] },
     validFrom: { type: ["string", "null"] },
     validTo: { type: ["string", "null"] },
+    staleAt: { type: ["string", "null"] },
+    supersededByFactId: { type: ["string", "null"] },
+    conflictGroupId: { type: ["string", "null"] },
     sources: {
       type: "array",
       items: {
@@ -85,7 +112,9 @@ export const getMemoryGraphRecallRouteSchema = {
     properties: {
       q: { type: "string" },
       limit: { type: "number" },
-      includeInactive: { type: "boolean" }
+      includeInactive: { type: "boolean" },
+      includeStale: { type: "boolean" },
+      includeLowConfidence: { type: "boolean" }
     }
   },
   response: {
@@ -153,12 +182,98 @@ export const postMemoryGraphFactRouteSchema = {
       },
       objectEntityId: { type: ["string", "null"] },
       objectText: { type: ["string", "null"] },
+      recordKind: {
+        type: "string",
+        enum: [
+          "fact",
+          "preference",
+          "goal",
+          "constraint",
+          "decision",
+          "relationship",
+          "alias",
+          "inference"
+        ]
+      },
       confidence: { type: "number" },
       provenance: { type: "string", enum: ["volunteered", "inferred", "confirmed", "imported"] },
       importance: { type: "number" },
       pinned: { type: "boolean" },
       source: memorySourceSchema
     }
+  }
+} as const;
+
+export const postMemoryGraphConfirmRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    properties: {}
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["fact"],
+      properties: { fact: { type: "object", additionalProperties: true } }
+    },
+    404: memoryGraphErrorResponseSchema
+  }
+} as const;
+
+export const postMemoryGraphCorrectRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["replacementText"],
+    properties: {
+      replacementText: { type: "string" },
+      correctionReason: { type: "string" }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["fact"],
+      properties: { fact: { type: "object", additionalProperties: true } }
+    },
+    404: memoryGraphErrorResponseSchema
+  }
+} as const;
+
+export const postMemoryGraphStatusRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["status"],
+    properties: {
+      status: { type: "string", enum: ["active", "stale", "expired", "rejected"] },
+      reason: { type: "string" }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["fact"],
+      properties: { fact: { type: "object", additionalProperties: true } }
+    },
+    400: memoryGraphErrorResponseSchema,
+    404: memoryGraphErrorResponseSchema
+  }
+} as const;
+
+export const postMemoryGraphMarkStaleRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    properties: {}
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["fact"],
+      properties: { fact: { type: "object", additionalProperties: true } }
+    },
+    404: memoryGraphErrorResponseSchema
   }
 } as const;
 
