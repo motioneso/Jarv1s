@@ -3,6 +3,7 @@ export * from "./jobs.js";
 export * from "./live-routes.js";
 export { DataContextChatPersistence } from "./live/persistence.js";
 export type { DataContextChatPersistenceDeps } from "./live/persistence.js";
+export { combineHiddenContextBlocks } from "./live/chat-session-manager.js";
 export * from "./live/recall-seed.js";
 export * from "./live/passive-retrieval.js";
 export {

@@ -17,6 +17,7 @@ import type { PgBoss } from "pg-boss";
 
 import type { RecallPort } from "../recall-port.js";
 import { PassiveContextRetriever, type PassiveMemoryGraphRecallPort } from "./passive-retrieval.js";
+import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
 
 import { resolveChatHome } from "./chat-home.js";
 import {
@@ -251,6 +252,14 @@ export interface CreateChatSessionRuntimeDeps {
     /** Start the §5.5 idle reaper at boot (default true). The returned `shutdown()` stops it. */
     readonly startIdleReaper?: boolean;
   };
+  /** Optional gateway for cross-tool pre-turn context fan-out. Structural — real AssistantToolGateway satisfies this. */
+  readonly crossToolGateway?: {
+    runReadToolForActor(
+      actorUserId: string,
+      toolName: string,
+      rawInput: unknown
+    ): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }>;
+  };
 }
 
 export interface ChatSessionRuntime {
@@ -371,6 +380,9 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
           dataContext: deps.dataContext,
           graphRecall: deps.passiveMemoryRecall
         })
+      : undefined,
+    crossToolRead: deps.crossToolGateway
+      ? buildCrossToolReadAdapter(deps.crossToolGateway)
       : undefined
   });
 
@@ -421,6 +433,19 @@ async function killOrphan(
   } catch {
     // best-effort: reconciliation must not wedge on a single orphan-kill failure.
   }
+}
+
+function buildCrossToolReadAdapter(gateway: {
+  runReadToolForActor(
+    actorUserId: string,
+    toolName: string,
+    rawInput: unknown
+  ): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }>;
+}): CrossToolReadRunner {
+  return {
+    runReadTool: (actorUserId, toolName, input) =>
+      gateway.runReadToolForActor(actorUserId, toolName, input)
+  };
 }
 
 async function resolveChatPersona(
