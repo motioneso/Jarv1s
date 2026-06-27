@@ -30,7 +30,7 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | PR opened; corrected GLM security QA running while CI pending (`w1:p3S`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | corrected GLM security QA GREEN; image-build CI still pending, then Ben sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | RED QA; build lane fixing CI image failure + two blocking findings (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
@@ -112,9 +112,11 @@ None.
   `VF_EXIT=0`/`AUDIT_EXIT=0`, rebased on `origin/main`. GitHub CI was pending at QA launch. Security
   QA first ran in detached worktree `qa-545-glm` via opencode/GLM pane `w1:p3R`, but reviewed the
   wrong checkout and posted an invalid spec-only RED verdict; coordinator posted a superseding PR
-  comment. Corrected GLM QA is running in verified detached worktree `/tmp/jarv1s-qa-545-glm-2` via
-  pane `w1:p3S` after confirming HEAD `519ad54` and graph files are present. Security-tier merge
-  remains blocked on valid posted QA verdict plus Ben's explicit sign-off.
+  comment. Corrected GLM QA ran in verified detached worktree `/tmp/jarv1s-qa-545-glm-2` after
+  confirming HEAD `519ad54` and graph files are present; it posted GREEN security verdict with
+  0 blocking / 3 non-blocking findings. As of the verdict, Verify/app and compose smokes were green,
+  but `Build and publish images` was still in progress in GitHub checks. Security-tier merge remains
+  blocked on final green CI plus Ben's explicit sign-off.
 
 ## Reaped Sessions
 
