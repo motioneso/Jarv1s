@@ -15,3 +15,9 @@ export {
   type ScanReason,
   type ScanResult
 } from "./scanner.js";
+export {
+  PROACTIVE_SCAN_SOURCE_QUEUE,
+  enqueueProactiveScan,
+  registerProactiveMonitoringWorkers,
+  type ProactiveScanSourceJobPayload
+} from "./jobs.js";
