@@ -19,8 +19,10 @@ because their
 stack base branch was removed after #528 merged; owning panes `w1:p3Z` and `w1:p3T` were told to
 fetch/rebase onto current `origin/main`, rerun checks, and retarget/reopen or replace the PRs.
 PR #548 (`#534`) remains open with red `Verify foundation and app` and is back with AGY pane
-`w1:p3N`; AGY pushed head `8e7778f` after a local clean-install gate, but GitHub CI run
-`28299994997` failed immediately on verify and compose checks, so it was routed back again.
+`w1:p3N`; AGY pushed head `8e7778f` after a local clean-install gate, GitHub CI run `28299994997`
+failed immediately on verify and compose checks, and AGY then pushed lockfile head `1874272` with
+CI run `28300052293` in progress. #530 replacement PR #550 is open against `main` because closed
+#546 could not be reopened after its deleted stacked base.
 
 ## Base
 
@@ -47,9 +49,9 @@ PR #548 (`#534`) remains open with red `Verify foundation and app` and is back w
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | MERGED via PR #545 at merge commit `eef2a68`; issue #528 closed; build pane/worktree reaped | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | MERGED via PR #544 at merge commit `5f7cc42`; issue #526 closed; pane/worktree reaped | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 head `8e7778f` has red GitHub CI run `28299994997`; routed to AGY pane `w1:p3N` | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 head `1874272` has GitHub CI run `28300052293` in progress after lockfile fix | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Security QA rerun RED; PR #547 closed unmerged after stacked base removal; blockers plus main retarget/reopen routed to build pane `w1:p3Z` | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
-| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN but closed unmerged after stacked base removal; main retarget/reopen routed to build pane `w1:p3T` for fresh checks | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
+| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | Replacement PR #550 open against `main` at rebased head `908cd45`; GitHub CI run `28300096575` in progress | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #550 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | queued after #530 | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
