@@ -32,6 +32,8 @@ const EXPLICIT_TRIGGER =
 const CONCRETE_MARKER =
   /\b(approved|decided|deadline|today|tomorrow|yesterday|\d{4}-\d{2}-\d{2}|january|february|march|april|may|june|july|august|september|october|november|december|need to|will|shipped|blocked)\b/i;
 const NAMED_SUBJECT = /\b(project|person|client|team|ben|jarvis|rfa-\d+|#[0-9]+)\b/i;
+const SENSITIVE_MEMORY_TEXT =
+  /\b(api[-_\s]?key|access[-_\s]?token|refresh[-_\s]?token|bearer\s+[a-z0-9._~-]+|oauth|password|passphrase|secret|private[-_\s]?key|credit[-_\s]?card|bank[-_\s]?account)\b|(?:sk|ghp|github_pat|xox[baprs]|AKIA)[-_A-Za-z0-9]{8,}/i;
 
 export type MemoryCandidateKind = "entity" | "fact" | "alias" | "supersession" | "conflict";
 export type MemoryCandidateAction = "create" | "update" | "link" | "supersede" | "reject";
@@ -128,6 +130,20 @@ export function parseMemoryCandidates(text: string): MemoryCandidate[] {
   });
 }
 
+export function memoryCandidateContainsSensitiveText(candidate: MemoryCandidate): boolean {
+  return [
+    candidate.entity?.name,
+    candidate.entity?.summary,
+    candidate.fact?.subject,
+    candidate.fact?.objectText,
+    candidate.fact?.objectName,
+    candidate.alias?.alias,
+    candidate.alias?.targetName,
+    candidate.sourceExcerpt,
+    candidate.rationale
+  ].some((value) => typeof value === "string" && SENSITIVE_MEMORY_TEXT.test(value));
+}
+
 export function decideCandidatePromotion(input: PromotionDecisionInput): PromotionDecision {
   const { candidate } = input;
   if (candidate.provenance === "inferred") return { status: "pending", reason: "inferred" };
@@ -168,7 +184,7 @@ function parseCandidate(value: unknown): MemoryCandidate | undefined {
   const rationale = typeof raw.rationale === "string" ? raw.rationale.trim() : "";
   if (!sourceExcerpt || !rationale) return undefined;
 
-  return {
+  const candidate = {
     kind: raw.kind,
     action: raw.action,
     ...(entity ? { entity } : {}),
@@ -183,6 +199,10 @@ function parseCandidate(value: unknown): MemoryCandidate | undefined {
     supersedesIds: Array.isArray(raw.supersedesIds)
       ? raw.supersedesIds.filter((id): id is string => typeof id === "string")
       : undefined
+  } satisfies MemoryCandidate;
+  return {
+    ...candidate,
+    isSensitive: candidate.isSensitive || memoryCandidateContainsSensitiveText(candidate)
   };
 }
 
