@@ -30,9 +30,9 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | queued wave 1 | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | queued wave 1 | opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | queued wave 1 | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | handoff committed (`1c5f27e`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | handoff committed (`7f22c24`) | opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | handoff committed (`7ba3cc8`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | queued after #528 | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
