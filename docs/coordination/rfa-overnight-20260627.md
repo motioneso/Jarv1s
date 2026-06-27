@@ -8,11 +8,12 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 `security` requires Ben's explicit merge sign-off after posted QA verdict.
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 **Continuation note:** successor has claimed the coordinator lock. Continue in this order:
-rerun independent QA for PR #544 (`#526`) now that CI is green on head `9b063e6`; start
-security QA for PR #547 (`#529`) and PR #548 (`#534`) now that both are CI green; keep PR #545
-(`#528`) blocked on Ben sign-off; keep PR #546 (`#530`) parked green behind `#528` stack order.
+PR #544 (`#526`) is merged and reaped; PR #545 (`#528`) has Ben sign-off but needs builder
+rebase-conflict resolution after #544 landed; PR #547 (`#529`) is RED again and back with the
+builder; PR #548 (`#534`) security QA rerun is in progress; PR #546 (`#530`) remains parked behind
+`#528` stack order.
 
 ## Base
 
@@ -34,10 +35,10 @@ security QA for PR #547 (`#529`) and PR #548 (`#534`) now that both are CI green
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR #544 CI green on head `888bf2b`; independent QA rerun in progress via subagent `Descartes` (`019f0a1c-4f8e-73f2-a037-cfbca06f10d5`) | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | Security blockers fixed on PR #548 head `2a89b09`; CI run `28295984746` still in progress | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 CI green on head `6db2313`; security QA rerun in progress via subagent `Feynman` (`019f0a1c-5026-79c2-9148-9fb3d173fbf7`) + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | Ben approved; rebase onto current `main` blocked by conflicts, routed to build pane `w1:p3K` | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | MERGED via PR #544 at merge commit `5f7cc42`; issue #526 closed; pane/worktree reaped | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 CI green on head `2a89b09`; security QA rerun in progress via subagent `Ptolemy` (`019f0a29-3c95-7301-894d-ecd87875eb08`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Security QA rerun RED on PR #547; blockers routed to build pane `w1:p3Z` + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
@@ -238,6 +239,19 @@ None.
   `notes.create/edit` lacking `actionFamilyId`, and `trusted_auto` skipping `executionPolicy ===
   "auto"` plus `manifest.allowedTiers` checks. Routed to AGY build pane `w1:p3N` with focused
   regression requirements.
+- #526: PR #544 merged on 2026-06-27 at merge commit `5f7cc42` after CI run `28295482013` and
+  independent QA GREEN
+  (`https://github.com/motioneso/Jarv1s/pull/544#issuecomment-4819699359`). Issue #526 was closed
+  explicitly because GitHub did not auto-close it.
+- #528: Ben approved security-tier merge for PR #545, but after #544 landed `gh pr update-branch
+  545 --rebase` failed with conflicts. Routed to build pane `w1:p3K` for conflict-only rebase
+  resolution, push, and fresh evidence. Do not merge #545 until its updated head has green checks.
+- #529: security QA rerun subagent `Feynman` (`019f0a1c-5026-79c2-9148-9fb3d173fbf7`) returned RED
+  and posted `https://github.com/motioneso/Jarv1s/pull/547#issuecomment-4819714213`: raw turn text
+  reaches the extraction AI prompt before deterministic sensitivity filtering, and raw secret-like
+  excerpts are stored/exported before filtering. Routed to build pane `w1:p3Z`.
+- #534: PR #548 head `2a89b09` now has green CI run `28295984746`; security QA rerun subagent
+  `Ptolemy` (`019f0a29-3c95-7301-894d-ecd87875eb08`) is in progress.
 
 ## Reaped Sessions
 
@@ -246,6 +260,10 @@ None.
 - Closed completed native QA subagents `Beauvoir` (`019f09e9-1622-7061-bdd6-50a79b5c58a4`),
   `Peirce` (`019f09e9-4ecc-7480-92b6-4dba8898300c`), and `Gauss`
   (`019f09e9-4f55-7341-826a-14248ece0bf6`).
+- Closed completed native QA subagents `Descartes` (`019f0a1c-4f8e-73f2-a037-cfbca06f10d5`) and
+  `Feynman` (`019f0a1c-5026-79c2-9148-9fb3d173fbf7`).
+- Closed merged #526 build pane `RFA-526 Codex salvage` (`w1:p3Q`) and removed worktree
+  `~/Jarv1s/.claude/worktrees/rfa-526-unified-priority-model`.
 - Closed completed Herdr QA panes `QA-546 Codex` (`w1:p42`) and `QA-544 Codex` (`w1:p30`).
 - Closed stalled opencode/GLM pane `w1:p3M` for #526 after it remained idle on a clean but red tree;
   replacement Codex salvage pane is `w1:p3Q`.
