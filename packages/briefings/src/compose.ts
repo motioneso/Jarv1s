@@ -555,14 +555,6 @@ export async function composeBriefing(
     }))
   ];
 
-  const ranked = rankPriorityCandidates({
-    model: priorityModel,
-    candidates: priorityCandidates,
-    now: now.toISOString(),
-    timeZone,
-    focusReadiness: []
-  });
-
   if (includeCalendar && (rawCalendar.rawItems?.length ?? 0) > 0 && calendarSignals.length === 0) {
     gaps.push({ source: "calendar", reason: "empty" });
   }
@@ -584,9 +576,6 @@ export async function composeBriefing(
     count: emailSignals.length,
     rawItems: rawEmail.rawItems
   };
-  const email: Section = {
-    key: rawEmail.key,
-    label: rawEmail.label,
     lines: emailSignals.map((signal) => sanitizeExternal(signal.summary)),
     count: emailSignals.length,
     rawItems: rawEmail.rawItems

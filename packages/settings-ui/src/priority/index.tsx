@@ -250,6 +250,20 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
         ))}
       </div>
 
+      <div className="priority-muted-sources">
+        <label>Muted Sources</label>
+        {VALID_SOURCES.map((source) => (
+          <label key={source} className="source-checkbox">
+            <input
+              type="checkbox"
+              checked={model.mutedSources.includes(source)}
+              onChange={() => toggleMutedSource(source)}
+            />
+            {source.charAt(0).toUpperCase() + source.slice(1)}
+          </label>
+        ))}
+      </div>
+
       {mutation.isPending && <div className="saving">Saving...</div>}
       {mutation.error && <div className="error">{mutation.error.message}</div>}
     </div>
