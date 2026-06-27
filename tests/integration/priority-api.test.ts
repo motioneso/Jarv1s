@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { build } from "vite";
-import { registerRoutes } from "@jarv1s/settings";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
 describe("priority model API", () => {

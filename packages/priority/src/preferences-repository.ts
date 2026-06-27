@@ -26,8 +26,3 @@ export class PriorityPreferencesRepository {
     return DEFAULT_MODEL;
   }
 }
-
-  defaults(): PriorityModelPreferenceV1 {
-    return DEFAULT_MODEL;
-  }
-}

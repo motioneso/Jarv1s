@@ -4,7 +4,6 @@
 
 import { describe, it, expect } from "vitest";
 import { crossToolCandidatesToPriority, rankChatContext } from "@jarv1s/chat/priority-consumer";
-import { rankPriorityCandidates } from "@jarv1s/priority";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
 describe("chat priority consumer", () => {

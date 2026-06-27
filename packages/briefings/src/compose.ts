@@ -24,12 +24,7 @@ import {
   type CalendarSignalSettings,
   type EmailSignalSettings
 } from "./signals.js";
-import {
-  tasksToCandidates,
-  calendarSignalsToCandidates,
-  emailSignalsToCandidates,
-  readPriorityModel
-} from "./priority-consumer.js";
+import { readPriorityModel, getFocusReadiness } from "./priority-consumer.js";
 import { rankPriorityCandidates, type PriorityCandidate } from "@jarv1s/priority";
 import {
   tasksToCandidates,

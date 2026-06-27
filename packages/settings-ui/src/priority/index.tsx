@@ -53,10 +53,6 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
   if (isLoading) return <div className="loading">Loading priority settings...</div>;
   if (!model) return <div className="error">Failed to load priority settings</div>;
 
-  const handleSave = () => {
-    mutation.mutate(model);
-  };
-
   const addAnchor = () => {
     const newAnchor: PriorityAnchor = {
       id: crypto.randomUUID(),
