@@ -18,6 +18,7 @@ import {
   MemoryRepository,
   type EmbeddingProvider,
   type MemoryCandidateRecord,
+  type MemoryRecordKind,
   type NewChunkData
 } from "@jarv1s/memory";
 import {
@@ -395,11 +396,32 @@ async function maybePromoteCandidate(
       subjectEntityId: self.id,
       predicate: candidate.fact.predicate,
       objectText: candidate.fact.objectText ?? candidate.fact.objectName,
+      recordKind: recordKindForCandidate(candidate),
       confidence: candidate.confidence,
       provenance: candidate.provenance,
       importance: candidate.importance
     });
     await candidatesRepository.markPromoted(scopedDb, ownerUserId, record.id, decision.reason);
+  }
+}
+
+function recordKindForCandidate(candidate: MemoryCandidate): MemoryRecordKind {
+  if (candidate.kind === "alias") return "alias";
+  switch (candidate.fact?.predicate) {
+    case "prefers":
+      return "preference";
+    case "has_goal":
+      return "goal";
+    case "has_constraint":
+      return "constraint";
+    case "decided":
+      return "decision";
+    case "alias_of":
+      return "alias";
+    case "related_to":
+      return "relationship";
+    default:
+      return candidate.provenance === "inferred" ? "inference" : "fact";
   }
 }
 
