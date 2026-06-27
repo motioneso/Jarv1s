@@ -1,11 +1,11 @@
 /**
  * Briefings consumer for priority scorer.
  *
- * Converts tasks/calendar/email signals into PriorityCandidates, ranks them,
- * and uses band/reasons to order signals.
+ * Normalizes tasks/calendar/email results into PriorityCandidates,
+ * reads priority model, and calls scorer to rank results.
  */
 
-import type { PriorityCandidate, PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { PriorityCandidate, PriorityModelPreferenceV1, FocusSignalInput } from "@jarv1s/priority";
 import type { DataContextDb } from "@jarv1s/db";
 
 export interface TaskLine {
@@ -63,8 +63,13 @@ export function emailSignalsToCandidates(signals: readonly EmailSignal[]): Prior
 }
 
 export async function readPriorityModel(scopedDb: DataContextDb): Promise<PriorityModelPreferenceV1> {
-  const raw = await scopedDb.appPreferences.get(scopedDb, "priority.model.v1");
-  if (!raw) {
+  const raw = await scopedDb.db
+    .selectFrom("app.preferences")
+    .select("value_json")
+    .where("key", "=", "priority.model.v1")
+    .executeTakeFirst();
+  const value = raw?.value_json as PriorityModelPreferenceV1 | null | undefined;
+  if (!value || value.version !== 1) {
     return {
       version: 1,
       mode: "balanced",
@@ -73,5 +78,16 @@ export async function readPriorityModel(scopedDb: DataContextDb): Promise<Priori
       updatedAt: new Date().toISOString()
     };
   }
-  return raw as PriorityModelPreferenceV1;
+  return value;
+}
+
+export interface ComposeDepsForPriority {
+  readonly moduleManifests: readonly { manifest: { readonly focusSignalProviders?: readonly unknown[] } }[];
+}
+
+export async function getFocusReadiness(
+  scopedDb: DataContextDb,
+  deps: ComposeDepsForPriority
+): Promise<readonly FocusSignalInput[]> {
+  return [];
 }
