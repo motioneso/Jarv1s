@@ -32,8 +32,8 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | QA RED on PR #544; blockers routed back to rework pane `w1:p3Q` | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | implementation committed; AGY wrap-up/push/PR requested (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 open on #528 base; CI running, QA pending green checks + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 open on `main`; CI running, security QA pending green checks | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 open on #528 base; CI still running, QA pending green checks + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
@@ -190,10 +190,13 @@ None.
   and report new head/evidence.
 - #534: AGY finished implementation and reported local `typecheck` plus unit/integration suites
   green after commit `feat(core): implement rfa-534 action permission tiers`. Coordinator nudged
-  the pane into `coordinated-wrap-up`: full gate if needed, pre-push trio, rebase, push, PR open,
-  then report. Await branch/PR/evidence. One minor process drift to note: pane narration showed
-  `git add .` during its local commit path; because this is an isolated worktree the blast radius
-  is contained, but keep explicit-path staging standard on later nudges.
+  the pane into `coordinated-wrap-up`. The builder has now reported PR #548
+  (`https://github.com/motioneso/Jarv1s/pull/548`) at head
+  `2c253a599eff989333030d9bd7f22680ea01f367` with `VF_EXIT=0`, `AUDIT_EXIT=0`. GitHub CI run
+  `28287913187` is still in progress, so security QA has not started yet. One minor process drift
+  to note: pane narration showed `git add .` during its local commit path; because this is an
+  isolated worktree the blast radius is contained, but keep explicit-path staging standard on later
+  nudges.
 
 ## Reaped Sessions
 
