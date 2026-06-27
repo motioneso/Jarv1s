@@ -50,7 +50,7 @@ design pane.
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | MERGED via replacement PR #551 at merge commit `4e9f128`; issue #529 closed; pane/worktree/branch reaped | Codex | Opus security QA | `rfa-529-memory-distillation` | #551 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | MERGED via replacement PR #550 at merge commit `90d590d`; issue #530 closed; pane/worktree reaped | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #550 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | BUILDING in pane `w1:p4C`; handoff commit `31c970e`; migration slot `0120_usefulness_feedback_signals.sql` | Codex fallback after opencode spawn risk | Codex security QA | `rfa-527-usefulness-feedback` | - |
-| #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | BUILDING in pane `w1:p4D`; handoff commit `3054b19`; migration slot `0121_confidence_aware_memory_records.sql` | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
+| #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | BUILDING in pane `w1:p4D`; plan approved from `docs/superpowers/plans/2026-06-27-confidence-aware-memory-records.md`; handoff commit `3054b19`; migration slot `0121_confidence_aware_memory_records.sql` | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | held after #530: unblocked but shares chat hidden-context/runTurn surface with active #532 lane | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
 | #533 | `docs/superpowers/specs/2026-06-27-user-editable-memory-dashboard.md` | security | queued after #532 | opencode/GLM | Codex security QA | `rfa-533-memory-dashboard` | - |
 | #531 | `docs/superpowers/specs/2026-06-27-restrained-proactive-monitoring.md` | security | queued after #526/#527 | Codex | AGY security QA | `rfa-531-proactive-monitoring` | - |
@@ -294,6 +294,12 @@ None.
 - #532: successor coordinator created top-level worktree
   `~/Jarv1s/.claude/worktrees/rfa-532-confidence-aware-memory`, committed branch-local handoff
   `3054b19`, and launched Codex build pane `w1:p4D`.
+- #532: plan approved from `docs/superpowers/plans/2026-06-27-confidence-aware-memory-records.md`
+  with constraints to keep migration slot `0121_confidence_aware_memory_records.sql`, use additive
+  migration only, avoid a second memory store/recall engine/dashboard, keep #529 auto-promotion
+  thresholds unchanged, keep pending candidates out of normal recall, enforce owner-scoped
+  DataContextDb/composite FKs, resolve conflicts only via confirm/correct, and keep logs/exports/job
+  payloads metadata-only.
 - #525: held while #532 plans/builds because both touch chat hidden-context/runTurn behavior.
 - design-session/Claude pane `w1:p1B` asked to commit two apps/web-only files to `main`. Coordinator
   told it to hold until #545 landed, then successor signaled it may proceed after refreshing/checking
