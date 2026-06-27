@@ -113,6 +113,9 @@ import type {
   UpdateTaskPreferencesResponse,
   UpdateTaskRequest,
   UpdateTaskResponse,
+  CreateUsefulnessFeedbackRequest,
+  CreateUsefulnessFeedbackResponse,
+  ListUsefulnessFeedbackResponse,
   MedicationAdherenceSummaryResponse,
   UpdateCheckinRequest,
   UpdateCheckinResponse,
@@ -862,6 +865,28 @@ export async function runBriefingDefinition(
 export async function listBriefingRuns(id: string): Promise<ListBriefingRunsResponse> {
   return requestJson<ListBriefingRunsResponse>(
     `/api/briefings/definitions/${encodeURIComponent(id)}/runs`
+  );
+}
+
+export async function createUsefulnessFeedback(
+  input: CreateUsefulnessFeedbackRequest
+): Promise<CreateUsefulnessFeedbackResponse> {
+  return requestJson<CreateUsefulnessFeedbackResponse>("/api/me/usefulness-feedback", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function listUsefulnessFeedback(): Promise<ListUsefulnessFeedbackResponse> {
+  return requestJson<ListUsefulnessFeedbackResponse>("/api/me/usefulness-feedback");
+}
+
+export async function undoUsefulnessFeedback(
+  id: string
+): Promise<CreateUsefulnessFeedbackResponse> {
+  return requestJson<CreateUsefulnessFeedbackResponse>(
+    `/api/me/usefulness-feedback/${encodeURIComponent(id)}/undo`,
+    { method: "POST" }
   );
 }
 

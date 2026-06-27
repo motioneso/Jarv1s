@@ -1,12 +1,17 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUp,
   ChevronDown,
   Clock,
+  BookmarkPlus,
   MessageSquareText,
+  MoreHorizontal,
   Sparkles,
   Square,
   SquarePen,
+  ThumbsDown,
+  ThumbsUp,
+  Undo2,
   X
 } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useState } from "react";
@@ -14,15 +19,17 @@ import { type KeyboardEvent, useCallback, useEffect, useState } from "react";
 import {
   cancelChatTurn,
   clearChat,
+  createUsefulnessFeedback,
   getOnboardingStatus,
   listCalendarEvents,
   listChatThreadMessages,
   listChatThreads,
   listTasks,
-  sendChatTurn
+  sendChatTurn,
+  undoUsefulnessFeedback
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import type { ChatMessageDto } from "@jarv1s/shared";
+import type { ChatMessageDto, UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@jarv1s/shared";
 import { ActionRequestCard } from "./action-request-card";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
@@ -130,8 +137,8 @@ export function ChatDrawer(props: {
           const result = await sendChatTurn(trimmed);
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
-            { kind: "user", text: trimmed },
-            { kind: "reply", text: result.reply }
+            { kind: "user", text: trimmed, messageId: result.userMessageId },
+            { kind: "reply", text: result.reply, messageId: result.assistantMessageId }
           ];
           setFallbackRecords((current) =>
             [...current, ...postResponseRecords].filter(
@@ -480,6 +487,9 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
     return (
       <div className="chatd-msg chatd-msg--me">
         <div className="chatd-bubble">{text}</div>
+        {props.record.messageId ? (
+          <ChatFeedbackMenu messageId={props.record.messageId} canRemember />
+        ) : null}
       </div>
     );
   }
@@ -497,6 +507,9 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
       <div className="chatd-bubble">
         <MarkdownMessage text={text} />
       </div>
+      {props.record.messageId ? (
+        <ChatFeedbackMenu messageId={props.record.messageId} canRemember={false} />
+      ) : null}
     </div>
   );
 }
@@ -518,9 +531,86 @@ function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRec
           : message.status === "error"
             ? ("error" as const)
             : ("reply" as const),
-      text: message.body
+      text: message.body,
+      messageId: message.id
     }
   ]);
+}
+
+function ChatFeedbackMenu(props: { readonly messageId: string; readonly canRemember: boolean }) {
+  const queryClient = useQueryClient();
+  const [last, setLast] = useState<UsefulnessFeedbackDto | null>(null);
+  const createMutation = useMutation({
+    mutationFn: (kind: UsefulnessFeedbackKind) =>
+      createUsefulnessFeedback({
+        targetKind: "chat_message",
+        targetRef: props.messageId,
+        surface: "chat",
+        kind
+      }),
+    onSuccess: (response) => {
+      setLast(response.feedback);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+  const undoMutation = useMutation({
+    mutationFn: (id: string) => undoUsefulnessFeedback(id),
+    onSuccess: () => {
+      setLast(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+
+  return (
+    <div className="feedback-menu">
+      <details className="feedback-menu__details">
+        <summary className="feedback-menu__trigger" aria-label="Feedback" title="Feedback">
+          <MoreHorizontal size={14} aria-hidden="true" />
+        </summary>
+        <div className="feedback-menu__list">
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("more_like_this")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsUp size={13} aria-hidden="true" />
+            More like this
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("not_useful")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsDown size={13} aria-hidden="true" />
+            Not useful
+          </button>
+          {props.canRemember ? (
+            <button
+              type="button"
+              onClick={() => createMutation.mutate("remember_this")}
+              disabled={createMutation.isPending}
+            >
+              <BookmarkPlus size={13} aria-hidden="true" />
+              Remember this
+            </button>
+          ) : null}
+        </div>
+      </details>
+      {last ? (
+        <span className="feedback-menu__status">
+          Saved
+          <button
+            type="button"
+            onClick={() => undoMutation.mutate(last.id)}
+            disabled={undoMutation.isPending}
+          >
+            <Undo2 size={12} aria-hidden="true" />
+            Undo
+          </button>
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 function safeActivityKind(kind: string): ChatRecordKind {

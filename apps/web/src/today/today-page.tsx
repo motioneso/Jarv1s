@@ -16,18 +16,28 @@ import {
   Info,
   Leaf,
   MessageSquareText,
+  MoreHorizontal,
   Megaphone,
   Newspaper,
   Pill,
+  ThumbsDown,
+  ThumbsUp,
   Target
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
+import type {
+  CalendarEventDto,
+  MeResponse,
+  TaskDto,
+  UsefulnessFeedbackDto,
+  UsefulnessFeedbackKind
+} from "@jarv1s/shared";
 
 import {
   createWellnessCheckin,
+  createUsefulnessFeedback,
   getMedicationSchedule,
   listCalendarEvents,
   listBriefingDefinitions,
@@ -35,7 +45,8 @@ import {
   listTaskLists,
   listTasks,
   startEveningInterview,
-  updateTask
+  updateTask,
+  undoUsefulnessFeedback
 } from "../api/client";
 import { findDefinition } from "../briefings/briefing-settings-model";
 import { useChatControls } from "../shell/chat-controls-context";
@@ -371,7 +382,17 @@ export function TodayPage(props: {
                 </span>
               </div>
               {latestEveningRun ? (
-                <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
+                <>
+                  <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
+                  <BriefingFeedbackMenu
+                    targetRef={latestEveningRun.id}
+                    onChanged={() =>
+                      void queryClient.invalidateQueries({
+                        queryKey: queryKeys.briefings.runs(eveningDefinition.id)
+                      })
+                    }
+                  />
+                </>
               ) : (
                 <div className="agenda-clear">No evening review yet.</div>
               )}
@@ -632,6 +653,95 @@ function BriefTaskRow(props: {
           {task.dueAt ? <span className="jds-task__time">{shortDate(task.dueAt)}</span> : null}
         </div>
       </button>
+    </div>
+  );
+}
+
+function BriefingFeedbackMenu(props: {
+  readonly targetRef: string;
+  readonly onChanged: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [last, setLast] = useState<UsefulnessFeedbackDto | null>(null);
+  const createMutation = useMutation({
+    mutationFn: (
+      kind: Extract<
+        UsefulnessFeedbackKind,
+        "more_like_this" | "too_much" | "not_useful" | "dismiss"
+      >
+    ) =>
+      createUsefulnessFeedback({
+        targetKind: "briefing_run",
+        targetRef: props.targetRef,
+        surface: "briefing",
+        kind
+      }),
+    onSuccess: (response) => {
+      setLast(response.feedback);
+      props.onChanged();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+  const undoMutation = useMutation({
+    mutationFn: (id: string) => undoUsefulnessFeedback(id),
+    onSuccess: () => {
+      setLast(null);
+      props.onChanged();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+
+  return (
+    <div className="today-feedback">
+      <details className="today-feedback__details">
+        <summary className="today-feedback__trigger" aria-label="Feedback" title="Feedback">
+          <MoreHorizontal size={14} aria-hidden="true" />
+        </summary>
+        <div className="today-feedback__list">
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("more_like_this")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsUp size={13} aria-hidden="true" />
+            More like this
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("too_much")}
+            disabled={createMutation.isPending}
+          >
+            Too much
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("not_useful")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsDown size={13} aria-hidden="true" />
+            Not useful
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("dismiss")}
+            disabled={createMutation.isPending}
+          >
+            Dismiss
+          </button>
+        </div>
+      </details>
+      {last ? (
+        <span className="today-feedback__status">
+          Saved
+          <button
+            type="button"
+            onClick={() => undoMutation.mutate(last.id)}
+            disabled={undoMutation.isPending}
+          >
+            Undo
+          </button>
+        </span>
+      ) : null}
     </div>
   );
 }
