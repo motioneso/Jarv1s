@@ -70,6 +70,58 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
       updatedAt: new Date().toISOString()
     });
   };
+    const newAnchor: PriorityAnchor = {
+      id: crypto.randomUUID(),
+      kind: "project",
+      label: "",
+      aliases: [],
+      weight: 1,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    mutation.mutate({
+      ...model,
+      anchors: [...model.anchors, newAnchor],
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const updateAnchor = (index: number, updates: Partial<PriorityAnchor>) => {
+    const updated = [...model.anchors];
+    updated[index] = { ...updated[index]!, ...updates, updatedAt: new Date().toISOString() };
+    mutation.mutate({
+      ...model,
+      anchors: updated,
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const removeAnchor = (index: number) => {
+    mutation.mutate({
+      ...model,
+      anchors: model.anchors.filter((_, i) => i !== index),
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const addAnchor = () => {
+    const newAnchor: PriorityAnchor = {
+      id: crypto.randomUUID(),
+      kind: "project",
+      label: "",
+      aliases: [],
+      weight: 1,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    mutation.mutate({
+      ...model,
+      anchors: [...model.anchors, newAnchor],
+      updatedAt: new Date().toISOString()
+    });
+  };
 
   const updateAnchor = (index: number, updates: Partial<PriorityAnchor>) => {
     const updated = [...model.anchors];
