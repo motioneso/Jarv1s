@@ -21,3 +21,7 @@ export {
   registerProactiveMonitoringWorkers,
   type ProactiveScanSourceJobPayload
 } from "./jobs.js";
+export {
+  registerProactiveMonitoringRoutes,
+  type ProactiveMonitoringRoutesDependencies
+} from "./routes.js";
