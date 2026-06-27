@@ -17,8 +17,9 @@ mandatory coordinator relay. Successor must first claim the `Coordinator` lock w
 id. New coordinator session `019f0ae5-0afd-7092-911e-6c2e987df7f2` has claimed the lock; old
 coordinator session `019f0ad6-e0f5-7ab3-af48-e4e06b175eba` was reaped after handoff verification.
 Successor released #527 and #532 as the next collision-safe wave; #525 remains held because it shares
-chat hidden-context/runTurn surfaces with #532. Design PR #549 is outside the RFA queue, fully
-green, and its pane was nudged to refresh/check current `main` before proceeding.
+chat hidden-context/runTurn surfaces with #532. Design PR #549 remained outside the RFA queue and
+merged to `main` at squash commit `c3df8eb` after clean CI; its worktree/branch were removed by the
+design pane.
 
 ## Base
 
@@ -285,7 +286,6 @@ None.
   need stack retarget/rebase cleanup after the fix.
 - #534: PR #548 head `a0ffbdc` had red `Verify foundation and app` in CI run `28297366163`;
   coordinator routed the red gate back to AGY pane `w1:p3N`.
-- design-session/Claude pane `w1:p1B` asked to commit two apps/web-only files to `main`. Coordinator
 - #527: successor coordinator created top-level worktree
   `~/Jarv1s/.claude/worktrees/rfa-527-usefulness-feedback`, committed branch-local handoff
   `31c970e`, and launched Codex build pane `w1:p4C`. The original queue preferred opencode/GLM,
@@ -297,7 +297,8 @@ None.
 - #525: held while #532 plans/builds because both touch chat hidden-context/runTurn behavior.
 - design-session/Claude pane `w1:p1B` asked to commit two apps/web-only files to `main`. Coordinator
   told it to hold until #545 landed, then successor signaled it may proceed after refreshing/checking
-  current `main`.
+  current `main`. It merged outside the RFA queue as PR #549 at squash commit `c3df8eb`; its
+  worktree and branch were removed/pruned, and local shared `main` was left untouched.
 
 ## Reaped Sessions
 
