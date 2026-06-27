@@ -27,24 +27,13 @@ export interface AgencyPrefLookup {
 export async function resolvePolicy(
   tool: ModuleAssistantToolManifest,
   moduleId: string,
-  lookup: ActionPolicyLookup,
-  legacyPrefs?: AgencyPrefLookup
+  lookup: ActionPolicyLookup
 ): Promise<PolicyDecision> {
   if (tool.risk === "read") return "run";
   if (tool.risk === "destructive") return "confirm";
 
   const familyId = tool.actionFamilyId;
   if (!familyId) {
-    if (tool.executionPolicy !== "auto") return "confirm";
-    if (legacyPrefs) {
-      try {
-        return (await legacyPrefs.get(`${moduleId}.agency_auto_execute`)) === true
-          ? "run"
-          : "confirm";
-      } catch {
-        return "confirm";
-      }
-    }
     return "confirm";
   }
 
@@ -52,7 +41,13 @@ export async function resolvePolicy(
   if (!manifest) return "confirm";
 
   const tier = (await lookup.getFamilyTier(moduleId, familyId)) ?? manifest.defaultTier;
-  if (tier === "trusted_auto") return "run";
+  if (
+    tier === "trusted_auto" &&
+    tool.executionPolicy === "auto" &&
+    manifest.allowedTiers.includes("trusted_auto")
+  ) {
+    return "run";
+  }
 
   return "confirm";
 }

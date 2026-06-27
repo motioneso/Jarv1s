@@ -95,7 +95,7 @@ export class AssistantToolGateway {
 
     const prefs = this.deps.agencyPrefs?.(ctx) ?? denyPrefs;
     const lookup = this.deps.actionPolicy?.(ctx) ?? defaultPolicyLookup;
-    if ((await resolvePolicy(found.tool, found.dto.moduleId, lookup, prefs)) === "run") {
+    if ((await resolvePolicy(found.tool, found.dto.moduleId, lookup)) === "run") {
       return this.runHandler(found, input, ctx);
     }
     return this.confirmAndRun(found, input, ctx, await this.firstRunNotice(found, prefs));

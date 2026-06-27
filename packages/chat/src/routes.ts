@@ -522,7 +522,6 @@ export function buildChatGatewayDependencies(args: {
     actionPolicy: buildActionPolicy({
       runner: args.runner,
       repository: args.repository,
-      preferences: args.agencyPreferences,
       resolveActiveModules: args.resolveActiveModules
     }),
     toolServices: buildChatToolServices(args.collaborators)
@@ -567,12 +566,12 @@ function buildAgencyPrefs(args: {
 }): AssistantToolGatewayDependencies["agencyPrefs"] {
   if (!args.preferences) return undefined;
   return (ctx) => ({
-    get: (key) =>
+    get: (key: string) =>
       args.runner.withDataContext(
         { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
         (scopedDb) => args.preferences!.get(scopedDb, key)
       ),
-    upsert: (key, value) =>
+    upsert: (key: string, value: unknown) =>
       args.runner.withDataContext(
         { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
         (scopedDb) => args.preferences!.upsert(scopedDb, key, value)

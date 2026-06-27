@@ -52,9 +52,9 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
       notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
       confirmTimeoutMs: 1000,
       agencyPrefs: () => ({
-        get: async (key) => agencyPrefs[key] ?? null,
-        upsert: async (key, value) => {
-          agencyPrefs[key] = value;
+        get: async (key: string) => agencyPrefs[key] ?? null,
+        upsert: async (key: string, value: unknown) => {
+          agencyPrefs[key] = value as boolean;
         }
       }),
       actionPolicy: () => ({
