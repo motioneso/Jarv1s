@@ -33,6 +33,14 @@ export const settingsModuleManifest: JarvisModuleManifest = {
   ],
   settings: [
     {
+      id: "priority-settings",
+      label: "Priorities",
+      path: "/settings?section=priorities",
+      scope: "user",
+      order: 30,
+      permissionId: "settings.write"
+    },
+    {
       id: "admin-settings",
       label: "Admin",
       path: "/settings/admin",

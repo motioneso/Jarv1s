@@ -22,10 +22,23 @@ describe("manifest routes[] reconciliation", () => {
     expect(manifest?.settings?.[0]?.entry).toBe("./settings");
   });
 
-  it("settings manifest declares source behavior routes", () => {
+  it("settings manifest declares personal priority surface and preference routes", () => {
+    const manifest = getBuiltInModuleManifests().find((m) => m.id === "settings");
+    expect(manifest?.settings).toContainEqual(
+      expect.objectContaining({
+        id: "priority-settings",
+        label: "Priorities",
+        path: "/settings?section=priorities",
+        scope: "user",
+        permissionId: "settings.write"
+      })
+    );
+
     const paths = manifestPaths("settings");
     expect(paths).toContainEqual({ method: "GET", path: "/api/me/source-behaviors" });
     expect(paths).toContainEqual({ method: "PUT", path: "/api/me/source-behaviors/:id" });
+    expect(paths).toContainEqual({ method: "GET", path: "/api/me/priority-model" });
+    expect(paths).toContainEqual({ method: "PATCH", path: "/api/me/priority-model" });
   });
 
   it("chat manifest declares every chat API route the routes module registers", () => {

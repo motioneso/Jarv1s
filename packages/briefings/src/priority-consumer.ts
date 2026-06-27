@@ -2,7 +2,8 @@
  * Briefings consumer for priority scorer.
  *
  * Normalizes tasks/calendar/email results into PriorityCandidates,
- * reads priority model, and calls scorer to rank results.
+ * accepts priority model reads through an injected preference port, and calls scorer to rank
+ * results.
  */
 
 import type {
@@ -10,7 +11,15 @@ import type {
   PriorityModelPreferenceV1,
   FocusSignalInput
 } from "@jarv1s/priority";
+import { PriorityPreferencesRepository } from "@jarv1s/priority";
 import type { DataContextDb } from "@jarv1s/db";
+
+const PRIORITY_MODEL_KEY = "priority.model.v1";
+const priorityPreferences = new PriorityPreferencesRepository();
+
+export interface PriorityPreferenceReader {
+  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+}
 
 export interface TaskLine {
   readonly title: string;
@@ -69,24 +78,13 @@ export function emailSignalsToCandidates(signals: readonly EmailSignal[]): Prior
 }
 
 export async function readPriorityModel(
-  scopedDb: DataContextDb
+  scopedDb: DataContextDb,
+  preferencesRepository?: PriorityPreferenceReader
 ): Promise<PriorityModelPreferenceV1> {
-  const raw = await scopedDb.db
-    .selectFrom("app.preferences")
-    .select("value_json")
-    .where("key", "=", "priority.model.v1")
-    .executeTakeFirst();
-  const value = raw?.value_json as PriorityModelPreferenceV1 | null | undefined;
-  if (!value || value.version !== 1) {
-    return {
-      version: 1,
-      mode: "balanced",
-      anchors: [],
-      mutedSources: [],
-      updatedAt: new Date().toISOString()
-    };
+  if (!preferencesRepository) {
+    return priorityPreferences.defaults();
   }
-  return value;
+  return priorityPreferences.get(await preferencesRepository.get(scopedDb, PRIORITY_MODEL_KEY));
 }
 
 export interface ComposeDepsForPriority {

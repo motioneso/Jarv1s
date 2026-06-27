@@ -53,6 +53,9 @@ export interface ComposeDeps {
   readonly personaRepository?: {
     get(scopedDb: DataContextDb, key: string): Promise<unknown>;
   };
+  readonly priorityPreferencesRepository?: {
+    get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+  };
   readonly sourceBehaviorPolicy?: SourceBehaviorPolicyDeps;
   readonly resolveUserName?: (scopedDb: DataContextDb, actorUserId: string) => Promise<string>;
   /**
@@ -580,7 +583,7 @@ export async function composeBriefing(
   ];
   let priorityResults: PriorityResult[] = [];
   try {
-    const priorityModel = await readPriorityModel(scopedDb);
+    const priorityModel = await readPriorityModel(scopedDb, deps.priorityPreferencesRepository);
     priorityResults = rankPriorityCandidates({
       model: priorityModel,
       candidates: priorityCandidates,

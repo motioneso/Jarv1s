@@ -592,6 +592,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
           personaRepository: new PreferencesRepository(),
+          priorityPreferencesRepository: new PreferencesRepository(),
           sourceBehaviorPolicy: {
             manifests: getBuiltInModuleManifests(),
             preferencesRepository: new PreferencesRepository()
