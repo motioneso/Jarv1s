@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
-import { handleRouteError } from "@jarv1s/module-sdk";
+import { handleRouteError, HttpError } from "@jarv1s/module-sdk";
 import {
   getAiActionPoliciesResponseSchema,
   patchAiActionPolicyRequestSchema,
@@ -72,6 +72,25 @@ export function registerActionPolicyRoutes(
         const accessContext = await dependencies.resolveAccessContext(request);
         const { moduleId, actionFamilyId } = request.params;
         const { tier } = request.body;
+
+        const activeModules = await dependencies.resolveActiveModules(accessContext.actorUserId);
+        const module = activeModules.find((m) => m.id === moduleId);
+        if (!module) {
+          throw new HttpError(404, `Module ${moduleId} is not active or does not exist.`);
+        }
+        const family = module.assistantActionFamilies?.find((f) => f.id === actionFamilyId);
+        if (!family) {
+          throw new HttpError(
+            404,
+            `Action family ${actionFamilyId} not found in module ${moduleId}.`
+          );
+        }
+        if (!family.allowedTiers.includes(tier)) {
+          throw new HttpError(
+            400,
+            `Tier '${tier}' is not allowed for action family ${actionFamilyId}. Allowed tiers: ${family.allowedTiers.join(", ")}`
+          );
+        }
 
         await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
           if (

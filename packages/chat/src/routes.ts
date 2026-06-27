@@ -522,6 +522,7 @@ export function buildChatGatewayDependencies(args: {
     actionPolicy: buildActionPolicy({
       runner: args.runner,
       repository: args.repository,
+      preferences: args.agencyPreferences,
       resolveActiveModules: args.resolveActiveModules
     }),
     toolServices: buildChatToolServices(args.collaborators)
