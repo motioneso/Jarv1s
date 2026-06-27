@@ -63,7 +63,7 @@ RFA coordinator loop; Ben will handle that separately.
 | #536 | `docs/superpowers/specs/2026-06-27-scheduled-recurring-jarvis-briefings.md` | security | queued after #526/#531/#534/#535 | opencode/GLM | Codex security QA | `rfa-536-recurring-briefings` | - |
 | #537 | `docs/superpowers/specs/2026-06-27-automatic-commitment-extraction.md` | security | queued after #527/#528/#529/#532/#533/#534/#535/#536 | Codex | AGY security QA | `rfa-537-commitment-extraction` | - |
 | #538 | `docs/superpowers/specs/2026-06-27-unified-person-contact-model.md` | security | queued after #525/#528/#532/#533/#537 | opencode/GLM | Codex security QA | `rfa-538-person-contact-model` | - |
-| #520 | - | routine | blocked: no approved spec found | - | - | - | - |
+| #520 | n/a (spec waived by Ben) | routine | QA pending CI green on PR #552; CI run 28302401425 pending; branch fix/520-remove-task-matrix-cap off main a3416e10; pure 2-file deletion (~20 lines); pre-existing typecheck+file-size failures on main excluded | Ben's agent | coordinator | `fix/520-remove-task-matrix-cap` | #552 |
 
 Launch note: #539, #540, #541 were excluded at launch as `needs-spec`; GitHub now shows them as
 RFA, but they are not admitted to this run until the coordinator extends the dependency/collision
