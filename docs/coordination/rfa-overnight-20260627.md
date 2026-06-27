@@ -30,8 +30,8 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | building Task 4; Tasks 1-3 committed through graph recall service (`w1:p3K`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | rework reassigned: GLM stalled clean-tree/red, Codex salvage fixing lint/parse before PR (`w1:p3Q`) | Codex salvage after opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | full foundation gate running after implementation commits through `2abf87c` (`w1:p3K`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | wrap-up gate running after Codex salvage commit `67ca551` (`w1:p3Q`) | Codex salvage after opencode/GLM | AGY QA | `rfa-526-unified-priority-model` | - |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | queued after #528 | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
@@ -96,13 +96,17 @@ None.
   candidates. Task 1 focused unit suite passed before commit `3f1abb1`. After Task 5, gate was red
   on parse/lint issues. GLM left a clean tree with committed lint/parse failures after several
   rework commits, so the stalled pane was closed and a single Codex salvage pane `w1:p3Q` was started
-  on the same worktree to fix the red gate only. Must not open PR until lint/format/typecheck and
-  relevant tests pass from a clean tree.
+  on the same worktree to fix the red gate only. Salvage commit `67ca551` repaired package wiring,
+  settings routes/manifests, scorer strictness, chat/briefings consumers, and focused tests. Full
+  coordinated-wrap-up gate is running in lane DB `jarvis_build_rfa_526_priority`; must not open PR
+  until the gate passes from a clean tree.
 - #528: plan approved from `docs/superpowers/plans/2026-06-26-memory-graph-substrate.md`;
   plan committed as `150544c`; coordinator assigned next free global migration number `0118` for
   `packages/memory/sql/0118_memory_graph_substrate.sql`. Task 1 schema, Task 2 repository, and Task 3
-  graph recall service are committed; targeted graph tests and `pnpm test:memory` passed in the
-  lane DB before Task 4 route red tests began.
+  graph recall service are committed. Route/API, assistant tools, export/delete handling, and split
+  integration coverage are committed through `2abf87c`; full `pnpm verify:foundation` is running in
+  lane DB `jarvis_build_rfa_528_memory_graph`. Build agent saw one context compaction during
+  verification; force relay before PR if it does not complete promptly.
 
 ## Reaped Sessions
 
