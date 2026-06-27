@@ -8,7 +8,7 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 `security` requires Ben's explicit merge sign-off after posted QA verdict.
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 **Continuation note:** successor coordinator claimed the `Coordinator` lock as Codex session
 `019f0a96-2978-7c63-93ea-0221bb1666a0`, closed issue #528, signaled design-session pane `w1:p1B`
 to proceed only after checking current `main`, and reaped the old coordinator plus merged #528
