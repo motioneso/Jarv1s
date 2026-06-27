@@ -30,8 +30,8 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | full foundation gate running after implementation commits through `2abf87c` (`w1:p3K`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | - |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR opened; independent QA running while CI pending (`Aquinas`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | PR opened; GLM security QA running while CI pending (`w1:p3R`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | RED QA; build lane fixing CI image failure + two blocking findings (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | blocked: AGY quota until ~2026-06-27 00:55 PT (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | queued after #528 | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
@@ -99,18 +99,22 @@ None.
   on the same worktree to fix the red gate only. Salvage commit `67ca551` repaired package wiring,
   settings routes/manifests, scorer strictness, chat/briefings consumers, and focused tests. Build
   agent reported PR #544 at head `3e1cf2d`, rebased on `origin/main@a655128`, with
-  `VF_EXIT=0`/`AUDIT_EXIT=0`. GitHub CI for #544 was pending at QA launch. Planned AGY QA remains
-  blocked by quota, so native independent QA worker `Aquinas` was spawned as fallback for this
-  sensitive-tier PR; it must post a compact verdict to the PR before any auto-merge.
+  `VF_EXIT=0`/`AUDIT_EXIT=0`. Planned AGY QA remained blocked by quota, so native independent QA
+  worker `Aquinas` was spawned as fallback. QA posted a RED verdict: image build CI failed; direct
+  `app.preferences` query in `packages/briefings/src/priority-consumer.ts` violates module
+  isolation; settings UI priority pane was not reachable/editable. Findings relayed to build pane
+  `w1:p3Q`; lane is back in rework.
 - #528: plan approved from `docs/superpowers/plans/2026-06-26-memory-graph-substrate.md`;
   plan committed as `150544c`; coordinator assigned next free global migration number `0118` for
   `packages/memory/sql/0118_memory_graph_substrate.sql`. Task 1 schema, Task 2 repository, and Task 3
   graph recall service are committed. Route/API, assistant tools, export/delete handling, and split
-  integration coverage are committed through `2abf87c`; full `pnpm verify:foundation` is running in
-  lane DB `jarvis_build_rfa_528_memory_graph`. Build agent saw one context compaction during
-  verification; force relay before PR if it does not complete promptly.
+  integration coverage are committed through `519ad54`; build agent reported PR #545 with
+  `VF_EXIT=0`/`AUDIT_EXIT=0`, rebased on `origin/main`. GitHub CI was pending at QA launch. Security
+  QA is running in detached worktree `qa-545-glm` via opencode/GLM pane `w1:p3R`; security-tier merge
+  remains blocked on posted QA verdict plus Ben's explicit sign-off.
 
 ## Reaped Sessions
 
 - Closed stalled opencode/GLM pane `w1:p3M` for #526 after it remained idle on a clean but red tree;
   replacement Codex salvage pane is `w1:p3Q`.
+- Closed native QA worker `Aquinas` after its RED verdict was posted to PR #544 and relayed.
