@@ -12,7 +12,7 @@ import type {
 } from "./dashboard-types.js";
 import type { EmbeddingProvider } from "./embedding-provider.js";
 import { MemoryGraphDashboardRepository } from "./graph-dashboard-repository.js";
-import { MemoryGraphRepository } from "./graph-repository.js";
+import type { MemoryGraphRepository } from "./graph-repository.js";
 import { GraphMemoryRecallService } from "./graph-recall-service.js";
 import type {
   MemoryEpisodeKind,

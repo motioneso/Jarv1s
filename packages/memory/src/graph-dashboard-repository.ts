@@ -7,15 +7,8 @@ import type {
   MemoryFactRecord,
   MemorySourceSummary
 } from "./graph-types.js";
-import {
-  EntityRow,
-  FactRow,
-  MemoryGraphRepository,
-  SourceRow,
-  mapEntity,
-  mapFact,
-  mapSource
-} from "./graph-repository.js";
+import type { EntityRow, FactRow, MemoryGraphRepository, SourceRow } from "./graph-repository.js";
+import { mapEntity, mapFact, mapSource } from "./graph-repository.js";
 
 export class MemoryGraphDashboardRepository {
   constructor(private readonly graphRepo: MemoryGraphRepository) {}
