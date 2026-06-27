@@ -1,6 +1,14 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import {
+  getMemoryGraphCoreRouteSchema,
+  getMemoryGraphRecallRouteSchema,
+  postMemoryGraphEntityRouteSchema,
+  postMemoryGraphFactRouteSchema,
+  postMemoryGraphPinRouteSchema,
+  postMemoryGraphSupersedeRouteSchema
+} from "@jarv1s/shared";
 
 export const MEMORY_MODULE_ID = "memory";
 export const memorySqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
@@ -39,5 +47,48 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       "app.memory_search_documents",
       "app.memory_legacy_fact_migrations"
     ]
-  }
+  },
+  routes: [
+    {
+      method: "GET",
+      path: "/api/memory/graph/recall",
+      responseSchema: getMemoryGraphRecallRouteSchema.response[200],
+      permissionId: "memory.view"
+    },
+    {
+      method: "GET",
+      path: "/api/memory/graph/core",
+      responseSchema: getMemoryGraphCoreRouteSchema.response[200],
+      permissionId: "memory.view"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/entities",
+      requestSchema: postMemoryGraphEntityRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/facts",
+      requestSchema: postMemoryGraphFactRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/facts/:id/pin",
+      requestSchema: postMemoryGraphPinRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/graph/facts/:id/supersede",
+      requestSchema: postMemoryGraphSupersedeRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "DELETE",
+      path: "/api/memory/graph/facts/:id",
+      permissionId: "memory.manage"
+    }
+  ]
 };

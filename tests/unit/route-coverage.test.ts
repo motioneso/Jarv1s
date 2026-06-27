@@ -52,6 +52,21 @@ describe("manifest routes[] reconciliation", () => {
     }
   });
 
+  it("memory manifest declares graph API routes", () => {
+    const paths = manifestPaths("memory");
+    for (const expected of [
+      { method: "GET", path: "/api/memory/graph/recall" },
+      { method: "GET", path: "/api/memory/graph/core" },
+      { method: "POST", path: "/api/memory/graph/entities" },
+      { method: "POST", path: "/api/memory/graph/facts" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/pin" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/supersede" },
+      { method: "DELETE", path: "/api/memory/graph/facts/:id" }
+    ]) {
+      expect(paths).toContainEqual(expected);
+    }
+  });
+
   it("connectors manifest declares the Google OAuth POST routes", () => {
     const paths = manifestPaths("connectors");
     expect(paths).toContainEqual({ method: "POST", path: "/api/connectors/google/authorize" });

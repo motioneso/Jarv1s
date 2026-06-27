@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
@@ -12,6 +13,7 @@ import {
 import {
   GraphMemoryRecallService,
   MemoryGraphRepository,
+  registerMemoryGraphRoutes,
   StubEmbeddingProvider,
   type MemoryFactPredicate
 } from "@jarv1s/memory";
@@ -34,8 +36,12 @@ let workerDb: Kysely<JarvisDatabase>;
 let migrationDb: Kysely<JarvisDatabase>;
 let appDataContext: DataContextRunner;
 let workerDataContext: DataContextRunner;
+let graphServer: FastifyInstance;
+let originalEmbedProvider: string | undefined;
 
 beforeAll(async () => {
+  originalEmbedProvider = process.env.JARVIS_EMBED_PROVIDER;
+  process.env.JARVIS_EMBED_PROVIDER = "stub";
   await resetFoundationDatabase();
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
   workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
@@ -45,12 +51,24 @@ beforeAll(async () => {
   });
   appDataContext = new DataContextRunner(appDb);
   workerDataContext = new DataContextRunner(workerDb);
+  graphServer = Fastify();
+  registerMemoryGraphRoutes(graphServer, {
+    dataContext: appDataContext,
+    resolveAccessContext
+  });
+  await graphServer.ready();
 });
 
 afterAll(async () => {
+  await graphServer?.close();
   await appDb?.destroy();
   await workerDb?.destroy();
   await migrationDb?.destroy();
+  if (originalEmbedProvider === undefined) {
+    delete process.env.JARVIS_EMBED_PROVIDER;
+  } else {
+    process.env.JARVIS_EMBED_PROVIDER = originalEmbedProvider;
+  }
 });
 
 describe("memory graph schema and RLS", () => {
@@ -219,6 +237,113 @@ describe("GraphMemoryRecallService", () => {
   });
 });
 
+describe("memory graph API routes", () => {
+  it("creates, recalls, pins, supersedes, and forgets owned graph facts", async () => {
+    const entity = await graphServer.inject({
+      method: "POST",
+      url: "/api/memory/graph/entities",
+      headers: userAHeaders(),
+      payload: {
+        kind: "project",
+        name: "Route project",
+        summary: "Route test memory",
+        importance: 0.7,
+        pinned: false
+      }
+    });
+    expect(entity.statusCode).toBe(200);
+    const entityId = entity.json<{ entity: { id: string } }>().entity.id;
+
+    const fact = await graphServer.inject({
+      method: "POST",
+      url: "/api/memory/graph/facts",
+      headers: userAHeaders(),
+      payload: {
+        subjectEntityId: entityId,
+        predicate: "prefers",
+        objectText: `route mobile responses ${randomUUID()}`,
+        confidence: 0.92,
+        provenance: "confirmed",
+        importance: 0.8,
+        source: {
+          sourceKind: "manual",
+          sourceRef: "manual:route-test",
+          excerpt: "Route memory excerpt"
+        }
+      }
+    });
+    expect(fact.statusCode).toBe(200);
+    const factId = fact.json<{ fact: { id: string } }>().fact.id;
+
+    const recall = await graphServer.inject({
+      method: "GET",
+      url: "/api/memory/graph/recall?q=mobile%20responses",
+      headers: userAHeaders()
+    });
+    expect(recall.statusCode).toBe(200);
+    expect(recall.json<{ items: Array<{ id: string }> }>().items.map((item) => item.id)).toContain(
+      factId
+    );
+
+    const core = await graphServer.inject({
+      method: "GET",
+      url: "/api/memory/graph/core",
+      headers: userAHeaders()
+    });
+    expect(core.statusCode).toBe(200);
+    expect(core.json<{ items: unknown[] }>().items.length).toBeLessThanOrEqual(20);
+
+    const pin = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${factId}/pin`,
+      headers: userAHeaders(),
+      payload: { pinned: true }
+    });
+    expect(pin.statusCode).toBe(204);
+
+    const supersede = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${factId}/supersede`,
+      headers: userAHeaders(),
+      payload: {}
+    });
+    expect(supersede.statusCode).toBe(204);
+
+    const afterSupersede = await graphServer.inject({
+      method: "GET",
+      url: "/api/memory/graph/recall?q=mobile%20responses",
+      headers: userAHeaders()
+    });
+    expect(
+      afterSupersede.json<{ items: Array<{ id: string }> }>().items.map((item) => item.id)
+    ).not.toContain(factId);
+  });
+
+  it("does not let user A forget user B graph memory", async () => {
+    const service = new GraphMemoryRecallService(new StubEmbeddingProvider());
+    const write = await appDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "memory-graph:user-b-route" },
+      (db) =>
+        service.remember(db, ids.userB, {
+          predicate: "related_to",
+          objectText: "User B graph memory",
+          confidence: 0.9,
+          provenance: "confirmed",
+          importance: 0.8,
+          source: { sourceKind: "manual", sourceRef: "manual:user-b", excerpt: "Private B" }
+        })
+    );
+
+    const res = await graphServer.inject({
+      method: "DELETE",
+      url: `/api/memory/graph/facts/${write.fact.id}`,
+      headers: userAHeaders()
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+});
+
 async function expectGraphIsolation(
   dataContext: DataContextRunner,
   roleLabel: string
@@ -246,6 +371,17 @@ async function expectGraphIsolation(
       ).rejects.toThrow(/row-level security|violates row-level security|permission denied/i);
     }
   );
+}
+
+async function resolveAccessContext(request: FastifyRequest) {
+  const auth = request.headers.authorization;
+  if (auth === "Bearer user-a") return { actorUserId: ids.userA, requestId: "memory-graph-api" };
+  if (auth === "Bearer user-b") return { actorUserId: ids.userB, requestId: "memory-graph-api" };
+  throw new Error("Unauthorized");
+}
+
+function userAHeaders() {
+  return { authorization: "Bearer user-a" };
 }
 
 async function insertEntity(

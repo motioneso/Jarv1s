@@ -128,9 +128,9 @@ export class GraphMemoryRecallService {
     ownerUserId: string,
     target: { readonly factId: string },
     pinned: boolean
-  ): Promise<void> {
+  ): Promise<boolean> {
     assertDataContextDb(scopedDb);
-    await this.repository.pinFact(scopedDb, ownerUserId, target.factId, pinned);
+    return this.repository.pinFact(scopedDb, ownerUserId, target.factId, pinned);
   }
 }
 
