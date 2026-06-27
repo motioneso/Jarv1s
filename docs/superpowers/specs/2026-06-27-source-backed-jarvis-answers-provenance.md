@@ -1,6 +1,6 @@
 # Source-backed Jarvis answers with provenance (#539)
 
-**Status:** Draft - AGY review addressed
+**Status:** RFA - AGY review passed
 **Date:** 2026-06-27
 **Owner:** Ben + Codex
 **Issue:** #539
