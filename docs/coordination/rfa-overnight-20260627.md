@@ -35,7 +35,7 @@ builder; PR #548 (`#534`) security QA rerun is in progress; PR #546 (`#530`) rem
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | Ben approved; rebase onto current `main` blocked by conflicts, routed to build pane `w1:p3K` | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | Rebase conflicts resolved and pushed on PR #545 head `d85e98f`; waiting for fresh CI before security re-QA | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | MERGED via PR #544 at merge commit `5f7cc42`; issue #526 closed; pane/worktree reaped | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | Security QA rerun RED on PR #548; AGY pane `w1:p3N` actively fixing blockers | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Blockers fixed on PR #547 head `bb9e257`; CI run `28296806679` in progress + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
@@ -246,6 +246,9 @@ None.
 - #528: Ben approved security-tier merge for PR #545, but after #544 landed `gh pr update-branch
   545 --rebase` failed with conflicts. Routed to build pane `w1:p3K` for conflict-only rebase
   resolution, push, and fresh evidence. Do not merge #545 until its updated head has green checks.
+  Build lane resolved conflicts, reran `VF_EXIT=0` and `AUDIT_EXIT=0`, and force-with-lease pushed
+  head `d85e98f502cdd7a1826e85a84aaedcd05e6488ed`. Wait for fresh GitHub CI, then rerun security
+  QA on the integrated head before merge.
 - #529: security QA rerun subagent `Feynman` (`019f0a1c-5026-79c2-9148-9fb3d173fbf7`) returned RED
   and posted `https://github.com/motioneso/Jarv1s/pull/547#issuecomment-4819714213`: raw turn text
   reaches the extraction AI prompt before deterministic sensitivity filtering, and raw secret-like
