@@ -20,7 +20,8 @@ import {
   createEmbeddingProvider,
   getEmbeddingProviderConfig,
   memoryModuleManifest,
-  memorySqlMigrationDirectory
+  memorySqlMigrationDirectory,
+  registerMemoryGraphRoutes
 } from "@jarv1s/memory";
 import {
   PreferencesRepository,
@@ -619,7 +620,12 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: memoryModuleManifest,
     sqlMigrationDirectories: [memorySqlMigrationDirectory],
-    queueDefinitions: []
+    queueDefinitions: [],
+    registerRoutes: (server, deps) =>
+      registerMemoryGraphRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext
+      })
   },
   {
     manifest: structuredStateModuleManifest,
