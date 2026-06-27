@@ -38,10 +38,10 @@ builder; PR #548 (`#534`) security QA rerun is in progress; PR #546 (`#530`) rem
 
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | Rebase conflicts resolved and pushed on PR #545 head `d85e98f`; CI run `28297038351` waiting on image build before security re-QA | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
+| #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | PR #545 CI green on head `d85e98f`; security QA rerun in progress via subagent `Leibniz` (`019f0a8d-b10d-7d31-a1e6-11b16df2c238`) | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | MERGED via PR #544 at merge commit `5f7cc42`; issue #526 closed; pane/worktree reaped | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | Blockers fixed on PR #548 head `a0ffbdc`; CI run `28297366163` in progress before security re-QA | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Stack rebase pushed on PR #547 head `9ac751e`; CI run `28297284503` in progress | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 head `a0ffbdc` has red `Verify foundation and app`; routed to AGY pane `w1:p3N` | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 CI green on head `9ac751e`; security QA rerun in progress via subagent `Anscombe` (`019f0a8d-b1ab-7c60-9547-74406bdc6d11`) + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
