@@ -90,6 +90,10 @@ export default defineConfig({
         )
       },
       {
+        find: "@jarv1s/priority",
+        replacement: fileURLToPath(new URL("./packages/priority/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/settings",
         replacement: fileURLToPath(new URL("./packages/settings/src/index.ts", import.meta.url))
       },
