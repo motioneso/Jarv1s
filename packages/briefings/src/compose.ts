@@ -24,6 +24,19 @@ import {
   type CalendarSignalSettings,
   type EmailSignalSettings
 } from "./signals.js";
+import {
+  tasksToCandidates,
+  calendarSignalsToCandidates,
+  emailSignalsToCandidates,
+  readPriorityModel
+} from "./priority-consumer.js";
+import { rankPriorityCandidates, type PriorityCandidate } from "@jarv1s/priority";
+import {
+  tasksToCandidates,
+  calendarSignalsToCandidates,
+  emailSignalsToCandidates,
+  readPriorityModel
+} from "./priority-consumer.js";
 
 // ── Caps (one conservative economy budget) ─────────────────────────────────────
 const SECTION_ITEM_CAP = 8;
@@ -528,18 +541,59 @@ export async function composeBriefing(
         settings: emailSettings
       })
     : [];
+  
+  const priorityModel = await readPriorityModel(scopedDb);
+  const priorityCandidates: PriorityCandidate[] = [
+    ...tasks.lines.map((title, i) => ({
+      source: "tasks" as const,
+      title,
+      dueAt: (tasks.rawItems?.[i] as { dueAt?: string })?.dueAt,
+      explicitPriority: (tasks.rawItems?.[i] as { priority?: number })?.priority as 1 | 2 | 3 | 4 | 5 | undefined,
+      textForAnchorMatch: [title]
+    })),
+    ...calendarSignals.map((signal) => ({
+      source: "calendar" as const,
+      title: signal.summary,
+      startsAt: signal.startsAt,
+      signalType: signal.type,
+      textForAnchorMatch: [signal.summary]
+    })),
+    ...emailSignals.map((signal) => ({
+      source: "email" as const,
+      title: signal.summary,
+      signalType: signal.type,
+      textForAnchorMatch: [signal.summary]
+    }))
+  ];
+
+  const ranked = rankPriorityCandidates({
+    model: priorityModel,
+    candidates: priorityCandidates,
+    now: now.toISOString(),
+    timeZone,
+    focusReadiness: []
+  });
+
   if (includeCalendar && (rawCalendar.rawItems?.length ?? 0) > 0 && calendarSignals.length === 0) {
     gaps.push({ source: "calendar", reason: "empty" });
   }
   if (includeEmail && (rawEmail.rawItems?.length ?? 0) > 0 && emailSignals.length === 0) {
     gaps.push({ source: "email", reason: "empty" });
   }
+
   const calendar: Section = {
     key: rawCalendar.key,
     label: rawCalendar.label,
     lines: calendarSignals.map((signal) => sanitizeExternal(signal.summary)),
     count: calendarSignals.length,
     rawItems: rawCalendar.rawItems
+  };
+  const email: Section = {
+    key: rawEmail.key,
+    label: rawEmail.label,
+    lines: emailSignals.map((signal) => sanitizeExternal(signal.summary)),
+    count: emailSignals.length,
+    rawItems: rawEmail.rawItems
   };
   const email: Section = {
     key: rawEmail.key,
