@@ -73,8 +73,12 @@
 
   --text: var(--ink);
   --text-muted: var(--ink-2);
-  --text-subtle: var(--ink-3);
-  --text-faint: var(--ink-4);
+  /* Subtle/faint TEXT decouple from the --ink-3/--ink-4 primitives: the raw
+     ramp reads below WCAG AA 4.5:1 on --paper (ink-3 ~3.4:1, ink-4 ~2.9:1).
+     These darker text-only values clear AA while the ink-3/ink-4 primitives
+     stay put for their non-text uses (priority dots, borders, avatars). #354. */
+  --text-subtle: #6f6a5e; /* 5.1:1 on --paper */
+  --text-faint: #767163; /* 4.6:1 on --paper */
   --text-on-accent: #ffffff;
 
   --border: var(--line);
@@ -281,6 +285,11 @@
   --ink-2: #b7b1a2;
   --ink-3: #8a8576;
   --ink-4: #736e60;
+
+  /* Dark-theme subtle/faint TEXT (see :root note). Raw ink-4 read ~3.4:1 on the
+     dark --paper; these clear WCAG AA. ink-3/ink-4 primitives stay for non-text. #354. */
+  --text-subtle: #9b968a; /* 5.9:1 on dark --paper */
+  --text-faint: #8b8578; /* 4.8:1 on dark --paper */
 
   --pine: #2f875e;
   --pine-hover: #359769;

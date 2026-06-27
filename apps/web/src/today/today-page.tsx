@@ -167,6 +167,10 @@ export function TodayPage(props: {
 
   const name = firstName(props.me.user.name, props.me.user.email);
   const lede = buildLede(priorities.length, atRisk.length, todayEvents.length);
+  // A row of four zeros is noise, not signal — the hero lede already says the day
+  // is clear. Show the stat shortcuts only once at least one tile carries a count.
+  const hasStatSignal =
+    priorities.length > 0 || atRisk.length > 0 || todayEvents.length > 0 || doneToday > 0;
 
   return (
     <div className="cmd-wrap">
@@ -177,33 +181,35 @@ export function TodayPage(props: {
         <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
       </header>
 
-      <div className="cmd-stats">
-        <Stat
-          k="Priorities"
-          v={priorities.length}
-          icon={<Target size={12} />}
-          onClick={() => navigate("/tasks?focus=priorities")}
-        />
-        <Stat
-          k="At risk"
-          v={atRisk.length}
-          warn={atRisk.length > 0}
-          icon={<Clock size={12} />}
-          onClick={() => navigate("/tasks?focus=atrisk")}
-        />
-        <Stat
-          k="Events"
-          v={todayEvents.length}
-          icon={<CalendarDays size={12} />}
-          onClick={() => navigate("/calendar")}
-        />
-        <Stat
-          k="Done today"
-          v={doneToday}
-          icon={<CheckCircle2 size={12} />}
-          onClick={() => navigate("/tasks?focus=donetoday")}
-        />
-      </div>
+      {hasStatSignal ? (
+        <div className="cmd-stats">
+          <Stat
+            k="Priorities"
+            v={priorities.length}
+            icon={<Target size={12} />}
+            onClick={() => navigate("/tasks?focus=priorities")}
+          />
+          <Stat
+            k="At risk"
+            v={atRisk.length}
+            warn={atRisk.length > 0}
+            icon={<Clock size={12} />}
+            onClick={() => navigate("/tasks?focus=atrisk")}
+          />
+          <Stat
+            k="Events"
+            v={todayEvents.length}
+            icon={<CalendarDays size={12} />}
+            onClick={() => navigate("/calendar")}
+          />
+          <Stat
+            k="Done today"
+            v={doneToday}
+            icon={<CheckCircle2 size={12} />}
+            onClick={() => navigate("/tasks?focus=donetoday")}
+          />
+        </div>
+      ) : null}
 
       <div className="cmd-grid">
         <div>
