@@ -30,7 +30,14 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       "app.memory_chunks",
       "app.memory_links",
       "app.memory_file_index",
-      "app.chat_memory_facts"
+      "app.chat_memory_facts",
+      "app.memory_entities",
+      "app.memory_facts",
+      "app.memory_episodes",
+      "app.memory_fact_sources",
+      "app.memory_aliases",
+      "app.memory_search_documents",
+      "app.memory_legacy_fact_migrations"
     ]
   }
 };
