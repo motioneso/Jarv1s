@@ -90,7 +90,8 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       "app.memory_fact_sources",
       "app.memory_aliases",
       "app.memory_search_documents",
-      "app.memory_legacy_fact_migrations"
+      "app.memory_legacy_fact_migrations",
+      "app.memory_candidates"
     ]
   },
   routes: [

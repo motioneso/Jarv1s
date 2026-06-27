@@ -11,7 +11,9 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import {
+  createMemoryCandidateSignature,
   GraphMemoryRecallService,
+  MemoryCandidatesRepository,
   MemoryGraphRepository,
   registerMemoryGraphRoutes,
   StubEmbeddingProvider,
@@ -28,7 +30,8 @@ const graphTables = [
   "memory_fact_sources",
   "memory_aliases",
   "memory_search_documents",
-  "memory_legacy_fact_migrations"
+  "memory_legacy_fact_migrations",
+  "memory_candidates"
 ] as const;
 
 let appDb: Kysely<JarvisDatabase>;
@@ -161,6 +164,93 @@ describe("MemoryGraphRepository", () => {
         expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(`fact:${fact.id}`);
       }
     );
+  });
+});
+
+describe("MemoryCandidatesRepository", () => {
+  const repo = new MemoryCandidatesRepository();
+
+  it("dedupes candidates by owner-scoped signature and preserves resolved status", async () => {
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-candidates:repo" },
+      async (db) => {
+        const signature = createMemoryCandidateSignature({
+          kind: "fact",
+          action: "create",
+          fact: {
+            subject: "Jarvis",
+            predicate: "related_to",
+            objectText: "memory distillation"
+          }
+        });
+        const first = await repo.insertPending(db, ids.userA, {
+          episodeId: null,
+          kind: "fact",
+          action: "create",
+          payloadJson: { kind: "fact", action: "create" },
+          candidateSignature: signature,
+          confidence: 0.6,
+          importance: 0.5,
+          provenance: "inferred"
+        });
+
+        await repo.markRejected(db, ids.userA, first.id, "review rejected");
+
+        const second = await repo.insertPending(db, ids.userA, {
+          episodeId: null,
+          kind: "fact",
+          action: "create",
+          payloadJson: { kind: "fact", action: "create" },
+          candidateSignature: signature,
+          confidence: 0.9,
+          importance: 0.9,
+          provenance: "volunteered"
+        });
+
+        expect(second.id).toBe(first.id);
+        expect(second.status).toBe("rejected");
+        expect(await repo.listPending(db, ids.userA, 10)).toEqual([]);
+      }
+    );
+  });
+
+  it("keeps same candidate signature isolated per owner", async () => {
+    const signature = createMemoryCandidateSignature({
+      kind: "fact",
+      action: "create",
+      fact: { subject: "Jarvis", predicate: "related_to", objectText: "owner scoped" }
+    });
+
+    const a = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "memory-candidates:owner-a" },
+      (db) =>
+        repo.insertPending(db, ids.userA, {
+          episodeId: null,
+          kind: "fact",
+          action: "create",
+          payloadJson: { owner: "a" },
+          candidateSignature: signature,
+          confidence: 0.6,
+          importance: 0.5,
+          provenance: "inferred"
+        })
+    );
+    const b = await appDataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "memory-candidates:owner-b" },
+      (db) =>
+        repo.insertPending(db, ids.userB, {
+          episodeId: null,
+          kind: "fact",
+          action: "create",
+          payloadJson: { owner: "b" },
+          candidateSignature: signature,
+          confidence: 0.6,
+          importance: 0.5,
+          provenance: "inferred"
+        })
+    );
+
+    expect(b.id).not.toBe(a.id);
   });
 });
 

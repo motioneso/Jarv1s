@@ -15,6 +15,19 @@ export {
 export { MemoryIngestPipeline } from "./ingest.js";
 export type { IngestFileOptions, IngestFileResult, IngestStatus } from "./ingest.js";
 export { memoryModuleManifest, memorySqlMigrationDirectory, MEMORY_MODULE_ID } from "./manifest.js";
+export type {
+  MemoryCandidateAction,
+  MemoryCandidateKind,
+  MemoryCandidateProvenance,
+  MemoryCandidateRecord,
+  MemoryCandidateSignatureInput,
+  MemoryCandidateStatus,
+  NewMemoryCandidate
+} from "./candidates-repository.js";
+export {
+  createMemoryCandidateSignature,
+  MemoryCandidatesRepository
+} from "./candidates-repository.js";
 export type { ParsedDocument, TextChunk } from "./parser.js";
 export { parseDocument } from "./parser.js";
 export type { NewChunkData, RetrievedChunk } from "./repository.js";
