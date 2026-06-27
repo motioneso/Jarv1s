@@ -41,6 +41,7 @@ export interface DataContextDb {
  */
 export interface PreferencesPort {
   get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+  getWithMetadata<T>(scopedDb: DataContextDb, key: string): Promise<{ value: T; updatedAt: Date } | null>;
   upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void>;
 }
 

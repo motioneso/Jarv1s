@@ -35,6 +35,20 @@ export class PreferencesRepository {
     return row?.value_json ?? null;
   }
 
+  async getWithMetadata<T>(scopedDb: DataContextDb, key: string): Promise<{ value: T; updatedAt: Date } | null> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select(["value_json", "updated_at"])
+      .where("key", "=", key)
+      .executeTakeFirst();
+    if (!row) return null;
+    return {
+      value: row.value_json as T,
+      updatedAt: row.updated_at
+    };
+  }
+
   async list(scopedDb: DataContextDb): Promise<Record<string, unknown>> {
     assertDataContextDb(scopedDb);
     const rows = await scopedDb.db

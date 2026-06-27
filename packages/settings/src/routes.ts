@@ -144,6 +144,7 @@ export function registerSettingsRoutes(
   const repository = dependencies.repository ?? new SettingsRepository();
   const preferencesRepository: ProfilePreferencesPort = dependencies.preferencesRepository ?? {
     get: async () => null,
+    getWithMetadata: async () => null,
     upsert: async () => undefined
   };
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
