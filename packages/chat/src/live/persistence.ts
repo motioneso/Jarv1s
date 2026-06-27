@@ -147,7 +147,9 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         };
         const extractPayload: ExtractFactsJobPayload = {
           actorUserId,
-          threadId: thread.id
+          threadId: thread.id,
+          userMessageId: result.userMessage.id,
+          assistantMessageId: result.assistantMessage.id
         };
         await sendJob(this.boss, CHAT_EMBED_TURN_QUEUE, embedPayload);
         await sendJob(this.boss, CHAT_EXTRACT_FACTS_QUEUE, extractPayload);

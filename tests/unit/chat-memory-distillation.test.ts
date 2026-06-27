@@ -32,9 +32,7 @@ describe("chat memory distillation helpers", () => {
 
   it("rejects non-json and invalid candidate shapes", () => {
     expect(parseMemoryCandidates("not json")).toEqual([]);
-    expect(parseMemoryCandidates(JSON.stringify([{ kind: "fact", action: "create" }]))).toEqual(
-      []
-    );
+    expect(parseMemoryCandidates(JSON.stringify([{ kind: "fact", action: "create" }]))).toEqual([]);
   });
 
   it("parses valid candidates and clamps scores", () => {

@@ -15,6 +15,7 @@ import type {
   MemoryFactStatus,
   MemorySearchDocumentRecord,
   MemorySearchTargetKind,
+  MemorySourceInput,
   MemorySourceSummary,
   NewMemoryEntity,
   NewMemoryFact
@@ -245,6 +246,91 @@ export class MemoryGraphRepository {
     return mapFact(factRow, [mapSource(source)]);
   }
 
+  async createEpisode(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    input: MemorySourceInput
+  ): Promise<MemorySourceSummary> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<SourceRow>`
+      INSERT INTO app.memory_episodes (
+        owner_user_id,
+        source_kind,
+        source_ref,
+        source_label,
+        occurred_at,
+        excerpt
+      )
+      VALUES (
+        ${ownerUserId}::uuid,
+        ${input.sourceKind},
+        ${input.sourceRef},
+        ${input.sourceLabel ?? ""},
+        ${input.occurredAt ?? null},
+        ${input.excerpt}
+      )
+      RETURNING id, source_kind, source_ref, source_label, occurred_at, excerpt
+    `.execute(scopedDb.db);
+    const row = result.rows[0];
+    if (!row) throw new Error("createEpisode returned no row");
+    await this.upsertSearchDocument(scopedDb, ownerUserId, "episode", row.id, row.excerpt);
+    return mapSource(row);
+  }
+
+  async createFactFromEpisode(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    input: Omit<NewMemoryFact, "source"> & { readonly episodeId: string }
+  ): Promise<MemoryFactRecord> {
+    assertDataContextDb(scopedDb);
+    if (Boolean(input.objectEntityId) === Boolean(input.objectText)) {
+      throw new Error("memory fact requires exactly one object target");
+    }
+
+    const factResult = await sql<FactRow>`
+      INSERT INTO app.memory_facts (
+        owner_user_id,
+        subject_entity_id,
+        predicate,
+        object_entity_id,
+        object_text,
+        confidence,
+        provenance,
+        importance,
+        pinned
+      )
+      VALUES (
+        ${ownerUserId}::uuid,
+        ${input.subjectEntityId}::uuid,
+        ${input.predicate},
+        ${input.objectEntityId ?? null}::uuid,
+        ${input.objectText ?? null},
+        ${input.confidence ?? 0.6},
+        ${input.provenance ?? "inferred"},
+        ${input.importance ?? 0.5},
+        ${input.pinned ?? false}
+      )
+      RETURNING *
+    `.execute(scopedDb.db);
+    const factRow = factResult.rows[0];
+    if (!factRow) throw new Error("createFactFromEpisode returned no row");
+
+    await sql`
+      INSERT INTO app.memory_fact_sources (owner_user_id, fact_id, episode_id)
+      VALUES (${ownerUserId}::uuid, ${factRow.id}::uuid, ${input.episodeId}::uuid)
+    `.execute(scopedDb.db);
+
+    const sources = await this.listSourcesForFact(scopedDb, ownerUserId, factRow.id);
+    await this.upsertSearchDocument(
+      scopedDb,
+      ownerUserId,
+      "fact",
+      factRow.id,
+      [factRow.predicate, factRow.object_text].filter(Boolean).join(" ")
+    );
+    return mapFact(factRow, sources);
+  }
+
   async upsertSearchDocument(
     scopedDb: DataContextDb,
     ownerUserId: string,
@@ -421,6 +507,26 @@ export class MemoryGraphRepository {
         mapFact(row, await this.listSourcesForFact(scopedDb, ownerUserId, row.id))
       )
     );
+  }
+
+  async getActiveFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string
+  ): Promise<MemoryFactRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<FactRow>`
+      SELECT *
+      FROM app.memory_facts
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${factId}::uuid
+        AND status = 'active'
+        AND (valid_to IS NULL OR valid_to > now())
+    `.execute(scopedDb.db);
+    const row = result.rows[0];
+    return row
+      ? mapFact(row, await this.listSourcesForFact(scopedDb, ownerUserId, row.id))
+      : undefined;
   }
 
   async supersedeFact(
