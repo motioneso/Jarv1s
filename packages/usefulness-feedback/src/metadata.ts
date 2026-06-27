@@ -1,5 +1,7 @@
 const MAX_METADATA_BYTES = 2048;
 const MAX_STRING_LENGTH = 200;
+const UNSAFE_METADATA_KEY =
+  /(?:body|excerpt|external_?id|prompt|raw|secret|source_?ids?|summary|token)/i;
 
 export function sanitizeFeedbackMetadata(
   input: Record<string, unknown> | undefined
@@ -23,7 +25,9 @@ export function sanitizeFeedbackMetadata(
 function sanitizeObject(input: Record<string, unknown>): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
-    output[key.slice(0, MAX_STRING_LENGTH)] = sanitizeValue(value);
+    const sanitizedKey = key.slice(0, MAX_STRING_LENGTH);
+    if (UNSAFE_METADATA_KEY.test(sanitizedKey)) continue;
+    output[sanitizedKey] = sanitizeValue(value);
   }
   return output;
 }

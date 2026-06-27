@@ -20,6 +20,8 @@ import {
 import { ManualMemoryCandidateService } from "../../packages/memory/src/index.js";
 import { ChatRepository, createChatFeedbackTargetVerifier } from "../../packages/chat/src/index.js";
 import { deriveBriefingFeedbackItems } from "../../packages/briefings/src/index.js";
+import { UsefulnessFeedbackRepository } from "../../packages/usefulness-feedback/src/repository.js";
+import { exportUserData } from "../../scripts/export-user-data.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -379,6 +381,265 @@ describe("usefulness feedback routes", () => {
     } finally {
       await server.close();
     }
+  });
+
+  it("fails closed for unregistered target verifiers", async () => {
+    const { server } = await buildFeedbackTestServer(appDb);
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "proactive_card",
+          targetRef: "proactive-missing",
+          surface: "proactive",
+          kind: "not_useful"
+        }
+      });
+      expect(response.statusCode).toBe(404);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("keeps unsafe verifier metadata and remember excerpts out of feedback rows", async () => {
+    const { server, dataContext } = await buildFeedbackTestServer(
+      appDb,
+      async (_scopedDb, input) => ({
+        ownerUserId: input.actorUserId,
+        targetKind: input.targetKind,
+        targetRef: input.targetRef,
+        surface: input.surface,
+        sourceKind: "chat",
+        sourceLabel: "Chat",
+        metadata: {
+          role: "user",
+          prompt: "prompt sentinel",
+          body: "body sentinel",
+          sourceIds: ["source-id-sentinel"],
+          nested: { signalType: "manual", secret: "secret sentinel" }
+        },
+        canRemember: true,
+        rememberExcerpt: "remember excerpt sentinel"
+      })
+    );
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: "msg-unsafe-metadata",
+          surface: "chat",
+          kind: "remember_this"
+        }
+      });
+      expect(response.statusCode).toBe(201);
+
+      const rows = await dataContext.withDataContext(userAContext(), async (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.usefulness_feedback_signals")
+          .select(["metadata_json", "effect_kind", "effect_ref"])
+          .where("id", "=", response.json().feedback.id)
+          .execute()
+      );
+      const serialized = JSON.stringify(rows[0]);
+      expect(rows[0]?.metadata_json).toMatchObject({
+        role: "user",
+        nested: { signalType: "manual" }
+      });
+      expect(serialized).not.toContain("prompt sentinel");
+      expect(serialized).not.toContain("body sentinel");
+      expect(serialized).not.toContain("source-id-sentinel");
+      expect(serialized).not.toContain("secret sentinel");
+      expect(serialized).not.toContain("remember excerpt sentinel");
+      expect(rows[0]?.effect_kind).toBe("memory_candidate");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("enforces owner isolation for list, undo, and admin-scoped reads", async () => {
+    const repository = new UsefulnessFeedbackRepository();
+    const dataContext = new DataContextRunner(appDb);
+    const userBContext: AccessContext = { actorUserId: ids.userB, requestId: "req:feedback-b" };
+    const userBFeedback = await dataContext.withDataContext(userBContext, (scopedDb) =>
+      repository.create(scopedDb, {
+        ownerUserId: ids.userB,
+        targetKind: "chat_message",
+        targetRef: "msg-user-b-private",
+        surface: "chat",
+        kind: "not_useful",
+        verification: {
+          ownerUserId: ids.userB,
+          targetKind: "chat_message",
+          targetRef: "msg-user-b-private",
+          surface: "chat",
+          canRemember: false
+        },
+        metadata: { role: "assistant" }
+      })
+    );
+
+    const { server } = await buildFeedbackTestServer(appDb, async (_scopedDb, input) => {
+      if (input.targetRef === "msg-user-b-private") return null;
+      return {
+        ownerUserId: input.actorUserId,
+        targetKind: input.targetKind,
+        targetRef: input.targetRef,
+        surface: input.surface,
+        canRemember: false
+      };
+    });
+    try {
+      const createOther = await server.inject({
+        method: "POST",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders(),
+        payload: {
+          targetKind: "chat_message",
+          targetRef: "msg-user-b-private",
+          surface: "chat",
+          kind: "not_useful"
+        }
+      });
+      expect(createOther.statusCode).toBe(404);
+
+      const list = await server.inject({
+        method: "GET",
+        url: "/api/me/usefulness-feedback",
+        headers: userAHeaders()
+      });
+      expect(list.statusCode).toBe(200);
+      expect(JSON.stringify(list.json())).not.toContain(userBFeedback.id);
+
+      const undoOther = await server.inject({
+        method: "POST",
+        url: `/api/me/usefulness-feedback/${userBFeedback.id}/undo`,
+        headers: userAHeaders()
+      });
+      expect(undoOther.statusCode).toBe(404);
+
+      const adminRows = await dataContext.withDataContext(
+        { actorUserId: ids.adminUser, requestId: "req:feedback-admin" },
+        (scopedDb) =>
+          scopedDb.db
+            .selectFrom("app.usefulness_feedback_signals")
+            .selectAll()
+            .where("owner_user_id", "=", ids.userB)
+            .execute()
+      );
+      expect(adminRows).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("exports owner feedback signals and targets only as metadata rows", async () => {
+    const repository = new UsefulnessFeedbackRepository();
+    const dataContext = new DataContextRunner(appDb);
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      await repository.upsertTarget(scopedDb, {
+        ownerUserId: ids.userA,
+        targetKind: "briefing_item",
+        targetRef: "email:needs_reply:abcdef1234567890",
+        surface: "briefing",
+        sourceKind: "email",
+        sourceLabel: "Email",
+        priorityBand: "high",
+        metadata: { signalType: "needs_reply" }
+      });
+      await repository.create(scopedDb, {
+        ownerUserId: ids.userA,
+        targetKind: "briefing_item",
+        targetRef: "email:needs_reply:abcdef1234567890",
+        surface: "briefing",
+        kind: "dismiss",
+        verification: {
+          ownerUserId: ids.userA,
+          targetKind: "briefing_item",
+          targetRef: "email:needs_reply:abcdef1234567890",
+          surface: "briefing",
+          sourceKind: "email",
+          sourceLabel: "Email",
+          priorityBand: "high",
+          canRemember: false
+        },
+        metadata: { signalType: "needs_reply" }
+      });
+    });
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "req:feedback-export-b" },
+      async (scopedDb) => {
+        await repository.upsertTarget(scopedDb, {
+          ownerUserId: ids.userB,
+          targetKind: "briefing_item",
+          targetRef: "email:needs_reply:bbbbbbbbbbbbbbbb",
+          surface: "briefing",
+          sourceKind: "email",
+          sourceLabel: "Email",
+          metadata: { signalType: "needs_reply" }
+        });
+        await repository.create(scopedDb, {
+          ownerUserId: ids.userB,
+          targetKind: "briefing_item",
+          targetRef: "email:needs_reply:bbbbbbbbbbbbbbbb",
+          surface: "briefing",
+          kind: "dismiss",
+          verification: {
+            ownerUserId: ids.userB,
+            targetKind: "briefing_item",
+            targetRef: "email:needs_reply:bbbbbbbbbbbbbbbb",
+            surface: "briefing",
+            sourceKind: "email",
+            sourceLabel: "Email",
+            canRemember: false
+          },
+          metadata: { signalType: "needs_reply" }
+        });
+      }
+    );
+
+    const userExport = await exportUserData({
+      appConnectionString: connectionStrings.app,
+      exportedAt: new Date("2026-06-27T12:00:00.000Z"),
+      userId: ids.userA
+    });
+    const exportedJson = JSON.stringify(userExport);
+
+    expect(userExport.tables.usefulnessFeedbackTargets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ownerUserId: ids.userA,
+          targetKind: "briefing_item",
+          targetRef: "email:needs_reply:abcdef1234567890",
+          metadata: { signalType: "needs_reply" }
+        })
+      ])
+    );
+    expect(userExport.tables.usefulnessFeedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ownerUserId: ids.userA,
+          targetKind: "briefing_item",
+          targetRef: "email:needs_reply:abcdef1234567890",
+          kind: "dismiss",
+          metadata: { signalType: "needs_reply" }
+        })
+      ])
+    );
+    expect(exportedJson).not.toContain("bbbbbbbbbbbbbbbb");
+    expect(exportedJson).not.toContain("prompt sentinel");
+    expect(exportedJson).not.toContain("body sentinel");
+    expect(exportedJson).not.toContain("remember excerpt sentinel");
+    expect(exportedJson).not.toContain("remember me safely");
+    expect(exportedJson).not.toContain("cancel me");
+    expect(Object.keys(userExport.tables.usefulnessFeedbackSignals[0] ?? {})).not.toContain(
+      "summaryText"
+    );
   });
 });
 

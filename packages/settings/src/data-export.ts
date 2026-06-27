@@ -52,6 +52,8 @@ export interface UserDataExportTables {
   readonly preferences: readonly ExportRow[];
   readonly taskActivity: readonly ExportRow[];
   readonly tasks: readonly ExportRow[];
+  readonly usefulnessFeedbackSignals: readonly ExportRow[];
+  readonly usefulnessFeedbackTargets: readonly ExportRow[];
   readonly users: readonly ExportRow[];
   readonly wellnessCheckins: readonly ExportRow[];
   readonly wellnessTherapyNotes: readonly ExportRow[];
@@ -107,6 +109,8 @@ async function readExportTables(
     commitments: await readRows(scopedDb.db, commitmentsQuery(userId)),
     entities: await readRows(scopedDb.db, entitiesQuery(userId)),
     preferences: await readRows(scopedDb.db, preferencesQuery(userId)),
+    usefulnessFeedbackSignals: await readRows(scopedDb.db, usefulnessFeedbackSignalsQuery(userId)),
+    usefulnessFeedbackTargets: await readRows(scopedDb.db, usefulnessFeedbackTargetsQuery(userId)),
     wellnessCheckins: await readRows(scopedDb.db, wellnessCheckinsQuery(userId)),
     medications: await readRows(scopedDb.db, medicationsQuery(userId)),
     medicationLogs: await readRows(scopedDb.db, medicationLogsQuery(userId)),
@@ -587,7 +591,7 @@ function memoryCandidatesQuery(userId: string) {
       episode_id::text AS "episodeId",
       kind,
       action,
-      payload_json AS "payloadJson",
+      payload_json - 'excerpt' AS "payloadJson",
       candidate_signature AS "candidateSignature",
       status,
       confidence,
@@ -688,6 +692,48 @@ function preferencesQuery(userId: string) {
     FROM app.preferences
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY key, id
+  `;
+}
+
+function usefulnessFeedbackSignalsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      target_kind AS "targetKind",
+      target_ref AS "targetRef",
+      surface,
+      kind,
+      source_kind AS "sourceKind",
+      source_label AS "sourceLabel",
+      priority_band AS "priorityBand",
+      effect_kind AS "effectKind",
+      effect_ref AS "effectRef",
+      metadata_json AS "metadata",
+      status,
+      created_at AS "createdAt",
+      resolved_at AS "resolvedAt"
+    FROM app.usefulness_feedback_signals
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function usefulnessFeedbackTargetsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      owner_user_id::text AS "ownerUserId",
+      target_kind AS "targetKind",
+      target_ref AS "targetRef",
+      surface,
+      source_kind AS "sourceKind",
+      source_label AS "sourceLabel",
+      priority_band AS "priorityBand",
+      metadata_json AS "metadata",
+      last_seen_at AS "lastSeenAt"
+    FROM app.usefulness_feedback_targets
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY last_seen_at, target_kind, target_ref, surface
   `;
 }
 
