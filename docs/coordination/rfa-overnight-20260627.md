@@ -19,7 +19,10 @@ coordinator session `019f0ad6-e0f5-7ab3-af48-e4e06b175eba` was reaped after hand
 Successor released #527 and #532 as the next collision-safe wave; #525 remains held because it shares
 chat hidden-context/runTurn surfaces with #532. Design PR #549 remained outside the RFA queue and
 merged to `main` at squash commit `c3df8eb` after clean CI; its worktree/branch were removed by the
-design pane.
+design pane. Current Codex coordinator is relaying to a Claude coordinator on Sonnet 4.6; successor
+must claim the `Coordinator` lock with its own Claude session id, then reap old Codex coordinator
+session `019f0ae5-0afd-7092-911e-6c2e987df7f2` after verifying handoff. Do not spec #520 in the
+RFA coordinator loop; Ben will handle that separately.
 
 ## Base
 
