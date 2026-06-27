@@ -35,9 +35,9 @@ security QA for PR #547 (`#529`) and PR #548 (`#534`) now that both are CI green
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR #544 CI green on `9b063e6`; independent QA rerun in progress via subagent `Beauvoir` (`019f09e9-1622-7061-bdd6-50a79b5c58a4`) | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
-| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 CI green on `main`; security QA in progress via subagent `Gauss` (`019f09e9-4f55-7341-826a-14248ece0bf6`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 CI green on #528 base; security QA in progress via subagent `Peirce` (`019f09e9-4ecc-7480-92b6-4dba8898300c`) + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | QA RED on PR #544; blocker routed to build pane `w1:p3Q` | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
+| #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | Security QA RED on PR #548; blockers routed to build pane `w1:p3N` | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Security QA RED on PR #547; blockers routed to build pane `w1:p3Z` + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
@@ -210,19 +210,36 @@ None.
   nudges.
 - #529: PR #547 CI run `28287794279` is now fully green on head
   `c02a047c56428f6614cd43409423866dca034c9b`. Security QA subagent `Peirce`
-  (`019f09e9-4ecc-7480-92b6-4dba8898300c`) is in progress. Because this is a security-tier PR
-  stacked on #528, merge remains blocked behind #528 even after QA passes.
+  (`019f09e9-4ecc-7480-92b6-4dba8898300c`) returned RED and posted
+  `https://github.com/motioneso/Jarv1s/pull/547#issuecomment-4819159309`: blockers are
+  model-controlled `supersedesIds` deactivating active memory without deterministic supersession
+  intent, and model-trusted `isSensitive` without deterministic credential/token/password filtering
+  before store/promote. Routed to build pane `w1:p3Z` with focused regression requirements. Because
+  this is a security-tier PR stacked on #528, merge remains blocked behind #528 even after QA passes.
 - #526: PR #544 rerun CI `28288166262` is now fully green on head
   `9b063e6f65cdfe412daf51e11cfe947139b3506f`. Independent QA rerun subagent `Beauvoir`
-  (`019f09e9-1622-7061-bdd6-50a79b5c58a4`) is in progress against this head.
+  (`019f09e9-1622-7061-bdd6-50a79b5c58a4`) returned RED and posted
+  `https://github.com/motioneso/Jarv1s/pull/544#issuecomment-4819132513`: blocking issue at
+  `packages/settings/src/priority-routes.ts:127`, where PATCH validation skips anchor
+  `createdAt`/`updatedAt` type checks, allowing malformed stored data that later makes GET fall
+  back to defaults. Routed to build pane `w1:p3Q` with a focused regression-test requirement.
 - #534: PR #548 CI run `28287913187` is fully green on head
   `2c253a599eff989333030d9bd7f22680ea01f367`. Security QA subagent `Gauss`
-  (`019f09e9-4f55-7341-826a-14248ece0bf6`) is in progress.
+  (`019f09e9-4f55-7341-826a-14248ece0bf6`) returned RED and posted
+  `https://github.com/motioneso/Jarv1s/pull/548#issuecomment-4819171127`: blockers are
+  family-less `write:auto` tools still auto-running from `<module>.agency_auto_execute`, with
+  `notes.create/edit` lacking `actionFamilyId`, and `trusted_auto` skipping `executionPolicy ===
+  "auto"` plus `manifest.allowedTiers` checks. Routed to AGY build pane `w1:p3N` with focused
+  regression requirements.
 
 ## Reaped Sessions
 
 - Closed old relaying coordinator pane `w1:p3H` after successor session
   `019f09e7-e6a9-7e83-b3f9-6d5c2ba7f61d` claimed the `Coordinator` label and manifest lock.
+- Closed completed native QA subagents `Beauvoir` (`019f09e9-1622-7061-bdd6-50a79b5c58a4`),
+  `Peirce` (`019f09e9-4ecc-7480-92b6-4dba8898300c`), and `Gauss`
+  (`019f09e9-4f55-7341-826a-14248ece0bf6`).
+- Closed completed Herdr QA panes `QA-546 Codex` (`w1:p42`) and `QA-544 Codex` (`w1:p30`).
 - Closed stalled opencode/GLM pane `w1:p3M` for #526 after it remained idle on a clean but red tree;
   replacement Codex salvage pane is `w1:p3Q`.
 - Closed native QA worker `Aquinas` after its RED verdict was posted to PR #544 and relayed.
