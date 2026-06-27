@@ -5,7 +5,9 @@
 `14390eec-c4ea-4e6d-af99-3063509759e9`. Single-coordinator lock verified: exactly
 one pane labelled `Coordinator`, and it is this session. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
-`security` requires Ben's explicit merge sign-off after posted QA verdict.
+`security` auto-merges after cross-model QA (GLM + Codex both green) — Ben sign-off
+waived for this run (2026-06-27 explicit directive: "get GLM and Codex to review then merge
+when on level").
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
 **merges_since_relay:** 0
