@@ -621,6 +621,9 @@ importers:
       '@jarv1s/priority':
         specifier: workspace:*
         version: link:../priority
+      '@jarv1s/proactive-monitoring':
+        specifier: workspace:*
+        version: link:../proactive-monitoring
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared

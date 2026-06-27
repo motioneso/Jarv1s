@@ -70,6 +70,10 @@ import {
 import { registerPersonaRoutes } from "./persona-routes.js";
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import { registerPriorityRoutes } from "./priority-routes.js";
+import {
+  registerProactiveMonitoringSettingsRoutes,
+  type ReconcileProactiveScheduleFn
+} from "./proactive-monitoring-routes.js";
 import { HttpRepositoryError, SettingsRepository } from "./repository.js";
 import { registerSourceBehaviorRoutes } from "./source-behavior-routes.js";
 import {
@@ -132,6 +136,8 @@ export interface SettingsRoutesDependencies {
    * import). Absent ⇒ no heartbeat (manual sync still works).
    */
   readonly reconcileNotesSchedule?: ReconcileNotesScheduleFn;
+  /** Optional: reconcile per-source proactive-monitoring recurring jobs on settings save. */
+  readonly reconcileProactiveSchedule?: ReconcileProactiveScheduleFn;
 }
 
 interface SettingParams {
@@ -169,6 +175,11 @@ export function registerSettingsRoutes(
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   registerPriorityRoutes(server, { ...dependencies, preferencesRepository });
+  registerProactiveMonitoringSettingsRoutes(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    reconcileProactiveSchedule: dependencies.reconcileProactiveSchedule
+  });
   registerDataExportRoutes(server, {
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,
