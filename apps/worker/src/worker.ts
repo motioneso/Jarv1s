@@ -10,7 +10,14 @@ import {
   registerDataContextWorker,
   type RlsProbeJobPayload
 } from "@jarv1s/jobs";
-import { getAllQueueDefinitions, registerBuiltInModuleWorkers } from "@jarv1s/module-registry";
+import {
+  aggregateFocusSignals,
+  createActiveModulesResolver,
+  focusSignalProvidersFor,
+  getAllQueueDefinitions,
+  getBuiltInModuleManifests,
+  registerBuiltInModuleWorkers
+} from "@jarv1s/module-registry";
 
 // ---------------------------------------------------------------------------
 // Bounded graceful-shutdown timeout (ms). On SIGINT/SIGTERM the worker waits
@@ -80,6 +87,10 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   // shared `createPgBossClient` default (schedule:false). WORKER_BOSS_OPTIONS +
   // logScheduleMode make the one-cron-owner invariant unit-testable + observable.
   const boss = createPgBossClient(connectionString, WORKER_BOSS_OPTIONS);
+  const resolveActiveModules = createActiveModulesResolver({
+    dataContext,
+    manifests: getBuiltInModuleManifests()
+  });
   logScheduleMode();
 
   await boss.start();
@@ -125,6 +136,23 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   await registerBuiltInModuleWorkers(boss, {
     rootDb: workerDb,
     dataContext,
+    focusSignals: async (ctx) => {
+      const providers = focusSignalProvidersFor(await resolveActiveModules(ctx.actorUserId));
+      if (providers.length === 0) return [];
+      return aggregateFocusSignals(
+        providers,
+        (work) =>
+          dataContext.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            (scopedDb) => work(scopedDb)
+          ),
+        ctx,
+        {
+          onProviderError: (moduleId, errorName) =>
+            workerLogger.warn({ moduleId, errorName }, "focus-signal provider failed (soft)")
+        }
+      );
+    },
     // Pino's Logger is structurally what FastifyBaseLogger wraps at runtime
     // (Fastify uses pino internally). The cast bridges the nominal type gap.
     logger: workerLogger as unknown as FastifyBaseLogger

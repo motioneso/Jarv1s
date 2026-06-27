@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/shared",
+  "name": "@jarv1s/priority",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,9 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@jarv1s/priority": "workspace:*"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --run"
   }
 }

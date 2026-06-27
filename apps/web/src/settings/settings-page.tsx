@@ -10,6 +10,7 @@ import {
   Database,
   Fingerprint,
   Link2,
+  ListChecks,
   Package,
   Palette,
   ScrollText,
@@ -33,7 +34,7 @@ import {
   writeSettingsStorage
 } from "./settings-storage";
 import type { PaneProps } from "./settings-types";
-import { Segmented, Switch } from "./settings-ui";
+import { PrioritySettings, Segmented, Switch } from "./settings-ui";
 import type { MeResponse } from "@jarv1s/shared";
 
 type SettingsPane = ComponentType<PaneProps>;
@@ -48,6 +49,7 @@ interface SettingsSection<Id extends string> {
 type PersonalSectionId =
   | "profile"
   | "assistant"
+  | "priorities"
   | "memory"
   | "connected"
   | "sources"
@@ -90,6 +92,10 @@ const AppearancePane = lazyPane(() =>
   import("./settings-appearance-pane").then((module) => ({ default: module.AppearancePane }))
 );
 
+function PrioritiesPane(_props: PaneProps) {
+  return <PrioritySettings />;
+}
+
 const PeoplePane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.PeoplePane }))
 );
@@ -115,6 +121,7 @@ const HostPane = lazyPane(() =>
 const PERSONAL_SECTIONS = [
   { id: "profile", icon: UserRound, label: "Profile & account", Pane: ProfilePane },
   { id: "assistant", icon: Sparkles, label: "Assistant & AI", Pane: AssistantPane },
+  { id: "priorities", icon: ListChecks, label: "Priorities", Pane: PrioritiesPane },
   { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
   { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
   { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },

@@ -33,6 +33,14 @@ export const settingsModuleManifest: JarvisModuleManifest = {
   ],
   settings: [
     {
+      id: "priority-settings",
+      label: "Priorities",
+      path: "/settings?section=priorities",
+      scope: "user",
+      order: 30,
+      permissionId: "settings.write"
+    },
+    {
       id: "admin-settings",
       label: "Admin",
       path: "/settings/admin",
@@ -192,6 +200,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/source-behaviors/:id",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
+      path: "/api/me/priority-model",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/me/priority-model",
       permissionId: "settings.write"
     },
     {

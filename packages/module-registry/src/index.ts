@@ -283,6 +283,7 @@ export interface BuiltInRouteDependencies {
 export interface BuiltInWorkerDependencies {
   readonly rootDb: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
+  readonly focusSignals?: BuiltInRouteDependencies["focusSignals"];
   /**
    * Structured logger for worker-path diagnostics. Production (apps/worker) passes
    * a pino root; tests omit it. Threaded into per-module worker registrations so
@@ -592,6 +593,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           aiRepository: new AiRepository(),
           cipher: createAiSecretCipher(),
           personaRepository: new PreferencesRepository(),
+          priorityPreferencesRepository: new PreferencesRepository(),
+          focusReadiness: dependencies.focusSignals,
           sourceBehaviorPolicy: {
             manifests: getBuiltInModuleManifests(),
             preferencesRepository: new PreferencesRepository()

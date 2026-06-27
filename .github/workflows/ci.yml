@@ -162,6 +162,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      - name: Pre-pull BuildKit image
+        run: |
+          for attempt in 1 2 3; do
+            if docker pull moby/buildkit:buildx-stable-1; then
+              exit 0
+            fi
+            sleep $((attempt * 15))
+          done
+          docker pull moby/buildkit:buildx-stable-1
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

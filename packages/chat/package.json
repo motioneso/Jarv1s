@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./priority-consumer": "./src/priority-consumer.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -16,6 +17,7 @@
     "@jarv1s/db": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/priority": "workspace:*",
     "@jarv1s/shared": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2"

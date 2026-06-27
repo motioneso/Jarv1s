@@ -24,3 +24,4 @@ export {
   resolveNotesRoots,
   registerNotesSourceRoutes
 } from "./notes-source-routes.js";
+export { registerPriorityRoutes } from "./priority-routes.js";
