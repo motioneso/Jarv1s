@@ -31,10 +31,10 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | blocker fix pushed at `e923424`; CI run `28286935159` in progress, QA rerun pending green checks (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | PR #544 CI green; detached Codex QA running (`w1:p30`) | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | implementation committed; AGY wrap-up/push/PR requested (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | stacked on #528; candidate-store commit `508f7e8` landed, helpers in progress (`w1:p3Z`) | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | - |
-| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 open on #528 base; branch pushed at `8877e5e`, CI running, QA pending green checks + stack order (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | #546 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 open on #528 base; CI running, QA pending green checks + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
+| #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 CI green; detached Codex QA running (`w1:p42`), merge still blocked by #528 stack order | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | queued after #530 | AGY | opencode/GLM QA | `rfa-525-cross-tool-reasoning` | - |
@@ -111,7 +111,12 @@ None.
   payload/logging metadata-only. First material commit is now in: `508f7e8`
   (`feat(memory): add memory candidate store`). Lane verified
   `pnpm vitest run tests/integration/memory-graph.test.ts -t "MemoryCandidatesRepository|memory_candidates"`
-  green and moved on to distillation helpers.
+  green and moved on to distillation helpers. The lane has now reported DONE with PR #547
+  (`https://github.com/motioneso/Jarv1s/pull/547`), branch `rfa-529-memory-distillation` pushed at
+  head `c02a047c56428f6614cd43409423866dca034c9b`, base `rfa-528-memory-graph-substrate`,
+  `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green, and no deferrals. GitHub CI run `28287794279`
+  is still in progress, so security QA waits for green checks. As a stacked child of #528, merge
+  remains blocked on #528 landing first even after QA passes.
 - #526: plan approved from `docs/superpowers/plans/2026-06-27-unified-priority-model.md`; scope
   constrained to pure scorer, owner-scoped preference API/UI, and thin consumers over already-loaded
   candidates. Task 1 focused unit suite passed before commit `3f1abb1`. After Task 5, gate was red
@@ -164,9 +169,13 @@ None.
   pushed at head `8877e5e31c3ee6d8292368a7bdb3602c88c273ca`, base
   `rfa-528-memory-graph-substrate`, `VF_EXIT=0` on lane DB `jarvis_build_rfa_530_passive_context`,
   `AUDIT_EXIT=0`, and focused `lint`, `format:check`, `typecheck`, `test:chat`, `test:memory`
-  green. GitHub CI run `28287158764` is still in progress, so independent QA waits for green
-  checks. Because this PR is stacked on #528, merge remains blocked on #528 landing first even
-  after QA passes.
+  green. GitHub CI run `28287158764` is now fully green. Detached QA worktree
+  `/tmp/jarv1s-qa-546-opencode` was prepared; an initial opencode QA spawn did not stick, so a
+  fallback Codex QA lane was launched in pane `w1:p42`. Because this PR is stacked on #528, merge
+  remains blocked on #528 landing first even after QA passes.
+- #526: PR #544 CI is now fully green on head `e9234242e090df8bd523db223c851b357f42e853`. Detached
+  QA worktree `/tmp/jarv1s-qa-544-codex` was created and Codex QA lane `w1:p30` is running against
+  the green PR. If QA returns GREEN, this sensitive-tier PR becomes mergeable immediately.
 - #534: AGY finished implementation and reported local `typecheck` plus unit/integration suites
   green after commit `feat(core): implement rfa-534 action permission tiers`. Coordinator nudged
   the pane into `coordinated-wrap-up`: full gate if needed, pre-push trio, rebase, push, PR open,
