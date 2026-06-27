@@ -16,6 +16,7 @@ import {
 import type { PgBoss } from "pg-boss";
 
 import type { RecallPort } from "../recall-port.js";
+import { PassiveContextRetriever, type PassiveMemoryGraphRecallPort } from "./passive-retrieval.js";
 
 import { resolveChatHome } from "./chat-home.js";
 import {
@@ -207,6 +208,8 @@ export interface CreateChatSessionRuntimeDeps {
   readonly boss?: PgBoss;
   /** Phase 3: optional recall service — injects <memory> seed at session launch. */
   readonly recall?: RecallPort;
+  /** Optional graph-only per-turn recall. */
+  readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
@@ -362,7 +365,13 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
       ? (sessionKey) => killOrphan(activeReconcileDriver, connection!, sessionKey)
       : undefined,
     serverOwnsDrain,
-    recall: deps.recall
+    recall: deps.recall,
+    passiveRetrieval: deps.passiveMemoryRecall
+      ? new PassiveContextRetriever({
+          dataContext: deps.dataContext,
+          graphRecall: deps.passiveMemoryRecall
+        })
+      : undefined
   });
 
   // §5.5 — start the idle reaper at boot (the PREFERRED outcome) for the RPC path. It shares the §5.4

@@ -395,6 +395,70 @@ describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
   });
 });
 
+describe("ChatSessionManager passive retrieval", () => {
+  function depsForPassive(engine: FakeEngine, overrides = {}) {
+    return makeMinimalDeps({
+      engineFactory: () => engine,
+      pollMs: 0,
+      persistence: {
+        resolveActiveProvider: vi
+          .fn()
+          .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+        listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+        recordTurn: vi.fn().mockResolvedValue(undefined),
+        openNewConversation: vi.fn().mockResolvedValue(undefined)
+      },
+      ...overrides
+    });
+  }
+
+  it("submits retrieved context to the engine but records only raw user text", async () => {
+    const engine = new FakeEngine(0, [
+      { records: [{ kind: "reply", text: "answer" }], offset: 10, complete: true }
+    ]);
+    const recordTurn = vi.fn().mockResolvedValue(undefined);
+    const manager = new ChatSessionManager(
+      depsForPassive(engine, {
+        passiveRetrieval: {
+          retrieve: vi.fn().mockResolvedValue("<retrieved_context>\n- memory\n</retrieved_context>")
+        },
+        persistence: {
+          resolveActiveProvider: vi
+            .fn()
+            .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+          listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+          recordTurn,
+          openNewConversation: vi.fn().mockResolvedValue(undefined)
+        }
+      })
+    );
+
+    await manager.submitTurn("u1", "Ben", "what did we decide?");
+
+    expect(engine.submitted.at(-1)).toContain("<retrieved_context>");
+    expect(engine.submitted.at(-1)).toContain("what did we decide?");
+    expect(recordTurn).toHaveBeenCalledWith("u1", "what did we decide?", "answer", {
+      provider: "anthropic",
+      model: "sonnet"
+    });
+  });
+
+  it("continues with raw text when passive retrieval throws", async () => {
+    const engine = new FakeEngine(0, [
+      { records: [{ kind: "reply", text: "answer" }], offset: 10, complete: true }
+    ]);
+    const manager = new ChatSessionManager(
+      depsForPassive(engine, {
+        passiveRetrieval: { retrieve: vi.fn().mockRejectedValue(new Error("boom")) }
+      })
+    );
+
+    await manager.submitTurn("u1", "Ben", "what did we decide?");
+
+    expect(engine.submitted.at(-1)).toBe("what did we decide?");
+  });
+});
+
 describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
   it("revokes orphaned tokens via the registry even when the sessions Map is empty (api restart)", async () => {
     const reconcileMcpTokens = vi.fn();

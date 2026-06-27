@@ -54,6 +54,7 @@ import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
+import type { PassiveMemoryGraphRecallPort } from "./live/passive-retrieval.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
 import type {
   CreateChatSessionRuntimeDeps,
@@ -80,6 +81,7 @@ export interface ChatRoutesDependencies {
   readonly mcpServerUrl?: string;
   /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
   readonly boss?: PgBoss;
+  readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
@@ -175,6 +177,7 @@ export function registerChatRoutes(
     // engine. An explicit chatEngineFactory always wins inside the runtime, so passing both is safe.
     engineSelection: dependencies.chatEngineFactory ? undefined : dependencies.engineSelection,
     boss: dependencies.boss,
+    passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
     mcpTokenLifecycle: wiring
       ? {
