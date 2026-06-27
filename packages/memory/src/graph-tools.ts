@@ -2,9 +2,16 @@ import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import { RuntimeConfigResolver } from "@jarv1s/settings";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 
-import { createEmbeddingProvider, getEmbeddingProviderConfig } from "./embedding-provider-config.js";
+import {
+  createEmbeddingProvider,
+  getEmbeddingProviderConfig
+} from "./embedding-provider-config.js";
 import { GraphMemoryRecallService } from "./graph-recall-service.js";
-import type { MemoryFactPredicate, MemoryFactProvenance, MemoryEpisodeKind } from "./graph-types.js";
+import type {
+  MemoryFactPredicate,
+  MemoryFactProvenance,
+  MemoryEpisodeKind
+} from "./graph-types.js";
 
 export const memoryRecallExecute: ToolExecute = async (
   scopedDb,
@@ -17,8 +24,13 @@ export const memoryRecallExecute: ToolExecute = async (
   const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.trunc(rawLimit)) : undefined;
   if (!query) return { data: { query: "", items: [] } };
 
+  const result = await (
+    await createService(scopedDb)
+  ).recall(scopedDb, ctx.actorUserId, query, {
+    limit
+  });
   return {
-    data: await (await createService(scopedDb)).recall(scopedDb, ctx.actorUserId, query, { limit })
+    data: { ...result }
   };
 };
 
@@ -28,7 +40,9 @@ export const memoryRememberExecute: ToolExecute = async (
   ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const result = await (await createService(scopedDb)).remember(scopedDb, ctx.actorUserId, {
+  const result = await (
+    await createService(scopedDb)
+  ).remember(scopedDb, ctx.actorUserId, {
     subjectEntityId: optionalString(input.subjectEntityId),
     predicate: requiredString(input.predicate) as MemoryFactPredicate,
     objectEntityId: optionalString(input.objectEntityId),
@@ -38,7 +52,9 @@ export const memoryRememberExecute: ToolExecute = async (
     importance: optionalNumber(input.importance),
     pinned: typeof input.pinned === "boolean" ? input.pinned : undefined,
     source: {
-      sourceKind: requiredString((input.source as Record<string, unknown>).sourceKind) as MemoryEpisodeKind,
+      sourceKind: requiredString(
+        (input.source as Record<string, unknown>).sourceKind
+      ) as MemoryEpisodeKind,
       sourceRef: requiredString((input.source as Record<string, unknown>).sourceRef),
       sourceLabel: optionalString((input.source as Record<string, unknown>).sourceLabel),
       excerpt: requiredString((input.source as Record<string, unknown>).excerpt)
@@ -54,8 +70,11 @@ export const memoryForgetExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const factId = requiredString(input.factId);
+  const result = await (
+    await createService(scopedDb)
+  ).forget(scopedDb, ctx.actorUserId, { factId });
   return {
-    data: await (await createService(scopedDb)).forget(scopedDb, ctx.actorUserId, { factId })
+    data: { ...result }
   };
 };
 

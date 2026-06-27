@@ -157,9 +157,7 @@ describe("MemoryGraphRepository", () => {
         const docs = await repo.listSearchDocumentsForOwner(db, ids.userA);
         expect(alias.normalizedAlias).toBe("remodel");
         expect(fact.sources).toHaveLength(1);
-        expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(
-          `entity:${project.id}`
-        );
+        expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(`entity:${project.id}`);
         expect(docs.map((d) => `${d.targetKind}:${d.targetId}`)).toContain(`fact:${fact.id}`);
       }
     );
@@ -366,9 +364,9 @@ async function expectGraphIsolation(
       `.execute(scopedDb.db);
       expect(other.rows).toEqual([]);
 
-      await expect(
-        insertEntity(scopedDb, ids.userB, `${roleLabel} wrong owner`)
-      ).rejects.toThrow(/row-level security|violates row-level security|permission denied/i);
+      await expect(insertEntity(scopedDb, ids.userB, `${roleLabel} wrong owner`)).rejects.toThrow(
+        /row-level security|violates row-level security|permission denied/i
+      );
     }
   );
 }
