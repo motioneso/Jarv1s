@@ -24,8 +24,8 @@ failed immediately on verify and compose checks, and AGY then pushed lockfile he
 CI run `28300052293` fully green. Security QA for #548 returned GREEN, 0 blocking / 3 non-blocking,
 and #548 is awaiting Ben security-tier merge sign-off. #530 replacement PR #550 merged at
 `90d590d`; issue #530 closed; build/QA panes and worktree reaped. #529 replacement PR #551 is open
-against `main` because closed #547 had a deleted base; security QA returned GREEN and #551 is
-awaiting Ben security-tier merge sign-off.
+against `main` because closed #547 had a deleted base; security QA returned GREEN, but #551 became
+DIRTY after #550 landed and was routed back to pane `w1:p3Z` for rebase/fresh evidence.
 
 ## Base
 
@@ -53,7 +53,7 @@ awaiting Ben security-tier merge sign-off.
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | MERGED via PR #545 at merge commit `eef2a68`; issue #528 closed; build pane/worktree reaped | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | MERGED via PR #544 at merge commit `5f7cc42`; issue #526 closed; pane/worktree reaped | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 head `1874272` has green GitHub CI run `28300052293`; security QA GREEN; awaiting Ben sign-off | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Replacement PR #551 head `b37f779` has green GitHub CI and security QA GREEN; awaiting Ben sign-off | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #551 |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Replacement PR #551 head `b37f779` had green CI/QA but is DIRTY after #550 merge; routed to build pane `w1:p3Z` for rebase | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #551 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | MERGED via replacement PR #550 at merge commit `90d590d`; issue #530 closed; pane/worktree reaped | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #550 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
