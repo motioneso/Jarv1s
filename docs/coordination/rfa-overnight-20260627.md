@@ -33,7 +33,7 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | blocker fix pushed at `e923424`; CI run `28286935159` in progress, QA rerun pending green checks (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | plan approved; AGY implementation active in policy/gateway/tests (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | queued after #528 | AGY | Codex security QA | `rfa-529-memory-distillation` | - |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | stacked on #528; Codex lane spawned and reading handoff/spec (`w1:p3Z`) | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | - |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | stacked on #528; passive recall commits landed, lane DB full gate running (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | - |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
@@ -96,6 +96,14 @@ None.
   `tasks/task_changes`, keep canonical+legacy writes transactional, and avoid a second executor or
   global automation switch. The lane is already mid-implementation while the approval message sits
   queued behind active work.
+- #529: next dependency-safe dogfood lane was spawned stacked on `rfa-528-memory-graph-substrate`
+  head `519ad54` in worktree `~/Jarv1s/.claude/worktrees/rfa-529-memory-distillation`. Coordinator
+  committed handoff `174997f` with migration slot `0119_memory_candidates.sql`, metadata-only
+  payload, deterministic gate, pending-vs-promoted, and no-raw-graph-SQL constraints. An initial
+  opencode spawn failed to stick; a Codex build lane was then launched successfully on
+  `gpt-5.5` default-medium reasoning as pane `w1:p3Z` / session
+  `019f08b7-6e1f-7480-9fd4-c784c2741968`. It is now reading the handoff/spec and should escalate
+  once the plan is ready.
 - #526: plan approved from `docs/superpowers/plans/2026-06-27-unified-priority-model.md`; scope
   constrained to pure scorer, owner-scoped preference API/UI, and thin consumers over already-loaded
   candidates. Task 1 focused unit suite passed before commit `3f1abb1`. After Task 5, gate was red
