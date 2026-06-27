@@ -71,6 +71,8 @@ Core fields:
 - `created_at`, `updated_at`
 
 The repository creates exactly one `self` entity per owner lazily when the first memory is created.
+Back it with a partial unique index on `(owner_user_id)` where `kind = 'self'`; repository writes use
+`INSERT ... ON CONFLICT DO NOTHING` so concurrent chat jobs cannot create duplicate self entities.
 
 ### 3.2 Facts / Edges
 
@@ -78,6 +80,7 @@ The repository creates exactly one `self` entity per owner lazily when the first
 
 Shape:
 
+- `owner_user_id`
 - `subject_entity_id`
 - `predicate`
 - one of:
@@ -92,6 +95,14 @@ Shape:
 - `importance`
 - `pinned`
 - `created_at`, `updated_at`
+
+The table enforces:
+
+- exactly one target: either `object_entity_id` or `object_text`, never both and never neither;
+- `(owner_user_id, subject_entity_id)` references `(owner_user_id, id)` on `memory_entities`;
+- `(owner_user_id, object_entity_id)` references `(owner_user_id, id)` on `memory_entities`.
+
+This keeps RLS simple and prevents cross-user graph edges.
 
 Examples:
 
@@ -144,6 +155,9 @@ Core fields:
 `app.memory_fact_sources` links facts to one or more episodes. A fact without evidence is not
 trusted memory; manual memory gets a `manual` episode.
 
+`memory_fact_sources` also carries `owner_user_id` and uses owner-scoped composite foreign keys to
+both `memory_facts` and `memory_episodes`.
+
 ### 3.4 Aliases
 
 `app.memory_aliases` maps names to entities:
@@ -160,16 +174,24 @@ must not auto-resolve.
 
 `app.memory_search_documents` stores one searchable document per entity/fact/episode summary:
 
+- `owner_user_id`
 - `target_kind`: `entity | fact | episode`
 - `target_id`
 - `search_text`
 - `embedding` using the existing configured embedding provider and pgvector
+- `embed_model_name`
+- `embed_model_version`
+- `status`: `active | inactive`
 - `created_at`, `updated_at`
 
 V1 recall uses hybrid ranking: keyword text match, vector similarity, pinned/importance/provenance
 boosts, and freshness. If the configured embedding provider is `stub`, vector results are
 mechanically valid but low quality; the API still behaves the same and improves when the provider is
 upgraded.
+
+The table stores `owner_user_id` directly so pgvector retrieval filters by owner before returning
+ranked results. Superseding, rejecting, archiving, or deleting a target record deactivates or deletes
+its search document in the same repository operation.
 
 ## 4. Recall Contract
 
@@ -220,6 +242,22 @@ Ranking order:
 4. importance;
 5. freshness / last confirmed.
 
+Default score:
+
+```text
+score =
+  (0.40 * vectorSimilarity) +
+  (0.25 * keywordMatch) +
+  (0.15 * importance) +
+  (0.10 * provenanceBoost) +
+  (0.05 * pinnedBoost) +
+  (0.05 * freshnessBoost)
+```
+
+Where `provenanceBoost` is `1.0` for confirmed, `0.8` for volunteered, `0.4` for inferred, and
+`0.6` for imported. The implementation may use reciprocal-rank fusion later, but V1 uses this
+explicit linear formula so ranking is testable.
+
 Rejected, superseded, archived, and expired memories do not appear unless `includeInactive` is set.
 
 ## 5. Core vs Archival Memory
@@ -250,7 +288,12 @@ V1 adds a forward migration that:
    - store the legacy fact content as `object_text`;
    - create a `chat` episode when `source_thread_id` exists, else `manual`;
    - link the new memory fact to that episode;
-4. marks migrated legacy facts by inserting a source link, not by editing applied migrations.
+4. records idempotency in `app.memory_legacy_fact_migrations`:
+   - `owner_user_id`
+   - `legacy_fact_id`
+   - `memory_fact_id`
+   - `created_at`
+   - unique `(owner_user_id, legacy_fact_id)`.
 
 After graph recall is live, old `listActiveFacts` remains for compatibility until consumers move.
 
@@ -277,6 +320,8 @@ No auto-distillation in this spec. #529 owns background extraction into this gra
 ## 8. Security And Invariants
 
 - All tables are owner-scoped and FORCE RLS.
+- Tables that connect graph nodes store `owner_user_id` directly and use owner-scoped composite
+  foreign keys; no RLS policy depends on joining through another table to discover ownership.
 - Runtime app and worker roles get only the minimum grants needed.
 - Admins do not bypass RLS.
 - Job payloads stay metadata-only. Source excerpts live in owner-scoped DB rows, not job payloads.
