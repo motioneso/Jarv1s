@@ -15,6 +15,7 @@ import {
 } from "@jarv1s/ai";
 import {
   ChatMemoryFactsRepository,
+  GraphMemoryRecallService,
   MemoryRepository,
   MemoryRetriever,
   createEmbeddingProvider,
@@ -212,6 +213,8 @@ export interface BuiltInRouteDependencies {
    * resolution).
    */
   readonly chatEngineSelection?: ChatRoutesDependencies["engineSelection"];
+  /** Chat-owned passive graph recall seam; no module imports graph internals directly. */
+  readonly passiveMemoryRecall?: ChatRoutesDependencies["passiveMemoryRecall"];
   /**
    * #342 (§3.4) — the ONE RPC connection to the cli-runner sidecar, when the api runs containerized
    * (JARVIS_CLI_RUNNER_SOCKET set). Owned by the chat runtime (it constructs the connection WITH the
@@ -847,6 +850,12 @@ export function registerBuiltInApiRoutes(
     // is intentionally omitted (no frame-body logging). Tests that inject an explicit chatEngineFactory
     // bypass this entirely (no socket selection). Undefined on the in-process / host-dev path.
     chatEngineSelection: socketConfigured && !dependencies.chatEngineFactory ? { env } : undefined,
+    passiveMemoryRecall: {
+      async recall(scopedDb, ownerUserId, query, options) {
+        const provider = await createRuntimeEmbeddingProvider(scopedDb);
+        return new GraphMemoryRecallService(provider).recall(scopedDb, ownerUserId, query, options);
+      }
+    },
     chatMultiplexerAvailability: availability,
     onboardingProbes,
     onboardingInstall,

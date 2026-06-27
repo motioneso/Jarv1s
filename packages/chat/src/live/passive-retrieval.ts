@@ -1,5 +1,8 @@
-import type { MemoryRecallItem } from "@jarv1s/memory";
+import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { MemoryRecallItem, MemoryRecallResult } from "@jarv1s/memory";
 
+import { ChatUserMemorySettingsRepository } from "../memory-settings-repository.js";
+import type { UserMemorySettings } from "../memory-settings-repository.js";
 import { estimateTokens } from "./recall-seed.js";
 import { neutralizeSeedFraming } from "./prompt-safety.js";
 
@@ -35,6 +38,71 @@ const MAX_FRAGMENT_CHARS = 160;
 const MAX_CONTEXT_ITEMS = 8;
 const MAX_CONTEXT_TOKENS = 1200;
 const MIN_CONTEXT_SCORE = 0.35;
+const PASSIVE_TIMEOUT_MS = 750;
+const PASSIVE_RECALL_LIMIT = 8;
+
+export interface PassiveMemoryGraphRecallPort {
+  recall(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    query: string,
+    options: { readonly limit?: number }
+  ): Promise<MemoryRecallResult>;
+}
+
+export interface PassiveContextRetrieverDeps {
+  readonly dataContext: Pick<DataContextRunner, "withDataContext">;
+  readonly graphRecall: PassiveMemoryGraphRecallPort;
+  readonly settingsRepo?: {
+    getOrCreate(scopedDb: DataContextDb, userId: string): Promise<UserMemorySettings>;
+  };
+}
+
+export class PassiveContextRetriever {
+  private readonly settingsRepo;
+
+  constructor(private readonly deps: PassiveContextRetrieverDeps) {
+    this.settingsRepo = deps.settingsRepo ?? new ChatUserMemorySettingsRepository();
+  }
+
+  async retrieve(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<string> {
+    try {
+      return (await withPassiveRetrievalTimeout(this.retrieveNow(input), PASSIVE_TIMEOUT_MS)) ?? "";
+    } catch {
+      return "";
+    }
+  }
+
+  private async retrieveNow(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<string> {
+    const decision = planPassiveRetrieval(input);
+    if (!decision.shouldRetrieve) return "";
+
+    return this.deps.dataContext.withDataContext(
+      { actorUserId: input.actorUserId, requestId: "chat:passive-memory-retrieval" },
+      async (scopedDb) => {
+        const settings = await this.settingsRepo.getOrCreate(scopedDb, input.actorUserId);
+        if (!settings.recallEnabled || !settings.factsEnabled) return "";
+        const result = await this.deps.graphRecall.recall(
+          scopedDb,
+          input.actorUserId,
+          decision.query,
+          { limit: PASSIVE_RECALL_LIMIT }
+        );
+        return renderRetrievedContextBlock(result.items);
+      }
+    );
+  }
+}
 
 export function planPassiveRetrieval(input: PassiveRetrievalInput): PassiveRetrievalDecision {
   const text = normalize(input.userText);
