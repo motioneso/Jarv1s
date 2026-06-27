@@ -517,6 +517,105 @@ describe("handleExtractFactsJob — memory distillation candidates + no-op degra
     });
   });
 
+  it("ignores supersedesIds on non-supersession candidates", async () => {
+    await seedEconomyModel("supersede-ignored");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const self = await graphRepository.ensureSelfEntity(scopedDb, ids.userA);
+      const old = await graphRepository.createFact(scopedDb, ids.userA, {
+        subjectEntityId: self.id,
+        predicate: "prefers",
+        objectText: "tea",
+        provenance: "volunteered",
+        confidence: 0.9,
+        source: {
+          sourceKind: "manual",
+          sourceRef: "test:old-non-supersede",
+          excerpt: "Prefers tea"
+        }
+      });
+      const turn = await createTurn(scopedDb, {
+        title: "Distill-ignore-supersedes",
+        user: "Remember that I prefer coffee."
+      });
+
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        {
+          actorUserId: ids.userA,
+          threadId: turn.threadId,
+          userMessageId: turn.userMessage.id,
+          assistantMessageId: turn.assistantMessage.id
+        },
+        makeDeps(async () => ({
+          text: JSON.stringify([
+            {
+              kind: "fact",
+              action: "create",
+              fact: { subject: "Ben", predicate: "prefers", objectText: "coffee" },
+              provenance: "volunteered",
+              confidence: 0.9,
+              importance: 0.9,
+              sourceExcerpt: "Remember that I prefer coffee.",
+              rationale: "Explicit memory request",
+              isSensitive: false,
+              supersedesIds: [old.id]
+            }
+          ])
+        }))
+      );
+
+      const active = await graphRepository.listCoreFacts(scopedDb, ids.userA, 50);
+      expect(active.some((fact) => fact.id === old.id)).toBe(true);
+      expect(active.some((fact) => fact.objectText === "coffee")).toBe(true);
+    });
+  });
+
+  it("drops credential-like candidates before storing or promoting", async () => {
+    await seedEconomyModel("secret-filter");
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const turn = await createTurn(scopedDb, {
+        title: "Distill-secret",
+        user: "Remember that my API key is sk-1234567890abcdef."
+      });
+
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        {
+          actorUserId: ids.userA,
+          threadId: turn.threadId,
+          userMessageId: turn.userMessage.id,
+          assistantMessageId: turn.assistantMessage.id
+        },
+        makeDeps(async () => ({
+          text: JSON.stringify([
+            {
+              kind: "fact",
+              action: "create",
+              fact: {
+                subject: "Ben",
+                predicate: "related_to",
+                objectText: "api key sk-1234567890abcdef"
+              },
+              provenance: "volunteered",
+              confidence: 0.99,
+              importance: 0.9,
+              sourceExcerpt: "Remember that my API key is sk-1234567890abcdef.",
+              rationale: "User explicitly asked to remember credential.",
+              isSensitive: false
+            }
+          ])
+        }))
+      );
+
+      const pending = await candidatesRepository.listPending(scopedDb, ids.userA, 10);
+      const core = await graphRepository.listCoreFacts(scopedDb, ids.userA, 50);
+      expect(JSON.stringify(pending)).not.toContain("sk-1234567890abcdef");
+      expect(JSON.stringify(core)).not.toContain("sk-1234567890abcdef");
+    });
+  });
+
   it("does not promote commitments into tasks or active memory", async () => {
     await seedEconomyModel("commitment");
     await dataContext.withDataContext(userAContext(), async (scopedDb) => {

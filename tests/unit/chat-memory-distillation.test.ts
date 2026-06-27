@@ -4,6 +4,7 @@ import {
   buildDistillationPrompt,
   decideCandidatePromotion,
   parseMemoryCandidates,
+  memoryCandidateContainsSensitiveText,
   shouldDistillTurn
 } from "@jarv1s/chat";
 import { createMemoryCandidateSignature } from "@jarv1s/memory";
@@ -67,6 +68,31 @@ describe("chat memory distillation helpers", () => {
     ]);
   });
 
+  it("deterministically marks credential-like candidates sensitive", () => {
+    const [candidate] = parseMemoryCandidates(
+      JSON.stringify([
+        {
+          kind: "fact",
+          action: "create",
+          fact: {
+            subject: "Ben",
+            predicate: "related_to",
+            objectText: "OpenAI API key is sk-1234567890abcdef"
+          },
+          provenance: "volunteered",
+          confidence: 0.99,
+          importance: 0.9,
+          sourceExcerpt: "remember my OpenAI API key is sk-1234567890abcdef",
+          rationale: "User asked to remember credential",
+          isSensitive: false
+        }
+      ])
+    );
+
+    expect(candidate?.isSensitive).toBe(true);
+    expect(candidate && memoryCandidateContainsSensitiveText(candidate)).toBe(true);
+  });
+
   it("normalizes candidate signatures", () => {
     const a = createMemoryCandidateSignature({
       kind: "fact",
@@ -105,6 +131,22 @@ describe("chat memory distillation helpers", () => {
         groundedSupersedes: true
       })
     ).toEqual({ status: "promote", reason: "explicit_memory_command" });
+
+    expect(
+      decideCandidatePromotion({
+        candidate: {
+          ...base,
+          sourceExcerpt: "remember password is hunter2",
+          rationale: "User asked to remember credential",
+          provenance: "volunteered",
+          confidence: 0.7,
+          isSensitive: true
+        },
+        explicitMemoryCommand: true,
+        conflicts: false,
+        groundedSupersedes: true
+      }).status
+    ).toBe("pending");
 
     expect(
       decideCandidatePromotion({

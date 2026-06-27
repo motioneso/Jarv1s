@@ -30,6 +30,7 @@ import { ChatRepository } from "./repository.js";
 import {
   buildDistillationPrompt,
   decideCandidatePromotion,
+  memoryCandidateContainsSensitiveText,
   parseMemoryCandidates,
   shouldDistillTurn,
   type MemoryCandidate
@@ -223,6 +224,7 @@ export async function handleExtractFactsJob(
     });
 
     for (const candidate of parseMemoryCandidates(text).slice(0, MAX_CANDIDATES_PER_TURN)) {
+      if (candidate.isSensitive || memoryCandidateContainsSensitiveText(candidate)) continue;
       const record = await candidatesRepository.insertPending(scopedDb, ownerUserId, {
         episodeId: episode.id,
         kind: candidate.kind,
@@ -350,12 +352,10 @@ async function maybePromoteCandidate(
   episodeId: string,
   explicitMemoryCommand: boolean
 ): Promise<void> {
-  const groundedFact = await firstGroundedFact(
-    scopedDb,
-    ownerUserId,
-    graphRepository,
-    candidate.supersedesIds ?? []
-  );
+  const allowsSupersession = candidate.kind === "supersession" && candidate.action === "supersede";
+  const groundedFact = allowsSupersession
+    ? await firstGroundedFact(scopedDb, ownerUserId, graphRepository, candidate.supersedesIds ?? [])
+    : undefined;
   const decision = decideCandidatePromotion({
     candidate,
     explicitMemoryCommand,
@@ -364,7 +364,7 @@ async function maybePromoteCandidate(
   });
   if (decision.status !== "promote") return;
 
-  if (groundedFact) {
+  if (allowsSupersession && groundedFact) {
     await graphRepository.supersedeFact(scopedDb, ownerUserId, groundedFact.id);
   }
 
