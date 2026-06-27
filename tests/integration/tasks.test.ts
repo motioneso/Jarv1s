@@ -164,6 +164,7 @@ describe("Tasks module M1", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",
