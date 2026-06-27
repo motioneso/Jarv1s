@@ -148,6 +148,10 @@ function validateModel(input: unknown): asserts input is PriorityModelPreference
     if (typeof a.enabled !== "boolean") {
       throw new HttpError(400, "Invalid anchor: enabled must be boolean");
     }
+
+    if (typeof a.createdAt !== "string" || typeof a.updatedAt !== "string") {
+      throw new HttpError(400, "Invalid anchor: timestamps must be strings");
+    }
   }
 
   if (!Array.isArray(model.mutedSources)) {
