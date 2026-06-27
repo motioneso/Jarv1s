@@ -183,6 +183,7 @@ describe("AI provider foundation", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",

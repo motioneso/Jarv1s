@@ -74,6 +74,19 @@ export class ChatRepository {
       .execute();
   }
 
+  async getMessageById(
+    scopedDb: DataContextDb,
+    messageId: string
+  ): Promise<ChatMessage | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.chat_messages")
+      .selectAll()
+      .where("id", "=", messageId)
+      .executeTakeFirst();
+  }
+
   private async insertMessage(
     scopedDb: DataContextDb,
     input: {

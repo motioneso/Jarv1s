@@ -282,6 +282,10 @@ describe("MVP foundation scaffold", () => {
           name: "0119_memory_candidates.sql"
         },
         {
+          version: "0120",
+          name: "0120_usefulness_feedback_signals.sql"
+        },
+        {
           version: "0121",
           name: "0121_confidence_aware_memory_records.sql"
         }

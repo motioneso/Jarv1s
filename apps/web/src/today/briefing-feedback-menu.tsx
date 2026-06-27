@@ -1,0 +1,100 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { MoreHorizontal, ThumbsDown, ThumbsUp } from "lucide-react";
+import { useState } from "react";
+
+import type { UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@jarv1s/shared";
+
+import { queryKeys } from "../api/query-keys";
+import {
+  createUsefulnessFeedback,
+  undoUsefulnessFeedback
+} from "../api/usefulness-feedback-client";
+
+type BriefingRunFeedbackKind = Extract<
+  UsefulnessFeedbackKind,
+  "more_like_this" | "too_much" | "not_useful" | "dismiss"
+>;
+
+export function BriefingFeedbackMenu(props: {
+  readonly targetRef: string;
+  readonly onChanged: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [last, setLast] = useState<UsefulnessFeedbackDto | null>(null);
+  const createMutation = useMutation({
+    mutationFn: (kind: BriefingRunFeedbackKind) =>
+      createUsefulnessFeedback({
+        targetKind: "briefing_run",
+        targetRef: props.targetRef,
+        surface: "briefing",
+        kind
+      }),
+    onSuccess: (response) => {
+      setLast(response.feedback);
+      props.onChanged();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+  const undoMutation = useMutation({
+    mutationFn: (id: string) => undoUsefulnessFeedback(id),
+    onSuccess: () => {
+      setLast(null);
+      props.onChanged();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+
+  return (
+    <div className="today-feedback">
+      <details className="today-feedback__details">
+        <summary className="today-feedback__trigger" aria-label="Feedback" title="Feedback">
+          <MoreHorizontal size={14} aria-hidden="true" />
+        </summary>
+        <div className="today-feedback__list">
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("more_like_this")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsUp size={13} aria-hidden="true" />
+            More like this
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("too_much")}
+            disabled={createMutation.isPending}
+          >
+            Too much
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("not_useful")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsDown size={13} aria-hidden="true" />
+            Not useful
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("dismiss")}
+            disabled={createMutation.isPending}
+          >
+            Dismiss
+          </button>
+        </div>
+      </details>
+      {last ? (
+        <span className="today-feedback__status">
+          Saved
+          <button
+            type="button"
+            onClick={() => undoMutation.mutate(last.id)}
+            disabled={undoMutation.isPending}
+          >
+            Undo
+          </button>
+        </span>
+      ) : null}
+    </div>
+  );
+}

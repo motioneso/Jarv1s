@@ -274,6 +274,7 @@ describe("M3 auth, users, settings", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",

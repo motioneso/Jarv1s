@@ -15,6 +15,7 @@ export type ChatRecordKind =
 export interface TranscriptRecord {
   readonly kind: ChatRecordKind;
   readonly text: string;
+  readonly messageId?: string;
   readonly actionRequestId?: string;
   readonly toolName?: string;
   readonly summary?: string;
@@ -77,6 +78,7 @@ export function parseRecord(data: unknown): TranscriptRecord | null {
     return {
       kind: parsed.kind,
       text: parsed.text,
+      messageId: typeof parsed.messageId === "string" ? parsed.messageId : undefined,
       actionRequestId:
         typeof parsed.actionRequestId === "string" ? parsed.actionRequestId : undefined,
       toolName: typeof parsed.toolName === "string" ? parsed.toolName : undefined,

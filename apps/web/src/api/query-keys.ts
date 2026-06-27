@@ -50,6 +50,9 @@ export const queryKeys = {
     definitions: ["briefings", "definitions"] as const,
     runs: (definitionId: string | null) => ["briefings", "runs", definitionId] as const
   },
+  usefulnessFeedback: {
+    list: ["usefulness-feedback"] as const
+  },
   calendar: {
     list: ["calendar", "list"] as const,
     detail: (id: string) => ["calendar", "detail", id] as const

@@ -101,8 +101,8 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     userText: string,
     assistantReply: string,
     executed: { provider: ProviderKind; model: string }
-  ): Promise<void> {
-    await this.run(actorUserId, "record-turn", async (scopedDb) => {
+  ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined> {
+    return this.run(actorUserId, "record-turn", async (scopedDb) => {
       const thread =
         (await this.chat.getCurrentThread(scopedDb, actorUserId)) ??
         (await this.chat.openNewThread(scopedDb, { title: DEFAULT_CONVERSATION_TITLE }));
@@ -155,6 +155,12 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         await sendJob(this.boss, CHAT_EMBED_TURN_QUEUE, embedPayload);
         await sendJob(this.boss, CHAT_EXTRACT_FACTS_QUEUE, extractPayload);
       }
+      return result
+        ? {
+            userMessageId: result.userMessage.id,
+            assistantMessageId: result.assistantMessage.id
+          }
+        : undefined;
     });
   }
 

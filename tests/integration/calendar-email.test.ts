@@ -221,6 +221,7 @@ describe("Calendar and Email connector-backed read modules", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",

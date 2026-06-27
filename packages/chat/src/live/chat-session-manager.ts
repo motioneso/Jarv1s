@@ -45,7 +45,7 @@ export interface ChatPersistencePort {
     userText: string,
     assistantReply: string,
     executed: { provider: ProviderKind; model: string }
-  ): Promise<void>;
+  ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined>;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
 }
@@ -340,7 +340,11 @@ export class ChatSessionManager {
     actorUserId: string,
     userName: string,
     text: string
-  ): Promise<{ reply: string }> {
+  ): Promise<{
+    reply: string;
+    userMessageId?: string;
+    assistantMessageId?: string;
+  }> {
     // Turn-at-a-time (spec §6.5): reject a concurrent turn for the same user.
     // The flag is set synchronously (before any await) so two turns started in
     // the same tick can't both pass the check, and cleared in finally below.
@@ -367,7 +371,11 @@ export class ChatSessionManager {
     actorUserId: string,
     userName: string,
     text: string
-  ): Promise<{ reply: string }> {
+  ): Promise<{
+    reply: string;
+    userMessageId?: string;
+    assistantMessageId?: string;
+  }> {
     const session = await this.ensureSession(actorUserId, userName);
 
     // #456 — per-turn stop signal. stopTurn(actorUserId) aborts this; the poll loop checks
@@ -454,14 +462,18 @@ export class ChatSessionManager {
         return { reply };
       }
 
-      await this.deps.persistence.recordTurn(actorUserId, text, reply, {
+      const stored = await this.deps.persistence.recordTurn(actorUserId, text, reply, {
         provider: session.provider,
         model: session.model
       });
       session.lastActivity = this.deps.clock.now();
       this.deps.touchMcpToken?.(actorUserId);
 
-      return { reply };
+      return {
+        reply,
+        userMessageId: stored?.userMessageId,
+        assistantMessageId: stored?.assistantMessageId
+      };
     } finally {
       this.turnControllers.delete(actorUserId);
     }

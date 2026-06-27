@@ -43,6 +43,7 @@ import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
+import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
@@ -371,7 +372,17 @@ export function TodayPage(props: {
                 </span>
               </div>
               {latestEveningRun ? (
-                <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
+                <>
+                  <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
+                  <BriefingFeedbackMenu
+                    targetRef={latestEveningRun.id}
+                    onChanged={() =>
+                      void queryClient.invalidateQueries({
+                        queryKey: queryKeys.briefings.runs(eveningDefinition.id)
+                      })
+                    }
+                  />
+                </>
               ) : (
                 <div className="agenda-clear">No evening review yet.</div>
               )}

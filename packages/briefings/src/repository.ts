@@ -158,6 +158,17 @@ export class BriefingsRepository {
       .execute();
   }
 
+  async getOwnedRunById(scopedDb: DataContextDb, runId: string): Promise<BriefingRun | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.briefing_runs")
+      .selectAll()
+      .where("id", "=", runId)
+      .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+      .executeTakeFirst();
+  }
+
   async getOwnedEveningRunForInterview(
     scopedDb: DataContextDb,
     runId?: string

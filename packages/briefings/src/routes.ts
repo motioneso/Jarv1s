@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
+import type { UsefulnessFeedbackRepository } from "@jarv1s/usefulness-feedback";
 
 import { listAssistantToolsFromManifests } from "@jarv1s/ai";
 import type { AccessContext, BriefingDefinition, BriefingRun, DataContextRunner } from "@jarv1s/db";
@@ -31,6 +32,7 @@ import { type BriefingRunPayload } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import { BriefingsRepository } from "./repository.js";
 import { reconcileOwnedSchedules, reconcileSchedule } from "./schedule.js";
+import { deriveBriefingFeedbackItems } from "./feedback-targets.js";
 
 export interface BriefingsRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -38,6 +40,10 @@ export interface BriefingsRoutesDependencies {
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly boss: PgBoss;
   readonly repository?: BriefingsRepository;
+  readonly feedbackRepository?: Pick<
+    UsefulnessFeedbackRepository,
+    "upsertTarget" | "listActiveDismissedRefs"
+  >;
 }
 
 interface DefinitionParams {
@@ -223,13 +229,51 @@ export function registerBriefingsRoutes(
           accessContext,
           async (scopedDb) => {
             const definition = await repository.getDefinitionById(scopedDb, request.params.id);
+            if (!definition) return undefined;
+            const dismissedRuns =
+              (await dependencies.feedbackRepository?.listActiveDismissedRefs(
+                scopedDb,
+                accessContext.actorUserId,
+                "briefing_run",
+                "briefing"
+              )) ?? new Set<string>();
+            const dismissedItems =
+              (await dependencies.feedbackRepository?.listActiveDismissedRefs(
+                scopedDb,
+                accessContext.actorUserId,
+                "briefing_item",
+                "briefing"
+              )) ?? new Set<string>();
+            const runs = await repository.listRuns(scopedDb, definition.id);
+            const visibleRuns = runs.filter((run) => !dismissedRuns.has(run.id));
+            const serializedRuns = visibleRuns.map((run) => serializeRun(run, { dismissedItems }));
+            if (dependencies.feedbackRepository) {
+              for (const run of visibleRuns) {
+                await dependencies.feedbackRepository.upsertTarget(scopedDb, {
+                  ownerUserId: accessContext.actorUserId,
+                  targetKind: "briefing_run",
+                  targetRef: run.id,
+                  surface: "briefing",
+                  sourceKind: "briefing",
+                  sourceLabel: "Briefing",
+                  metadata: { briefingType: run.briefing_type }
+                });
+              }
+              for (const item of serializedRuns.flatMap((run) => run.feedbackItems)) {
+                await dependencies.feedbackRepository.upsertTarget(scopedDb, {
+                  ownerUserId: accessContext.actorUserId,
+                  targetKind: "briefing_item",
+                  targetRef: item.feedbackItemId,
+                  surface: "briefing",
+                  sourceKind: item.sourceKind,
+                  sourceLabel: item.sourceLabel,
+                  priorityBand: item.priorityBand,
+                  metadata: item.metadata
+                });
+              }
+            }
 
-            return definition
-              ? {
-                  definition,
-                  runs: await repository.listRuns(scopedDb, definition.id)
-                }
-              : undefined;
+            return { definition, runs: serializedRuns };
           }
         );
 
@@ -237,7 +281,7 @@ export function registerBriefingsRoutes(
           return reply.code(404).send({ error: "Briefing definition not found" });
         }
 
-        return { runs: result.runs.map(serializeRun) };
+        return { runs: result.runs };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -456,7 +500,13 @@ function serializeDefinition(definition: BriefingDefinition): BriefingDefinition
   };
 }
 
-function serializeRun(run: BriefingRun): BriefingRunDto {
+function serializeRun(
+  run: BriefingRun,
+  options: { readonly dismissedItems?: ReadonlySet<string> } = {}
+): BriefingRunDto {
+  const feedbackItems = deriveBriefingFeedbackItems(run.source_metadata).filter(
+    (item) => !options.dismissedItems?.has(item.feedbackItemId)
+  );
   return {
     id: run.id,
     definitionId: run.definition_id,
@@ -466,6 +516,7 @@ function serializeRun(run: BriefingRun): BriefingRunDto {
     briefingType: run.briefing_type,
     summaryText: run.summary_text,
     sourceMetadata: run.source_metadata,
+    feedbackItems,
     createdAt: toIsoString(run.created_at)
   };
 }

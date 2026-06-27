@@ -1,0 +1,30 @@
+import type { FeedbackTargetVerifier } from "@jarv1s/usefulness-feedback";
+
+import { ChatRepository } from "./repository.js";
+
+const REMEMBER_EXCERPT_CHARS = 1000;
+
+export function createChatFeedbackTargetVerifier(
+  repository = new ChatRepository()
+): FeedbackTargetVerifier {
+  return async (scopedDb, input) => {
+    if (input.targetKind !== "chat_message" || input.surface !== "chat") return null;
+    const message = await repository.getMessageById(scopedDb, input.targetRef);
+    if (!message || message.owner_user_id !== input.actorUserId) return null;
+    const thread = await repository.getThreadById(scopedDb, message.thread_id);
+    if (!thread || thread.owner_user_id !== input.actorUserId) return null;
+
+    const canRemember = !thread.incognito && message.role === "user" && message.status === "stored";
+    return {
+      ownerUserId: input.actorUserId,
+      targetKind: input.targetKind,
+      targetRef: input.targetRef,
+      surface: input.surface,
+      sourceKind: "chat",
+      sourceLabel: "Chat",
+      metadata: { role: message.role, status: message.status },
+      canRemember,
+      rememberExcerpt: canRemember ? message.body.slice(0, REMEMBER_EXCERPT_CHARS) : undefined
+    };
+  };
+}

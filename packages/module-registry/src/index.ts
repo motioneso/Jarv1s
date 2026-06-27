@@ -15,6 +15,7 @@ import {
 } from "@jarv1s/ai";
 import {
   GraphMemoryRecallService,
+  ManualMemoryCandidateService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
   MemoryRepository,
@@ -35,6 +36,7 @@ import {
   BriefingsRepository,
   briefingsModuleManifest,
   briefingsModuleSqlMigrationDirectory,
+  createBriefingsFeedbackTargetVerifier,
   registerBriefingsJobWorkers,
   registerBriefingsRoutes
 } from "@jarv1s/briefings";
@@ -49,6 +51,8 @@ import {
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
   buildEveningInterviewSeed,
+  ChatRepository,
+  createChatFeedbackTargetVerifier,
   registerChatJobWorkers,
   registerChatRoutes,
   type ChatEngineFactory,
@@ -138,6 +142,13 @@ import {
   registerNotesSyncRoutes,
   registerNotesJobWorkers
 } from "@jarv1s/notes";
+import {
+  FeedbackTargetVerifierRegistry,
+  registerUsefulnessFeedbackRoutes,
+  UsefulnessFeedbackRepository,
+  usefulnessFeedbackModuleManifest,
+  usefulnessFeedbackModuleSqlMigrationDirectory
+} from "@jarv1s/usefulness-feedback";
 
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
@@ -348,6 +359,8 @@ const quietHoursPortImpl: QuietHoursPort = {
     return typeof tz === "string" && tz.length > 0 ? tz : null;
   }
 };
+
+const usefulnessFeedbackRepository = new UsefulnessFeedbackRepository();
 
 const PERSONA_PREVIEW_SAMPLE_TURN =
   "Give me a two-sentence morning check-in for a day with one important task and one slipped commitment.";
@@ -587,7 +600,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: briefingsModuleManifest,
     sqlMigrationDirectories: [briefingsModuleSqlMigrationDirectory],
     queueDefinitions: BRIEFINGS_QUEUE_DEFINITIONS,
-    registerRoutes: registerBriefingsRoutes,
+    registerRoutes: (server, deps) =>
+      registerBriefingsRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        listModuleManifests: deps.listModuleManifests,
+        boss: deps.boss,
+        feedbackRepository: usefulnessFeedbackRepository
+      }),
     registerWorkers: (boss, dependencies) => {
       const briefingsLogger = dependencies.logger
         ? createModuleLogger(dependencies.logger, "briefings")
@@ -636,6 +656,36 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext
       })
+  },
+  {
+    manifest: usefulnessFeedbackModuleManifest,
+    sqlMigrationDirectories: [usefulnessFeedbackModuleSqlMigrationDirectory],
+    queueDefinitions: [],
+    registerRoutes: (server, deps) => {
+      const registry = new FeedbackTargetVerifierRegistry();
+      registry.register("chat_message", createChatFeedbackTargetVerifier(new ChatRepository()));
+      registry.register(
+        "briefing_run",
+        createBriefingsFeedbackTargetVerifier(
+          new BriefingsRepository(),
+          usefulnessFeedbackRepository
+        )
+      );
+      registry.register(
+        "briefing_item",
+        createBriefingsFeedbackTargetVerifier(
+          new BriefingsRepository(),
+          usefulnessFeedbackRepository
+        )
+      );
+      registerUsefulnessFeedbackRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        registry,
+        repository: usefulnessFeedbackRepository,
+        manualMemoryCandidates: new ManualMemoryCandidateService()
+      });
+    }
   },
   {
     manifest: structuredStateModuleManifest,
