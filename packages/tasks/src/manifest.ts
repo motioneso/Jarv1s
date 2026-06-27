@@ -498,6 +498,22 @@ export const tasksModuleManifest = {
       grantLevels: ["view", "contribute", "manage"]
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "task_changes",
+      label: "Task changes",
+      description: "Create, update, and organize tasks and lists.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto"]
+    },
+    {
+      id: "task_cleanup",
+      label: "Task cleanup",
+      description: "Delete lists and tags.",
+      defaultTier: "always_confirm",
+      allowedTiers: ["always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "tasks.list",
@@ -609,6 +625,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.create",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: createTaskRequestSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskCreateExecute
@@ -619,6 +636,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskUpdateToolInputSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskUpdateExecute
@@ -629,6 +647,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: {
         type: "object",
         required: ["taskId", "status"],
@@ -646,6 +665,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskBreakdownToolInputSchema,
       outputSchema: taskBreakdownToolOutputSchema,
       execute: taskBreakDownExecute
@@ -656,6 +676,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskActivityToolInputSchema,
       outputSchema: taskActivityToolOutputSchema,
       execute: taskAddActivityExecute
@@ -666,6 +687,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskTagAssignmentToolInputSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskAssignTagExecute
@@ -676,6 +698,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskTagAssignmentToolInputSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskUnassignTagExecute
@@ -686,6 +709,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.create",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: createTaskListRequestSchema,
       outputSchema: taskListMutationToolOutputSchema,
       execute: taskCreateListExecute
@@ -696,6 +720,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskListRenameToolInputSchema,
       outputSchema: taskListMutationToolOutputSchema,
       execute: taskRenameListExecute
@@ -706,6 +731,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.create",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskTagCreateToolInputSchema,
       outputSchema: taskTagMutationToolOutputSchema,
       execute: taskCreateTagExecute
@@ -716,6 +742,7 @@ export const tasksModuleManifest = {
       permissionId: "tasks.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "task_changes",
       inputSchema: taskTagRenameToolInputSchema,
       outputSchema: taskTagMutationToolOutputSchema,
       execute: taskRenameTagExecute
@@ -725,6 +752,7 @@ export const tasksModuleManifest = {
       description: "Delete a task list owned by the active actor.",
       permissionId: "tasks.update",
       risk: "destructive",
+      actionFamilyId: "task_cleanup",
       inputSchema: taskDeleteListToolInputSchema,
       outputSchema: taskDeleteToolOutputSchema,
       execute: taskDeleteListExecute,
@@ -742,6 +770,7 @@ export const tasksModuleManifest = {
       description: "Delete a task tag owned by the active actor.",
       permissionId: "tasks.update",
       risk: "destructive",
+      actionFamilyId: "task_cleanup",
       inputSchema: taskDeleteTagToolInputSchema,
       outputSchema: taskDeleteToolOutputSchema,
       execute: taskDeleteTagExecute,

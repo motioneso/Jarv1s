@@ -238,6 +238,7 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
           }
           return options.preferences?.[key] ?? null;
         },
+        getWithMetadata: async () => null,
         upsert: async () => undefined
       }
     },

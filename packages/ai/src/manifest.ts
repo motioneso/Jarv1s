@@ -33,7 +33,10 @@ import {
   updateAiProviderConfigRequestSchema,
   updateAiProviderConfigResponseSchema,
   aiCapabilityTierPreferencesResponseSchema,
-  patchAiCapabilityTierPreferenceRequestSchema
+  patchAiCapabilityTierPreferenceRequestSchema,
+  getAiActionPoliciesResponseSchema,
+  patchAiActionPolicyRequestSchema,
+  patchAiActionPolicyResponseSchema
 } from "@jarv1s/shared";
 
 export const AI_MODULE_ID = "ai";
@@ -279,6 +282,19 @@ export const aiModuleManifest = {
       requestSchema: resolveAiAssistantActionRequestSchema,
       responseSchema: resolveAiAssistantActionResponseSchema,
       permissionId: "ai.assistant-actions"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/action-policy",
+      responseSchema: getAiActionPoliciesResponseSchema,
+      permissionId: "ai.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/ai/action-policy/:moduleId/:actionFamilyId",
+      requestSchema: patchAiActionPolicyRequestSchema,
+      responseSchema: patchAiActionPolicyResponseSchema,
+      permissionId: "ai.manage"
     }
   ]
 } satisfies JarvisModuleManifest;

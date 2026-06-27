@@ -16,6 +16,15 @@ export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";
 export type ModuleAssistantToolRisk = "read" | "write" | "destructive";
 export type ModuleAssistantToolExecutionPolicy = "auto" | "confirm";
+export type JarvisActionPermissionTier = "ask_each_time" | "trusted_auto" | "always_confirm";
+
+export interface ModuleAssistantActionFamilyManifest {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly defaultTier: "ask_each_time" | "always_confirm";
+  readonly allowedTiers: readonly JarvisActionPermissionTier[];
+}
 
 export interface JsonSchema {
   readonly [key: string]: unknown;
@@ -285,6 +294,7 @@ export interface ModuleAssistantToolManifest {
   readonly name: string;
   readonly description: string;
   readonly permissionId: string;
+  readonly actionFamilyId?: string;
   readonly risk: ModuleAssistantToolRisk;
   readonly executionPolicy?: ModuleAssistantToolExecutionPolicy;
   readonly inputSchema?: JsonSchema;
@@ -323,6 +333,7 @@ export interface JarvisModuleManifest {
   readonly routes?: readonly ModuleRouteManifest[];
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];
+  readonly assistantActionFamilies?: readonly ModuleAssistantActionFamilyManifest[];
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
   readonly sourceBehaviors?: readonly SourceBehaviorSourceDecl[];
   readonly focusSignal?: FocusSignalProvider;

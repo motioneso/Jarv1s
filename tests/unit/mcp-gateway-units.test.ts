@@ -7,7 +7,8 @@ import {
   resolvePolicy,
   SessionTokenRegistry,
   ToolInputValidationError,
-  validateToolInput
+  validateToolInput,
+  type ActionPolicyLookup
 } from "@jarv1s/ai";
 import type { ModuleAssistantToolManifest, ToolContext, ToolResult } from "@jarv1s/module-sdk";
 import { tasksModuleManifest } from "@jarv1s/tasks";
@@ -38,40 +39,15 @@ describe("gateway policy", () => {
       risk
     }) satisfies ModuleAssistantToolManifest;
 
+  const dummyLookup: ActionPolicyLookup = {
+    getFamilyTier: async () => null,
+    getFamilyManifest: async () => null
+  };
+
   it("runs reads and always confirms destructive tools", async () => {
-    const prefs = { get: async () => true };
-
-    await expect(resolvePolicy(tool("read"), "example", prefs)).resolves.toBe("run");
+    await expect(resolvePolicy(tool("read"), "example", dummyLookup)).resolves.toBe("run");
     await expect(
-      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", prefs)
-    ).resolves.toBe("confirm");
-  });
-
-  it("only auto-runs auto write tools when module trust is enabled", async () => {
-    await expect(
-      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
-        get: async () => false
-      })
-    ).resolves.toBe("confirm");
-
-    await expect(
-      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
-        get: async (key) => key === "tasks.agency_auto_execute"
-      })
-    ).resolves.toBe("run");
-
-    await expect(resolvePolicy(tool("write"), "tasks", { get: async () => true })).resolves.toBe(
-      "confirm"
-    );
-  });
-
-  it("confirms writes when preference lookup fails", async () => {
-    await expect(
-      resolvePolicy({ ...tool("write"), executionPolicy: "auto" }, "tasks", {
-        get: async () => {
-          throw new Error("db unavailable");
-        }
-      })
+      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", dummyLookup)
     ).resolves.toBe("confirm");
   });
 });

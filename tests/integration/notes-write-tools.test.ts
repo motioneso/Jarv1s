@@ -105,7 +105,17 @@ describe("notes write assistant tools", () => {
       confirmations,
       notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
       confirmTimeoutMs: 30_000,
-      agencyPrefs: () => ({ get: async (key) => key === "notes.agency_auto_execute" }),
+
+      actionPolicy: () => ({
+        getFamilyTier: async (moduleId, familyId) => "trusted_auto",
+        getFamilyManifest: async () => ({
+          id: "note_changes",
+          label: "Note Changes",
+          description: "Modify notes.",
+          defaultTier: "ask_each_time",
+          allowedTiers: ["ask_each_time", "trusted_auto"]
+        })
+      }),
       toolServices: { notesSync: service }
     });
     const token = tokens.mint({

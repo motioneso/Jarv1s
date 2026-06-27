@@ -22,6 +22,15 @@ export const exampleToolModule: JarvisModuleManifest = {
   publisher: "test",
   lifecycle: "optional",
   compatibility: { jarv1s: "*" },
+  assistantActionFamilies: [
+    {
+      id: "dummy",
+      label: "Dummy family",
+      description: "Dummy family for tests",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto"]
+    }
+  ],
   assistantTools: [
     {
       name: "example.read",
@@ -50,6 +59,7 @@ export const exampleToolModule: JarvisModuleManifest = {
       permissionId: "example.update",
       risk: "write",
       executionPolicy: "auto",
+      actionFamilyId: "dummy",
       inputSchema: {
         type: "object",
         required: ["value"],
@@ -62,6 +72,7 @@ export const exampleToolModule: JarvisModuleManifest = {
       description: "Destroy fixture.",
       permissionId: "example.delete",
       risk: "destructive",
+      actionFamilyId: "dummy",
       inputSchema: {
         type: "object",
         required: ["value"],

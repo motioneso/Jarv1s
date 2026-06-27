@@ -24,6 +24,7 @@ import type {
 } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
+import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
 import { parseCapabilityRouteMap } from "./capability-route-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
@@ -983,6 +984,55 @@ export class AiRepository {
       .where("key", "=", CHAT_MODEL_OVERRIDE_PREFERENCE_KEY)
       .executeTakeFirst();
     return typeof row?.value_json === "string" ? row.value_json : null;
+  }
+
+  async listActionPolicies(
+    scopedDb: DataContextDb
+  ): Promise<{ moduleId: string; actionFamilyId: string; tier: JarvisActionPermissionTier }[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select(["key", "value_json"])
+      .where("key", "like", "assistant.action_policy.v1.%")
+      .execute();
+
+    const prefixLen = "assistant.action_policy.v1.".length;
+    return rows.map((r) => {
+      const parts = r.key.substring(prefixLen).split(".");
+      return {
+        moduleId: parts[0]!,
+        actionFamilyId: parts.slice(1).join("."),
+        tier:
+          typeof r.value_json === "string"
+            ? (r.value_json as JarvisActionPermissionTier)
+            : "ask_each_time"
+      };
+    });
+  }
+
+  async setActionPolicy(
+    scopedDb: DataContextDb,
+    moduleId: string,
+    actionFamilyId: string,
+    tier: JarvisActionPermissionTier
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    const key = `assistant.action_policy.v1.${moduleId}.${actionFamilyId}`;
+    await scopedDb.db
+      .insertInto("app.preferences")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        key,
+        value_json: jsonb(tier),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.columns(["owner_user_id", "key"]).doUpdateSet({
+          value_json: jsonb(tier),
+          updated_at: new Date()
+        })
+      )
+      .execute();
   }
 }
 

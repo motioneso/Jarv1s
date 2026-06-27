@@ -1,4 +1,9 @@
-export { resolvePolicy, type AgencyPrefLookup, type PolicyDecision } from "./policy.js";
+export {
+  resolvePolicy,
+  type AgencyPrefLookup,
+  type ActionPolicyLookup,
+  type PolicyDecision
+} from "./policy.js";
 export {
   SessionTokenRegistry,
   InvalidSessionTokenError,

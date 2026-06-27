@@ -51,6 +51,7 @@ function manifestWithBehavior(
 function prefRepo(values: Record<string, unknown>): SourceBehaviorPreferencesPort {
   return {
     get: async (_scopedDb, key) => values[key] ?? null,
+    getWithMetadata: async () => null,
     upsert: async (_scopedDb, key, value) => {
       values[key] = value;
     }

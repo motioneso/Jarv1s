@@ -16,7 +16,7 @@ import type { ConfirmationRegistry } from "./confirmation-registry.js";
 import { validateToolInput } from "./input-validation.js";
 import { renderAndCap } from "./output-validation.js";
 import { resolvePolicy } from "./policy.js";
-import type { AgencyPrefLookup } from "./policy.js";
+import type { AgencyPrefLookup, ActionPolicyLookup } from "./policy.js";
 import type { SessionTokenRegistry } from "./session-tokens.js";
 import type { ActiveModulesResolver, GatewayToolResponse, SessionNotifier } from "./types.js";
 
@@ -29,6 +29,7 @@ export interface AssistantToolGatewayDependencies {
   readonly notifier: SessionNotifier;
   readonly confirmTimeoutMs: number;
   readonly agencyPrefs?: (ctx: ToolContext) => AgencyPrefLookup;
+  readonly actionPolicy?: (ctx: ToolContext) => ActionPolicyLookup;
   /**
    * Opaque, composition-layer-constructed service registry keyed by service name.
    * Passed verbatim (as a per-tool, declared-keys-only subset) as the 4th argument
@@ -39,6 +40,10 @@ export interface AssistantToolGatewayDependencies {
 }
 
 const denyPrefs: AgencyPrefLookup = { get: async () => false };
+const defaultPolicyLookup: ActionPolicyLookup = {
+  getFamilyTier: async () => null,
+  getFamilyManifest: async () => null
+};
 const TASKS_FIRST_RUN_NOTICE_KEY = "tasks.agency_auto_execute.first_prompt_seen";
 const TASKS_FIRST_RUN_NOTICE =
   'Jarvis now asks before creating tasks. Enable "create without asking" in Task settings to auto-run task changes.';
@@ -89,7 +94,8 @@ export class AssistantToolGateway {
     }
 
     const prefs = this.deps.agencyPrefs?.(ctx) ?? denyPrefs;
-    if ((await resolvePolicy(found.tool, found.dto.moduleId, prefs)) === "run") {
+    const lookup = this.deps.actionPolicy?.(ctx) ?? defaultPolicyLookup;
+    if ((await resolvePolicy(found.tool, found.dto.moduleId, lookup)) === "run") {
       return this.runHandler(found, input, ctx);
     }
     return this.confirmAndRun(found, input, ctx, await this.firstRunNotice(found, prefs));
