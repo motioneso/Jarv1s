@@ -50,6 +50,15 @@ export interface ChatPersistencePort {
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
 }
 
+export interface PassiveRetrievalPort {
+  retrieve(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<string>;
+}
+
 export interface ChatSessionManagerDeps {
   readonly engineFactory: (
     provider: ProviderKind,
@@ -107,6 +116,8 @@ export interface ChatSessionManagerDeps {
   readonly killSession?: (sessionKey: string) => Promise<void>;
   /** Phase 3: optional recall service — injects <memory> seed before replay. */
   readonly recall?: RecallPort;
+  /** Optional per-turn hidden context retrieval. Empty/failed result submits the raw turn. */
+  readonly passiveRetrieval?: PassiveRetrievalPort;
   /**
    * #342 (§4.1.2) — does the ENGINE own the replay submit+drain?
    *
@@ -365,8 +376,9 @@ export class ChatSessionManager {
     this.turnControllers.set(actorUserId, controller);
 
     try {
+      const engineText = await this.engineText(actorUserId, text);
       this.emit(actorUserId, { kind: "user", text });
-      await session.engine.submit(text);
+      await session.engine.submit(engineText);
 
       let reply = "";
       let lastEmissionAt = this.deps.clock.now();
@@ -452,6 +464,22 @@ export class ChatSessionManager {
       return { reply };
     } finally {
       this.turnControllers.delete(actorUserId);
+    }
+  }
+
+  private async engineText(actorUserId: string, text: string): Promise<string> {
+    if (!this.deps.passiveRetrieval) return text;
+    try {
+      const { recent } = await this.deps.persistence.listPriorTurns(actorUserId);
+      const context = await this.deps.passiveRetrieval.retrieve({
+        actorUserId,
+        userText: text,
+        threadTitle: null,
+        recentTurns: recent
+      });
+      return context ? `${context}\n\n${text}` : text;
+    } catch {
+      return text;
     }
   }
 
