@@ -32,6 +32,7 @@ import {
   decideCandidatePromotion,
   memoryCandidateContainsSensitiveText,
   parseMemoryCandidates,
+  rawTurnContainsSensitiveText,
   shouldDistillTurn,
   type MemoryCandidate
 } from "./memory-distillation.js";
@@ -171,6 +172,8 @@ export async function handleExtractFactsJob(
       (m) => m.id === payload.assistantMessageId && m.role === "assistant" && m.status === "stored"
     );
     if (!userMsg || !assistantMsg) return;
+
+    if (rawTurnContainsSensitiveText(userMsg.body, assistantMsg.body)) return;
 
     const excerpt = boundedTurnExcerpt(userMsg.body, assistantMsg.body);
     const episode = await graphRepository.createEpisode(scopedDb, ownerUserId, {

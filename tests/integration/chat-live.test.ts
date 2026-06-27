@@ -700,6 +700,49 @@ describe("handleExtractFactsJob — memory distillation candidates + no-op degra
     });
   });
 
+  it("does not send or store raw secret-like turns for distillation", async () => {
+    await seedEconomyModel("raw-secret-filter");
+    let calls = 0;
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const turn = await createTurn(scopedDb, {
+        title: "Distill-raw-secret",
+        user: "Remember that my API key is sk-rawsecret1234567890."
+      });
+
+      await handleExtractFactsJob(
+        scopedDb,
+        ids.userA,
+        {
+          actorUserId: ids.userA,
+          threadId: turn.threadId,
+          userMessageId: turn.userMessage.id,
+          assistantMessageId: turn.assistantMessage.id
+        },
+        makeDeps(async () => {
+          calls++;
+          return { text: "[]" };
+        })
+      );
+
+      const leakedRows = await sql<{ count: string }>`
+        SELECT count(*)::text AS count
+        FROM app.memory_episodes
+        WHERE owner_user_id = ${ids.userA}::uuid
+          AND excerpt ILIKE '%sk-rawsecret1234567890%'
+      `.execute(scopedDb.db);
+      const leakedSearchRows = await sql<{ count: string }>`
+        SELECT count(*)::text AS count
+        FROM app.memory_search_documents
+        WHERE owner_user_id = ${ids.userA}::uuid
+          AND search_text ILIKE '%sk-rawsecret1234567890%'
+      `.execute(scopedDb.db);
+
+      expect(calls).toBe(0);
+      expect(leakedRows.rows[0]?.count).toBe("0");
+      expect(leakedSearchRows.rows[0]?.count).toBe("0");
+    });
+  });
+
   it("does not promote commitments into tasks or active memory", async () => {
     await seedEconomyModel("commitment");
     await dataContext.withDataContext(userAContext(), async (scopedDb) => {
