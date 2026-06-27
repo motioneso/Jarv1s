@@ -31,7 +31,7 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | QA RED on PR #544; blockers routed back to rework pane `w1:p3Q` | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | blocker fixes pushed at `9b063e6`; CI run `28288166262` in progress, QA rerun pending green checks (`w1:p3Q`) | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | PR #548 open on `main`; CI running, security QA pending green checks | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | PR #547 open on #528 base; CI still running, QA pending green checks + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
@@ -177,17 +177,24 @@ None.
   retrieval logging; `packages/chat/src/live/passive-retrieval.ts:33` person trigger does not yet
   use memory-graph person aliases from the spec). Exit criteria are met for V1. Because this PR is
   stacked on #528, merge remains blocked on #528 landing first even after QA passes.
-- #526: PR #544 CI is now fully green on head `e9234242e090df8bd523db223c851b357f42e853`. Detached
-  QA worktree `/tmp/jarv1s-qa-544-codex` was created and Codex QA lane `w1:p30` ran against the
-  green PR. QA returned RED with 2 blockers and posted
+- #526: PR #544 CI was fully green on head `e9234242e090df8bd523db223c851b357f42e853`. Detached QA
+  worktree `/tmp/jarv1s-qa-544-codex` was created and Codex QA lane `w1:p30` ran against the green
+  PR. QA returned RED with 2 blockers and posted
   `https://github.com/motioneso/Jarv1s/pull/544#issuecomment-4817159661`: (1)
   `packages/priority/src/preferences-repository.ts:18` returns persisted `version: 1` priority
   model JSON without shape validation, so malformed stored data can reach GET/scorer instead of
   failing soft to defaults; (2) `packages/briefings/src/compose.ts:587` still gets
   `focusReadiness: []` because `packages/briefings/src/priority-consumer.ts:96` stubs readiness,
   so `energy_protective` / readiness behavior never affects real briefings. Coordinator routed both
-  blockers back to build pane `w1:p3Q` with instruction to fix, rerun focused + full gate, push,
-  and report new head/evidence.
+  blockers back to build pane `w1:p3Q`. The build lane has now pushed fix head
+  `9b063e6f65cdfe412daf51e11cfe947139b3506f`: strict stored `priority.model.v1` validation with
+  fallback to defaults for malformed/extra-key `version: 1` blobs, plus real briefing readiness via
+  `composeDeps.focusReadiness` wired through the existing active-module focus-signal aggregation seam.
+  Reported evidence: focused unit `priority-preferences+briefings-compose` 2 files / 31 passed,
+  focused `priority-api` 1 file / 8 passed, `format:check`, `lint`, `typecheck` green,
+  `VF_EXIT=0` (unit 149 files / 1054 passed / 2 skipped, integration 82 files / 1090 passed / 2
+  skipped), `PREFLIGHT_EXIT=0`, `AUDIT_EXIT=0`. GitHub CI rerun `28288166262` is now in progress;
+  rerun independent QA only after those checks turn green.
 - #534: AGY finished implementation and reported local `typecheck` plus unit/integration suites
   green after commit `feat(core): implement rfa-534 action permission tiers`. Coordinator nudged
   the pane into `coordinated-wrap-up`. The builder has now reported PR #548
