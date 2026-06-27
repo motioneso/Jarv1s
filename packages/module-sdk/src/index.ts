@@ -97,6 +97,59 @@ export interface RegisteredFocusSignal {
   readonly provider: FocusSignalProvider;
 }
 
+export interface ProactiveMonitorPriorityAnchor {
+  readonly label: string;
+  readonly aliases: readonly string[];
+}
+
+export interface ProactiveMonitorInput {
+  readonly ownerUserId: string;
+  readonly sinceCursor: unknown;
+  readonly now: string;
+  readonly timeZone: string;
+  readonly maxSignals: number;
+  readonly priorityAnchors: readonly ProactiveMonitorPriorityAnchor[];
+}
+
+export interface ProactiveMonitorSignal {
+  /** Deterministic for the material source event; contains no raw private ids. */
+  readonly source: string;
+  readonly stableKey: string;
+  /** Hash of source-local ids, never the raw id. */
+  readonly sourceRefHash: string;
+  readonly signalType: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly occurredAt?: string;
+  readonly targetAt?: string;
+  readonly priorityCandidate: unknown;
+  readonly expiresAt?: string;
+}
+
+export interface ProactiveMonitorResult {
+  readonly signals: readonly ProactiveMonitorSignal[];
+  readonly nextCursor: unknown;
+}
+
+/**
+ * A proactive-monitor provider. `scopedDb` is a DataContextDb supplied under withDataContext;
+ * typed `unknown` to avoid a module-sdk -> db dependency. The owning module narrows it via
+ * assertDataContextDb. Providers may query ONLY their own module data.
+ */
+export interface ProactiveMonitorProvider {
+  readonly source: string;
+  readonly moduleId: string;
+  collectSignals(
+    scopedDb: unknown,
+    input: ProactiveMonitorInput
+  ): Promise<ProactiveMonitorResult>;
+}
+
+export interface RegisteredProactiveMonitorProvider {
+  readonly moduleId: string;
+  readonly provider: ProactiveMonitorProvider;
+}
+
 /** Sanitized observability hook for a failed/dropped provider. */
 export interface FocusSignalAggregateOptions {
   /**
@@ -337,6 +390,7 @@ export interface JarvisModuleManifest {
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
   readonly sourceBehaviors?: readonly SourceBehaviorSourceDecl[];
   readonly focusSignal?: FocusSignalProvider;
+  readonly proactiveMonitor?: ProactiveMonitorProvider;
 }
 
 export function renderToolResult(result: ToolResult): string {
