@@ -159,6 +159,34 @@ describe("priority model API", () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it("PATCH /api/me/priority-model rejects unknown nested anchor keys", async () => {
+    const response = await server!.inject({
+      method: "PATCH",
+      url: "/api/me/priority-model",
+      headers: userHeaders(ids.sessionA),
+      payload: {
+        version: 1,
+        mode: "balanced",
+        anchors: [
+          {
+            id: "a1",
+            kind: "project",
+            label: "Test",
+            aliases: [],
+            weight: 1,
+            enabled: true,
+            createdAt: "2026-06-01T00:00:00Z",
+            updatedAt: "2026-06-01T00:00:00Z",
+            rawSourceBody: "must not persist"
+          }
+        ],
+        mutedSources: [],
+        updatedAt: "2026-06-27T00:00:00Z"
+      }
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
   it("PATCH /api/me/priority-model rejects unknown source", async () => {
     const response = await server!.inject({
       method: "PATCH",

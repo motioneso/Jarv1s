@@ -19,6 +19,17 @@ const VALID_MODES = new Set(["balanced", "deadline_first", "energy_protective"])
 const VALID_SOURCES = new Set(["tasks", "calendar", "email", "notes", "memory", "wellness"]);
 const VALID_KINDS = new Set(["project", "person", "domain", "goal", "obligation"]);
 const VALID_WEIGHTS = new Set([-2, -1, 0, 1, 2]);
+const MODEL_KEYS = new Set(["version", "mode", "anchors", "mutedSources", "updatedAt"]);
+const ANCHOR_KEYS = new Set([
+  "id",
+  "kind",
+  "label",
+  "aliases",
+  "weight",
+  "enabled",
+  "createdAt",
+  "updatedAt"
+]);
 
 const KEY = "priority.model.v1";
 
@@ -97,6 +108,10 @@ function validateModel(input: unknown): asserts input is PriorityModelPreference
       throw new HttpError(400, "Invalid anchor: must be an object");
     }
     const a = anchor as Record<string, unknown>;
+    const unknownAnchorKeys = Object.keys(a).filter((key) => !ANCHOR_KEYS.has(key));
+    if (unknownAnchorKeys.length > 0) {
+      throw new HttpError(400, `Unknown anchor keys: ${unknownAnchorKeys.join(", ")}`);
+    }
 
     if (typeof a.id !== "string" || !a.id.trim()) {
       throw new HttpError(400, "Invalid anchor: id required");
@@ -148,9 +163,7 @@ function validateModel(input: unknown): asserts input is PriorityModelPreference
     }
   }
 
-  const unknownKeys = Object.keys(model).filter(
-    (k) => !["version", "mode", "anchors", "mutedSources", "updatedAt"].includes(k)
-  );
+  const unknownKeys = Object.keys(model).filter((key) => !MODEL_KEYS.has(key));
 
   if (unknownKeys.length > 0) {
     throw new HttpError(400, `Unknown keys: ${unknownKeys.join(", ")}`);
