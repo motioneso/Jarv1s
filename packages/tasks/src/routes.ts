@@ -55,8 +55,6 @@ import {
   serializeTaskTag
 } from "./serialize.js";
 
-
-
 export interface TasksRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
