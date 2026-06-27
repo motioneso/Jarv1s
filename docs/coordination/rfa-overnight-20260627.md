@@ -35,7 +35,7 @@ security QA for PR #547 (`#529`) and PR #548 (`#534`) now that both are CI green
 | Issue | Spec | Tier | Status | Build | Review | Branch | PR |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
-| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | QA RED on PR #544; blocker routed to build pane `w1:p3Q` | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
+| #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | Timestamp blocker fixed on PR #544 head `888bf2b`; CI run `28295482013` in progress | Codex salvage after opencode/GLM | Codex QA | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | Security QA RED on PR #548; blockers routed to build pane `w1:p3N` | AGY | Codex security QA | `rfa-534-action-permission-tiers` | #548 |
 | #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | Security QA RED on PR #547; blockers routed to build pane `w1:p3Z` + stack order | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | #547 |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 QA GREEN; merge-ready after #528 lands, with 2 non-blocking follow-ups noted | Codex | Codex QA | `rfa-530-passive-context-retrieval` | #546 |
@@ -223,6 +223,13 @@ None.
   `packages/settings/src/priority-routes.ts:127`, where PATCH validation skips anchor
   `createdAt`/`updatedAt` type checks, allowing malformed stored data that later makes GET fall
   back to defaults. Routed to build pane `w1:p3Q` with a focused regression-test requirement.
+  Build lane fixed the blocker and pushed head `888bf2be9ff`: PATCH now rejects non-string anchor
+  `createdAt`/`updatedAt`; regression sends `createdAt: 123` and expects 400. Reported evidence:
+  focused `priority-api` 1 file / 9 passed; `format:check`, `lint`, `typecheck` green; first
+  `verify:foundation` hit known integration reset race (`tuple concurrently updated` in
+  connectors-google); rerun `VF_EXIT=0` with unit 149 files / 1054 passed / 2 skipped and
+  integration 82 files / 1091 passed / 2 skipped. GitHub CI run `28295482013` is in progress; wait
+  for green before rerunning independent QA.
 - #534: PR #548 CI run `28287913187` is fully green on head
   `2c253a599eff989333030d9bd7f22680ea01f367`. Security QA subagent `Gauss`
   (`019f09e9-4f55-7341-826a-14248ece0bf6`) returned RED and posted
