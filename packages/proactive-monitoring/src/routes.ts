@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
@@ -35,10 +33,7 @@ export function registerProactiveMonitoringRoutes(
     try {
       const ctx = await dependencies.resolveAccessContext(request);
       const query = request.query as { limit?: string };
-      const limit = Math.min(
-        parseInt(query.limit ?? "5", 10) || 5,
-        MAX_CARDS_LIMIT
-      );
+      const limit = Math.min(parseInt(query.limit ?? "5", 10) || 5, MAX_CARDS_LIMIT);
 
       const cards = await dependencies.dataContext.withDataContext(ctx, (scopedDb) =>
         cardRepository.listActive(scopedDb, ctx.actorUserId, limit)

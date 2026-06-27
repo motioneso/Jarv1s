@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { AuthSessionResolver, DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { CardRepository } from "@jarv1s/proactive-monitoring";
 import { defaultProactiveMonitoringPreference } from "@jarv1s/shared";
 import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -30,7 +30,6 @@ const PROBE_CARD_BASE = {
 describe("Proactive Monitoring — integration", () => {
   let appDb: Kysely<JarvisDatabase>;
   let workerDb: Kysely<JarvisDatabase>;
-  let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let cardRepo: CardRepository;
 
@@ -39,7 +38,6 @@ describe("Proactive Monitoring — integration", () => {
 
     appDb = createDatabase({ connectionString: connectionStrings.app });
     workerDb = createDatabase({ connectionString: connectionStrings.worker });
-    auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(workerDb);
     cardRepo = new CardRepository();
 
@@ -49,7 +47,14 @@ describe("Proactive Monitoring — integration", () => {
       await bootstrap.query(
         `INSERT INTO app.users (id, email, is_instance_admin) VALUES ($1, $2, false), ($3, $4, false), ($5, $6, false)
          ON CONFLICT (id) DO NOTHING`,
-        [ids.userA, "user-a@example.test", ids.userB, "user-b@example.test", USER_C_ID, "user-c@example.test"]
+        [
+          ids.userA,
+          "user-a@example.test",
+          ids.userB,
+          "user-b@example.test",
+          USER_C_ID,
+          "user-c@example.test"
+        ]
       );
       await bootstrap.query(
         `INSERT INTO app.auth_sessions (id, user_id, expires_at) VALUES ($1, $2, now() + interval '1 hour'), ($3, $4, now() + interval '1 hour'), ($5, $6, now() + interval '1 hour')

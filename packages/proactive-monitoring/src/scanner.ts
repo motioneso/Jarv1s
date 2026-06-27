@@ -1,17 +1,17 @@
 import type { DataContextDb } from "@jarv1s/db";
 import type { ProactiveMonitorProvider } from "@jarv1s/module-sdk";
 import {
-  PriorityPreferencesRepository,
   rankPriorityCandidates,
   type PriorityCandidate,
+  type PriorityPreferencesRepository,
   type PrioritySource
 } from "@jarv1s/priority";
-import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@jarv1s/shared";
+import type { ProactiveSource } from "@jarv1s/shared";
 
 import { AntiSpamPolicy } from "./anti-spam.js";
-import { CardRepository } from "./card-repository.js";
-import { MonitorStateRepository } from "./monitor-state-repository.js";
-import { ProactiveMonitoringPreferencesRepository } from "./preferences-repository.js";
+import type { CardRepository } from "./card-repository.js";
+import type { MonitorStateRepository } from "./monitor-state-repository.js";
+import type { ProactiveMonitoringPreferencesRepository } from "./preferences-repository.js";
 import { isAllowedSignalType, mapSignalType } from "./signal-mapper.js";
 import type { ResolvedMonitoringConfig } from "./types.js";
 
@@ -77,9 +77,7 @@ export class ProactiveScanner {
     // Resolve timezone.
     const localePref = await this.deps.getLocalePreference(scopedDb);
     const timeZone =
-      typeof localePref?.timezone === "string" && localePref.timezone
-        ? localePref.timezone
-        : "UTC";
+      typeof localePref?.timezone === "string" && localePref.timezone ? localePref.timezone : "UTC";
 
     // Load priority anchors for provider input.
     const priorityRawPref = await scopedDb.db
@@ -109,7 +107,12 @@ export class ProactiveScanner {
       });
     } catch (err) {
       const errorClass = err instanceof Error ? err.constructor.name : "UnknownError";
-      await this.deps.monitorStateRepository.recordFailure(scopedDb, ownerUserId, source, errorClass);
+      await this.deps.monitorStateRepository.recordFailure(
+        scopedDb,
+        ownerUserId,
+        source,
+        errorClass
+      );
       return skip(source, "provider_error");
     }
 
@@ -145,7 +148,9 @@ export class ProactiveScanner {
       });
     } catch {
       await this.deps.monitorStateRepository.advanceCursor(
-        scopedDb, ownerUserId, source,
+        scopedDb,
+        ownerUserId,
+        source,
         nextCursor as Record<string, unknown>
       );
       return skip(source, "scorer_error");
@@ -162,8 +167,13 @@ export class ProactiveScanner {
       if (!signal) continue;
 
       const verdict = await this.deps.antiSpamPolicy.check(
-        scopedDb, ownerUserId, source, signal.stableKey,
-        pref, nowIso, timeZone
+        scopedDb,
+        ownerUserId,
+        source,
+        signal.stableKey,
+        pref,
+        nowIso,
+        timeZone
       );
 
       if (!verdict.allow) {
@@ -172,10 +182,13 @@ export class ProactiveScanner {
       }
 
       const existing = await this.deps.cardRepository.findByStableKey(
-        scopedDb, ownerUserId, source, signal.stableKey
+        scopedDb,
+        ownerUserId,
+        source,
+        signal.stableKey
       );
 
-      const cardRow = await this.deps.cardRepository.upsertCard(scopedDb, {
+      await this.deps.cardRepository.upsertCard(scopedDb, {
         ownerUserId,
         source,
         stableKey: signal.stableKey,
@@ -203,7 +216,9 @@ export class ProactiveScanner {
 
     // Advance cursor only on success.
     await this.deps.monitorStateRepository.advanceCursor(
-      scopedDb, ownerUserId, source,
+      scopedDb,
+      ownerUserId,
+      source,
       nextCursor as Record<string, unknown>
     );
 
@@ -251,9 +266,7 @@ export async function resolveMonitoringConfig(
   const preference = await prefsRepo.get(scopedDb);
   const localePref = await getLocale(scopedDb);
   const timeZone =
-    typeof localePref?.timezone === "string" && localePref.timezone
-      ? localePref.timezone
-      : "UTC";
+    typeof localePref?.timezone === "string" && localePref.timezone ? localePref.timezone : "UTC";
   const priorityRaw = await scopedDb.db
     .selectFrom("app.preferences")
     .select("value_json")
