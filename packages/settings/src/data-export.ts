@@ -39,6 +39,7 @@ export interface UserDataExportTables {
   readonly medications: readonly ExportRow[];
   readonly memoryChunks: readonly ExportRow[];
   readonly memoryAliases: readonly ExportRow[];
+  readonly memoryCandidates: readonly ExportRow[];
   readonly memoryEntities: readonly ExportRow[];
   readonly memoryEpisodes: readonly ExportRow[];
   readonly memoryFacts: readonly ExportRow[];
@@ -95,6 +96,7 @@ async function readExportTables(
     memoryEpisodes: await readRows(scopedDb.db, memoryEpisodesQuery(userId)),
     memoryFactSources: await readRows(scopedDb.db, memoryFactSourcesQuery(userId)),
     memoryAliases: await readRows(scopedDb.db, memoryAliasesQuery(userId)),
+    memoryCandidates: await readRows(scopedDb.db, memoryCandidatesQuery(userId)),
     memorySearchDocuments: await readRows(scopedDb.db, memorySearchDocumentsQuery(userId)),
     memoryLegacyFactMigrations: await readRows(
       scopedDb.db,
@@ -552,6 +554,30 @@ function memoryAliasesQuery(userId: string) {
       created_at AS "createdAt",
       updated_at AS "updatedAt"
     FROM app.memory_aliases
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryCandidatesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      episode_id::text AS "episodeId",
+      kind,
+      action,
+      payload_json AS "payloadJson",
+      candidate_signature AS "candidateSignature",
+      status,
+      confidence,
+      importance,
+      provenance,
+      promotion_reason AS "promotionReason",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt",
+      resolved_at AS "resolvedAt"
+    FROM app.memory_candidates
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
   `;
