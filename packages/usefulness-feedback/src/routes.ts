@@ -15,7 +15,7 @@ import {
 
 import { sanitizeFeedbackMetadata } from "./metadata.js";
 import { UsefulnessFeedbackRepository } from "./repository.js";
-import { FeedbackTargetVerifierRegistry, isAllowedFeedbackPair } from "./target-verifiers.js";
+import { isAllowedFeedbackPair, type FeedbackTargetVerifierRegistry } from "./target-verifiers.js";
 
 export interface UsefulnessFeedbackRoutesDependencies {
   readonly dataContext: DataContextRunner;

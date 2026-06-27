@@ -32,7 +32,7 @@ import { type BriefingRunPayload } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import { BriefingsRepository } from "./repository.js";
 import { reconcileOwnedSchedules, reconcileSchedule } from "./schedule.js";
-import { deriveBriefingFeedbackItems, type BriefingFeedbackItem } from "./feedback-targets.js";
+import { deriveBriefingFeedbackItems } from "./feedback-targets.js";
 
 export interface BriefingsRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
