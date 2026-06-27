@@ -33,7 +33,7 @@ one pane labelled `Coordinator`, and it is this session. Pane ids are routing hi
 | #528 | `docs/superpowers/specs/2026-06-26-jarvis-memory-graph-substrate.md` | security | CI GREEN + security QA GREEN; awaiting Ben merge sign-off | Codex | opencode/GLM security QA | `rfa-528-memory-graph-substrate` | #545 |
 | #526 | `docs/superpowers/specs/2026-06-27-unified-priority-model.md` | sensitive | blocker fix pushed at `e923424`; CI run `28286935159` in progress, QA rerun pending green checks (`w1:p3Q`) | Codex salvage after opencode/GLM | native Codex QA fallback | `rfa-526-unified-priority-model` | #544 |
 | #534 | `docs/superpowers/specs/2026-06-27-explicit-action-permission-tiers.md` | security | implementation committed; AGY wrap-up/push/PR requested (`w1:p3N`) | AGY | Codex security QA | `rfa-534-action-permission-tiers` | - |
-| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | stacked on #528; plan approved, build active (`w1:p3Z`) | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | - |
+| #529 | `docs/superpowers/specs/2026-06-27-memory-distillation-pipeline.md` | security | stacked on #528; candidate-store commit `508f7e8` landed, helpers in progress (`w1:p3Z`) | Codex | opencode/GLM security QA | `rfa-529-memory-distillation` | - |
 | #530 | `docs/superpowers/specs/2026-06-27-passive-context-retrieval.md` | sensitive | PR #546 open on #528 base; branch pushed at `8877e5e`, CI running, QA pending green checks + stack order (`w1:p3T`) | Codex | opencode/GLM QA | `rfa-530-passive-context-retrieval` | #546 |
 | #527 | `docs/superpowers/specs/2026-06-27-usefulness-feedback-signals.md` | security | queued after #526/#529 | opencode/GLM | Codex security QA | `rfa-527-usefulness-feedback` | - |
 | #532 | `docs/superpowers/specs/2026-06-27-confidence-aware-memory-records.md` | security | queued after #528/#529/#530 | Codex | AGY security QA | `rfa-532-confidence-aware-memory` | - |
@@ -108,8 +108,10 @@ None.
   `rfa-528-memory-graph-substrate`, use `0119` only for `memory_candidates`, keep graph writes on
   #528 public APIs/repository (candidate store direct SQL only), never distill incognito turns,
   keep pending candidates out of normal recall, leave commitment/task actioning to #537, and keep
-  payload/logging metadata-only. Build is now active; next expected signal is first material commit
-  or blocker.
+  payload/logging metadata-only. First material commit is now in: `508f7e8`
+  (`feat(memory): add memory candidate store`). Lane verified
+  `pnpm vitest run tests/integration/memory-graph.test.ts -t "MemoryCandidatesRepository|memory_candidates"`
+  green and moved on to distillation helpers.
 - #526: plan approved from `docs/superpowers/plans/2026-06-27-unified-priority-model.md`; scope
   constrained to pure scorer, owner-scoped preference API/UI, and thin consumers over already-loaded
   candidates. Task 1 focused unit suite passed before commit `3f1abb1`. After Task 5, gate was red
