@@ -220,3 +220,217 @@ describe("Section B — GoogleApiClient.deleteEvent", () => {
     ).rejects.toMatchObject({ statusCode: 500 });
   });
 });
+
+// ─── Section C: manifest structure + gateway routing ─────────────────────────
+
+import {
+  AiRepository,
+  AssistantToolGateway,
+  ConfirmationRegistry,
+  SessionTokenRegistry,
+  type GatewaySessionRecord,
+  type SessionNotifier
+} from "@jarv1s/ai";
+import { calendarModuleManifest } from "@jarv1s/calendar";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+
+describe("Section C — manifest structure + gateway routing", () => {
+  it("calendar.deleteEvent is registered with correct risk/family/services/no-auto", () => {
+    const tool = calendarModuleManifest.assistantTools?.find(
+      (t) => t.name === "calendar.deleteEvent"
+    );
+    expect(tool).toBeDefined();
+    expect(tool!.risk).toBe("write");
+    expect(tool!.actionFamilyId).toBe("calendar_management");
+    expect(tool!.requiresServices).toEqual(["calendarWrite"]);
+    expect(tool!.executionPolicy).toBeUndefined(); // must NOT be "auto"
+    expect(tool!.permissionId).toBe("calendar.manage");
+    expect(typeof tool!.execute).toBe("function");
+    expect(typeof tool!.summarize).toBe("function");
+  });
+
+  it("calendar_management family is locked to allowedTiers: ['always_confirm']", () => {
+    const family = calendarModuleManifest.assistantActionFamilies?.find(
+      (f) => f.id === "calendar_management"
+    );
+    expect(family).toBeDefined();
+    expect(family!.defaultTier).toBe("always_confirm");
+    expect(family!.allowedTiers).toEqual(["always_confirm"]);
+  });
+
+  it("summarizeDeleteEvent with displayTitle + displayWhen renders full card text", () => {
+    const tool = calendarModuleManifest.assistantTools!.find(
+      (t) => t.name === "calendar.deleteEvent"
+    )!;
+    const text = tool.summarize!(
+      { eventId: "uuid-1", displayTitle: "Board sync", displayWhen: "Fri Jun 28, 14:00–15:00" },
+      { actorUserId: "u", requestId: "r", chatSessionId: "s" }
+    );
+    expect(text).toContain("Board sync");
+    expect(text).toContain("Fri Jun 28, 14:00–15:00");
+    expect(text).toMatch(/attendees.*notified|notified.*attendees/i);
+    expect(text).toMatch(/can't be undone/i);
+  });
+
+  it("summarizeDeleteEvent with only displayTitle renders partial card", () => {
+    const tool = calendarModuleManifest.assistantTools!.find(
+      (t) => t.name === "calendar.deleteEvent"
+    )!;
+    const text = tool.summarize!(
+      { eventId: "uuid-1", displayTitle: "Team standup" },
+      { actorUserId: "u", requestId: "r", chatSessionId: "s" }
+    );
+    expect(text).toContain("Team standup");
+    expect(text).toMatch(/can't be undone/i);
+  });
+
+  it("summarizeDeleteEvent with no display fields renders generic fallback", () => {
+    const tool = calendarModuleManifest.assistantTools!.find(
+      (t) => t.name === "calendar.deleteEvent"
+    )!;
+    const text = tool.summarize!(
+      { eventId: "uuid-1" },
+      { actorUserId: "u", requestId: "r", chatSessionId: "s" }
+    );
+    expect(text).toMatch(/delete this calendar event/i);
+    expect(text).toMatch(/can't be undone/i);
+  });
+
+  // Gateway routing tests (need a real DB)
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  function buildGateway(modules: JarvisModuleManifest[], services: Record<string, unknown>) {
+    const tokens = new SessionTokenRegistry();
+    const emitted: GatewaySessionRecord[] = [];
+    const notifier: SessionNotifier = {
+      emit(_sessionId, record) {
+        emitted.push(record);
+      }
+    };
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => modules,
+      repository: new AiRepository(),
+      runner: dataContext,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier,
+      confirmTimeoutMs: 5_000,
+      toolServices: services
+    });
+    return { gateway, tokens, emitted };
+  }
+
+  async function waitForCard(
+    emitted: GatewaySessionRecord[],
+    toolName: string,
+    timeoutMs = 2_000
+  ): Promise<Extract<GatewaySessionRecord, { kind: "action_request" }>> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const card = emitted.find(
+        (r): r is Extract<GatewaySessionRecord, { kind: "action_request" }> =>
+          r.kind === "action_request" && r.toolName === toolName
+      );
+      if (card) return card;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    throw new Error(`Timeout: no action_request card for ${toolName}`);
+  }
+
+  it("callTool always emits an action_request card (never auto-runs)", async () => {
+    const fakeDelete = {
+      async proposeAndInsert() {
+        throw new Error("should not be called");
+      },
+      async deleteEvent() {
+        return {
+          deleted: true,
+          googleDeleted: "deleted" as const,
+          cacheMirror: "deleted" as const,
+          deletedTitle: "Board sync"
+        };
+      }
+    };
+    const { gateway, tokens, emitted } = buildGateway([calendarModuleManifest], {
+      calendarWrite: fakeDelete
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+
+    const callP = gateway.callTool(token, "calendar.deleteEvent", {
+      eventId: "some-uuid",
+      displayTitle: "Board sync"
+    });
+
+    const card = await waitForCard(emitted, "calendar.deleteEvent");
+    expect(card.kind).toBe("action_request");
+    // Deny so callP resolves (avoids test hang)
+    await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "rejected");
+    await callP;
+  });
+
+  it("gateway falls to confirm even if a trusted_auto tier is stored and executionPolicy=auto is set on a hypothetical tool variant", async () => {
+    const autoVariant: JarvisModuleManifest = {
+      ...calendarModuleManifest,
+      assistantActionFamilies: [
+        {
+          id: "calendar_management",
+          label: "Delete calendar events",
+          description: "test",
+          defaultTier: "always_confirm",
+          allowedTiers: ["always_confirm"] // locked — no trusted_auto
+        }
+      ],
+      assistantTools: [
+        {
+          ...calendarModuleManifest.assistantTools!.find((t) => t.name === "calendar.deleteEvent")!,
+          executionPolicy: "auto" // hypothetical mistake — should still confirm
+        }
+      ]
+    };
+
+    let executed = false;
+    const fakeDelete = {
+      async proposeAndInsert() {
+        throw new Error("not called");
+      },
+      async deleteEvent() {
+        executed = true;
+        return {
+          deleted: true,
+          googleDeleted: "deleted" as const,
+          cacheMirror: "deleted" as const
+        };
+      }
+    };
+
+    const { gateway, tokens, emitted } = buildGateway([autoVariant], {
+      calendarWrite: fakeDelete
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+
+    const callP = gateway.callTool(token, "calendar.deleteEvent", { eventId: "u" });
+    const card = await waitForCard(emitted, "calendar.deleteEvent");
+    // The tool did NOT auto-run (no execute call before confirm card)
+    expect(executed).toBe(false);
+    await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "rejected");
+    await callP;
+  });
+});
