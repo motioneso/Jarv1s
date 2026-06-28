@@ -2,8 +2,8 @@
 
 **Date:** 2026-06-27
 **Coordinator lock:** label `Coordinator`, stable anchor = Claude session id
-`75373f84-5593-4e25-b5f0-2f3c767d89e9` (pane `w1:p4S`). Single-coordinator lock verified: exactly
-one pane labelled `Coordinator`, and it is this session. Pane ids are routing hints only.
+`0ae2d4ce-8005-4b66-b7b7-ee9243905817` (pane `w1:p4V`). Single-coordinator lock verified: exactly
+one pane labelled `Coordinator`, and it is this session (successor; prior `75373f84` reaped). Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` auto-merges after cross-model QA (GLM + Codex both green) — Ben sign-off
 waived for this run (2026-06-27 explicit directive: "get GLM and Codex to review then merge
@@ -11,10 +11,10 @@ when on level").
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
 **tab discipline:** coordinator tab (`w1:tS`) = coordinator pane only; all build/QA agents go in agents tab (`w1:tR`). Relay successor also spawns in coordinator tab (that's the one exception). Enforced 2026-06-27 — rfa-533-b was incorrectly in tS and moved to tR.
-**merges_since_relay:** 1 (sensitive #525 merged; relay after next sensitive/routine or any security)
+**merges_since_relay:** 0 (reset at relay; successor `0ae2d4ce` claimed lock)
 **QA policy (Ben directive 2026-06-27):** All approval gates require DUAL-MODEL review — Codex AND GLM — both must GREEN before merge. Applies to all remaining PRs (#563, #535, #536, #537, #538).
 
-**Continuation note (latest — successor reads this):** Coordinator `75373f84` RELAYING after security merge. **#533 MERGED** PR #559 at `39af841f86ea`; issue #533 closed; follow-ups #560/#561/#562 filed. **#531 PR #563 READY TO MERGE** — Opus QA GREEN (verdict at https://github.com/motioneso/Jarv1s/pull/563#issuecomment-4823796394); one non-blocking follow-up filed as issue #564 (scanner ranking index mismatch). Ben approved both merges. Merge #563 first thing. Next migration slot: 0123. merges_since_relay=0 (reset). Queue remaining: #535 (long-running goals, after #533 merged ✓), #536 (recurring briefings, after #531+#535), #537 (commitment extraction, after #533+#535+#536), #538 (person/contact model, after #537). HARD STOP at #538 — Ben doing server maintenance after it lands. **Post-run task (final coordinator after #538):** File GitHub issue for "Jarvis what's new / capabilities doc" — tool-call approach (NOT system prompt injection); single tool Jarvis can call when asked "what can you do?"; static file committed to repo, baked into image at build time. Ben asked 2026-06-27. Worktrees still live: rfa-531-proactive-monitoring (reap after #563 merge), rfa-533-memory-dashboard (reap now — already merged).
+**Continuation note (latest — successor reads this):** Coordinator `0ae2d4ce` (successor) in session. Lock claimed; prior `75373f84` being reaped. **#531 PR #563 IN QA** — Opus GREEN, now running Codex + GLM QA per dual-model policy (both must GREEN; CI all green 4/4). Merge pending QA verdicts. After #563 merge: issue #531 close, board Done, reap rfa-531-proactive-monitoring worktree. RELAY IMMEDIATELY after #563 merge (security tier). merges_since_relay=0 (reset). Queue remaining: #535 (long-running goals — unblocked, spawn BEFORE #563 merge), #536 (recurring briefings, after #531+#535), #537 (commitment extraction, after #533+#535+#536), #538 (person/contact model, after #537). HARD STOP at #538 — Ben doing server maintenance after it lands. **Post-run task (final coordinator after #538):** File GitHub issue for "Jarvis what's new / capabilities doc" — tool-call approach (NOT system prompt injection); single tool Jarvis can call when asked "what can you do?"; static file committed to repo, baked into image at build time. Ben asked 2026-06-27. Worktrees still live: rfa-531-proactive-monitoring (reap after #563 merge), rfa-533-memory-dashboard (reap NOW — already merged). Next migration slot: 0123.
 **Previous continuation note:** security-tier PR #551 (`#529`) merged at `4e9f128` after Ben approval,
 all CI green, and Opus security QA GREEN
 (`https://github.com/motioneso/Jarv1s/pull/551#issuecomment-4821615188`); issue #529 is closed,
