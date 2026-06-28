@@ -202,10 +202,7 @@ function handleDashboardRouteError(error: unknown, reply: FastifyReply) {
   ) {
     return reply.code(409).send({ error: error.message });
   }
-  if (
-    error instanceof Error &&
-    (error as NodeJS.ErrnoException).code === "EMPTY_OBJECT_TEXT"
-  ) {
+  if (error instanceof Error && (error as NodeJS.ErrnoException).code === "EMPTY_OBJECT_TEXT") {
     return reply.code(400).send({ error: error.message });
   }
   throw error;
