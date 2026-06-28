@@ -519,3 +519,219 @@ it("assertMetadataOnlyPersonPayload throws if forbidden key present", () => {
   7. If memory-entity sync needed: enqueue `SYNC_PERSON_MEMORY_QUEUE` in a SEPARATE transaction
 - `registerSyncPersonMemoryWorker(boss, dataContext)` — separate worker for memory entity sync;
   failure must not affect person_context rows
+
+---
+
+## Task 9 — `src/tools.ts` — 7 Assistant Tools
+
+**File:** `packages/people/src/tools.ts`
+
+### Failing test first
+
+```ts
+// packages/people/src/__tests__/tools.test.ts
+import { PEOPLE_TOOLS } from "../tools.js";
+
+it("people.merge has risk=destructive and no auto executionPolicy", () => {
+  const merge = PEOPLE_TOOLS.find((t) => t.name === "people.merge")!;
+  expect(merge.risk).toBe("destructive");
+  expect((merge as any).executionPolicy).not.toBe("auto");
+});
+
+it("people.splitIdentity has risk=destructive", () => {
+  const split = PEOPLE_TOOLS.find((t) => t.name === "people.splitIdentity")!;
+  expect(split.risk).toBe("destructive");
+});
+
+it("people.acceptMatch refuses to auto-run merge/split candidates", async () => {
+  const acceptTool = PEOPLE_TOOLS.find((t) => t.name === "people.acceptMatch")!;
+  // stub service.acceptCandidate to throw RequiresExplicitActionError
+  await expect(
+    acceptTool.execute({ candidateId: "cid" }, mockDeps)
+  ).rejects.toMatchObject({ code: "REQUIRES_EXPLICIT_ACTION" });
+});
+
+it("people.getContext citationToken includes sourceKind:sourceRefHash:linkId", async () => {
+  const getTool = PEOPLE_TOOLS.find((t) => t.name === "people.getContext")!;
+  const result = await getTool.execute({ personId: "pid" }, mockDepsWithData);
+  expect(result.links[0].citationToken).toMatch(/^[a-z]+:[a-f0-9]+:[a-z0-9-]+$/);
+});
+```
+
+### Implementation
+
+Export `PEOPLE_TOOLS: AssistantTool[]` array with 7 entries:
+
+**Read tools** (risk: "read"):
+- `people.resolve` — `{ query: string }` → searches by name or email; returns `Person | null`
+- `people.getContext` — `{ personId: string }` → returns `PersonDetail` with links; each link has
+  `citationToken = "<sourceKind>:<sourceRefHash>:<linkId>"`; strips normalized_value/source_ref
+- `people.listRecent` — `{ limit?: number }` → recently seen persons
+
+**Write tools** (risk: "write", actionFamilyId: "people_review"):
+- `people.acceptMatch` — `{ candidateId: string }` → calls `service.acceptCandidate`; if it throws
+  `RequiresExplicitActionError` (merge_people / split_identity kind), propagates error to force
+  the user to invoke the destructive tool explicitly
+- `people.rejectMatch` — `{ candidateId: string }` → calls `service.rejectCandidate`
+
+**Destructive tools** (risk: "destructive" — executionPolicy MUST NOT be "auto"):
+- `people.merge` — `{ primaryPersonId: string, secondaryPersonId: string }` → calls
+  `service.mergePeople`; emits event; returns merged `Person`
+- `people.splitIdentity` — `{ identityId: string, targetPersonId?: string, newPersonDisplayName?: string }`
+  → calls `service.splitIdentity`; returns new/target `Person`
+
+---
+
+## Task 10 — `src/manifest.ts` + `src/routes.ts` + `src/index.ts`
+
+**Files:** `packages/people/src/manifest.ts`, `packages/people/src/routes.ts`,
+`packages/people/src/index.ts`
+
+### Failing test first
+
+```ts
+// packages/people/src/__tests__/routes.test.ts
+import Fastify from "fastify";
+import { registerPeopleRoutes } from "../routes.js";
+
+it("GET /api/people returns 200 with empty array for new user", async () => {
+  const app = Fastify();
+  registerPeopleRoutes(app, mockDeps);
+  await app.ready();
+  const res = await app.inject({ method: "GET", url: "/api/people" });
+  expect(res.statusCode).toBe(200);
+  const body = JSON.parse(res.body);
+  expect(Array.isArray(body.people)).toBe(true);
+});
+
+it("POST /api/people/:id/merge returns 403 for non-owner", async () => {
+  // ... test RLS rejects cross-user access
+});
+
+it("GET /api/people/:id/links strips source_ref from response", async () => {
+  // ... seed a link with source_ref, fetch, assert field absent
+  const res = await app.inject({ method: "GET", url: `/api/people/${pid}/links` });
+  const body = JSON.parse(res.body);
+  expect(body.links[0]).not.toHaveProperty("sourceRef");
+  expect(body.links[0]).not.toHaveProperty("source_ref");
+  expect(body.links[0]).not.toHaveProperty("normalizedValue");
+});
+```
+
+### Implementation
+
+`manifest.ts`:
+- `PEOPLE_MODULE_ID = "people"`
+- `PEOPLE_MODULE_VERSION = "0.1.0"`
+- `peopleModuleManifest: JarvisModuleManifest` — id, version, displayName, tools = PEOPLE_TOOLS,
+  personContextProvider: undefined (set by individual source modules)
+
+`routes.ts` — `registerPeopleRoutes(app, deps: PeopleRouteDependencies)` with 14 routes:
+```
+GET    /api/people                               → listPeople
+GET    /api/people/resolve                       → ?q=... resolve
+GET    /api/people/match-candidates              → listMatchCandidates
+POST   /api/people/match-candidates/:id/accept   → acceptCandidate
+POST   /api/people/match-candidates/:id/reject   → rejectCandidate
+POST   /api/people/match-candidates/:id/suppress → suppressCandidate
+POST   /api/people/index/refresh                 → enqueuePersonIndexBatch (202)
+GET    /api/people/:id                           → getPerson
+GET    /api/people/:id/links                     → listLinks
+PATCH  /api/people/:id                           → updatePerson
+POST   /api/people/:id/archive                   → archivePerson
+POST   /api/people/:id/merge                     → mergePeople
+POST   /api/people/:id/split-identity            → splitIdentity
+```
+
+All routes: `const ac = await deps.resolveAccessContext(request)`, then
+`return withDataContext(ac, deps.dataContext, async (sdb) => { ... })`. POST routes validate body
+with TypeBox schemas. Refresh endpoint caps at 50 sourceRefs. Never include `normalized_value` or
+`source_ref` in any response body.
+
+`index.ts` — re-export everything public (types, service, repository, manifest, routes, workers,
+jobs). Do NOT re-export `matching.ts` internal helpers.
+
+---
+
+## Task 11 — Module-Registry Wiring
+
+**File:** `packages/module-registry/src/index.ts`
+
+### Failing test first
+
+```ts
+// tests/integration/people/registry.test.ts
+it("module registry includes people manifest", async () => {
+  const registry = createModuleRegistry(deps);
+  const modules = registry.listModules();
+  expect(modules.map((m) => m.id)).toContain("people");
+});
+
+it("GET /api/people route is registered on the Fastify instance", async () => {
+  const app = buildApp(deps);
+  await app.ready();
+  const res = await app.inject({ method: "GET", url: "/api/people",
+    headers: { authorization: "Bearer " + testToken } });
+  expect(res.statusCode).not.toBe(404);
+});
+```
+
+### Implementation
+
+In `packages/module-registry/src/index.ts` follow the exact pattern used for `commitments`
+(grep `commitments` to find import location and wiring call sites):
+
+1. Add import: `import { peopleModuleManifest, registerPeopleRoutes, registerPersonIndexWorker, registerSyncPersonMemoryWorker } from "@jarv1s/people";`
+2. Add `peopleModuleManifest` to the module list array
+3. Call `registerPeopleRoutes(app, { resolveAccessContext, dataContext, boss, service: peopleService })` in the routes wiring section
+4. Call `registerPersonIndexWorker(boss, dataContext, registry)` in the workers section
+5. Call `registerSyncPersonMemoryWorker(boss, dataContext)` in the workers section
+
+---
+
+## Task 12 — Web UI: `settings-people-pane.tsx` + `people-client.ts`
+
+**Files:** `apps/web/src/settings/settings-people-pane.tsx`,
+`apps/web/src/api/people-client.ts`,
+`apps/web/src/settings/settings-memory-pane.tsx` (modify to add tab)
+
+### Failing test first
+
+```ts
+// apps/web/src/settings/__tests__/settings-people-pane.test.tsx
+import { render, screen } from "@testing-library/react";
+import { SettingsPeoplePane } from "../settings-people-pane.js";
+
+it("renders People & context tab heading", () => {
+  render(<SettingsPeoplePane />);
+  expect(screen.getByText("People & context")).toBeInTheDocument();
+});
+
+it("shows match candidates section", async () => {
+  // mock people-client to return 1 pending candidate
+  render(<SettingsPeoplePane />);
+  expect(await screen.findByText("Review matches")).toBeInTheDocument();
+});
+```
+
+### Implementation
+
+`people-client.ts`:
+- `listPeople(params?)` → `GET /api/people`
+- `getPerson(id)` → `GET /api/people/:id`
+- `listMatchCandidates()` → `GET /api/people/match-candidates`
+- `acceptCandidate(id)` → `POST /api/people/match-candidates/:id/accept`
+- `rejectCandidate(id)` → `POST /api/people/match-candidates/:id/reject`
+- `refreshIndex(params?)` → `POST /api/people/index/refresh`
+Use existing client patterns (fetch wrapper, auth headers from session).
+
+`settings-people-pane.tsx`:
+- Section: People list with search (jds-* Group + Row)
+- Section: "Review matches" — list pending candidates, Accept / Reject buttons
+  (merge/split candidates show a warning banner: "This action is irreversible — confirm in chat")
+- Section: "Refresh index" button → calls refreshIndex, shows toast
+- Use `PaneHead`, `Group`, `Row` from `settings-ui.tsx`
+- Empty states use existing authored patterns (no custom illustrations)
+
+`settings-memory-pane.tsx` — add "People & context" tab to the existing tab set; lazy-load
+`SettingsPeoplePane` component.
