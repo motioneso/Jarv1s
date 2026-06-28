@@ -20,7 +20,7 @@ when on level").
 
 **#535 MERGED ✅** — PR #566 squash-merged 2026-06-28T05:11:02Z at `da5b48a169aba27059510cd6b676bd8b15c0c618`. All 5 security QA blockers resolved (export+evidence, memory isolation, foundation.test.ts, read truncation). Issue #535 closed. RFA label removed. ⚠️ Board move FAILED (stale item ID `PVTI_lADOSyc57M4AxkGzgCGFBpM`) — Ben to move #535 → Done manually. Worktree rfa-535-long-running-goals removed. QA-566-AGY (w1:p58) + RFA-536 AGY (w1:p5A, quota-capped) reaped. Ben instructed no relay on auto-compaction 2026-06-28.
 
-**#536 QA-R2 IN FLIGHT** — PR #568 head fe494d92; both §13 fixes applied (invalid-tz→400, weekly-missing-dayOfWeek→400) + 2 tests; VF_EXIT=0 (1126u+1149i). New CI run pending. Round-2 sensitive QA running (ace1a320).
+**#536 MERGED ✅** — PR #568 squash-merged `d9b798c5`; issue #536 closed; board → Done. Both §13 validation gaps fixed (fe494d92). R2 QA GREEN (ace1a320). Agent w1:p5B reaped; worktree removed. merges_since_relay=2 (stay-resident per Ben directive).
 
 **Queue:** #536 building → #537 (commitment extraction, after #533+#535+#536) → #538 (person/contact model). HARD STOP at #538.
 **Next migration slot:** 0125 (0124 = #536 in progress).
