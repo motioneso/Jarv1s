@@ -31,3 +31,4 @@ export * from "./notes-api.js";
 export * from "./priority-model-api.js";
 export * from "./memory-graph-api.js";
 export * from "./usefulness-feedback-api.js";
+export * from "./memory-dashboard-api.js";

@@ -47,11 +47,28 @@ export type {
 export { ChatMemoryFactsRepository } from "./facts-repository.js";
 export * from "./graph-types.js";
 export { MemoryGraphRepository } from "./graph-repository.js";
+export { MemoryGraphDashboardRepository } from "./graph-dashboard-repository.js";
+export { MemoryDashboardService } from "./dashboard-service.js";
 export { GraphMemoryRecallService } from "./graph-recall-service.js";
 export { registerMemoryGraphRoutes } from "./graph-routes.js";
 export type { MemoryGraphRouteDependencies } from "./graph-routes.js";
+export { registerMemoryDashboardRoutes } from "./dashboard-routes.js";
+export type { MemoryDashboardRouteDependencies } from "./dashboard-routes.js";
 export { memoryForgetExecute, memoryRecallExecute, memoryRememberExecute } from "./graph-tools.js";
 export { createMemoryFactSignature, normalizeMemoryFactContent } from "./fact-signature.js";
+export type {
+  AcceptMemoryCandidateRequest,
+  MemoryDashboardItem,
+  MemoryDashboardItemKind,
+  MemoryDashboardQuery,
+  MemoryDashboardResponse,
+  MemoryDashboardStatusFilter,
+  MemoryEditableField,
+  PatchMemoryEntityDashboardRequest,
+  PatchMemoryFactDashboardRequest,
+  RejectMemoryCandidateRequest,
+  SuppressMemoryCandidateRequest
+} from "./dashboard-types.js";
 export type {
   MemoryCorrection,
   MemoryCorrectionSource,

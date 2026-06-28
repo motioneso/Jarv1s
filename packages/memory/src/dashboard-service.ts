@@ -1,0 +1,346 @@
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+
+import type { MemoryCandidateRecord } from "./candidates-repository.js";
+import { MemoryCandidatesRepository } from "./candidates-repository.js";
+import type {
+  AcceptMemoryCandidateRequest,
+  MemoryDashboardItem,
+  MemoryDashboardQuery,
+  MemoryDashboardResponse,
+  PatchMemoryEntityDashboardRequest,
+  PatchMemoryFactDashboardRequest
+} from "./dashboard-types.js";
+import type { EmbeddingProvider } from "./embedding-provider.js";
+import { MemoryGraphDashboardRepository } from "./graph-dashboard-repository.js";
+import type { MemoryGraphRepository } from "./graph-repository.js";
+import { GraphMemoryRecallService } from "./graph-recall-service.js";
+import type {
+  MemoryEpisodeKind,
+  MemoryFactPredicate,
+  MemoryFactRecord,
+  MemoryRecordKind,
+  MemorySourceInput
+} from "./graph-types.js";
+
+const DEFAULT_LIMIT = 25;
+const MAX_LIMIT = 100;
+
+export class MemoryDashboardService {
+  private readonly dashRepo: MemoryGraphDashboardRepository;
+  private readonly candidatesRepo: MemoryCandidatesRepository;
+  private readonly recallSvc: GraphMemoryRecallService;
+
+  constructor(
+    private readonly graphRepo: MemoryGraphRepository,
+    embeddingProvider: EmbeddingProvider
+  ) {
+    this.dashRepo = new MemoryGraphDashboardRepository(graphRepo);
+    this.candidatesRepo = new MemoryCandidatesRepository();
+    this.recallSvc = new GraphMemoryRecallService(embeddingProvider, graphRepo);
+  }
+
+  async getDashboard(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    query: MemoryDashboardQuery
+  ): Promise<MemoryDashboardResponse> {
+    assertDataContextDb(scopedDb);
+    const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit ?? DEFAULT_LIMIT));
+
+    const [candidateCounts, factCounts] = await Promise.all([
+      this.candidatesRepo.countByStatus(scopedDb, ownerUserId),
+      this.dashRepo.countFactsByStatus(scopedDb, ownerUserId)
+    ]);
+    const counts = { ...candidateCounts, ...factCounts };
+
+    const status = query.status ?? "pending";
+    let items: MemoryDashboardItem[];
+    let nextCursor: string | undefined;
+
+    if (
+      status === "pending" ||
+      status === "rejected" ||
+      status === "suppressed" ||
+      status === "promoted"
+    ) {
+      const page = await this.candidatesRepo.listForDashboard(scopedDb, ownerUserId, {
+        status: [status],
+        limit,
+        cursor: query.cursor
+      });
+      items = page.items.map(candidateToItem);
+      nextCursor = page.nextCursor;
+    } else if (status === "all") {
+      const [pending, facts] = await Promise.all([
+        this.candidatesRepo.listForDashboard(scopedDb, ownerUserId, {
+          status: ["pending"],
+          limit: Math.ceil(limit / 2)
+        }),
+        this.dashRepo.listFactsForDashboard(scopedDb, ownerUserId, {
+          statuses: ["active", "stale", "conflicting"],
+          limit: Math.floor(limit / 2),
+          cursor: query.cursor
+        })
+      ]);
+      items = [...pending.items.map(candidateToItem), ...facts.items.map(factToItem)].slice(
+        0,
+        limit
+      );
+      nextCursor = facts.nextCursor;
+    } else {
+      const factStatuses = statusFilterToFactStatuses(status);
+      const page = await this.dashRepo.listFactsForDashboard(scopedDb, ownerUserId, {
+        statuses: factStatuses,
+        recordKind: query.recordKind,
+        limit,
+        cursor: query.cursor
+      });
+      items = page.items.map(factToItem);
+      nextCursor = page.nextCursor;
+    }
+
+    return { counts, items, nextCursor };
+  }
+
+  async acceptCandidate(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    candidateId: string,
+    req: AcceptMemoryCandidateRequest
+  ): Promise<{ accepted: boolean }> {
+    assertDataContextDb(scopedDb);
+    const candidate = await this.candidatesRepo.getById(scopedDb, ownerUserId, candidateId);
+    if (!candidate || candidate.status !== "pending") return { accepted: false };
+
+    const payload = candidate.payloadJson as Record<string, unknown> | null;
+    const kind = typeof payload?.kind === "string" ? payload.kind : null;
+    const factPayload = (payload?.fact ?? null) as Record<string, unknown> | null;
+    const edited = req.edited;
+
+    const dashboardSource: MemorySourceInput = {
+      sourceKind: "manual" as MemoryEpisodeKind,
+      sourceRef: "dashboard-review",
+      sourceLabel: "Memory dashboard",
+      excerpt: ""
+    };
+
+    if (kind === "fact" && factPayload) {
+      const predicate = String(factPayload.predicate ?? "related_to");
+      const objectText = String(edited?.summary ?? factPayload.objectText ?? "");
+      if (!objectText.trim()) {
+        const err = new Error("Candidate objectText must not be empty") as NodeJS.ErrnoException;
+        err.code = "EMPTY_OBJECT_TEXT";
+        throw err;
+      }
+      const recordKind = (edited?.recordKind ??
+        factPayload.recordKind ??
+        "preference") as MemoryRecordKind;
+
+      const selfEntity = await this.graphRepo.ensureSelfEntity(scopedDb, ownerUserId);
+      const result = await this.recallSvc.remember(scopedDb, ownerUserId, {
+        subjectEntityId: selfEntity.id,
+        predicate: predicate as MemoryFactPredicate,
+        objectText,
+        recordKind,
+        confidence: 1.0,
+        provenance: "confirmed",
+        pinned: edited?.pinned,
+        source: dashboardSource
+      });
+
+      if (edited?.validFrom != null || edited?.validTo != null || edited?.staleAt != null) {
+        await this.dashRepo.patchFactLifecycle(scopedDb, ownerUserId, result.fact.id, {
+          validFrom: edited.validFrom ?? null,
+          validTo: edited.validTo ?? null,
+          staleAt: edited.staleAt ?? null
+        });
+      }
+    } else {
+      const summaryText = edited?.summary ?? extractCandidateSummary(payload);
+      const selfEntity = await this.graphRepo.ensureSelfEntity(scopedDb, ownerUserId);
+      await this.recallSvc.remember(scopedDb, ownerUserId, {
+        subjectEntityId: selfEntity.id,
+        predicate: "related_to",
+        objectText: summaryText,
+        recordKind: "preference",
+        confidence: 1.0,
+        provenance: "confirmed",
+        source: dashboardSource
+      });
+    }
+
+    await this.candidatesRepo.markPromoted(
+      scopedDb,
+      ownerUserId,
+      candidateId,
+      "accepted via dashboard"
+    );
+    return { accepted: true };
+  }
+
+  async rejectCandidate(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    candidateId: string,
+    reason: string
+  ): Promise<{ rejected: boolean }> {
+    assertDataContextDb(scopedDb);
+    const rejected = await this.candidatesRepo.markRejected(
+      scopedDb,
+      ownerUserId,
+      candidateId,
+      reason || "rejected by user"
+    );
+    return { rejected };
+  }
+
+  async suppressCandidate(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    candidateId: string,
+    reason: string
+  ): Promise<{ suppressed: boolean }> {
+    assertDataContextDb(scopedDb);
+    const suppressed = await this.candidatesRepo.markSuppressed(
+      scopedDb,
+      ownerUserId,
+      candidateId,
+      reason || "suppressed by user"
+    );
+    return { suppressed };
+  }
+
+  async patchFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string,
+    patch: PatchMemoryFactDashboardRequest
+  ): Promise<{ patched: boolean }> {
+    assertDataContextDb(scopedDb);
+    const updated = await this.dashRepo.patchFactLifecycle(scopedDb, ownerUserId, factId, patch);
+    return { patched: updated != null };
+  }
+
+  async patchEntity(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    entityId: string,
+    patch: PatchMemoryEntityDashboardRequest
+  ): Promise<{ patched: boolean }> {
+    assertDataContextDb(scopedDb);
+    const updated = await this.dashRepo.updateEntity(scopedDb, ownerUserId, entityId, patch);
+    return { patched: updated != null };
+  }
+
+  async deleteEntity(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    entityId: string
+  ): Promise<{ deleted: boolean; blockedByFacts: boolean }> {
+    assertDataContextDb(scopedDb);
+    return this.dashRepo.forgetEntity(scopedDb, ownerUserId, entityId);
+  }
+
+  async deleteFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    factId: string
+  ): Promise<{ deleted: boolean }> {
+    assertDataContextDb(scopedDb);
+    return this.dashRepo.forgetFactWithConflictCleanup(scopedDb, ownerUserId, factId);
+  }
+}
+
+function statusFilterToFactStatuses(filter: string): string[] {
+  switch (filter) {
+    case "active":
+      return ["active"];
+    case "stale":
+      return ["stale"];
+    case "conflicting":
+      return ["conflicting"];
+    case "history":
+      return ["superseded", "expired"];
+    case "inactive":
+      return ["archived", "superseded", "expired"];
+    default:
+      return ["active", "stale", "conflicting"];
+  }
+}
+
+function candidateToItem(c: MemoryCandidateRecord): MemoryDashboardItem {
+  const payload = c.payloadJson as Record<string, unknown> | null;
+  const title = extractCandidateTitle(payload);
+  const recordKind =
+    typeof payload?.recordKind === "string" ? (payload.recordKind as MemoryRecordKind) : undefined;
+  return {
+    itemKind: "candidate",
+    id: c.id,
+    title,
+    summary: extractCandidateSummary(payload),
+    recordKind,
+    status: c.status,
+    confidence: c.confidence,
+    provenance: c.provenance,
+    sourceSummary: "",
+    sourceKind: "chat",
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+    editableFields:
+      c.status === "pending" ? ["summary", "recordKind", "validFrom", "validTo", "staleAt"] : []
+  };
+}
+
+function factToItem(f: MemoryFactRecord): MemoryDashboardItem {
+  const source = f.sources[0];
+  return {
+    itemKind: "fact",
+    id: f.id,
+    title: factTitle(f),
+    summary: f.objectText ?? "",
+    recordKind: f.recordKind,
+    status: f.status,
+    confidence: f.confidence,
+    confidenceTier: f.confidenceTier,
+    provenance: f.provenance,
+    sourceSummary: source?.sourceLabel ?? source?.sourceRef ?? "",
+    sourceKind: source?.sourceKind ?? "chat",
+    createdAt: f.createdAt.toISOString(),
+    updatedAt: f.updatedAt.toISOString(),
+    staleAt: f.staleAt?.toISOString() ?? null,
+    validFrom: f.validFrom?.toISOString() ?? null,
+    validTo: f.validTo?.toISOString() ?? null,
+    conflictGroupId: f.conflictGroupId ?? null,
+    supersededByFactId: f.supersededByFactId ?? null,
+    pinned: f.pinned,
+    editableFields: ["validFrom", "validTo", "staleAt", "pinned"]
+  };
+}
+
+function extractCandidateTitle(payload: Record<string, unknown> | null): string {
+  if (!payload) return "Memory candidate";
+  const fact = (payload.fact ?? null) as Record<string, unknown> | null;
+  if (fact) {
+    const parts = [fact.subject, fact.predicate, fact.objectText ?? fact.objectName].filter(
+      Boolean
+    );
+    if (parts.length > 0) return (parts as string[]).join(" ");
+  }
+  const entity = (payload.entity ?? null) as Record<string, unknown> | null;
+  if (entity && typeof entity.name === "string") return entity.name;
+  if (typeof payload.summary === "string") return payload.summary.slice(0, 120);
+  return "Memory candidate";
+}
+
+function extractCandidateSummary(payload: Record<string, unknown> | null): string {
+  if (!payload) return "";
+  if (typeof payload.summary === "string") return payload.summary;
+  const fact = (payload.fact ?? null) as Record<string, unknown> | null;
+  if (fact && typeof fact.objectText === "string") return fact.objectText;
+  return extractCandidateTitle(payload);
+}
+
+function factTitle(f: MemoryFactRecord): string {
+  const parts = [f.predicate, f.objectText].filter(Boolean);
+  return parts.join(": ") || "Memory fact";
+}

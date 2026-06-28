@@ -159,11 +159,84 @@ export class MemoryCandidatesRepository {
     return result.rows.map(mapCandidate);
   }
 
+  async markSuppressed(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    id: string,
+    reason: string
+  ): Promise<boolean> {
+    return this.#mark(scopedDb, ownerUserId, id, "suppressed", reason);
+  }
+
+  async getById(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    id: string
+  ): Promise<MemoryCandidateRecord | undefined> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<CandidateRow>`
+      SELECT *
+      FROM app.memory_candidates
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${id}::uuid
+    `.execute(scopedDb.db);
+    return result.rows[0] ? mapCandidate(result.rows[0]) : undefined;
+  }
+
+  async listForDashboard(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    opts: {
+      readonly status?: readonly MemoryCandidateStatus[];
+      readonly limit: number;
+      readonly cursor?: string;
+    }
+  ): Promise<{ items: MemoryCandidateRecord[]; nextCursor?: string }> {
+    assertDataContextDb(scopedDb);
+    const statuses = opts.status ?? (["pending"] as MemoryCandidateStatus[]);
+    const fetchLimit = opts.limit + 1;
+    const result = await sql<CandidateRow>`
+      SELECT *
+      FROM app.memory_candidates
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND status = ANY(${statuses}::text[])
+        AND (${opts.cursor ?? null}::uuid IS NULL OR id < ${opts.cursor ?? null}::uuid)
+      ORDER BY created_at DESC, id DESC
+      LIMIT ${fetchLimit}
+    `.execute(scopedDb.db);
+
+    const rows = result.rows.map(mapCandidate);
+    const hasMore = rows.length > opts.limit;
+    const items = hasMore ? rows.slice(0, opts.limit) : rows;
+    return {
+      items,
+      nextCursor: hasMore ? items[items.length - 1]?.id : undefined
+    };
+  }
+
+  async countByStatus(
+    scopedDb: DataContextDb,
+    ownerUserId: string
+  ): Promise<Record<string, number>> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ status: string; cnt: string }>`
+      SELECT status, COUNT(*) AS cnt
+      FROM app.memory_candidates
+      WHERE owner_user_id = ${ownerUserId}::uuid
+      GROUP BY status
+    `.execute(scopedDb.db);
+    const counts: Record<string, number> = {};
+    for (const row of result.rows) {
+      counts[row.status] = Number(row.cnt);
+    }
+    return counts;
+  }
+
   async #mark(
     scopedDb: DataContextDb,
     ownerUserId: string,
     id: string,
-    status: "promoted" | "rejected",
+    status: "promoted" | "rejected" | "suppressed",
     reason: string
   ): Promise<boolean> {
     assertDataContextDb(scopedDb);
