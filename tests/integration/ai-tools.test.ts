@@ -452,6 +452,8 @@ describe("AI read-only assistant tool execution foundation", () => {
       "connectors.google-sync",
       "tasks-deferred-status",
       "tasks-recurrence-materialize",
+      "goals-memory-sync",
+      "goals-memory-sync-reconcile",
       "chat.embed-turn",
       "chat.extract-facts",
       "briefings-run",

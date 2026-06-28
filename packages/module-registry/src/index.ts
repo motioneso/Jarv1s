@@ -119,6 +119,16 @@ import {
   tasksModuleSqlMigrationDirectory
 } from "@jarv1s/tasks";
 import {
+  goalsModuleManifest,
+  goalsModuleSqlMigrationDirectory,
+  registerGoalsRoutes,
+  registerGoalsMemorySyncWorker,
+  registerGoalsMemorySyncReconcileWorker,
+  GoalsRepository,
+  GOALS_MEMORY_SYNC_QUEUE,
+  GOALS_MEMORY_SYNC_RECONCILE_QUEUE
+} from "@jarv1s/goals";
+import {
   invalidateWebSearchProviderCache,
   setWebSearchKeyResolver,
   webModuleManifest
@@ -460,6 +470,34 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         focusSignals: deps.focusSignals
       }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
+  },
+  {
+    manifest: goalsModuleManifest,
+    sqlMigrationDirectories: [goalsModuleSqlMigrationDirectory],
+    queueDefinitions: [
+      {
+        name: GOALS_MEMORY_SYNC_QUEUE,
+        options: { retryLimit: 3, retryDelay: 60, retryBackoff: true }
+      },
+      {
+        name: GOALS_MEMORY_SYNC_RECONCILE_QUEUE,
+        options: { retryLimit: 3, retryDelay: 60, retryBackoff: true }
+      }
+    ],
+    registerRoutes: (server, deps) =>
+      registerGoalsRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        boss: deps.boss
+      }),
+    registerWorkers: async (boss, deps) => {
+      const repository = new GoalsRepository();
+      const memoryGraphRepo = new MemoryGraphRepository();
+      return [
+        await registerGoalsMemorySyncWorker(boss, deps.dataContext, repository, memoryGraphRepo),
+        await registerGoalsMemorySyncReconcileWorker(boss, deps.dataContext, repository)
+      ];
+    }
   },
   {
     manifest: webModuleManifest,

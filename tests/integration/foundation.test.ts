@@ -292,7 +292,8 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0122",
           name: "0122_proactive_monitoring.sql"
-        }
+        },
+        { version: "0123", name: "0123_long_running_goals.sql" }
       ]);
     } finally {
       await client.end();

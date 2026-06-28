@@ -1,3 +1,4 @@
+import type { JarvisGoal } from "@jarv1s/goals";
 import type {
   AddTaskActivityRequest,
   AssignTaskTagRequest,
@@ -358,6 +359,14 @@ export async function signOut(): Promise<void> {
 
 export async function listTaskActivity(taskId: string): Promise<ListTaskActivityResponse> {
   return requestJson<ListTaskActivityResponse>(`/api/tasks/${encodeURIComponent(taskId)}/activity`);
+}
+
+export interface ListGoalsResponse {
+  readonly items: readonly JarvisGoal[];
+}
+
+export async function listGoals(): Promise<ListGoalsResponse> {
+  return requestJson<ListGoalsResponse>(`/api/goals`);
 }
 
 export async function listTasks(params?: { readonly tagId?: string }): Promise<ListTasksResponse> {

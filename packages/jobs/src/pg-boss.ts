@@ -65,6 +65,8 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "idempotencyKey",
   "sourcePath",
   "source",
+  "goalId",
+  "goalUpdatedAt",
   "reason"
 ]);
 

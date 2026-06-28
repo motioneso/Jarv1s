@@ -175,6 +175,7 @@ describe("AI provider foundation", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",

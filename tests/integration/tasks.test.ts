@@ -156,6 +156,7 @@ describe("Tasks module M1", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",
