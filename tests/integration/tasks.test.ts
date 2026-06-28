@@ -171,7 +171,8 @@ describe("Tasks module M1", () => {
       "weather",
       "notes",
       "proactive-monitoring",
-      "jarvis.commitments"
+      "jarvis.commitments",
+      "people"
     ];
     expect(manifests.map((manifest) => manifest.id)).toEqual(expectedIds);
     expect(registrations.map((registration) => registration.manifest.id)).toEqual(expectedIds);
