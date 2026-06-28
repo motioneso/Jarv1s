@@ -232,13 +232,21 @@ import {
   type SessionNotifier
 } from "@jarv1s/ai";
 import { calendarModuleManifest } from "@jarv1s/calendar";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
+import {
+  buildCalendarWriteService,
+  type CalendarWriteImplDeps
+} from "@jarv1s/chat";
+import {
+  GoogleConnectionService,
+  GoogleOAuthClient
+} from "@jarv1s/connectors";
 
 describe("Section C — manifest structure + gateway routing", () => {
   it("calendar.deleteEvent is registered with correct risk/family/services/no-auto", () => {
-    const tool = calendarModuleManifest.assistantTools?.find(
+    const tool = (calendarModuleManifest as JarvisModuleManifest).assistantTools?.find(
       (t) => t.name === "calendar.deleteEvent"
-    );
+    ) as ModuleAssistantToolManifest | undefined;
     expect(tool).toBeDefined();
     expect(tool!.risk).toBe("write");
     expect(tool!.actionFamilyId).toBe("calendar_management");
@@ -432,5 +440,338 @@ describe("Section C — manifest structure + gateway routing", () => {
     expect(executed).toBe(false);
     await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "rejected");
     await callP;
+  });
+});
+
+// ─── Section D: buildCalendarWriteService.deleteEvent (faked Google fetch) ───
+
+describe("Section D — buildCalendarWriteService.deleteEvent", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+
+  beforeAll(async () => {
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  async function seedGoogleAccount(ownerId: string, scopes: string[]): Promise<string> {
+    const cipher = createConnectorSecretCipher();
+    const repo = new ConnectorsRepository();
+    const account = await dataContext.withDataContext(
+      { actorUserId: ownerId, requestId: "seed" },
+      (scopedDb) =>
+        repo.upsertGoogleAccount(scopedDb, {
+          scopes,
+          encryptedSecret: cipher.encryptJson({
+            kind: "google-oauth",
+            clientId: "cid",
+            clientSecret: "csecret",
+            accessToken: "atoken",
+            refreshToken: "rtoken",
+            tokenExpiry: new Date(Date.now() + 3_600_000).toISOString(),
+            grantedScopes: scopes
+          })
+        })
+    );
+    return account.id;
+  }
+
+  async function insertCacheRow(
+    ownerId: string,
+    accountId: string,
+    externalId: string,
+    title: string
+  ): Promise<string> {
+    const repo = new CalendarRepository();
+    const row = await dataContext.withDataContext(
+      { actorUserId: ownerId, requestId: "insert" },
+      (scopedDb) =>
+        repo.upsertCachedEvent(scopedDb, {
+          connectorAccountId: accountId,
+          externalId,
+          title,
+          startsAt: new Date("2026-06-28T14:00:00Z"),
+          endsAt: new Date("2026-06-28T15:00:00Z")
+        })
+    );
+    return row.id;
+  }
+
+  function buildImpl(opts: {
+    deleteStatus?: number;
+    calendarRepository?: CalendarRepository;
+  }) {
+    const deleteCalls: string[] = [];
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") {
+        deleteCalls.push(url);
+        const status = opts.deleteStatus ?? 204;
+        return {
+          ok: status < 400,
+          status,
+          json: async () => ({}),
+          text: async () => "{}"
+        } as Response;
+      }
+      // OAuth refresh: return a valid token response
+      if (url.includes("oauth2") || url.includes("token")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: "fresh-tok",
+            expires_in: 3600,
+            token_type: "Bearer",
+            scope: "https://www.googleapis.com/auth/calendar"
+          }),
+          text: async () => ""
+        } as Response;
+      }
+      return { ok: true, status: 200, json: async () => ({}), text: async () => "{}" } as Response;
+    }) as unknown as typeof fetch;
+
+    const cipher = createConnectorSecretCipher();
+    const connectorsRepo = new ConnectorsRepository();
+    const impl = buildCalendarWriteService({
+      googleService: new GoogleConnectionService({
+        repository: connectorsRepo,
+        cipher,
+        oauthClient: new GoogleOAuthClient({ fetchFn })
+      }),
+      googleApiClient: new GoogleApiClient({ fetchFn }),
+      connectorsRepository: connectorsRepo,
+      calendarRepository: opts.calendarRepository ?? new CalendarRepository()
+    });
+    return { impl, deleteCalls };
+  }
+
+  const ctx = { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" };
+
+  it("unknown eventId → deleted:false, skipped-error, not-cached, no Google call", async () => {
+    const { impl, deleteCalls } = buildImpl({});
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId: "00000000-0000-4000-8000-999999999999" })
+    );
+    expect(res.deleted).toBe(false);
+    expect(res.googleDeleted).toBe("skipped-error");
+    expect(res.cacheMirror).toBe("not-cached");
+    expect(res.message).toMatch(/already gone|may already be gone/i);
+    expect(deleteCalls).toHaveLength(0);
+  });
+
+  it("missing calendar-write scope → deleted:false, skipped-no-scope, reconnect message, no Google call", async () => {
+    // Seed with full calendar scope so INSERT RLS passes, then downgrade to gmail-only
+    // so getCalendarWriteScopeState sees hasScope:false when deleteEvent runs.
+    const accountIdWithScope = await seedGoogleAccount(ids.userB, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userB, accountIdWithScope, "google-evt-scope-check", "Scoped event");
+    // Downgrade scopes — upsertGoogleAccount updates the existing account in-place.
+    await seedGoogleAccount(ids.userB, ["https://www.googleapis.com/auth/gmail.modify"]);
+    const { impl, deleteCalls } = buildImpl({});
+    const res = await dataContext.withDataContext({ actorUserId: ids.userB, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, { ...ctx, actorUserId: ids.userB }, { eventId })
+    );
+    expect(res.deleted).toBe(false);
+    expect(res.googleDeleted).toBe("skipped-no-scope");
+    expect(res.message).toMatch(/reconnect/i);
+    expect(deleteCalls).toHaveLength(0);
+  });
+
+  it("happy path: 204 + cache delete succeeds → deleted:true, 'deleted'/'deleted', deletedTitle", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D1", "Board sync");
+    const { impl } = buildImpl({ deleteStatus: 204 });
+
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(true);
+    expect(res.googleDeleted).toBe("deleted");
+    expect(res.cacheMirror).toBe("deleted");
+    expect(res.deletedTitle).toBe("Board sync");
+
+    // Cache row should be gone
+    const calRepo = new CalendarRepository();
+    const found = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "check" },
+      (db) => calRepo.getById(db, eventId)
+    );
+    expect(found).toBeUndefined();
+  });
+
+  it("Google 404 → deleted:true, googleDeleted:'already-gone', cache row removed", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D2", "Team standup");
+    const { impl } = buildImpl({ deleteStatus: 404 });
+
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(true);
+    expect(res.googleDeleted).toBe("already-gone");
+    expect(res.cacheMirror).toBe("deleted");
+  });
+
+  it("Google 410 → deleted:true, googleDeleted:'already-gone', cache row removed", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D3", "Retro");
+    const { impl } = buildImpl({ deleteStatus: 410 });
+
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(true);
+    expect(res.googleDeleted).toBe("already-gone");
+  });
+
+  it("Google 403 → deleted:false, no-permission message, cache row untouched", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D4", "Read-only event");
+    const { impl } = buildImpl({ deleteStatus: 403 });
+
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(false);
+    expect(res.googleDeleted).toBe("skipped-error");
+    expect(res.message).toMatch(/permission/i);
+
+    // Cache row still present
+    const calRepo = new CalendarRepository();
+    const found = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "check" },
+      (db) => calRepo.getById(db, eventId)
+    );
+    expect(found).toBeDefined();
+  });
+
+  it("Google 500 → deleted:false, try-again message", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D5", "Planning");
+    const { impl } = buildImpl({ deleteStatus: 500 });
+
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(false);
+    expect(res.message).toMatch(/try again/i);
+  });
+
+  it("cache delete 42501 → cacheMirror:'skipped-rls', deleted:true (never rethrows)", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D6", "Sync");
+
+    class RlsRejectingDelete extends CalendarRepository {
+      override async deleteById(): Promise<void> {
+        const err = new Error(
+          'new row violates row-level security policy for table "calendar_events"'
+        ) as Error & { code?: string };
+        err.code = "42501";
+        throw err;
+      }
+    }
+
+    const { impl } = buildImpl({ deleteStatus: 204, calendarRepository: new RlsRejectingDelete() });
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(true); // Google delete succeeded; cache miss is non-fatal
+    expect(res.cacheMirror).toBe("skipped-rls");
+  });
+
+  it("cache delete generic error → cacheMirror:'skipped-error', deleted:true (never rethrows)", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D7", "All-hands");
+
+    class GenericRejectingDelete extends CalendarRepository {
+      override async deleteById(): Promise<void> {
+        const err = new Error("deadlock detected") as Error & { code?: string };
+        err.code = "40P01";
+        throw err;
+      }
+    }
+
+    const { impl } = buildImpl({
+      deleteStatus: 204,
+      calendarRepository: new GenericRejectingDelete()
+    });
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(true);
+    expect(res.cacheMirror).toBe("skipped-error");
+  });
+
+  it("result does NOT contain access token or connector secret", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D8", "Meeting");
+    const { impl } = buildImpl({ deleteStatus: 204 });
+
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId })
+    );
+    const serialized = JSON.stringify(res);
+    expect(serialized).not.toContain("atoken");
+    expect(serialized).not.toContain("fresh-tok");
+    expect(serialized).not.toContain("csecret");
+    expect(serialized).not.toContain("rtoken");
+  });
+
+  it("RLS isolation: userA cannot deleteEvent for an event owned by userB", async () => {
+    const accountIdB = await seedGoogleAccount(ids.userB, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const repo = new CalendarRepository();
+    const row = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "insert" },
+      (db) =>
+        repo.upsertCachedEvent(db, {
+          connectorAccountId: accountIdB,
+          externalId: "google-evt-D9",
+          title: "B private",
+          startsAt: new Date("2026-06-28T14:00:00Z"),
+          endsAt: new Date("2026-06-28T15:00:00Z")
+        })
+    );
+    await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const { impl, deleteCalls } = buildImpl({ deleteStatus: 204 });
+
+    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
+      impl.deleteEvent(db, ctx, { eventId: row.id })
+    );
+    // getById returns undefined cross-user → "already gone" result, no Google call
+    expect(res.deleted).toBe(false);
+    expect(deleteCalls).toHaveLength(0);
+
+    // userB's event is still there
+    const found = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "check" },
+      (db) => repo.getById(db, row.id)
+    );
+    expect(found).toBeDefined();
   });
 });
