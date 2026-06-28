@@ -378,6 +378,22 @@ export interface AiAssistantActionRequestsTable {
   updated_at: TimestampColumn;
 }
 
+export interface JarvisActionAuditLogTable {
+  id: string;
+  owner_user_id: string;
+  tool_module_id: string;
+  tool_name: string;
+  action_family_id: string | null;
+  action_kind: string;
+  approval_mode: string;
+  outcome: string;
+  error_class: string | null;
+  request_id: string | null;
+  chat_session_id: string | null;
+  source_surface: string;
+  occurred_at: TimestampColumn;
+}
+
 export interface ChatThreadsTable {
   id: string;
   owner_user_id: string;
@@ -826,6 +842,7 @@ export interface JarvisDatabase {
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
+  "app.jarvis_action_audit_log": JarvisActionAuditLogTable;
   "app.chat_threads": ChatThreadsTable;
   "app.chat_messages": ChatMessagesTable;
   "app.briefing_definitions": BriefingDefinitionsTable;
@@ -873,6 +890,7 @@ export type EmailMessage = Selectable<EmailMessagesTable>;
 export type AiProviderConfig = Selectable<AiProviderConfigsTable>;
 export type AiConfiguredModel = Selectable<AiConfiguredModelsTable>;
 export type AiAssistantActionRequest = Selectable<AiAssistantActionRequestsTable>;
+export type JarvisActionAuditLog = Selectable<JarvisActionAuditLogTable>;
 export type ChatThread = Selectable<ChatThreadsTable>;
 export type ChatMessage = Selectable<ChatMessagesTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
