@@ -127,7 +127,8 @@ import type {
   PatchMeProfileRequest,
   PutActiveThemeRequest,
   PutCustomThemeRequest,
-  PutCustomThemeResponse
+  PutCustomThemeResponse,
+  ListActionAuditLogResponse
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -814,6 +815,19 @@ export async function putAdminChatModelOverrideEnabled(
 
 export async function listAiAssistantTools(): Promise<ListAiAssistantToolsResponse> {
   return requestJson<ListAiAssistantToolsResponse>("/api/ai/assistant-tools");
+}
+
+export async function listActionAuditLog(params?: {
+  since?: string;
+  family?: string;
+  limit?: number;
+}): Promise<ListActionAuditLogResponse> {
+  const search = new URLSearchParams();
+  if (params?.since) search.set("since", params.since);
+  if (params?.family) search.set("family", params.family);
+  if (params?.limit !== undefined) search.set("limit", String(params.limit));
+  const qs = search.toString();
+  return requestJson<ListActionAuditLogResponse>(`/api/ai/action-audit${qs ? `?${qs}` : ""}`);
 }
 
 export async function getWebSearchKey(): Promise<GetWebSearchKeyResponse> {
