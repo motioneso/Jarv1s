@@ -60,6 +60,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/db/src/probes/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/commitments/tools",
+        replacement: fileURLToPath(new URL("./packages/commitments/src/tools.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/commitments/routes",
         replacement: fileURLToPath(new URL("./packages/commitments/src/routes.ts", import.meta.url))
       },

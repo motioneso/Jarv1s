@@ -51,7 +51,8 @@
       "@jarv1s/commitments/routes": ["packages/commitments/src/routes.ts"],
       "@jarv1s/commitments/workers": ["packages/commitments/src/workers.ts"],
       "@jarv1s/commitments/prefilter": ["packages/commitments/src/prefilter.ts"],
-      "@jarv1s/commitments/signature": ["packages/commitments/src/signature.ts"]
+      "@jarv1s/commitments/signature": ["packages/commitments/src/signature.ts"],
+      "@jarv1s/commitments/tools": ["packages/commitments/src/tools.ts"]
     }
   },
   "include": [
