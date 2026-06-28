@@ -44,6 +44,8 @@ export interface ChatMessageDto {
   readonly activity: readonly ChatActivityEventDto[];
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly answerProvenance?: readonly AnswerSourceSupportCard[];
+  readonly answerProvenanceCitedIds?: readonly string[];
 }
 
 export interface ListChatThreadsResponse {
@@ -86,6 +88,81 @@ export interface SendChatTurnResponse {
   readonly reply: string;
   readonly userMessageId?: string;
   readonly assistantMessageId?: string;
+}
+
+export type AnswerProvenanceSourceKind =
+  | "memory"
+  | "note"
+  | "email"
+  | "calendar"
+  | "task"
+  | "commitment"
+  | "person"
+  | "goal"
+  | "briefing";
+
+export type AnswerProvenanceState =
+  | "confirmed_source"
+  | "inferred_memory"
+  | "pending_candidate"
+  | "ambiguous_identity"
+  | "unverified_context";
+
+export interface AnswerSourceSupport {
+  readonly supportId: string;
+  readonly sourceKind: AnswerProvenanceSourceKind;
+  readonly sourceLabel: string;
+  readonly title: string;
+  readonly snippet?: string;
+  readonly state: AnswerProvenanceState;
+  readonly confidence?: number;
+  readonly confidenceTier?: "confirmed" | "high" | "medium" | "low";
+  readonly provenance?: "volunteered" | "inferred" | "confirmed" | "imported" | "source";
+  readonly occurredAt?: string;
+  readonly citationToken?: string;
+  readonly canDereference: boolean;
+}
+
+export interface AnswerSourceSupportCard {
+  readonly supportId: string;
+  readonly sourceKind: AnswerProvenanceSourceKind;
+  readonly sourceLabel: string;
+  readonly title: string;
+  readonly snippet?: string;
+  readonly state: AnswerProvenanceState;
+  readonly confidence?: number;
+  readonly confidenceTier?: "confirmed" | "high" | "medium" | "low";
+  readonly provenance?: "volunteered" | "inferred" | "confirmed" | "imported" | "source";
+  readonly occurredAt?: string;
+  readonly canDereference: boolean;
+}
+
+export interface AnswerProvenanceMetadataV1 {
+  readonly version: 1;
+  readonly citedSupportIds: readonly string[];
+  readonly supportItems: readonly AnswerSourceSupport[];
+  readonly contextCheckedCount: number;
+  readonly omittedCount: number;
+}
+
+export interface AnswerProvenanceProvider {
+  readonly sourceKind: AnswerProvenanceSourceKind;
+  verifySupport(
+    scopedDb: unknown,
+    input: { readonly ownerUserId: string; readonly citationToken: string }
+  ): Promise<AnswerSourceSupport | null>;
+  dereferenceSupport(
+    scopedDb: unknown,
+    input: { readonly ownerUserId: string; readonly citationToken: string }
+  ): Promise<AnswerProvenanceDereference | null>;
+}
+
+export interface AnswerProvenanceDereference {
+  readonly sourceLabel: string;
+  readonly title: string;
+  readonly snippet?: string;
+  readonly deepLinkPath?: string;
+  readonly unavailableReason?: "missing" | "permission" | "source_unavailable";
 }
 
 const chatThreadSchema = {
@@ -166,7 +243,29 @@ const chatMessageSchema = {
     tools: { type: "array", items: chatSelectedToolMetadataSchema },
     activity: { type: "array", items: chatActivityEventSchema },
     createdAt: { type: "string" },
-    updatedAt: { type: "string" }
+    updatedAt: { type: "string" },
+    answerProvenance: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["supportId", "sourceKind", "sourceLabel", "title", "state", "canDereference"],
+        properties: {
+          supportId: { type: "string" },
+          sourceKind: { type: "string" },
+          sourceLabel: { type: "string" },
+          title: { type: "string" },
+          snippet: { type: "string" },
+          state: { type: "string" },
+          confidence: { type: "number" },
+          confidenceTier: { type: "string" },
+          provenance: { type: "string" },
+          occurredAt: { type: "string" },
+          canDereference: { type: "boolean" }
+        }
+      }
+    },
+    answerProvenanceCitedIds: { type: "array", items: { type: "string" } }
   }
 } as const;
 

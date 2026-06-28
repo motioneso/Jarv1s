@@ -11,6 +11,7 @@ export {
   planCrossToolReasoning,
   renderCrossToolContextBlock,
   collectCrossToolContext,
+  collectCrossToolContextAndItems,
   normalizeNotesResult,
   normalizeEmailResult,
   normalizeCalendarResult,

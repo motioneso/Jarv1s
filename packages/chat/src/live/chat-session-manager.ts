@@ -12,11 +12,22 @@
  * a real tmux session, Postgres, or disk. Task 8 supplies the real adapters.
  */
 import type { ProviderKind } from "@jarv1s/ai";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type {
+  AnswerProvenanceMetadataV1,
+  AnswerSourceSupport,
+  AiProviderExecutionMode
+} from "@jarv1s/shared";
+import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { RecallPort } from "../recall-port.js";
 import {
-  collectCrossToolContext,
+  crossToolItemToSupport,
+  finalizeProvenance,
+  memoryItemToSupport,
+  parseAnswerMarkers
+} from "./answer-provenance.js";
+import {
+  collectCrossToolContextAndItems,
   planCrossToolReasoning,
   type CrossToolReadRunner
 } from "./cross-tool-reasoning.js";
@@ -49,7 +60,8 @@ export interface ChatPersistencePort {
     actorUserId: string,
     userText: string,
     assistantReply: string,
-    executed: { provider: ProviderKind; model: string }
+    executed: { provider: ProviderKind; model: string },
+    answerProvenance?: AnswerProvenanceMetadataV1
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined>;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
@@ -66,6 +78,12 @@ export interface PassiveRetrievalPort {
     readonly threadTitle: string | null;
     readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
   }): Promise<string>;
+  retrieveWithItems?(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<{ block: string; items: MemoryRecallItem[] }>;
 }
 
 export interface ChatSessionManagerDeps {
@@ -395,7 +413,7 @@ export class ChatSessionManager {
     this.turnControllers.set(actorUserId, controller);
 
     try {
-      const engineText = await this.engineText(actorUserId, text);
+      const { text: engineText, pendingItems } = await this.engineText(actorUserId, text);
       this.emit(actorUserId, { kind: "user", text });
       await session.engine.submit(engineText);
 
@@ -473,10 +491,31 @@ export class ChatSessionManager {
         return { reply };
       }
 
-      const stored = await this.deps.persistence.recordTurn(actorUserId, text, reply, {
-        provider: session.provider,
-        model: session.model
-      });
+      let answerProvenance: AnswerProvenanceMetadataV1 | undefined;
+      if (pendingItems.length > 0 && reply) {
+        try {
+          const citedIds = parseAnswerMarkers(reply);
+          answerProvenance = finalizeProvenance(pendingItems, citedIds);
+        } catch {
+          answerProvenance = undefined;
+        }
+      }
+
+      const stored = await (answerProvenance !== undefined
+        ? this.deps.persistence.recordTurn(
+            actorUserId,
+            text,
+            reply,
+            {
+              provider: session.provider,
+              model: session.model
+            },
+            answerProvenance
+          )
+        : this.deps.persistence.recordTurn(actorUserId, text, reply, {
+            provider: session.provider,
+            model: session.model
+          }));
       session.lastActivity = this.deps.clock.now();
       this.deps.touchMcpToken?.(actorUserId);
 
@@ -490,8 +529,13 @@ export class ChatSessionManager {
     }
   }
 
-  private async engineText(actorUserId: string, text: string): Promise<string> {
-    if (!this.deps.passiveRetrieval && !this.deps.crossToolRead) return text;
+  private async engineText(
+    actorUserId: string,
+    text: string
+  ): Promise<{ text: string; pendingItems: AnswerSourceSupport[] }> {
+    if (!this.deps.passiveRetrieval && !this.deps.crossToolRead) {
+      return { text, pendingItems: [] };
+    }
     try {
       const [{ recent }, threadCtx] = await Promise.all([
         this.deps.persistence.listPriorTurns(actorUserId),
@@ -510,28 +554,50 @@ export class ChatSessionManager {
             })
           : null;
 
-      const [passiveBlock, crossToolBlock] = await Promise.all([
+      const [passiveResult, crossToolResult] = await Promise.all([
         this.deps.passiveRetrieval != null
-          ? this.deps.passiveRetrieval
-              .retrieve({
-                actorUserId,
-                userText: text,
-                threadTitle: threadCtx.threadTitle,
-                recentTurns: recent
-              })
-              .catch(() => "")
-          : Promise.resolve(""),
+          ? (this.deps.passiveRetrieval.retrieveWithItems != null
+              ? this.deps.passiveRetrieval.retrieveWithItems({
+                  actorUserId,
+                  userText: text,
+                  threadTitle: threadCtx.threadTitle,
+                  recentTurns: recent
+                })
+              : this.deps.passiveRetrieval
+                  .retrieve({
+                    actorUserId,
+                    userText: text,
+                    threadTitle: threadCtx.threadTitle,
+                    recentTurns: recent
+                  })
+                  .then((block) => ({ block, items: [] as MemoryRecallItem[] }))
+            ).catch(() => ({ block: "", items: [] as MemoryRecallItem[] }))
+          : Promise.resolve({ block: "", items: [] as MemoryRecallItem[] }),
         plan != null && this.deps.crossToolRead != null
-          ? collectCrossToolContext(actorUserId, plan, this.deps.crossToolRead, localNow).catch(
-              () => ""
-            )
-          : Promise.resolve("")
+          ? collectCrossToolContextAndItems(
+              actorUserId,
+              plan,
+              this.deps.crossToolRead,
+              localNow
+            ).catch(() => ({ block: "", items: [] }))
+          : Promise.resolve({ block: "", items: [] })
       ]);
 
-      const combined = combineHiddenContextBlocks(passiveBlock, crossToolBlock);
-      return combined ? `${combined}\n\n${text}` : text;
+      // Convert evidence to pending support items for provenance
+      let idx = 0;
+      const memoryItems = passiveResult.items.map((item) => memoryItemToSupport(item, idx++));
+      const crossToolItems = crossToolResult.items.map((item) =>
+        crossToolItemToSupport(item, idx++)
+      );
+      const pendingItems: AnswerSourceSupport[] = [...memoryItems, ...crossToolItems];
+
+      const combined = combineHiddenContextBlocks(passiveResult.block, crossToolResult.block);
+      return {
+        text: combined ? `${combined}\n\n${text}` : text,
+        pendingItems
+      };
     } catch {
-      return text;
+      return { text, pendingItems: [] };
     }
   }
 

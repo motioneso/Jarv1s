@@ -9,6 +9,7 @@ import {
   type ChatThread,
   type DataContextDb
 } from "@jarv1s/db";
+import type { AnswerProvenanceMetadataV1 } from "@jarv1s/shared";
 
 export interface CreateChatThreadInput {
   readonly title: string;
@@ -174,7 +175,8 @@ export class ChatRepository {
     threadId: string,
     userText: string,
     assistantReply: string,
-    executed: { readonly provider: string; readonly model: string }
+    executed: { readonly provider: string; readonly model: string },
+    answerProvenance?: AnswerProvenanceMetadataV1
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage } | undefined> {
     assertDataContextDb(scopedDb);
 
@@ -200,7 +202,10 @@ export class ChatRepository {
       status: "stored",
       body: assistantReply,
       modelMetadata: { executed: { provider: executed.provider, model: executed.model } },
-      toolMetadata: { selectedTools: [] },
+      toolMetadata: {
+        selectedTools: [],
+        ...(answerProvenance !== undefined ? { answerProvenanceV1: answerProvenance } : {})
+      },
       now
     });
 

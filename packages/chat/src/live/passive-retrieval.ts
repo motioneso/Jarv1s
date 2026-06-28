@@ -80,6 +80,51 @@ export class PassiveContextRetriever {
     }
   }
 
+  async retrieveWithItems(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<{ block: string; items: MemoryRecallItem[] }> {
+    try {
+      return (
+        (await withPassiveRetrievalTimeout(
+          this.retrieveNowWithItems(input),
+          PASSIVE_TIMEOUT_MS
+        )) ?? { block: "", items: [] }
+      );
+    } catch {
+      return { block: "", items: [] };
+    }
+  }
+
+  private async retrieveNowWithItems(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<{ block: string; items: MemoryRecallItem[] }> {
+    const decision = planPassiveRetrieval(input);
+    if (!decision.shouldRetrieve) return { block: "", items: [] };
+
+    return this.deps.dataContext.withDataContext(
+      { actorUserId: input.actorUserId, requestId: "chat:passive-memory-retrieval" },
+      async (scopedDb) => {
+        const settings = await this.settingsRepo.getOrCreate(scopedDb, input.actorUserId);
+        if (!settings.recallEnabled || !settings.factsEnabled) return { block: "", items: [] };
+        const result = await this.deps.graphRecall.recall(
+          scopedDb,
+          input.actorUserId,
+          decision.query,
+          { limit: PASSIVE_RECALL_LIMIT }
+        );
+        const qualifying = result.items.filter((item) => item.score >= MIN_CONTEXT_SCORE);
+        const block = renderRetrievedContextBlock(qualifying);
+        return { block, items: qualifying };
+      }
+    );
+  }
+
   private async retrieveNow(input: {
     readonly actorUserId: string;
     readonly userText: string;

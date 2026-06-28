@@ -10,7 +10,7 @@
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
 import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type { AnswerProvenanceMetadataV1, AiProviderExecutionMode } from "@jarv1s/shared";
 import type { PgBoss } from "pg-boss";
 
 import { sendJob } from "@jarv1s/jobs";
@@ -100,7 +100,8 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     actorUserId: string,
     userText: string,
     assistantReply: string,
-    executed: { provider: ProviderKind; model: string }
+    executed: { provider: ProviderKind; model: string },
+    answerProvenance?: AnswerProvenanceMetadataV1
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined> {
     return this.run(actorUserId, "record-turn", async (scopedDb) => {
       const thread =
@@ -112,7 +113,8 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         thread.id,
         userText,
         assistantReply,
-        executed
+        executed,
+        answerProvenance
       );
       await this.chat.touchThread(scopedDb, thread.id);
 
