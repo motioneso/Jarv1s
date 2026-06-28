@@ -56,6 +56,7 @@ import {
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
   buildEveningInterviewSeed,
+  chatCommitmentProvider,
   ChatRepository,
   createChatFeedbackTargetVerifier,
   registerChatJobWorkers,
@@ -154,6 +155,7 @@ import {
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 import {
   notesModuleManifest,
+  notesCommitmentProvider,
   notesModuleSqlMigrationDirectory,
   NOTES_QUEUE_DEFINITIONS,
   reconcileNotesSchedule,
@@ -790,7 +792,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         aiRepository: new AiRepository(),
         cipher: createAiSecretCipher(),
         repository: new CommitmentsRepository(),
-        providers: [] // wired in Task 11
+        providers: [chatCommitmentProvider, notesCommitmentProvider]
       })
   }
 ];
