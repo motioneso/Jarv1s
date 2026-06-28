@@ -2,8 +2,8 @@
 
 **Date:** 2026-06-27
 **Coordinator lock:** label `Coordinator`, stable anchor = Claude session id
-`5e1a6b62-a480-4b5c-9706-e476cfe77044` (pane `w1:p59`). Single-coordinator lock verified: exactly
-one pane labelled `Coordinator`, and it is this session (successor; prior `0ae2d4ce` reaped). Pane ids are routing hints only.
+`fa1a543f-55a4-46a3-9c52-36b642aa0c62` (pane `w1:p50`, relay R2). Single-coordinator lock verified.
+Prior session `5e1a6b62-a480-4b5c-9706-e476cfe77044` (w1:p59) stood down + reaped 2026-06-28. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` auto-merges after cross-model QA (GLM + Codex both green) — Ben sign-off
 waived for this run (2026-06-27 explicit directive: "get GLM and Codex to review then merge
