@@ -25,25 +25,26 @@
 
 ## File Map
 
-| File | Action | Responsibility |
-|------|--------|---------------|
-| `packages/shared/src/calendar-api.ts` | Modify | Add `DeleteCalendarEventResponse` + `deleteCalendarEventResponseSchema` |
-| `packages/calendar/src/calendar-write-service.ts` | Modify | Add `DeleteEventInput`, `DeleteEventResult`, `deleteEvent` to interface |
-| `packages/calendar/src/repository.ts` | Modify | Add `deleteById` method |
-| `packages/connectors/src/google-api-client.ts` | Modify | Add private `deleteVoid` + public `deleteEvent` |
-| `packages/calendar/src/tools.ts` | Modify | Add `calendarDeleteEventExecute` + `summarizeDeleteEvent` |
-| `packages/calendar/src/manifest.ts` | Modify | Add `assistantActionFamilies`, `calendar.deleteEvent` tool, migration entry |
-| `packages/chat/src/calendar-write-impl.ts` | Modify | Implement `deleteEvent` in `buildCalendarWriteService` |
-| `packages/calendar/sql/XXXX_app_runtime_calendar_events_delete.sql` | Create | Grant DELETE + owner+connector-scoped RLS policy for jarvis_app_runtime |
-| `tests/integration/calendar-delete.test.ts` | Create | All integration tests for the delete tool |
-| `tests/integration/foundation.test.ts` | Modify | Add XXXX migration entry to the asserted list |
-| `package.json` | Modify | Add `"test:calendar-delete"` script |
+| File                                                                | Action | Responsibility                                                              |
+| ------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------- |
+| `packages/shared/src/calendar-api.ts`                               | Modify | Add `DeleteCalendarEventResponse` + `deleteCalendarEventResponseSchema`     |
+| `packages/calendar/src/calendar-write-service.ts`                   | Modify | Add `DeleteEventInput`, `DeleteEventResult`, `deleteEvent` to interface     |
+| `packages/calendar/src/repository.ts`                               | Modify | Add `deleteById` method                                                     |
+| `packages/connectors/src/google-api-client.ts`                      | Modify | Add private `deleteVoid` + public `deleteEvent`                             |
+| `packages/calendar/src/tools.ts`                                    | Modify | Add `calendarDeleteEventExecute` + `summarizeDeleteEvent`                   |
+| `packages/calendar/src/manifest.ts`                                 | Modify | Add `assistantActionFamilies`, `calendar.deleteEvent` tool, migration entry |
+| `packages/chat/src/calendar-write-impl.ts`                          | Modify | Implement `deleteEvent` in `buildCalendarWriteService`                      |
+| `packages/calendar/sql/XXXX_app_runtime_calendar_events_delete.sql` | Create | Grant DELETE + owner+connector-scoped RLS policy for jarvis_app_runtime     |
+| `tests/integration/calendar-delete.test.ts`                         | Create | All integration tests for the delete tool                                   |
+| `tests/integration/foundation.test.ts`                              | Modify | Add XXXX migration entry to the asserted list                               |
+| `package.json`                                                      | Modify | Add `"test:calendar-delete"` script                                         |
 
 ---
 
 ## Task 1: Foundation types + migration SQL
 
 **Files:**
+
 - Modify: `packages/shared/src/calendar-api.ts`
 - Modify: `packages/calendar/src/calendar-write-service.ts`
 - Create: `packages/calendar/sql/XXXX_app_runtime_calendar_events_delete.sql`
@@ -51,6 +52,7 @@
 - Modify: `tests/integration/foundation.test.ts` (migration list entry only)
 
 **Interfaces:**
+
 - Produces: `DeleteCalendarEventResponse`, `deleteCalendarEventResponseSchema` — consumed by manifest (Task 4) and impl (Task 5)
 - Produces: `DeleteEventInput`, `DeleteEventResult`, `deleteEvent` on `CalendarWriteService` — consumed by impl (Task 5) and execute (Task 4)
 - Produces: migration SQL — consumed by test DB in all subsequent integration test tasks
@@ -164,10 +166,11 @@ USING (
 In the `database.migrations` array, append:
 
 ```ts
-"sql/XXXX_app_runtime_calendar_events_delete.sql"
+"sql/XXXX_app_runtime_calendar_events_delete.sql";
 ```
 
 So the full array becomes:
+
 ```ts
 migrations: [
   "sql/0011_calendar_module.sql",
@@ -220,11 +223,13 @@ EOF
 ## Task 2: CalendarRepository.deleteById + test scaffold
 
 **Files:**
+
 - Modify: `packages/calendar/src/repository.ts`
 - Create: `tests/integration/calendar-delete.test.ts`
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Consumes: `DataContextDb`, `assertDataContextDb` (from `@jarv1s/db`); `CalendarEvent` type
 - Produces: `CalendarRepository.deleteById(scopedDb: DataContextDb, eventId: string): Promise<void>` — consumed by Task 5 impl
 
@@ -232,15 +237,8 @@ EOF
 
 ```ts
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  DataContextRunner,
-  createDatabase,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import {
-  ConnectorsRepository,
-  createConnectorSecretCipher
-} from "@jarv1s/connectors";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -303,9 +301,8 @@ describe("Section A — CalendarRepository.deleteById", () => {
     );
 
     // Delete it
-    await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "delete" },
-      (scopedDb) => repo.deleteById(scopedDb, inserted.id)
+    await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "delete" }, (scopedDb) =>
+      repo.deleteById(scopedDb, inserted.id)
     );
 
     // Should be gone
@@ -319,9 +316,8 @@ describe("Section A — CalendarRepository.deleteById", () => {
   it("deleteById is a no-op (does not throw) when the event does not exist", async () => {
     const repo = new CalendarRepository();
     await expect(
-      dataContext.withDataContext(
-        { actorUserId: ids.userA, requestId: "noop" },
-        (scopedDb) => repo.deleteById(scopedDb, "00000000-0000-4000-8000-999999999999")
+      dataContext.withDataContext({ actorUserId: ids.userA, requestId: "noop" }, (scopedDb) =>
+        repo.deleteById(scopedDb, "00000000-0000-4000-8000-999999999999")
       )
     ).resolves.toBeUndefined();
   });
@@ -422,10 +418,12 @@ EOF
 ## Task 3: GoogleApiClient.deleteEvent + tests
 
 **Files:**
+
 - Modify: `packages/connectors/src/google-api-client.ts`
 - Modify: `tests/integration/calendar-delete.test.ts` (add Section B)
 
 **Interfaces:**
+
 - Produces: `GoogleApiClient.deleteEvent(input: { accessToken: string; calendarId?: string; eventId: string }): Promise<{ deleted: "deleted" | "already-gone" }>` — consumed by Task 5 impl
 
 - [ ] **Step 3.1: Add Section B to `tests/integration/calendar-delete.test.ts`**
@@ -605,11 +603,13 @@ EOF
 ## Task 4: Tool execute + summarize + manifest + gateway tests
 
 **Files:**
+
 - Modify: `packages/calendar/src/tools.ts`
 - Modify: `packages/calendar/src/manifest.ts`
 - Modify: `tests/integration/calendar-delete.test.ts` (add Section C)
 
 **Interfaces:**
+
 - Consumes: `deleteCalendarEventResponseSchema` from `@jarv1s/shared`
 - Consumes: `CalendarWriteService.deleteEvent` (Task 1 interface)
 - Produces: `calendarDeleteEventExecute: ToolExecute`, `summarizeDeleteEvent: ToolSummarize`
@@ -888,10 +888,7 @@ export const calendarDeleteEventExecute: ToolExecute = async (
   return { data: { ...result } };
 };
 
-export function summarizeDeleteEvent(
-  input: Record<string, unknown>,
-  _ctx: ToolContext
-): string {
+export function summarizeDeleteEvent(input: Record<string, unknown>, _ctx: ToolContext): string {
   const title = typeof input.displayTitle === "string" ? input.displayTitle : undefined;
   const when = typeof input.displayWhen === "string" ? input.displayWhen : undefined;
   if (title && when) {
@@ -1033,10 +1030,12 @@ EOF
 ## Task 5: CalendarWriteService.deleteEvent impl + integration tests
 
 **Files:**
+
 - Modify: `packages/chat/src/calendar-write-impl.ts`
 - Modify: `tests/integration/calendar-delete.test.ts` (add Section D)
 
 **Interfaces:**
+
 - Consumes: `CalendarRepository.deleteById` (Task 2), `GoogleApiClient.deleteEvent` (Task 3), `DeleteEventResult` (Task 1)
 - Consumes: `ConnectorsRepository.getCalendarWriteScopeState`, `GoogleConnectionService.getFreshAccessToken` (existing)
 
@@ -1045,15 +1044,8 @@ EOF
 Add all necessary imports at the top of the file (merge with existing imports):
 
 ```ts
-import {
-  buildCalendarWriteService,
-  type CalendarWriteImplDeps
-} from "@jarv1s/chat";
-import {
-  GoogleConnectionService,
-  GoogleOAuthClient,
-  GoogleApiError
-} from "@jarv1s/connectors";
+import { buildCalendarWriteService, type CalendarWriteImplDeps } from "@jarv1s/chat";
+import { GoogleConnectionService, GoogleOAuthClient, GoogleApiError } from "@jarv1s/connectors";
 ```
 
 Add Section D after Section C:
@@ -1172,8 +1164,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
 
   it("unknown eventId → deleted:false, skipped-error, not-cached, no Google call", async () => {
     const { impl, deleteCalls } = buildImpl({});
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId: "00000000-0000-4000-8000-999999999999" })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId: "00000000-0000-4000-8000-999999999999" })
     );
     expect(res.deleted).toBe(false);
     expect(res.googleDeleted).toBe("skipped-error");
@@ -1185,8 +1178,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
   it("missing calendar-write scope → deleted:false, skipped-no-scope, reconnect message, no Google call", async () => {
     await seedGoogleAccount(ids.userB, ["https://www.googleapis.com/auth/gmail.modify"]);
     const { impl, deleteCalls } = buildImpl({});
-    const res = await dataContext.withDataContext({ actorUserId: ids.userB, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, { ...ctx, actorUserId: ids.userB }, { eventId: "any-uuid" })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "t" },
+      (db) => impl.deleteEvent(db, { ...ctx, actorUserId: ids.userB }, { eventId: "any-uuid" })
     );
     expect(res.deleted).toBe(false);
     expect(res.googleDeleted).toBe("skipped-no-scope");
@@ -1201,8 +1195,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D1", "Board sync");
     const { impl } = buildImpl({ deleteStatus: 204 });
 
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     expect(res.deleted).toBe(true);
     expect(res.googleDeleted).toBe("deleted");
@@ -1225,8 +1220,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D2", "Team standup");
     const { impl } = buildImpl({ deleteStatus: 404 });
 
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     expect(res.deleted).toBe(true);
     expect(res.googleDeleted).toBe("already-gone");
@@ -1240,8 +1236,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D3", "Retro");
     const { impl } = buildImpl({ deleteStatus: 410 });
 
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     expect(res.deleted).toBe(true);
     expect(res.googleDeleted).toBe("already-gone");
@@ -1254,8 +1251,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D4", "Read-only event");
     const { impl } = buildImpl({ deleteStatus: 403 });
 
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     expect(res.deleted).toBe(false);
     expect(res.googleDeleted).toBe("skipped-error");
@@ -1277,8 +1275,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D5", "Planning");
     const { impl } = buildImpl({ deleteStatus: 500 });
 
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     expect(res.deleted).toBe(false);
     expect(res.message).toMatch(/try again/i);
@@ -1301,8 +1300,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     }
 
     const { impl } = buildImpl({ deleteStatus: 204, calendarRepository: new RlsRejectingDelete() });
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     expect(res.deleted).toBe(true); // Google delete succeeded; cache miss is non-fatal
     expect(res.cacheMirror).toBe("skipped-rls");
@@ -1326,8 +1326,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
       deleteStatus: 204,
       calendarRepository: new GenericRejectingDelete()
     });
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     expect(res.deleted).toBe(true);
     expect(res.cacheMirror).toBe("skipped-error");
@@ -1340,8 +1341,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     const eventId = await insertCacheRow(ids.userA, accountId, "google-evt-D8", "Meeting");
     const { impl } = buildImpl({ deleteStatus: 204 });
 
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
     );
     const serialized = JSON.stringify(res);
     expect(serialized).not.toContain("atoken");
@@ -1371,8 +1373,9 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     ]);
     const { impl, deleteCalls } = buildImpl({ deleteStatus: 204 });
 
-    const res = await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "t" }, (db) =>
-      impl.deleteEvent(db, ctx, { eventId: row.id })
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId: row.id })
     );
     // getById returns undefined cross-user → "already gone" result, no Google call
     expect(res.deleted).toBe(false);
@@ -1399,6 +1402,7 @@ Expected: `impl.deleteEvent is not a function` or TypeScript error.
 - [ ] **Step 5.3: Implement `deleteEvent` in `packages/chat/src/calendar-write-impl.ts`**
 
 Add the following imports (merge with existing):
+
 ```ts
 import {
   chooseSlot,
@@ -1598,6 +1602,7 @@ git fetch origin main && git rebase origin/main
 The migration file is named `XXXX_app_runtime_calendar_events_delete.sql` and both `manifest.ts` and `foundation.test.ts` reference version `"XXXX"`. **Escalate to coordinator** (`herdr-pane-message`) with: "Need migration slot for #557 (expected 0126 per handoff). Confirm before push so I can rename XXXX → actual slot."
 
 Once confirmed (assume `0126`):
+
 ```bash
 # Rename the SQL file
 mv packages/calendar/sql/XXXX_app_runtime_calendar_events_delete.sql \
@@ -1623,25 +1628,25 @@ Expected: all pass with the renamed migration.
 
 ## Self-review against spec
 
-| Spec §/AC | Task covering it |
-|-----------|-----------------|
-| `risk: "write"`, no `executionPolicy: "auto"` | Task 4 (manifest), Section C test |
-| `calendar_management` locked `allowedTiers: ["always_confirm"]` | Task 4 (manifest), Section C test |
-| Always emits action_request card (never auto-runs) | Section C gateway tests |
-| allowedTiers lock even with stale `trusted_auto` + hypothetical `auto` policy | Section C allowedTiers test |
-| On approval: Google DELETE called, cache row removed | Section D happy path |
-| Unknown/owner-invisible eventId → no Google call, friendly message | Section D unknown-id test |
-| Missing scope → reconnect message, no Google call | Section D missing-scope test |
-| Google 404/410 → `already-gone`, `deleted: true` | Section D 404/410 tests |
-| Google 403 → `deleted: false`, no-permission message | Section D 403 test |
-| Google other error → `deleted: false`, try-again message | Section D 500 test |
-| Cache 42501 → `cacheMirror: "skipped-rls"`, `deleted: true` | Section D RLS-cache test |
-| `deletedTitle` from DB row (not model-supplied) | Section D happy path assertion |
-| User A cannot delete user B's event | Section A + D RLS isolation tests |
-| No token/secret in result/log | Section D credential assertion |
-| New migration: owner+connector-scoped DELETE, FORCE RLS, no BYPASSRLS | Task 1 SQL file |
-| Migration in manifest migrations list | Task 1 manifest update |
-| Migration in `foundation.test.ts` list | Task 1 foundation test update |
-| `deleteById` repository method (owner-RLS scoped) | Task 2 |
-| `GoogleApiClient.deleteEvent` (DELETE, 204, idempotent 404/410, no body leak) | Task 3 |
-| `summarizeDeleteEvent` all three fallback paths | Section C summarize tests |
+| Spec §/AC                                                                     | Task covering it                  |
+| ----------------------------------------------------------------------------- | --------------------------------- |
+| `risk: "write"`, no `executionPolicy: "auto"`                                 | Task 4 (manifest), Section C test |
+| `calendar_management` locked `allowedTiers: ["always_confirm"]`               | Task 4 (manifest), Section C test |
+| Always emits action_request card (never auto-runs)                            | Section C gateway tests           |
+| allowedTiers lock even with stale `trusted_auto` + hypothetical `auto` policy | Section C allowedTiers test       |
+| On approval: Google DELETE called, cache row removed                          | Section D happy path              |
+| Unknown/owner-invisible eventId → no Google call, friendly message            | Section D unknown-id test         |
+| Missing scope → reconnect message, no Google call                             | Section D missing-scope test      |
+| Google 404/410 → `already-gone`, `deleted: true`                              | Section D 404/410 tests           |
+| Google 403 → `deleted: false`, no-permission message                          | Section D 403 test                |
+| Google other error → `deleted: false`, try-again message                      | Section D 500 test                |
+| Cache 42501 → `cacheMirror: "skipped-rls"`, `deleted: true`                   | Section D RLS-cache test          |
+| `deletedTitle` from DB row (not model-supplied)                               | Section D happy path assertion    |
+| User A cannot delete user B's event                                           | Section A + D RLS isolation tests |
+| No token/secret in result/log                                                 | Section D credential assertion    |
+| New migration: owner+connector-scoped DELETE, FORCE RLS, no BYPASSRLS         | Task 1 SQL file                   |
+| Migration in manifest migrations list                                         | Task 1 manifest update            |
+| Migration in `foundation.test.ts` list                                        | Task 1 foundation test update     |
+| `deleteById` repository method (owner-RLS scoped)                             | Task 2                            |
+| `GoogleApiClient.deleteEvent` (DELETE, 204, idempotent 404/410, no body leak) | Task 3                            |
+| `summarizeDeleteEvent` all three fallback paths                               | Section C summarize tests         |

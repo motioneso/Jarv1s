@@ -155,10 +155,7 @@ export const calendarDeleteEventExecute: ToolExecute = async (
   return { data: { ...result } };
 };
 
-export function summarizeDeleteEvent(
-  input: Record<string, unknown>,
-  _ctx: ToolContext
-): string {
+export function summarizeDeleteEvent(input: Record<string, unknown>, _ctx: ToolContext): string {
   const title = typeof input.displayTitle === "string" ? input.displayTitle : undefined;
   const when = typeof input.displayWhen === "string" ? input.displayWhen : undefined;
   if (title && when) {

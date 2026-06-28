@@ -115,9 +115,6 @@ export class CalendarRepository {
 
   async deleteById(scopedDb: DataContextDb, eventId: string): Promise<void> {
     assertDataContextDb(scopedDb);
-    await scopedDb.db
-      .deleteFrom("app.calendar_events")
-      .where("id", "=", eventId)
-      .execute();
+    await scopedDb.db.deleteFrom("app.calendar_events").where("id", "=", eventId).execute();
   }
 }

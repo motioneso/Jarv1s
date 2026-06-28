@@ -21,7 +21,9 @@ Per `coordinated-build` skill: **STOP and wait** for Coordinator plan approval b
 Once approved:
 
 ### Task 1: Foundation types + migration SQL
+
 **Files to change:**
+
 - `packages/shared/src/calendar-api.ts` — add `DeleteCalendarEventResponse` + `deleteCalendarEventResponseSchema`
 - `packages/calendar/src/calendar-write-service.ts` — add `DeleteEventInput`, `DeleteEventResult`, `deleteEvent` to `CalendarWriteService` interface
 - `packages/calendar/sql/XXXX_app_runtime_calendar_events_delete.sql` — CREATE (new file; migration slot XXXX, rename to confirmed slot before push)
@@ -31,24 +33,29 @@ Once approved:
 All exact code is in the plan. Commit these together.
 
 ### Task 2: CalendarRepository.deleteById + test scaffold
+
 - Create `tests/integration/calendar-delete.test.ts` (Section A tests — repo.deleteById RLS/happy-path tests)
 - Add `"test:calendar-delete"` to `package.json`
 - Implement `deleteById` in `packages/calendar/src/repository.ts`
 
 ### Task 3: GoogleApiClient.deleteEvent + Section B tests
+
 - Add Section B to `tests/integration/calendar-delete.test.ts`
 - Add `deleteVoid` + `deleteEvent` to `packages/connectors/src/google-api-client.ts`
 
 ### Task 4: Tool execute/summarize + manifest + Section C tests
+
 - Add Section C to `tests/integration/calendar-delete.test.ts`
 - Add `calendarDeleteEventExecute` + `summarizeDeleteEvent` to `packages/calendar/src/tools.ts`
 - Update `packages/calendar/src/manifest.ts`: add `assistantActionFamilies` + `calendar.deleteEvent` tool
 
 ### Task 5: CalendarWriteService.deleteEvent + Section D tests
+
 - Add Section D to `tests/integration/calendar-delete.test.ts`
 - Implement `deleteEvent` in `packages/chat/src/calendar-write-impl.ts`
 
 ### Pre-push
+
 - Rebase on origin/main
 - `pnpm format:check && pnpm lint && pnpm typecheck`
 - Confirm migration slot with Coordinator (XXXX → expected 0126)
