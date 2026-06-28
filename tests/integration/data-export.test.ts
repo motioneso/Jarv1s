@@ -103,6 +103,7 @@ describe("Data export", () => {
     expect(Array.isArray(body.tables.wellnessTherapyNotes)).toBe(true);
     expect(Array.isArray(body.tables.jarvisGoals)).toBe(true);
     expect(Array.isArray(body.tables.jarvisGoalEvidence)).toBe(true);
+    expect(Array.isArray(body.tables.jarvisActionAuditLog)).toBe(true);
   });
 
   it("requires authentication", async () => {

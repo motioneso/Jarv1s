@@ -31,6 +31,8 @@ DROP POLICY IF EXISTS jarvis_action_audit_log_select
   ON app.jarvis_action_audit_log;
 DROP POLICY IF EXISTS jarvis_action_audit_log_insert
   ON app.jarvis_action_audit_log;
+DROP POLICY IF EXISTS jarvis_action_audit_log_maintenance_delete
+  ON app.jarvis_action_audit_log;
 
 CREATE POLICY jarvis_action_audit_log_select
 ON app.jarvis_action_audit_log
@@ -47,6 +49,13 @@ WITH CHECK (
   app.current_actor_user_id() IS NOT NULL
   AND owner_user_id = app.current_actor_user_id()
 );
+
+-- Allows the SECURITY DEFINER purge function (running as jarvis_migration_owner) to delete
+CREATE POLICY jarvis_action_audit_log_maintenance_delete
+ON app.jarvis_action_audit_log
+FOR DELETE
+TO jarvis_migration_owner
+USING (true);
 
 CREATE OR REPLACE FUNCTION app.purge_jarvis_action_audit_log(older_than timestamptz)
 RETURNS integer
