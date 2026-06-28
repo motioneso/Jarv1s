@@ -14,7 +14,14 @@ when on level").
 **merges_since_relay:** 4 (PR #566 security + PR #568 sensitive + PR #569 security + PR #570 security; Ben stay-resident override active)
 **QA policy (Ben directive 2026-06-27):** All approval gates require DUAL-MODEL review — Codex AND GLM — both must GREEN before merge. Applies to all remaining PRs (#563, #535, #536, #537, #538).
 
-**Continuation note (latest):**
+**Continuation note (latest — pre-relay-R2 2026-06-28):**
+
+Coordinator context compacted. Relay R2 being written now. Current fleet state (2026-06-28):
+- **#538** (security, w1:p5P, session 9e59a87b): BUILDING. R1 hit context limit + file write error; relay nudge unstuck (Enter sent). Now at 56% — likely compacted and continuing or relaying. Migration slot 0127. Plan not yet written/approved (was in progress when R1 compacted). Plan requires coordinator approval (security tier).
+- **#539** (sensitive, w1:p5W, session 741d008c): BUILDING. R2 active at 52% ctx. Plan approved 2026-06-28 (8 TDD tasks, no migration). Building Task 1.
+- **#540** (sensitive, w1:p5Z, session e6b6a6ad): BUILDING. R3 active. Plan approved 2026-06-28 (12 TDD tasks, migration slot 0128). Building.
+- **#541** (routine, w1:p5X, session abf19e12): BUILDING. R3 active. R2 relayed before writing plan. R3 may need to write plan (spec: docs/superpowers/specs/2026-06-28-data-freshness-visibility.md).
+merges_since_relay=4; Ben stay-resident override active; relay R2 spawning now.
 
 **#537 MERGED ✅** — PR #570 squash-merged 2026-06-28T09:04:23Z @ 6835a9d0. Dual QA: Opus GREEN (10/10 security invariants; 1 trivial correctness fix dec6f074 applied) + QA2 GREEN. Issue #537 closed. Board Done. Worktree removed. Wave 2 launched: #538 (security, w1:p5P, slot 0127) + #539 (sensitive, w1:p5Q) + #540 (sensitive, w1:p5R, slot 0128) + #541 (routine, w1:p5S) — all building on Sonnet @ 6835a9d0. Collision note: #539 and #541 share chat-api.ts (disjoint fields). merges_since_relay=4; Ben stay-resident override active.
 
