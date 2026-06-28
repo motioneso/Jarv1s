@@ -227,7 +227,8 @@ describe("Calendar and Email connector-backed read modules", () => {
       "wellness",
       "weather",
       "notes",
-      "proactive-monitoring"
+      "proactive-monitoring",
+      "jarvis.commitments"
     ]);
     expect(calendarModuleManifest.database?.ownedTables).toEqual(["app.calendar_events"]);
     expect(emailModuleManifest.database?.ownedTables).toEqual(["app.email_messages"]);

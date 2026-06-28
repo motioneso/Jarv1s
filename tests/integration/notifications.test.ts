@@ -194,7 +194,8 @@ describe("Notifications module M5", () => {
       "wellness",
       "weather",
       "notes",
-      "proactive-monitoring"
+      "proactive-monitoring",
+      "jarvis.commitments"
     ]);
     expect(registrations.map((item) => item.manifest.id)).toEqual([
       "settings",
@@ -214,7 +215,8 @@ describe("Notifications module M5", () => {
       "wellness",
       "weather",
       "notes",
-      "proactive-monitoring"
+      "proactive-monitoring",
+      "jarvis.commitments"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.notifications",
