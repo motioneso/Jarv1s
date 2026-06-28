@@ -67,9 +67,9 @@ RFA coordinator loop; Ben will handle that separately.
 | #538 | `docs/superpowers/specs/2026-06-27-unified-person-contact-model.md` | security | queued after #525/#528/#532/#533/#537 | opencode/GLM | Codex security QA | `rfa-538-person-contact-model` | - |
 | #520 | n/a (spec waived by Ben) | routine | MERGED via PR #552 at merge commit `77e6fe5`; issue #520 auto-closed; worktree+branch removed | Ben's agent | coordinator | `fix/520-remove-task-matrix-cap` | #552 |
 
-Launch note: #539, #540, #541 were excluded at launch as `needs-spec`; GitHub now shows them as
-RFA, but they are not admitted to this run until the coordinator extends the dependency/collision
-map.
+**Run cap: #538 is the final issue.** Ben confirmed 2026-06-27 — server maintenance needed once #538 merges and main CI pushes the image. Do not admit #539, #540, #541 or any new issues to this run. After #538 merges: file the capabilities-doc GitHub issue (post-run task above), then wrap up the run.
+
+Launch note: #539, #540, #541 were excluded at launch as `needs-spec`; not admitted to this run.
 
 ## Dependency / Merge Order
 
