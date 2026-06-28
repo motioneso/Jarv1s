@@ -278,7 +278,8 @@ describe("M3 auth, users, settings", () => {
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring"
     ]);
     expect(modules.flatMap((module) => module.navigation).map((entry) => entry.path)).toEqual([
       "/settings",

@@ -185,7 +185,11 @@ export function registerUsefulnessFeedbackRoutes(
               : undefined,
             undoDismissCard: dependencies.cardSideEffects
               ? (cardId) =>
-                  dependencies.cardSideEffects!.undoDismissCard(scopedDb, access.actorUserId, cardId)
+                  dependencies.cardSideEffects!.undoDismissCard(
+                    scopedDb,
+                    access.actorUserId,
+                    cardId
+                  )
               : undefined
           })
         );

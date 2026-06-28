@@ -139,10 +139,7 @@ export interface ProactiveMonitorResult {
 export interface ProactiveMonitorProvider {
   readonly source: string;
   readonly moduleId: string;
-  collectSignals(
-    scopedDb: unknown,
-    input: ProactiveMonitorInput
-  ): Promise<ProactiveMonitorResult>;
+  collectSignals(scopedDb: unknown, input: ProactiveMonitorInput): Promise<ProactiveMonitorResult>;
 }
 
 export interface RegisteredProactiveMonitorProvider {

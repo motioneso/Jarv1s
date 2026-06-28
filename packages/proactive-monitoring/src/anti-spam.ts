@@ -128,7 +128,9 @@ function isInQuietHours(localTime: string, start: string, end: string): boolean 
 
 function parseLocalTime(localDateStr: string, localTimeStr: string, timeZone: string): Date {
   const [h = 0, m = 0] = localTimeStr.split(":").map(Number);
-  const dt = new Date(`${localDateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+  const dt = new Date(
+    `${localDateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`
+  );
   // Adjust for timezone offset (naive approach: use the offset from Intl).
   const offset = getTimezoneOffsetMinutes(dt, timeZone);
   return new Date(dt.getTime() - offset * 60 * 1000);

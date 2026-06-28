@@ -28,10 +28,7 @@ interface ActiveCountsRow {
 }
 
 export class CardRepository {
-  async upsertCard(
-    scopedDb: DataContextDb,
-    input: UpsertCardInput
-  ): Promise<ProactiveCardRow> {
+  async upsertCard(scopedDb: DataContextDb, input: UpsertCardInput): Promise<ProactiveCardRow> {
     assertDataContextDb(scopedDb);
     const result = await sql<ProactiveCardRow>`
       INSERT INTO app.proactive_cards (

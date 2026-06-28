@@ -673,9 +673,17 @@ export interface ProactiveCardsTable {
   title: string;
   summary: string;
   signal_type: string;
-  priority_band: ColumnType<"critical" | "high" | "normal" | "low", "critical" | "high" | "normal" | "low", "critical" | "high" | "normal" | "low">;
+  priority_band: ColumnType<
+    "critical" | "high" | "normal" | "low",
+    "critical" | "high" | "normal" | "low",
+    "critical" | "high" | "normal" | "low"
+  >;
   priority_reasons: ColumnType<readonly string[], readonly string[] | undefined, readonly string[]>;
-  status: ColumnType<ProactiveCardStatusDb, ProactiveCardStatusDb | undefined, ProactiveCardStatusDb>;
+  status: ColumnType<
+    ProactiveCardStatusDb,
+    ProactiveCardStatusDb | undefined,
+    ProactiveCardStatusDb
+  >;
   occurred_at: NullableTimestampColumn;
   target_at: NullableTimestampColumn;
   first_seen_at: TimestampColumn;

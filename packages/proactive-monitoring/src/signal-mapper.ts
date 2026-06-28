@@ -3,7 +3,12 @@ import type { ProactiveSource } from "@jarv1s/shared";
 /** Provider signal types allowed per source in V1. */
 const SOURCE_ALLOWLISTS: Record<ProactiveSource, ReadonlySet<string>> = {
   tasks: new Set(["overdue_high_priority", "due_soon_high_priority", "at_risk_focus"]),
-  calendar: new Set(["event_changed_soon", "event_cancelled_soon", "prep_needed", "dense_schedule"]),
+  calendar: new Set([
+    "event_changed_soon",
+    "event_cancelled_soon",
+    "prep_needed",
+    "dense_schedule"
+  ]),
   email: new Set(["needs_reply_soon", "time_sensitive_follow_up", "priority_sender_waiting"]),
   notes: new Set(["decision_changed", "priority_anchor_changed", "open_loop_added"])
 };

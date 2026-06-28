@@ -39,5 +39,8 @@ export interface ProactiveCardRow {
 export interface ResolvedMonitoringConfig {
   readonly preference: ProactiveMonitoringPreferenceV1;
   readonly timeZone: string;
-  readonly priorityAnchors: readonly { readonly label: string; readonly aliases: readonly string[] }[];
+  readonly priorityAnchors: readonly {
+    readonly label: string;
+    readonly aliases: readonly string[];
+  }[];
 }

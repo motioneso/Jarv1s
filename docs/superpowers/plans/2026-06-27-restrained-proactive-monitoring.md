@@ -83,7 +83,7 @@
   - Register proactive-monitoring module in `BUILT_IN_MODULES` (routes + workers + sql)
   - ⚠️ coordinate with #525 before editing this file
 
-- **T17 — Integration tests + foundation** 
+- **T17 — Integration tests + foundation**
   - `tests/integration/foundation.test.ts`: add `{ version: "0122", name: "0122_proactive_monitoring.sql" }` row
   - `tests/integration/proactive-monitoring.test.ts`: anti-spam caps, quiet-hours deferral, dismiss/undo side effects, RLS isolation, cursor advance on empty scan, `normal` band creates no card, provider failure preserves cursor
 

@@ -1,4 +1,7 @@
-import type { FeedbackTargetVerification, FeedbackTargetVerifier } from "@jarv1s/usefulness-feedback";
+import type {
+  FeedbackTargetVerification,
+  FeedbackTargetVerifier
+} from "@jarv1s/usefulness-feedback";
 
 import type { CardRepository } from "./card-repository.js";
 
@@ -11,9 +14,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const REMEMBER_EXCERPT_MAX = 300;
 
-export function makeProactiveCardVerifier(
-  cardRepository: CardRepository
-): FeedbackTargetVerifier {
+export function makeProactiveCardVerifier(cardRepository: CardRepository): FeedbackTargetVerifier {
   return async (scopedDb, input): Promise<FeedbackTargetVerification | null> => {
     const card = await cardRepository.findById(scopedDb, input.actorUserId, input.targetRef);
     if (!card) return null;

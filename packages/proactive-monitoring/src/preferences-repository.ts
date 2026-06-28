@@ -14,7 +14,14 @@ import {
 } from "@jarv1s/shared";
 
 const VALID_SOURCES = new Set<ProactiveSource>(["tasks", "calendar", "email", "notes"]);
-const PREF_KEYS = new Set(["version", "enabled", "sources", "dailyCardCap", "quietHours", "updatedAt"]);
+const PREF_KEYS = new Set([
+  "version",
+  "enabled",
+  "sources",
+  "dailyCardCap",
+  "quietHours",
+  "updatedAt"
+]);
 const QUIET_HOURS_KEYS = new Set(["enabled", "startLocalTime", "endLocalTime"]);
 const SOURCE_PREF_KEYS = new Set(["enabled", "dailyCardCap"]);
 
@@ -91,7 +98,11 @@ export function validateProactiveMonitoringPreference(
     if (typeof s.enabled !== "boolean") {
       throw new HttpError(400, `Invalid preference: sources.${src}.enabled must be boolean`);
     }
-    if (typeof s.dailyCardCap !== "number" || (s.dailyCardCap as number) < 1 || (s.dailyCardCap as number) > 5) {
+    if (
+      typeof s.dailyCardCap !== "number" ||
+      (s.dailyCardCap as number) < 1 ||
+      (s.dailyCardCap as number) > 5
+    ) {
       throw new HttpError(400, `Invalid preference: sources.${src}.dailyCardCap must be 1–5`);
     }
   }

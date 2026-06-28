@@ -5,23 +5,17 @@ import type { PgBoss } from "pg-boss";
 import {
   AiAutoRegisterService,
   AiRepository,
-  HttpApiAdapter,
   aiModuleManifest,
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
-  parseAiApiKeyCredential,
-  registerAiRoutes,
-  type ProviderKind
+  registerAiRoutes
 } from "@jarv1s/ai";
 import {
   GraphMemoryRecallService,
   ManualMemoryCandidateService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
-  MemoryRepository,
-  MemoryRetriever,
-  createEmbeddingProvider,
-  getEmbeddingProviderConfig,
+  type MemoryRetriever,
   memoryModuleManifest,
   memorySqlMigrationDirectory,
   registerMemoryDashboardRoutes,
@@ -79,7 +73,7 @@ import {
   registerEmailRoutes
 } from "@jarv1s/email";
 import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
-import { HttpError, createModuleLogger } from "@jarv1s/module-sdk";
+import { createModuleLogger } from "@jarv1s/module-sdk";
 import type {
   JarvisModuleManifest,
   RegisteredFocusSignal,
@@ -89,11 +83,9 @@ import {
   NotificationsRepository,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
-  registerNotificationsRoutes,
-  type QuietHoursPort
+  registerNotificationsRoutes
 } from "@jarv1s/notifications";
 import {
-  renderPersonaText,
   type AuthProviderStatusDto,
   type OnboardingProviderCheckResponse,
   type OnboardingProviderKind
@@ -106,7 +98,6 @@ import {
   registerSettingsRoutes,
   registerRuntimeConfigRoutes,
   registerWebSearchKeyRoutes,
-  RuntimeConfigResolver,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
   SettingsRepository,
@@ -152,7 +143,6 @@ import {
 import {
   FeedbackTargetVerifierRegistry,
   registerUsefulnessFeedbackRoutes,
-  UsefulnessFeedbackRepository,
   usefulnessFeedbackModuleManifest,
   usefulnessFeedbackModuleSqlMigrationDirectory
 } from "@jarv1s/usefulness-feedback";
@@ -167,6 +157,13 @@ import {
   registerProactiveMonitoringWorkers
 } from "@jarv1s/proactive-monitoring";
 
+import {
+  createDefaultPersonaPreview,
+  createRuntimeEmbeddingProvider,
+  quietHoursPortImpl,
+  runtimeMemoryRetriever,
+  usefulnessFeedbackRepository
+} from "./built-in-module-helpers.js";
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
   makeCliPresentProbe,
@@ -326,32 +323,6 @@ export interface BuiltInWorkerDependencies {
   readonly logger?: FastifyBaseLogger;
 }
 
-async function createRuntimeEmbeddingProvider(scopedDb: DataContextDb) {
-  return createEmbeddingProvider(
-    await getEmbeddingProviderConfig(new RuntimeConfigResolver(scopedDb))
-  );
-}
-
-const runtimeMemoryRetriever = {
-  async retrieve(scopedDb: DataContextDb, query: string, limit?: number, sourceKind?: string) {
-    const provider = await createRuntimeEmbeddingProvider(scopedDb);
-    return new MemoryRetriever(provider, new MemoryRepository()).retrieve(
-      scopedDb,
-      query,
-      limit,
-      sourceKind
-    );
-  },
-  async retrieveRecent(scopedDb: DataContextDb, limit?: number, sourceKind?: string) {
-    const provider = await createRuntimeEmbeddingProvider(scopedDb);
-    return new MemoryRetriever(provider, new MemoryRepository()).retrieveRecent(
-      scopedDb,
-      limit,
-      sourceKind
-    );
-  }
-};
-
 export interface BuiltInModuleRegistration {
   readonly manifest: JarvisModuleManifest;
   readonly sqlMigrationDirectories: readonly string[];
@@ -364,85 +335,6 @@ export interface BuiltInModuleRegistration {
     boss: PgBoss,
     dependencies: BuiltInWorkerDependencies
   ) => Promise<readonly string[]>;
-}
-
-const _quietHoursPreferencesRepo = new PreferencesRepository();
-const quietHoursPortImpl: QuietHoursPort = {
-  getSettings: (scopedDb) => _quietHoursPreferencesRepo.get(scopedDb, "quiet-hours"),
-  getLocaleTimezone: async (scopedDb) => {
-    const locale = await _quietHoursPreferencesRepo.get(scopedDb, "locale");
-    if (!locale || typeof locale !== "object" || Array.isArray(locale)) return null;
-    const tz = (locale as Record<string, unknown>).timezone;
-    return typeof tz === "string" && tz.length > 0 ? tz : null;
-  }
-};
-
-const usefulnessFeedbackRepository = new UsefulnessFeedbackRepository();
-
-const PERSONA_PREVIEW_SAMPLE_TURN =
-  "Give me a two-sentence morning check-in for a day with one important task and one slipped commitment.";
-const PERSONA_PREVIEW_MAX_OUTPUT_TOKENS = 180;
-
-function createDefaultPersonaPreview(
-  dataContext: DataContextRunner
-): (input: PersonaPreviewInput) => Promise<string> {
-  const aiRepository = new AiRepository();
-  const cipher = createAiSecretCipher();
-
-  return async (input) =>
-    dataContext.withDataContext(
-      { actorUserId: input.actorUserId, requestId: "settings:persona-preview" },
-      async (scopedDb) => {
-        const model = await aiRepository.selectModelForCapability(scopedDb, "chat");
-        if (!model) {
-          throw new HttpError(503, "No active chat-capable model is configured");
-        }
-
-        const provider = await aiRepository.selectProviderWithCredential(
-          scopedDb,
-          model.provider_config_id
-        );
-        if (!provider?.encrypted_credential) {
-          throw new HttpError(503, "Chat model credential is not configured");
-        }
-
-        let apiKey: string;
-        try {
-          const credential = parseAiApiKeyCredential(
-            cipher.decryptJson(provider.encrypted_credential)
-          );
-          if (!credential) {
-            throw new Error("missing api key");
-          }
-          apiKey = credential.apiKey;
-        } catch {
-          throw new HttpError(503, "Chat model credential is not configured");
-        }
-
-        const personaBlock = renderPersonaText({
-          assistantName: input.assistantName,
-          personaText: input.personaText,
-          userName: input.userName
-        });
-        const adapter = new HttpApiAdapter(model.provider_kind as ProviderKind, apiKey, {
-          baseUrl: provider.base_url ?? undefined
-        });
-        const { text } = await adapter.generateChat({
-          model: {
-            provider_kind: model.provider_kind,
-            provider_model_id: model.provider_model_id
-          },
-          messages: [
-            {
-              role: "user",
-              content: `${personaBlock}\n\n${PERSONA_PREVIEW_SAMPLE_TURN}`
-            }
-          ],
-          maxOutputTokens: PERSONA_PREVIEW_MAX_OUTPUT_TOKENS
-        });
-        return text;
-      }
-    );
 }
 
 function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveScheduleFn {
@@ -803,7 +695,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     },
     registerWorkers: async (boss, deps) => {
       const allProviders = proactiveMonitorProvidersFor(getBuiltInModuleManifests());
-      const providers = new Map(allProviders.map((p) => [p.provider.source as ProactiveSource, p.provider]));
+      const providers = new Map(
+        allProviders.map((p) => [p.provider.source as ProactiveSource, p.provider])
+      );
       const preferencesRepository = new PreferencesRepository();
       return registerProactiveMonitoringWorkers(boss, {
         dataContext: deps.dataContext,

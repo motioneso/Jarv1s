@@ -31,8 +31,7 @@ export function registerProactiveMonitoringSettingsRoutes(
   server: FastifyInstance,
   dependencies: ProactiveMonitoringSettingsRoutesDependencies
 ): void {
-  const repository =
-    dependencies.repository ?? new ProactiveMonitoringPreferencesRepository();
+  const repository = dependencies.repository ?? new ProactiveMonitoringPreferencesRepository();
 
   server.get("/api/me/proactive-monitoring-settings", async (request, reply) => {
     try {
@@ -77,12 +76,7 @@ function parseSettingsPatch(body: unknown): Partial<ProactiveMonitoringPreferenc
     throw new HttpError(400, "Proactive monitoring settings request is invalid");
   }
   const value = body as Record<string, unknown>;
-  const allowed = new Set([
-    "enabled",
-    "sources",
-    "dailyCardCap",
-    "quietHours"
-  ]);
+  const allowed = new Set(["enabled", "sources", "dailyCardCap", "quietHours"]);
   const unknown = Object.keys(value).filter((k) => !allowed.has(k));
   if (unknown.length > 0) {
     throw new HttpError(400, `Unknown fields: ${unknown.join(", ")}`);
@@ -102,8 +96,11 @@ function mergePreference(
     version: 1,
     enabled: typeof patch.enabled === "boolean" ? patch.enabled : current.enabled,
     sources,
-    dailyCardCap: typeof patch.dailyCardCap === "number" ? patch.dailyCardCap : current.dailyCardCap,
-    quietHours: patch.quietHours ? { ...current.quietHours, ...patch.quietHours } : current.quietHours,
+    dailyCardCap:
+      typeof patch.dailyCardCap === "number" ? patch.dailyCardCap : current.dailyCardCap,
+    quietHours: patch.quietHours
+      ? { ...current.quietHours, ...patch.quietHours }
+      : current.quietHours,
     updatedAt: new Date().toISOString()
   };
 }
@@ -117,7 +114,7 @@ function mergeSources(
   const result = { ...current };
   for (const src of sources) {
     if (src in patch) {
-      result[src] = { ...current[src], ...patch[src] } as typeof current[typeof src];
+      result[src] = { ...current[src], ...patch[src] } as (typeof current)[typeof src];
     }
   }
   return result;

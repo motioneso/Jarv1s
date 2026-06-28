@@ -1,12 +1,10 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 
 import type {
   AccessContext,
-  AdminAuditEvent,
   DataContextDb,
   DataContextRunner,
-  InstanceSetting,
   JarvisDatabase,
   User
 } from "@jarv1s/db";
@@ -30,17 +28,13 @@ import {
   putChatMultiplexerSettingsRouteSchema,
   putRegistrationSettingsRouteSchema,
   upsertInstanceSettingRouteSchema,
-  type AdminAuditEventDto,
   type AdminModuleDto,
   type AuthProviderStatusDto,
   type ChatMultiplexerChoice,
-  type InstanceSettingDto,
-  type MyModuleDto,
-  type UpsertInstanceSettingRequest,
-  type UserDto
+  type UpsertInstanceSettingRequest
 } from "@jarv1s/shared";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import { HttpError } from "@jarv1s/module-sdk";
 
 import type { PgBoss } from "@jarv1s/jobs";
 
@@ -74,7 +68,15 @@ import {
   registerProactiveMonitoringSettingsRoutes,
   type ReconcileProactiveScheduleFn
 } from "./proactive-monitoring-routes.js";
-import { HttpRepositoryError, SettingsRepository } from "./repository.js";
+import { SettingsRepository } from "./repository.js";
+import {
+  computeMyModuleDto,
+  handleRouteError,
+  serializeAdminAuditEvent,
+  serializeInstanceSetting,
+  serializeUser,
+  toMyModuleDto
+} from "./routes-serializers.js";
 import { registerSourceBehaviorRoutes } from "./source-behavior-routes.js";
 import {
   INSTANCE_SETTINGS_REGISTRY,
@@ -900,107 +902,4 @@ function parseDisabledBody(body: unknown): boolean {
     throw new HttpError(400, "disabled must be a boolean");
   }
   return disabled;
-}
-
-function toMyModuleDto(
-  manifest: JarvisModuleManifest,
-  instanceDisabled: boolean,
-  userDisabled: boolean
-): MyModuleDto {
-  const required = manifest.availability?.required === true;
-  const userDisableSupported = manifest.availability?.supportsUserDisable !== false;
-  // Mirror the resolver's rule exactly so the UI and gateway never disagree.
-  const active = required
-    ? true
-    : instanceDisabled
-      ? false
-      : userDisableSupported && userDisabled
-        ? false
-        : true;
-  return {
-    id: manifest.id,
-    name: manifest.name,
-    version: manifest.version,
-    lifecycle: manifest.lifecycle,
-    required,
-    supportsUserDisable: userDisableSupported,
-    instanceDisabled,
-    userDisabled,
-    active
-  };
-}
-
-async function computeMyModuleDto(
-  repository: SettingsRepository,
-  scopedDb: DataContextDb,
-  manifest: JarvisModuleManifest,
-  actorUserId: string
-): Promise<MyModuleDto> {
-  const rows = await repository.listModuleDenyRowsForActor(scopedDb);
-  const instanceDisabled = rows.some((r) => r.scope === "instance" && r.module_id === manifest.id);
-  const userDisabled = rows.some(
-    (r) => r.scope === "user" && r.module_id === manifest.id && r.user_id === actorUserId
-  );
-  return toMyModuleDto(manifest, instanceDisabled, userDisabled);
-}
-
-function serializeUser(user: User): UserDto {
-  return {
-    id: user.id,
-    email: user.email,
-    emailVerified: user.email_verified,
-    name: user.name,
-    isInstanceAdmin: user.is_instance_admin,
-    status: user.status,
-    isBootstrapOwner: user.is_bootstrap_owner,
-    createdAt: serializeDate(user.created_at),
-    updatedAt: serializeDate(user.updated_at)
-  };
-}
-
-function serializeInstanceSetting(setting: InstanceSetting): InstanceSettingDto {
-  return {
-    key: setting.key,
-    value: setting.value,
-    updatedByUserId: setting.updated_by_user_id,
-    createdAt: serializeDate(setting.created_at),
-    updatedAt: serializeDate(setting.updated_at)
-  };
-}
-
-function serializeAdminAuditEvent(event: AdminAuditEvent): AdminAuditEventDto {
-  return {
-    id: event.id,
-    actorUserId: event.actor_user_id,
-    action: event.action,
-    targetType: event.target_type,
-    targetId: event.target_id,
-    metadata: event.metadata,
-    requestId: event.request_id,
-    createdAt: serializeDate(event.created_at)
-  };
-}
-
-function serializeDate(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
-}
-
-function handleRouteError(error: unknown, reply: FastifyReply) {
-  return handleModuleRouteError(error, reply, {
-    mappers: [
-      (e, r) =>
-        e instanceof HttpRepositoryError
-          ? r.code(e.statusCode).send({ error: e.message })
-          : undefined,
-      (e, r) => {
-        if (e instanceof Error) {
-          const code = (e as Error & { code?: string }).code;
-          if (code === "account_pending_approval" || code === "account_deactivated") {
-            return r.code(403).send({ error: e.message, code });
-          }
-        }
-        return undefined;
-      }
-    ]
-  });
 }

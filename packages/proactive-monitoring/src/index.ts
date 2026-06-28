@@ -1,4 +1,8 @@
-export type { ProactiveMonitorStateRow, ProactiveCardRow, ResolvedMonitoringConfig } from "./types.js";
+export type {
+  ProactiveMonitorStateRow,
+  ProactiveCardRow,
+  ResolvedMonitoringConfig
+} from "./types.js";
 export {
   proactiveMonitoringModuleManifest,
   proactiveMonitoringSqlMigrationDirectory

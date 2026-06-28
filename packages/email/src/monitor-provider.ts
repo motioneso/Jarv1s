@@ -37,7 +37,9 @@ export const emailMonitorProvider: ProactiveMonitorProvider = {
     const recentCutoff = new Date(now.getTime() - RECENT_HOURS * 60 * 60 * 1000);
 
     const allMessages = await repo.listVisible(db);
-    const recent = allMessages.filter((m) => new Date(m.received_at as unknown as string) >= recentCutoff);
+    const recent = allMessages.filter(
+      (m) => new Date(m.received_at as unknown as string) >= recentCutoff
+    );
 
     const signals: ProactiveMonitorSignal[] = [];
 

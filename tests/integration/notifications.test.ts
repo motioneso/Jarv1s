@@ -192,7 +192,8 @@ describe("Notifications module M5", () => {
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring"
     ]);
     expect(registrations.map((item) => item.manifest.id)).toEqual([
       "settings",
@@ -210,7 +211,8 @@ describe("Notifications module M5", () => {
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.notifications",

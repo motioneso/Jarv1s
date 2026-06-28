@@ -27,10 +27,7 @@ export const tasksMonitorProvider: ProactiveMonitorProvider = {
     const repo = new TaskDriftRepository();
     const now = input.now;
 
-    const [overdue, atRisk] = await Promise.all([
-      repo.getOverdue(db),
-      repo.getAtRisk(db)
-    ]);
+    const [overdue, atRisk] = await Promise.all([repo.getOverdue(db), repo.getAtRisk(db)]);
 
     const signals: ProactiveMonitorSignal[] = [];
     const seen = new Set<string>();
@@ -69,7 +66,9 @@ export const tasksMonitorProvider: ProactiveMonitorProvider = {
         signalType,
         title: task.title,
         summary: `High-priority task needs attention${task.due_at ? ` — due ${new Date(task.due_at as unknown as string).toLocaleDateString()}` : ""}`,
-        targetAt: task.due_at ? new Date(task.due_at as unknown as string).toISOString() : undefined,
+        targetAt: task.due_at
+          ? new Date(task.due_at as unknown as string).toISOString()
+          : undefined,
         priorityCandidate: {
           dueAt: task.due_at ? new Date(task.due_at as unknown as string).toISOString() : undefined,
           explicitPriority: task.priority as 1 | 2 | 3 | 4 | 5 | undefined,

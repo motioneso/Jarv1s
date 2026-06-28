@@ -176,7 +176,8 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring"
     ]);
     expect(registration?.manifest.database?.ownedTables).toEqual([
       "app.briefing_definitions",
@@ -201,14 +202,15 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(registration?.queueDefinitions.map((queue) => queue.name)).toEqual([
       BRIEFINGS_RUN_QUEUE
     ]);
-    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/notes/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/wellness/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/structured-state/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain(
+    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/proactive-monitoring");
+    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/notes/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/wellness/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/structured-state/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain(
       "packages/usefulness-feedback/sql"
     );
-    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/memory/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/briefings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/memory/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain("packages/briefings/sql");
   });
 
   it("keeps definitions private by default and denies admin private-data bypass", async () => {
