@@ -11,40 +11,19 @@ when on level").
 **Relay threshold:** security-tier merge -> relay immediately; routine/sensitive
 `merges_since_relay >= 2` -> relay. Compaction summary -> relay before merge.
 **tab discipline:** coordinator tab (`w1:tS`) = coordinator pane only; all build/QA agents go in agents tab (currently `w1:tW`, label "agents"). Relay successor also spawns in coordinator tab (that's the one exception). If agents tab reaches 4 panes, open "agents 2" in w1. Always Jarvis workspace (w1) — updated 2026-06-27 per Ben directive; skill updated to match.
-**merges_since_relay:** 0 (reset at relay; successor `0ae2d4ce` claimed lock)
+**merges_since_relay:** 1 (security-tier merge PR #566; Ben instructed NO relay on auto-compaction 2026-06-28)
 **QA policy (Ben directive 2026-06-27):** All approval gates require DUAL-MODEL review — Codex AND GLM — both must GREEN before merge. Applies to all remaining PRs (#563, #535, #536, #537, #538).
 
-**Continuation note (latest — successor reads this):** 
+**Continuation note (latest):**
 
-**#531 MERGED ✅** — PR #563 squash-merged 2026-06-28T04:03:45Z. Dual-model QA: Opus R4 GREEN + AGY R4 GREEN. Issue #531 closed. Follow-up issue #567 filed (calendar/monitor-provider.ts:~69,72-73 writes event.title/location unsanitized — same class as #531 bug; low live risk, not blocking). Panes FIX-531-2 (w1:p54) + QA-563-AGY-R4 (w1:p57) reaped. Worktree rfa-531-proactive-monitoring removed. ⚠️ Note for Ben: failure-budget hit 2 during #531 QA (3 fix rounds needed). ⚠️ Note for Ben: "GLM" slot filled by Gemini/AGY (Antigravity CLI 1.0.13, Google AI Pro, Gemini 3.1 Pro High) — opencode/GLM has 0 credentials. Security-tier merge fired relay trigger (merges_since_relay=1 → relay immediately).
+**#531 MERGED ✅** — PR #563 squash-merged 2026-06-28T04:03:45Z. Dual-model QA: Opus R4 GREEN + AGY R4 GREEN. Issue #531 closed. Follow-up #567 filed (monitor-provider unsanitized title/location). ⚠️ failure-budget hit 2 during #531 QA.
 
-**#535 PR #566 — QA IN PROGRESS:** CI 4/4 GREEN on `2af4ede5`. AGY QA RED (QA-566-AGY w1:p58 reaped). Opus QA native Agent still in flight. **AGY RED blockers (3):**
-1. **Write tool policy gates missing** — `goalCreateExecute`, `goalUpdateExecute`, `goalAddEvidenceExecute` in `packages/goals/src/tools.ts` have NO `ctx.policy.assert(goal_changes)` gate → untrusted agents can mutate goals
-2. **Module not registered in `foundation.test.ts`** — goals module absent from the module-list assertion; migration 0123 IS included but module registration is missing → foundational integration test gap
-3. **Read tool truncation missing** — `goalsList`/`goalGet`/`goalEvidence` return unbounded text from goal summaries/evidence → exfil risk via context window flooding
-4. **Delete coverage missing** — no cascade delete for goal/evidence data on account deletion → private data persists after purge
+**#535 MERGED ✅** — PR #566 squash-merged 2026-06-28T05:11:02Z at `da5b48a169aba27059510cd6b676bd8b15c0c618`. All 5 security QA blockers resolved (export+evidence, memory isolation, foundation.test.ts, read truncation). Issue #535 closed. RFA label removed. ⚠️ Board move FAILED (stale item ID `PVTI_lADOSyc57M4AxkGzgCGFBpM`) — Ben to move #535 → Done manually. Worktree rfa-535-long-running-goals removed. QA-566-AGY (w1:p58) + RFA-536 AGY (w1:p5A, quota-capped) reaped. Ben instructed no relay on auto-compaction 2026-06-28.
 
-**Opus QA-566 VERDICT: RED (2026-06-28T04:00:09Z).** Full comment at https://github.com/motioneso/Jarv1s/pull/566#issuecomment-4824711141
+**#536 IN PROGRESS** — RFA-536 Claude (Sonnet, session `259c2777-bf0a-4be5-84e0-5dde03e77e2b`) at w1:p5B, worktree rfa-536-scheduled-briefings. Plan approved with ADD-1 (UI schedules view), ADD-2 (foundation.test.ts migration row), ADD-3 (V0 schedule_metadata normalization). Migration slot: **0124** (0123 = #535). Awaiting plan-approval confirmation or PR escalation.
 
-**Opus B1 — EXPORT OMISSION (hard invariant, #361-class):** `jarvis_goals` + `jarvis_goal_evidence` NOT in `packages/settings/src/data-export.ts` (grep -c goal = 0). Private content (title, desired_outcome, progress/blocker/next-action summaries, evidence summaries+labels) silently dropped from user export. Delete side OK (ON DELETE CASCADE). `data-export.test.ts:90` already guards this class for wellness — extend it. Fix: add owner-scoped SELECTs for both tables + extend deletion-parity test.
-
-**Opus B2 — MODULE ISOLATION (hard invariant):** `packages/goals/src/workers.ts` mutates memory's tables via raw SQL — `UPDATE app.memory_entities` (L49, L180), `SELECT app.memory_aliases` (L165). Create path uses `memoryGraphRepo` correctly; update/forget/alias-lookup bypass it because `MemoryGraphRepository` lacks those methods. Fix: add `updateEntity`/`getEntityIdByAlias`/`forgetEntity` to memory's PUBLIC API, call those from goals workers.
-
-**Opus CLEAN (no action):** RLS 0123 ENABLE+FORCE both tables, owner-only policy, worker SELECT+scoped-UPDATE, no BYPASSRLS, composite FK blocks cross-owner evidence, `assertMetadataOnlyPayload` enforced, routes use branded `DataContextDb`, `foundation.test.ts:292` has migration 0123, delete cascade OK.
-
-**Opus NON-BLOCKING (recommend only):** goals read tools return untruncated summaries (own-data only but email/calendar evidence can carry untrusted text → AI prompts; cap suggested). No reconcile cron schedule (consumer registered, nothing enqueues). Non-atomic evidence-add (2 withDataContext calls).
-
-**Combined AGY + Opus fix list for RFA-535 build agent (w1:p4X, idle):**
-1. `packages/settings/src/data-export.ts`: add owner-scoped SELECT for jarvis_goals + jarvis_goal_evidence; extend data-export.test.ts deletion-parity test
-2. `packages/goals/src/workers.ts` L49/L165/L180: remove raw SQL on memory tables; add `updateEntity`/`getEntityIdByAlias`/`forgetEntity` to `packages/memory/src/index.ts` public API; call those instead
-3. `packages/goals/src/tools.ts`: add `ctx.policy.assert(goal_changes)` gate on `goalCreateExecute`, `goalUpdateExecute`, `goalAddEvidenceExecute`
-4. `foundation.test.ts`: add goals module to module-list assertion (migration 0123 already there)
-5. (AGY only, assess if real) Read tool truncation for goal summaries/evidence
-
-**Successor actions for #535:** ~~(1) Relay all 5 fix targets above to RFA-535 AGY build agent at **w1:p4X** (idle).~~ DONE. ~~(2) After fix push, spawn dual-model re-QA.~~ DONE — AGY pushed `ef6316b8` (2026-06-28, all 5 fixes applied: export+evidence, memory module isolation, policy N/A confirmed, foundation.test.ts verified, read truncation). Opus security re-QA native agent spawned (bg agent a8f20e3506aa8f701), awaiting verdict. (3) After GREEN: merge PR #566, close #535, board Done, reap RFA-535 AGY (w1:p4X), remove worktree rfa-535-long-running-goals, RELAY.
-
-**Queue after both #531 + #535 land:** #536 (recurring briefings) → #537 (commitment extraction, after #533+#535+#536) → #538 (person/contact model). HARD STOP at #538.
-**Next migration slot:** 0124 (0123 = #535).
+**Queue:** #536 building → #537 (commitment extraction, after #533+#535+#536) → #538 (person/contact model). HARD STOP at #538.
+**Next migration slot:** 0125 (0124 = #536 in progress).
 **Post-run task:** File GitHub issue "Jarvis what's new / capabilities doc" — tool-call approach, static file committed to repo, baked into image at build time (Ben request 2026-06-27).
 **Tab discipline:** coordinator tab = w1:tS; agents tab = w1:tW (label "agents", Jarvis w1). Relay successor spawns in coordinator tab.
 **Previous continuation note:** security-tier PR #551 (`#529`) merged at `4e9f128` after Ben approval,
@@ -95,7 +74,7 @@ RFA coordinator loop; Ben will handle that separately.
 | #525 | `docs/superpowers/specs/2026-06-27-cross-tool-reasoning.md` | sensitive | MERGED via PR #558 at merge commit `65ff462c` (2026-06-27T23:29Z); issue #525 closed; worktree removed | Claude Sonnet | (prior QA GREEN) | `rfa-525-cross-tool-reasoning` | #558 |
 | #533 | `docs/superpowers/specs/2026-06-27-user-editable-memory-dashboard.md` | security | MERGED via PR #559 at merge commit `39af841f`; issue #533 closed; worktree removed | Claude Sonnet | dual-model security QA (GREEN) | `rfa-533-memory-dashboard` | #559 |
 | #531 | `docs/superpowers/specs/2026-06-27-restrained-proactive-monitoring.md` | security | MERGED via PR #563 at 2026-06-28T04:03:45Z (squash); issue #531 closed; FIX-531-2 (w1:p54) + QA-563-AGY-R4 (w1:p57) reaped; worktree rfa-531-proactive-monitoring removed; follow-up issue #567 filed (calendar monitor-provider unsanitized title/location). Dual-model QA: Opus R4 GREEN + AGY R4 GREEN. ⚠️ failure-budget hit 2 rounds during QA — noted for Ben at relay. | Claude Sonnet | QA-563-R4-Opus GREEN + AGY R4 GREEN | `rfa-531-proactive-monitoring` (merged) | #563 (merged) |
-| #535 | `docs/superpowers/specs/2026-06-27-long-running-jarvis-goals.md` | security | PR #566 CI 4/4 green on `2af4ede5`; DUAL QA RED: AGY (3 blockers: policy gates, module reg, read truncation) + Opus (2 blockers: export omission B1, module isolation B2); 5-item fix list in continuation note; RFA-535 AGY build agent idle at w1:p4X — relay blockers NOW | AGY | AGY RED + Opus RED (dual-RED, DO NOT MERGE) | `rfa-535-long-running-goals` | #566 |
+| #535 | `docs/superpowers/specs/2026-06-27-long-running-jarvis-goals.md` | security | **MERGED** via PR #566 at `da5b48a1` 2026-06-28T05:11:02Z; issue #535 closed; worktree removed; ⚠️ board move failed — Ben to do manually | AGY | Opus GREEN + AGY GREEN (all 5 blockers resolved) | `rfa-535-long-running-goals` (merged) | #566 (merged) |
 | #536 | `docs/superpowers/specs/2026-06-27-scheduled-recurring-jarvis-briefings.md` | sensitive | **building** — RFA-536 Claude (Sonnet) at w1:p5B; AGY quota-capped mid-edit; Claude picked up same worktree; plan approved | Claude/Sonnet | TBD | `rfa-536-scheduled-briefings` | - |
 | #537 | `docs/superpowers/specs/2026-06-27-automatic-commitment-extraction.md` | security | queued after #527/#528/#529/#532/#533/#534/#535/#536 | Codex | AGY security QA | `rfa-537-commitment-extraction` | - |
 | #538 | `docs/superpowers/specs/2026-06-27-unified-person-contact-model.md` | security | queued after #525/#528/#532/#533/#537 | opencode/GLM | Codex security QA | `rfa-538-person-contact-model` | - |
