@@ -37,6 +37,7 @@ import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
 import { buildChatSeeds } from "./seeds";
 import { hasConnectedProvider, isNoActiveChatModelError } from "../onboarding/chat-availability";
+import type { SourceFreshnessEntry, SourceFreshnessV1 } from "@jarv1s/shared";
 import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
 import "../styles/kit-chat.css";
 
@@ -140,7 +141,12 @@ export function ChatDrawer(props: {
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
             { kind: "user", text: trimmed, messageId: result.userMessageId },
-            { kind: "reply", text: result.reply, messageId: result.assistantMessageId }
+            {
+              kind: "reply",
+              text: result.reply,
+              messageId: result.assistantMessageId,
+              sourceFreshness: result.sourceFreshness
+            }
           ];
           setFallbackRecords((current) =>
             [...current, ...postResponseRecords].filter(
@@ -513,6 +519,7 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
           answerProvenanceCitedIds={props.record.answerProvenanceCitedIds}
         />
       </div>
+      <ChatFreshnessFooter sourceFreshness={props.record.sourceFreshness} />
       {props.record.messageId ? (
         <ChatFeedbackMenu messageId={props.record.messageId} canRemember={false} />
       ) : null}
@@ -540,9 +547,73 @@ function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRec
       text: message.body,
       messageId: message.id,
       answerProvenance: message.answerProvenance,
-      answerProvenanceCitedIds: message.answerProvenanceCitedIds
+      answerProvenanceCitedIds: message.answerProvenanceCitedIds,
+      sourceFreshness: message.role === "assistant" ? message.sourceFreshness : undefined
     }
   ]);
+}
+
+function chatFreshnessLabel(entry: SourceFreshnessEntry, capturedAt: string): string {
+  if (entry.freshnessKind === "realtime") return "live";
+  if (!entry.asOf) return "unknown";
+  const ageMs = new Date(capturedAt).getTime() - new Date(entry.asOf).getTime();
+  if (ageMs < 60_000) return "just now";
+  if (ageMs < 3_600_000) return `${Math.round(ageMs / 60_000)}m ago`;
+  if (ageMs < 86_400_000) return `${Math.round(ageMs / 3_600_000)}h ago`;
+  return `${Math.round(ageMs / 86_400_000)}d ago`;
+}
+
+const CHAT_SOURCE_LABEL: Record<string, string> = {
+  email: "Email",
+  calendar: "Calendar",
+  vault: "Notes",
+  tasks: "Tasks",
+  commitments: "Commitments",
+  chats: "Chats",
+  goals: "Goals"
+};
+
+export function ChatFreshnessFooter({
+  sourceFreshness
+}: {
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
+}) {
+  if (!sourceFreshness) return null;
+  const summaryNames = sourceFreshness.sources
+    .map((e) => CHAT_SOURCE_LABEL[e.source] ?? e.source)
+    .join(", ");
+  return (
+    <details className="chatd-freshness chatd-peek">
+      <summary className="chatd-peek__summary">
+        <span className="chatd-peek__label">Sources</span>
+        <span className="chatd-peek__count">{summaryNames}</span>
+        <svg
+          className="chatd-peek__chev"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </summary>
+      <ul className="chatd-freshness__list chatd-peek__body">
+        {sourceFreshness.sources.map((entry) => (
+          <li key={entry.source} className="chatd-freshness__item chatd-peek__line">
+            <span className="chatd-freshness__source">
+              {CHAT_SOURCE_LABEL[entry.source] ?? entry.source}
+            </span>
+            <span className="chatd-freshness__age" title={entry.asOf ?? undefined}>
+              {chatFreshnessLabel(entry, sourceFreshness.capturedAt)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 function ChatFeedbackMenu(props: { readonly messageId: string; readonly canRemember: boolean }) {

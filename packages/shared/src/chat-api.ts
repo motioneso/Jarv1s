@@ -1,4 +1,5 @@
 import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability } from "./ai-api.js";
+import type { SourceFreshnessV1 } from "./freshness-types.js";
 import { errorResponseSchema } from "./schema-fragments.js";
 
 export type ChatMessageRole = "user" | "assistant";
@@ -42,6 +43,7 @@ export interface ChatMessageDto {
   readonly modelRoute: ChatModelRouteMetadataDto | null;
   readonly tools: readonly ChatSelectedToolMetadataDto[];
   readonly activity: readonly ChatActivityEventDto[];
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
@@ -88,6 +90,7 @@ export interface SendChatTurnResponse {
   readonly reply: string;
   readonly userMessageId?: string;
   readonly assistantMessageId?: string;
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
 }
 
 export type AnswerProvenanceSourceKind =
@@ -242,6 +245,33 @@ const chatMessageSchema = {
     modelRoute: { anyOf: [chatModelRouteSchema, { type: "null" }] },
     tools: { type: "array", items: chatSelectedToolMetadataSchema },
     activity: { type: "array", items: chatActivityEventSchema },
+    sourceFreshness: {
+      anyOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["version", "capturedAt", "sources"],
+          properties: {
+            version: { type: "number" },
+            capturedAt: { type: "string" },
+            sources: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["source", "freshnessKind", "asOf"],
+                properties: {
+                  source: { type: "string" },
+                  freshnessKind: { type: "string" },
+                  asOf: { anyOf: [{ type: "string" }, { type: "null" }] }
+                }
+              }
+            }
+          }
+        },
+        { type: "null" }
+      ]
+    },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
     answerProvenance: {

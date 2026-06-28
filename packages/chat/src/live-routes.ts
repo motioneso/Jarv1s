@@ -91,10 +91,16 @@ export function registerChatLiveRoutes(
         const {
           reply: assistantReply,
           userMessageId,
-          assistantMessageId
+          assistantMessageId,
+          sourceFreshness
         } = await runtime.manager.submitTurn(access.actorUserId, userName, text);
 
-        return reply.send({ reply: assistantReply, userMessageId, assistantMessageId });
+        return reply.send({
+          reply: assistantReply,
+          userMessageId,
+          assistantMessageId,
+          sourceFreshness
+        });
       } catch (error) {
         return handleLiveRouteError(error, reply);
       }

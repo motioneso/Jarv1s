@@ -75,8 +75,8 @@ describe("ChatSessionManager provenance wiring", () => {
 
     const calls = (deps.persistence.recordTurn as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBe(1);
-    // 5th arg is answerProvenance — undefined when no retrieval configured
-    const [, , , , provenance] = calls[0] as unknown[];
-    expect(provenance).toBeUndefined();
+    // 5th arg is opts — answerProvenance is undefined when no retrieval configured
+    const [, , , , opts] = calls[0] as unknown[];
+    expect((opts as { answerProvenance?: unknown } | undefined)?.answerProvenance).toBeUndefined();
   });
 });

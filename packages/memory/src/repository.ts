@@ -270,4 +270,17 @@ export class MemoryRepository {
     `.execute(scopedDb.db);
     return result.rows.map((r) => r.source_path);
   }
+
+  async getLatestIngestedAt(
+    scopedDb: DataContextDb,
+    sourceKind: "vault" | "connector" = "vault"
+  ): Promise<Date | null> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ latest: Date | null }>`
+      SELECT MAX(ingested_at) AS latest
+      FROM app.memory_file_index
+      WHERE source_kind = ${sourceKind}
+    `.execute(scopedDb.db);
+    return result.rows[0]?.latest ?? null;
+  }
 }

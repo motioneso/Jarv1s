@@ -444,10 +444,16 @@ describe("ChatSessionManager passive retrieval", () => {
 
     expect(engine.submitted.at(-1)).toContain("<retrieved_context>");
     expect(engine.submitted.at(-1)).toContain("what did we decide?");
-    expect(recordTurn).toHaveBeenCalledWith("u1", "what did we decide?", "answer", {
-      provider: "anthropic",
-      model: "sonnet"
-    });
+    expect(recordTurn).toHaveBeenCalledWith(
+      "u1",
+      "what did we decide?",
+      "answer",
+      {
+        provider: "anthropic",
+        model: "sonnet"
+      },
+      { invokedToolNames: expect.any(Set) }
+    );
   });
 
   it("continues with raw text when passive retrieval throws", async () => {

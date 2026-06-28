@@ -668,3 +668,27 @@
   height: 10px;
   color: currentColor;
 }
+
+/* Chat freshness footer (#541) */
+.chatd-freshness__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chatd-freshness__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.chatd-freshness__source {
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+.chatd-freshness__age {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}

@@ -23,6 +23,7 @@ import {
   ManualMemoryCandidateService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
+  MemoryRepository,
   type MemoryRetriever,
   memoryModuleManifest,
   memorySqlMigrationDirectory,
@@ -70,6 +71,7 @@ import {
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
+  getConnectorSyncAt,
   registerConnectorsJobWorkers,
   registerConnectorsRoutes,
   type GoogleApiClient,
@@ -632,7 +634,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             return name && name.length > 0 ? name : actorUserId;
           },
           memoryRetriever: runtimeMemoryRetriever as unknown as MemoryRetriever,
-          logger: briefingsLogger
+          logger: briefingsLogger,
+          connectorSyncAt: async (scopedDb, kind) => {
+            const repo = new ConnectorsRepository();
+            return getConnectorSyncAt(repo, scopedDb, kind);
+          },
+          vaultLastWriteAt: async (scopedDb) => {
+            const repo = new MemoryRepository();
+            return repo.getLatestIngestedAt(scopedDb, "vault");
+          }
         },
         notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
         logger: briefingsLogger

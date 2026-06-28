@@ -1,3 +1,4 @@
+import type { SourceFreshnessV1 } from "@jarv1s/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import type { AnswerSourceSupportCard } from "@jarv1s/shared";
@@ -24,6 +25,7 @@ export interface TranscriptRecord {
   readonly outcome?: "executed" | "denied" | "error";
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
 }
 
 function isChatRecordKind(value: string): value is ChatRecordKind {
@@ -62,7 +64,19 @@ export function useChatStream(): {
     source.onmessage = (event) => {
       const record = parseRecord(event.data);
       if (record) {
-        setRecords((current) => [...current, record]);
+        setRecords((current) => {
+          if (record.kind === "reply" && record.messageId) {
+            // Replace the last streaming reply (no messageId) with the stored version (has messageId + sourceFreshness)
+            const lastUnstored = [...current]
+              .reverse()
+              .findIndex((r) => r.kind === "reply" && !r.messageId);
+            if (lastUnstored !== -1) {
+              const realIdx = current.length - 1 - lastUnstored;
+              return current.map((r, i) => (i === realIdx ? record : r));
+            }
+          }
+          return [...current, record];
+        });
       }
     };
 
@@ -90,6 +104,10 @@ export function parseRecord(data: unknown): TranscriptRecord | null {
       outcome:
         parsed.outcome === "executed" || parsed.outcome === "denied" || parsed.outcome === "error"
           ? parsed.outcome
+          : undefined,
+      sourceFreshness:
+        parsed.sourceFreshness && typeof parsed.sourceFreshness === "object"
+          ? (parsed.sourceFreshness as SourceFreshnessV1)
           : undefined
     };
   } catch {

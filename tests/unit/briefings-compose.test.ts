@@ -906,3 +906,41 @@ describe("composeBriefing — prompt boundary-forgery (escaped inert data)", () 
     }
   );
 });
+
+describe("composeBriefing — source freshness", () => {
+  const emailSyncAt = new Date("2026-06-27T22:00:00.000Z");
+  const vaultAt = new Date("2026-06-25T10:00:00.000Z");
+
+  it("populates sourceTimestamps in sourceMetadata when freshness deps provided", async () => {
+    const deps = makeFakeDeps();
+    const depsWithFreshness: ComposeDeps = {
+      ...deps,
+      connectorSyncAt: async (_db, kind) => (kind === "email" ? emailSyncAt : null),
+      vaultLastWriteAt: async () => vaultAt
+    };
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, depsWithFreshness);
+    const ts = result.sourceMetadata.sourceTimestamps as {
+      version: number;
+      capturedAt: string;
+      sources: Array<{ source: string; freshnessKind: string; asOf: string | null }>;
+    };
+    expect(ts).toBeDefined();
+    expect(ts.version).toBe(1);
+    expect(ts.capturedAt).toBe(FIXED_NOW.toISOString());
+    const emailEntry = ts.sources.find((s) => s.source === "email");
+    expect(emailEntry?.freshnessKind).toBe("connector_sync");
+    expect(emailEntry?.asOf).toBe(emailSyncAt.toISOString());
+    const tasksEntry = ts.sources.find((s) => s.source === "tasks");
+    expect(tasksEntry?.freshnessKind).toBe("realtime");
+    expect(tasksEntry?.asOf).toBe(FIXED_NOW.toISOString());
+    const vaultEntry = ts.sources.find((s) => s.source === "vault");
+    expect(vaultEntry?.freshnessKind).toBe("vault_write");
+    expect(vaultEntry?.asOf).toBe(vaultAt.toISOString());
+  });
+
+  it("omits sourceTimestamps when freshness deps are absent", async () => {
+    const deps = makeFakeDeps();
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    expect(result.sourceMetadata.sourceTimestamps).toBeUndefined();
+  });
+});

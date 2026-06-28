@@ -21,7 +21,9 @@ import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
+import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
+import { resolveBriefingFreshness } from "./freshness.js";
 import { timezoneFor } from "./schedule.js";
 import {
   contextTokens,
@@ -72,6 +74,11 @@ export interface ComposeDeps {
    * Optional for back-compat; production injects a module logger (observability spec).
    */
   readonly logger?: Pick<FastifyBaseLogger, "error">;
+  readonly connectorSyncAt?: (
+    scopedDb: DataContextDb,
+    kind: "email" | "calendar"
+  ) => Promise<Date | null>;
+  readonly vaultLastWriteAt?: (scopedDb: DataContextDb) => Promise<Date | null>;
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -685,6 +692,16 @@ export async function composeBriefing(
     sections.push(goals);
   }
 
+  const hasFreshnessDeps = !!(deps.connectorSyncAt ?? deps.vaultLastWriteAt);
+  const sourceTimestamps = hasFreshnessDeps
+    ? await resolveBriefingFreshness(
+        scopedDb,
+        sections.map((s) => s.key),
+        now,
+        { connectorSyncAt: deps.connectorSyncAt, vaultLastWriteAt: deps.vaultLastWriteAt }
+      )
+    : undefined;
+
   // ── Resolve the model (provider-agnostic) ────────────────────────────────────
   const model = await deps.aiRepository.selectModelForCapability(
     scopedDb,
@@ -702,7 +719,8 @@ export async function composeBriefing(
       email,
       vault,
       chats,
-      vaultNotes
+      vaultNotes,
+      sourceTimestamps
     );
   }
 
@@ -725,7 +743,8 @@ export async function composeBriefing(
         email,
         vault,
         chats,
-        vaultNotes
+        vaultNotes,
+        sourceTimestamps
       );
     }
     const credential = parseAiApiKeyCredential(
@@ -742,7 +761,8 @@ export async function composeBriefing(
         email,
         vault,
         chats,
-        vaultNotes
+        vaultNotes,
+        sourceTimestamps
       );
     }
     apiKey = credential.apiKey;
@@ -759,7 +779,8 @@ export async function composeBriefing(
       email,
       vault,
       chats,
-      vaultNotes
+      vaultNotes,
+      sourceTimestamps
     );
   }
 
@@ -793,7 +814,8 @@ export async function composeBriefing(
         notes: vaultNotes,
         aiModel: { id: model.id, displayName: model.display_name, tier: model.tier },
         gaps,
-        degraded: false
+        degraded: false,
+        ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
       }
     };
   } catch {
@@ -807,7 +829,8 @@ export async function composeBriefing(
       email,
       vault,
       chats,
-      vaultNotes
+      vaultNotes,
+      sourceTimestamps
     );
   }
 }
@@ -928,7 +951,8 @@ function fallback(
   email: Section,
   vault: Section,
   chats: Section,
-  vaultNotes: Array<{ path: string; id: string; excerpt: string }>
+  vaultNotes: Array<{ path: string; id: string; excerpt: string }>,
+  sourceTimestamps?: SourceFreshnessV1
 ): ComposeResult {
   const text = sections
     .map(
@@ -952,7 +976,8 @@ function fallback(
       aiModel: null,
       gaps,
       degraded: true,
-      degradedReason: reason
+      degradedReason: reason,
+      ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
     }
   };
 }
