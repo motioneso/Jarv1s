@@ -99,5 +99,8 @@ export const queryKeys = {
   memory: {
     dashboard: (query?: object) => ["memory", "dashboard", query] as const,
     dashboardItem: (id: string) => ["memory", "dashboard", "item", id] as const
+  },
+  goals: {
+    list: ["goals", "list"] as const
   }
 };

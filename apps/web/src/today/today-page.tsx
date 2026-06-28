@@ -55,6 +55,7 @@ import "../styles/kit-tasks-modal.css";
 import "../styles/kit-today.css";
 import "../styles/kit-today-feeds.css";
 import "../styles/kit-today-misc.css";
+import { GoalsSection } from "./goals-section.js";
 
 /** Today — the all-day home: an editorial brief over the user's real tasks + calendar. */
 export function TodayPage(props: {
@@ -283,6 +284,8 @@ export function TodayPage(props: {
           {feed.news.length > 0 || feed.interests.length > 0 ? (
             <NewsDesk news={feed.news} interests={feed.interests} />
           ) : null}
+
+          <GoalsSection />
 
           {looseEnds.length > 0 ? (
             <section className="jds-brief">
