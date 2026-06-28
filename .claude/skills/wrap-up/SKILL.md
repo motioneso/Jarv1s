@@ -14,6 +14,16 @@ repo is left undisturbed. This skill is the checklist that gets you there.
 
 **Announce:** "Using the wrap-up skill to close out." Create a TodoWrite item per step.
 
+## Docs-only mode
+
+If **every** change in this session is docs/coordination files (`.md`, `docs/**`, `.claude/skills/**`,
+coordinator manifests) with **no source, migration, config, or test changes**, skip step 3 (the gate)
+entirely. Confirm this by checking `git diff --name-only` — if every path matches `**/*.md`,
+`docs/**`, `.claude/**`, or similar non-code paths, state "docs-only — skipping gate" and proceed
+directly from step 2 to step 4. Never skip the gate when there is any doubt.
+
+---
+
 ## Procedure
 
 ### 0. Know who else is in the tree (do this FIRST)
