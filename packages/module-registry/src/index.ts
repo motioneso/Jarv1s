@@ -10,7 +10,12 @@ import {
 } from "@jarv1s/commitments";
 import {
   peopleModuleManifest,
-  peopleModuleSqlMigrationDirectory
+  peopleModuleSqlMigrationDirectory,
+  registerPeopleRoutes,
+  registerPersonIndexWorker,
+  registerSyncPersonMemoryWorker,
+  PERSON_INDEX_QUEUE,
+  SYNC_PERSON_MEMORY_QUEUE,
 } from "@jarv1s/people";
 import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
 import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
@@ -815,7 +820,23 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: peopleModuleManifest,
     sqlMigrationDirectories: [peopleModuleSqlMigrationDirectory],
-    queueDefinitions: []
+    queueDefinitions: [
+      { name: PERSON_INDEX_QUEUE },
+      { name: SYNC_PERSON_MEMORY_QUEUE },
+    ],
+    registerRoutes: (server, deps) =>
+      registerPeopleRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        boss: deps.boss,
+      }),
+    registerWorkers: async (boss, deps) => {
+      const indexId = await registerPersonIndexWorker(boss, deps.dataContext, {
+        providers: [],
+      });
+      const syncId = await registerSyncPersonMemoryWorker(boss, deps.dataContext);
+      return [indexId, syncId];
+    },
   }
 ];
 
