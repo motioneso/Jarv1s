@@ -34,6 +34,7 @@ import {
   type SessionNotifier
 } from "@jarv1s/ai";
 import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
+import { getConnectorSyncAt } from "@jarv1s/connectors";
 import type {
   ConnectorsRepository,
   GoogleApiClient,
@@ -183,6 +184,9 @@ export function registerChatRoutes(
     // engine. An explicit chatEngineFactory always wins inside the runtime, so passing both is safe.
     engineSelection: dependencies.chatEngineFactory ? undefined : dependencies.engineSelection,
     boss: dependencies.boss,
+    connectorSyncAt: dependencies.connectorsRepository
+      ? async (scopedDb, kind) => getConnectorSyncAt(dependencies.connectorsRepository!, scopedDb, kind)
+      : undefined,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
     mcpTokenLifecycle: wiring

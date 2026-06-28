@@ -260,6 +260,7 @@ export interface CreateChatSessionRuntimeDeps {
       rawInput: unknown
     ): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }>;
   };
+  readonly connectorSyncAt?: (scopedDb: DataContextDb, kind: "email" | "calendar") => Promise<Date | null>;
 }
 
 export interface ChatSessionRuntime {
@@ -297,7 +298,8 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     dataContext: deps.dataContext,
     chatRepository: new ChatRepository(),
     aiRepository: new AiRepository(),
-    boss: deps.boss
+    boss: deps.boss,
+    connectorSyncAt: deps.connectorSyncAt
   });
 
   // Late-bound manager ref so the reconcile hook (read once by RpcConnection at construction) can call
