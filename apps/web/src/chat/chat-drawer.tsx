@@ -507,7 +507,11 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
         <Sparkles size={14} aria-hidden="true" />
       </span>
       <div className="chatd-bubble">
-        <MarkdownMessage text={text} />
+        <MarkdownMessage
+          text={text}
+          answerProvenance={props.record.answerProvenance}
+          answerProvenanceCitedIds={props.record.answerProvenanceCitedIds}
+        />
       </div>
       {props.record.messageId ? (
         <ChatFeedbackMenu messageId={props.record.messageId} canRemember={false} />
@@ -534,7 +538,9 @@ function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRec
             ? ("error" as const)
             : ("reply" as const),
       text: message.body,
-      messageId: message.id
+      messageId: message.id,
+      answerProvenance: message.answerProvenance,
+      answerProvenanceCitedIds: message.answerProvenanceCitedIds
     }
   ]);
 }

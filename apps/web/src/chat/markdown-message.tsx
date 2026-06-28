@@ -1,6 +1,9 @@
 import type { ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { AnswerSourceSupportCard } from "@jarv1s/shared";
+
+import { SourceChips, stripDisplayMarkers } from "./answer-provenance";
 
 /**
  * Allowlist URL sanitizer for every link/image href the renderer produces.
@@ -24,7 +27,21 @@ function safeUrl(url: string): string {
  * `rel`. Chat content can echo tool results / fetched web content (indirect prompt
  * injection, #360), so these guarantees must stay intact.
  */
-export function MarkdownMessage(props: { readonly text: string }) {
+interface MarkdownMessageProps {
+  readonly text: string;
+  readonly answerProvenance?: readonly AnswerSourceSupportCard[];
+  readonly answerProvenanceCitedIds?: readonly string[];
+}
+
+export function MarkdownMessage(props: MarkdownMessageProps) {
+  const { text, answerProvenance, answerProvenanceCitedIds } = props;
+
+  const citedSet = new Set(answerProvenanceCitedIds ?? []);
+  const displayText =
+    answerProvenance && answerProvenance.length > 0
+      ? stripDisplayMarkers(text, citedSet)
+      : text;
+
   return (
     <div className="chatd-md">
       <ReactMarkdown
@@ -36,8 +53,11 @@ export function MarkdownMessage(props: { readonly text: string }) {
           )
         }}
       >
-        {props.text}
+        {displayText}
       </ReactMarkdown>
+      {answerProvenance && answerProvenance.length > 0 && (
+        <SourceChips cards={answerProvenance} citedIds={answerProvenanceCitedIds} />
+      )}
     </div>
   );
 }

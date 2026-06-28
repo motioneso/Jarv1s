@@ -20,6 +20,8 @@ export interface TranscriptRecord {
   readonly toolName?: string;
   readonly summary?: string;
   readonly outcome?: "executed" | "denied" | "error";
+  readonly answerProvenance?: readonly import("@jarv1s/shared").AnswerSourceSupportCard[];
+  readonly answerProvenanceCitedIds?: readonly string[];
 }
 
 function isChatRecordKind(value: string): value is ChatRecordKind {
