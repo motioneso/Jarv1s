@@ -112,4 +112,12 @@ export class CalendarRepository {
     const result = await query.executeTakeFirst();
     return Number(result.numDeletedRows ?? 0);
   }
+
+  async deleteById(scopedDb: DataContextDb, eventId: string): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .deleteFrom("app.calendar_events")
+      .where("id", "=", eventId)
+      .execute();
+  }
 }
