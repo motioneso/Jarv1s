@@ -3,6 +3,11 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import {
+  commitmentsModuleManifest,
+  commitmentsModuleSqlMigrationDirectory,
+  COMMITMENT_EXTRACTION_QUEUE
+} from "@jarv1s/commitments";
+import {
   AiAutoRegisterService,
   AiRepository,
   aiModuleManifest,
@@ -766,6 +771,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         providers
       });
     }
+  },
+  {
+    manifest: commitmentsModuleManifest,
+    sqlMigrationDirectories: [commitmentsModuleSqlMigrationDirectory],
+    queueDefinitions: [{ name: COMMITMENT_EXTRACTION_QUEUE, options: {} }]
   }
 ];
 
