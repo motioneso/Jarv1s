@@ -198,7 +198,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(briefingRunPayloadSchema.required).toContain("briefingType");
     expect(briefingRunPayloadSchema.properties.briefingType).toEqual({
       type: "string",
-      enum: ["morning", "evening"]
+      enum: ["morning", "evening", "weekly_review"]
     });
     expect(registration?.queueDefinitions.map((queue) => queue.name)).toEqual([
       BRIEFINGS_RUN_QUEUE
