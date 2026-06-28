@@ -1,0 +1,149 @@
+import { sql } from "kysely";
+
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import type { JarvisGoal, JarvisGoalEvidence, JarvisGoalStatus, JarvisGoalEvidenceKind, JarvisGoalSourceKind, JarvisGoalReviewCadence } from "./types.js";
+
+export interface GoalRow {
+  id: string;
+  owner_user_id: string;
+  title: string;
+  desired_outcome: string;
+  status: string;
+  priority: number;
+  review_cadence: string;
+  next_review_at: Date | null;
+  target_at: Date | null;
+  last_progress_summary: string | null;
+  last_progress_at: Date | null;
+  blocker_summary: string | null;
+  next_suggested_action: string | null;
+  created_at: Date;
+  updated_at: Date;
+  completed_at: Date | null;
+  archived_at: Date | null;
+}
+
+export interface EvidenceRow {
+  id: string;
+  owner_user_id: string;
+  goal_id: string;
+  evidence_kind: string;
+  source_kind: string;
+  source_ref: string | null;
+  source_label: string;
+  summary: string;
+  occurred_at: Date | null;
+  created_at: Date;
+}
+
+export class GoalsRepository {
+  async getById(scopedDb: DataContextDb, id: string): Promise<JarvisGoal | null> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<GoalRow>`
+      SELECT * FROM app.jarvis_goals WHERE id = ${id}::uuid
+    `.execute(scopedDb.db);
+    return result.rows[0] ? this.mapGoal(result.rows[0]) : null;
+  }
+
+  async listEvidence(scopedDb: DataContextDb, goalId: string): Promise<JarvisGoalEvidence[]> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<EvidenceRow>`
+      SELECT * FROM app.jarvis_goal_evidence 
+      WHERE goal_id = ${goalId}::uuid
+      ORDER BY created_at DESC
+    `.execute(scopedDb.db);
+    return result.rows.map((row) => this.mapEvidence(row));
+  }
+
+  async updateSyncStatus(
+    scopedDb: DataContextDb,
+    id: string,
+    syncedAt: Date,
+    goalUpdatedAt: Date
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`
+      UPDATE app.jarvis_goals
+      SET memory_synced_at = ${syncedAt},
+          memory_synced_goal_updated_at = ${goalUpdatedAt},
+          memory_sync_error_class = NULL
+      WHERE id = ${id}::uuid
+    `.execute(scopedDb.db);
+  }
+
+  async markSyncError(scopedDb: DataContextDb, id: string, errorClass: string): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`
+      UPDATE app.jarvis_goals
+      SET memory_sync_error_class = ${errorClass}
+      WHERE id = ${id}::uuid
+    `.execute(scopedDb.db);
+  }
+
+  async acquireSyncLock(scopedDb: DataContextDb, id: string): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ locked: boolean }>`
+      SELECT pg_try_advisory_xact_lock(
+        hashtext('goals-sync'),
+        hashtext(${id})
+      ) as locked
+    `.execute(scopedDb.db);
+    return result.rows[0]?.locked ?? false;
+  }
+
+  async listForReconcile(
+    scopedDb: DataContextDb
+  ): Promise<{ id: string; updated_at: string; memory_synced_goal_updated_at: string | null }[]> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ id: string; updated_at: Date; memory_synced_goal_updated_at: Date | null }>`
+      SELECT id, updated_at, memory_synced_goal_updated_at 
+      FROM app.jarvis_goals
+      WHERE status != 'archived' 
+        AND (memory_synced_goal_updated_at IS NULL OR memory_synced_goal_updated_at < updated_at)
+      ORDER BY updated_at ASC
+      LIMIT 100
+    `.execute(scopedDb.db);
+    return result.rows.map(row => ({
+      id: row.id,
+      updated_at: row.updated_at.toISOString(),
+      memory_synced_goal_updated_at: row.memory_synced_goal_updated_at?.toISOString() ?? null
+    }));
+  }
+
+  private mapGoal(row: GoalRow): JarvisGoal {
+    return {
+      id: row.id,
+      ownerUserId: row.owner_user_id,
+      title: row.title,
+      desiredOutcome: row.desired_outcome,
+      status: row.status as JarvisGoalStatus,
+      priority: row.priority as 1 | 2 | 3 | 4 | 5,
+      reviewCadence: row.review_cadence as JarvisGoalReviewCadence,
+      nextReviewAt: row.next_review_at ? row.next_review_at.toISOString() : null,
+      targetAt: row.target_at ? row.target_at.toISOString() : null,
+      lastProgressSummary: row.last_progress_summary,
+      lastProgressAt: row.last_progress_at ? row.last_progress_at.toISOString() : null,
+      blockerSummary: row.blocker_summary,
+      nextSuggestedAction: row.next_suggested_action,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+      completedAt: row.completed_at ? row.completed_at.toISOString() : null,
+      archivedAt: row.archived_at ? row.archived_at.toISOString() : null
+    };
+  }
+
+  private mapEvidence(row: EvidenceRow): JarvisGoalEvidence {
+    return {
+      id: row.id,
+      ownerUserId: row.owner_user_id,
+      goalId: row.goal_id,
+      evidenceKind: row.evidence_kind as JarvisGoalEvidenceKind,
+      sourceKind: row.source_kind as JarvisGoalSourceKind,
+      sourceRef: row.source_ref,
+      sourceLabel: row.source_label,
+      summary: row.summary,
+      occurredAt: row.occurred_at ? row.occurred_at.toISOString() : null,
+      createdAt: row.created_at.toISOString()
+    };
+  }
+}
