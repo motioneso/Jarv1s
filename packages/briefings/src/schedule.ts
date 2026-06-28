@@ -16,15 +16,18 @@ const DEFAULT_TARGET_TIME_CRON = "0 7 * * *";
 const DEFAULT_TIMEZONE = "UTC";
 
 export function defaultScheduleMetadataFor(type: BriefingType): Record<string, unknown> {
-  return { targetTime: type === "evening" ? "19:00" : "07:00", timezone: DEFAULT_TIMEZONE };
+  if (type === "evening") return { targetTime: "19:00", timezone: DEFAULT_TIMEZONE };
+  if (type === "weekly_review")
+    return { targetTime: "09:00", timezone: DEFAULT_TIMEZONE, dayOfWeek: 0 };
+  return { targetTime: "07:00", timezone: DEFAULT_TIMEZONE };
 }
 
 /**
- * Derive a daily cron expression from `schedule_metadata.targetTime` ("HH:MM").
- * Defaults to 07:00 local when absent or malformed. Daily cadence only — weekly
- * is out of scope for this slice.
+ * Derive a cron expression from `schedule_metadata.targetTime` ("HH:MM").
+ * Defaults to 07:00 local when absent or malformed.
+ * For weekly cadence, emits a day-of-week cron using `dayOfWeek` (0=Sun … 6=Sat), defaulting to Monday.
  */
-export function cronExprFor(scheduleMetadata: Record<string, unknown>): string {
+export function cronExprFor(cadence: string, scheduleMetadata: Record<string, unknown>): string {
   const raw = scheduleMetadata.targetTime;
   if (typeof raw !== "string") {
     return DEFAULT_TARGET_TIME_CRON;
@@ -35,6 +38,12 @@ export function cronExprFor(scheduleMetadata: Record<string, unknown>): string {
   }
   const hour = Number(match[1]);
   const minute = Number(match[2]);
+
+  if (cadence === "weekly") {
+    const day = typeof scheduleMetadata.dayOfWeek === "number" ? scheduleMetadata.dayOfWeek : 1;
+    return `${minute} ${hour} * * ${day}`;
+  }
+
   return `${minute} ${hour} * * *`;
 }
 
@@ -67,8 +76,8 @@ export async function reconcileSchedule(
   boss: PgBoss,
   definition: BriefingDefinition
 ): Promise<void> {
-  if (definition.cadence === "daily" && definition.enabled) {
-    const cron = cronExprFor(definition.schedule_metadata);
+  if ((definition.cadence === "daily" || definition.cadence === "weekly") && definition.enabled) {
+    const cron = cronExprFor(definition.cadence, definition.schedule_metadata);
     const tz = timezoneFor(definition.schedule_metadata);
     const data = {
       actorUserId: definition.owner_user_id,

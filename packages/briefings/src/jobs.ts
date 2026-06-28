@@ -172,7 +172,10 @@ export async function registerBriefingsJobWorkers(
             title:
               outcome.run.briefing_type === "evening"
                 ? "Your evening review is ready"
-                : "Your morning briefing is ready",
+                : outcome.run.briefing_type === "weekly_review"
+                  ? "Your weekly review is ready"
+                  : "Your morning briefing is ready",
+            urgency: "normal",
             metadata: { definitionId: outcome.run.definition_id, briefingRunId: outcome.run.id }
           });
         } catch (error) {

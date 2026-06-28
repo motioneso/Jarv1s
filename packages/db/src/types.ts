@@ -176,7 +176,7 @@ export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | 
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
 export type BriefingRunKind = "manual" | "scheduled";
-export type BriefingType = "morning" | "evening";
+export type BriefingType = "morning" | "evening" | "weekly_review";
 
 export interface TasksTable {
   id: string;

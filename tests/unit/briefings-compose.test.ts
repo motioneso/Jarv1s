@@ -29,7 +29,14 @@ function definition(overrides: Partial<BriefingDefinition> = {}): BriefingDefini
     // UTC so the fixed-now local-day filter is trivially satisfied by the canned dates.
     schedule_metadata: { targetTime: "06:00", timezone: "UTC" },
     enabled: true,
-    selected_tool_names: [],
+    selected_tool_names: [
+      "commitments.listVisible",
+      "tasks.list",
+      "calendar.listVisibleEvents",
+      "email.listVisibleMessages",
+      "vault",
+      "chat.listTodaysTurns"
+    ],
     last_run_at: null,
     created_at: new Date(),
     updated_at: new Date(),

@@ -21,7 +21,6 @@ import {
   type BriefingDefinitionDto,
   type BriefingRunDto,
   type BriefingType,
-  type CreateBriefingDefinitionRequest,
   type RunBriefingDefinitionRequest,
   type UpdateBriefingDefinitionRequest
 } from "@jarv1s/shared";
@@ -30,7 +29,7 @@ import { sendJob } from "@jarv1s/jobs";
 
 import { type BriefingRunPayload } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
-import { BriefingsRepository } from "./repository.js";
+import { BriefingsRepository, type CreateBriefingDefinitionInput } from "./repository.js";
 import { reconcileOwnedSchedules, reconcileSchedule } from "./schedule.js";
 import { deriveBriefingFeedbackItems } from "./feedback-targets.js";
 
@@ -51,7 +50,7 @@ interface DefinitionParams {
 }
 
 const BRIEFING_CADENCES = new Set<BriefingCadence>(["manual", "daily", "weekly"]);
-const BRIEFING_TYPES = new Set<BriefingType>(["morning", "evening"]);
+const BRIEFING_TYPES = new Set<BriefingType>(["morning", "evening", "weekly_review"]);
 
 export function registerBriefingsRoutes(
   server: FastifyInstance,
@@ -310,22 +309,56 @@ async function reconcileScheduleSafely(
   }
 }
 
+function validateScheduleMetadata(
+  cadence: string | undefined,
+  scheduleMetadata: Record<string, unknown> | undefined
+): void {
+  if (!scheduleMetadata) return;
+
+  const tz = scheduleMetadata.timezone;
+  if (tz !== undefined) {
+    if (typeof tz !== "string" || tz.trim() === "") {
+      throw new HttpError(400, "invalid timezone");
+    }
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(0);
+    } catch {
+      throw new HttpError(400, "invalid timezone");
+    }
+  }
+
+  if (cadence === "weekly" && scheduleMetadata.dayOfWeek == null) {
+    throw new HttpError(400, "dayOfWeek required for weekly schedules");
+  }
+}
+
 function parseCreateDefinitionBody(
   body: unknown,
   moduleManifests: readonly JarvisModuleManifest[]
-): CreateBriefingDefinitionRequest {
+): CreateBriefingDefinitionInput {
   const value = requireObject(body);
+  const briefingType = optionalBriefingType(value.briefingType) ?? "morning";
+
+  const rawToolNames =
+    value.selectedToolNames !== undefined
+      ? value.selectedToolNames
+      : defaultToolNamesFor(briefingType);
+
   const selectedToolNames = requiredReadToolNames(
-    value.selectedToolNames,
+    rawToolNames,
     "selectedToolNames",
     moduleManifests
   );
 
+  const cadence = optionalBriefingCadence(value.cadence) ?? "manual";
+  const scheduleMetadata = optionalJsonObject(value.scheduleMetadata, "scheduleMetadata");
+  validateScheduleMetadata(cadence, scheduleMetadata);
+
   return {
     title: requiredString(value.title, "title"),
-    briefingType: optionalBriefingType(value.briefingType) ?? "morning",
-    cadence: optionalBriefingCadence(value.cadence) ?? "manual",
-    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
+    briefingType,
+    cadence,
+    scheduleMetadata,
     enabled: optionalBoolean(value.enabled, "enabled") ?? true,
     selectedToolNames
   };
@@ -341,11 +374,15 @@ function parseUpdateDefinitionBody(
       ? undefined
       : requiredReadToolNames(value.selectedToolNames, "selectedToolNames", moduleManifests);
 
+  const cadence = optionalBriefingCadence(value.cadence);
+  const scheduleMetadata = optionalJsonObject(value.scheduleMetadata, "scheduleMetadata");
+  validateScheduleMetadata(cadence, scheduleMetadata);
+
   return {
     title: optionalString(value.title, "title"),
     briefingType: optionalBriefingType(value.briefingType),
-    cadence: optionalBriefingCadence(value.cadence),
-    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
+    cadence,
+    scheduleMetadata,
     enabled: optionalBoolean(value.enabled, "enabled"),
     selectedToolNames
   };
@@ -379,7 +416,12 @@ function requiredReadToolNames(
     ...new Set(value.map((item, index) => requiredArrayString(item, fieldName, index)))
   ];
 
-  if (selectedToolNames.some((name) => toolsByName.get(name)?.risk !== "read")) {
+  const VIRTUAL_SOURCES = new Set(["vault", "chats"]);
+  if (
+    selectedToolNames.some(
+      (name) => !VIRTUAL_SOURCES.has(name) && toolsByName.get(name)?.risk !== "read"
+    )
+  ) {
     throw new HttpError(400, "Briefings can only select declared read-risk assistant tools");
   }
 
@@ -481,7 +523,37 @@ function optionalBriefingType(value: unknown): BriefingType | undefined {
     return value as BriefingType;
   }
 
-  throw new HttpError(400, "briefingType must be morning or evening");
+  throw new HttpError(400, "briefingType must be morning, evening, or weekly_review");
+}
+
+function defaultToolNamesFor(type: BriefingType): string[] {
+  switch (type) {
+    case "morning":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "goals.list"
+      ];
+    case "evening":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "chat.listTodaysTurns",
+        "goals.list"
+      ];
+    case "weekly_review":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "goals.list"
+      ];
+  }
 }
 
 function serializeDefinition(definition: BriefingDefinition): BriefingDefinitionDto {
