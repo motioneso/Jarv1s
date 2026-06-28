@@ -839,6 +839,55 @@ export class MemoryGraphRepository {
     `.execute(scopedDb.db);
     return result.rows.map(mapSource);
   }
+
+  async getEntityIdByAlias(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    alias: string
+  ): Promise<string | null> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ entity_id: string }>`
+      SELECT entity_id
+      FROM app.memory_aliases
+      WHERE owner_user_id = ${ownerUserId}::uuid AND alias = ${alias}
+    `.execute(scopedDb.db);
+    return result.rows[0]?.entity_id ?? null;
+  }
+
+  async updateEntity(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    entityId: string,
+    input: { name: string; summary: string }
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`
+      UPDATE app.memory_entities
+      SET name = ${input.name}, summary = ${input.summary}, updated_at = now()
+      WHERE id = ${entityId}::uuid AND owner_user_id = ${ownerUserId}::uuid
+    `.execute(scopedDb.db);
+    
+    await this.upsertSearchDocument(
+      scopedDb,
+      ownerUserId,
+      "entity",
+      entityId,
+      `${input.name} ${input.summary}`.trim()
+    );
+  }
+
+  async forgetEntity(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    entityId: string
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await sql`
+      UPDATE app.memory_entities
+      SET status = 'forgotten'
+      WHERE id = ${entityId}::uuid AND owner_user_id = ${ownerUserId}::uuid
+    `.execute(scopedDb.db);
+  }
 }
 
 function normalizeAlias(alias: string): string {

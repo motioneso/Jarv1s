@@ -29,7 +29,16 @@ export const goalGetExecute: ToolExecute = async (scopedDb, input, _ctx): Promis
   return {
     data: {
       goal: goal as unknown as Record<string, unknown>,
-      evidence: evidence.map((e) => e as unknown as Record<string, unknown>)
+      evidence: evidence
+        .slice(0, 10)
+        .map(
+          (e) =>
+            ({
+              evidenceKind: e.evidenceKind,
+              summary: e.summary,
+              sourceLabel: e.sourceLabel
+            }) as unknown as Record<string, unknown>
+        )
     }
   };
 };

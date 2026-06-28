@@ -1,5 +1,4 @@
-import { sql } from "kysely";
-import type { DataContextRunner, DataContextDb } from "@jarv1s/db";
+import type { DataContextRunner } from "@jarv1s/db";
 import { registerDataContextWorker, sendJob, type PgBoss } from "@jarv1s/jobs";
 import type { MemoryGraphRepository } from "@jarv1s/memory";
 
@@ -29,13 +28,15 @@ export function registerGoalsMemorySyncWorker(
       const goal = await repository.getById(scopedDb, goalId);
       if (!goal) {
         // Goal was deleted or doesn't exist
-        await markMemoryAsForgotten(scopedDb, actorUserId, goalId);
+        const eid = await memoryGraphRepo.getEntityIdByAlias(scopedDb, actorUserId, `jarvis_goal:${goalId}`);
+        if (eid) await memoryGraphRepo.forgetEntity(scopedDb, actorUserId, eid);
         return;
       }
 
       // If it's archived, we might also suppress it from memory
       if (goal.status === "archived") {
-        await markMemoryAsForgotten(scopedDb, actorUserId, goalId);
+        const eid = await memoryGraphRepo.getEntityIdByAlias(scopedDb, actorUserId, `jarvis_goal:${goalId}`);
+        if (eid) await memoryGraphRepo.forgetEntity(scopedDb, actorUserId, eid);
         return;
       }
 
@@ -43,22 +44,10 @@ export function registerGoalsMemorySyncWorker(
         const evidence = await repository.listEvidence(scopedDb, goalId);
         const briefing = formatGoalBriefing(goal, evidence);
 
-        const existingEntityId = await getAliasEntityId(scopedDb, actorUserId, goalId);
+        const existingEntityId = await memoryGraphRepo.getEntityIdByAlias(scopedDb, actorUserId, `jarvis_goal:${goalId}`);
         if (existingEntityId) {
           // Update existing memory
-          await sql`
-            UPDATE app.memory_entities
-            SET name = ${goal.title}, summary = ${briefing}, updated_at = now()
-            WHERE id = ${existingEntityId}::uuid
-          `.execute(scopedDb.db);
-
-          await memoryGraphRepo.upsertSearchDocument(
-            scopedDb,
-            actorUserId,
-            "entity",
-            existingEntityId,
-            `${goal.title} ${briefing}`.trim()
-          );
+          await memoryGraphRepo.updateEntity(scopedDb, actorUserId, existingEntityId, { name: goal.title, summary: briefing });
         } else {
           // Create new memory item
           const entity = await memoryGraphRepo.createEntity(scopedDb, actorUserId, {
@@ -154,33 +143,4 @@ function formatGoalBriefing(goal: JarvisGoal, evidence: JarvisGoalEvidence[]): s
   }
 
   return parts.join("\n");
-}
-
-async function getAliasEntityId(
-  scopedDb: DataContextDb,
-  ownerUserId: string,
-  goalId: string
-): Promise<string | null> {
-  const alias = `jarvis_goal:${goalId}`;
-  const result = await sql<{ entity_id: string }>`
-    SELECT entity_id 
-    FROM app.memory_aliases 
-    WHERE owner_user_id = ${ownerUserId}::uuid AND alias = ${alias}
-  `.execute(scopedDb.db);
-  return result.rows[0]?.entity_id ?? null;
-}
-
-async function markMemoryAsForgotten(
-  scopedDb: DataContextDb,
-  ownerUserId: string,
-  goalId: string
-): Promise<void> {
-  const entityId = await getAliasEntityId(scopedDb, ownerUserId, goalId);
-  if (entityId) {
-    await sql`
-      UPDATE app.memory_entities
-      SET status = 'forgotten'
-      WHERE id = ${entityId}::uuid
-    `.execute(scopedDb.db);
-  }
 }

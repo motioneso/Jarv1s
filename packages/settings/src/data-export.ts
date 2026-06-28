@@ -57,6 +57,8 @@ export interface UserDataExportTables {
   readonly users: readonly ExportRow[];
   readonly wellnessCheckins: readonly ExportRow[];
   readonly wellnessTherapyNotes: readonly ExportRow[];
+  readonly jarvisGoals: readonly ExportRow[];
+  readonly jarvisGoalEvidence: readonly ExportRow[];
 }
 
 export async function exportUserData(options: ExportUserDataOptions): Promise<UserDataExport> {
@@ -93,6 +95,8 @@ async function readExportTables(
     briefingDefinitions: await readRows(scopedDb.db, briefingDefinitionsQuery(userId)),
     briefingRuns: await readRows(scopedDb.db, briefingRunsQuery(userId)),
     memoryChunks: await readRows(scopedDb.db, memoryChunksQuery(userId)),
+    jarvisGoals: await readRows(scopedDb.db, jarvisGoalsQuery(userId)),
+    jarvisGoalEvidence: await readRows(scopedDb.db, jarvisGoalEvidenceQuery(userId)),
     chatMemoryFacts: await readRows(scopedDb.db, chatMemoryFactsQuery(userId)),
     memoryEntities: await readRows(scopedDb.db, memoryEntitiesQuery(userId)),
     memoryFacts: await readRows(scopedDb.db, memoryFactsQuery(userId)),
@@ -817,6 +821,46 @@ function wellnessTherapyNotesQuery(userId: string) {
     FROM app.wellness_therapy_notes
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at DESC, id
+  `;
+}
+
+function jarvisGoalsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      title,
+      desired_outcome AS "desiredOutcome",
+      status::text,
+      priority,
+      target_at AS "targetAt",
+      last_progress_summary AS "lastProgressSummary",
+      blocker_summary AS "blockerSummary",
+      next_suggested_action AS "nextSuggestedAction",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.jarvis_goals
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function jarvisGoalEvidenceQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      goal_id::text AS "goalId",
+      owner_user_id::text AS "ownerUserId",
+      evidence_kind::text AS "evidenceKind",
+      source_kind::text AS "sourceKind",
+      source_ref AS "sourceRef",
+      source_label AS "sourceLabel",
+      summary,
+      occurred_at AS "occurredAt",
+      created_at AS "createdAt"
+    FROM app.jarvis_goal_evidence
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
   `;
 }
 
