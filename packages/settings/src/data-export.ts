@@ -57,6 +57,7 @@ export interface UserDataExportTables {
   readonly users: readonly ExportRow[];
   readonly wellnessCheckins: readonly ExportRow[];
   readonly wellnessTherapyNotes: readonly ExportRow[];
+  readonly jarvisActionAuditLog: readonly ExportRow[];
   readonly jarvisGoals: readonly ExportRow[];
   readonly jarvisGoalEvidence: readonly ExportRow[];
 }
@@ -90,6 +91,7 @@ async function readExportTables(
     aiProviderConfigs: await readRows(scopedDb.db, aiProviderConfigsQuery(userId)),
     aiConfiguredModels: await readRows(scopedDb.db, aiConfiguredModelsQuery(userId)),
     aiAssistantActionRequests: await readRows(scopedDb.db, aiAssistantActionRequestsQuery(userId)),
+    jarvisActionAuditLog: await readRows(scopedDb.db, jarvisActionAuditLogQuery(userId)),
     chatThreads: await readRows(scopedDb.db, chatThreadsQuery(userId)),
     chatMessages: await readRows(scopedDb.db, chatMessagesQuery(userId)),
     briefingDefinitions: await readRows(scopedDb.db, briefingDefinitionsQuery(userId)),
@@ -370,6 +372,28 @@ function aiAssistantActionRequestsQuery(userId: string) {
     FROM app.ai_assistant_action_requests
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY requested_at, id
+  `;
+}
+
+function jarvisActionAuditLogQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      tool_module_id AS "toolModuleId",
+      tool_name AS "toolName",
+      action_family_id AS "actionFamilyId",
+      action_kind AS "actionKind",
+      approval_mode AS "approvalMode",
+      outcome,
+      error_class AS "errorClass",
+      request_id AS "requestId",
+      chat_session_id AS "chatSessionId",
+      source_surface AS "sourceSurface",
+      occurred_at AS "occurredAt"
+    FROM app.jarvis_action_audit_log
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY occurred_at, id
   `;
 }
 
