@@ -156,15 +156,13 @@ export class ProactiveScanner {
       return skip(source, "scorer_error");
     }
 
-    // Sort ranked by score descending, process high/critical only.
-    const sorted = [...ranked].sort((a, b) => b.score - a.score);
+    // Sort signal-result pairs together so association is preserved after re-ordering.
+    const sortedPairs = allowedSignals
+      .map((signal, j) => ({ signal, result: ranked[j]! }))
+      .sort((a, b) => b.result.score - a.result.score);
 
-    for (let i = 0; i < sorted.length; i++) {
-      const result = sorted[i]!;
+    for (const { signal, result } of sortedPairs) {
       if (result.band !== "critical" && result.band !== "high") continue;
-
-      const signal = allowedSignals[i];
-      if (!signal) continue;
 
       const verdict = await this.deps.antiSpamPolicy.check(
         scopedDb,

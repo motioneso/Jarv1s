@@ -75,7 +75,7 @@ export const emailMonitorProvider: ProactiveMonitorProvider = {
         stableKey,
         sourceRefHash: stableHash(msg.external_id ?? msg.id),
         signalType,
-        title: msg.subject,
+        title: sanitizeSnippet(msg.subject).slice(0, 200),
         summary: msg.snippet
           ? sanitizeSnippet(msg.snippet).slice(0, 200)
           : isUrgent
