@@ -1,3 +1,4 @@
+export { chatCommitmentProvider } from "./commitment-provider.js";
 export * from "./calendar-write-impl.js";
 export * from "./jobs.js";
 export * from "./live-routes.js";

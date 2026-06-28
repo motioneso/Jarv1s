@@ -51,6 +51,7 @@
     "test:notifications": "vitest run tests/integration/notifications.test.ts",
     "test:tasks": "vitest run tests/integration/tasks.test.ts",
     "test:tasks-tools": "vitest run tests/integration/tasks-tools.test.ts",
+    "test:commitments": "JARVIS_PGDATABASE=jarvis_build_537 vitest run tests/integration/commitments.test.ts",
     "test:wellness": "vitest run tests/integration/wellness.test.ts tests/integration/wellness-phase2.test.ts tests/integration/wellness-medications.test.ts",
     "test:memory": "vitest run tests/integration/memory.test.ts tests/integration/memory-facts-rls.test.ts tests/integration/memory-graph.test.ts",
     "test:memory:local": "vitest run tests/slow/memory-local-embed.test.ts",

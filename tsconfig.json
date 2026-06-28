@@ -44,7 +44,15 @@
       "@jarv1s/weather": ["packages/weather/src/index.ts"],
       "@jarv1s/wellness": ["packages/wellness/src/index.ts"],
       "@jarv1s/notes": ["packages/notes/src/index.ts"],
-      "@jarv1s/proactive-monitoring": ["packages/proactive-monitoring/src/index.ts"]
+      "@jarv1s/proactive-monitoring": ["packages/proactive-monitoring/src/index.ts"],
+      "@jarv1s/commitments": ["packages/commitments/src/index.ts"],
+      "@jarv1s/commitments/extractor": ["packages/commitments/src/extractor.ts"],
+      "@jarv1s/commitments/jobs": ["packages/commitments/src/jobs.ts"],
+      "@jarv1s/commitments/routes": ["packages/commitments/src/routes.ts"],
+      "@jarv1s/commitments/workers": ["packages/commitments/src/workers.ts"],
+      "@jarv1s/commitments/prefilter": ["packages/commitments/src/prefilter.ts"],
+      "@jarv1s/commitments/signature": ["packages/commitments/src/signature.ts"],
+      "@jarv1s/commitments/tools": ["packages/commitments/src/tools.ts"]
     }
   },
   "include": [

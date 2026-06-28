@@ -60,6 +60,46 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/db/src/probes/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/commitments/tools",
+        replacement: fileURLToPath(new URL("./packages/commitments/src/tools.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/commitments/routes",
+        replacement: fileURLToPath(new URL("./packages/commitments/src/routes.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/commitments/workers",
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/workers.ts", import.meta.url)
+        )
+      },
+      {
+        find: "@jarv1s/commitments/jobs",
+        replacement: fileURLToPath(new URL("./packages/commitments/src/jobs.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/commitments/extractor",
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/extractor.ts", import.meta.url)
+        )
+      },
+      {
+        find: "@jarv1s/commitments/prefilter",
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/prefilter.ts", import.meta.url)
+        )
+      },
+      {
+        find: "@jarv1s/commitments/signature",
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/signature.ts", import.meta.url)
+        )
+      },
+      {
+        find: "@jarv1s/commitments",
+        replacement: fileURLToPath(new URL("./packages/commitments/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/connectors",
         replacement: fileURLToPath(new URL("./packages/connectors/src/index.ts", import.meta.url))
       },

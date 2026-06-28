@@ -353,6 +353,33 @@ importers:
         specifier: workspace:*
         version: link:../chat
 
+  packages/commitments:
+    dependencies:
+      '@jarv1s/db':
+        specifier: workspace:*
+        version: link:../db
+      '@jarv1s/jobs':
+        specifier: workspace:*
+        version: link:../jobs
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+      '@jarv1s/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@sinclair/typebox':
+        specifier: ^0.34.13
+        version: 0.34.49
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      kysely:
+        specifier: ^0.29.2
+        version: 0.29.2
+      pg-boss:
+        specifier: ^12.18.2
+        version: 12.18.2
+
   packages/connectors:
     dependencies:
       '@jarv1s/ai':

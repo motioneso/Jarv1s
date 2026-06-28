@@ -390,6 +390,50 @@ export interface JarvisModuleManifest {
   readonly proactiveMonitor?: ProactiveMonitorProvider;
 }
 
+/** Boundary of text from a source that may contain commitments. */
+export interface CommitmentTextBoundary {
+  readonly sourceRef: string;
+  readonly sourceVersion: number;
+  readonly text: string;
+  readonly occurredAt: string;
+}
+
+/** A single extracted commitment candidate returned by the AI extractor. */
+export interface ExtractedCommitmentCandidate {
+  readonly kind: "deadline" | "promise" | "obligation" | "intent";
+  readonly title: string;
+  readonly dueLocalDate: string | null;
+  readonly counterpartyLabel: string | null;
+  readonly evidenceExcerpt: string;
+  readonly confidence: "high" | "medium" | "low";
+}
+
+/**
+ * Implemented by source modules (chat, email, notes) to supply text boundaries
+ * for commitment extraction. The Commitments module never imports source module
+ * internals — it invokes only this interface.
+ */
+export interface CommitmentExtractionProvider {
+  readonly sourceKind: "chat" | "email" | "notes";
+  getTextBoundaries(
+    scopedDb: unknown,
+    actorUserId: string,
+    since: Date | null
+  ): Promise<CommitmentTextBoundary[]>;
+}
+
+/**
+ * Validates that a resolution reference is real and owned by the actor before
+ * it is stored on a candidate. Missing verifier → 503 (not 500).
+ */
+export interface CommitmentResolutionVerifier {
+  verifyResolutionRef(
+    scopedDb: unknown,
+    actorUserId: string,
+    resolutionRef: string
+  ): Promise<{ readonly valid: boolean; readonly reason?: string }>;
+}
+
 export function renderToolResult(result: ToolResult): string {
   const { data, columnOrder } = result;
   const items = data.items;

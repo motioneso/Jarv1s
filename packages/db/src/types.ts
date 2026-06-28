@@ -696,6 +696,106 @@ export interface ProactiveCardsTable {
   updated_at: TimestampColumn;
 }
 
+type CommitmentCandidateKindDb = "deadline" | "promise" | "obligation" | "intent";
+type CommitmentCandidateStatusDb =
+  | "pending_review"
+  | "accepted"
+  | "rejected"
+  | "snoozed"
+  | "expired"
+  | "explicit_non_action";
+type CommitmentSuggestedHandlingDb =
+  | "create_task"
+  | "create_goal"
+  | "create_calendar_event"
+  | "send_reply"
+  | "dismiss";
+
+export interface CommitmentCandidatesTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: string;
+  candidate_signature: string;
+  kind: ColumnType<CommitmentCandidateKindDb, CommitmentCandidateKindDb, CommitmentCandidateKindDb>;
+  title: string;
+  due_local_date: ColumnType<string | null, string | null | undefined, string | null>;
+  counterparty_label: ColumnType<string | null, string | null | undefined, string | null>;
+  status: ColumnType<
+    CommitmentCandidateStatusDb,
+    CommitmentCandidateStatusDb | undefined,
+    CommitmentCandidateStatusDb
+  >;
+  confidence: ColumnType<
+    "high" | "medium" | "low",
+    "high" | "medium" | "low",
+    "high" | "medium" | "low"
+  >;
+  suggested_handling: ColumnType<
+    CommitmentSuggestedHandlingDb | null,
+    CommitmentSuggestedHandlingDb | null | undefined,
+    CommitmentSuggestedHandlingDb | null
+  >;
+  resolution_ref: ColumnType<string | null, string | null | undefined, string | null>;
+  suppressed_by: ColumnType<string | null, string | null | undefined, string | null>;
+  source_count: ColumnType<number, number | undefined, number>;
+  first_seen_at: TimestampColumn;
+  last_seen_at: TimestampColumn;
+  snoozed_until: NullableTimestampColumn;
+  expires_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface CommitmentCandidateSourcesTable {
+  id: ColumnType<string, string | undefined, never>;
+  candidate_id: string;
+  owner_user_id: string;
+  source_kind: "chat" | "email" | "notes";
+  source_ref: string;
+  source_version: ColumnType<number, number | undefined, number>;
+  evidence_excerpt: string;
+  occurred_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+}
+
+export interface CommitmentCandidateEventsTable {
+  id: ColumnType<string, string | undefined, never>;
+  candidate_id: string;
+  owner_user_id: string;
+  event_kind:
+    | "created"
+    | "status_changed"
+    | "resolution_set"
+    | "snoozed"
+    | "suppressed"
+    | "evidence_added";
+  from_status: ColumnType<
+    CommitmentCandidateStatusDb | null,
+    CommitmentCandidateStatusDb | null | undefined,
+    CommitmentCandidateStatusDb | null
+  >;
+  to_status: ColumnType<
+    CommitmentCandidateStatusDb | null,
+    CommitmentCandidateStatusDb | null | undefined,
+    CommitmentCandidateStatusDb | null
+  >;
+  actor_user_id: string;
+  detail: ColumnType<
+    Record<string, unknown> | null,
+    Record<string, unknown> | null | undefined,
+    Record<string, unknown> | null
+  >;
+  created_at: TimestampColumn;
+}
+
+export interface CommitmentExtractionStateTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: string;
+  source_kind: "chat" | "email" | "notes";
+  last_extracted_at: NullableTimestampColumn;
+  last_run_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -745,6 +845,10 @@ export interface JarvisDatabase {
   "app.data_export_jobs": DataExportJobsTable;
   "app.proactive_monitor_state": ProactiveMonitorStateTable;
   "app.proactive_cards": ProactiveCardsTable;
+  "app.commitment_candidates": CommitmentCandidatesTable;
+  "app.commitment_candidate_sources": CommitmentCandidateSourcesTable;
+  "app.commitment_candidate_events": CommitmentCandidateEventsTable;
+  "app.commitment_extraction_state": CommitmentExtractionStateTable;
 }
 
 export type User = Selectable<UsersTable>;
