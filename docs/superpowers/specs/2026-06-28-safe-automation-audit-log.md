@@ -24,7 +24,7 @@ Suggestions, §12 Privacy/Safety — both defer audit-log UX to #540),
 Jarvis can already execute and propose assistant actions through the gateway. With #534 in place,
 some write families run autonomously (`trusted_auto`), some require confirmation (`ask_each_time`),
 and destructive/external families always confirm. Proactive cards (#531) and scheduled briefings
-(#536) can also *propose* actions that route back through the gateway.
+(#536) can also _propose_ actions that route back through the gateway.
 
 The user has no single, durable, chronological record of **what Jarvis actually did on their
 behalf** — what ran, when, whether it was auto-run or explicitly confirmed (or rejected), and what
@@ -32,7 +32,7 @@ the outcome was.
 
 Today's partial signals are not an audit trail:
 
-- `app.ai_assistant_action_requests` only records actions that hit the *confirm* path. Anything that
+- `app.ai_assistant_action_requests` only records actions that hit the _confirm_ path. Anything that
   resolves to `run` (read tools, `trusted_auto` writes) never creates a row, so the autonomous
   actions — exactly the ones a user most wants to audit — are invisible.
 - the chat action-request card is ephemeral per session and scrolls away;
@@ -101,34 +101,34 @@ permission, not the action model, and would flood the log). Only `risk: "write"`
 
 Recorded fields (all metadata):
 
-| Field             | Meaning                                                                                |
-| ----------------- | -------------------------------------------------------------------------------------- |
-| `id`              | uuid, audit row id.                                                                    |
-| `owner_user_id`   | actor user id (`ToolContext.actorUserId`). Owner scope.                                |
-| `tool_module_id`  | owning module id (e.g. `tasks`).                                                        |
-| `tool_name`       | assistant tool name (e.g. `tasks.create`, `tasks.deleteList`).                          |
-| `action_family_id`| `actionFamilyId` from the tool manifest (#534), nullable for write tools without one.   |
-| `action_kind`     | normalized verb class: `write` or `destructive` (the tool's `risk`).                    |
-| `approval_mode`   | how it was authorized: `auto` \| `confirmed` \| `rejected` \| `cancelled` \| `timeout`. |
-| `outcome`         | terminal result: `success` \| `failed` \| `denied` \| `cancelled`.                      |
-| `error_class`     | optional bounded error class string (e.g. `handler_error`, `timeout`). No messages.     |
-| `request_id`      | correlation id (`ToolContext.requestId`) for cross-referencing operator logs.           |
-| `chat_session_id` | nullable; the originating chat session for cross-referencing only (an id, not content).  |
-| `source_surface`  | where the action originated: `chat` \| `proactive` \| `scheduled` \| `unknown`.          |
-| `occurred_at`     | timestamptz, terminal-outcome time.                                                     |
+| Field              | Meaning                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| `id`               | uuid, audit row id.                                                                     |
+| `owner_user_id`    | actor user id (`ToolContext.actorUserId`). Owner scope.                                 |
+| `tool_module_id`   | owning module id (e.g. `tasks`).                                                        |
+| `tool_name`        | assistant tool name (e.g. `tasks.create`, `tasks.deleteList`).                          |
+| `action_family_id` | `actionFamilyId` from the tool manifest (#534), nullable for write tools without one.   |
+| `action_kind`      | normalized verb class: `write` or `destructive` (the tool's `risk`).                    |
+| `approval_mode`    | how it was authorized: `auto` \| `confirmed` \| `rejected` \| `cancelled` \| `timeout`. |
+| `outcome`          | terminal result: `success` \| `failed` \| `denied` \| `cancelled`.                      |
+| `error_class`      | optional bounded error class string (e.g. `handler_error`, `timeout`). No messages.     |
+| `request_id`       | correlation id (`ToolContext.requestId`) for cross-referencing operator logs.           |
+| `chat_session_id`  | nullable; the originating chat session for cross-referencing only (an id, not content). |
+| `source_surface`   | where the action originated: `chat` \| `proactive` \| `scheduled` \| `unknown`.         |
+| `occurred_at`      | timestamptz, terminal-outcome time.                                                     |
 
 `approval_mode` × `outcome` mapping (written at the gateway exit point):
 
-| Gateway path                                  | `approval_mode` | `outcome`   |
-| --------------------------------------------- | --------------- | ----------- |
-| `run` path (read)                             | *(not logged — read tools are not audited)*   ||
-| `run` path, `trusted_auto` write succeeds     | `auto`          | `success`   |
-| `run` path, `trusted_auto` write throws       | `auto`          | `failed`    |
-| confirm path, approved, handler succeeds      | `confirmed`     | `success`   |
-| confirm path, approved, handler throws        | `confirmed`     | `failed`    |
-| confirm path, user denies                     | `rejected`      | `denied`    |
-| confirm path, user cancels                    | `cancelled`     | `cancelled` |
-| confirm path, confirm timeout (no decision)   | `timeout`       | `denied`    |
+| Gateway path                                | `approval_mode`                             | `outcome`   |
+| ------------------------------------------- | ------------------------------------------- | ----------- |
+| `run` path (read)                           | _(not logged — read tools are not audited)_ |             |
+| `run` path, `trusted_auto` write succeeds   | `auto`                                      | `success`   |
+| `run` path, `trusted_auto` write throws     | `auto`                                      | `failed`    |
+| confirm path, approved, handler succeeds    | `confirmed`                                 | `success`   |
+| confirm path, approved, handler throws      | `confirmed`                                 | `failed`    |
+| confirm path, user denies                   | `rejected`                                  | `denied`    |
+| confirm path, user cancels                  | `cancelled`                                 | `cancelled` |
+| confirm path, confirm timeout (no decision) | `timeout`                                   | `denied`    |
 
 Notes:
 
@@ -237,13 +237,13 @@ Rules:
   the resolution outcome — not from a second policy lookup.
 - `error_class` is a bounded enum-like token computed from the caught error category, never the error
   message or stack. The gateway already converts handler throws into a generic `Tool X failed`
-  string; the audit row records the *class*, not that string's contents.
+  string; the audit row records the _class_, not that string's contents.
 - No new field is added to `AccessContext` or `ToolContext`. `source_surface` and `chat_session_id`
   come from the existing `ToolContext` (`chatSessionId`) and an optional coarse surface hint already
   carried by the call context; absent → `chat`/`unknown`.
 
 This keeps `app.ai_assistant_action_requests` as the confirm-flow state machine (pending → resolved)
-and adds the audit log as the *complete* outcome record across both branches. The two tables are
+and adds the audit log as the _complete_ outcome record across both branches. The two tables are
 complementary: the action-request row is mutable workflow state; the audit row is the immutable
 historical fact.
 
@@ -365,7 +365,7 @@ Because this is a sensitive-tier change touching user data lifecycle:
   per-table query (metadata columns from §5) plus a registry entry in `readExportTables`. The user's
   export then includes their automation audit history. (Contrast the #534 audit gap analogy: the
   v0.1.0 audit flagged "export omits wellness while delete purges it" — do not repeat that
-  asymmetry. Export *and* delete must both cover the audit log.)
+  asymmetry. Export _and_ delete must both cover the audit log.)
 - **Deletion:** the `ON DELETE CASCADE` foreign key to `app.users(id)` ensures
   `scripts/delete-user-data.js` removes audit rows when the account is deleted. Add an assertion to
   the deletion test that no `jarvis_action_audit_log` rows survive a user delete.
@@ -400,7 +400,7 @@ Because this is a sensitive-tier change touching user data lifecycle:
 
 ## 14. Acceptance Criteria
 
-- [ ] Every gateway-executed `write`/`destructive` action — auto-run *and* confirmed — produces
+- [ ] Every gateway-executed `write`/`destructive` action — auto-run _and_ confirmed — produces
       exactly one audit row at its terminal outcome.
 - [ ] Rejected, cancelled, and timed-out proposed actions are logged with the correct
       `approval_mode` and `denied`/`cancelled` outcome, with no handler run.
@@ -460,4 +460,7 @@ Targeted tests:
 - account deletion cascade removes all of the user's audit rows;
 - user data export includes the audit log table with metadata-only columns;
 - `foundation.test.ts` full migration list assertion includes the new migration.
+
+```
+
 ```

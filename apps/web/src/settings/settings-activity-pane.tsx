@@ -80,9 +80,7 @@ export function ActivityPane(_props: PaneProps) {
 
   const families = Array.from(
     new Set(
-      entries
-        .filter((e) => e.actionFamilyId)
-        .map((e) => `${e.toolModuleId}/${e.actionFamilyId}`)
+      entries.filter((e) => e.actionFamilyId).map((e) => `${e.toolModuleId}/${e.actionFamilyId}`)
     )
   );
 
@@ -94,12 +92,13 @@ export function ActivityPane(_props: PaneProps) {
     <div className="settings-section">
       <header className="settings-section__header">
         <h2 className="settings-section__title">Activity</h2>
-        <p className="settings-section__desc">
-          Actions Jarvis ran on your behalf, last 90 days.
-        </p>
+        <p className="settings-section__desc">Actions Jarvis ran on your behalf, last 90 days.</p>
       </header>
 
-      <div className="audfilter" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+      <div
+        className="audfilter"
+        style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}
+      >
         {(["today", "7d", "30d", "90d"] as DateRange[]).map((r) => (
           <button
             key={r}
@@ -160,7 +159,14 @@ export function ActivityPane(_props: PaneProps) {
                     {entry.actionFamilyId}
                   </span>
                 )}
-                <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    marginTop: "0.25rem",
+                    display: "flex",
+                    gap: "0.375rem",
+                    flexWrap: "wrap"
+                  }}
+                >
                   <span className="jds-badge jds-badge--neutral">
                     {approvalLabel(entry.approvalMode)}
                   </span>
@@ -170,17 +176,12 @@ export function ActivityPane(_props: PaneProps) {
                     {outcomeLabel(entry.outcome)}
                   </span>
                   {entry.sourceSurface !== "chat" && (
-                    <span className="jds-badge jds-badge--steel">
-                      {entry.sourceSurface}
-                    </span>
+                    <span className="jds-badge jds-badge--steel">{entry.sourceSurface}</span>
                   )}
                 </div>
               </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
-                <span
-                  className="aud__when"
-                  title={new Date(entry.occurredAt).toLocaleString()}
-                >
+                <span className="aud__when" title={new Date(entry.occurredAt).toLocaleString()}>
                   {relativeTime(entry.occurredAt)}
                 </span>
               </div>

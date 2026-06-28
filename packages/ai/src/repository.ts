@@ -1098,10 +1098,7 @@ export class AiRepository {
     return query.execute();
   }
 
-  async purgeActionAuditLog(
-    appDb: Kysely<JarvisDatabase>,
-    olderThan: Date
-  ): Promise<number> {
+  async purgeActionAuditLog(appDb: Kysely<JarvisDatabase>, olderThan: Date): Promise<number> {
     const result = await sql<{ count: number }>`
       SELECT app.purge_jarvis_action_audit_log(${olderThan}) AS count
     `.execute(appDb);

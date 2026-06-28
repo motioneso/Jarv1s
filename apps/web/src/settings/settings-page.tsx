@@ -91,7 +91,7 @@ const GeneralPane = lazyPane(() =>
 );
 const AppearancePane = lazyPane(() =>
   import("./settings-appearance-pane").then((module) => ({ default: module.AppearancePane }))
-)
+);
 const ActivityPane = lazyPane(() =>
   import("./settings-activity-pane").then((module) => ({ default: module.ActivityPane }))
 );

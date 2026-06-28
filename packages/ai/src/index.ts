@@ -1,5 +1,9 @@
 export * from "./assistant-tools.js";
-export { AI_PURGE_AUDIT_LOG_QUEUE, AI_QUEUE_DEFINITIONS, registerAiMaintenanceWorkers } from "./jobs.js";
+export {
+  AI_PURGE_AUDIT_LOG_QUEUE,
+  AI_QUEUE_DEFINITIONS,
+  registerAiMaintenanceWorkers
+} from "./jobs.js";
 export * from "./auto-register.js";
 export * from "./chat-model-override.js";
 export * from "./chat-adapter.js";

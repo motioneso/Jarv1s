@@ -11,7 +11,12 @@ import { parsePositiveIntEnv } from "@jarv1s/shared";
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
 const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
 
-import type { AccessContext, DataContextDb, DataContextRunner, JarvisActionAuditLog } from "@jarv1s/db";
+import type {
+  AccessContext,
+  DataContextDb,
+  DataContextRunner,
+  JarvisActionAuditLog
+} from "@jarv1s/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
@@ -1037,7 +1042,8 @@ function serializeAuditLogEntry(row: JarvisActionAuditLog): ActionAuditLogEntryD
     requestId: row.request_id ?? null,
     chatSessionId: row.chat_session_id ?? null,
     sourceSurface: row.source_surface as ActionAuditLogEntryDto["sourceSurface"],
-    occurredAt: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : String(row.occurred_at)
+    occurredAt:
+      row.occurred_at instanceof Date ? row.occurred_at.toISOString() : String(row.occurred_at)
   };
 }
 
