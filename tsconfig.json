@@ -45,7 +45,9 @@
       "@jarv1s/wellness": ["packages/wellness/src/index.ts"],
       "@jarv1s/notes": ["packages/notes/src/index.ts"],
       "@jarv1s/proactive-monitoring": ["packages/proactive-monitoring/src/index.ts"],
-      "@jarv1s/commitments": ["packages/commitments/src/index.ts"]
+      "@jarv1s/commitments": ["packages/commitments/src/index.ts"],
+      "@jarv1s/commitments/prefilter": ["packages/commitments/src/prefilter.ts"],
+      "@jarv1s/commitments/signature": ["packages/commitments/src/signature.ts"]
     }
   },
   "include": [

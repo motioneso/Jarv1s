@@ -60,6 +60,14 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/db/src/probes/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/commitments/prefilter",
+        replacement: fileURLToPath(new URL("./packages/commitments/src/prefilter.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/commitments/signature",
+        replacement: fileURLToPath(new URL("./packages/commitments/src/signature.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/commitments",
         replacement: fileURLToPath(new URL("./packages/commitments/src/index.ts", import.meta.url))
       },
