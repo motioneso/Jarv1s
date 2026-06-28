@@ -447,7 +447,7 @@ describe("ChatSessionManager passive retrieval", () => {
     expect(recordTurn).toHaveBeenCalledWith("u1", "what did we decide?", "answer", {
       provider: "anthropic",
       model: "sonnet"
-    });
+    }, { invokedToolNames: expect.any(Set) });
   });
 
   it("continues with raw text when passive retrieval throws", async () => {

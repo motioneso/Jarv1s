@@ -18,7 +18,10 @@ import {
   type ChatActivityEventDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
-  type ChatThreadDto
+  type ChatThreadDto,
+  type FreshnessKind,
+  type SourceFreshnessEntry,
+  type SourceFreshnessV1
 } from "@jarv1s/shared";
 import {
   AiRepository,
@@ -675,6 +678,7 @@ function serializeMessage(message: ChatMessage): ChatMessageDto {
     modelRoute: null,
     tools: readTools(toolMetadata.selectedTools),
     activity: readActivity(toolMetadata.activity),
+    sourceFreshness: readSourceFreshness(toolMetadata.sourceFreshness),
     createdAt: toIsoString(message.created_at),
     updatedAt: toIsoString(message.updated_at),
     answerProvenance,
@@ -722,6 +726,21 @@ function readTools(value: unknown): ChatSelectedToolMetadataDto[] {
       }
     ];
   });
+}
+
+export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const rec = value as Record<string, unknown>;
+  if (rec.version !== 1) return null;
+  if (typeof rec.capturedAt !== "string") return null;
+  const rawSources = Array.isArray(rec.sources) ? rec.sources : [];
+  const sources: SourceFreshnessEntry[] = rawSources.flatMap((item) => {
+    const r = asRecord(item);
+    if (typeof r.source !== "string" || typeof r.freshnessKind !== "string") return [];
+    const asOf = r.asOf === null ? null : typeof r.asOf === "string" ? r.asOf : null;
+    return [{ source: r.source, freshnessKind: r.freshnessKind as FreshnessKind, asOf }];
+  });
+  return { version: 1, capturedAt: rec.capturedAt as string, sources };
 }
 
 function serializeSettings(s: UserMemorySettings) {

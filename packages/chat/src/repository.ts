@@ -9,7 +9,7 @@ import {
   type ChatThread,
   type DataContextDb
 } from "@jarv1s/db";
-import type { AnswerProvenanceMetadataV1 } from "@jarv1s/shared";
+import type { AnswerProvenanceMetadataV1, SourceFreshnessV1 } from "@jarv1s/shared";
 
 export interface CreateChatThreadInput {
   readonly title: string;
@@ -176,7 +176,10 @@ export class ChatRepository {
     userText: string,
     assistantReply: string,
     executed: { readonly provider: string; readonly model: string },
-    answerProvenance?: AnswerProvenanceMetadataV1
+    opts?: {
+      readonly sourceFreshness?: SourceFreshnessV1 | null;
+      readonly answerProvenance?: AnswerProvenanceMetadataV1;
+    }
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage } | undefined> {
     assertDataContextDb(scopedDb);
 
@@ -204,7 +207,10 @@ export class ChatRepository {
       modelMetadata: { executed: { provider: executed.provider, model: executed.model } },
       toolMetadata: {
         selectedTools: [],
-        ...(answerProvenance !== undefined ? { answerProvenanceV1: answerProvenance } : {})
+        ...(opts?.sourceFreshness ? { sourceFreshness: opts.sourceFreshness } : {}),
+        ...(opts?.answerProvenance !== undefined
+          ? { answerProvenanceV1: opts.answerProvenance }
+          : {})
       },
       now
     });

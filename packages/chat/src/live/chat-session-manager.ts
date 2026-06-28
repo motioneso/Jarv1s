@@ -61,7 +61,10 @@ export interface ChatPersistencePort {
     userText: string,
     assistantReply: string,
     executed: { provider: ProviderKind; model: string },
-    answerProvenance?: AnswerProvenanceMetadataV1
+    opts?: {
+      readonly invokedToolNames?: ReadonlySet<string>;
+      readonly answerProvenance?: AnswerProvenanceMetadataV1;
+    }
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined>;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
@@ -418,6 +421,7 @@ export class ChatSessionManager {
       await session.engine.submit(engineText);
 
       let reply = "";
+      const invokedToolNames = new Set<string>();
       let lastEmissionAt = this.deps.clock.now();
       let watchdogTripped = false;
       let stopped = false;
@@ -449,6 +453,9 @@ export class ChatSessionManager {
         for (const record of records) {
           this.emit(actorUserId, record);
           if (record.kind === "reply") reply = record.text;
+          if (record.kind === "tool" && record.toolName) {
+            invokedToolNames.add(record.toolName);
+          }
         }
         if (complete) break;
         // #456 — user-driven Stop: the signal aborts mid-turn; break cleanly (no error) so the
@@ -501,21 +508,16 @@ export class ChatSessionManager {
         }
       }
 
-      const stored = await (answerProvenance !== undefined
-        ? this.deps.persistence.recordTurn(
-            actorUserId,
-            text,
-            reply,
-            {
-              provider: session.provider,
-              model: session.model
-            },
-            answerProvenance
-          )
-        : this.deps.persistence.recordTurn(actorUserId, text, reply, {
-            provider: session.provider,
-            model: session.model
-          }));
+      const stored = await this.deps.persistence.recordTurn(
+        actorUserId,
+        text,
+        reply,
+        {
+          provider: session.provider,
+          model: session.model
+        },
+        { invokedToolNames, answerProvenance }
+      );
       session.lastActivity = this.deps.clock.now();
       this.deps.touchMcpToken?.(actorUserId);
 
