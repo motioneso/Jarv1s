@@ -20,11 +20,11 @@ const getContextExecute: ToolExecute = async (scopedDb, input, ctx) => {
   const links = await svc.listLinks(scopedDb, ctx.actorUserId, personId, {});
   const linksWithCitation = links.map((link) => ({
     ...link,
-    citationToken: `${link.sourceKind}:${link.sourceRefHash}:${link.id}`,
+    citationToken: `${link.sourceKind}:${link.sourceRefHash}:${link.id}`
   }));
   return {
     data: { person: detail, links: linksWithCitation },
-    columnOrder: ["id", "linkKind", "summary", "occurredAt", "citationToken"],
+    columnOrder: ["id", "linkKind", "summary", "occurredAt", "citationToken"]
   };
 };
 
@@ -55,7 +55,12 @@ const mergeExecute: ToolExecute = async (scopedDb, input, ctx) => {
     primaryPersonId: string;
     secondaryPersonId: string;
   };
-  const merged = await svc.mergePeople(scopedDb, ctx.actorUserId, primaryPersonId, secondaryPersonId);
+  const merged = await svc.mergePeople(
+    scopedDb,
+    ctx.actorUserId,
+    primaryPersonId,
+    secondaryPersonId
+  );
   return { data: { person: merged } };
 };
 
@@ -86,10 +91,10 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
       type: "object",
       required: ["query"],
       properties: {
-        query: { type: "string", description: "Name or email address to look up" },
-      },
+        query: { type: "string", description: "Name or email address to look up" }
+      }
     },
-    execute: resolveExecute,
+    execute: resolveExecute
   },
   {
     name: "people.getContext",
@@ -102,10 +107,10 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
       type: "object",
       required: ["personId"],
       properties: {
-        personId: { type: "string" },
-      },
+        personId: { type: "string" }
+      }
     },
-    execute: getContextExecute,
+    execute: getContextExecute
   },
   {
     name: "people.listRecent",
@@ -115,10 +120,10 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
     inputSchema: {
       type: "object",
       properties: {
-        limit: { type: "number", default: 20, maximum: 100 },
-      },
+        limit: { type: "number", default: 20, maximum: 100 }
+      }
     },
-    execute: listRecentExecute,
+    execute: listRecentExecute
   },
   {
     name: "people.acceptMatch",
@@ -132,10 +137,10 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
       type: "object",
       required: ["candidateId"],
       properties: {
-        candidateId: { type: "string" },
-      },
+        candidateId: { type: "string" }
+      }
     },
-    execute: acceptMatchExecute,
+    execute: acceptMatchExecute
   },
   {
     name: "people.rejectMatch",
@@ -147,10 +152,10 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
       type: "object",
       required: ["candidateId"],
       properties: {
-        candidateId: { type: "string" },
-      },
+        candidateId: { type: "string" }
+      }
     },
-    execute: rejectMatchExecute,
+    execute: rejectMatchExecute
   },
   {
     name: "people.merge",
@@ -165,10 +170,10 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
       required: ["primaryPersonId", "secondaryPersonId"],
       properties: {
         primaryPersonId: { type: "string", description: "Person to keep" },
-        secondaryPersonId: { type: "string", description: "Person to merge and archive" },
-      },
+        secondaryPersonId: { type: "string", description: "Person to merge and archive" }
+      }
     },
-    execute: mergeExecute,
+    execute: mergeExecute
   },
   {
     name: "people.splitIdentity",
@@ -185,14 +190,14 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
         identityId: { type: "string" },
         targetPersonId: {
           type: "string",
-          description: "Existing person to move the identity to. Omit to create a new person.",
+          description: "Existing person to move the identity to. Omit to create a new person."
         },
         newPersonDisplayName: {
           type: "string",
-          description: "Display name for the new person (required when targetPersonId is omitted).",
-        },
-      },
+          description: "Display name for the new person (required when targetPersonId is omitted)."
+        }
+      }
     },
-    execute: splitIdentityExecute,
-  },
+    execute: splitIdentityExecute
+  }
 ];

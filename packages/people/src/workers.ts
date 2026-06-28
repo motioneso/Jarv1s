@@ -7,7 +7,7 @@ import {
   assertMetadataOnlyPersonPayload,
   enqueueSyncPersonMemory,
   PERSON_INDEX_QUEUE,
-  SYNC_PERSON_MEMORY_QUEUE,
+  SYNC_PERSON_MEMORY_QUEUE
 } from "./jobs.js";
 import type { PersonIndexPayload, SyncPersonMemoryPayload } from "./jobs.js";
 import { PeopleRepository } from "./repository.js";
@@ -41,7 +41,7 @@ export async function registerPersonIndexWorker(
         actorUserId,
         sourceRefHash,
         sourceVersion,
-        cursor: undefined,
+        cursor: undefined
       });
 
       const resultMap = matchResult(signalBatch.signals);
@@ -67,7 +67,7 @@ export async function registerPersonIndexWorker(
             sourceRefHash,
             status: "active",
             confidence: entry.confidence,
-            provenance: "source",
+            provenance: "source"
           });
 
           for (const signal of entry.signals) {
@@ -82,7 +82,7 @@ export async function registerPersonIndexWorker(
               summary: signal.summary ?? null,
               occurredAt: signal.occurredAt ?? null,
               confidence: signal.confidence,
-              provenance: signal.provenance,
+              provenance: signal.provenance
             });
 
             await repo.upsertLinkSource(scopedDb, {
@@ -91,7 +91,7 @@ export async function registerPersonIndexWorker(
               identityId: null,
               sourceRefHash: signal.sourceRefHash,
               linkKind: signal.linkKind,
-              confidence: signal.confidence,
+              confidence: signal.confidence
             });
           }
 
@@ -99,7 +99,7 @@ export async function registerPersonIndexWorker(
             ownerUserId: actorUserId,
             eventKind: "identity_linked",
             personId: person.id,
-            sourceRefHash,
+            sourceRefHash
           });
         }
 
@@ -111,7 +111,7 @@ export async function registerPersonIndexWorker(
           sourceRef: firstSourceRef,
           lastIndexedAt: new Date(),
           lastSourceVersion: sourceVersion,
-          failureCount: 0,
+          failureCount: 0
         });
       });
 
@@ -122,7 +122,7 @@ export async function registerPersonIndexWorker(
           personId,
           personUpdatedAt: new Date().toISOString(),
           reason: "index_complete",
-          idempotencyKey: `sync-person-memory:${actorUserId}:${personId}`,
+          idempotencyKey: `sync-person-memory:${actorUserId}:${personId}`
         };
         await enqueueSyncPersonMemory(boss, payload);
       }

@@ -4,7 +4,7 @@ import type { PersonContextProvider, PersonContextSignal } from "@jarv1s/module-
 it("PersonContextProvider type is exported from module-sdk", () => {
   const _: PersonContextProvider = {
     sourceKind: "email",
-    collectPersonSignals: async (_input) => ({ signals: [] }),
+    collectPersonSignals: async (_input) => ({ signals: [] })
   };
   expect(_).toBeDefined();
 });
@@ -19,7 +19,7 @@ it("PersonContextSignal shape is correct", () => {
     sourceVersion: "1",
     linkKind: "sender",
     confidence: 0.95,
-    provenance: "source",
+    provenance: "source"
   };
   expect(s.identityKind).toBe("email_address");
 });

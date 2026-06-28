@@ -28,7 +28,7 @@ function buildApp() {
     resolveAccessContext: async () => ({ actorUserId: ids.userA, requestId: "test" }),
     dataContext: runner,
     repo: new PeopleRepository(),
-    svc: new PersonContextService(new PeopleRepository()),
+    svc: new PersonContextService(new PeopleRepository())
   });
   return app;
 }
@@ -56,7 +56,7 @@ describe("GET /api/people/:id/links", () => {
       const person = await repo.upsertPerson(sdb, {
         ownerUserId: ids.userA,
         displayName: "Test Person",
-        status: "active",
+        status: "active"
       });
       personId = person.id;
       await repo.upsertLink(sdb, {
@@ -67,7 +67,7 @@ describe("GET /api/people/:id/links", () => {
         sourceRefHash: "abc123",
         linkKind: "sender",
         confidence: 0.9,
-        provenance: "source",
+        provenance: "source"
       });
     });
 

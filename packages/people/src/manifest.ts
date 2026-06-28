@@ -5,9 +5,7 @@ import { PEOPLE_TOOLS } from "./tools.js";
 export const PEOPLE_MODULE_ID = "people";
 export const PEOPLE_MODULE_VERSION = "0.1.0";
 
-export const peopleModuleSqlMigrationDirectory = fileURLToPath(
-  new URL("../sql", import.meta.url)
-);
+export const peopleModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const peopleModuleManifest: JarvisModuleManifest = {
   id: PEOPLE_MODULE_ID,
@@ -29,5 +27,5 @@ export const peopleModuleManifest: JarvisModuleManifest = {
       "app.person_context_indexing_state"
     ]
   },
-  assistantTools: PEOPLE_TOOLS,
+  assistantTools: PEOPLE_TOOLS
 };

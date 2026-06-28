@@ -6,7 +6,7 @@ import {
   listPeople,
   refreshIndex,
   rejectCandidate,
-  type MatchCandidateDto,
+  type MatchCandidateDto
 } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
@@ -15,16 +15,20 @@ import { Badge, Group, Note, PaneHead, Row } from "./settings-ui";
 
 function candidateKindLabel(kind: MatchCandidateDto["candidateKind"]): string {
   switch (kind) {
-    case "create_person": return "New person";
-    case "link_identity": return "Link identity";
-    case "merge_people": return "Merge people";
-    case "split_identity": return "Split identity";
+    case "create_person":
+      return "New person";
+    case "link_identity":
+      return "Link identity";
+    case "merge_people":
+      return "Merge people";
+    case "split_identity":
+      return "Split identity";
   }
 }
 
 const DESTRUCTIVE_KINDS: ReadonlySet<MatchCandidateDto["candidateKind"]> = new Set([
   "merge_people",
-  "split_identity",
+  "split_identity"
 ]);
 
 export function SettingsPeoplePane() {
@@ -34,33 +38,31 @@ export function SettingsPeoplePane() {
   const candidatesQuery = useQuery({
     queryKey: queryKeys.people.matchCandidates,
     queryFn: listMatchCandidates,
-    retry: false,
+    retry: false
   });
 
   const peopleQuery = useQuery({
     queryKey: queryKeys.people.list,
     queryFn: () => listPeople({ limit: 50 }),
-    retry: false,
+    retry: false
   });
 
   const acceptMutation = useMutation({
     mutationFn: (id: string) => acceptCandidate(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.people.matchCandidates }),
-    onError: (error) => toast(readError(error), { tone: "drift" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.people.matchCandidates }),
+    onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) => rejectCandidate(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.people.matchCandidates }),
-    onError: (error) => toast(readError(error), { tone: "drift" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.people.matchCandidates }),
+    onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
   const refreshMutation = useMutation({
     mutationFn: () => refreshIndex(),
     onSuccess: (data) => toast(`Queued ${data.enqueued} sources for indexing.`),
-    onError: (error) => toast(readError(error), { tone: "drift" }),
+    onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
   const candidates = candidatesQuery.data?.candidates ?? [];
@@ -81,9 +83,7 @@ export function SettingsPeoplePane() {
           pending.map((candidate) => (
             <div key={candidate.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
               {DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
-                <Note>
-                  This action is irreversible — confirm in chat before accepting.
-                </Note>
+                <Note>This action is irreversible — confirm in chat before accepting.</Note>
               )}
               <Row
                 name={candidate.suggestedDisplayName ?? "Unnamed"}
@@ -92,9 +92,7 @@ export function SettingsPeoplePane() {
                   .join(" — ")}
                 control={
                   <span style={{ display: "flex", gap: 8 }}>
-                    <Badge tone="neutral">
-                      {Math.round(candidate.confidence * 100)}%
-                    </Badge>
+                    <Badge tone="neutral">{Math.round(candidate.confidence * 100)}%</Badge>
                     {!DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
                       <button
                         type="button"
@@ -123,14 +121,21 @@ export function SettingsPeoplePane() {
 
       <Group title={`People${people.length > 0 ? ` (${people.length})` : ""}`}>
         {people.length === 0 ? (
-          <Row name="No people yet" desc="Jarvis builds this list from your connected data sources." />
+          <Row
+            name="No people yet"
+            desc="Jarvis builds this list from your connected data sources."
+          />
         ) : (
           people.map((person) => (
             <Row
               key={person.id}
               name={person.displayName}
               desc={person.relationshipSummary ?? person.contextSummary ?? undefined}
-              control={<Badge tone={person.status === "active" ? "pine" : "neutral"}>{person.status}</Badge>}
+              control={
+                <Badge tone={person.status === "active" ? "pine" : "neutral"}>
+                  {person.status}
+                </Badge>
+              }
             />
           ))
         )}

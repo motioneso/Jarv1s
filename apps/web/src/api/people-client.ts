@@ -32,7 +32,9 @@ export async function listPeople(params?: {
   limit?: number;
 }): Promise<{ people: PersonDto[] }> {
   const entries = Object.entries(params ?? {}).filter(([, v]) => v != null);
-  const qs = entries.length ? `?${new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()}` : "";
+  const qs = entries.length
+    ? `?${new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()}`
+    : "";
   return requestJson<{ people: PersonDto[] }>(`/api/people${qs}`);
 }
 
@@ -57,6 +59,6 @@ export async function rejectCandidate(id: string): Promise<{ rejected: boolean }
 export async function refreshIndex(params?: { limit?: number }): Promise<{ enqueued: number }> {
   return requestJson<{ enqueued: number }>("/api/people/index/refresh", {
     method: "POST",
-    body: params ?? {},
+    body: params ?? {}
   });
 }

@@ -3,7 +3,7 @@ import {
   assertMetadataOnlyPersonPayload,
   enqueuePersonIndex,
   PERSON_INDEX_QUEUE,
-  SYNC_PERSON_MEMORY_QUEUE,
+  SYNC_PERSON_MEMORY_QUEUE
 } from "../jobs.js";
 
 describe("assertMetadataOnlyPersonPayload", () => {
@@ -14,7 +14,7 @@ describe("assertMetadataOnlyPersonPayload", () => {
         source: "email",
         sourceRefHash: "abc",
         reason: "new_message",
-        idempotencyKey: "k",
+        idempotencyKey: "k"
       })
     ).not.toThrow();
   });
@@ -27,7 +27,7 @@ describe("assertMetadataOnlyPersonPayload", () => {
         sourceRefHash: "abc",
         reason: "r",
         idempotencyKey: "k",
-        source_ref: "FORBIDDEN",
+        source_ref: "FORBIDDEN"
       })
     ).toThrow();
   });
@@ -40,7 +40,7 @@ describe("assertMetadataOnlyPersonPayload", () => {
         sourceRefHash: "abc",
         reason: "r",
         idempotencyKey: "k",
-        normalizedValue: "FORBIDDEN",
+        normalizedValue: "FORBIDDEN"
       })
     ).toThrow();
   });
@@ -57,7 +57,7 @@ it("enqueuePersonIndex sends metadata-only payload", async () => {
     send: async (_q: string, d: unknown) => {
       sent.push(d);
       return "job-id";
-    },
+    }
   } as never;
 
   await enqueuePersonIndex(mockBoss, {
@@ -65,7 +65,7 @@ it("enqueuePersonIndex sends metadata-only payload", async () => {
     source: "email",
     sourceRefHash: "abc123",
     reason: "new_message",
-    idempotencyKey: "u1:email:abc123",
+    idempotencyKey: "u1:email:abc123"
   });
 
   expect(sent.length).toBe(1);

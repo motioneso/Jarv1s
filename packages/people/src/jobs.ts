@@ -48,13 +48,13 @@ export async function enqueuePersonIndex(
     sourceRefHash: params.sourceRefHash,
     sourceVersion: params.sourceVersion,
     reason: params.reason,
-    idempotencyKey: params.idempotencyKey,
+    idempotencyKey: params.idempotencyKey
   };
 
   assertMetadataOnlyPersonPayload(payload);
   await sendJob(boss, PERSON_INDEX_QUEUE, payload, {
     singletonKey: params.idempotencyKey,
-    startAfter: COOLDOWN_MS / 1000,
+    startAfter: COOLDOWN_MS / 1000
   });
 }
 
@@ -74,6 +74,6 @@ export async function enqueueSyncPersonMemory(
 ): Promise<void> {
   assertMetadataOnlyPersonPayload(params);
   await sendJob(boss, SYNC_PERSON_MEMORY_QUEUE, params, {
-    singletonKey: params.idempotencyKey,
+    singletonKey: params.idempotencyKey
   });
 }

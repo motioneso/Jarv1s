@@ -164,7 +164,14 @@ export interface PersonContextSignal {
   readonly sourceRef: string;
   readonly sourceRefHash: string;
   readonly sourceVersion: string;
-  readonly linkKind: "sender" | "recipient" | "attendee" | "mentioned" | "assigned" | "counterparty" | "related";
+  readonly linkKind:
+    | "sender"
+    | "recipient"
+    | "attendee"
+    | "mentioned"
+    | "assigned"
+    | "counterparty"
+    | "related";
   readonly sourceLabel?: string;
   readonly summary?: string;
   readonly occurredAt?: Date;

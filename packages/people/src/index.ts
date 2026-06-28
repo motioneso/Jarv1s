@@ -2,7 +2,7 @@ export {
   peopleModuleManifest,
   peopleModuleSqlMigrationDirectory,
   PEOPLE_MODULE_ID,
-  PEOPLE_MODULE_VERSION,
+  PEOPLE_MODULE_VERSION
 } from "./manifest.js";
 
 export { registerPeopleRoutes } from "./routes.js";
@@ -17,12 +17,12 @@ export {
   enqueueSyncPersonMemory,
   assertMetadataOnlyPersonPayload,
   PERSON_INDEX_QUEUE,
-  SYNC_PERSON_MEMORY_QUEUE,
+  SYNC_PERSON_MEMORY_QUEUE
 } from "./jobs.js";
 export type {
   PersonIndexPayload,
   SyncPersonMemoryPayload,
-  EnqueuePersonIndexParams,
+  EnqueuePersonIndexParams
 } from "./jobs.js";
 
 export { PeopleRepository } from "./repository.js";
@@ -33,7 +33,7 @@ export type {
   UpsertLinkSourceParams,
   UpsertMatchCandidateParams,
   InsertEventParams,
-  UpsertIndexingStateParams,
+  UpsertIndexingStateParams
 } from "./repository.js";
 
 export { PersonContextService, RequiresExplicitActionError } from "./service.js";
@@ -60,5 +60,5 @@ export type {
   PersonLinkKind,
   PersonCandidateKind,
   PersonCandidateStatus,
-  PersonEventKind,
+  PersonEventKind
 } from "./types.js";
