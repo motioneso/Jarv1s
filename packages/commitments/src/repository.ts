@@ -221,6 +221,17 @@ function sanitizeExcerpt(text: string): string {
   return text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").slice(0, 500);
 }
 
+function pgDateToLocalStr(v: unknown): string | null {
+  if (v == null) return null;
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return v as string;
+}
+
 function rowToCandidate(row: Record<string, unknown>): CommitmentCandidate {
   return {
     id: row["id"] as string,
@@ -228,7 +239,7 @@ function rowToCandidate(row: Record<string, unknown>): CommitmentCandidate {
     candidateSignature: row["candidate_signature"] as string,
     kind: row["kind"] as CommitmentCandidate["kind"],
     title: row["title"] as string,
-    dueLocalDate: row["due_local_date"] as string | null,
+    dueLocalDate: pgDateToLocalStr(row["due_local_date"]),
     counterpartyLabel: row["counterparty_label"] as string | null,
     status: row["status"] as CommitmentCandidateStatus,
     confidence: row["confidence"] as "high" | "medium" | "low",
