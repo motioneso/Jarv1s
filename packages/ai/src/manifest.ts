@@ -36,7 +36,8 @@ import {
   patchAiCapabilityTierPreferenceRequestSchema,
   getAiActionPoliciesResponseSchema,
   patchAiActionPolicyRequestSchema,
-  patchAiActionPolicyResponseSchema
+  patchAiActionPolicyResponseSchema,
+  listActionAuditLogRouteSchema
 } from "@jarv1s/shared";
 
 export const AI_MODULE_ID = "ai";
@@ -297,6 +298,12 @@ export const aiModuleManifest = {
       requestSchema: patchAiActionPolicyRequestSchema,
       responseSchema: patchAiActionPolicyResponseSchema,
       permissionId: "ai.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/action-audit",
+      responseSchema: listActionAuditLogRouteSchema.response[200],
+      permissionId: "ai.assistant-actions"
     }
   ]
 } satisfies JarvisModuleManifest;
