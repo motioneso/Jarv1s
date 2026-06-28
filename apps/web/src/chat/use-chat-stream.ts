@@ -24,6 +24,7 @@ export interface TranscriptRecord {
   readonly outcome?: "executed" | "denied" | "error";
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
+  readonly sourceFreshness?: import("@jarv1s/shared").SourceFreshnessV1 | null;
 }
 
 function isChatRecordKind(value: string): value is ChatRecordKind {
