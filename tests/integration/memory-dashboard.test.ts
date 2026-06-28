@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
-import { type Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 
 import {
   createDatabase,
@@ -219,7 +219,7 @@ describe("POST /api/memory/candidates/:id/suppress", () => {
 });
 
 describe("POST /api/memory/candidates/:id/accept", () => {
-  it("accepts a fact candidate and creates a fact", async () => {
+  it("accepts a fact candidate and creates a confirmed fact with confidence >= 0.90", async () => {
     const candidate = await insertPendingCandidate(ids.userA);
     const res = await server.inject({
       method: "POST",
@@ -233,6 +233,17 @@ describe("POST /api/memory/candidates/:id/accept", () => {
       (db) => candidatesRepo.getById(db, ids.userA, candidate.id)
     );
     expect(check?.status).toBe("promoted");
+    const factRow = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "test-promoted-fact" },
+      (db) =>
+        sql<{ confidence: string; provenance: string }>`
+          SELECT confidence, provenance FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid
+          ORDER BY created_at DESC LIMIT 1
+        `.execute(db.db)
+    );
+    expect(Number(factRow.rows[0]?.confidence)).toBeGreaterThanOrEqual(0.9);
+    expect(factRow.rows[0]?.provenance).toBe("confirmed");
   });
 
   it("returns 404 for unknown candidate", async () => {

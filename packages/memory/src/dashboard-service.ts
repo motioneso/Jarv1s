@@ -137,6 +137,8 @@ export class MemoryDashboardService {
         predicate: predicate as MemoryFactPredicate,
         objectText,
         recordKind,
+        confidence: 1.0,
+        provenance: "confirmed",
         pinned: edited?.pinned,
         source: dashboardSource
       });
@@ -156,6 +158,8 @@ export class MemoryDashboardService {
         predicate: "related_to",
         objectText: summaryText,
         recordKind: "preference",
+        confidence: 1.0,
+        provenance: "confirmed",
         source: dashboardSource
       });
     }
