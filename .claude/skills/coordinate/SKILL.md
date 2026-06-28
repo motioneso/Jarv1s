@@ -166,11 +166,17 @@ predecessor to land):
 2. **Write the handoff doc** from `templates/handoff.md` (fill spec, worktree/branch, YOUR Herdr
    label, threshold, collision notes) → commit it so the agent can read it.
 3. **Spawn the build agent** into the run's shared **"Agents" tab** (one tab holds ALL build *and*
-   QA agents — `--tab <workspace>:<agents-tab>`). **Tab discipline (Ben, 2026-06-10):** build/QA
-   agents share that one tab; the coordinator's own window stays coordinator-only — the ONLY thing
-   you may spawn there is your own relay successor. **Grid layout by wave size:** lay the Agents tab
-   out as **2×2** for a 4-agent wave, **3×1** for a 3-agent wave (split with
-   `herdr pane split <pane> --direction down|right --cwd <path> --no-focus`).
+   QA agents — `--tab <workspace>:<agents-tab>`). **Tab discipline (Ben, 2026-06-10 + 2026-06-27):**
+   build/QA agents share that one tab; the coordinator's own window stays coordinator-only — the ONLY
+   thing you may spawn there is your own relay successor.
+   **Agents tab management (Ben, 2026-06-27):** the agents tab **must always be in Jarvis workspace
+   (`w1`)**. Before every spawn: (a) if the agents tab does not exist, create one —
+   `herdr pane move <first-pane> --new-tab --workspace w1 --label "agents"` — then use the new tab
+   id for `--tab w1:<tab-id>` in subsequent spawns; (b) if the agents tab already has **4 or more
+   panes**, open an **"agents 2"** overflow tab with the same command (label `"agents 2"`) and use
+   that for new spawns until it also reaches 4.
+   **Grid layout by wave size:** lay the Agents tab out as **2×2** for a 4-agent wave, **3×1** for a
+   3-agent wave (split with `herdr pane split <pane> --direction down|right --cwd <path> --no-focus`).
    ```bash
    herdr agent start "<Label>" --tab <workspace>:<agents-tab> --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
      -- claude --permission-mode bypassPermissions \
