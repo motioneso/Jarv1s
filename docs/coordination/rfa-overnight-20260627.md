@@ -20,7 +20,7 @@ when on level").
 
 **#535 MERGED ✅** — PR #566 squash-merged 2026-06-28T05:11:02Z at `da5b48a169aba27059510cd6b676bd8b15c0c618`. All 5 security QA blockers resolved (export+evidence, memory isolation, foundation.test.ts, read truncation). Issue #535 closed. RFA label removed. ⚠️ Board move FAILED (stale item ID `PVTI_lADOSyc57M4AxkGzgCGFBpM`) — Ben to move #535 → Done manually. Worktree rfa-535-long-running-goals removed. QA-566-AGY (w1:p58) + RFA-536 AGY (w1:p5A, quota-capped) reaped. Ben instructed no relay on auto-compaction 2026-06-28.
 
-**#536 IN PROGRESS** — RFA-536 Claude (Sonnet, session `259c2777-bf0a-4be5-84e0-5dde03e77e2b`) at w1:p5B, worktree rfa-536-scheduled-briefings. Plan approved with ADD-1 (UI schedules view), ADD-2 (foundation.test.ts migration row), ADD-3 (V0 schedule_metadata normalization). Migration slot: **0124** (0123 = #535). Awaiting plan-approval confirmation or PR escalation.
+**#536 QA IN FLIGHT** — PR #568 open, gate GREEN (VF_EXIT=0 AUDIT_EXIT=0, 1151 tests, rebased on da5b48a1). Migration 0124 (weekly_review enum). CI: compose smokes PASS, verify-foundation PENDING. Sensitive-tier QA agent running (native subagent a0ace6ae). Awaiting QA verdict → auto-merge.
 
 **Queue:** #536 building → #537 (commitment extraction, after #533+#535+#536) → #538 (person/contact model). HARD STOP at #538.
 **Next migration slot:** 0125 (0124 = #536 in progress).
