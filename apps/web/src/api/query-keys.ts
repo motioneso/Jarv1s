@@ -80,6 +80,10 @@ export const queryKeys = {
     tags: (listId: string) => ["tasks", "tags", listId] as const,
     preferences: ["tasks", "preferences"] as const
   },
+  proactiveMonitoring: {
+    cards: ["proactive-monitoring", "cards"] as const,
+    settings: ["proactive-monitoring", "settings"] as const
+  },
   weather: {
     today: ["weather", "today"] as const,
     location: ["weather", "location"] as const

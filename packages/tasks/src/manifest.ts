@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { tasksMonitorProvider } from "./monitor-provider.js";
 import {
   addTaskActivityRequestSchema,
   addTaskActivityResponseSchema,
@@ -779,5 +780,6 @@ export const tasksModuleManifest = {
           input.listId
         )}; assignments to that tag will be removed.`
     }
-  ]
+  ],
+  proactiveMonitor: tasksMonitorProvider
 } satisfies JarvisModuleManifest;

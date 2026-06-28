@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/settings",
+  "name": "@jarv1s/proactive-monitoring",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --run"
   },
   "dependencies": {
     "@jarv1s/db": "workspace:*",
@@ -15,10 +16,8 @@
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/priority": "workspace:*",
     "@jarv1s/shared": "workspace:*",
-    "@jarv1s/source-behaviors": "workspace:*",
-    "@jarv1s/vault": "workspace:*",
+    "@jarv1s/usefulness-feedback": "workspace:*",
     "fastify": "^5.6.2",
-    "kysely": "^0.29.2",
-    "@jarv1s/proactive-monitoring": "workspace:*"
+    "kysely": "^0.29.2"
   }
 }

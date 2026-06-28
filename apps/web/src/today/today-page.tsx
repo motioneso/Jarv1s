@@ -44,6 +44,7 @@ import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
 import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
+import { ProactiveCards } from "./proactive-cards";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
@@ -318,6 +319,8 @@ export function TodayPage(props: {
               </div>
             </section>
           ) : null}
+
+          <ProactiveCards />
         </div>
 
         <aside className="cmd-aside">

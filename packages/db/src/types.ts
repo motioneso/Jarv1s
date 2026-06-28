@@ -652,6 +652,50 @@ export interface DataExportJobsTable {
   >;
 }
 
+export interface ProactiveMonitorStateTable {
+  owner_user_id: ColumnType<string, string, never>;
+  source: string;
+  cursor_json: JsonColumn;
+  last_checked_at: NullableTimestampColumn;
+  failure_count: ColumnType<number, number | undefined, number>;
+  last_error_class: string | null;
+  updated_at: TimestampColumn;
+}
+
+export type ProactiveCardStatusDb = "active" | "dismissed" | "expired" | "suppressed";
+
+export interface ProactiveCardsTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: ColumnType<string, string, never>;
+  source: string;
+  stable_key: string;
+  source_ref_hash: string;
+  title: string;
+  summary: string;
+  signal_type: string;
+  priority_band: ColumnType<
+    "critical" | "high" | "normal" | "low",
+    "critical" | "high" | "normal" | "low",
+    "critical" | "high" | "normal" | "low"
+  >;
+  priority_reasons: ColumnType<readonly string[], readonly string[] | undefined, readonly string[]>;
+  status: ColumnType<
+    ProactiveCardStatusDb,
+    ProactiveCardStatusDb | undefined,
+    ProactiveCardStatusDb
+  >;
+  occurred_at: NullableTimestampColumn;
+  target_at: NullableTimestampColumn;
+  first_seen_at: TimestampColumn;
+  last_seen_at: TimestampColumn;
+  deferred_until: NullableTimestampColumn;
+  expires_at: NullableTimestampColumn;
+  dismissed_at: NullableTimestampColumn;
+  metadata_json: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -699,6 +743,8 @@ export interface JarvisDatabase {
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
   "app.data_export_jobs": DataExportJobsTable;
+  "app.proactive_monitor_state": ProactiveMonitorStateTable;
+  "app.proactive_cards": ProactiveCardsTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -738,3 +784,5 @@ export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
 export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;
 export type DataExportJob = Selectable<DataExportJobsTable>;
+export type ProactiveMonitorState = Selectable<ProactiveMonitorStateTable>;
+export type ProactiveCard = Selectable<ProactiveCardsTable>;

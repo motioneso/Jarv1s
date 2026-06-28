@@ -5,23 +5,17 @@ import type { PgBoss } from "pg-boss";
 import {
   AiAutoRegisterService,
   AiRepository,
-  HttpApiAdapter,
   aiModuleManifest,
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
-  parseAiApiKeyCredential,
-  registerAiRoutes,
-  type ProviderKind
+  registerAiRoutes
 } from "@jarv1s/ai";
 import {
   GraphMemoryRecallService,
   ManualMemoryCandidateService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
-  MemoryRepository,
-  MemoryRetriever,
-  createEmbeddingProvider,
-  getEmbeddingProviderConfig,
+  type MemoryRetriever,
   memoryModuleManifest,
   memorySqlMigrationDirectory,
   registerMemoryDashboardRoutes,
@@ -72,23 +66,26 @@ import {
 } from "@jarv1s/connectors";
 import type { ActiveModulesResolver } from "@jarv1s/ai";
 import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type { ProactiveSource } from "@jarv1s/shared";
 import {
   emailModuleManifest,
   emailModuleSqlMigrationDirectory,
   registerEmailRoutes
 } from "@jarv1s/email";
-import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
-import { HttpError, createModuleLogger } from "@jarv1s/module-sdk";
-import type { JarvisModuleManifest, RegisteredFocusSignal } from "@jarv1s/module-sdk";
+import { assertMetadataOnlyPayload, FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
+import { createModuleLogger } from "@jarv1s/module-sdk";
+import type {
+  JarvisModuleManifest,
+  RegisteredFocusSignal,
+  RegisteredProactiveMonitorProvider
+} from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
-  registerNotificationsRoutes,
-  type QuietHoursPort
+  registerNotificationsRoutes
 } from "@jarv1s/notifications";
 import {
-  renderPersonaText,
   type AuthProviderStatusDto,
   type OnboardingProviderCheckResponse,
   type OnboardingProviderKind
@@ -101,13 +98,13 @@ import {
   registerSettingsRoutes,
   registerRuntimeConfigRoutes,
   registerWebSearchKeyRoutes,
-  RuntimeConfigResolver,
   settingsModuleManifest,
   settingsModuleSqlMigrationDirectory,
   SettingsRepository,
   type HostDiagnosticsProvider,
   type MeSessionsService,
   type PersonaPreviewInput,
+  type ReconcileProactiveScheduleFn,
   type VerifySelfPasswordPort,
   type HasPasswordCredentialPort,
   type OnboardingInstallDependencies,
@@ -146,11 +143,27 @@ import {
 import {
   FeedbackTargetVerifierRegistry,
   registerUsefulnessFeedbackRoutes,
-  UsefulnessFeedbackRepository,
   usefulnessFeedbackModuleManifest,
   usefulnessFeedbackModuleSqlMigrationDirectory
 } from "@jarv1s/usefulness-feedback";
+import {
+  CardRepository,
+  makeProactiveCardVerifier,
+  proactiveMonitoringModuleManifest,
+  proactiveMonitoringSqlMigrationDirectory,
+  PROACTIVE_SCAN_SOURCE_QUEUE,
+  registerProactiveMonitoringRoutes,
+  registerProactiveMonitoringWorkers,
+  type ProactiveScanSourceJobPayload
+} from "@jarv1s/proactive-monitoring";
 
+import {
+  createDefaultPersonaPreview,
+  createRuntimeEmbeddingProvider,
+  quietHoursPortImpl,
+  runtimeMemoryRetriever,
+  usefulnessFeedbackRepository
+} from "./built-in-module-helpers.js";
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
   makeCliPresentProbe,
@@ -310,32 +323,6 @@ export interface BuiltInWorkerDependencies {
   readonly logger?: FastifyBaseLogger;
 }
 
-async function createRuntimeEmbeddingProvider(scopedDb: DataContextDb) {
-  return createEmbeddingProvider(
-    await getEmbeddingProviderConfig(new RuntimeConfigResolver(scopedDb))
-  );
-}
-
-const runtimeMemoryRetriever = {
-  async retrieve(scopedDb: DataContextDb, query: string, limit?: number, sourceKind?: string) {
-    const provider = await createRuntimeEmbeddingProvider(scopedDb);
-    return new MemoryRetriever(provider, new MemoryRepository()).retrieve(
-      scopedDb,
-      query,
-      limit,
-      sourceKind
-    );
-  },
-  async retrieveRecent(scopedDb: DataContextDb, limit?: number, sourceKind?: string) {
-    const provider = await createRuntimeEmbeddingProvider(scopedDb);
-    return new MemoryRetriever(provider, new MemoryRepository()).retrieveRecent(
-      scopedDb,
-      limit,
-      sourceKind
-    );
-  }
-};
-
 export interface BuiltInModuleRegistration {
   readonly manifest: JarvisModuleManifest;
   readonly sqlMigrationDirectories: readonly string[];
@@ -350,83 +337,33 @@ export interface BuiltInModuleRegistration {
   ) => Promise<readonly string[]>;
 }
 
-const _quietHoursPreferencesRepo = new PreferencesRepository();
-const quietHoursPortImpl: QuietHoursPort = {
-  getSettings: (scopedDb) => _quietHoursPreferencesRepo.get(scopedDb, "quiet-hours"),
-  getLocaleTimezone: async (scopedDb) => {
-    const locale = await _quietHoursPreferencesRepo.get(scopedDb, "locale");
-    if (!locale || typeof locale !== "object" || Array.isArray(locale)) return null;
-    const tz = (locale as Record<string, unknown>).timezone;
-    return typeof tz === "string" && tz.length > 0 ? tz : null;
-  }
-};
+/** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
+const PROACTIVE_CHECK_CRON = "*/30 * * * *";
 
-const usefulnessFeedbackRepository = new UsefulnessFeedbackRepository();
-
-const PERSONA_PREVIEW_SAMPLE_TURN =
-  "Give me a two-sentence morning check-in for a day with one important task and one slipped commitment.";
-const PERSONA_PREVIEW_MAX_OUTPUT_TOKENS = 180;
-
-function createDefaultPersonaPreview(
-  dataContext: DataContextRunner
-): (input: PersonaPreviewInput) => Promise<string> {
-  const aiRepository = new AiRepository();
-  const cipher = createAiSecretCipher();
-
-  return async (input) =>
-    dataContext.withDataContext(
-      { actorUserId: input.actorUserId, requestId: "settings:persona-preview" },
-      async (scopedDb) => {
-        const model = await aiRepository.selectModelForCapability(scopedDb, "chat");
-        if (!model) {
-          throw new HttpError(503, "No active chat-capable model is configured");
-        }
-
-        const provider = await aiRepository.selectProviderWithCredential(
-          scopedDb,
-          model.provider_config_id
-        );
-        if (!provider?.encrypted_credential) {
-          throw new HttpError(503, "Chat model credential is not configured");
-        }
-
-        let apiKey: string;
-        try {
-          const credential = parseAiApiKeyCredential(
-            cipher.decryptJson(provider.encrypted_credential)
-          );
-          if (!credential) {
-            throw new Error("missing api key");
-          }
-          apiKey = credential.apiKey;
-        } catch {
-          throw new HttpError(503, "Chat model credential is not configured");
-        }
-
-        const personaBlock = renderPersonaText({
-          assistantName: input.assistantName,
-          personaText: input.personaText,
-          userName: input.userName
+function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveScheduleFn {
+  return async (actorUserId, pref) => {
+    const allProviders = proactiveMonitorProvidersFor(getBuiltInModuleManifests());
+    for (const { provider } of allProviders) {
+      const source = provider.source as ProactiveSource;
+      // Use actorUserId:source as the pg-boss schedule key — one row per user+source.
+      const scheduleKey = `${actorUserId}:${source}`;
+      if (pref.enabled && pref.sources[source]?.enabled) {
+        const data: ProactiveScanSourceJobPayload = {
+          actorUserId,
+          source,
+          reason: "scheduled-check",
+          idempotencyKey: `scheduled-check:${actorUserId}:${source}`
+        };
+        // Defense-in-depth: boss.schedule does NOT route through sendJob's metadata guard.
+        assertMetadataOnlyPayload(data);
+        await boss.schedule(PROACTIVE_SCAN_SOURCE_QUEUE.name, PROACTIVE_CHECK_CRON, data, {
+          key: scheduleKey
         });
-        const adapter = new HttpApiAdapter(model.provider_kind as ProviderKind, apiKey, {
-          baseUrl: provider.base_url ?? undefined
-        });
-        const { text } = await adapter.generateChat({
-          model: {
-            provider_kind: model.provider_kind,
-            provider_model_id: model.provider_model_id
-          },
-          messages: [
-            {
-              role: "user",
-              content: `${personaBlock}\n\n${PERSONA_PREVIEW_SAMPLE_TURN}`
-            }
-          ],
-          maxOutputTokens: PERSONA_PREVIEW_MAX_OUTPUT_TOKENS
-        });
-        return text;
+      } else {
+        await boss.unschedule(PROACTIVE_SCAN_SOURCE_QUEUE.name, scheduleKey);
       }
-    );
+    }
+  };
 }
 
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
@@ -459,6 +396,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         // on @jarv1s/settings for resolveNotesRoots — a direct import would cycle.
         reconcileNotesSchedule: deps.boss
           ? (actorUserId, hasPath) => reconcileNotesSchedule(deps.boss!, actorUserId, hasPath)
+          : undefined,
+        reconcileProactiveSchedule: deps.boss
+          ? buildReconcileProactiveSchedule(deps.boss)
           : undefined
       });
       // Instance-wide Brave Search key: dedicated admin routes (the key is AES-256-GCM
@@ -668,6 +608,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     sqlMigrationDirectories: [usefulnessFeedbackModuleSqlMigrationDirectory],
     queueDefinitions: [],
     registerRoutes: (server, deps) => {
+      const cardRepository = new CardRepository();
       const registry = new FeedbackTargetVerifierRegistry();
       registry.register("chat_message", createChatFeedbackTargetVerifier(new ChatRepository()));
       registry.register(
@@ -684,12 +625,19 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           usefulnessFeedbackRepository
         )
       );
+      registry.register("proactive_card", makeProactiveCardVerifier(cardRepository));
       registerUsefulnessFeedbackRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
         registry,
         repository: usefulnessFeedbackRepository,
-        manualMemoryCandidates: new ManualMemoryCandidateService()
+        manualMemoryCandidates: new ManualMemoryCandidateService(),
+        cardSideEffects: {
+          applyDismiss: (scopedDb, _actorUserId, cardId) =>
+            cardRepository.markDismissed(scopedDb, _actorUserId, cardId).then(() => undefined),
+          undoDismissCard: (scopedDb, _actorUserId, cardId) =>
+            cardRepository.reactivate(scopedDb, _actorUserId, cardId).then(() => undefined)
+        }
       });
     }
   },
@@ -744,6 +692,39 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         embeddingProviderFactory: createRuntimeEmbeddingProvider,
         preferencesRepository: new PreferencesRepository()
       })
+  },
+  {
+    manifest: proactiveMonitoringModuleManifest,
+    sqlMigrationDirectories: [proactiveMonitoringSqlMigrationDirectory],
+    queueDefinitions: [PROACTIVE_SCAN_SOURCE_QUEUE],
+    registerRoutes: (server, deps) => {
+      const allProviders = proactiveMonitorProvidersFor(getBuiltInModuleManifests());
+      const registeredSources = new Set<ProactiveSource>(
+        allProviders.map((p) => p.provider.source as ProactiveSource)
+      );
+      registerProactiveMonitoringRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        boss: deps.boss,
+        registeredSources
+      });
+    },
+    registerWorkers: async (boss, deps) => {
+      const allProviders = proactiveMonitorProvidersFor(getBuiltInModuleManifests());
+      const providers = new Map(
+        allProviders.map((p) => [p.provider.source as ProactiveSource, p.provider])
+      );
+      const preferencesRepository = new PreferencesRepository();
+      return registerProactiveMonitoringWorkers(boss, {
+        dataContext: deps.dataContext,
+        getLocalePreference: async (scopedDb) => {
+          const val = await preferencesRepository.get(scopedDb, "locale");
+          if (!val || typeof val !== "object" || Array.isArray(val)) return null;
+          return val as { timezone?: string };
+        },
+        providers
+      });
+    }
   }
 ];
 
@@ -815,6 +796,20 @@ export function focusSignalProvidersFor(
 ): RegisteredFocusSignal[] {
   return manifests.flatMap((manifest) =>
     manifest.focusSignal ? [{ moduleId: manifest.id, provider: manifest.focusSignal }] : []
+  );
+}
+
+/**
+ * Build the proactive-monitor provider list from a manifest set. Any module that declares
+ * `proactiveMonitor` participates. Pass per-actor active manifests to exclude disabled modules.
+ */
+export function proactiveMonitorProvidersFor(
+  manifests: readonly JarvisModuleManifest[]
+): RegisteredProactiveMonitorProvider[] {
+  return manifests.flatMap((manifest) =>
+    manifest.proactiveMonitor
+      ? [{ moduleId: manifest.id, provider: manifest.proactiveMonitor }]
+      : []
   );
 }
 

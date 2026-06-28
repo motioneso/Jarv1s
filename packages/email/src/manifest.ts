@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { emailMonitorProvider } from "./monitor-provider.js";
 import {
   getEmailMessageResponseSchema,
   getEmailBriefingSettingsResponseSchema,
@@ -159,5 +160,6 @@ export const emailModuleManifest = {
       },
       execute: emailListVisibleMessagesExecute
     }
-  ]
+  ],
+  proactiveMonitor: emailMonitorProvider
 } satisfies JarvisModuleManifest;

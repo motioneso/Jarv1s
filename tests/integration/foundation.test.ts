@@ -288,6 +288,10 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0121",
           name: "0121_confidence_aware_memory_records.sql"
+        },
+        {
+          version: "0122",
+          name: "0122_proactive_monitoring.sql"
         }
       ]);
     } finally {

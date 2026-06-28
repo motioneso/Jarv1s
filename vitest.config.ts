@@ -90,6 +90,12 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/notes/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/proactive-monitoring",
+        replacement: fileURLToPath(
+          new URL("./packages/proactive-monitoring/src/index.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/notifications",
         replacement: fileURLToPath(
           new URL("./packages/notifications/src/index.ts", import.meta.url)

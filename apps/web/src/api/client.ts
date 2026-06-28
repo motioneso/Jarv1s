@@ -922,6 +922,7 @@ export async function markAllNotificationsRead(): Promise<MarkAllNotificationsRe
 }
 
 export * from "./client-admin.js";
+export * from "./client-proactive.js";
 
 export async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
