@@ -242,6 +242,39 @@ export class GoogleApiClient {
     return { id: json.id, htmlLink: json.htmlLink };
   }
 
+  async deleteEvent(input: {
+    accessToken: string;
+    calendarId?: string;
+    eventId: string;
+  }): Promise<{ deleted: "deleted" | "already-gone" }> {
+    const calendarId = input.calendarId ?? "primary";
+    const url = `${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(input.eventId)}`;
+    try {
+      await this.deleteVoid(url, input.accessToken, "calendar");
+      return { deleted: "deleted" };
+    } catch (error) {
+      if (
+        error instanceof GoogleApiError &&
+        (error.statusCode === 404 || error.statusCode === 410)
+      ) {
+        return { deleted: "already-gone" };
+      }
+      throw error;
+    }
+  }
+
+  private async deleteVoid(url: string, accessToken: string, api: string): Promise<void> {
+    const response = await this.fetchFn(url, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${accessToken}` }
+    });
+    if (response.ok) return;
+    // Log status only; NEVER embed the response body in Error.message —
+    // handleRouteError propagates Error.message to HTTP responses.
+    this.logger.error({ statusCode: response.status, api }, "Google API call failed");
+    throw new GoogleApiError(`Google ${api} returned ${response.status}`, response.status);
+  }
+
   private async getJson<T>(url: string, accessToken: string, api: string): Promise<T> {
     const response = await this.fetchFn(url, {
       method: "GET",

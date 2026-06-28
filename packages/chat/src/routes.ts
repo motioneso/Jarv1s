@@ -29,7 +29,7 @@ import {
   type GatewaySessionRecord,
   type SessionNotifier
 } from "@jarv1s/ai";
-import { CalendarRepository } from "@jarv1s/calendar";
+import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
 import type {
   ConnectorsRepository,
   GoogleApiClient,
@@ -474,7 +474,11 @@ export function buildChatToolServices(deps: {
       googleService: deps.googleConnectionService,
       googleApiClient: deps.googleApiClient,
       connectorsRepository: deps.connectorsRepository,
-      calendarRepository: new CalendarRepository()
+      calendarRepository: new CalendarRepository(),
+      enqueueCacheEvict: deps.boss
+        ? (eventId, actorUserId) =>
+            sendCalendarCacheEvictJob(deps.boss!, { targetItemId: eventId, actorUserId })
+        : undefined
     });
   }
   if (deps.boss) {

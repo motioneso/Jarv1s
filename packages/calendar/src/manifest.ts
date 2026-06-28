@@ -6,13 +6,16 @@ import {
   getCalendarBriefingSettingsResponseSchema,
   getCalendarEventResponseSchema,
   listCalendarEventsResponseSchema,
-  updateCalendarBriefingSettingsRequestSchema
+  updateCalendarBriefingSettingsRequestSchema,
+  deleteCalendarEventResponseSchema
 } from "@jarv1s/shared";
 
 import {
   calendarListVisibleEventsExecute,
   calendarProposeFocusBlockExecute,
-  summarizeProposeFocusBlock
+  summarizeProposeFocusBlock,
+  calendarDeleteEventExecute,
+  summarizeDeleteEvent
 } from "./tools.js";
 
 export const CALENDAR_MODULE_ID = "calendar";
@@ -38,7 +41,8 @@ export const calendarModuleManifest = {
       "sql/0011_calendar_module.sql",
       "sql/0066_calendar_worker_grants_and_google_insert.sql",
       "sql/0087_calendar_events_update_connector_scope.sql",
-      "sql/0113_worker_calendar_events_delete.sql"
+      "sql/0113_worker_calendar_events_delete.sql",
+      "sql/0126_app_runtime_calendar_events_delete.sql"
     ],
     migrationDirectories: ["packages/calendar/sql"],
     ownedTables: ["app.calendar_events"]
@@ -150,6 +154,15 @@ export const calendarModuleManifest = {
       permissionId: "calendar.manage"
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "calendar_management",
+      label: "Delete calendar events",
+      description: "Let Jarvis delete events from your calendar. Always asks first.",
+      defaultTier: "always_confirm",
+      allowedTiers: ["always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "calendar.listVisibleEvents",
@@ -208,6 +221,39 @@ export const calendarModuleManifest = {
       },
       execute: calendarProposeFocusBlockExecute,
       summarize: summarizeProposeFocusBlock
+    },
+    {
+      name: "calendar.deleteEvent",
+      description:
+        "Delete a single calendar event the user owns. Always asks for confirmation; on approval " +
+        "the event is removed from the user's Google Calendar (attendees are notified of the " +
+        "cancellation). One event at a time; cannot delete recurring series.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      actionFamilyId: "calendar_management",
+      // No executionPolicy: "auto" → gateway always confirms (belt 1). allowedTiers lock is belt 2.
+      requiresServices: ["calendarWrite"],
+      inputSchema: {
+        type: "object",
+        required: ["eventId"],
+        properties: {
+          eventId: {
+            type: "string",
+            description: "Jarvis calendar event id (uuid) from listVisibleEvents"
+          },
+          displayTitle: {
+            type: "string",
+            description: "Card preview only; the eventId is authoritative"
+          },
+          displayWhen: {
+            type: "string",
+            description: "Card preview only, e.g. 'Fri Jun 28, 14:00–15:00'"
+          }
+        }
+      },
+      outputSchema: deleteCalendarEventResponseSchema,
+      execute: calendarDeleteEventExecute,
+      summarize: summarizeDeleteEvent
     }
   ],
   proactiveMonitor: calendarMonitorProvider
