@@ -670,7 +670,7 @@ export async function composeBriefing(
     {
       key: "goals",
       label: "GOALS",
-      toolName: "goals.listActive",
+      toolName: "goals.list",
       arrayKey: "goals",
       format: (g) =>
         [sanitizeExternal(g.title), sanitizeExternal(g.status)].filter(Boolean).join(" · ")
@@ -681,7 +681,7 @@ export async function composeBriefing(
   );
 
   const sections: Section[] = [commitments, prioritizedTasks, calendar, email, vault, chats];
-  if (definition.selected_tool_names.includes("goals.listActive")) {
+  if (definition.selected_tool_names.includes("goals.list")) {
     sections.push(goals);
   }
 

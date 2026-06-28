@@ -385,13 +385,11 @@ function requiredReadToolNames(
     ...new Set(value.map((item, index) => requiredArrayString(item, fieldName, index)))
   ];
 
+  const VIRTUAL_SOURCES = new Set(["vault", "chats"]);
   if (
-    selectedToolNames.some((name) => {
-      if (name === "vault" || name === "chats") return false;
-      // #536 / #535 collision: whitelist goals.listActive if not yet merged so we can record gaps
-      if (name === "goals.listActive") return false;
-      return toolsByName.get(name)?.risk !== "read";
-    })
+    selectedToolNames.some(
+      (name) => !VIRTUAL_SOURCES.has(name) && toolsByName.get(name)?.risk !== "read"
+    )
   ) {
     throw new HttpError(400, "Briefings can only select declared read-risk assistant tools");
   }
@@ -505,7 +503,7 @@ function defaultToolNamesFor(type: BriefingType): string[] {
         "calendar.listVisibleEvents",
         "email.listVisibleMessages",
         "vault",
-        "goals.listActive"
+        "goals.list"
       ];
     case "evening":
       return [
@@ -514,7 +512,7 @@ function defaultToolNamesFor(type: BriefingType): string[] {
         "email.listVisibleMessages",
         "vault",
         "chat.listTodaysTurns",
-        "goals.listActive"
+        "goals.list"
       ];
     case "weekly_review":
       return [
@@ -522,7 +520,7 @@ function defaultToolNamesFor(type: BriefingType): string[] {
         "calendar.listVisibleEvents",
         "email.listVisibleMessages",
         "vault",
-        "goals.listActive"
+        "goals.list"
       ];
   }
 }
