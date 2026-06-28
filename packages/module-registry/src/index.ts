@@ -5,8 +5,11 @@ import type { PgBoss } from "pg-boss";
 import {
   commitmentsModuleManifest,
   commitmentsModuleSqlMigrationDirectory,
-  COMMITMENT_EXTRACTION_QUEUE
+  COMMITMENT_EXTRACTION_QUEUE,
+  CommitmentsRepository
 } from "@jarv1s/commitments";
+import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
+import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
 import {
   AiAutoRegisterService,
   AiRepository,
@@ -775,7 +778,20 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: commitmentsModuleManifest,
     sqlMigrationDirectories: [commitmentsModuleSqlMigrationDirectory],
-    queueDefinitions: [{ name: COMMITMENT_EXTRACTION_QUEUE, options: {} }]
+    queueDefinitions: [{ name: COMMITMENT_EXTRACTION_QUEUE, options: {} }],
+    registerRoutes: (server, deps) =>
+      registerCommitmentsRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        boss: deps.boss
+      }),
+    registerWorkers: async (boss, deps) =>
+      registerCommitmentExtractionWorker(boss, deps.dataContext, {
+        aiRepository: new AiRepository(),
+        cipher: createAiSecretCipher(),
+        repository: new CommitmentsRepository(),
+        providers: [] // wired in Task 11
+      })
   }
 ];
 

@@ -1,5 +1,12 @@
 import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import {
+  commitmentListExecute,
+  commitmentGetExecute,
+  commitmentAcceptExecute,
+  commitmentRejectExecute,
+  commitmentSnoozeExecute
+} from "./tools.js";
 
 export const COMMITMENTS_MODULE_ID = "jarvis.commitments";
 export const COMMITMENT_EXTRACTION_QUEUE = "commitment-extraction";
@@ -44,5 +51,76 @@ export const commitmentsModuleManifest: JarvisModuleManifest = {
       allowedTiers: ["ask_each_time", "trusted_auto"]
     }
   ],
-  assistantTools: []
+  assistantTools: [
+    {
+      name: "commitments.list",
+      description: "List commitment candidates extracted from your chats, notes, and email.",
+      permissionId: "commitments.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            enum: ["pending_review", "accepted", "rejected", "snoozed", "expired", "explicit_non_action"]
+          }
+        }
+      },
+      execute: commitmentListExecute
+    },
+    {
+      name: "commitments.get",
+      description: "Get details and evidence for a specific commitment candidate.",
+      permissionId: "commitments.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        required: ["candidateId"],
+        properties: { candidateId: { type: "string" } }
+      },
+      execute: commitmentGetExecute
+    },
+    {
+      name: "commitments.accept",
+      description: "Accept a commitment candidate as a real commitment.",
+      permissionId: "commitments.update",
+      risk: "write",
+      actionFamilyId: "commitment_review",
+      inputSchema: {
+        type: "object",
+        required: ["candidateId"],
+        properties: { candidateId: { type: "string" } }
+      },
+      execute: commitmentAcceptExecute
+    },
+    {
+      name: "commitments.reject",
+      description: "Reject a commitment candidate as not a real commitment.",
+      permissionId: "commitments.update",
+      risk: "write",
+      actionFamilyId: "commitment_review",
+      inputSchema: {
+        type: "object",
+        required: ["candidateId"],
+        properties: { candidateId: { type: "string" } }
+      },
+      execute: commitmentRejectExecute
+    },
+    {
+      name: "commitments.snooze",
+      description: "Snooze a commitment candidate until a later date.",
+      permissionId: "commitments.update",
+      risk: "write",
+      actionFamilyId: "commitment_review",
+      inputSchema: {
+        type: "object",
+        required: ["candidateId", "snoozedUntil"],
+        properties: {
+          candidateId: { type: "string" },
+          snoozedUntil: { type: "string", format: "date-time" }
+        }
+      },
+      execute: commitmentSnoozeExecute
+    }
+  ]
 };
