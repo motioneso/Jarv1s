@@ -14,10 +14,10 @@ const MAX_EVIDENCE_ROWS = 5;
 
 export class CommitmentsRepository {
   async upsertCandidate(scopedDb: unknown, input: UpsertCandidateInput): Promise<CommitmentCandidate> {
-    const db = assertDataContextDb(scopedDb);
+    assertDataContextDb(scopedDb);
     const now = new Date();
 
-    const existing = await db
+    const existing = await scopedDb.db
       .selectFrom("app.commitment_candidates as c")
       .selectAll()
       .where("c.owner_user_id", "=", input.ownerUserId)
@@ -25,7 +25,7 @@ export class CommitmentsRepository {
       .executeTakeFirst();
 
     if (existing) {
-      const updated = await db
+      const updated = await scopedDb.db
         .updateTable("app.commitment_candidates")
         .set({
           last_seen_at: now,
@@ -38,7 +38,7 @@ export class CommitmentsRepository {
       return rowToCandidate(updated);
     }
 
-    const row = await db
+    const row = await scopedDb.db
       .insertInto("app.commitment_candidates")
       .values({
         owner_user_id: input.ownerUserId,
@@ -60,9 +60,9 @@ export class CommitmentsRepository {
   }
 
   async addEvidenceRow(scopedDb: unknown, input: AddEvidenceInput): Promise<boolean> {
-    const db = assertDataContextDb(scopedDb);
+    assertDataContextDb(scopedDb);
 
-    const count = await db
+    const count = await scopedDb.db
       .selectFrom("app.commitment_candidate_sources")
       .select((eb) => eb.fn.countAll<number>().as("cnt"))
       .where("candidate_id", "=", input.candidateId)
@@ -70,7 +70,7 @@ export class CommitmentsRepository {
 
     if (Number(count.cnt) >= MAX_EVIDENCE_ROWS) return false;
 
-    await db
+    await scopedDb.db
       .insertInto("app.commitment_candidate_sources")
       .values({
         candidate_id: input.candidateId,
@@ -97,8 +97,8 @@ export class CommitmentsRepository {
     ownerUserId: string,
     status?: CommitmentCandidateStatus
   ): Promise<CommitmentCandidate[]> {
-    const db = assertDataContextDb(scopedDb);
-    let q = db
+    assertDataContextDb(scopedDb);
+    let q = scopedDb.db
       .selectFrom("app.commitment_candidates as c")
       .selectAll()
       .where("c.owner_user_id", "=", ownerUserId)
@@ -113,8 +113,8 @@ export class CommitmentsRepository {
     ownerUserId: string,
     candidateId: string
   ): Promise<CommitmentCandidate | null> {
-    const db = assertDataContextDb(scopedDb);
-    const row = await db
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
       .selectFrom("app.commitment_candidates as c")
       .selectAll()
       .where("c.id", "=", candidateId)
@@ -130,8 +130,8 @@ export class CommitmentsRepository {
     status: CommitmentCandidateStatus,
     snoozedUntil?: Date | null
   ): Promise<CommitmentCandidate> {
-    const db = assertDataContextDb(scopedDb);
-    const row = await db
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
       .updateTable("app.commitment_candidates")
       .set({
         status,
@@ -151,8 +151,8 @@ export class CommitmentsRepository {
     candidateId: string,
     resolutionRef: string
   ): Promise<CommitmentCandidate> {
-    const db = assertDataContextDb(scopedDb);
-    const row = await db
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
       .updateTable("app.commitment_candidates")
       .set({ resolution_ref: resolutionRef, updated_at: new Date() })
       .where("id", "=", candidateId)
@@ -166,8 +166,8 @@ export class CommitmentsRepository {
     scopedDb: unknown,
     candidateId: string
   ): Promise<CommitmentCandidateSource[]> {
-    const db = assertDataContextDb(scopedDb);
-    const rows = await db
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
       .selectFrom("app.commitment_candidate_sources")
       .selectAll()
       .where("candidate_id", "=", candidateId)
@@ -181,8 +181,8 @@ export class CommitmentsRepository {
     ownerUserId: string,
     sourceKind: CommitmentSourceKind
   ): Promise<CommitmentExtractionState | null> {
-    const db = assertDataContextDb(scopedDb);
-    const row = await db
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
       .selectFrom("app.commitment_extraction_state")
       .selectAll()
       .where("owner_user_id", "=", ownerUserId)
@@ -197,8 +197,8 @@ export class CommitmentsRepository {
     sourceKind: CommitmentSourceKind,
     lastExtractedAt: Date
   ): Promise<void> {
-    const db = assertDataContextDb(scopedDb);
-    await db
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
       .insertInto("app.commitment_extraction_state")
       .values({
         owner_user_id: ownerUserId,
