@@ -45,6 +45,50 @@ export class GoalsRepository {
     return result.rows[0] ? this.mapGoal(result.rows[0]) : null;
   }
 
+  async list(scopedDb: DataContextDb): Promise<JarvisGoal[]> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<GoalRow>`
+      SELECT * FROM app.jarvis_goals 
+      ORDER BY priority DESC, created_at DESC
+    `.execute(scopedDb.db);
+    return result.rows.map((row) => this.mapGoal(row));
+  }
+
+  async create(scopedDb: DataContextDb, ownerUserId: string, data: Partial<JarvisGoal>): Promise<JarvisGoal> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<GoalRow>`
+      INSERT INTO app.jarvis_goals (
+        owner_user_id, title, desired_outcome, priority, review_cadence, target_at
+      ) VALUES (
+        ${ownerUserId}::uuid, ${data.title ?? null}, ${data.desiredOutcome ?? null}, ${data.priority ?? 3}, ${data.reviewCadence ?? 'weekly'}, ${data.targetAt ?? null}
+      ) RETURNING *
+    `.execute(scopedDb.db);
+    return this.mapGoal(result.rows[0]!);
+  }
+
+  async update(scopedDb: DataContextDb, id: string, data: Partial<JarvisGoal>): Promise<JarvisGoal> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<GoalRow>`
+      UPDATE app.jarvis_goals SET
+        title = COALESCE(${data.title ?? null}, title),
+        desired_outcome = COALESCE(${data.desiredOutcome ?? null}, desired_outcome),
+        status = COALESCE(${data.status ?? null}, status),
+        priority = COALESCE(${data.priority ?? null}, priority),
+        review_cadence = COALESCE(${data.reviewCadence ?? null}, review_cadence),
+        target_at = COALESCE(${data.targetAt ?? null}, target_at),
+        last_progress_summary = COALESCE(${data.lastProgressSummary ?? null}, last_progress_summary),
+        blocker_summary = COALESCE(${data.blockerSummary ?? null}, blocker_summary),
+        next_suggested_action = COALESCE(${data.nextSuggestedAction ?? null}, next_suggested_action),
+        updated_at = NOW()
+      WHERE id = ${id}::uuid
+      RETURNING *
+    `.execute(scopedDb.db);
+    if (!result.rows[0]) {
+      throw new Error("Failed to update goal");
+    }
+    return this.mapGoal(result.rows[0]);
+  }
+
   async listEvidence(scopedDb: DataContextDb, goalId: string): Promise<JarvisGoalEvidence[]> {
     assertDataContextDb(scopedDb);
     const result = await sql<EvidenceRow>`
@@ -53,6 +97,18 @@ export class GoalsRepository {
       ORDER BY created_at DESC
     `.execute(scopedDb.db);
     return result.rows.map((row) => this.mapEvidence(row));
+  }
+
+  async addEvidence(scopedDb: DataContextDb, ownerUserId: string, goalId: string, data: Partial<JarvisGoalEvidence>): Promise<JarvisGoalEvidence> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<EvidenceRow>`
+      INSERT INTO app.jarvis_goal_evidence (
+        owner_user_id, goal_id, evidence_kind, source_kind, source_ref, source_label, summary, occurred_at
+      ) VALUES (
+        ${ownerUserId}::uuid, ${goalId}::uuid, ${data.evidenceKind ?? null}, ${data.sourceKind ?? null}, ${data.sourceRef ?? null}, ${data.sourceLabel ?? null}, ${data.summary ?? null}, ${data.occurredAt ?? null}
+      ) RETURNING *
+    `.execute(scopedDb.db);
+    return this.mapEvidence(result.rows[0]!);
   }
 
   async updateSyncStatus(

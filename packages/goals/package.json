@@ -16,6 +16,7 @@
     "@jarv1s/shared": "workspace:*",
     "fastify": "^5.8.5",
     "kysely": "^0.29.2",
-    "pg-boss": "^12.18.2"
+    "pg-boss": "^12.18.2",
+    "@sinclair/typebox": "^0.34.13"
   }
 }
