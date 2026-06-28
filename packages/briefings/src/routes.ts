@@ -21,7 +21,6 @@ import {
   type BriefingDefinitionDto,
   type BriefingRunDto,
   type BriefingType,
-  type CreateBriefingDefinitionRequest,
   type RunBriefingDefinitionRequest,
   type UpdateBriefingDefinitionRequest
 } from "@jarv1s/shared";
@@ -30,7 +29,7 @@ import { sendJob } from "@jarv1s/jobs";
 
 import { type BriefingRunPayload } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
-import { BriefingsRepository } from "./repository.js";
+import { BriefingsRepository, type CreateBriefingDefinitionInput } from "./repository.js";
 import { reconcileOwnedSchedules, reconcileSchedule } from "./schedule.js";
 import { deriveBriefingFeedbackItems } from "./feedback-targets.js";
 
@@ -51,7 +50,7 @@ interface DefinitionParams {
 }
 
 const BRIEFING_CADENCES = new Set<BriefingCadence>(["manual", "daily", "weekly"]);
-const BRIEFING_TYPES = new Set<BriefingType>(["morning", "evening"]);
+const BRIEFING_TYPES = new Set<BriefingType>(["morning", "evening", "weekly_review"]);
 
 export function registerBriefingsRoutes(
   server: FastifyInstance,
@@ -313,17 +312,24 @@ async function reconcileScheduleSafely(
 function parseCreateDefinitionBody(
   body: unknown,
   moduleManifests: readonly JarvisModuleManifest[]
-): CreateBriefingDefinitionRequest {
+): CreateBriefingDefinitionInput {
   const value = requireObject(body);
+  const briefingType = optionalBriefingType(value.briefingType) ?? "morning";
+
+  const rawToolNames =
+    value.selectedToolNames !== undefined
+      ? value.selectedToolNames
+      : defaultToolNamesFor(briefingType);
+
   const selectedToolNames = requiredReadToolNames(
-    value.selectedToolNames,
+    rawToolNames,
     "selectedToolNames",
     moduleManifests
   );
 
   return {
     title: requiredString(value.title, "title"),
-    briefingType: optionalBriefingType(value.briefingType) ?? "morning",
+    briefingType,
     cadence: optionalBriefingCadence(value.cadence) ?? "manual",
     scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
     enabled: optionalBoolean(value.enabled, "enabled") ?? true,
@@ -379,7 +385,14 @@ function requiredReadToolNames(
     ...new Set(value.map((item, index) => requiredArrayString(item, fieldName, index)))
   ];
 
-  if (selectedToolNames.some((name) => toolsByName.get(name)?.risk !== "read")) {
+  if (
+    selectedToolNames.some((name) => {
+      if (name === "vault" || name === "chats") return false;
+      // #536 / #535 collision: whitelist goals.listActive if not yet merged so we can record gaps
+      if (name === "goals.listActive") return false;
+      return toolsByName.get(name)?.risk !== "read";
+    })
+  ) {
     throw new HttpError(400, "Briefings can only select declared read-risk assistant tools");
   }
 
@@ -481,7 +494,37 @@ function optionalBriefingType(value: unknown): BriefingType | undefined {
     return value as BriefingType;
   }
 
-  throw new HttpError(400, "briefingType must be morning or evening");
+  throw new HttpError(400, "briefingType must be morning, evening, or weekly_review");
+}
+
+function defaultToolNamesFor(type: BriefingType): string[] {
+  switch (type) {
+    case "morning":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "goals.listActive"
+      ];
+    case "evening":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "chat.listTodaysTurns",
+        "goals.listActive"
+      ];
+    case "weekly_review":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "goals.listActive"
+      ];
+  }
 }
 
 function serializeDefinition(definition: BriefingDefinition): BriefingDefinitionDto {

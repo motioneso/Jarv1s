@@ -12,18 +12,24 @@ import {
 
 describe("cronExprFor", () => {
   it("maps a HH:MM targetTime to a daily cron expression", () => {
-    expect(cronExprFor({ targetTime: "06:00" })).toBe("0 6 * * *");
-    expect(cronExprFor({ targetTime: "23:45" })).toBe("45 23 * * *");
+    expect(cronExprFor("daily", { targetTime: "06:00" })).toBe("0 6 * * *");
+    expect(cronExprFor("daily", { targetTime: "23:45" })).toBe("45 23 * * *");
   });
 
   it("defaults to 07:00 when targetTime is absent", () => {
-    expect(cronExprFor({})).toBe("0 7 * * *");
+    expect(cronExprFor("daily", {})).toBe("0 7 * * *");
   });
 
   it("defaults to 07:00 when targetTime is malformed", () => {
-    expect(cronExprFor({ targetTime: "not-a-time" })).toBe("0 7 * * *");
-    expect(cronExprFor({ targetTime: "25:00" })).toBe("0 7 * * *");
-    expect(cronExprFor({ targetTime: "6" })).toBe("0 7 * * *");
+    expect(cronExprFor("daily", { targetTime: "not-a-time" })).toBe("0 7 * * *");
+    expect(cronExprFor("daily", { targetTime: "25:00" })).toBe("0 7 * * *");
+    expect(cronExprFor("daily", { targetTime: "6" })).toBe("0 7 * * *");
+  });
+
+  it("emits a day-of-week cron for weekly cadence", () => {
+    expect(cronExprFor("weekly", { targetTime: "09:00", dayOfWeek: 0 })).toBe("0 9 * * 0");
+    expect(cronExprFor("weekly", { targetTime: "09:00", dayOfWeek: 5 })).toBe("0 9 * * 5");
+    expect(cronExprFor("weekly", { targetTime: "09:00" })).toBe("0 9 * * 1");
   });
 });
 
@@ -40,9 +46,20 @@ describe("timezoneFor", () => {
 });
 
 describe("defaultScheduleMetadataFor", () => {
-  it("defaults morning to 07:00 and evening to 19:00 UTC", () => {
+  it("defaults morning to 07:00 UTC", () => {
     expect(defaultScheduleMetadataFor("morning")).toEqual({ targetTime: "07:00", timezone: "UTC" });
+  });
+
+  it("defaults evening to 19:00 UTC", () => {
     expect(defaultScheduleMetadataFor("evening")).toEqual({ targetTime: "19:00", timezone: "UTC" });
+  });
+
+  it("defaults weekly_review to 09:00 UTC on Sunday", () => {
+    expect(defaultScheduleMetadataFor("weekly_review")).toEqual({
+      targetTime: "09:00",
+      timezone: "UTC",
+      dayOfWeek: 0
+    });
   });
 });
 
@@ -110,7 +127,22 @@ describe("reconcileSchedule", () => {
     });
   });
 
-  it("unschedules when cadence is not daily", async () => {
+  it("schedules a weekly enabled definition with day-of-week cron", async () => {
+    const { boss, scheduleCalls, unscheduleCalls } = fakeBoss();
+    await reconcileSchedule(
+      boss as never,
+      definition({
+        cadence: "weekly",
+        schedule_metadata: { targetTime: "09:00", timezone: "America/New_York", dayOfWeek: 0 }
+      })
+    );
+    expect(unscheduleCalls).toHaveLength(0);
+    expect(scheduleCalls).toHaveLength(1);
+    expect(scheduleCalls[0]!.cron).toBe("0 9 * * 0");
+    expect(scheduleCalls[0]!.options).toEqual({ tz: "America/New_York", key: "def-1" });
+  });
+
+  it("unschedules when cadence is manual", async () => {
     const { boss, scheduleCalls, unscheduleCalls } = fakeBoss();
     await reconcileSchedule(boss as never, definition({ cadence: "manual" }));
     expect(scheduleCalls).toHaveLength(0);
