@@ -72,7 +72,7 @@ import {
   emailModuleSqlMigrationDirectory,
   registerEmailRoutes
 } from "@jarv1s/email";
-import { FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
+import { assertMetadataOnlyPayload, FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
 import { createModuleLogger } from "@jarv1s/module-sdk";
 import type {
   JarvisModuleManifest,
@@ -148,13 +148,13 @@ import {
 } from "@jarv1s/usefulness-feedback";
 import {
   CardRepository,
-  enqueueProactiveScan,
   makeProactiveCardVerifier,
   proactiveMonitoringModuleManifest,
   proactiveMonitoringSqlMigrationDirectory,
   PROACTIVE_SCAN_SOURCE_QUEUE,
   registerProactiveMonitoringRoutes,
-  registerProactiveMonitoringWorkers
+  registerProactiveMonitoringWorkers,
+  type ProactiveScanSourceJobPayload
 } from "@jarv1s/proactive-monitoring";
 
 import {
@@ -337,15 +337,31 @@ export interface BuiltInModuleRegistration {
   ) => Promise<readonly string[]>;
 }
 
+/** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
+const PROACTIVE_CHECK_CRON = "*/30 * * * *";
+
 function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveScheduleFn {
   return async (actorUserId, pref) => {
-    if (!pref.enabled) return;
     const allProviders = proactiveMonitorProvidersFor(getBuiltInModuleManifests());
     for (const { provider } of allProviders) {
       const source = provider.source as ProactiveSource;
-      if (!pref.sources[source]?.enabled) continue;
-      const idempotencyKey = `schedule-reconcile:${actorUserId}:${source}`;
-      await enqueueProactiveScan(boss, actorUserId, source, "scheduled-check", idempotencyKey);
+      // Use actorUserId:source as the pg-boss schedule key — one row per user+source.
+      const scheduleKey = `${actorUserId}:${source}`;
+      if (pref.enabled && pref.sources[source]?.enabled) {
+        const data: ProactiveScanSourceJobPayload = {
+          actorUserId,
+          source,
+          reason: "scheduled-check",
+          idempotencyKey: `scheduled-check:${actorUserId}:${source}`
+        };
+        // Defense-in-depth: boss.schedule does NOT route through sendJob's metadata guard.
+        assertMetadataOnlyPayload(data);
+        await boss.schedule(PROACTIVE_SCAN_SOURCE_QUEUE.name, PROACTIVE_CHECK_CRON, data, {
+          key: scheduleKey
+        });
+      } else {
+        await boss.unschedule(PROACTIVE_SCAN_SOURCE_QUEUE.name, scheduleKey);
+      }
     }
   };
 }

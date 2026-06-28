@@ -1,13 +1,18 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import { HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
 import {
   ProactiveMonitoringPreferencesRepository,
   validateProactiveMonitoringPreference
 } from "@jarv1s/proactive-monitoring";
 import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@jarv1s/shared";
-import { defaultProactiveMonitoringPreference } from "@jarv1s/shared";
+import { defaultProactiveMonitoringPreference, parsePositiveIntEnv } from "@jarv1s/shared";
+
+const PROACTIVE_SETTINGS_MAX = parsePositiveIntEnv(
+  process.env.JARVIS_RL_PROACTIVE_SETTINGS_MAX,
+  20
+);
 
 import { handleSettingsRouteError } from "./route-error.js";
 
@@ -45,30 +50,42 @@ export function registerProactiveMonitoringSettingsRoutes(
     }
   });
 
-  server.patch("/api/me/proactive-monitoring-settings", async (request, reply) => {
-    try {
-      const ctx = await dependencies.resolveAccessContext(request);
-      const patch = parseSettingsPatch(request.body);
+  server.patch(
+    "/api/me/proactive-monitoring-settings",
+    {
+      config: {
+        rateLimit: {
+          max: PROACTIVE_SETTINGS_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      try {
+        const ctx = await dependencies.resolveAccessContext(request);
+        const patch = parseSettingsPatch(request.body);
 
-      const updated = await dependencies.dataContext.withDataContext(ctx, async (scopedDb) => {
-        const current = await repository.get(scopedDb);
-        const merged = mergePreference(current, patch);
-        validateProactiveMonitoringPreference(merged);
-        await repository.upsert(scopedDb, merged);
-        return merged;
-      });
+        const updated = await dependencies.dataContext.withDataContext(ctx, async (scopedDb) => {
+          const current = await repository.get(scopedDb);
+          const merged = mergePreference(current, patch);
+          validateProactiveMonitoringPreference(merged);
+          await repository.upsert(scopedDb, merged);
+          return merged;
+        });
 
-      await reconcileScheduleSafe(
-        dependencies.reconcileProactiveSchedule,
-        ctx.actorUserId,
-        updated
-      );
+        await reconcileScheduleSafe(
+          dependencies.reconcileProactiveSchedule,
+          ctx.actorUserId,
+          updated
+        );
 
-      return reply.send({ settings: updated });
-    } catch (error) {
-      return handleSettingsRouteError(error, reply);
+        return reply.send({ settings: updated });
+      } catch (error) {
+        return handleSettingsRouteError(error, reply);
+      }
     }
-  });
+  );
 }
 
 function parseSettingsPatch(body: unknown): Partial<ProactiveMonitoringPreferenceV1> {

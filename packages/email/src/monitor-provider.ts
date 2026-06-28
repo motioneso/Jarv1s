@@ -22,6 +22,20 @@ const REPLY_PATTERN =
 
 const URGENT_PATTERN = /urgent|asap|time.sensitive|deadline|by [a-z]+ [0-9]/i;
 
+/** URLs with credential-like query params — strip the whole URL to avoid leaking auth state. */
+const AUTH_URL_PATTERN =
+  /https?:\/\/\S*[?&](token|access_token|session|auth|api_key|apikey|secret|client_secret|code|refresh_token)\S*/gi;
+
+/** Line patterns indicating a secret or credential assignment — redact. */
+const CREDENTIAL_LINE_PATTERN =
+  /^.*(password|passwd|api[_\s-]?key|secret[_\s-]?key|auth[_\s-]?token|session[_\s-]?token|bearer\s+\S{6,}|private[_\s-]?key|access[_\s-]?token)\s*[:=]\s*\S+.*$/gim;
+
+function sanitizeSnippet(text: string): string {
+  return text
+    .replace(AUTH_URL_PATTERN, "[link removed]")
+    .replace(CREDENTIAL_LINE_PATTERN, "[redacted]");
+}
+
 export const emailMonitorProvider: ProactiveMonitorProvider = {
   source: "email",
   moduleId: "email",
@@ -63,7 +77,7 @@ export const emailMonitorProvider: ProactiveMonitorProvider = {
         signalType,
         title: msg.subject,
         summary: msg.snippet
-          ? msg.snippet.slice(0, 200)
+          ? sanitizeSnippet(msg.snippet).slice(0, 200)
           : isUrgent
             ? "Time-sensitive message needs attention"
             : "Message likely needs a reply",
