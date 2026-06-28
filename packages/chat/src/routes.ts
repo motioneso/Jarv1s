@@ -14,6 +14,7 @@ import {
   listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
+  type AnswerSourceSupportCard,
   type ChatActivityEventDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
@@ -66,6 +67,7 @@ import {
   ChatUserMemorySettingsRepository,
   type UserMemorySettings
 } from "./memory-settings-repository.js";
+import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
 
@@ -456,6 +458,63 @@ export function registerChatRoutes(
       return handleRouteError(error, reply);
     }
   });
+
+  // ── Answer provenance ──────────────────────────────────────────────────────
+
+  server.get<{ Params: { messageId: string } }>(
+    "/api/chat/messages/:messageId/provenance",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const message = await dependencies.dataContext.withDataContext(
+          access,
+          (scopedDb) => repository.getMessageById(scopedDb, request.params.messageId)
+        );
+        if (!message || message.owner_user_id !== access.actorUserId) {
+          return reply.code(404).send({ error: "Message not found" });
+        }
+        const toolMetadata = asRecord(message.tool_metadata);
+        const stored = readStoredProvenance(toolMetadata);
+        const cards: AnswerSourceSupportCard[] = stored != null ? provenanceCards(stored) : [];
+        return { cards };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get<{ Params: { messageId: string; supportId: string } }>(
+    "/api/chat/messages/:messageId/provenance/:supportId/dereference",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const message = await dependencies.dataContext.withDataContext(
+          access,
+          (scopedDb) => repository.getMessageById(scopedDb, request.params.messageId)
+        );
+        if (!message || message.owner_user_id !== access.actorUserId) {
+          return reply.code(404).send({ error: "Message not found" });
+        }
+        const toolMetadata = asRecord(message.tool_metadata);
+        const stored = readStoredProvenance(toolMetadata);
+        if (!stored) return reply.code(404).send({ error: "No provenance for this message" });
+
+        const supportItem = stored.supportItems.find(
+          (item) => item.supportId === request.params.supportId
+        );
+        if (!supportItem) return reply.code(404).send({ error: "Support item not found" });
+
+        // V1: no providers registered yet — return unavailable
+        return {
+          unavailableReason: "source_unavailable" as const,
+          sourceLabel: supportItem.sourceLabel,
+          title: supportItem.title
+        };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 }
 
 /**
@@ -599,6 +658,15 @@ function serializeThread(thread: ChatThread): ChatThreadDto {
 
 function serializeMessage(message: ChatMessage): ChatMessageDto {
   const toolMetadata = asRecord(message.tool_metadata);
+  const storedProvenance = readStoredProvenance(toolMetadata);
+  const answerProvenance =
+    storedProvenance != null && storedProvenance.supportItems.length > 0
+      ? provenanceCards(storedProvenance)
+      : undefined;
+  const answerProvenanceCitedIds =
+    storedProvenance != null && storedProvenance.citedSupportIds.length > 0
+      ? [...storedProvenance.citedSupportIds]
+      : undefined;
   return {
     id: message.id,
     threadId: message.thread_id,
@@ -610,7 +678,9 @@ function serializeMessage(message: ChatMessage): ChatMessageDto {
     tools: readTools(toolMetadata.selectedTools),
     activity: readActivity(toolMetadata.activity),
     createdAt: toIsoString(message.created_at),
-    updatedAt: toIsoString(message.updated_at)
+    updatedAt: toIsoString(message.updated_at),
+    answerProvenance,
+    answerProvenanceCitedIds
   };
 }
 
