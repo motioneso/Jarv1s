@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { PEOPLE_TOOLS } from "./tools.js";
 
 export const PEOPLE_MODULE_ID = "people";
 export const PEOPLE_MODULE_VERSION = "0.1.0";
@@ -27,5 +28,6 @@ export const peopleModuleManifest: JarvisModuleManifest = {
       "app.person_context_events",
       "app.person_context_indexing_state"
     ]
-  }
+  },
+  assistantTools: PEOPLE_TOOLS,
 };

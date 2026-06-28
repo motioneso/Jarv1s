@@ -128,6 +128,9 @@ CREATE TABLE app.person_context_links (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE UNIQUE INDEX uq_person_context_links_dedup
+  ON app.person_context_links (owner_user_id, person_id, source_ref_hash, link_kind);
+
 ALTER TABLE app.person_context_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.person_context_links FORCE ROW LEVEL SECURITY;
 
@@ -155,6 +158,9 @@ CREATE TABLE app.person_context_link_sources (
   confidence       NUMERIC(4,2) NOT NULL DEFAULT 1.0,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX uq_person_context_link_sources_dedup
+  ON app.person_context_link_sources (owner_user_id, link_id, source_ref_hash);
 
 ALTER TABLE app.person_context_link_sources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.person_context_link_sources FORCE ROW LEVEL SECURITY;
