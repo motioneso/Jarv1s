@@ -72,8 +72,12 @@ describe("CommitmentsRepository", () => {
         occurredAt: null
       };
 
-      await dataContext.withDataContext(userAContext(), (scopedDb) => repo.upsertCandidate(scopedDb, input));
-      const second = await dataContext.withDataContext(userAContext(), (scopedDb) => repo.upsertCandidate(scopedDb, input));
+      await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repo.upsertCandidate(scopedDb, input)
+      );
+      const second = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repo.upsertCandidate(scopedDb, input)
+      );
 
       expect(second.sourceCount).toBe(2);
     });

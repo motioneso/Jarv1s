@@ -69,7 +69,9 @@ export default defineConfig({
       },
       {
         find: "@jarv1s/commitments/workers",
-        replacement: fileURLToPath(new URL("./packages/commitments/src/workers.ts", import.meta.url))
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/workers.ts", import.meta.url)
+        )
       },
       {
         find: "@jarv1s/commitments/jobs",
@@ -77,15 +79,21 @@ export default defineConfig({
       },
       {
         find: "@jarv1s/commitments/extractor",
-        replacement: fileURLToPath(new URL("./packages/commitments/src/extractor.ts", import.meta.url))
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/extractor.ts", import.meta.url)
+        )
       },
       {
         find: "@jarv1s/commitments/prefilter",
-        replacement: fileURLToPath(new URL("./packages/commitments/src/prefilter.ts", import.meta.url))
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/prefilter.ts", import.meta.url)
+        )
       },
       {
         find: "@jarv1s/commitments/signature",
-        replacement: fileURLToPath(new URL("./packages/commitments/src/signature.ts", import.meta.url))
+        replacement: fileURLToPath(
+          new URL("./packages/commitments/src/signature.ts", import.meta.url)
+        )
       },
       {
         find: "@jarv1s/commitments",

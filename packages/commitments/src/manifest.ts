@@ -35,9 +35,21 @@ export const commitmentsModuleManifest: JarvisModuleManifest = {
   routes: [
     { method: "GET", path: "/api/commitments/candidates", permissionId: "commitments.view" },
     { method: "GET", path: "/api/commitments/candidates/:id", permissionId: "commitments.view" },
-    { method: "PATCH", path: "/api/commitments/candidates/:id/status", permissionId: "commitments.update" },
-    { method: "POST", path: "/api/commitments/candidates/:id/resolve", permissionId: "commitments.update" },
-    { method: "POST", path: "/api/commitments/candidates/:id/suppress", permissionId: "commitments.update" },
+    {
+      method: "PATCH",
+      path: "/api/commitments/candidates/:id/status",
+      permissionId: "commitments.update"
+    },
+    {
+      method: "POST",
+      path: "/api/commitments/candidates/:id/resolve",
+      permissionId: "commitments.update"
+    },
+    {
+      method: "POST",
+      path: "/api/commitments/candidates/:id/suppress",
+      permissionId: "commitments.update"
+    },
     { method: "POST", path: "/api/commitments/extract", permissionId: "commitments.extract" },
     { method: "GET", path: "/api/commitments/extraction-state", permissionId: "commitments.view" }
   ],
@@ -62,7 +74,14 @@ export const commitmentsModuleManifest: JarvisModuleManifest = {
         properties: {
           status: {
             type: "string",
-            enum: ["pending_review", "accepted", "rejected", "snoozed", "expired", "explicit_non_action"]
+            enum: [
+              "pending_review",
+              "accepted",
+              "rejected",
+              "snoozed",
+              "expired",
+              "explicit_non_action"
+            ]
           }
         }
       },

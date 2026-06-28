@@ -16,7 +16,6 @@ const SYSTEM_PROMPT = `You are a commitment extraction assistant. Given a text e
 Return ONLY valid JSON. Return {"candidates":[]} if no commitments found.`;
 
 const MAX_TEXT_LENGTH = 4000;
-const MAX_OUTPUT_TOKENS = 1024;
 
 export async function extractCommitmentsFromText(
   generate: ExtractorGenerateFn,

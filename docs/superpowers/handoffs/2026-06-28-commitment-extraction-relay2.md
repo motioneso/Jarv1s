@@ -12,16 +12,16 @@
 
 ## Completed Tasks (Tasks 1–8, 10 commits)
 
-| Commit | Task |
-|--------|------|
+| Commit     | Task                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `95b0c4bb` | module-sdk: CommitmentExtractionProvider, CommitmentResolutionVerifier, CommitmentTextBoundary, ExtractedCommitmentCandidate interfaces |
-| `5075e1ae` | Task 1+2+3: pg-boss ALLOWED_PAYLOAD_KEYS + SQL migration 0125 + foundation scaffold + module-registry registration |
-| `429e3097` | Task 4 partial: types.ts, CommitmentsRepository skeleton, vitest alias |
-| `369e1fdb` | Task 4 complete: assertDataContextDb fix, CommitmentsRepository export, 4 Kysely table types in @jarv1s/db, tsconfig paths |
-| `b12bc2ca` | Task 5: passesPrefilter + buildCandidateSignature |
-| `f3d33c1a` | Task 6: extractCommitmentsFromText (prefilter → AI → JSON parse → fails-safe) |
-| `1e9009f3` | Task 7: CommitmentExtractionJobPayload + enqueueCommitmentExtraction + registerCommitmentExtractionWorker |
-| `4f720dd8` | Task 8: 7 REST routes (candidates CRUD + extract + state) |
+| `5075e1ae` | Task 1+2+3: pg-boss ALLOWED_PAYLOAD_KEYS + SQL migration 0125 + foundation scaffold + module-registry registration                      |
+| `429e3097` | Task 4 partial: types.ts, CommitmentsRepository skeleton, vitest alias                                                                  |
+| `369e1fdb` | Task 4 complete: assertDataContextDb fix, CommitmentsRepository export, 4 Kysely table types in @jarv1s/db, tsconfig paths              |
+| `b12bc2ca` | Task 5: passesPrefilter + buildCandidateSignature                                                                                       |
+| `f3d33c1a` | Task 6: extractCommitmentsFromText (prefilter → AI → JSON parse → fails-safe)                                                           |
+| `1e9009f3` | Task 7: CommitmentExtractionJobPayload + enqueueCommitmentExtraction + registerCommitmentExtractionWorker                               |
+| `4f720dd8` | Task 8: 7 REST routes (candidates CRUD + extract + state)                                                                               |
 
 ---
 
@@ -34,7 +34,13 @@ Test first: `tests/unit/commitment-tools-shape.test.ts`
 ```typescript
 // tests/unit/commitment-tools-shape.test.ts
 import { describe, it, expect } from "vitest";
-import { commitmentListExecute, commitmentGetExecute, commitmentAcceptExecute, commitmentRejectExecute, commitmentSnoozeExecute } from "@jarv1s/commitments/tools";
+import {
+  commitmentListExecute,
+  commitmentGetExecute,
+  commitmentAcceptExecute,
+  commitmentRejectExecute,
+  commitmentSnoozeExecute
+} from "@jarv1s/commitments/tools";
 
 describe("commitment tools", () => {
   it("exports all 5 execute functions", () => {
@@ -76,7 +82,15 @@ export const commitmentGetExecute: ToolExecute = async (scopedDb, input, ctx) =>
   const candidate = await repo.getCandidate(scopedDb, ctx.actorUserId, candidateId);
   if (!candidate) return renderToolResult({ type: "error", message: "Commitment not found" });
   const evidence = await repo.getEvidenceForCandidate(scopedDb, candidateId);
-  return renderToolResult({ type: "json", data: { ...candidate, resolutionRef: undefined, hasResolutionRef: candidate.resolutionRef !== null, evidence } });
+  return renderToolResult({
+    type: "json",
+    data: {
+      ...candidate,
+      resolutionRef: undefined,
+      hasResolutionRef: candidate.resolutionRef !== null,
+      evidence
+    }
+  });
 };
 
 export const commitmentAcceptExecute: ToolExecute = async (scopedDb, input, ctx) => {
@@ -93,8 +107,21 @@ export const commitmentRejectExecute: ToolExecute = async (scopedDb, input, ctx)
 
 export const commitmentSnoozeExecute: ToolExecute = async (scopedDb, input, ctx) => {
   const { candidateId, snoozedUntil } = input as { candidateId: string; snoozedUntil: string };
-  const candidate = await repo.updateStatus(scopedDb, ctx.actorUserId, candidateId, "snoozed", new Date(snoozedUntil));
-  return renderToolResult({ type: "json", data: { id: candidate.id, status: candidate.status, snoozedUntil: candidate.snoozedUntil?.toISOString() } });
+  const candidate = await repo.updateStatus(
+    scopedDb,
+    ctx.actorUserId,
+    candidateId,
+    "snoozed",
+    new Date(snoozedUntil)
+  );
+  return renderToolResult({
+    type: "json",
+    data: {
+      id: candidate.id,
+      status: candidate.status,
+      snoozedUntil: candidate.snoozedUntil?.toISOString()
+    }
+  });
 };
 ```
 
@@ -113,6 +140,7 @@ The `manifest.ts` skeleton already exists at `packages/commitments/src/manifest.
 **Step 2: Read `packages/module-registry/src/index.ts`** — the commitments module is already registered in `BUILT_IN_MODULES` (added in Task 3) but with empty `registerRoutes` and `registerWorkers`. Update those closures.
 
 The module-registry entry should look like:
+
 ```typescript
 {
   manifest: commitmentsModuleManifest,
@@ -137,6 +165,7 @@ The module-registry entry should look like:
 Import from `@jarv1s/commitments` for the exports. Add any missing imports to `module-registry/src/index.ts`.
 
 Also add `"test:commitments"` to root `package.json` scripts:
+
 ```json
 "test:commitments": "JARVIS_PGDATABASE=jarvis_build_537 vitest run tests/integration/commitments.test.ts"
 ```
@@ -190,6 +219,7 @@ Unit test: shape test that both providers export `sourceKind` correctly.
 Create `tests/integration/commitments.test.ts`. Use lane DB `JARVIS_PGDATABASE=jarvis_build_537`.
 
 The integration test should:
+
 1. Create a `DataContextRunner` connected to `jarvis_build_537`
 2. Call `withDataContext({ actorUserId: TEST_USER_ID, requestId: 'test' }, async (scopedDb) => {...})`
 3. Test `CommitmentsRepository.upsertCandidate` → returns candidate with correct fields
@@ -222,12 +252,14 @@ Report to Coordinator via `herdr-pane-message` skill: "Tasks 1-13 done. PR ready
 ## Key Patterns
 
 ### Subpath export wiring (add for EACH new subpath `./foo`):
+
 1. `packages/commitments/package.json` exports: `"./foo": "./src/foo.ts"`
 2. `vitest.config.ts` alias (BEFORE the main `@jarv1s/commitments` alias): `{ find: "@jarv1s/commitments/foo", replacement: fileURLToPath(new URL("./packages/commitments/src/foo.ts", ...)) }`
 3. `tsconfig.json` paths: `"@jarv1s/commitments/foo": ["packages/commitments/src/foo.ts"]`
 4. Test import: `import { ... } from "@jarv1s/commitments/foo"`
 
 ### assertDataContextDb pattern:
+
 ```typescript
 assertDataContextDb(scopedDb); // narrows type, returns void
 return scopedDb.db.selectFrom("app.commitment_candidates as c")...

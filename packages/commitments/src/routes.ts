@@ -158,11 +158,7 @@ export function registerCommitmentsRoutes(
 
   // POST /api/commitments/extract
   const extractSchema = Type.Object({
-    sourceKind: Type.Union([
-      Type.Literal("chat"),
-      Type.Literal("email"),
-      Type.Literal("notes")
-    ])
+    sourceKind: Type.Union([Type.Literal("chat"), Type.Literal("email"), Type.Literal("notes")])
   });
   app.post(
     "/api/commitments/extract",

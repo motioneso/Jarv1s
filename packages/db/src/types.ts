@@ -724,7 +724,11 @@ export interface CommitmentCandidatesTable {
     CommitmentCandidateStatusDb | undefined,
     CommitmentCandidateStatusDb
   >;
-  confidence: ColumnType<"high" | "medium" | "low", "high" | "medium" | "low", "high" | "medium" | "low">;
+  confidence: ColumnType<
+    "high" | "medium" | "low",
+    "high" | "medium" | "low",
+    "high" | "medium" | "low"
+  >;
   suggested_handling: ColumnType<
     CommitmentSuggestedHandlingDb | null,
     CommitmentSuggestedHandlingDb | null | undefined,
@@ -757,11 +761,29 @@ export interface CommitmentCandidateEventsTable {
   id: ColumnType<string, string | undefined, never>;
   candidate_id: string;
   owner_user_id: string;
-  event_kind: "created" | "status_changed" | "resolution_set" | "snoozed" | "suppressed" | "evidence_added";
-  from_status: ColumnType<CommitmentCandidateStatusDb | null, CommitmentCandidateStatusDb | null | undefined, CommitmentCandidateStatusDb | null>;
-  to_status: ColumnType<CommitmentCandidateStatusDb | null, CommitmentCandidateStatusDb | null | undefined, CommitmentCandidateStatusDb | null>;
+  event_kind:
+    | "created"
+    | "status_changed"
+    | "resolution_set"
+    | "snoozed"
+    | "suppressed"
+    | "evidence_added";
+  from_status: ColumnType<
+    CommitmentCandidateStatusDb | null,
+    CommitmentCandidateStatusDb | null | undefined,
+    CommitmentCandidateStatusDb | null
+  >;
+  to_status: ColumnType<
+    CommitmentCandidateStatusDb | null,
+    CommitmentCandidateStatusDb | null | undefined,
+    CommitmentCandidateStatusDb | null
+  >;
   actor_user_id: string;
-  detail: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null | undefined, Record<string, unknown> | null>;
+  detail: ColumnType<
+    Record<string, unknown> | null,
+    Record<string, unknown> | null | undefined,
+    Record<string, unknown> | null
+  >;
   created_at: TimestampColumn;
 }
 

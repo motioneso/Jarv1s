@@ -65,5 +65,7 @@ export const commitmentSnoozeExecute: ToolExecute = async (scopedDb, input, ctx)
     "snoozed",
     new Date(snoozedUntil)
   );
-  return { data: { id: candidate.id, status: candidate.status, snoozedUntil } } satisfies ToolResult;
+  return {
+    data: { id: candidate.id, status: candidate.status, snoozedUntil }
+  } satisfies ToolResult;
 };

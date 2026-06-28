@@ -1,17 +1,11 @@
 import type { PgBoss } from "pg-boss";
-import {
-  HttpApiAdapter,
-  parseAiApiKeyCredential,
-  AiRepository,
-  type AiSecretCipher,
-  type ProviderKind,
-  type GenerateChatInput
-} from "@jarv1s/ai";
+import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
+import type { AiRepository, AiSecretCipher, ProviderKind, GenerateChatInput } from "@jarv1s/ai";
 import type { DataContextRunner } from "@jarv1s/db";
 import { registerDataContextWorker, assertMetadataOnlyPayload } from "@jarv1s/jobs";
 import type { CommitmentExtractionProvider } from "@jarv1s/module-sdk";
 import { COMMITMENT_EXTRACTION_QUEUE } from "./manifest.js";
-import { CommitmentsRepository } from "./repository.js";
+import type { CommitmentsRepository } from "./repository.js";
 import { extractCommitmentsFromText } from "./extractor.js";
 import { buildCandidateSignature } from "./signature.js";
 import type { CommitmentExtractionJobPayload } from "./jobs.js";

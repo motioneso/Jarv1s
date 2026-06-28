@@ -4,7 +4,12 @@ import { extractCommitmentsFromText } from "@jarv1s/commitments/extractor";
 describe("extractCommitmentsFromText", () => {
   it("returns empty array for text that fails prefilter", async () => {
     const mockGenerate = vi.fn().mockResolvedValue({ text: '{"candidates":[]}' });
-    const result = await extractCommitmentsFromText(mockGenerate, "Sounds good, thanks!", "chat", "2026-06-28T10:00:00Z");
+    const result = await extractCommitmentsFromText(
+      mockGenerate,
+      "Sounds good, thanks!",
+      "chat",
+      "2026-06-28T10:00:00Z"
+    );
     expect(result).toEqual([]);
     expect(mockGenerate).not.toHaveBeenCalled();
   });
@@ -37,13 +42,23 @@ describe("extractCommitmentsFromText", () => {
 
   it("returns empty array on malformed AI response", async () => {
     const mockGenerate = vi.fn().mockResolvedValue({ text: "not json" });
-    const result = await extractCommitmentsFromText(mockGenerate, "I need to submit by tomorrow", "chat", "2026-06-28T10:00:00Z");
+    const result = await extractCommitmentsFromText(
+      mockGenerate,
+      "I need to submit by tomorrow",
+      "chat",
+      "2026-06-28T10:00:00Z"
+    );
     expect(result).toEqual([]);
   });
 
   it("returns empty array when AI throws", async () => {
     const mockGenerate = vi.fn().mockRejectedValue(new Error("API error"));
-    const result = await extractCommitmentsFromText(mockGenerate, "I need to submit by tomorrow", "chat", "2026-06-28T10:00:00Z");
+    const result = await extractCommitmentsFromText(
+      mockGenerate,
+      "I need to submit by tomorrow",
+      "chat",
+      "2026-06-28T10:00:00Z"
+    );
     expect(result).toEqual([]);
   });
 });

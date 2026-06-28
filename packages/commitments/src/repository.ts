@@ -13,7 +13,10 @@ import type {
 const MAX_EVIDENCE_ROWS = 5;
 
 export class CommitmentsRepository {
-  async upsertCandidate(scopedDb: unknown, input: UpsertCandidateInput): Promise<CommitmentCandidate> {
+  async upsertCandidate(
+    scopedDb: unknown,
+    input: UpsertCandidateInput
+  ): Promise<CommitmentCandidate> {
     assertDataContextDb(scopedDb);
     const now = new Date();
 
