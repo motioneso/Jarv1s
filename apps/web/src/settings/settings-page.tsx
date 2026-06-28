@@ -55,7 +55,8 @@ type PersonalSectionId =
   | "sources"
   | "modules"
   | "appearance"
-  | "general";
+  | "general"
+  | "activity";
 
 type AdminSectionId =
   | "people"
@@ -90,6 +91,9 @@ const GeneralPane = lazyPane(() =>
 );
 const AppearancePane = lazyPane(() =>
   import("./settings-appearance-pane").then((module) => ({ default: module.AppearancePane }))
+)
+const ActivityPane = lazyPane(() =>
+  import("./settings-activity-pane").then((module) => ({ default: module.ActivityPane }))
 );
 
 function PrioritiesPane(_props: PaneProps) {
@@ -127,6 +131,7 @@ const PERSONAL_SECTIONS = [
   { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },
   { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
   { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane },
+  { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane },
   { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
 ] as const satisfies readonly SettingsSection<PersonalSectionId>[];
 
