@@ -26,12 +26,14 @@ AnswerProvenanceMetadataV1` to `opts?: { invokedToolNames?, answerProvenance? }`
 destructures as `provenance` and asserts `toBeUndefined()` — but now it's an object.
 
 **Current (broken):**
+
 ```ts
 const [, , , , provenance] = calls[0] as unknown[];
 expect(provenance).toBeUndefined();
 ```
 
 **Fix:**
+
 ```ts
 const [, , , , opts] = calls[0] as unknown[];
 expect((opts as { answerProvenance?: unknown } | undefined)?.answerProvenance).toBeUndefined();
@@ -56,6 +58,7 @@ it through the backend and use it on the frontend.
 #### A. `packages/chat/src/live/chat-session-manager.ts`
 
 1. Update `ChatPersistencePort.recordTurn` return type (add `sourceFreshness?`):
+
 ```ts
 ): Promise<{
   readonly userMessageId: string;
@@ -63,9 +66,11 @@ it through the backend and use it on the frontend.
   readonly sourceFreshness?: SourceFreshnessV1 | null;
 } | undefined>;
 ```
+
 Need `import type { SourceFreshnessV1 } from "@jarv1s/shared"` in this file (check if already imported).
 
 2. After `recordTurn` call in `runTurn`, emit a post-store reply SSE event:
+
 ```ts
 const stored = await this.deps.persistence.recordTurn(...);
 // ... existing code ...
@@ -81,6 +86,7 @@ if (stored?.assistantMessageId && stored.sourceFreshness !== undefined) {
 ```
 
 3. Return `sourceFreshness` from `runTurn`:
+
 ```ts
 return {
   reply,
@@ -93,6 +99,7 @@ return {
 #### B. `packages/chat/src/live/persistence.ts`
 
 Return `sourceFreshness` from `recordTurn`:
+
 ```ts
 // After computing sourceFreshness and calling recordCompletedTurn:
 if (!result) return undefined;
@@ -109,6 +116,7 @@ statement for the stored result and add `sourceFreshness`.
 #### C. `packages/chat/src/live/types.ts`
 
 Add `sourceFreshness?` to `TranscriptRecord` so the backend can include it in emitted SSE events:
+
 ```ts
 import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
@@ -134,17 +142,20 @@ entry there.
 #### E. `apps/web/src/chat/use-chat-stream.ts`
 
 1. Parse `sourceFreshness` in `parseRecord` (after the `outcome` field):
+
 ```ts
 sourceFreshness:
   parsed.sourceFreshness && typeof parsed.sourceFreshness === "object"
     ? (parsed.sourceFreshness as SourceFreshnessV1)
     : undefined,
 ```
+
 Or use `readSourceFreshness` from routes — but that's in the backend. Use a simple inline parse or
 import from a shared util. The type is already imported at the top of the file.
 
 2. Update `setRecords` to replace the in-flight reply (no messageId) with the stored reply (has
-messageId + sourceFreshness):
+   messageId + sourceFreshness):
+
 ```ts
 source.onmessage = (event) => {
   const record = parseRecord(event.data);
@@ -152,9 +163,9 @@ source.onmessage = (event) => {
     setRecords((current) => {
       if (record.kind === "reply" && record.messageId) {
         // Replace the last streaming reply (which has no messageId) with the stored version
-        const lastUnstored = [...current].reverse().findIndex(
-          (r) => r.kind === "reply" && !r.messageId
-        );
+        const lastUnstored = [...current]
+          .reverse()
+          .findIndex((r) => r.kind === "reply" && !r.messageId);
         if (lastUnstored !== -1) {
           const realIdx = current.length - 1 - lastUnstored;
           return current.map((r, i) => (i === realIdx ? record : r));
@@ -169,6 +180,7 @@ source.onmessage = (event) => {
 #### F. `apps/web/src/chat/chat-drawer.tsx`
 
 Include `sourceFreshness` in the fallback reply record:
+
 ```ts
 const postResponseRecords: readonly TranscriptRecord[] = [
   { kind: "user", text: trimmed, messageId: result.userMessageId },
@@ -189,6 +201,7 @@ All tasks 7–11 complete + committed + pushed. PR #572 open, rebased on main. G
 (second run; first had transient notes PG flake).
 
 Commits on branch (newest first):
+
 - `9bf53a88` docs: add spec and plan for rfa-541
 - `3b5df3a9` fix(freshness): apply lint and format fixes (tasks 7-11)
 - `9b90d818` feat(freshness): add ChatFreshnessFooter (#541)

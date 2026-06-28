@@ -141,7 +141,12 @@ export function ChatDrawer(props: {
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
             { kind: "user", text: trimmed, messageId: result.userMessageId },
-            { kind: "reply", text: result.reply, messageId: result.assistantMessageId }
+            {
+              kind: "reply",
+              text: result.reply,
+              messageId: result.assistantMessageId,
+              sourceFreshness: result.sourceFreshness
+            }
           ];
           setFallbackRecords((current) =>
             [...current, ...postResponseRecords].filter(

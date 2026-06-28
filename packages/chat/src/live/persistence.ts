@@ -235,7 +235,8 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       return result
         ? {
             userMessageId: result.userMessage.id,
-            assistantMessageId: result.assistantMessage.id
+            assistantMessageId: result.assistantMessage.id,
+            sourceFreshness
           }
         : undefined;
     });

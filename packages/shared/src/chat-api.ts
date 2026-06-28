@@ -90,6 +90,7 @@ export interface SendChatTurnResponse {
   readonly reply: string;
   readonly userMessageId?: string;
   readonly assistantMessageId?: string;
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
 }
 
 export type AnswerProvenanceSourceKind =

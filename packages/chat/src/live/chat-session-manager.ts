@@ -15,7 +15,8 @@ import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
   AnswerSourceSupport,
-  AiProviderExecutionMode
+  AiProviderExecutionMode,
+  SourceFreshnessV1
 } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
 
@@ -65,7 +66,14 @@ export interface ChatPersistencePort {
       readonly invokedToolNames?: ReadonlySet<string>;
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
     }
-  ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined>;
+  ): Promise<
+    | {
+        readonly userMessageId: string;
+        readonly assistantMessageId: string;
+        readonly sourceFreshness?: SourceFreshnessV1 | null;
+      }
+    | undefined
+  >;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
   /** Return the current thread title and the user's persisted timezone (null if unset). */
@@ -376,6 +384,7 @@ export class ChatSessionManager {
     reply: string;
     userMessageId?: string;
     assistantMessageId?: string;
+    sourceFreshness?: SourceFreshnessV1 | null;
   }> {
     // Turn-at-a-time (spec §6.5): reject a concurrent turn for the same user.
     // The flag is set synchronously (before any await) so two turns started in
@@ -407,6 +416,7 @@ export class ChatSessionManager {
     reply: string;
     userMessageId?: string;
     assistantMessageId?: string;
+    sourceFreshness?: SourceFreshnessV1 | null;
   }> {
     const session = await this.ensureSession(actorUserId, userName);
 
@@ -521,10 +531,21 @@ export class ChatSessionManager {
       session.lastActivity = this.deps.clock.now();
       this.deps.touchMcpToken?.(actorUserId);
 
+      // Post-store: re-emit reply with messageId + sourceFreshness so live UI picks it up
+      if (stored?.assistantMessageId && stored.sourceFreshness !== undefined) {
+        this.emit(actorUserId, {
+          kind: "reply",
+          text: reply,
+          messageId: stored.assistantMessageId,
+          sourceFreshness: stored.sourceFreshness
+        });
+      }
+
       return {
         reply,
         userMessageId: stored?.userMessageId,
-        assistantMessageId: stored?.assistantMessageId
+        assistantMessageId: stored?.assistantMessageId,
+        sourceFreshness: stored?.sourceFreshness
       };
     } finally {
       this.turnControllers.delete(actorUserId);
