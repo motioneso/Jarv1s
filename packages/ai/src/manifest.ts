@@ -65,7 +65,7 @@ export const aiModuleManifest = {
       "sql/0048_ai_model_tier.sql",
       "sql/0091_chat_model_override.sql",
       "sql/0098_ai_cancel_stale_assistant_actions.sql",
-      "sql/XXXX_jarvis_action_audit_log.sql"
+      "sql/0127_jarvis_action_audit_log.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [

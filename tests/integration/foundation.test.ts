@@ -297,7 +297,7 @@ describe("MVP foundation scaffold", () => {
         { version: "0124", name: "0124_scheduled_recurring_briefings.sql" },
         { version: "0125", name: "0125_commitment_candidates.sql" },
         { version: "0126", name: "0126_app_runtime_calendar_events_delete.sql" },
-        { version: "XXXX", name: "XXXX_jarvis_action_audit_log.sql" }
+        { version: "0127", name: "0127_jarvis_action_audit_log.sql" }
       ]);
     } finally {
       await client.end();
