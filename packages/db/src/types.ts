@@ -812,6 +812,41 @@ export interface CommitmentExtractionStateTable {
   updated_at: TimestampColumn;
 }
 
+export type {
+  PersonContextStatusDb,
+  PersonContextIdentityKindDb,
+  PersonContextSourceKindDb,
+  PersonContextIdentityStatusDb,
+  PersonContextProvenanceDb,
+  PersonContextLinkKindDb,
+  PersonContextCandidateKindDb,
+  PersonContextCandidateStatusDb,
+  PersonContextEventKindDb,
+  PersonContextPeopleTable,
+  PersonContextIdentitiesTable,
+  PersonContextLinksTable,
+  PersonContextLinkSourcesTable,
+  PersonContextMatchCandidatesTable,
+  PersonContextEventsTable,
+  PersonContextIndexingStateTable,
+  PersonContextPerson,
+  PersonContextIdentity,
+  PersonContextLink,
+  PersonContextLinkSource,
+  PersonContextMatchCandidate,
+  PersonContextEvent,
+  PersonContextIndexingState
+} from "./people-types.js";
+import type {
+  PersonContextPeopleTable,
+  PersonContextIdentitiesTable,
+  PersonContextLinksTable,
+  PersonContextLinkSourcesTable,
+  PersonContextMatchCandidatesTable,
+  PersonContextEventsTable,
+  PersonContextIndexingStateTable
+} from "./people-types.js";
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -866,6 +901,13 @@ export interface JarvisDatabase {
   "app.commitment_candidate_sources": CommitmentCandidateSourcesTable;
   "app.commitment_candidate_events": CommitmentCandidateEventsTable;
   "app.commitment_extraction_state": CommitmentExtractionStateTable;
+  "app.person_context_people": PersonContextPeopleTable;
+  "app.person_context_identities": PersonContextIdentitiesTable;
+  "app.person_context_links": PersonContextLinksTable;
+  "app.person_context_link_sources": PersonContextLinkSourcesTable;
+  "app.person_context_match_candidates": PersonContextMatchCandidatesTable;
+  "app.person_context_events": PersonContextEventsTable;
+  "app.person_context_indexing_state": PersonContextIndexingStateTable;
 }
 
 export type User = Selectable<UsersTable>;

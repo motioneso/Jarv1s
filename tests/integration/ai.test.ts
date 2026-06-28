@@ -190,7 +190,8 @@ describe("AI provider foundation", () => {
       "weather",
       "notes",
       "proactive-monitoring",
-      "jarvis.commitments"
+      "jarvis.commitments",
+      "people"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.ai_provider_configs",

@@ -182,7 +182,8 @@ describe("Connectors encrypted foundation", () => {
       "weather",
       "notes",
       "proactive-monitoring",
-      "jarvis.commitments"
+      "jarvis.commitments",
+      "people"
     ]);
     expect(registrations.map((item) => item.manifest.id)).toEqual([
       "settings",
@@ -203,7 +204,8 @@ describe("Connectors encrypted foundation", () => {
       "weather",
       "notes",
       "proactive-monitoring",
-      "jarvis.commitments"
+      "jarvis.commitments",
+      "people"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.connector_definitions",
@@ -225,25 +227,26 @@ describe("Connectors encrypted foundation", () => {
       "/settings/admin/connectors"
     ]);
     expect(registration?.queueDefinitions).toEqual(GOOGLE_SYNC_QUEUE_DEFINITIONS);
-    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/commitments/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/proactive-monitoring");
-    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/notes/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/wellness/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/structured-state/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain(
+    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/people/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/commitments/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/proactive-monitoring");
+    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/notes/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/wellness/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/structured-state/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain(
       "packages/usefulness-feedback/sql"
     );
-    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain("packages/memory/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/briefings/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-9)).toContain("packages/chat/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-10)).toContain("packages/ai/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-11)).toContain("packages/email/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-12)).toContain("packages/calendar/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-13)).toContain("packages/notifications/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-14)).toContain("packages/goals/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-15)).toContain("packages/tasks/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-16)).toContain("packages/connectors/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-17)).toContain("packages/settings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/memory/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-9)).toContain("packages/briefings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-10)).toContain("packages/chat/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-11)).toContain("packages/ai/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-12)).toContain("packages/email/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-13)).toContain("packages/calendar/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-14)).toContain("packages/notifications/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-15)).toContain("packages/goals/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-16)).toContain("packages/tasks/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-17)).toContain("packages/connectors/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-18)).toContain("packages/settings/sql");
   });
 
   it("requires an explicit connector secret key in production", () => {

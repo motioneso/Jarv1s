@@ -104,5 +104,9 @@ export const queryKeys = {
   },
   goals: {
     list: ["goals", "list"] as const
+  },
+  people: {
+    list: ["people", "list"] as const,
+    matchCandidates: ["people", "match-candidates"] as const
   }
 };
