@@ -41,7 +41,7 @@ when on level").
 4. `foundation.test.ts`: add goals module to module-list assertion (migration 0123 already there)
 5. (AGY only, assess if real) Read tool truncation for goal summaries/evidence
 
-**Successor actions for #535:** (1) Relay all 5 fix targets above to RFA-535 AGY build agent at **w1:p4X** (idle). (2) After fix push, spawn dual-model re-QA. (3) After both GREEN: merge PR #566, close #535, board Done, reap RFA-535 AGY (w1:p4X), remove worktree rfa-535-long-running-goals, RELAY.
+**Successor actions for #535:** ~~(1) Relay all 5 fix targets above to RFA-535 AGY build agent at **w1:p4X** (idle).~~ DONE. ~~(2) After fix push, spawn dual-model re-QA.~~ DONE — AGY pushed `ef6316b8` (2026-06-28, all 5 fixes applied: export+evidence, memory module isolation, policy N/A confirmed, foundation.test.ts verified, read truncation). Opus security re-QA native agent spawned (bg agent a8f20e3506aa8f701), awaiting verdict. (3) After GREEN: merge PR #566, close #535, board Done, reap RFA-535 AGY (w1:p4X), remove worktree rfa-535-long-running-goals, RELAY.
 
 **Queue after both #531 + #535 land:** #536 (recurring briefings) → #537 (commitment extraction, after #533+#535+#536) → #538 (person/contact model). HARD STOP at #538.
 **Next migration slot:** 0124 (0123 = #535).
