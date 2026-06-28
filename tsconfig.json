@@ -48,6 +48,7 @@
       "@jarv1s/commitments": ["packages/commitments/src/index.ts"],
       "@jarv1s/commitments/extractor": ["packages/commitments/src/extractor.ts"],
       "@jarv1s/commitments/jobs": ["packages/commitments/src/jobs.ts"],
+      "@jarv1s/commitments/routes": ["packages/commitments/src/routes.ts"],
       "@jarv1s/commitments/workers": ["packages/commitments/src/workers.ts"],
       "@jarv1s/commitments/prefilter": ["packages/commitments/src/prefilter.ts"],
       "@jarv1s/commitments/signature": ["packages/commitments/src/signature.ts"]

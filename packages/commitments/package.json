@@ -9,7 +9,8 @@
     "./signature": "./src/signature.ts",
     "./extractor": "./src/extractor.ts",
     "./jobs": "./src/jobs.ts",
-    "./workers": "./src/workers.ts"
+    "./workers": "./src/workers.ts",
+    "./routes": "./src/routes.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
