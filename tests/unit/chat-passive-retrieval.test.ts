@@ -276,9 +276,11 @@ describe("PassiveContextRetriever.retrieveWithItems", () => {
         .mockResolvedValue({ recallEnabled: false, factsEnabled: true, updatedAt: new Date() })
     };
     const mockContext = {
-      withDataContext: vi.fn().mockImplementation(async (_ctx: unknown, fn: unknown) =>
-        (fn as (_: unknown) => unknown)({ db: {} })
-      )
+      withDataContext: vi
+        .fn()
+        .mockImplementation(async (_ctx: unknown, fn: unknown) =>
+          (fn as (_: unknown) => unknown)({ db: {} })
+        )
     };
     const retriever = new PassiveContextRetriever({
       dataContext: mockContext,

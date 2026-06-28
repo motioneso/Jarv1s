@@ -38,9 +38,7 @@ export function MarkdownMessage(props: MarkdownMessageProps) {
 
   const citedSet = new Set(answerProvenanceCitedIds ?? []);
   const displayText =
-    answerProvenance && answerProvenance.length > 0
-      ? stripDisplayMarkers(text, citedSet)
-      : text;
+    answerProvenance && answerProvenance.length > 0 ? stripDisplayMarkers(text, citedSet) : text;
 
   return (
     <div className="chatd-md">

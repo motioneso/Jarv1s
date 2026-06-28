@@ -12,7 +12,11 @@
  * a real tmux session, Postgres, or disk. Task 8 supplies the real adapters.
  */
 import type { ProviderKind } from "@jarv1s/ai";
-import type { AnswerProvenanceMetadataV1, AnswerSourceSupport, AiProviderExecutionMode } from "@jarv1s/shared";
+import type {
+  AnswerProvenanceMetadataV1,
+  AnswerSourceSupport,
+  AiProviderExecutionMode
+} from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { RecallPort } from "../recall-port.js";
@@ -498,10 +502,16 @@ export class ChatSessionManager {
       }
 
       const stored = await (answerProvenance !== undefined
-        ? this.deps.persistence.recordTurn(actorUserId, text, reply, {
-            provider: session.provider,
-            model: session.model
-          }, answerProvenance)
+        ? this.deps.persistence.recordTurn(
+            actorUserId,
+            text,
+            reply,
+            {
+              provider: session.provider,
+              model: session.model
+            },
+            answerProvenance
+          )
         : this.deps.persistence.recordTurn(actorUserId, text, reply, {
             provider: session.provider,
             model: session.model

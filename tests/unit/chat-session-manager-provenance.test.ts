@@ -7,7 +7,9 @@ import type {
 
 function makeDeps(overrides: Partial<ChatSessionManagerDeps> = {}): ChatSessionManagerDeps {
   const persistence: ChatPersistencePort = {
-    resolveActiveProvider: vi.fn().mockResolvedValue({ provider: "anthropic", model: "claude-3-opus" }),
+    resolveActiveProvider: vi
+      .fn()
+      .mockResolvedValue({ provider: "anthropic", model: "claude-3-opus" }),
     listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
     recordTurn: vi.fn().mockResolvedValue({ userMessageId: "u1", assistantMessageId: "a1" }),
     openNewConversation: vi.fn(),

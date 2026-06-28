@@ -12,6 +12,11 @@ import {
 } from "../../packages/chat/src/live/answer-provenance.js";
 import type { CrossToolEvidenceItem } from "../../packages/chat/src/live/cross-tool-reasoning.js";
 import type { MemoryRecallItem } from "@jarv1s/memory";
+import type {
+  AnswerProvenanceState,
+  AnswerSourceSupport,
+  AnswerProvenanceMetadataV1
+} from "@jarv1s/shared";
 
 // ── sanitizePlainText ─────────────────────────────────────────────────────────
 describe("sanitizePlainText", () => {
@@ -171,8 +176,8 @@ describe("memoryItemToSupport", () => {
 describe("finalizeProvenance", () => {
   const makeSupport = (
     id: string,
-    state: import("@jarv1s/shared").AnswerProvenanceState = "unverified_context"
-  ): import("@jarv1s/shared").AnswerSourceSupport => ({
+    state: AnswerProvenanceState = "unverified_context"
+  ): AnswerSourceSupport => ({
     supportId: id,
     sourceKind: "memory",
     sourceLabel: `Label ${id}`,
@@ -206,7 +211,11 @@ describe("finalizeProvenance", () => {
   });
 
   it("contextCheckedCount counts uncited context items", () => {
-    const candidates = [makeSupport("S1"), makeSupport("S2"), makeSupport("S3", "confirmed_source")];
+    const candidates = [
+      makeSupport("S1"),
+      makeSupport("S2"),
+      makeSupport("S3", "confirmed_source")
+    ];
     const result = finalizeProvenance(candidates, ["S3"]);
     expect(result.contextCheckedCount).toBe(2);
   });
@@ -215,7 +224,7 @@ describe("finalizeProvenance", () => {
 // ── toSupportCard ─────────────────────────────────────────────────────────────
 describe("toSupportCard", () => {
   it("drops citationToken from AnswerSourceSupport", () => {
-    const support: import("@jarv1s/shared").AnswerSourceSupport = {
+    const support: AnswerSourceSupport = {
       supportId: "S1",
       sourceKind: "email",
       sourceLabel: "Email",
@@ -246,7 +255,7 @@ describe("readStoredProvenance", () => {
   });
 
   it("returns parsed metadata when valid", () => {
-    const meta: import("@jarv1s/shared").AnswerProvenanceMetadataV1 = {
+    const meta: AnswerProvenanceMetadataV1 = {
       version: 1,
       citedSupportIds: ["S1"],
       supportItems: [],
@@ -262,7 +271,7 @@ describe("readStoredProvenance", () => {
 // ── provenanceCards ───────────────────────────────────────────────────────────
 describe("provenanceCards", () => {
   it("strips citationToken from all items", () => {
-    const meta: import("@jarv1s/shared").AnswerProvenanceMetadataV1 = {
+    const meta: AnswerProvenanceMetadataV1 = {
       version: 1,
       citedSupportIds: ["S1"],
       supportItems: [

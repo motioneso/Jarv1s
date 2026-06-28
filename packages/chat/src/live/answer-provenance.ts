@@ -23,6 +23,7 @@ const MARKER_RE = /\[\[S(\d{1,2})\]\]/g;
 
 export function sanitizePlainText(text: string, maxLen?: number): string {
   // Strip control characters except tab (0x09), LF (0x0A), CR (0x0D)
+  // eslint-disable-next-line no-control-regex
   const cleaned = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
   return maxLen !== undefined && cleaned.length > maxLen ? cleaned.slice(0, maxLen) : cleaned;
 }

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
+import type { AnswerSourceSupportCard } from "@jarv1s/shared";
+
 import { chatStreamUrl } from "../api/client.js";
 
 export type ChatRecordKind =
@@ -20,7 +22,7 @@ export interface TranscriptRecord {
   readonly toolName?: string;
   readonly summary?: string;
   readonly outcome?: "executed" | "denied" | "error";
-  readonly answerProvenance?: readonly import("@jarv1s/shared").AnswerSourceSupportCard[];
+  readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
 }
 

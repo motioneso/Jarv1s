@@ -51,9 +51,7 @@ export function SourceTray({ card, onClose }: SourceTrayProps) {
       <div className="source-tray__label">{card.sourceLabel}</div>
       <div className="source-tray__title">{card.title}</div>
       <div className="source-tray__state">{stateLabel}</div>
-      {card.confidenceTier && (
-        <div className="source-tray__confidence">{card.confidenceTier}</div>
-      )}
+      {card.confidenceTier && <div className="source-tray__confidence">{card.confidenceTier}</div>}
       {card.occurredAt && (
         <time className="source-tray__time" dateTime={card.occurredAt}>
           {new Date(card.occurredAt).toLocaleDateString()}
@@ -73,8 +71,7 @@ export function SourceChips({ cards, citedIds }: SourceChipsProps) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const citedSet = new Set(citedIds ?? []);
-  const visibleCards =
-    citedIds != null ? cards.filter((c) => citedSet.has(c.supportId)) : cards;
+  const visibleCards = citedIds != null ? cards.filter((c) => citedSet.has(c.supportId)) : cards;
 
   if (visibleCards.length === 0) return null;
 

@@ -466,9 +466,8 @@ export function registerChatRoutes(
     async (request, reply) => {
       try {
         const access = await dependencies.resolveAccessContext(request);
-        const message = await dependencies.dataContext.withDataContext(
-          access,
-          (scopedDb) => repository.getMessageById(scopedDb, request.params.messageId)
+        const message = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          repository.getMessageById(scopedDb, request.params.messageId)
         );
         if (!message || message.owner_user_id !== access.actorUserId) {
           return reply.code(404).send({ error: "Message not found" });
@@ -488,9 +487,8 @@ export function registerChatRoutes(
     async (request, reply) => {
       try {
         const access = await dependencies.resolveAccessContext(request);
-        const message = await dependencies.dataContext.withDataContext(
-          access,
-          (scopedDb) => repository.getMessageById(scopedDb, request.params.messageId)
+        const message = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          repository.getMessageById(scopedDb, request.params.messageId)
         );
         if (!message || message.owner_user_id !== access.actorUserId) {
           return reply.code(404).send({ error: "Message not found" });
