@@ -124,6 +124,11 @@ export class ProactiveScanner {
 
     // Filter to allowed signal types, map to priority candidates, rank.
     const allowedSignals = signals.filter((s) => isAllowedSignalType(source, s.signalType));
+    // Build title→signal map BEFORE ranking. rankPriorityCandidates sorts results internally
+    // and returns PriorityResult[] with no candidate back-references (scoring.ts drops them at
+    // the final .map step). PriorityResult.title === candidate.title === signal.title, so
+    // title is the stable bridge — look up by result.title after ranking, not by index.
+    const signalByTitle = new Map(allowedSignals.map((s) => [s.title, s]));
     const candidates: PriorityCandidate[] = allowedSignals.map((s) => {
       const pc = s.priorityCandidate as Record<string, unknown>;
       return {
@@ -156,13 +161,13 @@ export class ProactiveScanner {
       return skip(source, "scorer_error");
     }
 
-    // Sort signal-result pairs together so association is preserved after re-ordering.
-    const sortedPairs = allowedSignals
-      .map((signal, j) => ({ signal, result: ranked[j]! }))
-      .sort((a, b) => b.result.score - a.result.score);
-
-    for (const { signal, result } of sortedPairs) {
+    // ranked is already sorted by score descending (not in input order). Look up each
+    // result's originating signal by title — not by position.
+    for (const result of ranked) {
       if (result.band !== "critical" && result.band !== "high") continue;
+
+      const signal = signalByTitle.get(result.title);
+      if (!signal) continue;
 
       const verdict = await this.deps.antiSpamPolicy.check(
         scopedDb,
