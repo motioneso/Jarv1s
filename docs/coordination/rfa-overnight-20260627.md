@@ -2,7 +2,8 @@
 
 **Date:** 2026-06-27
 **Coordinator lock:** label `Coordinator`, stable anchor = Claude session id
-`fa1a543f-55a4-46a3-9c52-36b642aa0c62` (pane `w1:p50`, relay R2). Single-coordinator lock verified.
+`b5aaa896-632b-4713-86f3-fc12d170cd20` (pane `w1:p6P`, relay R3). Single-coordinator lock verified.
+Prior session `fa1a543f-55a4-46a3-9c52-36b642aa0c62` (w1:p50, relay R2) done + standing down.
 Prior session `5e1a6b62-a480-4b5c-9706-e476cfe77044` (w1:p59) stood down + reaped 2026-06-28. Pane ids are routing hints only.
 **Merge policy:** `routine`/`sensitive` may auto-merge after independent green QA;
 `security` auto-merges after cross-model QA (GLM + Codex both green) — Ben sign-off
@@ -35,7 +36,8 @@ merges_since_relay=4; Ben stay-resident override active; relay R2 spawning now.
 
 **Queue:** #536 building → #537 (commitment extraction, after #533+#535+#536) → #538 (person/contact model). HARD STOP at #538.
 **Next migration slot:** 0125 (0124 = #536 in progress).
-**Post-run task:** File GitHub issue "Jarvis what's new / capabilities doc" — tool-call approach, static file committed to repo, baked into image at build time (Ben request 2026-06-27).
+**Post-run task:** ✅ DONE (R3 2026-06-28) — capabilities doc issue filed as [issue #575](https://github.com/motioneso/Jarv1s/issues/575) "Capabilities doc: what's new in Jarvis (overnight build 2026-06-28)".
+**Run status:** ✅ ALL 6 ISSUES MERGED + CLEANUP COMPLETE (R3 2026-06-28). Panes w1:p6F (RFA-538-R5) + w1:p6N (QA-538-GLM) reaped. Worktree `rfa-538-person-contact-model` removed. Run wrapping up.
 **Tab discipline:** coordinator tab = w1:tS; agents tab = w1:tW (label "agents", Jarvis w1). Relay successor spawns in coordinator tab.
 **Previous continuation note:** security-tier PR #551 (`#529`) merged at `4e9f128` after Ben approval,
 all CI green, and Opus security QA GREEN
@@ -404,3 +406,4 @@ None.
   replacement Codex salvage pane is `w1:p3Q`.
 - Closed native QA worker `Aquinas` after its RED verdict was posted to PR #544 and relayed.
 - Closed native QA worker `Volta` after its RED rerun verdict was posted to PR #544 and relayed.
+- Closed build pane `RFA-538-R5` (`w1:p6F`, session `f8299ef5`) and QA pane `QA-538-GLM` (`w1:p6N`, session `ses_0f1ab11fdffe53EHGO8IfE5aMX`) after PR #574 merged; removed worktree `rfa-538-person-contact-model` (R3 cleanup 2026-06-28).
