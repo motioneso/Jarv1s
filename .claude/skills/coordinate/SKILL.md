@@ -216,6 +216,9 @@ between events to catch silent failures.
 - **On an agent relay** (it hit its countable-event threshold or saw a compaction summary): it
   spawns its own successor in the same worktree and asks to be reaped — confirm the successor is
   driving (`herdr pane read`), then **reap** the old pane and update the manifest (pane id changed).
+  ⚠️ **Tab discipline on agent relay:** if YOU spawn the successor (rather than the agent spawning
+  it itself), always pass `--tab <agents-tab>` — never omit it, or the successor lands in your
+  coordinator tab. Only your own coordinator relay successor goes in the coordinator tab.
 - Keep the manifest current after every state change — it is your memory.
 
 ## Phase 3 — Verify & merge (you own it all)
