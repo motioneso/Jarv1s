@@ -454,6 +454,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "tasks-recurrence-materialize",
       "goals-memory-sync",
       "goals-memory-sync-reconcile",
+      "calendar.cache-evict-event",
       "chat.embed-turn",
       "chat.extract-facts",
       "briefings-run",

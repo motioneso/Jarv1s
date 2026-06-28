@@ -28,6 +28,7 @@ export interface CalendarWriteImplDeps {
   readonly connectorsRepository: ConnectorsRepository;
   readonly calendarRepository: CalendarRepository;
   readonly preferencesRepository?: Pick<PreferencesRepository, "get">;
+  readonly enqueueCacheEvict?: (eventId: string, actorUserId: string) => Promise<string | null>;
 }
 
 // No timezone constant is needed here: the resolved window already carries concrete UTC
@@ -227,7 +228,7 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
 
     async deleteEvent(
       scopedDbRaw: unknown,
-      _ctx: ToolContext,
+      ctx: ToolContext,
       input: DeleteEventInput
     ): Promise<DeleteEventResult> {
       assertDataContextDb(scopedDbRaw);
@@ -305,9 +306,19 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         };
       }
 
-      // 6. Best-effort cache mirror. NEVER rethrow — a cache miss must not fail a
-      // successful external delete. Google is the source of truth; next sync reconciles.
-      const cacheMirror = await deleteCachedEvent(deps, scopedDb, input.eventId);
+      // 6. Best-effort async cache eviction. NEVER rethrow — enqueue failure must not fail a
+      // successful external delete. Google is the source of truth; the worker reconciles the cache.
+      let cacheMirror: DeleteEventResult["cacheMirror"];
+      if (deps.enqueueCacheEvict) {
+        try {
+          await deps.enqueueCacheEvict(input.eventId, ctx.actorUserId);
+          cacheMirror = "queued";
+        } catch {
+          cacheMirror = "skipped-error";
+        }
+      } else {
+        cacheMirror = "skipped-error";
+      }
 
       return {
         deleted: true,
@@ -317,26 +328,6 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
       };
     }
   };
-}
-
-async function deleteCachedEvent(
-  deps: CalendarWriteImplDeps,
-  scopedDb: DataContextDb,
-  eventId: string
-): Promise<"deleted" | "skipped-rls" | "skipped-error"> {
-  try {
-    await deps.calendarRepository.deleteById(scopedDb, eventId);
-    return "deleted";
-  } catch (error) {
-    // Classify on stable SQLSTATE first (42501 = insufficient_privilege / RLS violation);
-    // message text is locale/version-dependent, so only fall back to it.
-    const code = (error as { code?: string } | null)?.code;
-    if (code === "42501") return "skipped-rls";
-    const message = error instanceof Error ? error.message : "";
-    return /row-level security|violates row-level|policy/i.test(message)
-      ? "skipped-rls"
-      : "skipped-error";
-  }
 }
 
 async function mirrorEvent(

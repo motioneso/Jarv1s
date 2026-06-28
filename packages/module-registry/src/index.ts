@@ -38,7 +38,9 @@ import {
 import {
   calendarModuleManifest,
   calendarModuleSqlMigrationDirectory,
-  registerCalendarRoutes
+  CALENDAR_QUEUE_DEFINITIONS,
+  registerCalendarRoutes,
+  registerCalendarJobWorkers
 } from "@jarv1s/calendar";
 import {
   CHAT_QUEUE_DEFINITIONS,
@@ -513,8 +515,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: calendarModuleManifest,
     sqlMigrationDirectories: [calendarModuleSqlMigrationDirectory],
-    queueDefinitions: [],
-    registerRoutes: registerCalendarRoutes
+    queueDefinitions: CALENDAR_QUEUE_DEFINITIONS,
+    registerRoutes: registerCalendarRoutes,
+    registerWorkers: (boss, deps) => registerCalendarJobWorkers(boss, deps.dataContext)
   },
   {
     manifest: emailModuleManifest,

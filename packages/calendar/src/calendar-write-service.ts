@@ -32,7 +32,7 @@ export interface DeleteEventInput {
 export interface DeleteEventResult {
   readonly deleted: boolean;
   readonly googleDeleted: "deleted" | "already-gone" | "skipped-no-scope" | "skipped-error";
-  readonly cacheMirror: "deleted" | "skipped-rls" | "skipped-error" | "not-cached";
+  readonly cacheMirror: "queued" | "deleted" | "skipped-rls" | "skipped-error" | "not-cached";
   readonly deletedTitle?: string;
   readonly message?: string;
 }

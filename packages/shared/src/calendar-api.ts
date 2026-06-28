@@ -116,7 +116,7 @@ export const getCalendarEventRouteSchema = {
 export interface DeleteCalendarEventResponse {
   readonly deleted: boolean;
   readonly googleDeleted: "deleted" | "already-gone" | "skipped-no-scope" | "skipped-error";
-  readonly cacheMirror: "deleted" | "skipped-rls" | "skipped-error" | "not-cached";
+  readonly cacheMirror: "queued" | "deleted" | "skipped-rls" | "skipped-error" | "not-cached";
   readonly deletedTitle?: string;
   readonly message?: string;
 }
@@ -133,7 +133,7 @@ export const deleteCalendarEventResponseSchema = {
     },
     cacheMirror: {
       type: "string",
-      enum: ["deleted", "skipped-rls", "skipped-error", "not-cached"]
+      enum: ["queued", "deleted", "skipped-rls", "skipped-error", "not-cached"]
     },
     deletedTitle: { type: "string" },
     message: { type: "string" }
