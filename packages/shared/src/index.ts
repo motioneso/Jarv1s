@@ -33,3 +33,4 @@ export * from "./memory-graph-api.js";
 export * from "./usefulness-feedback-api.js";
 export * from "./memory-dashboard-api.js";
 export * from "./proactive-monitoring-api.js";
+export * from "./freshness-types.js";
