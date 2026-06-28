@@ -11,11 +11,13 @@ import {
 import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
 import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
 import {
+  AI_QUEUE_DEFINITIONS,
   AiAutoRegisterService,
   AiRepository,
   aiModuleManifest,
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
+  registerAiMaintenanceWorkers,
   registerAiRoutes
 } from "@jarv1s/ai";
 import {
@@ -538,7 +540,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: aiModuleManifest,
     sqlMigrationDirectories: [aiModuleSqlMigrationDirectory],
-    queueDefinitions: [],
+    queueDefinitions: AI_QUEUE_DEFINITIONS,
     registerRoutes: (server, deps) => {
       const preferencesRepository = new PreferencesRepository();
       const tasksCompatibility = new TasksCompatibilityHelper(preferencesRepository);
@@ -548,7 +550,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveActiveModules: deps.resolveActiveModules,
         tasksCompatibility
       });
-    }
+    },
+    registerWorkers: (boss, deps) => registerAiMaintenanceWorkers(boss, deps.rootDb)
   },
   {
     manifest: chatModuleManifest,
