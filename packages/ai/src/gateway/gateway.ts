@@ -11,7 +11,7 @@ import type {
 import type { AiAssistantToolDto } from "@jarv1s/shared";
 
 import { summarizeAssistantToolInput } from "../assistant-tools.js";
-import type { AiRepository } from "../repository.js";
+import type { AiRepository, InsertAuditLogInput } from "../repository.js";
 import type { ConfirmationRegistry } from "./confirmation-registry.js";
 import { validateToolInput } from "./input-validation.js";
 import { renderAndCap } from "./output-validation.js";
@@ -96,7 +96,17 @@ export class AssistantToolGateway {
     const prefs = this.deps.agencyPrefs?.(ctx) ?? denyPrefs;
     const lookup = this.deps.actionPolicy?.(ctx) ?? defaultPolicyLookup;
     if ((await resolvePolicy(found.tool, found.dto.moduleId, lookup)) === "run") {
-      return this.runHandler(found, input, ctx);
+      const result = await this.runHandler(found, input, ctx);
+      if (found.tool.risk !== "read") {
+        const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
+        void this.recordAudit(access, found, {
+          approvalMode: "auto",
+          outcome: result.ok ? "success" : "failed",
+          errorClass: result.ok ? null : "handler_error",
+          chatSessionId: ctx.chatSessionId
+        });
+      }
+      return result;
     }
     return this.confirmAndRun(found, input, ctx, await this.firstRunNotice(found, prefs));
   }
@@ -273,6 +283,13 @@ export class AssistantToolGateway {
         toolName: found.dto.name,
         outcome: "denied"
       });
+      const approvalMode =
+        outcome === "timeout" ? "timeout" : outcome === "rejected" ? "rejected" : "cancelled";
+      void this.recordAudit(access, found, {
+        approvalMode,
+        outcome: outcome === "cancelled" ? "cancelled" : "denied",
+        chatSessionId: ctx.chatSessionId
+      });
       const reason =
         outcome === "timeout"
           ? "Timed out awaiting confirmation — still pending in your drawer."
@@ -286,6 +303,12 @@ export class AssistantToolGateway {
       actionRequestId: action.id,
       toolName: found.dto.name,
       outcome: result.ok ? "executed" : "error"
+    });
+    void this.recordAudit(access, found, {
+      approvalMode: "confirmed",
+      outcome: result.ok ? "success" : "failed",
+      errorClass: result.ok ? null : "handler_error",
+      chatSessionId: ctx.chatSessionId
     });
     return result;
   }
@@ -363,5 +386,45 @@ export class AssistantToolGateway {
       }
     }
     return out;
+  }
+
+  private async recordAudit(
+    access: AccessContext,
+    found: ExecutableTool,
+    opts: {
+      approvalMode: InsertAuditLogInput["approvalMode"];
+      outcome: InsertAuditLogInput["outcome"];
+      errorClass?: string | null;
+      chatSessionId?: string;
+    }
+  ): Promise<void> {
+    try {
+      await this.deps.runner.withDataContext(access, (scopedDb) =>
+        this.deps.repository.insertActionAuditLog(scopedDb, {
+          id: randomUUID(),
+          ownerUserId: access.actorUserId,
+          toolModuleId: found.dto.moduleId,
+          toolName: found.dto.name,
+          actionFamilyId: found.tool.actionFamilyId ?? null,
+          actionKind: found.tool.risk as "write" | "destructive",
+          approvalMode: opts.approvalMode,
+          outcome: opts.outcome,
+          errorClass: opts.errorClass ?? null,
+          requestId: access.requestId ?? null,
+          chatSessionId: opts.chatSessionId ?? null,
+          sourceSurface: "chat"
+        })
+      );
+    } catch {
+      console.error(
+        JSON.stringify({
+          event: "audit_log_write_failed",
+          toolName: found.dto.name,
+          toolModuleId: found.dto.moduleId,
+          approvalMode: opts.approvalMode,
+          outcome: opts.outcome
+        })
+      );
+    }
   }
 }

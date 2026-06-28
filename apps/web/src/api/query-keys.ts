@@ -44,7 +44,9 @@ export const queryKeys = {
     tierPreferences: ["ai", "tier-preferences"] as const,
     assistantTools: ["ai", "assistant-tools"] as const,
     webSearchKey: ["ai", "web-search-key"] as const,
-    runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const
+    runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const,
+    actionAuditLog: (params?: { since?: string; family?: string; limit?: number }) =>
+      ["ai", "action-audit-log", params] as const
   },
   briefings: {
     definitions: ["briefings", "definitions"] as const,

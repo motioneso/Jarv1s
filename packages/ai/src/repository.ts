@@ -15,6 +15,7 @@ import {
   type AiProviderKind,
   type AiProviderStatus,
   type DataContextDb,
+  type JarvisActionAuditLog,
   type JarvisDatabase
 } from "@jarv1s/db";
 import type {
@@ -130,6 +131,27 @@ export interface CreateAiAssistantActionInput {
   readonly risk: AiAssistantActionRisk;
   readonly inputSummary: Record<string, unknown>;
   readonly requestId?: string | null;
+}
+
+export interface InsertAuditLogInput {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly toolModuleId: string;
+  readonly toolName: string;
+  readonly actionFamilyId: string | null;
+  readonly actionKind: "write" | "destructive";
+  readonly approvalMode: "auto" | "confirmed" | "rejected" | "cancelled" | "timeout";
+  readonly outcome: "success" | "failed" | "denied" | "cancelled";
+  readonly errorClass: string | null;
+  readonly requestId: string | null;
+  readonly chatSessionId: string | null;
+  readonly sourceSurface: "chat" | "proactive" | "scheduled" | "unknown";
+}
+
+export interface ListAuditLogOptions {
+  readonly since: Date;
+  readonly familyFilter?: { moduleId: string; familyId: string } | null;
+  readonly limit: number;
 }
 
 export interface ResolveAiAssistantActionInput {
@@ -1033,6 +1055,54 @@ export class AiRepository {
         })
       )
       .execute();
+  }
+  async insertActionAuditLog(scopedDb: DataContextDb, input: InsertAuditLogInput): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.jarvis_action_audit_log")
+      .values({
+        id: input.id,
+        owner_user_id: input.ownerUserId,
+        tool_module_id: input.toolModuleId,
+        tool_name: input.toolName,
+        action_family_id: input.actionFamilyId ?? null,
+        action_kind: input.actionKind,
+        approval_mode: input.approvalMode,
+        outcome: input.outcome,
+        error_class: input.errorClass ?? null,
+        request_id: input.requestId ?? null,
+        chat_session_id: input.chatSessionId ?? null,
+        source_surface: input.sourceSurface
+      })
+      .execute();
+  }
+
+  async listActionAuditLog(
+    scopedDb: DataContextDb,
+    opts: ListAuditLogOptions
+  ): Promise<JarvisActionAuditLog[]> {
+    assertDataContextDb(scopedDb);
+    let query = scopedDb.db
+      .selectFrom("app.jarvis_action_audit_log")
+      .selectAll()
+      .where("occurred_at", ">=", opts.since)
+      .orderBy("occurred_at", "desc")
+      .limit(opts.limit);
+
+    if (opts.familyFilter) {
+      query = query
+        .where("tool_module_id", "=", opts.familyFilter.moduleId)
+        .where("action_family_id", "=", opts.familyFilter.familyId);
+    }
+
+    return query.execute();
+  }
+
+  async purgeActionAuditLog(appDb: Kysely<JarvisDatabase>, olderThan: Date): Promise<number> {
+    const result = await sql<{ count: number }>`
+      SELECT app.purge_jarvis_action_audit_log(${olderThan}) AS count
+    `.execute(appDb);
+    return Number(result.rows[0]?.count ?? 0);
   }
 }
 

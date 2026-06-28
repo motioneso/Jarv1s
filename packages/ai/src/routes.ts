@@ -11,7 +11,12 @@ import { parsePositiveIntEnv } from "@jarv1s/shared";
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
 const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type {
+  AccessContext,
+  DataContextDb,
+  DataContextRunner,
+  JarvisActionAuditLog
+} from "@jarv1s/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
@@ -55,7 +60,10 @@ import {
   type PutChatModelOverrideRequest,
   type ResolveAiAssistantActionRequest,
   type UpdateAiConfiguredModelRequest,
-  type UpdateAiProviderConfigRequest
+  type UpdateAiProviderConfigRequest,
+  listActionAuditLogRouteSchema,
+  type ActionAuditLogEntryDto,
+  type ListActionAuditLogResponse
 } from "@jarv1s/shared";
 
 import {
@@ -432,6 +440,51 @@ export function registerAiRoutes(
         }
 
         return { action: serializeAssistantAction(action) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  const AUDIT_RETENTION_DAYS = 90;
+  const AUDIT_MAX_LIMIT = 500;
+  const AUDIT_DEFAULT_LIMIT = 200;
+
+  server.get<{ Querystring: { since?: string; family?: string; limit?: number } }>(
+    "/api/ai/action-audit",
+    { schema: listActionAuditLogRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const retentionFloor = new Date(Date.now() - AUDIT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+        let since: Date;
+        if (request.query.since) {
+          const parsed = new Date(request.query.since);
+          since = isNaN(parsed.getTime()) ? retentionFloor : parsed;
+          if (since < retentionFloor) since = retentionFloor;
+        } else {
+          since = retentionFloor;
+        }
+
+        let familyFilter: { moduleId: string; familyId: string } | null = null;
+        if (request.query.family) {
+          const parts = request.query.family.split("/");
+          if (parts.length === 2 && parts[0] && parts[1]) {
+            familyFilter = { moduleId: parts[0], familyId: parts[1] };
+          }
+        }
+
+        const limit = Math.min(request.query.limit ?? AUDIT_DEFAULT_LIMIT, AUDIT_MAX_LIMIT);
+
+        const entries = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          repository.listActionAuditLog(scopedDb, { since, familyFilter, limit })
+        );
+
+        const response: ListActionAuditLogResponse = {
+          entries: entries.map(serializeAuditLogEntry)
+        };
+        return response;
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -973,6 +1026,25 @@ function toIsoString(value: Date | string | null): string | null {
   }
 
   return value instanceof Date ? value.toISOString() : value;
+}
+
+function serializeAuditLogEntry(row: JarvisActionAuditLog): ActionAuditLogEntryDto {
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    toolModuleId: row.tool_module_id,
+    toolName: row.tool_name,
+    actionFamilyId: row.action_family_id ?? null,
+    actionKind: row.action_kind as "write" | "destructive",
+    approvalMode: row.approval_mode as ActionAuditLogEntryDto["approvalMode"],
+    outcome: row.outcome as ActionAuditLogEntryDto["outcome"],
+    errorClass: row.error_class ?? null,
+    requestId: row.request_id ?? null,
+    chatSessionId: row.chat_session_id ?? null,
+    sourceSurface: row.source_surface as ActionAuditLogEntryDto["sourceSurface"],
+    occurredAt:
+      row.occurred_at instanceof Date ? row.occurred_at.toISOString() : String(row.occurred_at)
+  };
 }
 
 export function handleRouteError(error: unknown, reply: FastifyReply) {
