@@ -321,9 +321,7 @@ export class PeopleRepository {
   }
 
   async archivePerson(scopedDb: unknown, ownerUserId: string, personId: string): Promise<Person> {
-    const now = new Date();
     return this.updatePerson(scopedDb, ownerUserId, personId, { status: "archived" });
-    void now;
   }
 
   async upsertIdentity(scopedDb: unknown, params: UpsertIdentityParams): Promise<PersonIdentity> {

@@ -7,7 +7,6 @@ import type {
   MatchCandidate,
   Person,
   PersonDetail,
-  PersonIdentity,
   PersonLink
 } from "./types.js";
 

@@ -28,6 +28,7 @@ before plan write completed. Successor picks up from scratch and writes the plan
 ## Codebase Patterns (critical)
 
 ### module-sdk
+
 `packages/module-sdk/src/index.ts` exports all types. Pattern for providers: see
 `ProactiveMonitorProvider` (lines ~139-148), `CommitmentExtractionProvider` (lines ~416-423).
 To add: `PersonContextProvider`, `PersonContextProviderInput`, `PersonContextSignal`,
@@ -35,6 +36,7 @@ To add: `PersonContextProvider`, `PersonContextProviderInput`, `PersonContextSig
 `readonly personContextProvider?: PersonContextProvider`.
 
 ### packages/db/src/types.ts
+
 - `TimestampColumn = ColumnType<Date, Date | string | undefined, Date | string>`
 - `NullableTimestampColumn = ColumnType<Date | null, Date | string | null | undefined, Date | string | null>`
 - Tables use `ColumnType<string, string | undefined, never>` for UUID PKs
@@ -42,6 +44,7 @@ To add: `PersonContextProvider`, `PersonContextProviderInput`, `PersonContextSig
 - Selectable type aliases go at bottom (line ~893+)
 
 ### Package structure (follow commitments pattern)
+
 ```
 packages/people/
   package.json              # @jarv1s/people, ESM, same deps as commitments + typebox
@@ -62,31 +65,41 @@ packages/people/
 ```
 
 ### Route pattern (from commitments/src/routes.ts)
+
 ```ts
-export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDependencies): void
+export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDependencies): void;
 // deps: { resolveAccessContext, dataContext, boss, repository?, service? }
 // Always: const ac = await deps.resolveAccessContext(request); then withDataContext(ac, ...)
 ```
 
 ### Worker pattern (from commitments/src/workers.ts)
+
 ```ts
 import { registerDataContextWorker } from "@jarv1s/jobs";
-await registerDataContextWorker<Payload, void>(boss, QUEUE_NAME, dataContext, async (job, scopedDb) => {
-  assertMetadataOnlyPayload(job.data);
-  // load source_ref from app.person_context_indexing_state under scopedDb
-  // call provider.collectPersonSignals()
-  // run matching + upsert
-});
+await registerDataContextWorker<Payload, void>(
+  boss,
+  QUEUE_NAME,
+  dataContext,
+  async (job, scopedDb) => {
+    assertMetadataOnlyPayload(job.data);
+    // load source_ref from app.person_context_indexing_state under scopedDb
+    // call provider.collectPersonSignals()
+    // run matching + upsert
+  }
+);
 ```
 
 ### module-registry wiring
+
 `packages/module-registry/src/index.ts` (1060 lines) — add:
+
 - import people manifest, routes fn, workers fn at top
 - add manifest to the module list
 - call registerPeopleRoutes() and registerPersonIndexWorker() in the wiring section
-Follow exact same pattern as commitments (grep `commitments` in that file)
+  Follow exact same pattern as commitments (grep `commitments` in that file)
 
 ### Integration test pattern
+
 ```ts
 import { createDatabase, DataContextRunner } from "@jarv1s/db";
 import { resetFoundationDatabase, connectionStrings, ids } from "./test-database.js";
@@ -95,15 +108,17 @@ import { resetFoundationDatabase, connectionStrings, ids } from "./test-database
 ```
 
 ### foundation.test.ts (CRITICAL — must update or test breaks latently)
+
 File: `tests/integration/foundation.test.ts` line 298-299
 After `{ version: "0126", name: "0126_app_runtime_calendar_events_delete.sql" }` add:
 `{ version: "XXXX", name: "XXXX_person_context.sql" }` — replace XXXX with actual number before push.
 
 ### Web UI placement
+
 Add People & context tab to Settings -> Memory & context pane.
 File to modify: `apps/web/src/settings/settings-memory-pane.tsx`
 New files: `apps/web/src/settings/settings-people-pane.tsx` + `apps/web/src/api/people-client.ts`
-Use existing jds-* primitives (Group, PaneHead, Row from settings-ui.tsx).
+Use existing jds-\* primitives (Group, PaneHead, Row from settings-ui.tsx).
 
 ## Key Security Rules (MANDATORY — never skip)
 
@@ -122,6 +137,7 @@ Use existing jds-* primitives (Group, PaneHead, Row from settings-ui.tsx).
 ## SQL Migration Design (XXXX_person_context.sql)
 
 ENUMs to create in app schema:
+
 - `app.person_context_status`: 'active', 'archived', 'merged'
 - `app.person_context_identity_kind`: 'email_address', 'source_identity', 'alias', 'display_name'
 - `app.person_context_source_kind`: 'email', 'calendar', 'chat', 'note', 'task', 'commitment', 'memory', 'manual'
@@ -133,6 +149,7 @@ ENUMs to create in app schema:
 - `app.person_context_event_kind`: 'created', 'identity_linked', 'identity_rejected', 'merged', 'split', 'archived', 'candidate_accepted', 'candidate_rejected', 'candidate_reopened'
 
 Tables (all FORCE RLS with jarvis_app_runtime + jarvis_worker_runtime policies):
+
 1. `app.person_context_people` — owner_user_id, display_name (≤160), relationship_summary (≤1000),
    context_summary (≤1000), status, confidence NUMERIC(4,2), memory_entity_id UUID nullable,
    merged_into_person_id UUID FK self nullable, archived_at, merged_at
@@ -159,6 +176,7 @@ Tables (all FORCE RLS with jarvis_app_runtime + jarvis_worker_runtime policies):
 ## Kysely Types to Add (packages/db/src/types.ts)
 
 Add 7 interfaces (PersonContextPeopleTable etc.) using existing pattern, then add to JarvisDatabase:
+
 ```ts
 "app.person_context_people": PersonContextPeopleTable;
 "app.person_context_identities": PersonContextIdentitiesTable;
@@ -168,7 +186,9 @@ Add 7 interfaces (PersonContextPeopleTable etc.) using existing pattern, then ad
 "app.person_context_events": PersonContextEventsTable;
 "app.person_context_indexing_state": PersonContextIndexingStateTable;
 ```
+
 And Selectable aliases at bottom:
+
 ```ts
 export type PersonContextPerson = Selectable<PersonContextPeopleTable>;
 // etc. for all 7
@@ -196,9 +216,9 @@ POST   /api/people/index/refresh                { sources?, sourceRefs? } → 20
 
 Read tools: `people.resolve`, `people.getContext`, `people.listRecent`
 Write tools: `people.acceptMatch` (risk: "write", actionFamilyId: "people_review"),
-             `people.rejectMatch` (risk: "write", actionFamilyId: "people_review")
+`people.rejectMatch` (risk: "write", actionFamilyId: "people_review")
 Destructive: `people.merge` (risk: "destructive", executionPolicy should be confirm or absent — NOT "auto"),
-             `people.splitIdentity` (risk: "destructive")
+`people.splitIdentity` (risk: "destructive")
 
 `people.getContext` must emit `citationToken = "<sourceKind>:<sourceRefHash>:<linkId>"` per link.
 `people.acceptMatch` must check candidate_kind and refuse to auto-run merge_people/split_identity.
@@ -207,7 +227,7 @@ Destructive: `people.merge` (risk: "destructive", executionPolicy should be conf
 
 - `PERSON_INDEX_QUEUE = "person-index"` — payload: actorUserId, source, sourceRefHash, sourceVersion?, reason, idempotencyKey
 - `SYNC_PERSON_MEMORY_QUEUE = "sync-person-memory"` — payload: actorUserId, personId, personUpdatedAt, reason, idempotencyKey
-Cooldown: 15 min per owner, max 50 source refs per refresh request, max 100 pending/running jobs per owner.
+  Cooldown: 15 min per owner, max 50 source refs per refresh request, max 100 pending/running jobs per owner.
 
 ## Next Steps for Successor
 

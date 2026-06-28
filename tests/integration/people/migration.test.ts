@@ -17,15 +17,11 @@ afterAll(async () => {
 });
 
 it("migration XXXX creates all person_context tables", async () => {
-  const tables = await db
-    .selectFrom("information_schema.tables" as any)
-    .select("table_name" as any)
-    .where("table_schema" as any, "=", "app")
-    .where("table_name" as any, "like", "person_context_%")
-    .execute();
-  const names = (tables as Array<{ table_name: string }>)
-    .map((r) => r.table_name)
-    .sort();
+  const rows = await sql<{ table_name: string }>`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'app' AND table_name LIKE 'person_context_%'
+  `.execute(db);
+  const names = rows.rows.map((r) => r.table_name).sort();
   expect(names).toEqual([
     "person_context_events",
     "person_context_identities",
@@ -33,7 +29,7 @@ it("migration XXXX creates all person_context tables", async () => {
     "person_context_link_sources",
     "person_context_links",
     "person_context_match_candidates",
-    "person_context_people",
+    "person_context_people"
   ]);
 });
 

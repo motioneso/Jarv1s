@@ -42,7 +42,7 @@ All 7 tables hold personal data.
 - `people.acceptMatch` must detect `candidate_kind in ("merge_people","split_identity")` and
   refuse to auto-execute; escalate to the destructive tools instead.
 - Job payloads carry metadata only: `actorUserId, source, sourceRefHash, sourceVersion, reason,
-  idempotencyKey`. No content, no raw signals, no `source_ref`.
+idempotencyKey`. No content, no raw signals, no `source_ref`.
 - Never log raw `PersonContextSignal` objects — log counts, `sourceKind`, `sourceRefHash`, and
   error class only.
 - Memory-sync failures must NOT roll back person-context writes — keep them in separate
@@ -52,21 +52,21 @@ All 7 tables hold personal data.
 
 ## Task List
 
-| # | Task | Scope |
-|---|------|-------|
-| 1 | SQL migration: ENUMs + 7 tables + FORCE RLS + policies | DB |
-| 2 | Kysely types in `packages/db/src/types.ts` | packages/db |
-| 3 | `PersonContextProvider` contract in `packages/module-sdk` | packages/module-sdk |
-| 4 | `packages/people` scaffold: `package.json`, `tsconfig.json`, `src/types.ts` | packages/people |
-| 5 | `src/matching.ts` — normalizeIdentity, matchResult, candidateSignature | packages/people |
-| 6 | `src/repository.ts` — PeopleRepository | packages/people |
-| 7 | `src/service.ts` — PersonContextService | packages/people |
-| 8 | `src/jobs.ts` + `src/workers.ts` — queues + worker registration | packages/people |
-| 9 | `src/tools.ts` — 7 assistant tools | packages/people |
-| 10 | `src/manifest.ts` + `src/routes.ts` + `src/index.ts` — manifest, 14 REST routes, public API | packages/people |
-| 11 | Module-registry wiring in `packages/module-registry/src/index.ts` | packages/module-registry |
-| 12 | Web UI: `settings-people-pane.tsx` + `people-client.ts`, wire into settings-memory-pane | apps/web |
-| 13 | Full gate: typecheck + lint + format + integration tests + foundation.test.ts row | all |
+| #   | Task                                                                                        | Scope                    |
+| --- | ------------------------------------------------------------------------------------------- | ------------------------ |
+| 1   | SQL migration: ENUMs + 7 tables + FORCE RLS + policies                                      | DB                       |
+| 2   | Kysely types in `packages/db/src/types.ts`                                                  | packages/db              |
+| 3   | `PersonContextProvider` contract in `packages/module-sdk`                                   | packages/module-sdk      |
+| 4   | `packages/people` scaffold: `package.json`, `tsconfig.json`, `src/types.ts`                 | packages/people          |
+| 5   | `src/matching.ts` — normalizeIdentity, matchResult, candidateSignature                      | packages/people          |
+| 6   | `src/repository.ts` — PeopleRepository                                                      | packages/people          |
+| 7   | `src/service.ts` — PersonContextService                                                     | packages/people          |
+| 8   | `src/jobs.ts` + `src/workers.ts` — queues + worker registration                             | packages/people          |
+| 9   | `src/tools.ts` — 7 assistant tools                                                          | packages/people          |
+| 10  | `src/manifest.ts` + `src/routes.ts` + `src/index.ts` — manifest, 14 REST routes, public API | packages/people          |
+| 11  | Module-registry wiring in `packages/module-registry/src/index.ts`                           | packages/module-registry |
+| 12  | Web UI: `settings-people-pane.tsx` + `people-client.ts`, wire into settings-memory-pane     | apps/web                 |
+| 13  | Full gate: typecheck + lint + format + integration tests + foundation.test.ts row           | all                      |
 
 ---
 
@@ -96,7 +96,7 @@ it("migration XXXX creates all person_context tables", async () => {
     "person_context_link_sources",
     "person_context_links",
     "person_context_match_candidates",
-    "person_context_people",
+    "person_context_people"
   ]);
   await db.destroy();
 });
@@ -134,7 +134,7 @@ Create `packages/people/sql/XXXX_person_context.sql`:
 4. Add SELECT/INSERT/UPDATE/DELETE policies for `jarvis_app_runtime` and SELECT/INSERT/UPDATE/DELETE
    for `jarvis_worker_runtime`, all gated on `(owner_user_id = app.current_actor_user_id())`.
 5. Add unique index on `person_context_identities (owner_user_id, identity_kind, source_kind, normalized_value)
-   WHERE status = 'active' AND identity_kind IN ('email_address','source_identity')`.
+WHERE status = 'active' AND identity_kind IN ('email_address','source_identity')`.
 6. Add unique constraint on `person_context_match_candidates (owner_user_id, candidate_signature)`.
 
 ---
@@ -168,6 +168,7 @@ Add 7 interfaces to `packages/db/src/types.ts` (after last existing table interf
 for UUID PKs).
 
 Then add to `JarvisDatabase`:
+
 ```ts
 "app.person_context_people": PersonContextPeopleTable;
 "app.person_context_identities": PersonContextIdentitiesTable;
@@ -179,6 +180,7 @@ Then add to `JarvisDatabase`:
 ```
 
 Add Selectable aliases at the bottom (line ~893+):
+
 ```ts
 export type PersonContextPerson = Selectable<PersonContextPeopleTable>;
 export type PersonContextIdentity = Selectable<PersonContextIdentitiesTable>;
@@ -204,7 +206,7 @@ it("PersonContextProvider type is exported from module-sdk", () => {
   // Compile-time check — if missing, TS errors here
   const _: PersonContextProvider = {
     sourceKind: "email",
-    collectPersonSignals: async (_input) => ({ signals: [] }),
+    collectPersonSignals: async (_input) => ({ signals: [] })
   };
   expect(_).toBeDefined();
 });
@@ -219,10 +221,17 @@ export interface PersonContextSignal {
   readonly identityKind: "email_address" | "source_identity" | "alias" | "display_name";
   readonly displayValue: string;
   readonly normalizedValue: string; // private — never expose outside DB layer
-  readonly sourceRef: string;       // private — never expose outside DB layer
+  readonly sourceRef: string; // private — never expose outside DB layer
   readonly sourceRefHash: string;
   readonly sourceVersion: string;
-  readonly linkKind: "sender" | "recipient" | "attendee" | "mentioned" | "assigned" | "counterparty" | "related";
+  readonly linkKind:
+    | "sender"
+    | "recipient"
+    | "attendee"
+    | "mentioned"
+    | "assigned"
+    | "counterparty"
+    | "related";
   readonly sourceLabel?: string;
   readonly summary?: string;
   readonly occurredAt?: Date;
@@ -243,8 +252,14 @@ export interface PersonContextProviderInput {
 }
 
 export type PersonContextSource =
-  | "email" | "calendar" | "chat" | "note"
-  | "task" | "commitment" | "memory" | "manual";
+  | "email"
+  | "calendar"
+  | "chat"
+  | "note"
+  | "task"
+  | "commitment"
+  | "memory"
+  | "manual";
 
 export interface PersonContextProvider {
   readonly sourceKind: PersonContextSource;
@@ -253,6 +268,7 @@ export interface PersonContextProvider {
 ```
 
 Also extend `JarvisModuleManifest`:
+
 ```ts
 readonly personContextProvider?: PersonContextProvider;
 ```
@@ -273,7 +289,7 @@ it("domain types are importable", () => {
   const p: Pick<Person, "id" | "displayName" | "status"> = {
     id: "uuid",
     displayName: "Alice",
-    status: "active",
+    status: "active"
   };
   expect(p.displayName).toBe("Alice");
 });
@@ -289,6 +305,7 @@ plus `@sinclair/typebox`. Declare workspace dependencies: `@jarv1s/db`, `@jarv1s
 
 `src/types.ts` — domain types derived from DB Selectable aliases, with snake_case → camelCase
 conversion. Key types:
+
 - `Person` (from `PersonContextPerson`, omitting `normalized_value` / `source_ref` fields)
 - `PersonIdentity` (omitting `normalized_value`, `source_ref`)
 - `PersonLink` (omitting `source_ref`)
@@ -393,6 +410,7 @@ it("repository enforces RLS — user1 cannot see user2 people", async () => {
 `PeopleRepository` class — receives `DataContextDb` on every method (never stores it).
 
 Methods:
+
 - `upsertPerson(db, params)` — INSERT … ON CONFLICT DO NOTHING, then SELECT
 - `findOrCreatePerson(db, displayName, ownerUserId)` — used during matching
 - `getPerson(db, ownerUserId, personId)` — throws NotFoundError if missing
@@ -449,6 +467,7 @@ it("getPerson throws NotFoundError for unknown id", async () => {
 `PersonContextService` — takes `PeopleRepository` in constructor.
 
 Methods:
+
 - `resolve(db, ownerUserId, query)` — look up by normalized identity (email), return `Person | null`
 - `getPerson(db, ownerUserId, personId)` — delegates to repo, enriches with identity list
 - `listLinks(db, ownerUserId, personId, params)` — delegates to repo
@@ -471,17 +490,25 @@ Methods:
 
 ```ts
 // packages/people/src/__tests__/jobs.test.ts
-import { enqueuePersonIndex, PersonIndexPayload, assertMetadataOnlyPersonPayload } from "../jobs.js";
+import {
+  enqueuePersonIndex,
+  PersonIndexPayload,
+  assertMetadataOnlyPersonPayload
+} from "../jobs.js";
 
 it("enqueuePersonIndex enqueues with metadata-only payload", async () => {
   const sent: unknown[] = [];
-  const mockBoss = { send: async (_q: string, d: unknown) => { sent.push(d); } } as any;
+  const mockBoss = {
+    send: async (_q: string, d: unknown) => {
+      sent.push(d);
+    }
+  } as any;
   await enqueuePersonIndex(mockBoss, {
     actorUserId: "u1",
     source: "email",
     sourceRefHash: "abc123",
     reason: "new_message",
-    idempotencyKey: "u1:email:abc123",
+    idempotencyKey: "u1:email:abc123"
   });
   expect(sent[0]).not.toHaveProperty("source_ref");
   expect(sent[0]).not.toHaveProperty("normalizedValue");
@@ -489,8 +516,14 @@ it("enqueuePersonIndex enqueues with metadata-only payload", async () => {
 
 it("assertMetadataOnlyPersonPayload throws if forbidden key present", () => {
   expect(() =>
-    assertMetadataOnlyPersonPayload({ actorUserId: "u", source: "email",
-      sourceRefHash: "x", reason: "r", idempotencyKey: "k", source_ref: "FORBIDDEN" })
+    assertMetadataOnlyPersonPayload({
+      actorUserId: "u",
+      source: "email",
+      sourceRefHash: "x",
+      reason: "r",
+      idempotencyKey: "k",
+      source_ref: "FORBIDDEN"
+    })
   ).toThrow();
 });
 ```
@@ -498,6 +531,7 @@ it("assertMetadataOnlyPersonPayload throws if forbidden key present", () => {
 ### Implementation
 
 `jobs.ts`:
+
 - `PERSON_INDEX_QUEUE = "person-index"` — payload type: `PersonIndexPayload`
   (`actorUserId, source, sourceRefHash, sourceVersion?, reason, idempotencyKey`)
 - `SYNC_PERSON_MEMORY_QUEUE = "sync-person-memory"` — payload: `SyncPersonMemoryPayload`
@@ -508,6 +542,7 @@ it("assertMetadataOnlyPersonPayload throws if forbidden key present", () => {
 - `enqueuePersonIndexBatch(boss, params[])` — max 50 refs per call, loops enqueuePersonIndex
 
 `workers.ts`:
+
 - `registerPersonIndexWorker(boss, dataContext, moduleRegistry)` — uses
   `registerDataContextWorker<PersonIndexPayload, void>`. Worker body:
   1. `assertMetadataOnlyPersonPayload(job.data)` — guard
@@ -546,9 +581,9 @@ it("people.splitIdentity has risk=destructive", () => {
 it("people.acceptMatch refuses to auto-run merge/split candidates", async () => {
   const acceptTool = PEOPLE_TOOLS.find((t) => t.name === "people.acceptMatch")!;
   // stub service.acceptCandidate to throw RequiresExplicitActionError
-  await expect(
-    acceptTool.execute({ candidateId: "cid" }, mockDeps)
-  ).rejects.toMatchObject({ code: "REQUIRES_EXPLICIT_ACTION" });
+  await expect(acceptTool.execute({ candidateId: "cid" }, mockDeps)).rejects.toMatchObject({
+    code: "REQUIRES_EXPLICIT_ACTION"
+  });
 });
 
 it("people.getContext citationToken includes sourceKind:sourceRefHash:linkId", async () => {
@@ -563,18 +598,21 @@ it("people.getContext citationToken includes sourceKind:sourceRefHash:linkId", a
 Export `PEOPLE_TOOLS: AssistantTool[]` array with 7 entries:
 
 **Read tools** (risk: "read"):
+
 - `people.resolve` — `{ query: string }` → searches by name or email; returns `Person | null`
 - `people.getContext` — `{ personId: string }` → returns `PersonDetail` with links; each link has
   `citationToken = "<sourceKind>:<sourceRefHash>:<linkId>"`; strips normalized_value/source_ref
 - `people.listRecent` — `{ limit?: number }` → recently seen persons
 
 **Write tools** (risk: "write", actionFamilyId: "people_review"):
+
 - `people.acceptMatch` — `{ candidateId: string }` → calls `service.acceptCandidate`; if it throws
   `RequiresExplicitActionError` (merge_people / split_identity kind), propagates error to force
   the user to invoke the destructive tool explicitly
 - `people.rejectMatch` — `{ candidateId: string }` → calls `service.rejectCandidate`
 
 **Destructive tools** (risk: "destructive" — executionPolicy MUST NOT be "auto"):
+
 - `people.merge` — `{ primaryPersonId: string, secondaryPersonId: string }` → calls
   `service.mergePeople`; emits event; returns merged `Person`
 - `people.splitIdentity` — `{ identityId: string, targetPersonId?: string, newPersonDisplayName?: string }`
@@ -621,12 +659,14 @@ it("GET /api/people/:id/links strips source_ref from response", async () => {
 ### Implementation
 
 `manifest.ts`:
+
 - `PEOPLE_MODULE_ID = "people"`
 - `PEOPLE_MODULE_VERSION = "0.1.0"`
 - `peopleModuleManifest: JarvisModuleManifest` — id, version, displayName, tools = PEOPLE_TOOLS,
   personContextProvider: undefined (set by individual source modules)
 
 `routes.ts` — `registerPeopleRoutes(app, deps: PeopleRouteDependencies)` with 14 routes:
+
 ```
 GET    /api/people                               → listPeople
 GET    /api/people/resolve                       → ?q=... resolve
@@ -670,8 +710,11 @@ it("module registry includes people manifest", async () => {
 it("GET /api/people route is registered on the Fastify instance", async () => {
   const app = buildApp(deps);
   await app.ready();
-  const res = await app.inject({ method: "GET", url: "/api/people",
-    headers: { authorization: "Bearer " + testToken } });
+  const res = await app.inject({
+    method: "GET",
+    url: "/api/people",
+    headers: { authorization: "Bearer " + testToken }
+  });
   expect(res.statusCode).not.toBe(404);
 });
 ```
@@ -717,16 +760,18 @@ it("shows match candidates section", async () => {
 ### Implementation
 
 `people-client.ts`:
+
 - `listPeople(params?)` → `GET /api/people`
 - `getPerson(id)` → `GET /api/people/:id`
 - `listMatchCandidates()` → `GET /api/people/match-candidates`
 - `acceptCandidate(id)` → `POST /api/people/match-candidates/:id/accept`
 - `rejectCandidate(id)` → `POST /api/people/match-candidates/:id/reject`
 - `refreshIndex(params?)` → `POST /api/people/index/refresh`
-Use existing client patterns (fetch wrapper, auth headers from session).
+  Use existing client patterns (fetch wrapper, auth headers from session).
 
 `settings-people-pane.tsx`:
-- Section: People list with search (jds-* Group + Row)
+
+- Section: People list with search (jds-\* Group + Row)
 - Section: "Review matches" — list pending candidates, Accept / Reject buttons
   (merge/split candidates show a warning banner: "This action is irreversible — confirm in chat")
 - Section: "Refresh index" button → calls refreshIndex, shows toast
