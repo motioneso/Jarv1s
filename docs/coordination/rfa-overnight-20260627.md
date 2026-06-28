@@ -76,13 +76,23 @@ RFA coordinator loop; Ben will handle that separately.
 | #531 | `docs/superpowers/specs/2026-06-27-restrained-proactive-monitoring.md` | security | MERGED via PR #563 at 2026-06-28T04:03:45Z (squash); issue #531 closed; FIX-531-2 (w1:p54) + QA-563-AGY-R4 (w1:p57) reaped; worktree rfa-531-proactive-monitoring removed; follow-up issue #567 filed (calendar monitor-provider unsanitized title/location). Dual-model QA: Opus R4 GREEN + AGY R4 GREEN. ⚠️ failure-budget hit 2 rounds during QA — noted for Ben at relay. | Claude Sonnet | QA-563-R4-Opus GREEN + AGY R4 GREEN | `rfa-531-proactive-monitoring` (merged) | #563 (merged) |
 | #535 | `docs/superpowers/specs/2026-06-27-long-running-jarvis-goals.md` | security | **MERGED** via PR #566 at `da5b48a1` 2026-06-28T05:11:02Z; issue #535 closed; worktree removed; ⚠️ board move failed — Ben to do manually | AGY | Opus GREEN + AGY GREEN (all 5 blockers resolved) | `rfa-535-long-running-goals` (merged) | #566 (merged) |
 | #536 | `docs/superpowers/specs/2026-06-27-scheduled-recurring-jarvis-briefings.md` | sensitive | **building** — RFA-536 Claude (Sonnet) at w1:p5B; AGY quota-capped mid-edit; Claude picked up same worktree; plan approved | Claude/Sonnet | TBD | `rfa-536-scheduled-briefings` | - |
-| #537 | `docs/superpowers/specs/2026-06-27-automatic-commitment-extraction.md` | security | queued after #527/#528/#529/#532/#533/#534/#535/#536 | Codex | AGY security QA | `rfa-537-commitment-extraction` | - |
-| #538 | `docs/superpowers/specs/2026-06-27-unified-person-contact-model.md` | security | queued after #525/#528/#532/#533/#537 | opencode/GLM | Codex security QA | `rfa-538-person-contact-model` | - |
+| #537 | `docs/superpowers/specs/2026-06-27-automatic-commitment-extraction.md` | security | queued — starts after #536 merges | Codex | AGY security QA | `rfa-537-commitment-extraction` | - |
+| #538 | `docs/superpowers/specs/2026-06-27-unified-person-contact-model.md` | security | queued after #537 | Codex | AGY security QA | `rfa-538-person-contact-model` | - |
+| #557 | `docs/superpowers/specs/2026-06-28-calendar-delete-tool.md` | security | spec authored 2026-06-28 (Opus); Codex gpt-5.5 review ran; **admitted to run (Ben 2026-06-28)**; can start parallel with #537 (no surface conflict) | Codex | Codex security QA | `rfa-557-calendar-delete-tool` | - |
+| #540 | `docs/superpowers/specs/2026-06-28-safe-automation-audit-log.md` | sensitive | spec authored 2026-06-28 (Opus, migration placeholder fixed); **admitted to run (Ben 2026-06-28)**; queued after #537 (both touch packages/ai/) | Codex | Codex QA | `rfa-540-safe-automation-audit-log` | - |
+| #539 | `docs/superpowers/specs/2026-06-28-source-backed-answers-provenance.md` | sensitive | spec authored 2026-06-28 (Opus); **admitted to run (Ben 2026-06-28)**; queued after #537 (both touch packages/chat/) | Codex | Codex QA | `rfa-539-source-backed-provenance` | - |
+| #541 | `docs/superpowers/specs/2026-06-28-data-freshness-visibility.md` | routine | spec authored 2026-06-28 (Opus); **admitted to run (Ben 2026-06-28)**; queued after #536 (briefings source_metadata) | Codex | Codex QA | `rfa-541-data-freshness-visibility` | - |
 | #520 | n/a (spec waived by Ben) | routine | MERGED via PR #552 at merge commit `77e6fe5`; issue #520 auto-closed; worktree+branch removed | Ben's agent | coordinator | `fix/520-remove-task-matrix-cap` | #552 |
 
-**Run cap: #538 is the final issue.** Ben confirmed 2026-06-27 — server maintenance needed once #538 merges and main CI pushes the image. Do not admit #539, #540, #541 or any new issues to this run. After #538 merges: file the capabilities-doc GitHub issue (post-run task above), then wrap up the run.
+**Run cap extended (Ben 2026-06-28):** goal is all ready issues resolved overnight. Admit #537, #538, #557, #540, #539, #541. After all land: file capabilities-doc GitHub issue, then wrap up the run.
 
-Launch note: #539, #540, #541 were excluded at launch as `needs-spec`; not admitted to this run.
+**Parallel launch plan (post-#536-merge):** #537 + #557 together (disjoint surfaces); after #537: #538 + #540 + #539 (serialized if they conflict); #541 after #536.
+
+**Collision notes for new issues:**
+- #557 (calendar delete): packages/calendar/ only — safe parallel with #537.
+- #540 (audit log): packages/ai/src/ — serialize after #537 (both touch action gateway).
+- #539 (provenance): packages/chat/src/ + ChatMessageDto — serialize after #537 (chat surface).
+- #541 (freshness): packages/briefings/ + source_metadata — start after #536 merges.
 
 ## Dependency / Merge Order
 

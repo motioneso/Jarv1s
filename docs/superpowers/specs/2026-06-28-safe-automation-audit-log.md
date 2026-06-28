@@ -143,9 +143,7 @@ Notes:
 
 ## 5. Storage
 
-New migration `packages/ai/sql/0118_jarvis_action_audit_log.sql` (next free number; owned by the AI
-module because the gateway owns the write). Module SQL stays in the owning module's `sql/`
-directory.
+New migration `packages/ai/sql/XXXX_jarvis_action_audit_log.sql` (number assigned by coordinator at merge time; owned by the AI module because the gateway owns the write). Module SQL stays in the owning module's `sql/` directory.
 
 ```sql
 CREATE TABLE IF NOT EXISTS app.jarvis_action_audit_log (
@@ -422,7 +420,7 @@ Because this is a sensitive-tier change touching user data lifecycle:
 - [ ] The user data export includes the audit log (metadata-only).
 - [ ] Account deletion removes all of a user's audit rows (cascade verified by test).
 - [ ] No path changes `AccessContext`/`ToolContext` shape or grants `BYPASSRLS`.
-- [ ] `foundation.test.ts` migration list includes `0118_jarvis_action_audit_log.sql`.
+- [ ] `foundation.test.ts` migration list includes `XXXX_jarvis_action_audit_log.sql`.
 
 ## 15. Verification
 
