@@ -27,27 +27,28 @@
 
 ## File Structure
 
-| Path | Status | Responsibility |
-|------|--------|---------------|
-| `packages/shared/src/chat-api.ts` | **Modify** | Add provenance types + update `ChatMessageDto` |
-| `packages/chat/src/live/answer-provenance.ts` | **Create** | Sanitizer, marker parser, converters (memory/cross-tool → support), finalizer |
-| `packages/chat/src/live/passive-retrieval.ts` | **Modify** | Add `retrieveWithItems()` returning `{ block, items }` |
-| `packages/chat/src/live/cross-tool-reasoning.ts` | **Modify** | Add `collectCrossToolContextAndItems()` returning `{ block, items }` |
-| `packages/chat/src/live/chat-session-manager.ts` | **Modify** | Wire provenance: `engineText` returns pending items; `runTurn` finalises and passes to persistence |
-| `packages/chat/src/live/persistence.ts` | **Modify** | Extend `recordTurn` signature to accept optional `answerProvenance` |
-| `packages/chat/src/repository.ts` | **Modify** | Extend `recordCompletedTurn` to write `answerProvenanceV1` into `tool_metadata` |
-| `packages/chat/src/routes.ts` | **Modify** | Add provenance routes; update `serializeMessage` |
-| `apps/web/src/chat/answer-provenance.tsx` | **Create** | `SourceChips` + `SourceTray` components |
-| `apps/web/src/chat/markdown-message.tsx` | **Modify** | Strip `[[S1]]` markers from displayed text; render `<SourceChips>` below answered messages |
-| `tests/unit/chat-answer-provenance.test.ts` | **Create** | Unit tests for sanitizer, marker parser, finalizer, converters |
-| `tests/unit/chat-session-manager-provenance.test.ts` | **Create** | Unit tests for wired provenance in session manager |
-| `tests/integration/chat-provenance-routes.test.ts` | **Create** | Integration tests for provenance API routes |
+| Path                                                 | Status     | Responsibility                                                                                     |
+| ---------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| `packages/shared/src/chat-api.ts`                    | **Modify** | Add provenance types + update `ChatMessageDto`                                                     |
+| `packages/chat/src/live/answer-provenance.ts`        | **Create** | Sanitizer, marker parser, converters (memory/cross-tool → support), finalizer                      |
+| `packages/chat/src/live/passive-retrieval.ts`        | **Modify** | Add `retrieveWithItems()` returning `{ block, items }`                                             |
+| `packages/chat/src/live/cross-tool-reasoning.ts`     | **Modify** | Add `collectCrossToolContextAndItems()` returning `{ block, items }`                               |
+| `packages/chat/src/live/chat-session-manager.ts`     | **Modify** | Wire provenance: `engineText` returns pending items; `runTurn` finalises and passes to persistence |
+| `packages/chat/src/live/persistence.ts`              | **Modify** | Extend `recordTurn` signature to accept optional `answerProvenance`                                |
+| `packages/chat/src/repository.ts`                    | **Modify** | Extend `recordCompletedTurn` to write `answerProvenanceV1` into `tool_metadata`                    |
+| `packages/chat/src/routes.ts`                        | **Modify** | Add provenance routes; update `serializeMessage`                                                   |
+| `apps/web/src/chat/answer-provenance.tsx`            | **Create** | `SourceChips` + `SourceTray` components                                                            |
+| `apps/web/src/chat/markdown-message.tsx`             | **Modify** | Strip `[[S1]]` markers from displayed text; render `<SourceChips>` below answered messages         |
+| `tests/unit/chat-answer-provenance.test.ts`          | **Create** | Unit tests for sanitizer, marker parser, finalizer, converters                                     |
+| `tests/unit/chat-session-manager-provenance.test.ts` | **Create** | Unit tests for wired provenance in session manager                                                 |
+| `tests/integration/chat-provenance-routes.test.ts`   | **Create** | Integration tests for provenance API routes                                                        |
 
 ---
 
 ### Task 1: Shared types + ChatMessageDto update
 
 **Files:**
+
 - Modify: `packages/shared/src/chat-api.ts`
 
 **Interfaces produced (used by all later tasks):**
@@ -55,27 +56,37 @@
 ```ts
 // Source kinds
 type AnswerProvenanceSourceKind =
-  | "memory" | "note" | "email" | "calendar"
-  | "task" | "commitment" | "person" | "goal" | "briefing";
+  | "memory"
+  | "note"
+  | "email"
+  | "calendar"
+  | "task"
+  | "commitment"
+  | "person"
+  | "goal"
+  | "briefing";
 
 // State labels
 type AnswerProvenanceState =
-  | "confirmed_source" | "inferred_memory"
-  | "pending_candidate" | "ambiguous_identity" | "unverified_context";
+  | "confirmed_source"
+  | "inferred_memory"
+  | "pending_candidate"
+  | "ambiguous_identity"
+  | "unverified_context";
 
 // Stored per-item (WITH citationToken — never returned to API callers)
 interface AnswerSourceSupport {
-  readonly supportId: string;            // e.g. "S1"
+  readonly supportId: string; // e.g. "S1"
   readonly sourceKind: AnswerProvenanceSourceKind;
-  readonly sourceLabel: string;          // plain text, bounded
-  readonly title: string;                // plain text, bounded
-  readonly snippet?: string;             // plain text, max 240 chars
+  readonly sourceLabel: string; // plain text, bounded
+  readonly title: string; // plain text, bounded
+  readonly snippet?: string; // plain text, max 240 chars
   readonly state: AnswerProvenanceState;
   readonly confidence?: number;
   readonly confidenceTier?: "confirmed" | "high" | "medium" | "low";
   readonly provenance?: "volunteered" | "inferred" | "confirmed" | "imported" | "source";
-  readonly occurredAt?: string;          // ISO string
-  readonly citationToken?: string;       // opaque, source-owned, never in API
+  readonly occurredAt?: string; // ISO string
+  readonly citationToken?: string; // opaque, source-owned, never in API
   readonly canDereference: boolean;
 }
 
@@ -106,15 +117,21 @@ interface AnswerProvenanceMetadataV1 {
 // Source-owned provider interface (registered by modules that can dereference)
 interface AnswerProvenanceProvider {
   readonly sourceKind: AnswerProvenanceSourceKind;
-  verifySupport(scopedDb: unknown, input: { ownerUserId: string; citationToken: string }): Promise<AnswerSourceSupport | null>;
-  dereferenceSupport(scopedDb: unknown, input: { ownerUserId: string; citationToken: string }): Promise<AnswerProvenanceDereference | null>;
+  verifySupport(
+    scopedDb: unknown,
+    input: { ownerUserId: string; citationToken: string }
+  ): Promise<AnswerSourceSupport | null>;
+  dereferenceSupport(
+    scopedDb: unknown,
+    input: { ownerUserId: string; citationToken: string }
+  ): Promise<AnswerProvenanceDereference | null>;
 }
 
 interface AnswerProvenanceDereference {
   readonly sourceLabel: string;
   readonly title: string;
   readonly snippet?: string;
-  readonly deepLinkPath?: string;         // validated internal path only
+  readonly deepLinkPath?: string; // validated internal path only
   readonly unavailableReason?: "missing" | "permission" | "source_unavailable";
 }
 ```
@@ -256,11 +273,13 @@ git commit -m "feat(chat): add AnswerProvenance types and optional ChatMessageDt
 ### Task 2: Core provenance module (`answer-provenance.ts`)
 
 **Files:**
+
 - Create: `packages/chat/src/live/answer-provenance.ts`
 
 **Consumes:** `AnswerSourceSupport`, `AnswerSourceSupportCard`, `AnswerProvenanceMetadataV1`, `AnswerProvenanceSourceKind`, `AnswerProvenanceState` from `@jarv1s/shared`; `CrossToolEvidenceItem`, `CrossToolSource` from `./cross-tool-reasoning.js`; `MemoryRecallItem`, `MemoryFactProvenance`, `MemoryFactStatus` from `@jarv1s/memory`
 
 **Produces:**
+
 - `sanitizePlainText(text: string): string`
 - `parseAnswerMarkers(text: string): string[]`
 - `stripAnswerMarkers(text: string, validIds: ReadonlySet<string>): string`
@@ -330,8 +349,9 @@ describe("parseAnswerMarkers", () => {
 describe("stripAnswerMarkers", () => {
   it("removes valid markers that exist in validIds set", () => {
     const valid = new Set(["S1", "S2"]);
-    expect(stripAnswerMarkers("See [[S1]] for details [[S3]]", valid))
-      .toBe("See  for details [[S3]]");
+    expect(stripAnswerMarkers("See [[S1]] for details [[S3]]", valid)).toBe(
+      "See  for details [[S3]]"
+    );
   });
 
   it("leaves unknown support ids unchanged", () => {
@@ -445,7 +465,10 @@ describe("memoryItemToSupport", () => {
 
 // ── finalizeProvenance ────────────────────────────────────────────────────────
 describe("finalizeProvenance", () => {
-  const makeSupport = (id: string, state = "unverified_context" as const): import("@jarv1s/shared").AnswerSourceSupport => ({
+  const makeSupport = (
+    id: string,
+    state = "unverified_context" as const
+  ): import("@jarv1s/shared").AnswerSourceSupport => ({
     supportId: id,
     sourceKind: "memory",
     sourceLabel: `Label ${id}`,
@@ -480,7 +503,11 @@ describe("finalizeProvenance", () => {
   });
 
   it("contextCheckedCount counts uncited context items", () => {
-    const candidates = [makeSupport("S1"), makeSupport("S2"), makeSupport("S3", "confirmed_source")];
+    const candidates = [
+      makeSupport("S1"),
+      makeSupport("S2"),
+      makeSupport("S3", "confirmed_source")
+    ];
     const result = finalizeProvenance(candidates, ["S3"]);
     // S1 and S2 are uncited context-checked
     expect(result.contextCheckedCount).toBe(2);
@@ -621,7 +648,10 @@ const CROSS_TOOL_SOURCE_KIND: Record<CrossToolSource, AnswerProvenanceSourceKind
   tasks: "task"
 };
 
-export function crossToolItemToSupport(item: CrossToolEvidenceItem, idx: number): AnswerSourceSupport {
+export function crossToolItemToSupport(
+  item: CrossToolEvidenceItem,
+  idx: number
+): AnswerSourceSupport {
   const sourceKind = CROSS_TOOL_SOURCE_KIND[item.source];
   const snippet = sanitizeSnippet(item.summary);
   const title = sanitizeTitle(item.title);
@@ -629,11 +659,23 @@ export function crossToolItemToSupport(item: CrossToolEvidenceItem, idx: number)
 
   let occurredAt: string | undefined;
   if (item.occurredAt) {
-    try { occurredAt = new Date(item.occurredAt).toISOString(); } catch { /* skip */ }
+    try {
+      occurredAt = new Date(item.occurredAt).toISOString();
+    } catch {
+      /* skip */
+    }
   } else if (item.startsAt) {
-    try { occurredAt = new Date(item.startsAt).toISOString(); } catch { /* skip */ }
+    try {
+      occurredAt = new Date(item.startsAt).toISOString();
+    } catch {
+      /* skip */
+    }
   } else if (item.dueAt) {
-    try { occurredAt = new Date(item.dueAt).toISOString(); } catch { /* skip */ }
+    try {
+      occurredAt = new Date(item.dueAt).toISOString();
+    } catch {
+      /* skip */
+    }
   }
 
   return {
@@ -677,9 +719,17 @@ export function memoryItemToSupport(item: MemoryRecallItem, idx: number): Answer
 
   let occurredAt: string | undefined;
   if (src?.occurredAt) {
-    try { occurredAt = src.occurredAt.toISOString(); } catch { /* skip */ }
+    try {
+      occurredAt = src.occurredAt.toISOString();
+    } catch {
+      /* skip */
+    }
   } else if (item.validFrom) {
-    try { occurredAt = item.validFrom.toISOString(); } catch { /* skip */ }
+    try {
+      occurredAt = item.validFrom.toISOString();
+    } catch {
+      /* skip */
+    }
   }
 
   return {
@@ -813,9 +863,7 @@ export function readStoredProvenance(
 }
 
 /** Return sanitized `AnswerSourceSupportCard[]` from stored metadata. */
-export function provenanceCards(
-  metadata: AnswerProvenanceMetadataV1
-): AnswerSourceSupportCard[] {
+export function provenanceCards(metadata: AnswerProvenanceMetadataV1): AnswerSourceSupportCard[] {
   return metadata.supportItems.map(toSupportCard);
 }
 ```
@@ -869,12 +917,14 @@ git commit -m "feat(chat): add answer-provenance module (sanitizer, marker parse
 ### Task 3: Extend retrieval functions to expose evidence items
 
 **Files:**
+
 - Modify: `packages/chat/src/live/passive-retrieval.ts`
 - Modify: `packages/chat/src/live/cross-tool-reasoning.ts`
 
 **Consumes:** existing `PassiveContextRetriever`, `collectCrossToolContext`, `CrossToolReasoningPlan`, `CrossToolReadRunner`
 
 **Produces:**
+
 - New method on `PassiveContextRetriever`: `retrieveWithItems(input): Promise<{ block: string; items: MemoryRecallItem[] }>`
 - New export: `collectCrossToolContextAndItems(actorUserId, plan, reader, localNowIso): Promise<{ block: string; items: CrossToolEvidenceItem[] }>`
 
@@ -891,12 +941,16 @@ describe("PassiveContextRetriever.retrieveWithItems", () => {
       recall: vi.fn().mockResolvedValue({ items: [] })
     };
     const mockSettings = {
-      getOrCreate: vi.fn().mockResolvedValue({ recallEnabled: false, factsEnabled: true, updatedAt: new Date() })
+      getOrCreate: vi
+        .fn()
+        .mockResolvedValue({ recallEnabled: false, factsEnabled: true, updatedAt: new Date() })
     };
     const mockContext = {
-      withDataContext: vi.fn().mockImplementation(async (_ctx, fn) =>
-        fn({ db: {} } as unknown as import("@jarv1s/db").DataContextDb)
-      )
+      withDataContext: vi
+        .fn()
+        .mockImplementation(async (_ctx, fn) =>
+          fn({ db: {} } as unknown as import("@jarv1s/db").DataContextDb)
+        )
     };
     const retriever = new PassiveContextRetriever({
       dataContext: mockContext,
@@ -1046,9 +1100,11 @@ git commit -m "feat(chat): expose evidence items from passive retrieval and cros
 ### Task 4: Wire provenance into `ChatSessionManager`
 
 **Files:**
+
 - Modify: `packages/chat/src/live/chat-session-manager.ts`
 
 **Consumes:**
+
 - `collectCrossToolContextAndItems` from `./cross-tool-reasoning.js`
 - `crossToolItemToSupport`, `memoryItemToSupport`, `parseAnswerMarkers`, `stripAnswerMarkers`, `supportIdForIndex`, `finalizeProvenance` from `./answer-provenance.js`
 - `MemoryRecallItem` from `@jarv1s/memory`
@@ -1056,6 +1112,7 @@ git commit -m "feat(chat): expose evidence items from passive retrieval and cros
 - `PassiveRetrievalPort` already in scope (new method needed: `retrieveWithItems`)
 
 **Produces:**
+
 - `engineText()` now returns `Promise<{ text: string; pendingItems: AnswerSourceSupport[] }>`
 - `runTurn()` collects provenance from `engineText`, parses markers after assistant reply, calls `persistence.recordTurn` with optional 5th argument `answerProvenance`
 - `ChatPersistencePort.recordTurn` signature extended to accept optional `answerProvenance?: AnswerProvenanceMetadataV1`
@@ -1066,11 +1123,16 @@ git commit -m "feat(chat): expose evidence items from passive retrieval and cros
 ```ts
 import { describe, expect, it, vi } from "vitest";
 import { ChatSessionManager } from "../../packages/chat/src/live/chat-session-manager.js";
-import type { ChatSessionManagerDeps, ChatPersistencePort } from "../../packages/chat/src/live/chat-session-manager.js";
+import type {
+  ChatSessionManagerDeps,
+  ChatPersistencePort
+} from "../../packages/chat/src/live/chat-session-manager.js";
 
 function makeDeps(overrides: Partial<ChatSessionManagerDeps> = {}): ChatSessionManagerDeps {
   const persistence: ChatPersistencePort = {
-    resolveActiveProvider: vi.fn().mockResolvedValue({ provider: "anthropic", model: "claude-3-opus" }),
+    resolveActiveProvider: vi
+      .fn()
+      .mockResolvedValue({ provider: "anthropic", model: "claude-3-opus" }),
     listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
     recordTurn: vi.fn().mockResolvedValue({ userMessageId: "u1", assistantMessageId: "a1" }),
     openNewConversation: vi.fn(),
@@ -1080,8 +1142,13 @@ function makeDeps(overrides: Partial<ChatSessionManagerDeps> = {}): ChatSessionM
   const engine = {
     launch: vi.fn().mockResolvedValue({ offset: 0 }),
     submit: vi.fn().mockResolvedValue(undefined),
-    readNew: vi.fn()
-      .mockResolvedValueOnce({ records: [{ kind: "reply", text: "Answer [[S1]] confirmed." }], offset: 1, complete: false })
+    readNew: vi
+      .fn()
+      .mockResolvedValueOnce({
+        records: [{ kind: "reply", text: "Answer [[S1]] confirmed." }],
+        offset: 1,
+        complete: false
+      })
       .mockResolvedValueOnce({ records: [], offset: 1, complete: true }),
     kill: vi.fn()
   };
@@ -1272,11 +1339,13 @@ private async engineText(
 - [ ] **Step 5: Update `runTurn()` to collect and persist provenance**
 
 Find the line in `runTurn` that calls `this.engineText`:
+
 ```ts
 const engineText = await this.engineText(actorUserId, text);
 ```
 
 Replace with:
+
 ```ts
 const { text: engineText, pendingItems } = await this.engineText(actorUserId, text);
 ```
@@ -1295,10 +1364,16 @@ if (pendingItems.length > 0 && reply) {
   }
 }
 
-const stored = await this.deps.persistence.recordTurn(actorUserId, text, reply, {
-  provider: session.provider,
-  model: session.model
-}, answerProvenance);
+const stored = await this.deps.persistence.recordTurn(
+  actorUserId,
+  text,
+  reply,
+  {
+    provider: session.provider,
+    model: session.model
+  },
+  answerProvenance
+);
 ```
 
 - [ ] **Step 6: Typecheck**
@@ -1329,12 +1404,14 @@ git commit -m "feat(chat): wire answer provenance collection into ChatSessionMan
 ### Task 5: Persist `answerProvenanceV1` in repository and persistence layer
 
 **Files:**
+
 - Modify: `packages/chat/src/live/persistence.ts`
 - Modify: `packages/chat/src/repository.ts`
 
 **Consumes:** `AnswerProvenanceMetadataV1` from `@jarv1s/shared`
 
 **Produces:**
+
 - `DataContextChatPersistence.recordTurn` accepts optional 5th param `answerProvenance`
 - `ChatRepository.recordCompletedTurn` accepts optional `answerProvenance` in its signature and stores it in `tool_metadata.answerProvenanceV1`
 
@@ -1424,11 +1501,13 @@ git commit -m "feat(chat): persist answerProvenanceV1 in chat_messages.tool_meta
 ### Task 6: Chat provenance API routes + `serializeMessage` update
 
 **Files:**
+
 - Modify: `packages/chat/src/routes.ts`
 
 **Consumes:** `readStoredProvenance`, `provenanceCards`, `toSupportCard` from `./live/answer-provenance.js`; `AnswerSourceSupportCard` from `@jarv1s/shared`
 
 **Produces:**
+
 - `serializeMessage` reads `answerProvenanceV1` from `tool_metadata` and populates `ChatMessageDto.answerProvenance`
 - New route: `GET /api/chat/messages/:messageId/provenance` → `{ cards: AnswerSourceSupportCard[] }`
 - New route: `GET /api/chat/messages/:messageId/provenance/:supportId/dereference` → `{ deepLinkPath?, unavailableReason? }`
@@ -1442,7 +1521,12 @@ import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import type { DataContextDb } from "@jarv1s/db";
 
 // Use the project's integration test helpers — import from the helpers used by chat-live.test.ts
-import { createTestApp, createTestUser, teardownTestApp, type TestApp } from "../helpers/test-app.js";
+import {
+  createTestApp,
+  createTestUser,
+  teardownTestApp,
+  type TestApp
+} from "../helpers/test-app.js";
 
 let app: TestApp;
 let userId: string;
@@ -1459,7 +1543,10 @@ afterAll(async () => {
 
 describe("GET /api/chat/messages/:messageId/provenance", () => {
   it("returns 401 when unauthenticated", async () => {
-    const res = await app.inject({ method: "GET", url: "/api/chat/messages/nonexistent/provenance" });
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/chat/messages/nonexistent/provenance"
+    });
     expect(res.statusCode).toBe(401);
   });
 
@@ -1476,7 +1563,7 @@ describe("GET /api/chat/messages/:messageId/provenance", () => {
     // Create a chat thread and turn without provenance
     const sendRes = await app.inject({
       method: "POST",
-      url: "/api/chat/send",   // adjust to actual live-chat send route
+      url: "/api/chat/send", // adjust to actual live-chat send route
       headers: { cookie },
       payload: { body: "test turn" }
     });
@@ -1567,9 +1654,8 @@ server.get<{ Params: { messageId: string } }>(
   async (request, reply) => {
     try {
       const access = await dependencies.resolveAccessContext(request);
-      const message = await dependencies.dataContext.withDataContext(
-        access,
-        (scopedDb) => repository.getMessageById(scopedDb, request.params.messageId)
+      const message = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        repository.getMessageById(scopedDb, request.params.messageId)
       );
       if (!message || message.owner_user_id !== access.actorUserId) {
         return reply.code(404).send({ error: "Message not found" });
@@ -1589,9 +1675,8 @@ server.get<{ Params: { messageId: string; supportId: string } }>(
   async (request, reply) => {
     try {
       const access = await dependencies.resolveAccessContext(request);
-      const message = await dependencies.dataContext.withDataContext(
-        access,
-        (scopedDb) => repository.getMessageById(scopedDb, request.params.messageId)
+      const message = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+        repository.getMessageById(scopedDb, request.params.messageId)
       );
       if (!message || message.owner_user_id !== access.actorUserId) {
         return reply.code(404).send({ error: "Message not found" });
@@ -1647,18 +1732,21 @@ git commit -m "feat(chat): add provenance API routes and update serializeMessage
 ### Task 7: Frontend — marker strip + source chips + source tray
 
 **Files:**
+
 - Create: `apps/web/src/chat/answer-provenance.tsx`
 - Modify: `apps/web/src/chat/markdown-message.tsx`
 
 **Consumes:** `AnswerSourceSupportCard`, `AnswerProvenanceState` from `@jarv1s/shared` (browser-safe — `@jarv1s/shared` is Vite-bundled); `ChatMessageDto` from `@jarv1s/shared`
 
 **Produces:**
+
 - `stripDisplayMarkers(text: string, validIds: ReadonlySet<string>): string`
 - `<SourceChips cards={AnswerSourceSupportCard[]} />` — compact chip row
 - `<SourceTray card={AnswerSourceSupportCard} onClose={() => void} />` — expanded card
 - `markdown-message.tsx` strips markers and renders `<SourceChips>` below assistant messages that have cited provenance
 
 UI rules:
+
 - Use existing `jds-*` and chat primitives (no raw CSS colors — only `tokens.css` design tokens)
 - Chips are compact; this is NOT a document browser
 - Never show raw source refs, citationTokens, connector ids, or prompt text
@@ -1721,9 +1809,7 @@ export function SourceTray({ card, onClose }: SourceTrayProps) {
       <div className="source-tray__label">{card.sourceLabel}</div>
       <div className="source-tray__title">{card.title}</div>
       <div className="source-tray__state">{stateLabel}</div>
-      {card.confidenceTier && (
-        <div className="source-tray__confidence">{card.confidenceTier}</div>
-      )}
+      {card.confidenceTier && <div className="source-tray__confidence">{card.confidenceTier}</div>}
       {card.occurredAt && (
         <time className="source-tray__time" dateTime={card.occurredAt}>
           {new Date(card.occurredAt).toLocaleDateString()}
@@ -1744,9 +1830,7 @@ export function SourceChips({ cards, citedIds }: SourceChipsProps) {
 
   // Only show cited items in the default chip row (uncited context-checked items are hidden)
   const citedSet = new Set(citedIds ?? []);
-  const visibleCards = citedIds != null
-    ? cards.filter((c) => citedSet.has(c.supportId))
-    : cards;
+  const visibleCards = citedIds != null ? cards.filter((c) => citedSet.has(c.supportId)) : cards;
 
   if (visibleCards.length === 0) return null;
 
@@ -1770,9 +1854,7 @@ export function SourceChips({ cards, citedIds }: SourceChipsProps) {
           </button>
         ))}
       </div>
-      {openCard && (
-        <SourceTray card={openCard} onClose={() => setOpenId(null)} />
-      )}
+      {openCard && <SourceTray card={openCard} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
@@ -1787,6 +1869,7 @@ cat apps/web/src/chat/markdown-message.tsx | head -60
 ```
 
 Find where the message body is displayed. The change:
+
 1. When `message.role === "assistant"` AND `message.answerProvenance` exists, strip `[[S1]]` markers from the displayed body text
 2. Render `<SourceChips>` below the assistant message body
 
@@ -1812,12 +1895,16 @@ const displayBody =
 After the body display, for assistant messages with cited provenance:
 
 ```tsx
-{message.role === "assistant" && message.answerProvenance && message.answerProvenance.length > 0 && (
-  <SourceChips
-    cards={message.answerProvenance}
-    citedIds={message.answerProvenance.map((c) => c.supportId)}
-  />
-)}
+{
+  message.role === "assistant" &&
+    message.answerProvenance &&
+    message.answerProvenance.length > 0 && (
+      <SourceChips
+        cards={message.answerProvenance}
+        citedIds={message.answerProvenance.map((c) => c.supportId)}
+      />
+    );
+}
 ```
 
 (Note: the `citedIds` from the message DTO does not include uncited context-checked items — only the cited ones are in `answerProvenance` in the DTO per spec §8: "The list routes return `AnswerSourceSupportCard[]`". The DTO only returns cards for items the model cited, since uncited context-checked items are hidden by default.)
@@ -1825,6 +1912,7 @@ After the body display, for assistant messages with cited provenance:
 Actually, looking at the spec more carefully: the API list route `GET /api/chat/threads/:id/messages` returns `ChatMessageDto.answerProvenance` which is populated in `serializeMessage`. `serializeMessage` calls `provenanceCards(stored)` which maps ALL support items in the stored metadata (both cited and uncited) via `toSupportCard`. The frontend needs to know which are cited to hide the uncited ones.
 
 But `ChatMessageDto.answerProvenance` currently has no field to indicate which are cited. We need to either:
+
 - Also serialize `citedSupportIds` in the DTO
 - Or mark each card with a `cited: boolean` field
 
@@ -1843,7 +1931,7 @@ In `serializeMessage` in routes.ts:
 ```ts
 answerProvenanceCitedIds: storedProvenance != null && storedProvenance.citedSupportIds.length > 0
   ? [...storedProvenance.citedSupportIds]
-  : undefined
+  : undefined;
 ```
 
 Then in the frontend, use `message.answerProvenanceCitedIds` as the `citedIds` prop to `<SourceChips>`.
@@ -1945,24 +2033,25 @@ git commit -m "fix(chat): format and lint cleanup for provenance PR (#539)"
 
 ### Acceptance criteria coverage:
 
-| Criterion | Task |
-|-----------|------|
-| Chat answers persist bounded `answerProvenanceV1` metadata | Tasks 4+5 |
-| Briefing runs persist `answerProvenanceV1` | ⚠️ **Out of scope** — packages/briefings/ excluded per collision notes |
-| #525/#530 source items produce sidecar `AnswerSourceSupport` items | Tasks 3+4 |
-| Valid answer support markers map to source cards; invalid don't expose metadata | Task 2 (marker parser, strip) |
-| Source cards distinguish all 5 states | Tasks 1+2 |
-| Source cards show only bounded labels/snippets — never raw refs, prompts, bodies, secrets | Task 2 (sanitizer) |
-| API list routes return sanitized cards that omit `citationToken` | Tasks 1+6 |
-| Deep links/dereference go through source-owned providers under DataContextDb | Task 6 (stub: returns unavailable; provider implementations TBD per source module) |
-| Dereference passes authenticated actor id to providers, never from stored metadata | Task 6 |
-| Uncited context-checked support hidden by default | Tasks 6+7 (`answerProvenanceCitedIds` distinguishes cited from uncited) |
-| Central layer never queries source-owned tables directly | Design: routes.ts only reads `tool_metadata`, no source-package imports |
-| Missing/failed providers degrade to label-only or unavailable cards | Task 6 (unavailable returned; no provider crash) |
-| Provenance UI has no action audit details or freshness warnings | Task 7 (SourceTray only shows provenance fields) |
-| User A cannot view or dereference User B's answer provenance | Tasks 5+6 (RLS via DataContextDb + `owner_user_id` check) |
+| Criterion                                                                                 | Task                                                                               |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Chat answers persist bounded `answerProvenanceV1` metadata                                | Tasks 4+5                                                                          |
+| Briefing runs persist `answerProvenanceV1`                                                | ⚠️ **Out of scope** — packages/briefings/ excluded per collision notes             |
+| #525/#530 source items produce sidecar `AnswerSourceSupport` items                        | Tasks 3+4                                                                          |
+| Valid answer support markers map to source cards; invalid don't expose metadata           | Task 2 (marker parser, strip)                                                      |
+| Source cards distinguish all 5 states                                                     | Tasks 1+2                                                                          |
+| Source cards show only bounded labels/snippets — never raw refs, prompts, bodies, secrets | Task 2 (sanitizer)                                                                 |
+| API list routes return sanitized cards that omit `citationToken`                          | Tasks 1+6                                                                          |
+| Deep links/dereference go through source-owned providers under DataContextDb              | Task 6 (stub: returns unavailable; provider implementations TBD per source module) |
+| Dereference passes authenticated actor id to providers, never from stored metadata        | Task 6                                                                             |
+| Uncited context-checked support hidden by default                                         | Tasks 6+7 (`answerProvenanceCitedIds` distinguishes cited from uncited)            |
+| Central layer never queries source-owned tables directly                                  | Design: routes.ts only reads `tool_metadata`, no source-package imports            |
+| Missing/failed providers degrade to label-only or unavailable cards                       | Task 6 (unavailable returned; no provider crash)                                   |
+| Provenance UI has no action audit details or freshness warnings                           | Task 7 (SourceTray only shows provenance fields)                                   |
+| User A cannot view or dereference User B's answer provenance                              | Tasks 5+6 (RLS via DataContextDb + `owner_user_id` check)                          |
 
 **Known gaps (out of scope for this PR):**
+
 - Briefings integration (`packages/briefings/` excluded per collision notes — tracked in issue)
 - Source-owned provider implementations (notes, email, calendar, tasks, memory, people all need providers — those ship when each source module adds its own `AnswerProvenanceProvider` registration)
 - `[[support=S1 source="..."] text` rendering in hidden context blocks (spec §6 says add support ids to context lines; the current pass adds support items but does not modify the rendered context strings — this is a follow-up that requires wiring `renderContextLineWithSupportId` into the render paths in passive-retrieval and cross-tool-reasoning)

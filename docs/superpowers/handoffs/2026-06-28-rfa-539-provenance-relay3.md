@@ -29,6 +29,7 @@
 - [ ] Task 8 — full gate verification + cleanup (coordinated-wrap-up)
 
 **Gate status after Task 7:**
+
 - `pnpm typecheck` clean ✅
 - `pnpm test:unit` → 169 files, 1176 tests pass ✅
 - `tests/integration/chat-provenance-routes.test.ts` → 5 tests pass ✅
@@ -69,17 +70,20 @@ Then invoke `coordinated-wrap-up` skill to push + open PR + report to coordinato
 ## Key changes made in this session
 
 ### Task 5 (`packages/chat/src/repository.ts`, `packages/chat/src/live/persistence.ts`)
+
 - `recordCompletedTurn` now accepts optional `answerProvenance?: AnswerProvenanceMetadataV1`
 - Spreads as `{ answerProvenanceV1: answerProvenance }` into assistant message `tool_metadata`
 - `DataContextChatPersistence.recordTurn` threads 5th arg through to repository
 
 ### Task 6 (`packages/chat/src/routes.ts`, `packages/chat/src/manifest.ts`)
+
 - `serializeMessage` reads `answerProvenanceV1` from `tool_metadata` → populates `answerProvenance` (cards, `citationToken` stripped) + `answerProvenanceCitedIds`
 - `GET /api/chat/messages/:messageId/provenance` → `{ cards: AnswerSourceSupportCard[] }`
 - `GET /api/chat/messages/:messageId/provenance/:supportId/dereference` → V1 stub (returns `unavailable`)
 - Both routes declared in `manifest.ts` with `chat.view` permission (required by route-coverage guard)
 
 ### Task 7 (`apps/web/src/chat/`)
+
 - `answer-provenance.tsx` — `SourceChips` + `SourceTray` + `stripDisplayMarkers`
 - `markdown-message.tsx` — strips `[[S1]]` markers, renders `<SourceChips>` below assistant body
 - `use-chat-stream.ts` — added optional `answerProvenance` + `answerProvenanceCitedIds` to `TranscriptRecord`

@@ -44,6 +44,7 @@ Commit: `201195ff`
 ## Critical things to know
 
 ### Collision notes (from handoff)
+
 - **No migration** — metadata-only, stored in existing `chat_messages.tool_metadata` JSONB
 - **Parallel in-flight: #538, #540, #541**. Share `packages/shared/src/chat-api.ts` with #541 (freshness fields). Use disjoint field names.
 - **DO NOT touch:** `packages/people/`, `packages/ai/src/gateway/`, `packages/briefings/`
@@ -51,6 +52,7 @@ Commit: `201195ff`
 - `docs/coordination/` is coordinator-only — never commit there
 
 ### Key architectural choices in the plan
+
 1. **`answer-provenance.ts`** — new module in `packages/chat/src/live/`; central sanitizer, marker parser, converters, finalizer
 2. **`engineText()` returns `{ text, pendingItems }`** — extended from `Promise<string>` to carry evidence
 3. **`collectCrossToolContextAndItems()` + `retrieveWithItems()`** — new functions that return items alongside the existing string block (backward compat: existing `collectCrossToolContext` / `retrieve` still work)
@@ -61,35 +63,49 @@ Commit: `201195ff`
 8. Dereference route V1 returns `unavailable` — no providers registered in this PR; source modules register providers in follow-up work
 
 ### Plan tasks summary
-| Task | Files | Deliverable |
-|------|-------|-------------|
-| 1 | `packages/shared/src/chat-api.ts` | Types + `ChatMessageDto` update |
-| 2 | `packages/chat/src/live/answer-provenance.ts` + `tests/unit/chat-answer-provenance.test.ts` | Core module (sanitizer, parser, converters, finalizer) |
-| 3 | `passive-retrieval.ts` + `cross-tool-reasoning.ts` + tests | Expose evidence items |
-| 4 | `chat-session-manager.ts` + test | Wire provenance through `engineText()` → `runTurn()` |
-| 5 | `persistence.ts` + `repository.ts` | Persist `answerProvenanceV1` in DB |
-| 6 | `routes.ts` + integration test | API routes + `serializeMessage` update |
-| 7 | `apps/web/src/chat/answer-provenance.tsx` + `markdown-message.tsx` | Frontend chips + marker strip |
-| 8 | Gate: format:check + lint + typecheck + vitest |
+
+| Task | Files                                                                                       | Deliverable                                            |
+| ---- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1    | `packages/shared/src/chat-api.ts`                                                           | Types + `ChatMessageDto` update                        |
+| 2    | `packages/chat/src/live/answer-provenance.ts` + `tests/unit/chat-answer-provenance.test.ts` | Core module (sanitizer, parser, converters, finalizer) |
+| 3    | `passive-retrieval.ts` + `cross-tool-reasoning.ts` + tests                                  | Expose evidence items                                  |
+| 4    | `chat-session-manager.ts` + test                                                            | Wire provenance through `engineText()` → `runTurn()`   |
+| 5    | `persistence.ts` + `repository.ts`                                                          | Persist `answerProvenanceV1` in DB                     |
+| 6    | `routes.ts` + integration test                                                              | API routes + `serializeMessage` update                 |
+| 7    | `apps/web/src/chat/answer-provenance.tsx` + `markdown-message.tsx`                          | Frontend chips + marker strip                          |
+| 8    | Gate: format:check + lint + typecheck + vitest                                              |
 
 ### MemoryRecallItem fields (from `packages/memory/src/graph-types.ts`)
+
 ```ts
 interface MemoryRecallItem {
   kind: "entity" | "fact" | "episode";
-  id, title, text, score, confidence
-  confidenceTier: "confirmed" | "high" | "medium" | "low"
-  provenance: "volunteered" | "inferred" | "confirmed" | "imported"
-  validFrom, validTo, staleAt: Date | null
-  sources: MemorySourceSummary[]  // sourceKind: MemoryEpisodeKind = "chat"|"note"|"task"|"email"|"calendar"|"manual"
+  id;
+  title;
+  text;
+  score;
+  confidence;
+  confidenceTier: "confirmed" | "high" | "medium" | "low";
+  provenance: "volunteered" | "inferred" | "confirmed" | "imported";
+  validFrom;
+  validTo;
+  staleAt: Date | null;
+  sources: MemorySourceSummary[]; // sourceKind: MemoryEpisodeKind = "chat"|"note"|"task"|"email"|"calendar"|"manual"
 }
 ```
 
 ### CrossToolEvidenceItem fields (from `packages/chat/src/live/cross-tool-reasoning.ts`)
+
 ```ts
 interface CrossToolEvidenceItem {
-  source: "notes" | "email" | "calendar" | "tasks"
-  title, summary, sourceLabel, relevance: "high"|"medium"|"low"
-  occurredAt?, startsAt?, dueAt?: string  // ISO
+  source: "notes" | "email" | "calendar" | "tasks";
+  title;
+  summary;
+  sourceLabel;
+  relevance: "high" | "medium" | "low";
+  occurredAt?;
+  startsAt?;
+  dueAt?: string; // ISO
 }
 ```
 
@@ -105,6 +121,7 @@ interface CrossToolEvidenceItem {
 ---
 
 ## Hard invariants
+
 - `actorUserId` from request context only — never from stored metadata or client payload
 - Provenance never blocks a chat turn — all collection errors silently dropped
 - Snippets/titles/labels: plain text only, sanitized, capped
