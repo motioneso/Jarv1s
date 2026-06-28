@@ -2,8 +2,14 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
+  getMemoryDashboardRouteSchema,
   getMemoryGraphCoreRouteSchema,
   getMemoryGraphRecallRouteSchema,
+  patchMemoryEntityDashboardRouteSchema,
+  patchMemoryFactDashboardRouteSchema,
+  postMemoryCandidateAcceptRouteSchema,
+  postMemoryCandidateRejectRouteSchema,
+  postMemoryCandidateSuppressRouteSchema,
   postMemoryGraphConfirmRouteSchema,
   postMemoryGraphCorrectRouteSchema,
   postMemoryGraphEntityRouteSchema,
@@ -163,6 +169,47 @@ export const memoryModuleManifest: JarvisModuleManifest = {
     {
       method: "DELETE",
       path: "/api/memory/graph/facts/:id",
+      permissionId: "memory.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/memory/dashboard",
+      responseSchema: getMemoryDashboardRouteSchema.response[200],
+      permissionId: "memory.view"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/candidates/:id/accept",
+      requestSchema: postMemoryCandidateAcceptRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/candidates/:id/reject",
+      requestSchema: postMemoryCandidateRejectRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/memory/candidates/:id/suppress",
+      requestSchema: postMemoryCandidateSuppressRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "PATCH",
+      path: "/api/memory/graph/facts/:id",
+      requestSchema: patchMemoryFactDashboardRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "PATCH",
+      path: "/api/memory/graph/entities/:id",
+      requestSchema: patchMemoryEntityDashboardRouteSchema.body,
+      permissionId: "memory.manage"
+    },
+    {
+      method: "DELETE",
+      path: "/api/memory/graph/entities/:id",
       permissionId: "memory.manage"
     }
   ],
