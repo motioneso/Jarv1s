@@ -735,3 +735,72 @@ Use existing client patterns (fetch wrapper, auth headers from session).
 
 `settings-memory-pane.tsx` — add "People & context" tab to the existing tab set; lazy-load
 `SettingsPeoplePane` component.
+
+---
+
+## Task 13 — Full Gate
+
+Run in order — each must exit 0 before pushing:
+
+```bash
+# 1. Format check (prettier)
+pnpm format:check
+
+# 2. Lint
+pnpm lint
+
+# 3. Type check
+pnpm typecheck
+
+# 4. File-size gate (all source files ≤ 1000 lines)
+pnpm check:file-size
+
+# 5. Integration tests (lane DB)
+JARVIS_PGDATABASE=jarvis_build_538 pnpm test:integration
+
+# 6. People-specific tests
+JARVIS_PGDATABASE=jarvis_build_538 pnpm --filter @jarv1s/people test
+
+# 7. Foundation migration-list test — must include XXXX row
+JARVIS_PGDATABASE=jarvis_build_538 pnpm test:integration --testPathPattern foundation
+```
+
+Before step 7: replace all `XXXX` placeholders with actual migration number (coordinator assigns).
+
+---
+
+## Security Checklist (verify before every push)
+
+- [ ] All 7 tables have `FORCE ROW LEVEL SECURITY` and `ENABLE ROW LEVEL SECURITY` in migration SQL
+- [ ] Both `jarvis_app_runtime` AND `jarvis_worker_runtime` policies exist on all 7 tables
+- [ ] All policies gate on `(owner_user_id = app.current_actor_user_id())`
+- [ ] No REST route or tool response includes `normalized_value` or `source_ref` fields
+- [ ] `people.merge` tool: `risk: "destructive"`, no `executionPolicy: "auto"`
+- [ ] `people.splitIdentity` tool: `risk: "destructive"`, no `executionPolicy: "auto"`
+- [ ] `people.acceptMatch`: throws `RequiresExplicitActionError` for `merge_people`/`split_identity` candidates
+- [ ] All job payloads contain only: `actorUserId, source, sourceRefHash, sourceVersion?, reason, idempotencyKey`
+- [ ] `assertMetadataOnlyPersonPayload` called at top of every worker handler
+- [ ] No `PersonContextSignal` objects logged — counts/sourceKind/sourceRefHash/error class only
+- [ ] Memory sync (`SYNC_PERSON_MEMORY_QUEUE`) enqueued in a SEPARATE transaction from person-context writes
+- [ ] `getIndexingState` (the only function returning `source_ref`) is only called inside worker scope — not in routes or tools
+
+---
+
+## Collision Notes
+
+- **Migration number:** Use `XXXX` throughout. Coordinator assigns actual slot (expected 0127) by
+  checking latest applied migration after other concurrent branches land. Replace globally before
+  final push. Never guess.
+- **`foundation.test.ts` row:** After migration is numbered, add
+  `{ version: "0127", name: "0127_person_context.sql" }` after the `0126` row at line ~298-299 in
+  `tests/integration/foundation.test.ts`. The list uses `toEqual` (exact match) — missing row
+  breaks all future integration test runs.
+- **`pnpm-workspace.yaml`:** Add `packages/people` to the workspace packages list if not using
+  glob. Verify with `pnpm list --filter @jarv1s/people` after scaffold.
+- **Concurrent builds:** This branch runs in its own worktree. Do not `git add -A` — stage only
+  files you own. `packages/module-registry/src/index.ts` is a high-collision file; coordinate
+  with coordinator before pushing if another branch touched it.
+- **Lane DB:** All integration tests use `JARVIS_PGDATABASE=jarvis_build_538`. Never run
+  `resetFoundationDatabase()` against the shared dev DB.
+- **prettier trap:** Run `pnpm format:check` before every commit. Coordinator cannot fix format
+  failures in a build worktree — the build agent must fix them directly.
