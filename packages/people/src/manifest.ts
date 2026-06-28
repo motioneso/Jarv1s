@@ -27,5 +27,20 @@ export const peopleModuleManifest: JarvisModuleManifest = {
       "app.person_context_indexing_state"
     ]
   },
+  routes: [
+    { method: "GET", path: "/api/people" },
+    { method: "GET", path: "/api/people/resolve" },
+    { method: "GET", path: "/api/people/match-candidates" },
+    { method: "POST", path: "/api/people/match-candidates/:id/accept" },
+    { method: "POST", path: "/api/people/match-candidates/:id/reject" },
+    { method: "POST", path: "/api/people/match-candidates/:id/suppress" },
+    { method: "POST", path: "/api/people/index/refresh" },
+    { method: "GET", path: "/api/people/:id" },
+    { method: "GET", path: "/api/people/:id/links" },
+    { method: "PATCH", path: "/api/people/:id" },
+    { method: "POST", path: "/api/people/:id/archive" },
+    { method: "POST", path: "/api/people/:id/merge" },
+    { method: "POST", path: "/api/people/:id/split-identity" }
+  ],
   assistantTools: PEOPLE_TOOLS
 };
