@@ -30,7 +30,7 @@ export async function resolveBriefingFreshness(
           const t = (await opts.connectorSyncAt?.(scopedDb, key as ConnectorKind)) ?? null;
           asOf = t ? t.toISOString() : null;
         } catch {
-          asOf = null;
+          // keep asOf as null on error
         }
         return { source: key, freshnessKind: "connector_sync", asOf };
       }
@@ -40,7 +40,7 @@ export async function resolveBriefingFreshness(
           const t = (await opts.vaultLastWriteAt?.(scopedDb)) ?? null;
           asOf = t ? t.toISOString() : null;
         } catch {
-          asOf = null;
+          // keep asOf as null on error
         }
         return { source: key, freshnessKind: "vault_write", asOf };
       }

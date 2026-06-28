@@ -1,19 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { DataContextDb } from "@jarv1s/db";
 
-import { resolveChatFreshness, toolNameToSource } from "../../packages/chat/src/live/persistence.js";
+import {
+  resolveChatFreshness,
+  toolNameToSource
+} from "../../packages/chat/src/live/persistence.js";
 
 const scopedDb = {} as DataContextDb;
 const CAPTURED = new Date("2026-06-28T09:00:00.000Z");
 const CAPTURED_ISO = CAPTURED.toISOString();
 
 describe("toolNameToSource", () => {
-  it("maps email.* to email", () => expect(toolNameToSource("email.listVisibleMessages")).toBe("email"));
-  it("maps calendar.* to calendar", () => expect(toolNameToSource("calendar.listVisibleEvents")).toBe("calendar"));
+  it("maps email.* to email", () =>
+    expect(toolNameToSource("email.listVisibleMessages")).toBe("email"));
+  it("maps calendar.* to calendar", () =>
+    expect(toolNameToSource("calendar.listVisibleEvents")).toBe("calendar"));
   it("maps vault.* to vault", () => expect(toolNameToSource("vault.search")).toBe("vault"));
   it("maps notes.* to vault", () => expect(toolNameToSource("notes.search")).toBe("vault"));
   it("maps tasks.* to tasks", () => expect(toolNameToSource("tasks.list")).toBe("tasks"));
-  it("maps commitments.* to commitments", () => expect(toolNameToSource("commitments.listVisible")).toBe("commitments"));
+  it("maps commitments.* to commitments", () =>
+    expect(toolNameToSource("commitments.listVisible")).toBe("commitments"));
   it("maps chat.* to chats", () => expect(toolNameToSource("chat.listTodaysTurns")).toBe("chats"));
   it("maps goals.* to goals", () => expect(toolNameToSource("goals.list")).toBe("goals"));
   it("returns null for unknown tools", () => expect(toolNameToSource("memory.recall")).toBeNull());
@@ -21,7 +27,9 @@ describe("toolNameToSource", () => {
 
 describe("resolveChatFreshness", () => {
   it("returns null when no tool names map to grounded sources", async () => {
-    expect(await resolveChatFreshness(scopedDb, new Set(["memory.recall"]), CAPTURED, {})).toBeNull();
+    expect(
+      await resolveChatFreshness(scopedDb, new Set(["memory.recall"]), CAPTURED, {})
+    ).toBeNull();
   });
 
   it("returns null for empty tool set", async () => {

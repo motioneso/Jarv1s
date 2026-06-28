@@ -598,7 +598,9 @@ export function ChatFreshnessFooter({
       <ul className="chatd-freshness__list chatd-peek__body">
         {sourceFreshness.sources.map((entry) => (
           <li key={entry.source} className="chatd-freshness__item chatd-peek__line">
-            <span className="chatd-freshness__source">{CHAT_SOURCE_LABEL[entry.source] ?? entry.source}</span>
+            <span className="chatd-freshness__source">
+              {CHAT_SOURCE_LABEL[entry.source] ?? entry.source}
+            </span>
             <span className="chatd-freshness__age" title={entry.asOf ?? undefined}>
               {chatFreshnessLabel(entry, sourceFreshness.capturedAt)}
             </span>

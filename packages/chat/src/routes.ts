@@ -185,7 +185,8 @@ export function registerChatRoutes(
     engineSelection: dependencies.chatEngineFactory ? undefined : dependencies.engineSelection,
     boss: dependencies.boss,
     connectorSyncAt: dependencies.connectorsRepository
-      ? async (scopedDb, kind) => getConnectorSyncAt(dependencies.connectorsRepository!, scopedDb, kind)
+      ? async (scopedDb, kind) =>
+          getConnectorSyncAt(dependencies.connectorsRepository!, scopedDb, kind)
       : undefined,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,

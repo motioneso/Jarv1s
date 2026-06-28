@@ -260,7 +260,10 @@ export interface CreateChatSessionRuntimeDeps {
       rawInput: unknown
     ): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }>;
   };
-  readonly connectorSyncAt?: (scopedDb: DataContextDb, kind: "email" | "calendar") => Promise<Date | null>;
+  readonly connectorSyncAt?: (
+    scopedDb: DataContextDb,
+    kind: "email" | "calendar"
+  ) => Promise<Date | null>;
 }
 
 export interface ChatSessionRuntime {

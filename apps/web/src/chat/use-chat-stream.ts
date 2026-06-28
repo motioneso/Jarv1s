@@ -1,3 +1,4 @@
+import type { SourceFreshnessV1 } from "@jarv1s/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import type { AnswerSourceSupportCard } from "@jarv1s/shared";
@@ -24,7 +25,7 @@ export interface TranscriptRecord {
   readonly outcome?: "executed" | "denied" | "error";
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
-  readonly sourceFreshness?: import("@jarv1s/shared").SourceFreshnessV1 | null;
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
 }
 
 function isChatRecordKind(value: string): value is ChatRecordKind {

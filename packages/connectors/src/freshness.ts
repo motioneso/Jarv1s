@@ -20,9 +20,7 @@ export async function getConnectorSyncAt(
       ? s.includes(GMAIL_SCOPE) || s.includes("gmail")
       : s.includes(CALENDAR_SCOPE) || s.includes("calendar");
   });
-  const times = matching
-    .map((a) => a.last_sync_finished_at)
-    .filter((t): t is Date => t !== null);
+  const times = matching.map((a) => a.last_sync_finished_at).filter((t): t is Date => t !== null);
   if (times.length === 0) return null;
   return new Date(Math.max(...times.map((t) => t.getTime())));
 }

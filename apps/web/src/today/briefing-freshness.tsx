@@ -64,10 +64,13 @@ export function BriefingStaleBanner({ freshness }: { readonly freshness: SourceF
   return <p className="bfresh__stale">Some sources are over a day old: {names}.</p>;
 }
 
-export function parseBriefingFreshness(sourceMetadata: Record<string, unknown>): SourceFreshnessV1 | null {
+export function parseBriefingFreshness(
+  sourceMetadata: Record<string, unknown>
+): SourceFreshnessV1 | null {
   const ts = sourceMetadata.sourceTimestamps;
   if (!ts || typeof ts !== "object" || Array.isArray(ts)) return null;
   const rec = ts as Record<string, unknown>;
-  if (rec.version !== 1 || typeof rec.capturedAt !== "string" || !Array.isArray(rec.sources)) return null;
+  if (rec.version !== 1 || typeof rec.capturedAt !== "string" || !Array.isArray(rec.sources))
+    return null;
   return ts as SourceFreshnessV1;
 }

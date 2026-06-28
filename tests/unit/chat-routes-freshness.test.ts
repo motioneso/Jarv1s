@@ -17,7 +17,9 @@ describe("readSourceFreshness", () => {
     const blob: SourceFreshnessV1 = {
       version: 1,
       capturedAt: "2026-06-28T09:00:00.000Z",
-      sources: [{ source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }]
+      sources: [
+        { source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }
+      ]
     };
     const result = readSourceFreshness(blob);
     expect(result).not.toBeNull();

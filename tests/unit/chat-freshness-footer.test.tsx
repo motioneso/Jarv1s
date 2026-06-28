@@ -19,7 +19,9 @@ describe("ChatFreshnessFooter", () => {
     expect(renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: null }))).toBe("");
   });
   it("renders nothing when sourceFreshness is undefined", () => {
-    expect(renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: undefined }))).toBe("");
+    expect(renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: undefined }))).toBe(
+      ""
+    );
   });
   it("renders a details element with source names", () => {
     const html = renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: freshness }));

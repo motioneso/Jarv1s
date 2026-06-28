@@ -38,6 +38,7 @@ Tests import `toolNameToSource` and `resolveChatFreshness` from `packages/chat/s
 **Step A: Add helpers + extend `DataContextChatPersistenceDeps` in `packages/chat/src/live/persistence.ts`**
 
 Imports to add at top:
+
 ```ts
 import type { SourceFreshnessEntry, SourceFreshnessV1 } from "@jarv1s/shared";
 ```
@@ -63,7 +64,9 @@ export async function resolveChatFreshness(
   scopedDb: DataContextDb,
   invokedToolNames: ReadonlySet<string>,
   capturedAt: Date,
-  opts: { connectorSyncAt?: (scopedDb: DataContextDb, kind: "email" | "calendar") => Promise<Date | null> }
+  opts: {
+    connectorSyncAt?: (scopedDb: DataContextDb, kind: "email" | "calendar") => Promise<Date | null>;
+  }
 ): Promise<SourceFreshnessV1 | null> {
   const sourceKeys = new Set<string>();
   for (const name of invokedToolNames) {
@@ -81,7 +84,8 @@ export async function resolveChatFreshness(
       if (CONNECTOR_SOURCES_CHAT.has(source)) {
         let asOf: string | null = null;
         try {
-          const t = (await opts.connectorSyncAt?.(scopedDb, source as "email" | "calendar")) ?? null;
+          const t =
+            (await opts.connectorSyncAt?.(scopedDb, source as "email" | "calendar")) ?? null;
           asOf = t ? t.toISOString() : null;
         } catch {
           asOf = null;
@@ -98,11 +102,13 @@ export async function resolveChatFreshness(
 ```
 
 Add `connectorSyncAt?` to `DataContextChatPersistenceDeps` interface (around line 34):
+
 ```ts
   readonly connectorSyncAt?: (scopedDb: DataContextDb, kind: "email" | "calendar") => Promise<Date | null>;
 ```
 
 Store it in the class constructor:
+
 ```ts
   private readonly connectorSyncAt: DataContextChatPersistenceDeps["connectorSyncAt"];
   // (add to constructor body:)
@@ -112,11 +118,13 @@ Store it in the class constructor:
 **Step B: Extend `recordTurn` in `DataContextChatPersistence` to compute + thread freshness**
 
 Current signature (around line 99):
+
 ```ts
 async recordTurn(actorUserId: string, userText: string, assistantReply: string, executed: { provider: ProviderKind; model: string })
 ```
 
 New signature:
+
 ```ts
 async recordTurn(
   actorUserId: string,
@@ -128,6 +136,7 @@ async recordTurn(
 ```
 
 Inside `recordTurn`, before calling `this.chat.recordCompletedTurn(...)`, compute freshness:
+
 ```ts
 const capturedAt = new Date();
 const sourceFreshness = opts?.invokedToolNames
@@ -142,11 +151,13 @@ Then pass `{ sourceFreshness }` as the last argument to `recordCompletedTurn` (w
 **Step C: Extend `ChatPersistencePort` interface in `packages/chat/src/live/chat-session-manager.ts`**
 
 Current `recordTurn` signature in the `ChatPersistencePort` interface (around line 48):
+
 ```ts
 recordTurn(actorUserId: string, userText: string, assistantReply: string, executed: { provider: ProviderKind; model: string }): Promise<...>
 ```
 
 Add optional opts:
+
 ```ts
 recordTurn(
   actorUserId: string,
@@ -160,11 +171,13 @@ recordTurn(
 **Step D: Collect tool names in `ChatSessionManager.runTurn`**
 
 In the `runTurn` method, declare a Set before the turn loop:
+
 ```ts
 const invokedToolNames = new Set<string>();
 ```
 
 Inside the `for (const record of records)` loop (around line 431), add:
+
 ```ts
 if (record.kind === "tool" && record.toolName) {
   invokedToolNames.add(record.toolName);
@@ -172,14 +185,22 @@ if (record.kind === "tool" && record.toolName) {
 ```
 
 Then in the `recordTurn` call (around line 476), pass the set:
+
 ```ts
-await this.deps.persistence.recordTurn(actorUserId, text, reply, {
-  provider: session.provider,
-  model: session.model
-}, { invokedToolNames });
+await this.deps.persistence.recordTurn(
+  actorUserId,
+  text,
+  reply,
+  {
+    provider: session.provider,
+    model: session.model
+  },
+  { invokedToolNames }
+);
 ```
 
 **Verification after Task 7:**
+
 ```bash
 pnpm test:unit -- tests/unit/chat-freshness.test.ts
 pnpm typecheck
@@ -213,7 +234,9 @@ describe("readSourceFreshness", () => {
     const blob: SourceFreshnessV1 = {
       version: 1,
       capturedAt: "2026-06-28T09:00:00.000Z",
-      sources: [{ source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }]
+      sources: [
+        { source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }
+      ]
     };
     const result = readSourceFreshness(blob);
     expect(result).not.toBeNull();
@@ -240,11 +263,13 @@ Run — expect FAIL (readSourceFreshness not exported).
 **Step B: Extend `ChatRepository.recordCompletedTurn` in `packages/chat/src/repository.ts`**
 
 Add import:
+
 ```ts
 import type { SourceFreshnessV1 } from "@jarv1s/shared";
 ```
 
 Add opts param to `recordCompletedTurn` (around line 172):
+
 ```ts
 async recordCompletedTurn(
   scopedDb: DataContextDb,
@@ -257,6 +282,7 @@ async recordCompletedTurn(
 ```
 
 In the assistant message insert, change `toolMetadata: { selectedTools: [] }` to:
+
 ```ts
 toolMetadata: opts?.sourceFreshness
   ? { selectedTools: [], sourceFreshness: opts.sourceFreshness }
@@ -266,11 +292,13 @@ toolMetadata: opts?.sourceFreshness
 **Step C: Add `readSourceFreshness` to `packages/chat/src/routes.ts`**
 
 Add import at top:
+
 ```ts
 import type { SourceFreshnessV1, SourceFreshnessEntry, FreshnessKind } from "@jarv1s/shared";
 ```
 
 The file already has an `asRecord` helper. Add this exported function alongside `readTools`/`readActivity`:
+
 ```ts
 export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -289,11 +317,13 @@ export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {
 ```
 
 In `serializeMessage` (around line 600), add to the returned DTO:
+
 ```ts
 sourceFreshness: readSourceFreshness(toolMetadata.sourceFreshness),
 ```
 
 **Verification after Task 8:**
+
 ```bash
 pnpm test:unit -- tests/unit/chat-routes-freshness.test.ts
 pnpm typecheck
@@ -308,6 +338,7 @@ git commit -m "feat(freshness): store and serialize chat sourceFreshness in repo
 **File: `packages/chat/src/live/runtime.ts`**
 
 Find `CreateChatSessionRuntimeDeps` interface and add:
+
 ```ts
 readonly connectorSyncAt?: (scopedDb: DataContextDb, kind: "email" | "calendar") => Promise<Date | null>;
 ```
@@ -317,12 +348,14 @@ In `createChatSessionRuntime`, add `connectorSyncAt: deps.connectorSyncAt` to th
 **File: `packages/module-registry/src/index.ts`**
 
 Check current imports — add if not already present:
+
 ```ts
 import { ConnectorsRepository, getConnectorSyncAt } from "@jarv1s/connectors";
 import { MemoryRepository } from "@jarv1s/memory";
 ```
 
 In the `composeDeps` block (around line 614), add:
+
 ```ts
 connectorSyncAt: async (scopedDb, kind) => {
   const repo = new ConnectorsRepository();
@@ -335,6 +368,7 @@ vaultLastWriteAt: async (scopedDb) => {
 ```
 
 Find where `createChatSessionRuntime` is called — search `grep -n "createChatSessionRuntime"` — and add:
+
 ```ts
 connectorSyncAt: async (scopedDb, kind) => {
   const repo = new ConnectorsRepository();
@@ -343,6 +377,7 @@ connectorSyncAt: async (scopedDb, kind) => {
 ```
 
 **Verification after Task 9:**
+
 ```bash
 pnpm typecheck
 pnpm test:unit
@@ -423,11 +458,14 @@ export function BriefingStaleBanner({ freshness }: { readonly freshness: SourceF
   return <p className="bfresh__stale">Some sources are over a day old: {names}.</p>;
 }
 
-export function parseBriefingFreshness(sourceMetadata: Record<string, unknown>): SourceFreshnessV1 | null {
+export function parseBriefingFreshness(
+  sourceMetadata: Record<string, unknown>
+): SourceFreshnessV1 | null {
   const ts = sourceMetadata.sourceTimestamps;
   if (!ts || typeof ts !== "object" || Array.isArray(ts)) return null;
   const rec = ts as Record<string, unknown>;
-  if (rec.version !== 1 || typeof rec.capturedAt !== "string" || !Array.isArray(rec.sources)) return null;
+  if (rec.version !== 1 || typeof rec.capturedAt !== "string" || !Array.isArray(rec.sources))
+    return null;
   return ts as SourceFreshnessV1;
 }
 ```
@@ -438,7 +476,10 @@ export function parseBriefingFreshness(sourceMetadata: Record<string, unknown>):
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { BriefingFreshnessList, BriefingStaleBanner } from "../../apps/web/src/today/briefing-freshness.js";
+import {
+  BriefingFreshnessList,
+  BriefingStaleBanner
+} from "../../apps/web/src/today/briefing-freshness.js";
 import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
 const CAPTURED = "2026-06-28T10:00:00.000Z";
@@ -479,7 +520,9 @@ describe("BriefingStaleBanner", () => {
     const staleFreshness: SourceFreshnessV1 = {
       version: 1,
       capturedAt: CAPTURED,
-      sources: [{ source: "email", freshnessKind: "connector_sync", asOf: "2026-06-26T10:00:00.000Z" }]
+      sources: [
+        { source: "email", freshnessKind: "connector_sync", asOf: "2026-06-26T10:00:00.000Z" }
+      ]
     };
     const html = renderToString(createElement(BriefingStaleBanner, { freshness: staleFreshness }));
     expect(html).toContain("Email");
@@ -488,9 +531,13 @@ describe("BriefingStaleBanner", () => {
     const recentFreshness: SourceFreshnessV1 = {
       version: 1,
       capturedAt: CAPTURED,
-      sources: [{ source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }]
+      sources: [
+        { source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }
+      ]
     };
-    expect(renderToString(createElement(BriefingStaleBanner, { freshness: recentFreshness }))).toBe("");
+    expect(renderToString(createElement(BriefingStaleBanner, { freshness: recentFreshness }))).toBe(
+      ""
+    );
   });
   it("renders nothing for realtime sources", () => {
     const rtFreshness: SourceFreshnessV1 = {
@@ -504,43 +551,98 @@ describe("BriefingStaleBanner", () => {
 ```
 
 **Add CSS to `apps/web/src/styles/kit-today-misc.css`** (append — check file size first):
+
 ```css
 /* Briefing freshness list (#541) */
-.bfresh { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
-.bfresh__label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); display: block; margin-bottom: 6px; }
-.bfresh__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.bfresh__item { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
-.bfresh__source { font-weight: 500; color: var(--text-subtle); }
-.bfresh__age { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
-.bfresh__age--live { color: var(--accent-fg); }
-.bfresh__age--unknown { color: var(--text-faint); font-style: italic; }
-.bfresh__stale { margin-top: 8px; font-size: 12px; color: var(--text-muted); padding: 6px 10px; border-radius: var(--radius-md); background: var(--surface-warn, var(--surface-2)); border: 1px solid var(--border-warn, var(--border-subtle)); }
+.bfresh {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.bfresh__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  display: block;
+  margin-bottom: 6px;
+}
+.bfresh__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bfresh__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.bfresh__source {
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+.bfresh__age {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.bfresh__age--live {
+  color: var(--accent-fg);
+}
+.bfresh__age--unknown {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.bfresh__stale {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-warn, var(--surface-2));
+  border: 1px solid var(--border-warn, var(--border-subtle));
+}
 ```
 
 **Modify `apps/web/src/today/today-page.tsx`**
 
 Add import:
+
 ```ts
-import { BriefingFreshnessList, BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
+import {
+  BriefingFreshnessList,
+  BriefingStaleBanner,
+  parseBriefingFreshness
+} from "./briefing-freshness";
 ```
 
 Find the evening run display block (search for `latestEveningRun.summaryText`). Where it renders the summary text, add freshness above and below it:
+
 ```tsx
-{(() => {
-  const freshness = parseBriefingFreshness(latestEveningRun.sourceMetadata);
-  return freshness ? (
-    <>
-      <BriefingStaleBanner freshness={freshness} />
-      {/* ...existing summary text... */}
-      <BriefingFreshnessList freshness={freshness} />
-    </>
-  ) : null;
-})()}
+{
+  (() => {
+    const freshness = parseBriefingFreshness(latestEveningRun.sourceMetadata);
+    return freshness ? (
+      <>
+        <BriefingStaleBanner freshness={freshness} />
+        {/* ...existing summary text... */}
+        <BriefingFreshnessList freshness={freshness} />
+      </>
+    ) : null;
+  })();
+}
 ```
 
 (Read the file to find the exact JSX structure before editing.)
 
 **Verification after Task 10:**
+
 ```bash
 pnpm test:unit -- tests/unit/briefing-freshness-ui.test.tsx
 pnpm check:file-size
@@ -560,11 +662,13 @@ First check what `TranscriptRecord` type is used in the web (grep for it — it 
 Add to `recordsFromMessages`: include `sourceFreshness: message.role === "assistant" ? message.sourceFreshness : undefined` in each reply record.
 
 Add imports:
+
 ```ts
 import type { SourceFreshnessV1, SourceFreshnessEntry } from "@jarv1s/shared";
 ```
 
 Add these module-scope helpers and the exported component (near `ChatFeedbackMenu`):
+
 ```tsx
 function chatFreshnessLabel(entry: SourceFreshnessEntry, capturedAt: string): string {
   if (entry.freshnessKind === "realtime") return "live";
@@ -577,8 +681,13 @@ function chatFreshnessLabel(entry: SourceFreshnessEntry, capturedAt: string): st
 }
 
 const CHAT_SOURCE_LABEL: Record<string, string> = {
-  email: "Email", calendar: "Calendar", vault: "Notes",
-  tasks: "Tasks", commitments: "Commitments", chats: "Chats", goals: "Goals"
+  email: "Email",
+  calendar: "Calendar",
+  vault: "Notes",
+  tasks: "Tasks",
+  commitments: "Commitments",
+  chats: "Chats",
+  goals: "Goals"
 };
 
 export function ChatFreshnessFooter({
@@ -595,14 +704,25 @@ export function ChatFreshnessFooter({
       <summary className="chatd-peek__summary">
         <span className="chatd-peek__label">Sources</span>
         <span className="chatd-peek__count">{summaryNames}</span>
-        <svg className="chatd-peek__chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <svg
+          className="chatd-peek__chev"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </summary>
       <ul className="chatd-freshness__list chatd-peek__body">
         {sourceFreshness.sources.map((entry) => (
           <li key={entry.source} className="chatd-freshness__item chatd-peek__line">
-            <span className="chatd-freshness__source">{CHAT_SOURCE_LABEL[entry.source] ?? entry.source}</span>
+            <span className="chatd-freshness__source">
+              {CHAT_SOURCE_LABEL[entry.source] ?? entry.source}
+            </span>
             <span className="chatd-freshness__age" title={entry.asOf ?? undefined}>
               {chatFreshnessLabel(entry, sourceFreshness.capturedAt)}
             </span>
@@ -615,17 +735,37 @@ export function ChatFreshnessFooter({
 ```
 
 In the component that renders `record.kind === "reply"` records, add below the reply body / above `ChatFeedbackMenu`:
+
 ```tsx
 <ChatFreshnessFooter sourceFreshness={record.sourceFreshness} />
 ```
 
 **Add CSS to `apps/web/src/styles/kit-chat.css`** (append — check file size first):
+
 ```css
 /* Chat freshness footer (#541) */
-.chatd-freshness__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.chatd-freshness__item { display: flex; justify-content: space-between; align-items: baseline; }
-.chatd-freshness__source { font-weight: 500; color: var(--text-subtle); }
-.chatd-freshness__age { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
+.chatd-freshness__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chatd-freshness__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.chatd-freshness__source {
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+.chatd-freshness__age {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
 ```
 
 **Write failing test `tests/unit/chat-freshness-footer.test.tsx`**
@@ -652,7 +792,9 @@ describe("ChatFreshnessFooter", () => {
     expect(renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: null }))).toBe("");
   });
   it("renders nothing when sourceFreshness is undefined", () => {
-    expect(renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: undefined }))).toBe("");
+    expect(renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: undefined }))).toBe(
+      ""
+    );
   });
   it("renders a details element with source names", () => {
     const html = renderToString(createElement(ChatFreshnessFooter, { sourceFreshness: freshness }));
@@ -669,6 +811,7 @@ describe("ChatFreshnessFooter", () => {
 ```
 
 **Verification after Task 11:**
+
 ```bash
 pnpm test:unit -- tests/unit/chat-freshness-footer.test.tsx
 pnpm check:file-size

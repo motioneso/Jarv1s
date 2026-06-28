@@ -11,7 +11,12 @@ const VAULT_AT = new Date("2026-06-25T10:00:00.000Z");
 
 describe("resolveBriefingFreshness", () => {
   it("produces realtime entries for tasks, commitments, chats, goals", async () => {
-    const result = await resolveBriefingFreshness(scopedDb, ["tasks", "commitments", "chats", "goals"], CAPTURED_AT, {});
+    const result = await resolveBriefingFreshness(
+      scopedDb,
+      ["tasks", "commitments", "chats", "goals"],
+      CAPTURED_AT,
+      {}
+    );
     expect(result.version).toBe(1);
     expect(result.capturedAt).toBe(CAPTURED_ISO);
     expect(result.sources).toHaveLength(4);
@@ -76,7 +81,9 @@ describe("resolveBriefingFreshness", () => {
       }
     );
     expect(result.sources).toHaveLength(3);
-    expect(result.sources.find((s) => s.source === "email")!.asOf).toBe(EMAIL_SYNC_AT.toISOString());
+    expect(result.sources.find((s) => s.source === "email")!.asOf).toBe(
+      EMAIL_SYNC_AT.toISOString()
+    );
     expect(result.sources.find((s) => s.source === "tasks")!.asOf).toBe(CAPTURED_ISO);
     expect(result.sources.find((s) => s.source === "vault")!.asOf).toBe(VAULT_AT.toISOString());
   });

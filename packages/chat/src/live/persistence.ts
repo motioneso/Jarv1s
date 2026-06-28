@@ -89,7 +89,7 @@ export async function resolveChatFreshness(
             (await opts.connectorSyncAt?.(scopedDb, source as "email" | "calendar")) ?? null;
           asOf = t ? t.toISOString() : null;
         } catch {
-          asOf = null;
+          // keep asOf as null on error
         }
         return { source, freshnessKind: "connector_sync", asOf };
       }

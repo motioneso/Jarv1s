@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { BriefingFreshnessList, BriefingStaleBanner } from "../../apps/web/src/today/briefing-freshness.js";
+import {
+  BriefingFreshnessList,
+  BriefingStaleBanner
+} from "../../apps/web/src/today/briefing-freshness.js";
 import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
 const CAPTURED = "2026-06-28T10:00:00.000Z";
@@ -42,7 +45,9 @@ describe("BriefingStaleBanner", () => {
     const staleFreshness: SourceFreshnessV1 = {
       version: 1,
       capturedAt: CAPTURED,
-      sources: [{ source: "email", freshnessKind: "connector_sync", asOf: "2026-06-26T10:00:00.000Z" }]
+      sources: [
+        { source: "email", freshnessKind: "connector_sync", asOf: "2026-06-26T10:00:00.000Z" }
+      ]
     };
     const html = renderToString(createElement(BriefingStaleBanner, { freshness: staleFreshness }));
     expect(html).toContain("Email");
@@ -51,9 +56,13 @@ describe("BriefingStaleBanner", () => {
     const recentFreshness: SourceFreshnessV1 = {
       version: 1,
       capturedAt: CAPTURED,
-      sources: [{ source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }]
+      sources: [
+        { source: "email", freshnessKind: "connector_sync", asOf: "2026-06-27T22:00:00.000Z" }
+      ]
     };
-    expect(renderToString(createElement(BriefingStaleBanner, { freshness: recentFreshness }))).toBe("");
+    expect(renderToString(createElement(BriefingStaleBanner, { freshness: recentFreshness }))).toBe(
+      ""
+    );
   });
   it("renders nothing for realtime sources", () => {
     const rtFreshness: SourceFreshnessV1 = {

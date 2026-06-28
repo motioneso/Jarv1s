@@ -21,6 +21,7 @@ import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
+import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
 import { resolveBriefingFreshness } from "./freshness.js";
 import { timezoneFor } from "./schedule.js";
@@ -951,7 +952,7 @@ function fallback(
   vault: Section,
   chats: Section,
   vaultNotes: Array<{ path: string; id: string; excerpt: string }>,
-  sourceTimestamps?: import("@jarv1s/shared").SourceFreshnessV1
+  sourceTimestamps?: SourceFreshnessV1
 ): ComposeResult {
   const text = sections
     .map(
