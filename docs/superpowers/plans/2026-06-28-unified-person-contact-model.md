@@ -298,3 +298,224 @@ conversion. Key types:
 - `PersonIndexingState` (for worker use only — retains `source_ref`)
 - `ListPeopleParams`, `ListLinksParams`, `RefreshIndexParams` (request shapes)
 - `PersonDetail` (Person + identities + recent links, for GET /api/people/:id response)
+
+---
+
+## Task 5 — `src/matching.ts`
+
+**File:** `packages/people/src/matching.ts`
+
+### Failing test first
+
+```ts
+// packages/people/src/__tests__/matching.test.ts
+import { normalizeIdentity, matchResult, candidateSignature } from "../matching.js";
+
+describe("normalizeIdentity", () => {
+  it("lowercases and trims email addresses", () => {
+    expect(normalizeIdentity("email_address", " Alice@Example.COM ")).toBe("alice@example.com");
+  });
+  it("returns trimmed lowercase for source_identity", () => {
+    expect(normalizeIdentity("source_identity", "  SRC:123  ")).toBe("src:123");
+  });
+});
+
+describe("candidateSignature", () => {
+  it("produces stable hash for same inputs regardless of order", () => {
+    const a = candidateSignature("merge_people", ["uuid-1", "uuid-2"]);
+    const b = candidateSignature("merge_people", ["uuid-2", "uuid-1"]);
+    expect(a).toBe(b);
+  });
+  it("differs for different candidate kinds", () => {
+    const a = candidateSignature("link_identity", ["uuid-1"]);
+    const b = candidateSignature("create_person", ["uuid-1"]);
+    expect(a).not.toBe(b);
+  });
+});
+```
+
+### Implementation
+
+`normalizeIdentity(kind, raw): string` — trim + lowercase for email/source_identity; trim only for
+alias/display_name.
+
+`matchResult(signals: PersonContextSignal[]): MatchResultMap` — group signals by normalized
+identity, compute confidence aggregate, return candidate actions.
+
+`candidateSignature(kind, ids: string[]): string` — sort ids, join with `|`, prefix with kind,
+SHA-256 hex truncated to 32 chars. Use Node `crypto.createHash`.
+
+---
+
+## Task 6 — `src/repository.ts`
+
+**File:** `packages/people/src/repository.ts`
+
+### Failing test first
+
+```ts
+// packages/people/src/__tests__/repository.test.ts
+import { PeopleRepository } from "../repository.js";
+import { createDatabase, withDataContext } from "@jarv1s/db";
+
+const DB_URL = process.env["JARVIS_DATABASE_URL"]!;
+
+it("upsertPerson creates then returns existing on re-upsert", async () => {
+  const db = createDatabase(DB_URL);
+  const repo = new PeopleRepository();
+  await withDataContext({ actorUserId: ids.user1, requestId: "r1" }, db, async (sdb) => {
+    const p = await repo.upsertPerson(sdb, {
+      ownerUserId: ids.user1,
+      displayName: "Bob",
+      status: "active",
+    });
+    expect(p.id).toBeDefined();
+    const p2 = await repo.upsertPerson(sdb, { ...same display_name... });
+    expect(p2.id).toBe(p.id); // idempotent
+  });
+  await db.destroy();
+});
+
+it("repository enforces RLS — user1 cannot see user2 people", async () => {
+  const db = createDatabase(DB_URL);
+  const repo = new PeopleRepository();
+  // insert as user1, query as user2
+  await withDataContext({ actorUserId: ids.user2, requestId: "r2" }, db, async (sdb) => {
+    const rows = await repo.listPeople(sdb, ids.user2, {});
+    expect(rows.map((r) => r.ownerUserId).every((id) => id === ids.user2)).toBe(true);
+  });
+  await db.destroy();
+});
+```
+
+### Implementation
+
+`PeopleRepository` class — receives `DataContextDb` on every method (never stores it).
+
+Methods:
+- `upsertPerson(db, params)` — INSERT … ON CONFLICT DO NOTHING, then SELECT
+- `findOrCreatePerson(db, displayName, ownerUserId)` — used during matching
+- `getPerson(db, ownerUserId, personId)` — throws NotFoundError if missing
+- `listPeople(db, ownerUserId, params: ListPeopleParams)` — search by displayName prefix
+- `updatePerson(db, ownerUserId, personId, patch)` — PATCH allowed fields only
+- `archivePerson(db, ownerUserId, personId)` — set status='archived', archived_at=now
+- `upsertIdentity(db, params)` — INSERT … ON CONFLICT (unique index) DO UPDATE
+- `listIdentities(db, ownerUserId, personId)` — returns without normalized_value/source_ref
+- `upsertLink(db, params)` — INSERT … ON CONFLICT (source_ref_hash+link_kind) DO UPDATE
+- `listLinks(db, ownerUserId, personId, params)` — cursor pagination, returns without source_ref
+- `upsertLinkSource(db, params)`
+- `upsertMatchCandidate(db, params)` — uses candidateSignature for conflict
+- `getMatchCandidate(db, ownerUserId, candidateId)`
+- `listMatchCandidates(db, ownerUserId, status?)` — pending only by default
+- `updateMatchCandidateStatus(db, ownerUserId, candidateId, status)`
+- `insertEvent(db, params)` — metadata-only event log
+- `getIndexingState(db, ownerUserId, source, sourceRefHash)` — includes source_ref (worker only)
+- `upsertIndexingState(db, params)`
+- `mergePeople(db, ownerUserId, primaryId, secondaryId)` — transaction: re-link identities/links, set secondary status='merged', merged_into_person_id=primary, merged_at=now; insert event
+
+All SELECT projections must exclude `normalized_value` and `source_ref` except `getIndexingState`.
+
+---
+
+## Task 7 — `src/service.ts`
+
+**File:** `packages/people/src/service.ts`
+
+### Failing test first
+
+```ts
+// packages/people/src/__tests__/service.test.ts
+import { PersonContextService } from "../service.js";
+
+it("resolve returns existing person for known email", async () => {
+  // seed: upsert identity with email alice@example.com → person A
+  const svc = new PersonContextService(repo);
+  const result = await withDataContext(ac, db, (sdb) =>
+    svc.resolve(sdb, ac.actorUserId, "alice@example.com")
+  );
+  expect(result?.displayName).toBe("Alice");
+});
+
+it("getPerson throws NotFoundError for unknown id", async () => {
+  const svc = new PersonContextService(repo);
+  await expect(
+    withDataContext(ac, db, (sdb) => svc.getPerson(sdb, ac.actorUserId, "non-existent-uuid"))
+  ).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+```
+
+### Implementation
+
+`PersonContextService` — takes `PeopleRepository` in constructor.
+
+Methods:
+- `resolve(db, ownerUserId, query)` — look up by normalized identity (email), return `Person | null`
+- `getPerson(db, ownerUserId, personId)` — delegates to repo, enriches with identity list
+- `listLinks(db, ownerUserId, personId, params)` — delegates to repo
+- `listMatchCandidates(db, ownerUserId)` — pending candidates
+- `acceptCandidate(db, ownerUserId, candidateId)` — reads kind; if `link_identity` runs
+  upsertIdentity+insertEvent; if `create_person` runs findOrCreatePerson; if `merge_people` or
+  `split_identity` throws `RequiresExplicitActionError` — client must call merge/split directly
+- `rejectCandidate(db, ownerUserId, candidateId)` — set status='rejected'
+- `suppressCandidate(db, ownerUserId, candidateId)` — set status='suppressed'
+- `splitIdentity(db, ownerUserId, identityId, targetPersonId?, newPersonDisplayName?)` — transaction:
+  detach identity from current person, attach to target or create new, insert events for both persons
+
+---
+
+## Task 8 — `src/jobs.ts` + `src/workers.ts`
+
+**Files:** `packages/people/src/jobs.ts`, `packages/people/src/workers.ts`
+
+### Failing test first
+
+```ts
+// packages/people/src/__tests__/jobs.test.ts
+import { enqueuePersonIndex, PersonIndexPayload, assertMetadataOnlyPersonPayload } from "../jobs.js";
+
+it("enqueuePersonIndex enqueues with metadata-only payload", async () => {
+  const sent: unknown[] = [];
+  const mockBoss = { send: async (_q: string, d: unknown) => { sent.push(d); } } as any;
+  await enqueuePersonIndex(mockBoss, {
+    actorUserId: "u1",
+    source: "email",
+    sourceRefHash: "abc123",
+    reason: "new_message",
+    idempotencyKey: "u1:email:abc123",
+  });
+  expect(sent[0]).not.toHaveProperty("source_ref");
+  expect(sent[0]).not.toHaveProperty("normalizedValue");
+});
+
+it("assertMetadataOnlyPersonPayload throws if forbidden key present", () => {
+  expect(() =>
+    assertMetadataOnlyPersonPayload({ actorUserId: "u", source: "email",
+      sourceRefHash: "x", reason: "r", idempotencyKey: "k", source_ref: "FORBIDDEN" })
+  ).toThrow();
+});
+```
+
+### Implementation
+
+`jobs.ts`:
+- `PERSON_INDEX_QUEUE = "person-index"` — payload type: `PersonIndexPayload`
+  (`actorUserId, source, sourceRefHash, sourceVersion?, reason, idempotencyKey`)
+- `SYNC_PERSON_MEMORY_QUEUE = "sync-person-memory"` — payload: `SyncPersonMemoryPayload`
+  (`actorUserId, personId, personUpdatedAt, reason, idempotencyKey`)
+- `assertMetadataOnlyPersonPayload(data)` — throws if any key outside allowed set present
+- `enqueuePersonIndex(boss, params)` — validates cooldown (15 min per owner), checks
+  pending+running count (max 100 per owner), then `boss.send(PERSON_INDEX_QUEUE, payload, { singletonKey: idempotencyKey })`
+- `enqueuePersonIndexBatch(boss, params[])` — max 50 refs per call, loops enqueuePersonIndex
+
+`workers.ts`:
+- `registerPersonIndexWorker(boss, dataContext, moduleRegistry)` — uses
+  `registerDataContextWorker<PersonIndexPayload, void>`. Worker body:
+  1. `assertMetadataOnlyPersonPayload(job.data)` — guard
+  2. Load `source_ref` from `person_context_indexing_state` via repo (only place source_ref escapes DB layer into worker memory, never logged)
+  3. Find provider via `moduleRegistry.getPersonContextProvider(source)`
+  4. Call `provider.collectPersonSignals(input)` — log count+sourceKind only on error
+  5. Run matching + upsert identities/links/candidates via repo in a single transaction
+  6. Update indexing state (last_indexed_at, last_source_version, failure_count reset)
+  7. If memory-entity sync needed: enqueue `SYNC_PERSON_MEMORY_QUEUE` in a SEPARATE transaction
+- `registerSyncPersonMemoryWorker(boss, dataContext)` — separate worker for memory entity sync;
+  failure must not affect person_context rows
