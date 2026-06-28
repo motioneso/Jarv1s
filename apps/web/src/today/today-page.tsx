@@ -44,6 +44,7 @@ import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
 import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
+import { BriefingFreshnessList, BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
 import { ProactiveCards } from "./proactive-cards";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
@@ -379,6 +380,10 @@ export function TodayPage(props: {
               </div>
               {latestEveningRun ? (
                 <>
+                  {(() => {
+                    const freshness = parseBriefingFreshness(latestEveningRun.sourceMetadata);
+                    return freshness ? <BriefingStaleBanner freshness={freshness} /> : null;
+                  })()}
                   <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
                   <BriefingFeedbackMenu
                     targetRef={latestEveningRun.id}
@@ -388,6 +393,10 @@ export function TodayPage(props: {
                       })
                     }
                   />
+                  {(() => {
+                    const freshness = parseBriefingFreshness(latestEveningRun.sourceMetadata);
+                    return freshness ? <BriefingFreshnessList freshness={freshness} /> : null;
+                  })()}
                 </>
               ) : (
                 <div className="agenda-clear">No evening review yet.</div>
