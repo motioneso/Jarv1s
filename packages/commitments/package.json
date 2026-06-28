@@ -7,7 +7,9 @@
     ".": "./src/index.ts",
     "./prefilter": "./src/prefilter.ts",
     "./signature": "./src/signature.ts",
-    "./extractor": "./src/extractor.ts"
+    "./extractor": "./src/extractor.ts",
+    "./jobs": "./src/jobs.ts",
+    "./workers": "./src/workers.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
