@@ -406,6 +406,40 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(jobsAfter).toBe(jobsBefore);
   });
 
+  it("rejects an invalid timezone in scheduleMetadata with 400", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/briefings/definitions",
+      headers: userAHeaders(),
+      payload: {
+        title: "Bad timezone briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "07:00", timezone: "Not/A/Timezone" },
+        selectedToolNames: ["tasks.list"]
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "invalid timezone" });
+  });
+
+  it("rejects weekly cadence without dayOfWeek with 400", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/briefings/definitions",
+      headers: userAHeaders(),
+      payload: {
+        title: "Weekly no dow briefing",
+        cadence: "weekly",
+        scheduleMetadata: { targetTime: "09:00", timezone: "UTC" },
+        selectedToolNames: ["tasks.list"]
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "dayOfWeek required for weekly schedules" });
+  });
+
   it("queues run-now jobs with metadata-only payloads and worker-created RLS summaries", async () => {
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {

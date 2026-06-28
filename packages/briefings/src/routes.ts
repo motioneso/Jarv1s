@@ -309,6 +309,29 @@ async function reconcileScheduleSafely(
   }
 }
 
+function validateScheduleMetadata(
+  cadence: string | undefined,
+  scheduleMetadata: Record<string, unknown> | undefined
+): void {
+  if (!scheduleMetadata) return;
+
+  const tz = scheduleMetadata.timezone;
+  if (tz !== undefined) {
+    if (typeof tz !== "string" || tz.trim() === "") {
+      throw new HttpError(400, "invalid timezone");
+    }
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(0);
+    } catch {
+      throw new HttpError(400, "invalid timezone");
+    }
+  }
+
+  if (cadence === "weekly" && scheduleMetadata.dayOfWeek == null) {
+    throw new HttpError(400, "dayOfWeek required for weekly schedules");
+  }
+}
+
 function parseCreateDefinitionBody(
   body: unknown,
   moduleManifests: readonly JarvisModuleManifest[]
@@ -327,11 +350,15 @@ function parseCreateDefinitionBody(
     moduleManifests
   );
 
+  const cadence = optionalBriefingCadence(value.cadence) ?? "manual";
+  const scheduleMetadata = optionalJsonObject(value.scheduleMetadata, "scheduleMetadata");
+  validateScheduleMetadata(cadence, scheduleMetadata);
+
   return {
     title: requiredString(value.title, "title"),
     briefingType,
-    cadence: optionalBriefingCadence(value.cadence) ?? "manual",
-    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
+    cadence,
+    scheduleMetadata,
     enabled: optionalBoolean(value.enabled, "enabled") ?? true,
     selectedToolNames
   };
@@ -347,11 +374,15 @@ function parseUpdateDefinitionBody(
       ? undefined
       : requiredReadToolNames(value.selectedToolNames, "selectedToolNames", moduleManifests);
 
+  const cadence = optionalBriefingCadence(value.cadence);
+  const scheduleMetadata = optionalJsonObject(value.scheduleMetadata, "scheduleMetadata");
+  validateScheduleMetadata(cadence, scheduleMetadata);
+
   return {
     title: optionalString(value.title, "title"),
     briefingType: optionalBriefingType(value.briefingType),
-    cadence: optionalBriefingCadence(value.cadence),
-    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
+    cadence,
+    scheduleMetadata,
     enabled: optionalBoolean(value.enabled, "enabled"),
     selectedToolNames
   };
