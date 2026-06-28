@@ -1,15 +1,19 @@
 import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { goalListExecute, goalGetExecute, goalCreateExecute, goalUpdateExecute, goalAddEvidenceExecute } from "./tools.js";
+import {
+  goalListExecute,
+  goalGetExecute,
+  goalCreateExecute,
+  goalUpdateExecute,
+  goalAddEvidenceExecute
+} from "./tools.js";
 
 export const GOALS_MODULE_ID = "jarvis.goals";
 
 export const GOALS_MEMORY_SYNC_QUEUE = "goals-memory-sync";
 export const GOALS_MEMORY_SYNC_RECONCILE_QUEUE = "goals-memory-sync-reconcile";
 
-export const goalsModuleSqlMigrationDirectory = fileURLToPath(
-  new URL("../sql", import.meta.url)
-);
+export const goalsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const goalsModuleManifest: JarvisModuleManifest = {
   id: GOALS_MODULE_ID,
@@ -17,7 +21,8 @@ export const goalsModuleManifest: JarvisModuleManifest = {
   publisher: "jarv1s",
   version: "1.0.0",
   lifecycle: "user-toggleable",
-  compatibility: { jarv1s: ">=1.0.0" },
+  availability: { defaultEnabled: true },
+  compatibility: { jarv1s: ">=0.0.0" },
   routes: [
     { method: "GET", path: "/api/goals", permissionId: "goals.view" },
     { method: "POST", path: "/api/goals", permissionId: "goals.create" },
@@ -72,7 +77,10 @@ export const goalsModuleManifest: JarvisModuleManifest = {
           title: { type: "string" },
           desiredOutcome: { type: "string" },
           priority: { type: "integer", minimum: 1, maximum: 5 },
-          reviewCadence: { type: "string", enum: ["none", "daily", "weekly", "biweekly", "monthly", "custom"] },
+          reviewCadence: {
+            type: "string",
+            enum: ["none", "daily", "weekly", "biweekly", "monthly", "custom"]
+          },
           targetAt: { type: "string", format: "date-time" }
         }
       },
@@ -92,9 +100,15 @@ export const goalsModuleManifest: JarvisModuleManifest = {
           goalId: { type: "string" },
           title: { type: "string" },
           desiredOutcome: { type: "string" },
-          status: { type: "string", enum: ["active", "paused", "blocked", "completed", "archived"] },
+          status: {
+            type: "string",
+            enum: ["active", "paused", "blocked", "completed", "archived"]
+          },
           priority: { type: "integer", minimum: 1, maximum: 5 },
-          reviewCadence: { type: "string", enum: ["none", "daily", "weekly", "biweekly", "monthly", "custom"] },
+          reviewCadence: {
+            type: "string",
+            enum: ["none", "daily", "weekly", "biweekly", "monthly", "custom"]
+          },
           targetAt: { type: "string", format: "date-time" }
         }
       },
@@ -112,8 +126,23 @@ export const goalsModuleManifest: JarvisModuleManifest = {
         required: ["goalId", "evidenceKind", "sourceKind", "sourceLabel", "summary"],
         properties: {
           goalId: { type: "string" },
-          evidenceKind: { type: "string", enum: ["context", "task", "status", "progress", "blocker", "decision", "checkpoint", "suggested_action"] },
-          sourceKind: { type: "string", enum: ["goal", "task", "note", "email", "calendar", "chat", "memory", "manual"] },
+          evidenceKind: {
+            type: "string",
+            enum: [
+              "context",
+              "task",
+              "status",
+              "progress",
+              "blocker",
+              "decision",
+              "checkpoint",
+              "suggested_action"
+            ]
+          },
+          sourceKind: {
+            type: "string",
+            enum: ["goal", "task", "note", "email", "calendar", "chat", "memory", "manual"]
+          },
           sourceRef: { type: "string" },
           sourceLabel: { type: "string" },
           summary: { type: "string" },

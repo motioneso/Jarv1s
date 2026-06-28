@@ -1,7 +1,12 @@
 import { assertDataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 import { GoalsRepository } from "./repository.js";
-import type { JarvisGoalStatus, JarvisGoalReviewCadence, JarvisGoalEvidenceKind, JarvisGoalSourceKind } from "./types.js";
+import type {
+  JarvisGoalStatus,
+  JarvisGoalReviewCadence,
+  JarvisGoalEvidenceKind,
+  JarvisGoalSourceKind
+} from "./types.js";
 
 const repository = new GoalsRepository();
 
@@ -9,7 +14,7 @@ export const goalListExecute: ToolExecute = async (scopedDb, _input, _ctx): Prom
   assertDataContextDb(scopedDb);
   const goals = await repository.list(scopedDb);
   return {
-    data: { items: goals.map(g => g as unknown as Record<string, unknown>) }
+    data: { items: goals.map((g) => g as unknown as Record<string, unknown>) }
   };
 };
 
@@ -22,9 +27,9 @@ export const goalGetExecute: ToolExecute = async (scopedDb, input, _ctx): Promis
   }
   const evidence = await repository.listEvidence(scopedDb, goalId);
   return {
-    data: { 
-      goal: goal as unknown as Record<string, unknown>, 
-      evidence: evidence.map(e => e as unknown as Record<string, unknown>) 
+    data: {
+      goal: goal as unknown as Record<string, unknown>,
+      evidence: evidence.map((e) => e as unknown as Record<string, unknown>)
     }
   };
 };
@@ -70,7 +75,11 @@ export const goalUpdateExecute: ToolExecute = async (scopedDb, input, ctx): Prom
   };
 };
 
-export const goalAddEvidenceExecute: ToolExecute = async (scopedDb, input, ctx): Promise<ToolResult> => {
+export const goalAddEvidenceExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const { goalId, ...data } = input as {
     goalId: string;
@@ -86,7 +95,7 @@ export const goalAddEvidenceExecute: ToolExecute = async (scopedDb, input, ctx):
     ...data,
     occurredAt: data.occurredAt ?? null
   });
-  
+
   return {
     data: evidence as unknown as Record<string, unknown>
   };

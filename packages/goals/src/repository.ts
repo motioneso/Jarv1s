@@ -1,7 +1,14 @@
 import { sql } from "kysely";
 
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { JarvisGoal, JarvisGoalEvidence, JarvisGoalStatus, JarvisGoalEvidenceKind, JarvisGoalSourceKind, JarvisGoalReviewCadence } from "./types.js";
+import type {
+  JarvisGoal,
+  JarvisGoalEvidence,
+  JarvisGoalStatus,
+  JarvisGoalEvidenceKind,
+  JarvisGoalSourceKind,
+  JarvisGoalReviewCadence
+} from "./types.js";
 
 export interface GoalRow {
   id: string;
@@ -54,19 +61,27 @@ export class GoalsRepository {
     return result.rows.map((row) => this.mapGoal(row));
   }
 
-  async create(scopedDb: DataContextDb, ownerUserId: string, data: Partial<JarvisGoal>): Promise<JarvisGoal> {
+  async create(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    data: Partial<JarvisGoal>
+  ): Promise<JarvisGoal> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
       INSERT INTO app.jarvis_goals (
         owner_user_id, title, desired_outcome, priority, review_cadence, target_at
       ) VALUES (
-        ${ownerUserId}::uuid, ${data.title ?? null}, ${data.desiredOutcome ?? null}, ${data.priority ?? 3}, ${data.reviewCadence ?? 'weekly'}, ${data.targetAt ?? null}
+        ${ownerUserId}::uuid, ${data.title ?? null}, ${data.desiredOutcome ?? null}, ${data.priority ?? 3}, ${data.reviewCadence ?? "weekly"}, ${data.targetAt ?? null}
       ) RETURNING *
     `.execute(scopedDb.db);
     return this.mapGoal(result.rows[0]!);
   }
 
-  async update(scopedDb: DataContextDb, id: string, data: Partial<JarvisGoal>): Promise<JarvisGoal> {
+  async update(
+    scopedDb: DataContextDb,
+    id: string,
+    data: Partial<JarvisGoal>
+  ): Promise<JarvisGoal> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
       UPDATE app.jarvis_goals SET
@@ -99,7 +114,12 @@ export class GoalsRepository {
     return result.rows.map((row) => this.mapEvidence(row));
   }
 
-  async addEvidence(scopedDb: DataContextDb, ownerUserId: string, goalId: string, data: Partial<JarvisGoalEvidence>): Promise<JarvisGoalEvidence> {
+  async addEvidence(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    goalId: string,
+    data: Partial<JarvisGoalEvidence>
+  ): Promise<JarvisGoalEvidence> {
     assertDataContextDb(scopedDb);
     const result = await sql<EvidenceRow>`
       INSERT INTO app.jarvis_goal_evidence (
@@ -151,7 +171,11 @@ export class GoalsRepository {
     scopedDb: DataContextDb
   ): Promise<{ id: string; updated_at: string; memory_synced_goal_updated_at: string | null }[]> {
     assertDataContextDb(scopedDb);
-    const result = await sql<{ id: string; updated_at: Date; memory_synced_goal_updated_at: Date | null }>`
+    const result = await sql<{
+      id: string;
+      updated_at: Date;
+      memory_synced_goal_updated_at: Date | null;
+    }>`
       SELECT id, updated_at, memory_synced_goal_updated_at 
       FROM app.jarvis_goals
       WHERE status != 'archived' 
@@ -159,7 +183,7 @@ export class GoalsRepository {
       ORDER BY updated_at ASC
       LIMIT 100
     `.execute(scopedDb.db);
-    return result.rows.map(row => ({
+    return result.rows.map((row) => ({
       id: row.id,
       updated_at: row.updated_at.toISOString(),
       memory_synced_goal_updated_at: row.memory_synced_goal_updated_at?.toISOString() ?? null

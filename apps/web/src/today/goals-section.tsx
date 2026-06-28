@@ -13,7 +13,7 @@ export function GoalsSection() {
     return null;
   }
 
-  const activeGoals = data.items.filter(g => g.status === "active");
+  const activeGoals = data.items.filter((g) => g.status === "active");
   if (activeGoals.length === 0) return null;
 
   return (
@@ -35,8 +35,7 @@ export function GoalsSection() {
             <div className="loose-row__act">
               {goal.priority ? (
                 <span className="jds-drift">
-                  <span className="jds-drift__dot" />
-                  P{goal.priority}
+                  <span className="jds-drift__dot" />P{goal.priority}
                 </span>
               ) : null}
             </div>

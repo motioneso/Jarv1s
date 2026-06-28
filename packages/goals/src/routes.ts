@@ -20,8 +20,25 @@ const getGoalResponseSchema = Type.Any();
 const createGoalRequestSchema = Type.Object({
   title: Type.String({ minLength: 1 }),
   desiredOutcome: Type.String({ minLength: 1 }),
-  priority: Type.Optional(Type.Union([Type.Literal(1), Type.Literal(2), Type.Literal(3), Type.Literal(4), Type.Literal(5)])),
-  reviewCadence: Type.Optional(Type.Union([Type.Literal("none"), Type.Literal("daily"), Type.Literal("weekly"), Type.Literal("biweekly"), Type.Literal("monthly"), Type.Literal("custom")])),
+  priority: Type.Optional(
+    Type.Union([
+      Type.Literal(1),
+      Type.Literal(2),
+      Type.Literal(3),
+      Type.Literal(4),
+      Type.Literal(5)
+    ])
+  ),
+  reviewCadence: Type.Optional(
+    Type.Union([
+      Type.Literal("none"),
+      Type.Literal("daily"),
+      Type.Literal("weekly"),
+      Type.Literal("biweekly"),
+      Type.Literal("monthly"),
+      Type.Literal("custom")
+    ])
+  ),
   targetAt: Type.Optional(Type.String({ format: "date-time" }))
 });
 type CreateGoalRequest = Static<typeof createGoalRequestSchema>;
@@ -29,9 +46,34 @@ type CreateGoalRequest = Static<typeof createGoalRequestSchema>;
 const updateGoalRequestSchema = Type.Object({
   title: Type.Optional(Type.String({ minLength: 1 })),
   desiredOutcome: Type.Optional(Type.String({ minLength: 1 })),
-  status: Type.Optional(Type.Union([Type.Literal("active"), Type.Literal("paused"), Type.Literal("blocked"), Type.Literal("completed"), Type.Literal("archived")])),
-  priority: Type.Optional(Type.Union([Type.Literal(1), Type.Literal(2), Type.Literal(3), Type.Literal(4), Type.Literal(5)])),
-  reviewCadence: Type.Optional(Type.Union([Type.Literal("none"), Type.Literal("daily"), Type.Literal("weekly"), Type.Literal("biweekly"), Type.Literal("monthly"), Type.Literal("custom")])),
+  status: Type.Optional(
+    Type.Union([
+      Type.Literal("active"),
+      Type.Literal("paused"),
+      Type.Literal("blocked"),
+      Type.Literal("completed"),
+      Type.Literal("archived")
+    ])
+  ),
+  priority: Type.Optional(
+    Type.Union([
+      Type.Literal(1),
+      Type.Literal(2),
+      Type.Literal(3),
+      Type.Literal(4),
+      Type.Literal(5)
+    ])
+  ),
+  reviewCadence: Type.Optional(
+    Type.Union([
+      Type.Literal("none"),
+      Type.Literal("daily"),
+      Type.Literal("weekly"),
+      Type.Literal("biweekly"),
+      Type.Literal("monthly"),
+      Type.Literal("custom")
+    ])
+  ),
   targetAt: Type.Optional(Type.Union([Type.String({ format: "date-time" }), Type.Null()])),
   lastProgressSummary: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   blockerSummary: Type.Optional(Type.Union([Type.String(), Type.Null()])),
@@ -40,8 +82,26 @@ const updateGoalRequestSchema = Type.Object({
 type UpdateGoalRequest = Static<typeof updateGoalRequestSchema>;
 
 const addEvidenceRequestSchema = Type.Object({
-  evidenceKind: Type.Union([Type.Literal("context"), Type.Literal("task"), Type.Literal("status"), Type.Literal("progress"), Type.Literal("blocker"), Type.Literal("decision"), Type.Literal("checkpoint"), Type.Literal("suggested_action")]),
-  sourceKind: Type.Union([Type.Literal("goal"), Type.Literal("task"), Type.Literal("note"), Type.Literal("email"), Type.Literal("calendar"), Type.Literal("chat"), Type.Literal("memory"), Type.Literal("manual")]),
+  evidenceKind: Type.Union([
+    Type.Literal("context"),
+    Type.Literal("task"),
+    Type.Literal("status"),
+    Type.Literal("progress"),
+    Type.Literal("blocker"),
+    Type.Literal("decision"),
+    Type.Literal("checkpoint"),
+    Type.Literal("suggested_action")
+  ]),
+  sourceKind: Type.Union([
+    Type.Literal("goal"),
+    Type.Literal("task"),
+    Type.Literal("note"),
+    Type.Literal("email"),
+    Type.Literal("calendar"),
+    Type.Literal("chat"),
+    Type.Literal("memory"),
+    Type.Literal("manual")
+  ]),
   sourceRef: Type.Optional(Type.String()),
   sourceLabel: Type.String(),
   summary: Type.String(),
@@ -49,10 +109,7 @@ const addEvidenceRequestSchema = Type.Object({
 });
 type AddEvidenceRequest = Static<typeof addEvidenceRequestSchema>;
 
-export function registerGoalsRoutes(
-  app: FastifyInstance,
-  deps: GoalsRouteDependencies
-): void {
+export function registerGoalsRoutes(app: FastifyInstance, deps: GoalsRouteDependencies): void {
   const repository = deps.repository ?? new GoalsRepository();
 
   app.get(
@@ -106,14 +163,14 @@ export function registerGoalsRoutes(
       const { id } = request.params as { id: string };
       const accessContext = await deps.resolveAccessContext(request);
       const data = request.body as UpdateGoalRequest;
-      
+
       const goal = await deps.dataContext.withDataContext(accessContext, async (scopedDb) => {
         return repository.update(scopedDb, id, {
           ...data,
           targetAt: data.targetAt === undefined ? undefined : data.targetAt
         });
       });
-      
+
       // Enqueue sync
       await sendJob(deps.boss, GOALS_MEMORY_SYNC_QUEUE, {
         actorUserId: accessContext.actorUserId,
@@ -122,7 +179,7 @@ export function registerGoalsRoutes(
         reason: "goal updated",
         idempotencyKey: `sync:${goal.id}:${goal.updatedAt}`
       });
-      
+
       return goal;
     }
   );
@@ -134,7 +191,7 @@ export function registerGoalsRoutes(
       const { id } = request.params as { id: string };
       const accessContext = await deps.resolveAccessContext(request);
       const data = request.body as AddEvidenceRequest;
-      
+
       const evidence = await deps.dataContext.withDataContext(accessContext, async (scopedDb) => {
         return repository.addEvidence(scopedDb, accessContext.actorUserId, id, {
           evidenceKind: data.evidenceKind as JarvisGoalEvidenceKind,
@@ -148,9 +205,9 @@ export function registerGoalsRoutes(
 
       // Update goal so its `updatedAt` is bumped for memory sync
       const goal = await deps.dataContext.withDataContext(accessContext, async (scopedDb) => {
-        return repository.update(scopedDb, id, {}); 
+        return repository.update(scopedDb, id, {});
       });
-      
+
       await sendJob(deps.boss, GOALS_MEMORY_SYNC_QUEUE, {
         actorUserId: accessContext.actorUserId,
         goalId: goal.id,

@@ -164,6 +164,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",

@@ -475,8 +475,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: goalsModuleManifest,
     sqlMigrationDirectories: [goalsModuleSqlMigrationDirectory],
     queueDefinitions: [
-      { name: GOALS_MEMORY_SYNC_QUEUE, options: { retryLimit: 3, retryDelay: 60, retryBackoff: true } },
-      { name: GOALS_MEMORY_SYNC_RECONCILE_QUEUE, options: { retryLimit: 3, retryDelay: 60, retryBackoff: true } }
+      {
+        name: GOALS_MEMORY_SYNC_QUEUE,
+        options: { retryLimit: 3, retryDelay: 60, retryBackoff: true }
+      },
+      {
+        name: GOALS_MEMORY_SYNC_RECONCILE_QUEUE,
+        options: { retryLimit: 3, retryDelay: 60, retryBackoff: true }
+      }
     ],
     registerRoutes: (server, deps) =>
       registerGoalsRoutes(server, {
