@@ -205,7 +205,7 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
       const ac = await deps.resolveAccessContext(request);
       const { id } = request.params as { id: string };
       return deps.dataContext.withDataContext(ac, async (sdb) => {
-        await repo.archivePerson(sdb, id, ac.actorUserId);
+        await repo.archivePerson(sdb, ac.actorUserId, id);
         return { archived: true };
       });
     }

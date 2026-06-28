@@ -16,7 +16,7 @@ export const peopleModuleManifest: JarvisModuleManifest = {
   availability: { defaultEnabled: true },
   compatibility: { jarv1s: ">=0.0.0" },
   database: {
-    migrations: ["XXXX_person_context.sql"],
+    migrations: ["0128_person_context.sql"],
     ownedTables: [
       "app.person_context_people",
       "app.person_context_identities",

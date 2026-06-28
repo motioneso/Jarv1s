@@ -16,7 +16,7 @@ afterAll(async () => {
   await db?.destroy();
 });
 
-it("migration XXXX creates all person_context tables", async () => {
+it("migration 0128 creates all person_context tables", async () => {
   const rows = await sql<{ table_name: string }>`
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'app' AND table_name LIKE 'person_context_%'
