@@ -183,11 +183,11 @@ predecessor to land):
      "Build <slug> in this fresh worktree. STEP 1 pnpm install. STEP 2 read docs/.../<handoff>.md IN FULL and follow it via the coordinated-build skill. Begin now."
    ```
 4. **Verify it actually started** (not stuck on a trust prompt): `herdr pane read <pane> --source
-   visible --lines 20`; answer prompts with `herdr pane send-keys <pane> Enter`.
+   recent --lines 12`; answer prompts with `herdr pane send-keys <pane> Enter`.
 
    **⚠️ Messaging agents — preferred path.** Use `herdr pane run <pane> "<msg>"` for messages to
    agent panes; it types the text and submits Enter in one command. Afterward, verify with
-   `herdr pane read <pane> --source visible --lines 12`. If the raw text is still sitting in the
+   `herdr pane read <pane> --source recent --lines 12`. If the raw text is still sitting in the
    input box, send one separate `herdr pane send-keys <pane> Enter`. Treat `herdr pane send-text`
    and `herdr agent send` as fallbacks only, because they write literal text and can leave messages
    unsubmitted unless followed by Enter.
@@ -211,7 +211,7 @@ between events to catch silent failures.
   (`blocked` + the open question).
 - **Liveness sweep** (keep yourself resident with a `ScheduleWakeup` tick between pushes): every
   few minutes `herdr pane list` (look for `agent_status` unknown/blocked, panes that died) and
-  spot-`herdr pane read` anything suspicious — catch trust-prompt stalls and silent crashes a push
+  spot-`herdr pane read <pane> --source recent --lines 12` anything suspicious — catch trust-prompt stalls and silent crashes a push
   would never report. Nudge or, if dead, re-spawn from the handoff doc.
   **⚠️ Never block on `herdr pane run <pane> 'sleep N'` poll-loops** (proven wasteful in
   2026-06-11-audit-remediation — six blocking 45s iterations re-sending context each turn). To wait,
@@ -221,7 +221,7 @@ between events to catch silent failures.
   auto-notify, and let native background `Agent` QA wake you on its own.
 - **On an agent relay** (it hit its countable-event threshold or saw a compaction summary): it
   spawns its own successor in the same worktree and asks to be reaped — confirm the successor is
-  driving (`herdr pane read`), then **reap** the old pane and update the manifest (pane id changed).
+  driving (`herdr pane read <pane> --source recent --lines 12`), then **reap** the old pane and update the manifest (pane id changed).
   ⚠️ **Tab discipline on agent relay:** if YOU spawn the successor (rather than the agent spawning
   it itself), always pass `--tab <agents-tab>` — never omit it, or the successor lands in your
   coordinator tab. Only your own coordinator relay successor goes in the coordinator tab.
@@ -270,7 +270,7 @@ own):
 
    **Fallback (Herdr):** If the `Agent` tool is unavailable (e.g., running in a context without
    native subagent support), fall back to `herdr agent start` with the same QA prompt and collect
-   the verdict via `herdr pane read`. Document any fallback activation in the manifest.
+   the verdict via `herdr pane read <pane> --source recent --lines 12`. Document any fallback activation in the manifest.
 
    By tier:
    - `routine` / `sensitive`: **Sonnet** QA — `/code-review` + exit-criteria (+ invariant check for
@@ -347,7 +347,7 @@ already failed.
    Bootstrap = "you are the new coordinator for run <run-id>; read `docs/coordination/<run-id>.md`
    IN FULL, invoke `coordinate`, re-adopt the live fleet (`herdr pane list` + labels), confirm
    you're driving, then close my pane."
-3. Confirm the successor is driving (`herdr pane read`); it reaps you. The fleet keeps running —
+3. Confirm the successor is driving (`herdr pane read <pane> --source recent --lines 12`); it reaps you. The fleet keeps running —
    the manifest is what lets a coordinator you didn't spawn adopt this run.
 
 ## Red flags — STOP
@@ -385,8 +385,8 @@ already failed.
 | Spawn build agent (shared Agents tab) | `herdr agent start "<Label>" --tab <ws>:<agents-tab> --cwd <path> --no-focus -- claude …` (2×2 for 4-agent / 3×1 for 3-agent waves) |
 | Spawn QA agent (native subagent) | `Agent(description: "QA: <slug>", subagent_type: "coordinated-qa", run_in_background: true, isolation: "worktree", prompt: "...")` |
 | Spawn relay coordinator (SAME tab as yours) | `herdr agent start "Coordinator" --tab <your own tab> … -- claude --permission-mode bypassPermissions "<boot>"` or `… -- codex -s danger-full-access -a never "<boot>"` — successor opens in your tab, then closes you |
-| Talk to an agent | `herdr pane run <pane> "<msg>"`, then verify with `herdr pane read`; use `send-text` + Enter only as fallback |
-| Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source visible --lines 20` |
+| Talk to an agent | `herdr pane run <pane> "<msg>"`, then verify with `herdr pane read <pane> --source recent --lines 12`; use `send-text` + Enter only as fallback |
+| Liveness sweep | `herdr pane list` · `herdr pane read <pane> --source recent --lines 12` (always bound reads — `--source visible` ignores `--lines` on tall panes and dumps the whole viewport) |
 | Reap a spent pane / worktree | kill pane · `git worktree remove .claude/worktrees/<slug>` |
 | Session-id authority (pre-merge) | re-read manifest lock line · confirm your pane's `agent_session.value` matches (NOT the pane number — it reflows) |
 | CI gate (don't re-run) | `gh pr checks <PR>` — QA spends tokens on review, not re-execution |

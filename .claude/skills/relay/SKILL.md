@@ -70,7 +70,7 @@ verification without approval prompts.
   a baked-in reap number had become the user's chat pane). Identify panes by **label + session id**
   and have the successor resolve the number at read time.
 
-**3. Verify the successor is actually driving** before you go (`herdr pane read <pane>` — it
+**3. Verify the successor is actually driving** before you go (`herdr pane read <pane> --source recent --lines 12` — it
 should be reading the doc / re-adopting, not stuck on a trust prompt). Answer any prompt with
 `herdr pane send-keys <pane> Enter`.
 
@@ -88,7 +88,7 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 | Flush build state | commit work + write `docs/superpowers/handoffs/<date>-<slug>-relay.md` |
 | Flush coordinator state | update + commit `docs/coordination/<run-id>.md` |
 | Spawn successor | `herdr-handoff` skill; coordinator relays use `claude --permission-mode bypassPermissions` or `codex -s danger-full-access -a never` |
-| Confirm it's driving | `herdr pane read <pane> --source visible --lines 20` |
+| Confirm it's driving | `herdr pane read <pane> --source recent --lines 12` |
 | Reap a spent pane | resolve target fresh by label + session id, verify session id, then close (never a baked `…-N` number) |
 
 ## Common mistakes
@@ -98,7 +98,7 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 - **Relaying too late.** If you wait for felt degradation you can't write a clean continuation.
   Relay on the countable trigger (~80–100k / 2–3 merges / compaction summary seen).
 - **Re-running `pnpm install` in the successor.** The worktree already has `node_modules` — guard it.
-- **Walking away before the successor is confirmed driving.** Always `herdr pane read` it first.
+- **Walking away before the successor is confirmed driving.** Always `herdr pane read <pane> --source recent --lines 12` it first.
 - **Two sessions live on the same work.** The reap must happen — don't leave the spent session
   running alongside its successor.
 - **Reaping by a stale pane number.** Pane `…-N` numbers reflow on every open/close, so a number
