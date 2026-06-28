@@ -28,14 +28,22 @@ export function registerGoalsMemorySyncWorker(
       const goal = await repository.getById(scopedDb, goalId);
       if (!goal) {
         // Goal was deleted or doesn't exist
-        const eid = await memoryGraphRepo.getEntityIdByAlias(scopedDb, actorUserId, `jarvis_goal:${goalId}`);
+        const eid = await memoryGraphRepo.getEntityIdByAlias(
+          scopedDb,
+          actorUserId,
+          `jarvis_goal:${goalId}`
+        );
         if (eid) await memoryGraphRepo.forgetEntity(scopedDb, actorUserId, eid);
         return;
       }
 
       // If it's archived, we might also suppress it from memory
       if (goal.status === "archived") {
-        const eid = await memoryGraphRepo.getEntityIdByAlias(scopedDb, actorUserId, `jarvis_goal:${goalId}`);
+        const eid = await memoryGraphRepo.getEntityIdByAlias(
+          scopedDb,
+          actorUserId,
+          `jarvis_goal:${goalId}`
+        );
         if (eid) await memoryGraphRepo.forgetEntity(scopedDb, actorUserId, eid);
         return;
       }
@@ -44,10 +52,17 @@ export function registerGoalsMemorySyncWorker(
         const evidence = await repository.listEvidence(scopedDb, goalId);
         const briefing = formatGoalBriefing(goal, evidence);
 
-        const existingEntityId = await memoryGraphRepo.getEntityIdByAlias(scopedDb, actorUserId, `jarvis_goal:${goalId}`);
+        const existingEntityId = await memoryGraphRepo.getEntityIdByAlias(
+          scopedDb,
+          actorUserId,
+          `jarvis_goal:${goalId}`
+        );
         if (existingEntityId) {
           // Update existing memory
-          await memoryGraphRepo.updateEntity(scopedDb, actorUserId, existingEntityId, { name: goal.title, summary: briefing });
+          await memoryGraphRepo.updateEntity(scopedDb, actorUserId, existingEntityId, {
+            name: goal.title,
+            summary: briefing
+          });
         } else {
           // Create new memory item
           const entity = await memoryGraphRepo.createEntity(scopedDb, actorUserId, {

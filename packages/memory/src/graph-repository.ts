@@ -866,7 +866,7 @@ export class MemoryGraphRepository {
       SET name = ${input.name}, summary = ${input.summary}, updated_at = now()
       WHERE id = ${entityId}::uuid AND owner_user_id = ${ownerUserId}::uuid
     `.execute(scopedDb.db);
-    
+
     await this.upsertSearchDocument(
       scopedDb,
       ownerUserId,
