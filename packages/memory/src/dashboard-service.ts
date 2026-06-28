@@ -127,6 +127,11 @@ export class MemoryDashboardService {
     if (kind === "fact" && factPayload) {
       const predicate = String(factPayload.predicate ?? "related_to");
       const objectText = String(edited?.summary ?? factPayload.objectText ?? "");
+      if (!objectText.trim()) {
+        const err = new Error("Candidate objectText must not be empty") as NodeJS.ErrnoException;
+        err.code = "EMPTY_OBJECT_TEXT";
+        throw err;
+      }
       const recordKind = (edited?.recordKind ??
         factPayload.recordKind ??
         "preference") as MemoryRecordKind;
