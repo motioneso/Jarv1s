@@ -67,7 +67,9 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "source",
   "goalId",
   "goalUpdatedAt",
-  "reason"
+  "reason",
+  "sourceRef",
+  "sourceVersion"
 ]);
 
 export function assertMetadataOnlyPayload(payload: unknown): void {
