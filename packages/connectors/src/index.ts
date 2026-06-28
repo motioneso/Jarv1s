@@ -9,3 +9,4 @@ export * from "./oauth.js";
 export * from "./repository.js";
 export * from "./routes.js";
 export * from "./sync-jobs.js";
+export * from "./freshness.js";
