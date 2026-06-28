@@ -52,7 +52,8 @@
       "@jarv1s/commitments/workers": ["packages/commitments/src/workers.ts"],
       "@jarv1s/commitments/prefilter": ["packages/commitments/src/prefilter.ts"],
       "@jarv1s/commitments/signature": ["packages/commitments/src/signature.ts"],
-      "@jarv1s/commitments/tools": ["packages/commitments/src/tools.ts"]
+      "@jarv1s/commitments/tools": ["packages/commitments/src/tools.ts"],
+      "@jarv1s/people": ["packages/people/src/index.ts"]
     }
   },
   "include": [

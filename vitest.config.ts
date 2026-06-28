@@ -198,6 +198,10 @@ export default defineConfig({
       {
         find: "@jarv1s/wellness",
         replacement: fileURLToPath(new URL("./packages/wellness/src/index.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/people",
+        replacement: fileURLToPath(new URL("./packages/people/src/index.ts", import.meta.url))
       }
     ]
   },

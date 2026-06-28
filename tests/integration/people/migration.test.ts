@@ -1,0 +1,53 @@
+import { afterAll, beforeAll, expect, it } from "vitest";
+import { sql, type Kysely } from "kysely";
+
+import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+
+import { connectionStrings, resetFoundationDatabase } from "../test-database.js";
+
+let db: Kysely<JarvisDatabase>;
+
+beforeAll(async () => {
+  await resetFoundationDatabase();
+  db = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
+});
+
+afterAll(async () => {
+  await db?.destroy();
+});
+
+it("migration XXXX creates all person_context tables", async () => {
+  const tables = await db
+    .selectFrom("information_schema.tables" as any)
+    .select("table_name" as any)
+    .where("table_schema" as any, "=", "app")
+    .where("table_name" as any, "like", "person_context_%")
+    .execute();
+  const names = (tables as Array<{ table_name: string }>)
+    .map((r) => r.table_name)
+    .sort();
+  expect(names).toEqual([
+    "person_context_events",
+    "person_context_identities",
+    "person_context_indexing_state",
+    "person_context_link_sources",
+    "person_context_links",
+    "person_context_match_candidates",
+    "person_context_people",
+  ]);
+});
+
+it("all person_context tables have RLS enforced", async () => {
+  const rows = await sql<{
+    relname: string;
+    relrowsecurity: boolean;
+    relforcerowsecurity: boolean;
+  }>`SELECT relname, relrowsecurity, relforcerowsecurity
+      FROM pg_class JOIN pg_namespace ON relnamespace = pg_namespace.oid
+      WHERE nspname = 'app' AND relname LIKE 'person_context_%' AND relkind = 'r'`.execute(db);
+  expect(rows.rows.length).toBe(7);
+  for (const row of rows.rows) {
+    expect(row.relrowsecurity, `${row.relname} relrowsecurity`).toBe(true);
+    expect(row.relforcerowsecurity, `${row.relname} relforcerowsecurity`).toBe(true);
+  }
+});

@@ -8,6 +8,10 @@ import {
   COMMITMENT_EXTRACTION_QUEUE,
   CommitmentsRepository
 } from "@jarv1s/commitments";
+import {
+  peopleModuleManifest,
+  peopleModuleSqlMigrationDirectory
+} from "@jarv1s/people";
 import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
 import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
 import {
@@ -807,6 +811,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         repository: new CommitmentsRepository(),
         providers: [chatCommitmentProvider, notesCommitmentProvider]
       })
+  },
+  {
+    manifest: peopleModuleManifest,
+    sqlMigrationDirectories: [peopleModuleSqlMigrationDirectory],
+    queueDefinitions: []
   }
 ];
 
