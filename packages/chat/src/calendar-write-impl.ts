@@ -6,7 +6,9 @@ import {
   type FocusBlockWindow,
   type ProposeFocusResult,
   type ResolvedWindow,
-  type CalendarRepository
+  type CalendarRepository,
+  type DeleteEventInput,
+  type DeleteEventResult
 } from "@jarv1s/calendar";
 import {
   GoogleApiError,
@@ -221,6 +223,15 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         googleEventId: inserted.id,
         calendarMirror
       };
+    },
+
+    async deleteEvent(
+      _scopedDbRaw: unknown,
+      _ctx: import("@jarv1s/module-sdk").ToolContext,
+      _input: DeleteEventInput
+    ): Promise<DeleteEventResult> {
+      // Implemented in Task 5 (#557).
+      throw new Error("deleteEvent: not yet implemented");
     }
   };
 }

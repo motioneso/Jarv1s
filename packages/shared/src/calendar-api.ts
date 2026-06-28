@@ -112,3 +112,30 @@ export const getCalendarEventRouteSchema = {
     404: errorResponseSchema
   }
 } as const;
+
+export interface DeleteCalendarEventResponse {
+  readonly deleted: boolean;
+  readonly googleDeleted: "deleted" | "already-gone" | "skipped-no-scope" | "skipped-error";
+  readonly cacheMirror: "deleted" | "skipped-rls" | "skipped-error" | "not-cached";
+  readonly deletedTitle?: string;
+  readonly message?: string;
+}
+
+export const deleteCalendarEventResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["deleted", "googleDeleted", "cacheMirror"],
+  properties: {
+    deleted: { type: "boolean" },
+    googleDeleted: {
+      type: "string",
+      enum: ["deleted", "already-gone", "skipped-no-scope", "skipped-error"]
+    },
+    cacheMirror: {
+      type: "string",
+      enum: ["deleted", "skipped-rls", "skipped-error", "not-cached"]
+    },
+    deletedTitle: { type: "string" },
+    message: { type: "string" }
+  }
+} as const;

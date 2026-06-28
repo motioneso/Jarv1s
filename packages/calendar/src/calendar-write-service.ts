@@ -25,6 +25,18 @@ export interface ProposeFocusResult {
   readonly message?: string;
 }
 
+export interface DeleteEventInput {
+  readonly eventId: string; // Jarvis cached event uuid (authoritative)
+}
+
+export interface DeleteEventResult {
+  readonly deleted: boolean;
+  readonly googleDeleted: "deleted" | "already-gone" | "skipped-no-scope" | "skipped-error";
+  readonly cacheMirror: "deleted" | "skipped-rls" | "skipped-error" | "not-cached";
+  readonly deletedTitle?: string;
+  readonly message?: string;
+}
+
 /**
  * The contract the calendar focus-time tool depends on. OWNED BY packages/calendar so no
  * connectors import leaks into the calendar module. The concrete implementation is built
@@ -37,4 +49,9 @@ export interface CalendarWriteService {
     ctx: ToolContext,
     window: FocusBlockWindow
   ): Promise<ProposeFocusResult>;
+  deleteEvent(
+    scopedDb: unknown,
+    ctx: ToolContext,
+    input: DeleteEventInput
+  ): Promise<DeleteEventResult>;
 }
