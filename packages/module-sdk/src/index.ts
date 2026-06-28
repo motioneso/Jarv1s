@@ -147,6 +147,48 @@ export interface RegisteredProactiveMonitorProvider {
   readonly provider: ProactiveMonitorProvider;
 }
 
+export type PersonContextSource =
+  | "email"
+  | "calendar"
+  | "chat"
+  | "note"
+  | "task"
+  | "commitment"
+  | "memory"
+  | "manual";
+
+export interface PersonContextSignal {
+  readonly identityKind: "email_address" | "source_identity" | "alias" | "display_name";
+  readonly displayValue: string;
+  readonly normalizedValue: string;
+  readonly sourceRef: string;
+  readonly sourceRefHash: string;
+  readonly sourceVersion: string;
+  readonly linkKind: "sender" | "recipient" | "attendee" | "mentioned" | "assigned" | "counterparty" | "related";
+  readonly sourceLabel?: string;
+  readonly summary?: string;
+  readonly occurredAt?: Date;
+  readonly confidence: number;
+  readonly provenance: "source" | "inferred" | "user_confirmed" | "imported";
+}
+
+export interface PersonContextSignalBatch {
+  readonly signals: PersonContextSignal[];
+  readonly nextCursor?: string;
+}
+
+export interface PersonContextProviderInput {
+  readonly actorUserId: string;
+  readonly sourceRefHash: string;
+  readonly sourceVersion?: string;
+  readonly cursor?: string;
+}
+
+export interface PersonContextProvider {
+  readonly sourceKind: PersonContextSource;
+  collectPersonSignals(input: PersonContextProviderInput): Promise<PersonContextSignalBatch>;
+}
+
 /** Sanitized observability hook for a failed/dropped provider. */
 export interface FocusSignalAggregateOptions {
   /**
@@ -388,6 +430,7 @@ export interface JarvisModuleManifest {
   readonly sourceBehaviors?: readonly SourceBehaviorSourceDecl[];
   readonly focusSignal?: FocusSignalProvider;
   readonly proactiveMonitor?: ProactiveMonitorProvider;
+  readonly personContextProvider?: PersonContextProvider;
 }
 
 /** Boundary of text from a source that may contain commitments. */

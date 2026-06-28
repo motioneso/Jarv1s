@@ -206,7 +206,12 @@ export default defineConfig({
     ]
   },
   test: {
-    include: ["spikes/**/*.test.ts", "tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    include: [
+      "spikes/**/*.test.ts",
+      "tests/**/*.test.ts",
+      "tests/**/*.test.tsx",
+      "packages/people/src/__tests__/**/*.test.ts"
+    ],
     hookTimeout: 30_000,
     testTimeout: 30_000,
     pool: "forks",
