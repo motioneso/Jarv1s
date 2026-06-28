@@ -381,6 +381,30 @@ export async function collectCrossToolContext(
   return renderCrossToolContextBlock(sorted);
 }
 
+export async function collectCrossToolContextAndItems(
+  actorUserId: string,
+  plan: CrossToolReasoningPlan,
+  reader: CrossToolReadRunner,
+  localNowIso: string
+): Promise<{ block: string; items: CrossToolEvidenceItem[] }> {
+  if (!plan.shouldRun || plan.sources.length === 0) return { block: "", items: [] };
+
+  const allItems = await withDeadline(
+    runSourcesWithConcurrencyLimit(actorUserId, plan, reader, localNowIso),
+    TOTAL_TIMEOUT_MS
+  ).catch(() => [] as CrossToolEvidenceItem[]);
+
+  const deduplicated = deduplicateItems(allItems);
+  const sorted = [...deduplicated].sort(
+    (a, b) => relevanceRank(b.relevance) - relevanceRank(a.relevance)
+  );
+
+  return {
+    block: renderCrossToolContextBlock(sorted),
+    items: sorted
+  };
+}
+
 async function runSourcesWithConcurrencyLimit(
   actorUserId: string,
   plan: CrossToolReasoningPlan,

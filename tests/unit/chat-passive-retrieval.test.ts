@@ -264,3 +264,34 @@ describe("PassiveContextRetriever", () => {
     expect(block).not.toContain("private-id");
   });
 });
+
+describe("PassiveContextRetriever.retrieveWithItems", () => {
+  it("returns empty block and empty items when recall disabled", async () => {
+    const mockRecall = {
+      recall: vi.fn().mockResolvedValue({ items: [] })
+    };
+    const mockSettings = {
+      getOrCreate: vi
+        .fn()
+        .mockResolvedValue({ recallEnabled: false, factsEnabled: true, updatedAt: new Date() })
+    };
+    const mockContext = {
+      withDataContext: vi.fn().mockImplementation(async (_ctx: unknown, fn: unknown) =>
+        (fn as (_: unknown) => unknown)({ db: {} })
+      )
+    };
+    const retriever = new PassiveContextRetriever({
+      dataContext: mockContext,
+      graphRecall: mockRecall,
+      settingsRepo: mockSettings
+    });
+    const result = await retriever.retrieveWithItems({
+      actorUserId: "u1",
+      userText: "what did we decide about the remodel?",
+      threadTitle: null,
+      recentTurns: []
+    });
+    expect(result.block).toBe("");
+    expect(result.items).toEqual([]);
+  });
+});

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   collectCrossToolContext,
+  collectCrossToolContextAndItems,
   planCrossToolReasoning,
   renderCrossToolContextBlock,
   type CrossToolEvidenceItem,
@@ -309,5 +310,20 @@ describe("collectCrossToolContext", () => {
     for (const call of (reader.runReadTool as ReturnType<typeof vi.fn>).mock.calls) {
       expect(call[0]).toBe("user-A");
     }
+  });
+});
+
+describe("collectCrossToolContextAndItems", () => {
+  it("returns empty block and empty items when plan shouldRun=false", async () => {
+    const mockReader = { runReadTool: vi.fn() };
+    const result = await collectCrossToolContextAndItems(
+      "u1",
+      { shouldRun: false, reason: "skip", query: "", sources: [] },
+      mockReader,
+      new Date().toISOString()
+    );
+    expect(result.block).toBe("");
+    expect(result.items).toEqual([]);
+    expect(mockReader.runReadTool).not.toHaveBeenCalled();
   });
 });
