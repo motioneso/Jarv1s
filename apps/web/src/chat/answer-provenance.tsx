@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { AnswerSourceSupportCard } from "@jarv1s/shared";
+import { formatDate, useUserLocale } from "../locale/locale-format";
 
 /** Matches [[S1]] through [[S99]] — same regex as backend. */
 const MARKER_RE = /\[\[S(\d{1,2})\]\]/g;
@@ -37,6 +38,7 @@ interface SourceTrayProps {
 }
 
 export function SourceTray({ card, onClose }: SourceTrayProps) {
+  const locale = useUserLocale();
   const stateLabel = STATE_LABELS[card.state] ?? card.state;
   const icon = SOURCE_ICONS[card.sourceKind] ?? "◎";
 
@@ -54,7 +56,7 @@ export function SourceTray({ card, onClose }: SourceTrayProps) {
       {card.confidenceTier && <div className="source-tray__confidence">{card.confidenceTier}</div>}
       {card.occurredAt && (
         <time className="source-tray__time" dateTime={card.occurredAt}>
-          {new Date(card.occurredAt).toLocaleDateString()}
+          {formatDate(card.occurredAt, locale)}
         </time>
       )}
       {card.snippet && <p className="source-tray__snippet">{card.snippet}</p>}

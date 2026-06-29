@@ -1,8 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { EMOTIONS, type CheckinDto, type DayAdherenceSummaryDto } from "@jarv1s/shared";
+import {
+  EMOTIONS,
+  type CheckinDto,
+  type DayAdherenceSummaryDto,
+  type LocaleSettingsDto
+} from "@jarv1s/shared";
 import { queryKeys } from "../api/query-keys";
 import { listWellnessCheckins, getMedicationAdherenceSummary } from "../api/client";
+import { formatDate, useUserLocale } from "../locale/locale-format";
 import { emoColor, type Theme } from "./emotion-taxonomy";
 import { WellnessChart, type DayPoint } from "./wellness-chart";
 
@@ -48,9 +54,17 @@ function isoDate(offsetDays: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function shortLabel(iso: string): string {
-  const d = new Date(iso + "T12:00:00");
-  return d.toLocaleString("default", { month: "short", day: "numeric" });
+function shortLabel(iso: string, locale: LocaleSettingsDto): string {
+  // `iso` is a bare local calendar-day key (no wall-clock); anchor at midday UTC and
+  // format in UTC so the user's region localises the month name without shifting the day.
+  return formatDate(
+    iso + "T12:00:00Z",
+    { ...locale, timezone: "UTC" },
+    {
+      month: "short",
+      day: "numeric"
+    }
+  );
 }
 
 interface Props {
@@ -58,6 +72,7 @@ interface Props {
 }
 
 export function WellnessTrends({ theme = "light" }: Props) {
+  const locale = useUserLocale();
   const [range, setRange] = useState<14 | 30>(30);
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -93,7 +108,7 @@ export function WellnessTrends({ theme = "light" }: Props) {
     const summary = summaryByDate[iso] ?? null;
     return {
       date: iso,
-      label: shortLabel(iso),
+      label: shortLabel(iso, locale),
       isToday: iso === todayStr,
       checkin: (checkinsByDate[iso] ?? [])[0] ?? null,
       checkins: checkinsByDate[iso] ?? [],

@@ -1,4 +1,6 @@
-import type { ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import type { LocaleSettingsDto, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+
+import { DEFAULT_LOCALE, formatDate, formatTime } from "./locale/locale-format.js";
 
 const TOP_SECTION = "__top";
 const SECTION_ORDER: readonly string[] = [TOP_SECTION, "Plan", "You"];
@@ -13,7 +15,7 @@ export interface WebRouteMeta {
   readonly id: "today" | "tasks" | "notifications" | "calendar" | "wellness" | "settings";
   readonly path: string;
   readonly title: string;
-  readonly subtitle: (now: Date) => string;
+  readonly subtitle: (now: Date, locale: LocaleSettingsDto) => string;
   readonly match: (pathname: string) => boolean;
 }
 
@@ -36,7 +38,7 @@ export const webRoutes: readonly WebRouteMeta[] = [
     id: "today",
     path: "/today",
     title: "Today",
-    subtitle: (now) => `${dateEyebrow(now)} · ${timeEyebrow(now)}`,
+    subtitle: (now, locale) => `${dateEyebrow(now, locale)} · ${timeEyebrow(now, locale)}`,
     match: (pathname) => pathname === "/" || pathname.startsWith("/today")
   },
   {
@@ -120,25 +122,25 @@ export function buildShellNavigation(
 
 export function resolvePageHeading(
   pathname: string,
-  now = new Date()
+  now = new Date(),
+  locale: LocaleSettingsDto = DEFAULT_LOCALE
 ): { title: string; subtitle: string } {
   const route = webRoutes.find((item) => item.match(pathname)) ?? webRoutes[0];
   if (!route) throw new Error("At least one web route must be defined");
-  return { title: route.title, subtitle: route.subtitle(now) };
+  return { title: route.title, subtitle: route.subtitle(now, locale) };
 }
 
-function dateEyebrow(now: Date): string {
-  const weekday = now.toLocaleDateString("en-US", { weekday: "short" });
-  const month = now.toLocaleDateString("en-US", { month: "short" });
-  return `${weekday} · ${month} ${now.getDate()}`.toUpperCase();
+function dateEyebrow(now: Date, locale: LocaleSettingsDto): string {
+  const weekday = formatDate(now, locale, { weekday: "short" });
+  const month = formatDate(now, locale, { month: "short" });
+  const day = formatDate(now, locale, { day: "numeric" });
+  return `${weekday} · ${month} ${day}`.toUpperCase();
 }
 
-function timeEyebrow(now: Date): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true })
-    .format(now)
-    .replace(/\s?[AP]M$/i, "");
+function timeEyebrow(now: Date, locale: LocaleSettingsDto): string {
+  return formatTime(now, locale).replace(/\s?[AP]M$/i, "");
 }
 
-function monthEyebrow(now: Date): string {
-  return now.toLocaleDateString("en-US", { month: "long", year: "numeric" }).toUpperCase();
+function monthEyebrow(now: Date, locale: LocaleSettingsDto): string {
+  return formatDate(now, locale, { month: "long", year: "numeric" }).toUpperCase();
 }

@@ -30,6 +30,7 @@ import { NavLink, useLocation, useNavigate } from "react-router";
 import { listNotifications, listThemes, sendChatTurn, signOut } from "../api/client";
 import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
+import { useUserLocale } from "../locale/locale-format";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
@@ -135,7 +136,8 @@ export function AppShell(props: AppShellProps) {
     }
   });
 
-  const { title, subtitle } = resolvePageHeading(location.pathname);
+  const locale = useUserLocale();
+  const { title, subtitle } = resolvePageHeading(location.pathname, new Date(), locale);
   const closeMobileNav = () => setMobileNavOpen(false);
 
   return (

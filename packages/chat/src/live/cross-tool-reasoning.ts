@@ -211,7 +211,8 @@ export function normalizeEmailResult(
 export function normalizeCalendarResult(
   data: Record<string, unknown>,
   query: string,
-  localNowIso: string
+  localNowIso: string,
+  timezone = "UTC"
 ): CrossToolEvidenceItem[] {
   const events = Array.isArray(data.events) ? data.events : [];
   const qLower = query.toLowerCase();
@@ -242,6 +243,7 @@ export function normalizeCalendarResult(
       summary,
       sourceLabel: startsAt
         ? `Calendar: ${new Date(startsAt).toLocaleString("en-US", {
+            timeZone: timezone,
             month: "short",
             day: "numeric",
             hour: "2-digit",
@@ -364,12 +366,13 @@ export async function collectCrossToolContext(
   actorUserId: string,
   plan: CrossToolReasoningPlan,
   reader: CrossToolReadRunner,
-  localNowIso: string
+  localNowIso: string,
+  timezone = "UTC"
 ): Promise<string> {
   if (!plan.shouldRun || plan.sources.length === 0) return "";
 
   const allItems = await withDeadline(
-    runSourcesWithConcurrencyLimit(actorUserId, plan, reader, localNowIso),
+    runSourcesWithConcurrencyLimit(actorUserId, plan, reader, localNowIso, timezone),
     TOTAL_TIMEOUT_MS
   ).catch(() => [] as CrossToolEvidenceItem[]);
 
@@ -385,12 +388,13 @@ export async function collectCrossToolContextAndItems(
   actorUserId: string,
   plan: CrossToolReasoningPlan,
   reader: CrossToolReadRunner,
-  localNowIso: string
+  localNowIso: string,
+  timezone = "UTC"
 ): Promise<{ block: string; items: CrossToolEvidenceItem[] }> {
   if (!plan.shouldRun || plan.sources.length === 0) return { block: "", items: [] };
 
   const allItems = await withDeadline(
-    runSourcesWithConcurrencyLimit(actorUserId, plan, reader, localNowIso),
+    runSourcesWithConcurrencyLimit(actorUserId, plan, reader, localNowIso, timezone),
     TOTAL_TIMEOUT_MS
   ).catch(() => [] as CrossToolEvidenceItem[]);
 
@@ -409,7 +413,8 @@ async function runSourcesWithConcurrencyLimit(
   actorUserId: string,
   plan: CrossToolReasoningPlan,
   reader: CrossToolReadRunner,
-  localNowIso: string
+  localNowIso: string,
+  timezone = "UTC"
 ): Promise<CrossToolEvidenceItem[]> {
   const results: CrossToolEvidenceItem[] = [];
   const queue = [...plan.sources];
@@ -419,7 +424,7 @@ async function runSourcesWithConcurrencyLimit(
 
   const runOne = (source: CrossToolSource) => {
     const p: Promise<{ items: CrossToolEvidenceItem[]; p: Promise<unknown> }> = withDeadline(
-      fetchSource(actorUserId, source, plan.query, reader, localNowIso),
+      fetchSource(actorUserId, source, plan.query, reader, localNowIso, timezone),
       PER_SOURCE_TIMEOUT_MS
     )
       .catch(() => [] as CrossToolEvidenceItem[])
@@ -453,7 +458,8 @@ async function fetchSource(
   source: CrossToolSource,
   query: string,
   reader: CrossToolReadRunner,
-  localNowIso: string
+  localNowIso: string,
+  timezone = "UTC"
 ): Promise<CrossToolEvidenceItem[]> {
   const tools = SOURCE_TOOLS[source];
   const items: CrossToolEvidenceItem[] = [];
@@ -467,7 +473,7 @@ async function fetchSource(
     if (source === "notes") normalized = normalizeNotesResult(result.data, query);
     else if (source === "email") normalized = normalizeEmailResult(result.data, query);
     else if (source === "calendar")
-      normalized = normalizeCalendarResult(result.data, query, localNowIso);
+      normalized = normalizeCalendarResult(result.data, query, localNowIso, timezone);
     else if (source === "tasks") normalized = normalizeTasksResult(result.data, toolName);
 
     items.push(...normalized);

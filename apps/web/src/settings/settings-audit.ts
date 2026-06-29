@@ -1,4 +1,6 @@
-import type { AdminAuditEventDto } from "@jarv1s/shared";
+import type { AdminAuditEventDto, LocaleSettingsDto } from "@jarv1s/shared";
+
+import { formatDate, formatTime, zonedDateKey } from "../locale/locale-format.js";
 
 /* Audit phrasing + categorisation, built on the AdminAuditEventDto shape
    (actor / action / targetType / targetId / metadata / timestamp). The action →
@@ -80,15 +82,19 @@ export function auditPhrase(
 }
 
 /** Relative "Today · HH:MM" / "Yesterday · HH:MM" / "Mon D · HH:MM" formatting. */
-export function auditWhen(ts: string, now: Date): string {
+export function auditWhen(ts: string, now: Date, locale: LocaleSettingsDto): string {
   const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const day0 = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((day0(now) - day0(d)) / 86_400_000);
-  if (diff === 0) return `Today · ${hh}:${mm}`;
-  if (diff === 1) return `Yesterday · ${hh}:${mm}`;
-  return `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()} · ${hh}:${mm}`;
+  if (Number.isNaN(d.getTime())) return ts;
+  const time = formatTime(ts, locale);
+  // Compare calendar days *in the user's timezone* so Today/Yesterday are correct
+  // regardless of the runtime zone.
+  const tz = locale.timezone;
+  const tsKey = zonedDateKey(d, tz);
+  if (tsKey === zonedDateKey(now, tz)) return `Today · ${time}`;
+  if (tsKey === zonedDateKey(new Date(now.getTime() - 86_400_000), tz)) {
+    return `Yesterday · ${time}`;
+  }
+  return `${formatDate(ts, locale, { month: "short", day: "numeric" })} · ${time}`;
 }
 
 export interface AuditCsvRow {

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { WellnessEmotionCore } from "@jarv1s/shared";
+import type { LocaleSettingsDto, WellnessEmotionCore } from "@jarv1s/shared";
 import { queryKeys } from "../api/query-keys";
 import { listTherapyNotes, createTherapyNote, deleteTherapyNote } from "../api/client";
+import { formatDate, useUserLocale } from "../locale/locale-format";
 import { emoColor, coreLabel, type Theme } from "./emotion-taxonomy";
 
 function NotebookPenIcon({ size = 16 }: { size?: number }) {
@@ -77,10 +78,9 @@ function MessageIcon() {
   );
 }
 
-function formatNoteDate(iso: string | null): string {
+function formatNoteDate(iso: string | null, locale: LocaleSettingsDto): string {
   if (!iso) return "Today";
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return formatDate(iso, locale, { month: "short", day: "numeric" });
 }
 
 interface Props {
@@ -89,6 +89,7 @@ interface Props {
 
 export function WellnessTherapyNotes({ theme = "light" }: Props) {
   const queryClient = useQueryClient();
+  const locale = useUserLocale();
   const [draft, setDraft] = useState("");
 
   const notesQuery = useQuery({
@@ -181,7 +182,9 @@ export function WellnessTherapyNotes({ theme = "light" }: Props) {
                 <div className="wl-tnote__main">
                   <div className="wl-tnote__tx">{nt.body}</div>
                   <div className="wl-tnote__meta">
-                    <span className="wl-tnote__date">{formatNoteDate(nt.createdAt ?? null)}</span>
+                    <span className="wl-tnote__date">
+                      {formatNoteDate(nt.createdAt ?? null, locale)}
+                    </span>
                     {linkedEmotion && c ? (
                       <span className="wl-tnote__link">
                         <span className="d" style={{ background: c.tint }} />

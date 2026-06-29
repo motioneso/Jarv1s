@@ -601,7 +601,8 @@ export class ChatSessionManager {
               actorUserId,
               plan,
               this.deps.crossToolRead,
-              localNow
+              localNow,
+              threadCtx.localTimezone ?? "UTC"
             ).catch(() => ({ block: "", items: [] }))
           : Promise.resolve({ block: "", items: [] })
       ]);

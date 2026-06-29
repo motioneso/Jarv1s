@@ -13,6 +13,7 @@ import {
   type AuditCategory,
   type AuditCsvRow
 } from "./settings-audit";
+import { useUserLocale } from "../locale/locale-format";
 import { useFeedback } from "./settings-feedback";
 import { Group, Note, PaneHead, Row, Select } from "./settings-ui";
 
@@ -22,6 +23,7 @@ const SPAN_DAYS: Record<Exclude<Timeframe, "all">, number> = { "1": 1, "7": 7, "
 
 export function AuditPane() {
   const { toast } = useFeedback();
+  const locale = useUserLocale();
   const auditQuery = useQuery({
     queryKey: queryKeys.settings.adminAuditEvents,
     queryFn: listAdminAuditEvents,
@@ -166,7 +168,7 @@ export function AuditPane() {
           <div className="aud">
             {rows.map((event) => (
               <div className="aud__row" key={event.id}>
-                <div className="aud__when">{auditWhen(event.createdAt, now)}</div>
+                <div className="aud__when">{auditWhen(event.createdAt, now, locale)}</div>
                 <div className="aud__what">
                   <b>{nameOf(event.actorUserId)}</b> {auditPhrase(event, nameOf)}
                 </div>
