@@ -102,6 +102,20 @@ Add a lint rule (or a focused `check:no-ambient-dates` script + test) that fails
 `toLocale(Date|Time|)String`/`new Intl.DateTimeFormat` outside `locale-format.ts`, so future code
 must go through the shared layer. Mirrors the repo's existing `check:file-size` gate style.
 
+### 3.5 Data flow
+
+One direction, UTC at rest, convert only at the edge:
+
+```
+DB (UTC ISO timestamp)
+  └─ /api/me/locale  → persisted { timezone, region, dateFormat }   (single source of truth)
+       ├─ WEB:    useUserLocale() → formatInUserTimezone(iso, locale, opts) → rendered string
+       └─ SERVER: stored timezone → (a) system-prompt injection (chat/live/runtime.ts, exists)
+                                    (b) cross-tool-reasoning calendar formatter (§3.3, to fix)
+```
+
+The instant never mutates; only its **presentation** is zoned. No tz is written back into any record.
+
 ## 4. Testing
 
 - **Unit** (`locale-format.test.ts`): a fixed UTC instant formats differently under
@@ -142,7 +156,23 @@ must go through the shared layer. Mirrors the repo's existing `check:file-size` 
 4. PR on `feat/local-tz-579` off `origin/main`; **no merge**; gate = two non-claude reviewers +
    green CI.
 
-## 8. Open question for approval
+## 8. Migration safety & rollout
+
+god's brief requested a schema change + additive migration. **Grounded recon shows none is needed** —
+the persisted per-user `locale` preference (timezone + region + dateFormat) already exists and is
+owner-scoped (§2). So:
+
+- **No migration.** No new column, no `infra/` change, no applied-migration edit. The hard
+  "never edit applied migrations" invariant is trivially satisfied because we add no migration at all.
+- **No data backfill / no RLS change.** Existing rows already carry (or default) a locale; the SoT
+  and its RLS scoping are unchanged. Admins gain no bypass — display formatting is per-actor only.
+- **Rollout is pure display-layer.** The change is reversible by `git revert` with zero data
+  consequences; no flag, no migration ordering, no staged enablement required.
+- **If the human instead wants tz promoted out of the `locale` JSON blob into a first-class profile
+  column**, that becomes a _separate_ additive-migration slice — out of scope here, called out so the
+  decision is explicit rather than silent.
+
+## 9. Open question for approval
 
 The issue text says "every user-facing date/time." This spec treats the **12 grounded web sites + 1
 server formatter** as the complete set at `14b0e372`. If a surface is intentionally excluded (e.g.
