@@ -11,7 +11,7 @@
 Previous coordinator (f8a5b8f7) closed. New coordinator session 3f4772c2 driving.
 
 Open items:
-- PR #581 (UI-Polish, routine): QA GREEN per relay-1 note (code clean). CI Verify re-run pending (Playwright infra race; main green @ 87f6f5f). When CI passes → merge immediately. If fails twice → stop-the-line + Ben.
+- PR #581 (UI-Polish, routine): STOP-THE-LINE. Two CI failures (ECONNREFUSED infra race, run 28341205471). QA GREEN (code clean). Main green @ 87f6f5f + 1f13662e. Filed issue #584. Awaiting Ben: re-run approval or waiver sign-off before merge.
 - PR #582 (Wellness-Fixes, sensitive): MERGED @ 1f13662e. Issues #505 #509 closed. Board Done. Worktree + panes reaped.
 - Memory-Cleanup: relay-1 said 2% left → successor spawned. Pane shows 40% context (successor active), running `pnpm test`. No PR yet.
 - Calendar-Monitor: DONE. PR #583 open (VF_EXIT=0, AUDIT_EXIT=0, isolated DB jarvis_calmon). Tier: sensitive. QA-Calendar-583 spawned at w1:p6X via Herdr fallback, Sonnet, jarvis_qa_2. Awaiting verdict.
