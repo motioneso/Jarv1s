@@ -39,6 +39,24 @@ function DownloadIcon() {
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 13 13"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="2,7 5,10 11,3" />
+    </svg>
+  );
+}
+
 const CATEGORY_LABELS: { readonly [K in WellnessExportCategory]: string } = {
   checkins: "Mood check-ins",
   medications: "Medications & logs",
@@ -111,6 +129,7 @@ export function WellnessExportModal({ open, onClose }: Props) {
   function reset() {
     setJobId(null);
     setAcknowledged(false);
+    startMutation.reset();
   }
 
   function close() {
@@ -182,27 +201,35 @@ export function WellnessExportModal({ open, onClose }: Props) {
               <fieldset className="wl-fieldset" style={{ marginBottom: 12 }}>
                 <legend className="wl-field__label">Include</legend>
                 {WELLNESS_EXPORT_CATEGORIES.map((cat) => (
-                  <label key={cat} className="wl-check">
+                  <label key={cat} className="jds-check">
                     <input
                       type="checkbox"
                       checked={categories.includes(cat)}
                       onChange={() => toggleCategory(cat)}
                     />
+                    <span className="jds-check__box">
+                      <CheckIcon />
+                    </span>
                     {CATEGORY_LABELS[cat]}
                   </label>
                 ))}
               </fieldset>
 
-              <label className="wl-check wl-check--sensitive" style={{ marginBottom: 14 }}>
+              <label className="jds-check" style={{ marginBottom: 14, alignItems: "flex-start" }}>
                 <input
                   type="checkbox"
                   checked={acknowledged}
                   onChange={(e) => setAcknowledged(e.target.checked)}
                 />
-                <span>{SENSITIVE_COPY}</span>
+                <span className="jds-check__box">
+                  <CheckIcon />
+                </span>
+                <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text-muted)" }}>
+                  {SENSITIVE_COPY}
+                </span>
               </label>
 
-              {isFailed ? (
+              {isFailed || startMutation.isError ? (
                 <div className="wl-modal__note wl-modal__note--error" style={{ marginBottom: 10 }}>
                   Export failed. Please try again.
                 </div>

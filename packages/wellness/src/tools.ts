@@ -35,7 +35,14 @@ export const wellnessRecentCheckInsExecute: ToolExecute = async (
         };
       })
     },
-    columnOrder: ["checkedInAt", "feelingCore", "feelingSecondary", "intensity", "moodIndex", "note"]
+    columnOrder: [
+      "checkedInAt",
+      "feelingCore",
+      "feelingSecondary",
+      "intensity",
+      "moodIndex",
+      "note"
+    ]
   };
 };
 
