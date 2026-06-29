@@ -57,6 +57,64 @@ describe("task view model", () => {
     expect(derived.listCounts).toEqual({ work: 1, home: 1 });
   });
 
+  it("filters by natural-language effort intent", () => {
+    const derived = deriveTaskFilters({
+      tasks: [
+        task("quick", { effort: "quick" }),
+        task("medium", { effort: "medium" }),
+        task("large", { effort: "large" })
+      ],
+      lists: [list("work", "Work")],
+      statusFilter: "todo",
+      focus: null,
+      listStates: {},
+      tagFilter: [],
+      search: "",
+      searchIntent: baseIntent({ effort: "medium" })
+    });
+
+    expect(derived.visibleTasks.map((item) => item.id)).toEqual(["medium"]);
+  });
+
+  it("combines natural-language tag intent with literal text", () => {
+    const derived = deriveTaskFilters({
+      tasks: [
+        task("a", { title: "File invoice", tags: ["Invoices"] }),
+        task("b", { title: "File receipt", tags: ["Invoices"] }),
+        task("c", { title: "File invoice", tags: ["Taxes"] })
+      ],
+      lists: [list("work", "Work")],
+      statusFilter: "todo",
+      focus: null,
+      listStates: {},
+      tagFilter: [],
+      search: "invoice",
+      searchIntent: baseIntent({ tagNames: ["invoices"] })
+    });
+
+    expect(derived.visibleTasks.map((item) => item.id)).toEqual(["a"]);
+  });
+
+  it("composes natural-language priority and quadrant intent with list filters", () => {
+    const listStates: Record<string, ListState> = { home: "solo" };
+    const derived = deriveTaskFilters({
+      tasks: [
+        task("a", { listId: "home", priority: 5, dueAt: "2026-06-14T12:00:00.000Z" }),
+        task("b", { listId: "home", priority: 5 }),
+        task("c", { listId: "work", priority: 5, dueAt: "2026-06-14T12:00:00.000Z" })
+      ],
+      lists: [list("work", "Work"), list("home", "Home")],
+      statusFilter: "todo",
+      focus: null,
+      listStates,
+      tagFilter: [],
+      search: "",
+      searchIntent: baseIntent({ priority: 5, quadrant: "do" })
+    });
+
+    expect(derived.visibleTasks.map((item) => item.id)).toEqual(["a"]);
+  });
+
   it("groups matrix tasks with one pass over the task list", () => {
     const grouped = groupTasksByQuadrant([
       task("do", { priority: 5, dueAt: "2026-06-14T12:00:00.000Z" }),
@@ -71,6 +129,22 @@ describe("task view model", () => {
     expect(grouped.eliminate.map((item) => item.id)).toEqual(["eliminate"]);
   });
 });
+
+function baseIntent(
+  overrides: Partial<NonNullable<Parameters<typeof deriveTaskFilters>[0]["searchIntent"]>>
+): NonNullable<Parameters<typeof deriveTaskFilters>[0]["searchIntent"]> {
+  return {
+    text: null,
+    status: null,
+    effort: null,
+    priority: null,
+    listIds: [],
+    tagNames: [],
+    quadrant: null,
+    due: null,
+    ...overrides
+  };
+}
 
 const OWNER_ID = "11111111-1111-1111-1111-111111111111";
 

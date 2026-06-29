@@ -1,4 +1,5 @@
 import { nullableStringSchema } from "./schema-fragments.js";
+import type { TaskQuadrant } from "./tasks-view.js";
 
 export const TASK_STATUSES = ["todo", "done", "archived"] as const;
 export const TASK_EFFORTS = ["quick", "medium", "large"] as const;
@@ -7,6 +8,7 @@ export type TaskApiStatus = (typeof TASK_STATUSES)[number];
 export type TaskEffort = (typeof TASK_EFFORTS)[number];
 export const RECURRENCE_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 export type RecurrenceFrequencyDto = (typeof RECURRENCE_FREQUENCIES)[number];
+export const TASK_QUADRANTS = ["do", "schedule", "delegate", "eliminate"] as const;
 
 export interface RecurrenceSpecDto {
   readonly freq: RecurrenceFrequencyDto;
@@ -54,6 +56,38 @@ export interface TaskActivityDto {
 
 export interface ListTasksResponse {
   readonly tasks: readonly TaskDto[];
+}
+
+export interface InterpretTaskSearchRequest {
+  readonly query: string;
+}
+
+export type TaskSearchDueIntent =
+  | { readonly kind: "none" }
+  | { readonly kind: "overdue" }
+  | { readonly kind: "today" }
+  | { readonly kind: "this_week" }
+  | {
+      readonly kind: "range";
+      readonly dueAfter: string | null;
+      readonly dueBefore: string | null;
+    };
+
+export interface TaskSearchIntent {
+  readonly text: string | null;
+  readonly status: TaskApiStatus | null;
+  readonly effort: TaskEffort | null;
+  readonly priority: number | null;
+  readonly listIds: readonly string[];
+  readonly tagNames: readonly string[];
+  readonly quadrant: TaskQuadrant | null;
+  readonly due: TaskSearchDueIntent | null;
+}
+
+export interface InterpretTaskSearchResponse {
+  readonly intent: TaskSearchIntent;
+  readonly confidence: "high" | "medium" | "low";
+  readonly warnings: readonly string[];
 }
 
 export interface CreateTaskRequest {
@@ -132,6 +166,11 @@ export const taskStatusSchema = {
   enum: TASK_STATUSES
 } as const;
 
+export const taskQuadrantSchema = {
+  type: "string",
+  enum: TASK_QUADRANTS
+} as const;
+
 export const recurrenceSpecDtoSchema = {
   type: "object",
   additionalProperties: false,
@@ -154,6 +193,66 @@ export const taskParamsSchema = {
 
 const nullableEffortSchema = {
   anyOf: [{ type: "string", enum: ["quick", "medium", "large"] }, { type: "null" }]
+} as const;
+
+const taskSearchDueIntentSchema = {
+  anyOf: [
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["kind"],
+      properties: { kind: { type: "string", enum: ["none", "overdue", "today", "this_week"] } }
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["kind", "dueAfter", "dueBefore"],
+      properties: {
+        kind: { type: "string", enum: ["range"] },
+        dueAfter: nullableStringSchema,
+        dueBefore: nullableStringSchema
+      }
+    },
+    { type: "null" }
+  ]
+} as const;
+
+export const interpretTaskSearchRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["query"],
+  properties: {
+    query: { type: "string", minLength: 1, maxLength: 300 }
+  }
+} as const;
+
+export const taskSearchIntentSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["text", "status", "effort", "priority", "listIds", "tagNames", "quadrant", "due"],
+  properties: {
+    text: nullableStringSchema,
+    status: { anyOf: [taskStatusSchema, { type: "null" }] },
+    effort: nullableEffortSchema,
+    priority: {
+      anyOf: [{ type: "integer", minimum: 1, maximum: 5 }, { type: "null" }]
+    },
+    listIds: { type: "array", items: { type: "string" } },
+    tagNames: { type: "array", items: { type: "string" } },
+    quadrant: { anyOf: [taskQuadrantSchema, { type: "null" }] },
+    due: taskSearchDueIntentSchema
+  }
+} as const;
+
+export const interpretTaskSearchResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["intent", "confidence", "warnings"],
+  properties: {
+    intent: taskSearchIntentSchema,
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    warnings: { type: "array", items: { type: "string" } }
+  }
 } as const;
 
 export const taskTagDtoSchema = {
@@ -373,6 +472,13 @@ export const deferredTaskStatusPayloadSchema = {
 export const listTasksRouteSchema = {
   response: {
     200: listTasksResponseSchema
+  }
+} as const;
+
+export const interpretTaskSearchRouteSchema = {
+  body: interpretTaskSearchRequestSchema,
+  response: {
+    200: interpretTaskSearchResponseSchema
   }
 } as const;
 

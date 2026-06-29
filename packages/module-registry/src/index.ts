@@ -492,6 +492,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         boss: deps.boss,
         agencyPreferencesRepository: new PreferencesRepository(),
+        localePreferencesRepository: new PreferencesRepository(),
+        aiRepository: new AiRepository(),
+        aiSecretCipher: createAiSecretCipher(),
         focusSignals: deps.focusSignals
       }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)

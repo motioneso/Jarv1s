@@ -69,6 +69,26 @@
 .tk-tagfield input::placeholder {
   color: var(--text-faint);
 }
+.tk-tagfield__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.tk-tagfield__action:hover:not(:disabled) {
+  background: var(--pine-soft);
+  color: var(--pine-ink);
+}
+.tk-tagfield__action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
 .tk-tagmenu {
   position: absolute;
   z-index: 40;
@@ -260,6 +280,10 @@
 .tk-activetags__clear:hover {
   color: var(--text);
   text-decoration: underline;
+}
+.tk-activetags__note {
+  color: var(--text-subtle);
+  font-size: 12.5px;
 }
 
 /* ---- Quick-add bar (pinned) ---- */
