@@ -25,6 +25,7 @@ const CREDENTIAL_LINE_PATTERN =
 function sanitizeSnippet(text: string): string {
   return text
     .replace(AUTH_URL_PATTERN, "[link removed]")
+    .replace(/\bbearer\s+\S{6,}/gi, "[redacted]")
     .replace(CREDENTIAL_LINE_PATTERN, "[redacted]");
 }
 

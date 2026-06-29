@@ -81,4 +81,29 @@ describe("calendarMonitorProvider: sanitizeSnippet applied to event fields", () 
     expect(signals[0]?.summary).not.toContain("hunter2");
     expect(signals[0]?.summary).toContain("[redacted]");
   });
+
+  it("strips bare bearer token from event.title (pre-pass, no [:=] required)", async () => {
+    const eventNow = new Date("2026-06-28T12:00:00.000Z");
+    const soonStart = new Date(eventNow.getTime() + 60 * 60 * 1000).toISOString();
+
+    mockListVisible.mockResolvedValue([
+      {
+        id: "evt-3",
+        external_id: "ext-3",
+        title: "Meeting Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig",
+        location: null,
+        starts_at: soonStart,
+        updated_at: null
+      }
+    ]);
+
+    const { signals } = await calendarMonitorProvider.collectSignals(fakeScopedDb, {
+      ...baseInput,
+      now: eventNow.toISOString()
+    });
+
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.title).not.toContain("eyJhbGciOiJIUzI1NiJ9");
+    expect(signals[0]?.title).toContain("[redacted]");
+  });
 });
