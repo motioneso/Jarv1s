@@ -36,6 +36,8 @@ export interface ToolContext {
   readonly actorUserId: string;
   readonly requestId: string;
   readonly chatSessionId: string;
+  /** IANA timezone string from the user's locale settings (e.g. "America/Chicago"). Absent when the gateway has no locale available (falls back to UTC at call site). */
+  readonly localTimezone?: string;
 }
 
 export interface ToolResult {

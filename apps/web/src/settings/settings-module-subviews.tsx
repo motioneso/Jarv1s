@@ -12,6 +12,7 @@ import {
 } from "./settings-sample-data";
 import {
   createBriefingDefinition,
+  getLocaleSettings,
   listAiAssistantTools,
   listBriefingDefinitions,
   updateBriefingDefinition
@@ -92,6 +93,11 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
     queryKey: queryKeys.ai.assistantTools,
     queryFn: listAiAssistantTools
   });
+  const localeQuery = useQuery({
+    queryKey: queryKeys.settings.locale,
+    queryFn: getLocaleSettings
+  });
+  const localTimezone = localeQuery.data?.locale.timezone;
   const definitions = definitionsQuery.data?.definitions ?? [];
   const selectedToolNames = readToolNames(toolsQuery.data?.tools ?? []);
   const morning = findDefinition(definitions, "morning");
@@ -120,7 +126,8 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
           briefingType: input.type,
           enabled: input.enabled,
           targetTime: input.targetTime,
-          selectedToolNames
+          selectedToolNames,
+          timezone: localTimezone
         })
       );
     },

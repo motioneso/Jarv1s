@@ -10,7 +10,12 @@ import {
   type WellnessEmotionCore,
   type UpdateCheckinRequest
 } from "@jarv1s/shared";
-import { createWellnessCheckin, listWellnessCheckins, updateWellnessCheckin } from "../api/client";
+import {
+  createWellnessCheckin,
+  getLocaleSettings,
+  listWellnessCheckins,
+  updateWellnessCheckin
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { MOOD_BAND_LABELS } from "./emotion-taxonomy";
 import { WellnessToday } from "./wellness-today";
@@ -21,6 +26,7 @@ import { WellnessTherapyNotes } from "./wellness-therapy-notes";
 import { CheckinModal, type CheckinFormValue } from "./checkin-modal";
 import { ManageMedsModal } from "./manage-meds-modal";
 import { WellnessExportModal } from "./export-modal";
+import { computeStreak } from "./wellness-date-utils";
 
 function useTheme(): "light" | "dark" {
   return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
@@ -43,29 +49,13 @@ function FlameIcon({ size = 15 }: { size?: number }) {
   );
 }
 
-function todayIso(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
-function computeStreak(checkins: readonly CheckinDto[]): number {
-  // Build a set of ISO dates with check-ins
-  const seen = new Set<string>();
-  checkins.forEach((c) => {
-    const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
-    if (d) seen.add(d);
-  });
-  // Walk backward from yesterday
-  let s = 0;
-  const today = new Date();
-  for (let i = 1; i <= 90; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (seen.has(iso)) s++;
-    else break;
-  }
-  return s;
+function todayIso(timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
 }
 
 export function WellnessPage() {
@@ -79,6 +69,12 @@ export function WellnessPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [histFilter, setHistFilter] = useState<"notes" | null>(null);
+
+  const localeQuery = useQuery({
+    queryKey: queryKeys.settings.locale,
+    queryFn: () => getLocaleSettings()
+  });
+  const localTimezone = localeQuery.data?.locale.timezone;
 
   const checkinsQuery = useQuery({
     queryKey: queryKeys.wellness.checkins,
@@ -121,7 +117,7 @@ export function WellnessPage() {
   });
 
   // Hero stats
-  const today = todayIso();
+  const today = todayIso(localTimezone);
 
   const last14 = checkins
     .filter((c) => {
@@ -139,7 +135,7 @@ export function WellnessPage() {
     : 0;
 
   const avgBand = moodBand(avgMood);
-  const streak = computeStreak(checkins);
+  const streak = computeStreak(checkins, localTimezone);
 
   const openFresh = () => {
     setEditCheckin(null);
@@ -269,6 +265,7 @@ export function WellnessPage() {
           filter={histFilter}
           onClearFilter={() => setHistFilter(null)}
           onEdit={openEdit}
+          timezone={localTimezone}
         />
       </div>
 

@@ -37,6 +37,12 @@ export interface AssistantToolGatewayDependencies {
    * which keys it needs via manifest `requiresServices`.
    */
   readonly toolServices?: ToolServices;
+  /**
+   * Returns the user's configured IANA timezone (e.g. "America/Chicago"), or null if unknown.
+   * Injected by the composition root; used to populate ToolContext.localTimezone so tools that
+   * format user-visible date/time strings (e.g. calendar approval cards) use the correct timezone.
+   */
+  readonly resolveLocalTimezone?: (actorUserId: string) => Promise<string | null>;
 }
 
 const denyPrefs: AgencyPrefLookup = { get: async () => false };
@@ -70,7 +76,13 @@ export class AssistantToolGateway {
 
   async callTool(token: string, toolName: string, rawInput: unknown): Promise<GatewayToolResponse> {
     const { actorUserId, chatSessionId, allowedToolNames } = this.deps.tokens.verify(token);
-    const ctx: ToolContext = { actorUserId, requestId: `mcp_${randomUUID()}`, chatSessionId };
+    const localTimezone = (await this.deps.resolveLocalTimezone?.(actorUserId)) ?? undefined;
+    const ctx: ToolContext = {
+      actorUserId,
+      requestId: `mcp_${randomUUID()}`,
+      chatSessionId,
+      localTimezone
+    };
 
     const found = (await this.executableTools(actorUserId)).find(
       (entry) => entry.tool.name === toolName
@@ -143,7 +155,8 @@ export class AssistantToolGateway {
 
     const requestId = `cross-tool_${randomUUID()}`;
     const access: AccessContext = { actorUserId, requestId };
-    const ctx: ToolContext = { actorUserId, requestId, chatSessionId: "" };
+    const localTimezone = (await this.deps.resolveLocalTimezone?.(actorUserId)) ?? undefined;
+    const ctx: ToolContext = { actorUserId, requestId, chatSessionId: "", localTimezone };
 
     try {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>

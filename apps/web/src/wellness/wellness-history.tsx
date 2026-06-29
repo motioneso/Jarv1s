@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, coreLabel, type Theme } from "./emotion-taxonomy";
+import { localDateFromTimestamp } from "./wellness-date-utils";
 
 function ChevRightIcon() {
   return (
@@ -71,9 +72,13 @@ function PencilIcon() {
   );
 }
 
-function todayIso(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+function todayIso(timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
 }
 
 interface Props {
@@ -82,6 +87,8 @@ interface Props {
   filter?: "notes" | null;
   onClearFilter: () => void;
   onEdit: (id: string) => void;
+  /** IANA timezone from user locale settings. Defaults to browser timezone when absent. */
+  timezone?: string;
 }
 
 export function WellnessHistory({
@@ -89,12 +96,13 @@ export function WellnessHistory({
   theme = "light",
   filter,
   onClearFilter,
-  onEdit
+  onEdit,
+  timezone
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [limit, setLimit] = useState(8);
 
-  const today = todayIso();
+  const today = todayIso(timezone);
 
   let rows = checkins.slice().sort((a, b) => {
     const da = a.checkedInAt ?? a.createdAt ?? "";
@@ -155,19 +163,28 @@ export function WellnessHistory({
         ) : null}
         {shown.map((ck) => {
           const fullIso = ck.checkedInAt ?? ck.createdAt ?? "";
-          const iso = fullIso.slice(0, 10);
+          const iso = fullIso ? localDateFromTimestamp(fullIso, timezone) : "";
           const isToday = iso === today;
+          // `iso` is already the local calendar date, so format weekday/month/day with
+          // timeZone: "UTC" on a noon-UTC anchor of that date string — this gives the
+          // correct calendar components for ANY IANA timezone without an anchor misfire.
+          const anchor = new Date(iso + "T12:00:00Z");
           const dow = isToday
             ? "Today"
-            : new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" });
-          const mo = new Date(iso + "T12:00:00").toLocaleDateString("en-US", { month: "short" });
-          const day = new Date(iso + "T12:00:00").getDate();
+            : new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long" }).format(anchor);
+          const mo = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short" }).format(
+            anchor
+          );
+          const day = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", day: "numeric" }).format(
+            anchor
+          );
           const timeStr =
             isToday && fullIso.length > 10
-              ? new Date(fullIso).toLocaleTimeString(undefined, {
+              ? new Intl.DateTimeFormat("en-US", {
+                  timeZone: timezone,
                   hour: "numeric",
                   minute: "2-digit"
-                })
+                }).format(new Date(fullIso))
               : null;
           const c = emoColor(ck.feelingCore, theme);
           const v = moodIndex(ck.feelingCore, ck.intensity ?? 3);
