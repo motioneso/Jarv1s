@@ -3,7 +3,8 @@
 **Status:** draft
 **Date:** 2026-06-29
 **Owner:** Dwight
-**Grounded on:** 
+**Grounded on:**
+
 - `~/Jarv1s/apps/api/src/server.ts:282` (`getHostDiagnostics` version exposure)
 - `~/Jarv1s/apps/web/src/settings/settings-admin-panes.tsx:838` (Diagnostic version row)
 - `~/Jarv1s/packages/shared/src/platform-api.ts:578` (`HostDiagnosticsInfo` interface)
@@ -16,17 +17,21 @@ When a new version of the Jarvis Docker image is published to `ghcr.io/motioneso
 ## 2. Design
 
 ### Detection
+
 The worker process will run a periodic job (e.g., daily and on startup) to check the GitHub Releases API (`https://api.github.com/repos/motioneso/Jarv1s/releases/latest`) for the latest stable release.
 The job compares the remote `tag_name` against the currently running version exposed in `process.env.JARVIS_APP_VERSION`.
 If `latest_version > current_version` (evaluated via semver), an update is flagged as available.
 The latest version string and the release notes markdown (from the API response `body`) are cached persistently (e.g., in `app.system_state` or `app.preferences`).
 
 ### Sourcing Release Notes
+
 The release notes are sourced directly from the GitHub Releases API `body` field. The instance caches this markdown string to avoid rate limits and ensures it is available for the frontend to render.
 
 ### Notification Surface
+
 The backend API exposes the cached `latestAvailableVersion` and `releaseNotes` alongside existing diagnostics, either by extending `HostDiagnosticsInfo` or via a dedicated system status endpoint.
 When the frontend detects a pending upgrade:
+
 1. A dismissible global **Banner** (patterned after `BriefingStaleBanner`) is displayed at the top of the main layout (e.g., the Today page): _"A new version of Jarvis (vX.Y.Z) is available. [View changes] [Dismiss]"_
 2. Clicking **[View changes]** opens a Modal rendering the cached markdown release notes.
 3. The **Settings -> Diagnostics** pane (`settings-admin-panes.tsx`) is updated to show an "Update Available" badge on the Version row, with a button to view the release notes.

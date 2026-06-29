@@ -93,7 +93,11 @@ export interface TaskSearchIntent {
     | { readonly kind: "overdue" }
     | { readonly kind: "today" }
     | { readonly kind: "this_week" }
-    | { readonly kind: "range"; readonly dueAfter: string | null; readonly dueBefore: string | null };
+    | {
+        readonly kind: "range";
+        readonly dueAfter: string | null;
+        readonly dueBefore: string | null;
+      };
 }
 
 export interface InterpretTaskSearchResponse {
