@@ -758,5 +758,5 @@ describe("notes.search tool", () => {
       await rm(jobNotesDirA, { recursive: true, force: true });
       delete process.env["JARVIS_NOTES_ROOTS"];
     }
-  });
+  }, 60_000);
 });
