@@ -14,6 +14,8 @@ export interface TaskFilterInput {
   readonly listStates: Readonly<Record<string, ListState>>;
   readonly tagFilter: readonly string[];
   readonly search: string;
+  /** Persisted user IANA timezone for the date-based focus filters (#579). */
+  readonly timeZone?: string;
 }
 
 export interface TaskFilterResult {
@@ -43,7 +45,7 @@ export function deriveTaskFilters(input: TaskFilterInput): TaskFilterResult {
     if (task.parentTaskId !== null) continue;
 
     const matchesStatusOrFocus = input.focus
-      ? matchesFocus(task, input.focus)
+      ? matchesFocus(task, input.focus, input.timeZone)
       : input.statusFilter === "all" || task.status === input.statusFilter;
     if (!matchesStatusOrFocus) continue;
 

@@ -721,8 +721,13 @@ function EmptyState(props: {
     queryKey: queryKeys.calendar.list,
     queryFn: () => listCalendarEvents()
   });
+  const locale = useUserLocale();
 
-  const seeds = buildChatSeeds(tasksQuery.data?.tasks ?? [], eventsQuery.data?.events ?? []);
+  const seeds = buildChatSeeds(
+    tasksQuery.data?.tasks ?? [],
+    eventsQuery.data?.events ?? [],
+    locale
+  );
 
   return (
     <div className="chatd-empty">
