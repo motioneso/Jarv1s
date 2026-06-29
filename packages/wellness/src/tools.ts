@@ -30,11 +30,19 @@ export const wellnessRecentCheckInsExecute: ToolExecute = async (
           feelingCore: dto.feelingCore,
           feelingSecondary: dto.feelingSecondary,
           intensity: dto.intensity,
-          moodIndex: dto.intensity != null ? moodIndex(dto.feelingCore, dto.intensity) : null
+          moodIndex: dto.intensity != null ? moodIndex(dto.feelingCore, dto.intensity) : null,
+          note: dto.note
         };
       })
     },
-    columnOrder: ["checkedInAt", "feelingCore", "feelingSecondary", "intensity", "moodIndex"]
+    columnOrder: [
+      "checkedInAt",
+      "feelingCore",
+      "feelingSecondary",
+      "intensity",
+      "moodIndex",
+      "note"
+    ]
   };
 };
 

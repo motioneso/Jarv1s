@@ -242,7 +242,7 @@ export const wellnessModuleManifest = {
     {
       name: "wellness.recentCheckIns",
       description:
-        "List the actor's recent feelings check-ins (most recent first): timestamp, core feeling, secondary feeling, and intensity. Read-only.",
+        "List the actor's recent feelings check-ins (most recent first): timestamp, core feeling, secondary feeling, intensity, and free-text note (may be null). Read-only.",
       permissionId: "wellness.view",
       risk: "read",
       inputSchema: { type: "object", properties: {} },

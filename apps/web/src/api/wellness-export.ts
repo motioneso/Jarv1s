@@ -16,6 +16,6 @@ export interface WellnessExportRequest {
 export async function requestWellnessExport(body: WellnessExportRequest): Promise<ExportJobStatus> {
   return requestJson<ExportJobStatus>("/api/wellness/export", {
     method: "POST",
-    body: JSON.stringify(body)
+    body
   });
 }
