@@ -74,6 +74,14 @@ function readError(error: unknown): string {
   return error instanceof Error ? error.message : "Could not update settings";
 }
 
+function sourceListDescription(names: readonly string[]): string {
+  if (names.length === 0) {
+    return "No read-only sources configured yet. Briefings need at least one.";
+  }
+  const headline = `${names.length} read-only source${names.length === 1 ? "" : "s"} available for scheduled synthesis`;
+  return `${headline}: ${names.join(", ")}.`;
+}
+
 export function BriefingSettings(props: { readonly onBack: () => void }) {
   const queryClient = useQueryClient();
   const definitionsQuery = useQuery({
@@ -179,10 +187,7 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
       </Group>
 
       <Group title="Sources">
-        <Row
-          name="Read tools"
-          desc={`${selectedToolNames.length} read-only sources available for scheduled synthesis.`}
-        />
+        <Row name="Read tools" desc={sourceListDescription(selectedToolNames)} />
       </Group>
     </ModuleSub>
   );
