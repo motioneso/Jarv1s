@@ -6,6 +6,16 @@
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0
 
+## Continuation note (relay 1 — context 70% @ coord session f8a5b8f7)
+
+Successor: adopt all 4 agents by label. Key open items:
+- PR #581 (UI-Polish, routine): QA GREEN (code clean). CI re-run in flight (Playwright infra race, not code regression; main was green @ 87f6f5f). If re-run passes → merge immediately. If fails twice → stop-the-line + Ben.
+- PR #582 (Wellness-Fixes, sensitive): QA agent `a67036989ac2ef34d` in flight. Await its verdict, then merge if green.
+- Memory-Cleanup (w1:p6Q): relay nudge queued, 2% context left — successor pane will appear, adopt it, reap old pane.
+- Calendar-Monitor (w1:p6S): Tasks A+B done, running verify:foundation — done report imminent, spawn QA on its PR.
+- db:migrate contention: both PRs have zero DB surface; failure is shared-dev-Postgres state from migration 0128 (#574). Not a regression; scope QA to non-DB gate.
+- QA agent for wellness (a67036989ac2ef34d): background agent, will notify on completion — consume verdict and merge if green.
+
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
 > coordinator adopt this run after a self-handoff. GitHub is the source of truth for
 > spec/issue/board status; this file holds only in-flight operational state.
@@ -87,9 +97,9 @@ No cross-agent file collisions: memory package is owned by Memory-Cleanup only; 
 
 ## CI waivers
 
-| Check  | PR  | Proven red on `main` @ SHA | Proof | Ben-approved |
-| ------ | --- | -------------------------- | ----- | ------------ |
-| <none> | —   | —                          | —     | —            |
+| Check                    | PR   | Proven red on `main` @ SHA | Proof                                                                                                        | Ben-approved |
+| ------------------------ | ---- | -------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------ |
+| Verify foundation and app | #581 | NOT red on main (main green @ 87f6f5f) | 60 Playwright tests all ECONNREFUSED — backend startup race in CI, not code regression. Re-run triggered. | pending re-run |
 
 ## Outstanding escalations
 
