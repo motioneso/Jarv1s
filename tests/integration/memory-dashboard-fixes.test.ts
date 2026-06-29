@@ -8,7 +8,7 @@ import {
   createMemoryCandidateSignature,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
-  registerMemoryDashboardRoutes,
+  registerMemoryDashboardRoutes
 } from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 

@@ -13,11 +13,17 @@ export function findDefinition(
   return definitions.find((definition) => definition.briefingType === briefingType);
 }
 
-export function defaultScheduleMetadataFor(briefingType: BriefingType): {
+export function defaultScheduleMetadataFor(
+  briefingType: BriefingType,
+  timezone?: string
+): {
   readonly targetTime: string;
   readonly timezone: string;
 } {
-  return { targetTime: briefingType === "evening" ? "19:00" : "07:00", timezone: "UTC" };
+  return {
+    targetTime: briefingType === "evening" ? "19:00" : "07:00",
+    timezone: timezone ?? "UTC"
+  };
 }
 
 export function targetTimeFor(definition: BriefingDefinitionDto | undefined, type: BriefingType) {
@@ -39,8 +45,9 @@ export function createDefinitionRequest(input: {
   readonly enabled?: boolean;
   readonly targetTime?: string;
   readonly selectedToolNames: readonly string[];
+  readonly timezone?: string;
 }): CreateBriefingDefinitionRequest {
-  const defaults = defaultScheduleMetadataFor(input.briefingType);
+  const defaults = defaultScheduleMetadataFor(input.briefingType, input.timezone);
   return {
     title: input.briefingType === "evening" ? "Evening review" : "Morning briefing",
     briefingType: input.briefingType,

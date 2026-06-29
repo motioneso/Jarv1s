@@ -1,7 +1,7 @@
 # Agy Non-Interactive Print Mode Viability
 
 **Date:** 2026-06-26
-**Status:** Approved — implementation complete (2026-06-28)
+**Status:** Approved — design complete; build blocked pending Agy runtime parity proof
 **Owner:** Codex
 **GitHub:** #522
 **Grounded on:** `~/Jarv1s/docs/superpowers/specs/2026-06-26-provider-execution-mode-spike.md`, `~/Jarv1s/packages/ai/src/adapters/transcript-reader.ts`, `~/Jarv1s/packages/chat/src/live/types.ts`, `~/Jarv1s/packages/chat/src/live/runtime.ts`, `~/Jarv1s/packages/chat/src/live/chat-session-manager.ts`, `~/Jarv1s/apps/web/src/settings/settings-ai-admin-pane.tsx`, `~/Jarv1s/packages/shared/src/ai-types.ts`
