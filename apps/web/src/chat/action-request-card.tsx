@@ -29,7 +29,6 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
 
   return (
     <div className="action-request-card" role="region" aria-label="Action request">
-      <p className="action-request-tool">{props.toolName}</p>
       <p className="action-request-summary">{props.summary}</p>
 
       {status === "pending" || status === "error" ? (
