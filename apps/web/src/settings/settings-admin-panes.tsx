@@ -835,7 +835,18 @@ export function HostPane({ advanced }: PaneProps) {
             ))}
             <Row name="Uptime" control={formatUptime(diag.uptimeSeconds)} />
             <Row name="Environment" control={diag.environment} />
-            <Row name="Version" control={diag.version ?? "—"} />
+            <Row
+              name="Version"
+              control={
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {diag.version ?? "—"}
+                  {diag.latestAvailableVersion &&
+                    diag.latestAvailableVersion > (diag.version ?? "") && (
+                      <Badge tone="pine">Update Available ({diag.latestAvailableVersion})</Badge>
+                    )}
+                </div>
+              }
+            />
             <Row name="Commit" control={diag.commit ?? "—"} />
             <Row name="Bind address" control={`${diag.host}:${diag.port}`} />
             <Row

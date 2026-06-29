@@ -598,6 +598,10 @@ export interface HostDiagnosticsDto extends HostDiagnosticsInfo {
   readonly multiplexer: ChatMultiplexerChoice;
   readonly available: ChatMultiplexerAvailability;
   readonly checks: readonly HostDiagnosticCheckDto[];
+  /** Latest available version fetched from GitHub Releases, or null. */
+  readonly latestAvailableVersion: string | null;
+  /** Release notes for the latest version. */
+  readonly releaseNotes: string | null;
 }
 
 const hostDiagnosticCheckSchema = {
