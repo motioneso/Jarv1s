@@ -4,7 +4,7 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `3f4772c2-f6c7-475f-bb0c-f22963a8929b`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 ## Continuation note (relay 2 — context ~0% @ coord session 3f4772c2, adopted 2026-06-28)
 
@@ -12,7 +12,7 @@ Previous coordinator (f8a5b8f7) closed. New coordinator session 3f4772c2 driving
 
 Open items:
 - PR #581 (UI-Polish, routine): QA GREEN per relay-1 note (code clean). CI Verify re-run pending (Playwright infra race; main green @ 87f6f5f). When CI passes → merge immediately. If fails twice → stop-the-line + Ben.
-- PR #582 (Wellness-Fixes, sensitive): old QA agent verdict lost on relay. CI Verify PASSED. QA-Wellness-582 spawned via Herdr fallback (coordinated-qa subagent type not registered) at w1:p6W, Sonnet, jarvis_qa_1. Awaiting verdict.
+- PR #582 (Wellness-Fixes, sensitive): MERGED @ 1f13662e. Issues #505 #509 closed. Board Done. Worktree + panes reaped.
 - Memory-Cleanup: relay-1 said 2% left → successor spawned. Pane shows 40% context (successor active), running `pnpm test`. No PR yet.
 - Calendar-Monitor: DONE. PR #583 open (VF_EXIT=0, AUDIT_EXIT=0, isolated DB jarvis_calmon). Tier: sensitive. QA-Calendar-583 spawned at w1:p6X via Herdr fallback, Sonnet, jarvis_qa_2. Awaiting verdict.
 - db:migrate contention: both #581/#582 have zero DB surface; contention is shared-dev-Postgres state from migration 0128. Not a regression; scope QA to non-DB gate.
