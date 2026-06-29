@@ -1,5 +1,74 @@
 # What's New in Jarvis
 
+## Second run — 2026-06-29
+
+### Your timezone, everywhere (first slice)
+
+Dates and times in chat answers, wellness history, and briefings now render in your configured
+timezone instead of UTC. If you are in Auckland and set your timezone to Pacific/Auckland, Jarvis
+answers "what's on my calendar tomorrow" and streak counts in wellness use your local midnight, not
+the server's. More display surfaces are in progress — this is the first slice of a broader rollout.
+
+[PR #596](https://github.com/motioneso/Jarv1s/pull/596) · closes part of [#579](https://github.com/motioneso/Jarv1s/issues/579)
+
+---
+
+### Cleaner Evening review
+
+The Sources freshness list has been removed from the Evening review. The review itself is unchanged;
+it just no longer appends a block of data-staleness details that most people skip past.
+
+[PR #595](https://github.com/motioneso/Jarv1s/pull/595) · [#586](https://github.com/motioneso/Jarv1s/pull/586)
+
+---
+
+### Briefings list their actual sources
+
+The briefings settings page now shows the real names of the sources feeding each briefing instead of
+a bare count like "3 sources". You can see at a glance exactly which email accounts, calendars, or
+note folders are included.
+
+[PR #594](https://github.com/motioneso/Jarv1s/pull/594) · closes [#506](https://github.com/motioneso/Jarv1s/issues/506)
+
+---
+
+### Mobile menu always reachable
+
+The user menu is now visible on mobile without scrolling. Previously it could scroll off screen on
+smaller viewports and become inaccessible.
+
+[PR #591](https://github.com/motioneso/Jarv1s/pull/591) · closes [#524](https://github.com/motioneso/Jarv1s/issues/524)
+
+---
+
+### Wellness notes reach Jarvis
+
+Free-text notes you add during a wellness check-in are now visible to Jarvis when you ask about
+your wellbeing or patterns. The wellness export modal and export action are also fixed so your
+check-in data downloads correctly.
+
+[PR #582](https://github.com/motioneso/Jarv1s/pull/582) · closes [#505](https://github.com/motioneso/Jarv1s/issues/505) [#509](https://github.com/motioneso/Jarv1s/issues/509)
+
+---
+
+### Cleaner chat actions
+
+The approve/reject confirmation buttons in chat now have correct spacing and labels. The Today view
+no longer shows a medication nudge that was not relevant to most users.
+
+[PR #581](https://github.com/motioneso/Jarv1s/pull/581) · closes [#480](https://github.com/motioneso/Jarv1s/issues/480) [#512](https://github.com/motioneso/Jarv1s/issues/512)
+
+---
+
+### Paste a Coolors palette to stage it immediately
+
+In Appearance settings, pasting a Coolors URL or colour list now auto-stages the colours
+immediately. The separate "Stage colors" step is gone — paste and the preview updates straight away.
+
+[PR #598](https://github.com/motioneso/Jarv1s/pull/598)
+
+---
+
 ## Overnight build — 2026-06-28
 
 ### Delete calendar events
