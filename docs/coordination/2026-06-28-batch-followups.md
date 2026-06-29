@@ -12,12 +12,12 @@
 
 ## Queue
 
-| Issues                             | Label            | Tier      | Status | Branch | PR  |
-| ---------------------------------- | ---------------- | --------- | ------ | ------ | --- |
-| #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | queued | —      | —   |
-| #505, #509                         | Wellness-Fixes   | sensitive | queued | —      | —   |
-| #564, #567                         | Calendar-Monitor | sensitive | queued | —      | —   |
-| #480, #512                         | UI-Polish        | routine   | queued | —      | —   |
+| Issues                             | Label            | Tier      | Status   | Branch           | PR  |
+| ---------------------------------- | ---------------- | --------- | -------- | ---------------- | --- |
+| #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | building | memory-cleanup   | —   |
+| #505, #509                         | Wellness-Fixes   | sensitive | building | wellness-fixes   | —   |
+| #564, #567                         | Calendar-Monitor | sensitive | building | calendar-monitor | —   |
+| #480, #512                         | UI-Polish        | routine   | building | ui-polish        | —   |
 
 **Deferred (needs spec before build):**
 
