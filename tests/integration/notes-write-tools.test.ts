@@ -268,6 +268,26 @@ describe("notes write assistant tools", () => {
     await expect(readFile(absPath, "utf-8")).rejects.toThrow();
   });
 
+  it("rejects absolute path with traversal after root prefix (sibling-prefix attack)", async () => {
+    // e.g. AI passes /root/../../../etc/passwd.md — coerceToRelativePath strips /root/ prefix
+    // leaving ../../../etc/passwd.md which must be caught by the `..` check in requireMarkdownPath
+    // Must use string concat — join() normalises `..` away before coerceToRelativePath sees it.
+    const traversalPath = `${root}/../../../etc/passwd.md`;
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "abs-traversal" },
+      async (db) => {
+        await expect(
+          notesCreateExecute(
+            db,
+            { path: traversalPath, content: "bad" },
+            { actorUserId: ids.userA, requestId: "abs-traversal", chatSessionId: "chat" },
+            { notesSync: service }
+          )
+        ).rejects.toThrow("relative Markdown path");
+      }
+    );
+  });
+
   it("rejects absolute path outside the configured notes root", async () => {
     const outside = await mkdtemp(join(tmpdir(), `jarv1s-outside-abs-${randomUUID()}-`));
     try {

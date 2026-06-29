@@ -59,9 +59,12 @@ describe("parsePalette (auto-staging)", () => {
 
 describe("AppearancePane — palette auto-staging wiring", () => {
   it("never renders a Stage colors button in any state", () => {
-    // The editor is only visible when draft state is set (user clicks a theme row).
-    // Even if the editor were visible, "Stage colors" must be absent — auto-staging
-    // is wired to onChange, no button click needed. This test locks in the removal.
+    // The editor section (including the paste textarea) is only visible when draft
+    // state is set via user interaction — not directly settable via QueryClient.
+    // Without jsdom + @testing-library/react there is no DOM event machinery to
+    // simulate the click that opens the editor. The deepest assertion available in
+    // this SSR-only suite: "Stage colors" is absent everywhere in the output,
+    // confirming the button was removed and auto-staging is unconditional.
     const html = renderAppearancePane();
     expect(html).not.toContain("Stage colors");
   });
