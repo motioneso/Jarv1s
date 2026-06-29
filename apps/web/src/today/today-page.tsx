@@ -116,11 +116,6 @@ export function TodayPage(props: {
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
-  // Soft med reminder is dismissed CLIENT-SIDE ONLY (ephemeral state — reappears on reload).
-  // No server-persisted "dismissed" flag: that would need a new endpoint/storage and trip the
-  // spec-before-build + no-new-endpoint guardrails for this lane.
-  const [medReminderDismissed, setMedReminderDismissed] = useState(false);
-
   const medScheduleQuery = useQuery({
     queryKey: queryKeys.wellness.schedule(todayKey()),
     queryFn: () => getMedicationSchedule(todayKey()),
@@ -131,9 +126,6 @@ export function TodayPage(props: {
   const medTotal = medScheduledSlots.length;
   const medsAllTaken = medTotal > 0 && medTaken === medTotal;
   const medsNoneLogged = medTotal > 0 && medTaken === 0;
-  // Only nudge when a SCHEDULED dose is still outstanding; PRN-only / no-meds users never get one.
-  const showMedReminder = wellnessEnabled && medTotal > 0 && medTaken < medTotal;
-
   const createCheckinMutation = useMutation({
     mutationFn: (val: CheckinFormValue) =>
       createWellnessCheckin({
@@ -443,22 +435,6 @@ export function TodayPage(props: {
                       meds logged today.
                     </>
                   )}
-                </div>
-              ) : null}
-              {showMedReminder && !medReminderDismissed ? (
-                <div className="well__nudge" role="status">
-                  <span className="well__nudge-tx">
-                    A gentle nudge: {medTotal - medTaken} dose
-                    {medTotal - medTaken === 1 ? "" : "s"} left to log today.
-                  </span>
-                  <button
-                    type="button"
-                    className="well__nudge-x"
-                    aria-label="Dismiss reminder"
-                    onClick={() => setMedReminderDismissed(true)}
-                  >
-                    <XIcon />
-                  </button>
                 </div>
               ) : null}
               <div className="well__actions">

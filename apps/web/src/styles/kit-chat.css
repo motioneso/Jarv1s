@@ -692,3 +692,20 @@
   font-size: 11px;
   color: var(--text-faint);
 }
+
+/* ===== Action-request card (approve / reject) ===== */
+.action-request-card {
+  padding: 12px 0 4px;
+}
+.action-request-summary {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+.action-request-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
