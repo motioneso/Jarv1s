@@ -14,7 +14,7 @@ Open items:
 - PR #581 (UI-Polish, routine): STOP-THE-LINE. Two CI failures (ECONNREFUSED infra race, run 28341205471). QA GREEN (code clean). Main green @ 87f6f5f + 1f13662e. Filed issue #584. Awaiting Ben: re-run approval or waiver sign-off before merge.
 - PR #582 (Wellness-Fixes, sensitive): MERGED @ 1f13662e. Issues #505 #509 closed. Board Done. Worktree + panes reaped.
 - Memory-Cleanup: relay-1 said 2% left → successor spawned. Pane shows 40% context (successor active), running `pnpm test`. No PR yet.
-- Calendar-Monitor: PR #583. QA-cycle-1 RED (bearer JWT dead arm, runtime-confirmed). Fix d094ab11 pushed (bearer pre-pass + email provider fix + new tests VF=0). QA-cycle-2 running: Opus 4.8 adversarial at w1:p6Z, jarvis_qa_3. Tier upgraded to security — Ben merge sign-off required.
+- Calendar-Monitor: PR #583. QA-cycle-2 GREEN (Opus adversarial). Verdict: https://github.com/motioneso/Jarv1s/pull/583#issuecomment-4828159043. AWAITING BEN SECURITY-TIER MERGE SIGN-OFF.
 - db:migrate contention: both #581/#582 have zero DB surface; contention is shared-dev-Postgres state from migration 0128. Not a regression; scope QA to non-DB gate.
 
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
