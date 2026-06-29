@@ -9,6 +9,7 @@
  * episodic-embed job (unless the thread is incognito).
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
+import { extractTimezone } from "../locale-utils.js";
 import {
   assertDataContextDb,
   type DataContextDb,
@@ -106,19 +107,6 @@ export async function resolveChatFreshness(
   );
 
   return { version: 1, capturedAt: capturedAtIso, sources: entries };
-}
-
-/** Extract an IANA timezone string from the raw locale preference blob. Returns null on any invalid input. */
-function extractTimezone(raw: unknown): string | null {
-  if (!raw || typeof raw !== "object") return null;
-  const tz = (raw as Record<string, unknown>).timezone;
-  if (typeof tz !== "string" || tz.trim().length === 0 || tz.length > 100) return null;
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz }); // throws RangeError on invalid tz
-    return tz.trim();
-  } catch {
-    return null;
-  }
 }
 
 export class DataContextChatPersistence implements ChatPersistencePort {

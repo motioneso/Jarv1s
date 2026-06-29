@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { extractTimezone } from "./locale-utils.js";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
@@ -608,23 +609,11 @@ export function buildChatGatewayDependencies(args: {
             { actorUserId, requestId: "gateway:resolve-locale-tz" },
             async (scopedDb) => {
               const raw = await args.localePreferences!.get(scopedDb, "locale");
-              return extractGatewayTimezone(raw);
+              return extractTimezone(raw);
             }
           )
       : undefined
   };
-}
-
-function extractGatewayTimezone(raw: unknown): string | null {
-  if (!raw || typeof raw !== "object") return null;
-  const tz = (raw as Record<string, unknown>).timezone;
-  if (typeof tz !== "string" || tz.trim().length === 0 || tz.length > 100) return null;
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz });
-    return tz.trim();
-  } catch {
-    return null;
-  }
 }
 
 function buildActionPolicy(args: {

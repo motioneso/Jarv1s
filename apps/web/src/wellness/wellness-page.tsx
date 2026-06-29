@@ -26,6 +26,7 @@ import { WellnessTherapyNotes } from "./wellness-therapy-notes";
 import { CheckinModal, type CheckinFormValue } from "./checkin-modal";
 import { ManageMedsModal } from "./manage-meds-modal";
 import { WellnessExportModal } from "./export-modal";
+import { computeStreak } from "./wellness-date-utils";
 
 function useTheme(): "light" | "dark" {
   return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
@@ -55,30 +56,6 @@ function todayIso(timeZone?: string): string {
     month: "2-digit",
     day: "2-digit"
   }).format(new Date());
-}
-
-function computeStreak(checkins: readonly CheckinDto[], timeZone?: string): number {
-  const seen = new Set<string>();
-  checkins.forEach((c) => {
-    const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
-    if (d) seen.add(d);
-  });
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
-  const todayStr = fmt.format(new Date());
-  const [y, m, d] = todayStr.split("-").map(Number);
-  let s = 0;
-  for (let i = 1; i <= 90; i++) {
-    // UTC noon avoids DST boundary edge when projecting calendar day in any timezone
-    const iso = fmt.format(new Date(Date.UTC(y!, m! - 1, d! - i, 12)));
-    if (seen.has(iso)) s++;
-    else break;
-  }
-  return s;
 }
 
 export function WellnessPage() {

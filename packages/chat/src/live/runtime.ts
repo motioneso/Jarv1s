@@ -7,6 +7,7 @@
  * fake engine (no real tmux / `claude` binary). Everything else is real.
  */
 import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
+import { extractTimezone } from "../locale-utils.js";
 import type { DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
 import {
   normalizePersonaSettings,
@@ -477,23 +478,10 @@ async function resolveChatPersona(
     userName
   });
 
-  const timezone = extractLocaleTimezone(localeRaw);
+  const timezone = extractTimezone(localeRaw);
   const tzBlock = timezone
     ? `User's local timezone: ${timezone}. Always display dates and times in this timezone.`
     : null;
 
   return [DEFAULT_JARVIS_PERSONA, tzBlock, personaBlock].filter(Boolean).join("\n\n");
-}
-
-/** Extract a validated IANA timezone from a raw locale preference blob. */
-function extractLocaleTimezone(raw: unknown): string | null {
-  if (!raw || typeof raw !== "object") return null;
-  const tz = (raw as Record<string, unknown>).timezone;
-  if (typeof tz !== "string" || tz.trim().length === 0 || tz.length > 100) return null;
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz });
-    return tz.trim();
-  } catch {
-    return null;
-  }
 }

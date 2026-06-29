@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, coreLabel, type Theme } from "./emotion-taxonomy";
+import { localDateFromTimestamp } from "./wellness-date-utils";
 
 function ChevRightIcon() {
   return (
@@ -162,23 +163,25 @@ export function WellnessHistory({
         ) : null}
         {shown.map((ck) => {
           const fullIso = ck.checkedInAt ?? ck.createdAt ?? "";
-          const iso = fullIso.slice(0, 10);
+          const iso = fullIso ? localDateFromTimestamp(fullIso, timezone) : "";
           const isToday = iso === today;
-          // Anchor to UTC noon so Intl.DateTimeFormat renders the correct calendar day
-          // in the user's configured timezone regardless of DST boundaries.
+          // `iso` is already the local calendar date, so format weekday/month/day with
+          // timeZone: "UTC" on a noon-UTC anchor of that date string — this gives the
+          // correct calendar components for ANY IANA timezone without an anchor misfire.
           const anchor = new Date(iso + "T12:00:00Z");
-          const tzOpts = timezone ? { timeZone: timezone } : {};
           const dow = isToday
             ? "Today"
-            : new Intl.DateTimeFormat("en-US", { ...tzOpts, weekday: "long" }).format(anchor);
-          const mo = new Intl.DateTimeFormat("en-US", { ...tzOpts, month: "short" }).format(anchor);
-          const day = new Intl.DateTimeFormat("en-US", { ...tzOpts, day: "numeric" }).format(
+            : new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long" }).format(anchor);
+          const mo = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short" }).format(
+            anchor
+          );
+          const day = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", day: "numeric" }).format(
             anchor
           );
           const timeStr =
             isToday && fullIso.length > 10
               ? new Intl.DateTimeFormat("en-US", {
-                  ...tzOpts,
+                  timeZone: timezone,
                   hour: "numeric",
                   minute: "2-digit"
                 }).format(new Date(fullIso))
