@@ -18,7 +18,7 @@ Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run
 
 1. **PR #581 (UI-Polish, routine)** — MERGED @ f11ca93e (2026-06-29 01:37Z). Ben CI waiver applied (2× ECONNREFUSED infra race). Issues #480 #512 closed. Board Done. Worktree reaped.
 
-2. **Memory-Cleanup** — PR #585 open (memory-cleanup branch). VF_EXIT=0. Codex QA agent spawned (pane w1:p72, Memory-Cleanup-QA). Sensitive tier. Awaiting verdict.
+2. **Memory-Cleanup** — PR #585 open (memory-cleanup branch). VF_EXIT=0. Codex QA RED (1 blocker): dashboard-service.ts:144 acceptCandidate conflict-check too broad — supersedes unrelated memories sharing same predicate. Rework dispatched to build agent (w1:p6Q). Re-QA after fix pushed. CI also pending — await green before merge.
 
 3. **#584 (Playwright CI flake)** — Ben wants in this run. Needs approved spec. Successor action: write minimal spec with Ben, spawn agent after approval.
 
@@ -35,7 +35,7 @@ Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run
 
 | Issues                             | Label            | Tier      | Status   | Branch           | PR  |
 | ---------------------------------- | ---------------- | --------- | -------- | ---------------- | --- |
-| #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | qa       | memory-cleanup   | #585 |
+| #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | rework   | memory-cleanup   | #585 |
 | #505, #509                         | Wellness-Fixes   | sensitive | merged   | wellness-fixes   | #582 |
 | #564, #567                         | Calendar-Monitor | sensitive | merged   | calendar-monitor | #583 |
 | #480, #512                         | UI-Polish        | routine   | merged   | ui-polish        | #581 |
