@@ -103,6 +103,49 @@ export function formatTime(
   return format(input, locale, options ?? TIME_OPTS);
 }
 
+export function isValidTimeZone(timeZone: string): boolean {
+  if (timeZone.trim().length === 0) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function zonedClockParts(
+  input: DateInput,
+  timeZone?: string
+): { readonly hour: number; readonly minute: number; readonly second: number } | null {
+  const date = toDate(input);
+  if (!date) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(date);
+    return {
+      hour: Number(parts.find((part) => part.type === "hour")?.value ?? "0") % 24,
+      minute: Number(parts.find((part) => part.type === "minute")?.value ?? "0"),
+      second: Number(parts.find((part) => part.type === "second")?.value ?? "0")
+    };
+  } catch {
+    return {
+      hour: date.getUTCHours(),
+      minute: date.getUTCMinutes(),
+      second: date.getUTCSeconds()
+    };
+  }
+}
+
+export function zonedClockMinutes(input: DateInput, timeZone?: string): number | null {
+  const parts = zonedClockParts(input, timeZone);
+  return parts ? parts.hour * 60 + parts.minute : null;
+}
+
 /**
  * Calendar date key (`YYYY-MM-DD`) for an instant *as observed in the given timezone*.
  * Locale-independent (en-CA): a machine key for day comparison / "today" / streaks,
