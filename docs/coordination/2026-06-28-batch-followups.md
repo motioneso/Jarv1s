@@ -4,25 +4,25 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `820cbf4d-32f1-40db-837f-d0900a08767f`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1 (PR #581 UI-Polish routine merged @ f11ca93e with Ben CI waiver)
+**merges_since_relay:** 2 → RELAY TRIGGERED
 
-## Continuation note (relay 4 — adopted by coord session 820cbf4d @ 2026-06-28)
+## Continuation note (relay 5 — coord session 820cbf4d → successor, 2026-06-29)
 
-Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run.
+All 4 original queue items merged. merges_since_relay=2 → relay triggered.
 
 **All-time merged this run:**
 - PR #582 (Wellness-Fixes, sensitive): MERGED @ 1f13662e. Issues #505 #509 closed. Board Done.
-- PR #583 (Calendar-Monitor, security): MERGED @ e285869d. Issues #567 closed (#564 already closed). Board Done.
+- PR #583 (Calendar-Monitor, security): MERGED @ e285869d. Issues #567 closed. Board Done.
+- PR #581 (UI-Polish, routine): MERGED @ f11ca93e. Issues #480 #512 closed. Board Done. Ben CI waiver.
+- PR #585 (Memory-Cleanup, sensitive): MERGED @ c6e36254. Issues #554 #555 #560 #561 #562 #565 closed. Board Done. Ben CI waiver (2× ECONNREFUSED). Codex QA c2 GREEN.
 
-**Open items:**
+**Open items for successor:**
 
-1. **PR #581 (UI-Polish, routine)** — MERGED @ f11ca93e (2026-06-29 01:37Z). Ben CI waiver applied (2× ECONNREFUSED infra race). Issues #480 #512 closed. Board Done. Worktree reaped.
+1. **#584 (Playwright CI flake)** — Ben wants in this run. Needs approved spec first. Action: write minimal spec with Ben (fix: API health-check wait in Playwright setup / CI yaml before test runner starts), get approval, then spawn build agent.
 
-2. **Memory-Cleanup** — PR #585. Codex QA cycle 2 GREEN on code (0 blocking). CI "Verify foundation and app" failed 2× in 38–40s (run 28343902913) — ECONNREFUSED infra race. **STOP-THE-LINE: awaiting Ben waiver approval to merge.**
+2. **Deferred (need specs):** issue #578 (in-container permission prompts), issue #579 (timezone architecture).
 
-3. **#584 (Playwright CI flake)** — Ben wants in this run. Needs approved spec. Successor action: write minimal spec with Ben, spawn agent after approval.
-
-4. **UI-Polish worktree** (`.claude/worktrees/ui-polish`) — do NOT remove until #581 merged.
+3. **CI infra race note:** "Verify foundation and app" failed 2× each on #581 and #585 (ECONNREFUSED, 38–40s). Both waivers given by Ben. This is a systemic issue — #584 targets Playwright specifically, but the ECONNREFUSED pattern may be broader.
 
 **ci_waivers:**
 - PR #581, check "Verify foundation and app", run 28341205471, SHA d094ab11 on PR branch. Failure: ECONNREFUSED infra race. Proven not on PR code (main green same SHA range). Ben: "merge yes" 2026-06-28. **Fresh re-run triggered on adoption — merge when green, or waive if fails again.**
@@ -35,7 +35,7 @@ Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run
 
 | Issues                             | Label            | Tier      | Status   | Branch           | PR  |
 | ---------------------------------- | ---------------- | --------- | -------- | ---------------- | --- |
-| #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | qa       | memory-cleanup   | #585 |
+| #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | merged   | memory-cleanup   | #585 |
 | #505, #509                         | Wellness-Fixes   | sensitive | merged   | wellness-fixes   | #582 |
 | #564, #567                         | Calendar-Monitor | sensitive | merged   | calendar-monitor | #583 |
 | #480, #512                         | UI-Polish        | routine   | merged   | ui-polish        | #581 |
