@@ -143,9 +143,7 @@ export function WellnessHistory({
               </button>
             </span>
           ) : (
-            <span className="wl-sec__note">
-              Tap a row to read &amp; edit
-            </span>
+            <span className="wl-sec__note">Tap a row to read &amp; edit</span>
           )}
         </div>
       </div>
