@@ -60,23 +60,6 @@ export class MemoryGraphRepository {
     return mapEntity(row);
   }
 
-  async listActiveFactsBySubjectPredicate(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    subjectEntityId: string,
-    predicate: string
-  ): Promise<{ id: string }[]> {
-    assertDataContextDb(scopedDb);
-    const result = await sql<{ id: string }>`
-      SELECT id FROM app.memory_facts
-      WHERE owner_user_id = ${ownerUserId}::uuid
-        AND subject_entity_id = ${subjectEntityId}::uuid
-        AND predicate = ${predicate}
-        AND status = 'active'
-    `.execute(scopedDb.db);
-    return result.rows;
-  }
-
   async createEntity(
     scopedDb: DataContextDb,
     ownerUserId: string,

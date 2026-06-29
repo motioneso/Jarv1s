@@ -139,42 +139,21 @@ export class MemoryDashboardService {
 
       const selfEntity = await this.graphRepo.ensureSelfEntity(scopedDb, ownerUserId);
 
-      // #561: if an active fact with the same predicate already exists on the self-entity,
-      // route through correctFact (supersede) instead of creating a duplicate active fact.
-      const conflicts = await this.graphRepo.listActiveFactsBySubjectPredicate(
-        scopedDb,
-        ownerUserId,
-        selfEntity.id,
-        predicate
-      );
-
-      let acceptedFact: MemoryFactRecord;
-      if (conflicts.length > 0 && conflicts[0]) {
-        const corrected = await this.recallSvc.correct(scopedDb, ownerUserId, {
-          targetFactId: conflicts[0].id,
-          replacementText: objectText
-        });
-        if (!corrected) {
-          const err = new Error(
-            "Conflict resolution failed — target fact not found"
-          ) as NodeJS.ErrnoException;
-          err.code = "CONFLICT_RESOLUTION_FAILED";
-          throw err;
-        }
-        acceptedFact = corrected;
-      } else {
-        const result = await this.recallSvc.remember(scopedDb, ownerUserId, {
-          subjectEntityId: selfEntity.id,
-          predicate: predicate as MemoryFactPredicate,
-          objectText,
-          recordKind,
-          confidence: 1.0,
-          provenance: "confirmed",
-          pinned: edited?.pinned,
-          source: dashboardSource
-        });
-        acceptedFact = result.fact;
-      }
+      // #561: always create via remember(); multiple active facts with the same predicate
+      // are valid in the memory model (e.g. "prefers dark mode" and "prefers early mornings"
+      // are independent). Predicate-only conflict detection would silently supersede unrelated
+      // memories. Conflict routing is delegated to the recall layer's own deduplication.
+      const result = await this.recallSvc.remember(scopedDb, ownerUserId, {
+        subjectEntityId: selfEntity.id,
+        predicate: predicate as MemoryFactPredicate,
+        objectText,
+        recordKind,
+        confidence: 1.0,
+        provenance: "confirmed",
+        pinned: edited?.pinned,
+        source: dashboardSource
+      });
+      const acceptedFact = result.fact;
 
       if (edited?.validFrom != null || edited?.validTo != null || edited?.staleAt != null) {
         await this.dashRepo.patchFactLifecycle(scopedDb, ownerUserId, acceptedFact.id, {

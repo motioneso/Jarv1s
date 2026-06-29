@@ -99,47 +99,37 @@ describe("self-entity delete protection (#560)", () => {
   });
 });
 
-describe("acceptCandidate conflict routing (#561)", () => {
+describe("acceptCandidate creates fact without superseding unrelated prefs (#561)", () => {
   const repo = new MemoryGraphRepository();
   const candidatesRepo = new MemoryCandidatesRepository();
 
-  it("supersedes existing active fact when accepting a conflicting candidate", async () => {
+  it("creates the candidate fact while leaving pre-existing same-predicate facts intact", async () => {
+    // The memory model allows multiple independent active facts with the same predicate
+    // (e.g. "prefers dark mode" and "prefers early mornings" are both valid simultaneously).
+    // Accepting a candidate must NOT silently supersede unrelated memories.
+    const existingObjectText = `existing-pref-${randomUUID()}`;
+    const newObjectText = `new-pref-${randomUUID()}`;
+    let existingFactId!: string;
     let candidateId!: string;
-    let updatedObjectText!: string;
-    const uniquePredicate = "prefers" as MemoryFactPredicate;
-
-    // Supersede any pre-existing "prefers" facts so we start clean for this assertion.
-    await appDataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "561:cleanup" },
-      async (db) => {
-        await sql`
-          UPDATE app.memory_facts
-          SET status = 'expired', updated_at = now()
-          WHERE owner_user_id = ${ids.userA}::uuid
-            AND predicate = 'prefers'
-            AND status = 'active'
-        `.execute(db.db);
-      }
-    );
 
     await appDataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "561:setup" },
       async (db) => {
         const self = await repo.ensureSelfEntity(db, ids.userA);
-        await repo.createFact(db, ids.userA, {
+        const existing = await repo.createFact(db, ids.userA, {
           subjectEntityId: self.id,
-          predicate: uniquePredicate,
-          objectText: `original-pref-${randomUUID()}`,
+          predicate: "prefers",
+          objectText: existingObjectText,
           confidence: 0.8,
           provenance: "confirmed",
           source: { sourceKind: "manual", sourceRef: "manual:561-existing", excerpt: "existing" }
         });
+        existingFactId = existing.id;
 
-        updatedObjectText = `updated-pref-${randomUUID()}`;
         const sig = createMemoryCandidateSignature({
           kind: "fact",
           action: "create",
-          fact: { predicate: uniquePredicate, objectText: updatedObjectText }
+          fact: { predicate: "prefers", objectText: newObjectText }
         });
         const candidate = await candidatesRepo.insertPending(db, ids.userA, {
           episodeId: null,
@@ -149,10 +139,7 @@ describe("acceptCandidate conflict routing (#561)", () => {
           importance: 0.5,
           provenance: "inferred",
           candidateSignature: sig,
-          payloadJson: {
-            kind: "fact",
-            fact: { predicate: uniquePredicate, objectText: updatedObjectText }
-          }
+          payloadJson: { kind: "fact", fact: { predicate: "prefers", objectText: newObjectText } }
         });
         candidateId = candidate.id;
       }
@@ -169,24 +156,31 @@ describe("acceptCandidate conflict routing (#561)", () => {
     const body = JSON.parse(response.body) as { accepted: boolean };
     expect(body.accepted).toBe(true);
 
-    // Verify: the replacement fact (with updatedObjectText) is now active,
-    // and there is exactly one active "prefers" fact (the old one was superseded).
-    const activePrefers = await appDataContext.withDataContext(
+    // Both facts must be active — the candidate was created without superseding the existing one.
+    const statuses = await appDataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "561:check" },
       async (db) => {
-        const self = await repo.ensureSelfEntity(db, ids.userA);
-        const result = await sql<{ object_text: string }>`
-          SELECT object_text FROM app.memory_facts
+        const result = await sql<{ id: string; object_text: string; status: string }>`
+          SELECT id, object_text, status FROM app.memory_facts
           WHERE owner_user_id = ${ids.userA}::uuid
-            AND subject_entity_id = ${self.id}::uuid
-            AND predicate = 'prefers'
-            AND status = 'active'
+            AND id IN (
+              ${existingFactId}::uuid,
+              (SELECT id FROM app.memory_facts
+                WHERE owner_user_id = ${ids.userA}::uuid
+                  AND object_text = ${newObjectText}
+                  AND predicate = 'prefers'
+                  AND status = 'active'
+                LIMIT 1)
+            )
         `.execute(db.db);
         return result.rows;
       }
     );
-    expect(activePrefers).toHaveLength(1);
-    expect(activePrefers[0]?.object_text).toBe(updatedObjectText);
+
+    const existingRow = statuses.find((r) => r.id === existingFactId);
+    const newRow = statuses.find((r) => r.object_text === newObjectText);
+    expect(existingRow?.status).toBe("active");
+    expect(newRow?.status).toBe("active");
   });
 });
 
