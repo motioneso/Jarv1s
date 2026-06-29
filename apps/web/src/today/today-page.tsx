@@ -52,6 +52,7 @@ import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
 import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
 import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
+import { SystemUpgradeBanner } from "../settings/system-upgrade-banner";
 import { ProactiveCards } from "./proactive-cards";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
@@ -181,6 +182,7 @@ export function TodayPage(props: {
 
   return (
     <div className="cmd-wrap">
+      <SystemUpgradeBanner />
       <header className="cmd-hero">
         <h1 className="cmd-hello">
           {greeting()}, <span className="nm">{name}</span>.

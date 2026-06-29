@@ -39,7 +39,9 @@ const EXPECTED_KEYS = [
   "routeCount",
   "multiplexer",
   "available",
-  "checks"
+  "checks",
+  "latestAvailableVersion",
+  "releaseNotes"
 ].sort();
 
 describe("buildHostDiagnostics", () => {
@@ -49,7 +51,9 @@ describe("buildHostDiagnostics", () => {
       multiplexer: "auto",
       available: { tmux: true, herdr: false },
       dbOk: false,
-      pgBossOk: true
+      pgBossOk: true,
+      latestAvailableVersion: null,
+      releaseNotes: null
     });
     const byId = Object.fromEntries(dto.checks.map((c) => [c.id, c.status]));
     expect(byId.database).toBe("fail");
@@ -64,7 +68,9 @@ describe("buildHostDiagnostics", () => {
       multiplexer: "auto",
       available: { tmux: false, herdr: false },
       dbOk: true,
-      pgBossOk: true
+      pgBossOk: true,
+      latestAvailableVersion: null,
+      releaseNotes: null
     });
     const mux = dto.checks.find((c) => c.id === "multiplexer");
     expect(mux?.status).toBe("warn");
@@ -77,7 +83,9 @@ describe("buildHostDiagnostics", () => {
       multiplexer: "herdr",
       available: { tmux: false, herdr: true },
       dbOk: true,
-      pgBossOk: true
+      pgBossOk: true,
+      latestAvailableVersion: null,
+      releaseNotes: null
     });
     expect(Object.keys(dto).sort()).toEqual(EXPECTED_KEYS);
     expect(dto.multiplexer).toBe("herdr");
@@ -92,7 +100,9 @@ describe("assertDiagnosticsSafe", () => {
       multiplexer: "auto",
       available: { tmux: true, herdr: true },
       dbOk: true,
-      pgBossOk: true
+      pgBossOk: true,
+      latestAvailableVersion: null,
+      releaseNotes: null
     });
   }
 

@@ -6,8 +6,11 @@ import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1
 import { RlsProbeRepository } from "@jarv1s/db/probes";
 import {
   RLS_PROBE_QUEUE,
+  UPGRADE_CHECK_QUEUE,
   createPgBossClient,
   registerDataContextWorker,
+  reconcileUpgradeCheckSchedule,
+  handleUpgradeCheckJob,
   type RlsProbeJobPayload
 } from "@jarv1s/jobs";
 import {
@@ -133,6 +136,12 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
       };
     }
   );
+
+  await reconcileUpgradeCheckSchedule(boss);
+  await boss.work(UPGRADE_CHECK_QUEUE, async () => {
+    await handleUpgradeCheckJob(workerDb);
+  });
+
   await registerBuiltInModuleWorkers(boss, {
     rootDb: workerDb,
     dataContext,

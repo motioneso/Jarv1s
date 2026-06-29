@@ -14,6 +14,7 @@ import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db
 
 export const PGBOSS_SCHEMA = "pgboss";
 export const RLS_PROBE_QUEUE = "rls-probe";
+export const UPGRADE_CHECK_QUEUE = "system.upgrade-check";
 
 export interface ActorScopedJobPayload {
   readonly actorUserId: string;
@@ -37,6 +38,14 @@ export const FOUNDATION_QUEUES: readonly QueueDefinition[] = [
       retryLimit: 0,
       deleteAfterSeconds: 60,
       retentionSeconds: 60
+    }
+  },
+  {
+    name: UPGRADE_CHECK_QUEUE,
+    options: {
+      retryLimit: 3,
+      deleteAfterSeconds: 86400,
+      retentionSeconds: 86400
     }
   }
 ];

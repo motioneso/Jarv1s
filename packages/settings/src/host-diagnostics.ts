@@ -37,6 +37,8 @@ export interface BuildHostDiagnosticsInput {
   readonly available: ChatMultiplexerAvailability;
   readonly dbOk: boolean;
   readonly pgBossOk: boolean;
+  readonly latestAvailableVersion: string | null;
+  readonly releaseNotes: string | null;
 }
 
 // Known secret-bearing env key names that must never appear in any output string.
@@ -54,7 +56,8 @@ const CONNECTION_URL = /\b[a-z][a-z0-9+.-]*:\/\//i;
 const CREDS_IN_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@]+:[^\s/@]+@/i;
 
 export function buildHostDiagnostics(input: BuildHostDiagnosticsInput): HostDiagnosticsDto {
-  const { info, multiplexer, available, dbOk, pgBossOk } = input;
+  const { info, multiplexer, available, dbOk, pgBossOk, latestAvailableVersion, releaseNotes } =
+    input;
 
   const muxAvailable = available.tmux || available.herdr;
   const checks: readonly HostDiagnosticCheckDto[] = [
@@ -92,7 +95,9 @@ export function buildHostDiagnostics(input: BuildHostDiagnosticsInput): HostDiag
     routeCount: info.routeCount,
     multiplexer,
     available: { tmux: available.tmux, herdr: available.herdr },
-    checks
+    checks,
+    latestAvailableVersion,
+    releaseNotes
   };
 
   // Belt-and-suspenders: refuse to emit anything that looks like a secret/URL.

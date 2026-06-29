@@ -37,9 +37,8 @@ export function registerHostDiagnosticsRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const { dbOk, multiplexer } = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
+        const { dbOk, multiplexer, latestAvailableVersion, releaseNotes } =
+          await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
             await dependencies.assertAdminUser(scopedDb, accessContext.actorUserId);
             // Authorization passed — only now is it safe to surface the 503 if the
             // provider is missing, so a non-admin can never distinguish the states.
@@ -54,9 +53,24 @@ export function registerHostDiagnosticsRoutes(
             }
             const { multiplexer: mux } =
               await dependencies.repository.getChatMultiplexerSetting(scopedDb);
-            return { dbOk: ok, multiplexer: mux };
-          }
-        );
+
+            const latestReleaseRaw = await scopedDb.db
+              .selectFrom("app.instance_settings")
+              .select("value")
+              .where("key", "=", "latest_release")
+              .executeTakeFirst();
+
+            let latestAvailableVersion: string | null = null;
+            let releaseNotes: string | null = null;
+
+            if (latestReleaseRaw?.value) {
+              const val = latestReleaseRaw.value as Record<string, unknown>;
+              if (typeof val.version === "string") latestAvailableVersion = val.version;
+              if (typeof val.notes === "string") releaseNotes = val.notes;
+            }
+
+            return { dbOk: ok, multiplexer: mux, latestAvailableVersion, releaseNotes };
+          });
 
         // hostDiagnostics is guaranteed defined here (the closure throws otherwise).
         const provider = dependencies.hostDiagnostics as HostDiagnosticsProvider;
@@ -67,7 +81,9 @@ export function registerHostDiagnosticsRoutes(
           multiplexer,
           available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false },
           dbOk,
-          pgBossOk
+          pgBossOk,
+          latestAvailableVersion,
+          releaseNotes
         });
       } catch (error) {
         return dependencies.handleRouteError(error, reply);

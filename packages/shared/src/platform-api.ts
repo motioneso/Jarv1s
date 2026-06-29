@@ -598,6 +598,10 @@ export interface HostDiagnosticsDto extends HostDiagnosticsInfo {
   readonly multiplexer: ChatMultiplexerChoice;
   readonly available: ChatMultiplexerAvailability;
   readonly checks: readonly HostDiagnosticCheckDto[];
+  /** Latest available version fetched from GitHub Releases, or null. */
+  readonly latestAvailableVersion: string | null;
+  /** Release notes for the latest version. */
+  readonly releaseNotes: string | null;
 }
 
 const hostDiagnosticCheckSchema = {
@@ -628,7 +632,9 @@ export const hostDiagnosticsSchema = {
     "routeCount",
     "multiplexer",
     "available",
-    "checks"
+    "checks",
+    "latestAvailableVersion",
+    "releaseNotes"
   ],
   additionalProperties: false,
   properties: {
@@ -650,7 +656,9 @@ export const hostDiagnosticsSchema = {
       additionalProperties: false,
       properties: { tmux: { type: "boolean" }, herdr: { type: "boolean" } }
     },
-    checks: { type: "array", items: hostDiagnosticCheckSchema }
+    checks: { type: "array", items: hostDiagnosticCheckSchema },
+    latestAvailableVersion: { type: ["string", "null"] },
+    releaseNotes: { type: ["string", "null"] }
   }
 } as const;
 

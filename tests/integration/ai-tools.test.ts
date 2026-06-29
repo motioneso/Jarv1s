@@ -447,6 +447,7 @@ describe("AI read-only assistant tool execution foundation", () => {
   it("keeps assistant tools queue-free and repository access DataContext-only", async () => {
     expect(getAllQueueDefinitions().map((queue) => queue.name)).toEqual([
       "rls-probe",
+      "system.upgrade-check",
       "export.build",
       "export.cleanup",
       "connectors.google-sync",
