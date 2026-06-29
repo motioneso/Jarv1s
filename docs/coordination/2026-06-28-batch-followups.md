@@ -12,9 +12,9 @@ Previous coordinator (f8a5b8f7) closed. New coordinator session 3f4772c2 driving
 
 Open items:
 - PR #581 (UI-Polish, routine): QA GREEN per relay-1 note (code clean). CI Verify re-run pending (Playwright infra race; main green @ 87f6f5f). When CI passes → merge immediately. If fails twice → stop-the-line + Ben.
-- PR #582 (Wellness-Fixes, sensitive): old QA agent verdict lost on relay. Re-spawn QA once CI passes. CI Verify pending.
+- PR #582 (Wellness-Fixes, sensitive): old QA agent verdict lost on relay. CI Verify PASSED. QA-Wellness-582 spawned via Herdr fallback (coordinated-qa subagent type not registered) at w1:p6W, Sonnet, jarvis_qa_1. Awaiting verdict.
 - Memory-Cleanup: relay-1 said 2% left → successor spawned. Pane shows 40% context (successor active), running `pnpm test`. No PR yet.
-- Calendar-Monitor: Tasks A+B done, running verify:foundation. PR not yet open.
+- Calendar-Monitor: DONE. PR #583 open (VF_EXIT=0, AUDIT_EXIT=0, isolated DB jarvis_calmon). Tier: sensitive. QA-Calendar-583 spawned at w1:p6X via Herdr fallback, Sonnet, jarvis_qa_2. Awaiting verdict.
 - db:migrate contention: both #581/#582 have zero DB surface; contention is shared-dev-Postgres state from migration 0128. Not a regression; scope QA to non-DB gate.
 
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
