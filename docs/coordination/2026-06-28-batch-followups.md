@@ -4,7 +4,7 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `820cbf4d-32f1-40db-837f-d0900a08767f`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 0 (reset — relay 3 fired after #583 security merge)
+**merges_since_relay:** 1 (PR #581 UI-Polish routine merged @ f11ca93e with Ben CI waiver)
 
 ## Continuation note (relay 4 — adopted by coord session 820cbf4d @ 2026-06-28)
 
@@ -16,7 +16,7 @@ Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run
 
 **Open items:**
 
-1. **PR #581 (UI-Polish, routine)** — QA GREEN (prev coordinator). Ben: "merge yes" verbal 2026-06-28. CI re-run 28341205471 failed (ECONNREFUSED infra race, not code). Re-queued fresh run on adoption. Merge when new run green, OR apply Ben waiver if second run also fails. Do NOT re-run QA.
+1. **PR #581 (UI-Polish, routine)** — MERGED @ f11ca93e (2026-06-29 01:37Z). Ben CI waiver applied (2× ECONNREFUSED infra race). Issues #480 #512 closed. Board Done. Worktree reaped.
 
 2. **Memory-Cleanup** — agent session `718062f3`, pane `Memory-Cleanup`, still building (~44% ctx). No PR yet. Issues #554 #555 #560 #561 #562 #565 (sensitive). Spawn QA when agent reports done.
 
@@ -38,7 +38,7 @@ Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run
 | #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | building | memory-cleanup   | —   |
 | #505, #509                         | Wellness-Fixes   | sensitive | merged   | wellness-fixes   | #582 |
 | #564, #567                         | Calendar-Monitor | sensitive | merged   | calendar-monitor | #583 |
-| #480, #512                         | UI-Polish        | routine   | qa       | ui-polish        | #581 |
+| #480, #512                         | UI-Polish        | routine   | merged   | ui-polish        | #581 |
 
 **Deferred (needs spec before build):**
 
