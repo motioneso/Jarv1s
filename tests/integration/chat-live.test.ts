@@ -125,6 +125,36 @@ describe("chat live runtime repository (recency + executed-model stamp)", () => 
     );
     expect(current).toBeUndefined();
   });
+
+  it("listThreads orders by last_active_at DESC — touchThread on older thread floats it to the top", async () => {
+    // Create two threads; second is newer.
+    const threadA = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.openNewThread(scopedDb, { title: "Ordering-A" })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const threadB = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.openNewThread(scopedDb, { title: "Ordering-B" })
+    );
+
+    // B is newer → should be first in listThreads.
+    const before = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listThreads(scopedDb)
+    );
+    const beforeIds = before.map((t) => t.id);
+    expect(beforeIds.indexOf(threadB.id)).toBeLessThan(beforeIds.indexOf(threadA.id));
+
+    // Touch A → A becomes most-recently-active → should float to top.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.touchThread(scopedDb, threadA.id)
+    );
+
+    const after = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listThreads(scopedDb)
+    );
+    const afterIds = after.map((t) => t.id);
+    expect(afterIds.indexOf(threadA.id)).toBeLessThan(afterIds.indexOf(threadB.id));
+  });
 });
 
 describe("passive context retrieval integration", () => {

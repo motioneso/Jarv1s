@@ -684,7 +684,14 @@ export class ChatSessionManager {
    * Throws `ChatThreadNotFoundError` when the thread is absent or belongs to another user.
    */
   async resumeThread(actorUserId: string, threadId: string): Promise<void> {
-    // Stop any in-flight turn (idempotent no-op when none is in flight).
+    // Validate ownership FIRST — a stale or foreign id must NOT disrupt the active session.
+    // Only after confirming the thread exists and belongs to this user do we stop/drop.
+    const found = await this.deps.persistence.touchExistingThread(actorUserId, threadId);
+    if (!found) {
+      throw new ChatThreadNotFoundError();
+    }
+
+    // Thread confirmed valid. Stop any in-flight turn (idempotent no-op when none is in flight).
     await this.stopTurn(actorUserId);
 
     // Drop the live engine so the next submitTurn launches fresh from the resumed thread.
@@ -697,12 +704,6 @@ export class ChatSessionManager {
       }
       this.sessions.delete(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
-    }
-
-    // Promote the target thread to "current" by bumping its last_active_at.
-    const found = await this.deps.persistence.touchExistingThread(actorUserId, threadId);
-    if (!found) {
-      throw new ChatThreadNotFoundError();
     }
   }
 

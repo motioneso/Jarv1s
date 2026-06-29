@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ChatSessionManager,
+  ChatThreadNotFoundError,
   ChatTurnInFlightError,
   combineHiddenContextBlocks,
   renderReplayBlock,
@@ -938,6 +939,104 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     // No turn in flight — must not throw, must not emit anything.
     await expect(manager.stopTurn("u1")).resolves.toBeUndefined();
     expect(received).toHaveLength(0);
+  });
+});
+
+// ── ChatSessionManager.resumeThread ──────────────────────────────────────────
+
+describe("ChatSessionManager.resumeThread", () => {
+  function resumeDeps(touchResult: boolean, revokeMcpToken?: ReturnType<typeof vi.fn>) {
+    const engine = new FakeEngine(0);
+    const deps = makeMinimalDeps({
+      engineFactory: () => engine,
+      pollMs: 0,
+      revokeMcpToken,
+      persistence: {
+        resolveActiveProvider: vi
+          .fn()
+          .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+        listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+        recordTurn: vi.fn().mockResolvedValue(undefined),
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null }),
+        touchExistingThread: vi.fn().mockResolvedValue(touchResult)
+      }
+    });
+    return { deps, engine };
+  }
+
+  it("happy-path: valid threadId — touchExistingThread called, session killed, revokeMcpToken invoked", async () => {
+    const revokeMcpToken = vi.fn();
+    const { deps, engine } = resumeDeps(true, revokeMcpToken);
+    const manager = new ChatSessionManager(deps);
+
+    // Seed an active session first.
+    await manager.ensureSession("u1", "Ben");
+    expect(engine.killed).toBe(false);
+
+    await manager.resumeThread("u1", "thread-abc");
+
+    expect(deps.persistence.touchExistingThread).toHaveBeenCalledWith("u1", "thread-abc");
+    expect(engine.killed).toBe(true);
+    expect(revokeMcpToken).toHaveBeenCalledWith("u1");
+  });
+
+  it("not-found: touchExistingThread returns false → ChatThreadNotFoundError, active session untouched", async () => {
+    const revokeMcpToken = vi.fn();
+    const { deps, engine } = resumeDeps(false, revokeMcpToken);
+    const manager = new ChatSessionManager(deps);
+
+    // Seed an active session.
+    await manager.ensureSession("u1", "Ben");
+
+    await expect(manager.resumeThread("u1", "foreign-thread-id")).rejects.toBeInstanceOf(
+      ChatThreadNotFoundError
+    );
+
+    // The active session must be completely untouched — engine not killed, token not revoked.
+    expect(engine.killed).toBe(false);
+    expect(revokeMcpToken).not.toHaveBeenCalled();
+  });
+
+  it("ordering guard: touchExistingThread runs BEFORE stopTurn (foreign id never disrupts live chat)", async () => {
+    // Wire a persistence that tracks call order. touchExistingThread returns false (foreign id).
+    const callOrder: string[] = [];
+    const engine = new FakeEngine(0);
+    const manager = new ChatSessionManager(
+      makeMinimalDeps({
+        engineFactory: () => engine,
+        pollMs: 0,
+        persistence: {
+          resolveActiveProvider: vi
+            .fn()
+            .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+          listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+          recordTurn: vi.fn().mockResolvedValue(undefined),
+          openNewConversation: vi.fn().mockResolvedValue(undefined),
+          getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null }),
+          touchExistingThread: vi.fn().mockImplementation(async () => {
+            callOrder.push("touchExistingThread");
+            return false;
+          })
+        }
+      })
+    );
+
+    await manager.ensureSession("u1", "Ben");
+    // Override the engine's kill to track if it's called.
+    const origKill = engine.kill.bind(engine);
+    engine.kill = vi.fn().mockImplementation(async () => {
+      callOrder.push("engine.kill");
+      return origKill();
+    }) as unknown as FakeEngine["kill"];
+
+    await expect(manager.resumeThread("u1", "bad-id")).rejects.toBeInstanceOf(
+      ChatThreadNotFoundError
+    );
+
+    // touchExistingThread must have fired; engine.kill must NOT have fired (thread check came first).
+    expect(callOrder).toContain("touchExistingThread");
+    expect(callOrder).not.toContain("engine.kill");
   });
 });
 
