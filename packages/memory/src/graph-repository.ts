@@ -70,6 +70,10 @@ export interface SourceRow {
   readonly excerpt: string;
 }
 
+// All multi-write methods (confirmFact, correctFact, patchFactStatus) assume the caller
+// provides a DataContextDb whose .db is already a Kysely Transaction — guaranteed by
+// withDataContext (packages/db/src/data-context.ts). If any write in the method throws,
+// the caller's transaction rolls back atomically. assertDataContextDb() enforces this seam.
 export class MemoryGraphRepository {
   async ensureSelfEntity(
     scopedDb: DataContextDb,
@@ -92,6 +96,23 @@ export class MemoryGraphRepository {
     const row = result.rows[0];
     if (!row) throw new Error("self memory entity was not created");
     return mapEntity(row);
+  }
+
+  async listActiveFactsBySubjectPredicate(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    subjectEntityId: string,
+    predicate: string
+  ): Promise<{ id: string }[]> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ id: string }>`
+      SELECT id FROM app.memory_facts
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND subject_entity_id = ${subjectEntityId}::uuid
+        AND predicate = ${predicate}
+        AND status = 'active'
+    `.execute(scopedDb.db);
+    return result.rows;
   }
 
   async createEntity(
@@ -687,6 +708,12 @@ export class MemoryGraphRepository {
     if (!existing) return undefined;
     if (existing.conflictGroupId) {
       throw new Error("conflict-group memory must be resolved with confirm or correct");
+    }
+    if (existing.supersededByFactId != null && input.status === "active") {
+      throw Object.assign(
+        new Error("Cannot reactivate a superseded memory record; create a new fact instead"),
+        { code: "SUPERSEDED_REACTIVATION_BLOCKED" }
+      );
     }
 
     const result = await sql<FactRow>`

@@ -50,7 +50,7 @@ export function registerMemoryDashboardRoutes(
           limit: typeof q.limit === "number" ? q.limit : undefined,
           cursor: typeof q.cursor === "string" ? q.cursor : undefined
         };
-        return dependencies.dataContext.withDataContext(access, async (scopedDb) => {
+        return await dependencies.dataContext.withDataContext(access, async (scopedDb) => {
           const svc = await createDashboardService(scopedDb, graphRepo);
           return svc.getDashboard(scopedDb, access.actorUserId, query);
         });
@@ -204,6 +204,9 @@ function handleDashboardRouteError(error: unknown, reply: FastifyReply) {
   }
   if (error instanceof Error && (error as NodeJS.ErrnoException).code === "EMPTY_OBJECT_TEXT") {
     return reply.code(400).send({ error: error.message });
+  }
+  if (error instanceof Error && (error as NodeJS.ErrnoException).code === "SELF_ENTITY_PROTECTED") {
+    return reply.code(403).send({ error: error.message });
   }
   throw error;
 }

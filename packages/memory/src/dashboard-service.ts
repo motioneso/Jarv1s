@@ -19,7 +19,8 @@ import type {
   MemoryFactPredicate,
   MemoryFactRecord,
   MemoryRecordKind,
-  MemorySourceInput
+  MemorySourceInput,
+  MemorySourceSummary
 } from "./graph-types.js";
 
 const DEFAULT_LIMIT = 25;
@@ -137,19 +138,46 @@ export class MemoryDashboardService {
         "preference") as MemoryRecordKind;
 
       const selfEntity = await this.graphRepo.ensureSelfEntity(scopedDb, ownerUserId);
-      const result = await this.recallSvc.remember(scopedDb, ownerUserId, {
-        subjectEntityId: selfEntity.id,
-        predicate: predicate as MemoryFactPredicate,
-        objectText,
-        recordKind,
-        confidence: 1.0,
-        provenance: "confirmed",
-        pinned: edited?.pinned,
-        source: dashboardSource
-      });
+
+      // #561: if an active fact with the same predicate already exists on the self-entity,
+      // route through correctFact (supersede) instead of creating a duplicate active fact.
+      const conflicts = await this.graphRepo.listActiveFactsBySubjectPredicate(
+        scopedDb,
+        ownerUserId,
+        selfEntity.id,
+        predicate
+      );
+
+      let acceptedFact: MemoryFactRecord;
+      if (conflicts.length > 0 && conflicts[0]) {
+        const corrected = await this.recallSvc.correct(scopedDb, ownerUserId, {
+          targetFactId: conflicts[0].id,
+          replacementText: objectText
+        });
+        if (!corrected) {
+          const err = new Error(
+            "Conflict resolution failed — target fact not found"
+          ) as NodeJS.ErrnoException;
+          err.code = "CONFLICT_RESOLUTION_FAILED";
+          throw err;
+        }
+        acceptedFact = corrected;
+      } else {
+        const result = await this.recallSvc.remember(scopedDb, ownerUserId, {
+          subjectEntityId: selfEntity.id,
+          predicate: predicate as MemoryFactPredicate,
+          objectText,
+          recordKind,
+          confidence: 1.0,
+          provenance: "confirmed",
+          pinned: edited?.pinned,
+          source: dashboardSource
+        });
+        acceptedFact = result.fact;
+      }
 
       if (edited?.validFrom != null || edited?.validTo != null || edited?.staleAt != null) {
-        await this.dashRepo.patchFactLifecycle(scopedDb, ownerUserId, result.fact.id, {
+        await this.dashRepo.patchFactLifecycle(scopedDb, ownerUserId, acceptedFact.id, {
           validFrom: edited.validFrom ?? null,
           validTo: edited.validTo ?? null,
           staleAt: edited.staleAt ?? null
@@ -268,6 +296,31 @@ function statusFilterToFactStatuses(filter: string): string[] {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const INTERNAL_REF_PREFIX_RE = /^(?:memory|internal|ref|id):/i;
+
+function isRawInternalRef(ref: string): boolean {
+  return UUID_RE.test(ref) || INTERNAL_REF_PREFIX_RE.test(ref);
+}
+
+const SOURCE_KIND_LABELS: Record<string, string> = {
+  chat: "Chat",
+  note: "Note",
+  task: "Task",
+  email: "Email",
+  calendar: "Calendar",
+  manual: "Manual"
+};
+
+function safeSourceSummary(source: MemorySourceSummary | undefined): string {
+  if (!source) return "";
+  if (source.sourceLabel) return source.sourceLabel;
+  if (isRawInternalRef(source.sourceRef)) {
+    return SOURCE_KIND_LABELS[source.sourceKind] ?? "Memory";
+  }
+  return source.sourceRef;
+}
+
 function candidateToItem(c: MemoryCandidateRecord): MemoryDashboardItem {
   const payload = c.payloadJson as Record<string, unknown> | null;
   const title = extractCandidateTitle(payload);
@@ -303,7 +356,7 @@ function factToItem(f: MemoryFactRecord): MemoryDashboardItem {
     confidence: f.confidence,
     confidenceTier: f.confidenceTier,
     provenance: f.provenance,
-    sourceSummary: source?.sourceLabel ?? source?.sourceRef ?? "",
+    sourceSummary: safeSourceSummary(source),
     sourceKind: source?.sourceKind ?? "chat",
     createdAt: f.createdAt.toISOString(),
     updatedAt: f.updatedAt.toISOString(),

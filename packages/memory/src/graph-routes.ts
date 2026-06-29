@@ -275,5 +275,11 @@ function handleMemoryGraphRouteError(error: unknown, reply: FastifyReply) {
   if (error instanceof Error && error.message.includes("conflict-group memory")) {
     return reply.code(400).send({ error: error.message });
   }
+  if (
+    error instanceof Error &&
+    (error as NodeJS.ErrnoException).code === "SUPERSEDED_REACTIVATION_BLOCKED"
+  ) {
+    return reply.code(400).send({ error: error.message });
+  }
   throw error;
 }

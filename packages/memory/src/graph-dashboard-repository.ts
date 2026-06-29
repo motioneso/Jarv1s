@@ -27,7 +27,7 @@ export class MemoryGraphDashboardRepository {
       FROM app.memory_facts
       WHERE owner_user_id = ${ownerUserId}::uuid
         AND status = ANY(${statuses}::text[])
-        AND (${opts.recordKind ?? null} IS NULL OR record_kind = ${opts.recordKind ?? null})
+        AND (${opts.recordKind ?? null}::text IS NULL OR record_kind = ${opts.recordKind ?? null}::text)
         AND (${opts.cursor ?? null}::uuid IS NULL OR id < ${opts.cursor ?? null}::uuid)
       ORDER BY
         CASE WHEN status = 'conflicting' THEN 0
@@ -185,6 +185,17 @@ export class MemoryGraphDashboardRepository {
     entityId: string
   ): Promise<{ deleted: boolean; blockedByFacts: boolean }> {
     assertDataContextDb(scopedDb);
+
+    const entityKindResult = await sql<{ kind: string }>`
+      SELECT kind FROM app.memory_entities
+      WHERE owner_user_id = ${ownerUserId}::uuid
+        AND id = ${entityId}::uuid
+    `.execute(scopedDb.db);
+    if (entityKindResult.rows[0]?.kind === "self") {
+      throw Object.assign(new Error("Cannot delete the self entity"), {
+        code: "SELF_ENTITY_PROTECTED"
+      });
+    }
 
     const factCount = await sql<{ cnt: string }>`
       SELECT COUNT(*) AS cnt

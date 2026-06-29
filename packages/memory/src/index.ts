@@ -34,7 +34,12 @@ export {
 } from "./manual-candidates.js";
 export type { ParsedDocument, TextChunk } from "./parser.js";
 export { parseDocument } from "./parser.js";
-export type { NewChunkData, RetrievedChunk } from "./repository.js";
+export type {
+  NewChunkData,
+  RetrievedChunk,
+  VaultFileChunk,
+  VaultFileWithChunks
+} from "./repository.js";
 export { MemoryRepository } from "./repository.js";
 export { MemoryRetriever } from "./retrieval.js";
 export type {

@@ -15,6 +15,7 @@ import {
   GraphMemoryRecallService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
+  registerMemoryDashboardRoutes,
   registerMemoryGraphRoutes,
   StubEmbeddingProvider,
   type MemoryFactPredicate
@@ -41,6 +42,7 @@ let migrationDb: Kysely<JarvisDatabase>;
 let appDataContext: DataContextRunner;
 let workerDataContext: DataContextRunner;
 let graphServer: FastifyInstance;
+let dashboardServer: FastifyInstance;
 let originalEmbedProvider: string | undefined;
 
 beforeAll(async () => {
@@ -61,10 +63,17 @@ beforeAll(async () => {
     resolveAccessContext
   });
   await graphServer.ready();
+  dashboardServer = Fastify();
+  registerMemoryDashboardRoutes(dashboardServer, {
+    dataContext: appDataContext,
+    resolveAccessContext
+  });
+  await dashboardServer.ready();
 });
 
 afterAll(async () => {
   await graphServer?.close();
+  await dashboardServer?.close();
   await appDb?.destroy();
   await workerDb?.destroy();
   await migrationDb?.destroy();
@@ -703,6 +712,441 @@ async function expectGraphIsolation(
     }
   );
 }
+
+describe("transaction atomicity (#554)", () => {
+  const repo = new MemoryGraphRepository();
+
+  it("rolls back confirmFact writes when the withDataContext callback throws", async () => {
+    let factId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:confirmFact:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `atomicity-confirm-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:atomicity-confirm",
+            excerpt: "atomicity"
+          }
+        });
+        factId = fact.id;
+      }
+    );
+
+    await expect(
+      appDataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "atomicity:confirmFact:fail" },
+        async (db) => {
+          await repo.confirmFact(db, ids.userA, factId);
+          throw new Error("simulated mid-operation failure");
+        }
+      )
+    ).rejects.toThrow("simulated mid-operation failure");
+
+    const check = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:confirmFact:check" },
+      async (db) => {
+        const result = await sql<{ provenance: string }>`
+          SELECT provenance FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid AND id = ${factId}::uuid
+        `.execute(db.db);
+        return result.rows[0];
+      }
+    );
+    expect(check?.provenance).toBe("volunteered");
+  });
+
+  it("rolls back correctFact writes when the withDataContext callback throws", async () => {
+    let factId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:correctFact:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `atomicity-correct-original-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:atomicity-correct",
+            excerpt: "atomicity"
+          }
+        });
+        factId = fact.id;
+      }
+    );
+
+    await expect(
+      appDataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "atomicity:correctFact:fail" },
+        async (db) => {
+          await repo.correctFact(db, ids.userA, {
+            targetFactId: factId,
+            replacementText: "atomicity-correct-replacement"
+          });
+          throw new Error("simulated mid-operation failure");
+        }
+      )
+    ).rejects.toThrow("simulated mid-operation failure");
+
+    const check = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:correctFact:check" },
+      async (db) => {
+        const result = await sql<{ status: string; object_text: string }>`
+          SELECT status, object_text FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid
+            AND object_text LIKE 'atomicity-correct-%'
+        `.execute(db.db);
+        return result.rows;
+      }
+    );
+    expect(check).toHaveLength(1);
+    expect(check[0]?.status).toBe("active");
+    expect(check[0]?.object_text).toMatch(/original/);
+  });
+
+  it("rolls back patchFactStatus writes when the withDataContext callback throws", async () => {
+    let factId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:patchStatus:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `atomicity-patch-status-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:atomicity-patch",
+            excerpt: "atomicity"
+          }
+        });
+        factId = fact.id;
+      }
+    );
+
+    await expect(
+      appDataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "atomicity:patchStatus:fail" },
+        async (db) => {
+          await repo.patchFactStatus(db, ids.userA, factId, { status: "stale" });
+          throw new Error("simulated mid-operation failure");
+        }
+      )
+    ).rejects.toThrow("simulated mid-operation failure");
+
+    const check = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:patchStatus:check" },
+      async (db) => {
+        const result = await sql<{ status: string }>`
+          SELECT status FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid AND id = ${factId}::uuid
+        `.execute(db.db);
+        return result.rows[0];
+      }
+    );
+    expect(check?.status).toBe("active");
+  });
+});
+
+describe("patchFactStatus superseded guard (#555)", () => {
+  const repo = new MemoryGraphRepository();
+
+  it("rejects reactivation of a superseded fact with 400", async () => {
+    let originalFactId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "555:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `superseded-guard-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: { sourceKind: "manual", sourceRef: "manual:555", excerpt: "555 guard" }
+        });
+        originalFactId = fact.id;
+        await repo.correctFact(db, ids.userA, {
+          targetFactId: originalFactId,
+          replacementText: "replacement for superseded guard"
+        });
+      }
+    );
+
+    const response = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${originalFactId}/status`,
+      headers: { authorization: "Bearer user-a" },
+      payload: { status: "active" }
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { error: string };
+    expect(body.error).toMatch(/superseded/i);
+  });
+
+  it("still allows patching non-active statuses on a superseded fact", async () => {
+    let originalFactId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "555:allow-stale-setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `superseded-allow-stale-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: { sourceKind: "manual", sourceRef: "manual:555-stale", excerpt: "555 stale" }
+        });
+        originalFactId = fact.id;
+        await repo.correctFact(db, ids.userA, {
+          targetFactId: originalFactId,
+          replacementText: "replacement for stale allow"
+        });
+      }
+    );
+
+    const response = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${originalFactId}/status`,
+      headers: { authorization: "Bearer user-a" },
+      payload: { status: "rejected" }
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+});
+
+describe("self-entity delete protection (#560)", () => {
+  const repo = new MemoryGraphRepository();
+
+  it("returns 403 when deleting the self entity via dashboard route", async () => {
+    let selfEntityId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "560:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        selfEntityId = self.id;
+      }
+    );
+
+    const response = await dashboardServer.inject({
+      method: "DELETE",
+      url: `/api/memory/graph/entities/${selfEntityId}`,
+      headers: { authorization: "Bearer user-a" }
+    });
+
+    expect(response.statusCode).toBe(403);
+    const body = JSON.parse(response.body) as { error: string };
+    expect(body.error).toMatch(/self entity/i);
+  });
+
+  it("still allows deleting non-self entities with no facts", async () => {
+    let projectEntityId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "560:allow-setup" },
+      async (db) => {
+        const entity = await repo.createEntity(db, ids.userA, {
+          kind: "project",
+          name: `deletable-project-${randomUUID()}`,
+          summary: "test project",
+          importance: 0.5,
+          pinned: false
+        });
+        projectEntityId = entity.id;
+      }
+    );
+
+    const response = await dashboardServer.inject({
+      method: "DELETE",
+      url: `/api/memory/graph/entities/${projectEntityId}`,
+      headers: { authorization: "Bearer user-a" }
+    });
+
+    expect(response.statusCode).toBe(204);
+  });
+});
+
+describe("acceptCandidate conflict routing (#561)", () => {
+  const repo = new MemoryGraphRepository();
+  const candidatesRepo = new MemoryCandidatesRepository();
+
+  it("supersedes existing active fact when accepting a conflicting candidate", async () => {
+    let candidateId!: string;
+    let updatedObjectText!: string;
+    const uniquePredicate = "prefers" as MemoryFactPredicate;
+
+    // Supersede any pre-existing "prefers" facts so we start clean for this assertion.
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "561:cleanup" },
+      async (db) => {
+        await sql`
+          UPDATE app.memory_facts
+          SET status = 'expired', updated_at = now()
+          WHERE owner_user_id = ${ids.userA}::uuid
+            AND predicate = 'prefers'
+            AND status = 'active'
+        `.execute(db.db);
+      }
+    );
+
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "561:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: uniquePredicate,
+          objectText: `original-pref-${randomUUID()}`,
+          confidence: 0.8,
+          provenance: "confirmed",
+          source: { sourceKind: "manual", sourceRef: "manual:561-existing", excerpt: "existing" }
+        });
+
+        updatedObjectText = `updated-pref-${randomUUID()}`;
+        const sig = createMemoryCandidateSignature({
+          kind: "fact",
+          action: "create",
+          fact: { predicate: uniquePredicate, objectText: updatedObjectText }
+        });
+        const candidate = await candidatesRepo.insertPending(db, ids.userA, {
+          episodeId: null,
+          kind: "fact",
+          action: "create",
+          confidence: 0.9,
+          importance: 0.5,
+          provenance: "inferred",
+          candidateSignature: sig,
+          payloadJson: {
+            kind: "fact",
+            fact: { predicate: uniquePredicate, objectText: updatedObjectText }
+          }
+        });
+        candidateId = candidate.id;
+      }
+    );
+
+    const response = await dashboardServer.inject({
+      method: "POST",
+      url: `/api/memory/candidates/${candidateId}/accept`,
+      headers: { authorization: "Bearer user-a" },
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { accepted: boolean };
+    expect(body.accepted).toBe(true);
+
+    // Verify: the replacement fact (with updatedObjectText) is now active,
+    // and there is exactly one active "prefers" fact (the old one was superseded).
+    const activePrefers = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "561:check" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const result = await sql<{ object_text: string }>`
+          SELECT object_text FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid
+            AND subject_entity_id = ${self.id}::uuid
+            AND predicate = 'prefers'
+            AND status = 'active'
+        `.execute(db.db);
+        return result.rows;
+      }
+    );
+    expect(activePrefers).toHaveLength(1);
+    expect(activePrefers[0]?.object_text).toBe(updatedObjectText);
+  });
+});
+
+describe("factToItem sourceSummary privacy (#562)", () => {
+  const repo = new MemoryGraphRepository();
+
+  it("does not expose raw UUID sourceRef in sourceSummary when sourceLabel is absent", async () => {
+    const rawUuid = randomUUID();
+    let factId!: string;
+
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "562:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `source-privacy-test-${randomUUID()}`,
+          confidence: 0.6,
+          provenance: "inferred",
+          source: { sourceKind: "chat", sourceRef: rawUuid, sourceLabel: "", excerpt: "test" }
+        });
+        factId = fact.id;
+      }
+    );
+
+    const response = await dashboardServer.inject({
+      method: "GET",
+      url: `/api/memory/dashboard?status=active&limit=100`,
+      headers: { authorization: "Bearer user-a" }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as {
+      items: Array<{ id: string; sourceSummary: string }>;
+    };
+    const item = body.items.find((i) => i.id === factId);
+    expect(item).toBeDefined();
+    expect(item?.sourceSummary).not.toBe(rawUuid);
+    expect(item?.sourceSummary).toBe("Chat");
+  });
+
+  it("uses sourceLabel when present even if sourceRef is a UUID", async () => {
+    const rawUuid = randomUUID();
+    let factId!: string;
+
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "562:label-setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `source-label-test-${randomUUID()}`,
+          confidence: 0.6,
+          provenance: "inferred",
+          source: {
+            sourceKind: "chat",
+            sourceRef: rawUuid,
+            sourceLabel: "My Chat",
+            excerpt: "test"
+          }
+        });
+        factId = fact.id;
+      }
+    );
+
+    const response = await dashboardServer.inject({
+      method: "GET",
+      url: `/api/memory/dashboard?status=active&limit=100`,
+      headers: { authorization: "Bearer user-a" }
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as {
+      items: Array<{ id: string; sourceSummary: string }>;
+    };
+    const item = body.items.find((i) => i.id === factId);
+    expect(item?.sourceSummary).toBe("My Chat");
+  });
+});
 
 async function resolveAccessContext(request: FastifyRequest) {
   const auth = request.headers.authorization;
