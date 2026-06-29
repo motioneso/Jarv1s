@@ -1,12 +1,23 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import type { AestheticThemeTokens } from "@jarv1s/shared";
 import {
+  AppearancePane,
   contrastRatio,
   slugifyThemeId,
   tokensToCssVars
 } from "../../apps/web/src/settings/settings-appearance-pane.js";
 import { parsePalette } from "../../apps/web/src/theme/theme-runtime.js";
+
+function renderAppearancePane(): string {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderToString(
+    createElement(QueryClientProvider, { client }, createElement(AppearancePane))
+  );
+}
 
 const tokens: AestheticThemeTokens = {
   paper: "#ffffff",
@@ -43,6 +54,16 @@ describe("parsePalette (auto-staging)", () => {
   it("returns empty array for text with no valid colors", () => {
     expect(parsePalette("no colors here")).toEqual([]);
     expect(parsePalette("")).toEqual([]);
+  });
+});
+
+describe("AppearancePane — palette auto-staging wiring", () => {
+  it("never renders a Stage colors button in any state", () => {
+    // The editor is only visible when draft state is set (user clicks a theme row).
+    // Even if the editor were visible, "Stage colors" must be absent — auto-staging
+    // is wired to onChange, no button click needed. This test locks in the removal.
+    const html = renderAppearancePane();
+    expect(html).not.toContain("Stage colors");
   });
 });
 

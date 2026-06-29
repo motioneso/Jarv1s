@@ -232,7 +232,15 @@ export function AppearancePane() {
                 onChange={(event) => {
                   const text = event.target.value;
                   setPaletteText(text);
-                  setStaged(parsePalette(text));
+                  const colors = parsePalette(text);
+                  setStaged(colors);
+                  if (colors.length > 0) setError(null);
+                }}
+                onPaste={(event) => {
+                  const pasted = event.clipboardData.getData("text");
+                  if (pasted.trim().length > 0 && parsePalette(pasted).length === 0) {
+                    setError("Paste #rrggbb or rgb(r, g, b) values.");
+                  }
                 }}
               />
             </Field>
