@@ -65,6 +65,19 @@ import type {
   UserDto
 } from "@jarv1s/shared";
 
+function compareVersions(a: string, b: string): number {
+  const parse = (v: string) => v.replace(/^v/, "").split(".").map(Number);
+  const pa = parse(a);
+  const pb = parse(b);
+  for (let i = 0; i < 3; i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va > vb) return 1;
+    if (va < vb) return -1;
+  }
+  return 0;
+}
+
 function roleLabel(user: UserDto): string {
   return user.isBootstrapOwner ? "Owner" : user.isInstanceAdmin ? "Admin" : "Member";
 }
@@ -841,7 +854,7 @@ export function HostPane({ advanced }: PaneProps) {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {diag.version ?? "—"}
                   {diag.latestAvailableVersion &&
-                    diag.latestAvailableVersion > (diag.version ?? "") && (
+                    compareVersions(diag.latestAvailableVersion, diag.version ?? "") > 0 && (
                       <Badge tone="pine">Update Available ({diag.latestAvailableVersion})</Badge>
                     )}
                 </div>
