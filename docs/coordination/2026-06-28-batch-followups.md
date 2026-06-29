@@ -1,31 +1,31 @@
 # Coordination Run — 2026-06-28-batch-followups
 
 **Date:** 2026-06-28
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `3f4772c2-f6c7-475f-bb0c-f22963a8929b`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `820cbf4d-32f1-40db-837f-d0900a08767f`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (reset — relay 3 fired after #583 security merge)
 
-## Continuation note (relay 3 — security merge @ coord session 3f4772c2)
+## Continuation note (relay 4 — adopted by coord session 820cbf4d @ 2026-06-28)
 
-#582 (sensitive) + #583 (security) both merged this session. Relay triggered by security-tier merge rule.
+Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run.
 
-**Merged this session:**
+**All-time merged this run:**
 - PR #582 (Wellness-Fixes, sensitive): MERGED @ 1f13662e. Issues #505 #509 closed. Board Done.
-- PR #583 (Calendar-Monitor, security): MERGED @ e285869d. Issues #567 closed (#564 already closed). Board Done. Opus QA GREEN — verdict: https://github.com/motioneso/Jarv1s/pull/583#issuecomment-4828159043.
+- PR #583 (Calendar-Monitor, security): MERGED @ e285869d. Issues #567 closed (#564 already closed). Board Done.
 
-**Successor open items:**
+**Open items:**
 
-1. **PR #581 (UI-Polish, routine)** — Ben approved merge ("merge yes"). CI waiver: ECONNREFUSED infra race (not code regression), 2× failures on run 28341205471, main green @ 87f6f5f + 1f13662e. QA GREEN (code clean). Successor: record ci_waiver in manifest, trigger one more CI re-run (`gh pr checks 581` and re-queue), and merge if green. OR merge directly with Ben's verbal waiver already on record here. Do NOT re-run full QA.
+1. **PR #581 (UI-Polish, routine)** — QA GREEN (prev coordinator). Ben: "merge yes" verbal 2026-06-28. CI re-run 28341205471 failed (ECONNREFUSED infra race, not code). Re-queued fresh run on adoption. Merge when new run green, OR apply Ben waiver if second run also fails. Do NOT re-run QA.
 
-2. **#584 (Playwright CI flake)** — Ben wants to add to this run ("can we quickly add on 584?"). GATE: needs task issue (exists: #584) + approved spec. Successor: write a minimal spec with Ben (fix: add API health-check wait in Playwright setup / CI yaml before test runner starts). Then spawn agent after spec approved.
+2. **Memory-Cleanup** — agent session `718062f3`, pane `Memory-Cleanup`, still building (~44% ctx). No PR yet. Issues #554 #555 #560 #561 #562 #565 (sensitive). Spawn QA when agent reports done.
 
-3. **Memory-Cleanup** — agent session `718062f3` at pane labelled `Memory-Cleanup`, still building (was ~53% ctx, 56m elapsed). No PR yet. Issues #554 #555 #560 #561 #562 #565 (sensitive). Check pane on adoption; spawn QA when it reports done.
+3. **#584 (Playwright CI flake)** — Ben wants in this run. Needs approved spec. Successor action: write minimal spec with Ben, spawn agent after approval.
 
-4. **UI-Polish worktree** (`.claude/worktrees/ui-polish`) — do NOT remove until #581 is merged.
+4. **UI-Polish worktree** (`.claude/worktrees/ui-polish`) — do NOT remove until #581 merged.
 
-**ci_waivers (pending Ben verbal, record here):**
-- PR #581, check "Verify foundation and app", run 28341205471, SHA d094ab11 on PR branch. Failure: ECONNREFUSED infra race. Proven not on PR code (main green same SHA range). Ben: "merge yes" 2026-06-28.
+**ci_waivers:**
+- PR #581, check "Verify foundation and app", run 28341205471, SHA d094ab11 on PR branch. Failure: ECONNREFUSED infra race. Proven not on PR code (main green same SHA range). Ben: "merge yes" 2026-06-28. **Fresh re-run triggered on adoption — merge when green, or waive if fails again.**
 
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
 > coordinator adopt this run after a self-handoff. GitHub is the source of truth for
@@ -36,8 +36,8 @@
 | Issues                             | Label            | Tier      | Status   | Branch           | PR  |
 | ---------------------------------- | ---------------- | --------- | -------- | ---------------- | --- |
 | #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | building | memory-cleanup   | —   |
-| #505, #509                         | Wellness-Fixes   | sensitive | qa       | wellness-fixes   | #582 |
-| #564, #567                         | Calendar-Monitor | sensitive | building | calendar-monitor | —   |
+| #505, #509                         | Wellness-Fixes   | sensitive | merged   | wellness-fixes   | #582 |
+| #564, #567                         | Calendar-Monitor | sensitive | merged   | calendar-monitor | #583 |
 | #480, #512                         | UI-Polish        | routine   | qa       | ui-polish        | #581 |
 
 **Deferred (needs spec before build):**
