@@ -6,6 +6,7 @@ import {
   slugifyThemeId,
   tokensToCssVars
 } from "../../apps/web/src/settings/settings-appearance-pane.js";
+import { parsePalette } from "../../apps/web/src/theme/theme-runtime.js";
 
 const tokens: AestheticThemeTokens = {
   paper: "#ffffff",
@@ -21,6 +22,29 @@ const tokens: AestheticThemeTokens = {
   lineStrong: "rgb(210, 205, 194)",
   accent: "#2f6a4c"
 };
+
+describe("parsePalette (auto-staging)", () => {
+  it("extracts hex colors from a Coolors export", () => {
+    const coolors = "#541388 / #F038FF / #EF709D / #E9DC3F / #38A3A5";
+    expect(parsePalette(coolors)).toEqual(["#541388", "#F038FF", "#EF709D", "#E9DC3F", "#38A3A5"]);
+  });
+
+  it("extracts rgb() colors", () => {
+    expect(parsePalette("rgb(84, 19, 136), rgb(255, 0, 128)")).toEqual([
+      "rgb(84, 19, 136)",
+      "rgb(255, 0, 128)"
+    ]);
+  });
+
+  it("deduplicates repeated colors", () => {
+    expect(parsePalette("#aabbcc #aabbcc #ddeeff")).toEqual(["#aabbcc", "#ddeeff"]);
+  });
+
+  it("returns empty array for text with no valid colors", () => {
+    expect(parsePalette("no colors here")).toEqual([]);
+    expect(parsePalette("")).toEqual([]);
+  });
+});
 
 describe("appearance pane helpers", () => {
   it("slugifies theme names into route-safe ids", () => {
