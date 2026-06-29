@@ -1,20 +1,21 @@
 # Coordination Run — 2026-06-28-batch-followups
 
 **Date:** 2026-06-28
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `f8a5b8f7-a287-4665-b480-0f46dc52bed2`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `3f4772c2-f6c7-475f-bb0c-f22963a8929b`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0
 
-## Continuation note (relay 1 — context 70% @ coord session f8a5b8f7)
+## Continuation note (relay 2 — context ~0% @ coord session 3f4772c2, adopted 2026-06-28)
 
-Successor: adopt all 4 agents by label. Key open items:
-- PR #581 (UI-Polish, routine): QA GREEN (code clean). CI re-run in flight (Playwright infra race, not code regression; main was green @ 87f6f5f). If re-run passes → merge immediately. If fails twice → stop-the-line + Ben.
-- PR #582 (Wellness-Fixes, sensitive): QA agent `a67036989ac2ef34d` in flight. Await its verdict, then merge if green.
-- Memory-Cleanup (w1:p6Q): relay nudge queued, 2% context left — successor pane will appear, adopt it, reap old pane.
-- Calendar-Monitor (w1:p6S): Tasks A+B done, running verify:foundation — done report imminent, spawn QA on its PR.
-- db:migrate contention: both PRs have zero DB surface; failure is shared-dev-Postgres state from migration 0128 (#574). Not a regression; scope QA to non-DB gate.
-- QA agent for wellness (a67036989ac2ef34d): background agent, will notify on completion — consume verdict and merge if green.
+Previous coordinator (f8a5b8f7) closed. New coordinator session 3f4772c2 driving.
+
+Open items:
+- PR #581 (UI-Polish, routine): QA GREEN per relay-1 note (code clean). CI Verify re-run pending (Playwright infra race; main green @ 87f6f5f). When CI passes → merge immediately. If fails twice → stop-the-line + Ben.
+- PR #582 (Wellness-Fixes, sensitive): old QA agent verdict lost on relay. Re-spawn QA once CI passes. CI Verify pending.
+- Memory-Cleanup: relay-1 said 2% left → successor spawned. Pane shows 40% context (successor active), running `pnpm test`. No PR yet.
+- Calendar-Monitor: Tasks A+B done, running verify:foundation. PR not yet open.
+- db:migrate contention: both #581/#582 have zero DB surface; contention is shared-dev-Postgres state from migration 0128. Not a regression; scope QA to non-DB gate.
 
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
 > coordinator adopt this run after a self-handoff. GitHub is the source of truth for
