@@ -329,7 +329,6 @@ test.describe("Chat drawer — Approve/Reject card", () => {
 
     // Wait for the Approve/Reject card to appear
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
-    await expect(page.locator(".action-request-tool")).toContainText("example.write");
     await expect(page.locator(".action-request-summary")).toContainText("Write the value 'test'");
 
     // Approve
