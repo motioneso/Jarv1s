@@ -31,7 +31,7 @@ class FakeEngine {
   }
 }
 
-function makeResumeDeps(touchResult: boolean, revokeMcpToken?: ReturnType<typeof vi.fn>) {
+function makeResumeDeps(touchResult: boolean, revokeMcpToken?: (chatSessionId: string) => void) {
   const engine = new FakeEngine();
   const deps = {
     engineFactory: vi.fn().mockReturnValue(engine),
@@ -59,7 +59,7 @@ function makeResumeDeps(touchResult: boolean, revokeMcpToken?: ReturnType<typeof
 
 describe("ChatSessionManager.resumeThread", () => {
   it("happy-path: valid threadId — touchExistingThread called, session killed, revokeMcpToken invoked", async () => {
-    const revokeMcpToken = vi.fn();
+    const revokeMcpToken = vi.fn() as (chatSessionId: string) => void;
     const { deps, engine } = makeResumeDeps(true, revokeMcpToken);
     const manager = new ChatSessionManager(deps);
 
@@ -74,7 +74,7 @@ describe("ChatSessionManager.resumeThread", () => {
   });
 
   it("not-found: touchExistingThread returns false → ChatThreadNotFoundError, active session untouched", async () => {
-    const revokeMcpToken = vi.fn();
+    const revokeMcpToken = vi.fn() as (chatSessionId: string) => void;
     const { deps, engine } = makeResumeDeps(false, revokeMcpToken);
     const manager = new ChatSessionManager(deps);
 
