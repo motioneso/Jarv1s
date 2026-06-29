@@ -78,12 +78,7 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
             "Your Google connection doesn't have calendar-write permission yet — reconnect in Settings to grant it."
         };
       }
-      const preferencesRepository = deps.preferencesRepository ?? new PreferencesRepository();
-      const featureGrants = await preferencesRepository.get(
-        scopedDb,
-        featureGrantsPrefKey(calendarScope.accountId)
-      );
-      if (!isFeatureGranted(featureGrants, "calendar")) {
+      if (!(await isCalendarFeatureGranted(deps, scopedDb, calendarScope.accountId))) {
         return {
           created: false,
           resolvedStart: resolved.start.toISOString(),
@@ -256,6 +251,14 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
             "Your Google connection doesn't have calendar-write permission yet — reconnect in Settings to grant it."
         };
       }
+      if (!(await isCalendarFeatureGranted(deps, scopedDb, calendarScope.accountId))) {
+        return {
+          deleted: false,
+          googleDeleted: "skipped-no-scope",
+          cacheMirror: "not-cached",
+          message: "Calendar access is disabled for this account in Settings."
+        };
+      }
 
       // 3. Fresh access token.
       let accessToken: string;
@@ -328,6 +331,16 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
       };
     }
   };
+}
+
+async function isCalendarFeatureGranted(
+  deps: CalendarWriteImplDeps,
+  scopedDb: DataContextDb,
+  accountId: string
+): Promise<boolean> {
+  const preferencesRepository = deps.preferencesRepository ?? new PreferencesRepository();
+  const featureGrants = await preferencesRepository.get(scopedDb, featureGrantsPrefKey(accountId));
+  return isFeatureGranted(featureGrants, "calendar");
 }
 
 async function mirrorEvent(
