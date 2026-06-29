@@ -9,7 +9,6 @@ import {
   MemoryCandidatesRepository,
   MemoryGraphRepository,
   registerMemoryDashboardRoutes,
-  type MemoryFactPredicate
 } from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
