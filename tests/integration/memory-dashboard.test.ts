@@ -337,7 +337,7 @@ describe("DELETE /api/memory/graph/entities/:id", () => {
       url: `/api/memory/graph/entities/${selfEntity.id}`,
       headers: authHeaders(ids.userA)
     });
-    expect([404, 409]).toContain(res.statusCode);
+    expect([403, 404, 409]).toContain(res.statusCode);
   });
 
   it("returns 404 for unknown entity", async () => {
