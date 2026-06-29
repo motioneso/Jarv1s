@@ -18,7 +18,7 @@ Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run
 
 1. **PR #581 (UI-Polish, routine)** — MERGED @ f11ca93e (2026-06-29 01:37Z). Ben CI waiver applied (2× ECONNREFUSED infra race). Issues #480 #512 closed. Board Done. Worktree reaped.
 
-2. **Memory-Cleanup** — PR #585 open. Fix pushed @ 9f91f890: predicate-only conflict routing removed from acceptCandidate, now always calls remember(), independent facts coexist. VF3_EXIT=0. Codex QA cycle 2 spawned (w1:p73). Awaiting verdict.
+2. **Memory-Cleanup** — PR #585. Codex QA cycle 2 GREEN on code (0 blocking, invariants ok, exit criteria met). CI blocker: "Verify foundation and app" failed run 28343902913 in 38s (ECONNREFUSED infra race, same as #581). CI re-queued. If CI red again → escalate to Ben for waiver.
 
 3. **#584 (Playwright CI flake)** — Ben wants in this run. Needs approved spec. Successor action: write minimal spec with Ben, spawn agent after approval.
 
