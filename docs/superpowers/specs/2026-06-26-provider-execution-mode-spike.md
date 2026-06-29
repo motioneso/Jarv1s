@@ -1,6 +1,6 @@
 # Provider Execution Mode Spike (#517)
 
-**Status:** Draft / Spike
+**Status:** Approved — Codex + Claude implementation complete (2026-06-28); Agy blocked (runtime parity unproven)
 **Date:** 2026-06-26
 **Owner:** Codex
 **GitHub:** #517
