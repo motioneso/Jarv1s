@@ -13,7 +13,8 @@ function makeDeps(overrides: Partial<ChatSessionManagerDeps> = {}): ChatSessionM
     listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
     recordTurn: vi.fn().mockResolvedValue({ userMessageId: "u1", assistantMessageId: "a1" }),
     openNewConversation: vi.fn(),
-    getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null })
+    getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null }),
+    touchExistingThread: vi.fn().mockResolvedValue(true)
   };
 
   const engine = {

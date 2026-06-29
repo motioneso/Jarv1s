@@ -80,6 +80,11 @@ export interface ChatPersistencePort {
   getThreadContext(
     actorUserId: string
   ): Promise<{ threadTitle: string | null; localTimezone: string | null }>;
+  /**
+   * Make threadId the current thread for actorUserId (for resume). Returns true if
+   * the thread was found and touched; false if it does not exist or belongs to another user.
+   */
+  touchExistingThread(actorUserId: string, threadId: string): Promise<boolean>;
 }
 
 export interface PassiveRetrievalPort {
@@ -209,6 +214,13 @@ export class ChatStreamLimitError extends Error {
   constructor() {
     super("Too many open chat streams for this user.");
     this.name = "ChatStreamLimitError";
+  }
+}
+
+export class ChatThreadNotFoundError extends Error {
+  constructor() {
+    super("Chat thread not found or does not belong to this user.");
+    this.name = "ChatThreadNotFoundError";
   }
 }
 
@@ -663,6 +675,35 @@ export class ChatSessionManager {
       this.deps.revokeMcpToken?.(actorUserId);
     }
     await this.deps.persistence.openNewConversation(actorUserId, options);
+  }
+
+  /**
+   * Resume a past thread: stop any in-flight turn, kill the current engine (so the
+   * next submitTurn replays the resumed thread's messages), then touch the target
+   * thread so `getCurrentThread` (which sorts by `last_active_at DESC`) returns it.
+   * Throws `ChatThreadNotFoundError` when the thread is absent or belongs to another user.
+   */
+  async resumeThread(actorUserId: string, threadId: string): Promise<void> {
+    // Stop any in-flight turn (idempotent no-op when none is in flight).
+    await this.stopTurn(actorUserId);
+
+    // Drop the live engine so the next submitTurn launches fresh from the resumed thread.
+    const session = this.sessions.get(actorUserId);
+    if (session) {
+      try {
+        await session.engine.kill();
+      } catch {
+        // best-effort: session is dropped below regardless
+      }
+      this.sessions.delete(actorUserId);
+      this.deps.revokeMcpToken?.(actorUserId);
+    }
+
+    // Promote the target thread to "current" by bumping its last_active_at.
+    const found = await this.deps.persistence.touchExistingThread(actorUserId, threadId);
+    if (!found) {
+      throw new ChatThreadNotFoundError();
+    }
   }
 
   /**

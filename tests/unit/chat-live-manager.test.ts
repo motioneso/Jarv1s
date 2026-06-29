@@ -266,6 +266,10 @@ class FakePersistence implements ChatPersistencePort {
   async getThreadContext(): Promise<{ threadTitle: string | null; localTimezone: string | null }> {
     return { threadTitle: null, localTimezone: null };
   }
+
+  async touchExistingThread(): Promise<boolean> {
+    return true;
+  }
 }
 
 class FakeClock implements Clock {
