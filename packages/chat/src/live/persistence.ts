@@ -261,6 +261,13 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     );
   }
 
+  async touchExistingThread(actorUserId: string, threadId: string): Promise<boolean> {
+    const found = await this.run(actorUserId, "touch-existing-thread", (scopedDb) =>
+      this.chat.touchThread(scopedDb, threadId)
+    );
+    return found !== undefined;
+  }
+
   async getThreadContext(
     actorUserId: string
   ): Promise<{ threadTitle: string | null; localTimezone: string | null }> {

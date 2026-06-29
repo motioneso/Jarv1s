@@ -6,6 +6,7 @@ import {
   BookmarkPlus,
   MessageSquareText,
   MoreHorizontal,
+  Play,
   Sparkles,
   Square,
   SquarePen,
@@ -24,6 +25,7 @@ import {
   listChatThreadMessages,
   listChatThreads,
   listTasks,
+  resumeChat,
   sendChatTurn
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -73,6 +75,16 @@ export function ChatDrawer(props: {
   const queryClient = useQueryClient();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+
+  const resumeMutation = useMutation({
+    mutationFn: (threadId: string) => resumeChat(threadId),
+    onSuccess: () => {
+      props.clearRecords();
+      setReviewThreadId(null);
+      setShowHistory(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+    }
+  });
 
   // Lifted send state — shared by both the Composer and EmptyState seed buttons (#400).
   const [isSending, setIsSending] = useState(false);
@@ -281,10 +293,23 @@ export function ChatDrawer(props: {
             selectedThreadId={reviewThreadId}
             threads={threadsQuery.data?.threads ?? []}
             onSelect={setReviewThreadId}
+            onResume={(id) => resumeMutation.mutate(id)}
+            resuming={resumeMutation.isPending}
           />
         ) : null}
         {reviewing ? (
-          <div className="chatd-review">Reviewing {selectedThread?.title ?? "past chat"}</div>
+          <div className="chatd-review">
+            <span>Reviewing {selectedThread?.title ?? "past chat"}</span>
+            <button
+              className="chatd-review__resume"
+              disabled={resumeMutation.isPending}
+              type="button"
+              onClick={() => reviewThreadId && resumeMutation.mutate(reviewThreadId)}
+            >
+              <Play size={13} aria-hidden="true" />
+              Resume this conversation
+            </button>
+          </div>
         ) : null}
         {effectiveRecords.length > 0 ? (
           <Thread records={effectiveRecords} />
@@ -371,6 +396,8 @@ function HistoryList(props: {
   }[];
   readonly selectedThreadId: string | null;
   readonly onSelect: (threadId: string) => void;
+  readonly onResume: (threadId: string) => void;
+  readonly resuming: boolean;
 }) {
   const locale = useUserLocale();
   if (props.threads.length === 0) return null;
@@ -378,20 +405,34 @@ function HistoryList(props: {
     <div className="chatd-sess">
       <div className="chatd-sess__hd">History</div>
       {props.threads.map((thread) => (
-        <button
+        <div
           className={`chatd-sess__row${props.selectedThreadId === thread.id ? " is-selected" : ""}`}
           key={thread.id}
-          type="button"
-          onClick={() => props.onSelect(thread.id)}
         >
-          <span className="chatd-sess__ic">
-            <MessageSquareText size={14} aria-hidden="true" />
-          </span>
-          <span className="chatd-sess__main">
-            <span className="chatd-sess__title">{thread.title}</span>
-          </span>
-          <span className="chatd-sess__when">{formatShortDate(thread.updatedAt, locale)}</span>
-        </button>
+          <button
+            className="chatd-sess__row-main"
+            type="button"
+            onClick={() => props.onSelect(thread.id)}
+          >
+            <span className="chatd-sess__ic">
+              <MessageSquareText size={14} aria-hidden="true" />
+            </span>
+            <span className="chatd-sess__main">
+              <span className="chatd-sess__title">{thread.title}</span>
+            </span>
+            <span className="chatd-sess__when">{formatShortDate(thread.updatedAt, locale)}</span>
+          </button>
+          <button
+            aria-label={`Resume ${thread.title}`}
+            className="chatd-sess__resume"
+            disabled={props.resuming}
+            title="Resume this conversation"
+            type="button"
+            onClick={() => props.onResume(thread.id)}
+          >
+            <Play size={13} aria-hidden="true" />
+          </button>
+        </div>
       ))}
     </div>
   );

@@ -29,7 +29,7 @@ export class ChatRepository {
     return scopedDb.db
       .selectFrom("app.chat_threads")
       .selectAll()
-      .orderBy("updated_at", "desc")
+      .orderBy("last_active_at", "desc")
       .orderBy("id")
       .execute();
   }

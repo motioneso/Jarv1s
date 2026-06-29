@@ -325,7 +325,8 @@ describe("launchSession — bounded inject (fake engine)", () => {
       }),
       recordTurn: async () => {},
       openNewConversation: async () => {},
-      getThreadContext: async () => ({ threadTitle: null, localTimezone: null })
+      getThreadContext: async () => ({ threadTitle: null, localTimezone: null }),
+      touchExistingThread: async () => true
     };
 
     const engine = new FakeEngineForSession();
@@ -357,7 +358,8 @@ describe("launchSession — bounded inject (fake engine)", () => {
       listPriorTurns: async () => ({ recent: [], oldSummary: null }),
       recordTurn: async () => {},
       openNewConversation: async () => {},
-      getThreadContext: async () => ({ threadTitle: null, localTimezone: null })
+      getThreadContext: async () => ({ threadTitle: null, localTimezone: null }),
+      touchExistingThread: async () => true
     };
 
     const engine = new FakeEngineForSession();

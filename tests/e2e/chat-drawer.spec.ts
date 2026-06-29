@@ -230,7 +230,7 @@ test("clicking a history row renders stored messages read-only", async ({ page }
   const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
 
   await drawer.getByRole("button", { name: "Show chat history" }).click();
-  await drawer.getByRole("button", { name: "Planning notes" }).click();
+  await drawer.locator("button.chatd-sess__row-main").filter({ hasText: "Planning notes" }).click();
 
   await expect(drawer.getByText("What did we decide?")).toBeVisible();
   await expect(drawer.getByText("We chose the small path.")).toBeVisible();
@@ -289,7 +289,7 @@ test("reviewing an empty history row does not expose send suggestions", async ({
   const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
 
   await drawer.getByRole("button", { name: "Show chat history" }).click();
-  await drawer.getByRole("button", { name: "Empty review" }).click();
+  await drawer.locator("button.chatd-sess__row-main").filter({ hasText: "Empty review" }).click();
 
   await expect(drawer.getByLabel("Message Jarvis")).toBeDisabled();
   await expect(drawer.getByText("What can I help with?")).toHaveCount(0);

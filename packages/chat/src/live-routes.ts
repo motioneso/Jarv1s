@@ -29,7 +29,11 @@ import type { AccessContext } from "@jarv1s/db";
 import { sessionRateLimitKey } from "@jarv1s/module-sdk";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 
-import { ChatStreamLimitError, ChatTurnInFlightError } from "./live/chat-session-manager.js";
+import {
+  ChatStreamLimitError,
+  ChatThreadNotFoundError,
+  ChatTurnInFlightError
+} from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
@@ -191,6 +195,36 @@ export function registerChatLiveRoutes(
     }
   );
 
+  // Resume a past thread: makes it the current thread so the next /turn reply draws on its context.
+  server.post(
+    "/api/chat/threads/:id/resume",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
+
+      const { id: threadId } = request.params as { id: string };
+      if (!threadId || typeof threadId !== "string") {
+        return reply.code(400).send({ error: "Missing thread id" });
+      }
+
+      try {
+        await runtime.manager.resumeThread(access.actorUserId, threadId);
+        return reply.code(204).send();
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
+    }
+  );
+
   server.post(
     "/api/chat/evening-interview",
     {
@@ -327,6 +361,10 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
 
   if (error instanceof ChatStreamLimitError) {
     return reply.code(429).send({ error: "Too many open chat streams." });
+  }
+
+  if (error instanceof ChatThreadNotFoundError) {
+    return reply.code(404).send({ error: "Chat thread not found." });
   }
 
   if (error instanceof Error) {

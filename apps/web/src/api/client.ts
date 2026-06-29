@@ -663,6 +663,12 @@ export async function clearChat(options?: { incognito?: boolean }): Promise<void
   await requestJson<unknown>(url, { method: "POST" });
 }
 
+export async function resumeChat(threadId: string): Promise<void> {
+  await requestJson<unknown>(`/api/chat/threads/${encodeURIComponent(threadId)}/resume`, {
+    method: "POST"
+  });
+}
+
 export async function switchChatProvider(): Promise<void> {
   await requestJson<unknown>("/api/chat/switch", { method: "POST" });
 }
