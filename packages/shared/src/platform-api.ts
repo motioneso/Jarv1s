@@ -632,7 +632,9 @@ export const hostDiagnosticsSchema = {
     "routeCount",
     "multiplexer",
     "available",
-    "checks"
+    "checks",
+    "latestAvailableVersion",
+    "releaseNotes"
   ],
   additionalProperties: false,
   properties: {
@@ -654,7 +656,9 @@ export const hostDiagnosticsSchema = {
       additionalProperties: false,
       properties: { tmux: { type: "boolean" }, herdr: { type: "boolean" } }
     },
-    checks: { type: "array", items: hostDiagnosticCheckSchema }
+    checks: { type: "array", items: hostDiagnosticCheckSchema },
+    latestAvailableVersion: { type: ["string", "null"] },
+    releaseNotes: { type: ["string", "null"] }
   }
 } as const;
 

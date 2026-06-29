@@ -39,7 +39,9 @@ const EXPECTED_KEYS = [
   "routeCount",
   "multiplexer",
   "available",
-  "checks"
+  "checks",
+  "latestAvailableVersion",
+  "releaseNotes"
 ].sort();
 
 describe("buildHostDiagnostics", () => {
