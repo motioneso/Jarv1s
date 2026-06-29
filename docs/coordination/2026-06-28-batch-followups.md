@@ -4,18 +4,28 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `3f4772c2-f6c7-475f-bb0c-f22963a8929b`** (match `agent_session.value` in `herdr pane list`). Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the pane fresh by label+session at read time.** Agents escalate to the **label** (routing, re-claimable); the coordinator merges only when its own pane's **session id** (immutable, NOT the pane number) matches this recorded anchor.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; **`security`-tier needs Ben's explicit merge sign-off**
 **Relay threshold:** security-tier merge → relay immediately after Phase 3 step 7; routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1
+**merges_since_relay:** 0 (reset — relay 3 fired after #583 security merge)
 
-## Continuation note (relay 2 — context ~0% @ coord session 3f4772c2, adopted 2026-06-28)
+## Continuation note (relay 3 — security merge @ coord session 3f4772c2)
 
-Previous coordinator (f8a5b8f7) closed. New coordinator session 3f4772c2 driving.
+#582 (sensitive) + #583 (security) both merged this session. Relay triggered by security-tier merge rule.
 
-Open items:
-- PR #581 (UI-Polish, routine): STOP-THE-LINE. Two CI failures (ECONNREFUSED infra race, run 28341205471). QA GREEN (code clean). Main green @ 87f6f5f + 1f13662e. Filed issue #584. Awaiting Ben: re-run approval or waiver sign-off before merge.
-- PR #582 (Wellness-Fixes, sensitive): MERGED @ 1f13662e. Issues #505 #509 closed. Board Done. Worktree + panes reaped.
-- Memory-Cleanup: relay-1 said 2% left → successor spawned. Pane shows 40% context (successor active), running `pnpm test`. No PR yet.
-- Calendar-Monitor: PR #583. QA-cycle-2 GREEN (Opus adversarial). Verdict: https://github.com/motioneso/Jarv1s/pull/583#issuecomment-4828159043. AWAITING BEN SECURITY-TIER MERGE SIGN-OFF.
-- db:migrate contention: both #581/#582 have zero DB surface; contention is shared-dev-Postgres state from migration 0128. Not a regression; scope QA to non-DB gate.
+**Merged this session:**
+- PR #582 (Wellness-Fixes, sensitive): MERGED @ 1f13662e. Issues #505 #509 closed. Board Done.
+- PR #583 (Calendar-Monitor, security): MERGED @ e285869d. Issues #567 closed (#564 already closed). Board Done. Opus QA GREEN — verdict: https://github.com/motioneso/Jarv1s/pull/583#issuecomment-4828159043.
+
+**Successor open items:**
+
+1. **PR #581 (UI-Polish, routine)** — Ben approved merge ("merge yes"). CI waiver: ECONNREFUSED infra race (not code regression), 2× failures on run 28341205471, main green @ 87f6f5f + 1f13662e. QA GREEN (code clean). Successor: record ci_waiver in manifest, trigger one more CI re-run (`gh pr checks 581` and re-queue), and merge if green. OR merge directly with Ben's verbal waiver already on record here. Do NOT re-run full QA.
+
+2. **#584 (Playwright CI flake)** — Ben wants to add to this run ("can we quickly add on 584?"). GATE: needs task issue (exists: #584) + approved spec. Successor: write a minimal spec with Ben (fix: add API health-check wait in Playwright setup / CI yaml before test runner starts). Then spawn agent after spec approved.
+
+3. **Memory-Cleanup** — agent session `718062f3` at pane labelled `Memory-Cleanup`, still building (was ~53% ctx, 56m elapsed). No PR yet. Issues #554 #555 #560 #561 #562 #565 (sensitive). Check pane on adoption; spawn QA when it reports done.
+
+4. **UI-Polish worktree** (`.claude/worktrees/ui-polish`) — do NOT remove until #581 is merged.
+
+**ci_waivers (pending Ben verbal, record here):**
+- PR #581, check "Verify foundation and app", run 28341205471, SHA d094ab11 on PR branch. Failure: ECONNREFUSED infra race. Proven not on PR code (main green same SHA range). Ben: "merge yes" 2026-06-28.
 
 > This is the coordinator's externalized memory. Keep it CURRENT — it is what lets a fresh
 > coordinator adopt this run after a self-handoff. GitHub is the source of truth for
