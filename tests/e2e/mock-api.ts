@@ -137,6 +137,15 @@ function adminUsersFor(state: MockApiState): UserDto[] {
 }
 
 export async function mockApi(page: Page, state: MockApiState): Promise<void> {
+  // Catch-all registered FIRST (lowest Playwright priority — specific routes override it).
+  // Prevents unmocked /api/* calls reaching Vite's proxy and causing ECONNREFUSED in CI.
+  // Uses a pathname check rather than a glob so it does NOT match Vite source-file requests
+  // like /src/api/client.ts (which contain "/api/" but are NOT API calls).
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    (route) => fulfillJson(route, 404, { error: "Not mocked" })
+  );
+
   await page.route("**/api/bootstrap/status", (route) =>
     fulfillJson(route, 200, { needsBootstrap: false })
   );
@@ -167,6 +176,82 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await page.route("**/api/me/modules", (route) =>
     state.authenticated
       ? fulfillJson(route, 200, myModulesResponse)
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  // Themes — fetched by the app shell on every authenticated page load.
+  await page.route("**/api/me/themes/active", (route) => {
+    if (!state.authenticated)
+      return fulfillJson(route, 401, { error: "Session is missing or expired" });
+    return fulfillJson(route, 200, {
+      builtIn: [
+        { id: "light", name: "Light", builtIn: true },
+        { id: "dark", name: "Dark", builtIn: true }
+      ],
+      custom: [],
+      activeId: "light"
+    });
+  });
+  await page.route("**/api/me/themes/**", (route) => {
+    if (!state.authenticated)
+      return fulfillJson(route, 401, { error: "Session is missing or expired" });
+    return fulfillJson(route, 200, {
+      builtIn: [
+        { id: "light", name: "Light", builtIn: true },
+        { id: "dark", name: "Dark", builtIn: true }
+      ],
+      custom: [],
+      activeId: "light"
+    });
+  });
+  await page.route("**/api/me/themes", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, {
+          builtIn: [
+            { id: "light", name: "Light", builtIn: true },
+            { id: "dark", name: "Dark", builtIn: true }
+          ],
+          custom: [],
+          activeId: "light"
+        })
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  // Sessions
+  await page.route("**/api/me/sessions/others", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, { success: true, count: 0 })
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  await page.route(/\/api\/me\/sessions\/[^/]+$/, (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, { success: true })
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  await page.route("**/api/me/sessions", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, { sessions: [] })
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  // Goals
+  await page.route("**/api/goals", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, { items: [] })
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  // Locale settings
+  await page.route("**/api/me/locale", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, { locale: { timezone: "UTC", region: "en-US", dateFormat: "MDY" } })
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  // Source behaviors
+  await page.route("**/api/me/source-behaviors/**", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, { sources: [] })
+      : fulfillJson(route, 401, { error: "Session is missing or expired" })
+  );
+  await page.route("**/api/me/source-behaviors", (route) =>
+    state.authenticated
+      ? fulfillJson(route, 200, { sources: [] })
       : fulfillJson(route, 401, { error: "Session is missing or expired" })
   );
   await page.route("**/api/admin/auth/providers", (route) =>
