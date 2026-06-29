@@ -21,6 +21,7 @@ import {
   updateTaskPreferences
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useUserLocale } from "../locale/locale-format";
 import { FOCUS_LABELS, isTaskFocus } from "./focus";
 import { TaskCapture } from "./task-capture";
 import { TaskDetailsDialog } from "./task-details-dialog";
@@ -68,6 +69,7 @@ export function TasksPage() {
     queryFn: getTaskPreferences
   });
 
+  const locale = useUserLocale();
   const view: TaskDefaultView = prefsQuery.data?.preferences.defaultView ?? "priority";
   const lists = listsQuery.data?.lists ?? [];
   const allTasks = tasksQuery.data?.tasks ?? [];
@@ -99,9 +101,10 @@ export function TasksPage() {
         focus,
         listStates,
         tagFilter,
-        search: deferredSearch
+        search: deferredSearch,
+        timeZone: locale.timezone
       }),
-    [allTasks, deferredSearch, focus, listStates, lists, statusFilter, tagFilter]
+    [allTasks, deferredSearch, focus, listStates, lists, statusFilter, tagFilter, locale.timezone]
   );
   const { allTags, listCounts, listCountTotal, soloIds, visibleTasks } = derived;
   const stateOf = (listId: string): ListState => listStates[listId] ?? "included";

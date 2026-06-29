@@ -6,16 +6,6 @@ export const statusLabels: Record<TaskApiStatus, string> = {
   archived: "Archived"
 };
 
-export function formatDate(value: string | null): string {
-  if (!value) {
-    return "No date";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium"
-  }).format(new Date(value));
-}
-
 export function toDateInputValue(value: string | null): string {
   if (!value) {
     return "";

@@ -3,13 +3,15 @@ import { useState } from "react";
 
 import {
   groupByPriority,
+  type LocaleSettingsDto,
   type TaskApiStatus,
   type TaskDto,
   type TaskEffort,
   type TaskListDto
 } from "@jarv1s/shared";
 
-import { effortLabels } from "./task-format";
+import { formatDate, todayDateKey, useUserLocale, zonedDateKey } from "../locale/locale-format.js";
+import { effortLabels } from "./task-format.js";
 
 /** Stable per-list dot colour (lists carry no colour of their own). */
 const LIST_COLORS = [
@@ -63,24 +65,28 @@ interface DueInfo {
   readonly drift: "atrisk" | "overdue" | null;
 }
 
-/** Due date → human label + drift signal (system-owned urgency, anti-shame amber). */
-function dueInfo(task: TaskDto): DueInfo | null {
+/** Due date → human label + drift signal (system-owned urgency, anti-shame amber).
+    Day-bucketed in the user's persisted timezone (#579): the due date and "today" are
+    compared as `YYYY-MM-DD` keys resolved in `locale.timezone`, never the ambient zone.
+    Exported for unit coverage of the per-row badge's timezone bucketing. */
+export function dueInfo(task: TaskDto, locale: LocaleSettingsDto): DueInfo | null {
   if (!task.dueAt) return null;
-  const due = new Date(task.dueAt);
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfDue = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
-  const dayMs = 86_400_000;
+  const todayKey = todayDateKey(locale.timezone);
+  const dueKey = zonedDateKey(task.dueAt, locale.timezone);
   const done = task.status === "done";
 
-  if (startOfDue < startOfToday) {
+  if (dueKey < todayKey) {
     return { label: "Overdue", tone: "overdue", drift: done ? null : "overdue" };
   }
-  if (startOfDue === startOfToday) {
+  if (dueKey === todayKey) {
     return { label: "Today", tone: "today", drift: null };
   }
-  const short = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(due);
-  const atRisk = !done && startOfDue - startOfToday <= dayMs * 2;
+  const short = formatDate(task.dueAt, locale, { month: "short", day: "numeric" });
+  // Both keys are user-zone `YYYY-MM-DD`, so they parse as UTC midnight and the delta is
+  // exact integer days — free of ambient-zone drift.
+  const driftDays =
+    (Date.parse(`${dueKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86_400_000;
+  const atRisk = !done && driftDays <= 2;
   return { label: short, tone: "", drift: atRisk ? "atrisk" : null };
 }
 
@@ -161,9 +167,10 @@ export function TaskRow(props: {
   readonly onOpen: (task: TaskDto) => void;
 }) {
   const { task, compact = false } = props;
+  const locale = useUserLocale();
   const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
   const done = optimisticDone;
-  const due = dueInfo(task);
+  const due = dueInfo(task, locale);
   const tags = compact ? [] : (task.tags ?? []);
   const jarvis = !compact && isJarvisSource(task.source);
 

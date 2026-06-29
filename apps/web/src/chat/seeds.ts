@@ -1,5 +1,6 @@
-import type { CalendarEventDto, TaskDto } from "@jarv1s/shared";
+import type { CalendarEventDto, LocaleSettingsDto, TaskDto } from "@jarv1s/shared";
 
+import { formatTime, todayDateKey, zonedDateKey } from "../locale/locale-format";
 import { isAtRisk, isDoFirst } from "../tasks/focus";
 
 /**
@@ -13,19 +14,20 @@ import { isAtRisk, isDoFirst } from "../tasks/focus";
  */
 export function buildChatSeeds(
   tasks: readonly TaskDto[],
-  events: readonly CalendarEventDto[]
+  events: readonly CalendarEventDto[],
+  locale: LocaleSettingsDto
 ): string[] {
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
   const hasPriorities = open.some(isDoFirst);
-  const hasAtRisk = open.some(isAtRisk);
-  const nextEvent = nextUpcomingToday(events);
+  const hasAtRisk = open.some((t) => isAtRisk(t, locale.timezone));
+  const nextEvent = nextUpcomingToday(events, locale.timezone);
 
   const seeds: string[] = [];
 
   // Data-specific (gated on a real upcoming event): names a concrete time, so it
   // only appears when that time genuinely exists on the calendar.
   if (nextEvent) {
-    seeds.push(`Move my ${eventTime(nextEvent)} to tomorrow`);
+    seeds.push(`Move my ${eventTime(nextEvent, locale)} to tomorrow`);
   }
 
   // Safe generics — always answerable regardless of data.
@@ -45,32 +47,28 @@ export function buildChatSeeds(
   return dedupe(seeds).slice(0, 3);
 }
 
-function nextUpcomingToday(events: readonly CalendarEventDto[]): CalendarEventDto | null {
+function nextUpcomingToday(
+  events: readonly CalendarEventDto[],
+  timeZone?: string
+): CalendarEventDto | null {
   const now = Date.now();
   const upcoming = events
-    .filter((e) => isToday(e.startsAt) && new Date(e.startsAt).getTime() >= now)
+    .filter((e) => isToday(e.startsAt, timeZone) && new Date(e.startsAt).getTime() >= now)
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
   return upcoming[0] ?? null;
 }
 
-function isToday(iso: string): boolean {
-  const d = new Date(iso);
-  const ref = new Date();
-  return (
-    d.getFullYear() === ref.getFullYear() &&
-    d.getMonth() === ref.getMonth() &&
-    d.getDate() === ref.getDate()
-  );
+/** Whether an instant lands on the user's local "today" (#579), not the ambient zone. */
+function isToday(iso: string, timeZone?: string): boolean {
+  return zonedDateKey(iso, timeZone) === todayDateKey(timeZone);
 }
 
-function eventTime(event: CalendarEventDto): string {
-  const d = new Date(event.startsAt);
-  const hour12 = ((d.getHours() + 11) % 12) + 1;
-  const minutes = d.getMinutes();
-  const suffix = d.getHours() < 12 ? "am" : "pm";
-  return minutes === 0
-    ? `${hour12}${suffix}`
-    : `${hour12}:${String(minutes).padStart(2, "0")}${suffix}`;
+/** Casual clock label ("3:30pm", "9am") in the user's persisted timezone + region (#579). */
+function eventTime(event: CalendarEventDto, locale: LocaleSettingsDto): string {
+  return formatTime(event.startsAt, locale, { hour: "numeric", minute: "2-digit", hour12: true })
+    .replace(/\s+/g, "")
+    .replace(":00", "")
+    .toLowerCase();
 }
 
 function dedupe(values: readonly string[]): string[] {

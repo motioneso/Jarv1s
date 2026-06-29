@@ -1,7 +1,15 @@
 import { Archive, ArrowUp, Check, ChevronDown, Circle, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { TaskActivityDto, TaskApiStatus, TaskDto, TaskTagDto } from "@jarv1s/shared";
+import type {
+  LocaleSettingsDto,
+  TaskActivityDto,
+  TaskApiStatus,
+  TaskDto,
+  TaskTagDto
+} from "@jarv1s/shared";
+
+import { formatDate, useUserLocale } from "../locale/locale-format";
 
 const AVA_PALETTE = ["var(--steel)", "var(--amber)", "var(--ink-3)"];
 
@@ -269,6 +277,7 @@ export function TaskActivityPanel(props: {
   readonly onDraft: (value: string) => void;
   readonly onPost: () => void;
 }) {
+  const locale = useUserLocale();
   return (
     <div className="tk-activity">
       {props.entries.length > 0 ? (
@@ -279,7 +288,7 @@ export function TaskActivityPanel(props: {
               <div className="tk-act__body">
                 <div className="tk-act__head">
                   <span className="tk-act__who">{props.currentUserLabel}</span>
-                  <span className="tk-act__when">{relativeTime(entry.createdAt)}</span>
+                  <span className="tk-act__when">{relativeTime(entry.createdAt, locale)}</span>
                 </div>
                 <div className="tk-act__text">{entry.body ?? entry.activityType}</div>
               </div>
@@ -318,7 +327,7 @@ export function TaskActivityPanel(props: {
   );
 }
 
-function relativeTime(iso: string | null): string {
+function relativeTime(iso: string | null, locale: LocaleSettingsDto): string {
   if (!iso) return "";
   const then = new Date(iso).getTime();
   const mins = Math.round((Date.now() - then) / 60000);
@@ -326,7 +335,5 @@ function relativeTime(iso: string | null): string {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(iso)
-  );
+  return formatDate(iso, locale, { month: "short", day: "numeric" });
 }

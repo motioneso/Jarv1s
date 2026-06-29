@@ -24,7 +24,7 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
+import type { CalendarEventDto, LocaleSettingsDto, MeResponse, TaskDto } from "@jarv1s/shared";
 
 import {
   createWellnessCheckin,
@@ -38,6 +38,13 @@ import {
   updateTask
 } from "../api/client";
 import { findDefinition } from "../briefings/briefing-settings-model";
+import {
+  formatDate,
+  formatTime,
+  todayDateKey,
+  useUserLocale,
+  zonedDateKey
+} from "../locale/locale-format";
 import { useChatControls } from "../shell/chat-controls-context";
 import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
@@ -67,6 +74,7 @@ export function TodayPage(props: {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const chatControls = useChatControls();
+  const locale = useUserLocale();
   const feed = props.feed ?? createEmptyTodayFeed();
   const wellnessEnabled = props.wellnessEnabled ?? false;
   const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
@@ -113,8 +121,8 @@ export function TodayPage(props: {
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
   const medScheduleQuery = useQuery({
-    queryKey: queryKeys.wellness.schedule(todayKey()),
-    queryFn: () => getMedicationSchedule(todayKey()),
+    queryKey: queryKeys.wellness.schedule(todayDateKey(locale.timezone)),
+    queryFn: () => getMedicationSchedule(todayDateKey(locale.timezone)),
     enabled: wellnessEnabled
   });
   const medScheduledSlots = (medScheduleQuery.data?.slots ?? []).filter((s) => !s.asNeeded);
@@ -147,13 +155,16 @@ export function TodayPage(props: {
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
   const priorities = open.filter(isDoFirst);
-  const atRisk = open.filter(isAtRisk);
-  const todayEvents = useMemo(() => events.filter(isToday).sort(byStart), [events]);
+  const atRisk = open.filter((t) => isAtRisk(t, locale.timezone));
+  const todayEvents = useMemo(
+    () => events.filter((e) => isToday(e, locale.timezone)).sort(byStart),
+    [events, locale.timezone]
+  );
   const upcoming = useMemo(
     () => todayEvents.filter((e) => new Date(e.endsAt).getTime() >= Date.now()),
     [todayEvents]
   );
-  const doneToday = tasks.filter(isDoneToday).length;
+  const doneToday = tasks.filter((t) => isDoneToday(t, locale.timezone)).length;
 
   // "Start here": top open tasks by priority, then nearest due.
   const startHere = [...open]
@@ -253,8 +264,8 @@ export function TodayPage(props: {
                 {todayEvents.map((event) => (
                   <div className="day-ev" key={event.id}>
                     <div className="day-ev__t">
-                      {timeLabel(event.startsAt)}
-                      <span className="ap"> {ampm(event.startsAt)}</span>
+                      {timeLabel(event.startsAt, locale)}
+                      <span className="ap"> {ampm(event.startsAt, locale)}</span>
                     </div>
                     <div>
                       <div className="day-ev__title">{event.title}</div>
@@ -288,7 +299,7 @@ export function TodayPage(props: {
               <div className="jds-brief__title">Things I'm keeping an eye on</div>
               <div className="loose">
                 {looseEnds.map((task) => {
-                  const drift = driftOf(task);
+                  const drift = driftOf(task, locale.timezone);
                   return (
                     <button
                       type="button"
@@ -332,7 +343,7 @@ export function TodayPage(props: {
                     className={`sched-row ${index === 0 ? "sched-row--now" : ""}`}
                     key={event.id}
                   >
-                    <div className="sched-row__t">{timeLabel(event.startsAt)}</div>
+                    <div className="sched-row__t">{timeLabel(event.startsAt, locale)}</div>
                     <div className="sched-row__body">
                       <div className="sched-row__title">{event.title}</div>
                       {event.location ? (
@@ -367,7 +378,9 @@ export function TodayPage(props: {
               <div className="inst__head">
                 <span className="inst__title">Evening review</span>
                 <span className="inst__meta">
-                  {latestEveningRun ? shortDate(latestEveningRun.createdAt) : "Ready at 7 PM"}
+                  {latestEveningRun
+                    ? shortDate(latestEveningRun.createdAt, locale)
+                    : "Ready at 7 PM"}
                 </span>
               </div>
               {latestEveningRun ? (
@@ -589,9 +602,10 @@ function BriefTaskRow(props: {
   readonly onOpen: () => void;
 }) {
   const { task } = props;
+  const locale = useUserLocale();
   const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
   const done = optimisticDone;
-  const drift = driftOf(task);
+  const drift = driftOf(task, locale.timezone);
   const p1 = (task.priority ?? 0) >= 4;
   return (
     <div
@@ -627,7 +641,9 @@ function BriefTaskRow(props: {
             <GitCommitHorizontal size={12} aria-hidden="true" />
             {task.source}
           </span>
-          {task.dueAt ? <span className="jds-task__time">{shortDate(task.dueAt)}</span> : null}
+          {task.dueAt ? (
+            <span className="jds-task__time">{shortDate(task.dueAt, locale)}</span>
+          ) : null}
         </div>
       </button>
     </div>
@@ -804,11 +820,6 @@ function compactSummary(value: string): string {
   return `${text.slice(0, 217).trimEnd()}...`;
 }
 
-function todayKey(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
 function greeting(): string {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -831,14 +842,18 @@ function buildLede(priorities: number, atRisk: number, events: number): string {
   return `${parts.join(", and ")}.`;
 }
 
-function driftOf(task: TaskDto): "atrisk" | "overdue" | null {
+/** Drift bucket, day-classified in the user's persisted timezone (#579): the due date
+    and "today" are compared as `YYYY-MM-DD` keys resolved in `timeZone`, not the ambient
+    browser zone, so an evening-UTC due date doesn't read as "overdue" a day early. */
+function driftOf(task: TaskDto, timeZone?: string): "atrisk" | "overdue" | null {
   if (!task.dueAt || task.status === "done") return null;
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const due = new Date(task.dueAt);
-  const startDue = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
-  if (startDue < startToday) return "overdue";
-  if (startDue - startToday <= 86_400_000 * 2) return "atrisk";
+  const todayK = todayDateKey(timeZone);
+  const dueK = zonedDateKey(task.dueAt, timeZone);
+  if (dueK < todayK) return "overdue";
+  // Both keys are user-zone `YYYY-MM-DD` → parse as UTC midnight for an exact day delta.
+  const driftDays =
+    (Date.parse(`${dueK}T00:00:00Z`) - Date.parse(`${todayK}T00:00:00Z`)) / 86_400_000;
+  if (driftDays <= 2) return "atrisk";
   return null;
 }
 
@@ -846,30 +861,24 @@ function dueTs(task: TaskDto): number {
   return task.dueAt ? new Date(task.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
 }
 
-function isSameDay(date: Date, ref: Date = new Date()): boolean {
-  return (
-    date.getFullYear() === ref.getFullYear() &&
-    date.getMonth() === ref.getMonth() &&
-    date.getDate() === ref.getDate()
-  );
-}
-
-function isToday(event: CalendarEventDto): boolean {
-  return isSameDay(new Date(event.startsAt));
+/** Whether a calendar event starts on the user's local "today" (#579). */
+function isToday(event: CalendarEventDto, timeZone?: string): boolean {
+  return zonedDateKey(event.startsAt, timeZone) === todayDateKey(timeZone);
 }
 
 function byStart(a: CalendarEventDto, b: CalendarEventDto): number {
   return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
 }
 
-function timeLabel(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true })
-    .format(new Date(iso))
-    .replace(/\s?[AP]M$/i, "");
+function timeLabel(iso: string, locale: LocaleSettingsDto): string {
+  return formatTime(iso, locale, { hour: "numeric", minute: "2-digit", hour12: true }).replace(
+    /\s?[AP]M$/i,
+    ""
+  );
 }
 
-function ampm(iso: string): string {
-  return new Date(iso).getHours() < 12 ? "am" : "pm";
+function ampm(iso: string, locale: LocaleSettingsDto): string {
+  return /pm$/i.test(formatTime(iso, locale, { hour: "numeric", hour12: true })) ? "pm" : "am";
 }
 
 function durationLabel(event: CalendarEventDto): string {
@@ -883,8 +892,6 @@ function durationLabel(event: CalendarEventDto): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-function shortDate(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(iso)
-  );
+function shortDate(iso: string, locale: LocaleSettingsDto): string {
+  return formatDate(iso, locale, { month: "short", day: "numeric" });
 }

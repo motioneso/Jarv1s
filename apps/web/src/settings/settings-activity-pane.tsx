@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { listActionAuditLog } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
+import { formatDateTime, useUserLocale } from "../locale/locale-format.js";
 import type { PaneProps } from "./settings-types.js";
 import type { ActionAuditLogEntryDto } from "@jarv1s/shared";
 
@@ -66,6 +67,7 @@ function isDistinct(outcome: ActionAuditLogEntryDto["outcome"]): boolean {
 }
 
 export function ActivityPane(_props: PaneProps) {
+  const locale = useUserLocale();
   const [range, setRange] = useState<DateRange>("30d");
   const [familyFilter, setFamilyFilter] = useState<string>("");
 
@@ -181,7 +183,7 @@ export function ActivityPane(_props: PaneProps) {
                 </div>
               </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
-                <span className="aud__when" title={new Date(entry.occurredAt).toLocaleString()}>
+                <span className="aud__when" title={formatDateTime(entry.occurredAt, locale)}>
                   {relativeTime(entry.occurredAt)}
                 </span>
               </div>

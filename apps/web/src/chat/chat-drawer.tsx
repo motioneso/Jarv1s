@@ -31,7 +31,13 @@ import {
   createUsefulnessFeedback,
   undoUsefulnessFeedback
 } from "../api/usefulness-feedback-client";
-import type { ChatMessageDto, UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@jarv1s/shared";
+import type {
+  ChatMessageDto,
+  LocaleSettingsDto,
+  UsefulnessFeedbackDto,
+  UsefulnessFeedbackKind
+} from "@jarv1s/shared";
+import { formatDate, useUserLocale } from "../locale/locale-format";
 import { ActionRequestCard } from "./action-request-card";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
@@ -366,6 +372,7 @@ function HistoryList(props: {
   readonly selectedThreadId: string | null;
   readonly onSelect: (threadId: string) => void;
 }) {
+  const locale = useUserLocale();
   if (props.threads.length === 0) return null;
   return (
     <div className="chatd-sess">
@@ -383,7 +390,7 @@ function HistoryList(props: {
           <span className="chatd-sess__main">
             <span className="chatd-sess__title">{thread.title}</span>
           </span>
-          <span className="chatd-sess__when">{formatShortDate(thread.updatedAt)}</span>
+          <span className="chatd-sess__when">{formatShortDate(thread.updatedAt, locale)}</span>
         </button>
       ))}
     </div>
@@ -699,10 +706,10 @@ function safeActivityKind(kind: string): ChatRecordKind {
   return "status";
 }
 
-function formatShortDate(value: string): string {
+function formatShortDate(value: string, locale: LocaleSettingsDto): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return formatDate(value, locale, { month: "short", day: "numeric" });
 }
 
 function EmptyState(props: {
@@ -714,8 +721,13 @@ function EmptyState(props: {
     queryKey: queryKeys.calendar.list,
     queryFn: () => listCalendarEvents()
   });
+  const locale = useUserLocale();
 
-  const seeds = buildChatSeeds(tasksQuery.data?.tasks ?? [], eventsQuery.data?.events ?? []);
+  const seeds = buildChatSeeds(
+    tasksQuery.data?.tasks ?? [],
+    eventsQuery.data?.events ?? [],
+    locale
+  );
 
   return (
     <div className="chatd-empty">

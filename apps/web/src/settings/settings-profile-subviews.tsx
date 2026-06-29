@@ -21,7 +21,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { type MeSessionDeviceKind, type MeSessionDto } from "@jarv1s/shared";
+import {
+  type LocaleSettingsDto,
+  type MeSessionDeviceKind,
+  type MeSessionDto
+} from "@jarv1s/shared";
 
 import {
   listMySessions,
@@ -33,6 +37,7 @@ import {
   type ExportJobStatus
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { formatDate, useUserLocale } from "../locale/locale-format";
 import { useFeedback } from "./settings-feedback";
 import { Badge, Group, Note, Row } from "./settings-ui";
 
@@ -196,7 +201,7 @@ function metaLine(s: MeSessionDto): string {
   return [s.browser, s.os].filter(Boolean).join(" · ") || "Unknown browser";
 }
 
-function formatLastSeen(iso: string): string {
+function formatLastSeen(iso: string, locale: LocaleSettingsDto): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "Unknown";
   const diffMs = Date.now() - then;
@@ -207,11 +212,12 @@ function formatLastSeen(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso, locale);
 }
 
 export function Sessions() {
   const { toast, confirm } = useFeedback();
+  const locale = useUserLocale();
   const queryClient = useQueryClient();
   const sessionsQuery = useQuery({
     queryKey: queryKeys.settings.sessions,
@@ -324,7 +330,7 @@ export function Sessions() {
               </div>
               <div className="sess__act">
                 <div className={`sess__last${s.isCurrent ? " sess__last--now" : ""}`}>
-                  {formatLastSeen(s.lastSeenAt)}
+                  {formatLastSeen(s.lastSeenAt, locale)}
                 </div>
                 {s.isCurrent ? (
                   <span className="sess__you">Current session</span>

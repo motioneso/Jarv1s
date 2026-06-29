@@ -16,6 +16,12 @@ import {
   type PatchMemoryEntityBody,
   type PatchMemoryFactBody
 } from "../api/memory-client";
+import type { LocaleSettingsDto } from "@jarv1s/shared";
+import {
+  formatDate as fmtDate,
+  formatDateTime as fmtDateTime,
+  useUserLocale
+} from "../locale/locale-format";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
@@ -48,16 +54,14 @@ function confidenceTone(tier?: string): BadgeTone {
   return "neutral";
 }
 
-function formatDate(iso?: string | null): string {
+function formatDate(iso: string | null | undefined, locale: LocaleSettingsDto): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : d.toLocaleDateString();
+  return fmtDate(iso, locale);
 }
 
-function formatDateTime(iso?: string | null): string {
+function formatDateTime(iso: string | null | undefined, locale: LocaleSettingsDto): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : d.toLocaleString();
+  return fmtDateTime(iso, locale);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -84,6 +88,7 @@ function CandidateActions(props: {
   readonly onDone: () => void;
 }) {
   const { item, onDone } = props;
+  const locale = useUserLocale();
   const { toast, confirm } = useFeedback();
   const queryClient = useQueryClient();
   const [form, setForm] = useAcceptForm(item);
@@ -159,7 +164,7 @@ function CandidateActions(props: {
     <div className="memdash-drawer">
       <div className="memdash-drawer__meta">
         <span>Source: {item.sourceSummary || item.sourceKind}</span>
-        <span>Created: {formatDateTime(item.createdAt)}</span>
+        <span>Created: {formatDateTime(item.createdAt, locale)}</span>
         {item.confidence !== undefined ? (
           <span>Confidence: {Math.round(item.confidence * 100)}%</span>
         ) : null}
@@ -238,6 +243,7 @@ function CandidateActions(props: {
 
 function FactActions(props: { readonly item: MemoryDashboardItem; readonly onDone: () => void }) {
   const { item, onDone } = props;
+  const locale = useUserLocale();
   const { toast, confirm } = useFeedback();
   const queryClient = useQueryClient();
   const [pinned, setPinned] = useState(item.pinned ?? false);
@@ -284,11 +290,11 @@ function FactActions(props: { readonly item: MemoryDashboardItem; readonly onDon
     <div className="memdash-drawer">
       <div className="memdash-drawer__meta">
         <span>Source: {item.sourceSummary || item.sourceKind}</span>
-        <span>Created: {formatDateTime(item.createdAt)}</span>
-        <span>Updated: {formatDateTime(item.updatedAt)}</span>
-        {item.staleAt ? <span>Stale at: {formatDate(item.staleAt)}</span> : null}
-        {item.validFrom ? <span>Valid from: {formatDate(item.validFrom)}</span> : null}
-        {item.validTo ? <span>Valid to: {formatDate(item.validTo)}</span> : null}
+        <span>Created: {formatDateTime(item.createdAt, locale)}</span>
+        <span>Updated: {formatDateTime(item.updatedAt, locale)}</span>
+        {item.staleAt ? <span>Stale at: {formatDate(item.staleAt, locale)}</span> : null}
+        {item.validFrom ? <span>Valid from: {formatDate(item.validFrom, locale)}</span> : null}
+        {item.validTo ? <span>Valid to: {formatDate(item.validTo, locale)}</span> : null}
         {item.conflictGroupId ? <span>In conflict group</span> : null}
         {item.supersededByFactId ? <span>Superseded</span> : null}
       </div>
@@ -318,6 +324,7 @@ function FactActions(props: { readonly item: MemoryDashboardItem; readonly onDon
 
 function EntityActions(props: { readonly item: MemoryDashboardItem; readonly onDone: () => void }) {
   const { item, onDone } = props;
+  const locale = useUserLocale();
   const { toast, confirm } = useFeedback();
   const queryClient = useQueryClient();
   const [name, setName] = useState(item.title);
@@ -369,7 +376,7 @@ function EntityActions(props: { readonly item: MemoryDashboardItem; readonly onD
       <div className="memdash-drawer__meta">
         <span>Kind: {item.entityKind ?? "—"}</span>
         <span>Status: {item.status}</span>
-        <span>Updated: {formatDateTime(item.updatedAt)}</span>
+        <span>Updated: {formatDateTime(item.updatedAt, locale)}</span>
       </div>
 
       {item.editableFields.includes("entityName") ? (
@@ -415,6 +422,7 @@ function EntityActions(props: { readonly item: MemoryDashboardItem; readonly onD
 
 function DashboardItemRow(props: { readonly item: MemoryDashboardItem }) {
   const { item } = props;
+  const locale = useUserLocale();
   const [open, setOpen] = useState(false);
 
   function renderActions() {
@@ -445,7 +453,7 @@ function DashboardItemRow(props: { readonly item: MemoryDashboardItem }) {
           ) : null}
           <Badge tone="steel">{item.status}</Badge>
         </span>
-        <span className="memdash-item__date">{formatDate(item.updatedAt)}</span>
+        <span className="memdash-item__date">{formatDate(item.updatedAt, locale)}</span>
         {open ? (
           <ChevronUp size={14} aria-hidden="true" />
         ) : (
