@@ -43,6 +43,18 @@ function requireMarkdownPath(input: unknown): string {
   return normalize(input);
 }
 
+/**
+ * When the AI supplies an absolute sourcePath from notes.search, strip the notes root prefix
+ * so the path passes requireMarkdownPath. Non-absolute inputs are returned unchanged.
+ * Absolute paths that don't start with root are passed through as-is — requireMarkdownPath
+ * will then reject them.
+ */
+function coerceToRelativePath(input: unknown, root: string): unknown {
+  if (typeof input !== "string" || !isAbsolute(input)) return input;
+  const prefix = root.endsWith("/") ? root : `${root}/`;
+  return input.startsWith(prefix) ? input.slice(prefix.length) : input;
+}
+
 async function resolveAllowedRoots(): Promise<string[]> {
   const roots = resolveNotesRoots();
   if (roots.length === 0) throw new HttpError(503, "Notes roots not configured on this server");
@@ -148,10 +160,10 @@ export const notesCreateExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const raw = input as { path?: unknown; content?: unknown; overwrite?: unknown };
-  const rel = requireMarkdownPath(raw.path);
   if (typeof raw.content !== "string") throw new HttpError(400, "content must be a string");
 
   const root = await resolveSource(scopedDb);
+  const rel = requireMarkdownPath(coerceToRelativePath(raw.path, root));
   const file = join(root, rel);
   await rejectSymlinkParent(root, rel);
   await mkdir(dirname(file), { recursive: true });
@@ -196,12 +208,12 @@ export const notesEditExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const raw = input as { path?: unknown; oldText?: unknown; newText?: unknown };
-  const rel = requireMarkdownPath(raw.path);
   if (typeof raw.oldText !== "string" || typeof raw.newText !== "string") {
     throw new HttpError(400, "oldText and newText must be strings");
   }
 
   const root = await resolveSource(scopedDb);
+  const rel = requireMarkdownPath(coerceToRelativePath(raw.path, root));
   const file = await resolveExistingFile(root, rel);
   const content = await readFile(file, "utf-8");
   const count = content.split(raw.oldText).length - 1;
@@ -218,8 +230,9 @@ export const notesDeleteExecute: ToolExecute = async (
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const raw = input as { path?: unknown };
-  const rel = requireMarkdownPath(raw.path);
+
   const root = await resolveSource(scopedDb);
+  const rel = requireMarkdownPath(coerceToRelativePath(raw.path, root));
   const file = await resolveExistingFile(root, rel);
   await unlink(file);
   return sync(services, ctx.actorUserId, root, rel);

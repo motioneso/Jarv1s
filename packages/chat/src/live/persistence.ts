@@ -9,7 +9,13 @@
  * episodic-embed job (unless the thread is incognito).
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
-import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
+import { extractTimezone } from "../locale-utils.js";
+import {
+  assertDataContextDb,
+  type DataContextDb,
+  type DataContextRunner,
+  type PreferencesPort
+} from "@jarv1s/db";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
@@ -45,6 +51,8 @@ export interface DataContextChatPersistenceDeps {
     scopedDb: DataContextDb,
     kind: "email" | "calendar"
   ) => Promise<Date | null>;
+  /** Used to read the user's IANA timezone from their locale preference (key "locale"). */
+  readonly localePreferences?: PreferencesPort;
 }
 
 export function toolNameToSource(toolName: string): string | null {
@@ -107,6 +115,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly ai: AiRepository;
   private readonly boss: PgBoss | undefined;
   private readonly connectorSyncAt: DataContextChatPersistenceDeps["connectorSyncAt"];
+  private readonly localePreferences: PreferencesPort | undefined;
 
   constructor(deps: DataContextChatPersistenceDeps) {
     this.dataContext = deps.dataContext;
@@ -114,6 +123,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     this.ai = deps.aiRepository;
     this.boss = deps.boss;
     this.connectorSyncAt = deps.connectorSyncAt;
+    this.localePreferences = deps.localePreferences;
   }
 
   async resolveActiveProvider(
@@ -255,12 +265,15 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     actorUserId: string
   ): Promise<{ threadTitle: string | null; localTimezone: string | null }> {
     return this.run(actorUserId, "get-thread-context", async (scopedDb) => {
-      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      const [thread, localeRaw] = await Promise.all([
+        this.chat.getCurrentThread(scopedDb, actorUserId),
+        this.localePreferences?.get(scopedDb, "locale") ?? null
+      ]);
       const title = thread?.title ?? null;
-      // V1: timezone from thread not yet stored; fall back to instance default via env.
+      const localTimezone = extractTimezone(localeRaw);
       return {
         threadTitle: title && title !== DEFAULT_CONVERSATION_TITLE ? title : null,
-        localTimezone: null
+        localTimezone
       };
     });
   }

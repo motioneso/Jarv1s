@@ -97,11 +97,6 @@ export function AppearancePane() {
     setError(null);
     setStatus(null);
   };
-  const parseStagedPalette = () => {
-    const colors = parsePalette(paletteText);
-    setStaged(colors);
-    setError(colors.length ? null : "Paste #rrggbb or rgb(r, g, b) values.");
-  };
   const saveDraft = () => {
     if (!draft) return;
     const invalid = AESTHETIC_THEME_TOKEN_KEYS.find((key) => !isThemeColor(draft.tokens[key]));
@@ -234,15 +229,20 @@ export function AppearancePane() {
               <textarea
                 className="jds-textarea"
                 value={paletteText}
-                onChange={(event) => setPaletteText(event.target.value)}
+                onChange={(event) => {
+                  const text = event.target.value;
+                  setPaletteText(text);
+                  const colors = parsePalette(text);
+                  setStaged(colors);
+                  if (colors.length > 0) setError(null);
+                }}
+                onPaste={(event) => {
+                  const pasted = event.clipboardData.getData("text");
+                  if (pasted.trim().length > 0 && parsePalette(pasted).length === 0) {
+                    setError("Paste #rrggbb or rgb(r, g, b) values.");
+                  }
+                }}
               />
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
-                onClick={parseStagedPalette}
-              >
-                Stage colors
-              </button>
             </Field>
             {staged.length ? (
               <div className="theme-staged" aria-label="Staged palette">

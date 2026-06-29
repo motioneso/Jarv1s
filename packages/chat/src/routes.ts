@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { extractTimezone } from "./locale-utils.js";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
@@ -90,6 +91,7 @@ export interface ChatRoutesDependencies {
   readonly boss?: PgBoss;
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
+  readonly localePreferences?: PreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
   readonly googleConnectionService?: GoogleConnectionService;
@@ -167,7 +169,8 @@ export function registerChatRoutes(
                 connectorsRepository: dependencies.connectorsRepository,
                 boss: dependencies.boss
               },
-              agencyPreferences: dependencies.agencyPreferences
+              agencyPreferences: dependencies.agencyPreferences,
+              localePreferences: dependencies.localePreferences
             })
           );
 
@@ -190,6 +193,7 @@ export function registerChatRoutes(
       : undefined,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
+    localePreferences: dependencies.localePreferences,
     mcpTokenLifecycle: wiring
       ? {
           mint: async (actorUserId: string) => {
@@ -572,6 +576,7 @@ export function buildChatGatewayDependencies(args: {
   confirmations: ConfirmationRegistry;
   notifier: SessionNotifier;
   agencyPreferences?: PreferencesPort;
+  localePreferences?: PreferencesPort;
   collaborators: {
     googleConnectionService?: GoogleConnectionService;
     googleApiClient?: GoogleApiClient;
@@ -597,7 +602,17 @@ export function buildChatGatewayDependencies(args: {
       preferences: args.agencyPreferences,
       resolveActiveModules: args.resolveActiveModules
     }),
-    toolServices: buildChatToolServices(args.collaborators)
+    toolServices: buildChatToolServices(args.collaborators),
+    resolveLocalTimezone: args.localePreferences
+      ? (actorUserId) =>
+          args.runner.withDataContext(
+            { actorUserId, requestId: "gateway:resolve-locale-tz" },
+            async (scopedDb) => {
+              const raw = await args.localePreferences!.get(scopedDb, "locale");
+              return extractTimezone(raw);
+            }
+          )
+      : undefined
   };
 }
 

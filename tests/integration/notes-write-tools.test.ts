@@ -226,6 +226,90 @@ describe("notes write assistant tools", () => {
     await expect(readFile(join(root, "note.md"), "utf-8")).rejects.toThrow();
   });
 
+  it("accepts absolute sourcePath from search results (within root) and writes correctly", async () => {
+    const absPath = join(root, "journal/2026-06-29.md");
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "abs-create" },
+      async (db) => {
+        const result = await notesCreateExecute(
+          db,
+          { path: absPath, content: "# Today\n" },
+          { actorUserId: ids.userA, requestId: "abs-create", chatSessionId: "chat" },
+          { notesSync: service }
+        );
+        expect(result.data).toEqual({ path: "journal/2026-06-29.md", synced: true });
+      }
+    );
+    await expect(readFile(absPath, "utf-8")).resolves.toBe("# Today\n");
+
+    await runner.withDataContext({ actorUserId: ids.userA, requestId: "abs-edit" }, async (db) => {
+      const result = await notesEditExecute(
+        db,
+        { path: absPath, oldText: "# Today\n", newText: "# Today (edited)\n" },
+        { actorUserId: ids.userA, requestId: "abs-edit", chatSessionId: "chat" },
+        { notesSync: service }
+      );
+      expect(result.data).toEqual({ path: "journal/2026-06-29.md", synced: true });
+    });
+    await expect(readFile(absPath, "utf-8")).resolves.toBe("# Today (edited)\n");
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "abs-delete" },
+      async (db) => {
+        const result = await notesDeleteExecute(
+          db,
+          { path: absPath },
+          { actorUserId: ids.userA, requestId: "abs-delete", chatSessionId: "chat" },
+          { notesSync: service }
+        );
+        expect(result.data).toEqual({ path: "journal/2026-06-29.md", synced: true });
+      }
+    );
+    await expect(readFile(absPath, "utf-8")).rejects.toThrow();
+  });
+
+  it("rejects absolute path with traversal after root prefix (sibling-prefix attack)", async () => {
+    // e.g. AI passes /root/../../../etc/passwd.md — coerceToRelativePath strips /root/ prefix
+    // leaving ../../../etc/passwd.md which must be caught by the `..` check in requireMarkdownPath
+    // Must use string concat — join() normalises `..` away before coerceToRelativePath sees it.
+    const traversalPath = `${root}/../../../etc/passwd.md`;
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "abs-traversal" },
+      async (db) => {
+        await expect(
+          notesCreateExecute(
+            db,
+            { path: traversalPath, content: "bad" },
+            { actorUserId: ids.userA, requestId: "abs-traversal", chatSessionId: "chat" },
+            { notesSync: service }
+          )
+        ).rejects.toThrow("relative Markdown path");
+      }
+    );
+  });
+
+  it("rejects absolute path outside the configured notes root", async () => {
+    const outside = await mkdtemp(join(tmpdir(), `jarv1s-outside-abs-${randomUUID()}-`));
+    try {
+      const absOutsidePath = join(outside, "escape.md");
+      await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "abs-outside" },
+        async (db) => {
+          await expect(
+            notesCreateExecute(
+              db,
+              { path: absOutsidePath, content: "bad" },
+              { actorUserId: ids.userA, requestId: "abs-outside", chatSessionId: "chat" },
+              { notesSync: service }
+            )
+          ).rejects.toThrow("relative Markdown path");
+        }
+      );
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
   it("rejects traversal and symlink escape", async () => {
     const outside = await mkdtemp(join(tmpdir(), `jarv1s-outside-${randomUUID()}-`));
     await symlink(outside, join(root, "escape"));
