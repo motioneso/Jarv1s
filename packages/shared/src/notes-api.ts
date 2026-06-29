@@ -161,6 +161,8 @@ export interface NotesWriteResult {
 
 const relativeMarkdownPathProperty = {
   type: "string",
+  description:
+    'Vault-relative Markdown path (e.g. "Journal/2026-06-29.md"). Absolute sourcePath values returned by notes.search are also accepted.',
   minLength: 1,
   pattern: "^[^\\0]+\\.md$"
 } as const;
