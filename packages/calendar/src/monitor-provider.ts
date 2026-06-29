@@ -14,6 +14,21 @@ function stableHash(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
+/** URLs with credential-like query params — strip the whole URL to avoid leaking auth state. */
+const AUTH_URL_PATTERN =
+  /https?:\/\/\S*[?&](token|access_token|session|auth|api_key|apikey|secret|client_secret|code|refresh_token)\S*/gi;
+
+/** Line patterns indicating a secret or credential assignment — redact. */
+const CREDENTIAL_LINE_PATTERN =
+  /^.*(password|passwd|api[_\s-]?key|secret[_\s-]?key|auth[_\s-]?token|session[_\s-]?token|bearer\s+\S{6,}|private[_\s-]?key|access[_\s-]?token)\s*[:=]\s*\S+.*$/gim;
+
+function sanitizeSnippet(text: string): string {
+  return text
+    .replace(AUTH_URL_PATTERN, "[link removed]")
+    .replace(/\bbearer\s+\S{6,}/gi, "[redacted]")
+    .replace(CREDENTIAL_LINE_PATTERN, "[redacted]");
+}
+
 /** Events starting within this window are considered "soon". */
 const SOON_HOURS = 24;
 
@@ -66,11 +81,11 @@ export const calendarMonitorProvider: ProactiveMonitorProvider = {
         stableKey,
         sourceRefHash: stableHash(event.external_id ?? event.id),
         signalType,
-        title: event.title,
+        title: sanitizeSnippet(event.title).slice(0, 200),
         summary:
           hoursUntil <= 2
-            ? `Upcoming in ${Math.round(hoursUntil * 60)} min${event.location ? ` — ${event.location}` : ""}`
-            : `Starts ${starts.toLocaleString()}${event.location ? ` — ${event.location}` : ""}`,
+            ? `Upcoming in ${Math.round(hoursUntil * 60)} min${event.location ? ` — ${sanitizeSnippet(event.location)}` : ""}`
+            : `Starts ${starts.toLocaleString()}${event.location ? ` — ${sanitizeSnippet(event.location)}` : ""}`,
         targetAt: starts.toISOString(),
         occurredAt: event.updated_at
           ? new Date(event.updated_at as unknown as string).toISOString()
