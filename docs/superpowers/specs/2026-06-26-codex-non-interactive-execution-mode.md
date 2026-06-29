@@ -1,7 +1,7 @@
 # Codex Non-Interactive Execution Mode
 
 **Date:** 2026-06-26
-**Status:** Draft design - pending written-spec review
+**Status:** Approved — implementation complete (2026-06-28)
 **Owner:** Codex
 **GitHub:** #521
 **Grounded on:** `~/Jarv1s/docs/superpowers/specs/2026-06-26-provider-execution-mode-spike.md`, `~/Jarv1s/packages/ai/src/adapters/transcript-reader.ts`, `~/Jarv1s/packages/chat/src/live/types.ts`, `~/Jarv1s/packages/chat/src/live/runtime.ts`, `~/Jarv1s/packages/chat/src/live/chat-session-manager.ts`, `~/Jarv1s/apps/web/src/settings/settings-ai-admin-pane.tsx`, `~/Jarv1s/packages/shared/src/ai-types.ts`
