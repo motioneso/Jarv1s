@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskDefaultView, TaskDto } from "@jarv1s/shared";
+import type { TaskDefaultView, TaskDto, TaskSearchIntent } from "@jarv1s/shared";
 import {
   CheckCheck,
   ChevronDown,
@@ -8,6 +8,7 @@ import {
   List as ListIcon,
   LoaderCircle,
   Search,
+  Sparkles,
   Tag
 } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import { useSearchParams } from "react-router";
 
 import {
   getTaskPreferences,
+  interpretTaskSearch,
   listTaskLists,
   listTasks,
   updateTask,
@@ -53,6 +55,8 @@ export function TasksPage() {
     );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todo");
   const [search, setSearch] = useState("");
+  const [searchIntent, setSearchIntent] = useState<TaskSearchIntent | null>(null);
+  const [searchWarning, setSearchWarning] = useState<string | null>(null);
   const [listStates, setListStates] = useState<Record<string, ListState>>({});
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -92,6 +96,26 @@ export function TasksPage() {
     }
   });
 
+  const interpretMutation = useMutation({
+    mutationFn: (query: string) => interpretTaskSearch({ query }),
+    onSuccess: (response) => {
+      const nextIntent = intentForUi(response.intent);
+      if (response.intent.status) {
+        setStatusFilter(response.intent.status);
+        clearFocus();
+      }
+      setSearchIntent(hasStructuredIntent(nextIntent) ? nextIntent : null);
+      setSearchWarning(
+        response.warnings[0] ??
+          (hasStructuredIntent(nextIntent) ? null : "No structured filter found.")
+      );
+    },
+    onError: () => {
+      setSearchIntent(null);
+      setSearchWarning("Natural-language filtering is unavailable.");
+    }
+  });
+
   const derived = useMemo(
     () =>
       deriveTaskFilters({
@@ -102,12 +126,25 @@ export function TasksPage() {
         listStates,
         tagFilter,
         search: deferredSearch,
+        searchIntent,
         timeZone: locale.timezone
       }),
-    [allTasks, deferredSearch, focus, listStates, lists, statusFilter, tagFilter, locale.timezone]
+    [
+      allTasks,
+      deferredSearch,
+      focus,
+      listStates,
+      lists,
+      statusFilter,
+      tagFilter,
+      searchIntent,
+      locale.timezone
+    ]
   );
   const { allTags, listCounts, listCountTotal, soloIds, visibleTasks } = derived;
   const stateOf = (listId: string): ListState => listStates[listId] ?? "included";
+  const listNames = useMemo(() => new Map(lists.map((list) => [list.id, list.name])), [lists]);
+  const searchChips = searchIntent ? taskSearchChips(searchIntent, listNames) : [];
 
   const cycleList = (id: string) =>
     setListStates((s) => {
@@ -116,6 +153,11 @@ export function TasksPage() {
         cur === "included" ? "solo" : cur === "solo" ? "excluded" : "included";
       return { ...s, [id]: next };
     });
+  const submitSearchIntent = () => {
+    const query = search.trim();
+    if (!query) return;
+    interpretMutation.mutate(query);
+  };
 
   return (
     <section className="tasks-wrap tasks--comfortable tasks--panels" aria-label="Tasks">
@@ -164,11 +206,29 @@ export function TasksPage() {
             </span>
             <input
               aria-label="Search tasks"
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setSearchIntent(null);
+                setSearchWarning(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                submitSearchIntent();
+              }}
               placeholder="Search tasks…"
               type="search"
               value={search}
             />
+            <button
+              aria-label="Interpret search"
+              className="tk-tagfield__action"
+              disabled={interpretMutation.isPending || !search.trim()}
+              onClick={submitSearchIntent}
+              type="button"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+            </button>
           </label>
         </div>
 
@@ -265,6 +325,47 @@ export function TasksPage() {
         </div>
       ) : null}
 
+      {searchChips.length > 0 || searchWarning ? (
+        <div className="tk-activetags">
+          <span className="tk-activetags__lbl">Search</span>
+          {searchChips.map((chip) => (
+            <span key={chip.key} className="jds-chip">
+              {chip.label}
+              <button
+                type="button"
+                className="jds-chip__x"
+                aria-label={`Remove ${chip.label}`}
+                onClick={() =>
+                  setSearchIntent((intent) => removeSearchIntentChip(intent, chip.key))
+                }
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="13"
+                  height="13"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </span>
+          ))}
+          {searchWarning ? <span className="tk-activetags__note">{searchWarning}</span> : null}
+          {searchChips.length > 0 ? (
+            <button
+              type="button"
+              className="tk-activetags__clear"
+              onClick={() => setSearchIntent(null)}
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <TaskCapture
         defaultListId={soloIds.length === 1 ? soloIds[0] : undefined}
         onDetails={(name) => setDialog({ id: null, defaultName: name })}
@@ -316,6 +417,86 @@ export function TasksPage() {
       ) : null}
     </section>
   );
+}
+
+type SearchChipKey =
+  | "text"
+  | "effort"
+  | "priority"
+  | "quadrant"
+  | "due"
+  | `list:${string}`
+  | `tag:${string}`;
+
+function intentForUi(intent: TaskSearchIntent): TaskSearchIntent {
+  return { ...intent, status: null };
+}
+
+function hasStructuredIntent(intent: TaskSearchIntent): boolean {
+  return (
+    Boolean(intent.text) ||
+    intent.effort !== null ||
+    intent.priority !== null ||
+    intent.listIds.length > 0 ||
+    intent.tagNames.length > 0 ||
+    intent.quadrant !== null ||
+    intent.due !== null
+  );
+}
+
+function taskSearchChips(
+  intent: TaskSearchIntent,
+  listNames: ReadonlyMap<string, string>
+): readonly { readonly key: SearchChipKey; readonly label: string }[] {
+  return [
+    ...(intent.text ? [{ key: "text" as const, label: `Text: ${intent.text}` }] : []),
+    ...(intent.effort ? [{ key: "effort" as const, label: `Effort: ${intent.effort}` }] : []),
+    ...(intent.priority !== null
+      ? [{ key: "priority" as const, label: `Priority: ${intent.priority}` }]
+      : []),
+    ...(intent.quadrant
+      ? [{ key: "quadrant" as const, label: `Quadrant: ${intent.quadrant}` }]
+      : []),
+    ...(intent.due ? [{ key: "due" as const, label: dueIntentLabel(intent.due) }] : []),
+    ...intent.listIds.map((id) => ({
+      key: `list:${id}` as const,
+      label: `List: ${listNames.get(id) ?? id}`
+    })),
+    ...intent.tagNames.map((name) => ({ key: `tag:${name}` as const, label: `#${name}` }))
+  ];
+}
+
+function removeSearchIntentChip(
+  intent: TaskSearchIntent | null,
+  key: SearchChipKey
+): TaskSearchIntent | null {
+  if (!intent) return null;
+  const next =
+    key === "effort"
+      ? { ...intent, effort: null }
+      : key === "text"
+        ? { ...intent, text: null }
+        : key === "priority"
+          ? { ...intent, priority: null }
+          : key === "quadrant"
+            ? { ...intent, quadrant: null }
+            : key === "due"
+              ? { ...intent, due: null }
+              : key.startsWith("list:")
+                ? { ...intent, listIds: intent.listIds.filter((id) => id !== key.slice(5)) }
+                : { ...intent, tagNames: intent.tagNames.filter((name) => name !== key.slice(4)) };
+  return hasStructuredIntent(next) ? next : null;
+}
+
+function dueIntentLabel(due: NonNullable<TaskSearchIntent["due"]>): string {
+  if (due.kind === "none") return "No due date";
+  if (due.kind === "overdue") return "Due: overdue";
+  if (due.kind === "today") return "Due: today";
+  if (due.kind === "this_week") return "Due: this week";
+  if (due.dueAfter && due.dueBefore) return `Due: ${due.dueAfter} to ${due.dueBefore}`;
+  if (due.dueAfter) return `Due after: ${due.dueAfter}`;
+  if (due.dueBefore) return `Due before: ${due.dueBefore}`;
+  return "Due date";
 }
 
 /** Lists filter — tri-state per list: include → solo (focus, dim others) → exclude (hide). */

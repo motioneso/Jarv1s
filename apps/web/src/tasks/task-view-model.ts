@@ -1,6 +1,13 @@
-import { quadrantOf, type TaskDto, type TaskListDto, type TaskQuadrant } from "@jarv1s/shared";
+import {
+  quadrantOf,
+  type TaskDto,
+  type TaskListDto,
+  type TaskQuadrant,
+  type TaskSearchIntent
+} from "@jarv1s/shared";
 
 import { matchesFocus, type TaskFocus } from "./focus.js";
+import { todayDateKey, zonedDateKey } from "../locale/locale-format.js";
 
 export const statusFilters = ["all", "todo", "done", "archived"] as const;
 export type StatusFilter = (typeof statusFilters)[number];
@@ -14,6 +21,7 @@ export interface TaskFilterInput {
   readonly listStates: Readonly<Record<string, ListState>>;
   readonly tagFilter: readonly string[];
   readonly search: string;
+  readonly searchIntent?: TaskSearchIntent | null;
   /** Persisted user IANA timezone for the date-based focus filters (#579). */
   readonly timeZone?: string;
 }
@@ -29,7 +37,7 @@ export interface TaskFilterResult {
 type QuadrantTaskGroups = Record<TaskQuadrant, TaskDto[]>;
 
 export function deriveTaskFilters(input: TaskFilterInput): TaskFilterResult {
-  const needle = input.search.trim().toLowerCase();
+  const needle = (input.searchIntent?.text ?? input.search).trim().toLowerCase();
   const tagSet = new Set(input.tagFilter);
   const soloIds = input.lists
     .filter((list) => input.listStates[list.id] === "solo")
@@ -60,6 +68,9 @@ export function deriveTaskFilters(input: TaskFilterInput): TaskFilterResult {
     if (listState === "excluded") continue;
     if (anySolo && !soloSet.has(task.listId)) continue;
     if (needle && !matchesSearch(task, needle)) continue;
+    if (input.searchIntent && !matchesSearchIntent(task, input.searchIntent, input.timeZone)) {
+      continue;
+    }
 
     visibleTasks.push(task);
   }
@@ -97,6 +108,42 @@ function matchesSearch(task: TaskDto, needle: string): boolean {
     task.title.toLowerCase().includes(needle) ||
     (task.description?.toLowerCase().includes(needle) ?? false)
   );
+}
+
+function matchesSearchIntent(task: TaskDto, intent: TaskSearchIntent, timeZone?: string): boolean {
+  if (intent.status && task.status !== intent.status) return false;
+  if (intent.effort && task.effort !== intent.effort) return false;
+  if (intent.priority !== null && task.priority !== intent.priority) return false;
+  if (intent.quadrant && quadrantOf(task) !== intent.quadrant) return false;
+  if (intent.listIds.length > 0 && !intent.listIds.includes(task.listId)) return false;
+  if (intent.tagNames.length > 0) {
+    const taskTags = new Set(task.tags.map((tag) => tag.name.toLowerCase()));
+    if (!intent.tagNames.every((tag) => taskTags.has(tag.toLowerCase()))) return false;
+  }
+  if (!matchesDueIntent(task, intent.due, timeZone)) return false;
+  return true;
+}
+
+function matchesDueIntent(task: TaskDto, due: TaskSearchIntent["due"], timeZone?: string): boolean {
+  if (!due) return true;
+  if (due.kind === "none") return task.dueAt === null;
+  if (!task.dueAt) return false;
+
+  const today = todayDateKey(timeZone);
+  const dueKey = zonedDateKey(task.dueAt, timeZone);
+  if (due.kind === "overdue") return dueKey < today;
+  if (due.kind === "today") return dueKey === today;
+  if (due.kind === "this_week") return dueKey >= today && dueKey <= addDaysKey(today, 6);
+  return (
+    (due.dueAfter === null || dueKey >= due.dueAfter) &&
+    (due.dueBefore === null || dueKey <= due.dueBefore)
+  );
+}
+
+function addDaysKey(dateKey: string, days: number): string {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function byDueThenTitle(left: TaskDto, right: TaskDto): number {

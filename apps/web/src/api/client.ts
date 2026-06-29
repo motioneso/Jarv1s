@@ -60,6 +60,8 @@ import type {
   GoogleCompleteRequest,
   GoogleCompleteResponse,
   GoogleSyncResponse,
+  InterpretTaskSearchRequest,
+  InterpretTaskSearchResponse,
   CreateTaskRequest,
   CreateTaskResponse,
   GetTaskResponse,
@@ -373,6 +375,15 @@ export async function listGoals(): Promise<ListGoalsResponse> {
 export async function listTasks(params?: { readonly tagId?: string }): Promise<ListTasksResponse> {
   const qs = params?.tagId ? `?tagId=${encodeURIComponent(params.tagId)}` : "";
   return requestJson<ListTasksResponse>(`/api/tasks${qs}`);
+}
+
+export async function interpretTaskSearch(
+  input: InterpretTaskSearchRequest
+): Promise<InterpretTaskSearchResponse> {
+  return requestJson<InterpretTaskSearchResponse>("/api/tasks/search/interpret", {
+    method: "POST",
+    body: input
+  });
 }
 
 export async function assignTaskTag(

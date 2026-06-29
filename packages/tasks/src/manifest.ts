@@ -24,6 +24,8 @@ import {
   deleteTaskTagRouteSchema,
   focusTasksResponseSchema,
   getTaskResponseSchema,
+  interpretTaskSearchRequestSchema,
+  interpretTaskSearchResponseSchema,
   listTaskListsResponseSchema,
   listTaskTagsResponseSchema,
   listTasksResponseSchema,
@@ -335,6 +337,13 @@ export const tasksModuleManifest = {
       requestSchema: createTaskRequestSchema,
       responseSchema: createTaskResponseSchema,
       permissionId: "tasks.create"
+    },
+    {
+      method: "POST",
+      path: "/api/tasks/search/interpret",
+      requestSchema: interpretTaskSearchRequestSchema,
+      responseSchema: interpretTaskSearchResponseSchema,
+      permissionId: "tasks.view"
     },
     {
       method: "GET",

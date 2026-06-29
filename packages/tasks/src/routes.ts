@@ -17,6 +17,7 @@ import {
   focusTasksRouteSchema,
   getTaskPreferencesRouteSchema,
   getTaskRouteSchema,
+  interpretTaskSearchRouteSchema,
   listSubtasksRouteSchema,
   listTaskActivityRouteSchema,
   listTaskListsRouteSchema,
@@ -48,6 +49,10 @@ import { TaskPreferencesRepository } from "./preferences.js";
 import { TasksCompatibilityHelper } from "./action-policy.js";
 import { TasksRepository } from "./repository.js";
 import {
+  interpretTaskSearchForRequest,
+  type TaskSearchRouteDependencies
+} from "./search-interpret-route.js";
+import {
   serializeTask,
   serializeTaskActivity,
   serializeTaskList,
@@ -55,7 +60,7 @@ import {
   serializeTaskTag
 } from "./serialize.js";
 
-export interface TasksRoutesDependencies {
+export interface TasksRoutesDependencies extends TaskSearchRouteDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
   readonly boss: PgBoss;
@@ -126,6 +131,18 @@ export function registerTasksRoutes(
       return handleRouteError(error, reply);
     }
   });
+
+  server.post(
+    "/api/tasks/search/interpret",
+    { schema: interpretTaskSearchRouteSchema },
+    async (request, reply) => {
+      try {
+        return await interpretTaskSearchForRequest(request, dependencies);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 
   server.post("/api/tasks", { schema: createTaskRouteSchema }, async (request, reply) => {
     try {
