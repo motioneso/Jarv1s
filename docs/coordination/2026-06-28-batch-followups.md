@@ -17,7 +17,7 @@
 | #554, #555, #560, #561, #562, #565 | Memory-Cleanup   | sensitive | building | memory-cleanup   | —   |
 | #505, #509                         | Wellness-Fixes   | sensitive | building | wellness-fixes   | —   |
 | #564, #567                         | Calendar-Monitor | sensitive | building | calendar-monitor | —   |
-| #480, #512                         | UI-Polish        | routine   | building | ui-polish        | —   |
+| #480, #512                         | UI-Polish        | routine   | qa       | ui-polish        | #581 |
 
 **Deferred (needs spec before build):**
 
