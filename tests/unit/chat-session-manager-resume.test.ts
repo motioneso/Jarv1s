@@ -31,19 +31,14 @@ class FakeEngine {
   }
 }
 
-function makeResumeDeps(
-  touchResult: boolean,
-  revokeMcpToken?: ReturnType<typeof vi.fn>
-) {
+function makeResumeDeps(touchResult: boolean, revokeMcpToken?: ReturnType<typeof vi.fn>) {
   const engine = new FakeEngine();
   const deps = {
     engineFactory: vi.fn().mockReturnValue(engine),
     pollMs: 0,
     revokeMcpToken,
     persistence: {
-      resolveActiveProvider: vi
-        .fn()
-        .mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+      resolveActiveProvider: vi.fn().mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
       listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
       recordTurn: vi.fn().mockResolvedValue(undefined),
       openNewConversation: vi.fn().mockResolvedValue(undefined),
