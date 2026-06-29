@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   BriefingDefinitionDto,
@@ -17,7 +17,8 @@ import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { ChatControlsProvider } from "../../apps/web/src/shell/chat-controls-context.js";
 import {
   deriveTodayMode,
-  latestEveningRunForToday
+  latestEveningRunForToday,
+  scheduleTodayModeRefresh
 } from "../../apps/web/src/today/evening-mode.js";
 import { TodayPage } from "../../apps/web/src/today/today-page.js";
 
@@ -68,6 +69,34 @@ describe("latestEveningRunForToday", () => {
         new Date("2026-06-30T03:00:00.000Z")
       )?.id
     ).toBe("run-today");
+  });
+});
+
+describe("scheduleTodayModeRefresh", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("promotes an already-open Today page when the evening gate arrives", async () => {
+    const definition = briefingDefinition({ targetTime: "19:00", timezone: locale.timezone });
+    vi.setSystemTime(new Date("2026-06-30T01:59:00.000Z"));
+    let renderedNow = new Date(Date.now());
+
+    const stop = scheduleTodayModeRefresh(definition, locale, () => {
+      renderedNow = new Date(Date.now());
+    });
+
+    expect(deriveTodayMode(definition, locale, renderedNow)).toBe("day");
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(deriveTodayMode(definition, locale, renderedNow)).toBe("day");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(deriveTodayMode(definition, locale, renderedNow)).toBe("evening");
+
+    stop();
   });
 });
 

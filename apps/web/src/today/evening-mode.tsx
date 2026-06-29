@@ -14,6 +14,7 @@ import {
   formatDate,
   formatTime,
   isValidTimeZone,
+  zonedClockParts,
   zonedClockMinutes,
   zonedDateKey
 } from "../locale/locale-format";
@@ -31,6 +32,34 @@ export function deriveTodayMode(
   const targetMinutes = parseTargetMinutes(targetTimeFor(eveningDefinition, "evening")) ?? 19 * 60;
   const zone = effectiveEveningTimeZone(eveningDefinition, locale);
   return (zonedClockMinutes(now, zone) ?? 0) >= targetMinutes ? "evening" : "day";
+}
+
+export function scheduleTodayModeRefresh(
+  eveningDefinition: BriefingDefinitionDto | undefined,
+  locale: LocaleSettingsDto,
+  onRefresh: () => void,
+  now: Date = new Date(Date.now())
+): () => void {
+  const delay = millisecondsUntilNextTodayModeRefresh(eveningDefinition, locale, now);
+  if (delay === null) return () => undefined;
+  const timer = setTimeout(onRefresh, delay);
+  return () => clearTimeout(timer);
+}
+
+export function millisecondsUntilNextTodayModeRefresh(
+  eveningDefinition: BriefingDefinitionDto | undefined,
+  locale: LocaleSettingsDto,
+  now: Date = new Date(Date.now())
+): number | null {
+  if (!eveningDefinition?.enabled) return null;
+  const targetMinutes = parseTargetMinutes(targetTimeFor(eveningDefinition, "evening")) ?? 19 * 60;
+  const parts = zonedClockParts(now, effectiveEveningTimeZone(eveningDefinition, locale));
+  if (!parts) return null;
+  const elapsedMs =
+    ((parts.hour * 60 + parts.minute) * 60 + parts.second) * 1000 + now.getMilliseconds();
+  const targetMs = targetMinutes * 60_000;
+  const delay = elapsedMs < targetMs ? targetMs - elapsedMs : 86_400_000 - elapsedMs;
+  return Math.max(1, delay);
 }
 
 export function effectiveEveningTimeZone(

@@ -20,7 +20,7 @@ import {
   Pill,
   Target
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import type { CalendarEventDto, LocaleSettingsDto, MeResponse, TaskDto } from "@jarv1s/shared";
@@ -57,7 +57,8 @@ import {
   effectiveEveningTimeZone,
   EveningReviewSection,
   EveningSupportSections,
-  latestEveningRunForToday
+  latestEveningRunForToday,
+  scheduleTodayModeRefresh
 } from "./evening-mode";
 import { ProactiveCards } from "./proactive-cards";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
@@ -85,6 +86,7 @@ export function TodayPage(props: {
   const feed = props.feed ?? createEmptyTodayFeed();
   const wellnessEnabled = props.wellnessEnabled ?? false;
   const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
+  const [, forceTodayModeRefresh] = useState(0);
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
   const eventsQuery = useQuery({
@@ -111,6 +113,20 @@ export function TodayPage(props: {
     eveningRunsQuery.data?.runs ?? [],
     eveningTimeZone,
     now
+  );
+  useEffect(
+    () =>
+      scheduleTodayModeRefresh(eveningDefinition, locale, () => {
+        forceTodayModeRefresh((value) => value + 1);
+      }),
+    [
+      eveningDefinition?.enabled,
+      eveningDefinition?.id,
+      eveningDefinition?.scheduleMetadata.targetTime,
+      eveningDefinition?.scheduleMetadata.timezone,
+      locale.timezone,
+      todayMode
+    ]
   );
   const eveningInterviewMutation = useMutation({
     mutationFn: () => startEveningInterview({ briefingRunId: latestEveningRun?.id }),

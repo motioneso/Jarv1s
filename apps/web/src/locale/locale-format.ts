@@ -113,7 +113,10 @@ export function isValidTimeZone(timeZone: string): boolean {
   }
 }
 
-export function zonedClockMinutes(input: DateInput, timeZone?: string): number | null {
+export function zonedClockParts(
+  input: DateInput,
+  timeZone?: string
+): { readonly hour: number; readonly minute: number; readonly second: number } | null {
   const date = toDate(input);
   if (!date) return null;
   try {
@@ -121,14 +124,26 @@ export function zonedClockMinutes(input: DateInput, timeZone?: string): number |
       timeZone,
       hour: "2-digit",
       minute: "2-digit",
+      second: "2-digit",
       hourCycle: "h23"
     }).formatToParts(date);
-    const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0") % 24;
-    const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
-    return hour * 60 + minute;
+    return {
+      hour: Number(parts.find((part) => part.type === "hour")?.value ?? "0") % 24,
+      minute: Number(parts.find((part) => part.type === "minute")?.value ?? "0"),
+      second: Number(parts.find((part) => part.type === "second")?.value ?? "0")
+    };
   } catch {
-    return date.getUTCHours() * 60 + date.getUTCMinutes();
+    return {
+      hour: date.getUTCHours(),
+      minute: date.getUTCMinutes(),
+      second: date.getUTCSeconds()
+    };
   }
+}
+
+export function zonedClockMinutes(input: DateInput, timeZone?: string): number | null {
+  const parts = zonedClockParts(input, timeZone);
+  return parts ? parts.hour * 60 + parts.minute : null;
 }
 
 /**
