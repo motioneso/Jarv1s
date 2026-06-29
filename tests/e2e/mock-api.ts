@@ -138,8 +138,13 @@ function adminUsersFor(state: MockApiState): UserDto[] {
 
 export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   // Catch-all registered FIRST (lowest Playwright priority — specific routes override it).
-  // Prevents unmocked /api/* calls from reaching Vite's proxy and causing ECONNREFUSED in CI.
-  await page.route("**/api/**", (route) => fulfillJson(route, 404, { error: "Not mocked" }));
+  // Prevents unmocked /api/* calls reaching Vite's proxy and causing ECONNREFUSED in CI.
+  // Uses a pathname check rather than a glob so it does NOT match Vite source-file requests
+  // like /src/api/client.ts (which contain "/api/" but are NOT API calls).
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    (route) => fulfillJson(route, 404, { error: "Not mocked" })
+  );
 
   await page.route("**/api/bootstrap/status", (route) =>
     fulfillJson(route, 200, { needsBootstrap: false })
