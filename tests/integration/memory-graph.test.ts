@@ -704,6 +704,221 @@ async function expectGraphIsolation(
   );
 }
 
+describe("transaction atomicity (#554)", () => {
+  const repo = new MemoryGraphRepository();
+
+  it("rolls back confirmFact writes when the withDataContext callback throws", async () => {
+    let factId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:confirmFact:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `atomicity-confirm-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:atomicity-confirm",
+            excerpt: "atomicity"
+          }
+        });
+        factId = fact.id;
+      }
+    );
+
+    await expect(
+      appDataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "atomicity:confirmFact:fail" },
+        async (db) => {
+          await repo.confirmFact(db, ids.userA, factId);
+          throw new Error("simulated mid-operation failure");
+        }
+      )
+    ).rejects.toThrow("simulated mid-operation failure");
+
+    const check = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:confirmFact:check" },
+      async (db) => {
+        const result = await sql<{ provenance: string }>`
+          SELECT provenance FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid AND id = ${factId}::uuid
+        `.execute(db.db);
+        return result.rows[0];
+      }
+    );
+    expect(check?.provenance).toBe("volunteered");
+  });
+
+  it("rolls back correctFact writes when the withDataContext callback throws", async () => {
+    let factId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:correctFact:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `atomicity-correct-original-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:atomicity-correct",
+            excerpt: "atomicity"
+          }
+        });
+        factId = fact.id;
+      }
+    );
+
+    await expect(
+      appDataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "atomicity:correctFact:fail" },
+        async (db) => {
+          await repo.correctFact(db, ids.userA, {
+            targetFactId: factId,
+            replacementText: "atomicity-correct-replacement"
+          });
+          throw new Error("simulated mid-operation failure");
+        }
+      )
+    ).rejects.toThrow("simulated mid-operation failure");
+
+    const check = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:correctFact:check" },
+      async (db) => {
+        const result = await sql<{ status: string; object_text: string }>`
+          SELECT status, object_text FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid
+            AND object_text LIKE 'atomicity-correct-%'
+        `.execute(db.db);
+        return result.rows;
+      }
+    );
+    expect(check).toHaveLength(1);
+    expect(check[0]?.status).toBe("active");
+    expect(check[0]?.object_text).toMatch(/original/);
+  });
+
+  it("rolls back patchFactStatus writes when the withDataContext callback throws", async () => {
+    let factId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:patchStatus:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `atomicity-patch-status-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: {
+            sourceKind: "manual",
+            sourceRef: "manual:atomicity-patch",
+            excerpt: "atomicity"
+          }
+        });
+        factId = fact.id;
+      }
+    );
+
+    await expect(
+      appDataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "atomicity:patchStatus:fail" },
+        async (db) => {
+          await repo.patchFactStatus(db, ids.userA, factId, { status: "stale" });
+          throw new Error("simulated mid-operation failure");
+        }
+      )
+    ).rejects.toThrow("simulated mid-operation failure");
+
+    const check = await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "atomicity:patchStatus:check" },
+      async (db) => {
+        const result = await sql<{ status: string }>`
+          SELECT status FROM app.memory_facts
+          WHERE owner_user_id = ${ids.userA}::uuid AND id = ${factId}::uuid
+        `.execute(db.db);
+        return result.rows[0];
+      }
+    );
+    expect(check?.status).toBe("active");
+  });
+});
+
+describe("patchFactStatus superseded guard (#555)", () => {
+  const repo = new MemoryGraphRepository();
+
+  it("rejects reactivation of a superseded fact with 400", async () => {
+    let originalFactId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "555:setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `superseded-guard-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: { sourceKind: "manual", sourceRef: "manual:555", excerpt: "555 guard" }
+        });
+        originalFactId = fact.id;
+        await repo.correctFact(db, ids.userA, {
+          targetFactId: originalFactId,
+          replacementText: "replacement for superseded guard"
+        });
+      }
+    );
+
+    const response = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${originalFactId}/status`,
+      headers: { authorization: "Bearer user-a" },
+      payload: { status: "active" }
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body) as { error: string };
+    expect(body.error).toMatch(/superseded/i);
+  });
+
+  it("still allows patching non-active statuses on a superseded fact", async () => {
+    let originalFactId!: string;
+    await appDataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "555:allow-stale-setup" },
+      async (db) => {
+        const self = await repo.ensureSelfEntity(db, ids.userA);
+        const fact = await repo.createFact(db, ids.userA, {
+          subjectEntityId: self.id,
+          predicate: "related_to",
+          objectText: `superseded-allow-stale-${randomUUID()}`,
+          confidence: 0.5,
+          provenance: "volunteered",
+          source: { sourceKind: "manual", sourceRef: "manual:555-stale", excerpt: "555 stale" }
+        });
+        originalFactId = fact.id;
+        await repo.correctFact(db, ids.userA, {
+          targetFactId: originalFactId,
+          replacementText: "replacement for stale allow"
+        });
+      }
+    );
+
+    const response = await graphServer.inject({
+      method: "POST",
+      url: `/api/memory/graph/facts/${originalFactId}/status`,
+      headers: { authorization: "Bearer user-a" },
+      payload: { status: "rejected" }
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+});
+
 async function resolveAccessContext(request: FastifyRequest) {
   const auth = request.headers.authorization;
   if (auth === "Bearer user-a") return { actorUserId: ids.userA, requestId: "memory-graph-api" };

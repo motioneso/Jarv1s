@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { MemoryRepository } from "@jarv1s/memory";
 import type {
   ProactiveMonitorInput,
   ProactiveMonitorPriorityAnchor,
@@ -57,15 +58,8 @@ export const notesMonitorProvider: ProactiveMonitorProvider = {
     const now = new Date(input.now);
     const lookback = new Date(now.getTime() - LOOKBACK_HOURS * 60 * 60 * 1000);
 
-    // Find recently ingested vault notes.
-    const recentFiles = await db.db
-      .selectFrom("app.memory_file_index")
-      .select(["source_path", "ingested_at", "file_hash"])
-      .where("source_kind", "=", "vault")
-      .where("ingested_at", ">=", lookback)
-      .orderBy("ingested_at", "desc")
-      .limit(50)
-      .execute();
+    const memoryRepo = new MemoryRepository();
+    const recentFiles = await memoryRepo.listRecentVaultFiles(db, lookback, 50, 5);
 
     if (recentFiles.length === 0) {
       return { signals: [], nextCursor: { checkedAt: input.now } };
@@ -76,31 +70,20 @@ export const notesMonitorProvider: ProactiveMonitorProvider = {
     for (const file of recentFiles) {
       if (signals.length >= input.maxSignals) break;
 
-      // Load first chunks to check for anchor matches.
-      const chunks = await db.db
-        .selectFrom("app.memory_chunks")
-        .select(["text", "line_start", "updated_at"])
-        .where("source_kind", "=", "vault")
-        .where("source_path", "=", file.source_path)
-        .orderBy("line_start", "asc")
-        .limit(5)
-        .execute();
+      if (file.chunks.length === 0) continue;
 
-      if (chunks.length === 0) continue;
-
-      const fullText = chunks.map((c) => c.text).join(" ");
+      const fullText = file.chunks.map((c) => c.text).join(" ");
       const { matched, matchedLabel } = matchesAnchor(fullText, input.priorityAnchors);
       if (!matched) continue;
 
-      const noteTitle =
-        file.source_path.split("/").pop()?.replace(/\.md$/i, "") ?? file.source_path;
-      const stableKey = `note-changed:${stableHash(file.source_path)}`;
-      const ingestedAt = new Date(file.ingested_at as unknown as string).toISOString();
+      const noteTitle = file.sourcePath.split("/").pop()?.replace(/\.md$/i, "") ?? file.sourcePath;
+      const stableKey = `note-changed:${stableHash(file.sourcePath)}`;
+      const ingestedAt = file.ingestedAt.toISOString();
 
       signals.push({
         source: "notes",
         stableKey,
-        sourceRefHash: stableHash(file.source_path),
+        sourceRefHash: stableHash(file.sourcePath),
         signalType: "priority_anchor_changed",
         title: noteTitle,
         summary: `Note matching "${matchedLabel}" was recently updated`,

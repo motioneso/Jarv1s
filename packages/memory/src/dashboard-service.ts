@@ -19,7 +19,8 @@ import type {
   MemoryFactPredicate,
   MemoryFactRecord,
   MemoryRecordKind,
-  MemorySourceInput
+  MemorySourceInput,
+  MemorySourceSummary
 } from "./graph-types.js";
 
 const DEFAULT_LIMIT = 25;
@@ -137,6 +138,11 @@ export class MemoryDashboardService {
         "preference") as MemoryRecordKind;
 
       const selfEntity = await this.graphRepo.ensureSelfEntity(scopedDb, ownerUserId);
+
+      // #561: always create via remember(); multiple active facts with the same predicate
+      // are valid in the memory model (e.g. "prefers dark mode" and "prefers early mornings"
+      // are independent). Predicate-only conflict detection would silently supersede unrelated
+      // memories. Conflict routing is delegated to the recall layer's own deduplication.
       const result = await this.recallSvc.remember(scopedDb, ownerUserId, {
         subjectEntityId: selfEntity.id,
         predicate: predicate as MemoryFactPredicate,
@@ -147,9 +153,10 @@ export class MemoryDashboardService {
         pinned: edited?.pinned,
         source: dashboardSource
       });
+      const acceptedFact = result.fact;
 
       if (edited?.validFrom != null || edited?.validTo != null || edited?.staleAt != null) {
-        await this.dashRepo.patchFactLifecycle(scopedDb, ownerUserId, result.fact.id, {
+        await this.dashRepo.patchFactLifecycle(scopedDb, ownerUserId, acceptedFact.id, {
           validFrom: edited.validFrom ?? null,
           validTo: edited.validTo ?? null,
           staleAt: edited.staleAt ?? null
@@ -268,6 +275,31 @@ function statusFilterToFactStatuses(filter: string): string[] {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const INTERNAL_REF_PREFIX_RE = /^(?:memory|internal|ref|id):/i;
+
+function isRawInternalRef(ref: string): boolean {
+  return UUID_RE.test(ref) || INTERNAL_REF_PREFIX_RE.test(ref);
+}
+
+const SOURCE_KIND_LABELS: Record<string, string> = {
+  chat: "Chat",
+  note: "Note",
+  task: "Task",
+  email: "Email",
+  calendar: "Calendar",
+  manual: "Manual"
+};
+
+function safeSourceSummary(source: MemorySourceSummary | undefined): string {
+  if (!source) return "";
+  if (source.sourceLabel) return source.sourceLabel;
+  if (isRawInternalRef(source.sourceRef)) {
+    return SOURCE_KIND_LABELS[source.sourceKind] ?? "Memory";
+  }
+  return source.sourceRef;
+}
+
 function candidateToItem(c: MemoryCandidateRecord): MemoryDashboardItem {
   const payload = c.payloadJson as Record<string, unknown> | null;
   const title = extractCandidateTitle(payload);
@@ -303,7 +335,7 @@ function factToItem(f: MemoryFactRecord): MemoryDashboardItem {
     confidence: f.confidence,
     confidenceTier: f.confidenceTier,
     provenance: f.provenance,
-    sourceSummary: source?.sourceLabel ?? source?.sourceRef ?? "",
+    sourceSummary: safeSourceSummary(source),
     sourceKind: source?.sourceKind ?? "chat",
     createdAt: f.createdAt.toISOString(),
     updatedAt: f.updatedAt.toISOString(),
