@@ -18,7 +18,7 @@ Previously merged (#582 + #583) closed. Relay fired. New coordinator adopted run
 
 1. **PR #581 (UI-Polish, routine)** — MERGED @ f11ca93e (2026-06-29 01:37Z). Ben CI waiver applied (2× ECONNREFUSED infra race). Issues #480 #512 closed. Board Done. Worktree reaped.
 
-2. **Memory-Cleanup** — PR #585. Codex QA cycle 2 GREEN on code (0 blocking, invariants ok, exit criteria met). CI blocker: "Verify foundation and app" failed run 28343902913 in 38s (ECONNREFUSED infra race, same as #581). CI re-queued. If CI red again → escalate to Ben for waiver.
+2. **Memory-Cleanup** — PR #585. Codex QA cycle 2 GREEN on code (0 blocking). CI "Verify foundation and app" failed 2× in 38–40s (run 28343902913) — ECONNREFUSED infra race. **STOP-THE-LINE: awaiting Ben waiver approval to merge.**
 
 3. **#584 (Playwright CI flake)** — Ben wants in this run. Needs approved spec. Successor action: write minimal spec with Ben, spawn agent after approval.
 
@@ -110,7 +110,8 @@ No cross-agent file collisions: memory package is owned by Memory-Cleanup only; 
 
 | Check                    | PR   | Proven red on `main` @ SHA | Proof                                                                                                        | Ben-approved |
 | ------------------------ | ---- | -------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------ |
-| Verify foundation and app | #581 | NOT red on main (main green @ 87f6f5f) | 60 Playwright tests all ECONNREFUSED — backend startup race in CI, not code regression. Re-run triggered. | pending re-run |
+| Verify foundation and app | #581 | NOT red on main (main green @ 87f6f5f) | 60 Playwright tests all ECONNREFUSED — backend startup race in CI, not code regression. | YES — merged f11ca93e |
+| Verify foundation and app | #585 | NOT red on main | Failed 2× in 38–40s (run 28343902913 jobs 83963477865 + 83963708421) — ECONNREFUSED infra race, same pattern as #581. Code QA GREEN (Codex c2, 0 blocking). VF3_EXIT=0 local. | **PENDING Ben approval** |
 
 ## Outstanding escalations
 
