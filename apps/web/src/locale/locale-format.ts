@@ -103,6 +103,34 @@ export function formatTime(
   return format(input, locale, options ?? TIME_OPTS);
 }
 
+export function isValidTimeZone(timeZone: string): boolean {
+  if (timeZone.trim().length === 0) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function zonedClockMinutes(input: DateInput, timeZone?: string): number | null {
+  const date = toDate(input);
+  if (!date) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(date);
+    const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0") % 24;
+    const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+    return hour * 60 + minute;
+  } catch {
+    return date.getUTCHours() * 60 + date.getUTCMinutes();
+  }
+}
+
 /**
  * Calendar date key (`YYYY-MM-DD`) for an instant *as observed in the given timezone*.
  * Locale-independent (en-CA): a machine key for day comparison / "today" / streaks,

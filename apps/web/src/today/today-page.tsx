@@ -15,7 +15,6 @@ import {
   Image as ImageIcon,
   Info,
   Leaf,
-  MessageSquareText,
   Megaphone,
   Newspaper,
   Pill,
@@ -37,7 +36,7 @@ import {
   startEveningInterview,
   updateTask
 } from "../api/client";
-import { findDefinition } from "../briefings/briefing-settings-model";
+import { findDefinition, targetTimeFor } from "../briefings/briefing-settings-model";
 import {
   formatDate,
   formatTime,
@@ -50,9 +49,16 @@ import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
-import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
-import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
 import { SystemUpgradeBanner } from "../settings/system-upgrade-banner";
+import {
+  addDaysToKey,
+  buildEveningLede,
+  deriveTodayMode,
+  effectiveEveningTimeZone,
+  EveningReviewSection,
+  EveningSupportSections,
+  latestEveningRunForToday
+} from "./evening-mode";
 import { ProactiveCards } from "./proactive-cards";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
@@ -98,8 +104,14 @@ export function TodayPage(props: {
     queryFn: () => listBriefingRuns(eveningDefinition!.id),
     enabled: eveningDefinition !== undefined
   });
-  const latestEveningRun =
-    eveningRunsQuery.data?.runs.find((run) => run.briefingType === "evening") ?? null;
+  const now = new Date(Date.now());
+  const todayMode = deriveTodayMode(eveningDefinition, locale, now);
+  const eveningTimeZone = effectiveEveningTimeZone(eveningDefinition, locale);
+  const latestEveningRun = latestEveningRunForToday(
+    eveningRunsQuery.data?.runs ?? [],
+    eveningTimeZone,
+    now
+  );
   const eveningInterviewMutation = useMutation({
     mutationFn: () => startEveningInterview({ briefingRunId: latestEveningRun?.id }),
     onSuccess: () => {
@@ -157,15 +169,30 @@ export function TodayPage(props: {
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
   const priorities = open.filter(isDoFirst);
   const atRisk = open.filter((t) => isAtRisk(t, locale.timezone));
+  const completedToday = tasks.filter((t) => isDoneToday(t, locale.timezone));
   const todayEvents = useMemo(
     () => events.filter((e) => isToday(e, locale.timezone)).sort(byStart),
     [events, locale.timezone]
   );
+  const tomorrowKey = addDaysToKey(zonedDateKey(now, locale.timezone), 1);
+  const tomorrowEvents = useMemo(
+    () =>
+      events.filter((e) => zonedDateKey(e.startsAt, locale.timezone) === tomorrowKey).sort(byStart),
+    [events, locale.timezone, tomorrowKey]
+  );
+  const tomorrowTasks = tasks
+    .filter(
+      (task) =>
+        task.status === "todo" &&
+        task.dueAt !== null &&
+        zonedDateKey(task.dueAt, locale.timezone) === tomorrowKey
+    )
+    .slice(0, 3);
   const upcoming = useMemo(
     () => todayEvents.filter((e) => new Date(e.endsAt).getTime() >= Date.now()),
     [todayEvents]
   );
-  const doneToday = tasks.filter((t) => isDoneToday(t, locale.timezone)).length;
+  const doneToday = completedToday.length;
 
   // "Start here": top open tasks by priority, then nearest due.
   const startHere = [...open]
@@ -174,7 +201,10 @@ export function TodayPage(props: {
   const looseEnds = atRisk.slice(0, 5);
 
   const name = firstName(props.me.user.name, props.me.user.email);
-  const lede = buildLede(priorities.length, atRisk.length, todayEvents.length);
+  const lede =
+    todayMode === "evening"
+      ? buildEveningLede(doneToday, atRisk.length, tomorrowEvents.length)
+      : buildLede(priorities.length, atRisk.length, todayEvents.length);
   // A row of four zeros is noise, not signal — the hero lede already says the day
   // is clear. Show the stat shortcuts only once at least one tile carries a count.
   const hasStatSignal =
@@ -222,6 +252,39 @@ export function TodayPage(props: {
 
       <div className="cmd-grid">
         <div>
+          {todayMode === "evening" && eveningDefinition?.enabled ? (
+            <>
+              <EveningReviewSection
+                kind="primary"
+                run={latestEveningRun}
+                locale={locale}
+                targetTime={targetTimeFor(eveningDefinition, "evening")}
+                interviewPending={eveningInterviewMutation.isPending}
+                onFeedbackChanged={() =>
+                  void queryClient.invalidateQueries({
+                    queryKey: queryKeys.briefings.runs(eveningDefinition.id)
+                  })
+                }
+                onPrep={() => eveningInterviewMutation.mutate()}
+              />
+              <EveningSupportSections
+                completedToday={completedToday}
+                carryingForward={looseEnds}
+                tomorrowEvents={tomorrowEvents}
+                tomorrowTasks={tomorrowTasks}
+                locale={locale}
+                renderTask={(task) => (
+                  <BriefTaskRow
+                    key={task.id}
+                    task={task}
+                    onToggle={() => toggleMutation.mutate(task)}
+                    onOpen={() => setDialog({ id: task.id })}
+                  />
+                )}
+              />
+            </>
+          ) : null}
+
           <section className="jds-brief">
             <div className="jds-brief__head">
               <span className="jds-brief__kicker">Start here</span>
@@ -375,45 +438,20 @@ export function TodayPage(props: {
             )}
           </div>
 
-          {eveningDefinition?.enabled ? (
-            <div className="inst">
-              <div className="inst__head">
-                <span className="inst__title">Evening review</span>
-                <span className="inst__meta">
-                  {latestEveningRun
-                    ? shortDate(latestEveningRun.createdAt, locale)
-                    : "Ready at 7 PM"}
-                </span>
-              </div>
-              {latestEveningRun ? (
-                <>
-                  {(() => {
-                    const freshness = parseBriefingFreshness(latestEveningRun.sourceMetadata);
-                    return freshness ? <BriefingStaleBanner freshness={freshness} /> : null;
-                  })()}
-                  <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
-                  <BriefingFeedbackMenu
-                    targetRef={latestEveningRun.id}
-                    onChanged={() =>
-                      void queryClient.invalidateQueries({
-                        queryKey: queryKeys.briefings.runs(eveningDefinition.id)
-                      })
-                    }
-                  />
-                </>
-              ) : (
-                <div className="agenda-clear">No evening review yet.</div>
-              )}
-              <button
-                type="button"
-                className="primary-button"
-                disabled={eveningInterviewMutation.isPending}
-                onClick={() => eveningInterviewMutation.mutate()}
-              >
-                <MessageSquareText size={14} aria-hidden="true" />
-                Prep for tomorrow
-              </button>
-            </div>
+          {eveningDefinition?.enabled && todayMode === "day" ? (
+            <EveningReviewSection
+              kind="compact"
+              run={latestEveningRun}
+              locale={locale}
+              targetTime={targetTimeFor(eveningDefinition, "evening")}
+              interviewPending={eveningInterviewMutation.isPending}
+              onFeedbackChanged={() =>
+                void queryClient.invalidateQueries({
+                  queryKey: queryKeys.briefings.runs(eveningDefinition.id)
+                })
+              }
+              onPrep={() => eveningInterviewMutation.mutate()}
+            />
           ) : null}
 
           {wellnessEnabled ? (
@@ -814,12 +852,6 @@ function firstName(name: string, email: string): string {
   const source = name.trim() || email.split("@")[0] || "there";
   const base = source.split(/\s+/)[0] ?? source;
   return base.charAt(0).toUpperCase() + base.slice(1);
-}
-
-function compactSummary(value: string): string {
-  const text = value.replace(/\s+/g, " ").trim();
-  if (text.length <= 220) return text;
-  return `${text.slice(0, 217).trimEnd()}...`;
 }
 
 function greeting(): string {
