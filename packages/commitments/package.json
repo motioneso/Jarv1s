@@ -1,0 +1,29 @@
+{
+  "name": "@jarv1s/commitments",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./prefilter": "./src/prefilter.ts",
+    "./signature": "./src/signature.ts",
+    "./extractor": "./src/extractor.ts",
+    "./jobs": "./src/jobs.ts",
+    "./workers": "./src/workers.ts",
+    "./routes": "./src/routes.ts",
+    "./tools": "./src/tools.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jarv1s/db": "workspace:*",
+    "@jarv1s/jobs": "workspace:*",
+    "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/shared": "workspace:*",
+    "fastify": "^5.8.5",
+    "kysely": "^0.29.2",
+    "pg-boss": "^12.18.2",
+    "@sinclair/typebox": "^0.34.13"
+  }
+}

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
+import type { UsefulnessFeedbackRepository } from "@jarv1s/usefulness-feedback";
 
 import { listAssistantToolsFromManifests } from "@jarv1s/ai";
 import type { AccessContext, BriefingDefinition, BriefingRun, DataContextRunner } from "@jarv1s/db";
@@ -20,7 +21,6 @@ import {
   type BriefingDefinitionDto,
   type BriefingRunDto,
   type BriefingType,
-  type CreateBriefingDefinitionRequest,
   type RunBriefingDefinitionRequest,
   type UpdateBriefingDefinitionRequest
 } from "@jarv1s/shared";
@@ -29,8 +29,9 @@ import { sendJob } from "@jarv1s/jobs";
 
 import { type BriefingRunPayload } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
-import { BriefingsRepository } from "./repository.js";
+import { BriefingsRepository, type CreateBriefingDefinitionInput } from "./repository.js";
 import { reconcileOwnedSchedules, reconcileSchedule } from "./schedule.js";
+import { deriveBriefingFeedbackItems } from "./feedback-targets.js";
 
 export interface BriefingsRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -38,6 +39,10 @@ export interface BriefingsRoutesDependencies {
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
   readonly boss: PgBoss;
   readonly repository?: BriefingsRepository;
+  readonly feedbackRepository?: Pick<
+    UsefulnessFeedbackRepository,
+    "upsertTarget" | "listActiveDismissedRefs"
+  >;
 }
 
 interface DefinitionParams {
@@ -45,7 +50,7 @@ interface DefinitionParams {
 }
 
 const BRIEFING_CADENCES = new Set<BriefingCadence>(["manual", "daily", "weekly"]);
-const BRIEFING_TYPES = new Set<BriefingType>(["morning", "evening"]);
+const BRIEFING_TYPES = new Set<BriefingType>(["morning", "evening", "weekly_review"]);
 
 export function registerBriefingsRoutes(
   server: FastifyInstance,
@@ -223,13 +228,51 @@ export function registerBriefingsRoutes(
           accessContext,
           async (scopedDb) => {
             const definition = await repository.getDefinitionById(scopedDb, request.params.id);
+            if (!definition) return undefined;
+            const dismissedRuns =
+              (await dependencies.feedbackRepository?.listActiveDismissedRefs(
+                scopedDb,
+                accessContext.actorUserId,
+                "briefing_run",
+                "briefing"
+              )) ?? new Set<string>();
+            const dismissedItems =
+              (await dependencies.feedbackRepository?.listActiveDismissedRefs(
+                scopedDb,
+                accessContext.actorUserId,
+                "briefing_item",
+                "briefing"
+              )) ?? new Set<string>();
+            const runs = await repository.listRuns(scopedDb, definition.id);
+            const visibleRuns = runs.filter((run) => !dismissedRuns.has(run.id));
+            const serializedRuns = visibleRuns.map((run) => serializeRun(run, { dismissedItems }));
+            if (dependencies.feedbackRepository) {
+              for (const run of visibleRuns) {
+                await dependencies.feedbackRepository.upsertTarget(scopedDb, {
+                  ownerUserId: accessContext.actorUserId,
+                  targetKind: "briefing_run",
+                  targetRef: run.id,
+                  surface: "briefing",
+                  sourceKind: "briefing",
+                  sourceLabel: "Briefing",
+                  metadata: { briefingType: run.briefing_type }
+                });
+              }
+              for (const item of serializedRuns.flatMap((run) => run.feedbackItems)) {
+                await dependencies.feedbackRepository.upsertTarget(scopedDb, {
+                  ownerUserId: accessContext.actorUserId,
+                  targetKind: "briefing_item",
+                  targetRef: item.feedbackItemId,
+                  surface: "briefing",
+                  sourceKind: item.sourceKind,
+                  sourceLabel: item.sourceLabel,
+                  priorityBand: item.priorityBand,
+                  metadata: item.metadata
+                });
+              }
+            }
 
-            return definition
-              ? {
-                  definition,
-                  runs: await repository.listRuns(scopedDb, definition.id)
-                }
-              : undefined;
+            return { definition, runs: serializedRuns };
           }
         );
 
@@ -237,7 +280,7 @@ export function registerBriefingsRoutes(
           return reply.code(404).send({ error: "Briefing definition not found" });
         }
 
-        return { runs: result.runs.map(serializeRun) };
+        return { runs: result.runs };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -266,22 +309,56 @@ async function reconcileScheduleSafely(
   }
 }
 
+function validateScheduleMetadata(
+  cadence: string | undefined,
+  scheduleMetadata: Record<string, unknown> | undefined
+): void {
+  if (!scheduleMetadata) return;
+
+  const tz = scheduleMetadata.timezone;
+  if (tz !== undefined) {
+    if (typeof tz !== "string" || tz.trim() === "") {
+      throw new HttpError(400, "invalid timezone");
+    }
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(0);
+    } catch {
+      throw new HttpError(400, "invalid timezone");
+    }
+  }
+
+  if (cadence === "weekly" && scheduleMetadata.dayOfWeek == null) {
+    throw new HttpError(400, "dayOfWeek required for weekly schedules");
+  }
+}
+
 function parseCreateDefinitionBody(
   body: unknown,
   moduleManifests: readonly JarvisModuleManifest[]
-): CreateBriefingDefinitionRequest {
+): CreateBriefingDefinitionInput {
   const value = requireObject(body);
+  const briefingType = optionalBriefingType(value.briefingType) ?? "morning";
+
+  const rawToolNames =
+    value.selectedToolNames !== undefined
+      ? value.selectedToolNames
+      : defaultToolNamesFor(briefingType);
+
   const selectedToolNames = requiredReadToolNames(
-    value.selectedToolNames,
+    rawToolNames,
     "selectedToolNames",
     moduleManifests
   );
 
+  const cadence = optionalBriefingCadence(value.cadence) ?? "manual";
+  const scheduleMetadata = optionalJsonObject(value.scheduleMetadata, "scheduleMetadata");
+  validateScheduleMetadata(cadence, scheduleMetadata);
+
   return {
     title: requiredString(value.title, "title"),
-    briefingType: optionalBriefingType(value.briefingType) ?? "morning",
-    cadence: optionalBriefingCadence(value.cadence) ?? "manual",
-    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
+    briefingType,
+    cadence,
+    scheduleMetadata,
     enabled: optionalBoolean(value.enabled, "enabled") ?? true,
     selectedToolNames
   };
@@ -297,11 +374,15 @@ function parseUpdateDefinitionBody(
       ? undefined
       : requiredReadToolNames(value.selectedToolNames, "selectedToolNames", moduleManifests);
 
+  const cadence = optionalBriefingCadence(value.cadence);
+  const scheduleMetadata = optionalJsonObject(value.scheduleMetadata, "scheduleMetadata");
+  validateScheduleMetadata(cadence, scheduleMetadata);
+
   return {
     title: optionalString(value.title, "title"),
     briefingType: optionalBriefingType(value.briefingType),
-    cadence: optionalBriefingCadence(value.cadence),
-    scheduleMetadata: optionalJsonObject(value.scheduleMetadata, "scheduleMetadata"),
+    cadence,
+    scheduleMetadata,
     enabled: optionalBoolean(value.enabled, "enabled"),
     selectedToolNames
   };
@@ -335,7 +416,12 @@ function requiredReadToolNames(
     ...new Set(value.map((item, index) => requiredArrayString(item, fieldName, index)))
   ];
 
-  if (selectedToolNames.some((name) => toolsByName.get(name)?.risk !== "read")) {
+  const VIRTUAL_SOURCES = new Set(["vault", "chats"]);
+  if (
+    selectedToolNames.some(
+      (name) => !VIRTUAL_SOURCES.has(name) && toolsByName.get(name)?.risk !== "read"
+    )
+  ) {
     throw new HttpError(400, "Briefings can only select declared read-risk assistant tools");
   }
 
@@ -437,7 +523,37 @@ function optionalBriefingType(value: unknown): BriefingType | undefined {
     return value as BriefingType;
   }
 
-  throw new HttpError(400, "briefingType must be morning or evening");
+  throw new HttpError(400, "briefingType must be morning, evening, or weekly_review");
+}
+
+function defaultToolNamesFor(type: BriefingType): string[] {
+  switch (type) {
+    case "morning":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "goals.list"
+      ];
+    case "evening":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "chat.listTodaysTurns",
+        "goals.list"
+      ];
+    case "weekly_review":
+      return [
+        "tasks.list",
+        "calendar.listVisibleEvents",
+        "email.listVisibleMessages",
+        "vault",
+        "goals.list"
+      ];
+  }
 }
 
 function serializeDefinition(definition: BriefingDefinition): BriefingDefinitionDto {
@@ -456,7 +572,13 @@ function serializeDefinition(definition: BriefingDefinition): BriefingDefinition
   };
 }
 
-function serializeRun(run: BriefingRun): BriefingRunDto {
+function serializeRun(
+  run: BriefingRun,
+  options: { readonly dismissedItems?: ReadonlySet<string> } = {}
+): BriefingRunDto {
+  const feedbackItems = deriveBriefingFeedbackItems(run.source_metadata).filter(
+    (item) => !options.dismissedItems?.has(item.feedbackItemId)
+  );
   return {
     id: run.id,
     definitionId: run.definition_id,
@@ -466,6 +588,7 @@ function serializeRun(run: BriefingRun): BriefingRunDto {
     briefingType: run.briefing_type,
     summaryText: run.summary_text,
     sourceMetadata: run.source_metadata,
+    feedbackItems,
     createdAt: toIsoString(run.created_at)
   };
 }

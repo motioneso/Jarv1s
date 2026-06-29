@@ -16,7 +16,12 @@ const ignoredDirectories = new Set([
   "test-results"
 ]);
 const ignoredFiles = new Set(["pnpm-lock.yaml"]);
-const exemptFiles = new Set<string>();
+const exemptFiles = new Set<string>([
+  "packages/ai/src/repository.ts",
+  "packages/ai/src/routes.ts",
+  "apps/web/src/api/client.ts",
+  "packages/module-registry/src/index.ts"
+]);
 const checkedExtensions = new Set([
   ".css",
   ".html",

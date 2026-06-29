@@ -16,6 +16,8 @@ import {
 import type { PgBoss } from "pg-boss";
 
 import type { RecallPort } from "../recall-port.js";
+import { PassiveContextRetriever, type PassiveMemoryGraphRecallPort } from "./passive-retrieval.js";
+import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
 
 import { resolveChatHome } from "./chat-home.js";
 import {
@@ -207,6 +209,8 @@ export interface CreateChatSessionRuntimeDeps {
   readonly boss?: PgBoss;
   /** Phase 3: optional recall service — injects <memory> seed at session launch. */
   readonly recall?: RecallPort;
+  /** Optional graph-only per-turn recall. */
+  readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
@@ -248,6 +252,18 @@ export interface CreateChatSessionRuntimeDeps {
     /** Start the §5.5 idle reaper at boot (default true). The returned `shutdown()` stops it. */
     readonly startIdleReaper?: boolean;
   };
+  /** Optional gateway for cross-tool pre-turn context fan-out. Structural — real AssistantToolGateway satisfies this. */
+  readonly crossToolGateway?: {
+    runReadToolForActor(
+      actorUserId: string,
+      toolName: string,
+      rawInput: unknown
+    ): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }>;
+  };
+  readonly connectorSyncAt?: (
+    scopedDb: DataContextDb,
+    kind: "email" | "calendar"
+  ) => Promise<Date | null>;
 }
 
 export interface ChatSessionRuntime {
@@ -285,7 +301,8 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     dataContext: deps.dataContext,
     chatRepository: new ChatRepository(),
     aiRepository: new AiRepository(),
-    boss: deps.boss
+    boss: deps.boss,
+    connectorSyncAt: deps.connectorSyncAt
   });
 
   // Late-bound manager ref so the reconcile hook (read once by RpcConnection at construction) can call
@@ -362,7 +379,16 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
       ? (sessionKey) => killOrphan(activeReconcileDriver, connection!, sessionKey)
       : undefined,
     serverOwnsDrain,
-    recall: deps.recall
+    recall: deps.recall,
+    passiveRetrieval: deps.passiveMemoryRecall
+      ? new PassiveContextRetriever({
+          dataContext: deps.dataContext,
+          graphRecall: deps.passiveMemoryRecall
+        })
+      : undefined,
+    crossToolRead: deps.crossToolGateway
+      ? buildCrossToolReadAdapter(deps.crossToolGateway)
+      : undefined
   });
 
   // §5.5 — start the idle reaper at boot (the PREFERRED outcome) for the RPC path. It shares the §5.4
@@ -412,6 +438,19 @@ async function killOrphan(
   } catch {
     // best-effort: reconciliation must not wedge on a single orphan-kill failure.
   }
+}
+
+function buildCrossToolReadAdapter(gateway: {
+  runReadToolForActor(
+    actorUserId: string,
+    toolName: string,
+    rawInput: unknown
+  ): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }>;
+}): CrossToolReadRunner {
+  return {
+    runReadTool: (actorUserId, toolName, input) =>
+      gateway.runReadToolForActor(actorUserId, toolName, input)
+  };
 }
 
 async function resolveChatPersona(

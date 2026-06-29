@@ -16,6 +16,15 @@ export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";
 export type ModuleAssistantToolRisk = "read" | "write" | "destructive";
 export type ModuleAssistantToolExecutionPolicy = "auto" | "confirm";
+export type JarvisActionPermissionTier = "ask_each_time" | "trusted_auto" | "always_confirm";
+
+export interface ModuleAssistantActionFamilyManifest {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly defaultTier: "ask_each_time" | "always_confirm";
+  readonly allowedTiers: readonly JarvisActionPermissionTier[];
+}
 
 export interface JsonSchema {
   readonly [key: string]: unknown;
@@ -86,6 +95,105 @@ export type FocusSignalProvider = (
 export interface RegisteredFocusSignal {
   readonly moduleId: string;
   readonly provider: FocusSignalProvider;
+}
+
+export interface ProactiveMonitorPriorityAnchor {
+  readonly label: string;
+  readonly aliases: readonly string[];
+}
+
+export interface ProactiveMonitorInput {
+  readonly ownerUserId: string;
+  readonly sinceCursor: unknown;
+  readonly now: string;
+  readonly timeZone: string;
+  readonly maxSignals: number;
+  readonly priorityAnchors: readonly ProactiveMonitorPriorityAnchor[];
+}
+
+export interface ProactiveMonitorSignal {
+  /** Deterministic for the material source event; contains no raw private ids. */
+  readonly source: string;
+  readonly stableKey: string;
+  /** Hash of source-local ids, never the raw id. */
+  readonly sourceRefHash: string;
+  readonly signalType: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly occurredAt?: string;
+  readonly targetAt?: string;
+  readonly priorityCandidate: unknown;
+  readonly expiresAt?: string;
+}
+
+export interface ProactiveMonitorResult {
+  readonly signals: readonly ProactiveMonitorSignal[];
+  readonly nextCursor: unknown;
+}
+
+/**
+ * A proactive-monitor provider. `scopedDb` is a DataContextDb supplied under withDataContext;
+ * typed `unknown` to avoid a module-sdk -> db dependency. The owning module narrows it via
+ * assertDataContextDb. Providers may query ONLY their own module data.
+ */
+export interface ProactiveMonitorProvider {
+  readonly source: string;
+  readonly moduleId: string;
+  collectSignals(scopedDb: unknown, input: ProactiveMonitorInput): Promise<ProactiveMonitorResult>;
+}
+
+export interface RegisteredProactiveMonitorProvider {
+  readonly moduleId: string;
+  readonly provider: ProactiveMonitorProvider;
+}
+
+export type PersonContextSource =
+  | "email"
+  | "calendar"
+  | "chat"
+  | "note"
+  | "task"
+  | "commitment"
+  | "memory"
+  | "manual";
+
+export interface PersonContextSignal {
+  readonly identityKind: "email_address" | "source_identity" | "alias" | "display_name";
+  readonly displayValue: string;
+  readonly normalizedValue: string;
+  readonly sourceRef: string;
+  readonly sourceRefHash: string;
+  readonly sourceVersion: string;
+  readonly linkKind:
+    | "sender"
+    | "recipient"
+    | "attendee"
+    | "mentioned"
+    | "assigned"
+    | "counterparty"
+    | "related";
+  readonly sourceLabel?: string;
+  readonly summary?: string;
+  readonly occurredAt?: Date;
+  readonly confidence: number;
+  readonly provenance: "source" | "inferred" | "user_confirmed" | "imported";
+}
+
+export interface PersonContextSignalBatch {
+  readonly signals: PersonContextSignal[];
+  readonly nextCursor?: string;
+}
+
+export interface PersonContextProviderInput {
+  readonly actorUserId: string;
+  readonly sourceRefHash: string;
+  readonly sourceVersion?: string;
+  readonly cursor?: string;
+}
+
+export interface PersonContextProvider {
+  readonly sourceKind: PersonContextSource;
+  collectPersonSignals(input: PersonContextProviderInput): Promise<PersonContextSignalBatch>;
 }
 
 /** Sanitized observability hook for a failed/dropped provider. */
@@ -285,6 +393,7 @@ export interface ModuleAssistantToolManifest {
   readonly name: string;
   readonly description: string;
   readonly permissionId: string;
+  readonly actionFamilyId?: string;
   readonly risk: ModuleAssistantToolRisk;
   readonly executionPolicy?: ModuleAssistantToolExecutionPolicy;
   readonly inputSchema?: JsonSchema;
@@ -323,9 +432,56 @@ export interface JarvisModuleManifest {
   readonly routes?: readonly ModuleRouteManifest[];
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];
+  readonly assistantActionFamilies?: readonly ModuleAssistantActionFamilyManifest[];
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
   readonly sourceBehaviors?: readonly SourceBehaviorSourceDecl[];
   readonly focusSignal?: FocusSignalProvider;
+  readonly proactiveMonitor?: ProactiveMonitorProvider;
+  readonly personContextProvider?: PersonContextProvider;
+}
+
+/** Boundary of text from a source that may contain commitments. */
+export interface CommitmentTextBoundary {
+  readonly sourceRef: string;
+  readonly sourceVersion: number;
+  readonly text: string;
+  readonly occurredAt: string;
+}
+
+/** A single extracted commitment candidate returned by the AI extractor. */
+export interface ExtractedCommitmentCandidate {
+  readonly kind: "deadline" | "promise" | "obligation" | "intent";
+  readonly title: string;
+  readonly dueLocalDate: string | null;
+  readonly counterpartyLabel: string | null;
+  readonly evidenceExcerpt: string;
+  readonly confidence: "high" | "medium" | "low";
+}
+
+/**
+ * Implemented by source modules (chat, email, notes) to supply text boundaries
+ * for commitment extraction. The Commitments module never imports source module
+ * internals — it invokes only this interface.
+ */
+export interface CommitmentExtractionProvider {
+  readonly sourceKind: "chat" | "email" | "notes";
+  getTextBoundaries(
+    scopedDb: unknown,
+    actorUserId: string,
+    since: Date | null
+  ): Promise<CommitmentTextBoundary[]>;
+}
+
+/**
+ * Validates that a resolution reference is real and owned by the actor before
+ * it is stored on a candidate. Missing verifier → 503 (not 500).
+ */
+export interface CommitmentResolutionVerifier {
+  verifyResolutionRef(
+    scopedDb: unknown,
+    actorUserId: string,
+    resolutionRef: string
+  ): Promise<{ readonly valid: boolean; readonly reason?: string }>;
 }
 
 export function renderToolResult(result: ToolResult): string {

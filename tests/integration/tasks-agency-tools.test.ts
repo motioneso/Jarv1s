@@ -52,9 +52,34 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
       notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
       confirmTimeoutMs: 1000,
       agencyPrefs: () => ({
-        get: async (key) => agencyPrefs[key] ?? null,
-        upsert: async (key, value) => {
-          agencyPrefs[key] = value;
+        get: async (key: string) => agencyPrefs[key] ?? null,
+        upsert: async (key: string, value: unknown) => {
+          agencyPrefs[key] = value as boolean;
+        }
+      }),
+      actionPolicy: () => ({
+        getFamilyTier: async (moduleId, familyId) => {
+          if (
+            moduleId === "tasks" &&
+            familyId === "task_changes" &&
+            agencyPrefs["tasks.agency_auto_execute"] === true
+          ) {
+            return "trusted_auto";
+          }
+          return null;
+        },
+        getFamilyManifest: async (moduleId, familyId) => {
+          if (moduleId === "tasks" && familyId === "task_changes") {
+            return {
+              id: "task_changes",
+              displayName: "Task Changes",
+              label: "Task Changes",
+              description: "Create and update tasks",
+              defaultTier: "ask_each_time",
+              allowedTiers: ["ask_each_time", "trusted_auto"]
+            };
+          }
+          return null;
         }
       })
     });

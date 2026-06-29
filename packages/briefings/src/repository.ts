@@ -158,6 +158,17 @@ export class BriefingsRepository {
       .execute();
   }
 
+  async getOwnedRunById(scopedDb: DataContextDb, runId: string): Promise<BriefingRun | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.briefing_runs")
+      .selectAll()
+      .where("id", "=", runId)
+      .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+      .executeTakeFirst();
+  }
+
   async getOwnedEveningRunForInterview(
     scopedDb: DataContextDb,
     runId?: string
@@ -206,9 +217,9 @@ export class BriefingsRepository {
     // than orphaning a fresh blocked row on each cron tick.
     if (input.runKind === "scheduled") {
       // hashtextextended(text, 0) → stable bigint key per (definition, local day).
-      const lockKey = `${definition.id}:${localDayString(definition, now)}`;
+      const lockKey = `${definition.id}:${localPeriodString(definition, now)}`;
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`.execute(scopedDb.db);
-      const existing = await this.findScheduledRunForLocalDay(scopedDb, definition, now);
+      const existing = await this.findScheduledRunForLocalPeriod(scopedDb, definition, now);
       if (existing) {
         return { run: existing, created: false };
       }
@@ -279,20 +290,12 @@ export class BriefingsRepository {
     return run;
   }
 
-  private async findScheduledRunForLocalDay(
+  private async findScheduledRunForLocalPeriod(
     scopedDb: DataContextDb,
     definition: BriefingDefinition,
     now: Date
   ): Promise<BriefingRun | undefined> {
-    const timeZone = timezoneFor(definition.schedule_metadata);
-    const localDate = (d: Date): string =>
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit"
-      }).format(d);
-    const today = localDayString(definition, now);
+    const currentPeriod = localPeriodString(definition, now);
 
     const recent = await scopedDb.db
       .selectFrom("app.briefing_runs")
@@ -305,7 +308,7 @@ export class BriefingsRepository {
 
     return recent.find((run) => {
       const created = run.created_at instanceof Date ? run.created_at : new Date(run.created_at);
-      return localDate(created) === today;
+      return localPeriodString(definition, created) === currentPeriod;
     });
   }
 
@@ -323,13 +326,29 @@ export class BriefingsRepository {
   }
 }
 
-/** Local calendar-day string ("YYYY-MM-DD") for `now` in the definition's IANA tz. */
-function localDayString(definition: BriefingDefinition, now: Date): string {
+/** Local period string for `now` in the definition's IANA tz. */
+function localPeriodString(definition: BriefingDefinition, now: Date): string {
   const timeZone = timezoneFor(definition.schedule_metadata);
-  return new Intl.DateTimeFormat("en-CA", {
+  const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(now);
+    month: "numeric",
+    day: "numeric"
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parseInt(parts.find((p) => p.type === "year")!.value, 10);
+  const month = parseInt(parts.find((p) => p.type === "month")!.value, 10) - 1;
+  const day = parseInt(parts.find((p) => p.type === "day")!.value, 10);
+
+  if (definition.cadence === "weekly") {
+    const localDate = new Date(year, month, day);
+    const dayOfWeek = localDate.getDay();
+    localDate.setDate(localDate.getDate() - dayOfWeek); // Shift to Sunday
+    const weekYear = localDate.getFullYear();
+    const weekMonth = String(localDate.getMonth() + 1).padStart(2, "0");
+    const weekDay = String(localDate.getDate()).padStart(2, "0");
+    return `${weekYear}-W${weekMonth}-${weekDay}`;
+  }
+
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }

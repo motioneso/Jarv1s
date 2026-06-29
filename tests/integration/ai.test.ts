@@ -164,7 +164,7 @@ describe("AI provider foundation", () => {
     }
   });
 
-  it("loads AI as a required built-in module without queues", () => {
+  it("loads AI as a required built-in module", () => {
     const manifests = getBuiltInModuleManifests();
     const registration = getBuiltInModuleRegistrations().find(
       (item) => item.manifest.id === aiModuleManifest.id
@@ -175,6 +175,7 @@ describe("AI provider foundation", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",
@@ -183,22 +184,27 @@ describe("AI provider foundation", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring",
+      "jarvis.commitments",
+      "people"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.ai_provider_configs",
       "app.ai_configured_models",
-      "app.ai_assistant_action_requests"
+      "app.ai_assistant_action_requests",
+      "app.jarvis_action_audit_log"
     ]);
     expect(manifest?.settings?.[0]).toMatchObject({
       id: "ai.user-settings",
       path: "/settings/ai",
       permissionId: "ai.manage"
     });
-    expect(registration?.queueDefinitions).toEqual([]);
+    expect(registration?.queueDefinitions.map((q) => q.name)).toEqual(["ai-purge-audit-log"]);
     expect(manifest?.routes?.map((route) => route.path)).toContain("/api/ai/assistant-actions");
     expect(manifest?.routes?.map((route) => route.path)).toContain(
       "/api/ai/assistant-actions/:id/resolve"

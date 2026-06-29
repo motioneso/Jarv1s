@@ -20,6 +20,19 @@ export interface RetrievedChunk {
   readonly similarity: number;
 }
 
+export interface VaultFileChunk {
+  readonly text: string;
+  readonly lineStart: number;
+  readonly updatedAt: Date;
+}
+
+export interface VaultFileWithChunks {
+  readonly sourcePath: string;
+  readonly ingestedAt: Date;
+  readonly fileHash: string;
+  readonly chunks: readonly VaultFileChunk[];
+}
+
 /**
  * Render an embedding as a pgvector literal `[v0,v1,...]`. The components are
  * already typed `number[]`, so there is no SQL-injection surface (a number can
@@ -269,5 +282,67 @@ export class MemoryRepository {
         AND source_kind = ${sourceKind}
     `.execute(scopedDb.db);
     return result.rows.map((r) => r.source_path);
+  }
+
+  async getLatestIngestedAt(
+    scopedDb: DataContextDb,
+    sourceKind: "vault" | "connector" = "vault"
+  ): Promise<Date | null> {
+    assertDataContextDb(scopedDb);
+    const result = await sql<{ latest: Date | null }>`
+      SELECT MAX(ingested_at) AS latest
+      FROM app.memory_file_index
+      WHERE source_kind = ${sourceKind}
+    `.execute(scopedDb.db);
+    return result.rows[0]?.latest ?? null;
+  }
+
+  async listRecentVaultFiles(
+    scopedDb: DataContextDb,
+    since: Date,
+    limit: number,
+    chunksPerFile: number = 5
+  ): Promise<VaultFileWithChunks[]> {
+    assertDataContextDb(scopedDb);
+    const fileRows = await sql<{
+      source_path: string;
+      ingested_at: Date;
+      file_hash: string;
+    }>`
+      SELECT source_path, ingested_at, file_hash
+      FROM app.memory_file_index
+      WHERE source_kind = 'vault'
+        AND ingested_at >= ${since}
+      ORDER BY ingested_at DESC
+      LIMIT ${limit}
+    `.execute(scopedDb.db);
+
+    const results: VaultFileWithChunks[] = [];
+    for (const file of fileRows.rows) {
+      const chunkRows = await sql<{
+        text: string;
+        line_start: number;
+        updated_at: Date;
+      }>`
+        SELECT text, line_start, updated_at
+        FROM app.memory_chunks
+        WHERE source_kind = 'vault'
+          AND source_path = ${file.source_path}
+        ORDER BY line_start ASC
+        LIMIT ${chunksPerFile}
+      `.execute(scopedDb.db);
+
+      results.push({
+        sourcePath: file.source_path,
+        ingestedAt: file.ingested_at,
+        fileHash: file.file_hash,
+        chunks: chunkRows.rows.map((c) => ({
+          text: c.text,
+          lineStart: c.line_start,
+          updatedAt: c.updated_at
+        }))
+      });
+    }
+    return results;
   }
 }

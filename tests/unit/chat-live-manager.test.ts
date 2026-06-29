@@ -251,15 +251,20 @@ class FakePersistence implements ChatPersistencePort {
     userText: string,
     assistantReply: string,
     executed: { provider: ProviderKind; model: string }
-  ): Promise<void> {
+  ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string }> {
     this.recorded.push({ userText, assistantReply, executed });
     this.turns.push({ role: "user", content: userText });
     this.turns.push({ role: "assistant", content: assistantReply });
+    return { userMessageId: "user-message-id", assistantMessageId: "assistant-message-id" };
   }
 
   async openNewConversation(): Promise<void> {
     this.newConversations += 1;
     this.turns = [];
+  }
+
+  async getThreadContext(): Promise<{ threadTitle: string | null; localTimezone: string | null }> {
+    return { threadTitle: null, localTimezone: null };
   }
 }
 

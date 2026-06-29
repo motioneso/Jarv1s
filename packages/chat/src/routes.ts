@@ -14,10 +14,14 @@ import {
   listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
+  type AnswerSourceSupportCard,
   type ChatActivityEventDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
-  type ChatThreadDto
+  type ChatThreadDto,
+  type FreshnessKind,
+  type SourceFreshnessEntry,
+  type SourceFreshnessV1
 } from "@jarv1s/shared";
 import {
   AiRepository,
@@ -29,7 +33,8 @@ import {
   type GatewaySessionRecord,
   type SessionNotifier
 } from "@jarv1s/ai";
-import { CalendarRepository } from "@jarv1s/calendar";
+import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
+import { getConnectorSyncAt } from "@jarv1s/connectors";
 import type {
   ConnectorsRepository,
   GoogleApiClient,
@@ -49,11 +54,13 @@ import {
   type NotesSyncJobPayload,
   type NotesSyncToolService
 } from "@jarv1s/notes";
+import { TasksCompatibilityHelper } from "@jarv1s/tasks";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
+import type { PassiveMemoryGraphRecallPort } from "./live/passive-retrieval.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
 import type {
   CreateChatSessionRuntimeDeps,
@@ -64,6 +71,7 @@ import {
   ChatUserMemorySettingsRepository,
   type UserMemorySettings
 } from "./memory-settings-repository.js";
+import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
 
@@ -80,6 +88,7 @@ export interface ChatRoutesDependencies {
   readonly mcpServerUrl?: string;
   /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
   readonly boss?: PgBoss;
+  readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
@@ -175,6 +184,11 @@ export function registerChatRoutes(
     // engine. An explicit chatEngineFactory always wins inside the runtime, so passing both is safe.
     engineSelection: dependencies.chatEngineFactory ? undefined : dependencies.engineSelection,
     boss: dependencies.boss,
+    connectorSyncAt: dependencies.connectorsRepository
+      ? async (scopedDb, kind) =>
+          getConnectorSyncAt(dependencies.connectorsRepository!, scopedDb, kind)
+      : undefined,
+    passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
     mcpTokenLifecycle: wiring
       ? {
@@ -452,6 +466,61 @@ export function registerChatRoutes(
       return handleRouteError(error, reply);
     }
   });
+
+  // ── Answer provenance ──────────────────────────────────────────────────────
+
+  server.get<{ Params: { messageId: string } }>(
+    "/api/chat/messages/:messageId/provenance",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const message = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          repository.getMessageById(scopedDb, request.params.messageId)
+        );
+        if (!message || message.owner_user_id !== access.actorUserId) {
+          return reply.code(404).send({ error: "Message not found" });
+        }
+        const toolMetadata = asRecord(message.tool_metadata);
+        const stored = readStoredProvenance(toolMetadata);
+        const cards: AnswerSourceSupportCard[] = stored != null ? provenanceCards(stored) : [];
+        return { cards };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get<{ Params: { messageId: string; supportId: string } }>(
+    "/api/chat/messages/:messageId/provenance/:supportId/dereference",
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const message = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          repository.getMessageById(scopedDb, request.params.messageId)
+        );
+        if (!message || message.owner_user_id !== access.actorUserId) {
+          return reply.code(404).send({ error: "Message not found" });
+        }
+        const toolMetadata = asRecord(message.tool_metadata);
+        const stored = readStoredProvenance(toolMetadata);
+        if (!stored) return reply.code(404).send({ error: "No provenance for this message" });
+
+        const supportItem = stored.supportItems.find(
+          (item) => item.supportId === request.params.supportId
+        );
+        if (!supportItem) return reply.code(404).send({ error: "Support item not found" });
+
+        // V1: no providers registered yet — return unavailable
+        return {
+          unavailableReason: "source_unavailable" as const,
+          sourceLabel: supportItem.sourceLabel,
+          title: supportItem.title
+        };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 }
 
 /**
@@ -470,7 +539,11 @@ export function buildChatToolServices(deps: {
       googleService: deps.googleConnectionService,
       googleApiClient: deps.googleApiClient,
       connectorsRepository: deps.connectorsRepository,
-      calendarRepository: new CalendarRepository()
+      calendarRepository: new CalendarRepository(),
+      enqueueCacheEvict: deps.boss
+        ? (eventId, actorUserId) =>
+            sendCalendarCacheEvictJob(deps.boss!, { targetItemId: eventId, actorUserId })
+        : undefined
     });
   }
   if (deps.boss) {
@@ -518,8 +591,46 @@ export function buildChatGatewayDependencies(args: {
       runner: args.runner,
       preferences: args.agencyPreferences
     }),
+    actionPolicy: buildActionPolicy({
+      runner: args.runner,
+      repository: args.repository,
+      preferences: args.agencyPreferences,
+      resolveActiveModules: args.resolveActiveModules
+    }),
     toolServices: buildChatToolServices(args.collaborators)
   };
+}
+
+function buildActionPolicy(args: {
+  runner: DataContextRunner;
+  repository: AiRepository;
+  preferences?: PreferencesPort;
+  resolveActiveModules: ActiveModulesResolver;
+}): AssistantToolGatewayDependencies["actionPolicy"] {
+  return (ctx) => ({
+    getFamilyTier: async (moduleId: string, familyId: string) => {
+      return args.runner.withDataContext(
+        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+        async (scopedDb) => {
+          if (moduleId === "tasks" && familyId === "task_changes" && args.preferences) {
+            const compat = new TasksCompatibilityHelper(args.preferences);
+            return compat.getResolvedTaskChangesPolicy(scopedDb);
+          }
+          const policies = await args.repository.listActionPolicies(scopedDb);
+          const policy = policies.find(
+            (p) => p.moduleId === moduleId && p.actionFamilyId === familyId
+          );
+          return policy?.tier ?? null;
+        }
+      );
+    },
+    getFamilyManifest: async (moduleId: string, familyId: string) => {
+      const activeModules = await args.resolveActiveModules(ctx.actorUserId);
+      const manifest = activeModules.find((m) => m.id === moduleId);
+      if (!manifest || !manifest.assistantActionFamilies) return null;
+      return manifest.assistantActionFamilies.find((f) => f.id === familyId) ?? null;
+    }
+  });
 }
 
 function buildAgencyPrefs(args: {
@@ -528,12 +639,12 @@ function buildAgencyPrefs(args: {
 }): AssistantToolGatewayDependencies["agencyPrefs"] {
   if (!args.preferences) return undefined;
   return (ctx) => ({
-    get: (key) =>
+    get: (key: string) =>
       args.runner.withDataContext(
         { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
         (scopedDb) => args.preferences!.get(scopedDb, key)
       ),
-    upsert: (key, value) =>
+    upsert: (key: string, value: unknown) =>
       args.runner.withDataContext(
         { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
         (scopedDb) => args.preferences!.upsert(scopedDb, key, value)
@@ -553,6 +664,15 @@ function serializeThread(thread: ChatThread): ChatThreadDto {
 
 function serializeMessage(message: ChatMessage): ChatMessageDto {
   const toolMetadata = asRecord(message.tool_metadata);
+  const storedProvenance = readStoredProvenance(toolMetadata);
+  const answerProvenance =
+    storedProvenance != null && storedProvenance.supportItems.length > 0
+      ? provenanceCards(storedProvenance)
+      : undefined;
+  const answerProvenanceCitedIds =
+    storedProvenance != null && storedProvenance.citedSupportIds.length > 0
+      ? [...storedProvenance.citedSupportIds]
+      : undefined;
   return {
     id: message.id,
     threadId: message.thread_id,
@@ -563,8 +683,11 @@ function serializeMessage(message: ChatMessage): ChatMessageDto {
     modelRoute: null,
     tools: readTools(toolMetadata.selectedTools),
     activity: readActivity(toolMetadata.activity),
+    sourceFreshness: readSourceFreshness(toolMetadata.sourceFreshness),
     createdAt: toIsoString(message.created_at),
-    updatedAt: toIsoString(message.updated_at)
+    updatedAt: toIsoString(message.updated_at),
+    answerProvenance,
+    answerProvenanceCitedIds
   };
 }
 
@@ -608,6 +731,21 @@ function readTools(value: unknown): ChatSelectedToolMetadataDto[] {
       }
     ];
   });
+}
+
+export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const rec = value as Record<string, unknown>;
+  if (rec.version !== 1) return null;
+  if (typeof rec.capturedAt !== "string") return null;
+  const rawSources = Array.isArray(rec.sources) ? rec.sources : [];
+  const sources: SourceFreshnessEntry[] = rawSources.flatMap((item) => {
+    const r = asRecord(item);
+    if (typeof r.source !== "string" || typeof r.freshnessKind !== "string") return [];
+    const asOf = r.asOf === null ? null : typeof r.asOf === "string" ? r.asOf : null;
+    return [{ source: r.source, freshnessKind: r.freshnessKind as FreshnessKind, asOf }];
+  });
+  return { version: 1, capturedAt: rec.capturedAt as string, sources };
 }
 
 function serializeSettings(s: UserMemorySettings) {

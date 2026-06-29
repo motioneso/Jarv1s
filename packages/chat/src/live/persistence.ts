@@ -10,7 +10,12 @@
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
 import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type {
+  AnswerProvenanceMetadataV1,
+  AiProviderExecutionMode,
+  SourceFreshnessEntry,
+  SourceFreshnessV1
+} from "@jarv1s/shared";
 import type { PgBoss } from "pg-boss";
 
 import { sendJob } from "@jarv1s/jobs";
@@ -21,6 +26,7 @@ import {
   type EmbedTurnJobPayload,
   type ExtractFactsJobPayload
 } from "../jobs.js";
+import { containsSensitiveMemoryText } from "../memory-distillation.js";
 import type { ChatPersistencePort } from "./chat-session-manager.js";
 import type { ChatRepository } from "../repository.js";
 
@@ -35,6 +41,64 @@ export interface DataContextChatPersistenceDeps {
   readonly chatRepository: ChatRepository;
   readonly aiRepository: AiRepository;
   readonly boss?: PgBoss;
+  readonly connectorSyncAt?: (
+    scopedDb: DataContextDb,
+    kind: "email" | "calendar"
+  ) => Promise<Date | null>;
+}
+
+export function toolNameToSource(toolName: string): string | null {
+  if (toolName.startsWith("email.")) return "email";
+  if (toolName.startsWith("calendar.")) return "calendar";
+  if (toolName.startsWith("vault.") || toolName.startsWith("notes.")) return "vault";
+  if (toolName.startsWith("tasks.")) return "tasks";
+  if (toolName.startsWith("commitments.")) return "commitments";
+  if (toolName.startsWith("chat.")) return "chats";
+  if (toolName.startsWith("goals.")) return "goals";
+  return null;
+}
+
+const CONNECTOR_SOURCES_CHAT = new Set(["email", "calendar"]);
+const REALTIME_SOURCES_CHAT = new Set(["tasks", "commitments", "chats", "goals"]);
+
+export async function resolveChatFreshness(
+  scopedDb: DataContextDb,
+  invokedToolNames: ReadonlySet<string>,
+  capturedAt: Date,
+  opts: {
+    connectorSyncAt?: (scopedDb: DataContextDb, kind: "email" | "calendar") => Promise<Date | null>;
+  }
+): Promise<SourceFreshnessV1 | null> {
+  const sourceKeys = new Set<string>();
+  for (const name of invokedToolNames) {
+    const source = toolNameToSource(name);
+    if (source) sourceKeys.add(source);
+  }
+  if (sourceKeys.size === 0) return null;
+
+  const capturedAtIso = capturedAt.toISOString();
+  const entries: SourceFreshnessEntry[] = await Promise.all(
+    [...sourceKeys].map(async (source): Promise<SourceFreshnessEntry> => {
+      if (REALTIME_SOURCES_CHAT.has(source)) {
+        return { source, freshnessKind: "realtime", asOf: capturedAtIso };
+      }
+      if (CONNECTOR_SOURCES_CHAT.has(source)) {
+        let asOf: string | null = null;
+        try {
+          const t =
+            (await opts.connectorSyncAt?.(scopedDb, source as "email" | "calendar")) ?? null;
+          asOf = t ? t.toISOString() : null;
+        } catch {
+          // keep asOf as null on error
+        }
+        return { source, freshnessKind: "connector_sync", asOf };
+      }
+      // vault — V1: asOf: null (no vaultLastWriteAt dep for chat)
+      return { source, freshnessKind: "vault_write", asOf: null };
+    })
+  );
+
+  return { version: 1, capturedAt: capturedAtIso, sources: entries };
 }
 
 export class DataContextChatPersistence implements ChatPersistencePort {
@@ -42,12 +106,14 @@ export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly chat: ChatRepository;
   private readonly ai: AiRepository;
   private readonly boss: PgBoss | undefined;
+  private readonly connectorSyncAt: DataContextChatPersistenceDeps["connectorSyncAt"];
 
   constructor(deps: DataContextChatPersistenceDeps) {
     this.dataContext = deps.dataContext;
     this.chat = deps.chatRepository;
     this.ai = deps.aiRepository;
     this.boss = deps.boss;
+    this.connectorSyncAt = deps.connectorSyncAt;
   }
 
   async resolveActiveProvider(
@@ -99,19 +165,31 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     actorUserId: string,
     userText: string,
     assistantReply: string,
-    executed: { provider: ProviderKind; model: string }
-  ): Promise<void> {
-    await this.run(actorUserId, "record-turn", async (scopedDb) => {
+    executed: { provider: ProviderKind; model: string },
+    opts?: {
+      readonly invokedToolNames?: ReadonlySet<string>;
+      readonly answerProvenance?: AnswerProvenanceMetadataV1;
+    }
+  ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined> {
+    return this.run(actorUserId, "record-turn", async (scopedDb) => {
       const thread =
         (await this.chat.getCurrentThread(scopedDb, actorUserId)) ??
         (await this.chat.openNewThread(scopedDb, { title: DEFAULT_CONVERSATION_TITLE }));
+
+      const capturedAt = new Date();
+      const sourceFreshness = opts?.invokedToolNames
+        ? await resolveChatFreshness(scopedDb, opts.invokedToolNames, capturedAt, {
+            connectorSyncAt: this.connectorSyncAt
+          })
+        : null;
 
       const result = await this.chat.recordCompletedTurn(
         scopedDb,
         thread.id,
         userText,
         assistantReply,
-        executed
+        executed,
+        { sourceFreshness, answerProvenance: opts?.answerProvenance }
       );
       await this.chat.touchThread(scopedDb, thread.id);
 
@@ -147,11 +225,20 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         };
         const extractPayload: ExtractFactsJobPayload = {
           actorUserId,
-          threadId: thread.id
+          threadId: thread.id,
+          userMessageId: result.userMessage.id,
+          assistantMessageId: result.assistantMessage.id
         };
         await sendJob(this.boss, CHAT_EMBED_TURN_QUEUE, embedPayload);
         await sendJob(this.boss, CHAT_EXTRACT_FACTS_QUEUE, extractPayload);
       }
+      return result
+        ? {
+            userMessageId: result.userMessage.id,
+            assistantMessageId: result.assistantMessage.id,
+            sourceFreshness
+          }
+        : undefined;
     });
   }
 
@@ -162,6 +249,20 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         incognito: options?.incognito
       })
     );
+  }
+
+  async getThreadContext(
+    actorUserId: string
+  ): Promise<{ threadTitle: string | null; localTimezone: string | null }> {
+    return this.run(actorUserId, "get-thread-context", async (scopedDb) => {
+      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      const title = thread?.title ?? null;
+      // V1: timezone from thread not yet stored; fall back to instance default via env.
+      return {
+        threadTitle: title && title !== DEFAULT_CONVERSATION_TITLE ? title : null,
+        localTimezone: null
+      };
+    });
   }
 
   /**
@@ -222,7 +323,8 @@ function deriveChatTitle(userText: string): string {
   const cleaned = first.replace(/[^\S\r\n]+/g, " ").trim();
   const capped = cleaned.length > 60 ? `${cleaned.slice(0, 57).trimEnd()}…` : cleaned;
   const titled = capped.charAt(0).toUpperCase() + capped.slice(1);
-  return titled || DEFAULT_CONVERSATION_TITLE;
+  if (!titled || containsSensitiveMemoryText(titled)) return DEFAULT_CONVERSATION_TITLE;
+  return titled;
 }
 
 function buildRollingSummary(

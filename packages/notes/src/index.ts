@@ -1,3 +1,4 @@
+export { notesCommitmentProvider } from "./commitment-provider.js";
 export {
   notesModuleManifest,
   notesModuleSqlMigrationDirectory,

@@ -44,11 +44,16 @@ export const queryKeys = {
     tierPreferences: ["ai", "tier-preferences"] as const,
     assistantTools: ["ai", "assistant-tools"] as const,
     webSearchKey: ["ai", "web-search-key"] as const,
-    runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const
+    runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const,
+    actionAuditLog: (params?: { since?: string; family?: string; limit?: number }) =>
+      ["ai", "action-audit-log", params] as const
   },
   briefings: {
     definitions: ["briefings", "definitions"] as const,
     runs: (definitionId: string | null) => ["briefings", "runs", definitionId] as const
+  },
+  usefulnessFeedback: {
+    list: ["usefulness-feedback"] as const
   },
   calendar: {
     list: ["calendar", "list"] as const,
@@ -77,6 +82,10 @@ export const queryKeys = {
     tags: (listId: string) => ["tasks", "tags", listId] as const,
     preferences: ["tasks", "preferences"] as const
   },
+  proactiveMonitoring: {
+    cards: ["proactive-monitoring", "cards"] as const,
+    settings: ["proactive-monitoring", "settings"] as const
+  },
   weather: {
     today: ["weather", "today"] as const,
     location: ["weather", "location"] as const
@@ -88,5 +97,16 @@ export const queryKeys = {
     insights: ["wellness", "insights"] as const,
     therapyNotes: ["wellness", "therapy-notes"] as const,
     adherenceSummary: (sinceDays: number) => ["wellness", "adherence-summary", sinceDays] as const
+  },
+  memory: {
+    dashboard: (query?: object) => ["memory", "dashboard", query] as const,
+    dashboardItem: (id: string) => ["memory", "dashboard", "item", id] as const
+  },
+  goals: {
+    list: ["goals", "list"] as const
+  },
+  people: {
+    list: ["people", "list"] as const,
+    matchCandidates: ["people", "match-candidates"] as const
   }
 };

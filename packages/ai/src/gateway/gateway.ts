@@ -11,12 +11,12 @@ import type {
 import type { AiAssistantToolDto } from "@jarv1s/shared";
 
 import { summarizeAssistantToolInput } from "../assistant-tools.js";
-import type { AiRepository } from "../repository.js";
+import type { AiRepository, InsertAuditLogInput } from "../repository.js";
 import type { ConfirmationRegistry } from "./confirmation-registry.js";
 import { validateToolInput } from "./input-validation.js";
 import { renderAndCap } from "./output-validation.js";
 import { resolvePolicy } from "./policy.js";
-import type { AgencyPrefLookup } from "./policy.js";
+import type { AgencyPrefLookup, ActionPolicyLookup } from "./policy.js";
 import type { SessionTokenRegistry } from "./session-tokens.js";
 import type { ActiveModulesResolver, GatewayToolResponse, SessionNotifier } from "./types.js";
 
@@ -29,6 +29,7 @@ export interface AssistantToolGatewayDependencies {
   readonly notifier: SessionNotifier;
   readonly confirmTimeoutMs: number;
   readonly agencyPrefs?: (ctx: ToolContext) => AgencyPrefLookup;
+  readonly actionPolicy?: (ctx: ToolContext) => ActionPolicyLookup;
   /**
    * Opaque, composition-layer-constructed service registry keyed by service name.
    * Passed verbatim (as a per-tool, declared-keys-only subset) as the 4th argument
@@ -39,6 +40,10 @@ export interface AssistantToolGatewayDependencies {
 }
 
 const denyPrefs: AgencyPrefLookup = { get: async () => false };
+const defaultPolicyLookup: ActionPolicyLookup = {
+  getFamilyTier: async () => null,
+  getFamilyManifest: async () => null
+};
 const TASKS_FIRST_RUN_NOTICE_KEY = "tasks.agency_auto_execute.first_prompt_seen";
 const TASKS_FIRST_RUN_NOTICE =
   'Jarvis now asks before creating tasks. Enable "create without asking" in Task settings to auto-run task changes.';
@@ -89,10 +94,72 @@ export class AssistantToolGateway {
     }
 
     const prefs = this.deps.agencyPrefs?.(ctx) ?? denyPrefs;
-    if ((await resolvePolicy(found.tool, found.dto.moduleId, prefs)) === "run") {
-      return this.runHandler(found, input, ctx);
+    const lookup = this.deps.actionPolicy?.(ctx) ?? defaultPolicyLookup;
+    if ((await resolvePolicy(found.tool, found.dto.moduleId, lookup)) === "run") {
+      const result = await this.runHandler(found, input, ctx);
+      if (found.tool.risk !== "read") {
+        const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
+        void this.recordAudit(access, found, {
+          approvalMode: "auto",
+          outcome: result.ok ? "success" : "failed",
+          errorClass: result.ok ? null : "handler_error",
+          chatSessionId: ctx.chatSessionId
+        });
+      }
+      return result;
     }
     return this.confirmAndRun(found, input, ctx, await this.firstRunNotice(found, prefs));
+  }
+
+  /**
+   * Execute a single read tool on behalf of an actor without a session token.
+   * Used by the cross-tool reasoning pre-submit path in ChatSessionManager.
+   *
+   * Fail-closed: only tools with risk "read" are permitted; empty services are
+   * passed so the write→confirm floor is structurally un-bypassable; handler
+   * throws are sanitized the same way runHandler sanitizes them.
+   */
+  async runReadToolForActor(
+    actorUserId: string,
+    toolName: string,
+    rawInput: unknown
+  ): Promise<GatewayToolResponse> {
+    const found = (await this.executableTools(actorUserId)).find(
+      (entry) => entry.tool.name === toolName
+    );
+    if (!found) {
+      return { ok: false, error: `Tool not available: ${toolName}` };
+    }
+    if (found.tool.risk !== "read") {
+      return { ok: false, error: `Tool ${toolName} is not a read tool` };
+    }
+
+    let input: Record<string, unknown>;
+    try {
+      input = validateToolInput(found.tool.inputSchema, rawInput);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Invalid input" };
+    }
+
+    const requestId = `cross-tool_${randomUUID()}`;
+    const access: AccessContext = { actorUserId, requestId };
+    const ctx: ToolContext = { actorUserId, requestId, chatSessionId: "" };
+
+    try {
+      const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
+        found.execute(scopedDb, input, ctx, {})
+      );
+      return {
+        ok: true,
+        data: renderAndCap(
+          found.tool.outputSchema,
+          result,
+          found.tool.externalContent ? found.tool.name : undefined
+        )
+      };
+    } catch {
+      return { ok: false, error: `Tool ${found.tool.name} failed` };
+    }
   }
 
   /** Called by the Approve/Deny endpoint (and tests). Persists the resolution and unblocks the call. */
@@ -216,6 +283,13 @@ export class AssistantToolGateway {
         toolName: found.dto.name,
         outcome: "denied"
       });
+      const approvalMode =
+        outcome === "timeout" ? "timeout" : outcome === "rejected" ? "rejected" : "cancelled";
+      void this.recordAudit(access, found, {
+        approvalMode,
+        outcome: outcome === "cancelled" ? "cancelled" : "denied",
+        chatSessionId: ctx.chatSessionId
+      });
       const reason =
         outcome === "timeout"
           ? "Timed out awaiting confirmation — still pending in your drawer."
@@ -229,6 +303,12 @@ export class AssistantToolGateway {
       actionRequestId: action.id,
       toolName: found.dto.name,
       outcome: result.ok ? "executed" : "error"
+    });
+    void this.recordAudit(access, found, {
+      approvalMode: "confirmed",
+      outcome: result.ok ? "success" : "failed",
+      errorClass: result.ok ? null : "handler_error",
+      chatSessionId: ctx.chatSessionId
     });
     return result;
   }
@@ -306,5 +386,45 @@ export class AssistantToolGateway {
       }
     }
     return out;
+  }
+
+  private async recordAudit(
+    access: AccessContext,
+    found: ExecutableTool,
+    opts: {
+      approvalMode: InsertAuditLogInput["approvalMode"];
+      outcome: InsertAuditLogInput["outcome"];
+      errorClass?: string | null;
+      chatSessionId?: string;
+    }
+  ): Promise<void> {
+    try {
+      await this.deps.runner.withDataContext(access, (scopedDb) =>
+        this.deps.repository.insertActionAuditLog(scopedDb, {
+          id: randomUUID(),
+          ownerUserId: access.actorUserId,
+          toolModuleId: found.dto.moduleId,
+          toolName: found.dto.name,
+          actionFamilyId: found.tool.actionFamilyId ?? null,
+          actionKind: found.tool.risk as "write" | "destructive",
+          approvalMode: opts.approvalMode,
+          outcome: opts.outcome,
+          errorClass: opts.errorClass ?? null,
+          requestId: access.requestId ?? null,
+          chatSessionId: opts.chatSessionId ?? null,
+          sourceSurface: "chat"
+        })
+      );
+    } catch {
+      console.error(
+        JSON.stringify({
+          event: "audit_log_write_failed",
+          toolName: found.dto.name,
+          toolModuleId: found.dto.moduleId,
+          approvalMode: opts.approvalMode,
+          outcome: opts.outcome
+        })
+      );
+    }
   }
 }

@@ -56,12 +56,24 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "briefingType",
   "threadId",
   "messageId",
+  "userMessageId",
+  "assistantMessageId",
   "targetItemId",
   "kind",
   "jobId",
   "resourceId",
   "idempotencyKey",
-  "sourcePath"
+  "sourcePath",
+  "source",
+  "goalId",
+  "goalUpdatedAt",
+  "reason",
+  "sourceRef",
+  "sourceVersion",
+  "sourceKind",
+  "sourceRefHash",
+  "personId",
+  "personUpdatedAt"
 ]);
 
 export function assertMetadataOnlyPayload(payload: unknown): void {

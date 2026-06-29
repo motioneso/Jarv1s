@@ -452,11 +452,19 @@ describe("AI read-only assistant tool execution foundation", () => {
       "connectors.google-sync",
       "tasks-deferred-status",
       "tasks-recurrence-materialize",
+      "goals-memory-sync",
+      "goals-memory-sync-reconcile",
+      "calendar.cache-evict-event",
+      "ai-purge-audit-log",
       "chat.embed-turn",
       "chat.extract-facts",
       "briefings-run",
       "wellness-export",
-      "notes.sync"
+      "notes.sync",
+      "proactive-scan-source",
+      "commitment-extraction",
+      "person-index",
+      "sync-person-memory"
     ]);
     await expect(tasksRepository.listVisible({} as never)).rejects.toThrow(
       "Repository access requires withDataContext"

@@ -176,7 +176,7 @@ export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | 
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
 export type BriefingRunKind = "manual" | "scheduled";
-export type BriefingType = "morning" | "evening";
+export type BriefingType = "morning" | "evening" | "weekly_review";
 
 export interface TasksTable {
   id: string;
@@ -378,6 +378,22 @@ export interface AiAssistantActionRequestsTable {
   updated_at: TimestampColumn;
 }
 
+export interface JarvisActionAuditLogTable {
+  id: string;
+  owner_user_id: string;
+  tool_module_id: string;
+  tool_name: string;
+  action_family_id: string | null;
+  action_kind: string;
+  approval_mode: string;
+  outcome: string;
+  error_class: string | null;
+  request_id: string | null;
+  chat_session_id: string | null;
+  source_surface: string;
+  occurred_at: TimestampColumn;
+}
+
 export interface ChatThreadsTable {
   id: string;
   owner_user_id: string;
@@ -426,6 +442,56 @@ export interface BriefingRunsTable {
   summary_text: string;
   source_metadata: JsonColumn;
   created_at: TimestampColumn;
+}
+
+export type UsefulnessFeedbackTargetKind =
+  | "chat_message"
+  | "briefing_run"
+  | "briefing_item"
+  | "proactive_card";
+export type UsefulnessFeedbackSurface = "chat" | "briefing" | "today" | "proactive";
+export type UsefulnessFeedbackKind =
+  | "more_like_this"
+  | "too_much"
+  | "wrong_priority"
+  | "not_useful"
+  | "remember_this"
+  | "dismiss";
+export type UsefulnessFeedbackStatus = "active" | "undone";
+export type UsefulnessFeedbackPriorityBand = "critical" | "high" | "normal" | "low";
+
+export interface UsefulnessFeedbackSignalsTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: string;
+  target_kind: UsefulnessFeedbackTargetKind;
+  target_ref: string;
+  surface: UsefulnessFeedbackSurface;
+  kind: UsefulnessFeedbackKind;
+  source_kind: string | null;
+  source_label: string | null;
+  priority_band: UsefulnessFeedbackPriorityBand | null;
+  effect_kind: string | null;
+  effect_ref: string | null;
+  metadata_json: JsonColumn;
+  status: ColumnType<
+    UsefulnessFeedbackStatus,
+    UsefulnessFeedbackStatus | undefined,
+    UsefulnessFeedbackStatus
+  >;
+  created_at: TimestampColumn;
+  resolved_at: NullableTimestampColumn;
+}
+
+export interface UsefulnessFeedbackTargetsTable {
+  owner_user_id: string;
+  target_kind: UsefulnessFeedbackTargetKind;
+  target_ref: string;
+  surface: UsefulnessFeedbackSurface;
+  source_kind: string | null;
+  source_label: string | null;
+  priority_band: UsefulnessFeedbackPriorityBand | null;
+  metadata_json: JsonColumn;
+  last_seen_at: TimestampColumn;
 }
 
 export interface MemoryChunksTable {
@@ -602,6 +668,185 @@ export interface DataExportJobsTable {
   >;
 }
 
+export interface ProactiveMonitorStateTable {
+  owner_user_id: ColumnType<string, string, never>;
+  source: string;
+  cursor_json: JsonColumn;
+  last_checked_at: NullableTimestampColumn;
+  failure_count: ColumnType<number, number | undefined, number>;
+  last_error_class: string | null;
+  updated_at: TimestampColumn;
+}
+
+export type ProactiveCardStatusDb = "active" | "dismissed" | "expired" | "suppressed";
+
+export interface ProactiveCardsTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: ColumnType<string, string, never>;
+  source: string;
+  stable_key: string;
+  source_ref_hash: string;
+  title: string;
+  summary: string;
+  signal_type: string;
+  priority_band: ColumnType<
+    "critical" | "high" | "normal" | "low",
+    "critical" | "high" | "normal" | "low",
+    "critical" | "high" | "normal" | "low"
+  >;
+  priority_reasons: ColumnType<readonly string[], readonly string[] | undefined, readonly string[]>;
+  status: ColumnType<
+    ProactiveCardStatusDb,
+    ProactiveCardStatusDb | undefined,
+    ProactiveCardStatusDb
+  >;
+  occurred_at: NullableTimestampColumn;
+  target_at: NullableTimestampColumn;
+  first_seen_at: TimestampColumn;
+  last_seen_at: TimestampColumn;
+  deferred_until: NullableTimestampColumn;
+  expires_at: NullableTimestampColumn;
+  dismissed_at: NullableTimestampColumn;
+  metadata_json: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+type CommitmentCandidateKindDb = "deadline" | "promise" | "obligation" | "intent";
+type CommitmentCandidateStatusDb =
+  | "pending_review"
+  | "accepted"
+  | "rejected"
+  | "snoozed"
+  | "expired"
+  | "explicit_non_action";
+type CommitmentSuggestedHandlingDb =
+  | "create_task"
+  | "create_goal"
+  | "create_calendar_event"
+  | "send_reply"
+  | "dismiss";
+
+export interface CommitmentCandidatesTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: string;
+  candidate_signature: string;
+  kind: ColumnType<CommitmentCandidateKindDb, CommitmentCandidateKindDb, CommitmentCandidateKindDb>;
+  title: string;
+  due_local_date: ColumnType<string | null, string | null | undefined, string | null>;
+  counterparty_label: ColumnType<string | null, string | null | undefined, string | null>;
+  status: ColumnType<
+    CommitmentCandidateStatusDb,
+    CommitmentCandidateStatusDb | undefined,
+    CommitmentCandidateStatusDb
+  >;
+  confidence: ColumnType<
+    "high" | "medium" | "low",
+    "high" | "medium" | "low",
+    "high" | "medium" | "low"
+  >;
+  suggested_handling: ColumnType<
+    CommitmentSuggestedHandlingDb | null,
+    CommitmentSuggestedHandlingDb | null | undefined,
+    CommitmentSuggestedHandlingDb | null
+  >;
+  resolution_ref: ColumnType<string | null, string | null | undefined, string | null>;
+  suppressed_by: ColumnType<string | null, string | null | undefined, string | null>;
+  source_count: ColumnType<number, number | undefined, number>;
+  first_seen_at: TimestampColumn;
+  last_seen_at: TimestampColumn;
+  snoozed_until: NullableTimestampColumn;
+  expires_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface CommitmentCandidateSourcesTable {
+  id: ColumnType<string, string | undefined, never>;
+  candidate_id: string;
+  owner_user_id: string;
+  source_kind: "chat" | "email" | "notes";
+  source_ref: string;
+  source_version: ColumnType<number, number | undefined, number>;
+  evidence_excerpt: string;
+  occurred_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+}
+
+export interface CommitmentCandidateEventsTable {
+  id: ColumnType<string, string | undefined, never>;
+  candidate_id: string;
+  owner_user_id: string;
+  event_kind:
+    | "created"
+    | "status_changed"
+    | "resolution_set"
+    | "snoozed"
+    | "suppressed"
+    | "evidence_added";
+  from_status: ColumnType<
+    CommitmentCandidateStatusDb | null,
+    CommitmentCandidateStatusDb | null | undefined,
+    CommitmentCandidateStatusDb | null
+  >;
+  to_status: ColumnType<
+    CommitmentCandidateStatusDb | null,
+    CommitmentCandidateStatusDb | null | undefined,
+    CommitmentCandidateStatusDb | null
+  >;
+  actor_user_id: string;
+  detail: ColumnType<
+    Record<string, unknown> | null,
+    Record<string, unknown> | null | undefined,
+    Record<string, unknown> | null
+  >;
+  created_at: TimestampColumn;
+}
+
+export interface CommitmentExtractionStateTable {
+  id: ColumnType<string, string | undefined, never>;
+  owner_user_id: string;
+  source_kind: "chat" | "email" | "notes";
+  last_extracted_at: NullableTimestampColumn;
+  last_run_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export type {
+  PersonContextStatusDb,
+  PersonContextIdentityKindDb,
+  PersonContextSourceKindDb,
+  PersonContextIdentityStatusDb,
+  PersonContextProvenanceDb,
+  PersonContextLinkKindDb,
+  PersonContextCandidateKindDb,
+  PersonContextCandidateStatusDb,
+  PersonContextEventKindDb,
+  PersonContextPeopleTable,
+  PersonContextIdentitiesTable,
+  PersonContextLinksTable,
+  PersonContextLinkSourcesTable,
+  PersonContextMatchCandidatesTable,
+  PersonContextEventsTable,
+  PersonContextIndexingStateTable,
+  PersonContextPerson,
+  PersonContextIdentity,
+  PersonContextLink,
+  PersonContextLinkSource,
+  PersonContextMatchCandidate,
+  PersonContextEvent,
+  PersonContextIndexingState
+} from "./people-types.js";
+import type {
+  PersonContextPeopleTable,
+  PersonContextIdentitiesTable,
+  PersonContextLinksTable,
+  PersonContextLinkSourcesTable,
+  PersonContextMatchCandidatesTable,
+  PersonContextEventsTable,
+  PersonContextIndexingStateTable
+} from "./people-types.js";
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -632,10 +877,13 @@ export interface JarvisDatabase {
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
+  "app.jarvis_action_audit_log": JarvisActionAuditLogTable;
   "app.chat_threads": ChatThreadsTable;
   "app.chat_messages": ChatMessagesTable;
   "app.briefing_definitions": BriefingDefinitionsTable;
   "app.briefing_runs": BriefingRunsTable;
+  "app.usefulness_feedback_signals": UsefulnessFeedbackSignalsTable;
+  "app.usefulness_feedback_targets": UsefulnessFeedbackTargetsTable;
   "app.memory_chunks": MemoryChunksTable;
   "app.memory_links": MemoryLinksTable;
   "app.memory_file_index": MemoryFileIndexTable;
@@ -647,6 +895,19 @@ export interface JarvisDatabase {
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
   "app.data_export_jobs": DataExportJobsTable;
+  "app.proactive_monitor_state": ProactiveMonitorStateTable;
+  "app.proactive_cards": ProactiveCardsTable;
+  "app.commitment_candidates": CommitmentCandidatesTable;
+  "app.commitment_candidate_sources": CommitmentCandidateSourcesTable;
+  "app.commitment_candidate_events": CommitmentCandidateEventsTable;
+  "app.commitment_extraction_state": CommitmentExtractionStateTable;
+  "app.person_context_people": PersonContextPeopleTable;
+  "app.person_context_identities": PersonContextIdentitiesTable;
+  "app.person_context_links": PersonContextLinksTable;
+  "app.person_context_link_sources": PersonContextLinkSourcesTable;
+  "app.person_context_match_candidates": PersonContextMatchCandidatesTable;
+  "app.person_context_events": PersonContextEventsTable;
+  "app.person_context_indexing_state": PersonContextIndexingStateTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -671,10 +932,13 @@ export type EmailMessage = Selectable<EmailMessagesTable>;
 export type AiProviderConfig = Selectable<AiProviderConfigsTable>;
 export type AiConfiguredModel = Selectable<AiConfiguredModelsTable>;
 export type AiAssistantActionRequest = Selectable<AiAssistantActionRequestsTable>;
+export type JarvisActionAuditLog = Selectable<JarvisActionAuditLogTable>;
 export type ChatThread = Selectable<ChatThreadsTable>;
 export type ChatMessage = Selectable<ChatMessagesTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
 export type BriefingRun = Selectable<BriefingRunsTable>;
+export type UsefulnessFeedbackSignal = Selectable<UsefulnessFeedbackSignalsTable>;
+export type UsefulnessFeedbackTarget = Selectable<UsefulnessFeedbackTargetsTable>;
 export type JsonObject = JsonColumn;
 export type Commitment = Selectable<CommitmentsTable>;
 export type Entity = Selectable<EntitiesTable>;
@@ -684,3 +948,5 @@ export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
 export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;
 export type DataExportJob = Selectable<DataExportJobsTable>;
+export type ProactiveMonitorState = Selectable<ProactiveMonitorStateTable>;
+export type ProactiveCard = Selectable<ProactiveCardsTable>;

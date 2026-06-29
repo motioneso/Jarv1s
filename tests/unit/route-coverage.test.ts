@@ -73,6 +73,10 @@ describe("manifest routes[] reconciliation", () => {
       { method: "POST", path: "/api/memory/graph/entities" },
       { method: "POST", path: "/api/memory/graph/facts" },
       { method: "POST", path: "/api/memory/graph/facts/:id/pin" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/confirm" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/correct" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/status" },
+      { method: "POST", path: "/api/memory/graph/facts/:id/mark-stale" },
       { method: "POST", path: "/api/memory/graph/facts/:id/supersede" },
       { method: "DELETE", path: "/api/memory/graph/facts/:id" }
     ]) {

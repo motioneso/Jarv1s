@@ -4,6 +4,7 @@ export type Brand<TValue, TBrand extends string> = TValue & {
 
 export * from "./schema-fragments.js";
 export * from "./ai-api.js";
+export * from "./ai-audit-api.js";
 export * from "./ai-summary-api.js";
 export * from "./briefings-api.js";
 export * from "./calendar-briefing-settings-api.js";
@@ -30,3 +31,7 @@ export * from "./runtime-config-api.js";
 export * from "./notes-api.js";
 export * from "./priority-model-api.js";
 export * from "./memory-graph-api.js";
+export * from "./usefulness-feedback-api.js";
+export * from "./memory-dashboard-api.js";
+export * from "./proactive-monitoring-api.js";
+export * from "./freshness-types.js";

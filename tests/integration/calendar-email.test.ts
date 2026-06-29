@@ -199,7 +199,7 @@ describe("Calendar and Email connector-backed read modules", () => {
     }
   });
 
-  it("loads Calendar and Email as built-in read modules without queues", () => {
+  it("loads Calendar and Email as built-in modules with expected queue definitions", () => {
     const manifests = getBuiltInModuleManifests();
     const registrations = getBuiltInModuleRegistrations();
     const calendarRegistration = registrations.find(
@@ -213,6 +213,7 @@ describe("Calendar and Email connector-backed read modules", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",
@@ -221,10 +222,14 @@ describe("Calendar and Email connector-backed read modules", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring",
+      "jarvis.commitments",
+      "people"
     ]);
     expect(calendarModuleManifest.database?.ownedTables).toEqual(["app.calendar_events"]);
     expect(emailModuleManifest.database?.ownedTables).toEqual(["app.email_messages"]);
@@ -236,7 +241,9 @@ describe("Calendar and Email connector-backed read modules", () => {
     // Email has no user-facing surface: the viewer was retired and the module is now an
     // ingestion source only (assistant tool + cache APIs), so it declares no sidebar nav.
     expect(emailModuleManifest.navigation).toEqual([]);
-    expect(calendarRegistration?.queueDefinitions).toEqual([]);
+    expect(calendarRegistration?.queueDefinitions.map((q) => q.name)).toEqual([
+      "calendar.cache-evict-event"
+    ]);
     expect(emailRegistration?.queueDefinitions).toEqual([]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
       expect.stringContaining("packages/calendar/sql")

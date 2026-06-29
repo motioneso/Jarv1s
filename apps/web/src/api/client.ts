@@ -1,3 +1,4 @@
+import type { JarvisGoal } from "@jarv1s/goals";
 import type {
   AddTaskActivityRequest,
   AssignTaskTagRequest,
@@ -71,6 +72,7 @@ import type {
   ListCheckinsResponse,
   ListChatThreadMessagesResponse,
   ListChatThreadsResponse,
+  SendChatTurnResponse,
   ListConnectorAccountsResponse,
   ListConnectorProvidersResponse,
   ListMedicationsResponse,
@@ -125,7 +127,8 @@ import type {
   PatchMeProfileRequest,
   PutActiveThemeRequest,
   PutCustomThemeRequest,
-  PutCustomThemeResponse
+  PutCustomThemeResponse,
+  ListActionAuditLogResponse
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -357,6 +360,14 @@ export async function signOut(): Promise<void> {
 
 export async function listTaskActivity(taskId: string): Promise<ListTaskActivityResponse> {
   return requestJson<ListTaskActivityResponse>(`/api/tasks/${encodeURIComponent(taskId)}/activity`);
+}
+
+export interface ListGoalsResponse {
+  readonly items: readonly JarvisGoal[];
+}
+
+export async function listGoals(): Promise<ListGoalsResponse> {
+  return requestJson<ListGoalsResponse>(`/api/goals`);
 }
 
 export async function listTasks(params?: { readonly tagId?: string }): Promise<ListTasksResponse> {
@@ -617,8 +628,8 @@ export async function listChatThreadMessages(
   );
 }
 
-export async function sendChatTurn(text: string): Promise<{ reply: string }> {
-  return requestJson<{ reply: string }>("/api/chat/turn", {
+export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
+  return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
     body: { text }
   });
@@ -806,6 +817,19 @@ export async function listAiAssistantTools(): Promise<ListAiAssistantToolsRespon
   return requestJson<ListAiAssistantToolsResponse>("/api/ai/assistant-tools");
 }
 
+export async function listActionAuditLog(params?: {
+  since?: string;
+  family?: string;
+  limit?: number;
+}): Promise<ListActionAuditLogResponse> {
+  const search = new URLSearchParams();
+  if (params?.since) search.set("since", params.since);
+  if (params?.family) search.set("family", params.family);
+  if (params?.limit !== undefined) search.set("limit", String(params.limit));
+  const qs = search.toString();
+  return requestJson<ListActionAuditLogResponse>(`/api/ai/action-audit${qs ? `?${qs}` : ""}`);
+}
+
 export async function getWebSearchKey(): Promise<GetWebSearchKeyResponse> {
   return requestJson<GetWebSearchKeyResponse>("/api/admin/settings/web-search");
 }
@@ -921,6 +945,7 @@ export async function markAllNotificationsRead(): Promise<MarkAllNotificationsRe
 }
 
 export * from "./client-admin.js";
+export * from "./client-proactive.js";
 
 export async function requestJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);

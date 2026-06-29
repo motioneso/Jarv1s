@@ -9,6 +9,7 @@ import {
   type ChatThread,
   type DataContextDb
 } from "@jarv1s/db";
+import type { AnswerProvenanceMetadataV1, SourceFreshnessV1 } from "@jarv1s/shared";
 
 export interface CreateChatThreadInput {
   readonly title: string;
@@ -72,6 +73,19 @@ export class ChatRepository {
       .orderBy(sql<number>`CASE WHEN role = 'user' THEN 0 ELSE 1 END`)
       .orderBy("id")
       .execute();
+  }
+
+  async getMessageById(
+    scopedDb: DataContextDb,
+    messageId: string
+  ): Promise<ChatMessage | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.chat_messages")
+      .selectAll()
+      .where("id", "=", messageId)
+      .executeTakeFirst();
   }
 
   private async insertMessage(
@@ -161,7 +175,11 @@ export class ChatRepository {
     threadId: string,
     userText: string,
     assistantReply: string,
-    executed: { readonly provider: string; readonly model: string }
+    executed: { readonly provider: string; readonly model: string },
+    opts?: {
+      readonly sourceFreshness?: SourceFreshnessV1 | null;
+      readonly answerProvenance?: AnswerProvenanceMetadataV1;
+    }
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage } | undefined> {
     assertDataContextDb(scopedDb);
 
@@ -187,7 +205,13 @@ export class ChatRepository {
       status: "stored",
       body: assistantReply,
       modelMetadata: { executed: { provider: executed.provider, model: executed.model } },
-      toolMetadata: { selectedTools: [] },
+      toolMetadata: {
+        selectedTools: [],
+        ...(opts?.sourceFreshness ? { sourceFreshness: opts.sourceFreshness } : {}),
+        ...(opts?.answerProvenance !== undefined
+          ? { answerProvenanceV1: opts.answerProvenance }
+          : {})
+      },
       now
     });
 

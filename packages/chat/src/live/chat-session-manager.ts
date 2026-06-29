@@ -12,12 +12,29 @@
  * a real tmux session, Postgres, or disk. Task 8 supplies the real adapters.
  */
 import type { ProviderKind } from "@jarv1s/ai";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type {
+  AnswerProvenanceMetadataV1,
+  AnswerSourceSupport,
+  AiProviderExecutionMode,
+  SourceFreshnessV1
+} from "@jarv1s/shared";
+import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { RecallPort } from "../recall-port.js";
+import {
+  crossToolItemToSupport,
+  finalizeProvenance,
+  memoryItemToSupport,
+  parseAnswerMarkers
+} from "./answer-provenance.js";
+import {
+  collectCrossToolContextAndItems,
+  planCrossToolReasoning,
+  type CrossToolReadRunner
+} from "./cross-tool-reasoning.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { neutralizeSeedFraming } from "./prompt-safety.js";
-import { renderMemorySeedBlock } from "./recall-seed.js";
+import { estimateTokens, renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
@@ -44,10 +61,40 @@ export interface ChatPersistencePort {
     actorUserId: string,
     userText: string,
     assistantReply: string,
-    executed: { provider: ProviderKind; model: string }
-  ): Promise<void>;
+    executed: { provider: ProviderKind; model: string },
+    opts?: {
+      readonly invokedToolNames?: ReadonlySet<string>;
+      readonly answerProvenance?: AnswerProvenanceMetadataV1;
+    }
+  ): Promise<
+    | {
+        readonly userMessageId: string;
+        readonly assistantMessageId: string;
+        readonly sourceFreshness?: SourceFreshnessV1 | null;
+      }
+    | undefined
+  >;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
+  /** Return the current thread title and the user's persisted timezone (null if unset). */
+  getThreadContext(
+    actorUserId: string
+  ): Promise<{ threadTitle: string | null; localTimezone: string | null }>;
+}
+
+export interface PassiveRetrievalPort {
+  retrieve(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<string>;
+  retrieveWithItems?(input: {
+    readonly actorUserId: string;
+    readonly userText: string;
+    readonly threadTitle: string | null;
+    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
+  }): Promise<{ block: string; items: MemoryRecallItem[] }>;
 }
 
 export interface ChatSessionManagerDeps {
@@ -107,6 +154,10 @@ export interface ChatSessionManagerDeps {
   readonly killSession?: (sessionKey: string) => Promise<void>;
   /** Phase 3: optional recall service — injects <memory> seed before replay. */
   readonly recall?: RecallPort;
+  /** Optional per-turn hidden context retrieval. Empty/failed result submits the raw turn. */
+  readonly passiveRetrieval?: PassiveRetrievalPort;
+  /** Optional cross-tool read runner for pre-turn context fan-out. */
+  readonly crossToolRead?: CrossToolReadRunner;
   /**
    * #342 (§4.1.2) — does the ENGINE own the replay submit+drain?
    *
@@ -329,7 +380,12 @@ export class ChatSessionManager {
     actorUserId: string,
     userName: string,
     text: string
-  ): Promise<{ reply: string }> {
+  ): Promise<{
+    reply: string;
+    userMessageId?: string;
+    assistantMessageId?: string;
+    sourceFreshness?: SourceFreshnessV1 | null;
+  }> {
     // Turn-at-a-time (spec §6.5): reject a concurrent turn for the same user.
     // The flag is set synchronously (before any await) so two turns started in
     // the same tick can't both pass the check, and cleared in finally below.
@@ -356,7 +412,12 @@ export class ChatSessionManager {
     actorUserId: string,
     userName: string,
     text: string
-  ): Promise<{ reply: string }> {
+  ): Promise<{
+    reply: string;
+    userMessageId?: string;
+    assistantMessageId?: string;
+    sourceFreshness?: SourceFreshnessV1 | null;
+  }> {
     const session = await this.ensureSession(actorUserId, userName);
 
     // #456 — per-turn stop signal. stopTurn(actorUserId) aborts this; the poll loop checks
@@ -365,10 +426,12 @@ export class ChatSessionManager {
     this.turnControllers.set(actorUserId, controller);
 
     try {
+      const { text: engineText, pendingItems } = await this.engineText(actorUserId, text);
       this.emit(actorUserId, { kind: "user", text });
-      await session.engine.submit(text);
+      await session.engine.submit(engineText);
 
       let reply = "";
+      const invokedToolNames = new Set<string>();
       let lastEmissionAt = this.deps.clock.now();
       let watchdogTripped = false;
       let stopped = false;
@@ -400,6 +463,9 @@ export class ChatSessionManager {
         for (const record of records) {
           this.emit(actorUserId, record);
           if (record.kind === "reply") reply = record.text;
+          if (record.kind === "tool" && record.toolName) {
+            invokedToolNames.add(record.toolName);
+          }
         }
         if (complete) break;
         // #456 — user-driven Stop: the signal aborts mid-turn; break cleanly (no error) so the
@@ -442,16 +508,119 @@ export class ChatSessionManager {
         return { reply };
       }
 
-      await this.deps.persistence.recordTurn(actorUserId, text, reply, {
-        provider: session.provider,
-        model: session.model
-      });
+      let answerProvenance: AnswerProvenanceMetadataV1 | undefined;
+      if (pendingItems.length > 0 && reply) {
+        try {
+          const citedIds = parseAnswerMarkers(reply);
+          answerProvenance = finalizeProvenance(pendingItems, citedIds);
+        } catch {
+          answerProvenance = undefined;
+        }
+      }
+
+      const stored = await this.deps.persistence.recordTurn(
+        actorUserId,
+        text,
+        reply,
+        {
+          provider: session.provider,
+          model: session.model
+        },
+        { invokedToolNames, answerProvenance }
+      );
       session.lastActivity = this.deps.clock.now();
       this.deps.touchMcpToken?.(actorUserId);
 
-      return { reply };
+      // Post-store: re-emit reply with messageId + sourceFreshness so live UI picks it up
+      if (stored?.assistantMessageId && stored.sourceFreshness !== undefined) {
+        this.emit(actorUserId, {
+          kind: "reply",
+          text: reply,
+          messageId: stored.assistantMessageId,
+          sourceFreshness: stored.sourceFreshness
+        });
+      }
+
+      return {
+        reply,
+        userMessageId: stored?.userMessageId,
+        assistantMessageId: stored?.assistantMessageId,
+        sourceFreshness: stored?.sourceFreshness
+      };
     } finally {
       this.turnControllers.delete(actorUserId);
+    }
+  }
+
+  private async engineText(
+    actorUserId: string,
+    text: string
+  ): Promise<{ text: string; pendingItems: AnswerSourceSupport[] }> {
+    if (!this.deps.passiveRetrieval && !this.deps.crossToolRead) {
+      return { text, pendingItems: [] };
+    }
+    try {
+      const [{ recent }, threadCtx] = await Promise.all([
+        this.deps.persistence.listPriorTurns(actorUserId),
+        this.deps.persistence.getThreadContext(actorUserId)
+      ]);
+
+      const localNow = new Date().toISOString();
+      const plan =
+        this.deps.crossToolRead != null
+          ? planCrossToolReasoning({
+              userText: text,
+              threadTitle: threadCtx.threadTitle,
+              recentTurns: recent,
+              localNowIso: localNow,
+              localTimezone: threadCtx.localTimezone ?? "UTC"
+            })
+          : null;
+
+      const [passiveResult, crossToolResult] = await Promise.all([
+        this.deps.passiveRetrieval != null
+          ? (this.deps.passiveRetrieval.retrieveWithItems != null
+              ? this.deps.passiveRetrieval.retrieveWithItems({
+                  actorUserId,
+                  userText: text,
+                  threadTitle: threadCtx.threadTitle,
+                  recentTurns: recent
+                })
+              : this.deps.passiveRetrieval
+                  .retrieve({
+                    actorUserId,
+                    userText: text,
+                    threadTitle: threadCtx.threadTitle,
+                    recentTurns: recent
+                  })
+                  .then((block) => ({ block, items: [] as MemoryRecallItem[] }))
+            ).catch(() => ({ block: "", items: [] as MemoryRecallItem[] }))
+          : Promise.resolve({ block: "", items: [] as MemoryRecallItem[] }),
+        plan != null && this.deps.crossToolRead != null
+          ? collectCrossToolContextAndItems(
+              actorUserId,
+              plan,
+              this.deps.crossToolRead,
+              localNow
+            ).catch(() => ({ block: "", items: [] }))
+          : Promise.resolve({ block: "", items: [] })
+      ]);
+
+      // Convert evidence to pending support items for provenance
+      let idx = 0;
+      const memoryItems = passiveResult.items.map((item) => memoryItemToSupport(item, idx++));
+      const crossToolItems = crossToolResult.items.map((item) =>
+        crossToolItemToSupport(item, idx++)
+      );
+      const pendingItems: AnswerSourceSupport[] = [...memoryItems, ...crossToolItems];
+
+      const combined = combineHiddenContextBlocks(passiveResult.block, crossToolResult.block);
+      return {
+        text: combined ? `${combined}\n\n${text}` : text,
+        pendingItems
+      };
+    } catch {
+      return { text, pendingItems: [] };
     }
   }
 
@@ -732,6 +901,27 @@ export function renderSummaryBlock(summary: string): string {
   // gets persisted and replayed here. Route it through the same chokepoint as
   // every other untrusted seed surface so it cannot break out of the block (#123).
   return `<prior-context>\n${neutralizeSeedFraming(summary)}\n</prior-context>`;
+}
+
+/**
+ * Combine the passive retrieval block and the cross-tool context block under a
+ * 2000-token cap. The passive block has priority: if combined tokens exceed the
+ * cap, the cross-tool block is dropped entirely (never truncated mid-block).
+ * Exported for unit testing.
+ */
+export function combineHiddenContextBlocks(passiveBlock: string, crossToolBlock: string): string {
+  const COMBINED_CAP = 2000;
+  const passiveTokens = passiveBlock ? estimateTokens(passiveBlock) : 0;
+  const crossTokens = crossToolBlock ? estimateTokens(crossToolBlock) : 0;
+  if (!passiveBlock && !crossToolBlock) return "";
+  if (!crossToolBlock) return passiveBlock;
+  if (!passiveBlock) {
+    return crossTokens <= COMBINED_CAP ? crossToolBlock : "";
+  }
+  if (passiveTokens + crossTokens <= COMBINED_CAP) {
+    return `${passiveBlock}\n\n${crossToolBlock}`;
+  }
+  return passiveBlock;
 }
 
 function delay(ms: number): Promise<void> {

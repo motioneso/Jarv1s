@@ -1,0 +1,17 @@
+
+> jarv1s@0.0.0 verify:foundation /home/ben/Jarv1s/.claude/worktrees/rfa-535-long-running-goals
+> pnpm lint && pnpm format:check && pnpm check:file-size && pnpm check:design-tokens && pnpm typecheck && pnpm test:unit && pnpm db:migrate && pnpm test:integration
+
+
+> jarv1s@0.0.0 lint /home/ben/Jarv1s/.claude/worktrees/rfa-535-long-running-goals
+> eslint . --max-warnings=0
+
+
+> jarv1s@0.0.0 format:check /home/ben/Jarv1s/.claude/worktrees/rfa-535-long-running-goals
+> prettier --check .
+
+Checking formatting...
+[warn] scripts/check-file-size.ts
+[warn] Code style issues found in the above file. Run Prettier with --write to fix.
+ ELIFECYCLE  Command failed with exit code 1.
+ ELIFECYCLE  Command failed with exit code 1.

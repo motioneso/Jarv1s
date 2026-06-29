@@ -33,7 +33,11 @@ import {
   updateAiProviderConfigRequestSchema,
   updateAiProviderConfigResponseSchema,
   aiCapabilityTierPreferencesResponseSchema,
-  patchAiCapabilityTierPreferenceRequestSchema
+  patchAiCapabilityTierPreferenceRequestSchema,
+  getAiActionPoliciesResponseSchema,
+  patchAiActionPolicyRequestSchema,
+  patchAiActionPolicyResponseSchema,
+  listActionAuditLogRouteSchema
 } from "@jarv1s/shared";
 
 export const AI_MODULE_ID = "ai";
@@ -60,13 +64,15 @@ export const aiModuleManifest = {
       "sql/0037_ai_worker_read_grants.sql",
       "sql/0048_ai_model_tier.sql",
       "sql/0091_chat_model_override.sql",
-      "sql/0098_ai_cancel_stale_assistant_actions.sql"
+      "sql/0098_ai_cancel_stale_assistant_actions.sql",
+      "sql/0127_jarvis_action_audit_log.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
       "app.ai_provider_configs",
       "app.ai_configured_models",
-      "app.ai_assistant_action_requests"
+      "app.ai_assistant_action_requests",
+      "app.jarvis_action_audit_log"
     ]
   },
   settings: [
@@ -278,6 +284,25 @@ export const aiModuleManifest = {
       path: "/api/ai/assistant-actions/:id/resolve",
       requestSchema: resolveAiAssistantActionRequestSchema,
       responseSchema: resolveAiAssistantActionResponseSchema,
+      permissionId: "ai.assistant-actions"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/action-policy",
+      responseSchema: getAiActionPoliciesResponseSchema,
+      permissionId: "ai.view"
+    },
+    {
+      method: "PATCH",
+      path: "/api/ai/action-policy/:moduleId/:actionFamilyId",
+      requestSchema: patchAiActionPolicyRequestSchema,
+      responseSchema: patchAiActionPolicyResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/ai/action-audit",
+      responseSchema: listActionAuditLogRouteSchema.response[200],
       permissionId: "ai.assistant-actions"
     }
   ]

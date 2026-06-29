@@ -39,6 +39,8 @@ export interface UserDataExportTables {
   readonly medications: readonly ExportRow[];
   readonly memoryChunks: readonly ExportRow[];
   readonly memoryAliases: readonly ExportRow[];
+  readonly memoryCandidates: readonly ExportRow[];
+  readonly memoryConflictGroups: readonly ExportRow[];
   readonly memoryEntities: readonly ExportRow[];
   readonly memoryEpisodes: readonly ExportRow[];
   readonly memoryFacts: readonly ExportRow[];
@@ -50,9 +52,14 @@ export interface UserDataExportTables {
   readonly preferences: readonly ExportRow[];
   readonly taskActivity: readonly ExportRow[];
   readonly tasks: readonly ExportRow[];
+  readonly usefulnessFeedbackSignals: readonly ExportRow[];
+  readonly usefulnessFeedbackTargets: readonly ExportRow[];
   readonly users: readonly ExportRow[];
   readonly wellnessCheckins: readonly ExportRow[];
   readonly wellnessTherapyNotes: readonly ExportRow[];
+  readonly jarvisActionAuditLog: readonly ExportRow[];
+  readonly jarvisGoals: readonly ExportRow[];
+  readonly jarvisGoalEvidence: readonly ExportRow[];
 }
 
 export async function exportUserData(options: ExportUserDataOptions): Promise<UserDataExport> {
@@ -84,17 +91,22 @@ async function readExportTables(
     aiProviderConfigs: await readRows(scopedDb.db, aiProviderConfigsQuery(userId)),
     aiConfiguredModels: await readRows(scopedDb.db, aiConfiguredModelsQuery(userId)),
     aiAssistantActionRequests: await readRows(scopedDb.db, aiAssistantActionRequestsQuery(userId)),
+    jarvisActionAuditLog: await readRows(scopedDb.db, jarvisActionAuditLogQuery(userId)),
     chatThreads: await readRows(scopedDb.db, chatThreadsQuery(userId)),
     chatMessages: await readRows(scopedDb.db, chatMessagesQuery(userId)),
     briefingDefinitions: await readRows(scopedDb.db, briefingDefinitionsQuery(userId)),
     briefingRuns: await readRows(scopedDb.db, briefingRunsQuery(userId)),
     memoryChunks: await readRows(scopedDb.db, memoryChunksQuery(userId)),
+    jarvisGoals: await readRows(scopedDb.db, jarvisGoalsQuery(userId)),
+    jarvisGoalEvidence: await readRows(scopedDb.db, jarvisGoalEvidenceQuery(userId)),
     chatMemoryFacts: await readRows(scopedDb.db, chatMemoryFactsQuery(userId)),
     memoryEntities: await readRows(scopedDb.db, memoryEntitiesQuery(userId)),
     memoryFacts: await readRows(scopedDb.db, memoryFactsQuery(userId)),
     memoryEpisodes: await readRows(scopedDb.db, memoryEpisodesQuery(userId)),
     memoryFactSources: await readRows(scopedDb.db, memoryFactSourcesQuery(userId)),
     memoryAliases: await readRows(scopedDb.db, memoryAliasesQuery(userId)),
+    memoryCandidates: await readRows(scopedDb.db, memoryCandidatesQuery(userId)),
+    memoryConflictGroups: await readRows(scopedDb.db, memoryConflictGroupsQuery(userId)),
     memorySearchDocuments: await readRows(scopedDb.db, memorySearchDocumentsQuery(userId)),
     memoryLegacyFactMigrations: await readRows(
       scopedDb.db,
@@ -103,6 +115,8 @@ async function readExportTables(
     commitments: await readRows(scopedDb.db, commitmentsQuery(userId)),
     entities: await readRows(scopedDb.db, entitiesQuery(userId)),
     preferences: await readRows(scopedDb.db, preferencesQuery(userId)),
+    usefulnessFeedbackSignals: await readRows(scopedDb.db, usefulnessFeedbackSignalsQuery(userId)),
+    usefulnessFeedbackTargets: await readRows(scopedDb.db, usefulnessFeedbackTargetsQuery(userId)),
     wellnessCheckins: await readRows(scopedDb.db, wellnessCheckinsQuery(userId)),
     medications: await readRows(scopedDb.db, medicationsQuery(userId)),
     medicationLogs: await readRows(scopedDb.db, medicationLogsQuery(userId)),
@@ -361,6 +375,28 @@ function aiAssistantActionRequestsQuery(userId: string) {
   `;
 }
 
+function jarvisActionAuditLogQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      tool_module_id AS "toolModuleId",
+      tool_name AS "toolName",
+      action_family_id AS "actionFamilyId",
+      action_kind AS "actionKind",
+      approval_mode AS "approvalMode",
+      outcome,
+      error_class AS "errorClass",
+      request_id AS "requestId",
+      chat_session_id AS "chatSessionId",
+      source_surface AS "sourceSurface",
+      occurred_at AS "occurredAt"
+    FROM app.jarvis_action_audit_log
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY occurred_at, id
+  `;
+}
+
 function chatThreadsQuery(userId: string) {
   return sql<Record<string, unknown>>`
     SELECT
@@ -494,11 +530,15 @@ function memoryFactsQuery(userId: string) {
       predicate,
       object_entity_id::text AS "objectEntityId",
       object_text AS "objectText",
+      record_kind AS "recordKind",
       confidence,
       provenance,
       status,
       valid_from AS "validFrom",
       valid_to AS "validTo",
+      stale_at AS "staleAt",
+      superseded_by_fact_id::text AS "supersededByFactId",
+      conflict_group_id::text AS "conflictGroupId",
       last_confirmed_at AS "lastConfirmedAt",
       importance,
       pinned,
@@ -552,6 +592,44 @@ function memoryAliasesQuery(userId: string) {
       created_at AS "createdAt",
       updated_at AS "updatedAt"
     FROM app.memory_aliases
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryConflictGroupsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      owner_user_id::text AS "ownerUserId",
+      id::text AS id,
+      status,
+      created_at AS "createdAt",
+      resolved_at AS "resolvedAt"
+    FROM app.memory_conflict_groups
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function memoryCandidatesQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      episode_id::text AS "episodeId",
+      kind,
+      action,
+      payload_json - 'excerpt' AS "payloadJson",
+      candidate_signature AS "candidateSignature",
+      status,
+      confidence,
+      importance,
+      provenance,
+      promotion_reason AS "promotionReason",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt",
+      resolved_at AS "resolvedAt"
+    FROM app.memory_candidates
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
   `;
@@ -645,6 +723,48 @@ function preferencesQuery(userId: string) {
   `;
 }
 
+function usefulnessFeedbackSignalsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      target_kind AS "targetKind",
+      target_ref AS "targetRef",
+      surface,
+      kind,
+      source_kind AS "sourceKind",
+      source_label AS "sourceLabel",
+      priority_band AS "priorityBand",
+      effect_kind AS "effectKind",
+      effect_ref AS "effectRef",
+      metadata_json AS "metadata",
+      status,
+      created_at AS "createdAt",
+      resolved_at AS "resolvedAt"
+    FROM app.usefulness_feedback_signals
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function usefulnessFeedbackTargetsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      owner_user_id::text AS "ownerUserId",
+      target_kind AS "targetKind",
+      target_ref AS "targetRef",
+      surface,
+      source_kind AS "sourceKind",
+      source_label AS "sourceLabel",
+      priority_band AS "priorityBand",
+      metadata_json AS "metadata",
+      last_seen_at AS "lastSeenAt"
+    FROM app.usefulness_feedback_targets
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY last_seen_at, target_kind, target_ref, surface
+  `;
+}
+
 function wellnessCheckinsQuery(userId: string) {
   return sql<Record<string, unknown>>`
     SELECT
@@ -725,6 +845,46 @@ function wellnessTherapyNotesQuery(userId: string) {
     FROM app.wellness_therapy_notes
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at DESC, id
+  `;
+}
+
+function jarvisGoalsQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      owner_user_id::text AS "ownerUserId",
+      title,
+      desired_outcome AS "desiredOutcome",
+      status::text,
+      priority,
+      target_at AS "targetAt",
+      last_progress_summary AS "lastProgressSummary",
+      blocker_summary AS "blockerSummary",
+      next_suggested_action AS "nextSuggestedAction",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.jarvis_goals
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function jarvisGoalEvidenceQuery(userId: string) {
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      goal_id::text AS "goalId",
+      owner_user_id::text AS "ownerUserId",
+      evidence_kind::text AS "evidenceKind",
+      source_kind::text AS "sourceKind",
+      source_ref AS "sourceRef",
+      source_label AS "sourceLabel",
+      summary,
+      occurred_at AS "occurredAt",
+      created_at AS "createdAt"
+    FROM app.jarvis_goal_evidence
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
   `;
 }
 

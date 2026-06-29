@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@jarv1s/db": "workspace:*",
+    "@jarv1s/jobs": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/settings-ui": "workspace:*",
     "@jarv1s/shared": "workspace:*",

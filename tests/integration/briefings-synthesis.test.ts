@@ -675,6 +675,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
           "tasks.list",
           "calendar.listVisibleEvents",
           "email.listVisibleMessages",
+          "vault",
           "chat.listTodaysTurns"
         ]
       })

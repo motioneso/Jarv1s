@@ -15,6 +15,7 @@ import {
   type AiProviderKind,
   type AiProviderStatus,
   type DataContextDb,
+  type JarvisActionAuditLog,
   type JarvisDatabase
 } from "@jarv1s/db";
 import type {
@@ -24,6 +25,7 @@ import type {
 } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
+import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
 import { parseCapabilityRouteMap } from "./capability-route-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
@@ -129,6 +131,27 @@ export interface CreateAiAssistantActionInput {
   readonly risk: AiAssistantActionRisk;
   readonly inputSummary: Record<string, unknown>;
   readonly requestId?: string | null;
+}
+
+export interface InsertAuditLogInput {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly toolModuleId: string;
+  readonly toolName: string;
+  readonly actionFamilyId: string | null;
+  readonly actionKind: "write" | "destructive";
+  readonly approvalMode: "auto" | "confirmed" | "rejected" | "cancelled" | "timeout";
+  readonly outcome: "success" | "failed" | "denied" | "cancelled";
+  readonly errorClass: string | null;
+  readonly requestId: string | null;
+  readonly chatSessionId: string | null;
+  readonly sourceSurface: "chat" | "proactive" | "scheduled" | "unknown";
+}
+
+export interface ListAuditLogOptions {
+  readonly since: Date;
+  readonly familyFilter?: { moduleId: string; familyId: string } | null;
+  readonly limit: number;
 }
 
 export interface ResolveAiAssistantActionInput {
@@ -983,6 +1006,103 @@ export class AiRepository {
       .where("key", "=", CHAT_MODEL_OVERRIDE_PREFERENCE_KEY)
       .executeTakeFirst();
     return typeof row?.value_json === "string" ? row.value_json : null;
+  }
+
+  async listActionPolicies(
+    scopedDb: DataContextDb
+  ): Promise<{ moduleId: string; actionFamilyId: string; tier: JarvisActionPermissionTier }[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select(["key", "value_json"])
+      .where("key", "like", "assistant.action_policy.v1.%")
+      .execute();
+
+    const prefixLen = "assistant.action_policy.v1.".length;
+    return rows.map((r) => {
+      const parts = r.key.substring(prefixLen).split(".");
+      return {
+        moduleId: parts[0]!,
+        actionFamilyId: parts.slice(1).join("."),
+        tier:
+          typeof r.value_json === "string"
+            ? (r.value_json as JarvisActionPermissionTier)
+            : "ask_each_time"
+      };
+    });
+  }
+
+  async setActionPolicy(
+    scopedDb: DataContextDb,
+    moduleId: string,
+    actionFamilyId: string,
+    tier: JarvisActionPermissionTier
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    const key = `assistant.action_policy.v1.${moduleId}.${actionFamilyId}`;
+    await scopedDb.db
+      .insertInto("app.preferences")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        key,
+        value_json: jsonb(tier),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.columns(["owner_user_id", "key"]).doUpdateSet({
+          value_json: jsonb(tier),
+          updated_at: new Date()
+        })
+      )
+      .execute();
+  }
+  async insertActionAuditLog(scopedDb: DataContextDb, input: InsertAuditLogInput): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.jarvis_action_audit_log")
+      .values({
+        id: input.id,
+        owner_user_id: input.ownerUserId,
+        tool_module_id: input.toolModuleId,
+        tool_name: input.toolName,
+        action_family_id: input.actionFamilyId ?? null,
+        action_kind: input.actionKind,
+        approval_mode: input.approvalMode,
+        outcome: input.outcome,
+        error_class: input.errorClass ?? null,
+        request_id: input.requestId ?? null,
+        chat_session_id: input.chatSessionId ?? null,
+        source_surface: input.sourceSurface
+      })
+      .execute();
+  }
+
+  async listActionAuditLog(
+    scopedDb: DataContextDb,
+    opts: ListAuditLogOptions
+  ): Promise<JarvisActionAuditLog[]> {
+    assertDataContextDb(scopedDb);
+    let query = scopedDb.db
+      .selectFrom("app.jarvis_action_audit_log")
+      .selectAll()
+      .where("occurred_at", ">=", opts.since)
+      .orderBy("occurred_at", "desc")
+      .limit(opts.limit);
+
+    if (opts.familyFilter) {
+      query = query
+        .where("tool_module_id", "=", opts.familyFilter.moduleId)
+        .where("action_family_id", "=", opts.familyFilter.familyId);
+    }
+
+    return query.execute();
+  }
+
+  async purgeActionAuditLog(appDb: Kysely<JarvisDatabase>, olderThan: Date): Promise<number> {
+    const result = await sql<{ count: number }>`
+      SELECT app.purge_jarvis_action_audit_log(${olderThan}) AS count
+    `.execute(appDb);
+    return Number(result.rows[0]?.count ?? 0);
   }
 }
 

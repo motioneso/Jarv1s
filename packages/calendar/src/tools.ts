@@ -20,11 +20,16 @@ const DEFAULT_TIMEZONE = process.env.JARVIS_DEFAULT_TZ ?? "America/New_York";
 
 export const calendarListVisibleEventsExecute: ToolExecute = async (
   scopedDb,
-  _input,
+  input,
   _ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const events = await repository.listVisible(scopedDb);
+  const startsAfter =
+    typeof input.startsAfter === "string" ? new Date(input.startsAfter) : undefined;
+  const startsBefore =
+    typeof input.startsBefore === "string" ? new Date(input.startsBefore) : undefined;
+  const limit = typeof input.limit === "number" && input.limit > 0 ? input.limit : undefined;
+  const events = await repository.listVisible(scopedDb, { startsAfter, startsBefore, limit });
   return { data: { events: events.map(serializeCalendarEvent) } };
 };
 
@@ -127,3 +132,46 @@ export const summarizeProposeFocusBlock = (
   }).format(resolved.end);
   return `Block "${resolved.title}" ${startStr}–${endStr} on your primary calendar (or the next clear slot if that window is busy).`;
 };
+
+export const calendarDeleteEventExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx,
+  services
+): Promise<ToolResult> => {
+  const service = narrowCalendarWrite(services);
+  const eventId = typeof input.eventId === "string" ? input.eventId : undefined;
+  if (!eventId) {
+    return {
+      data: {
+        deleted: false,
+        googleDeleted: "skipped-error",
+        cacheMirror: "not-cached",
+        message: "eventId is required"
+      }
+    };
+  }
+  const result = await service.deleteEvent(scopedDb, ctx, { eventId });
+  return { data: { ...result } };
+};
+
+export function summarizeDeleteEvent(input: Record<string, unknown>, _ctx: ToolContext): string {
+  const title = typeof input.displayTitle === "string" ? input.displayTitle : undefined;
+  const when = typeof input.displayWhen === "string" ? input.displayWhen : undefined;
+  if (title && when) {
+    return (
+      `Delete **"${title}"** (${when}) from your calendar? ` +
+      `Attendees will be notified of the cancellation. This can't be undone from Jarvis.`
+    );
+  }
+  if (title) {
+    return (
+      `Delete **"${title}"** from your calendar? ` +
+      `Attendees will be notified of the cancellation. This can't be undone from Jarvis.`
+    );
+  }
+  return (
+    `Delete this calendar event? ` +
+    `Attendees will be notified of the cancellation. This can't be undone from Jarvis.`
+  );
+}

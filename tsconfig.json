@@ -37,12 +37,23 @@
       "@jarv1s/source-behaviors": ["packages/source-behaviors/src/index.ts"],
       "@jarv1s/tasks": ["packages/tasks/src/index.ts"],
       "@jarv1s/memory": ["packages/memory/src/index.ts"],
+      "@jarv1s/usefulness-feedback": ["packages/usefulness-feedback/src/index.ts"],
       "@jarv1s/vault": ["packages/vault/src/index.ts"],
       "@jarv1s/structured-state": ["packages/structured-state/src/index.ts"],
       "@jarv1s/web-research": ["packages/web-research/src/index.ts"],
       "@jarv1s/weather": ["packages/weather/src/index.ts"],
       "@jarv1s/wellness": ["packages/wellness/src/index.ts"],
-      "@jarv1s/notes": ["packages/notes/src/index.ts"]
+      "@jarv1s/notes": ["packages/notes/src/index.ts"],
+      "@jarv1s/proactive-monitoring": ["packages/proactive-monitoring/src/index.ts"],
+      "@jarv1s/commitments": ["packages/commitments/src/index.ts"],
+      "@jarv1s/commitments/extractor": ["packages/commitments/src/extractor.ts"],
+      "@jarv1s/commitments/jobs": ["packages/commitments/src/jobs.ts"],
+      "@jarv1s/commitments/routes": ["packages/commitments/src/routes.ts"],
+      "@jarv1s/commitments/workers": ["packages/commitments/src/workers.ts"],
+      "@jarv1s/commitments/prefilter": ["packages/commitments/src/prefilter.ts"],
+      "@jarv1s/commitments/signature": ["packages/commitments/src/signature.ts"],
+      "@jarv1s/commitments/tools": ["packages/commitments/src/tools.ts"],
+      "@jarv1s/people": ["packages/people/src/index.ts"]
     }
   },
   "include": [

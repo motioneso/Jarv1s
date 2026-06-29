@@ -162,6 +162,15 @@ describe("AssistantToolGateway", () => {
       publisher: "test",
       lifecycle: "optional",
       compatibility: { jarv1s: "*" },
+      assistantActionFamilies: [
+        {
+          id: "dummy",
+          label: "Dummy family",
+          description: "Dummy family for tests",
+          defaultTier: "ask_each_time",
+          allowedTiers: ["ask_each_time", "trusted_auto"]
+        }
+      ],
       assistantTools: [
         {
           name: "svc.read",
@@ -181,6 +190,7 @@ describe("AssistantToolGateway", () => {
           permissionId: "svc.write",
           risk: "write" as const,
           executionPolicy: "auto" as const,
+          actionFamilyId: "dummy",
           requiresServices: ["demo"],
           inputSchema: { type: "object", properties: {} },
           execute: (async (_db, _input, _ctx, services) => {
@@ -198,7 +208,17 @@ describe("AssistantToolGateway", () => {
       confirmations,
       notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
       confirmTimeoutMs: 1000,
-      agencyPrefs: () => ({ get: async (key) => key === "svc.agency_auto_execute" }),
+
+      actionPolicy: () => ({
+        getFamilyTier: async (moduleId, familyId) => "trusted_auto",
+        getFamilyManifest: async () => ({
+          id: "dummy",
+          label: "Dummy",
+          description: "Dummy family",
+          defaultTier: "ask_each_time",
+          allowedTiers: ["ask_each_time", "trusted_auto"]
+        })
+      }),
       toolServices: { demo: { value: "service reached" } }
     });
 
@@ -285,7 +305,16 @@ describe("AssistantToolGateway", () => {
       confirmations,
       notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
       confirmTimeoutMs: 30_000,
-      agencyPrefs: () => ({ get: async (key) => key === "example.agency_auto_execute" })
+      actionPolicy: () => ({
+        getFamilyTier: async (moduleId, familyId) => "trusted_auto",
+        getFamilyManifest: async () => ({
+          id: "dummy",
+          label: "Dummy",
+          description: "Dummy family",
+          defaultTier: "ask_each_time",
+          allowedTiers: ["ask_each_time", "trusted_auto"]
+        })
+      })
     });
     const token = tokens.mint({
       actorUserId: ids.userA,

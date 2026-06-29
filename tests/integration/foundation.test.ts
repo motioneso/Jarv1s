@@ -276,7 +276,29 @@ describe("MVP foundation scaffold", () => {
         {
           version: "0118",
           name: "0118_memory_graph_substrate.sql"
-        }
+        },
+        {
+          version: "0119",
+          name: "0119_memory_candidates.sql"
+        },
+        {
+          version: "0120",
+          name: "0120_usefulness_feedback_signals.sql"
+        },
+        {
+          version: "0121",
+          name: "0121_confidence_aware_memory_records.sql"
+        },
+        {
+          version: "0122",
+          name: "0122_proactive_monitoring.sql"
+        },
+        { version: "0123", name: "0123_long_running_goals.sql" },
+        { version: "0124", name: "0124_scheduled_recurring_briefings.sql" },
+        { version: "0125", name: "0125_commitment_candidates.sql" },
+        { version: "0126", name: "0126_app_runtime_calendar_events_delete.sql" },
+        { version: "0127", name: "0127_jarvis_action_audit_log.sql" },
+        { version: "0128", name: "0128_person_context.sql" }
       ]);
     } finally {
       await client.end();

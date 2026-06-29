@@ -3,7 +3,16 @@ import { errorResponseSchema, idParamsSchema, jsonObjectSchema } from "./schema-
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunKind = "manual" | "scheduled";
 export type BriefingRunStatus = "succeeded" | "blocked" | "failed";
-export type BriefingType = "morning" | "evening";
+export type BriefingType = "morning" | "evening" | "weekly_review";
+
+export interface BriefingScheduleMetadataV1 {
+  readonly [key: string]: unknown;
+  readonly version: 1;
+  readonly targetTime: string;
+  readonly timezone: string;
+  readonly dayOfWeek?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  readonly quietHoursBehavior: "defer_notification";
+}
 
 export interface BriefingDefinitionDto {
   readonly id: string;
@@ -11,7 +20,7 @@ export interface BriefingDefinitionDto {
   readonly title: string;
   readonly briefingType: BriefingType;
   readonly cadence: BriefingCadence;
-  readonly scheduleMetadata: Record<string, unknown>;
+  readonly scheduleMetadata: BriefingScheduleMetadataV1 | Record<string, unknown>;
   readonly enabled: boolean;
   readonly selectedToolNames: readonly string[];
   readonly lastRunAt: string | null;
@@ -28,7 +37,18 @@ export interface BriefingRunDto {
   readonly briefingType: BriefingType;
   readonly summaryText: string;
   readonly sourceMetadata: Record<string, unknown>;
+  readonly feedbackItems: readonly BriefingFeedbackItemDto[];
   readonly createdAt: string;
+}
+
+export interface BriefingFeedbackItemDto {
+  readonly feedbackItemId: string;
+  readonly targetKind: "briefing_item";
+  readonly surface: "briefing";
+  readonly sourceKind: string;
+  readonly sourceLabel: string;
+  readonly priorityBand: "critical" | "high" | "normal" | "low" | null;
+  readonly metadata: Record<string, unknown>;
 }
 
 export interface ListBriefingDefinitionsResponse {
@@ -39,9 +59,9 @@ export interface CreateBriefingDefinitionRequest {
   readonly title: string;
   readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
-  readonly scheduleMetadata?: Record<string, unknown>;
+  readonly scheduleMetadata?: BriefingScheduleMetadataV1 | Record<string, unknown>;
   readonly enabled?: boolean;
-  readonly selectedToolNames: readonly string[];
+  readonly selectedToolNames?: readonly string[];
 }
 
 export interface CreateBriefingDefinitionResponse {
@@ -52,7 +72,7 @@ export interface UpdateBriefingDefinitionRequest {
   readonly title?: string;
   readonly briefingType?: BriefingType;
   readonly cadence?: BriefingCadence;
-  readonly scheduleMetadata?: Record<string, unknown>;
+  readonly scheduleMetadata?: BriefingScheduleMetadataV1 | Record<string, unknown>;
   readonly enabled?: boolean;
   readonly selectedToolNames?: readonly string[];
 }
@@ -100,7 +120,7 @@ export const briefingRunStatusSchema = {
 
 export const briefingTypeSchema = {
   type: "string",
-  enum: ["morning", "evening"]
+  enum: ["morning", "evening", "weekly_review"]
 } as const;
 
 const selectedToolNamesSchema = {
@@ -152,6 +172,7 @@ const briefingRunSchema = {
     "briefingType",
     "summaryText",
     "sourceMetadata",
+    "feedbackItems",
     "createdAt"
   ],
   properties: {
@@ -163,6 +184,34 @@ const briefingRunSchema = {
     briefingType: briefingTypeSchema,
     summaryText: { type: "string" },
     sourceMetadata: jsonObjectSchema,
+    feedbackItems: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "feedbackItemId",
+          "targetKind",
+          "surface",
+          "sourceKind",
+          "sourceLabel",
+          "priorityBand",
+          "metadata"
+        ],
+        properties: {
+          feedbackItemId: { type: "string" },
+          targetKind: { type: "string", enum: ["briefing_item"] },
+          surface: { type: "string", enum: ["briefing"] },
+          sourceKind: { type: "string" },
+          sourceLabel: { type: "string" },
+          priorityBand: {
+            type: ["string", "null"],
+            enum: ["critical", "high", "normal", "low", null]
+          },
+          metadata: jsonObjectSchema
+        }
+      }
+    },
     createdAt: { type: "string" }
   }
 } as const;
@@ -170,7 +219,7 @@ const briefingRunSchema = {
 export const createBriefingDefinitionRequestSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "selectedToolNames"],
+  required: ["title"],
   properties: {
     title: { type: "string" },
     briefingType: briefingTypeSchema,

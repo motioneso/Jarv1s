@@ -99,6 +99,7 @@ function fakeDataContext(): DataContextRunner {
 function mapPreferences(values: Map<string, unknown>) {
   return {
     get: async (_scopedDb: DataContextDb, key: string) => values.get(key) ?? null,
+    getWithMetadata: async () => null,
     upsert: async (_scopedDb: DataContextDb, key: string, value: unknown) => {
       values.set(key, value);
     }

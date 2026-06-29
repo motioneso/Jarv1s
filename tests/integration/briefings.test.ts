@@ -164,6 +164,7 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",
@@ -172,10 +173,14 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring",
+      "jarvis.commitments",
+      "people"
     ]);
     expect(registration?.manifest.database?.ownedTables).toEqual([
       "app.briefing_definitions",
@@ -195,16 +200,22 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     expect(briefingRunPayloadSchema.required).toContain("briefingType");
     expect(briefingRunPayloadSchema.properties.briefingType).toEqual({
       type: "string",
-      enum: ["morning", "evening"]
+      enum: ["morning", "evening", "weekly_review"]
     });
     expect(registration?.queueDefinitions.map((queue) => queue.name)).toEqual([
       BRIEFINGS_RUN_QUEUE
     ]);
-    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/notes/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/wellness/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/structured-state/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/memory/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/briefings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/people/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/commitments/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/proactive-monitoring");
+    expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/notes/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/wellness/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/structured-state/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain(
+      "packages/usefulness-feedback/sql"
+    );
+    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/memory/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-9)).toContain("packages/briefings/sql");
   });
 
   it("keeps definitions private by default and denies admin private-data bypass", async () => {
@@ -397,6 +408,40 @@ describe("Briefings module M6 read-only scheduled summaries", () => {
     });
     expect(task?.status).toBe("todo");
     expect(jobsAfter).toBe(jobsBefore);
+  });
+
+  it("rejects an invalid timezone in scheduleMetadata with 400", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/briefings/definitions",
+      headers: userAHeaders(),
+      payload: {
+        title: "Bad timezone briefing",
+        cadence: "daily",
+        scheduleMetadata: { targetTime: "07:00", timezone: "Not/A/Timezone" },
+        selectedToolNames: ["tasks.list"]
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "invalid timezone" });
+  });
+
+  it("rejects weekly cadence without dayOfWeek with 400", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/briefings/definitions",
+      headers: userAHeaders(),
+      payload: {
+        title: "Weekly no dow briefing",
+        cadence: "weekly",
+        scheduleMetadata: { targetTime: "09:00", timezone: "UTC" },
+        selectedToolNames: ["tasks.list"]
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "dayOfWeek required for weekly schedules" });
   });
 
   it("queues run-now jobs with metadata-only payloads and worker-created RLS summaries", async () => {

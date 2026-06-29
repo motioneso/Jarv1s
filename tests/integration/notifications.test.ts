@@ -180,6 +180,7 @@ describe("Notifications module M5", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",
@@ -188,15 +189,20 @@ describe("Notifications module M5", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring",
+      "jarvis.commitments",
+      "people"
     ]);
     expect(registrations.map((item) => item.manifest.id)).toEqual([
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",
@@ -205,10 +211,14 @@ describe("Notifications module M5", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring",
+      "jarvis.commitments",
+      "people"
     ]);
     expect(manifest?.database?.ownedTables).toEqual([
       "app.notifications",

@@ -21,7 +21,9 @@ import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
+import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
+import { resolveBriefingFreshness } from "./freshness.js";
 import { timezoneFor } from "./schedule.js";
 import {
   contextTokens,
@@ -72,6 +74,11 @@ export interface ComposeDeps {
    * Optional for back-compat; production injects a module logger (observability spec).
    */
   readonly logger?: Pick<FastifyBaseLogger, "error">;
+  readonly connectorSyncAt?: (
+    scopedDb: DataContextDb,
+    kind: "email" | "calendar"
+  ) => Promise<Date | null>;
+  readonly vaultLastWriteAt?: (scopedDb: DataContextDb) => Promise<Date | null>;
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -264,6 +271,10 @@ async function gatherToolSection(
   now: Date,
   timeZone: string
 ): Promise<Section> {
+  if (!definition.selected_tool_names.includes(args.toolName)) {
+    return { key: args.key, label: args.label, lines: [], count: 0, rawItems: [] };
+  }
+
   const tool = findExecute(deps.moduleManifests, args.toolName);
   if (!tool?.execute) {
     gaps.push({ source: args.key, reason: "tool_failed" });
@@ -478,39 +489,41 @@ export async function composeBriefing(
   // Vault: semantic ∪ recency, deduped by id/source path. Best-effort.
   const vaultLines: string[] = [];
   const vaultNotes: Array<{ path: string; id: string; excerpt: string }> = [];
-  try {
-    const query = [...commitments.lines, ...tasks.lines, ...rawCalendar.lines]
-      .join(" ")
-      .slice(0, 500);
-    const semantic = query.trim()
-      ? await deps.memoryRetriever.retrieve(scopedDb, query, VAULT_CHUNK_CAP, "vault")
-      : [];
-    const recent = await deps.memoryRetriever.retrieveRecent(scopedDb, VAULT_CHUNK_CAP, "vault");
-    const seen = new Set<string>();
-    for (const chunk of [...semantic, ...recent]) {
-      const dedupeKey = chunk.id || `${chunk.sourcePath}:${chunk.lineStart}`;
-      if (seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
-      const excerpt = sanitizeExternal(chunk.text.slice(0, VAULT_EXCERPT_CHARS));
-      vaultLines.push(`${sanitizeExternal(chunk.sourcePath)} · ${excerpt}`);
-      vaultNotes.push({ path: chunk.sourcePath, id: chunk.id, excerpt });
-      if (vaultLines.length >= VAULT_CHUNK_CAP) break;
+  if (definition.selected_tool_names.includes("vault")) {
+    try {
+      const query = [...commitments.lines, ...tasks.lines, ...rawCalendar.lines]
+        .join(" ")
+        .slice(0, 500);
+      const semantic = query.trim()
+        ? await deps.memoryRetriever.retrieve(scopedDb, query, VAULT_CHUNK_CAP, "vault")
+        : [];
+      const recent = await deps.memoryRetriever.retrieveRecent(scopedDb, VAULT_CHUNK_CAP, "vault");
+      const seen = new Set<string>();
+      for (const chunk of [...semantic, ...recent]) {
+        const dedupeKey = chunk.id || `${chunk.sourcePath}:${chunk.lineStart}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        const excerpt = sanitizeExternal(chunk.text.slice(0, VAULT_EXCERPT_CHARS));
+        vaultLines.push(`${sanitizeExternal(chunk.sourcePath)} · ${excerpt}`);
+        vaultNotes.push({ path: chunk.sourcePath, id: chunk.id, excerpt });
+        if (vaultLines.length >= VAULT_CHUNK_CAP) break;
+      }
+      if (vaultLines.length === 0) {
+        gaps.push({ source: "vault", reason: "empty" });
+      }
+    } catch (error) {
+      const e = error instanceof Error ? error : new Error(String(error));
+      deps.logger?.error(
+        {
+          event: "briefing_tool_failed",
+          tool: "vault",
+          error: e.name,
+          message: e.message.slice(0, 200)
+        },
+        "briefing vault tool failed"
+      );
+      gaps.push({ source: "vault", reason: "tool_failed" });
     }
-    if (vaultLines.length === 0) {
-      gaps.push({ source: "vault", reason: "empty" });
-    }
-  } catch (error) {
-    const e = error instanceof Error ? error : new Error(String(error));
-    deps.logger?.error(
-      {
-        event: "briefing_tool_failed",
-        tool: "vault",
-        error: e.name,
-        message: e.message.slice(0, 200)
-      },
-      "briefing vault tool failed"
-    );
-    gaps.push({ source: "vault", reason: "tool_failed" });
   }
   const vault: Section = {
     key: "vault",
@@ -656,7 +669,38 @@ export async function composeBriefing(
     rawItems: rawEmail.rawItems
   };
 
+  const goals = await gatherToolSection(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    {
+      key: "goals",
+      label: "GOALS",
+      toolName: "goals.list",
+      arrayKey: "goals",
+      format: (g) =>
+        [sanitizeExternal(g.title), sanitizeExternal(g.status)].filter(Boolean).join(" · ")
+    },
+    gaps,
+    now,
+    timeZone
+  );
+
   const sections: Section[] = [commitments, prioritizedTasks, calendar, email, vault, chats];
+  if (definition.selected_tool_names.includes("goals.list")) {
+    sections.push(goals);
+  }
+
+  const hasFreshnessDeps = !!(deps.connectorSyncAt ?? deps.vaultLastWriteAt);
+  const sourceTimestamps = hasFreshnessDeps
+    ? await resolveBriefingFreshness(
+        scopedDb,
+        sections.map((s) => s.key),
+        now,
+        { connectorSyncAt: deps.connectorSyncAt, vaultLastWriteAt: deps.vaultLastWriteAt }
+      )
+    : undefined;
 
   // ── Resolve the model (provider-agnostic) ────────────────────────────────────
   const model = await deps.aiRepository.selectModelForCapability(
@@ -675,7 +719,8 @@ export async function composeBriefing(
       email,
       vault,
       chats,
-      vaultNotes
+      vaultNotes,
+      sourceTimestamps
     );
   }
 
@@ -698,7 +743,8 @@ export async function composeBriefing(
         email,
         vault,
         chats,
-        vaultNotes
+        vaultNotes,
+        sourceTimestamps
       );
     }
     const credential = parseAiApiKeyCredential(
@@ -715,7 +761,8 @@ export async function composeBriefing(
         email,
         vault,
         chats,
-        vaultNotes
+        vaultNotes,
+        sourceTimestamps
       );
     }
     apiKey = credential.apiKey;
@@ -732,7 +779,8 @@ export async function composeBriefing(
       email,
       vault,
       chats,
-      vaultNotes
+      vaultNotes,
+      sourceTimestamps
     );
   }
 
@@ -766,7 +814,8 @@ export async function composeBriefing(
         notes: vaultNotes,
         aiModel: { id: model.id, displayName: model.display_name, tier: model.tier },
         gaps,
-        degraded: false
+        degraded: false,
+        ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
       }
     };
   } catch {
@@ -780,7 +829,8 @@ export async function composeBriefing(
       email,
       vault,
       chats,
-      vaultNotes
+      vaultNotes,
+      sourceTimestamps
     );
   }
 }
@@ -901,7 +951,8 @@ function fallback(
   email: Section,
   vault: Section,
   chats: Section,
-  vaultNotes: Array<{ path: string; id: string; excerpt: string }>
+  vaultNotes: Array<{ path: string; id: string; excerpt: string }>,
+  sourceTimestamps?: SourceFreshnessV1
 ): ComposeResult {
   const text = sections
     .map(
@@ -925,7 +976,8 @@ function fallback(
       aiModel: null,
       gaps,
       degraded: true,
-      degradedReason: reason
+      degradedReason: reason,
+      ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
     }
   };
 }

@@ -73,6 +73,7 @@ export function createMockBriefingRun(
         }
       ]
     },
+    feedbackItems: [],
     createdAt: "2026-06-06T12:00:00.000Z",
     ...overrides,
     briefingType: overrides.briefingType ?? "morning"

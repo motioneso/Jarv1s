@@ -1,9 +1,26 @@
+export { chatCommitmentProvider } from "./commitment-provider.js";
 export * from "./calendar-write-impl.js";
 export * from "./jobs.js";
 export * from "./live-routes.js";
 export { DataContextChatPersistence } from "./live/persistence.js";
 export type { DataContextChatPersistenceDeps } from "./live/persistence.js";
+export { combineHiddenContextBlocks } from "./live/chat-session-manager.js";
 export * from "./live/recall-seed.js";
+export * from "./live/passive-retrieval.js";
+export {
+  planCrossToolReasoning,
+  renderCrossToolContextBlock,
+  collectCrossToolContext,
+  collectCrossToolContextAndItems,
+  normalizeNotesResult,
+  normalizeEmailResult,
+  normalizeCalendarResult,
+  normalizeTasksResult,
+  type CrossToolSource,
+  type CrossToolReasoningPlan,
+  type CrossToolEvidenceItem,
+  type CrossToolReadRunner
+} from "./live/cross-tool-reasoning.js";
 export * from "./live/runtime.js";
 // #342 Phase 2: the api-side install state machine (§A.4) — driver, reconcile projection,
 // store port + wire types. Consumed by the composition root to wire the onboarding install seam.
@@ -53,6 +70,8 @@ export type {
   RpcSubmitLoginTokenResult
 } from "./live/login-contract.js";
 export * from "./manifest.js";
+export * from "./feedback-verifier.js";
+export * from "./memory-distillation.js";
 export * from "./memory-settings-repository.js";
 export * from "./recall-port.js";
 export * from "./repository.js";

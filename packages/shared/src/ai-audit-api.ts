@@ -1,0 +1,87 @@
+const actionAuditLogEntrySchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "ownerUserId",
+    "toolModuleId",
+    "toolName",
+    "actionFamilyId",
+    "actionKind",
+    "approvalMode",
+    "outcome",
+    "errorClass",
+    "requestId",
+    "chatSessionId",
+    "sourceSurface",
+    "occurredAt"
+  ],
+  properties: {
+    id: { type: "string" },
+    ownerUserId: { type: "string" },
+    toolModuleId: { type: "string" },
+    toolName: { type: "string" },
+    actionFamilyId: { type: ["string", "null"] },
+    actionKind: { type: "string", enum: ["write", "destructive"] },
+    approvalMode: {
+      type: "string",
+      enum: ["auto", "confirmed", "rejected", "cancelled", "timeout"]
+    },
+    outcome: {
+      type: "string",
+      enum: ["success", "failed", "denied", "cancelled"]
+    },
+    errorClass: { type: ["string", "null"] },
+    requestId: { type: ["string", "null"] },
+    chatSessionId: { type: ["string", "null"] },
+    sourceSurface: {
+      type: "string",
+      enum: ["chat", "proactive", "scheduled", "unknown"]
+    },
+    occurredAt: { type: "string" }
+  }
+} as const;
+
+export const listActionAuditLogResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["entries"],
+  properties: {
+    entries: { type: "array", items: actionAuditLogEntrySchema }
+  }
+} as const;
+
+export const listActionAuditLogRouteSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      since: { type: "string" },
+      family: { type: "string" },
+      limit: { type: "integer", minimum: 1, maximum: 500 }
+    }
+  },
+  response: {
+    200: listActionAuditLogResponseSchema
+  }
+} as const;
+
+export type ActionAuditLogEntryDto = {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly toolModuleId: string;
+  readonly toolName: string;
+  readonly actionFamilyId: string | null;
+  readonly actionKind: "write" | "destructive";
+  readonly approvalMode: "auto" | "confirmed" | "rejected" | "cancelled" | "timeout";
+  readonly outcome: "success" | "failed" | "denied" | "cancelled";
+  readonly errorClass: string | null;
+  readonly requestId: string | null;
+  readonly chatSessionId: string | null;
+  readonly sourceSurface: "chat" | "proactive" | "scheduled" | "unknown";
+  readonly occurredAt: string;
+};
+
+export type ListActionAuditLogResponse = {
+  readonly entries: readonly ActionAuditLogEntryDto[];
+};

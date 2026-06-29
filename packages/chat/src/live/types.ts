@@ -1,4 +1,5 @@
 import type { ProviderKind } from "@jarv1s/ai"; // "anthropic" | "openai-compatible" | "google"
+import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
 export type ChatRecordKind =
   | "user"
@@ -12,10 +13,12 @@ export type ChatRecordKind =
 export interface TranscriptRecord {
   readonly kind: ChatRecordKind;
   readonly text: string;
+  readonly messageId?: string;
   readonly actionRequestId?: string;
   readonly toolName?: string;
   readonly summary?: string;
   readonly outcome?: "executed" | "denied" | "error";
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
 }
 
 export interface EngineLaunchOpts {

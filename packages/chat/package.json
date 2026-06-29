@@ -19,6 +19,8 @@
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/priority": "workspace:*",
     "@jarv1s/shared": "workspace:*",
+    "@jarv1s/tasks": "workspace:*",
+    "@jarv1s/usefulness-feedback": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2"
   }

@@ -88,13 +88,19 @@ export function registerChatLiveRoutes(
 
       try {
         const userName = await runtime.resolveUserName(access.actorUserId);
-        const { reply: assistantReply } = await runtime.manager.submitTurn(
-          access.actorUserId,
-          userName,
-          text
-        );
+        const {
+          reply: assistantReply,
+          userMessageId,
+          assistantMessageId,
+          sourceFreshness
+        } = await runtime.manager.submitTurn(access.actorUserId, userName, text);
 
-        return reply.send({ reply: assistantReply });
+        return reply.send({
+          reply: assistantReply,
+          userMessageId,
+          assistantMessageId,
+          sourceFreshness
+        });
       } catch (error) {
         return handleLiveRouteError(error, reply);
       }
@@ -213,13 +219,13 @@ export function registerChatLiveRoutes(
             bodyResult.briefingRunId
           )) ?? buildEveningInterviewSeed(null);
         await runtime.manager.seedContext(access.actorUserId, userName, seed.context);
-        const { reply: assistantReply } = await runtime.manager.submitTurn(
-          access.actorUserId,
-          userName,
-          seed.openingPrompt
-        );
+        const {
+          reply: assistantReply,
+          userMessageId,
+          assistantMessageId
+        } = await runtime.manager.submitTurn(access.actorUserId, userName, seed.openingPrompt);
 
-        return reply.send({ reply: assistantReply });
+        return reply.send({ reply: assistantReply, userMessageId, assistantMessageId });
       } catch (error) {
         return handleLiveRouteError(error, reply);
       }

@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { notesMonitorProvider } from "./monitor-provider.js";
 import {
   notesCreateInputSchema,
   notesDeleteInputSchema,
@@ -73,6 +74,15 @@ export const notesModuleManifest = {
       actions: ["delete"]
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "note_changes",
+      label: "Note changes",
+      description: "Create and update notes.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto"]
+    }
+  ],
   routes: [
     {
       method: "POST",
@@ -97,6 +107,7 @@ export const notesModuleManifest = {
       name: "notes.create",
       description: "Create a Markdown note in the linked notes source.",
       permissionId: "notes.create",
+      actionFamilyId: "note_changes",
       risk: "write",
       executionPolicy: "auto",
       requiresServices: ["notesSync"],
@@ -109,6 +120,7 @@ export const notesModuleManifest = {
       name: "notes.edit",
       description: "Edit a Markdown note in the linked notes source.",
       permissionId: "notes.edit",
+      actionFamilyId: "note_changes",
       risk: "write",
       executionPolicy: "auto",
       requiresServices: ["notesSync"],
@@ -128,5 +140,6 @@ export const notesModuleManifest = {
       execute: notesDeleteExecute,
       summarize: (input) => `Delete note ${String(input.path)}.`
     }
-  ]
+  ],
+  proactiveMonitor: notesMonitorProvider
 } satisfies JarvisModuleManifest;

@@ -29,7 +29,14 @@ function definition(overrides: Partial<BriefingDefinition> = {}): BriefingDefini
     // UTC so the fixed-now local-day filter is trivially satisfied by the canned dates.
     schedule_metadata: { targetTime: "06:00", timezone: "UTC" },
     enabled: true,
-    selected_tool_names: [],
+    selected_tool_names: [
+      "commitments.listVisible",
+      "tasks.list",
+      "calendar.listVisibleEvents",
+      "email.listVisibleMessages",
+      "vault",
+      "chat.listTodaysTurns"
+    ],
     last_run_at: null,
     created_at: new Date(),
     updated_at: new Date(),
@@ -238,6 +245,7 @@ function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
           }
           return options.preferences?.[key] ?? null;
         },
+        getWithMetadata: async () => null,
         upsert: async () => undefined
       }
     },
@@ -897,4 +905,42 @@ describe("composeBriefing — prompt boundary-forgery (escaped inert data)", () 
       expect(emailBlock![1]).toContain("UNIT-CANARY-LEAK");
     }
   );
+});
+
+describe("composeBriefing — source freshness", () => {
+  const emailSyncAt = new Date("2026-06-27T22:00:00.000Z");
+  const vaultAt = new Date("2026-06-25T10:00:00.000Z");
+
+  it("populates sourceTimestamps in sourceMetadata when freshness deps provided", async () => {
+    const deps = makeFakeDeps();
+    const depsWithFreshness: ComposeDeps = {
+      ...deps,
+      connectorSyncAt: async (_db, kind) => (kind === "email" ? emailSyncAt : null),
+      vaultLastWriteAt: async () => vaultAt
+    };
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, depsWithFreshness);
+    const ts = result.sourceMetadata.sourceTimestamps as {
+      version: number;
+      capturedAt: string;
+      sources: Array<{ source: string; freshnessKind: string; asOf: string | null }>;
+    };
+    expect(ts).toBeDefined();
+    expect(ts.version).toBe(1);
+    expect(ts.capturedAt).toBe(FIXED_NOW.toISOString());
+    const emailEntry = ts.sources.find((s) => s.source === "email");
+    expect(emailEntry?.freshnessKind).toBe("connector_sync");
+    expect(emailEntry?.asOf).toBe(emailSyncAt.toISOString());
+    const tasksEntry = ts.sources.find((s) => s.source === "tasks");
+    expect(tasksEntry?.freshnessKind).toBe("realtime");
+    expect(tasksEntry?.asOf).toBe(FIXED_NOW.toISOString());
+    const vaultEntry = ts.sources.find((s) => s.source === "vault");
+    expect(vaultEntry?.freshnessKind).toBe("vault_write");
+    expect(vaultEntry?.asOf).toBe(vaultAt.toISOString());
+  });
+
+  it("omits sourceTimestamps when freshness deps are absent", async () => {
+    const deps = makeFakeDeps();
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    expect(result.sourceMetadata.sourceTimestamps).toBeUndefined();
+  });
 });

@@ -25,7 +25,23 @@ export type MemoryFactPredicate =
   | "mentioned_in"
   | "alias_of";
 export type MemoryFactProvenance = "volunteered" | "inferred" | "confirmed" | "imported";
-export type MemoryFactStatus = "active" | "superseded" | "rejected";
+export type MemoryRecordKind =
+  | "fact"
+  | "preference"
+  | "goal"
+  | "constraint"
+  | "decision"
+  | "relationship"
+  | "alias"
+  | "inference";
+export type MemoryFactStatus =
+  | "active"
+  | "stale"
+  | "expired"
+  | "superseded"
+  | "rejected"
+  | "conflicting";
+export type MemoryConfidenceTier = "confirmed" | "high" | "medium" | "low";
 export type MemoryEpisodeKind = "chat" | "note" | "task" | "email" | "calendar" | "manual";
 export type MemorySearchTargetKind = "entity" | "fact" | "episode";
 
@@ -66,11 +82,16 @@ export interface MemoryFactRecord {
   readonly predicate: MemoryFactPredicate;
   readonly objectEntityId: string | null;
   readonly objectText: string | null;
+  readonly recordKind: MemoryRecordKind;
   readonly confidence: number;
+  readonly confidenceTier: MemoryConfidenceTier;
   readonly provenance: MemoryFactProvenance;
   readonly status: MemoryFactStatus;
   readonly validFrom: Date | null;
   readonly validTo: Date | null;
+  readonly staleAt: Date | null;
+  readonly supersededByFactId: string | null;
+  readonly conflictGroupId: string | null;
   readonly lastConfirmedAt: Date | null;
   readonly importance: number;
   readonly pinned: boolean;
@@ -92,6 +113,7 @@ export interface NewMemoryFact {
   readonly predicate: MemoryFactPredicate;
   readonly objectEntityId?: string | null;
   readonly objectText?: string | null;
+  readonly recordKind?: MemoryRecordKind;
   readonly confidence?: number;
   readonly provenance?: MemoryFactProvenance;
   readonly importance?: number;
@@ -104,6 +126,7 @@ export interface MemoryRememberInput {
   readonly predicate: MemoryFactPredicate;
   readonly objectEntityId?: string | null;
   readonly objectText?: string | null;
+  readonly recordKind?: MemoryRecordKind;
   readonly confidence?: number;
   readonly provenance?: MemoryFactProvenance;
   readonly importance?: number;
@@ -118,6 +141,17 @@ export interface MemoryWriteResult {
 export interface MemorySupersedeInput {
   readonly factId: string;
   readonly validTo?: Date | null;
+}
+
+export interface MemoryCorrectionInput {
+  readonly targetFactId: string;
+  readonly replacementText: string;
+  readonly correctionReason?: string;
+}
+
+export interface MemoryStatusPatchInput {
+  readonly status: "active" | "stale" | "expired" | "rejected";
+  readonly reason?: string;
 }
 
 export interface MemoryForgetResult {
@@ -135,11 +169,24 @@ export interface MemoryRecallItem {
   readonly title: string;
   readonly text: string;
   readonly score: number;
+  readonly recordKind?: MemoryRecordKind;
+  readonly status?: MemoryFactStatus;
   readonly confidence: number;
+  readonly confidenceTier: MemoryConfidenceTier;
   readonly provenance: MemoryFactProvenance;
   readonly validFrom: Date | null;
   readonly validTo: Date | null;
+  readonly staleAt: Date | null;
+  readonly supersededByFactId?: string | null;
+  readonly conflictGroupId?: string | null;
   readonly sources: readonly MemorySourceSummary[];
+}
+
+export interface MemoryRecallOptions {
+  readonly limit?: number;
+  readonly includeStale?: boolean;
+  readonly includeInactive?: boolean;
+  readonly includeLowConfidence?: boolean;
 }
 
 export interface MemoryAliasRecord {

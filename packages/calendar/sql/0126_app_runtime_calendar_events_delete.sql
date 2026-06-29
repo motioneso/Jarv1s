@@ -1,0 +1,3 @@
+-- #557 (revised): calendar.deleteEvent cache eviction is worker-only.
+-- jarvis_worker_runtime already holds DELETE on app.calendar_events via 0113.
+-- No additional SQL grants required here.

@@ -236,6 +236,9 @@ describe("CalendarWriteService interface shape", () => {
           calendarMirror: "written"
         };
         return result;
+      },
+      async deleteEvent() {
+        return { deleted: false, googleDeleted: "skipped-error", cacheMirror: "not-cached" };
       }
     };
     const res = await fake.proposeAndInsert(

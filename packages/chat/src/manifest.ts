@@ -122,6 +122,16 @@ export const chatModuleManifest = {
       path: "/api/chat/action-requests/:id/resolve",
       permissionId: "chat.message"
     },
+    {
+      method: "GET",
+      path: "/api/chat/messages/:messageId/provenance",
+      permissionId: "chat.view"
+    },
+    {
+      method: "GET",
+      path: "/api/chat/messages/:messageId/provenance/:supportId/dereference",
+      permissionId: "chat.view"
+    },
     { method: "POST", path: "/api/mcp", permissionId: "chat.message" }
   ],
   assistantTools: [

@@ -6,7 +6,9 @@ import {
   type FocusBlockWindow,
   type ProposeFocusResult,
   type ResolvedWindow,
-  type CalendarRepository
+  type CalendarRepository,
+  type DeleteEventInput,
+  type DeleteEventResult
 } from "@jarv1s/calendar";
 import {
   GoogleApiError,
@@ -26,6 +28,7 @@ export interface CalendarWriteImplDeps {
   readonly connectorsRepository: ConnectorsRepository;
   readonly calendarRepository: CalendarRepository;
   readonly preferencesRepository?: Pick<PreferencesRepository, "get">;
+  readonly enqueueCacheEvict?: (eventId: string, actorUserId: string) => Promise<string | null>;
 }
 
 // No timezone constant is needed here: the resolved window already carries concrete UTC
@@ -220,6 +223,108 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         conflict: slot.conflict === "none" ? "none" : "shifted",
         googleEventId: inserted.id,
         calendarMirror
+      };
+    },
+
+    async deleteEvent(
+      scopedDbRaw: unknown,
+      ctx: ToolContext,
+      input: DeleteEventInput
+    ): Promise<DeleteEventResult> {
+      assertDataContextDb(scopedDbRaw);
+      const scopedDb = scopedDbRaw as DataContextDb;
+
+      // 1. Resolve the cached row (owner-RLS-scoped; cross-user row is invisible → undefined).
+      const row = await deps.calendarRepository.getById(scopedDb, input.eventId);
+      if (!row) {
+        return {
+          deleted: false,
+          googleDeleted: "skipped-error",
+          cacheMirror: "not-cached",
+          message: "That event isn't in your calendar — it may already be gone."
+        };
+      }
+
+      // 2. Scope gate — no Google call without calendar-write scope.
+      const calendarScope = await deps.connectorsRepository.getCalendarWriteScopeState(scopedDb);
+      if (!calendarScope?.hasScope) {
+        return {
+          deleted: false,
+          googleDeleted: "skipped-no-scope",
+          cacheMirror: "not-cached",
+          message:
+            "Your Google connection doesn't have calendar-write permission yet — reconnect in Settings to grant it."
+        };
+      }
+
+      // 3. Fresh access token.
+      let accessToken: string;
+      try {
+        accessToken = await deps.googleService.getFreshAccessToken(scopedDb);
+      } catch (error) {
+        const message =
+          error instanceof GoogleConnectError
+            ? "Connect Google in Settings first."
+            : "Couldn't refresh your Google access — reconnect in Settings.";
+        return {
+          deleted: false,
+          googleDeleted: "skipped-error",
+          cacheMirror: "not-cached",
+          message
+        };
+      }
+
+      // 4. Calendar id: use the row's recorded calendarId, fall back to "primary" (V1 default).
+      const calendarId =
+        ((row.external_metadata as Record<string, unknown> | null)?.calendarId as
+          | string
+          | undefined) ?? "primary";
+
+      // 5. Delete at Google.
+      let googleDeleted: "deleted" | "already-gone";
+      try {
+        const result = await deps.googleApiClient.deleteEvent({
+          accessToken,
+          calendarId,
+          eventId: row.external_id
+        });
+        googleDeleted = result.deleted;
+      } catch (error) {
+        if (error instanceof GoogleApiError && error.statusCode === 403) {
+          return {
+            deleted: false,
+            googleDeleted: "skipped-error",
+            cacheMirror: "not-cached",
+            message: "You don't have permission to delete events on that calendar."
+          };
+        }
+        return {
+          deleted: false,
+          googleDeleted: "skipped-error",
+          cacheMirror: "not-cached",
+          message: "Couldn't delete the event — try again."
+        };
+      }
+
+      // 6. Best-effort async cache eviction. NEVER rethrow — enqueue failure must not fail a
+      // successful external delete. Google is the source of truth; the worker reconciles the cache.
+      let cacheMirror: DeleteEventResult["cacheMirror"];
+      if (deps.enqueueCacheEvict) {
+        try {
+          await deps.enqueueCacheEvict(input.eventId, ctx.actorUserId);
+          cacheMirror = "queued";
+        } catch {
+          cacheMirror = "skipped-error";
+        }
+      } else {
+        cacheMirror = "skipped-error";
+      }
+
+      return {
+        deleted: true,
+        googleDeleted,
+        cacheMirror,
+        deletedTitle: row.title
       };
     }
   };

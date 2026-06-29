@@ -43,6 +43,13 @@ import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
+import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
+import {
+  BriefingFreshnessList,
+  BriefingStaleBanner,
+  parseBriefingFreshness
+} from "./briefing-freshness";
+import { ProactiveCards } from "./proactive-cards";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
@@ -53,6 +60,7 @@ import "../styles/kit-tasks-modal.css";
 import "../styles/kit-today.css";
 import "../styles/kit-today-feeds.css";
 import "../styles/kit-today-misc.css";
+import { GoalsSection } from "./goals-section.js";
 
 /** Today — the all-day home: an editorial brief over the user's real tasks + calendar. */
 export function TodayPage(props: {
@@ -108,11 +116,6 @@ export function TodayPage(props: {
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
-  // Soft med reminder is dismissed CLIENT-SIDE ONLY (ephemeral state — reappears on reload).
-  // No server-persisted "dismissed" flag: that would need a new endpoint/storage and trip the
-  // spec-before-build + no-new-endpoint guardrails for this lane.
-  const [medReminderDismissed, setMedReminderDismissed] = useState(false);
-
   const medScheduleQuery = useQuery({
     queryKey: queryKeys.wellness.schedule(todayKey()),
     queryFn: () => getMedicationSchedule(todayKey()),
@@ -123,9 +126,6 @@ export function TodayPage(props: {
   const medTotal = medScheduledSlots.length;
   const medsAllTaken = medTotal > 0 && medTaken === medTotal;
   const medsNoneLogged = medTotal > 0 && medTaken === 0;
-  // Only nudge when a SCHEDULED dose is still outstanding; PRN-only / no-meds users never get one.
-  const showMedReminder = wellnessEnabled && medTotal > 0 && medTaken < medTotal;
-
   const createCheckinMutation = useMutation({
     mutationFn: (val: CheckinFormValue) =>
       createWellnessCheckin({
@@ -282,6 +282,8 @@ export function TodayPage(props: {
             <NewsDesk news={feed.news} interests={feed.interests} />
           ) : null}
 
+          <GoalsSection />
+
           {looseEnds.length > 0 ? (
             <section className="jds-brief">
               <div className="jds-brief__head">
@@ -317,6 +319,8 @@ export function TodayPage(props: {
               </div>
             </section>
           ) : null}
+
+          <ProactiveCards />
         </div>
 
         <aside className="cmd-aside">
@@ -371,7 +375,25 @@ export function TodayPage(props: {
                 </span>
               </div>
               {latestEveningRun ? (
-                <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
+                <>
+                  {(() => {
+                    const freshness = parseBriefingFreshness(latestEveningRun.sourceMetadata);
+                    return freshness ? <BriefingStaleBanner freshness={freshness} /> : null;
+                  })()}
+                  <p className="cmd-empty">{compactSummary(latestEveningRun.summaryText)}</p>
+                  <BriefingFeedbackMenu
+                    targetRef={latestEveningRun.id}
+                    onChanged={() =>
+                      void queryClient.invalidateQueries({
+                        queryKey: queryKeys.briefings.runs(eveningDefinition.id)
+                      })
+                    }
+                  />
+                  {(() => {
+                    const freshness = parseBriefingFreshness(latestEveningRun.sourceMetadata);
+                    return freshness ? <BriefingFreshnessList freshness={freshness} /> : null;
+                  })()}
+                </>
               ) : (
                 <div className="agenda-clear">No evening review yet.</div>
               )}
@@ -413,22 +435,6 @@ export function TodayPage(props: {
                       meds logged today.
                     </>
                   )}
-                </div>
-              ) : null}
-              {showMedReminder && !medReminderDismissed ? (
-                <div className="well__nudge" role="status">
-                  <span className="well__nudge-tx">
-                    A gentle nudge: {medTotal - medTaken} dose
-                    {medTotal - medTaken === 1 ? "" : "s"} left to log today.
-                  </span>
-                  <button
-                    type="button"
-                    className="well__nudge-x"
-                    aria-label="Dismiss reminder"
-                    onClick={() => setMedReminderDismissed(true)}
-                  >
-                    <XIcon />
-                  </button>
                 </div>
               ) : null}
               <div className="well__actions">

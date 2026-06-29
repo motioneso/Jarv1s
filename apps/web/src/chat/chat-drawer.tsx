@@ -1,12 +1,17 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUp,
   ChevronDown,
   Clock,
+  BookmarkPlus,
   MessageSquareText,
+  MoreHorizontal,
   Sparkles,
   Square,
   SquarePen,
+  ThumbsDown,
+  ThumbsUp,
+  Undo2,
   X
 } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useState } from "react";
@@ -22,12 +27,17 @@ import {
   sendChatTurn
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import type { ChatMessageDto } from "@jarv1s/shared";
+import {
+  createUsefulnessFeedback,
+  undoUsefulnessFeedback
+} from "../api/usefulness-feedback-client";
+import type { ChatMessageDto, UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@jarv1s/shared";
 import { ActionRequestCard } from "./action-request-card";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
 import { buildChatSeeds } from "./seeds";
 import { hasConnectedProvider, isNoActiveChatModelError } from "../onboarding/chat-availability";
+import type { SourceFreshnessEntry, SourceFreshnessV1 } from "@jarv1s/shared";
 import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
 import "../styles/kit-chat.css";
 
@@ -130,8 +140,13 @@ export function ChatDrawer(props: {
           const result = await sendChatTurn(trimmed);
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
-            { kind: "user", text: trimmed },
-            { kind: "reply", text: result.reply }
+            { kind: "user", text: trimmed, messageId: result.userMessageId },
+            {
+              kind: "reply",
+              text: result.reply,
+              messageId: result.assistantMessageId,
+              sourceFreshness: result.sourceFreshness
+            }
           ];
           setFallbackRecords((current) =>
             [...current, ...postResponseRecords].filter(
@@ -480,6 +495,9 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
     return (
       <div className="chatd-msg chatd-msg--me">
         <div className="chatd-bubble">{text}</div>
+        {props.record.messageId ? (
+          <ChatFeedbackMenu messageId={props.record.messageId} canRemember />
+        ) : null}
       </div>
     );
   }
@@ -495,8 +513,16 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
         <Sparkles size={14} aria-hidden="true" />
       </span>
       <div className="chatd-bubble">
-        <MarkdownMessage text={text} />
+        <MarkdownMessage
+          text={text}
+          answerProvenance={props.record.answerProvenance}
+          answerProvenanceCitedIds={props.record.answerProvenanceCitedIds}
+        />
       </div>
+      <ChatFreshnessFooter sourceFreshness={props.record.sourceFreshness} />
+      {props.record.messageId ? (
+        <ChatFeedbackMenu messageId={props.record.messageId} canRemember={false} />
+      ) : null}
     </div>
   );
 }
@@ -518,9 +544,152 @@ function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRec
           : message.status === "error"
             ? ("error" as const)
             : ("reply" as const),
-      text: message.body
+      text: message.body,
+      messageId: message.id,
+      answerProvenance: message.answerProvenance,
+      answerProvenanceCitedIds: message.answerProvenanceCitedIds,
+      sourceFreshness: message.role === "assistant" ? message.sourceFreshness : undefined
     }
   ]);
+}
+
+function chatFreshnessLabel(entry: SourceFreshnessEntry, capturedAt: string): string {
+  if (entry.freshnessKind === "realtime") return "live";
+  if (!entry.asOf) return "unknown";
+  const ageMs = new Date(capturedAt).getTime() - new Date(entry.asOf).getTime();
+  if (ageMs < 60_000) return "just now";
+  if (ageMs < 3_600_000) return `${Math.round(ageMs / 60_000)}m ago`;
+  if (ageMs < 86_400_000) return `${Math.round(ageMs / 3_600_000)}h ago`;
+  return `${Math.round(ageMs / 86_400_000)}d ago`;
+}
+
+const CHAT_SOURCE_LABEL: Record<string, string> = {
+  email: "Email",
+  calendar: "Calendar",
+  vault: "Notes",
+  tasks: "Tasks",
+  commitments: "Commitments",
+  chats: "Chats",
+  goals: "Goals"
+};
+
+export function ChatFreshnessFooter({
+  sourceFreshness
+}: {
+  readonly sourceFreshness?: SourceFreshnessV1 | null;
+}) {
+  if (!sourceFreshness) return null;
+  const summaryNames = sourceFreshness.sources
+    .map((e) => CHAT_SOURCE_LABEL[e.source] ?? e.source)
+    .join(", ");
+  return (
+    <details className="chatd-freshness chatd-peek">
+      <summary className="chatd-peek__summary">
+        <span className="chatd-peek__label">Sources</span>
+        <span className="chatd-peek__count">{summaryNames}</span>
+        <svg
+          className="chatd-peek__chev"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </summary>
+      <ul className="chatd-freshness__list chatd-peek__body">
+        {sourceFreshness.sources.map((entry) => (
+          <li key={entry.source} className="chatd-freshness__item chatd-peek__line">
+            <span className="chatd-freshness__source">
+              {CHAT_SOURCE_LABEL[entry.source] ?? entry.source}
+            </span>
+            <span className="chatd-freshness__age" title={entry.asOf ?? undefined}>
+              {chatFreshnessLabel(entry, sourceFreshness.capturedAt)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function ChatFeedbackMenu(props: { readonly messageId: string; readonly canRemember: boolean }) {
+  const queryClient = useQueryClient();
+  const [last, setLast] = useState<UsefulnessFeedbackDto | null>(null);
+  const createMutation = useMutation({
+    mutationFn: (kind: UsefulnessFeedbackKind) =>
+      createUsefulnessFeedback({
+        targetKind: "chat_message",
+        targetRef: props.messageId,
+        surface: "chat",
+        kind
+      }),
+    onSuccess: (response) => {
+      setLast(response.feedback);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+  const undoMutation = useMutation({
+    mutationFn: (id: string) => undoUsefulnessFeedback(id),
+    onSuccess: () => {
+      setLast(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
+    }
+  });
+
+  return (
+    <div className="feedback-menu">
+      <details className="feedback-menu__details">
+        <summary className="feedback-menu__trigger" aria-label="Feedback" title="Feedback">
+          <MoreHorizontal size={14} aria-hidden="true" />
+        </summary>
+        <div className="feedback-menu__list">
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("more_like_this")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsUp size={13} aria-hidden="true" />
+            More like this
+          </button>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate("not_useful")}
+            disabled={createMutation.isPending}
+          >
+            <ThumbsDown size={13} aria-hidden="true" />
+            Not useful
+          </button>
+          {props.canRemember ? (
+            <button
+              type="button"
+              onClick={() => createMutation.mutate("remember_this")}
+              disabled={createMutation.isPending}
+            >
+              <BookmarkPlus size={13} aria-hidden="true" />
+              Remember this
+            </button>
+          ) : null}
+        </div>
+      </details>
+      {last ? (
+        <span className="feedback-menu__status">
+          Saved
+          <button
+            type="button"
+            onClick={() => undoMutation.mutate(last.id)}
+            disabled={undoMutation.isPending}
+          >
+            <Undo2 size={12} aria-hidden="true" />
+            Undo
+          </button>
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 function safeActivityKind(kind: string): ChatRecordKind {

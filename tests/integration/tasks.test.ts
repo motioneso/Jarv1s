@@ -156,6 +156,7 @@ describe("Tasks module M1", () => {
       "settings",
       "connectors",
       "tasks",
+      "jarvis.goals",
       "web",
       "notifications",
       "calendar",
@@ -164,10 +165,14 @@ describe("Tasks module M1", () => {
       "chat",
       "briefings",
       "memory",
+      "usefulness-feedback",
       "structured-state",
       "wellness",
       "weather",
-      "notes"
+      "notes",
+      "proactive-monitoring",
+      "jarvis.commitments",
+      "people"
     ];
     expect(manifests.map((manifest) => manifest.id)).toEqual(expectedIds);
     expect(registrations.map((registration) => registration.manifest.id)).toEqual(expectedIds);
