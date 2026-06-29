@@ -3,10 +3,12 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import {
   ConnectorsRepository,
   createConnectorSecretCipher,
+  featureGrantsPrefKey,
   GoogleApiClient,
   GoogleApiError
 } from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -472,6 +474,12 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
           })
         })
     );
+    await dataContext.withDataContext({ actorUserId: ownerId, requestId: "seed-grants" }, (db) =>
+      new PreferencesRepository().upsert(db, featureGrantsPrefKey(account.id), {
+        email: true,
+        calendar: true
+      })
+    );
     return account.id;
   }
 
@@ -501,6 +509,7 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     enqueueCacheEvict?: (eventId: string, actorUserId: string) => Promise<string | null>;
   }) {
     const deleteCalls: string[] = [];
+    let tokenRefreshCalls = 0;
     const fetchFn = (async (url: string, init?: RequestInit) => {
       if (init?.method === "DELETE") {
         deleteCalls.push(url);
@@ -514,6 +523,7 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
       }
       // OAuth refresh: return a valid token response
       if (url.includes("oauth2") || url.includes("token")) {
+        tokenRefreshCalls += 1;
         return {
           ok: true,
           status: 200,
@@ -542,7 +552,7 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
       calendarRepository: new CalendarRepository(),
       enqueueCacheEvict: opts.enqueueCacheEvict
     });
-    return { impl, deleteCalls };
+    return { impl, deleteCalls, tokenRefreshCalls: () => tokenRefreshCalls };
   }
 
   const ctx = { actorUserId: ids.userA, requestId: "t", chatSessionId: "s" };
@@ -583,6 +593,49 @@ describe("Section D — buildCalendarWriteService.deleteEvent", () => {
     expect(res.googleDeleted).toBe("skipped-no-scope");
     expect(res.message).toMatch(/reconnect/i);
     expect(deleteCalls).toHaveLength(0);
+  });
+
+  it("disabled calendar grant → deleted:false, no token refresh, Google delete, or cache eviction", async () => {
+    const accountId = await seedGoogleAccount(ids.userA, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const eventId = await insertCacheRow(
+      ids.userA,
+      accountId,
+      "google-evt-disabled-grant",
+      "Disabled grant"
+    );
+    await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "grant-off" }, (db) =>
+      new PreferencesRepository().upsert(db, featureGrantsPrefKey(accountId), {
+        email: true,
+        calendar: false
+      })
+    );
+    let enqueueCalls = 0;
+    const { impl, deleteCalls, tokenRefreshCalls } = buildImpl({
+      enqueueCacheEvict: async () => {
+        enqueueCalls += 1;
+        return "mock-job-id";
+      }
+    });
+
+    const res = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "t" },
+      (db) => impl.deleteEvent(db, ctx, { eventId })
+    );
+    expect(res.deleted).toBe(false);
+    expect(res.googleDeleted).toBe("skipped-no-scope");
+    expect(res.cacheMirror).toBe("not-cached");
+    expect(res.message).toMatch(/Calendar access is disabled/i);
+    expect(tokenRefreshCalls()).toBe(0);
+    expect(deleteCalls).toHaveLength(0);
+    expect(enqueueCalls).toBe(0);
+
+    const found = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "check" },
+      (db) => new CalendarRepository().getById(db, eventId)
+    );
+    expect(found).toBeDefined();
   });
 
   it("happy path: 204 + enqueue succeeds → deleted:true, 'deleted'/'queued', deletedTitle", async () => {
