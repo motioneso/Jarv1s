@@ -7,7 +7,7 @@
  * fake engine (no real tmux / `claude` binary). Everything else is real.
  */
 import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
 import {
   normalizePersonaSettings,
   renderPersonaText,
@@ -212,6 +212,8 @@ export interface CreateChatSessionRuntimeDeps {
   /** Optional graph-only per-turn recall. */
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
+  /** Locale preferences port — used to read the user's IANA timezone for the system prompt. */
+  readonly localePreferences?: PreferencesPort;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
     readonly mint: (
@@ -302,7 +304,8 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     chatRepository: new ChatRepository(),
     aiRepository: new AiRepository(),
     boss: deps.boss,
-    connectorSyncAt: deps.connectorSyncAt
+    connectorSyncAt: deps.connectorSyncAt,
+    localePreferences: deps.localePreferences
   });
 
   // Late-bound manager ref so the reconcile hook (read once by RpcConnection at construction) can call
@@ -458,17 +461,39 @@ async function resolveChatPersona(
   actorUserId: string,
   userName: string
 ): Promise<string> {
-  const stored = deps.personaPreferences
-    ? await deps.dataContext.withDataContext(
-        { actorUserId, requestId: "chat-live:resolve-persona" },
-        (scopedDb) => deps.personaPreferences!.get(scopedDb, "persona.bundle")
-      )
-    : null;
+  const [stored, localeRaw] = await deps.dataContext.withDataContext(
+    { actorUserId, requestId: "chat-live:resolve-persona" },
+    (scopedDb) =>
+      Promise.all([
+        deps.personaPreferences ? deps.personaPreferences.get(scopedDb, "persona.bundle") : null,
+        deps.localePreferences ? deps.localePreferences.get(scopedDb, "locale") : null
+      ])
+  );
+
   const persona = normalizePersonaSettings(stored);
   const personaBlock = renderPersonaText({
     assistantName: persona.assistantName,
     personaText: persona.personaText,
     userName
   });
-  return [DEFAULT_JARVIS_PERSONA, personaBlock].filter(Boolean).join("\n\n");
+
+  const timezone = extractLocaleTimezone(localeRaw);
+  const tzBlock = timezone
+    ? `User's local timezone: ${timezone}. Always display dates and times in this timezone.`
+    : null;
+
+  return [DEFAULT_JARVIS_PERSONA, tzBlock, personaBlock].filter(Boolean).join("\n\n");
+}
+
+/** Extract a validated IANA timezone from a raw locale preference blob. */
+function extractLocaleTimezone(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const tz = (raw as Record<string, unknown>).timezone;
+  if (typeof tz !== "string" || tz.trim().length === 0 || tz.length > 100) return null;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return tz.trim();
+  } catch {
+    return null;
+  }
 }

@@ -9,7 +9,12 @@
  * episodic-embed job (unless the thread is incognito).
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
-import { assertDataContextDb, type DataContextDb, type DataContextRunner } from "@jarv1s/db";
+import {
+  assertDataContextDb,
+  type DataContextDb,
+  type DataContextRunner,
+  type PreferencesPort
+} from "@jarv1s/db";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
@@ -45,6 +50,8 @@ export interface DataContextChatPersistenceDeps {
     scopedDb: DataContextDb,
     kind: "email" | "calendar"
   ) => Promise<Date | null>;
+  /** Used to read the user's IANA timezone from their locale preference (key "locale"). */
+  readonly localePreferences?: PreferencesPort;
 }
 
 export function toolNameToSource(toolName: string): string | null {
@@ -101,12 +108,26 @@ export async function resolveChatFreshness(
   return { version: 1, capturedAt: capturedAtIso, sources: entries };
 }
 
+/** Extract an IANA timezone string from the raw locale preference blob. Returns null on any invalid input. */
+function extractTimezone(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const tz = (raw as Record<string, unknown>).timezone;
+  if (typeof tz !== "string" || tz.trim().length === 0 || tz.length > 100) return null;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz }); // throws RangeError on invalid tz
+    return tz.trim();
+  } catch {
+    return null;
+  }
+}
+
 export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly dataContext: DataContextRunner;
   private readonly chat: ChatRepository;
   private readonly ai: AiRepository;
   private readonly boss: PgBoss | undefined;
   private readonly connectorSyncAt: DataContextChatPersistenceDeps["connectorSyncAt"];
+  private readonly localePreferences: PreferencesPort | undefined;
 
   constructor(deps: DataContextChatPersistenceDeps) {
     this.dataContext = deps.dataContext;
@@ -114,6 +135,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     this.ai = deps.aiRepository;
     this.boss = deps.boss;
     this.connectorSyncAt = deps.connectorSyncAt;
+    this.localePreferences = deps.localePreferences;
   }
 
   async resolveActiveProvider(
@@ -255,12 +277,15 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     actorUserId: string
   ): Promise<{ threadTitle: string | null; localTimezone: string | null }> {
     return this.run(actorUserId, "get-thread-context", async (scopedDb) => {
-      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      const [thread, localeRaw] = await Promise.all([
+        this.chat.getCurrentThread(scopedDb, actorUserId),
+        this.localePreferences?.get(scopedDb, "locale") ?? null
+      ]);
       const title = thread?.title ?? null;
-      // V1: timezone from thread not yet stored; fall back to instance default via env.
+      const localTimezone = extractTimezone(localeRaw);
       return {
         threadTitle: title && title !== DEFAULT_CONVERSATION_TITLE ? title : null,
-        localTimezone: null
+        localTimezone
       };
     });
   }

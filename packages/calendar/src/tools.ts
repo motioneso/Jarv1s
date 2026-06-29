@@ -92,10 +92,11 @@ export const calendarProposeFocusBlockExecute: ToolExecute = async (
   services
 ): Promise<ToolResult> => {
   const service = narrowCalendarWrite(services);
+  const tz = ctx.localTimezone ?? DEFAULT_TIMEZONE;
   // Freeze a relative "tomorrow" if not already frozen by summarize — keeps the executed day in
   // lockstep with the approval card across the midnight boundary (Codex HIGH round 4).
-  freezeRelativeDate(input, new Date(), DEFAULT_TIMEZONE);
-  const resolved = resolveWindow(readInput(input), new Date(), DEFAULT_TIMEZONE);
+  freezeRelativeDate(input, new Date(), tz);
+  const resolved = resolveWindow(readInput(input), new Date(), tz);
   const result = await service.proposeAndInsert(scopedDb, ctx, {
     start: resolved.start,
     end: resolved.end,
@@ -107,15 +108,16 @@ export const calendarProposeFocusBlockExecute: ToolExecute = async (
 
 export const summarizeProposeFocusBlock = (
   input: Record<string, unknown>,
-  _ctx: ToolContext
+  ctx: ToolContext
 ): string => {
+  const tz = ctx.localTimezone ?? DEFAULT_TIMEZONE;
   // Stamp the absolute "tomorrow" onto the shared input at card-creation time so execute (which
   // receives the same input object after the approval gap) inserts exactly the day the card shows,
   // and the deterministic Google id stays stable for this proposal (Codex HIGH round 4).
-  freezeRelativeDate(input, new Date(), DEFAULT_TIMEZONE);
-  const resolved = resolveWindow(readInput(input), new Date(), DEFAULT_TIMEZONE);
+  freezeRelativeDate(input, new Date(), tz);
+  const resolved = resolveWindow(readInput(input), new Date(), tz);
   const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: DEFAULT_TIMEZONE,
+    timeZone: tz,
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -125,7 +127,7 @@ export const summarizeProposeFocusBlock = (
   });
   const startStr = fmt.format(resolved.start);
   const endStr = new Intl.DateTimeFormat("en-US", {
-    timeZone: DEFAULT_TIMEZONE,
+    timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false
