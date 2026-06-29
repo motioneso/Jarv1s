@@ -3,12 +3,14 @@ import { useState } from "react";
 
 import {
   groupByPriority,
+  type LocaleSettingsDto,
   type TaskApiStatus,
   type TaskDto,
   type TaskEffort,
   type TaskListDto
 } from "@jarv1s/shared";
 
+import { formatDate, useUserLocale } from "../locale/locale-format";
 import { effortLabels } from "./task-format";
 
 /** Stable per-list dot colour (lists carry no colour of their own). */
@@ -64,7 +66,7 @@ interface DueInfo {
 }
 
 /** Due date → human label + drift signal (system-owned urgency, anti-shame amber). */
-function dueInfo(task: TaskDto): DueInfo | null {
+function dueInfo(task: TaskDto, locale: LocaleSettingsDto): DueInfo | null {
   if (!task.dueAt) return null;
   const due = new Date(task.dueAt);
   const now = new Date();
@@ -79,7 +81,7 @@ function dueInfo(task: TaskDto): DueInfo | null {
   if (startOfDue === startOfToday) {
     return { label: "Today", tone: "today", drift: null };
   }
-  const short = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(due);
+  const short = formatDate(due, locale, { month: "short", day: "numeric" });
   const atRisk = !done && startOfDue - startOfToday <= dayMs * 2;
   return { label: short, tone: "", drift: atRisk ? "atrisk" : null };
 }
@@ -161,9 +163,10 @@ export function TaskRow(props: {
   readonly onOpen: (task: TaskDto) => void;
 }) {
   const { task, compact = false } = props;
+  const locale = useUserLocale();
   const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
   const done = optimisticDone;
-  const due = dueInfo(task);
+  const due = dueInfo(task, locale);
   const tags = compact ? [] : (task.tags ?? []);
   const jarvis = !compact && isJarvisSource(task.source);
 

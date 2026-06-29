@@ -24,7 +24,7 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import type { CalendarEventDto, MeResponse, TaskDto } from "@jarv1s/shared";
+import type { CalendarEventDto, LocaleSettingsDto, MeResponse, TaskDto } from "@jarv1s/shared";
 
 import {
   createWellnessCheckin,
@@ -38,6 +38,7 @@ import {
   updateTask
 } from "../api/client";
 import { findDefinition } from "../briefings/briefing-settings-model";
+import { formatDate, formatTime, useUserLocale } from "../locale/locale-format";
 import { useChatControls } from "../shell/chat-controls-context";
 import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
@@ -67,6 +68,7 @@ export function TodayPage(props: {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const chatControls = useChatControls();
+  const locale = useUserLocale();
   const feed = props.feed ?? createEmptyTodayFeed();
   const wellnessEnabled = props.wellnessEnabled ?? false;
   const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
@@ -253,8 +255,8 @@ export function TodayPage(props: {
                 {todayEvents.map((event) => (
                   <div className="day-ev" key={event.id}>
                     <div className="day-ev__t">
-                      {timeLabel(event.startsAt)}
-                      <span className="ap"> {ampm(event.startsAt)}</span>
+                      {timeLabel(event.startsAt, locale)}
+                      <span className="ap"> {ampm(event.startsAt, locale)}</span>
                     </div>
                     <div>
                       <div className="day-ev__title">{event.title}</div>
@@ -332,7 +334,7 @@ export function TodayPage(props: {
                     className={`sched-row ${index === 0 ? "sched-row--now" : ""}`}
                     key={event.id}
                   >
-                    <div className="sched-row__t">{timeLabel(event.startsAt)}</div>
+                    <div className="sched-row__t">{timeLabel(event.startsAt, locale)}</div>
                     <div className="sched-row__body">
                       <div className="sched-row__title">{event.title}</div>
                       {event.location ? (
@@ -367,7 +369,9 @@ export function TodayPage(props: {
               <div className="inst__head">
                 <span className="inst__title">Evening review</span>
                 <span className="inst__meta">
-                  {latestEveningRun ? shortDate(latestEveningRun.createdAt) : "Ready at 7 PM"}
+                  {latestEveningRun
+                    ? shortDate(latestEveningRun.createdAt, locale)
+                    : "Ready at 7 PM"}
                 </span>
               </div>
               {latestEveningRun ? (
@@ -589,6 +593,7 @@ function BriefTaskRow(props: {
   readonly onOpen: () => void;
 }) {
   const { task } = props;
+  const locale = useUserLocale();
   const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
   const done = optimisticDone;
   const drift = driftOf(task);
@@ -627,7 +632,9 @@ function BriefTaskRow(props: {
             <GitCommitHorizontal size={12} aria-hidden="true" />
             {task.source}
           </span>
-          {task.dueAt ? <span className="jds-task__time">{shortDate(task.dueAt)}</span> : null}
+          {task.dueAt ? (
+            <span className="jds-task__time">{shortDate(task.dueAt, locale)}</span>
+          ) : null}
         </div>
       </button>
     </div>
@@ -862,14 +869,15 @@ function byStart(a: CalendarEventDto, b: CalendarEventDto): number {
   return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
 }
 
-function timeLabel(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", hour12: true })
-    .format(new Date(iso))
-    .replace(/\s?[AP]M$/i, "");
+function timeLabel(iso: string, locale: LocaleSettingsDto): string {
+  return formatTime(iso, locale, { hour: "numeric", minute: "2-digit", hour12: true }).replace(
+    /\s?[AP]M$/i,
+    ""
+  );
 }
 
-function ampm(iso: string): string {
-  return new Date(iso).getHours() < 12 ? "am" : "pm";
+function ampm(iso: string, locale: LocaleSettingsDto): string {
+  return /pm$/i.test(formatTime(iso, locale, { hour: "numeric", hour12: true })) ? "pm" : "am";
 }
 
 function durationLabel(event: CalendarEventDto): string {
@@ -883,8 +891,6 @@ function durationLabel(event: CalendarEventDto): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-function shortDate(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(iso)
-  );
+function shortDate(iso: string, locale: LocaleSettingsDto): string {
+  return formatDate(iso, locale, { month: "short", day: "numeric" });
 }

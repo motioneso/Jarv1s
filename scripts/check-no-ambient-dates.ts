@@ -16,12 +16,10 @@ import { extname, join, relative } from "node:path";
  * explicitly (or use locale-independent `en-CA` machine keys for day comparison) and
  * are out of #579's approved scope, so they are not walked here.
  *
- * EXEMPTIONS (allowlist below):
- *  - the sanctioned module itself (the one place `Intl.DateTimeFormat` is centralized);
- *  - `en-CA` machine-key helpers (date *keys* for streak/day math, never display);
- *  - pre-existing ambient *display* sites the original sweep missed, deferred to a
- *    tracked follow-up issue (see PR body). New code may not add to this list — extend
- *    coverage by routing the site through locale-format.ts, not by allowlisting it.
+ * EXEMPTIONS (allowlist below) are limited to non-display uses of Intl.DateTimeFormat:
+ *  - the sanctioned formatter module itself (the one place it is centralized);
+ *  - `en-CA` machine-key helpers (date *keys* for streak/day math, never display).
+ * No display site is exempt — route every user-facing date through locale-format.ts.
  */
 
 const rootDirectory = process.cwd();
@@ -35,16 +33,7 @@ const allowlist = new Set<string>([
   // Sanctioned formatter module — the single place Intl.DateTimeFormat is allowed.
   "apps/web/src/locale/locale-format.ts",
   // en-CA machine-key helpers (YYYY-MM-DD day keys for streak math, not display).
-  "apps/web/src/wellness/wellness-date-utils.ts",
-  // Pre-existing ambient display sites deferred to the #579 follow-up issue
-  // (original sweep's grep missed these; routing them expands beyond the approved
-  // 12-site set, so they are tracked, not silently fixed):
-  "apps/web/src/wellness/wellness-history.tsx",
-  "apps/web/src/notifications/notifications-page.tsx",
-  "apps/web/src/today/today-page.tsx",
-  "apps/web/src/tasks/task-format.ts",
-  "apps/web/src/tasks/task-list-view.tsx",
-  "apps/web/src/tasks/task-details-sections.tsx"
+  "apps/web/src/wellness/wellness-date-utils.ts"
 ]);
 
 const ambientPattern =

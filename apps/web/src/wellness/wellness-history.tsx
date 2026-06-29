@@ -2,6 +2,7 @@ import { useState } from "react";
 import { moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, coreLabel, type Theme } from "./emotion-taxonomy";
 import { localDateFromTimestamp } from "./wellness-date-utils";
+import { formatDate, formatTime, todayDateKey, useUserLocale } from "../locale/locale-format";
 
 function ChevRightIcon() {
   return (
@@ -72,15 +73,6 @@ function PencilIcon() {
   );
 }
 
-function todayIso(timeZone?: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
-}
-
 interface Props {
   checkins: readonly CheckinDto[];
   theme?: Theme;
@@ -101,8 +93,13 @@ export function WellnessHistory({
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [limit, setLimit] = useState(8);
+  const locale = useUserLocale();
+  // The weekday/month/day come from the already-localized calendar-date string via a
+  // noon-UTC anchor, so format them with timeZone forced to UTC (user region drives the
+  // month/weekday *names*) to read those exact components back without an anchor misfire.
+  const calendarLocale = { ...locale, timezone: "UTC" };
 
-  const today = todayIso(timezone);
+  const today = todayDateKey(timezone);
 
   let rows = checkins.slice().sort((a, b) => {
     const da = a.checkedInAt ?? a.createdAt ?? "";
@@ -169,22 +166,12 @@ export function WellnessHistory({
           // timeZone: "UTC" on a noon-UTC anchor of that date string — this gives the
           // correct calendar components for ANY IANA timezone without an anchor misfire.
           const anchor = new Date(iso + "T12:00:00Z");
-          const dow = isToday
-            ? "Today"
-            : new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long" }).format(anchor);
-          const mo = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short" }).format(
-            anchor
-          );
-          const day = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", day: "numeric" }).format(
-            anchor
-          );
+          const dow = isToday ? "Today" : formatDate(anchor, calendarLocale, { weekday: "long" });
+          const mo = formatDate(anchor, calendarLocale, { month: "short" });
+          const day = formatDate(anchor, calendarLocale, { day: "numeric" });
           const timeStr =
             isToday && fullIso.length > 10
-              ? new Intl.DateTimeFormat("en-US", {
-                  timeZone: timezone,
-                  hour: "numeric",
-                  minute: "2-digit"
-                }).format(new Date(fullIso))
+              ? formatTime(fullIso, locale, { hour: "numeric", minute: "2-digit" })
               : null;
           const c = emoColor(ck.feelingCore, theme);
           const v = moodIndex(ck.feelingCore, ck.intensity ?? 3);

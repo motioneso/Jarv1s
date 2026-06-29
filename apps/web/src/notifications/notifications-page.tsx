@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { NotificationDto } from "@jarv1s/shared";
+import type { LocaleSettingsDto, NotificationDto } from "@jarv1s/shared";
 import { Bell, Check, CheckCheck, Inbox, LoaderCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { formatDateTime, useUserLocale } from "../locale/locale-format";
 
 const notificationFilters = ["all", "unread"] as const;
 
@@ -100,6 +101,7 @@ function NotificationRow(props: {
   readonly notification: NotificationDto;
   readonly onMarkRead: () => void;
 }) {
+  const locale = useUserLocale();
   const unread = !props.notification.readAt;
 
   return (
@@ -112,7 +114,7 @@ function NotificationRow(props: {
         {props.notification.body ? <p>{props.notification.body}</p> : null}
         <div className="task-meta">
           <span>{unread ? "Unread" : "Read"}</span>
-          <span>{formatNotificationDate(props.notification.createdAt)}</span>
+          <span>{formatNotificationDate(props.notification.createdAt, locale)}</span>
         </div>
       </div>
       <div className="task-row-actions">
@@ -148,13 +150,10 @@ function EmptyState(props: { readonly loading?: boolean; readonly title: string 
   );
 }
 
-function formatNotificationDate(value: string | null): string {
+function formatNotificationDate(value: string | null, locale: LocaleSettingsDto): string {
   if (!value) {
     return "No date";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
+  return formatDateTime(value, locale);
 }
