@@ -71,15 +71,15 @@ and safer than caching authorization state on the card.
 
 ## 3. Current matrix
 
-| Feature | Operation class | Current state | #514 action |
-| --- | --- | --- | --- |
-| Calendar | Sync/read from Google | `sync-jobs.ts` and live read tools already gate on `calendar` grant | Keep as-is |
-| Calendar | Create Google event | `calendar.proposeFocusBlock` already checks calendar-write scope and `calendar` grant | Keep as-is; avoid regression |
-| Calendar | Delete Google event | `calendar.deleteEvent` checks scope but not `calendar` grant | Fix now |
-| Calendar | Update Google event | No update tool currently exists | Document mandatory guard for future tool |
-| Email | Sync/read from Google | `sync-jobs.ts` and live Gmail tools already gate on `email` grant | Keep as-is |
-| Email | Draft/send/label/archive/delete | No mutation tools currently exist | Document mandatory guard for future tools |
-| Cached email/calendar reads | Read cached DB rows | Covered by #501, not this spec | Out of scope |
+| Feature                     | Operation class                 | Current state                                                                         | #514 action                               |
+| --------------------------- | ------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Calendar                    | Sync/read from Google           | `sync-jobs.ts` and live read tools already gate on `calendar` grant                   | Keep as-is                                |
+| Calendar                    | Create Google event             | `calendar.proposeFocusBlock` already checks calendar-write scope and `calendar` grant | Keep as-is; avoid regression              |
+| Calendar                    | Delete Google event             | `calendar.deleteEvent` checks scope but not `calendar` grant                          | Fix now                                   |
+| Calendar                    | Update Google event             | No update tool currently exists                                                       | Document mandatory guard for future tool  |
+| Email                       | Sync/read from Google           | `sync-jobs.ts` and live Gmail tools already gate on `email` grant                     | Keep as-is                                |
+| Email                       | Draft/send/label/archive/delete | No mutation tools currently exist                                                     | Document mandatory guard for future tools |
+| Cached email/calendar reads | Read cached DB rows             | Covered by #501, not this spec                                                        | Out of scope                              |
 
 ---
 
