@@ -62,7 +62,9 @@ describe("Email briefing assistant tool", () => {
           actorUserId: ids.userA,
           requestId: "r:email-tool-bounded",
           chatSessionId: ""
-        }
+        },
+        // Stub: grant the seeded account so this test focuses on result-bounding, not grant filtering.
+        { featureGrants: { grantedAccountIds: async () => new Set([connectorAccountId]) } }
       )
     );
 

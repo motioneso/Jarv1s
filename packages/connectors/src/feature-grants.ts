@@ -39,12 +39,27 @@ export function isFeatureGranted(stored: unknown, feature: ConnectorFeature): bo
   return (stored as Record<string, unknown>)[feature] === true;
 }
 
+const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const GMAIL_FULL_SCOPE = "https://mail.google.com/";
+const CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+
 function accountHasEmailScope(scopes: readonly string[]): boolean {
-  return scopes.includes(GMAIL_SCOPE) || scopes.includes("gmail");
+  return (
+    scopes.includes(GMAIL_SCOPE) ||
+    scopes.includes(GMAIL_READONLY_SCOPE) ||
+    scopes.includes(GMAIL_FULL_SCOPE) ||
+    scopes.includes("gmail") ||
+    scopes.includes("gmail.readonly")
+  );
 }
 
 function accountHasCalendarScope(scopes: readonly string[]): boolean {
-  return scopes.includes(CALENDAR_SCOPE) || scopes.includes("calendar");
+  return (
+    scopes.includes(CALENDAR_SCOPE) ||
+    scopes.includes(CALENDAR_READONLY_SCOPE) ||
+    scopes.includes("calendar") ||
+    scopes.includes("calendar.readonly")
+  );
 }
 
 /**

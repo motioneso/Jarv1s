@@ -39,6 +39,13 @@ export interface AssistantToolGatewayDependencies {
    */
   readonly toolServices?: ToolServices;
   /**
+   * Services safe to pass to read tools (no write capability — no confirm bypass risk).
+   * Injected by `servicesFor` for read-risk tools and by `runReadToolForActor`.
+   * Kept separate from `toolServices` so the write→confirm floor remains structurally
+   * un-bypassable: write-capable services (calendarWrite, notesSync) are never in this map.
+   */
+  readonly readToolServices?: ToolServices;
+  /**
    * Returns the user's configured IANA timezone (e.g. "America/Chicago"), or null if unknown.
    * Injected by the composition root; used to populate ToolContext.localTimezone so tools that
    * format user-visible date/time strings (e.g. calendar approval cards) use the correct timezone.
@@ -176,9 +183,10 @@ export class AssistantToolGateway {
     const localTimezone = (await this.deps.resolveLocalTimezone?.(actorUserId)) ?? undefined;
     const ctx: ToolContext = { actorUserId, requestId, chatSessionId: "", localTimezone };
 
+    const readServices = this.deps.readToolServices ?? {};
     try {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
-        found.execute(scopedDb, input, ctx, {})
+        found.execute(scopedDb, input, ctx, readServices)
       );
       return {
         ok: true,
@@ -230,7 +238,9 @@ export class AssistantToolGateway {
    */
   private servicesFor(tool: ModuleAssistantToolManifest): ToolServices {
     if (tool.risk === "read") {
-      return {}; // read path bypasses confirmAndRun — never hand it a service (write→confirm floor)
+      // Read tools bypass confirmAndRun so they never receive write-capable services.
+      // readToolServices carries only informational (read-only) services — safe here.
+      return this.deps.readToolServices ?? {};
     }
     const registry = this.deps.toolServices ?? {};
     const keys = tool.requiresServices ?? [];
