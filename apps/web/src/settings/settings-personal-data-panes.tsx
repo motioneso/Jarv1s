@@ -52,7 +52,11 @@ import {
 } from "../api/notes-client";
 import { queryKeys } from "../api/query-keys";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
-import { canSyncConnectorAccount } from "./settings-connector-sync";
+import {
+  canSyncConnectorAccount,
+  getConnectorAccountHealth,
+  isConnectorSyncInFlight
+} from "./settings-connector-sync";
 import { GoogleConnect } from "./settings-google-connect";
 import {
   BriefingSettings,
@@ -118,9 +122,7 @@ function AccountRow(props: {
   const { account } = props;
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
-  const health =
-    account.status === "active" ? "ready" : account.status === "error" ? "error" : "idle";
-  const label = health === "ready" ? "Healthy" : health === "error" ? "Needs attention" : "Revoked";
+  const health = getConnectorAccountHealth(account);
   const hasEmail = hasEmailScope(account.scopes);
   const hasCalendar = hasCalendarScope(account.scopes);
   const featureQuery = useQuery({
@@ -150,11 +152,12 @@ function AccountRow(props: {
         <div className="acct__sub">
           <span>{account.providerType}</span>
           <span className="acct__dot">·</span>
-          <Indicator status={health} label={label} />
+          <Indicator status={health.indicator} label={health.label} />
         </div>
         {account.scopes.length ? (
           <div className="acct__scopes">{account.scopes.join(" · ")}</div>
         ) : null}
+        {health.alert ? <div className="acct__alert">{health.alert}</div> : null}
         {account.status !== "revoked" && (hasEmail || hasCalendar) ? (
           <div className="acct__features">
             {hasEmail ? (
@@ -179,7 +182,7 @@ function AccountRow(props: {
         ) : null}
       </div>
       <div className="acct__actions">
-        {account.status === "error" ? (
+        {health.canReconnect ? (
           <button
             type="button"
             className="jds-btn jds-btn--secondary jds-btn--sm"
@@ -293,8 +296,10 @@ function ConnectedPane() {
   const [syncTick, setSyncTick] = useState(0);
   const syncMutation = useMutation({
     mutationFn: syncGoogleConnector,
-    onSuccess: () => {
-      toast("Sync started", { icon: <RefreshCw size={17} /> });
+    onSuccess: (data) => {
+      toast(data.deduped ? "Sync already in progress" : "Sync queued", {
+        icon: <RefreshCw size={17} />
+      });
       setRecentlySynced(true);
       setSyncTick((tick) => tick + 1);
       void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
@@ -305,7 +310,12 @@ function ConnectedPane() {
     queryKey: queryKeys.connectors.accounts,
     queryFn: listConnectorAccounts,
     retry: false,
-    refetchInterval: () => (syncMutation.isPending || recentlySynced ? 2000 : false),
+    refetchInterval: (query) => {
+      const accounts = query.state.data?.accounts ?? [];
+      return syncMutation.isPending || recentlySynced || accounts.some(isConnectorSyncInFlight)
+        ? 2000
+        : false;
+    },
     refetchIntervalInBackground: false
   });
   const revokeMutation = useMutation({
@@ -364,11 +374,7 @@ function ConnectedPane() {
             <AccountRow
               key={account.id}
               account={account}
-              onReconnect={() =>
-                toast(`Reconnecting ${account.providerDisplayName}…`, {
-                  icon: <RefreshCw size={17} />
-                })
-              }
+              onReconnect={() => setFlow("google")}
               onRevoke={() =>
                 confirm({
                   title: `Revoke ${account.providerDisplayName} access?`,

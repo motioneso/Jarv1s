@@ -228,6 +228,19 @@
   color: var(--text-faint);
   margin-top: 4px;
 }
+.acct__alert {
+  display: inline-flex;
+  max-width: 520px;
+  margin-top: 8px;
+  border: 1px solid var(--amber-soft-2);
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+  padding: 7px 9px;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
 .acct__features {
   display: grid;
   gap: 8px;
