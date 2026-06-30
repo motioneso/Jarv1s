@@ -212,6 +212,7 @@ export default defineConfig({
       "tests/**/*.test.tsx",
       "packages/people/src/__tests__/**/*.test.ts"
     ],
+    setupFiles: ["tests/setup-env.ts"],
     hookTimeout: 30_000,
     testTimeout: 30_000,
     pool: "forks",
