@@ -48,6 +48,7 @@ import { registerLocaleRoutes } from "./locale-routes.js";
 import { registerQuietHoursRoutes } from "./quiet-hours-routes.js";
 import { registerWeatherLocationRoutes } from "./weather-location-routes.js";
 import { registerThemeRoutes } from "./themes-routes.js";
+import { registerYoloRoutes } from "./yolo-routes.js";
 import { registerNotesSourceRoutes, type ReconcileNotesScheduleFn } from "./notes-source-routes.js";
 import {
   registerMeAccountRoutes,
@@ -177,6 +178,15 @@ export function registerSettingsRoutes(
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   registerPriorityRoutes(server, { ...dependencies, preferencesRepository });
+  registerYoloRoutes(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    repository,
+    preferencesRepository,
+    assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
+    handleRouteError,
+    requireRequestId
+  });
   registerProactiveMonitoringSettingsRoutes(server, {
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,

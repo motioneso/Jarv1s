@@ -21,6 +21,8 @@ export const queryKeys = {
     sourceBehaviors: ["settings", "source-behaviors"] as const,
     registrationSettings: ["settings", "admin", "registration"] as const,
     chatMultiplexer: ["settings", "chat-multiplexer"] as const,
+    yolo: ["settings", "yolo"] as const,
+    adminYolo: ["settings", "admin", "yolo"] as const,
     hostDiagnostics: ["settings", "host-diagnostics"] as const,
     notesSource: ["settings", "notes-source"] as const,
     notesSourceDirectories: (path: string | null) =>

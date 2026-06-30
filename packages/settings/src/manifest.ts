@@ -234,6 +234,26 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/admin/yolo",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/admin/yolo/instance",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/admin/yolo/users/:id",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/admin/yolo/allow-all",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "GET",
       path: "/api/admin/settings",
       permissionId: "settings.manage"
     },
@@ -275,6 +295,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PATCH",
       path: "/api/me/modules/:id",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
+      path: "/api/me/yolo",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/yolo",
       permissionId: "settings.write"
     },
     {

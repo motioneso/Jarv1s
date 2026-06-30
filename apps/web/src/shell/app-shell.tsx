@@ -27,7 +27,13 @@ import {
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
-import { listNotifications, listThemes, sendChatTurn, signOut } from "../api/client";
+import {
+  getYoloSettings,
+  listNotifications,
+  listThemes,
+  sendChatTurn,
+  signOut
+} from "../api/client";
 import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { useUserLocale } from "../locale/locale-format";
@@ -107,6 +113,10 @@ export function AppShell(props: AppShellProps) {
   const notificationsQuery = useQuery({
     queryKey: queryKeys.notifications.list,
     queryFn: () => listNotifications()
+  });
+  const yoloQuery = useQuery({
+    queryKey: queryKeys.settings.yolo,
+    queryFn: getYoloSettings
   });
   const themesQuery = useQuery({
     queryKey: queryKeys.settings.themes,
@@ -209,6 +219,11 @@ export function AppShell(props: AppShellProps) {
           ) : null}
 
           <div className="topbar-actions">
+            {yoloQuery.data?.self.active ? (
+              <span className="jds-btn jds-btn--quiet jds-btn--sm" aria-label="YOLO mode active">
+                YOLO
+              </span>
+            ) : null}
             <button
               aria-label="Open command palette"
               className="icon-button"

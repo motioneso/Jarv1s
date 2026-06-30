@@ -140,7 +140,7 @@ export interface InsertAuditLogInput {
   readonly toolName: string;
   readonly actionFamilyId: string | null;
   readonly actionKind: "write" | "destructive";
-  readonly approvalMode: "auto" | "confirmed" | "rejected" | "cancelled" | "timeout";
+  readonly approvalMode: "auto" | "yolo" | "confirmed" | "rejected" | "cancelled" | "timeout";
   readonly outcome: "success" | "failed" | "denied" | "cancelled";
   readonly errorClass: string | null;
   readonly requestId: string | null;

@@ -28,6 +28,7 @@ export * from "./themes-api.js";
 export * from "./weather-api.js";
 export * from "./web-search-api.js";
 export * from "./runtime-config-api.js";
+export * from "./yolo-api.js";
 export * from "./notes-api.js";
 export * from "./priority-model-api.js";
 export * from "./memory-graph-api.js";

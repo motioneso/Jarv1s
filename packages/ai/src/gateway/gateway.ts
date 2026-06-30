@@ -30,6 +30,7 @@ export interface AssistantToolGatewayDependencies {
   readonly confirmTimeoutMs: number;
   readonly agencyPrefs?: (ctx: ToolContext) => AgencyPrefLookup;
   readonly actionPolicy?: (ctx: ToolContext) => ActionPolicyLookup;
+  readonly yoloMode?: (ctx: ToolContext) => Promise<boolean>;
   /**
    * Opaque, composition-layer-constructed service registry keyed by service name.
    * Passed verbatim (as a per-tool, declared-keys-only subset) as the 4th argument
@@ -107,6 +108,23 @@ export class AssistantToolGateway {
 
     const prefs = this.deps.agencyPrefs?.(ctx) ?? denyPrefs;
     const lookup = this.deps.actionPolicy?.(ctx) ?? defaultPolicyLookup;
+    if (found.tool.risk !== "read" && (await this.deps.yoloMode?.(ctx)) === true) {
+      const result = await this.runHandler(found, input, ctx);
+      this.deps.notifier.emit(ctx.chatSessionId, {
+        kind: "action_result",
+        actionRequestId: ctx.requestId,
+        toolName: found.dto.name,
+        outcome: result.ok ? "executed" : "error"
+      });
+      const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
+      void this.recordAudit(access, found, {
+        approvalMode: "yolo",
+        outcome: result.ok ? "success" : "failed",
+        errorClass: result.ok ? null : "handler_error",
+        chatSessionId: ctx.chatSessionId
+      });
+      return result;
+    }
     if ((await resolvePolicy(found.tool, found.dto.moduleId, lookup)) === "run") {
       const result = await this.runHandler(found, input, ctx);
       if (found.tool.risk !== "read") {

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { extractTimezone } from "./locale-utils.js";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import type {
@@ -56,6 +56,10 @@ import {
   type NotesSyncToolService
 } from "@jarv1s/notes";
 import { TasksCompatibilityHelper } from "@jarv1s/tasks";
+
+const YOLO_INSTANCE_SETTING_KEY = "yolo.instance_enabled";
+const YOLO_ALLOWED_PREF_KEY = "yolo.allowed";
+const YOLO_ENABLED_PREF_KEY = "yolo.enabled";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
@@ -602,6 +606,32 @@ export function buildChatGatewayDependencies(args: {
       preferences: args.agencyPreferences,
       resolveActiveModules: args.resolveActiveModules
     }),
+    yoloMode: (ctx) =>
+      args.runner.withDataContext(
+        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+        async (scopedDb) => {
+          const master = await scopedDb.db
+            .selectFrom("app.instance_settings")
+            .select("value")
+            .where("key", "=", YOLO_INSTANCE_SETTING_KEY)
+            .executeTakeFirst();
+          if ((master?.value as { enabled?: boolean } | undefined)?.enabled !== true) {
+            return false;
+          }
+          const prefs = await scopedDb.db
+            .selectFrom("app.preferences")
+            .select(["key", "value_json"])
+            .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+            .where("key", "in", [YOLO_ALLOWED_PREF_KEY, YOLO_ENABLED_PREF_KEY])
+            .execute();
+          const values = new Map(
+            prefs.map((row) => [row.key, (row.value_json as unknown) === true])
+          );
+          return (
+            values.get(YOLO_ALLOWED_PREF_KEY) === true && values.get(YOLO_ENABLED_PREF_KEY) === true
+          );
+        }
+      ),
     toolServices: buildChatToolServices(args.collaborators),
     resolveLocalTimezone: args.localePreferences
       ? (actorUserId) =>
