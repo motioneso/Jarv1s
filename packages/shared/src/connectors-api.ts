@@ -1,9 +1,15 @@
 import { errorResponseSchema, jsonObjectSchema } from "./schema-fragments.js";
 
-export type ConnectorProviderType = "calendar" | "email" | "google";
+export type ConnectorProviderType = "calendar" | "email" | "google" | "proton-bridge";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type ConnectorSyncStatus = "success" | "partial" | "failed";
+/**
+ * Connection-probe health (distinct from {@link ConnectorSyncStatus}, which reports
+ * background sync-job outcomes). Set synchronously by a connect/test-connection
+ * request, not a worker job (#641).
+ */
+export type ConnectorConnectionHealthStatus = "bridge_unreachable" | "auth_failed" | "ok";
 
 /**
  * Aggregate-only sync counts surfaced to owners/admins. Never carries per-item
@@ -46,6 +52,8 @@ export interface ConnectorAccountDto {
   readonly lastSyncStatus: ConnectorSyncStatus | null;
   readonly lastSyncError: string | null;
   readonly lastSyncCounts: ConnectorSyncCounts | null;
+  readonly connectionHealthStatus: ConnectorConnectionHealthStatus | null;
+  readonly connectionHealthCheckedAt: string | null;
 }
 
 export interface ListConnectorProvidersResponse {
@@ -109,7 +117,7 @@ const connectorProviderSchema = {
   ],
   properties: {
     id: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email", "google"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google", "proton-bridge"] },
     displayName: { type: "string" },
     status: { type: "string", enum: ["available", "disabled"] },
     defaultScopes: { type: "array", items: { type: "string" } },
@@ -154,12 +162,14 @@ const connectorAccountSchema = {
     "lastSyncFinishedAt",
     "lastSyncStatus",
     "lastSyncError",
-    "lastSyncCounts"
+    "lastSyncCounts",
+    "connectionHealthStatus",
+    "connectionHealthCheckedAt"
   ],
   properties: {
     id: { type: "string" },
     providerId: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email", "google"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google", "proton-bridge"] },
     providerDisplayName: { type: "string" },
     providerStatus: { type: "string", enum: ["available", "disabled"] },
     ownerUserId: { type: "string" },
@@ -173,7 +183,12 @@ const connectorAccountSchema = {
     lastSyncFinishedAt: { type: ["string", "null"] },
     lastSyncStatus: { type: ["string", "null"], enum: ["success", "partial", "failed", null] },
     lastSyncError: { type: ["string", "null"] },
-    lastSyncCounts: connectorSyncCountsSchema
+    lastSyncCounts: connectorSyncCountsSchema,
+    connectionHealthStatus: {
+      type: ["string", "null"],
+      enum: ["bridge_unreachable", "auth_failed", "ok", null]
+    },
+    connectionHealthCheckedAt: { type: ["string", "null"] }
   }
 } as const;
 
@@ -369,6 +384,51 @@ export const googleAuthorizeRouteSchema = {
 export const googleCompleteRouteSchema = {
   body: googleCompleteRequestSchema,
   response: { 201: createConnectorAccountResponseSchema }
+} as const;
+
+export interface ProtonConnectRequest {
+  readonly host: string;
+  readonly port: number;
+  readonly username: string;
+  readonly appPassword: string;
+  readonly tlsMode: "strict" | "insecure";
+}
+
+export interface ProtonConnectResponse {
+  readonly account: ConnectorAccountDto;
+}
+
+export type ProtonTestConnectionResponse = ProtonConnectResponse;
+
+export const protonConnectRequestSchema = {
+  type: "object",
+  required: ["host", "port", "username", "appPassword", "tlsMode"],
+  additionalProperties: false,
+  properties: {
+    host: { type: "string", minLength: 1 },
+    port: { type: "integer", minimum: 1, maximum: 65535 },
+    username: { type: "string", minLength: 1 },
+    appPassword: { type: "string", minLength: 1 },
+    tlsMode: { type: "string", enum: ["strict", "insecure"] }
+  }
+} as const;
+
+export const protonConnectRouteSchema = {
+  body: protonConnectRequestSchema,
+  response: {
+    201: createConnectorAccountResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const protonTestConnectionRouteSchema = {
+  response: {
+    200: createConnectorAccountResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema
+  }
 } as const;
 
 export interface GoogleSyncResponse {

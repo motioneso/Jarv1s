@@ -8,6 +8,7 @@ export * from "./google-connection.js";
 export * from "./live-tools.js";
 export * from "./manifest.js";
 export * from "./oauth.js";
+export * from "./proton-bridge-connection.js";
 export * from "./repository.js";
 export * from "./routes.js";
 export * from "./sync-jobs.js";

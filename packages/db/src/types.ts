@@ -161,10 +161,16 @@ export interface RlsProbeItemsTable {
 
 export type TaskStatus = "todo" | "done" | "archived";
 export type ShareLevel = "view" | "contribute" | "manage";
-export type ConnectorProviderType = "calendar" | "email" | "google";
+export type ConnectorProviderType = "calendar" | "email" | "google" | "proton-bridge";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type ConnectorSyncStatus = "success" | "partial" | "failed";
+/**
+ * Connection-probe health (distinct from {@link ConnectorSyncStatus}, which reports
+ * background sync-job outcomes). Set synchronously by a connect/test-connection
+ * request, not a worker job (#641).
+ */
+export type ConnectorConnectionHealthStatus = "bridge_unreachable" | "auth_failed" | "ok";
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiModelStatus = "active" | "disabled";
@@ -280,6 +286,8 @@ export interface ConnectorAccountsTable {
   last_sync_status: ConnectorSyncStatus | null;
   last_sync_error: string | null;
   last_sync_counts: JsonColumn | null;
+  connection_health_status: ConnectorConnectionHealthStatus | null;
+  connection_health_checked_at: NullableTimestampColumn;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }

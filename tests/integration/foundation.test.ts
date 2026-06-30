@@ -299,7 +299,9 @@ describe("MVP foundation scaffold", () => {
         { version: "0126", name: "0126_app_runtime_calendar_events_delete.sql" },
         { version: "0127", name: "0127_jarvis_action_audit_log.sql" },
         { version: "0128", name: "0128_person_context.sql" },
-        { version: "0129", name: "0129_yolo_action_audit_mode.sql" }
+        { version: "0129", name: "0129_yolo_action_audit_mode.sql" },
+        { version: "0130", name: "0130_connector_proton_enum.sql" },
+        { version: "0131", name: "0131_proton_bridge_connection.sql" }
       ]);
     } finally {
       await client.end();
