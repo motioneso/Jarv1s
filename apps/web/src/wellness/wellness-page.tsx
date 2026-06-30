@@ -152,7 +152,7 @@ export function WellnessPage() {
 
   const openTodayEdit = () => {
     const todayCks = checkins
-      .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === today)
+      .filter((c) => localDay(c.checkedInAt ?? c.createdAt ?? "", localTimezone) === today)
       .sort((a, b) => {
         const da = a.checkedInAt ?? a.createdAt ?? "";
         const db = b.checkedInAt ?? b.createdAt ?? "";
