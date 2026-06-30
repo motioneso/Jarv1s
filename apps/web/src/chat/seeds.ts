@@ -1,6 +1,11 @@
-import type { CalendarEventDto, LocaleSettingsDto, TaskDto } from "@jarv1s/shared";
+import {
+  localDay,
+  type CalendarEventDto,
+  type LocaleSettingsDto,
+  type TaskDto
+} from "@jarv1s/shared";
 
-import { formatTime, todayDateKey, zonedDateKey } from "../locale/locale-format";
+import { formatTime } from "../locale/locale-format";
 import { isAtRisk, isDoFirst } from "../tasks/focus";
 
 /**
@@ -60,7 +65,7 @@ function nextUpcomingToday(
 
 /** Whether an instant lands on the user's local "today" (#579), not the ambient zone. */
 function isToday(iso: string, timeZone?: string): boolean {
-  return zonedDateKey(iso, timeZone) === todayDateKey(timeZone);
+  return localDay(iso, timeZone) === localDay(new Date(), timeZone);
 }
 
 /** Casual clock label ("3:30pm", "9am") in the user's persisted timezone + region (#579). */

@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
+import { localDay, moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
 import { emoColor, MOOD_BAND_LABELS, coreLabel, type Theme } from "./emotion-taxonomy";
-import { localDateFromTimestamp } from "./wellness-date-utils";
-import { formatDate, formatTime, todayDateKey, useUserLocale } from "../locale/locale-format";
+import { formatDate, formatTime, useUserLocale } from "../locale/locale-format";
 
 function ChevRightIcon() {
   return (
@@ -99,7 +98,7 @@ export function WellnessHistory({
   // month/weekday *names*) to read those exact components back without an anchor misfire.
   const calendarLocale = { ...locale, timezone: "UTC" };
 
-  const today = todayDateKey(timezone);
+  const today = localDay(new Date(), timezone);
 
   let rows = checkins.slice().sort((a, b) => {
     const da = a.checkedInAt ?? a.createdAt ?? "";
@@ -160,7 +159,7 @@ export function WellnessHistory({
         ) : null}
         {shown.map((ck) => {
           const fullIso = ck.checkedInAt ?? ck.createdAt ?? "";
-          const iso = fullIso ? localDateFromTimestamp(fullIso, timezone) : "";
+          const iso = fullIso ? localDay(fullIso, timezone) : "";
           const isToday = iso === today;
           // `iso` is already the local calendar date, so format weekday/month/day with
           // timeZone: "UTC" on a noon-UTC anchor of that date string — this gives the

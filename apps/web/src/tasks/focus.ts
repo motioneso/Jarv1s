@@ -1,6 +1,4 @@
-import { quadrantOf, type TaskDto } from "@jarv1s/shared";
-
-import { todayDateKey, zonedDateKey } from "../locale/locale-format.js";
+import { localDay, quadrantOf, type TaskDto } from "@jarv1s/shared";
 
 /** Today-stat → Tasks filter presets. Applied via the `?focus=` query param so the
     filter works in either List or Matrix view (no hardcoded view). */
@@ -27,14 +25,14 @@ function dayKeyDelta(fromKey: string, toKey: string): number {
     Day-bucketed in the user's persisted timezone (#579), not the ambient browser zone. */
 export function isAtRisk(task: TaskDto, timeZone?: string): boolean {
   if (task.status !== "todo" || !task.dueAt) return false;
-  const delta = dayKeyDelta(todayDateKey(timeZone), zonedDateKey(task.dueAt, timeZone));
+  const delta = dayKeyDelta(localDay(new Date(), timeZone), localDay(task.dueAt, timeZone));
   return delta <= 2; // overdue (negative) … today (0) … +2 days
 }
 
 /** Completed today (and only today), in the user's persisted timezone (#579). */
 export function isDoneToday(task: TaskDto, timeZone?: string): boolean {
   if (task.status !== "done" || !task.completedAt) return false;
-  return zonedDateKey(task.completedAt, timeZone) === todayDateKey(timeZone);
+  return localDay(task.completedAt, timeZone) === localDay(new Date(), timeZone);
 }
 
 /** "Do First" — important (priority ≥ High) AND urgent (matrix top-left). */
