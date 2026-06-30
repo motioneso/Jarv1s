@@ -7,8 +7,8 @@
 **Framing spike:** `docs/superpowers/specs/2026-06-18-additional-email-provider-connectors-spike.md`
 **Provider chosen by Ben:** Proton Mail (2026-06-30)
 **V1 shape (Ben, 2026-06-30):** **read-only, via a scheduled cron job.** A recurring pg-boss job
-reads recent Proton mail via Bridge IMAP. This is *not* the full delta-sync connector framework
-("we don't need to sync") and *not* purely on-demand — it's a simple periodic read. One open
+reads recent Proton mail via Bridge IMAP. This is _not_ the full delta-sync connector framework
+("we don't need to sync") and _not_ purely on-demand — it's a simple periodic read. One open
 decision below (§7): whether each run persists into the email read-cache or feeds Jarvis ephemerally.
 
 > This note answers the framing spike's questions for the **specific** provider Ben chose
@@ -62,11 +62,11 @@ but it is explicitly **not** V1.)
 
 Rejected alternatives:
 
-| Option | Verdict | Reason |
-| --- | --- | --- |
-| Reverse-engineered Proton REST (Hydroxide et al.) | **Rejected** | Stores Proton password, undocumented/unstable, ToS + guardrail violation. |
-| Wait for official Proton OAuth API | **Rejected (for now)** | No announced timeline; community has requested it for years. Revisit if Proton ships it. |
-| **Bridge → localhost IMAP/SMTP** | **Recommended** | Only supported path; fits self-hosted model; reuses standard IMAP libs; preserves E2E. |
+| Option                                            | Verdict                | Reason                                                                                   |
+| ------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| Reverse-engineered Proton REST (Hydroxide et al.) | **Rejected**           | Stores Proton password, undocumented/unstable, ToS + guardrail violation.                |
+| Wait for official Proton OAuth API                | **Rejected (for now)** | No announced timeline; community has requested it for years. Revisit if Proton ships it. |
+| **Bridge → localhost IMAP/SMTP**                  | **Recommended**        | Only supported path; fits self-hosted model; reuses standard IMAP libs; preserves E2E.   |
 
 ## 4. Auth & connection model
 
@@ -112,16 +112,16 @@ IMAP differs from Gmail's API in ways the seam must absorb:
 ## 7. Read job (scheduled cron) — and the one open decision
 
 - A recurring **pg-boss** job (configurable interval) runs an `EmailReadProvider.readRecent(account,
-  window)` against Bridge IMAP — bounded UID/date window, fetch headers + body-metadata, hand off,
+window)` against Bridge IMAP — bounded UID/date window, fetch headers + body-metadata, hand off,
   close. Metadata-only payloads; the Bridge password never enters the job payload.
 - Health/status labels per connector (#254): `bridge_unreachable`, `auth_failed`, `ok`.
 
 **DECISION (Ben 2026-06-30): 7a — persist to the email read-cache.**
 
-| Option | What it means | Trade-off |
-| --- | --- | --- |
-| **7a. Persist to email read-cache** (`app.email_messages`) | Cron upserts recent Proton mail into the **existing** read-cache. Chat, search, briefings, notes all work immediately via existing plumbing + #501 per-account read gating. | Lightest *new* code, most useful. But it *is* a minimal mirror — slightly against "no sync." Subject to existing read-cache retention/purge policy. |
-| **7b. Ephemeral feed, no persistence** | Cron reads, feeds the briefing/AI pipeline for that run, stores nothing. | Truest to "we don't need to sync / no mirror." But Jarvis can't answer "show my Proton inbox" between runs, and search/notes can't see it. Needs a new ephemeral hand-off path (more new code, less reuse). |
+| Option                                                     | What it means                                                                                                                                                               | Trade-off                                                                                                                                                                                                   |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **7a. Persist to email read-cache** (`app.email_messages`) | Cron upserts recent Proton mail into the **existing** read-cache. Chat, search, briefings, notes all work immediately via existing plumbing + #501 per-account read gating. | Lightest _new_ code, most useful. But it _is_ a minimal mirror — slightly against "no sync." Subject to existing read-cache retention/purge policy.                                                         |
+| **7b. Ephemeral feed, no persistence**                     | Cron reads, feeds the briefing/AI pipeline for that run, stores nothing.                                                                                                    | Truest to "we don't need to sync / no mirror." But Jarvis can't answer "show my Proton inbox" between runs, and search/notes can't see it. Needs a new ephemeral hand-off path (more new code, less reuse). |
 
 **Recommendation: 7a.** It's the minimal-new-code path, reuses the cache + read-gating already built,
 and a time-windowed read-cache is arguably not "sync" in the heavy sense Ben rejected. Retention is
@@ -163,14 +163,14 @@ governed by the existing email read-cache policy. Confirm before build.
 Each slice is its own `task` issue + needs this note accepted first (build gate per CLAUDE.md).
 
 1. **Slice A — read seam:** extract read-only `EmailReadProvider`, refactor Google reads behind it (no
-   behavior change; existing tests green). *De-risks everything; ships nothing user-visible.*
+   behavior change; existing tests green). _De-risks everything; ships nothing user-visible._
 2. **Slice B — Proton credential connect:** `connector_accounts` Proton credential type, encrypt-at-rest,
    Test-connection probe, connector health states. No reads yet.
 3. **Slice C — Proton scheduled read:** `protonImap` `EmailReadProvider` + recurring pg-boss read job,
    **upserting into the `app.email_messages` read-cache (§7a)**, RLS + payload-sanitizer tests,
    live-account acceptance.
 4. **Slice D — Onboarding UI:** flip Proton from "Soon" to active Bridge-setup flow with prerequisite copy.
-5. *(Deferred)* **Slice E — SMTP send** via Bridge, only if Ben wants outbound. Separate decision.
+5. _(Deferred)_ **Slice E — SMTP send** via Bridge, only if Ben wants outbound. Separate decision.
 
 ## 12. Open product decision for Ben (activation gate)
 
