@@ -75,7 +75,7 @@ export function ChatLockGroup() {
           <Select
             value={value}
             aria-label="Locked chat model"
-            disabled={busy || models.length === 0}
+            disabled={busy || (models.length === 0 && !value)}
             onChange={(event) => mutation.mutate(event.target.value || null)}
           >
             <option value="">Unlocked — use instance default</option>
