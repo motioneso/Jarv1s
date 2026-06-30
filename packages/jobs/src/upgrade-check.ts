@@ -1,7 +1,13 @@
 import type { PgBoss } from "./pg-boss.js";
-import { UPGRADE_CHECK_QUEUE, assertMetadataOnlyPayload } from "./pg-boss.js";
+import {
+  UPGRADE_CHECK_QUEUE,
+  UPGRADE_NOTIFY_QUEUE,
+  assertMetadataOnlyPayload,
+  sendJob
+} from "./pg-boss.js";
 import type { Kysely } from "kysely";
 import type { JarvisDatabase } from "@jarv1s/db";
+import { compareJarvisVersions } from "@jarv1s/module-sdk";
 
 const UPGRADE_CHECK_CRON = "0 0 * * *"; // Daily at midnight
 const UPGRADE_CHECK_KEY = "system.upgrade-check";
@@ -15,20 +21,16 @@ export async function reconcileUpgradeCheckSchedule(boss: PgBoss): Promise<void>
   });
 }
 
-function compareVersions(a: string, b: string): number {
-  const parse = (v: string) => v.replace(/^v/, "").split(".").map(Number);
-  const pa = parse(a);
-  const pb = parse(b);
-  for (let i = 0; i < 3; i++) {
-    const va = pa[i] || 0;
-    const vb = pb[i] || 0;
-    if (va > vb) return 1;
-    if (va < vb) return -1;
-  }
-  return 0;
+export interface UpgradeNotifyPayload {
+  readonly kind: "upgrade-notify";
+  readonly actorUserId: string;
+  readonly version: string;
 }
 
-export async function handleUpgradeCheckJob(workerDb: Kysely<JarvisDatabase>): Promise<void> {
+export async function handleUpgradeCheckJob(
+  workerDb: Kysely<JarvisDatabase>,
+  boss?: PgBoss
+): Promise<void> {
   const currentVersion = process.env.JARVIS_APP_VERSION;
   if (!currentVersion) {
     return; // Not running a tagged release, nothing to check
@@ -41,6 +43,12 @@ export async function handleUpgradeCheckJob(workerDb: Kysely<JarvisDatabase>): P
     }
   });
 
+  if (!res.ok && (res.status === 403 || res.status === 429 || res.status >= 500)) {
+    process.stderr.write(
+      `${JSON.stringify({ level: "warn", event: "upgrade_check_soft_skip", status: res.status })}\n`
+    );
+    return;
+  }
   if (!res.ok) {
     throw new Error(`Failed to fetch latest release: ${res.status}`);
   }
@@ -50,7 +58,7 @@ export async function handleUpgradeCheckJob(workerDb: Kysely<JarvisDatabase>): P
     throw new Error("Invalid release response: missing tag_name");
   }
 
-  if (compareVersions(release.tag_name, currentVersion) > 0) {
+  if (compareJarvisVersions(release.tag_name, currentVersion) > 0) {
     const value = {
       version: release.tag_name,
       notes: release.body || ""
@@ -72,5 +80,25 @@ export async function handleUpgradeCheckJob(workerDb: Kysely<JarvisDatabase>): P
         })
       )
       .execute();
+
+    if (!boss) return;
+    const owner = await workerDb
+      .selectFrom("app.users")
+      .select("id")
+      .where("is_bootstrap_owner", "=", true)
+      .executeTakeFirst();
+    if (!owner) {
+      process.stderr.write(
+        `${JSON.stringify({ level: "warn", event: "upgrade_notify_no_owner" })}\n`
+      );
+      return;
+    }
+
+    await sendJob<UpgradeNotifyPayload>(
+      boss,
+      UPGRADE_NOTIFY_QUEUE,
+      { kind: "upgrade-notify", actorUserId: owner.id, version: release.tag_name },
+      { singletonKey: `upgrade-notify:${owner.id}:${release.tag_name}` }
+    );
   }
 }

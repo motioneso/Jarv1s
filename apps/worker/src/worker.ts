@@ -11,6 +11,7 @@ import {
   registerDataContextWorker,
   reconcileUpgradeCheckSchedule,
   handleUpgradeCheckJob,
+  registerUpgradeNotifyWorker,
   type RlsProbeJobPayload
 } from "@jarv1s/jobs";
 import {
@@ -139,8 +140,9 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
 
   await reconcileUpgradeCheckSchedule(boss);
   await boss.work(UPGRADE_CHECK_QUEUE, async () => {
-    await handleUpgradeCheckJob(workerDb);
+    await handleUpgradeCheckJob(workerDb, boss);
   });
+  await registerUpgradeNotifyWorker(boss, dataContext, { logger: workerLogger });
 
   await registerBuiltInModuleWorkers(boss, {
     rootDb: workerDb,

@@ -49,7 +49,6 @@ import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
 import { queryKeys } from "../api/query-keys";
-import { SystemUpgradeBanner } from "../settings/system-upgrade-banner";
 import {
   addDaysToKey,
   buildEveningLede,
@@ -228,7 +227,6 @@ export function TodayPage(props: {
 
   return (
     <div className="cmd-wrap">
-      <SystemUpgradeBanner />
       <header className="cmd-hero">
         <h1 className="cmd-hello">
           {greeting()}, <span className="nm">{name}</span>.

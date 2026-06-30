@@ -23,6 +23,16 @@ describe("assertMetadataOnlyPayload", () => {
     ).not.toThrow();
   });
 
+  it("allows upgrade notification payload metadata", () => {
+    expect(() =>
+      assertMetadataOnlyPayload({
+        kind: "upgrade-notify",
+        actorUserId: "u1",
+        version: "v1.2.3"
+      })
+    ).not.toThrow();
+  });
+
   it("rejects unknown keys", () => {
     expect(() =>
       assertMetadataOnlyPayload({ actorUserId: "u1", privateContent: "text" })

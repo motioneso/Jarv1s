@@ -7,7 +7,7 @@ export {
 
 export { sessionRateLimitKey, mcpSessionRateLimitKey } from "./rate-limit-key.js";
 
-export { CORE_VERSION, satisfiesCoreVersion } from "./core-version.js";
+export { CORE_VERSION, compareJarvisVersions, satisfiesCoreVersion } from "./core-version.js";
 
 export { createModuleLogger } from "./logger.js";
 

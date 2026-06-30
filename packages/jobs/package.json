@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@jarv1s/db": "workspace:*",
+    "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/notifications": "workspace:*",
     "pg-boss": "^12.18.2"
   }
 }

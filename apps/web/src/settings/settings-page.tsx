@@ -193,6 +193,7 @@ export function SettingsPage({ me }: SettingsPageProps) {
     } else if (isAdmin && ADMIN_SECTIONS.some((section) => section.id === requested)) {
       setMode("admin");
       setCategoryAdmin(requested as AdminSectionId);
+      if (requested === "host") setAdvanced(true);
     }
     const next = new URLSearchParams(searchParams);
     next.delete("section");
