@@ -482,7 +482,8 @@ export class CliChatEngineImpl implements CliChatEngine {
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
       parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
-      parts.push('--allowedTools "mcp__jarvis__*"');
+      const allowedTools = ["mcp__jarvis__*", ...vaultReadOnlyToolPatterns()].join(" ");
+      parts.push(`--allowedTools ${shellQuote(allowedTools)}`);
     } else {
       parts.push('--tools ""');
     }
@@ -971,6 +972,15 @@ function modelOverrideFlag(opts: EngineLaunchOpts): string | null {
 /** Minimal POSIX single-quote shell quoting for paths embedded in a send-keys line. */
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/** #578 Part 1: read-only Read/Glob/Grep scoped to JARVIS_NOTES_ROOTS (the vault mount). Never write/exec. */
+function vaultReadOnlyToolPatterns(): string[] {
+  const roots = (process.env["JARVIS_NOTES_ROOTS"] ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return roots.flatMap((root) => [`Read(${root}/**)`, `Glob(${root}/**)`, `Grep(${root}/**)`]);
 }
 
 /**
