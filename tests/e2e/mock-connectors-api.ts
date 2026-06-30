@@ -196,8 +196,6 @@ export function createMockConnectorAccount(
     lastSyncStatus: null,
     lastSyncError: null,
     lastSyncCounts: null,
-    connectionHealthStatus: null,
-    connectionHealthCheckedAt: null,
     ...overrides
   };
 }
