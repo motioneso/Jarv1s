@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { compareJarvisVersions } from "@jarv1s/module-sdk";
+import { compareJarvisVersions } from "@jarv1s/module-sdk/core-version";
 import {
   Copy,
   KeyRound,
