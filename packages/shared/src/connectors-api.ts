@@ -1,15 +1,9 @@
 import { errorResponseSchema, jsonObjectSchema } from "./schema-fragments.js";
 
-export type ConnectorProviderType = "calendar" | "email" | "google" | "proton-bridge";
+export type ConnectorProviderType = "calendar" | "email" | "google" | "imap";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type ConnectorSyncStatus = "success" | "partial" | "failed";
-/**
- * Connection-probe health (distinct from {@link ConnectorSyncStatus}, which reports
- * background sync-job outcomes). Set synchronously by a connect/test-connection
- * request, not a worker job (#641).
- */
-export type ConnectorConnectionHealthStatus = "bridge_unreachable" | "auth_failed" | "ok";
 
 /**
  * Aggregate-only sync counts surfaced to owners/admins. Never carries per-item
@@ -52,8 +46,6 @@ export interface ConnectorAccountDto {
   readonly lastSyncStatus: ConnectorSyncStatus | null;
   readonly lastSyncError: string | null;
   readonly lastSyncCounts: ConnectorSyncCounts | null;
-  readonly connectionHealthStatus: ConnectorConnectionHealthStatus | null;
-  readonly connectionHealthCheckedAt: string | null;
 }
 
 export interface ListConnectorProvidersResponse {
@@ -117,7 +109,7 @@ const connectorProviderSchema = {
   ],
   properties: {
     id: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email", "google", "proton-bridge"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google", "imap"] },
     displayName: { type: "string" },
     status: { type: "string", enum: ["available", "disabled"] },
     defaultScopes: { type: "array", items: { type: "string" } },
@@ -162,14 +154,12 @@ const connectorAccountSchema = {
     "lastSyncFinishedAt",
     "lastSyncStatus",
     "lastSyncError",
-    "lastSyncCounts",
-    "connectionHealthStatus",
-    "connectionHealthCheckedAt"
+    "lastSyncCounts"
   ],
   properties: {
     id: { type: "string" },
     providerId: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email", "google", "proton-bridge"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google", "imap"] },
     providerDisplayName: { type: "string" },
     providerStatus: { type: "string", enum: ["available", "disabled"] },
     ownerUserId: { type: "string" },
@@ -183,12 +173,7 @@ const connectorAccountSchema = {
     lastSyncFinishedAt: { type: ["string", "null"] },
     lastSyncStatus: { type: ["string", "null"], enum: ["success", "partial", "failed", null] },
     lastSyncError: { type: ["string", "null"] },
-    lastSyncCounts: connectorSyncCountsSchema,
-    connectionHealthStatus: {
-      type: ["string", "null"],
-      enum: ["bridge_unreachable", "auth_failed", "ok", null]
-    },
-    connectionHealthCheckedAt: { type: ["string", "null"] }
+    lastSyncCounts: connectorSyncCountsSchema
   }
 } as const;
 
@@ -386,48 +371,51 @@ export const googleCompleteRouteSchema = {
   response: { 201: createConnectorAccountResponseSchema }
 } as const;
 
-export interface ProtonConnectRequest {
-  readonly host: string;
-  readonly port: number;
+export interface ImapConnectRequest {
+  readonly providerId: string;
   readonly username: string;
-  readonly appPassword: string;
-  readonly tlsMode: "strict" | "insecure";
+  readonly password: string;
 }
 
-export interface ProtonConnectResponse {
-  readonly account: ConnectorAccountDto;
+export interface ImapTestResult {
+  readonly result: "ok" | "auth_failed" | "tls_failed" | "unreachable";
 }
 
-export type ProtonTestConnectionResponse = ProtonConnectResponse;
-
-export const protonConnectRequestSchema = {
+export const imapConnectRequestSchema = {
   type: "object",
-  required: ["host", "port", "username", "appPassword", "tlsMode"],
+  required: ["providerId", "username", "password"],
   additionalProperties: false,
   properties: {
-    host: { type: "string", minLength: 1 },
-    port: { type: "integer", minimum: 1, maximum: 65535 },
+    providerId: { type: "string", enum: ["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"] },
     username: { type: "string", minLength: 1 },
-    appPassword: { type: "string", minLength: 1 },
-    tlsMode: { type: "string", enum: ["strict", "insecure"] }
+    password: { type: "string", minLength: 1 }
   }
 } as const;
 
-export const protonConnectRouteSchema = {
-  body: protonConnectRequestSchema,
+export const imapTestResultSchema = {
+  type: "object",
+  required: ["result"],
+  additionalProperties: false,
+  properties: {
+    result: { type: "string", enum: ["ok", "auth_failed", "tls_failed", "unreachable"] }
+  }
+} as const;
+
+export const imapTestRouteSchema = {
+  body: imapConnectRequestSchema,
   response: {
-    201: createConnectorAccountResponseSchema,
+    200: imapTestResultSchema,
     400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;
 
-export const protonTestConnectionRouteSchema = {
+export const imapConnectRouteSchema = {
+  body: imapConnectRequestSchema,
   response: {
-    200: createConnectorAccountResponseSchema,
+    201: createConnectorAccountResponseSchema,
     400: errorResponseSchema,
-    401: errorResponseSchema,
-    404: errorResponseSchema
+    401: errorResponseSchema
   }
 } as const;
 

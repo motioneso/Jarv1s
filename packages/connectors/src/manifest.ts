@@ -55,8 +55,8 @@ export const connectorsModuleManifest = {
       "sql/0069_connector_worker_runtime_grants.sql",
       "sql/0099_connector_health_metadata.sql",
       "sql/0100_connector_admin_safe_metadata_health.sql",
-      "sql/0130_connector_proton_enum.sql",
-      "sql/0131_proton_bridge_connection.sql"
+      "sql/0130_connector_imap_enum.sql",
+      "sql/0131_connector_imap_definitions.sql"
     ],
     migrationDirectories: ["packages/connectors/sql"],
     ownedTables: [
