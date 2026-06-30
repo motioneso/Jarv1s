@@ -13,6 +13,7 @@ import {
 } from "@jarv1s/ai";
 
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
 const SESSION_PREFIX = "jarv1s-live-";
 const PROMPT_FILENAME = ".jarvis-claude-print-prompt.txt";
@@ -141,7 +142,8 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
       parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
-      parts.push('--allowedTools "mcp__jarvis__*"');
+      const allowedTools = ["mcp__jarvis__*", ...vaultReadOnlyToolPatterns()].join(" ");
+      parts.push(`--allowedTools ${shellQuote(allowedTools)}`);
     } else {
       parts.push('--tools ""');
     }

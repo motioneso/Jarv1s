@@ -41,6 +41,7 @@ import type { AiProviderExecutionMode } from "@jarv1s/shared";
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
 // Re-export the login MUX-session helpers (extracted to ./login-mux-sessions.ts to keep this file
 // under the 1000-line cap) so existing `from "./cli-chat-engine.js"` import sites are unchanged.
@@ -482,7 +483,8 @@ export class CliChatEngineImpl implements CliChatEngine {
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
       parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
-      parts.push('--allowedTools "mcp__jarvis__*"');
+      const allowedTools = ["mcp__jarvis__*", ...vaultReadOnlyToolPatterns()].join(" ");
+      parts.push(`--allowedTools ${shellQuote(allowedTools)}`);
     } else {
       parts.push('--tools ""');
     }

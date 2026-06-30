@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
 
@@ -120,5 +120,113 @@ describe("ClaudePrintChatEngine", () => {
     expect(result.records).toEqual([{ kind: "reply", text: "claude print ok" }]);
     expect(result.complete).toBe(true);
     expect(result.offset).toBe(`${transcript}\n`.length);
+  });
+});
+
+describe("ClaudePrintChatEngine — vault read-only allowlist (#634)", () => {
+  const ROOTS_VAR = "JARVIS_NOTES_ROOTS";
+  const originalRoots = process.env[ROOTS_VAR];
+
+  afterEach(() => {
+    if (originalRoots === undefined) delete process.env[ROOTS_VAR];
+    else process.env[ROOTS_VAR] = originalRoots;
+  });
+
+  it("ALLOW: pre-approves Read/Glob/Grep scoped to the configured vault mount", async () => {
+    process.env[ROOTS_VAR] = "/data/external-notes";
+    const io = fakeIo();
+    const mux = fakeMux();
+    const engine = new ClaudePrintChatEngine("user-1", io, {
+      mux,
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000002"
+    });
+
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+    await engine.submit("hello");
+
+    expect(mux.opened[0]).toContain("Read(/data/external-notes/**)");
+    expect(mux.opened[0]).toContain("Glob(/data/external-notes/**)");
+    expect(mux.opened[0]).toContain("Grep(/data/external-notes/**)");
+    expect(mux.opened[0]).toContain("mcp__jarvis__*");
+  });
+
+  it("DENY: no vault patterns are granted when no vault is mounted (no roots configured)", async () => {
+    delete process.env[ROOTS_VAR];
+    const io = fakeIo();
+    const mux = fakeMux();
+    const engine = new ClaudePrintChatEngine("user-1", io, {
+      mux,
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000003"
+    });
+
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+    await engine.submit("hello");
+
+    expect(mux.opened[0]).not.toContain("Read(");
+    expect(mux.opened[0]).not.toContain("Glob(");
+    expect(mux.opened[0]).not.toContain("Grep(");
+    expect(mux.opened[0]).toContain("mcp__jarvis__*");
+  });
+
+  it("DENY: never grants write or execute tools, even with a vault configured", async () => {
+    process.env[ROOTS_VAR] = "/data/external-notes";
+    const io = fakeIo();
+    const mux = fakeMux();
+    const engine = new ClaudePrintChatEngine("user-1", io, {
+      mux,
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000004"
+    });
+
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+    await engine.submit("hello");
+
+    expect(mux.opened[0]).not.toMatch(/\bWrite\b/);
+    expect(mux.opened[0]).not.toMatch(/\bEdit\b/);
+    expect(mux.opened[0]).not.toMatch(/\bBash\b/);
+  });
+
+  it("DENY: a malicious root cannot smuggle a separate Bash(* tool grant (security fix)", async () => {
+    process.env[ROOTS_VAR] = "/vault) Bash(*";
+    const io = fakeIo();
+    const mux = fakeMux();
+    const engine = new ClaudePrintChatEngine("user-1", io, {
+      mux,
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000005"
+    });
+
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+    await engine.submit("hello");
+
+    expect(mux.opened[0]).not.toMatch(/\bBash\b/);
+    expect(mux.opened[0]).not.toContain("Read(/vault)");
+    expect(mux.opened[0]).toContain("mcp__jarvis__*");
   });
 });
