@@ -1,10 +1,11 @@
 import { normalize } from "node:path";
 
-// Restricted charset: no "(", ")", or whitespace — those let a root break out of its own Tool(pattern) slot (smuggling e.g. a Bash(* grant) when space-joined into --allowedTools.
-const VAULT_ROOT_CHARSET = /^\/[\w.-][\w./-]*$|^\/$/;
+// Restricted charset: no "(", ")", or whitespace — those let a root break out of its own Tool(pattern) slot (smuggling e.g. a Bash(* grant) when space-joined into --allowedTools. Requires at least one char after the leading "/", so bare "/" never matches.
+const VAULT_ROOT_CHARSET = /^\/[\w.-][\w./-]*$/;
 
-/** Fail-closed: reject a JARVIS_NOTES_ROOTS entry unless it's a clean, normalized absolute path with no "..", "(", ")", or whitespace. */
+/** Fail-closed: reject a JARVIS_NOTES_ROOTS entry unless it's a clean, normalized absolute path with no "..", "(", ")", whitespace, and is not the filesystem root itself. */
 function isValidVaultRoot(root: string): boolean {
+  if (root === "/") return false;
   if (!VAULT_ROOT_CHARSET.test(root)) return false;
   if (root.includes("..")) return false;
   if (root.length > 1 && root.endsWith("/")) return false;

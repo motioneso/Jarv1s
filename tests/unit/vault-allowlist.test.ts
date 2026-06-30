@@ -52,6 +52,11 @@ describe("vaultReadOnlyToolPatterns — fail-closed root validation (#634 securi
     expect(vaultReadOnlyToolPatterns()).toEqual([]);
   });
 
+  it("DENY: rejects a bare '/' root (filesystem-root scope, Pam re-review)", () => {
+    process.env[ROOTS_VAR] = "/";
+    expect(vaultReadOnlyToolPatterns()).toEqual([]);
+  });
+
   it("mixed input: drops only the malicious entry, keeps the valid one", () => {
     process.env[ROOTS_VAR] = "/data/external-notes,/vault) Bash(*";
     expect(vaultReadOnlyToolPatterns()).toEqual([
