@@ -185,12 +185,12 @@ export const connectorsModuleManifest = {
     },
     {
       method: "POST",
-      path: "/api/connectors/proton/connect",
+      path: "/api/connectors/imap/connect",
       permissionId: "connectors.manage"
     },
     {
       method: "POST",
-      path: "/api/connectors/proton/test-connection",
+      path: "/api/connectors/imap/test-connection",
       permissionId: "connectors.manage"
     }
   ],

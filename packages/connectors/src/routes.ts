@@ -18,11 +18,11 @@ import {
   googleAuthorizeRouteSchema,
   googleCompleteRouteSchema,
   googleSyncRouteSchema,
+  imapConnectRouteSchema,
+  imapTestRouteSchema,
   listAdminConnectorAccountsRouteSchema,
   listConnectorAccountsRouteSchema,
   listConnectorProvidersRouteSchema,
-  protonConnectRouteSchema,
-  protonTestConnectionRouteSchema,
   putFeatureGrantsRouteSchema,
   parsePositiveIntEnv,
   revokeConnectorAccountRouteSchema,
@@ -32,7 +32,7 @@ import {
   type CreateConnectorAccountRequest,
   type GoogleAuthorizeRequest,
   type GoogleCompleteRequest,
-  type ProtonConnectRequest,
+  type ImapConnectRequest,
   type UpdateFeatureGrantsRequest,
   type UpdateConnectorAccountRequest
 } from "@jarv1s/shared";
@@ -46,13 +46,9 @@ import {
   resolveEffectiveGrants
 } from "./feature-grants.js";
 import { GoogleConnectionService, GoogleConnectError } from "./google-connection.js";
+import { ImapConnectError, ImapConnectionService } from "./imap-connection.js";
+import { LiveImapProbeClient } from "./imap-probe-client.js";
 import { GoogleOAuthClient } from "./oauth.js";
-import {
-  ImapBridgeProbeClient,
-  ProtonBridgeConnectError,
-  ProtonBridgeConnectionService,
-  type ProtonBridgeTlsMode
-} from "./proton-bridge-connection.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
 import { GOOGLE_SYNC_QUEUE } from "./sync-jobs.js";
 
@@ -64,7 +60,7 @@ export interface ConnectorsRoutesDependencies {
   readonly preferencesRepository?: PreferencesRepository;
   readonly secretCipher?: ConnectorSecretCipher;
   readonly googleService?: GoogleConnectionService;
-  readonly protonService?: ProtonBridgeConnectionService;
+  readonly imapService?: ImapConnectionService;
 }
 
 interface AccountParams {
@@ -85,12 +81,12 @@ export function registerConnectorsRoutes(
       cipher: secretCipher,
       oauthClient: new GoogleOAuthClient()
     });
-  const protonService =
-    dependencies.protonService ??
-    new ProtonBridgeConnectionService({
+  const imapService =
+    dependencies.imapService ??
+    new ImapConnectionService({
       repository,
       cipher: secretCipher,
-      probeClient: new ImapBridgeProbeClient()
+      probeClient: new LiveImapProbeClient()
     });
 
   server.post(
@@ -187,21 +183,19 @@ export function registerConnectorsRoutes(
   );
 
   server.post(
-    "/api/connectors/proton/connect",
-    { schema: protonConnectRouteSchema },
+    "/api/connectors/imap/connect",
+    { schema: imapConnectRouteSchema },
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const body = request.body as ProtonConnectRequest;
+        const body = request.body as ImapConnectRequest;
         const input = {
-          host: requiredString(body.host, "host"),
-          port: requiredPort(body.port, "port"),
+          providerId: requiredString(body.providerId, "providerId"),
           username: requiredString(body.username, "username"),
-          appPassword: requiredString(body.appPassword, "appPassword"),
-          tlsMode: requiredTlsMode(body.tlsMode, "tlsMode")
+          password: requiredString(body.password, "password")
         };
         const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          protonService.connect(scopedDb, input)
+          imapService.connect(scopedDb, input)
         );
         return reply.code(201).send({ account: serializeAccount(account) });
       } catch (error) {
@@ -211,15 +205,19 @@ export function registerConnectorsRoutes(
   );
 
   server.post(
-    "/api/connectors/proton/test-connection",
-    { schema: protonTestConnectionRouteSchema },
+    "/api/connectors/imap/test-connection",
+    { schema: imapTestRouteSchema },
     async (request, reply) => {
       try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          protonService.testConnection(scopedDb)
-        );
-        return reply.code(200).send({ account: serializeAccount(account) });
+        await dependencies.resolveAccessContext(request);
+        const body = request.body as ImapConnectRequest;
+        const input = {
+          providerId: requiredString(body.providerId, "providerId"),
+          username: requiredString(body.username, "username"),
+          password: requiredString(body.password, "password")
+        };
+        const result = await imapService.testConnection(input);
+        return reply.code(200).send(result);
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -523,9 +521,7 @@ function serializeAccount(account: ConnectorAccountSafeRow): ConnectorAccountDto
     lastSyncFinishedAt: serializeNullableDate(account.last_sync_finished_at),
     lastSyncStatus: account.last_sync_status,
     lastSyncError: account.last_sync_error,
-    lastSyncCounts: account.last_sync_counts,
-    connectionHealthStatus: account.connection_health_status,
-    connectionHealthCheckedAt: serializeNullableDate(account.connection_health_checked_at)
+    lastSyncCounts: account.last_sync_counts
   };
 }
 
@@ -592,22 +588,6 @@ function optionalWritableAccountStatus(
   throw new HttpError(400, "status must be active or error");
 }
 
-function requiredPort(value: unknown, fieldName: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 65535) {
-    throw new HttpError(400, `${fieldName} must be an integer between 1 and 65535`);
-  }
-
-  return value;
-}
-
-function requiredTlsMode(value: unknown, fieldName: string): ProtonBridgeTlsMode {
-  if (value === "strict" || value === "insecure") {
-    return value;
-  }
-
-  throw new HttpError(400, `${fieldName} must be "strict" or "insecure"`);
-}
-
 function serializeNullableDate(value: Date | string | null): string | null {
   if (!value) {
     return null;
@@ -628,7 +608,7 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
           ? r.code(e.statusCode).send({ error: e.message })
           : undefined,
       (e, r) =>
-        e instanceof ProtonBridgeConnectError
+        e instanceof ImapConnectError
           ? r.code(e.statusCode).send({ error: e.message })
           : undefined
     ],
