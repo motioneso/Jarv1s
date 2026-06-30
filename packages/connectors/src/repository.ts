@@ -6,7 +6,6 @@ import {
   assertDataContextDb,
   type ConnectorAccountStatus,
   type ConnectorAccountsTable,
-  type ConnectorConnectionHealthStatus,
   type ConnectorProvider,
   type ConnectorProviderStatus,
   type ConnectorProviderType,
@@ -18,7 +17,6 @@ import type { ConnectorSyncCounts } from "@jarv1s/shared";
 import type { EncryptedConnectorSecret } from "./crypto.js";
 
 export const GOOGLE_PROVIDER_ID = "google";
-export const PROTON_PROVIDER_ID = "proton-bridge";
 
 export interface GooglePendingRow {
   readonly id: string;
@@ -44,8 +42,6 @@ export interface ConnectorAccountSafeRow {
   readonly last_sync_status: ConnectorSyncStatus | null;
   readonly last_sync_error: string | null;
   readonly last_sync_counts: ConnectorSyncCounts | null;
-  readonly connection_health_status: ConnectorConnectionHealthStatus | null;
-  readonly connection_health_checked_at: Date | null;
 }
 
 export interface CreateConnectorAccountInput {
@@ -336,15 +332,20 @@ export class ConnectorsRepository {
     return { id: row.id, encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret };
   }
 
-  async upsertProtonAccount(
+  /**
+   * Upsert a generic-IMAP account keyed by providerId (one of the IMAP_PRESETS keys),
+   * unlike upsertGoogleAccount whose providerId is a single fixed constant — IMAP has
+   * one row per preset the actor has connected.
+   */
+  async upsertImapAccount(
     scopedDb: DataContextDb,
-    input: { encryptedSecret: EncryptedConnectorSecret }
+    input: { providerId: string; encryptedSecret: EncryptedConnectorSecret }
   ): Promise<ConnectorAccountSafeRow> {
     assertDataContextDb(scopedDb);
     const existing = await scopedDb.db
       .selectFrom("app.connector_accounts")
       .select("id")
-      .where("provider_id", "=", PROTON_PROVIDER_ID)
+      .where("provider_id", "=", input.providerId)
       .executeTakeFirst();
     if (existing) {
       const updated = await this.updateAccount(scopedDb, existing.id, {
@@ -352,52 +353,15 @@ export class ConnectorsRepository {
         status: "active",
         encryptedSecret: input.encryptedSecret
       });
-      if (!updated) throw new Error("Failed to update proton-bridge account");
+      if (!updated) throw new Error("Failed to update imap account");
       return updated;
     }
     return this.createAccount(scopedDb, {
-      providerId: PROTON_PROVIDER_ID,
+      providerId: input.providerId,
       scopes: [],
       status: "active",
       encryptedSecret: input.encryptedSecret
     });
-  }
-
-  async getActiveProtonAccountSecret(
-    scopedDb: DataContextDb
-  ): Promise<{ id: string; encryptedSecret: EncryptedConnectorSecret } | undefined> {
-    assertDataContextDb(scopedDb);
-    const row = await scopedDb.db
-      .selectFrom("app.connector_accounts")
-      .select(["id", "encrypted_secret"])
-      .where("provider_id", "=", PROTON_PROVIDER_ID)
-      .where("status", "=", "active")
-      .executeTakeFirst();
-    if (!row) return undefined;
-    return { id: row.id, encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret };
-  }
-
-  /**
-   * Stamp the outcome of a connection probe (connect or test-connection). Distinct from
-   * markSyncFinished: this is a connection-health probe result, not a sync-job outcome,
-   * and it returns the refreshed row since the route responds with the account immediately.
-   */
-  async recordConnectionHealth(
-    scopedDb: DataContextDb,
-    accountId: string,
-    input: { status: ConnectorConnectionHealthStatus; checkedAt: Date }
-  ): Promise<ConnectorAccountSafeRow> {
-    assertDataContextDb(scopedDb);
-    await scopedDb.db
-      .updateTable("app.connector_accounts")
-      .set({
-        connection_health_status: input.status,
-        connection_health_checked_at: input.checkedAt,
-        updated_at: input.checkedAt
-      })
-      .where("id", "=", accountId)
-      .execute();
-    return this.requireVisibleAccount(scopedDb, accountId);
   }
 
   /**
@@ -466,9 +430,7 @@ export class ConnectorsRepository {
         "accounts.last_sync_finished_at as last_sync_finished_at",
         "accounts.last_sync_status as last_sync_status",
         "accounts.last_sync_error as last_sync_error",
-        "accounts.last_sync_counts as last_sync_counts",
-        "accounts.connection_health_status as connection_health_status",
-        "accounts.connection_health_checked_at as connection_health_checked_at"
+        "accounts.last_sync_counts as last_sync_counts"
       ])
       .orderBy("accounts.created_at", "desc")
       .orderBy("accounts.id");
