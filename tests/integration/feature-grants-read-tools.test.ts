@@ -198,10 +198,10 @@ async function seedGrantsTestData(): Promise<void> {
   await client.connect();
   try {
     await client.query(
-      `INSERT INTO app.connector_accounts (id, provider_id, owner_user_id, scopes, status, encrypted_secret)
-       VALUES ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', '{}'::jsonb),
-              ($3, 'google-calendar', $2, ARRAY['https://www.googleapis.com/auth/calendar']::text[], 'active', '{}'::jsonb),
-              ($4, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'revoked', '{}'::jsonb)`,
+      `INSERT INTO app.connector_accounts (id, provider_id, owner_user_id, scopes, status, revoked_at, encrypted_secret)
+       VALUES ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', NULL, '{}'::jsonb),
+              ($3, 'google-calendar', $2, ARRAY['https://www.googleapis.com/auth/calendar']::text[], 'active', NULL, '{}'::jsonb),
+              ($4, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'revoked', now(), '{}'::jsonb)`,
       [ACCOUNT_EMAIL, ids.userA, ACCOUNT_CALENDAR, ACCOUNT_REVOKED]
     );
   } finally {
