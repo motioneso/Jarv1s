@@ -26,6 +26,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { EmailRepository, emailListVisibleMessagesExecute } from "@jarv1s/email";
 import { calendarListVisibleEventsExecute } from "@jarv1s/calendar";
+import { buildFeatureGrantService, ConnectorsRepository } from "@jarv1s/connectors";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -33,6 +34,7 @@ const { Client } = pg;
 
 const ACCOUNT_EMAIL = "70000000-0000-4000-8000-000000000001";
 const ACCOUNT_CALENDAR = "70000000-0000-4000-8000-000000000002";
+const ACCOUNT_REVOKED = "70000000-0000-4000-8000-000000000003";
 
 function granted(accountId: string) {
   return { featureGrants: { grantedAccountIds: async () => new Set([accountId]) } };
@@ -161,6 +163,34 @@ describe("Feature-grants read-tool filtering", () => {
       )
     ).rejects.toThrow("featureGrants service is not available");
   });
+
+  // ── buildFeatureGrantService status guard (regression: revoked accounts leaked) ──
+
+  describe("buildFeatureGrantService revoked-status guard", () => {
+    it("excludes revoked-status accounts even when scope+default-on would grant them", async () => {
+      // Real ConnectorsRepository returns all 3 accounts (active email, active calendar, revoked).
+      // Mock prefs returns null for all → default-on semantics (no pref row = granted if scoped).
+      // Old code (no status filter): ACCOUNT_REVOKED would appear in the granted set.
+      // New code: status !== "active" check drops it before resolveEffectiveGrants runs.
+      const service = buildFeatureGrantService({
+        connectorsRepository: new ConnectorsRepository(),
+        preferencesRepository: { get: async () => null }
+      });
+
+      const grantedEmail = await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "r:revoked-guard-email" },
+        (scopedDb) => service.grantedAccountIds(scopedDb, "email")
+      );
+      expect(grantedEmail.has(ACCOUNT_REVOKED)).toBe(false);
+      expect(grantedEmail.has(ACCOUNT_EMAIL)).toBe(true);
+
+      const grantedCal = await dataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "r:revoked-guard-cal" },
+        (scopedDb) => service.grantedAccountIds(scopedDb, "calendar")
+      );
+      expect(grantedCal.has(ACCOUNT_REVOKED)).toBe(false);
+    });
+  });
 });
 
 async function seedGrantsTestData(): Promise<void> {
@@ -170,8 +200,9 @@ async function seedGrantsTestData(): Promise<void> {
     await client.query(
       `INSERT INTO app.connector_accounts (id, provider_id, owner_user_id, scopes, status, encrypted_secret)
        VALUES ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', '{}'::jsonb),
-              ($3, 'google-calendar', $2, ARRAY['https://www.googleapis.com/auth/calendar']::text[], 'active', '{}'::jsonb)`,
-      [ACCOUNT_EMAIL, ids.userA, ACCOUNT_CALENDAR]
+              ($3, 'google-calendar', $2, ARRAY['https://www.googleapis.com/auth/calendar']::text[], 'active', '{}'::jsonb),
+              ($4, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'revoked', '{}'::jsonb)`,
+      [ACCOUNT_EMAIL, ids.userA, ACCOUNT_CALENDAR, ACCOUNT_REVOKED]
     );
   } finally {
     await client.end();

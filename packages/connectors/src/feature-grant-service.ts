@@ -31,6 +31,7 @@ export function buildFeatureGrantService(deps: {
       const accounts = await deps.connectorsRepository.listAccounts(scopedDb);
       const ids = new Set<string>();
       for (const account of accounts) {
+        if (account.status !== "active") continue; // revoked/error accounts never granted
         const stored = await deps.preferencesRepository.get(
           scopedDb,
           featureGrantsPrefKey(account.id)
