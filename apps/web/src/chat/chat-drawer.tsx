@@ -25,6 +25,7 @@ import {
   listChatThreadMessages,
   listChatThreads,
   listTasks,
+  lookupAiCapabilityRoute,
   resumeChat,
   sendChatTurn
 } from "../api/client";
@@ -128,6 +129,13 @@ export function ChatDrawer(props: {
     enabled: props.open,
     retry: false
   });
+  const chatRouteQuery = useQuery({
+    queryKey: queryKeys.ai.capability("chat"),
+    queryFn: () => lookupAiCapabilityRoute("chat"),
+    enabled: props.open,
+    retry: false
+  });
+  const lockedModelUnavailable = chatRouteQuery.data?.route?.reason === "admin-pin-unavailable";
   const chatAvailable = hasConnectedProvider(onboardingStatusQuery.data);
   const threadsQuery = useQuery({
     queryKey: queryKeys.chat.threads,
@@ -381,6 +389,7 @@ export function ChatDrawer(props: {
         isSending={isSending}
         sendError={sendError}
         needsProvider={needsProvider}
+        lockedModelUnavailable={lockedModelUnavailable}
         onSend={sendMessage}
         onStop={stopSending}
       />
@@ -811,6 +820,7 @@ function Composer(props: {
   readonly isSending: boolean;
   readonly sendError: string | null;
   readonly needsProvider: boolean;
+  readonly lockedModelUnavailable: boolean;
   readonly onSend: (text: string) => void;
   readonly onStop: (queuedText: string | null) => void;
 }) {
@@ -856,21 +866,35 @@ function Composer(props: {
   return (
     <div className="chatd__composer">
       {props.needsProvider ? <ConnectProviderEmpty isFounder={props.isFounder} /> : null}
+      {props.lockedModelUnavailable ? (
+        <p className="chatd-lock-warn">
+          The locked chat model is unavailable. Contact your admin or go to <b>Settings → AI</b> to
+          re-enable it or clear the lock.
+        </p>
+      ) : null}
       {props.sendError ? <p className="form-error">{props.sendError}</p> : null}
       <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
         <textarea
           aria-label="Message Jarvis"
-          disabled={props.readOnly}
+          disabled={props.readOnly || props.lockedModelUnavailable}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={props.readOnly ? "Read-only history" : "Message Jarvis…"}
+          placeholder={
+            props.lockedModelUnavailable
+              ? "Chat locked — model unavailable"
+              : props.readOnly
+                ? "Read-only history"
+                : "Message Jarvis…"
+          }
           rows={1}
           value={text}
         />
         <button
           aria-label={props.isSending ? "Stop generating" : "Send"}
           className="chatd-send"
-          disabled={props.readOnly || (!props.isSending && !text.trim())}
+          disabled={
+            props.readOnly || props.lockedModelUnavailable || (!props.isSending && !text.trim())
+          }
           title={props.isSending ? "Stop" : "Send"}
           type="button"
           onClick={props.isSending ? stop : send}

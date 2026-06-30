@@ -4,6 +4,7 @@ import {
   Globe,
   KeyRound,
   MinusCircle,
+  Pencil,
   Plus,
   RefreshCw,
   Sparkles,
@@ -38,6 +39,8 @@ import { EmbeddingConfigGroup } from "./settings-embedding-config-group";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
+import { EditModelForm } from "./settings-ai-edit-model-form";
+import { ChatLockGroup } from "./settings-ai-chat-lock-group";
 import type {
   AiAuthMethod,
   AiConfiguredModelDto,
@@ -107,14 +110,21 @@ const ROUTER_CAPABILITIES: readonly { k: AiModelCapability; name: string; desc: 
 
 function ModelLine(props: {
   readonly model: AiConfiguredModelDto;
+  readonly isEditing: boolean;
+  readonly onEdit: () => void;
   readonly onOverrideChange: (model: AiConfiguredModelDto, allowed: boolean) => void;
+  readonly onStatusChange: (model: AiConfiguredModelDto, status: "active" | "disabled") => void;
 }) {
   const { model } = props;
   const tier = TIERS[model.tier];
   const isChatModel = model.capabilities.includes("chat");
+  const isDisabled = model.status === "disabled";
   return (
-    <div className="mdl">
-      <div className="mdl__id">{model.providerModelId}</div>
+    <div className={`mdl${isDisabled ? " mdl--disabled" : ""}`}>
+      <div className="mdl__id">
+        {model.providerModelId}
+        {isDisabled ? <span className="mdl__off">off</span> : null}
+      </div>
       <span className={`tier tier--${model.tier}`} title={tier.hint}>
         {tier.label}
       </span>
@@ -132,6 +142,24 @@ function ModelLine(props: {
           onChange={(allowed) => props.onOverrideChange(model, allowed)}
         />
       ) : null}
+      <button
+        type="button"
+        className={`mdl__edit-btn${props.isEditing ? " is-active" : ""}`}
+        title="Edit model"
+        aria-label={`Edit ${model.displayName}`}
+        onClick={props.onEdit}
+      >
+        <Pencil size={12} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="mdl__toggle-btn"
+        title={isDisabled ? "Enable model" : "Disable model"}
+        aria-label={isDisabled ? `Enable ${model.displayName}` : `Disable ${model.displayName}`}
+        onClick={() => props.onStatusChange(model, isDisabled ? "active" : "disabled")}
+      >
+        <MinusCircle size={12} aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -240,11 +268,16 @@ function ProviderCard(props: {
   readonly onExecutionMode: (id: string, executionMode: AiProviderExecutionMode) => void;
   readonly onCredential: (id: string, input: { baseUrl: string; apiKey: string }) => void;
   readonly onModelOverride: (model: AiConfiguredModelDto, allowed: boolean) => void;
+  readonly onModelStatusChange: (
+    model: AiConfiguredModelDto,
+    status: "active" | "disabled"
+  ) => void;
   readonly onRemove: () => void;
 }) {
   const { provider } = props;
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
+  const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [discovered, setDiscovered] = useState<AiDiscoverModelsResponse | null>(null);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
@@ -458,7 +491,18 @@ function ProviderCard(props: {
         <div className="prov__modellist">
           {props.models.length ? (
             props.models.map((m) => (
-              <ModelLine key={m.id} model={m} onOverrideChange={props.onModelOverride} />
+              <div key={m.id}>
+                <ModelLine
+                  model={m}
+                  isEditing={editingModelId === m.id}
+                  onEdit={() => setEditingModelId((cur) => (cur === m.id ? null : m.id))}
+                  onOverrideChange={props.onModelOverride}
+                  onStatusChange={props.onModelStatusChange}
+                />
+                {editingModelId === m.id ? (
+                  <EditModelForm model={m} onClose={() => setEditingModelId(null)} />
+                ) : null}
+              </div>
             ))
           ) : (
             <div className="prov__synced" style={{ marginTop: 0 }}>
@@ -793,6 +837,16 @@ export function AiProvidersPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const modelStatusMutation = useMutation({
+    mutationFn: (input: { model: AiConfiguredModelDto; status: "active" | "disabled" }) =>
+      updateAiModel(input.model.id, { status: input.status }),
+    onSuccess: (_data, input) => {
+      void invalidate();
+      const label = input.status === "disabled" ? "Model disabled" : "Model enabled";
+      toast(label, { icon: <MinusCircle size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
 
   return (
     <>
@@ -874,6 +928,9 @@ export function AiProvidersPane() {
                 onModelOverride={(model, allowed) =>
                   modelOverrideMutation.mutate({ model, allowed })
                 }
+                onModelStatusChange={(model, status) =>
+                  modelStatusMutation.mutate({ model, status })
+                }
                 onRemove={() =>
                   confirm({
                     title: `Remove ${provider.displayName}?`,
@@ -931,6 +988,7 @@ export function AiProvidersPane() {
           ))}
         </Group>
       ) : null}
+      <ChatLockGroup />
       <EmbeddingConfigGroup />
       <WebSearchKeyGroup />
       <Note icon={<Sparkles size={13} />}>
