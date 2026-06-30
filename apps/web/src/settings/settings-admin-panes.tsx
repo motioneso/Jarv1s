@@ -47,6 +47,7 @@ import {
   createAdminUserPolicyContext,
   type AdminUserAction
 } from "./settings-admin-policy";
+import { getConnectorAccountHealth } from "./settings-connector-sync";
 import { useFeedback } from "./settings-feedback";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import { MarkdownMessage } from "../chat/markdown-message";
@@ -719,24 +720,7 @@ export function OversightPane() {
               // Health now derives from durable sync outcome, not just `status`. Revoked wins;
               // a partial run shows "Partial"; a failed run or an error status needs attention;
               // otherwise healthy. The bounded error label shows only for partial/failed.
-              const health =
-                account.status === "revoked"
-                  ? { label: "Revoked", tone: "neutral" as const, indicator: "idle" as const }
-                  : account.lastSyncStatus === "partial"
-                    ? { label: "Partial", tone: "amber" as const, indicator: "error" as const }
-                    : account.lastSyncStatus === "failed" || account.status === "error"
-                      ? {
-                          label: "Needs attention",
-                          tone: "amber" as const,
-                          indicator: "error" as const
-                        }
-                      : account.lastSyncStatus === null
-                        ? {
-                            label: "Awaiting first sync",
-                            tone: "neutral" as const,
-                            indicator: "idle" as const
-                          }
-                        : { label: "Healthy", tone: "pine" as const, indicator: "ready" as const };
+              const health = getConnectorAccountHealth(account);
               const lastFinished = account.lastSyncFinishedAt
                 ? formatTimestamp(account.lastSyncFinishedAt, account.lastSyncFinishedAt)
                 : null;
@@ -756,7 +740,7 @@ export function OversightPane() {
                     {errorLabel ? ` · ${errorLabel}` : ""}
                   </div>
                   <div className="cono__err">
-                    <Badge tone={health.tone} dot={health.tone !== "amber"}>
+                    <Badge tone={health.badgeTone} dot={health.badgeTone !== "amber"}>
                       {health.label}
                     </Badge>
                     {account.status !== "revoked" && account.providerType === "google" && (
