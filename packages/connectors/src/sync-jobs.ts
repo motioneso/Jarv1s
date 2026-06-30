@@ -26,7 +26,8 @@ import {
 import { decryptGoogleConnectionSecret, GoogleConnectionService } from "./google-connection.js";
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
-import { extractEmailSignals, parseEmail, type EmailExtractDeps } from "./email-extract.js";
+import { extractEmailSignals, type EmailExtractDeps } from "./email-extract.js";
+import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provider.js";
 
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
 
@@ -411,11 +412,12 @@ export async function runGoogleSync(
     isFeatureGranted(featureGrants, "email")
   ) {
     try {
-      const stubs = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-        deps.googleClient.listMessageIds({ accessToken: token, query: EMAIL_QUERY })
+      const emailReadProvider = new GoogleEmailReadProvider(deps.googleClient, EMAIL_QUERY);
+      const keys = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+        emailReadProvider.listMessageKeys(token, GMAIL_READ_FOLDER)
       );
-      const capped = stubs.slice(0, EMAIL_MESSAGE_CAP);
-      if (stubs.length > capped.length) truncated = true;
+      const capped = keys.slice(0, EMAIL_MESSAGE_CAP);
+      if (keys.length > capped.length) truncated = true;
 
       // Skip-unchanged: external_metadata.historyId (Gmail per-message revision marker)
       // lets us avoid re-summarizing messages whose content hasn't changed since the last
@@ -427,12 +429,11 @@ export async function runGoogleSync(
         existing.map((r) => [r.externalId, { historyId: r.historyId, hasSummary: r.hasSummary }])
       );
 
-      for (const stub of capped) {
+      for (const key of capped) {
         try {
-          const full = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-            deps.googleClient.getMessage({ accessToken: token, id: stub.id })
+          const parsed = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+            emailReadProvider.getMessage(token, key)
           );
-          const parsed = parseEmail(full);
           // Skip the (costly) LLM pass + re-upsert ONLY when this message's historyId is
           // unchanged AND a usable summary is already stored. A null-summary prior row (no model
           // at first sync, or a failed extraction) is intentionally NOT skipped, so it gets a
