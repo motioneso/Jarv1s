@@ -246,10 +246,17 @@ export function ChatDrawer(props: {
   const isWaiting = !reviewing && (isSending || pendingUserText !== null);
 
   // #633: switching what's displayed (new chat, opening a history row, toggling the history
-  // list) always re-pins to the bottom of the newly-shown content.
+  // list, or the drawer itself (re)opening — #638) always re-pins to the bottom of the
+  // newly-shown content. Scrolls directly here (rather than relying solely on the effect below)
+  // because the drawer renders null while closed — bodyRef only attaches once `open` flips back
+  // to true, and the stickToBottom state set above wouldn't be visible to the other effect until
+  // a subsequent render.
   useEffect(() => {
     setStickToBottom(true);
-  }, [reviewThreadId, showHistory]);
+    if (props.open) {
+      scrollToLatest("auto");
+    }
+  }, [reviewThreadId, showHistory, props.open, scrollToLatest]);
 
   // #633: jump straight to the bottom (no animation) whenever a new record/loading indicator
   // lands while the user hasn't scrolled away.

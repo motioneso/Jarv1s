@@ -412,6 +412,54 @@ test("does not inject executable HTML from untrusted markdown", async ({ page })
   ).toBeUndefined();
 });
 
+test("#638: reopening the drawer scrolls to the newest message, not the top", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  // Enough records to overflow the drawer body so a fresh (top-scrolled) mount is
+  // visibly distinguishable from a bottom-pinned one.
+  const events = Array.from(
+    { length: 30 },
+    (_, i) => `data: ${JSON.stringify({ kind: "reply", text: `Message number ${i}` })}\n\n`
+  ).join("");
+  let streamServed = false;
+  await page.route("**/api/chat/stream", async (route) => {
+    if (streamServed) {
+      return; // hold reconnect open; no replay
+    }
+    streamServed = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body: events
+    });
+  });
+
+  await page.goto("/");
+
+  const navToggle = page.getByRole("button", { name: "Chat with Jarvis" });
+  await navToggle.click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText("Message number 29")).toBeVisible();
+
+  // Close, then reopen — the drawer unmounts its scroll container while closed (renders
+  // null), so a fresh mount must re-pin to the newest message rather than starting at the top.
+  await navToggle.click();
+  await expect(drawer).toBeHidden();
+  await navToggle.click();
+  await expect(drawer).toBeVisible();
+
+  await expect(drawer.getByText("Message number 29")).toBeInViewport();
+});
+
 test("renders a large markdown reply without error", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
