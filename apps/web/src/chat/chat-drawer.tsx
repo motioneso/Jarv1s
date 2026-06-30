@@ -326,7 +326,11 @@ export function ChatDrawer(props: {
         ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
           <ConnectProviderEmpty isFounder={props.isFounder} />
         ) : (
-          <EmptyState onSend={sendMessage} isSending={isSending} />
+          <EmptyState
+            onSend={sendMessage}
+            isSending={isSending}
+            lockedModelUnavailable={lockedModelUnavailable}
+          />
         )}
         {isWaiting ? (
           <div className="chatd-loading" aria-live="polite" aria-label="Jarvis is thinking">
@@ -765,6 +769,7 @@ function formatShortDate(value: string, locale: LocaleSettingsDto): string {
 function EmptyState(props: {
   readonly onSend: (text: string) => void;
   readonly isSending: boolean;
+  readonly lockedModelUnavailable: boolean;
 }) {
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const eventsQuery = useQuery({
@@ -792,7 +797,7 @@ function EmptyState(props: {
         {seeds.map((seed) => (
           <button
             className="chatd-sugg__btn"
-            disabled={props.isSending}
+            disabled={props.isSending || props.lockedModelUnavailable}
             key={seed}
             type="button"
             onClick={() => props.onSend(seed)}
