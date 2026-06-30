@@ -19,6 +19,9 @@ import type {
   GetWebSearchKeyResponse,
   PutWebSearchKeyRequest,
   PutWebSearchKeyResponse,
+  PutYoloSelfRequest,
+  PutYoloInstanceRequest,
+  PutYoloUserRequest,
   DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
   GetAiSummaryResponse,
@@ -130,7 +133,9 @@ import type {
   PutActiveThemeRequest,
   PutCustomThemeRequest,
   PutCustomThemeResponse,
-  ListActionAuditLogResponse
+  ListActionAuditLogResponse,
+  YoloSettingsResponse,
+  YoloAdminSettingsResponse
 } from "@jarv1s/shared";
 
 export interface SignUpEmailRequest {
@@ -172,6 +177,14 @@ export async function updateMyProfile(body: PatchMeProfileRequest): Promise<MeRe
     method: "PATCH",
     body
   });
+}
+
+export async function getYoloSettings(): Promise<YoloSettingsResponse> {
+  return requestJson<YoloSettingsResponse>("/api/me/yolo");
+}
+
+export async function putYoloSelf(input: PutYoloSelfRequest): Promise<YoloSettingsResponse> {
+  return requestJson<YoloSettingsResponse>("/api/me/yolo", { method: "PUT", body: input });
 }
 
 export async function listMySessions(): Promise<ListMySessionsResponse> {
@@ -828,6 +841,36 @@ export async function putAdminChatModelOverrideEnabled(
     method: "PUT",
     body: input
   });
+}
+
+export async function getAdminYoloSettings(): Promise<YoloAdminSettingsResponse> {
+  return requestJson<YoloAdminSettingsResponse>("/api/admin/yolo");
+}
+
+export async function putAdminYoloInstance(
+  input: PutYoloInstanceRequest
+): Promise<YoloAdminSettingsResponse> {
+  return requestJson<YoloAdminSettingsResponse>("/api/admin/yolo/instance", {
+    method: "PUT",
+    body: input
+  });
+}
+
+export async function putAdminYoloUser(
+  userId: string,
+  input: PutYoloUserRequest
+): Promise<YoloAdminSettingsResponse> {
+  return requestJson<YoloAdminSettingsResponse>(
+    `/api/admin/yolo/users/${encodeURIComponent(userId)}`,
+    {
+      method: "PUT",
+      body: input
+    }
+  );
+}
+
+export async function postAdminYoloAllowAll(): Promise<YoloAdminSettingsResponse> {
+  return requestJson<YoloAdminSettingsResponse>("/api/admin/yolo/allow-all", { method: "POST" });
 }
 
 export async function listAiAssistantTools(): Promise<ListAiAssistantToolsResponse> {

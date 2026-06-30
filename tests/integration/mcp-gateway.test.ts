@@ -363,6 +363,71 @@ describe("AssistantToolGateway", () => {
     await call;
   });
 
+  it("auto-runs destructive tools under YOLO and records yolo audit mode", async () => {
+    const yoloGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      yoloMode: async () => true
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-yolo",
+      allowedToolNames: null
+    });
+
+    const result = await yoloGateway.callTool(token, "example.destroy", { value: "boom" });
+    await tick();
+
+    expect(result.ok).toBe(true);
+    expect(exampleToolCalls).toEqual([
+      { name: "example.destroy", input: { value: "boom" }, actorUserId: ids.userA }
+    ]);
+    expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
+
+    const audit = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "test:yolo-audit" },
+      (scopedDb) => repository.listActionAuditLog(scopedDb, { since: new Date(0), limit: 20 })
+    );
+    expect(
+      audit.some((row) => row.tool_name === "example.destroy" && row.approval_mode === "yolo")
+    ).toBe(true);
+  });
+
+  it("falls back to confirmation when YOLO resolver is false", async () => {
+    const gatedGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      yoloMode: async () => false
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-yolo-off",
+      allowedToolNames: null
+    });
+
+    const call = gatedGateway.callTool(token, "example.destroy", { value: "boom" });
+    await tick();
+
+    expect(firstActionRequest().toolName).toBe("example.destroy");
+    expect(exampleToolCalls).toHaveLength(0);
+    await gatedGateway.resolveActionRequest(
+      ids.userA,
+      firstActionRequest().actionRequestId,
+      "cancelled"
+    );
+    await call;
+  });
+
   it("does not lose an Approve emitted immediately with the action_request", async () => {
     const eagerGateway = new AssistantToolGateway({
       resolveActiveModules: async () => [exampleToolModule],

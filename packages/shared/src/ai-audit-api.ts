@@ -25,7 +25,7 @@ const actionAuditLogEntrySchema = {
     actionKind: { type: "string", enum: ["write", "destructive"] },
     approvalMode: {
       type: "string",
-      enum: ["auto", "confirmed", "rejected", "cancelled", "timeout"]
+      enum: ["auto", "yolo", "confirmed", "rejected", "cancelled", "timeout"]
     },
     outcome: {
       type: "string",
@@ -73,7 +73,7 @@ export type ActionAuditLogEntryDto = {
   readonly toolName: string;
   readonly actionFamilyId: string | null;
   readonly actionKind: "write" | "destructive";
-  readonly approvalMode: "auto" | "confirmed" | "rejected" | "cancelled" | "timeout";
+  readonly approvalMode: "auto" | "yolo" | "confirmed" | "rejected" | "cancelled" | "timeout";
   readonly outcome: "success" | "failed" | "denied" | "cancelled";
   readonly errorClass: string | null;
   readonly requestId: string | null;

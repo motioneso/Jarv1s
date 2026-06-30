@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   getChatModelOverrideSettings,
+  getYoloSettings,
   getPersonaSettings,
   previewPersona,
   putChatModelOverride,
+  putYoloSelf,
   putPersonaSettings
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -20,7 +22,7 @@ import {
   type ToneDial
 } from "./settings-persona-preview";
 import { type PaneProps } from "./settings-types";
-import { Choice, Field, Group, Note, PaneHead, Select } from "./settings-ui";
+import { Choice, Field, Group, Note, PaneHead, Row, Select, Switch } from "./settings-ui";
 
 interface PersonaState {
   assistantName: string;
@@ -346,6 +348,58 @@ function ChatModel() {
   );
 }
 
+function YoloMode() {
+  const { toast, confirm } = useFeedback();
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: queryKeys.settings.yolo,
+    queryFn: getYoloSettings,
+    retry: false
+  });
+  const mutation = useMutation({
+    mutationFn: (enabled: boolean) => putYoloSelf({ enabled }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.yolo, data);
+      toast(data.self.enabled ? "YOLO mode enabled" : "YOLO mode disabled");
+    },
+    onError: (error) => toast(error instanceof Error ? error.message : "Could not update YOLO mode")
+  });
+  const state = query.data;
+  if (!state?.self.allowed) return null;
+  const enable = () =>
+    confirm({
+      title: "Enable YOLO mode?",
+      description:
+        "Jarvis will perform actions, including permanent deletions, without asking. You accept responsibility.",
+      confirmLabel: "Enable YOLO",
+      danger: true,
+      onConfirm: () => mutation.mutate(true)
+    });
+  return (
+    <Group
+      title="YOLO mode"
+      desc="Auto-approve every chat action without asking — including deletes."
+    >
+      <Row
+        name="Auto-approve actions"
+        desc={
+          state.instanceEnabled
+            ? "Applies only to interactive chat. Background work still uses its own policy."
+            : "The instance master switch is off. Your preference is saved but inert."
+        }
+        control={
+          <Switch
+            ariaLabel="Auto-approve actions"
+            checked={state.self.enabled}
+            disabled={mutation.isPending}
+            onChange={(value) => (value ? enable() : mutation.mutate(false))}
+          />
+        }
+      />
+    </Group>
+  );
+}
+
 export function AssistantPane({ me }: PaneProps) {
   const who = (me.user.name ?? "").split(/\s+/)[0] || "there";
   return (
@@ -356,6 +410,7 @@ export function AssistantPane({ me }: PaneProps) {
       />
       <Persona who={who} />
       <ChatModel />
+      <YoloMode />
     </>
   );
 }
