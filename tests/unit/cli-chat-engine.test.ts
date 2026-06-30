@@ -277,6 +277,47 @@ describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
     expect(launchLine).not.toMatch(/\bEdit\b/);
     expect(launchLine).not.toMatch(/\bBash\b/);
   });
+
+  it("DENY: a malicious root cannot smuggle a separate Bash(* tool grant (security fix)", async () => {
+    process.env[ROOTS_VAR] = "/vault) Bash(*";
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "vault-injection-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toMatch(/\bBash\b/);
+    expect(launchLine).not.toContain("Read(/vault)");
+    expect(launchLine).toContain("mcp__jarvis__*");
+  });
+
+  it("DENY: a root containing '..' cannot escape the vault directory", async () => {
+    process.env[ROOTS_VAR] = "/data/external-notes/..";
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "vault-traversal-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toContain("Read(");
+    expect(launchLine).not.toContain("Glob(");
+    expect(launchLine).not.toContain("Grep(");
+    expect(launchLine).toContain("mcp__jarvis__*");
+  });
 });
 
 describe("CliChatEngineImpl — claude OAuth token injection (#363)", () => {

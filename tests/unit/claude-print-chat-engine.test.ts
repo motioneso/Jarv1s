@@ -205,4 +205,28 @@ describe("ClaudePrintChatEngine — vault read-only allowlist (#634)", () => {
     expect(mux.opened[0]).not.toMatch(/\bEdit\b/);
     expect(mux.opened[0]).not.toMatch(/\bBash\b/);
   });
+
+  it("DENY: a malicious root cannot smuggle a separate Bash(* tool grant (security fix)", async () => {
+    process.env[ROOTS_VAR] = "/vault) Bash(*";
+    const io = fakeIo();
+    const mux = fakeMux();
+    const engine = new ClaudePrintChatEngine("user-1", io, {
+      mux,
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000005"
+    });
+
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+    await engine.submit("hello");
+
+    expect(mux.opened[0]).not.toMatch(/\bBash\b/);
+    expect(mux.opened[0]).not.toContain("Read(/vault)");
+    expect(mux.opened[0]).toContain("mcp__jarvis__*");
+  });
 });

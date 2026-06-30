@@ -13,6 +13,7 @@ import {
 } from "@jarv1s/ai";
 
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
 const SESSION_PREFIX = "jarv1s-live-";
 const PROMPT_FILENAME = ".jarvis-claude-print-prompt.txt";
@@ -191,13 +192,4 @@ function modelOverrideFlag(opts: EngineLaunchOpts): string | null {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-/** #578 Part 1: read-only Read/Glob/Grep scoped to JARVIS_NOTES_ROOTS (the vault mount). Never write/exec. */
-function vaultReadOnlyToolPatterns(): string[] {
-  const roots = (process.env["JARVIS_NOTES_ROOTS"] ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-  return roots.flatMap((root) => [`Read(${root}/**)`, `Glob(${root}/**)`, `Grep(${root}/**)`]);
 }
