@@ -25,7 +25,8 @@ export const IMAP_PRESETS: Record<string, ImapPreset> = {
     smtpPort: 465,
     smtpTls: true,
     authMethod: "password",
-    prerequisite: "Generate an app password in Yahoo Account Security; your normal password will not work."
+    prerequisite:
+      "Generate an app password in Yahoo Account Security; your normal password will not work."
   },
   "imap-proton": {
     providerId: "imap-proton",

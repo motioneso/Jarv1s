@@ -386,7 +386,10 @@ export const imapConnectRequestSchema = {
   required: ["providerId", "username", "password"],
   additionalProperties: false,
   properties: {
-    providerId: { type: "string", enum: ["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"] },
+    providerId: {
+      type: "string",
+      enum: ["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"]
+    },
     username: { type: "string", minLength: 1 },
     password: { type: "string", minLength: 1 }
   }

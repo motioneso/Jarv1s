@@ -4,7 +4,9 @@ import { mapProbeError } from "@jarv1s/connectors";
 describe("mapProbeError", () => {
   it("maps auth rejections to auth_failed", () => {
     expect(mapProbeError({ authenticationFailed: true })).toBe("auth_failed");
-    expect(mapProbeError({ responseText: "[AUTHENTICATIONFAILED] Invalid credentials" })).toBe("auth_failed");
+    expect(mapProbeError({ responseText: "[AUTHENTICATIONFAILED] Invalid credentials" })).toBe(
+      "auth_failed"
+    );
   });
 
   it("maps TLS errors to tls_failed", () => {

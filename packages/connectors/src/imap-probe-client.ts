@@ -25,13 +25,22 @@ export interface ImapProbeClient {
 export function mapProbeError(err: unknown): Exclude<ImapProbeResult, "ok"> {
   const e = (err ?? {}) as { code?: string; authenticationFailed?: boolean; responseText?: string };
   const text = typeof e.responseText === "string" ? e.responseText.toUpperCase() : "";
-  if (e.authenticationFailed || text.includes("AUTHENTICATIONFAILED") || text.includes("INVALID CREDENTIALS")) {
+  if (
+    e.authenticationFailed ||
+    text.includes("AUTHENTICATIONFAILED") ||
+    text.includes("INVALID CREDENTIALS")
+  ) {
     return "auth_failed";
   }
   if (typeof e.code === "string" && e.code.startsWith("ERR_TLS")) {
     return "tls_failed";
   }
-  if (e.code === "ECONNREFUSED" || e.code === "ENOTFOUND" || e.code === "ETIMEDOUT" || e.code === "EHOSTUNREACH") {
+  if (
+    e.code === "ECONNREFUSED" ||
+    e.code === "ENOTFOUND" ||
+    e.code === "ETIMEDOUT" ||
+    e.code === "EHOSTUNREACH"
+  ) {
     return "unreachable";
   }
   return "unreachable";

@@ -3,7 +3,12 @@ import { IMAP_PRESETS, IMAP_PROVIDER_IDS, getImapPreset } from "@jarv1s/connecto
 
 describe("imap presets", () => {
   it("exposes the four v1 password presets keyed by provider_id", () => {
-    expect(IMAP_PROVIDER_IDS).toEqual(["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"]);
+    expect(IMAP_PROVIDER_IDS).toEqual([
+      "imap-yahoo",
+      "imap-proton",
+      "imap-icloud",
+      "imap-fastmail"
+    ]);
   });
 
   it("yahoo preset uses TLS 993 / SMTPS 465 and password auth", () => {

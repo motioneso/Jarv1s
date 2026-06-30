@@ -608,9 +608,7 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
           ? r.code(e.statusCode).send({ error: e.message })
           : undefined,
       (e, r) =>
-        e instanceof ImapConnectError
-          ? r.code(e.statusCode).send({ error: e.message })
-          : undefined
+        e instanceof ImapConnectError ? r.code(e.statusCode).send({ error: e.message }) : undefined
     ],
     invalidRequestMessage: "Connector account request is invalid"
   });
