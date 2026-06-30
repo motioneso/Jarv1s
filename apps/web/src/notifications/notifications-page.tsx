@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LocaleSettingsDto, NotificationDto } from "@jarv1s/shared";
 import { Bell, Check, CheckCheck, Inbox, LoaderCircle } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Link } from "react-router";
 
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -103,6 +104,7 @@ function NotificationRow(props: {
 }) {
   const locale = useUserLocale();
   const unread = !props.notification.readAt;
+  const upgrade = props.notification.metadata.kind === "upgrade_available";
 
   return (
     <article className={`task-row notification-row ${unread ? "unread" : ""}`}>
@@ -112,6 +114,11 @@ function NotificationRow(props: {
       <div className="task-row-main">
         <strong>{props.notification.title}</strong>
         {props.notification.body ? <p>{props.notification.body}</p> : null}
+        {upgrade ? (
+          <Link className="jds-btn jds-btn--sm jds-btn--secondary" to="/settings?section=host">
+            View changes
+          </Link>
+        ) : null}
         <div className="task-meta">
           <span>{unread ? "Unread" : "Read"}</span>
           <span>{formatNotificationDate(props.notification.createdAt, locale)}</span>

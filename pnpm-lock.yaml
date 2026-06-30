@@ -111,6 +111,9 @@ importers:
       '@jarv1s/goals':
         specifier: workspace:*
         version: link:../../packages/goals
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../../packages/module-sdk
       '@jarv1s/settings-ui':
         specifier: workspace:*
         version: link:../../packages/settings-ui
@@ -484,6 +487,12 @@ importers:
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+      '@jarv1s/notifications':
+        specifier: workspace:*
+        version: link:../notifications
       pg-boss:
         specifier: ^12.18.2
         version: 12.18.2
