@@ -12,6 +12,15 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export const connectionStrings = getJarvisDatabaseUrls();
 
+/** GreenMail test IMAP/SMTP server (infra/docker-compose.yml `greenmail` service, #641 Slice B). */
+export const testImap = {
+  host: process.env.JARVIS_TEST_IMAP_HOST ?? "127.0.0.1",
+  imapPort: Number(process.env.JARVIS_TEST_IMAP_PORT ?? 3143),
+  smtpPort: Number(process.env.JARVIS_TEST_IMAP_SMTP_PORT ?? 3025),
+  username: process.env.JARVIS_TEST_IMAP_USER ?? "probe@greenmail.test",
+  password: process.env.JARVIS_TEST_IMAP_PASSWORD ?? "probe-pw"
+};
+
 export const ids = {
   userA: "00000000-0000-4000-8000-000000000001",
   userB: "00000000-0000-4000-8000-000000000002",
