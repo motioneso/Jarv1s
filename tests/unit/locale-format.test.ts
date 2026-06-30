@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { LocaleSettingsDto } from "@jarv1s/shared";
-import {
-  formatDate,
-  formatDateTime,
-  formatTime,
-  zonedDateKey
-} from "../../apps/web/src/locale/locale-format.js";
+import { localDay, type LocaleSettingsDto } from "@jarv1s/shared";
+import { formatDate, formatDateTime, formatTime } from "../../apps/web/src/locale/locale-format.js";
 
 const newYork12: LocaleSettingsDto = {
   timezone: "America/New_York",
@@ -68,7 +63,7 @@ describe("locale-format", () => {
 
   it("derives a timezone-correct YYYY-MM-DD calendar key", () => {
     const instant = "2026-01-15T01:30:00Z";
-    expect(zonedDateKey(instant, "America/New_York")).toBe("2026-01-14");
-    expect(zonedDateKey(instant, "Asia/Tokyo")).toBe("2026-01-15");
+    expect(localDay(instant, "America/New_York")).toBe("2026-01-14");
+    expect(localDay(instant, "Asia/Tokyo")).toBe("2026-01-15");
   });
 });

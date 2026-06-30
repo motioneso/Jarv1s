@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import {
   groupByPriority,
+  localDay,
   type LocaleSettingsDto,
   type TaskApiStatus,
   type TaskDto,
@@ -10,7 +11,7 @@ import {
   type TaskListDto
 } from "@jarv1s/shared";
 
-import { formatDate, todayDateKey, useUserLocale, zonedDateKey } from "../locale/locale-format.js";
+import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { effortLabels } from "./task-format.js";
 
 /** Stable per-list dot colour (lists carry no colour of their own). */
@@ -71,8 +72,8 @@ interface DueInfo {
     Exported for unit coverage of the per-row badge's timezone bucketing. */
 export function dueInfo(task: TaskDto, locale: LocaleSettingsDto): DueInfo | null {
   if (!task.dueAt) return null;
-  const todayKey = todayDateKey(locale.timezone);
-  const dueKey = zonedDateKey(task.dueAt, locale.timezone);
+  const todayKey = localDay(new Date(), locale.timezone);
+  const dueKey = localDay(task.dueAt, locale.timezone);
   const done = task.status === "done";
 
   if (dueKey < todayKey) {

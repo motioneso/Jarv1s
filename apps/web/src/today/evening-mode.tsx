@@ -1,9 +1,10 @@
-import type {
-  BriefingDefinitionDto,
-  BriefingRunDto,
-  CalendarEventDto,
-  LocaleSettingsDto,
-  TaskDto
+import {
+  localDay,
+  type BriefingDefinitionDto,
+  type BriefingRunDto,
+  type CalendarEventDto,
+  type LocaleSettingsDto,
+  type TaskDto
 } from "@jarv1s/shared";
 import { MessageSquareText } from "lucide-react";
 import type { ReactNode } from "react";
@@ -15,8 +16,7 @@ import {
   formatTime,
   isValidTimeZone,
   zonedClockParts,
-  zonedClockMinutes,
-  zonedDateKey
+  zonedClockMinutes
 } from "../locale/locale-format";
 import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
 import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
@@ -77,12 +77,11 @@ export function latestEveningRunForToday(
   timeZone: string | undefined,
   now: Date = new Date(Date.now())
 ): BriefingRunDto | null {
-  const todayKey = zonedDateKey(now, timeZone);
+  const todayKey = localDay(now, timeZone);
   return (
     [...runs]
       .filter(
-        (run) =>
-          run.briefingType === "evening" && zonedDateKey(run.createdAt, timeZone) === todayKey
+        (run) => run.briefingType === "evening" && localDay(run.createdAt, timeZone) === todayKey
       )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null
   );

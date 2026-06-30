@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CheckinDto } from "@jarv1s/shared";
-import {
-  localDateFromTimestamp,
-  computeStreak
-} from "../../apps/web/src/wellness/wellness-date-utils.js";
+import { localDay, type CheckinDto } from "@jarv1s/shared";
+import { computeStreak } from "../../apps/web/src/wellness/wellness-date-utils.js";
 
 // Regression for issue #579 — UTC+12/+13/+14 streak correctness.
 //
@@ -44,17 +41,17 @@ function checkin(checkedInAt: string): CheckinDto {
   };
 }
 
-describe("localDateFromTimestamp — Pacific/Auckland UTC+12 boundary", () => {
+describe("localDay — Pacific/Auckland UTC+12 boundary", () => {
   it("returns the prior calendar day for a timestamp just before Auckland midnight", () => {
     // 2026-06-28T11:59:00Z = 2026-06-28T23:59:00+12 → local date 2026-06-28
-    expect(localDateFromTimestamp("2026-06-28T11:59:00Z", TZ)).toBe("2026-06-28");
+    expect(localDay("2026-06-28T11:59:00Z", TZ)).toBe("2026-06-28");
   });
 
   it("returns the next calendar day for a timestamp at Auckland midnight", () => {
     // 2026-06-28T12:00:00Z = 2026-06-29T00:00:00+12 → local date 2026-06-29.
     // This was the exact value the old UTC-noon anchor produced for i=1 from today=June-29,
     // wrongly mapping "yesterday" to "today" and breaking streak counting.
-    expect(localDateFromTimestamp("2026-06-28T12:00:00Z", TZ)).toBe("2026-06-29");
+    expect(localDay("2026-06-28T12:00:00Z", TZ)).toBe("2026-06-29");
   });
 });
 

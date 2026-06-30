@@ -23,7 +23,13 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import type { CalendarEventDto, LocaleSettingsDto, MeResponse, TaskDto } from "@jarv1s/shared";
+import {
+  localDay,
+  type CalendarEventDto,
+  type LocaleSettingsDto,
+  type MeResponse,
+  type TaskDto
+} from "@jarv1s/shared";
 
 import {
   createWellnessCheckin,
@@ -37,13 +43,7 @@ import {
   updateTask
 } from "../api/client";
 import { findDefinition, targetTimeFor } from "../briefings/briefing-settings-model";
-import {
-  formatDate,
-  formatTime,
-  todayDateKey,
-  useUserLocale,
-  zonedDateKey
-} from "../locale/locale-format";
+import { formatDate, formatTime, useUserLocale } from "../locale/locale-format";
 import { useChatControls } from "../shell/chat-controls-context";
 import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
@@ -149,8 +149,8 @@ export function TodayPage(props: {
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
   const medScheduleQuery = useQuery({
-    queryKey: queryKeys.wellness.schedule(todayDateKey(locale.timezone)),
-    queryFn: () => getMedicationSchedule(todayDateKey(locale.timezone)),
+    queryKey: queryKeys.wellness.schedule(localDay(new Date(), locale.timezone)),
+    queryFn: () => getMedicationSchedule(localDay(new Date(), locale.timezone)),
     enabled: wellnessEnabled
   });
   const medScheduledSlots = (medScheduleQuery.data?.slots ?? []).filter((s) => !s.asNeeded);
@@ -189,10 +189,9 @@ export function TodayPage(props: {
     () => events.filter((e) => isToday(e, locale.timezone)).sort(byStart),
     [events, locale.timezone]
   );
-  const tomorrowKey = addDaysToKey(zonedDateKey(now, locale.timezone), 1);
+  const tomorrowKey = addDaysToKey(localDay(now, locale.timezone), 1);
   const tomorrowEvents = useMemo(
-    () =>
-      events.filter((e) => zonedDateKey(e.startsAt, locale.timezone) === tomorrowKey).sort(byStart),
+    () => events.filter((e) => localDay(e.startsAt, locale.timezone) === tomorrowKey).sort(byStart),
     [events, locale.timezone, tomorrowKey]
   );
   const tomorrowTasks = tasks
@@ -200,7 +199,7 @@ export function TodayPage(props: {
       (task) =>
         task.status === "todo" &&
         task.dueAt !== null &&
-        zonedDateKey(task.dueAt, locale.timezone) === tomorrowKey
+        localDay(task.dueAt, locale.timezone) === tomorrowKey
     )
     .slice(0, 3);
   const upcoming = useMemo(
@@ -561,6 +560,7 @@ export function TodayPage(props: {
                   setMedsModalOpen(false);
                   setManageMedsOpen(true);
                 }}
+                timeZone={locale.timezone}
               />
             </div>
             <div className="wl-modal__foot">
@@ -895,8 +895,8 @@ function buildLede(priorities: number, atRisk: number, events: number): string {
     browser zone, so an evening-UTC due date doesn't read as "overdue" a day early. */
 function driftOf(task: TaskDto, timeZone?: string): "atrisk" | "overdue" | null {
   if (!task.dueAt || task.status === "done") return null;
-  const todayK = todayDateKey(timeZone);
-  const dueK = zonedDateKey(task.dueAt, timeZone);
+  const todayK = localDay(new Date(), timeZone);
+  const dueK = localDay(task.dueAt, timeZone);
   if (dueK < todayK) return "overdue";
   // Both keys are user-zone `YYYY-MM-DD` → parse as UTC midnight for an exact day delta.
   const driftDays =
@@ -911,7 +911,7 @@ function dueTs(task: TaskDto): number {
 
 /** Whether a calendar event starts on the user's local "today" (#579). */
 function isToday(event: CalendarEventDto, timeZone?: string): boolean {
-  return zonedDateKey(event.startsAt, timeZone) === todayDateKey(timeZone);
+  return localDay(event.startsAt, timeZone) === localDay(new Date(), timeZone);
 }
 
 function byStart(a: CalendarEventDto, b: CalendarEventDto): number {

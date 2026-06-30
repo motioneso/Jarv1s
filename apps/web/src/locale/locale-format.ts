@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { LocaleSettingsDto } from "@jarv1s/shared";
+import { formatInZone, isValidTimeZone, type LocaleSettingsDto } from "@jarv1s/shared";
 
 import { getLocaleSettings } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
@@ -16,7 +16,10 @@ import { queryKeys } from "../api/query-keys.js";
  * are therefore wrong for the user. Route every display site through this module; the
  * `check:no-ambient-dates` gate enforces it.
  *
- * Timestamps stay UTC at rest — only their *presentation* is zoned here.
+ * Timestamps stay UTC at rest — only their *presentation* is zoned here. Core
+ * Intl-wrapping delegates to `@jarv1s/shared`'s `formatInZone`/`isValidTimeZone`
+ * (the single source of truth for timezone-aware formatting, #636); day-bucketing
+ * call sites use shared `localDay` directly instead of a local wrapper.
  */
 
 /**
@@ -37,11 +40,6 @@ function toDate(input: DateInput): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** On unparseable input, preserve the caller's defensive behaviour: echo a raw string, else "". */
-function rawFallback(input: DateInput): string {
-  return typeof input === "string" ? input : "";
-}
-
 function localeTag(region: string): string | undefined {
   const tag = region.trim();
   return tag.length > 0 ? tag : undefined;
@@ -52,18 +50,12 @@ function format(
   locale: LocaleSettingsDto,
   options: Intl.DateTimeFormatOptions
 ): string {
-  const date = toDate(input);
-  if (!date) return rawFallback(input);
-  try {
-    return new Intl.DateTimeFormat(localeTag(locale.region), {
-      timeZone: locale.timezone,
-      hour12: locale.dateFormat === "12",
-      ...options
-    }).format(date);
-  } catch {
-    // Invalid IANA timezone or BCP-47 region must never throw at a render site.
-    return rawFallback(input);
-  }
+  return formatInZone(
+    input,
+    locale.timezone,
+    { hour12: locale.dateFormat === "12", ...options },
+    localeTag(locale.region)
+  );
 }
 
 const DATE_OPTS: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
@@ -103,15 +95,7 @@ export function formatTime(
   return format(input, locale, options ?? TIME_OPTS);
 }
 
-export function isValidTimeZone(timeZone: string): boolean {
-  if (timeZone.trim().length === 0) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone }).format(0);
-    return true;
-  } catch {
-    return false;
-  }
-}
+export { isValidTimeZone };
 
 export function zonedClockParts(
   input: DateInput,
@@ -144,32 +128,6 @@ export function zonedClockParts(
 export function zonedClockMinutes(input: DateInput, timeZone?: string): number | null {
   const parts = zonedClockParts(input, timeZone);
   return parts ? parts.hour * 60 + parts.minute : null;
-}
-
-/**
- * Calendar date key (`YYYY-MM-DD`) for an instant *as observed in the given timezone*.
- * Locale-independent (en-CA): a machine key for day comparison / "today" / streaks,
- * never a display string. Consolidates wellness-page's former ad-hoc `todayIso()`.
- * `timeZone` omitted → ambient zone (matches the pre-load fallback of its old callers).
- */
-export function zonedDateKey(input: DateInput, timeZone?: string): string {
-  const date = toDate(input);
-  if (!date) return rawFallback(input);
-  const options: Intl.DateTimeFormatOptions = {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  };
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone, ...options }).format(date);
-  } catch {
-    return new Intl.DateTimeFormat("en-CA", options).format(date);
-  }
-}
-
-/** Today's date key (`YYYY-MM-DD`) in the given timezone. */
-export function todayDateKey(timeZone?: string): string {
-  return zonedDateKey(new Date(), timeZone);
 }
 
 /**
