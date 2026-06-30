@@ -1,5 +1,6 @@
 export * from "./crypto.js";
 export * from "./email-extract.js";
+export * from "./feature-grant-service.js";
 export * from "./feature-grants.js";
 export * from "./google-api-client.js";
 export * from "./google-connection.js";

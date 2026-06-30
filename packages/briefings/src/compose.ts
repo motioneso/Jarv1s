@@ -79,6 +79,13 @@ export interface ComposeDeps {
     kind: "email" | "calendar"
   ) => Promise<Date | null>;
   readonly vaultLastWriteAt?: (scopedDb: DataContextDb) => Promise<Date | null>;
+  /** Injected by the composition root; gates email/calendar cached reads to accounts with active grants. */
+  readonly featureGrantService?: {
+    grantedAccountIds(
+      scopedDb: DataContextDb,
+      feature: "email" | "calendar"
+    ): Promise<ReadonlySet<string>>;
+  };
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -281,7 +288,10 @@ async function gatherToolSection(
     return { key: args.key, label: args.label, lines: [], count: 0 };
   }
   try {
-    const result = await tool.execute(scopedDb, {}, ctxFor(definition, input));
+    const toolServices = deps.featureGrantService
+      ? { featureGrants: deps.featureGrantService }
+      : {};
+    const result = await tool.execute(scopedDb, {}, ctxFor(definition, input), toolServices);
     const data = isRecord(result.data) ? result.data : {};
     const raw = data[args.arrayKey];
     let items = Array.isArray(raw) ? raw.filter(isRecord) : [];

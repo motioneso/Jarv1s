@@ -38,6 +38,7 @@ import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar"
 import { getConnectorSyncAt } from "@jarv1s/connectors";
 import type {
   ConnectorsRepository,
+  FeatureGrantService,
   GoogleApiClient,
   GoogleConnectionService
 } from "@jarv1s/connectors";
@@ -101,6 +102,8 @@ export interface ChatRoutesDependencies {
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
   readonly connectorsRepository?: ConnectorsRepository;
+  /** Injected by the composition root; gates email/calendar read tools to accounts with active grants. */
+  readonly featureGrantService?: FeatureGrantService;
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
@@ -171,7 +174,8 @@ export function registerChatRoutes(
                 googleConnectionService: dependencies.googleConnectionService,
                 googleApiClient: dependencies.googleApiClient,
                 connectorsRepository: dependencies.connectorsRepository,
-                boss: dependencies.boss
+                boss: dependencies.boss,
+                featureGrantService: dependencies.featureGrantService
               },
               agencyPreferences: dependencies.agencyPreferences,
               localePreferences: dependencies.localePreferences
@@ -540,6 +544,7 @@ export function buildChatToolServices(deps: {
   googleApiClient?: GoogleApiClient;
   connectorsRepository?: ConnectorsRepository;
   boss?: PgBoss;
+  featureGrantService?: FeatureGrantService;
 }): Record<string, unknown> {
   const services: Record<string, unknown> = {};
   if (deps.googleConnectionService && deps.googleApiClient && deps.connectorsRepository) {
@@ -562,6 +567,9 @@ export function buildChatToolServices(deps: {
           singletonKey: `notes-sync:${actorUserId}`
         })
     } satisfies NotesSyncToolService;
+  }
+  if (deps.featureGrantService) {
+    services.featureGrants = deps.featureGrantService;
   }
   return services;
 }
@@ -586,6 +594,7 @@ export function buildChatGatewayDependencies(args: {
     googleApiClient?: GoogleApiClient;
     connectorsRepository?: ConnectorsRepository;
     boss?: PgBoss;
+    featureGrantService?: FeatureGrantService;
   };
 }): AssistantToolGatewayDependencies {
   return {
@@ -633,6 +642,9 @@ export function buildChatGatewayDependencies(args: {
         }
       ),
     toolServices: buildChatToolServices(args.collaborators),
+    readToolServices: args.collaborators.featureGrantService
+      ? { featureGrants: args.collaborators.featureGrantService }
+      : undefined,
     resolveLocalTimezone: args.localePreferences
       ? (actorUserId) =>
           args.runner.withDataContext(

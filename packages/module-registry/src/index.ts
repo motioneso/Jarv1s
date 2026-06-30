@@ -80,6 +80,7 @@ import {
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
+  buildFeatureGrantService,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
   getConnectorSyncAt,
@@ -562,7 +563,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         resolveActiveModules: deps.resolveActiveModules,
-        tasksCompatibility
+        tasksCompatibility,
+        readToolServices: deps.connectorsRepository
+          ? {
+              featureGrants: buildFeatureGrantService({
+                connectorsRepository: deps.connectorsRepository,
+                preferencesRepository: new PreferencesRepository()
+              })
+            }
+          : undefined
       });
     },
     registerWorkers: (boss, deps) => registerAiMaintenanceWorkers(boss, deps.rootDb)
@@ -592,7 +601,13 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         agencyPreferences: new PreferencesRepository(),
         googleConnectionService: deps.googleConnectionService,
         googleApiClient: deps.googleApiClient,
-        connectorsRepository: deps.connectorsRepository
+        connectorsRepository: deps.connectorsRepository,
+        featureGrantService: deps.connectorsRepository
+          ? buildFeatureGrantService({
+              connectorsRepository: deps.connectorsRepository,
+              preferencesRepository: new PreferencesRepository()
+            })
+          : undefined
       }),
     registerWorkers: (boss, deps) =>
       registerChatJobWorkers(boss, deps.dataContext, {
@@ -658,7 +673,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           vaultLastWriteAt: async (scopedDb) => {
             const repo = new MemoryRepository();
             return repo.getLatestIngestedAt(scopedDb, "vault");
-          }
+          },
+          featureGrantService: buildFeatureGrantService({
+            connectorsRepository: new ConnectorsRepository(),
+            preferencesRepository: new PreferencesRepository()
+          })
         },
         notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
         logger: briefingsLogger

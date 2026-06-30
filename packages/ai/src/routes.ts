@@ -22,7 +22,8 @@ import {
   handleRouteError as handleModuleRouteError,
   sessionRateLimitKey,
   type JarvisActionPermissionTier,
-  type ToolResult
+  type ToolResult,
+  type ToolServices
 } from "@jarv1s/module-sdk";
 
 import type { ActiveModulesResolver } from "./gateway/types.js";
@@ -103,6 +104,8 @@ export interface AiRoutesDependencies {
     getResolvedTaskChangesPolicy: (db: DataContextDb) => Promise<JarvisActionPermissionTier>;
     setTaskChangesPolicy: (db: DataContextDb, tier: JarvisActionPermissionTier) => Promise<void>;
   };
+  /** Passed to read-tool execute on the REST invoke path; gates email/calendar reads to granted accounts. */
+  readonly readToolServices?: ToolServices;
 }
 
 type IdParams = { readonly id: string };
@@ -584,19 +587,24 @@ export function registerAiRoutes(
         // Validate caller-supplied input before execution.
         // Invariant: validateToolInput gates every caller-supplied-input execute call on REST paths.
         const validatedInput = validateToolInput(manifestTool.inputSchema, body.input ?? {});
-        // The ToolServices (4th) arg is intentionally omitted here: this REST path only ever
-        // reaches execute() for read tools (every write/destructive tool 403s above with
-        // "confirmation_required"). Per the gateway's write→confirm floor (see
-        // AssistantToolGateway.servicesFor), a read tool receives NO services even when it runs
-        // — so omitting the arg matches the documented contract rather than contradicting it.
-        // Any service-backed (write-capable) tool must be invoked via the gateway/CLI path, which
-        // threads the per-tool ToolServices subset only after an Approve.
+        // Read-only services (no write-capable entries) are passed here so read tools can access
+        // informational services like featureGrants. The write→confirm floor remains structurally
+        // un-bypassable: this path only reaches execute() for read tools (every write/destructive
+        // tool 403s above with "confirmation_required"), and readToolServices carries no write-capable
+        // services (calendarWrite, notesSync, etc.). Any service-backed write tool must be invoked
+        // via the gateway/CLI path, which threads per-tool ToolServices only after an Approve.
+        const readServices = dependencies.readToolServices ?? {};
         const result = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          manifestTool.execute!(scopedDb, validatedInput, {
-            actorUserId: accessContext.actorUserId,
-            requestId: accessContext.requestId ?? "",
-            chatSessionId: ""
-          }).then((rawResult): Record<string, unknown> => {
+          manifestTool.execute!(
+            scopedDb,
+            validatedInput,
+            {
+              actorUserId: accessContext.actorUserId,
+              requestId: accessContext.requestId ?? "",
+              chatSessionId: ""
+            },
+            readServices
+          ).then((rawResult): Record<string, unknown> => {
             const toolResult: ToolResult = { ...rawResult, data: rawResult.data ?? {} };
             const sanitized = sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult);
             return boundedAssistantToolResultData(sanitized);

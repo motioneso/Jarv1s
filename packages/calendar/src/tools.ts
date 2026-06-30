@@ -1,4 +1,4 @@
-import { assertDataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type { ToolContext, ToolExecute, ToolResult, ToolServices } from "@jarv1s/module-sdk";
 
 import type { CalendarWriteService } from "./calendar-write-service.js";
@@ -7,6 +7,22 @@ import { CalendarRepository } from "./repository.js";
 import { serializeCalendarEvent } from "./serialize.js";
 
 const repository = new CalendarRepository();
+
+// Structural interface — no @jarv1s/connectors import (module isolation).
+interface FeatureGrantService {
+  grantedAccountIds(
+    scopedDb: DataContextDb,
+    feature: "email" | "calendar"
+  ): Promise<ReadonlySet<string>>;
+}
+
+function narrowFeatureGrants(services: ToolServices | undefined): FeatureGrantService {
+  const svc = (services ?? {}).featureGrants as FeatureGrantService | undefined;
+  if (!svc || typeof svc.grantedAccountIds !== "function") {
+    throw new Error("featureGrants service is not available");
+  }
+  return svc;
+}
 
 // Configured default timezone for part-of-day band resolution + the card preview. This is
 // the single source of truth for "morning/afternoon/evening" — the impl does NOT make a
@@ -21,16 +37,20 @@ const DEFAULT_TIMEZONE = process.env.JARVIS_DEFAULT_TZ ?? "America/New_York";
 export const calendarListVisibleEventsExecute: ToolExecute = async (
   scopedDb,
   input,
-  _ctx
+  _ctx,
+  services
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
+  const featureGrants = narrowFeatureGrants(services);
+  const grantedIds = await featureGrants.grantedAccountIds(scopedDb, "calendar");
   const startsAfter =
     typeof input.startsAfter === "string" ? new Date(input.startsAfter) : undefined;
   const startsBefore =
     typeof input.startsBefore === "string" ? new Date(input.startsBefore) : undefined;
   const limit = typeof input.limit === "number" && input.limit > 0 ? input.limit : undefined;
   const events = await repository.listVisible(scopedDb, { startsAfter, startsBefore, limit });
-  return { data: { events: events.map(serializeCalendarEvent) } };
+  const filtered = events.filter((e) => grantedIds.has(e.connector_account_id));
+  return { data: { events: filtered.map(serializeCalendarEvent) } };
 };
 
 function narrowCalendarWrite(services: ToolServices | undefined): CalendarWriteService {

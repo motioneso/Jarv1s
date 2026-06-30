@@ -605,7 +605,9 @@ describe("Calendar and Email connector-backed read modules", () => {
           actorUserId: ids.userA,
           requestId: "r:email-tool",
           chatSessionId: ""
-        }
+        },
+        // Stub: grant the seeded account; this test focuses on connector-account context, not grant filtering.
+        { featureGrants: { grantedAccountIds: async () => new Set([connectorAccountIds.aEmail]) } }
       )
     );
 
