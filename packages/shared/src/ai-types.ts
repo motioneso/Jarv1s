@@ -7,6 +7,7 @@ export type AiModelTier = "reasoning" | "interactive" | "economy";
 export type AiModelCapability = "chat" | "tool-use" | "json" | "vision" | "summarization";
 export type AiCapabilityRouteReason =
   | "admin-pin"
+  | "admin-pin-unavailable"
   | "admin-pin-unavailable-fallback"
   | "manual-route"
   | "manual-route-unavailable-fallback"

@@ -159,8 +159,8 @@ describe("AI admin per-user model pin", () => {
       error: "An admin has pinned your AI provider; contact them to change it"
     });
     expect(unavailableResolution).toMatchObject({
-      reason: "admin-pin-unavailable-fallback",
-      model: { id: fallbackId }
+      reason: "admin-pin-unavailable",
+      model: null
     });
     expect(clearPin.statusCode).toBe(200);
     expect(clearPin.json()).toMatchObject({ pin: { pinnedModelId: null, pinnedModel: null } });
@@ -186,6 +186,36 @@ describe("AI admin per-user model pin", () => {
         metadata: {}
       }
     ]);
+  });
+
+  it("non-chat capability with unavailable pin falls through to instance route", async () => {
+    const providerId = await seedProvider(ids.userB, "Fallthrough Provider");
+    const pinnedId = await seedModel(ids.userB, providerId, "fallthrough-pinned", ["json"]);
+    const fallbackId = await seedModel(ids.userB, providerId, "fallthrough-fallback", ["json"]);
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { modelId: pinnedId }
+    });
+    await setModelStatus(pinnedId, "disabled");
+
+    const resolution = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "json", "interactive")
+    );
+
+    expect(resolution).toMatchObject({
+      reason: "admin-pin-unavailable-fallback"
+    });
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { modelId: null }
+    });
+    void fallbackId;
   });
 
   it("pinned user's direct API call uses the pinned model at the HTTP perimeter", async () => {

@@ -796,3 +796,73 @@ button.theme-swatch {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Model line: edit + disable/enable buttons (B513) ---- */
+.mdl__edit-btn,
+.mdl__toggle-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.mdl__edit-btn:hover,
+.mdl__toggle-btn:hover {
+  background: var(--surface-2);
+  color: var(--ink-1);
+}
+.mdl__edit-btn.is-active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+.mdl--disabled .mdl__id {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+.mdl__off {
+  margin-left: 6px;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-radius: var(--radius-xs, 2px);
+  padding: 0 4px;
+}
+
+/* ---- Chat drawer: locked model banner (B513) ---- */
+.chatd-lock-warn {
+  margin: 0 0 8px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  border: 1px solid var(--border);
+}
+.chatd-lock-warn b {
+  font-weight: 600;
+}
+
+/* ---- Model edit form inline (B513) ---- */
+.ai-model-form--edit {
+  margin: 6px 0 8px 20px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-model-form__acts {
+  display: flex;
+  gap: 8px;
+}

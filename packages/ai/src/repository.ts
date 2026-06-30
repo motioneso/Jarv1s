@@ -563,6 +563,10 @@ export class AiRepository {
       if (adminPinnedModel) {
         return { model: adminPinnedModel, reason: "admin-pin" };
       }
+      // Hard-lock: for chat, a set but unavailable pin does not fall through silently.
+      if (capability === "chat") {
+        return { model: null, reason: "admin-pin-unavailable" };
+      }
     }
 
     const routes = await this.listCapabilityRoutes(scopedDb);

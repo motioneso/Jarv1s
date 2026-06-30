@@ -144,6 +144,7 @@ const aiCapabilityRouteSchema = {
       type: "string",
       enum: [
         "admin-pin",
+        "admin-pin-unavailable",
         "admin-pin-unavailable-fallback",
         "manual-route",
         "manual-route-unavailable-fallback",
