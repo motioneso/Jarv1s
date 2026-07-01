@@ -25,6 +25,7 @@ export * from "./source-behaviors-api.js";
 export * from "./env.js";
 export * from "./settings-api.js";
 export * from "./themes-api.js";
+export * from "./sports-api.js";
 export * from "./weather-api.js";
 export * from "./web-search-api.js";
 export * from "./runtime-config-api.js";

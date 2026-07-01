@@ -798,6 +798,24 @@ importers:
         specifier: workspace:*
         version: link:../module-sdk
 
+  packages/sports:
+    dependencies:
+      '@jarv1s/db':
+        specifier: workspace:*
+        version: link:../db
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+      '@jarv1s/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@jarv1s/structured-state':
+        specifier: workspace:*
+        version: link:../structured-state
+      fastify:
+        specifier: ^5.6.2
+        version: 5.8.5
+
   packages/structured-state:
     dependencies:
       '@jarv1s/db':

@@ -35,6 +35,7 @@
       "@jarv1s/settings-ui": ["packages/settings-ui/src/index.tsx"],
       "@jarv1s/settings-ui/vite": ["packages/settings-ui/src/vite.ts"],
       "@jarv1s/shared": ["packages/shared/src/index.ts"],
+      "@jarv1s/sports": ["packages/sports/src/index.ts"],
       "@jarv1s/source-behaviors": ["packages/source-behaviors/src/index.ts"],
       "@jarv1s/tasks": ["packages/tasks/src/index.ts"],
       "@jarv1s/memory": ["packages/memory/src/index.ts"],

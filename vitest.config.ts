@@ -168,6 +168,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/shared/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/sports",
+        replacement: fileURLToPath(new URL("./packages/sports/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/source-behaviors",
         replacement: fileURLToPath(
           new URL("./packages/source-behaviors/src/index.ts", import.meta.url)
