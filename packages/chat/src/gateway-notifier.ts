@@ -25,7 +25,9 @@ function toTranscriptRecord(record: GatewaySessionRecord): TranscriptRecord | nu
       text: `Approve or deny: ${record.summary}`,
       actionRequestId: record.actionRequestId,
       toolName: record.toolName,
-      summary: record.summary
+      summary: record.summary,
+      // Rides the live stream only; never persisted (see TranscriptRecord.preview).
+      ...(record.preview ? { preview: record.preview } : {})
     };
   }
   if (record.kind === "action_result") {
