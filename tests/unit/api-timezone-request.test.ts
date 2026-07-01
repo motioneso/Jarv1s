@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { registerRequestTimeZoneHook } from "../../apps/api/src/server.js";
 import { requestJson } from "../../apps/web/src/api/client.js";
+import { resolveRequestTimeZoneForRoute } from "../../packages/module-registry/src/index.js";
 
 describe("web API timezone header", () => {
   afterEach(() => {
@@ -68,5 +69,47 @@ describe("API request timezone hook", () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+describe("route timezone resolution", () => {
+  const accessContext = {
+    actorUserId: "00000000-0000-4000-8000-000000000123",
+    requestId: "req:test"
+  };
+
+  it("uses the validated request header without reading stored locale", async () => {
+    const runner = { withDataContext: vi.fn() };
+    const preferences = { get: vi.fn() };
+
+    await expect(
+      resolveRequestTimeZoneForRoute(
+        { timeZone: "America/New_York" },
+        accessContext,
+        runner,
+        preferences
+      )
+    ).resolves.toBe("America/New_York");
+    expect(runner.withDataContext).not.toHaveBeenCalled();
+  });
+
+  it("falls back to stored locale when the request header is absent", async () => {
+    const runner = { withDataContext: vi.fn(async (_ctx, work) => work("scoped")) };
+    const preferences = {
+      get: vi.fn(async () => ({ timezone: "America/Los_Angeles" }))
+    };
+
+    await expect(
+      resolveRequestTimeZoneForRoute({}, accessContext, runner, preferences)
+    ).resolves.toBe("America/Los_Angeles");
+  });
+
+  it("falls back to UTC when neither header nor stored locale is valid", async () => {
+    const runner = { withDataContext: vi.fn(async (_ctx, work) => work("scoped")) };
+    const preferences = { get: vi.fn(async () => ({ timezone: "Not/AZone" })) };
+
+    await expect(resolveRequestTimeZoneForRoute({}, accessContext, runner, preferences)).resolves.toBe(
+      "UTC"
+    );
   });
 });
