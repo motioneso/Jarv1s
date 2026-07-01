@@ -18,7 +18,7 @@ const SENT_FOLDER = "\\Sent";
  */
 export class ImapEmailWriteProvider implements EmailWriteProvider {
   constructor(
-    private readonly repository: ConnectorsRepository,
+    private readonly repository: Pick<ConnectorsRepository, "getActiveImapAccountSecret">,
     private readonly cipher: ConnectorSecretCipher
   ) {}
 

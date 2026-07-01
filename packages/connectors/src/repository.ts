@@ -353,6 +353,20 @@ export class ConnectorsRepository {
   }
 
   /**
+   * Get account provider type by ID. Used by email write impl to dispatch to the correct provider.
+   */
+  async getAccountProviderType(
+    scopedDb: DataContextDb,
+    accountId: string
+  ): Promise<ConnectorProviderType | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await this.safeAccountQuery(scopedDb.db)
+      .where("accounts.id", "=", accountId)
+      .executeTakeFirst();
+    return row?.provider_type;
+  }
+
+  /**
    * Upsert a generic-IMAP account keyed by providerId (one of the IMAP_PRESETS keys),
    * unlike upsertGoogleAccount whose providerId is a single fixed constant — IMAP has
    * one row per preset the actor has connected.
