@@ -511,7 +511,10 @@ export function medicationLogBelongsToDate(
   return loggedAt >= localStart && loggedAt < localEnd;
 }
 
-function medicationLogDayWindow(date: Date, timeZone: string): {
+function medicationLogDayWindow(
+  date: Date,
+  timeZone: string
+): {
   scheduledStart: Date;
   scheduledEnd: Date;
   localStart: Date;

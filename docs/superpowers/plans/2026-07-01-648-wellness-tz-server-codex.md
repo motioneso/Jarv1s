@@ -23,6 +23,7 @@
 ## Task 1: Shared Resolver
 
 **Files:**
+
 - Modify: `packages/shared/src/time.ts`
 - Test: `tests/unit/shared-time.test.ts`
 
@@ -36,6 +37,7 @@
 ## Task 2: Request Header + Fastify Signal
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/api/src/server.ts`
 - Test: add `tests/unit/api-timezone-request.test.ts`
@@ -50,6 +52,7 @@
 ## Task 3: Wellness Resolved Timezone + Day Windows
 
 **Files:**
+
 - Modify: `packages/wellness/src/repository.ts`
 - Modify: `packages/wellness/src/routes.ts`
 - Test: extend `tests/integration/wellness-medications.test.ts`
@@ -65,6 +68,7 @@
 ## Task 4: Composition Wiring
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts`
 - Modify: `packages/module-registry/src/index.ts` only if needed to pass the new optional wellness dependency
 - Test: extend `tests/unit/api-timezone-request.test.ts` or nearest module-registry unit test
@@ -79,6 +83,7 @@
 ## Task 5: Audit + Gate
 
 **Files:**
+
 - Modify only files required by failing audit.
 
 - [ ] Run targeted audit:

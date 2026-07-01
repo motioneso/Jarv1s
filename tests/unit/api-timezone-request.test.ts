@@ -108,8 +108,8 @@ describe("route timezone resolution", () => {
     const runner = { withDataContext: vi.fn(async (_ctx, work) => work("scoped")) };
     const preferences = { get: vi.fn(async () => ({ timezone: "Not/AZone" })) };
 
-    await expect(resolveRequestTimeZoneForRoute({}, accessContext, runner, preferences)).resolves.toBe(
-      "UTC"
-    );
+    await expect(
+      resolveRequestTimeZoneForRoute({}, accessContext, runner, preferences)
+    ).resolves.toBe("UTC");
   });
 });
