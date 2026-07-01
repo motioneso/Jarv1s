@@ -120,6 +120,9 @@ importers:
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@jarv1s/sports':
+        specifier: workspace:*
+        version: link:../../packages/sports
       '@jarv1s/tasks':
         specifier: workspace:*
         version: link:../../packages/tasks
@@ -590,6 +593,9 @@ importers:
       '@jarv1s/settings':
         specifier: workspace:*
         version: link:../settings
+      '@jarv1s/sports':
+        specifier: workspace:*
+        version: link:../sports
       '@jarv1s/structured-state':
         specifier: workspace:*
         version: link:../structured-state
@@ -797,6 +803,33 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+
+  packages/sports:
+    dependencies:
+      '@jarv1s/db':
+        specifier: workspace:*
+        version: link:../db
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+      '@jarv1s/settings-ui':
+        specifier: workspace:*
+        version: link:../settings-ui
+      '@jarv1s/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@jarv1s/structured-state':
+        specifier: workspace:*
+        version: link:../structured-state
+      '@tanstack/react-query':
+        specifier: ^5.0.0
+        version: 5.101.0(react@19.2.7)
+      fastify:
+        specifier: ^5.6.2
+        version: 5.8.5
+      react:
+        specifier: ^19.0.0
+        version: 19.2.7
 
   packages/structured-state:
     dependencies:

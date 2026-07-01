@@ -7,12 +7,20 @@ const SECTION_ORDER: readonly string[] = [TOP_SECTION, "Plan", "You"];
 const SECTION_OF: Record<string, string> = {
   tasks: "Plan",
   calendar: "Plan",
-  wellness: "You"
+  wellness: "You",
+  sports: "You"
 };
 const HIDDEN_NAV_IDS = new Set(["chat", "briefings", "settings", "notifications"]);
 
 export interface WebRouteMeta {
-  readonly id: "today" | "tasks" | "notifications" | "calendar" | "wellness" | "settings";
+  readonly id:
+    | "today"
+    | "tasks"
+    | "notifications"
+    | "calendar"
+    | "wellness"
+    | "sports"
+    | "settings";
   readonly path: string;
   readonly title: string;
   readonly subtitle: (now: Date, locale: LocaleSettingsDto) => string;
@@ -68,6 +76,13 @@ export const webRoutes: readonly WebRouteMeta[] = [
     title: "Wellness",
     subtitle: () => "PRIVATE",
     match: (pathname) => pathname.startsWith("/wellness")
+  },
+  {
+    id: "sports",
+    path: "/sports",
+    title: "Sports",
+    subtitle: () => "FOLLOWED",
+    match: (pathname) => pathname.startsWith("/sports")
   },
   {
     id: "settings",

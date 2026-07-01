@@ -302,7 +302,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0129", name: "0129_yolo_action_audit_mode.sql" },
         { version: "0130", name: "0130_connector_imap_enum.sql" },
         { version: "0131", name: "0131_connector_imap_definitions.sql" },
-        { version: "0132", name: "0132_email_imap_insert.sql" }
+        { version: "0132", name: "0132_email_imap_insert.sql" },
+        { version: "0133", name: "0133_sports_follows.sql" }
       ]);
     } finally {
       await client.end();

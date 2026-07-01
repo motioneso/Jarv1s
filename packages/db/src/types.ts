@@ -847,6 +847,14 @@ import type {
   PersonContextIndexingStateTable
 } from "./people-types.js";
 
+export interface SportsFollowsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  competition_key: string;
+  team_key: string | null;
+  created_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -891,6 +899,7 @@ export interface JarvisDatabase {
   "app.entities": EntitiesTable;
   "app.preferences": PreferencesTable;
   "app.wellness_checkins": WellnessCheckinsTable;
+  "app.sports_follows": SportsFollowsTable;
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
@@ -944,6 +953,7 @@ export type Commitment = Selectable<CommitmentsTable>;
 export type Entity = Selectable<EntitiesTable>;
 export type Preference = Selectable<PreferencesTable>;
 export type WellnessCheckin = Selectable<WellnessCheckinsTable>;
+export type SportsFollow = Selectable<SportsFollowsTable>;
 export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
 export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;
