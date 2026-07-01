@@ -1057,6 +1057,20 @@ git commit -m "feat(sports): manifest + briefing-only followedFactsToday read to
 - Consumes: `sportsModuleManifest`, `sportsModuleSqlMigrationDirectory`, `registerSportsRoutes`,
   `createEspnSportsSource` from `@jarv1s/sports`.
 
+> **DEFERRED FROM TASK 5 (Coordinator correction, 2026-07-01).** Registering the module here is what
+> puts `sportsModuleSqlMigrationDirectory` into `getBuiltInSqlMigrationDirectories()`, so
+> `app.sports_follows` only exists in the foundation/integration DB from this task on. Task 5 shipped
+> the repository code + pure-mapping unit tests (`tests/unit/sports-repository.test.ts`) but did NOT
+> force a failing RLS integration test. Add both of these here, now that the table is active:
+>
+> - [ ] **RLS integration test** (`tests/integration/sports-follows-repository.test.ts`, mirror
+>       `multi-user-isolation.test.ts`): (a) owner create→list round-trips; (b) a second actor's
+>       `list` does not see the first actor's follow (RLS isolation); (c) a duplicate
+>       whole-competition follow (`teamKey: null` twice) does not create a second row.
+> - [ ] **foundation.test.ts assertions**: append the `0133_sports_follows` migration row and the
+>       `app.sports_follows` table to the foundation migration-list / table assertions (they use
+>       `toEqual`, so the row must be added exactly when registration makes the migration active).
+
 - [ ] **Step 1: Write the failing test** — add `"sports"` to the expected built-in-module-id list in
       the registry test.
 
