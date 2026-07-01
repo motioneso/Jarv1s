@@ -8,6 +8,7 @@ export * from "./google-connection.js";
 export * from "./google-email-write-provider.js";
 export * from "./imap-connection.js";
 export * from "./imap-email-read-provider.js";
+export * from "./imap-email-write-provider.js";
 export * from "./imap-message-key.js";
 export * from "./imap-probe-client.js";
 export * from "./imap-secret.js";
