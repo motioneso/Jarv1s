@@ -1,4 +1,4 @@
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { ActionRequestPreview, JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 /**
  * Resolves the modules whose tools are exposed for a user. The enablement SEAM
@@ -22,6 +22,14 @@ export type GatewaySessionRecord =
       readonly actionRequestId: string;
       readonly toolName: string;
       readonly summary: string;
+      /**
+       * Optional rich, server-derived card preview (e.g. email reply recipient/subject/body).
+       * Rides the live stream ONLY — it is never written to the persisted action_request row,
+       * whose `inputSummary` stays key-names-only (metadata-only persistence). Produced by the
+       * tool's async `preview` hook under withDataContext; absent when the tool declares none
+       * or the hook returned undefined / threw (the card still renders from `summary`).
+       */
+      readonly preview?: ActionRequestPreview;
     }
   | {
       readonly kind: "action_result";

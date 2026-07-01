@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import type {
+  ActionRequestPreview,
   JarvisModuleManifest,
   ModuleAssistantToolManifest,
   ToolContext,
@@ -378,11 +379,29 @@ export class AssistantToolGateway {
 
     const summary = [notice, this.summaryFor(found.tool, input, ctx)].filter(Boolean).join(" ");
 
+    // Optional rich, server-derived card preview (e.g. email reply recipient/subject/body),
+    // computed under the actor's DataContextDb. It rides the live stream ONLY — the persisted
+    // row's `inputSummary` above stays key-names-only (metadata-only persistence). A preview
+    // hook that throws must NOT block the card: guard and fall back to summary-only (never let
+    // a thrown message, which could carry sensitive detail, reach the emit).
+    let preview: ActionRequestPreview | undefined;
+    const previewHook = found.tool.preview;
+    if (previewHook) {
+      try {
+        preview = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
+          previewHook(scopedDb, input, ctx, this.servicesFor(found.tool))
+        );
+      } catch {
+        preview = undefined;
+      }
+    }
+
     this.deps.notifier.emit(ctx.chatSessionId, {
       kind: "action_request",
       actionRequestId: action.id,
       toolName: found.dto.name,
-      summary
+      summary,
+      ...(preview ? { preview } : {})
     });
 
     const outcome = await pendingResolution;
