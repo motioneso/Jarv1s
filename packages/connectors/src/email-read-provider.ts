@@ -19,14 +19,14 @@ export interface MailMessageKey {
  * provider identity. Token acquisition/refresh stays the caller's responsibility (account-scoped,
  * not part of this seam) — every method takes an already-resolved access token.
  */
-export interface EmailReadProvider {
-  listFolders(accessToken: string): Promise<string[]>;
+export interface EmailReadProvider<TCredential = string> {
+  listFolders(credential: TCredential): Promise<string[]>;
   listMessageKeys(
-    accessToken: string,
+    credential: TCredential,
     folder: string,
     sinceKey?: string
   ): Promise<MailMessageKey[]>;
-  getMessage(accessToken: string, key: MailMessageKey): Promise<ParsedEmail>;
+  getMessage(credential: TCredential, key: MailMessageKey): Promise<ParsedEmail>;
 }
 
 /** The subset of GoogleApiClient this provider needs (matches sync-jobs.ts's GoogleClientLike). */
