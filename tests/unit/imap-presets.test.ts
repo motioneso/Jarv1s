@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAP_PRESETS, IMAP_PROVIDER_IDS, getImapPreset } from "@jarv1s/connectors";
+import { IMAP_PRESETS, IMAP_PROVIDER_IDS, getImapPreset } from "@jarv1s/connectors/presets";
 
 describe("imap presets", () => {
   it("exposes the four v1 password presets keyed by provider_id", () => {

@@ -6,7 +6,6 @@ export * from "./feature-grants.js";
 export * from "./google-api-client.js";
 export * from "./google-connection.js";
 export * from "./imap-connection.js";
-export * from "./imap-presets.js";
 export * from "./imap-probe-client.js";
 export * from "./imap-secret.js";
 export * from "./live-tools.js";

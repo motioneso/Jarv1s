@@ -20,6 +20,7 @@
       "@jarv1s/chat": ["packages/chat/src/index.ts"],
       "@jarv1s/chat/priority-consumer": ["packages/chat/src/priority-consumer.ts"],
       "@jarv1s/connectors": ["packages/connectors/src/index.ts"],
+      "@jarv1s/connectors/presets": ["packages/connectors/src/imap-presets.ts"],
       "@jarv1s/db": ["packages/db/src/index.ts"],
       "@jarv1s/db/probes": ["packages/db/src/probes/index.ts"],
       "@jarv1s/db/*": ["packages/db/src/*"],
