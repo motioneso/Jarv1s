@@ -68,6 +68,19 @@ interface ExecutableTool {
   readonly dto: AiAssistantToolDto;
 }
 
+export interface NativeToolPermissionRequest {
+  readonly toolName: string;
+  readonly toolInput: Record<string, unknown>;
+}
+
+export interface NativeToolPermissionResponse {
+  readonly decision: "allow" | "deny";
+  readonly reason: string;
+}
+
+const NATIVE_TOOL_MODULE_ID = "claude-native";
+const NATIVE_TOOL_MODULE_NAME = "Claude Native Tools";
+
 /**
  * The single chokepoint between Jarvis and every module's real operations. Lists
  * tools, validates input, enforces the hardcoded risk policy + confirmation bridge,
@@ -146,6 +159,63 @@ export class AssistantToolGateway {
       return result;
     }
     return this.confirmAndRun(found, input, ctx, await this.firstRunNotice(found, prefs));
+  }
+
+  async requestNativeToolPermission(
+    token: string,
+    request: NativeToolPermissionRequest
+  ): Promise<NativeToolPermissionResponse> {
+    const { actorUserId, chatSessionId } = this.deps.tokens.verify(token);
+    const toolName = safeNativeToolName(request.toolName);
+    const input = request.toolInput;
+    const requestId = `native_${randomUUID()}`;
+    const access: AccessContext = { actorUserId, requestId };
+
+    const action = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
+      this.deps.repository.createPendingAssistantAction(scopedDb, {
+        toolModuleId: NATIVE_TOOL_MODULE_ID,
+        toolModuleName: NATIVE_TOOL_MODULE_NAME,
+        toolName,
+        permissionId: `${NATIVE_TOOL_MODULE_ID}.${toolName}`,
+        risk: nativeToolRisk(toolName),
+        inputSummary: summarizeAssistantToolInput(input),
+        requestId
+      })
+    );
+
+    const pendingResolution = this.deps.confirmations.awaitResolution(
+      action.id,
+      this.deps.confirmTimeoutMs
+    );
+
+    this.deps.notifier.emit(chatSessionId, {
+      kind: "action_request",
+      actionRequestId: action.id,
+      toolName,
+      summary: nativeToolSummary(toolName, input)
+    });
+
+    const outcome = await pendingResolution;
+    if (outcome !== "confirmed") {
+      this.deps.notifier.emit(chatSessionId, {
+        kind: "action_result",
+        actionRequestId: action.id,
+        toolName,
+        outcome: "denied"
+      });
+      return {
+        decision: "deny",
+        reason: outcome === "timeout" ? "Timed out awaiting confirmation." : "Denied by user."
+      };
+    }
+
+    this.deps.notifier.emit(chatSessionId, {
+      kind: "action_result",
+      actionRequestId: action.id,
+      toolName,
+      outcome: "executed"
+    });
+    return { decision: "allow", reason: "Approved by user." };
   }
 
   /**
@@ -468,4 +538,19 @@ export class AssistantToolGateway {
       );
     }
   }
+}
+
+function safeNativeToolName(toolName: string): string {
+  const trimmed = toolName.trim();
+  if (trimmed.length === 0) return "Unknown";
+  return trimmed.slice(0, 120);
+}
+
+function nativeToolRisk(toolName: string): "write" | "destructive" {
+  return toolName === "Bash" || toolName === "Unknown" ? "destructive" : "write";
+}
+
+function nativeToolSummary(toolName: string, input: Record<string, unknown>): string {
+  const inputKeyCount = Object.keys(input).length;
+  return `Claude wants to use native ${toolName} (${inputKeyCount} field(s)).`;
 }

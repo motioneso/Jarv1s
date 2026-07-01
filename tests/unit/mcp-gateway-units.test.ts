@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   AssistantToolGateway,
@@ -167,6 +167,94 @@ describe("confirmation registry", () => {
     expect(registry.isAwaiting("a4")).toBe(false);
     // An Approve arriving after the timeout finds no live waiter → false (never executes).
     expect(registry.resolve("a4", "confirmed")).toBe(false);
+  });
+});
+
+describe("native Claude tool permission bridge", () => {
+  it("stores a reserved native-tool action request and resolves approval through ConfirmationRegistry", async () => {
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const emitted: unknown[] = [];
+    const created: unknown[] = [];
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async (_db: unknown, input: unknown) => {
+          created.push(input);
+          return { id: "native-action-1" };
+        }
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations,
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 1000
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    const pending = gateway.requestNativeToolPermission(token, {
+      toolName: "Bash",
+      toolInput: { command: "echo hi" }
+    });
+    await vi.waitFor(() => expect(emitted).toHaveLength(1));
+    expect(created[0]).toMatchObject({
+      toolModuleId: "claude-native",
+      toolModuleName: "Claude Native Tools",
+      toolName: "Bash",
+      permissionId: "claude-native.Bash",
+      risk: "destructive"
+    });
+    expect(emitted[0]).toMatchObject({
+      kind: "action_request",
+      actionRequestId: "native-action-1",
+      toolName: "Bash"
+    });
+
+    confirmations.resolve("native-action-1", "confirmed");
+
+    await expect(pending).resolves.toEqual({
+      decision: "allow",
+      reason: "Approved by user."
+    });
+  });
+
+  it("denies native tool permission on confirmation timeout", async () => {
+    const tokens = new SessionTokenRegistry();
+    const emitted: unknown[] = [];
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async () => ({ id: "native-action-timeout" })
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 5
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    await expect(
+      gateway.requestNativeToolPermission(token, {
+        toolName: "Write",
+        toolInput: { file_path: "/x" }
+      })
+    ).resolves.toEqual({
+      decision: "deny",
+      reason: "Timed out awaiting confirmation."
+    });
+    expect(emitted.at(-1)).toMatchObject({
+      kind: "action_result",
+      actionRequestId: "native-action-timeout",
+      toolName: "Write",
+      outcome: "denied"
+    });
   });
 });
 

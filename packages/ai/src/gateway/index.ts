@@ -27,4 +27,9 @@ export type {
   GatewaySessionRecord,
   GatewayToolResponse
 } from "./types.js";
-export { AssistantToolGateway, type AssistantToolGatewayDependencies } from "./gateway.js";
+export {
+  AssistantToolGateway,
+  type AssistantToolGatewayDependencies,
+  type NativeToolPermissionRequest,
+  type NativeToolPermissionResponse
+} from "./gateway.js";
