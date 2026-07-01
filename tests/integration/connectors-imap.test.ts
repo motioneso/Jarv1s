@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { EmailRepository } from "@jarv1s/email";
 import type { Kysely } from "kysely";
 import {
   ConnectorsRepository,
@@ -87,6 +88,43 @@ describe("ConnectorsRepository.upsertImapAccount — scope persistence", () => {
         })
     );
     expect(account.scopes).toEqual(["email.read"]);
+  });
+
+  it("allows an email_messages insert for a provider_type='imap' account with email.read scope", async () => {
+    const repo = new ConnectorsRepository();
+    const cipher = createConnectorSecretCipher();
+    const account = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:imap-insert-account" },
+      (scopedDb) =>
+        repo.upsertImapAccount(scopedDb, {
+          providerId: "imap-proton",
+          encryptedSecret: cipher.encryptJson({
+            kind: "imap-password",
+            providerId: "imap-proton",
+            username: "user@proton.local",
+            password: "secret",
+            imapHost: "127.0.0.1",
+            imapPort: 1143,
+            imapTls: false,
+            smtpHost: "127.0.0.1",
+            smtpPort: 1025,
+            smtpSecurity: "none"
+          })
+        })
+    );
+    const emailRepo = new EmailRepository();
+    const message = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:imap-insert-message" },
+      (scopedDb) =>
+        emailRepo.upsertCachedMessage(scopedDb, {
+          connectorAccountId: account.id,
+          sender: "friend@example.com",
+          subject: "hello",
+          receivedAt: new Date().toISOString(),
+          externalId: "imap:INBOX:1000:1"
+        })
+    );
+    expect(message.id).toBeDefined();
   });
 });
 
