@@ -92,6 +92,11 @@ export const queryKeys = {
     today: ["weather", "today"] as const,
     location: ["weather", "location"] as const
   },
+  sports: {
+    overview: ["sports", "overview"] as const,
+    catalog: ["sports", "catalog"] as const,
+    follows: ["sports", "follows"] as const
+  },
   wellness: {
     checkins: ["wellness", "checkins"] as const,
     medications: ["wellness", "medications"] as const,
