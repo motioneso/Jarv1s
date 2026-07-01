@@ -12,6 +12,7 @@ import type {
 } from "@jarv1s/db";
 import { sendJob } from "@jarv1s/jobs";
 import { recordAuditEvent } from "@jarv1s/settings";
+import { reconcileImapAccountSchedule } from "./imap-schedule.js";
 import {
   createConnectorAccountRouteSchema,
   getFeatureGrantsRouteSchema,
@@ -197,6 +198,14 @@ export function registerConnectorsRoutes(
         const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           imapService.connect(scopedDb, input)
         );
+        try {
+          await reconcileImapAccountSchedule(dependencies.boss, account.id, true);
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
+            "imap schedule reconcile failed; account is connected but will not auto-sync until reconnect"
+          );
+        }
         return reply.code(201).send({ account: serializeAccount(account) });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -324,6 +333,17 @@ export function registerConnectorsRoutes(
 
         if (!account) {
           return reply.code(404).send({ error: "Connector account not found" });
+        }
+
+        if (account.provider_type === "imap") {
+          try {
+            await reconcileImapAccountSchedule(dependencies.boss, account.id, false);
+          } catch (error) {
+            request.log.warn(
+              { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
+              "imap schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
+            );
+          }
         }
 
         return { account: serializeAccount(account) };
