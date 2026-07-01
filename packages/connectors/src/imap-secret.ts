@@ -1,4 +1,5 @@
 import type { ConnectorSecretCipher, EncryptedConnectorSecret } from "./crypto.js";
+import type { SmtpSecurityMode } from "./imap-presets.js";
 
 export interface ImapConnectionSecret extends Record<string, unknown> {
   readonly kind: "imap-password";
@@ -10,7 +11,7 @@ export interface ImapConnectionSecret extends Record<string, unknown> {
   readonly imapTls: boolean;
   readonly smtpHost: string;
   readonly smtpPort: number;
-  readonly smtpTls: boolean;
+  readonly smtpSecurity: SmtpSecurityMode;
 }
 
 export function decryptImapConnectionSecret(

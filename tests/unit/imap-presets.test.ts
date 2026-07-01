@@ -19,18 +19,43 @@ describe("imap presets", () => {
       imapTls: true,
       smtpHost: "smtp.mail.yahoo.com",
       smtpPort: 465,
-      smtpTls: true,
+      smtpSecurity: "implicit_tls",
       authMethod: "password"
     });
   });
 
-  it("proton preset points at local Bridge", () => {
+  it("proton preset points at local Bridge with no SMTP TLS", () => {
     expect(getImapPreset("imap-proton")).toMatchObject({
       imapHost: "127.0.0.1",
       imapPort: 1143,
       smtpHost: "127.0.0.1",
-      smtpPort: 1025
+      smtpPort: 1025,
+      smtpSecurity: "none"
     });
+  });
+
+  it("icloud preset uses STARTTLS on submission port 587, not implicit TLS", () => {
+    expect(getImapPreset("imap-icloud")).toMatchObject({
+      smtpPort: 587,
+      smtpSecurity: "starttls"
+    });
+  });
+
+  it("fastmail preset uses implicit TLS on SMTPS port 465", () => {
+    expect(getImapPreset("imap-fastmail")).toMatchObject({
+      smtpPort: 465,
+      smtpSecurity: "implicit_tls"
+    });
+  });
+
+  it("every preset's SMTP security mode matches its port convention (465=implicit_tls, 587=starttls)", () => {
+    for (const preset of Object.values(IMAP_PRESETS)) {
+      if (preset.smtpPort === 465) {
+        expect(preset.smtpSecurity).toBe("implicit_tls");
+      } else if (preset.smtpPort === 587) {
+        expect(preset.smtpSecurity).toBe("starttls");
+      }
+    }
   });
 
   it("returns undefined for unknown provider", () => {

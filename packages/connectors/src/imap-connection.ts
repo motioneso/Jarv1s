@@ -69,7 +69,7 @@ export class ImapConnectionService {
       imapTls: preset.imapTls,
       smtpHost: preset.smtpHost,
       smtpPort: preset.smtpPort,
-      smtpTls: preset.smtpTls
+      smtpSecurity: preset.smtpSecurity
     };
     return this.deps.repository.upsertImapAccount(scopedDb, {
       providerId: input.providerId,
@@ -94,7 +94,7 @@ export class ImapConnectionService {
       imapTls: preset.imapTls,
       smtpHost: preset.smtpHost,
       smtpPort: preset.smtpPort,
-      smtpTls: preset.smtpTls
+      smtpSecurity: preset.smtpSecurity
     };
   }
 }

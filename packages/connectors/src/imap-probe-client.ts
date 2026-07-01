@@ -1,6 +1,8 @@
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 
+import type { SmtpSecurityMode } from "./imap-presets.js";
+
 export type ImapProbeResult = "ok" | "auth_failed" | "tls_failed" | "unreachable";
 
 export interface ImapProbeInput {
@@ -9,9 +11,31 @@ export interface ImapProbeInput {
   readonly imapTls: boolean;
   readonly smtpHost: string;
   readonly smtpPort: number;
-  readonly smtpTls: boolean;
+  readonly smtpSecurity: SmtpSecurityMode;
   readonly username: string;
   readonly password: string;
+}
+
+export interface SmtpTransportSecurityOptions {
+  readonly secure: boolean;
+  readonly requireTLS: boolean;
+}
+
+/**
+ * Maps a preset's SMTP security mode to Nodemailer's transport options. implicit_tls
+ * wraps the socket in TLS from connect (secure: true); starttls connects plaintext and
+ * requires the STARTTLS upgrade to succeed (secure: false, requireTLS: true) rather than
+ * silently falling back to plaintext; none leaves both off for loopback-only servers.
+ */
+export function smtpTransportOptions(mode: SmtpSecurityMode): SmtpTransportSecurityOptions {
+  switch (mode) {
+    case "implicit_tls":
+      return { secure: true, requireTLS: false };
+    case "starttls":
+      return { secure: false, requireTLS: true };
+    case "none":
+      return { secure: false, requireTLS: false };
+  }
 }
 
 export interface ImapProbeClient {
@@ -70,7 +94,7 @@ export class LiveImapProbeClient implements ImapProbeClient {
     const transport = nodemailer.createTransport({
       host: input.smtpHost,
       port: input.smtpPort,
-      secure: input.smtpTls,
+      ...smtpTransportOptions(input.smtpSecurity),
       auth: { user: input.username, pass: input.password }
     });
     try {

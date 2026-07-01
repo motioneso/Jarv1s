@@ -1,5 +1,12 @@
 export type ImapAuthMethod = "password" | "xoauth2";
 
+/**
+ * SMTP submission security: implicit_tls wraps the socket in TLS from connect (port 465
+ * convention), starttls connects plaintext then upgrades via STARTTLS (port 587 convention),
+ * none is unencrypted (loopback-only, e.g. Proton Bridge / local test servers).
+ */
+export type SmtpSecurityMode = "implicit_tls" | "starttls" | "none";
+
 export interface ImapPreset {
   readonly providerId: string;
   readonly displayName: string;
@@ -8,7 +15,7 @@ export interface ImapPreset {
   readonly imapTls: boolean;
   readonly smtpHost: string;
   readonly smtpPort: number;
-  readonly smtpTls: boolean;
+  readonly smtpSecurity: SmtpSecurityMode;
   readonly authMethod: ImapAuthMethod;
   /** Operator-facing note shown in the connect form, e.g. Proton's Bridge prerequisite. */
   readonly prerequisite?: string;
@@ -23,7 +30,7 @@ export const IMAP_PRESETS: Record<string, ImapPreset> = {
     imapTls: true,
     smtpHost: "smtp.mail.yahoo.com",
     smtpPort: 465,
-    smtpTls: true,
+    smtpSecurity: "implicit_tls",
     authMethod: "password",
     prerequisite:
       "Generate an app password in Yahoo Account Security; your normal password will not work."
@@ -36,7 +43,7 @@ export const IMAP_PRESETS: Record<string, ImapPreset> = {
     imapTls: false,
     smtpHost: "127.0.0.1",
     smtpPort: 1025,
-    smtpTls: false,
+    smtpSecurity: "none",
     authMethod: "password",
     prerequisite:
       "Requires a paid Proton plan with Proton Mail Bridge installed and running on (or reachable from) this host."
@@ -49,7 +56,7 @@ export const IMAP_PRESETS: Record<string, ImapPreset> = {
     imapTls: true,
     smtpHost: "smtp.mail.me.com",
     smtpPort: 587,
-    smtpTls: true,
+    smtpSecurity: "starttls",
     authMethod: "password",
     prerequisite: "Generate an app-specific password at appleid.apple.com."
   },
@@ -61,7 +68,7 @@ export const IMAP_PRESETS: Record<string, ImapPreset> = {
     imapTls: true,
     smtpHost: "smtp.fastmail.com",
     smtpPort: 465,
-    smtpTls: true,
+    smtpSecurity: "implicit_tls",
     authMethod: "password",
     prerequisite: "Generate an app password in Fastmail Settings → Privacy & Security."
   }

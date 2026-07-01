@@ -205,7 +205,7 @@ describe("ImapConnectionService", () => {
       imapTls: false,
       smtpHost: "127.0.0.1",
       smtpPort: 1025,
-      smtpTls: false
+      smtpSecurity: "none"
     });
   });
 });
@@ -220,7 +220,7 @@ describe("LiveImapProbeClient against GreenMail", () => {
       imapTls: false,
       smtpHost: testImap.host,
       smtpPort: testImap.smtpPort,
-      smtpTls: false,
+      smtpSecurity: "none",
       username: testImap.username,
       password: testImap.password
     });
@@ -234,7 +234,7 @@ describe("LiveImapProbeClient against GreenMail", () => {
       imapTls: false,
       smtpHost: testImap.host,
       smtpPort: testImap.smtpPort,
-      smtpTls: false,
+      smtpSecurity: "none",
       username: testImap.username,
       password: "definitely-wrong"
     });

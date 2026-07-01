@@ -22,7 +22,7 @@ const secret: ImapConnectionSecret = {
   imapTls: true,
   smtpHost: "smtp.mail.yahoo.com",
   smtpPort: 465,
-  smtpTls: true
+  smtpSecurity: "implicit_tls"
 };
 
 describe("imap secret", () => {
