@@ -37,6 +37,9 @@ const TasksPage = lazy(() =>
 const WellnessPage = lazy(() =>
   import("./wellness/wellness-page").then((module) => ({ default: module.WellnessPage }))
 );
+const SportsPage = lazy(() =>
+  import("./sports/sports-page").then((module) => ({ default: module.SportsPage }))
+);
 
 export function App() {
   const queryClient = useQueryClient();
@@ -83,6 +86,7 @@ export function App() {
     return module?.active === true ? "enabled" : "denied";
   };
   const wellnessGate = myModulesEnabled("wellness");
+  const sportsGate = myModulesEnabled("sports");
   const onboardingQuery = useQuery({
     enabled: activeForOnboarding,
     queryKey: queryKeys.onboarding.status,
@@ -196,6 +200,14 @@ export function App() {
               element={
                 <ModuleGatedRoute gate={wellnessGate}>
                   <WellnessPage />
+                </ModuleGatedRoute>
+              }
+            />
+            <Route
+              path={webRoutePath("sports")}
+              element={
+                <ModuleGatedRoute gate={sportsGate}>
+                  <SportsPage />
                 </ModuleGatedRoute>
               }
             />
