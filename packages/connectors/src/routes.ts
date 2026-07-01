@@ -208,7 +208,12 @@ export function registerConnectorsRoutes(
           imapService.connect(scopedDb, input)
         );
         try {
-          await reconcileImapAccountSchedule(dependencies.boss, account.id, true);
+          await reconcileImapAccountSchedule(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            true
+          );
         } catch (error) {
           request.log.warn(
             { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
@@ -346,7 +351,12 @@ export function registerConnectorsRoutes(
 
         if (account.provider_type === "imap") {
           try {
-            await reconcileImapAccountSchedule(dependencies.boss, account.id, false);
+            await reconcileImapAccountSchedule(
+              dependencies.boss,
+              accessContext.actorUserId,
+              account.id,
+              false
+            );
           } catch (error) {
             request.log.warn(
               { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
