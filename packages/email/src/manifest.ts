@@ -9,7 +9,15 @@ import {
   updateEmailBriefingSettingsRequestSchema
 } from "@jarv1s/shared";
 
-import { emailListVisibleMessagesExecute, emailToolMessageOutputSchema } from "./tools.js";
+import {
+  emailDraftReplyExecute,
+  emailListVisibleMessagesExecute,
+  emailReplyPreview,
+  emailSendReplyExecute,
+  emailToolMessageOutputSchema,
+  summarizeDraftReply,
+  summarizeSendReply
+} from "./tools.js";
 
 export const EMAIL_MODULE_ID = "email";
 export const emailModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
@@ -105,7 +113,7 @@ export const emailModuleManifest = {
           id: "email.send-on-behalf",
           name: "Send on my behalf",
           description: "Draft and send replies, with your approval.",
-          default: "coming-soon"
+          default: "default-on"
         }
       ]
     }
@@ -137,6 +145,17 @@ export const emailModuleManifest = {
       permissionId: "email.manage"
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "email_drafts",
+      label: "Draft email replies",
+      description:
+        "Let Jarvis draft replies to your emails. Drafts land in Gmail for you to review — " +
+        "nothing is sent without your say-so.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto"]
+    }
+  ],
   assistantTools: [
     {
       name: "email.listVisibleMessages",
@@ -159,6 +178,60 @@ export const emailModuleManifest = {
         }
       },
       execute: emailListVisibleMessagesExecute
+    },
+    {
+      name: "email.draftReply",
+      description:
+        "Draft a reply to a cached email and (on approval) save it as a threaded Gmail draft for " +
+        "the user to review. The reply is addressed to the ORIGINAL SENDER on the existing thread " +
+        "— the server derives recipient/subject/thread from the cached message; you supply only " +
+        "the message id and the reply body. No arbitrary recipients, reply-all, or attachments.",
+      permissionId: "email.manage",
+      risk: "write",
+      actionFamilyId: "email_drafts",
+      executionPolicy: "auto",
+      requiresServices: ["emailWrite"],
+      inputSchema: {
+        type: "object",
+        required: ["cacheMessageId", "body"],
+        properties: {
+          cacheMessageId: {
+            type: "string",
+            description: "Jarvis email message id (uuid) from listVisibleMessages"
+          },
+          body: { type: "string", description: "Plain-text reply body composed for the sender" }
+        }
+      },
+      execute: emailDraftReplyExecute,
+      summarize: summarizeDraftReply,
+      preview: emailReplyPreview
+    },
+    {
+      name: "email.sendReply",
+      description:
+        "Send a reply to a cached email on the existing thread. ALWAYS asks for confirmation and " +
+        "sends immediately on approval. Addressed to the ORIGINAL SENDER — the server derives " +
+        "recipient/subject/thread from the cached message; you supply only the message id and the " +
+        "reply body. No arbitrary recipients, reply-all, or attachments.",
+      permissionId: "email.manage",
+      risk: "destructive",
+      // No actionFamilyId / executionPolicy → the gateway's destructive floor always confirms
+      // (policy.ts unchanged). There is no tier that can promote this to auto-send.
+      requiresServices: ["emailWrite"],
+      inputSchema: {
+        type: "object",
+        required: ["cacheMessageId", "body"],
+        properties: {
+          cacheMessageId: {
+            type: "string",
+            description: "Jarvis email message id (uuid) from listVisibleMessages"
+          },
+          body: { type: "string", description: "Plain-text reply body composed for the sender" }
+        }
+      },
+      execute: emailSendReplyExecute,
+      summarize: summarizeSendReply,
+      preview: emailReplyPreview
     }
   ],
   proactiveMonitor: emailMonitorProvider
