@@ -94,9 +94,13 @@ export class ImapEmailReadProvider implements EmailReadProvider<ImapConnectionSe
     }
     return withImapClient(this.clientFactory, secret, async (client) => {
       await client.mailboxOpen(identity.folder, { readOnly: true });
-      const message = await client.fetchOne(String(identity.uid), { uid: true, source: true }, {
-        uid: true
-      });
+      const message = await client.fetchOne(
+        String(identity.uid),
+        { uid: true, source: true },
+        {
+          uid: true
+        }
+      );
       if (!message || !message.source) {
         throw new Error("IMAP message not found or has no source");
       }
