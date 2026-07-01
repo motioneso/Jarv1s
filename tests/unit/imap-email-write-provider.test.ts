@@ -181,7 +181,7 @@ describe("ImapEmailWriteProvider", () => {
       expect(result.mode).toBe("draft");
       expect(appendSpy).toHaveBeenCalledWith(
         mockSecret,
-        "\\Drafts",
+        "Drafts",
         expect.any(Buffer)
       );
       appendSpy.mockRestore();
@@ -237,7 +237,7 @@ describe("ImapEmailWriteProvider", () => {
       );
       expect(appendSpy).toHaveBeenCalledWith(
         mockSecret,
-        "\\Sent",
+        "Sent",
         expect.any(Buffer)
       );
       smtpSpy.mockRestore();

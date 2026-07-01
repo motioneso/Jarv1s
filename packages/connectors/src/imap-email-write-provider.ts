@@ -5,15 +5,16 @@ import nodemailer from "nodemailer";
 import type { ConnectorSecretCipher } from "./crypto.js";
 import type { ConnectorsRepository } from "./repository.js";
 import { decryptImapConnectionSecret, type ImapConnectionSecret } from "./imap-secret.js";
+import { smtpTransportOptions } from "./imap-probe-client.js";
 
 const MSG_UPSTREAM_FAILED = "Couldn't send your reply right now — try again.";
 
-const DRAFTS_FOLDER = "\\Drafts";
-const SENT_FOLDER = "\\Sent";
+const DRAFTS_FOLDER = "Drafts";
+const SENT_FOLDER = "Sent";
 
 /**
  * IMAP implementation of EmailWriteProvider. Uses nodemailer for SMTP submission
- * and ImapFlow for APPEND to \Drafts/\Sent. Credentials (app passwords) are passed
+ * and ImapFlow for APPEND to Drafts/Sent. Credentials (app passwords) are passed
  * in but never serialized into responses/logs/payloads/prompts.
  */
 export class ImapEmailWriteProvider implements EmailWriteProvider {
@@ -92,7 +93,7 @@ export class ImapEmailWriteProvider implements EmailWriteProvider {
     const transporter = nodemailer.createTransport({
       host: secret.smtpHost,
       port: secret.smtpPort,
-      secure: secret.smtpSecurity === "implicit_tls",
+      ...smtpTransportOptions(secret.smtpSecurity),
       auth: { user: secret.username, pass: secret.password }
     });
 
@@ -117,7 +118,17 @@ export class ImapEmailWriteProvider implements EmailWriteProvider {
 
     await client.connect();
     try {
-      await client.mailboxOpen(folder);
+      try {
+        await client.mailboxOpen(folder);
+      } catch (err) {
+        // Folder might not exist, try to create it
+        try {
+          await client.mailboxCreate(folder);
+          await client.mailboxOpen(folder);
+        } catch (createErr) {
+          throw new Error(`Failed to create or open folder ${folder}: ${createErr instanceof Error ? createErr.message : String(createErr)}`);
+        }
+      }
       await client.append(folder, message);
     } finally {
       await client.logout();
