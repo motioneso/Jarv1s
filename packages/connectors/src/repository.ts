@@ -333,6 +333,26 @@ export class ConnectorsRepository {
   }
 
   /**
+   * IMAP analog of getActiveGoogleAccountSecret. Unlike Google (one fixed providerId), an
+   * actor may have several active IMAP accounts (one per preset), so this is keyed by the
+   * specific account id rather than a provider constant.
+   */
+  async getActiveImapAccountSecret(
+    scopedDb: DataContextDb,
+    accountId: string
+  ): Promise<{ id: string; encryptedSecret: EncryptedConnectorSecret } | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select(["id", "encrypted_secret"])
+      .where("id", "=", accountId)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return { id: row.id, encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret };
+  }
+
+  /**
    * Upsert a generic-IMAP account keyed by providerId (one of the IMAP_PRESETS keys),
    * unlike upsertGoogleAccount whose providerId is a single fixed constant — IMAP has
    * one row per preset the actor has connected.
@@ -342,6 +362,13 @@ export class ConnectorsRepository {
     input: { providerId: string; encryptedSecret: EncryptedConnectorSecret }
   ): Promise<ConnectorAccountSafeRow> {
     assertDataContextDb(scopedDb);
+    const definition = await scopedDb.db
+      .selectFrom("app.connector_definitions")
+      .select("default_scopes")
+      .where("provider_id", "=", input.providerId)
+      .executeTakeFirst();
+    const scopes = definition?.default_scopes ?? [];
+
     const existing = await scopedDb.db
       .selectFrom("app.connector_accounts")
       .select("id")
@@ -349,7 +376,7 @@ export class ConnectorsRepository {
       .executeTakeFirst();
     if (existing) {
       const updated = await this.updateAccount(scopedDb, existing.id, {
-        scopes: [],
+        scopes,
         status: "active",
         encryptedSecret: input.encryptedSecret
       });
@@ -358,7 +385,7 @@ export class ConnectorsRepository {
     }
     return this.createAccount(scopedDb, {
       providerId: input.providerId,
-      scopes: [],
+      scopes,
       status: "active",
       encryptedSecret: input.encryptedSecret
     });

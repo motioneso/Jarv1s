@@ -452,6 +452,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "export.build",
       "export.cleanup",
       "connectors.google-sync",
+      "connectors.imap-sync",
       "tasks-deferred-status",
       "tasks-recurrence-materialize",
       "goals-memory-sync",

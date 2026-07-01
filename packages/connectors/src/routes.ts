@@ -12,6 +12,8 @@ import type {
 } from "@jarv1s/db";
 import { sendJob } from "@jarv1s/jobs";
 import { recordAuditEvent } from "@jarv1s/settings";
+import { reconcileGoogleAccountSchedule } from "./google-schedule.js";
+import { reconcileImapAccountSchedule } from "./imap-schedule.js";
 import {
   createConnectorAccountRouteSchema,
   getFeatureGrantsRouteSchema,
@@ -145,6 +147,14 @@ export function registerConnectorsRoutes(
             "sync-on-connect enqueue failed; user can sync manually"
           );
         }
+        try {
+          await reconcileGoogleAccountSchedule(dependencies.boss, accessContext.actorUserId, true);
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.google_schedule_reconcile_failed", name: (error as Error).name },
+            "google schedule reconcile failed; account is connected but will not auto-sync on schedule until reconnect"
+          );
+        }
         return reply.code(201).send({ account: serializeAccount(account) });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -197,6 +207,19 @@ export function registerConnectorsRoutes(
         const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
           imapService.connect(scopedDb, input)
         );
+        try {
+          await reconcileImapAccountSchedule(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            true
+          );
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
+            "imap schedule reconcile failed; account is connected but will not auto-sync until reconnect"
+          );
+        }
         return reply.code(201).send({ account: serializeAccount(account) });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -324,6 +347,37 @@ export function registerConnectorsRoutes(
 
         if (!account) {
           return reply.code(404).send({ error: "Connector account not found" });
+        }
+
+        if (account.provider_type === "imap") {
+          try {
+            await reconcileImapAccountSchedule(
+              dependencies.boss,
+              accessContext.actorUserId,
+              account.id,
+              false
+            );
+          } catch (error) {
+            request.log.warn(
+              { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
+              "imap schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
+            );
+          }
+        }
+
+        if (account.provider_type === "google") {
+          try {
+            await reconcileGoogleAccountSchedule(
+              dependencies.boss,
+              accessContext.actorUserId,
+              false
+            );
+          } catch (error) {
+            request.log.warn(
+              { event: "connectors.google_schedule_reconcile_failed", name: (error as Error).name },
+              "google schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
+            );
+          }
         }
 
         return { account: serializeAccount(account) };
