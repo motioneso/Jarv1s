@@ -113,7 +113,7 @@ export function WellnessPage() {
 
   const last14 = checkins
     .filter((c) => {
-      const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
+      const d = localDay(c.checkedInAt ?? c.createdAt ?? "", localTimezone);
       return d && d < today;
     })
     .slice(0, 14);
