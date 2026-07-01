@@ -1,4 +1,5 @@
 import type { ProviderKind } from "@jarv1s/ai"; // "anthropic" | "openai-compatible" | "google"
+import type { ActionRequestPreview } from "@jarv1s/module-sdk";
 import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
 export type ChatRecordKind =
@@ -19,6 +20,12 @@ export interface TranscriptRecord {
   readonly summary?: string;
   readonly outcome?: "executed" | "denied" | "error";
   readonly sourceFreshness?: SourceFreshnessV1 | null;
+  /**
+   * Optional rich, server-derived Approve/Deny card preview (email reply recipient/subject/body).
+   * Rides the live SSE stream ONLY (whole-record `JSON.stringify` in `/api/chat/stream`); never
+   * persisted. Present only on `action_request` records whose tool declared a `preview` hook.
+   */
+  readonly preview?: ActionRequestPreview;
 }
 
 export interface EngineLaunchOpts {

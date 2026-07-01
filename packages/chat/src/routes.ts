@@ -35,6 +35,8 @@ import {
   type SessionNotifier
 } from "@jarv1s/ai";
 import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
+import { EmailRepository } from "@jarv1s/email";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 import { getConnectorSyncAt } from "@jarv1s/connectors";
 import type {
   ConnectorsRepository,
@@ -63,6 +65,7 @@ const YOLO_ALLOWED_PREF_KEY = "yolo.allowed";
 const YOLO_ENABLED_PREF_KEY = "yolo.enabled";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
+import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
@@ -558,6 +561,13 @@ export function buildChatToolServices(deps: {
         ? (eventId, actorUserId) =>
             sendCalendarCacheEvictJob(deps.boss!, { targetItemId: eventId, actorUserId })
         : undefined
+    });
+    services.emailWrite = buildEmailWriteService({
+      emailRepository: new EmailRepository(),
+      connectorsRepository: deps.connectorsRepository,
+      googleService: deps.googleConnectionService,
+      googleApiClient: deps.googleApiClient,
+      preferencesRepository: new PreferencesRepository()
     });
   }
   if (deps.boss) {

@@ -33,6 +33,47 @@ describe("ChatGatewayNotifier", () => {
     expect(record.summary).toBe("Write the value 'hello'");
   });
 
+  it("threads an optional preview through to the transcript record", () => {
+    const manager = makeManager();
+    const notifier = new ChatGatewayNotifier(manager);
+
+    notifier.emit("u1", {
+      kind: "action_request",
+      actionRequestId: "ar_2",
+      toolName: "email.draftReply",
+      summary: "Draft a reply",
+      preview: { to: "alice@example.test", subject: "Re: lunch", body: "See you at noon." }
+    });
+
+    const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      TranscriptRecord
+    ];
+    expect(record.preview).toEqual({
+      to: "alice@example.test",
+      subject: "Re: lunch",
+      body: "See you at noon."
+    });
+  });
+
+  it("omits preview when the action_request carries none", () => {
+    const manager = makeManager();
+    const notifier = new ChatGatewayNotifier(manager);
+
+    notifier.emit("u1", {
+      kind: "action_request",
+      actionRequestId: "ar_3",
+      toolName: "example.write",
+      summary: "Write the value 'hello'"
+    });
+
+    const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      TranscriptRecord
+    ];
+    expect(record.preview).toBeUndefined();
+  });
+
   it("converts action_result with outcome", () => {
     const manager = makeManager();
     const notifier = new ChatGatewayNotifier(manager);

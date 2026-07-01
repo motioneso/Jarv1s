@@ -417,6 +417,29 @@ export class ConnectorsRepository {
     };
   }
 
+  /**
+   * Gmail-write analog of getCalendarWriteScopeState. Returns the single active Google account
+   * and whether its stored scopes include gmail.modify (the send/draft capability). Used by the
+   * email reply write-impl to gate the provider (only the active Google account can reply) and
+   * the scope (no Gmail write call without gmail.modify). Scope literal mirrors GMAIL_SCOPE.
+   */
+  async getGmailWriteScopeState(
+    scopedDb: DataContextDb
+  ): Promise<{ accountId: string; hasScope: boolean } | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select(["id", "scopes"])
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return {
+      accountId: row.id,
+      hasScope: row.scopes.includes("https://www.googleapis.com/auth/gmail.modify")
+    };
+  }
+
   private async requireVisibleAccount(
     scopedDb: DataContextDb,
     accountId: string

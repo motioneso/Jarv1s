@@ -1,7 +1,16 @@
 import { assertDataContextDb, type EmailMessage } from "@jarv1s/db";
-import type { ToolExecute, ToolResult, ToolServices } from "@jarv1s/module-sdk";
+import type {
+  ActionRequestPreview,
+  ToolContext,
+  ToolExecute,
+  ToolPreview,
+  ToolResult,
+  ToolServices
+} from "@jarv1s/module-sdk";
 import { emailMessageDtoSchema, nullableStringSchema } from "@jarv1s/shared";
 
+import type { EmailWriteService, ReplyInput } from "./email-write-service.js";
+import { deriveReplyTarget } from "./reply-mime.js";
 import { EmailRepository } from "./repository.js";
 import { serializeEmailMessage } from "./routes.js";
 
@@ -61,3 +70,89 @@ function serializeEmailToolMessage(message: EmailMessage) {
     connectorLabel: typeof md.connectorLabel === "string" ? md.connectorLabel : null
   };
 }
+
+// ── Reply write tools (email.draftReply / email.sendReply) ────────────────────────────────
+//
+// Tool input is `{ cacheMessageId, body }` ONLY — the model never addresses. The write-impl
+// re-derives recipient/subject/threadId from the owner-visible cached email under DataContextDb
+// (security floor §5). These tools are thin: narrow the composition-host `emailWrite` service
+// and hand it the (validated) input. The composed body rides the live card preview + the Gmail
+// call only; it is never persisted (summarize below is deliberately body-free).
+
+// Structural interface — the concrete service is built in the composition host (packages/chat)
+// which may import connectors. The email module only knows this shape (module isolation).
+function narrowEmailWrite(services: ToolServices | undefined): EmailWriteService {
+  const svc = (services ?? {}).emailWrite as EmailWriteService | undefined;
+  if (!svc || typeof svc.draftReply !== "function" || typeof svc.sendReply !== "function") {
+    throw new Error("emailWrite service is not available");
+  }
+  return svc;
+}
+
+function readReplyInput(input: Record<string, unknown>): ReplyInput {
+  return {
+    cacheMessageId: typeof input.cacheMessageId === "string" ? input.cacheMessageId : "",
+    body: typeof input.body === "string" ? input.body : ""
+  };
+}
+
+export const emailDraftReplyExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx,
+  services
+): Promise<ToolResult> => {
+  const service = narrowEmailWrite(services);
+  const result = await service.draftReply(scopedDb, ctx, readReplyInput(input));
+  return { data: { ...result } };
+};
+
+export const emailSendReplyExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx,
+  services
+): Promise<ToolResult> => {
+  const service = narrowEmailWrite(services);
+  const result = await service.sendReply(scopedDb, ctx, readReplyInput(input));
+  return { data: { ...result } };
+};
+
+// Card fallback lines — NO body, NO recipient interpolation from input (the rich, server-derived
+// recipient/subject/body arrives via the async `preview` producer below; this is the text a client
+// shows when no preview is present).
+export function summarizeDraftReply(_input: Record<string, unknown>, _ctx: ToolContext): string {
+  return (
+    "Draft a reply to this email? Jarvis addresses it to the original sender on the existing " +
+    "thread — the draft lands in Gmail for you to review before it sends."
+  );
+}
+
+export function summarizeSendReply(_input: Record<string, unknown>, _ctx: ToolContext): string {
+  return (
+    "Send this reply? Jarvis addresses it to the original sender on the existing thread. " +
+    "It sends immediately and can't be undone from Jarvis."
+  );
+}
+
+/**
+ * Async card-preview producer shared by both reply tools. Derives the recipient/subject from the
+ * owner-visible cached email under the actor's DataContextDb and pairs them with the composed
+ * `body` from input. Returned on the live SSE card only — NEVER persisted (the durable row keeps
+ * the key-names-only inputSummary). Returns undefined (→ card falls back to summarize) when the
+ * message id is missing or the cached row is not visible to the actor.
+ */
+export const emailReplyPreview: ToolPreview = async (
+  scopedDb,
+  input,
+  _ctx,
+  _services
+): Promise<ActionRequestPreview | undefined> => {
+  assertDataContextDb(scopedDb);
+  const { cacheMessageId, body } = readReplyInput(input);
+  if (!cacheMessageId) return undefined;
+  const message = await repository.getById(scopedDb, cacheMessageId);
+  if (!message) return undefined;
+  const target = deriveReplyTarget(message);
+  return { to: target.to, subject: target.subject, body };
+};
