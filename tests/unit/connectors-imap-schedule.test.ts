@@ -26,7 +26,7 @@ describe("reconcileImapAccountSchedule", () => {
     const schedule = vi.fn().mockResolvedValue(undefined);
     const boss = { schedule, unschedule: vi.fn() };
     await reconcileImapAccountSchedule(boss as never, "account-1", true);
-    const [, , payload] = schedule.mock.calls[0];
+    const [, , payload] = schedule.mock.calls[0] ?? [];
     expect(Object.keys(payload)).toEqual(["connectorAccountId"]);
     expect(JSON.stringify(payload)).not.toMatch(/password|secret/i);
   });
