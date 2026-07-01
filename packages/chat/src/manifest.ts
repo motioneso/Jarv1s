@@ -133,7 +133,8 @@ export const chatModuleManifest = {
       path: "/api/chat/messages/:messageId/provenance/:supportId/dereference",
       permissionId: "chat.view"
     },
-    { method: "POST", path: "/api/mcp", permissionId: "chat.message" }
+    { method: "POST", path: "/api/mcp", permissionId: "chat.message" },
+    { method: "POST", path: "/internal/permission", permissionId: "chat.message" }
   ],
   assistantTools: [
     {

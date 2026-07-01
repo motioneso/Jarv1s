@@ -1,6 +1,11 @@
 import type { FastifyInstance } from "fastify";
 
-import type { AssistantToolGateway, GatewayToolResponse, SessionTokenRegistry } from "@jarv1s/ai";
+import type {
+  AssistantToolGateway,
+  GatewayToolResponse,
+  NativeToolPermissionRequest,
+  SessionTokenRegistry
+} from "@jarv1s/ai";
 import { mcpSessionRateLimitKey } from "@jarv1s/module-sdk";
 import { parsePositiveIntEnv, type AiAssistantToolDto } from "@jarv1s/shared";
 
@@ -131,6 +136,41 @@ export function registerMcpTransportRoute(
   );
 }
 
+export function registerNativePermissionRoute(
+  server: FastifyInstance,
+  deps: McpTransportDependencies
+): void {
+  server.post<{ Body: NativePermissionBody }>("/internal/permission", async (request, reply) => {
+    const auth = (request.headers.authorization as string | undefined) ?? "";
+    if (!auth.startsWith("Bearer ")) {
+      return reply.code(401).send({ decision: "deny", reason: "Missing Authorization header" });
+    }
+
+    const token = auth.slice(7);
+    try {
+      deps.tokens.verify(token);
+    } catch {
+      return reply.code(401).send({ decision: "deny", reason: "Invalid or expired session token" });
+    }
+
+    const permissionRequest = parseNativePermissionBody(request.body);
+    if (!permissionRequest) {
+      return reply.code(200).send({ decision: "deny", reason: "Invalid permission request" });
+    }
+
+    try {
+      return reply
+        .code(200)
+        .send(await deps.gateway.requestNativeToolPermission(token, permissionRequest));
+    } catch (err) {
+      request.log.error({ err }, "native permission request failed");
+      return reply
+        .code(200)
+        .send({ decision: "deny", reason: "Permission gateway failed closed." });
+    }
+  });
+}
+
 function dtoToMcpTool(dto: AiAssistantToolDto) {
   return {
     name: dto.name,
@@ -160,4 +200,26 @@ export function gatewayResponseToMcp(res: GatewayToolResponse) {
 
 function jsonRpcError(id: string | number | null | undefined, code: number, message: string) {
   return { jsonrpc: "2.0", id: id ?? null, error: { code, message } };
+}
+
+interface NativePermissionBody {
+  readonly tool_name?: unknown;
+  readonly tool_input?: unknown;
+}
+
+function parseNativePermissionBody(body: NativePermissionBody): NativeToolPermissionRequest | null {
+  if (!body || typeof body !== "object") return null;
+  if (typeof body.tool_name !== "string" || body.tool_name.trim().length === 0) return null;
+  if (
+    body.tool_input !== undefined &&
+    (body.tool_input === null ||
+      typeof body.tool_input !== "object" ||
+      Array.isArray(body.tool_input))
+  ) {
+    return null;
+  }
+  return {
+    toolName: body.tool_name,
+    toolInput: (body.tool_input ?? {}) as Record<string, unknown>
+  };
 }

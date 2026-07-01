@@ -49,6 +49,7 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).not.toContain('--tools ""');
     // §6.2: the launch line carries the mcp-config FILE PATH, never the token/JSON.
     expect(launchLine).toContain(".jarvis-claude-mcp.json");
+    expect(launchLine).toContain("--settings '/tmp/neutral/.jarvis-claude-settings.json'");
     expect(launchLine).not.toContain("jst_abc");
     expect(launchLine).not.toContain("Bearer");
     expect(launchLine).not.toContain("Authorization");
@@ -65,6 +66,17 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(mcpWrite).toBeDefined();
     expect(mcpWrite![1]).toContain("jst_abc");
     expect(io.run).toHaveBeenCalledWith("chmod", ["600", "/tmp/neutral/.jarvis-claude-mcp.json"]);
+    const permissionTokenWrite = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => String(c[0]).endsWith(".jarvis-claude-permission-token")
+    );
+    expect(permissionTokenWrite).toEqual([
+      "/tmp/neutral/.jarvis-claude-permission-token",
+      "jst_abc\n"
+    ]);
+    expect(io.run).toHaveBeenCalledWith("chmod", [
+      "600",
+      "/tmp/neutral/.jarvis-claude-permission-token"
+    ]);
   });
 
   it("removes the entire per-session neutral dir on kill (§6.5)", async () => {

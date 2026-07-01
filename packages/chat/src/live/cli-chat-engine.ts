@@ -40,6 +40,7 @@ import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
+import { writeClaudePermissionHook } from "./claude-permission-hook.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
@@ -482,7 +483,13 @@ export class CliChatEngineImpl implements CliChatEngine {
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
+      const settingsPath = await writeClaudePermissionHook(this.io, {
+        neutralDir: opts.neutralDir,
+        mcpToken: opts.mcpToken,
+        mcpServerUrl: opts.mcpServerUrl
+      });
       parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
+      parts.push(`--settings ${shellQuote(settingsPath)}`);
       const allowedTools = ["mcp__jarvis__*", ...vaultReadOnlyToolPatterns()].join(" ");
       parts.push(`--allowedTools ${shellQuote(allowedTools)}`);
     } else {

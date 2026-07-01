@@ -78,7 +78,7 @@ import {
   type UserMemorySettings
 } from "./memory-settings-repository.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
-import { registerMcpTransportRoute } from "./mcp-transport.js";
+import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
 
 const STALE_ACTION_GRACE_MS = 5 * 60_000;
@@ -267,6 +267,7 @@ export function registerChatRoutes(
 
   if (wiring) {
     registerMcpTransportRoute(server, { gateway: wiring.gateway, tokens: wiring.tokens });
+    registerNativePermissionRoute(server, { gateway: wiring.gateway, tokens: wiring.tokens });
 
     server.post<{ Params: { id: string }; Body: { status: string } }>(
       "/api/chat/action-requests/:id/resolve",
