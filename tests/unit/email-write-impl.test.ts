@@ -131,6 +131,31 @@ describe("buildEmailWriteService.draftReply", () => {
     expect(createDraft).not.toHaveBeenCalled();
   });
 
+  it("denies IMAP draft and send when the email feature grant is revoked", async () => {
+    const getActiveImapAccountSecret = vi.fn(async () => null);
+    const { deps, createDraft, sendMessage } = makeDeps({
+      emailRepository: { getById: async () => gmailMessage({ connector_account_id: "imap-acct" }) },
+      connectorsRepository: {
+        getAccountProviderType: async () => "imap",
+        getGmailWriteScopeState: async () => ({ accountId: "google-acct", hasScope: true }),
+        getActiveImapAccountSecret
+      },
+      preferencesRepository: { get: async () => ({ email: false, calendar: true }) }
+    } as unknown as Partial<EmailWriteImplDeps>);
+    const svc = buildEmailWriteService(deps);
+
+    const draft = await svc.draftReply(scopedDb, ctx, { cacheMessageId: "cache-1", body: "x" });
+    const send = await svc.sendReply(scopedDb, ctx, { cacheMessageId: "cache-1", body: "x" });
+
+    expect(draft.ok).toBe(false);
+    expect(send.ok).toBe(false);
+    // The revoked grant must deny before the IMAP provider is ever engaged: no secret
+    // lookup, and no Gmail calls either.
+    expect(getActiveImapAccountSecret).not.toHaveBeenCalled();
+    expect(createDraft).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it("wraps a Gmail API error into a secret-free message and never throws", async () => {
     const { deps } = makeDeps({
       googleApiClient: {

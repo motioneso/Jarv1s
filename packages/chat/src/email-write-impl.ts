@@ -62,6 +62,18 @@ export function buildEmailWriteService(deps: EmailWriteImplDeps): EmailWriteServ
     );
     if (!providerType) return { ok: false, mode, message: MSG_UNSUPPORTED };
 
+    // The per-account "email" feature grant is a provider-agnostic gate: a revoked
+    // grant must deny draft/send for BOTH Gmail and IMAP. Keyed by the message's own
+    // connector account so it can never be satisfied by a different account's grant.
+    const preferencesRepository = deps.preferencesRepository;
+    if (preferencesRepository) {
+      const stored = await preferencesRepository.get(
+        scopedDb,
+        featureGrantsPrefKey(message.connector_account_id)
+      );
+      if (!isFeatureGranted(stored, "email")) return { ok: false, mode, message: MSG_DISABLED };
+    }
+
     let provider: EmailWriteProvider;
     if (providerType === "google") {
       const gmailScope = await deps.connectorsRepository.getGmailWriteScopeState(scopedDb);
@@ -69,15 +81,6 @@ export function buildEmailWriteService(deps: EmailWriteImplDeps): EmailWriteServ
         return { ok: false, mode, message: MSG_UNSUPPORTED };
       }
       if (!gmailScope.hasScope) return { ok: false, mode, message: MSG_NO_SCOPE };
-
-      const preferencesRepository = deps.preferencesRepository;
-      if (preferencesRepository) {
-        const stored = await preferencesRepository.get(
-          scopedDb,
-          featureGrantsPrefKey(gmailScope.accountId)
-        );
-        if (!isFeatureGranted(stored, "email")) return { ok: false, mode, message: MSG_DISABLED };
-      }
 
       provider = googleProvider;
     } else if (providerType === "imap") {
