@@ -87,6 +87,8 @@ function cannedToolData(toolName: string): Record<string, unknown> {
       return {
         turns: [{ role: "user", excerpt: "what's up", threadTitle: "T", createdAt: TODAY_ISO }]
       };
+    case "sports.followedFactsToday":
+      return { facts: [{ competitionKey: "nfl", text: "Cowboys play tonight 7:20pm" }] };
     default:
       return {};
   }
@@ -113,7 +115,8 @@ function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
     "tasks.list",
     "calendar.listVisibleEvents",
     "email.listVisibleMessages",
-    "chat.listTodaysTurns"
+    "chat.listTodaysTurns",
+    "sports.followedFactsToday"
   ];
   const assistantTools = toolNames.map((name) => {
     const execute: ToolExecute = async (): Promise<ToolResult> => {
@@ -294,6 +297,32 @@ describe("composeBriefing — gathering", () => {
     expect(prompt.indexOf('<external_source type="vault">')).toBeLessThan(
       prompt.indexOf('<external_source type="chats">')
     );
+  });
+
+  it("renders a sports section from followedFactsToday when selected (loader-seam 3)", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+    await composeBriefing(
+      fakeScopedDb,
+      definition({
+        selected_tool_names: ["tasks.list", "sports.followedFactsToday"]
+      }),
+      runInput,
+      deps
+    );
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    // The section is emitted as a delimited untrusted channel keyed by its section key,
+    // and the compact fact string is carried through verbatim.
+    expect(prompt).toContain('<external_source type="sports">');
+    expect(prompt).toContain("Cowboys play tonight 7:20pm");
+    // The channel is declared inside the trust boundary alongside the other external sources.
+    const trustedMatch = prompt.match(/<trusted_instructions>([\s\S]*?)<\/trusted_instructions>/);
+    expect(trustedMatch![1]).toContain("sports");
   });
 
   it("uses an evening review prompt for evening definitions without moving data into trusted text", async () => {
