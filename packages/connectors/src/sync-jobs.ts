@@ -199,7 +199,7 @@ async function withTokenRetry<T>(
  */
 let savepointCounter = 0;
 
-async function withSavepoint<T>(
+export async function withSavepoint<T>(
   scopedDb: DataContextDb,
   work: (savepointDb: DataContextDb) => Promise<T>
 ): Promise<T> {
