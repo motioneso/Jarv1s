@@ -1,6 +1,6 @@
-# Relay handoff — #656 sports module (r7 → r8)
+# Relay handoff — #656 sports module (r8 → r9)
 
-**Continuation of a coordinated build.** You are the successor to `Build-656-sports-r7`. Resume in
+**Continuation of a coordinated build.** You are the successor to `Build-656-sports-r8`. Resume in
 the SAME worktree on the SAME branch under the Coordinator. Read this doc IN FULL, then resume via
 the `coordinated-build` skill.
 
@@ -9,72 +9,82 @@ Run: `2026-06-30-rfa-fleet` · Issue: #656
 ## Coordinates
 
 - **Worktree:** `~/Jarv1s/.claude/worktrees/656-sports-module`
-- **Branch:** `coord/656-sports-module`, HEAD `b051e692` (do NOT branch off; keep committing here)
+- **Branch:** `coord/656-sports-module`, HEAD `fb56311e` (do NOT branch off; keep committing here)
 - **Bootstrap:** `[ -d node_modules ] || pnpm install` — node_modules already exists; do NOT
   reinstall.
-- **Coordinator:** Herdr label **`Coordinator`** (Codex). Resolve fresh by label each time via
+- **Coordinator:** Herdr label **`Coordinator`**. Resolve fresh by label each time via
   `herdr pane list`; confirm EXACTLY ONE pane holds it before messaging; session id is authority,
   label is routing, the `…-N` pane number is ephemeral (reflows) — never address/reap by a bare
   number.
 - **Spec/plan:** `docs/superpowers/specs/2026-06-30-sports-module.md`,
-  `docs/superpowers/plans/2026-07-01-sports-module.md` (15 tasks). Risk tier: standard (module
-  isolation + owner-only RLS on `app.sports_follows`).
+  `docs/superpowers/plans/2026-07-01-sports-module.md` (15 tasks, Task 12 at plan L1195, Task 13 at
+  L1260). Risk tier: standard (module isolation + owner-only RLS on `app.sports_follows`).
 
 ## Done (committed on this branch)
 
-- **Tasks 1–9** — package + shared contract (`packages/shared/src/sports-api.ts`), catalog,
-  migration `0133_sports_follows` (owner-only RLS), source interface + cache, repository, ESPN
-  source (fixtures, no live net), service, routes (`registerSportsRoutes`), briefing tool + manifest
-  - package index. (Earlier r-sessions.)
-- **Task 10 — `ca03c959`** — registered sports in `module-registry` (LOADER-SEAM 1 + 2):
-  `packages/module-registry/src/{index.ts,package.json}`, `pnpm-lock.yaml`, foundation migration-row
-  `{ version: "0133", name: "0133_sports_follows.sql" }`, unit `tests/unit/sports-registry.test.ts`,
-  RLS-isolation `tests/integration/sports-follows-repository.test.ts`.
-- **Task 11 — `b051e692`** — briefing section (LOADER-SEAM 3):
-  - `compose.ts`: `sports.followedFactsToday` gathered via shared `gatherToolSection` into a
-    **selection-gated** `<external_source type="sports">` block. Allow-list `format` emits the
-    compact fact string only (no URLs, no scores-object passthrough). `sports` reserved in
-    `TRUST_BOUNDARY` + the channel comment, alongside `web_research`.
-  - `routes.ts`: `defaultToolNamesFor` now **exported**; `sports.followedFactsToday` added to the
-    **morning + evening** default arms only — NOT `weekly_review` (Coordinator ruling: today-scoped
-    facts don't belong in a retrospective default).
-  - Guards: section-render test in `tests/unit/briefings-compose.test.ts`; new
-    `tests/unit/briefings-default-tools.test.ts` pins morning/evening membership + weekly_review
-    exclusion.
-  - **Side-effect fix (in-scope):** `compose.ts` tripped the 1000-line file-size gate (+24 over
-    993). Extracted the pure `fallback()` renderer into new `packages/briefings/src/fallback.ts`
-    (behavior byte-identical; `Section` newly exported for the import; type-only imports → no runtime
-    cycle). `compose.ts` now 977. **Trusted-preamble constants (`TRUSTED_INSTRUCTIONS_*`,
-    `TRUST_BOUNDARY`) MUST stay in `compose.ts`** — `tests/unit/briefings-prompt-isolation.test.ts`
-    scrapes that source file for them.
-  - **Task 10 registration fallout fixed:** `tests/integration/briefings.test.ts` full-registry
-    assertions — `sports` added to the manifest-ID `toEqual` list (between `weather` and `notes`) and
-    to `getBuiltInSqlMigrationDirectories()` tail (`.at(-5)`, later indices shifted). Verified
-    against real runtime order.
+- **Tasks 1–11** — see prior relay docs / commit history (`ca03c959`, `b051e692`, etc.) — package,
+  contract, migration, source/cache/repo/service/routes, briefing tool, module-registry
+  registration, briefing section wiring.
+- **Task 12 (partial, coordinator-approved "Option A") — `fb56311e`**:
+  - `apps/web/src/api/sports-client.ts` (new): `getSportsOverview`, `getSportsCatalog`,
+    `listSportsFollows`, `createSportsFollow`, `deleteSportsFollow` — mirrors
+    `weather-client.ts`, uses `requestJson` from `./client.js`.
+  - `apps/web/src/api/query-keys.ts`: added `sports: { overview, catalog, follows }` block.
+  - `apps/web/src/app-route-metadata.ts`: added `"sports"` to the `WebRouteMeta["id"]` union,
+    `sports: "You"` to `SECTION_OF`, and a `webRoutes` entry (`path: "/sports"`, title "Sports",
+    subtitle "FOLLOWED", `match: p => p.startsWith("/sports")`) — inserted between `wellness` and
+    `settings`.
+  - `tests/unit/web-sports-client.test.ts` (new): mocks global `fetch`, asserts query keys + all
+    5 client fns hit the right path/method/body (mirrors `web-theme-api-client.test.ts` pattern).
+  - `tests/unit/web-route-metadata.test.ts`: fallout fix — the `webRoutes.map(path)` full-list
+    `toEqual` assertion needed `"/sports"` inserted (same class of fix as Task 10/11's
+    foundation.test.ts / briefings.test.ts fallout).
+  - **Deliberately deferred to Task 13** (escalated + coordinator-confirmed "Option A"): the plan's
+    `app.tsx` step (`lazy(() => import("./sports/sports-page"))` + `<Route>` under
+    `ModuleGatedRoute`) is NOT done. `sports-page.tsx` is a Task 13 deliverable that doesn't exist
+    yet; wiring the import now would break `apps/web` typecheck/build. **Task 13 must add the page
+    AND the app.tsx wiring together** in the same commit (or same green sequence) so typecheck
+    never goes red on this branch.
+  - **Self-corrected test placement** (not escalated — established repo convention, same rule as
+    the sports-package test-placement note below): the plan literally says
+    `apps/web/src/api/__tests__/sports-client.test.ts`, but root `vitest.config.ts` `include` is
+    `spikes/**`, `tests/**`, `packages/people/src/__tests__/**` only — it does **not** pick up
+    `apps/web/src/**` at all, and `apps/web/package.json` has **no test script and no
+    vitest/testing-library devDependency**. Every existing web-client test in the repo
+    (`web-theme-api-client.test.ts`, `web-route-metadata.test.ts`, etc.) lives under
+    `tests/unit/*.test.ts` and imports from `../../apps/web/src/...`. Used that convention.
+    **Task 13's `sports-page.test.tsx` (React Testing Library) will hit the same gap** — the plan
+    says `apps/web/src/sports/__tests__/sports-page.test.tsx`, which also won't run under the root
+    suite. Check root `tests/unit/` for an existing RTL-based web-page test to mirror (e.g. search
+    for `@testing-library/react` usage) before assuming a path; if none exists, this may need a
+    coordinator flag since it could mean adding RTL as a root devDependency (an infra decision, not
+    a mechanical path fix like the client-test case was).
 
 ### Verification at relay (all GREEN)
 
-- typecheck `@jarv1s/briefings`, eslint, prettier, `check:file-size` — clean on all touched files.
-- Unit: `briefings-compose` + `briefings-default-tools` + `briefings-prompt-isolation` (39).
-- Integration (local PG `localhost:55433/jarv1s`, quiet): `briefings-synthesis` injection-canary
-  (40), `briefings.test` (21), `source-behaviors` (3).
-- Confirmed sports registers **no** source-behavior (source-behaviors list unaffected) and
-  `module-enablement.test.ts` uses a fixed fixture manifest set (not the live registry) — no further
-  registry-enumeration fallout beyond briefings.test.ts + foundation.test.ts (both fixed).
+- `pnpm --filter @jarv1s/web typecheck` — clean.
+- `pnpm exec prettier --write` + `pnpm exec eslint` on all 5 touched files — clean.
+- `pnpm vitest run tests/unit/web-sports-client.test.ts tests/unit/web-route-metadata.test.ts` — 2
+  files / 5 tests passed.
+- Did NOT re-run the full root suite or `verify:foundation` this relay (small, isolated diff;
+  scoped tests above cover it). Successor should run the full gate before Task 15 close-out
+  regardless.
 
-## Left to do — Tasks 12–15 (DO NOT START until the Coordinator directs)
+## Left to do — Tasks 13–15 (Task 13's app.tsx wiring is now unblocked; proceed per coordinator's
+existing Task 12/13 approval — no new gate needed for the app.tsx piece specifically, but confirm
+before writing page/CSS if anything else looks off per the coordinated-build step ½ premise-check)
 
-Coordinator instruction: **report your pane id + `agent_session.value` and await coordinator
-approval before starting Task 12.**
-
-- **Task 12** (plan L1195) — Web registration (LOADER-SEAM 4): route, nav metadata, query keys, API
-  client. Note: `apps/web/src/app-route-metadata.ts` holds the route union; weather has no web-route
-  precedent there.
-- **Task 13** (L1260) — Sports page UI + CSS (plan §4.6a). At Task 13, cheaply try Open Design /
-  Jarvis Design System source first; if unavailable, author from the §4.6a taxonomy and note the
-  fallback. Preserve the authored design system (`jds-*`, serif headings / mono eyebrows / sans
-  body; raw colors only in `apps/web/src/styles/tokens.css`); only a small local `RationaleChip` if
-  none exists; watch the 1000-line file-size gate on new CSS/TSX.
+- **Task 13** (plan L1260) — Sports page UI + CSS (plan §4.6a) **plus the app.tsx wiring deferred
+  from Task 12** (lazy import + `<Route>` under `ModuleGatedRoute`, `sportsGate =
+  myModulesEnabled("sports")` — see plan L1233-1244 for the exact snippet). Investigate the RTL
+  test-infra gap noted above FIRST — before assuming `apps/web/src/sports/__tests__/...` is a valid
+  path, grep root `tests/unit/` for any existing React Testing Library web-page test; if none
+  exists, escalate to the Coordinator rather than unilaterally adding `@testing-library/react` +
+  jsdom environment to root vitest config (that's an infra/tooling decision). At Task 13, cheaply
+  try Open Design / Jarvis Design System source first for the CSS; if unavailable, author from the
+  §4.6a taxonomy and note the fallback. Preserve the authored design system (`jds-*`, serif
+  headings / mono eyebrows / sans body; raw colors only in `apps/web/src/styles/tokens.css`); only
+  a small local `RationaleChip` if none exists; watch the 1000-line file-size gate on new CSS/TSX.
 - **Task 14** (L1324) — Settings follow-picker pane.
 - **Task 15** (L1364) — README loader-seam ledger + full-gate close-out (`pnpm verify:foundation`),
   then `coordinated-wrap-up` (PR + report). Coordinator owns QA/merge/board.
@@ -82,11 +92,10 @@ approval before starting Task 12.**
 ## Constraints to keep (Ben + Coordinator, verbatim intent)
 
 - **Explicit staging only.** Never `git add -A`/`.`. Stage only your task's files.
-- **Do NOT stage** `.claude/context-meter.log`, the copied `docs/coordination/…` handoff, or
+- **Do NOT stage** `.claude/context-meter.log`, `docs/coordination/…` handoff copies, or
   `docs/superpowers/plans/2026-07-01-sports-task11-briefing-section.md` (intentionally untracked).
   This relay doc under `docs/superpowers/handoffs/` IS an intentional commit.
-- **No repo-wide format.** (Single-file `prettier --write` on your own touched files is fine — do it
-  before committing docs, or the successor's `format:check` fails on them.)
+- **No repo-wide format.** (Single-file `prettier --write` on your own touched files is fine.)
 - Preserve the **single chat-visible `sports.followedFactsToday` tool** decision — no new tools; no
   rich `sports.scores`.
 - **RLS / DataContextDb / AccessContext untouched.** Owner-only on `app.sports_follows`; no admin
@@ -94,12 +103,15 @@ approval before starting Task 12.**
 - Module isolation: sports collaborates only via its manifest + declared APIs. Forced
   composition-root wiring stays tagged `// LOADER-SEAM(sports):`.
 - Test placement: repo tests live under `tests/unit` + `tests/integration` (root `vitest.config.ts`
-  does NOT pick up `packages/*/src` tests). Do not add `packages/sports/src/__tests__/*`.
+  does NOT pick up `packages/*/src` **or `apps/web/src/**`** tests). Do not add
+  `packages/sports/src/__tests__/*` or `apps/web/src/**/__tests__/*` — use `tests/unit/`.
 - Relay again at ~80–100k tokens or the instant you see a compaction summary.
 
 ## First actions for the successor
 
-1. `[ -d node_modules ] || pnpm install`; confirm branch `coord/656-sports-module`, HEAD `b051e692`.
+1. `[ -d node_modules ] || pnpm install`; confirm branch `coord/656-sports-module`, HEAD `fb56311e`.
 2. Run the `coordinated-build` required recalls (state + RLS/migration/frontend rows).
-3. Message the Coordinator (label `Coordinator`): your pane id + `agent_session.value`, "r8 driving,
-   awaiting go for Task 12." Wait for approval before any code.
+3. Message the Coordinator (label `Coordinator`): your pane id + `agent_session.value`, "r9 driving,
+   starting Task 13 (page/CSS/app.tsx wiring) — will flag if RTL test-infra gap needs a coordinator
+   call." Task 12 is fully approved/closed; no need to wait for a fresh go unless the RTL gap or
+   something else surfaces.
