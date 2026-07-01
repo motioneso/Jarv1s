@@ -606,6 +606,7 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
         actionRequestId={props.record.actionRequestId}
         summary={props.record.summary ?? text}
         toolName={props.record.toolName ?? kind}
+        preview={props.record.preview}
       />
     );
   }

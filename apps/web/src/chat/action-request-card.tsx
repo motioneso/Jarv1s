@@ -2,11 +2,14 @@ import { CheckCircle, LoaderCircle, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { resolveActionRequest } from "../api/client";
+import type { ActionRequestPreview } from "./use-chat-stream";
 
 interface ActionRequestCardProps {
   readonly actionRequestId: string;
   readonly toolName: string;
   readonly summary: string;
+  /** Rich server-derived preview (email reply recipient/subject/body); live-stream only. */
+  readonly preview?: ActionRequestPreview;
 }
 
 export function ActionRequestCard(props: ActionRequestCardProps) {
@@ -30,6 +33,22 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
   return (
     <div className="action-request-card" role="region" aria-label="Action request">
       <p className="action-request-summary">{props.summary}</p>
+
+      {props.preview ? (
+        <div className="action-request-preview">
+          <dl className="action-request-preview__meta">
+            <div className="action-request-preview__row">
+              <dt className="action-request-preview__label">To</dt>
+              <dd className="action-request-preview__value">{props.preview.to}</dd>
+            </div>
+            <div className="action-request-preview__row">
+              <dt className="action-request-preview__label">Subject</dt>
+              <dd className="action-request-preview__value">{props.preview.subject}</dd>
+            </div>
+          </dl>
+          <p className="action-request-preview__body">{props.preview.body}</p>
+        </div>
+      ) : null}
 
       {status === "pending" || status === "error" ? (
         <div className="action-request-actions">
