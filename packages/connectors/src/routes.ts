@@ -12,6 +12,7 @@ import type {
 } from "@jarv1s/db";
 import { sendJob } from "@jarv1s/jobs";
 import { recordAuditEvent } from "@jarv1s/settings";
+import { reconcileGoogleAccountSchedule } from "./google-schedule.js";
 import { reconcileImapAccountSchedule } from "./imap-schedule.js";
 import {
   createConnectorAccountRouteSchema,
@@ -144,6 +145,14 @@ export function registerConnectorsRoutes(
           request.log.warn(
             { event: "connectors.sync_on_connect_enqueue_failed", name: (error as Error).name },
             "sync-on-connect enqueue failed; user can sync manually"
+          );
+        }
+        try {
+          await reconcileGoogleAccountSchedule(dependencies.boss, accessContext.actorUserId, true);
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.google_schedule_reconcile_failed", name: (error as Error).name },
+            "google schedule reconcile failed; account is connected but will not auto-sync on schedule until reconnect"
           );
         }
         return reply.code(201).send({ account: serializeAccount(account) });
@@ -342,6 +351,21 @@ export function registerConnectorsRoutes(
             request.log.warn(
               { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
               "imap schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
+            );
+          }
+        }
+
+        if (account.provider_type === "google") {
+          try {
+            await reconcileGoogleAccountSchedule(
+              dependencies.boss,
+              accessContext.actorUserId,
+              false
+            );
+          } catch (error) {
+            request.log.warn(
+              { event: "connectors.google_schedule_reconcile_failed", name: (error as Error).name },
+              "google schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
             );
           }
         }
