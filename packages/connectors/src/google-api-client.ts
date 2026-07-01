@@ -52,6 +52,15 @@ export interface GoogleInsertedEvent {
   readonly htmlLink?: string;
 }
 
+export interface GmailCreatedDraft {
+  readonly id: string;
+}
+
+export interface GmailSentMessage {
+  readonly id: string;
+  readonly threadId?: string;
+}
+
 export interface GmailMessageStub {
   readonly id: string;
   readonly threadId?: string;
@@ -240,6 +249,43 @@ export class GoogleApiClient {
       "calendar"
     );
     return { id: json.id, htmlLink: json.htmlLink };
+  }
+
+  /**
+   * Create a Gmail draft threaded into an existing conversation. `raw` is the
+   * base64url-encoded RFC822 message; `threadId` keeps the draft in the original thread.
+   * Body content lives only in `raw` — logging stays status-only via postJson.
+   */
+  async createDraft(input: {
+    accessToken: string;
+    raw: string;
+    threadId: string;
+  }): Promise<GmailCreatedDraft> {
+    const json = await this.postJson<GmailCreatedDraft>(
+      `${GMAIL_BASE}/users/me/drafts`,
+      input.accessToken,
+      { message: { raw: input.raw, threadId: input.threadId } },
+      "gmail"
+    );
+    return { id: json.id };
+  }
+
+  /**
+   * Send a Gmail message threaded into an existing conversation. `raw` is the
+   * base64url-encoded RFC822 message. Destructive; callers must gate on explicit approval.
+   */
+  async sendMessage(input: {
+    accessToken: string;
+    raw: string;
+    threadId: string;
+  }): Promise<GmailSentMessage> {
+    const json = await this.postJson<GmailSentMessage>(
+      `${GMAIL_BASE}/users/me/messages/send`,
+      input.accessToken,
+      { raw: input.raw, threadId: input.threadId },
+      "gmail"
+    );
+    return { id: json.id, threadId: json.threadId };
   }
 
   async deleteEvent(input: {
