@@ -22,7 +22,7 @@ truth for all 11 tasks (exact files, exact code, exact test commands). Do not re
   **Task 11**, in order, via `superpowers:test-driven-development`, driven yourself (execution
   skills disabled in this repo).
 - **Test invocation gotcha found this segment:** `pnpm --filter @jarv1s/connectors exec vitest run
-  ../../tests/...` (as written in the plan) does NOT work — no test files found. Use the root
+../../tests/...` (as written in the plan) does NOT work — no test files found. Use the root
   vitest config instead: `pnpm vitest run tests/integration/connectors-imap.test.ts -t "<name>"`
   (or `tests/unit/...` for unit tests). Root `vitest.config.ts` has all the `@jarv1s/*` aliases.
 - **Migration number caveat (Task 3):** re-run

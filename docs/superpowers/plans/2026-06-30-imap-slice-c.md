@@ -65,10 +65,12 @@ disconnect routes too.
 ### Task 1: Fix `upsertImapAccount` to persist real scopes
 
 **Files:**
+
 - Modify: `packages/connectors/src/repository.ts:340-365` (`upsertImapAccount`)
 - Test: `tests/integration/connectors-imap.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ConnectorsRepository.createAccount`/`updateAccount` (existing, unchanged
   signatures at `repository.ts:113-173`).
 - Produces: `upsertImapAccount` now writes `scopes` = the connected preset's
@@ -172,12 +174,14 @@ git commit -m "fix(connectors): persist real default_scopes on imap account upse
 ### Task 2: Recognize IMAP's `email.read` scope in feature-grant gating
 
 **Files:**
+
 - Modify: `packages/connectors/src/feature-grants.ts:46-54` (`accountHasEmailScope`)
 - Test: `tests/unit/connectors-freshness.test.ts` is the existing precedent location for
   connectors unit tests without a DB — create a sibling file
   `tests/unit/connectors-feature-grants.test.ts`.
 
 **Interfaces:**
+
 - Consumes: none new.
 - Produces: `accountHasEmailScope(scopes)` now returns `true` for `scopes.includes("email.read")`,
   so `resolveEffectiveGrants` (already calls this function, unchanged signature) reports
@@ -247,11 +251,13 @@ git commit -m "feat(connectors): recognize imap email.read scope in feature-gran
 ### Task 3: RLS migration — allow `provider_type = 'imap'` inserts into `app.email_messages`
 
 **Files:**
+
 - Create: `packages/email/sql/0132_email_imap_insert.sql` (re-check the global max first, per
   Global Constraints — bump the number if `0131` is no longer the max).
 - Test: `tests/integration/connectors-imap.test.ts`
 
 **Interfaces:**
+
 - Consumes: `app.connector_accounts`, `app.connector_definitions` (unchanged schema).
 - Produces: an `EmailRepository.upsertCachedMessage` call scoped to an IMAP
   `connector_account_id` now succeeds instead of raising a RLS policy violation.
@@ -363,17 +369,19 @@ git commit -m "feat(email): allow imap-provider inserts into email_messages via 
 ### Task 4: IMAP message-identity encoding (`folder:uidvalidity:uid` → `external_id`)
 
 **Files:**
+
 - Create: `packages/connectors/src/imap-message-key.ts`
 - Test: `tests/unit/connectors-imap-message-key.test.ts`
 
 **Interfaces:**
+
 - Produces: `encodeImapExternalId(identity): string`, `decodeImapExternalId(externalId): ImapMessageIdentity | null`,
   `ImapMessageIdentity { folder: string; uidValidity: string; uid: number }`. Task 6
   (`ImapEmailReadProvider`) is the only consumer.
 
 This is the mechanism that satisfies the spec's UIDVALIDITY-reset requirement (§5) passively:
 because `uidValidity` is baked into `external_id`, a server-side UIDVALIDITY reset produces a
-*different* `external_id` for the same UID going forward — old rows are simply never matched
+_different_ `external_id` for the same UID going forward — old rows are simply never matched
 again by the `ON CONFLICT (connector_account_id, external_id)` upsert, so no explicit
 reset-detection logic is needed. `uidValidity` is kept as a `string` (not a `Number`) to avoid
 any 32-bit/BigInt precision assumptions about IMAP's UIDVALIDITY value.
@@ -477,9 +485,11 @@ git commit -m "feat(connectors): encode imap message identity into external_id"
 ### Task 5: Widen `EmailReadProvider` to a generic credential type
 
 **Files:**
+
 - Modify: `packages/connectors/src/email-read-provider.ts`
 
 **Interfaces:**
+
 - Produces: `EmailReadProvider<TCredential = string>` — `GoogleEmailReadProvider` keeps
   implementing `EmailReadProvider` (defaults to `EmailReadProvider<string>`, source-compatible,
   zero call-site changes). Task 6's `ImapEmailReadProvider` implements
@@ -528,11 +538,13 @@ git commit -m "refactor(connectors): make EmailReadProvider credential type gene
 ### Task 6: `ImapEmailReadProvider` — real IMAP message fetch
 
 **Files:**
+
 - Modify: `packages/connectors/package.json` (add `mailparser` + `@types/mailparser`)
 - Create: `packages/connectors/src/imap-email-read-provider.ts`
 - Test: `tests/unit/connectors-imap-email-read-provider.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ImapConnectionSecret` (`imap-secret.ts`), `encodeImapExternalId`/
   `decodeImapExternalId` (Task 4), `ParsedEmail` (`email-extract.ts`), `EmailReadProvider<TCredential>`
   (Task 5), `MailMessageKey` (`email-read-provider.ts`, unchanged shape — IMAP puts the fully
@@ -741,9 +753,13 @@ export class ImapEmailReadProvider implements EmailReadProvider<ImapConnectionSe
     }
     return withImapClient(this.clientFactory, secret, async (client) => {
       await client.mailboxOpen(identity.folder, { readOnly: true });
-      const message = await client.fetchOne(String(identity.uid), { uid: true, source: true }, {
-        uid: true
-      });
+      const message = await client.fetchOne(
+        String(identity.uid),
+        { uid: true, source: true },
+        {
+          uid: true
+        }
+      );
       if (!message || !message.source) {
         throw new Error("IMAP message not found or has no source");
       }
@@ -797,11 +813,13 @@ git commit -m "feat(connectors): implement ImapEmailReadProvider for real IMAP m
 ### Task 7: `runImapSync` job — fetch + cache into `app.email_messages`
 
 **Files:**
+
 - Create: `packages/connectors/src/imap-sync-jobs.ts`
 - Modify: `packages/connectors/src/sync-jobs.ts` (export `withSavepoint`)
 - Test: `tests/integration/connectors-imap.test.ts`
 
 **Interfaces:**
+
 - Consumes: `withSavepoint` (now exported from `sync-jobs.ts`), `ImapEmailReadProvider` (Task 6),
   `decryptImapConnectionSecret` (`imap-secret.ts`), `EmailRepository.upsertCachedMessage`
   (unchanged), `ConnectorsRepository.markSyncStarted`/`markSyncFinished` (unchanged — both
@@ -977,7 +995,10 @@ export async function runImapSync(
   }
 
   try {
-    const secretRow = await deps.repository.getActiveImapAccountSecret(scopedDb, connectorAccountId);
+    const secretRow = await deps.repository.getActiveImapAccountSecret(
+      scopedDb,
+      connectorAccountId
+    );
     if (!secretRow) {
       await deps.repository.markSyncFinished(scopedDb, connectorAccountId, {
         finishedAt: now(),
@@ -985,7 +1006,12 @@ export async function runImapSync(
         error: "no-active-connection",
         counts: { emailUpserted: 0, emailFailures: 0, truncated: false }
       });
-      return { emailUpserted: 0, emailFailures: 0, errors: ["no-active-connection"], truncated: false };
+      return {
+        emailUpserted: 0,
+        emailFailures: 0,
+        errors: ["no-active-connection"],
+        truncated: false
+      };
     }
     secret = decryptImapConnectionSecret(deps.cipher, secretRow.encryptedSecret);
   } catch {
@@ -1133,10 +1159,11 @@ git commit -m "feat(connectors): add runImapSync job handler and imap-sync queue
 ### Task 8: Register the IMAP queue + worker in module-registry
 
 **Files:**
-- Modify: `packages/module-registry/src/index.ts` (connectors module entry, ~lines 473-485,
-  952)
+
+- Modify: `packages/module-registry/src/index.ts` (connectors module entry, ~lines 473-485, 952)
 
 **Interfaces:**
+
 - Consumes: `IMAP_SYNC_QUEUE_DEFINITIONS`, `registerImapSyncWorker` (Task 7).
 - Produces: the worker's startup queue-existence guard (`apps/worker/src/worker.ts`) now sees
   `connectors.imap-sync` as a known queue; `getAllQueueDefinitions()` includes it.
@@ -1185,6 +1212,7 @@ git commit -m "feat(connectors): wire imap-sync queue and worker into module reg
 ### Task 9: Per-account recurring schedule for IMAP (reconcile on connect/disconnect)
 
 **Files:**
+
 - Create: `packages/connectors/src/imap-schedule.ts`
 - Modify: `packages/connectors/src/routes.ts` (imap connect route, ~line 186; add a
   disconnect/revoke route hook if one exists — check for an existing
@@ -1194,6 +1222,7 @@ git commit -m "feat(connectors): wire imap-sync queue and worker into module reg
 - Test: `tests/unit/connectors-imap-schedule.test.ts`
 
 **Interfaces:**
+
 - Consumes: `assertMetadataOnlyPayload` (`@jarv1s/jobs`), `IMAP_SYNC_QUEUE` (Task 7).
 - Produces: `reconcileImapAccountSchedule(boss, connectorAccountId, connected)`.
 
@@ -1320,11 +1349,13 @@ git commit -m "feat(connectors): reconcile per-account imap sync schedule on con
 ### Task 10: Wire Google onto the same recurring-schedule shape
 
 **Files:**
+
 - Create: `packages/connectors/src/google-schedule.ts`
 - Modify: `packages/connectors/src/routes.ts` (google complete route ~line 114, revoke route)
 - Test: `tests/unit/connectors-google-schedule.test.ts`
 
 **Interfaces:**
+
 - Consumes: `assertMetadataOnlyPayload`, `GOOGLE_SYNC_QUEUE` (existing).
 - Produces: `reconcileGoogleAccountSchedule(boss, actorUserId, connected)`. This is
   **additive** — the existing on-demand `sendJob(GOOGLE_SYNC_QUEUE, ...)` calls in
@@ -1445,9 +1476,11 @@ git commit -m "feat(connectors): add recurring schedule for google sync alongsid
 ### Task 11: Secret-sanitizer test — IMAP password never reaches a job payload
 
 **Files:**
+
 - Test: `tests/unit/connectors-imap-schedule.test.ts` (extend Task 9's file)
 
 **Interfaces:**
+
 - Consumes: `reconcileImapAccountSchedule` (Task 9), `assertMetadataOnlyPayload` (existing).
 
 Direct proof (not just code-review) that the IMAP password can never serialize into a pg-boss
@@ -1488,6 +1521,7 @@ git commit -m "test(connectors): lock in imap schedule payload is metadata-only"
 ## Self-Review
 
 **Spec coverage** (`docs/superpowers/specs/2026-06-30-proton-mail-connector-spike-output.md`):
+
 - §5 (data-shape / UIDVALIDITY identity) → Task 4 (encoding baked into `external_id`, reset
   handled passively).
 - §6 (security/RLS) → Task 3 (RLS migration), Task 11 (payload sanitizer test), secret never
@@ -1502,6 +1536,7 @@ git commit -m "test(connectors): lock in imap schedule payload is metadata-only"
   so they're in-scope rather than deferred.
 
 **Out of scope for this plan (explicitly, not silently dropped):**
+
 - IMAP incremental skip-unchanged (Gmail's `historyId` optimization) — not built; every
   scheduled IMAP run re-fetches and idempotently re-upserts the capped window. Acceptable per
   the "don't build a full connector-sync framework" guardrail; a future slice can add a
@@ -1524,10 +1559,11 @@ Task 4/6), `ImapSyncResult`/`ImapSyncPayload` (Task 7/8), `EmailReadProvider<TCr
 
 Two items expand narrowly beyond a literal reading of the spec's Slice C bullet, surfaced
 during premise verification:
+
 1. Slice B shipped `upsertImapAccount` with a real scopes bug (always `[]`) and
    `feature-grants.ts` never recognized `email.read` — without fixing both (Tasks 1–2), IMAP
    messages would cache successfully but stay permanently invisible to chat/search/briefings.
    Treated as in-scope hard blockers, not separate follow-up issues.
 2. "Wire Google onto same scheduler" (issue title) goes beyond the spec's Proton-only framing —
-   Task 10 adds Google's recurring cron *additively*, keeping its existing on-demand triggers
+   Task 10 adds Google's recurring cron _additively_, keeping its existing on-demand triggers
    intact.
