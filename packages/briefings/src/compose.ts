@@ -697,6 +697,8 @@ export async function composeBriefing(
     timeZone
   );
 
+  // LOADER-SEAM(sports) 3: briefing section wiring + trust-boundary channel. Only the
+  // sanitized `text` field crosses into the prompt; the tool's other fields never do.
   const sports = await gatherToolSection(
     scopedDb,
     definition,
