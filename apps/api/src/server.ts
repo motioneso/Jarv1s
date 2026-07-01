@@ -36,6 +36,7 @@ import {
 } from "@jarv1s/module-registry";
 import {
   listModulesRouteSchema,
+  isValidTimeZone,
   parsePositiveIntEnv,
   type HostDiagnosticsInfo,
   type ModuleDto
@@ -44,6 +45,12 @@ import { createModuleLogger } from "@jarv1s/module-sdk";
 
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
+
+declare module "fastify" {
+  interface FastifyRequest {
+    timeZone?: string;
+  }
+}
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
@@ -126,6 +133,8 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
   const ownsAuthRuntime = options.authRuntime === undefined;
   const AUTH_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AUTH_MAX, 10);
+
+  registerRequestTimeZoneHook(server);
 
   // Security headers via @fastify/helmet.
   // This API serves JSON only, so CSP is maximally restrictive (default-src 'none').
@@ -417,6 +426,16 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
 
   return server;
+}
+
+export function registerRequestTimeZoneHook(server: FastifyInstance): void {
+  server.addHook("onRequest", async (request) => {
+    const raw = request.headers["x-timezone"];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value === "string" && isValidTimeZone(value)) {
+      request.timeZone = value.trim();
+    }
+  });
 }
 
 /**

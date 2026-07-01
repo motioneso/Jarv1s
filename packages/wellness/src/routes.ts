@@ -22,6 +22,7 @@ import {
   MEDICATION_FREQUENCY_TYPES,
   MEDICATION_LOG_STATUSES,
   isValidFeelingPath,
+  localDay,
   type MedicationFrequencyTypeApi,
   type MedicationLogStatusApi,
   type WellnessEmotionCore as WellnessFeelingCore
@@ -37,7 +38,7 @@ import type {
   LogDoseInput,
   UpdateMedicationInput
 } from "./repository.js";
-import { WellnessRepository } from "./repository.js";
+import { medicationLogBelongsToDate, WellnessRepository } from "./repository.js";
 import { WellnessRecallContributor } from "./recall-context.js";
 import { computeSchedule } from "./schedule.js";
 import {
@@ -54,6 +55,10 @@ export interface WellnessRoutesDependencies {
   readonly resolveActiveModules?: (
     actorUserId: string
   ) => Promise<readonly { readonly id: string }[]>;
+  readonly resolveRequestTimeZone?: (
+    request: FastifyRequest,
+    accessContext: AccessContext
+  ) => Promise<string>;
   readonly repository?: WellnessRepository;
 }
 
@@ -238,6 +243,7 @@ export function registerWellnessRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const query = request.query as Record<string, unknown>;
         const dateStr = parseDateParam(query["date"]);
         const date = new Date(`${dateStr}T00:00:00.000Z`);
@@ -245,7 +251,7 @@ export function registerWellnessRoutes(
           accessContext,
           async (scopedDb) => ({
             meds: await repo.listMedications(scopedDb),
-            logs: await repo.listLogsForDate(scopedDb, date)
+            logs: await repo.listLogsForDate(scopedDb, date, timeZone)
           })
         );
         return { date: dateStr, slots: computeSchedule(meds, logs, date) };
@@ -292,6 +298,7 @@ export function registerWellnessRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const now = new Date();
         const sinceDays = 30;
         const { checkins, logs, meds } = await dependencies.dataContext.withDataContext(
@@ -306,19 +313,8 @@ export function registerWellnessRoutes(
         // are included in the adherence denominator (not just logged rows).
         let totalExpectedSlots = 0;
         for (let i = sinceDays - 1; i >= 0; i--) {
-          const ts = now.getTime() - i * 86_400_000;
-          const day = new Date(
-            Date.UTC(
-              new Date(ts).getUTCFullYear(),
-              new Date(ts).getUTCMonth(),
-              new Date(ts).getUTCDate()
-            )
-          );
-          const dayEnd = new Date(day.getTime() + 86_400_000);
-          const dayLogs = logs.filter((l) => {
-            const sf = l.scheduled_for ? new Date(l.scheduled_for as string | Date) : null;
-            return sf && sf >= day && sf < dayEnd;
-          });
+          const day = new Date(`${addDays(localDay(now, timeZone), -i)}T00:00:00.000Z`);
+          const dayLogs = logs.filter((log) => medicationLogBelongsToDate(log, day, timeZone));
           const slots = computeSchedule(meds, dayLogs, day);
           totalExpectedSlots += slots.filter((s) => !s.asNeeded).length;
         }
@@ -395,6 +391,7 @@ export function registerWellnessRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const query = request.query as Record<string, unknown>;
         const sinceDays = parseSinceDays(query["sinceDays"]);
         const { meds, logs } = await dependencies.dataContext.withDataContext(
@@ -407,21 +404,10 @@ export function registerWellnessRoutes(
         const now = new Date();
         const days = [];
         for (let i = sinceDays - 1; i >= 0; i--) {
-          const ts = now.getTime() - i * 86_400_000;
-          const day = new Date(
-            Date.UTC(
-              new Date(ts).getUTCFullYear(),
-              new Date(ts).getUTCMonth(),
-              new Date(ts).getUTCDate()
-            )
-          );
-          const dayEnd = new Date(day.getTime() + 86_400_000);
-          const dayLogs = logs.filter((l) => {
-            const sf = l.scheduled_for ? new Date(l.scheduled_for as string | Date) : null;
-            return sf && sf >= day && sf < dayEnd;
-          });
+          const dateStr = addDays(localDay(now, timeZone), -i);
+          const day = new Date(`${dateStr}T00:00:00.000Z`);
+          const dayLogs = logs.filter((log) => medicationLogBelongsToDate(log, day, timeZone));
           const slots = computeSchedule(meds, dayLogs, day);
-          const dateStr = day.toISOString().slice(0, 10);
           days.push({
             date: dateStr,
             scheduledCount: slots.filter((s) => !s.asNeeded).length,
@@ -468,6 +454,19 @@ async function isWellnessActive(
 ): Promise<boolean> {
   const modules = await dependencies.resolveActiveModules?.(actorUserId);
   return modules?.some((module) => module.id === "wellness") ?? true;
+}
+
+async function resolveRouteTimeZone(
+  dependencies: WellnessRoutesDependencies,
+  request: FastifyRequest,
+  accessContext: AccessContext
+): Promise<string> {
+  return dependencies.resolveRequestTimeZone?.(request, accessContext) ?? request.timeZone ?? "UTC";
+}
+
+function addDays(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return localDay(new Date(Date.UTC(year!, month! - 1, day! + days)), "UTC");
 }
 
 // ── Body parsers ─────────────────────────────────────────────────────────────

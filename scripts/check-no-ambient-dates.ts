@@ -19,6 +19,7 @@ import { extname, join, relative } from "node:path";
  * EXEMPTIONS (allowlist below) are limited to non-display uses of Intl.DateTimeFormat:
  *  - the sanctioned formatter module itself (the one place it is centralized);
  *  - `en-CA` machine-key helpers (date *keys* for streak/day math, never display).
+ *  - browser timezone detection (`resolvedOptions().timeZone`) for request metadata.
  * No display site is exempt — route every user-facing date through locale-format.ts.
  */
 
@@ -65,6 +66,9 @@ for await (const filePath of walk(scanRoot)) {
   const lines = contents.split(/\r\n|\r|\n/);
 
   lines.forEach((text, index) => {
+    if (/Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/.test(text)) {
+      return;
+    }
     if (ambientPattern.test(text)) {
       violations.push({ path: relativePath, line: index + 1, text: text.trim() });
     }

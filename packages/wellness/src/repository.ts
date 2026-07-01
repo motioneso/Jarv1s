@@ -14,7 +14,7 @@ import type {
   MedicationLogStatusApi,
   WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
-import { isValidFeelingPath } from "@jarv1s/shared";
+import { isValidFeelingPath, localDay } from "@jarv1s/shared";
 
 export interface CreateCheckinInput {
   readonly feelingCore: WellnessFeelingCore;
@@ -266,22 +266,29 @@ export class WellnessRepository {
    * they are anchored by `logged_at` instead and included for the day; computeSchedule uses
    * them only to count the day's PRN doses (prnCount), never to fill a scheduled slot.
    */
-  async listLogsForDate(scopedDb: DataContextDb, date: Date): Promise<MedicationLog[]> {
+  async listLogsForDate(
+    scopedDb: DataContextDb,
+    date: Date,
+    timeZone = "UTC"
+  ): Promise<MedicationLog[]> {
     assertDataContextDb(scopedDb);
-    const dayStart = new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0)
+    const { scheduledStart, scheduledEnd, localStart, localEnd } = medicationLogDayWindow(
+      date,
+      timeZone
     );
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const rows = await scopedDb.db
       .selectFrom("app.medication_logs")
       .selectAll()
       .where((eb) =>
         eb.or([
-          eb.and([eb("scheduled_for", ">=", dayStart), eb("scheduled_for", "<", dayEnd)]),
+          eb.and([
+            eb("scheduled_for", ">=", scheduledStart),
+            eb("scheduled_for", "<", scheduledEnd)
+          ]),
           eb.and([
             eb("scheduled_for", "is", null),
-            eb("logged_at", ">=", dayStart),
-            eb("logged_at", "<", dayEnd)
+            eb("logged_at", ">=", localStart),
+            eb("logged_at", "<", localEnd)
           ])
         ])
       )
@@ -484,4 +491,78 @@ export class WellnessRepository {
       .execute();
     return rows as WellnessTherapyNote[];
   }
+}
+
+export function medicationLogBelongsToDate(
+  log: MedicationLog,
+  date: Date,
+  timeZone = "UTC"
+): boolean {
+  const { scheduledStart, scheduledEnd, localStart, localEnd } = medicationLogDayWindow(
+    date,
+    timeZone
+  );
+  if (log.scheduled_for) {
+    const scheduledFor =
+      log.scheduled_for instanceof Date ? log.scheduled_for : new Date(log.scheduled_for);
+    return scheduledFor >= scheduledStart && scheduledFor < scheduledEnd;
+  }
+  const loggedAt = log.logged_at instanceof Date ? log.logged_at : new Date(log.logged_at);
+  return loggedAt >= localStart && loggedAt < localEnd;
+}
+
+function medicationLogDayWindow(
+  date: Date,
+  timeZone: string
+): {
+  scheduledStart: Date;
+  scheduledEnd: Date;
+  localStart: Date;
+  localEnd: Date;
+} {
+  const dateKey = localDay(date, "UTC");
+  const nextKey = addDays(dateKey, 1);
+  return {
+    scheduledStart: new Date(`${dateKey}T00:00:00.000Z`),
+    scheduledEnd: new Date(`${nextKey}T00:00:00.000Z`),
+    localStart: localDateTimeToUtc(dateKey, timeZone),
+    localEnd: localDateTimeToUtc(nextKey, timeZone)
+  };
+}
+
+function addDays(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return localDay(new Date(Date.UTC(year!, month! - 1, day! + days)), "UTC");
+}
+
+function localDateTimeToUtc(dateKey: string, timeZone: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const localAsUtc = new Date(Date.UTC(year!, month! - 1, day!, 0, 0, 0));
+  const offset = timeZoneOffsetMs(localAsUtc, timeZone);
+  const first = new Date(localAsUtc.getTime() - offset);
+  const correctedOffset = timeZoneOffsetMs(first, timeZone);
+  return new Date(localAsUtc.getTime() - correctedOffset);
+}
+
+function timeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(date);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const localAsUtc = Date.UTC(
+    Number(values.get("year")),
+    Number(values.get("month")) - 1,
+    Number(values.get("day")),
+    Number(values.get("hour")),
+    Number(values.get("minute")),
+    Number(values.get("second"))
+  );
+  return localAsUtc - date.getTime();
 }

@@ -93,7 +93,7 @@ import {
 } from "@jarv1s/connectors";
 import type { ActiveModulesResolver } from "@jarv1s/ai";
 import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import type { ProactiveSource } from "@jarv1s/shared";
+import { resolveTimeZone, type ProactiveSource } from "@jarv1s/shared";
 import {
   emailModuleManifest,
   emailModuleSqlMigrationDirectory,
@@ -754,10 +754,18 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     sqlMigrationDirectories: [wellnessModuleSqlMigrationDirectory],
     queueDefinitions: [...WELLNESS_EXPORT_QUEUE_DEFINITIONS],
     registerRoutes: (server, deps) => {
+      const preferencesRepository = new PreferencesRepository();
       registerWellnessRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
-        resolveActiveModules: deps.resolveActiveModules
+        resolveActiveModules: deps.resolveActiveModules,
+        resolveRequestTimeZone: (request, accessContext) =>
+          resolveRequestTimeZoneForRoute(
+            request,
+            accessContext,
+            deps.dataContext,
+            preferencesRepository
+          )
       });
       registerWellnessExportRoutes(server, {
         boss: deps.boss,
@@ -936,6 +944,36 @@ export function focusSignalProvidersFor(
   return manifests.flatMap((manifest) =>
     manifest.focusSignal ? [{ moduleId: manifest.id, provider: manifest.focusSignal }] : []
   );
+}
+
+type TimeZonePreferences = {
+  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+};
+
+type TimeZoneRunner = {
+  withDataContext<T>(
+    accessContext: AccessContext,
+    work: (scopedDb: DataContextDb) => Promise<T> | T
+  ): Promise<T>;
+};
+
+export async function resolveRequestTimeZoneForRoute(
+  request: { readonly timeZone?: string },
+  accessContext: AccessContext,
+  dataContext: TimeZoneRunner,
+  preferences: TimeZonePreferences
+): Promise<string> {
+  if (request.timeZone) return resolveTimeZone(request.timeZone, undefined);
+  const stored = await dataContext.withDataContext(accessContext, (scopedDb) =>
+    preferences.get(scopedDb, "locale")
+  );
+  return resolveTimeZone(undefined, extractStoredTimeZone(stored));
+}
+
+function extractStoredTimeZone(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const timeZone = (value as Record<string, unknown>)["timezone"];
+  return typeof timeZone === "string" ? timeZone : undefined;
 }
 
 /**

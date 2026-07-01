@@ -32,6 +32,14 @@ export function isValidTimeZone(timeZone: string): boolean {
   }
 }
 
+export function resolveTimeZone(headerTz?: string | null, storedTz?: string | null): string {
+  const header = headerTz?.trim();
+  if (header && isValidTimeZone(header)) return header;
+  const stored = storedTz?.trim();
+  if (stored && isValidTimeZone(stored)) return stored;
+  return "UTC";
+}
+
 const DAY_KEY_OPTS: Intl.DateTimeFormatOptions = {
   year: "numeric",
   month: "2-digit",
