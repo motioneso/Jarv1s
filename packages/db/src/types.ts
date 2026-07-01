@@ -161,7 +161,7 @@ export interface RlsProbeItemsTable {
 
 export type TaskStatus = "todo" | "done" | "archived";
 export type ShareLevel = "view" | "contribute" | "manage";
-export type ConnectorProviderType = "calendar" | "email" | "google";
+export type ConnectorProviderType = "calendar" | "email" | "google" | "imap";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type ConnectorSyncStatus = "success" | "partial" | "failed";

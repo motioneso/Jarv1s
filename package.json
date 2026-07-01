@@ -15,7 +15,7 @@
     "turbo:lint": "turbo run lint",
     "typecheck": "tsc --noEmit && pnpm --filter @jarv1s/web typecheck",
     "verify:foundation": "pnpm lint && pnpm format:check && pnpm check:file-size && pnpm check:design-tokens && pnpm check:no-ambient-dates && pnpm typecheck && pnpm test:unit && pnpm db:migrate && pnpm test:integration",
-    "db:up": "docker compose -f infra/docker-compose.yml up -d postgres --wait",
+    "db:up": "docker compose -f infra/docker-compose.yml up -d postgres greenmail --wait",
     "db:down": "docker compose -f infra/docker-compose.yml down -v",
     "db:migrate": "tsx scripts/migrate.ts",
     "backup:db": "tsx scripts/backup-database.ts",

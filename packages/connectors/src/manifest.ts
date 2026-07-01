@@ -54,7 +54,9 @@ export const connectorsModuleManifest = {
       "sql/0044_google_unified_connection.sql",
       "sql/0069_connector_worker_runtime_grants.sql",
       "sql/0099_connector_health_metadata.sql",
-      "sql/0100_connector_admin_safe_metadata_health.sql"
+      "sql/0100_connector_admin_safe_metadata_health.sql",
+      "sql/0130_connector_imap_enum.sql",
+      "sql/0131_connector_imap_definitions.sql"
     ],
     migrationDirectories: ["packages/connectors/sql"],
     ownedTables: [
@@ -179,6 +181,16 @@ export const connectorsModuleManifest = {
       method: "POST",
       path: "/api/connectors/google/sync",
       responseSchema: googleSyncResponseSchema,
+      permissionId: "connectors.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/connectors/imap/connect",
+      permissionId: "connectors.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/connectors/imap/test-connection",
       permissionId: "connectors.manage"
     }
   ],

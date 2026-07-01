@@ -333,6 +333,38 @@ export class ConnectorsRepository {
   }
 
   /**
+   * Upsert a generic-IMAP account keyed by providerId (one of the IMAP_PRESETS keys),
+   * unlike upsertGoogleAccount whose providerId is a single fixed constant — IMAP has
+   * one row per preset the actor has connected.
+   */
+  async upsertImapAccount(
+    scopedDb: DataContextDb,
+    input: { providerId: string; encryptedSecret: EncryptedConnectorSecret }
+  ): Promise<ConnectorAccountSafeRow> {
+    assertDataContextDb(scopedDb);
+    const existing = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select("id")
+      .where("provider_id", "=", input.providerId)
+      .executeTakeFirst();
+    if (existing) {
+      const updated = await this.updateAccount(scopedDb, existing.id, {
+        scopes: [],
+        status: "active",
+        encryptedSecret: input.encryptedSecret
+      });
+      if (!updated) throw new Error("Failed to update imap account");
+      return updated;
+    }
+    return this.createAccount(scopedDb, {
+      providerId: input.providerId,
+      scopes: [],
+      status: "active",
+      encryptedSecret: input.encryptedSecret
+    });
+  }
+
+  /**
    * Read-only, owner-scoped check: does the active google account hold the calendar
    * write scope? Reads `accounts.scopes` (already owner-RLS-scoped). Returns false when
    * there is no active google account. Never decrypts the secret bundle.

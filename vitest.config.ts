@@ -100,6 +100,12 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/commitments/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/connectors/presets",
+        replacement: fileURLToPath(
+          new URL("./packages/connectors/src/imap-presets.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/connectors",
         replacement: fileURLToPath(new URL("./packages/connectors/src/index.ts", import.meta.url))
       },
