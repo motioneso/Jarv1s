@@ -590,6 +590,9 @@ importers:
       '@jarv1s/settings':
         specifier: workspace:*
         version: link:../settings
+      '@jarv1s/sports':
+        specifier: workspace:*
+        version: link:../sports
       '@jarv1s/structured-state':
         specifier: workspace:*
         version: link:../structured-state

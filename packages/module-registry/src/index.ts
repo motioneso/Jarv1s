@@ -170,6 +170,12 @@ import {
 } from "@jarv1s/wellness";
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 import {
+  createEspnSportsSource,
+  registerSportsRoutes,
+  sportsModuleManifest,
+  sportsModuleSqlMigrationDirectory
+} from "@jarv1s/sports";
+import {
   notesModuleManifest,
   notesCommitmentProvider,
   notesModuleSqlMigrationDirectory,
@@ -785,6 +791,20 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         preferencesRepo: new PreferencesRepository(),
         fetchFn: deps.fetchFn
+      })
+  },
+  {
+    // LOADER-SEAM(sports) 1: static import + registration object (manifest, sql dir, routes).
+    manifest: sportsModuleManifest,
+    sqlMigrationDirectories: [sportsModuleSqlMigrationDirectory],
+    queueDefinitions: [],
+    registerRoutes: (server, deps) =>
+      // LOADER-SEAM(sports) 2: DI wiring + construction of the SportsSource adapter in the
+      // composition root (which concrete source lives here, not in the manifest).
+      registerSportsRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        source: createEspnSportsSource(deps.fetchFn)
       })
   },
   {
