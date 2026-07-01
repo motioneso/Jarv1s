@@ -38,15 +38,19 @@ file), and `settings-panes-2.css` is at 990/1000 lines with zero headroom for ne
 ### 1. `packages/sports/package.json` — two edits, then install
 
 Add to `exports`:
+
 ```json
 "./settings": "./src/settings/index.tsx"
 ```
+
 Add to `dependencies` (copy wellness's versions):
+
 ```json
 "react": "^19.0.0",
 "@tanstack/react-query": "^5.0.0",
 "@jarv1s/settings-ui": "workspace:*"
 ```
+
 Then run `pnpm install` (worktree-isolated, sanctioned — r9/r10 already flagged this to Coordinator).
 
 ### 2. `packages/sports/src/settings/index.tsx` — default export `SportsSettings`
@@ -197,7 +201,10 @@ export default function SportsSettings() {
     followMutation.isPending ||
     unfollowMutation.isPending;
   const error =
-    catalogQuery.isError || followsQuery.isError || followMutation.isError || unfollowMutation.isError;
+    catalogQuery.isError ||
+    followsQuery.isError ||
+    followMutation.isError ||
+    unfollowMutation.isError;
 
   function toggle(competitionKey: string, teamKey: string | null) {
     const existing = followsByKey.get(followKey(competitionKey, teamKey));
@@ -207,7 +214,10 @@ export default function SportsSettings() {
 
   return (
     <>
-      <PaneHead title="Sports" desc="Follow competitions or teams to see them on your Sports page and in briefings." />
+      <PaneHead
+        title="Sports"
+        desc="Follow competitions or teams to see them on your Sports page and in briefings."
+      />
       {(catalogQuery.data?.competitions ?? []).map((competition) => (
         <CompetitionGroup
           key={competition.competitionKey}
@@ -355,6 +365,7 @@ Confirm every token name against `apps/web/src/styles/tokens.css` before committ
 these as in-use elsewhere in sports-1.css/settings-panes CSS, but verify, don't assume).
 
 Then add one import line in `apps/web/src/settings/settings-page.tsx` next to the existing three:
+
 ```ts
 import "../styles/sports-2.css";
 ```
@@ -362,10 +373,11 @@ import "../styles/sports-2.css";
 ### 4. `tests/unit/settings-sports-pane.test.tsx` — SSR convention (no RTL/jsdom in this repo)
 
 Mirror `tests/unit/settings-people-pane.test.tsx` exactly (read in full by r10 — uses `createElement`
-+ `renderToString` + `QueryClientProvider`, primes via `client.setQueryData`, asserts via
-`html.toContain`). Import path: `../../packages/sports/src/settings/index.js` (relative, `.js`
-extension per this repo's ESM import convention — the root vitest config aliases react/
-react-query/@jarv1s/settings-ui already, verified in `vitest.config.ts`, so no new alias needed).
+
+- `renderToString` + `QueryClientProvider`, primes via `client.setQueryData`, asserts via
+  `html.toContain`). Import path: `../../packages/sports/src/settings/index.js` (relative, `.js`
+  extension per this repo's ESM import convention — the root vitest config aliases react/
+  react-query/@jarv1s/settings-ui already, verified in `vitest.config.ts`, so no new alias needed).
 
 ```tsx
 import { createElement } from "react";
@@ -395,7 +407,13 @@ describe("SportsSettings", () => {
           kind: "tournament",
           marquee: true,
           teams: [
-            { teamKey: "team.bra", competitionKey: "fifa.world", name: "Brazil", shortName: "BRA", crestUrl: null }
+            {
+              teamKey: "team.bra",
+              competitionKey: "fifa.world",
+              name: "Brazil",
+              shortName: "BRA",
+              crestUrl: null
+            }
           ]
         }
       ]
@@ -417,13 +435,21 @@ describe("SportsSettings", () => {
           kind: "league",
           marquee: false,
           teams: [
-            { teamKey: "team.ars", competitionKey: "epl", name: "Arsenal", shortName: "ARS", crestUrl: null }
+            {
+              teamKey: "team.ars",
+              competitionKey: "epl",
+              name: "Arsenal",
+              shortName: "ARS",
+              crestUrl: null
+            }
           ]
         }
       ]
     });
     client.setQueryData(FOLLOWS_KEY, {
-      follows: [{ id: "f1", competitionKey: "epl", teamKey: "team.ars", createdAt: "2026-01-01T00:00:00Z" }]
+      follows: [
+        { id: "f1", competitionKey: "epl", teamKey: "team.ars", createdAt: "2026-01-01T00:00:00Z" }
+      ]
     });
     const html = renderWithQuery(client);
     expect(html).toContain("is-active");
@@ -433,7 +459,13 @@ describe("SportsSettings", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(CATALOG_KEY, {
       competitions: [
-        { competitionKey: "epl", label: "Premier League", kind: "league", marquee: false, teams: [] }
+        {
+          competitionKey: "epl",
+          label: "Premier League",
+          kind: "league",
+          marquee: false,
+          teams: []
+        }
       ]
     });
     client.setQueryData(FOLLOWS_KEY, { follows: [] });
@@ -453,6 +485,7 @@ git add packages/sports/src/settings/ packages/sports/package.json pnpm-lock.yam
   tests/unit/settings-sports-pane.test.tsx apps/web/src/styles/sports-2.css \
   apps/web/src/settings/settings-page.tsx
 ```
+
 Message: `feat(sports): settings follow-picker pane (auto-mounted via manifest)`. Mention in the
 commit body or your Coordinator report that you corrected two stale premises from the r10/r9 handoff
 (exports subpath was in fact required; CSS import lives in settings-page.tsx) — a parity fix, not an

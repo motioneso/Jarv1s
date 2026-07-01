@@ -71,12 +71,13 @@ Run: `2026-06-30-rfa-fleet` · Issue: #656
   regardless.
 
 ## Left to do — Tasks 13–15 (Task 13's app.tsx wiring is now unblocked; proceed per coordinator's
+
 existing Task 12/13 approval — no new gate needed for the app.tsx piece specifically, but confirm
 before writing page/CSS if anything else looks off per the coordinated-build step ½ premise-check)
 
 - **Task 13** (plan L1260) — Sports page UI + CSS (plan §4.6a) **plus the app.tsx wiring deferred
   from Task 12** (lazy import + `<Route>` under `ModuleGatedRoute`, `sportsGate =
-  myModulesEnabled("sports")` — see plan L1233-1244 for the exact snippet). Investigate the RTL
+myModulesEnabled("sports")` — see plan L1233-1244 for the exact snippet). Investigate the RTL
   test-infra gap noted above FIRST — before assuming `apps/web/src/sports/__tests__/...` is a valid
   path, grep root `tests/unit/` for any existing React Testing Library web-page test; if none
   exists, escalate to the Coordinator rather than unilaterally adding `@testing-library/react` +
@@ -104,7 +105,7 @@ before writing page/CSS if anything else looks off per the coordinated-build ste
   composition-root wiring stays tagged `// LOADER-SEAM(sports):`.
 - Test placement: repo tests live under `tests/unit` + `tests/integration` (root `vitest.config.ts`
   does NOT pick up `packages/*/src` **or `apps/web/src/**`** tests). Do not add
-  `packages/sports/src/__tests__/*` or `apps/web/src/**/__tests__/*` — use `tests/unit/`.
+`packages/sports/src/**tests**/_`or`apps/web/src/\*\*/**tests**/_`— use`tests/unit/`.
 - Relay again at ~80–100k tokens or the instant you see a compaction summary.
 
 ## First actions for the successor
