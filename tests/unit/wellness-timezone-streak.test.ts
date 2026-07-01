@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localDay, type CheckinDto } from "@jarv1s/shared";
-import { computeStreak } from "../../apps/web/src/wellness/wellness-date-utils.js";
+import { computeStreak, localDayOffset } from "../../apps/web/src/wellness/wellness-date-utils.js";
 
 // Regression for issue #579 — UTC+12/+13/+14 streak correctness.
 //
@@ -52,6 +52,21 @@ describe("localDay — Pacific/Auckland UTC+12 boundary", () => {
     // This was the exact value the old UTC-noon anchor produced for i=1 from today=June-29,
     // wrongly mapping "yesterday" to "today" and breaking streak counting.
     expect(localDay("2026-06-28T12:00:00Z", TZ)).toBe("2026-06-29");
+  });
+});
+
+describe("localDayOffset", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-01T00:21:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("walks from the user's local calendar day, not UTC today", () => {
+    expect(localDayOffset(0, "America/Los_Angeles")).toBe("2026-06-30");
+    expect(localDayOffset(1, "America/Los_Angeles")).toBe("2026-06-29");
   });
 });
 

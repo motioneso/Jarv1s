@@ -17,16 +17,24 @@ export function computeStreak(checkins: readonly CheckinDto[], timeZone?: string
     const ts = c.checkedInAt ?? c.createdAt ?? "";
     if (ts) seen.add(localDay(ts, timeZone));
   });
-  const todayStr = localDay(new Date(), timeZone);
-  const [y, m, d] = todayStr.split("-").map(Number);
-  const base = new Date(Date.UTC(y!, m! - 1, d!));
+  const todayStr = localDayOffset(0, timeZone);
   let s = 0;
   for (let i = 1; i <= 90; i++) {
-    const prev = new Date(base);
-    prev.setUTCDate(prev.getUTCDate() - i);
-    const iso = prev.toISOString().slice(0, 10);
+    const iso = localDayOffset(i, timeZone, todayStr);
     if (seen.has(iso)) s++;
     else break;
   }
   return s;
+}
+
+export function localDayOffset(
+  offsetDays: number,
+  timeZone?: string,
+  from: Date | string = new Date()
+): string {
+  const todayStr = typeof from === "string" ? from : localDay(from, timeZone);
+  const [y, m, d] = todayStr.split("-").map(Number);
+  const base = new Date(Date.UTC(y!, m! - 1, d!));
+  base.setUTCDate(base.getUTCDate() - offsetDays);
+  return base.toISOString().slice(0, 10);
 }

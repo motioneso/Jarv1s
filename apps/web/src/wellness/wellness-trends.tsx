@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   EMOTIONS,
+  localDay,
   type CheckinDto,
   type DayAdherenceSummaryDto,
   type LocaleSettingsDto
@@ -11,6 +12,7 @@ import { listWellnessCheckins, getMedicationAdherenceSummary } from "../api/clie
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { emoColor, type Theme } from "./emotion-taxonomy";
 import { WellnessChart, type DayPoint } from "./wellness-chart";
+import { localDayOffset } from "./wellness-date-utils";
 
 function TrendingUpIcon() {
   return (
@@ -46,12 +48,6 @@ function HelpCircleIcon() {
       <path d="M12 17h.01" />
     </svg>
   );
-}
-
-function isoDate(offsetDays: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - offsetDays);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function shortLabel(iso: string, locale: LocaleSettingsDto): string {
@@ -96,15 +92,15 @@ export function WellnessTrends({ theme = "light" }: Props) {
   // Build checkin lookup by date (all check-ins per day; list is newest-first)
   const checkinsByDate: Record<string, CheckinDto[]> = {};
   checkins.forEach((c) => {
-    const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
+    const d = localDay(c.checkedInAt ?? c.createdAt ?? "", locale.timezone);
     if (!d) return;
     (checkinsByDate[d] ??= []).push(c);
   });
 
-  const todayStr = isoDate(0);
+  const todayStr = localDayOffset(0, locale.timezone);
 
   const days: DayPoint[] = Array.from({ length: range }, (_, i) => {
-    const iso = isoDate(range - 1 - i);
+    const iso = localDayOffset(range - 1 - i, locale.timezone, todayStr);
     const summary = summaryByDate[iso] ?? null;
     return {
       date: iso,
