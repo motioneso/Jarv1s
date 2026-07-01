@@ -80,12 +80,14 @@ import {
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
+  IMAP_SYNC_QUEUE_DEFINITIONS,
   buildFeatureGrantService,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
   getConnectorSyncAt,
   registerConnectorsJobWorkers,
   registerConnectorsRoutes,
+  registerImapSyncWorker,
   type GoogleApiClient,
   type GoogleConnectionService
 } from "@jarv1s/connectors";
@@ -473,15 +475,20 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: connectorsModuleManifest,
     sqlMigrationDirectories: [connectorsModuleSqlMigrationDirectory],
-    queueDefinitions: GOOGLE_SYNC_QUEUE_DEFINITIONS,
+    queueDefinitions: [...GOOGLE_SYNC_QUEUE_DEFINITIONS, ...IMAP_SYNC_QUEUE_DEFINITIONS],
     registerRoutes: (server, deps) =>
       registerConnectorsRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         boss: deps.boss
       }),
-    registerWorkers: (boss, deps) =>
-      registerConnectorsJobWorkers(boss, { dataContext: deps.dataContext })
+    registerWorkers: async (boss, deps) => {
+      const googleWorkIds = await registerConnectorsJobWorkers(boss, {
+        dataContext: deps.dataContext
+      });
+      const imapWorkIds = await registerImapSyncWorker(boss, { dataContext: deps.dataContext });
+      return [...googleWorkIds, ...imapWorkIds];
+    }
   },
   {
     manifest: tasksModuleManifest,
