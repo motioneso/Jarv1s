@@ -33,6 +33,7 @@ Run: `2026-06-30-rfa-fleet` · Issue: #656
   — 3/3 green. Typecheck clean (`packages/sports`, `apps/web`). Lint clean on all touched files.
 
 **Grep-verified seam tags** (plan Task 15 Step 2 — already done, don't re-derive):
+
 ```
 packages/sports/src/source/sports-source.ts:3   LOADER-SEAM(sports): swappable data-source contract
 packages/sports/src/source/espn-source.ts:15     LOADER-SEAM(sports): adapter, all ESPN calls through here
@@ -40,15 +41,18 @@ packages/module-registry/src/index.ts:789        LOADER-SEAM(sports) 1: BUILT_IN
 packages/module-registry/src/index.ts:794        LOADER-SEAM(sports) 2: registerSportsRoutes DI + source construction
 packages/briefings/src/compose.ts:700            LOADER-SEAM(sports) 3: briefing section wiring
 ```
+
 Seams 4/5/6 (web nav/route, shared contracts, foundation.test.ts migration row) are cross-file by
 design — the README is their ledger, not an inline tag. Matches plan's expected grep output exactly.
 
 ## What's left — Task 15, Steps 3–5 (plan L1389–1409)
 
 1. **Step 3: Full local gate.**
+
    ```bash
    pnpm verify:foundation
    ```
+
    Last attempt (r11) failed only on the two now-fixed handoff docs at the `format:check` stage —
    lint had already passed clean. **Nothing else has been run yet**: `check:file-size`,
    `check:design-tokens`, `check:no-ambient-dates`, `typecheck` (full monorepo — only
@@ -57,9 +61,11 @@ design — the README is their ledger, not an inline tag. Matches plan's expecte
    `foundation.test.ts` — confirm the `0133_sports_follows.sql` migration row is present; it was
    added in an earlier task per git log, should already be there).
    Then:
+
    ```bash
    pnpm audit:release-hardening
    ```
+
    Expected PASS on both. Fix anything red — don't skip or weaken a check.
 
 2. **Step 4: Manual acceptance (spec §7).** Start dev server with `--host` (headless machine —
@@ -91,7 +97,7 @@ design — the README is their ledger, not an inline tag. Matches plan's expecte
   what r11 did for the two pre-existing handoff docs, scoped, not `prettier --write .`).
 - Single chat-visible tool `sports.followedFactsToday` — no new tools. RLS/DataContextDb/
   AccessContext untouched (`AccessContext = {actorUserId, requestId}`). Tests only in `tests/unit`
-  + `tests/integration`. Raw CSS colors only in `tokens.css`; result colors NEVER red.
+  - `tests/integration`. Raw CSS colors only in `tokens.css`; result colors NEVER red.
 - Relay again at ~80–100k tokens / on any compaction summary — don't wait for a hard stop.
 
 ## First actions
