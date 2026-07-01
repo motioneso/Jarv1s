@@ -2,16 +2,44 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Group, Note, PaneHead, Row, Switch } from "@jarv1s/settings-ui";
 import type {
+  AiActionPolicyTier,
+  GetAiActionPoliciesResponse,
   GetEmailBriefingSettingsResponse,
   ListSourceBehaviorsResponse,
+  PatchAiActionPolicyResponse,
   PutSourceBehaviorResponse,
   UpdateEmailBriefingSettingsRequest,
   UpdateEmailBriefingSettingsResponse
 } from "@jarv1s/shared";
 
 const EMAIL_BEHAVIOR_ID = "email.briefings";
+const DRAFTS_MODULE_ID = "email";
+const DRAFTS_FAMILY_ID = "email_drafts";
 const SOURCE_BEHAVIORS_KEY = ["settings", "source-behaviors"] as const;
 const EMAIL_SETTINGS_KEY = ["email", "briefing-settings"] as const;
+const ACTION_POLICY_KEY = ["ai", "action-policy"] as const;
+
+// The "draft replies without asking" toggle maps the generic email_drafts action
+// policy between the two tiers the family allows: ON = trusted_auto (auto-execute
+// the draft after the model proposes it), OFF = ask_each_time (confirm each draft).
+// Default OFF when no policy row exists yet — private-by-default.
+export function draftAutoTierFromPolicies(
+  policies: GetAiActionPoliciesResponse["policies"]
+): AiActionPolicyTier {
+  return (
+    policies.find(
+      (policy) => policy.moduleId === DRAFTS_MODULE_ID && policy.actionFamilyId === DRAFTS_FAMILY_ID
+    )?.tier ?? "ask_each_time"
+  );
+}
+
+export function draftAutoChecked(tier: AiActionPolicyTier): boolean {
+  return tier === "trusted_auto";
+}
+
+export function draftAutoTierFromChecked(checked: boolean): AiActionPolicyTier {
+  return checked ? "trusted_auto" : "ask_each_time";
+}
 
 async function requestJson<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -49,6 +77,17 @@ function patchEmailSettings(body: UpdateEmailBriefingSettingsRequest) {
   });
 }
 
+function getActionPolicies() {
+  return requestJson<GetAiActionPoliciesResponse>("/api/ai/action-policy");
+}
+
+function patchDraftPolicy(tier: AiActionPolicyTier) {
+  return requestJson<PatchAiActionPolicyResponse>(
+    `/api/ai/action-policy/${encodeURIComponent(DRAFTS_MODULE_ID)}/${encodeURIComponent(DRAFTS_FAMILY_ID)}`,
+    { method: "PATCH", body: { tier } }
+  );
+}
+
 export default function EmailSettings() {
   const queryClient = useQueryClient();
   const sourceBehaviors = useQuery({ queryKey: SOURCE_BEHAVIORS_KEY, queryFn: getSourceBehaviors });
@@ -64,17 +103,24 @@ export default function EmailSettings() {
     mutationFn: patchEmailSettings,
     onSuccess: (data) => queryClient.setQueryData(EMAIL_SETTINGS_KEY, data)
   });
+  const policiesQuery = useQuery({ queryKey: ACTION_POLICY_KEY, queryFn: getActionPolicies });
+  const draftPolicyMutation = useMutation({
+    mutationFn: patchDraftPolicy,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ACTION_POLICY_KEY })
+  });
 
   const behaviorEnabled =
     sourceBehaviors.data?.sources
       .flatMap((source) => source.behaviors)
       .find((behavior) => behavior.id === EMAIL_BEHAVIOR_ID)?.enabled ?? true;
   const settings = (settingsMutation.data ?? settingsQuery.data)?.settings;
+  const draftAutoTier = draftAutoTierFromPolicies(policiesQuery.data?.policies ?? []);
   const disabled =
     sourceBehaviors.isLoading ||
     settingsQuery.isLoading ||
     behaviorMutation.isPending ||
     settingsMutation.isPending;
+  const draftPolicyDisabled = policiesQuery.isLoading || draftPolicyMutation.isPending;
 
   return (
     <>
@@ -146,11 +192,31 @@ export default function EmailSettings() {
           }
         />
       </Group>
+      <Group title="Reply agency">
+        <Row
+          name="Let Jarvis draft email replies without asking"
+          desc="When on, Jarvis saves reply drafts to the original Gmail thread automatically. Drafts never send on their own — you still open and send them yourself."
+          control={
+            <Switch
+              ariaLabel="Let Jarvis draft email replies without asking"
+              checked={draftAutoChecked(draftAutoTier)}
+              disabled={draftPolicyDisabled}
+              onChange={(value) => draftPolicyMutation.mutate(draftAutoTierFromChecked(value))}
+            />
+          }
+        />
+        <Row
+          name="Sending a reply always asks first"
+          desc="Sending an email is destructive, so Jarvis always shows an Approve card before it sends — this can't be turned off."
+        />
+      </Group>
       {sourceBehaviors.isError ||
       settingsQuery.isError ||
       behaviorMutation.isError ||
-      settingsMutation.isError ? (
-        <Note>Could not save email briefing settings. Try again.</Note>
+      settingsMutation.isError ||
+      policiesQuery.isError ||
+      draftPolicyMutation.isError ? (
+        <Note>Could not save email settings. Try again.</Note>
       ) : null}
     </>
   );
