@@ -29,13 +29,23 @@ export function deriveReplyTarget(message: EmailMessage): ReplyTarget {
 }
 
 /**
+ * Remove CR and LF from a value destined for an RFC822 header. Reply header values
+ * (recipient, subject) are derived from cached inbound email; stripping line breaks
+ * closes a header-injection vector (e.g. a smuggled `Bcc:`) even if upstream ingestion
+ * ever fails to normalize them. Header folding is not needed for our short values.
+ */
+function stripHeaderValue(value: string): string {
+  return value.replace(/[\r\n]/g, "");
+}
+
+/**
  * Build a base64url-encoded RFC822 plain-text message for the Gmail draft/send APIs.
  * The body is emitted verbatim; headers are minimal (To/Subject/MIME-Version/Content-Type).
  */
 export function buildReplyMime(input: { to: string; subject: string; body: string }): string {
   const headers = [
-    `To: ${input.to}`,
-    `Subject: ${input.subject}`,
+    `To: ${stripHeaderValue(input.to)}`,
+    `Subject: ${stripHeaderValue(input.subject)}`,
     "MIME-Version: 1.0",
     "Content-Type: text/plain; charset=UTF-8"
   ];
