@@ -87,12 +87,31 @@ export function buildEmailWriteService(deps: EmailWriteImplDeps): EmailWriteServ
     }
 
     const target = deriveReplyTarget(message);
-    if (!target.threadId) return { ok: false, mode, message: MSG_NO_THREAD };
+    // Gmail's API threads by threadId, so it is mandatory there. IMAP threads via
+    // RFC822 headers and legitimately carries no Gmail-style threadId (spec §8), so
+    // a null threadId must not block an IMAP APPEND/SMTP send.
+    if (providerType === "google" && !target.threadId) {
+      return { ok: false, mode, message: MSG_NO_THREAD };
+    }
 
     if (mode === "draft") {
-      return provider.saveDraft(scopedDb, message, target.to, target.subject, target.threadId, input.body);
+      return provider.saveDraft(
+        scopedDb,
+        message,
+        target.to,
+        target.subject,
+        target.threadId,
+        input.body
+      );
     } else {
-      return provider.send(scopedDb, message, target.to, target.subject, target.threadId, input.body);
+      return provider.send(
+        scopedDb,
+        message,
+        target.to,
+        target.subject,
+        target.threadId,
+        input.body
+      );
     }
   }
 

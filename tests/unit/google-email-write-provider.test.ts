@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { GoogleEmailWriteProvider } from "@jarv1s/connectors";
 import { GoogleApiError, GoogleConnectError } from "@jarv1s/connectors";
-import type { EmailMessage } from "@jarv1s/db";
+import type { DataContextDb, EmailMessage } from "@jarv1s/db";
 
 describe("GoogleEmailWriteProvider", () => {
   const mockGoogleService = {
@@ -14,7 +14,7 @@ describe("GoogleEmailWriteProvider", () => {
   };
 
   const provider = new GoogleEmailWriteProvider(mockGoogleService, mockGoogleApiClient);
-  const mockScopedDb = {} as any;
+  const mockScopedDb = {} as unknown as DataContextDb;
 
   const mockMessage: EmailMessage = {
     id: "msg-123",
@@ -94,7 +94,9 @@ describe("GoogleEmailWriteProvider", () => {
   });
 
   it("returns sanitized error on auth failure", async () => {
-    mockGoogleService.getFreshAccessToken.mockRejectedValue(new GoogleConnectError("No connection"));
+    mockGoogleService.getFreshAccessToken.mockRejectedValue(
+      new GoogleConnectError("No connection")
+    );
 
     const result = await provider.send(
       mockScopedDb,

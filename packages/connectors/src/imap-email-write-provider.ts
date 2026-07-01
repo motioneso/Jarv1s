@@ -42,7 +42,7 @@ export class ImapEmailWriteProvider implements EmailWriteProvider {
     try {
       await this.appendToImapFolder(secret, DRAFTS_FOLDER, buffer);
       return { ok: true, mode: "draft" };
-    } catch (error) {
+    } catch {
       return { ok: false, mode: "draft", message: MSG_UPSTREAM_FAILED };
     }
   }
@@ -67,7 +67,7 @@ export class ImapEmailWriteProvider implements EmailWriteProvider {
       await this.sendViaSmtp(secret, to, buffer);
       await this.appendToImapFolder(secret, SENT_FOLDER, buffer);
       return { ok: true, mode: "send" };
-    } catch (error) {
+    } catch {
       return { ok: false, mode: "send", message: MSG_UPSTREAM_FAILED };
     }
   }
@@ -120,13 +120,13 @@ export class ImapEmailWriteProvider implements EmailWriteProvider {
     try {
       try {
         await client.mailboxOpen(folder);
-      } catch (err) {
+      } catch {
         // Folder might not exist, try to create it
         try {
           await client.mailboxCreate(folder);
           await client.mailboxOpen(folder);
         } catch (createErr) {
-          throw new Error(`Failed to create or open folder ${folder}: ${createErr instanceof Error ? createErr.message : String(createErr)}`);
+          throw new Error(`Failed to create or open folder ${folder}`, { cause: createErr });
         }
       }
       await client.append(folder, message);

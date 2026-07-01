@@ -8,7 +8,12 @@ import {
   createConnectorSecretCipher,
   type ImapConnectionSecret
 } from "@jarv1s/connectors";
-import { connectionStrings, ids, resetFoundationDatabase, testImap } from "../integration/test-database.js";
+import {
+  connectionStrings,
+  ids,
+  resetFoundationDatabase,
+  testImap
+} from "../integration/test-database.js";
 import type { EmailMessage } from "@jarv1s/db";
 
 describe("ImapEmailWriteProvider — GreenMail integration", () => {
@@ -48,17 +53,17 @@ describe("ImapEmailWriteProvider — GreenMail integration", () => {
       for (const folder of ["Drafts", "Sent"]) {
         try {
           await client.mailboxOpen(folder);
-          const messages = await client.search({ seen: false });
+          const messages = (await client.search({ seen: false })) || [];
           for (const msg of messages) {
             await client.mailboxOpen(folder);
-            await client.messageDelete(msg, { type: "delete" });
+            await client.messageDelete(msg);
           }
         } catch (err) {
           // Folder might not exist, try to create it
           if ((err as Error).message.includes("No such mailbox")) {
             try {
               await client.mailboxCreate(folder);
-            } catch (createErr) {
+            } catch {
               // Ignore if creation fails
             }
           }
@@ -180,11 +185,11 @@ describe("ImapEmailWriteProvider — GreenMail integration", () => {
       await client.connect();
       try {
         await client.mailboxOpen("Drafts");
-        const messages = await client.search({ seen: false });
+        const messages = (await client.search({ seen: false })) || [];
         expect(messages.length).toBeGreaterThan(0);
 
         const first = messages[0];
-        expect(first).toBeDefined();
+        if (first === undefined) throw new Error("expected a message in the folder");
 
         let raw = "";
         for await (const fetched of client.fetch(first, { source: true })) {
@@ -230,10 +235,12 @@ describe("ImapEmailWriteProvider — GreenMail integration", () => {
       await client.connect();
       try {
         await client.mailboxOpen("Drafts");
-        const messages = await client.search({ seen: false });
+        const messages = (await client.search({ seen: false })) || [];
 
+        const first = messages[0];
+        if (first === undefined) throw new Error("expected a message in the folder");
         let raw = "";
-        for await (const fetched of client.fetch(messages[0], { source: true })) {
+        for await (const fetched of client.fetch(first, { source: true })) {
           raw = fetched.source?.toString() ?? "";
         }
 
@@ -314,11 +321,13 @@ describe("ImapEmailWriteProvider — GreenMail integration", () => {
       await client.connect();
       try {
         await client.mailboxOpen("Sent");
-        const messages = await client.search({ seen: false });
+        const messages = (await client.search({ seen: false })) || [];
         expect(messages.length).toBeGreaterThan(0);
 
+        const first = messages[0];
+        if (first === undefined) throw new Error("expected a message in the folder");
         let raw = "";
-        for await (const fetched of client.fetch(messages[0], { source: true })) {
+        for await (const fetched of client.fetch(first, { source: true })) {
           raw = fetched.source?.toString() ?? "";
         }
 
@@ -361,10 +370,12 @@ describe("ImapEmailWriteProvider — GreenMail integration", () => {
       await client.connect();
       try {
         await client.mailboxOpen("Sent");
-        const messages = await client.search({ seen: false });
+        const messages = (await client.search({ seen: false })) || [];
 
+        const first = messages[0];
+        if (first === undefined) throw new Error("expected a message in the folder");
         let raw = "";
-        for await (const fetched of client.fetch(messages[0], { source: true })) {
+        for await (const fetched of client.fetch(first, { source: true })) {
           raw = fetched.source?.toString() ?? "";
         }
 

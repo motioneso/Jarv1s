@@ -1,14 +1,15 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
-import type { EmailMessage } from "@jarv1s/db";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { DataContextDb, EmailMessage } from "@jarv1s/db";
+import { ImapEmailWriteProvider } from "@jarv1s/connectors";
+import type { ConnectorSecretCipher, ConnectorsRepository } from "@jarv1s/connectors";
+
+/** The private methods the tests stub via vi.spyOn — not part of the public type. */
+type ImapProviderInternals = {
+  appendToImapFolder: (secret: unknown, folder: string, message: Buffer) => Promise<void>;
+  sendViaSmtp: (secret: unknown, to: string, message: Buffer) => Promise<void>;
+};
 
 describe("ImapEmailWriteProvider", () => {
-  let ImapEmailWriteProvider: any;
-
-  beforeAll(async () => {
-    const module = await import("@jarv1s/connectors");
-    ImapEmailWriteProvider = module.ImapEmailWriteProvider;
-  });
-
   const mockRepository = {
     getActiveImapAccountSecret: vi.fn()
   };
@@ -17,12 +18,15 @@ describe("ImapEmailWriteProvider", () => {
     decryptJson: vi.fn()
   };
 
-  let provider: any;
-  const mockScopedDb = {} as any;
+  let provider: ImapEmailWriteProvider;
+  const mockScopedDb = {} as unknown as DataContextDb;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    provider = new ImapEmailWriteProvider(mockRepository, mockCipher);
+    provider = new ImapEmailWriteProvider(
+      mockRepository as unknown as Pick<ConnectorsRepository, "getActiveImapAccountSecret">,
+      mockCipher as unknown as ConnectorSecretCipher
+    );
   });
 
   const mockMessage: EmailMessage = {
@@ -62,7 +66,9 @@ describe("ImapEmailWriteProvider", () => {
       mockRepository.getActiveImapAccountSecret.mockResolvedValue(storedSecret);
       mockCipher.decryptJson.mockReturnValue(mockSecret);
 
-      const appendSpy = vi.spyOn(provider, "appendToImapFolder" as any).mockResolvedValue(undefined);
+      const appendSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "appendToImapFolder")
+        .mockResolvedValue(undefined);
 
       await provider.saveDraft(
         mockScopedDb,
@@ -73,7 +79,10 @@ describe("ImapEmailWriteProvider", () => {
         "Reply body"
       );
 
-      expect(mockRepository.getActiveImapAccountSecret).toHaveBeenCalledWith(mockScopedDb, "connector-acc-1");
+      expect(mockRepository.getActiveImapAccountSecret).toHaveBeenCalledWith(
+        mockScopedDb,
+        "connector-acc-1"
+      );
       appendSpy.mockRestore();
     });
 
@@ -82,7 +91,9 @@ describe("ImapEmailWriteProvider", () => {
       mockRepository.getActiveImapAccountSecret.mockResolvedValue(storedSecret);
       mockCipher.decryptJson.mockReturnValue(mockSecret);
 
-      const appendSpy = vi.spyOn(provider, "appendToImapFolder" as any).mockResolvedValue(undefined);
+      const appendSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "appendToImapFolder")
+        .mockResolvedValue(undefined);
 
       await provider.saveDraft(
         mockScopedDb,
@@ -140,7 +151,9 @@ describe("ImapEmailWriteProvider", () => {
       mockRepository.getActiveImapAccountSecret.mockResolvedValue(storedSecret);
       mockCipher.decryptJson.mockReturnValue(mockSecret);
 
-      const appendSpy = vi.spyOn(provider, "appendToImapFolder" as any).mockRejectedValue(new Error("Connection failed"));
+      const appendSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "appendToImapFolder")
+        .mockRejectedValue(new Error("Connection failed"));
 
       const result = await provider.saveDraft(
         mockScopedDb,
@@ -166,7 +179,9 @@ describe("ImapEmailWriteProvider", () => {
       mockRepository.getActiveImapAccountSecret.mockResolvedValue(storedSecret);
       mockCipher.decryptJson.mockReturnValue(mockSecret);
 
-      const appendSpy = vi.spyOn(provider, "appendToImapFolder" as any).mockResolvedValue(undefined);
+      const appendSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "appendToImapFolder")
+        .mockResolvedValue(undefined);
 
       const result = await provider.saveDraft(
         mockScopedDb,
@@ -179,11 +194,7 @@ describe("ImapEmailWriteProvider", () => {
 
       expect(result.ok).toBe(true);
       expect(result.mode).toBe("draft");
-      expect(appendSpy).toHaveBeenCalledWith(
-        mockSecret,
-        "Drafts",
-        expect.any(Buffer)
-      );
+      expect(appendSpy).toHaveBeenCalledWith(mockSecret, "Drafts", expect.any(Buffer));
       appendSpy.mockRestore();
     });
 
@@ -192,7 +203,9 @@ describe("ImapEmailWriteProvider", () => {
       mockRepository.getActiveImapAccountSecret.mockResolvedValue(storedSecret);
       mockCipher.decryptJson.mockReturnValue(mockSecret);
 
-      const appendSpy = vi.spyOn(provider, "appendToImapFolder" as any).mockRejectedValue(new Error("IMAP error"));
+      const appendSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "appendToImapFolder")
+        .mockRejectedValue(new Error("IMAP error"));
 
       const result = await provider.saveDraft(
         mockScopedDb,
@@ -216,8 +229,12 @@ describe("ImapEmailWriteProvider", () => {
       mockRepository.getActiveImapAccountSecret.mockResolvedValue(storedSecret);
       mockCipher.decryptJson.mockReturnValue(mockSecret);
 
-      const smtpSpy = vi.spyOn(provider, "sendViaSmtp" as any).mockResolvedValue(undefined);
-      const appendSpy = vi.spyOn(provider, "appendToImapFolder" as any).mockResolvedValue(undefined);
+      const smtpSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "sendViaSmtp")
+        .mockResolvedValue(undefined);
+      const appendSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "appendToImapFolder")
+        .mockResolvedValue(undefined);
 
       const result = await provider.send(
         mockScopedDb,
@@ -230,16 +247,8 @@ describe("ImapEmailWriteProvider", () => {
 
       expect(result.ok).toBe(true);
       expect(result.mode).toBe("send");
-      expect(smtpSpy).toHaveBeenCalledWith(
-        mockSecret,
-        "recipient@example.com",
-        expect.any(Buffer)
-      );
-      expect(appendSpy).toHaveBeenCalledWith(
-        mockSecret,
-        "Sent",
-        expect.any(Buffer)
-      );
+      expect(smtpSpy).toHaveBeenCalledWith(mockSecret, "recipient@example.com", expect.any(Buffer));
+      expect(appendSpy).toHaveBeenCalledWith(mockSecret, "Sent", expect.any(Buffer));
       smtpSpy.mockRestore();
       appendSpy.mockRestore();
     });
@@ -249,7 +258,9 @@ describe("ImapEmailWriteProvider", () => {
       mockRepository.getActiveImapAccountSecret.mockResolvedValue(storedSecret);
       mockCipher.decryptJson.mockReturnValue(mockSecret);
 
-      const smtpSpy = vi.spyOn(provider, "sendViaSmtp" as any).mockRejectedValue(new Error("SMTP timeout"));
+      const smtpSpy = vi
+        .spyOn(provider as unknown as ImapProviderInternals, "sendViaSmtp")
+        .mockRejectedValue(new Error("SMTP timeout"));
 
       const result = await provider.send(
         mockScopedDb,

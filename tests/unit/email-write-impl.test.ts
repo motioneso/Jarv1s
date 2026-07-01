@@ -39,7 +39,9 @@ function makeDeps(overrides: Partial<EmailWriteImplDeps> = {}): {
   const deps: EmailWriteImplDeps = {
     emailRepository: { getById: async () => gmailMessage() },
     connectorsRepository: {
-      getGmailWriteScopeState: async () => ({ accountId: "google-acct", hasScope: true })
+      getAccountProviderType: async () => "google",
+      getGmailWriteScopeState: async () => ({ accountId: "google-acct", hasScope: true }),
+      getActiveImapAccountSecret: async () => null
     },
     googleService: { getFreshAccessToken: async () => "fresh-token" },
     googleApiClient: { createDraft, sendMessage },
@@ -85,21 +87,29 @@ describe("buildEmailWriteService.draftReply", () => {
     expect(result.message).toBeTruthy();
   });
 
-  it("refuses non-Gmail (IMAP) accounts without calling Gmail", async () => {
+  it("routes IMAP accounts to the IMAP provider, never to Gmail", async () => {
     const { deps, createDraft } = makeDeps({
-      emailRepository: { getById: async () => gmailMessage({ connector_account_id: "imap-acct" }) }
+      emailRepository: { getById: async () => gmailMessage({ connector_account_id: "imap-acct" }) },
+      connectorsRepository: {
+        getAccountProviderType: async () => "imap",
+        getGmailWriteScopeState: async () => ({ accountId: "google-acct", hasScope: true }),
+        // No active IMAP secret wired here, so the IMAP provider fails closed with a
+        // secret-free message — proving the dispatch reached IMAP, not Gmail.
+        getActiveImapAccountSecret: async () => null
+      }
     } as unknown as Partial<EmailWriteImplDeps>);
     const svc = buildEmailWriteService(deps);
     const result = await svc.draftReply(scopedDb, ctx, { cacheMessageId: "cache-1", body: "x" });
 
     expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/aren't supported|not supported/i);
+    expect(result.mode).toBe("draft");
     expect(createDraft).not.toHaveBeenCalled();
   });
 
   it("prompts to reconnect when gmail.modify scope is missing", async () => {
     const { deps, createDraft } = makeDeps({
       connectorsRepository: {
+        getAccountProviderType: async () => "google",
         getGmailWriteScopeState: async () => ({ accountId: "google-acct", hasScope: false })
       }
     } as unknown as Partial<EmailWriteImplDeps>);
