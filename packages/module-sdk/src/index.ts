@@ -73,6 +73,36 @@ export type ToolExecute = (
 /** Optional human-readable description of a proposed write, for the Approve/Deny card. */
 export type ToolSummarize = (input: ToolInput, ctx: ToolContext) => string;
 
+/**
+ * Rich, server-derived preview of a proposed write for the Approve/Deny card. Unlike the
+ * persisted `inputSummary` (key-names only), this is computed under the actor's DataContextDb
+ * from owner-visible cached state and rides the live SSE stream ONLY — it is never persisted
+ * to the action_request row, audit log, job payload, export, or prompt. The email reply tools
+ * use it to show the derived recipient/subject and the composed body on the card without ever
+ * writing the body to durable storage (spec §5 / metadata-only persistence).
+ */
+export interface ActionRequestPreview {
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+}
+
+/**
+ * Optional async producer of an ActionRequestPreview. Called by the gateway inside
+ * `withDataContext` at card-creation time (only for a tool that declares it), so it can look
+ * up owner-visible cached state to derive the preview. `scopedDb` is a DataContextDb typed
+ * `unknown` (same reason as ToolExecute — no module-sdk -> db dependency); the owning module
+ * narrows it. Returning `undefined` (or throwing — the gateway guards) means "no preview": the
+ * card still renders from the summary. It must never throw sensitive detail; it returns only
+ * the secret-free preview shape.
+ */
+export type ToolPreview = (
+  scopedDb: unknown,
+  input: ToolInput,
+  ctx: ToolContext,
+  services?: ToolServices
+) => Promise<ActionRequestPreview | undefined>;
+
 /** A normalized readiness/energy signal contributed by ANY module to the focus path. */
 export interface FocusSignal {
   /** Stable id of the contributing module, e.g. "wellness". */
@@ -403,6 +433,14 @@ export interface ModuleAssistantToolManifest {
   readonly featureFlagId?: string;
   readonly execute?: ToolExecute;
   readonly summarize?: ToolSummarize;
+  /**
+   * Optional async producer of a rich Approve/Deny card preview, derived server-side under the
+   * actor's DataContextDb (see ToolPreview). The gateway calls it at card-creation time and
+   * streams the result to the client; it is NEVER persisted (the durable row keeps the
+   * key-names-only `inputSummary`). Used by the email reply tools to show the derived
+   * recipient/subject + composed body without persisting the body.
+   */
+  readonly preview?: ToolPreview;
   /**
    * Names of composition-layer services this tool's execute requires in the 4th
    * `services` argument (e.g. ["calendarWrite"]). Declaration only — the module does
