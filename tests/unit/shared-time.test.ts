@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatInZone, isValidTimeZone, localDay } from "@jarv1s/shared";
+import { formatInZone, isValidTimeZone, localDay, resolveTimeZone } from "@jarv1s/shared";
 
 // Regression for #636 — single source of truth for timezone-aware day/time derivation.
 
@@ -55,5 +55,24 @@ describe("isValidTimeZone", () => {
   it("rejects an empty or whitespace-only string", () => {
     expect(isValidTimeZone("")).toBe(false);
     expect(isValidTimeZone("   ")).toBe(false);
+  });
+});
+
+describe("resolveTimeZone", () => {
+  it("uses a valid header timezone before stored settings", () => {
+    expect(resolveTimeZone("America/New_York", "America/Los_Angeles")).toBe("America/New_York");
+  });
+
+  it("falls back to stored settings when the header is invalid", () => {
+    expect(resolveTimeZone("Not/AZone", "America/Los_Angeles")).toBe("America/Los_Angeles");
+  });
+
+  it("falls back to UTC when both inputs are blank or invalid", () => {
+    expect(resolveTimeZone(" ", "Not/AZone")).toBe("UTC");
+  });
+
+  it("trims valid inputs before returning them", () => {
+    expect(resolveTimeZone("  America/Chicago  ", "America/Los_Angeles")).toBe("America/Chicago");
+    expect(resolveTimeZone(null, "  Europe/London  ")).toBe("Europe/London");
   });
 });
