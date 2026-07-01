@@ -43,13 +43,16 @@ const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const GMAIL_FULL_SCOPE = "https://mail.google.com/";
 const CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
+const IMAP_EMAIL_READ_SCOPE = "email.read";
+
 function accountHasEmailScope(scopes: readonly string[]): boolean {
   return (
     scopes.includes(GMAIL_SCOPE) ||
     scopes.includes(GMAIL_READONLY_SCOPE) ||
     scopes.includes(GMAIL_FULL_SCOPE) ||
     scopes.includes("gmail") ||
-    scopes.includes("gmail.readonly")
+    scopes.includes("gmail.readonly") ||
+    scopes.includes(IMAP_EMAIL_READ_SCOPE)
   );
 }
 
