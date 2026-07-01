@@ -21,6 +21,7 @@ export function decodeImapExternalId(externalId: string): ImapMessageIdentity | 
   const parts = rest.split(":");
   if (parts.length !== 3) return null;
   const [encodedFolder, uidValidity, uidStr] = parts;
+  if (encodedFolder === undefined || uidValidity === undefined || uidStr === undefined) return null;
   const uid = Number(uidStr);
   if (!Number.isInteger(uid) || uidValidity.length === 0) return null;
   return { folder: decodeURIComponent(encodedFolder), uidValidity, uid };
