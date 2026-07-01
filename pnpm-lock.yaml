@@ -120,6 +120,9 @@ importers:
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@jarv1s/sports':
+        specifier: workspace:*
+        version: link:../../packages/sports
       '@jarv1s/tasks':
         specifier: workspace:*
         version: link:../../packages/tasks

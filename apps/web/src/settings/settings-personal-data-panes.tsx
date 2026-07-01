@@ -20,6 +20,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Sunrise,
+  Trophy,
   Unlink,
   Wallet,
   type LucideIcon
@@ -95,6 +96,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   chat: MessagesSquare,
   knowledge: BrainCircuit,
   wellness: HeartPulse,
+  sports: Trophy,
   notifications: Bell,
   finance: Wallet,
   email: Mail
@@ -677,10 +679,11 @@ const USER_FACING_MODULES = new Set([
   "notifications",
   "knowledge",
   "wellness",
+  "sports",
   "finance"
 ]);
 // The extras a person opts into. Everything else user-facing is core (always on).
-const OPTIONAL_MODULES = new Set(["wellness", "finance"]);
+const OPTIONAL_MODULES = new Set(["wellness", "sports", "finance"]);
 type ModuleSub = "briefings" | "chat" | "notifications";
 type ModuleSettingsView = ModuleSub | { readonly moduleId: string };
 
