@@ -13,6 +13,7 @@ import {
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
+  IMAP_SYNC_QUEUE_DEFINITIONS,
   connectorsModuleManifest,
   createConnectorSecretCipher,
   type EncryptedConnectorSecret
@@ -155,7 +156,7 @@ describe("Connectors encrypted foundation", () => {
     }
   });
 
-  it("loads the built-in Connectors module manifest with the google-sync queue", () => {
+  it("loads the built-in Connectors module manifest with the google-sync and imap-sync queues", () => {
     const manifests = getBuiltInModuleManifests();
     const registrations = getBuiltInModuleRegistrations();
     const registration = registrations.find(
@@ -228,7 +229,10 @@ describe("Connectors encrypted foundation", () => {
       "/settings/connectors",
       "/settings/admin/connectors"
     ]);
-    expect(registration?.queueDefinitions).toEqual(GOOGLE_SYNC_QUEUE_DEFINITIONS);
+    expect(registration?.queueDefinitions).toEqual([
+      ...GOOGLE_SYNC_QUEUE_DEFINITIONS,
+      ...IMAP_SYNC_QUEUE_DEFINITIONS
+    ]);
     expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/people/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/commitments/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/proactive-monitoring");
