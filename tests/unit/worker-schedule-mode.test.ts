@@ -1,13 +1,12 @@
 /**
  * Unit test for the one-cron-owner invariant (P3 real-briefings, F14).
  *
- * Exactly ONE process runs the pg-boss cron engine: the worker constructs its
- * boss with `{ schedule: true }`; the API process leaves it at the default
- * (`schedule: false`). This test pins the worker's boss-construction options and
- * the startup `pgboss.schedule_mode` log so "who owns cron" is observable, and
- * asserts the shared boss-options resolver keeps cron OFF by default (so the API,
- * which passes no override, never starts a second cron engine) and ON only with
- * the worker's options.
+ * Exactly ONE process runs the pg-boss background engines: the worker constructs
+ * its boss with `{ schedule: true, supervise: true }`; the API process leaves
+ * both at the shared defaults. This test pins the worker's boss-construction
+ * options and the startup `pgboss.schedule_mode` log so "who owns cron" is
+ * observable, and asserts the shared boss-options resolver keeps background
+ * engines OFF by default and ON only with the worker's options.
  */
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,10 +14,10 @@ import { WORKER_BOSS_OPTIONS, logScheduleMode } from "../../apps/worker/src/work
 import { resolvePgBossConstructorOptions } from "../../packages/jobs/src/pg-boss.js";
 
 describe("worker cron-engine ownership (F14 one-cron-owner)", () => {
-  it("builds the worker boss with schedule:true and only schedule:true", () => {
-    // The worker is the SOLE cron owner. supervise/migrate/createSchema stay at
-    // createPgBossClient's defaults (false) — the worker only flips `schedule`.
-    expect(WORKER_BOSS_OPTIONS).toEqual({ schedule: true });
+  it("builds the worker boss with schedule:true and supervise:true", () => {
+    // The worker is the SOLE cron + supervisor owner. migrate/createSchema stay
+    // at createPgBossClient's defaults (false).
+    expect(WORKER_BOSS_OPTIONS).toEqual({ schedule: true, supervise: true });
   });
 
   it("emits an observable pgboss.schedule_mode startup log", () => {
@@ -39,14 +38,14 @@ describe("worker cron-engine ownership (F14 one-cron-owner)", () => {
     const apiOptions = resolvePgBossConstructorOptions("postgres://unused:5432/none");
     expect(apiOptions.schedule).toBe(false);
 
-    // The worker passes WORKER_BOSS_OPTIONS — must flip cron ON without enabling any
-    // other background engine.
+    // The worker passes WORKER_BOSS_OPTIONS — must flip cron and supervision ON
+    // without enabling schema mutation.
     const workerOptions = resolvePgBossConstructorOptions(
       "postgres://unused:5432/none",
       WORKER_BOSS_OPTIONS
     );
     expect(workerOptions.schedule).toBe(true);
-    expect(workerOptions.supervise).toBe(false);
+    expect(workerOptions.supervise).toBe(true);
     expect(workerOptions.migrate).toBe(false);
     expect(workerOptions.createSchema).toBe(false);
   });
