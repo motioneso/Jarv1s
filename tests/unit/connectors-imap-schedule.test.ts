@@ -21,4 +21,13 @@ describe("reconcileImapAccountSchedule", () => {
     await reconcileImapAccountSchedule(boss as never, "account-1", false);
     expect(unschedule).toHaveBeenCalledWith("connectors.imap-sync", "account-1");
   });
+
+  it("never includes password/secret fields in the scheduled payload", async () => {
+    const schedule = vi.fn().mockResolvedValue(undefined);
+    const boss = { schedule, unschedule: vi.fn() };
+    await reconcileImapAccountSchedule(boss as never, "account-1", true);
+    const [, , payload] = schedule.mock.calls[0];
+    expect(Object.keys(payload)).toEqual(["connectorAccountId"]);
+    expect(JSON.stringify(payload)).not.toMatch(/password|secret/i);
+  });
 });
