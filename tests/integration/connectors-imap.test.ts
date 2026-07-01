@@ -41,6 +41,55 @@ describe("imap connector definitions", () => {
   });
 });
 
+describe("ConnectorsRepository.upsertImapAccount — scope persistence", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let originalSecretKey: string | undefined;
+
+  beforeAll(async () => {
+    originalSecretKey = process.env.JARVIS_CONNECTOR_SECRET_KEY;
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "test-connector-secret-key";
+
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+  });
+
+  afterAll(async () => {
+    await appDb?.destroy();
+    if (originalSecretKey === undefined) {
+      delete process.env.JARVIS_CONNECTOR_SECRET_KEY;
+    } else {
+      process.env.JARVIS_CONNECTOR_SECRET_KEY = originalSecretKey;
+    }
+  });
+
+  it("persists the imap-proton preset's default_scopes on connect, not an empty array", async () => {
+    const repo = new ConnectorsRepository();
+    const cipher = createConnectorSecretCipher();
+    const account = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:imap-upsert-scopes" },
+      (scopedDb) =>
+        repo.upsertImapAccount(scopedDb, {
+          providerId: "imap-proton",
+          encryptedSecret: cipher.encryptJson({
+            kind: "imap-password",
+            providerId: "imap-proton",
+            username: "user@proton.local",
+            password: "secret",
+            imapHost: "127.0.0.1",
+            imapPort: 1143,
+            imapTls: false,
+            smtpHost: "127.0.0.1",
+            smtpPort: 1025,
+            smtpSecurity: "none"
+          })
+        })
+    );
+    expect(account.scopes).toEqual(["email.read"]);
+  });
+});
+
 class FakeImapProbeClient implements ImapProbeClient {
   constructor(private readonly result: ImapProbeResult) {}
   lastInput: ImapProbeInput | undefined;

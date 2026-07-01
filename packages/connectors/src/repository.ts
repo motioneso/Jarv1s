@@ -342,6 +342,13 @@ export class ConnectorsRepository {
     input: { providerId: string; encryptedSecret: EncryptedConnectorSecret }
   ): Promise<ConnectorAccountSafeRow> {
     assertDataContextDb(scopedDb);
+    const definition = await scopedDb.db
+      .selectFrom("app.connector_definitions")
+      .select("default_scopes")
+      .where("provider_id", "=", input.providerId)
+      .executeTakeFirst();
+    const scopes = definition?.default_scopes ?? [];
+
     const existing = await scopedDb.db
       .selectFrom("app.connector_accounts")
       .select("id")
@@ -349,7 +356,7 @@ export class ConnectorsRepository {
       .executeTakeFirst();
     if (existing) {
       const updated = await this.updateAccount(scopedDb, existing.id, {
-        scopes: [],
+        scopes,
         status: "active",
         encryptedSecret: input.encryptedSecret
       });
@@ -358,7 +365,7 @@ export class ConnectorsRepository {
     }
     return this.createAccount(scopedDb, {
       providerId: input.providerId,
-      scopes: [],
+      scopes,
       status: "active",
       encryptedSecret: input.encryptedSecret
     });
