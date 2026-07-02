@@ -901,6 +901,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
 assertModulesCompatible(BUILT_IN_MODULES.map((module) => module.manifest));
 assertModuleRegistryConsistency(BUILT_IN_MODULES);
 
+// LOADER-SEAM(sports) 7: the web CSP img-src allowlist follows the constructed source.
+// Built from the same factory as the route wiring below so the two can never diverge.
+export const MODULE_IMAGE_CSP_HOSTS: readonly string[] = createEspnSportsSource().imageHosts;
+
 export function assertModuleRegistryConsistency(
   registrations: readonly BuiltInModuleRegistration[] = BUILT_IN_MODULES
 ): void {

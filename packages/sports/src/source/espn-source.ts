@@ -16,6 +16,9 @@ import type { SportsSource } from "./sports-source.js";
 const SITE_BASE = "https://site.api.espn.com/apis/site/v2/sports";
 const CORE_BASE = "https://site.api.espn.com/apis/v2/sports";
 
+// Hosts ESPN crest/photo URLs resolve to (team.logos + article images).
+export const ESPN_IMAGE_HOSTS: readonly string[] = ["a.espncdn.com", "s.secure.espncdn.com"];
+
 // --- Minimal shapes for the fields we read (ESPN payloads carry far more) ------------------
 
 interface EspnCompetitor {
@@ -120,6 +123,8 @@ export function createEspnSportsSource(fetchFn: typeof fetch = fetch): SportsSou
 }
 
 export class EspnSportsSource implements SportsSource {
+  readonly imageHosts = ESPN_IMAGE_HOSTS;
+
   constructor(private readonly fetchFn: typeof fetch = fetch) {}
 
   async listTeams(competitionKey: string): Promise<TeamRef[]> {

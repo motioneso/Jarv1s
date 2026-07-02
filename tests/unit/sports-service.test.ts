@@ -129,6 +129,7 @@ const dalTeamFollow: SportsFollowDto = {
 
 function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
   return {
+    imageHosts: [],
     listTeams: async () => [],
     getScoreboard: async () => [dalLiveGame],
     getSchedule: async () => dalSchedule,

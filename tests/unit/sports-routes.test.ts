@@ -44,6 +44,7 @@ const dalLiveGame: GameSummary = {
 
 function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
   return {
+    imageHosts: [],
     listTeams: async (competitionKey) => [
       { teamKey: "dal", competitionKey, name: "Dallas Cowboys", shortName: "DAL", crestUrl: null }
     ],
