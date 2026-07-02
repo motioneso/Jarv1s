@@ -32,6 +32,17 @@ listed here as the ledger for the seams that are cross-file.
 6. **`tests/integration/foundation.test.ts` migration-list assertion** — the
    `{ version: "0133", name: "0133_sports_follows.sql" }` row appended to the full
    migration-list `toEqual` (a focused module test would not catch a missing row here).
+7. **CSP image hosts** — `SportsSource.imageHosts` → `MODULE_IMAGE_CSP_HOSTS`
+   (`packages/module-registry`) → `img-src` in `apps/api/src/static-web.ts`, mirrored in
+   `infra/nginx/jarv1s-web.conf`. A new source with different CDNs updates its `imageHosts`
+   and the nginx mirror (sync pinned by `tests/unit/static-web-csp.test.ts`).
+
+Headlines carry `sourceTeamIds` and teams carry `sourceTeamId` **inside the module only** —
+`SportsService` joins them into `Headline.teamKeys`, and Fastify response schemas
+(`additionalProperties: false`) strip the provider ids from every response before it leaves
+the module. Standings flow as `StandingsTable.sections` with a per-competition
+`standingsShape` declared in the catalog, so the web layer renders points tables, grouped
+tables, or conference records without per-sport branching.
 
 Also present but outside the numbered §5 list: `packages/sports/src/source/sports-source.ts`
 (the `SportsSource` adapter contract itself) and `espn-source.ts` (the ESPN adapter — all
