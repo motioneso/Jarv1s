@@ -818,10 +818,10 @@ button.theme-swatch {
 .mdl__edit-btn:hover,
 .mdl__toggle-btn:hover {
   background: var(--surface-2);
-  color: var(--ink-1);
+  color: var(--text-muted);
 }
 .mdl__edit-btn.is-active {
-  background: var(--accent-subtle);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .mdl--disabled .mdl__id {

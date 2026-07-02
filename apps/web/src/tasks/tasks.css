@@ -204,7 +204,7 @@
   .tk-msrch:hover,
   .tk-msrch.is-active {
     background: var(--surface-hover);
-    color: var(--text-main);
+    color: var(--text);
   }
   /* #404: hide the "· N hidden" count text on mobile so the list-filter button
      stays narrow when lists are excluded. Users open the dropdown to see state. */

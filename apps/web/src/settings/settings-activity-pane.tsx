@@ -153,7 +153,7 @@ export function ActivityPane(_props: PaneProps) {
                 alignItems: "flex-start",
                 gap: "0.5rem",
                 padding: "0.75rem 0",
-                borderBottom: "1px solid var(--jds-border)"
+                borderBottom: "1px solid var(--border)"
               }}
             >
               <div style={{ minWidth: 0 }}>

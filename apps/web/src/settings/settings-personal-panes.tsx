@@ -62,7 +62,7 @@ function SaveStatusChip({ status }: { readonly status: SaveStatus }) {
   if (status === "idle") return null;
   if (status === "error") {
     return (
-      <span className="psona-save__state" style={{ fontSize: 12, color: "var(--color-error)" }}>
+      <span className="psona-save__state" style={{ fontSize: 12, color: "var(--danger-fg)" }}>
         Save failed
       </span>
     );

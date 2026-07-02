@@ -247,7 +247,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                       fontSize: 13,
                       borderRadius: "var(--radius-md)",
                       border: `1.5px solid ${freqType === f ? "var(--accent)" : "var(--border)"}`,
-                      background: freqType === f ? "var(--accent-subtle)" : "var(--surface)",
+                      background: freqType === f ? "var(--accent-soft)" : "var(--surface)",
                       color: freqType === f ? "var(--accent-fg)" : "var(--text)",
                       cursor: "pointer"
                     }}
@@ -327,7 +327,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                           }
                           aria-label={`Dose time ${i + 1}`}
                           style={{
-                            border: `1px solid ${!isValidTime(t) && t !== "" ? "var(--color-error, #e53e3e)" : "var(--border)"}`,
+                            border: `1px solid ${!isValidTime(t) && t !== "" ? "var(--danger)" : "var(--border)"}`,
                             borderRadius: "var(--radius-md)",
                             padding: "7px 12px",
                             fontSize: 14,
@@ -341,7 +341,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                           <div
                             style={{
                               fontSize: 12,
-                              color: "var(--color-error, #e53e3e)",
+                              color: "var(--danger-fg)",
                               marginTop: 2
                             }}
                           >
