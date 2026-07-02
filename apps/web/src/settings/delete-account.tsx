@@ -65,7 +65,7 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
           icon: <TriangleAlert size={17} />
         });
       } else {
-        toast(readError(error), { icon: <TriangleAlert size={17} /> });
+        toast(readError(error), { tone: "error", icon: <TriangleAlert size={17} /> });
       }
     }
   });
