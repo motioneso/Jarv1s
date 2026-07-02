@@ -5,6 +5,7 @@ import { listActionAuditLog } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { formatDateTime, useUserLocale } from "../locale/locale-format.js";
 import type { PaneProps } from "./settings-types.js";
+import { Select } from "./settings-ui.js";
 import type { ActionAuditLogEntryDto } from "@jarv1s/shared";
 
 type DateRange = "today" | "7d" | "30d" | "90d";
@@ -113,8 +114,8 @@ export function ActivityPane(_props: PaneProps) {
           </button>
         ))}
         {families.length > 0 && (
-          <select
-            className="jds-select"
+          <Select
+            aria-label="Filter by action family"
             value={familyFilter}
             onChange={(e) => setFamilyFilter(e.target.value)}
           >
@@ -124,7 +125,7 @@ export function ActivityPane(_props: PaneProps) {
                 {f}
               </option>
             ))}
-          </select>
+          </Select>
         )}
       </div>
 

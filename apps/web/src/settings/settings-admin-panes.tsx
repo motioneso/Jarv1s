@@ -62,6 +62,7 @@ import {
   PaneHead,
   Row,
   Segmented,
+  Select,
   Switch,
   type BadgeTone
 } from "./settings-ui";
@@ -255,8 +256,7 @@ function AiPinRow(props: { readonly user: UserDto }) {
             : "No active models configured by this user."
         }
         control={
-          <select
-            className="jds-input"
+          <Select
             aria-label={`Pinned AI provider for ${props.user.name || props.user.email}`}
             value={value}
             disabled={disabled}
@@ -268,7 +268,7 @@ function AiPinRow(props: { readonly user: UserDto }) {
                 {model.displayName}
               </option>
             ))}
-          </select>
+          </Select>
         }
       />
     </div>
