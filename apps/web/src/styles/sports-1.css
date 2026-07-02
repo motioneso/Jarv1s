@@ -318,6 +318,7 @@
   padding: 0 10px;
 }
 .sp-photo--herostory {
+  max-width: 100%;
   min-height: 208px;
   height: 100%;
 }
