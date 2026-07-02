@@ -21,7 +21,7 @@ import { formatDate, formatTime, useUserLocale } from "../locale/locale-format.j
 import { CalendarIcon, Crest, FormPips, LiveDot, RationaleChip, TrophyIcon } from "./sports-parts";
 import { isFollowed, LeagueNewsSection, NewsIcon, StoryHero, TopStoriesRail } from "./sports-news";
 
-const SETTINGS_HREF = "/settings/modules/sports";
+const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
 // "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2)
 function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
@@ -78,19 +78,14 @@ function PageHeader(props: { degraded: boolean }) {
   return (
     <header className="sp-top">
       <div className="sp-top__main">
-        <div className="sp-kicker">
-          <LiveDot />
-          Sports
-        </div>
-        <h1 className="sp-title">Followed</h1>
+        <h1 className="sp-title">Your teams, today.</h1>
         <p className="sp-lede">
-          Your teams first — latest results and what&rsquo;s next — then the wider slate and the
-          headlines that matter.
+          Latest scores and what&rsquo;s next, then the wider slate and the headlines that matter.
         </p>
       </div>
       <div className="sp-top__aside">
         <div className="sp-preview">
-          <span className="sp-preview__lbl">{props.degraded ? "Cached" : "Live"}</span>
+          <span className="sp-preview__lbl">{props.degraded ? "Delayed" : "Live"}</span>
         </div>
       </div>
     </header>

@@ -14,7 +14,8 @@ import {
   MessageSquare,
   Newspaper,
   Search,
-  Settings
+  Settings,
+  Trophy
 } from "lucide-react";
 import {
   type ComponentType,
@@ -66,7 +67,8 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
   mail: Mail,
   "message-square": MessageSquare,
   newspaper: Newspaper,
-  settings: Settings
+  settings: Settings,
+  trophy: Trophy
 };
 
 /** Strata mark — neutral bars in currentColor, the active stratum in Pine. */

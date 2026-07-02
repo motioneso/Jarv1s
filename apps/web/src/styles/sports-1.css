@@ -23,17 +23,6 @@
 .sp-top__main {
   max-width: 56ch;
 }
-.sp-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--accent-fg);
-  margin-bottom: 10px;
-}
 .sp-title {
   font-family: var(--font-serif);
   font-size: 34px;
