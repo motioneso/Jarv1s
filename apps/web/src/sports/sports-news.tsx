@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
 
+import { formatDate, useUserLocale } from "../locale/locale-format.js";
+
 export function isFollowed(
   pairs: ReadonlySet<string>,
   competitionKey: string,
@@ -26,8 +28,6 @@ export function NewsIcon(): ReactNode {
     </svg>
   );
 }
-
-const PUBLISHED_FMT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 /* ------------------------------------------------------------- Story hero */
 
@@ -111,6 +111,7 @@ export function TopStoriesRail(props: {
 /* -------------------------------------------------------- League news grid */
 
 export function LeagueNewsSection(props: { groups: readonly LeagueNewsGroup[] }) {
+  const locale = useUserLocale();
   if (props.groups.length === 0) return null;
   return (
     <section className="sp-sec" aria-label="League news">
@@ -134,7 +135,7 @@ export function LeagueNewsSection(props: { groups: readonly LeagueNewsGroup[] })
                 ) : null}
                 <span className="sp-news__title">{headline.title}</span>
                 <span className="sp-news__date">
-                  {PUBLISHED_FMT.format(new Date(headline.publishedAt))}
+                  {formatDate(headline.publishedAt, locale, { month: "short", day: "numeric" })}
                 </span>
               </a>
             ))}

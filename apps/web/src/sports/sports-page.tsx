@@ -13,30 +13,22 @@ import type {
   StandingsGroup,
   StandingsRow
 } from "@jarv1s/shared";
+import type { LocaleSettingsDto } from "@jarv1s/shared";
 
 import { getSportsOverview } from "../api/sports-client";
 import { queryKeys } from "../api/query-keys";
+import { formatDate, formatTime, useUserLocale } from "../locale/locale-format.js";
 import { CalendarIcon, Crest, FormPips, LiveDot, RationaleChip, TrophyIcon } from "./sports-parts";
 import { isFollowed, LeagueNewsSection, NewsIcon, StoryHero, TopStoriesRail } from "./sports-news";
 
 const SETTINGS_HREF = "/settings/modules/sports";
 
-const NEXT_MATCH_DATE = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  month: "short",
-  day: "numeric"
-});
-const NEXT_MATCH_TIME = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit"
-});
-
-// "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — browser locale + timezone (spec D2)
-function formatNextMatch(next: FollowedNextMatch): string {
-  const at = new Date(next.startsAt);
-  return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${NEXT_MATCH_DATE.format(
-    at
-  )} · ${NEXT_MATCH_TIME.format(at)}`;
+// "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2)
+function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
+  const at = next.startsAt;
+  const date = formatDate(at, locale, { weekday: "short", month: "short", day: "numeric" });
+  const time = formatTime(at, locale);
+  return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${date} · ${time}`;
 }
 
 export function SportsPage() {
@@ -192,6 +184,7 @@ function FollowedSection(props: { followed: readonly FollowedTeamCard[] }) {
 
 function FollowedCard(props: { card: FollowedTeamCard }) {
   const { card } = props;
+  const locale = useUserLocale();
   return (
     <article className="sp-fc">
       <div className="sp-fc__hd">
@@ -238,7 +231,7 @@ function FollowedCard(props: { card: FollowedTeamCard }) {
             <CalendarIcon />
             Next
           </span>
-          <span className="sp-fc__nextmatch">{formatNextMatch(card.nextMatch)}</span>
+          <span className="sp-fc__nextmatch">{formatNextMatch(card.nextMatch, locale)}</span>
         </div>
       ) : null}
     </article>
