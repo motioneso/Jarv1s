@@ -74,7 +74,7 @@ export const webRoutes: readonly WebRouteMeta[] = [
     id: "wellness",
     path: "/wellness",
     title: "Wellness",
-    subtitle: () => "PRIVATE",
+    subtitle: dateEyebrow,
     match: (pathname) => pathname.startsWith("/wellness")
   },
   {
