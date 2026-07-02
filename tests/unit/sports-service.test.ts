@@ -213,9 +213,63 @@ describe("SportsService.getOverview", () => {
     // W (beat NYG), L (lost at PHI), D (tied WAS)
     expect(card?.form).toEqual(["W", "L", "D"]);
     expect(card?.standing).toContain("#1");
-    expect(card?.nextMatch).toContain("GB");
     expect(overview.standings[0]?.standingsShape).toBe("record");
     expect(overview.standings[0]?.sections[0]?.label).toBe("National Football Conference");
+  });
+
+  it("returns a structured next match with the full opponent name", async () => {
+    const service = new SportsService(makeDeps());
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.nextMatch).toEqual({
+      opponentName: "Green Bay Packers",
+      homeAway: "home",
+      startsAt: "2026-07-05T20:00:00.000Z"
+    });
+  });
+
+  it("links the newest team-tagged headline on a news-status card", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getScoreboard: async () => [],
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png",
+              sourceTeamId: "6"
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("news");
+    expect(card?.news).toEqual({
+      title: "Cowboys clinch the division",
+      url: "https://example.com/h1"
+    });
+    expect(card?.name).toBe("Dallas Cowboys");
+    expect(card?.crestUrl).toContain("dal.png");
+  });
+
+  it("shows the authored empty-news state instead of an unrelated story", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getScoreboard: async () => [],
+          getHeadlines: async () => [{ ...nflHeadlines[0]!, sourceTeamIds: ["17"] }]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("news");
+    expect(card?.news).toBeNull();
   });
 
   it("falls back to a story hero on a quiet day", async () => {

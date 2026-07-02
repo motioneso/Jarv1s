@@ -56,9 +56,14 @@ function followedCard(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCa
     crestUrl: null,
     status: "live",
     primary: "MIN 21 – 14 DAL",
+    news: null,
     form: ["W", "W", "L"],
     standing: "1st · NFC North",
-    nextMatch: "vs Green Bay · Sun 1:00 PM",
+    nextMatch: {
+      opponentName: "Green Bay Packers",
+      homeAway: "home",
+      startsAt: "2026-07-05T20:00:00.000Z"
+    },
     rationale: "Playing right now",
     ...overrides
   };
@@ -147,7 +152,23 @@ describe("SportsPage", () => {
     const html = render(makeOverview());
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
-    expect(html).toContain("vs Green Bay · Sun 1:00 PM");
+    expect(html).toContain("vs Green Bay Packers");
+  });
+
+  it("renders a news-status card as a link to the story", () => {
+    const html = render(
+      makeOverview({
+        followed: [
+          followedCard({
+            status: "news",
+            primary: "",
+            news: { title: "Cowboys clinch the division", url: "https://example.com/h1" }
+          })
+        ]
+      })
+    );
+    expect(html).toContain('href="https://example.com/h1"');
+    expect(html).toContain("Cowboys clinch the division");
   });
 
   it("marks a followed team in the standings and scoreboard (is-you / is-mine)", () => {

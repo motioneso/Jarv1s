@@ -1,6 +1,8 @@
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import type {
+  FollowedNextMatch,
   FollowedTeamCard,
+  FollowedTeamNews,
   GameSide,
   GameSummary,
   IsoDate,
@@ -116,6 +118,7 @@ export class SportsService {
     const scoreboardByComp = new Map<string, GameSummary[]>();
     const standingsByComp = new Map<string, StandingsTable>();
     const headlinesByComp = new Map<string, SourceHeadline[]>();
+    const teamsByComp = new Map<string, readonly SourceTeamRef[]>();
     for (const key of competitionKeys) {
       scoreboardByComp.set(
         key,
@@ -140,6 +143,7 @@ export class SportsService {
         )
       );
       const teams = await this.teamsFor(key, state);
+      teamsByComp.set(key, teams);
       headlinesByComp.set(
         key,
         resolveHeadlineTeamKeys(
@@ -172,7 +176,8 @@ export class SportsService {
           scoreboardByComp.get(follow.competitionKey) ?? [],
           (standingsByComp.get(follow.competitionKey)?.sections ?? []).flatMap((s) => s.rows),
           headlinesByComp.get(follow.competitionKey) ?? [],
-          schedule
+          schedule,
+          teamsByComp.get(follow.competitionKey) ?? []
         )
       );
     }
@@ -336,15 +341,20 @@ export class SportsService {
     games: readonly GameSummary[],
     standings: readonly StandingsRow[],
     headlines: readonly SourceHeadline[],
-    schedule: readonly GameSummary[]
+    schedule: readonly GameSummary[],
+    teams: readonly SourceTeamRef[]
   ): FollowedTeamCard {
     const { teamKey } = follow;
     const comp = follow.competitionKey;
     const competitionLabel = catalogEntry(comp)?.label ?? comp;
     const todayGame = findTeamGame(games, teamKey);
     const todaySide = todayGame ? sideFor(todayGame, teamKey) : undefined;
-    const name = todaySide?.name ?? teamNameFromSchedule(schedule, teamKey) ?? teamKey;
-    const crestUrl = todaySide?.crestUrl ?? null;
+    const catalogTeam = teams.find((t) => t.teamKey === teamKey);
+    const scheduleSide = scheduleSideFor(schedule, teamKey);
+    // D1: today side → catalog → schedule → last-resort uppercase key (fully degraded only)
+    const name = todaySide?.name ?? catalogTeam?.name ?? scheduleSide?.name ?? teamKey.toUpperCase();
+    // A2: same precedence for the crest
+    const crestUrl = todaySide?.crestUrl ?? catalogTeam?.crestUrl ?? scheduleSide?.crestUrl ?? null;
 
     let status: FollowedTeamCard["status"];
     let primary: string;
@@ -357,7 +367,7 @@ export class SportsService {
         todayGame.state === "final" ? resultLine(todayGame, teamKey) : matchupLine(todayGame);
     } else {
       status = "news";
-      primary = headlines[0]?.title ?? "No recent news";
+      primary = "";
     }
 
     return {
@@ -368,9 +378,10 @@ export class SportsService {
       crestUrl,
       status,
       primary,
+      news: newestTeamHeadline(headlines, teamKey),
       form: computeForm(schedule, teamKey),
       standing: standingLine(standings, teamKey),
-      nextMatch: nextMatchLine(schedule, teamKey, this.now()),
+      nextMatch: nextMatchFor(schedule, teamKey, this.now()),
       rationale: `You follow ${name}.`
     };
   }
@@ -414,15 +425,23 @@ function opponentFor(game: GameSummary, teamKey: string): GameSide | undefined {
   return undefined;
 }
 
-function teamNameFromSchedule(
-  schedule: readonly GameSummary[],
-  teamKey: string
-): string | undefined {
+function scheduleSideFor(schedule: readonly GameSummary[], teamKey: string): GameSide | undefined {
   for (const game of schedule) {
     const side = sideFor(game, teamKey);
-    if (side) return side.name;
+    if (side) return side;
   }
   return undefined;
+}
+
+function newestTeamHeadline(
+  headlines: readonly SourceHeadline[],
+  teamKey: string
+): FollowedTeamNews | null {
+  const newest = headlines
+    .filter((h) => h.teamKeys.includes(teamKey))
+    .slice()
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
+  return newest ? { title: newest.title, url: newest.url } : null;
 }
 
 function scoreLine(game: GameSummary): string {
@@ -470,11 +489,11 @@ function standingLine(standings: readonly StandingsRow[], teamKey: string): stri
   return `#${row.rank} · ${row.wins}-${row.losses}`;
 }
 
-function nextMatchLine(
+function nextMatchFor(
   schedule: readonly GameSummary[],
   teamKey: string,
   now: Date
-): string | null {
+): FollowedNextMatch | null {
   const nowIso = now.toISOString();
   const next = schedule
     .filter((g) => g.state !== "final" && g.startsAt > nowIso && sideFor(g, teamKey))
@@ -483,8 +502,11 @@ function nextMatchLine(
   if (!next) return null;
   const opponent = opponentFor(next, teamKey);
   if (!opponent) return null;
-  const preposition = next.home.teamKey === teamKey ? "vs" : "at";
-  return `${preposition} ${opponent.shortName}`;
+  return {
+    opponentName: opponent.name,
+    homeAway: next.home.teamKey === teamKey ? "home" : "away",
+    startsAt: next.startsAt
+  };
 }
 
 function teamFact(game: GameSummary, teamKey: string): string {

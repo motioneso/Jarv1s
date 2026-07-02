@@ -2,6 +2,7 @@ import "../styles/sports-1.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
+  FollowedNextMatch,
   FollowedTeamCard,
   GameSide,
   GameSummary,
@@ -29,6 +30,24 @@ const SETTINGS_HREF = "/settings/modules/sports";
 
 function isFollowed(pairs: ReadonlySet<string>, competitionKey: string, teamKey: string) {
   return pairs.has(`${competitionKey}:${teamKey}`);
+}
+
+const NEXT_MATCH_DATE = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric"
+});
+const NEXT_MATCH_TIME = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+  minute: "2-digit"
+});
+
+// "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — browser locale + timezone (spec D2)
+function formatNextMatch(next: FollowedNextMatch): string {
+  const at = new Date(next.startsAt);
+  return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${NEXT_MATCH_DATE.format(
+    at
+  )} · ${NEXT_MATCH_TIME.format(at)}`;
 }
 
 export function SportsPage() {
@@ -222,7 +241,13 @@ function FollowedCard(props: { card: FollowedTeamCard }) {
             <span className="sp-fc__newsic">
               <NewsIcon />
             </span>
-            <span className="sp-fc__newstx">{card.primary}</span>
+            {card.news ? (
+              <a className="sp-fc__newstx" href={card.news.url} target="_blank" rel="noreferrer">
+                {card.news.title}
+              </a>
+            ) : (
+              <span className="sp-fc__newstx">No recent news</span>
+            )}
           </>
         ) : (
           <span className="sp-fc__resscore">{card.primary}</span>
@@ -245,7 +270,7 @@ function FollowedCard(props: { card: FollowedTeamCard }) {
             <CalendarIcon />
             Next
           </span>
-          <span className="sp-fc__nextmatch">{card.nextMatch}</span>
+          <span className="sp-fc__nextmatch">{formatNextMatch(card.nextMatch)}</span>
         </div>
       ) : null}
     </article>

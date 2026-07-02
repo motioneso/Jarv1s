@@ -90,6 +90,17 @@ export type OverviewHero =
     }
   | { readonly mode: "story"; readonly headline: Headline | null };
 
+export interface FollowedTeamNews {
+  readonly title: string;
+  readonly url: string;
+}
+
+export interface FollowedNextMatch {
+  readonly opponentName: string; // full name, resolved per D1
+  readonly homeAway: "home" | "away";
+  readonly startsAt: string; // ISO instant; formatted client-side in the viewer's locale
+}
+
 export interface FollowedTeamCard {
   readonly teamKey: string;
   readonly competitionKey: string;
@@ -98,9 +109,10 @@ export interface FollowedTeamCard {
   readonly crestUrl: string | null;
   readonly status: "live" | "today" | "news";
   readonly primary: string; // "MIN 21 – 14 DAL", "W 4–2 vs NYR", or a headline title
+  readonly news: FollowedTeamNews | null;
   readonly form: readonly ("W" | "D" | "L")[];
   readonly standing: string | null;
-  readonly nextMatch: string | null;
+  readonly nextMatch: FollowedNextMatch | null;
   readonly rationale: string;
 }
 
@@ -276,6 +288,7 @@ const followedTeamCardSchema = {
     "crestUrl",
     "status",
     "primary",
+    "news",
     "form",
     "standing",
     "nextMatch",
@@ -289,9 +302,37 @@ const followedTeamCardSchema = {
     crestUrl: { type: ["string", "null"] },
     status: { type: "string", enum: ["live", "today", "news"] },
     primary: { type: "string" },
+    news: {
+      oneOf: [
+        { type: "null" },
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "url"],
+          properties: {
+            title: { type: "string" },
+            url: { type: "string" }
+          }
+        }
+      ]
+    },
     form: { type: "array", items: { type: "string", enum: ["W", "D", "L"] } },
     standing: { type: ["string", "null"] },
-    nextMatch: { type: ["string", "null"] },
+    nextMatch: {
+      oneOf: [
+        { type: "null" },
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["opponentName", "homeAway", "startsAt"],
+          properties: {
+            opponentName: { type: "string" },
+            homeAway: { type: "string", enum: ["home", "away"] },
+            startsAt: { type: "string" }
+          }
+        }
+      ]
+    },
     rationale: { type: "string" }
   }
 } as const;
