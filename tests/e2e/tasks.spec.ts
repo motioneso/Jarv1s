@@ -83,3 +83,14 @@ test("tag filter narrows visible tasks and can be cleared", async ({ page }) => 
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByText("File taxes")).toBeVisible();
 });
+
+test("task dialog selects use the canonical select wrapper", async ({ page }) => {
+  await page.goto("/tasks");
+  await page.getByRole("button", { name: "Open File taxes" }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  // List, Priority, and Repeats selects each render inside .jds-selectwrap
+  // (visible chevron affordance) instead of as bare <select> elements.
+  await expect(dialog.locator(".jds-selectwrap select.jds-select")).toHaveCount(3);
+  await expect(dialog.locator("select:not(.jds-select)")).toHaveCount(0);
+});

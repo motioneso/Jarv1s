@@ -8,6 +8,7 @@ import {
   type TaskEffort,
   type TaskListDto
 } from "@jarv1s/shared";
+import { Select } from "@jarv1s/settings-ui";
 
 import {
   addTaskActivity,
@@ -305,8 +306,7 @@ export function TaskDetailsDialog(props: {
 
             <div className="tk-field">
               <span className="tk-flabel">List</span>
-              <select
-                className="jds-select"
+              <Select
                 value={form.listId}
                 onChange={(event) => setForm((f) => ({ ...f, listId: event.target.value }))}
               >
@@ -315,12 +315,11 @@ export function TaskDetailsDialog(props: {
                     {list.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="tk-field">
               <span className="tk-flabel">Priority</span>
-              <select
-                className="jds-select"
+              <Select
                 value={form.priority}
                 onChange={(event) => setForm((f) => ({ ...f, priority: event.target.value }))}
               >
@@ -330,7 +329,7 @@ export function TaskDetailsDialog(props: {
                     {level.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="tk-field">
@@ -376,8 +375,7 @@ export function TaskDetailsDialog(props: {
 
             <div className="tk-field">
               <span className="tk-flabel">Repeats</span>
-              <select
-                className="jds-select"
+              <Select
                 value={form.repeat}
                 onChange={(event) =>
                   setForm((f) => ({ ...f, repeat: event.target.value as Repeat }))
@@ -388,7 +386,7 @@ export function TaskDetailsDialog(props: {
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             {form.repeat !== "never" ? (
               <div className="tk-field">
