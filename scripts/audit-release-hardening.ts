@@ -420,13 +420,24 @@ function collectFailures(
   if (adminAuditPrivileges.appCanDelete) {
     failures.push("jarvis_app_runtime can DELETE app.admin_audit_events");
   }
-  if (
-    adminAuditPrivileges.workerCanSelect ||
-    adminAuditPrivileges.workerCanInsert ||
-    adminAuditPrivileges.workerCanUpdate ||
-    adminAuditPrivileges.workerCanDelete
-  ) {
-    failures.push("jarvis_worker_runtime has app.admin_audit_events privileges");
+  // #671: handleWellnessExportJobInner (packages/wellness/src/export-job.ts) writes an audit
+  // event from a worker-run job via the sanctioned recordAuditEvent() cross-module API, so
+  // jarvis_worker_runtime needs INSERT+SELECT here (migration 0136) — documented exception to
+  // the "app_runtime only" default. SELECT is granted for Postgres's own privilege check on the
+  // INSERT statement; the _select RLS policy remains jarvis_app_runtime-only (confidentiality —
+  // see 0059_admin_tables_rls.sql), so a worker SELECT still reads zero rows in practice. The
+  // invariant stays strict: worker gets exactly INSERT+SELECT, nothing more.
+  if (!adminAuditPrivileges.workerCanInsert) {
+    failures.push("jarvis_worker_runtime cannot INSERT app.admin_audit_events (#671)");
+  }
+  if (!adminAuditPrivileges.workerCanSelect) {
+    failures.push("jarvis_worker_runtime cannot SELECT app.admin_audit_events (#671)");
+  }
+  if (adminAuditPrivileges.workerCanUpdate) {
+    failures.push("jarvis_worker_runtime can UPDATE app.admin_audit_events");
+  }
+  if (adminAuditPrivileges.workerCanDelete) {
+    failures.push("jarvis_worker_runtime can DELETE app.admin_audit_events");
   }
 
   // Instance-admin tables must be RLS ENABLED and FORCED (migration 0059). Their

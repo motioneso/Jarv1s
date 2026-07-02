@@ -421,9 +421,11 @@ describe("M7 release hardening lifecycle scripts", () => {
       appCanInsert: true,
       appCanSelect: true,
       appCanUpdate: false,
+      // #671: worker-run export jobs write an audit event via recordAuditEvent(); worker gets
+      // exactly INSERT+SELECT (migration 0136), never UPDATE/DELETE.
       workerCanDelete: false,
-      workerCanInsert: false,
-      workerCanSelect: false,
+      workerCanInsert: true,
+      workerCanSelect: true,
       workerCanUpdate: false
     });
     expect(report.failures).toEqual([]);
