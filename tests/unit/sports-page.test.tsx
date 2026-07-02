@@ -95,7 +95,12 @@ function standingsGroup(): StandingsGroup {
   };
 }
 
-function headline(id: string, competitionKey: string, title: string): Headline {
+function headline(
+  id: string,
+  competitionKey: string,
+  title: string,
+  overrides: Partial<Headline> = {}
+): Headline {
   return {
     id,
     competitionKey,
@@ -103,7 +108,8 @@ function headline(id: string, competitionKey: string, title: string): Headline {
     url: "https://example.test/" + id,
     publishedAt: "2026-07-01T18:00:00Z",
     imageUrl: null,
-    teamKeys: []
+    teamKeys: [],
+    ...overrides
   };
 }
 
@@ -123,7 +129,14 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
         games: [liveGame()]
       }
     ],
-    headlines: [headline("h1", "nfl", "Vikings clinch division on late field goal")],
+    topStories: [headline("h1", "nfl", "Vikings clinch division on late field goal")],
+    leagueNews: [
+      {
+        competitionKey: "nfl",
+        competitionLabel: "NFL",
+        headlines: [headline("h2", "nfl", "Cowboys sign veteran lineman")]
+      }
+    ],
     standings: [standingsGroup()],
     followedTeams: [{ competitionKey: "nfl", teamKey: "min" }],
     degraded: false,
@@ -243,12 +256,23 @@ describe("SportsPage", () => {
       makeOverview({
         hero: {
           mode: "story",
-          headline: headline("lead", "epl", "The transfer window is heating up")
+          headline: headline("lead", "epl", "The transfer window is heating up", {
+            imageUrl: "https://a.espncdn.com/photo/2026/story.jpg"
+          })
         }
       })
     );
     expect(html).toContain("The transfer window is heating up");
     expect(html).toContain("Vikings clinch division on late field goal");
     expect(html).toContain("NFL");
+    expect(html).toContain('src="https://a.espncdn.com/photo/2026/story.jpg"');
+    expect(html).toContain('href="https://example.test/lead"'); // hero title links out
+  });
+
+  it("renders the top stories rail and league news grid", () => {
+    const html = render(makeOverview());
+    expect(html).toContain("Top stories");
+    expect(html).toContain("League news");
+    expect(html).toContain("Cowboys sign veteran lineman");
   });
 });

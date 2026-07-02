@@ -6,6 +6,7 @@ import type {
   GameSide,
   GameSummary,
   IsoDate,
+  LeagueNewsGroup,
   OverviewHero,
   ScoreboardGroup,
   SportsCatalogResponse,
@@ -54,6 +55,7 @@ const HEADLINES_TTL_MS = 10 * 60 * 1000;
 const SCHEDULE_TTL_MS = 10 * 60 * 1000;
 const TEAMS_TTL_MS = 24 * 60 * 60 * 1000;
 const FORM_LENGTH = 5;
+const TOP_STORIES_CAP = 6; // Ben 2026-07-01
 const EMPTY_STANDINGS: StandingsTable = { sections: [] };
 
 /** Mutable degraded flag threaded through a single composition pass. */
@@ -182,7 +184,19 @@ export class SportsService {
       );
     }
 
-    const hero = this.buildHero(followedTeams, scoreboardByComp, competitionKeys, headlinesByComp);
+    const topStories = rankTopStories(headlinesByComp, followedTeams);
+    const topStoryIds = new Set(topStories.map((h) => h.id));
+    const leagueNews: LeagueNewsGroup[] = competitionKeys
+      .map((key) => ({
+        competitionKey: key,
+        competitionLabel: catalogEntry(key)?.label ?? key,
+        headlines: [...(headlinesByComp.get(key) ?? [])]
+          .sort(byNewest)
+          .filter((h) => !topStoryIds.has(h.id))
+      }))
+      .filter((group) => group.headlines.length > 0);
+
+    const hero = this.buildHero(followedTeams, scoreboardByComp, topStories);
 
     const scoreboard: ScoreboardGroup[] = competitionKeys
       .map((key) => ({
@@ -201,13 +215,12 @@ export class SportsService {
       }))
       .filter((group) => group.sections.some((section) => section.rows.length > 0));
 
-    const headlines = competitionKeys.flatMap((key) => headlinesByComp.get(key) ?? []);
-
     return {
       hero,
       followed: cards,
       scoreboard,
-      headlines,
+      topStories,
+      leagueNews,
       standings,
       followedTeams: followedTeams.map((f) => ({
         competitionKey: f.competitionKey,
@@ -307,8 +320,7 @@ export class SportsService {
   private buildHero(
     followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
     scoreboardByComp: Map<string, GameSummary[]>,
-    competitionKeys: readonly string[],
-    headlinesByComp: Map<string, SourceHeadline[]>
+    topStories: readonly SourceHeadline[]
   ): OverviewHero {
     let hero: { game: GameSummary; side: GameSide } | undefined;
     let todayCount = 0;
@@ -332,8 +344,7 @@ export class SportsService {
           others > 0 ? `${others} more followed game${others === 1 ? "" : "s"} today` : null
       };
     }
-    const topHeadline = competitionKeys.flatMap((key) => headlinesByComp.get(key) ?? [])[0] ?? null;
-    return { mode: "story", headline: topHeadline };
+    return { mode: "story", headline: topStories[0] ?? null };
   }
 
   private buildCard(
@@ -352,7 +363,8 @@ export class SportsService {
     const catalogTeam = teams.find((t) => t.teamKey === teamKey);
     const scheduleSide = scheduleSideFor(schedule, teamKey);
     // D1: today side → catalog → schedule → last-resort uppercase key (fully degraded only)
-    const name = todaySide?.name ?? catalogTeam?.name ?? scheduleSide?.name ?? teamKey.toUpperCase();
+    const name =
+      todaySide?.name ?? catalogTeam?.name ?? scheduleSide?.name ?? teamKey.toUpperCase();
     // A2: same precedence for the crest
     const crestUrl = todaySide?.crestUrl ?? catalogTeam?.crestUrl ?? scheduleSide?.crestUrl ?? null;
 
@@ -407,6 +419,41 @@ function resolveHeadlineTeamKeys(
       .map((id) => byId.get(id))
       .filter((key): key is string => key !== undefined)
   }));
+}
+
+function byNewest(a: SourceHeadline, b: SourceHeadline): number {
+  return b.publishedAt.localeCompare(a.publishedAt);
+}
+
+// Spec §E ranking: (1) headlines tagged with a followed team, newest first;
+// (2) the newest headline of each followed competition not already included; cap 6.
+function rankTopStories(
+  headlinesByComp: ReadonlyMap<string, readonly SourceHeadline[]>,
+  followedTeams: readonly (SportsFollowDto & { teamKey: string })[]
+): SourceHeadline[] {
+  const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
+  const picked: SourceHeadline[] = [];
+  const pickedIds = new Set<string>();
+  const all = [...headlinesByComp.values()].flat().sort(byNewest);
+  for (const headline of all) {
+    if (
+      headline.teamKeys.some((k) => pairs.has(`${headline.competitionKey}:${k}`)) &&
+      !pickedIds.has(headline.id)
+    ) {
+      picked.push(headline);
+      pickedIds.add(headline.id);
+    }
+  }
+  for (const comp of unique(followedTeams.map((f) => f.competitionKey))) {
+    const newest = [...(headlinesByComp.get(comp) ?? [])]
+      .sort(byNewest)
+      .find((h) => !pickedIds.has(h.id));
+    if (newest) {
+      picked.push(newest);
+      pickedIds.add(newest.id);
+    }
+  }
+  return picked.slice(0, TOP_STORIES_CAP);
 }
 
 function findTeamGame(games: readonly GameSummary[], teamKey: string): GameSummary | undefined {

@@ -12,7 +12,8 @@ describe("sports scaffold", () => {
       hero: { mode: "story", headline: null },
       followed: [],
       scoreboard: [],
-      headlines: [],
+      topStories: [],
+      leagueNews: [],
       standings: [],
       followedTeams: [],
       degraded: false

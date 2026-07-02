@@ -129,11 +129,18 @@ export interface StandingsGroup {
   readonly sections: readonly StandingsSection[];
 }
 
+export interface LeagueNewsGroup {
+  readonly competitionKey: string;
+  readonly competitionLabel: string;
+  readonly headlines: readonly Headline[]; // no hard cap — bounded by the source fetch
+}
+
 export interface SportsOverviewResponse {
   readonly hero: OverviewHero;
   readonly followed: readonly FollowedTeamCard[];
   readonly scoreboard: readonly ScoreboardGroup[];
-  readonly headlines: readonly Headline[];
+  readonly topStories: readonly Headline[]; // ranked, capped at 6
+  readonly leagueNews: readonly LeagueNewsGroup[];
   readonly standings: readonly StandingsGroup[];
   readonly followedTeams: readonly FollowedTeamRef[]; // for is-you marking on the client
   readonly degraded: boolean; // source failed → cached/empty
@@ -360,6 +367,17 @@ const standingsGroupSchema = {
   }
 } as const;
 
+const leagueNewsGroupSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["competitionKey", "competitionLabel", "headlines"],
+  properties: {
+    competitionKey: { type: "string" },
+    competitionLabel: { type: "string" },
+    headlines: { type: "array", items: headlineSchema }
+  }
+} as const;
+
 const overviewHeroSchema = {
   oneOf: [
     {
@@ -394,7 +412,8 @@ export const sportsOverviewResponseSchema = {
         "hero",
         "followed",
         "scoreboard",
-        "headlines",
+        "topStories",
+        "leagueNews",
         "standings",
         "followedTeams",
         "degraded"
@@ -403,7 +422,8 @@ export const sportsOverviewResponseSchema = {
         hero: overviewHeroSchema,
         followed: { type: "array", items: followedTeamCardSchema },
         scoreboard: { type: "array", items: scoreboardGroupSchema },
-        headlines: { type: "array", items: headlineSchema },
+        topStories: { type: "array", items: headlineSchema },
+        leagueNews: { type: "array", items: leagueNewsGroupSchema },
         standings: { type: "array", items: standingsGroupSchema },
         followedTeams: {
           type: "array",

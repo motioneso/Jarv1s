@@ -94,24 +94,6 @@ export function TrophyIcon(): ReactNode {
   );
 }
 
-export function NewsIcon(): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="15"
-      height="15"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 5h13v14H4zM17 8h3v9a2 2 0 0 1-2 2h-1M7 8h7M7 12h7M7 16h4" />
-    </svg>
-  );
-}
-
 export function CalendarIcon(): ReactNode {
   return (
     <svg

@@ -1,4 +1,5 @@
 import "../styles/sports-1.css";
+import "../styles/sports-3.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
@@ -6,7 +7,6 @@ import type {
   FollowedTeamCard,
   GameSide,
   GameSummary,
-  Headline,
   OverviewHero,
   ScoreboardGroup,
   SportsOverviewResponse,
@@ -16,21 +16,10 @@ import type {
 
 import { getSportsOverview } from "../api/sports-client";
 import { queryKeys } from "../api/query-keys";
-import {
-  CalendarIcon,
-  Crest,
-  FormPips,
-  LiveDot,
-  NewsIcon,
-  RationaleChip,
-  TrophyIcon
-} from "./sports-parts";
+import { CalendarIcon, Crest, FormPips, LiveDot, RationaleChip, TrophyIcon } from "./sports-parts";
+import { isFollowed, LeagueNewsSection, NewsIcon, StoryHero, TopStoriesRail } from "./sports-news";
 
 const SETTINGS_HREF = "/settings/modules/sports";
-
-function isFollowed(pairs: ReadonlySet<string>, competitionKey: string, teamKey: string) {
-  return pairs.has(`${competitionKey}:${teamKey}`);
-}
 
 const NEXT_MATCH_DATE = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -84,6 +73,7 @@ export function SportsPage() {
           <Hero hero={data.hero} />
           <FollowedSection followed={data.followed} />
           <SplitSection data={data} followedPairs={followedPairs} />
+          <LeagueNewsSection groups={data.leagueNews} />
         </>
       ) : (
         <EmptyState data={data} followedPairs={followedPairs} />
@@ -178,28 +168,6 @@ function HeroSide(props: { side: GameSide }) {
   );
 }
 
-function StoryHero(props: { headline: Headline | null }) {
-  return (
-    <section className="sp-hero sp-hero--story sp-hero--split" aria-label="Top story">
-      <div className="sp-photo sp-photo--herostory">
-        <span className="sp-photo__cap">Editorial photo</span>
-      </div>
-      <div className="sp-hero__storybody">
-        <span className="sp-hero__comp">
-          {props.headline ? props.headline.competitionKey.toUpperCase() : "Sports"}
-        </span>
-        <h2 className="sp-hero__headline">
-          {props.headline ? props.headline.title : "No followed game today"}
-        </h2>
-        <p className="sp-hero__dek">
-          No followed team is playing right now — here&rsquo;s the story worth reading, with scores
-          and headlines below.
-        </p>
-      </div>
-    </section>
-  );
-}
-
 /* ---------------------------------------------------------------- Followed teams */
 
 function FollowedSection(props: { followed: readonly FollowedTeamCard[] }) {
@@ -279,17 +247,14 @@ function FollowedCard(props: { card: FollowedTeamCard }) {
 
 /* ---------------------------------------------------------------- Split: scores + rail */
 
-function SplitSection(props: {
-  data: SportsOverviewResponse;
-  followedPairs: ReadonlySet<string>;
-}) {
+function SplitSection(props: { data: SportsOverviewResponse; followedPairs: ReadonlySet<string> }) {
   return (
     <div className="sp-split">
       <div className="sp-body">
         <Scoreboard groups={props.data.scoreboard} followedPairs={props.followedPairs} />
       </div>
       <div className="sp-railcol">
-        <HeadlinesRail headlines={props.data.headlines} followedPairs={props.followedPairs} />
+        <TopStoriesRail headlines={props.data.topStories} followedPairs={props.followedPairs} />
         <StandingsRail groups={props.data.standings} followedPairs={props.followedPairs} />
       </div>
     </div>
@@ -402,45 +367,6 @@ function GameSideRow(props: {
   );
 }
 
-function HeadlinesRail(props: {
-  headlines: readonly Headline[];
-  followedPairs: ReadonlySet<string>;
-}) {
-  if (props.headlines.length === 0) return null;
-  return (
-    <section className="sp-rail" aria-label="Headlines">
-      <div className="sp-rail__hd">
-        <NewsIcon />
-        Headlines
-      </div>
-      <div className="sp-rail__list">
-        {props.headlines.map((headline) => (
-          <a
-            key={headline.id}
-            className="sp-hl"
-            href={headline.url}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <div className="sp-hl__top">
-              <span className="sp-hl__comp">{headline.competitionKey.toUpperCase()}</span>
-              {headline.teamKeys.some((k) =>
-                isFollowed(props.followedPairs, headline.competitionKey, k)
-              ) ? (
-                <span className="sp-hl__you">
-                  <span className="d" />
-                  You
-                </span>
-              ) : null}
-            </div>
-            <div className="sp-hl__title">{headline.title}</div>
-          </a>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function StandingsRail(props: {
   groups: readonly StandingsGroup[];
   followedPairs: ReadonlySet<string>;
@@ -532,11 +458,11 @@ function formatPct(winPercent: number | null): string {
 
 /* ---------------------------------------------------------------- Empty state */
 
-function EmptyState(props: {
-  data: SportsOverviewResponse;
-  followedPairs: ReadonlySet<string>;
-}) {
-  const hasSlate = props.data.scoreboard.length > 0 || props.data.headlines.length > 0;
+function EmptyState(props: { data: SportsOverviewResponse; followedPairs: ReadonlySet<string> }) {
+  const hasSlate =
+    props.data.scoreboard.length > 0 ||
+    props.data.topStories.length > 0 ||
+    props.data.leagueNews.length > 0;
   return (
     <>
       <section className="sp-empty" aria-label="No teams followed">
@@ -560,8 +486,9 @@ function EmptyState(props: {
             <Scoreboard groups={props.data.scoreboard} followedPairs={props.followedPairs} />
           </div>
           <div className="sp-railcol">
-            <HeadlinesRail headlines={props.data.headlines} followedPairs={props.followedPairs} />
+            <TopStoriesRail headlines={props.data.topStories} followedPairs={props.followedPairs} />
           </div>
+          <LeagueNewsSection groups={props.data.leagueNews} />
         </div>
       ) : null}
     </>

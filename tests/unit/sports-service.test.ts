@@ -201,7 +201,7 @@ describe("SportsService.getOverview", () => {
       })
     );
     const overview = await service.getOverview(userA);
-    expect(overview.headlines[0]?.teamKeys).toEqual(["dal"]);
+    expect(overview.topStories[0]?.teamKeys).toEqual(["dal"]);
   });
 
   it("marks the followed team card live with derived form", async () => {
@@ -293,6 +293,58 @@ describe("SportsService.getOverview", () => {
     const overview = await service.getOverview(userA);
     expect(overview.degraded).toBe(true);
     expect(overview.hero.mode).toBe("story");
+  });
+
+  it("ranks team-tagged stories first, caps top stories at six, dedupes league news", async () => {
+    // 9 stories, all tagged to dal ("6"), publishedAt ascending → newest is h8
+    const manyHeadlines = Array.from({ length: 9 }, (_, i) => ({
+      id: `h${i}`,
+      competitionKey: "nfl",
+      title: `Story ${i}`,
+      url: `https://example.com/h${i}`,
+      publishedAt: `2026-07-01T0${i}:00:00.000Z`,
+      imageUrl: null,
+      teamKeys: [],
+      sourceTeamIds: ["6"]
+    }));
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getHeadlines: async () => manyHeadlines,
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: null,
+              sourceTeamId: "6"
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.topStories).toHaveLength(6);
+    expect(overview.topStories[0]?.id).toBe("h8"); // newest tagged story first
+    const topIds = new Set(overview.topStories.map((h) => h.id));
+    expect(overview.leagueNews).toHaveLength(1);
+    expect(overview.leagueNews[0]?.competitionLabel).toBe("NFL");
+    expect(overview.leagueNews[0]?.headlines.map((h) => h.id)).toEqual(["h2", "h1", "h0"]);
+    for (const group of overview.leagueNews) {
+      for (const h of group.headlines) expect(topIds.has(h.id)).toBe(false);
+    }
+  });
+
+  it("uses the top-ranked story for the story hero", async () => {
+    const service = new SportsService(
+      makeDeps({ source: makeSource({ getScoreboard: async () => [] }) })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.hero.mode).toBe("story");
+    if (overview.hero.mode === "story") {
+      expect(overview.hero.headline?.id).toBe(overview.topStories[0]?.id);
+    }
   });
 });
 
