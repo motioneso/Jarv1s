@@ -15,6 +15,14 @@
 -- handlers under the app role, mirroring how most of this suite already tests worker handlers
 -- — see tests/integration/wellness-export-job.test.ts). This is safe because ownership is
 -- enforced inside each function body via app.current_actor_user_id(), not by the caller's role.
+--
+-- worker_get_data_export_job is NOT defined here — it needs the `params` column, which is
+-- added by wellness's own 0114 migration. Module SQL directories apply in BUILT_IN_MODULES
+-- order (module-registry/src/index.ts), and the settings directory runs BEFORE the wellness
+-- directory, so a settings-owned migration cannot reference that column at migration time.
+-- Defined instead in wellness's own migration (0138), which owns both the dependency and the
+-- only caller (packages/wellness/src/export-job.ts) — mirrors the existing 0112 (settings) /
+-- 0115 (wellness) split for app.list_expired_data_export_jobs.
 REVOKE SELECT ON app.data_export_jobs FROM jarvis_worker_runtime;
 
 DROP POLICY IF EXISTS data_export_jobs_worker_functions_write
@@ -26,33 +34,6 @@ FOR UPDATE
 TO jarvis_migration_owner
 USING (true)
 WITH CHECK (true);
-
-CREATE OR REPLACE FUNCTION app.worker_get_data_export_job(p_job_id uuid)
-RETURNS TABLE(
-  id uuid,
-  owner_user_id uuid,
-  status text,
-  created_at timestamptz,
-  completed_at timestamptz,
-  expires_at timestamptz,
-  error_message text,
-  format text,
-  params jsonb
-)
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = app, pg_temp
-AS $$
-  SELECT id, owner_user_id, status, created_at, completed_at, expires_at, error_message,
-         format, params
-  FROM app.data_export_jobs
-  WHERE id = p_job_id
-    AND owner_user_id = app.current_actor_user_id();
-$$;
-
-REVOKE ALL ON FUNCTION app.worker_get_data_export_job(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.worker_get_data_export_job(uuid)
-  TO jarvis_worker_runtime, jarvis_app_runtime;
 
 CREATE OR REPLACE FUNCTION app.worker_update_data_export_job_status(p_job_id uuid, p_status text)
 RETURNS void
