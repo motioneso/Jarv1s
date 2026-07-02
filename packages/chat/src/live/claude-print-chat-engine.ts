@@ -108,6 +108,10 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     return this.currentHandle !== null ? this.mux.isAlive(this.currentHandle) : false;
   }
 
+  async interrupt(): Promise<void> {
+    if (this.currentHandle !== null) await this.mux.interrupt(this.currentHandle);
+  }
+
   async kill(): Promise<void> {
     if (this.currentHandle !== null) {
       await this.mux.kill(this.currentHandle);

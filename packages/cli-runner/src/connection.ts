@@ -223,6 +223,11 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
       await host.kill(key);
       return { ok: true };
     }
+    case "interrupt": {
+      const key = requireSessionKey(req);
+      await host.interrupt(key);
+      return { ok: true };
+    }
     case "listLiveSessions": {
       // Non-session verb — no sessionKey (§4.6).
       return { sessionKeys: await host.listLiveSessions() };

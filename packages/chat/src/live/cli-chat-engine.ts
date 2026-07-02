@@ -330,6 +330,10 @@ export class CliChatEngineImpl implements CliChatEngine {
     return this.mux.isAlive(this.handle);
   }
 
+  async interrupt(): Promise<void> {
+    if (this.handle !== null) await this.mux.interrupt(this.handle);
+  }
+
   async kill(): Promise<void> {
     try {
       if (this.handle !== null) {

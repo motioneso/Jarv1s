@@ -51,6 +51,7 @@ import {
   type RpcErrorCode,
   type RpcFrame,
   type RpcHelloChallenge,
+  type RpcInterruptResult,
   type RpcIsAliveResult,
   type RpcKillResult,
   type RpcLaunchParams,
@@ -238,6 +239,7 @@ export class RpcConnection {
       case "submit":
       case "readNew":
       case "isAlive":
+      case "interrupt":
       case "kill":
         return this.turnTimeoutMs;
       case "launch":
@@ -275,8 +277,12 @@ export class RpcConnection {
     return this.call<RpcKillResult>("kill", sessionKey, {});
   }
 
+  interrupt(sessionKey: string): Promise<RpcInterruptResult> {
+    return this.call<RpcInterruptResult>("interrupt", sessionKey, {});
+  }
+
   /**
-   * #456 — re-arm the response deadline for any in-flight turn verb (submit/readNew/isAlive/kill)
+   * #456 — re-arm the response deadline for any in-flight turn verb.
    * of the given sessionKey. Called by the manager when it observes new transcript records from a
    * readNew, so an actively-producing turn (many short readNew calls spanning a wall time greater
    * than the per-call deadline) never trips it. A genuinely wedged cli-runner (no activity signal)
@@ -284,7 +290,13 @@ export class RpcConnection {
    * the session, or if deadlines are disabled (turnTimeoutMs <= 0).
    */
   resetActivityDeadline(sessionKey: string): void {
-    const turnVerbs: ReadonlySet<RpcMethod> = new Set(["submit", "readNew", "isAlive", "kill"]);
+    const turnVerbs: ReadonlySet<RpcMethod> = new Set([
+      "submit",
+      "readNew",
+      "isAlive",
+      "interrupt",
+      "kill"
+    ]);
     for (const call of this.pending.values()) {
       if (call.sessionKey === sessionKey && turnVerbs.has(call.method)) {
         call.resetDeadline?.();
@@ -803,6 +815,10 @@ export class ChatEngineRpcClient implements CliChatEngine {
 
   async kill(): Promise<void> {
     await this.conn.kill(this.sessionKey);
+  }
+
+  async interrupt(): Promise<void> {
+    await this.conn.interrupt(this.sessionKey);
   }
 
   /** #456 — forward the activity signal to the shared connection's deadline-reset for this session. */

@@ -93,6 +93,10 @@ export class HerdrMultiplexer implements Multiplexer {
     await this.runChecked(["pane", "send-keys", handle, "Enter"], "send-keys");
   }
 
+  async interrupt(handle: MuxHandle): Promise<void> {
+    await this.runChecked(["pane", "send-keys", handle, "Escape"], "send-keys");
+  }
+
   async isAlive(handle: MuxHandle): Promise<boolean> {
     const { code } = await this.io.run("herdr", ["pane", "get", handle]);
     return code === 0;

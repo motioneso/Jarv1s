@@ -74,6 +74,8 @@ export interface CliChatEngine {
    */
   launch(opts: EngineLaunchOpts): Promise<{ offset: number }>;
   submit(text: string): Promise<void>; // paste prompt + send
+  /** Send a non-destructive Escape/interrupt to the active turn. */
+  interrupt(): Promise<void>;
   /** Read transcript records appended since the given byte offset; returns the new offset. */
   readNew(
     afterOffset: number

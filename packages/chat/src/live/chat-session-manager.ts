@@ -465,6 +465,10 @@ export class ChatSessionManager {
           }
           throw new Error("readNew failed");
         }
+        if (controller.signal.aborted) {
+          stopped = true;
+          break;
+        }
         session.transcriptOffset = offset;
         if (records.length > 0) {
           lastEmissionAt = this.deps.clock.now();
@@ -639,7 +643,7 @@ export class ChatSessionManager {
 
   /**
    * #456 — user-driven Stop. Ends an in-flight turn cleanly: aborts the turn's stop signal,
-   * kills the engine (so any in-progress CLI work halts), emits a 'Stopped by user.' status
+   * interrupts the engine (so any in-progress CLI work halts), emits a 'Stopped by user.' status
    * record over SSE, and releases the turn-in-flight lock. Persists NOTHING (the turn never
    * completed — no partial reply, no user message). Idempotent: a no-op when no turn is in
    * flight for the user.
@@ -651,9 +655,9 @@ export class ChatSessionManager {
     const session = this.sessions.get(actorUserId);
     if (session) {
       try {
-        await session.engine.kill();
+        await session.engine.interrupt();
       } catch {
-        // best-effort: the stop signal already broke the loop; a kill failure must not wedge.
+        // best-effort: the stop signal already broke the loop; interrupt failure must not wedge.
       }
     }
   }

@@ -306,6 +306,15 @@ export class CliChatEngineHost {
     });
   }
 
+  interrupt(sessionKey: string): Promise<void> {
+    const key = sanitizeSessionKey(sessionKey);
+    return this.enqueue(key, async () => {
+      const engine = this.engines.get(key);
+      if (!engine) throw new NotLaunchedError();
+      await engine.interrupt();
+    });
+  }
+
   // ─── kill (§4.5) — works WITHOUT an engine object (kill-by-mux-name) ───────────
 
   kill(sessionKey: string): Promise<void> {
