@@ -15,11 +15,7 @@ import type {
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
 import { SportsCache } from "./sports-cache.js";
-import type {
-  SourceHeadline,
-  SourceTeamRef,
-  SportsSource
-} from "./source/sports-source.js";
+import type { SourceHeadline, SourceTeamRef, SportsSource } from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
 export type FollowedFact = { competitionKey: string; text: string };
