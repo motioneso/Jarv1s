@@ -1,20 +1,21 @@
-import type {
-  GameSide,
-  GameSummary,
-  Headline,
-  IsoDate,
-  StandingsRow,
-  TeamRef
-} from "@jarv1s/shared";
+import type { GameSide, GameSummary, IsoDate, StandingsRow } from "@jarv1s/shared";
 
 import { catalogEntry } from "./catalog.js";
-import type { SportsSource } from "./sports-source.js";
+import type {
+  SourceHeadline,
+  SourceTeamRef,
+  SportsSource,
+  StandingsTable
+} from "./sports-source.js";
 
 // ESPN's unofficial public JSON (no key). Two base hosts are in play: the `site.api`
 // host serves scoreboard/news/teams/schedule; standings lives under a different `/apis/v2`
 // path on the same host. Everything is reached only through this adapter (LOADER-SEAM(sports)).
 const SITE_BASE = "https://site.api.espn.com/apis/site/v2/sports";
 const CORE_BASE = "https://site.api.espn.com/apis/v2/sports";
+
+// Hosts ESPN crest/photo URLs resolve to (team.logos + article images).
+export const ESPN_IMAGE_HOSTS: readonly string[] = ["a.espncdn.com", "s.secure.espncdn.com"];
 
 // --- Minimal shapes for the fields we read (ESPN payloads carry far more) ------------------
 
@@ -113,6 +114,21 @@ function statValue(
   return stats?.find((s) => s.name === name)?.value;
 }
 
+function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
+  const teamKey = (entry.team?.abbreviation ?? entry.team?.id ?? "").toLowerCase();
+  return {
+    teamKey,
+    name: entry.team?.displayName ?? teamKey,
+    rank: statValue(entry.stats, "rank") ?? 0,
+    points: statValue(entry.stats, "points") ?? null,
+    wins: statValue(entry.stats, "wins") ?? 0,
+    losses: statValue(entry.stats, "losses") ?? 0,
+    draws: statValue(entry.stats, "ties") ?? null,
+    winPercent: statValue(entry.stats, "winPercent") ?? null,
+    qualifies: entry.note != null
+  };
+}
+
 // --- Adapter -------------------------------------------------------------------------------
 
 export function createEspnSportsSource(fetchFn: typeof fetch = fetch): SportsSource {
@@ -120,9 +136,11 @@ export function createEspnSportsSource(fetchFn: typeof fetch = fetch): SportsSou
 }
 
 export class EspnSportsSource implements SportsSource {
+  readonly imageHosts = ESPN_IMAGE_HOSTS;
+
   constructor(private readonly fetchFn: typeof fetch = fetch) {}
 
-  async listTeams(competitionKey: string): Promise<TeamRef[]> {
+  async listTeams(competitionKey: string): Promise<SourceTeamRef[]> {
     const { sport, league } = resolve(competitionKey);
     const data = (await fetchJson(
       this.fetchFn,
@@ -151,8 +169,9 @@ export class EspnSportsSource implements SportsSource {
         competitionKey,
         name: team?.displayName ?? teamKey,
         shortName: team?.shortDisplayName ?? team?.displayName ?? teamKey,
-        crestUrl: team?.logos?.[0]?.href ?? null
-      } satisfies TeamRef;
+        crestUrl: team?.logos?.[0]?.href ?? null,
+        sourceTeamId: team?.id ?? null
+      } satisfies SourceTeamRef;
     });
   }
 
@@ -177,35 +196,32 @@ export class EspnSportsSource implements SportsSource {
     return (data.events ?? []).map((event) => toGame(event, competitionKey));
   }
 
-  async getStandings(competitionKey: string): Promise<StandingsRow[]> {
+  async getStandings(competitionKey: string): Promise<StandingsTable> {
     const { sport, league } = resolve(competitionKey);
     const data = (await fetchJson(
       this.fetchFn,
       `${CORE_BASE}/${sport}/${league}/standings`,
       `${league} standings`
     )) as {
-      children?: readonly { standings?: { entries?: readonly EspnStandingsEntry[] } }[];
+      children?: readonly {
+        name?: string;
+        abbreviation?: string;
+        standings?: { entries?: readonly EspnStandingsEntry[] };
+      }[];
       standings?: { entries?: readonly EspnStandingsEntry[] };
     };
-    const entries = data.children?.[0]?.standings?.entries ?? data.standings?.entries ?? [];
-    return entries.map((entry) => {
-      const teamKey = (entry.team?.abbreviation ?? entry.team?.id ?? "").toLowerCase();
-      const points = statValue(entry.stats, "points");
-      const draws = statValue(entry.stats, "ties");
-      return {
-        teamKey,
-        name: entry.team?.displayName ?? teamKey,
-        rank: statValue(entry.stats, "rank") ?? 0,
-        points: points ?? null,
-        wins: statValue(entry.stats, "wins") ?? 0,
-        losses: statValue(entry.stats, "losses") ?? 0,
-        draws: draws ?? null,
-        qualifies: entry.note != null
-      } satisfies StandingsRow;
-    });
+    const children = data.children ?? [];
+    const sections =
+      children.length > 0
+        ? children.map((child) => ({
+            label: child.name ?? child.abbreviation ?? null,
+            rows: (child.standings?.entries ?? []).map(toStandingsRow)
+          }))
+        : [{ label: null, rows: (data.standings?.entries ?? []).map(toStandingsRow) }];
+    return { sections: sections.filter((section) => section.rows.length > 0) };
   }
 
-  async getHeadlines(competitionKey: string): Promise<Headline[]> {
+  async getHeadlines(competitionKey: string): Promise<SourceHeadline[]> {
     const { sport, league } = resolve(competitionKey);
     const data = (await fetchJson(
       this.fetchFn,
@@ -217,14 +233,25 @@ export class EspnSportsSource implements SportsSource {
         headline?: string;
         published?: string;
         links?: { web?: { href?: string } };
+        images?: readonly { type?: string; url?: string }[];
+        categories?: readonly { type?: string; teamId?: number | string }[];
       }[];
     };
-    return (data.articles ?? []).map((article, index) => ({
-      id: String(article.id ?? index),
-      competitionKey,
-      title: article.headline ?? "",
-      url: article.links?.web?.href ?? "",
-      publishedAt: article.published ?? ""
-    }));
+    return (data.articles ?? []).map((article, index) => {
+      const images = article.images ?? [];
+      const image = images.find((i) => i.type === "header" && i.url) ?? images.find((i) => i.url);
+      return {
+        id: String(article.id ?? index),
+        competitionKey,
+        title: article.headline ?? "",
+        url: article.links?.web?.href ?? "",
+        publishedAt: article.published ?? "",
+        imageUrl: image?.url ?? null,
+        teamKeys: [],
+        sourceTeamIds: (article.categories ?? [])
+          .filter((c) => c.type === "team" && c.teamId != null)
+          .map((c) => String(c.teamId))
+      };
+    });
   }
 }

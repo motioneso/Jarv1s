@@ -12,9 +12,10 @@ describe("sports scaffold", () => {
       hero: { mode: "story", headline: null },
       followed: [],
       scoreboard: [],
-      headlines: [],
+      topStories: [],
+      leagueNews: [],
       standings: [],
-      followedTeamKeys: [],
+      followedTeams: [],
       degraded: false
     };
     expect(empty.degraded).toBe(false);

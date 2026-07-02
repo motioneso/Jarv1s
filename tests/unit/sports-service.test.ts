@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type {
-  GameSide,
-  GameSummary,
-  Headline,
-  SportsFollowDto,
-  StandingsRow
-} from "@jarv1s/shared";
+import type { GameSide, GameSummary, SportsFollowDto } from "@jarv1s/shared";
 
-import type { SportsSource } from "../../packages/sports/src/source/sports-source.js";
+import type {
+  SourceHeadline,
+  SportsSource,
+  StandingsTable
+} from "../../packages/sports/src/source/sports-source.js";
 import {
   SportsService,
   type SportsServiceDependencies
@@ -97,26 +95,37 @@ const dalSchedule: GameSummary[] = [
   }
 ];
 
-const nflStandings: StandingsRow[] = [
-  {
-    teamKey: "dal",
-    name: "Dallas Cowboys",
-    rank: 1,
-    points: null,
-    wins: 10,
-    losses: 2,
-    draws: null,
-    qualifies: true
-  }
-];
+const nflStandings: StandingsTable = {
+  sections: [
+    {
+      label: "National Football Conference",
+      rows: [
+        {
+          teamKey: "dal",
+          name: "Dallas Cowboys",
+          rank: 1,
+          points: null,
+          wins: 10,
+          losses: 2,
+          draws: null,
+          winPercent: 0.833,
+          qualifies: true
+        }
+      ]
+    }
+  ]
+};
 
-const nflHeadlines: Headline[] = [
+const nflHeadlines: SourceHeadline[] = [
   {
     id: "h1",
     competitionKey: "nfl",
     title: "Cowboys clinch the division",
     url: "https://example.com/h1",
-    publishedAt: `${TODAY}T12:00:00.000Z`
+    publishedAt: `${TODAY}T12:00:00.000Z`,
+    imageUrl: null,
+    teamKeys: [],
+    sourceTeamIds: ["6"]
   }
 ];
 
@@ -129,6 +138,7 @@ const dalTeamFollow: SportsFollowDto = {
 
 function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
   return {
+    imageHosts: [],
     listTeams: async () => [],
     getScoreboard: async () => [dalLiveGame],
     getSchedule: async () => dalSchedule,
@@ -163,8 +173,35 @@ describe("SportsService.getOverview", () => {
     const service = new SportsService(makeDeps());
     const overview = await service.getOverview(userA);
     expect(overview.hero.mode).toBe("gameday");
-    expect(overview.followedTeamKeys).toContain("dal");
+    expect(overview.followedTeams.map((f) => f.teamKey)).toContain("dal");
     expect(overview.degraded).toBe(false);
+  });
+
+  it("emits followed teams as competition-scoped pairs", async () => {
+    const service = new SportsService(makeDeps());
+    const overview = await service.getOverview(userA);
+    expect(overview.followedTeams).toEqual([{ competitionKey: "nfl", teamKey: "dal" }]);
+  });
+
+  it("joins provider team tags to teamKeys on headlines", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png",
+              sourceTeamId: "6"
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.topStories[0]?.teamKeys).toEqual(["dal"]);
   });
 
   it("marks the followed team card live with derived form", async () => {
@@ -176,7 +213,63 @@ describe("SportsService.getOverview", () => {
     // W (beat NYG), L (lost at PHI), D (tied WAS)
     expect(card?.form).toEqual(["W", "L", "D"]);
     expect(card?.standing).toContain("#1");
-    expect(card?.nextMatch).toContain("GB");
+    expect(overview.standings[0]?.standingsShape).toBe("record");
+    expect(overview.standings[0]?.sections[0]?.label).toBe("National Football Conference");
+  });
+
+  it("returns a structured next match with the full opponent name", async () => {
+    const service = new SportsService(makeDeps());
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.nextMatch).toEqual({
+      opponentName: "Green Bay Packers",
+      homeAway: "home",
+      startsAt: "2026-07-05T20:00:00.000Z"
+    });
+  });
+
+  it("links the newest team-tagged headline on a news-status card", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getScoreboard: async () => [],
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png",
+              sourceTeamId: "6"
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("news");
+    expect(card?.news).toEqual({
+      title: "Cowboys clinch the division",
+      url: "https://example.com/h1"
+    });
+    expect(card?.name).toBe("Dallas Cowboys");
+    expect(card?.crestUrl).toContain("dal.png");
+  });
+
+  it("shows the authored empty-news state instead of an unrelated story", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getScoreboard: async () => [],
+          getHeadlines: async () => [{ ...nflHeadlines[0]!, sourceTeamIds: ["17"] }]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("news");
+    expect(card?.news).toBeNull();
   });
 
   it("falls back to a story hero on a quiet day", async () => {
@@ -200,6 +293,58 @@ describe("SportsService.getOverview", () => {
     const overview = await service.getOverview(userA);
     expect(overview.degraded).toBe(true);
     expect(overview.hero.mode).toBe("story");
+  });
+
+  it("ranks team-tagged stories first, caps top stories at six, dedupes league news", async () => {
+    // 9 stories, all tagged to dal ("6"), publishedAt ascending → newest is h8
+    const manyHeadlines = Array.from({ length: 9 }, (_, i) => ({
+      id: `h${i}`,
+      competitionKey: "nfl",
+      title: `Story ${i}`,
+      url: `https://example.com/h${i}`,
+      publishedAt: `2026-07-01T0${i}:00:00.000Z`,
+      imageUrl: null,
+      teamKeys: [],
+      sourceTeamIds: ["6"]
+    }));
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getHeadlines: async () => manyHeadlines,
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: null,
+              sourceTeamId: "6"
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.topStories).toHaveLength(6);
+    expect(overview.topStories[0]?.id).toBe("h8"); // newest tagged story first
+    const topIds = new Set(overview.topStories.map((h) => h.id));
+    expect(overview.leagueNews).toHaveLength(1);
+    expect(overview.leagueNews[0]?.competitionLabel).toBe("NFL");
+    expect(overview.leagueNews[0]?.headlines.map((h) => h.id)).toEqual(["h2", "h1", "h0"]);
+    for (const group of overview.leagueNews) {
+      for (const h of group.headlines) expect(topIds.has(h.id)).toBe(false);
+    }
+  });
+
+  it("uses the top-ranked story for the story hero", async () => {
+    const service = new SportsService(
+      makeDeps({ source: makeSource({ getScoreboard: async () => [] }) })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.hero.mode).toBe("story");
+    if (overview.hero.mode === "story") {
+      expect(overview.hero.headline?.id).toBe(overview.topStories[0]?.id);
+    }
   });
 });
 
@@ -241,7 +386,8 @@ describe("SportsService.getCatalog", () => {
               competitionKey,
               name: "Dallas Cowboys",
               shortName: "DAL",
-              crestUrl: null
+              crestUrl: null,
+              sourceTeamId: "6"
             }
           ]
         })

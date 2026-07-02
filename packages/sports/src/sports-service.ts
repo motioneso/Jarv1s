@@ -1,10 +1,13 @@
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import type {
+  FollowedNextMatch,
   FollowedTeamCard,
+  FollowedTeamNews,
   GameSide,
   GameSummary,
   Headline,
   IsoDate,
+  LeagueNewsGroup,
   OverviewHero,
   ScoreboardGroup,
   SportsCatalogResponse,
@@ -16,7 +19,12 @@ import type {
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
 import { SportsCache } from "./sports-cache.js";
-import type { SportsSource } from "./source/sports-source.js";
+import type {
+  SourceHeadline,
+  SourceTeamRef,
+  SportsSource,
+  StandingsTable
+} from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
 export type FollowedFact = { competitionKey: string; text: string };
@@ -48,6 +56,8 @@ const HEADLINES_TTL_MS = 10 * 60 * 1000;
 const SCHEDULE_TTL_MS = 10 * 60 * 1000;
 const TEAMS_TTL_MS = 24 * 60 * 60 * 1000;
 const FORM_LENGTH = 5;
+const TOP_STORIES_CAP = 6; // Ben 2026-07-01
+const EMPTY_STANDINGS: StandingsTable = { sections: [] };
 
 /** Mutable degraded flag threaded through a single composition pass. */
 interface DegradeState {
@@ -66,12 +76,10 @@ export class SportsService {
   private readonly now: () => Date;
 
   private readonly scoreboards = new SportsCache<GameSummary[]>();
-  private readonly standings = new SportsCache<StandingsRow[]>();
-  private readonly headlines = new SportsCache<Headline[]>();
+  private readonly standings = new SportsCache<StandingsTable>();
+  private readonly headlines = new SportsCache<SourceHeadline[]>();
   private readonly schedules = new SportsCache<GameSummary[]>();
-  private readonly teams = new SportsCache<
-    SportsCatalogResponse["competitions"][number]["teams"]
-  >();
+  private readonly teams = new SportsCache<SourceTeamRef[]>();
 
   constructor(deps: SportsServiceDependencies) {
     this.source = deps.source;
@@ -85,19 +93,13 @@ export class SportsService {
     const throwaway: DegradeState = { degraded: false };
     const competitions = [];
     for (const entry of SPORTS_CATALOG) {
-      const teams = await this.cached(
-        this.teams,
-        entry.competitionKey,
-        TEAMS_TTL_MS,
-        () => this.source.listTeams(entry.competitionKey),
-        [],
-        throwaway
-      );
+      const teams = await this.teamsFor(entry.competitionKey, throwaway);
       competitions.push({
         competitionKey: entry.competitionKey,
         label: entry.label,
         kind: entry.kind,
         marquee: entry.marquee,
+        standingsShape: entry.standingsShape,
         teams
       });
     }
@@ -117,8 +119,9 @@ export class SportsService {
     );
 
     const scoreboardByComp = new Map<string, GameSummary[]>();
-    const standingsByComp = new Map<string, StandingsRow[]>();
-    const headlinesByComp = new Map<string, Headline[]>();
+    const standingsByComp = new Map<string, StandingsTable>();
+    const headlinesByComp = new Map<string, SourceHeadline[]>();
+    const teamsByComp = new Map<string, readonly SourceTeamRef[]>();
     for (const key of competitionKeys) {
       scoreboardByComp.set(
         key,
@@ -138,19 +141,24 @@ export class SportsService {
           key,
           STANDINGS_TTL_MS,
           () => this.source.getStandings(key),
-          [],
+          EMPTY_STANDINGS,
           state
         )
       );
+      const teams = await this.teamsFor(key, state);
+      teamsByComp.set(key, teams);
       headlinesByComp.set(
         key,
-        await this.cached(
-          this.headlines,
-          key,
-          HEADLINES_TTL_MS,
-          () => this.source.getHeadlines(key),
-          [],
-          state
+        resolveHeadlineTeamKeys(
+          await this.cached(
+            this.headlines,
+            key,
+            HEADLINES_TTL_MS,
+            () => this.source.getHeadlines(key),
+            [],
+            state
+          ),
+          teams
         )
       );
     }
@@ -169,14 +177,27 @@ export class SportsService {
         this.buildCard(
           follow,
           scoreboardByComp.get(follow.competitionKey) ?? [],
-          standingsByComp.get(follow.competitionKey) ?? [],
+          (standingsByComp.get(follow.competitionKey)?.sections ?? []).flatMap((s) => s.rows),
           headlinesByComp.get(follow.competitionKey) ?? [],
-          schedule
+          schedule,
+          teamsByComp.get(follow.competitionKey) ?? []
         )
       );
     }
 
-    const hero = this.buildHero(followedTeams, scoreboardByComp, competitionKeys, headlinesByComp);
+    const topStories = rankTopStories(headlinesByComp, followedTeams);
+    const topStoryIds = new Set(topStories.map((h) => h.id));
+    const leagueNews: LeagueNewsGroup[] = competitionKeys
+      .map((key) => ({
+        competitionKey: key,
+        competitionLabel: catalogEntry(key)?.label ?? key,
+        headlines: [...(headlinesByComp.get(key) ?? [])]
+          .sort(byNewest)
+          .filter((h) => !topStoryIds.has(h.id))
+      }))
+      .filter((group) => group.headlines.length > 0);
+
+    const hero = this.buildHero(followedTeams, scoreboardByComp, topStories);
 
     const scoreboard: ScoreboardGroup[] = competitionKeys
       .map((key) => ({
@@ -190,19 +211,25 @@ export class SportsService {
       .map((key) => ({
         competitionKey: key,
         competitionLabel: catalogEntry(key)?.label ?? key,
-        rows: standingsByComp.get(key) ?? []
+        standingsShape: catalogEntry(key)?.standingsShape ?? "table",
+        sections: standingsByComp.get(key)?.sections ?? []
       }))
-      .filter((group) => group.rows.length > 0);
-
-    const headlines = competitionKeys.flatMap((key) => headlinesByComp.get(key) ?? []);
+      .filter((group) => group.sections.some((section) => section.rows.length > 0));
 
     return {
       hero,
       followed: cards,
       scoreboard,
-      headlines,
+      topStories: topStories.map(toPublicHeadline),
+      leagueNews: leagueNews.map((group) => ({
+        ...group,
+        headlines: group.headlines.map(toPublicHeadline)
+      })),
       standings,
-      followedTeamKeys: followedTeams.map((f) => f.teamKey),
+      followedTeams: followedTeams.map((f) => ({
+        competitionKey: f.competitionKey,
+        teamKey: f.teamKey
+      })),
       degraded: state.degraded
     };
   }
@@ -280,11 +307,24 @@ export class SportsService {
     }
   }
 
+  private async teamsFor(
+    competitionKey: string,
+    state: DegradeState
+  ): Promise<readonly SourceTeamRef[]> {
+    return this.cached(
+      this.teams,
+      competitionKey,
+      TEAMS_TTL_MS,
+      () => this.source.listTeams(competitionKey),
+      [],
+      state
+    );
+  }
+
   private buildHero(
     followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
     scoreboardByComp: Map<string, GameSummary[]>,
-    competitionKeys: readonly string[],
-    headlinesByComp: Map<string, Headline[]>
+    topStories: readonly SourceHeadline[]
   ): OverviewHero {
     let hero: { game: GameSummary; side: GameSide } | undefined;
     let todayCount = 0;
@@ -308,24 +348,30 @@ export class SportsService {
           others > 0 ? `${others} more followed game${others === 1 ? "" : "s"} today` : null
       };
     }
-    const topHeadline = competitionKeys.flatMap((key) => headlinesByComp.get(key) ?? [])[0] ?? null;
-    return { mode: "story", headline: topHeadline };
+    const top = topStories[0];
+    return { mode: "story", headline: top ? toPublicHeadline(top) : null };
   }
 
   private buildCard(
     follow: SportsFollowDto & { teamKey: string },
     games: readonly GameSummary[],
     standings: readonly StandingsRow[],
-    headlines: readonly Headline[],
-    schedule: readonly GameSummary[]
+    headlines: readonly SourceHeadline[],
+    schedule: readonly GameSummary[],
+    teams: readonly SourceTeamRef[]
   ): FollowedTeamCard {
     const { teamKey } = follow;
     const comp = follow.competitionKey;
     const competitionLabel = catalogEntry(comp)?.label ?? comp;
     const todayGame = findTeamGame(games, teamKey);
     const todaySide = todayGame ? sideFor(todayGame, teamKey) : undefined;
-    const name = todaySide?.name ?? teamNameFromSchedule(schedule, teamKey) ?? teamKey;
-    const crestUrl = todaySide?.crestUrl ?? null;
+    const catalogTeam = teams.find((t) => t.teamKey === teamKey);
+    const scheduleSide = scheduleSideFor(schedule, teamKey);
+    // D1: today side → catalog → schedule → last-resort uppercase key (fully degraded only)
+    const name =
+      todaySide?.name ?? catalogTeam?.name ?? scheduleSide?.name ?? teamKey.toUpperCase();
+    // A2: same precedence for the crest
+    const crestUrl = todaySide?.crestUrl ?? catalogTeam?.crestUrl ?? scheduleSide?.crestUrl ?? null;
 
     let status: FollowedTeamCard["status"];
     let primary: string;
@@ -338,7 +384,7 @@ export class SportsService {
         todayGame.state === "final" ? resultLine(todayGame, teamKey) : matchupLine(todayGame);
     } else {
       status = "news";
-      primary = headlines[0]?.title ?? "No recent news";
+      primary = "";
     }
 
     return {
@@ -349,9 +395,10 @@ export class SportsService {
       crestUrl,
       status,
       primary,
+      news: newestTeamHeadline(headlines, teamKey),
       form: computeForm(schedule, teamKey),
       standing: standingLine(standings, teamKey),
-      nextMatch: nextMatchLine(schedule, teamKey, this.now()),
+      nextMatch: nextMatchFor(schedule, teamKey, this.now()),
       rationale: `You follow ${name}.`
     };
   }
@@ -361,6 +408,66 @@ export class SportsService {
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
+}
+
+function resolveHeadlineTeamKeys(
+  headlines: readonly SourceHeadline[],
+  teams: readonly SourceTeamRef[]
+): SourceHeadline[] {
+  const byId = new Map<string, string>();
+  for (const team of teams) {
+    if (team.sourceTeamId !== null) byId.set(team.sourceTeamId, team.teamKey);
+  }
+  return headlines.map((headline) => ({
+    ...headline,
+    teamKeys: headline.sourceTeamIds
+      .map((id) => byId.get(id))
+      .filter((key): key is string => key !== undefined)
+  }));
+}
+
+function byNewest(a: SourceHeadline, b: SourceHeadline): number {
+  return b.publishedAt.localeCompare(a.publishedAt);
+}
+
+// `SourceHeadline` carries `sourceTeamIds` (provider ids) for the team-key join; strip it
+// before a headline reaches a response boundary — required wherever a single headline sits
+// inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
+// objects with properties outside the matched branch instead of silently dropping them.
+function toPublicHeadline(headline: Headline): Headline {
+  const { id, competitionKey, title, url, publishedAt, imageUrl, teamKeys } = headline;
+  return { id, competitionKey, title, url, publishedAt, imageUrl, teamKeys };
+}
+
+// Spec §E ranking: (1) headlines tagged with a followed team, newest first;
+// (2) the newest headline of each followed competition not already included; cap 6.
+function rankTopStories(
+  headlinesByComp: ReadonlyMap<string, readonly SourceHeadline[]>,
+  followedTeams: readonly (SportsFollowDto & { teamKey: string })[]
+): SourceHeadline[] {
+  const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
+  const picked: SourceHeadline[] = [];
+  const pickedIds = new Set<string>();
+  const all = [...headlinesByComp.values()].flat().sort(byNewest);
+  for (const headline of all) {
+    if (
+      headline.teamKeys.some((k) => pairs.has(`${headline.competitionKey}:${k}`)) &&
+      !pickedIds.has(headline.id)
+    ) {
+      picked.push(headline);
+      pickedIds.add(headline.id);
+    }
+  }
+  for (const comp of unique(followedTeams.map((f) => f.competitionKey))) {
+    const newest = [...(headlinesByComp.get(comp) ?? [])]
+      .sort(byNewest)
+      .find((h) => !pickedIds.has(h.id));
+    if (newest) {
+      picked.push(newest);
+      pickedIds.add(newest.id);
+    }
+  }
+  return picked.slice(0, TOP_STORIES_CAP);
 }
 
 function findTeamGame(games: readonly GameSummary[], teamKey: string): GameSummary | undefined {
@@ -379,15 +486,23 @@ function opponentFor(game: GameSummary, teamKey: string): GameSide | undefined {
   return undefined;
 }
 
-function teamNameFromSchedule(
-  schedule: readonly GameSummary[],
-  teamKey: string
-): string | undefined {
+function scheduleSideFor(schedule: readonly GameSummary[], teamKey: string): GameSide | undefined {
   for (const game of schedule) {
     const side = sideFor(game, teamKey);
-    if (side) return side.name;
+    if (side) return side;
   }
   return undefined;
+}
+
+function newestTeamHeadline(
+  headlines: readonly SourceHeadline[],
+  teamKey: string
+): FollowedTeamNews | null {
+  const newest = headlines
+    .filter((h) => h.teamKeys.includes(teamKey))
+    .slice()
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
+  return newest ? { title: newest.title, url: newest.url } : null;
 }
 
 function scoreLine(game: GameSummary): string {
@@ -435,11 +550,11 @@ function standingLine(standings: readonly StandingsRow[], teamKey: string): stri
   return `#${row.rank} · ${row.wins}-${row.losses}`;
 }
 
-function nextMatchLine(
+function nextMatchFor(
   schedule: readonly GameSummary[],
   teamKey: string,
   now: Date
-): string | null {
+): FollowedNextMatch | null {
   const nowIso = now.toISOString();
   const next = schedule
     .filter((g) => g.state !== "final" && g.startsAt > nowIso && sideFor(g, teamKey))
@@ -448,8 +563,11 @@ function nextMatchLine(
   if (!next) return null;
   const opponent = opponentFor(next, teamKey);
   if (!opponent) return null;
-  const preposition = next.home.teamKey === teamKey ? "vs" : "at";
-  return `${preposition} ${opponent.shortName}`;
+  return {
+    opponentName: opponent.name,
+    homeAway: next.home.teamKey === teamKey ? "home" : "away",
+    startsAt: next.startsAt
+  };
 }
 
 function teamFact(game: GameSummary, teamKey: string): string {

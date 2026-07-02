@@ -44,12 +44,20 @@ const dalLiveGame: GameSummary = {
 
 function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
   return {
+    imageHosts: [],
     listTeams: async (competitionKey) => [
-      { teamKey: "dal", competitionKey, name: "Dallas Cowboys", shortName: "DAL", crestUrl: null }
+      {
+        teamKey: "dal",
+        competitionKey,
+        name: "Dallas Cowboys",
+        shortName: "DAL",
+        crestUrl: null,
+        sourceTeamId: "6"
+      }
     ],
     getScoreboard: async () => [dalLiveGame],
     getSchedule: async () => [],
-    getStandings: async () => [],
+    getStandings: async () => ({ sections: [] }),
     getHeadlines: async () => [],
     ...overrides
   };
@@ -115,8 +123,12 @@ describe("sports routes", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.hero.mode).toBe("gameday");
-    expect(body.followedTeamKeys).toContain("dal");
+    expect(
+      body.followedTeams.map((f: { competitionKey: string; teamKey: string }) => f.teamKey)
+    ).toContain("dal");
     expect(body.degraded).toBe(false);
+    expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
+    expect(JSON.stringify(body)).not.toContain("sourceTeamId");
     await app.close();
   });
 
@@ -129,6 +141,8 @@ describe("sports routes", () => {
     expect(body.competitions.map((c: { competitionKey: string }) => c.competitionKey)).toContain(
       "nfl"
     );
+    expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
+    expect(JSON.stringify(body)).not.toContain("sourceTeamId");
     await app.close();
   });
 

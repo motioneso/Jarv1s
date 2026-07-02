@@ -56,9 +56,14 @@ function followedCard(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCa
     crestUrl: null,
     status: "live",
     primary: "MIN 21 – 14 DAL",
+    news: null,
     form: ["W", "W", "L"],
     standing: "1st · NFC North",
-    nextMatch: "vs Green Bay · Sun 1:00 PM",
+    nextMatch: {
+      opponentName: "Green Bay Packers",
+      homeAway: "home",
+      startsAt: "2026-07-05T20:00:00.000Z"
+    },
     rationale: "Playing right now",
     ...overrides
   };
@@ -68,28 +73,43 @@ function standingsGroup(): StandingsGroup {
   return {
     competitionKey: "epl",
     competitionLabel: "Premier League",
-    rows: [
+    standingsShape: "record",
+    sections: [
       {
-        teamKey: "ars",
-        name: "Arsenal",
-        rank: 1,
-        points: 40,
-        wins: 12,
-        losses: 2,
-        draws: 4,
-        qualifies: true
+        label: null,
+        rows: [
+          {
+            teamKey: "ars",
+            name: "Arsenal",
+            rank: 1,
+            points: 40,
+            wins: 12,
+            losses: 2,
+            draws: 4,
+            winPercent: null,
+            qualifies: true
+          }
+        ]
       }
     ]
   };
 }
 
-function headline(id: string, competitionKey: string, title: string): Headline {
+function headline(
+  id: string,
+  competitionKey: string,
+  title: string,
+  overrides: Partial<Headline> = {}
+): Headline {
   return {
     id,
     competitionKey,
     title,
     url: "https://example.test/" + id,
-    publishedAt: "2026-07-01T18:00:00Z"
+    publishedAt: "2026-07-01T18:00:00Z",
+    imageUrl: null,
+    teamKeys: [],
+    ...overrides
   };
 }
 
@@ -109,9 +129,16 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
         games: [liveGame()]
       }
     ],
-    headlines: [headline("h1", "nfl", "Vikings clinch division on late field goal")],
+    topStories: [headline("h1", "nfl", "Vikings clinch division on late field goal")],
+    leagueNews: [
+      {
+        competitionKey: "nfl",
+        competitionLabel: "NFL",
+        headlines: [headline("h2", "nfl", "Cowboys sign veteran lineman")]
+      }
+    ],
     standings: [standingsGroup()],
-    followedTeamKeys: ["min"],
+    followedTeams: [{ competitionKey: "nfl", teamKey: "min" }],
     degraded: false,
     ...overrides
   };
@@ -138,24 +165,82 @@ describe("SportsPage", () => {
     const html = render(makeOverview());
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
-    expect(html).toContain("vs Green Bay · Sun 1:00 PM");
+    expect(html).toContain("vs Green Bay Packers");
+  });
+
+  it("renders a news-status card as a link to the story", () => {
+    const html = render(
+      makeOverview({
+        followed: [
+          followedCard({
+            status: "news",
+            primary: "",
+            news: { title: "Cowboys clinch the division", url: "https://example.com/h1" }
+          })
+        ]
+      })
+    );
+    expect(html).toContain('href="https://example.com/h1"');
+    expect(html).toContain("Cowboys clinch the division");
   });
 
   it("marks a followed team in the standings and scoreboard (is-you / is-mine)", () => {
     const html = render(
       makeOverview({
-        followedTeamKeys: ["min", "ars"]
+        followedTeams: [
+          { competitionKey: "nfl", teamKey: "min" },
+          { competitionKey: "epl", teamKey: "ars" }
+        ]
       })
     );
     expect(html).toContain("is-you");
     expect(html).toContain("Premier League");
+    expect(html).toContain("W-L");
+    expect(html).not.toContain(">#<");
+  });
+
+  it("does not cross-mark a same-teamKey row in another competition (pair-scoped)", () => {
+    const html = render(
+      makeOverview({
+        standings: [
+          standingsGroup(),
+          {
+            competitionKey: "eng.1",
+            competitionLabel: "Championship",
+            standingsShape: "table",
+            sections: [
+              {
+                label: null,
+                rows: [
+                  {
+                    teamKey: "min",
+                    name: "Minnows FC",
+                    rank: 5,
+                    points: 30,
+                    wins: 8,
+                    losses: 6,
+                    draws: 4,
+                    winPercent: null,
+                    qualifies: false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("is-mine");
+    const eng1RowStart = html.indexOf("Minnows FC");
+    const eng1RowMarkup = html.slice(Math.max(0, eng1RowStart - 400), eng1RowStart);
+    expect(eng1RowMarkup).not.toContain("is-you");
   });
 
   it("renders the empty state with a follow CTA when nothing is followed", () => {
     const html = render(
       makeOverview({
         followed: [],
-        followedTeamKeys: [],
+        followedTeams: [],
         hero: {
           mode: "story",
           headline: headline("lead", "epl", "The transfer window is heating up")
@@ -171,12 +256,23 @@ describe("SportsPage", () => {
       makeOverview({
         hero: {
           mode: "story",
-          headline: headline("lead", "epl", "The transfer window is heating up")
+          headline: headline("lead", "epl", "The transfer window is heating up", {
+            imageUrl: "https://a.espncdn.com/photo/2026/story.jpg"
+          })
         }
       })
     );
     expect(html).toContain("The transfer window is heating up");
     expect(html).toContain("Vikings clinch division on late field goal");
     expect(html).toContain("NFL");
+    expect(html).toContain('src="https://a.espncdn.com/photo/2026/story.jpg"');
+    expect(html).toContain('href="https://example.test/lead"'); // hero title links out
+  });
+
+  it("renders the top stories rail and league news grid", () => {
+    const html = render(makeOverview());
+    expect(html).toContain("Top stories");
+    expect(html).toContain("League news");
+    expect(html).toContain("Cowboys sign veteran lineman");
   });
 });

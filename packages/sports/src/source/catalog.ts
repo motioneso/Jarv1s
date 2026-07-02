@@ -1,8 +1,11 @@
+import type { StandingsShape } from "@jarv1s/shared";
+
 export interface CatalogEntry {
   readonly competitionKey: string;
   readonly label: string;
   readonly kind: "league" | "tournament";
   readonly marquee: boolean;
+  readonly standingsShape: StandingsShape;
   readonly espnSport: string;
   readonly espnLeague: string;
 }
@@ -13,6 +16,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "NFL",
     kind: "league",
     marquee: false,
+    standingsShape: "record",
     espnSport: "football",
     espnLeague: "nfl"
   },
@@ -21,6 +25,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "NBA",
     kind: "league",
     marquee: false,
+    standingsShape: "record",
     espnSport: "basketball",
     espnLeague: "nba"
   },
@@ -29,6 +34,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "NHL",
     kind: "league",
     marquee: false,
+    standingsShape: "record",
     espnSport: "hockey",
     espnLeague: "nhl"
   },
@@ -37,6 +43,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "MLB",
     kind: "league",
     marquee: false,
+    standingsShape: "record",
     espnSport: "baseball",
     espnLeague: "mlb"
   },
@@ -45,6 +52,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "Premier League",
     kind: "league",
     marquee: false,
+    standingsShape: "table",
     espnSport: "soccer",
     espnLeague: "eng.1"
   },
@@ -53,6 +61,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "MLS",
     kind: "league",
     marquee: false,
+    standingsShape: "table",
     espnSport: "soccer",
     espnLeague: "usa.1"
   },
@@ -61,6 +70,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "Champions League",
     kind: "tournament",
     marquee: false,
+    standingsShape: "groups",
     espnSport: "soccer",
     espnLeague: "uefa.champions"
   },
@@ -69,6 +79,7 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     label: "FIFA World Cup",
     kind: "tournament",
     marquee: true,
+    standingsShape: "groups",
     espnSport: "soccer",
     espnLeague: "fifa.world"
   }
