@@ -3,7 +3,10 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import SportsSettings from "../../packages/sports/src/settings/index.js";
+import SportsSettings, {
+  filterTeams,
+  leagueMatches
+} from "../../packages/sports/src/settings/index.js";
 
 const CATALOG_KEY = ["sports", "catalog"] as const;
 const FOLLOWS_KEY = ["sports", "follows"] as const;
@@ -13,6 +16,57 @@ function renderWithQuery(client: QueryClient): string {
     createElement(QueryClientProvider, { client }, createElement(SportsSettings))
   );
 }
+
+type TeamRefLite = {
+  readonly teamKey: string;
+  readonly competitionKey: string;
+  readonly name: string;
+  readonly shortName: string;
+  readonly crestUrl: string | null;
+};
+type CompetitionLite = {
+  readonly competitionKey: string;
+  readonly label: string;
+  readonly kind: "league" | "tournament";
+  readonly marquee: boolean;
+  readonly standingsShape: "table" | "groups" | "record";
+  readonly teams: readonly TeamRefLite[];
+};
+
+const TWO_LEAGUES: readonly CompetitionLite[] = [
+  {
+    competitionKey: "nfl",
+    label: "NFL",
+    kind: "league",
+    marquee: false,
+    standingsShape: "record",
+    teams: [
+      {
+        teamKey: "dal",
+        competitionKey: "nfl",
+        name: "Dallas Cowboys",
+        shortName: "DAL",
+        crestUrl: null
+      }
+    ]
+  },
+  {
+    competitionKey: "epl",
+    label: "Premier League",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    teams: [
+      {
+        teamKey: "team.ars",
+        competitionKey: "epl",
+        name: "Arsenal",
+        shortName: "ARS",
+        crestUrl: null
+      }
+    ]
+  }
+];
 
 describe("SportsSettings", () => {
   it("renders competition labels and marquee tag on the World Cup", () => {
@@ -41,7 +95,9 @@ describe("SportsSettings", () => {
     const html = renderWithQuery(client);
     expect(html).toContain("FIFA World Cup");
     expect(html).toContain("Marquee");
-    expect(html).toContain("BRA");
+    // Collapsed-by-default: team grid hidden, but count hint present.
+    expect(html).toContain("1<!-- --> team");
+    expect(html).not.toContain("sp-teamgrid");
   });
 
   it("marks a followed team active", () => {
@@ -72,7 +128,9 @@ describe("SportsSettings", () => {
       ]
     });
     const html = renderWithQuery(client);
-    expect(html).toContain("is-active");
+    // Followed team renders as a removable chip in the summary row.
+    expect(html).toContain("sp-chip");
+    expect(html).toContain("ARS");
   });
 
   it("shows a whole-league follow button per competition", () => {
@@ -92,5 +150,67 @@ describe("SportsSettings", () => {
     client.setQueryData(FOLLOWS_KEY, { follows: [] });
     const html = renderWithQuery(client);
     expect(html).toContain("Follow all of <!-- -->Premier League");
+  });
+
+  it("renders followed-team summary chips when follows exist", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES });
+    client.setQueryData(FOLLOWS_KEY, {
+      follows: [
+        { id: "f1", competitionKey: "epl", teamKey: "team.ars", createdAt: "2026-01-01T00:00:00Z" }
+      ]
+    });
+    const html = renderWithQuery(client);
+    expect(html).toContain("sp-summary");
+    expect(html).toContain("sp-chip");
+    expect(html).toContain("ARS");
+    // removable affordance present
+    expect(html).toContain("sp-chip__remove");
+  });
+
+  it("renders a whole-league follow as an All-league chip", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES });
+    client.setQueryData(FOLLOWS_KEY, {
+      follows: [
+        { id: "fl", competitionKey: "nfl", teamKey: null, createdAt: "2026-01-01T00:00:00Z" }
+      ]
+    });
+    const html = renderWithQuery(client);
+    expect(html).toContain("All NFL");
+  });
+
+  it("collapses browse groups by default — team grid hidden until expanded", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES });
+    client.setQueryData(FOLLOWS_KEY, { follows: [] });
+    const html = renderWithQuery(client);
+    // Follow-all affordance still present per competition.
+    expect(html).toContain("Follow all of <!-- -->NFL");
+    // Collapsed header present.
+    expect(html).toContain("sp-grouphead");
+    // Team buttons NOT rendered in collapsed initial state.
+    expect(html).not.toContain("sp-teamgrid");
+    expect(html).not.toContain("Dallas Cowboys");
+  });
+
+  it("filterTeams matches team name/shortName and competition label, case-insensitive", () => {
+    expect(filterTeams("ars", TWO_LEAGUES)).toHaveLength(1);
+    expect(filterTeams("ars", TWO_LEAGUES)[0].team.teamKey).toBe("team.ars");
+    expect(filterTeams("cowboys", TWO_LEAGUES)).toHaveLength(1);
+    expect(filterTeams("cowboys", TWO_LEAGUES)[0].team.teamKey).toBe("dal");
+    // competition label match surfaces that league's teams
+    expect(filterTeams("premier", TWO_LEAGUES)[0].team.teamKey).toBe("team.ars");
+    // no false positives
+    expect(filterTeams("zzz", TWO_LEAGUES)).toHaveLength(0);
+    // empty query returns nothing (browse mode owns the empty state)
+    expect(filterTeams("", TWO_LEAGUES)).toHaveLength(0);
+  });
+
+  it("leagueMatches returns competitions whose label matches the query", () => {
+    expect(leagueMatches("prem", TWO_LEAGUES).map((c) => c.competitionKey)).toEqual(["epl"]);
+    expect(leagueMatches("nfl", TWO_LEAGUES).map((c) => c.competitionKey)).toEqual(["nfl"]);
+    expect(leagueMatches("zzz", TWO_LEAGUES)).toHaveLength(0);
+    expect(leagueMatches("", TWO_LEAGUES)).toHaveLength(0);
   });
 });

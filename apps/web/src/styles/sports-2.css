@@ -113,3 +113,106 @@
   height: 100%;
   object-fit: contain;
 }
+
+/* Search-first picker additions (#688): search input, followed-teams summary
+   chip row, collapsible browse group header. Token-only, appended. */
+
+.sp-search {
+  margin-bottom: 14px;
+}
+.sp-search__input {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 9px 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  transition: var(--transition-control);
+}
+.sp-search__input::placeholder {
+  color: var(--text-faint);
+}
+.sp-search__input:focus {
+  outline: none;
+  border-color: var(--pine-soft-2);
+  background: var(--surface-2);
+}
+
+.sp-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--pine-soft-2);
+  background: var(--pine-soft);
+  border-radius: var(--radius-lg);
+  padding: 4px 6px 4px 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pine-ink);
+}
+.sp-chip__lbl {
+  white-space: nowrap;
+}
+.sp-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--pine-ink);
+  transition: var(--transition-control);
+}
+.sp-chip__remove:hover {
+  background: var(--surface-2);
+}
+.sp-chip__remove:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sp-grouphead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: var(--transition-control);
+}
+.sp-grouphead:hover {
+  background: var(--surface-2);
+}
+.sp-grouphead__count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.sp-grouphead__chev {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-faint);
+}
