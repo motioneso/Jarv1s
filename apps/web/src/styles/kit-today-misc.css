@@ -464,8 +464,8 @@
   color: var(--text-muted);
   padding: 6px 10px;
   border-radius: var(--radius-md);
-  background: var(--surface-warn, var(--surface-2));
-  border: 1px solid var(--border-warn, var(--border-subtle));
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
 }
 
 @media (max-width: 720px) {

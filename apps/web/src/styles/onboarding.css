@@ -693,8 +693,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--warning-soft, var(--pine-soft));
-  color: var(--warning-fg, var(--accent));
+  background: var(--warn-soft);
+  color: var(--warn-fg);
 }
 
 .onb-skipconfirm__t {

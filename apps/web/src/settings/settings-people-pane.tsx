@@ -81,7 +81,7 @@ export function SettingsPeoplePane() {
           <Row name="Nothing to review" desc="All match candidates are up to date." />
         ) : (
           pending.map((candidate) => (
-            <div key={candidate.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+            <div key={candidate.id} style={{ borderBottom: "1px solid var(--border)" }}>
               {DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
                 <Note>This action is irreversible — confirm in chat before accepting.</Note>
               )}
