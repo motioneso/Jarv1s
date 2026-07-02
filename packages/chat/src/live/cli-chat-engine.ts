@@ -54,13 +54,10 @@ export {
   type LoginMuxSessionAge
 } from "./login-mux-sessions.js";
 
-/** Session name prefix used for all Jarv1s live sessions (the multiplexer `name` hint). */
 export const SESSION_PREFIX = "jarv1s-live-";
 
-/** The persona filename written under the per-session neutral dir (`0600`). */
 const PERSONA_FILENAME = "persona.md";
 
-/** Claude's MCP-config file (the FULL --mcp-config JSON incl. the bearer); `0600` (§6.2/§6.5). */
 const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
 
 export interface CliChatEngineOpts {
@@ -328,6 +325,10 @@ export class CliChatEngineImpl implements CliChatEngine {
     if (this.isCodexExecMode()) return this.codexExecLogicalAlive;
     if (this.handle === null) return false;
     return this.mux.isAlive(this.handle);
+  }
+
+  async interrupt(): Promise<void> {
+    if (this.handle !== null) await this.mux.interrupt(this.handle);
   }
 
   async kill(): Promise<void> {

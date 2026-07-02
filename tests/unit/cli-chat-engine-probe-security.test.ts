@@ -103,6 +103,7 @@ describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regre
           submit: async () => undefined,
           isAlive: async () => true,
           kill: async () => undefined,
+          interrupt: async () => undefined,
           attachCommand: () => ""
         },
         launchMs: 0
@@ -282,6 +283,7 @@ describe("CliChatEngineImpl — §6.5 POST-mux-create failure ordering (UNPROVEN
       submit: vi.fn().mockRejectedValue(new Error("paste-buffer failed")),
       isAlive: vi.fn().mockResolvedValue(true),
       kill: killSpy,
+      interrupt: vi.fn(),
       attachCommand: () => ""
     };
 
@@ -334,6 +336,7 @@ describe("CliChatEngineImpl — §6.5 POST-mux-create failure ordering (UNPROVEN
       submit: vi.fn(),
       isAlive: vi.fn().mockResolvedValue(false),
       kill: vi.fn(),
+      interrupt: vi.fn(),
       attachCommand: () => ""
     };
     const engine = new CliChatEngineImpl("anthropic", "rpc-pre-fail", io, { mux, ownsDrain: true });

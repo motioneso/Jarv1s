@@ -147,6 +147,7 @@ export type RpcMethod =
   | "submit"
   | "readNew"
   | "isAlive"
+  | "interrupt"
   | "kill" // per-session (sessionKey required)
   | "listLiveSessions" // non-session (reconciliation, §4.6)
   | "probeProvider" // non-session (onboarding, §4.8)
@@ -298,6 +299,13 @@ export interface RpcReadNewResult {
 export type RpcKillParams = Record<string, never>;
 /** result for method "kill" (§4.5). */
 export interface RpcKillResult {
+  readonly ok: true;
+}
+
+/** params for method "interrupt" — empty. */
+export type RpcInterruptParams = Record<string, never>;
+/** result for method "interrupt". */
+export interface RpcInterruptResult {
   readonly ok: true;
 }
 

@@ -54,6 +54,8 @@ class FakeProviderCheckEngine implements CliChatEngine {
   }
 
   async kill(): Promise<void> {}
+
+  async interrupt(): Promise<void> {}
 }
 
 const fakeProviderCheckFactory: ChatEngineFactory = (provider) =>
