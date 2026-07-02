@@ -173,8 +173,35 @@ describe("SportsService.getOverview", () => {
     const service = new SportsService(makeDeps());
     const overview = await service.getOverview(userA);
     expect(overview.hero.mode).toBe("gameday");
-    expect(overview.followedTeamKeys).toContain("dal");
+    expect(overview.followedTeams.map((f) => f.teamKey)).toContain("dal");
     expect(overview.degraded).toBe(false);
+  });
+
+  it("emits followed teams as competition-scoped pairs", async () => {
+    const service = new SportsService(makeDeps());
+    const overview = await service.getOverview(userA);
+    expect(overview.followedTeams).toEqual([{ competitionKey: "nfl", teamKey: "dal" }]);
+  });
+
+  it("joins provider team tags to teamKeys on headlines", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png",
+              sourceTeamId: "6"
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.headlines[0]?.teamKeys).toEqual(["dal"]);
   });
 
   it("marks the followed team card live with derived form", async () => {

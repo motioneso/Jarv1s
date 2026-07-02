@@ -75,6 +75,11 @@ export interface SportsFollowDto {
   readonly createdAt: string;
 }
 
+export interface FollowedTeamRef {
+  readonly competitionKey: string;
+  readonly teamKey: string;
+}
+
 // Composed page (GET /api/sports/overview)
 export type OverviewHero =
   | {
@@ -118,7 +123,7 @@ export interface SportsOverviewResponse {
   readonly scoreboard: readonly ScoreboardGroup[];
   readonly headlines: readonly Headline[];
   readonly standings: readonly StandingsGroup[];
-  readonly followedTeamKeys: readonly string[]; // for is-you marking on the client
+  readonly followedTeams: readonly FollowedTeamRef[]; // for is-you marking on the client
   readonly degraded: boolean; // source failed → cached/empty
 }
 
@@ -350,7 +355,7 @@ export const sportsOverviewResponseSchema = {
         "scoreboard",
         "headlines",
         "standings",
-        "followedTeamKeys",
+        "followedTeams",
         "degraded"
       ],
       properties: {
@@ -359,7 +364,18 @@ export const sportsOverviewResponseSchema = {
         scoreboard: { type: "array", items: scoreboardGroupSchema },
         headlines: { type: "array", items: headlineSchema },
         standings: { type: "array", items: standingsGroupSchema },
-        followedTeamKeys: { type: "array", items: { type: "string" } },
+        followedTeams: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["competitionKey", "teamKey"],
+            properties: {
+              competitionKey: { type: "string" },
+              teamKey: { type: "string" }
+            }
+          }
+        },
         degraded: { type: "boolean" }
       }
     },

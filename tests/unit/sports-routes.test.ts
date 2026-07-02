@@ -123,7 +123,9 @@ describe("sports routes", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.hero.mode).toBe("gameday");
-    expect(body.followedTeamKeys).toContain("dal");
+    expect(
+      body.followedTeams.map((f: { competitionKey: string; teamKey: string }) => f.teamKey)
+    ).toContain("dal");
     expect(body.degraded).toBe(false);
     expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
     expect(JSON.stringify(body)).not.toContain("sourceTeamId");

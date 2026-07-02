@@ -88,14 +88,7 @@ export class SportsService {
     const throwaway: DegradeState = { degraded: false };
     const competitions = [];
     for (const entry of SPORTS_CATALOG) {
-      const teams = await this.cached(
-        this.teams,
-        entry.competitionKey,
-        TEAMS_TTL_MS,
-        () => this.source.listTeams(entry.competitionKey),
-        [],
-        throwaway
-      );
+      const teams = await this.teamsFor(entry.competitionKey, throwaway);
       competitions.push({
         competitionKey: entry.competitionKey,
         label: entry.label,
@@ -146,15 +139,19 @@ export class SportsService {
           state
         )
       );
+      const teams = await this.teamsFor(key, state);
       headlinesByComp.set(
         key,
-        await this.cached(
-          this.headlines,
-          key,
-          HEADLINES_TTL_MS,
-          () => this.source.getHeadlines(key),
-          [],
-          state
+        resolveHeadlineTeamKeys(
+          await this.cached(
+            this.headlines,
+            key,
+            HEADLINES_TTL_MS,
+            () => this.source.getHeadlines(key),
+            [],
+            state
+          ),
+          teams
         )
       );
     }
@@ -207,7 +204,10 @@ export class SportsService {
       scoreboard,
       headlines,
       standings,
-      followedTeamKeys: followedTeams.map((f) => f.teamKey),
+      followedTeams: followedTeams.map((f) => ({
+        competitionKey: f.competitionKey,
+        teamKey: f.teamKey
+      })),
       degraded: state.degraded
     };
   }
@@ -283,6 +283,20 @@ export class SportsService {
       state.degraded = true;
       return fallback;
     }
+  }
+
+  private async teamsFor(
+    competitionKey: string,
+    state: DegradeState
+  ): Promise<readonly SourceTeamRef[]> {
+    return this.cached(
+      this.teams,
+      competitionKey,
+      TEAMS_TTL_MS,
+      () => this.source.listTeams(competitionKey),
+      [],
+      state
+    );
   }
 
   private buildHero(
@@ -366,6 +380,22 @@ export class SportsService {
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
+}
+
+function resolveHeadlineTeamKeys(
+  headlines: readonly SourceHeadline[],
+  teams: readonly SourceTeamRef[]
+): SourceHeadline[] {
+  const byId = new Map<string, string>();
+  for (const team of teams) {
+    if (team.sourceTeamId !== null) byId.set(team.sourceTeamId, team.teamKey);
+  }
+  return headlines.map((headline) => ({
+    ...headline,
+    teamKeys: headline.sourceTeamIds
+      .map((id) => byId.get(id))
+      .filter((key): key is string => key !== undefined)
+  }));
 }
 
 function findTeamGame(games: readonly GameSummary[], teamKey: string): GameSummary | undefined {

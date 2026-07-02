@@ -120,7 +120,7 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
     ],
     headlines: [headline("h1", "nfl", "Vikings clinch division on late field goal")],
     standings: [standingsGroup()],
-    followedTeamKeys: ["min"],
+    followedTeams: [{ competitionKey: "nfl", teamKey: "min" }],
     degraded: false,
     ...overrides
   };
@@ -153,7 +153,10 @@ describe("SportsPage", () => {
   it("marks a followed team in the standings and scoreboard (is-you / is-mine)", () => {
     const html = render(
       makeOverview({
-        followedTeamKeys: ["min", "ars"]
+        followedTeams: [
+          { competitionKey: "nfl", teamKey: "min" },
+          { competitionKey: "epl", teamKey: "ars" }
+        ]
       })
     );
     expect(html).toContain("is-you");
@@ -162,11 +165,48 @@ describe("SportsPage", () => {
     expect(html).not.toContain(">#<");
   });
 
+  it("does not cross-mark a same-teamKey row in another competition (pair-scoped)", () => {
+    const html = render(
+      makeOverview({
+        standings: [
+          standingsGroup(),
+          {
+            competitionKey: "eng.1",
+            competitionLabel: "Championship",
+            standingsShape: "table",
+            sections: [
+              {
+                label: null,
+                rows: [
+                  {
+                    teamKey: "min",
+                    name: "Minnows FC",
+                    rank: 5,
+                    points: 30,
+                    wins: 8,
+                    losses: 6,
+                    draws: 4,
+                    winPercent: null,
+                    qualifies: false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("is-mine");
+    const eng1RowStart = html.indexOf("Minnows FC");
+    const eng1RowMarkup = html.slice(Math.max(0, eng1RowStart - 400), eng1RowStart);
+    expect(eng1RowMarkup).not.toContain("is-you");
+  });
+
   it("renders the empty state with a follow CTA when nothing is followed", () => {
     const html = render(
       makeOverview({
         followed: [],
-        followedTeamKeys: [],
+        followedTeams: [],
         hero: {
           mode: "story",
           headline: headline("lead", "epl", "The transfer window is heating up")
