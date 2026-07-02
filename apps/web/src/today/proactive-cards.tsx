@@ -15,7 +15,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 const BAND_CLASS: Record<string, string> = {
-  critical: "jds-badge--red",
+  critical: "jds-badge--amber",
   high: "jds-badge--amber",
   normal: "jds-badge--steel",
   low: "jds-badge--neutral"
