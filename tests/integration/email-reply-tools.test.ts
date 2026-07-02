@@ -167,6 +167,7 @@ describe("email reply tools — gateway acceptance", () => {
         oauthClient: new GoogleOAuthClient({ fetchFn })
       }),
       googleApiClient: new GoogleApiClient({ fetchFn }),
+      cipher,
       preferencesRepository: new PreferencesRepository()
     });
     return { impl, calls };

@@ -9,23 +9,67 @@ export interface ReplyTarget {
   readonly to: string;
   readonly subject: string;
   readonly threadId: string | null;
+  readonly references: string[] | null;
 }
 
 const RE_PREFIX = /^\s*re:/i;
 
 /**
+ * Extract thread identifier from IMAP headers (Message-ID, References).
+ * IMAP threads are RFC822 message chains; threadId is first Message-ID in chain.
+ */
+function deriveImapThreadId(metadata: Record<string, unknown>): {
+  threadId: string | null;
+  references: string[] | null;
+} {
+  const messageId = typeof metadata.messageId === "string" ? metadata.messageId : null;
+  const referencesRaw = metadata.references;
+  const references: string[] = [];
+
+  if (Array.isArray(referencesRaw)) {
+    for (const ref of referencesRaw) {
+      if (typeof ref === "string" && ref) references.push(ref);
+    }
+  } else if (typeof referencesRaw === "string" && referencesRaw) {
+    references.push(referencesRaw);
+  }
+
+  const threadId: string | null =
+    references.length > 0 ? (references[0] ?? null) : (messageId ?? null);
+  const allReferences: string[] = messageId ? [...references, messageId] : references;
+
+  return { threadId, references: allReferences.length > 0 ? allReferences : null };
+}
+
+/**
  * Derive reply addressing from a cached email message. Recipient is the original sender,
  * subject gains a `Re: ` prefix if it lacks one (case-insensitive, idempotent), and the
- * Gmail thread id is read from the cached `external_metadata`.
+ * thread identifier is derived based on provider type (Gmail: threadId, IMAP: Message-ID chain).
  */
 export function deriveReplyTarget(message: EmailMessage): ReplyTarget {
   const metadata =
     message.external_metadata != null && typeof message.external_metadata === "object"
       ? (message.external_metadata as Record<string, unknown>)
       : {};
-  const threadId = typeof metadata.threadId === "string" ? metadata.threadId : null;
+
+  // Prefer an explicit thread identifier (Gmail stores one); otherwise derive the
+  // thread from the IMAP RFC822 header chain (Message-ID/References). Keying on a
+  // stored `providerType` marker is unreliable — no ingest path writes one — so the
+  // derivation is provider-agnostic and depends only on which fields are present.
+  const explicitThreadId = typeof metadata.threadId === "string" ? metadata.threadId : null;
+  let threadId: string | null;
+  let references: string[] | null = null;
+
+  if (explicitThreadId) {
+    threadId = explicitThreadId;
+  } else {
+    const imapThread = deriveImapThreadId(metadata);
+    threadId = imapThread.threadId;
+    references = imapThread.references;
+  }
+
   const subject = RE_PREFIX.test(message.subject) ? message.subject : `Re: ${message.subject}`;
-  return { to: message.sender, subject, threadId };
+  return { to: message.sender, subject, threadId, references };
 }
 
 /**

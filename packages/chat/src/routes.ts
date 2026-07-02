@@ -37,7 +37,7 @@ import {
 import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 import { PreferencesRepository } from "@jarv1s/structured-state";
-import { getConnectorSyncAt } from "@jarv1s/connectors";
+import { getConnectorSyncAt, type ConnectorSecretCipher } from "@jarv1s/connectors";
 import type {
   ConnectorsRepository,
   FeatureGrantService,
@@ -547,6 +547,7 @@ export function buildChatToolServices(deps: {
   googleConnectionService?: GoogleConnectionService;
   googleApiClient?: GoogleApiClient;
   connectorsRepository?: ConnectorsRepository;
+  cipher?: ConnectorSecretCipher;
   boss?: PgBoss;
   featureGrantService?: FeatureGrantService;
 }): Record<string, unknown> {
@@ -567,6 +568,7 @@ export function buildChatToolServices(deps: {
       connectorsRepository: deps.connectorsRepository,
       googleService: deps.googleConnectionService,
       googleApiClient: deps.googleApiClient,
+      cipher: deps.cipher!,
       preferencesRepository: new PreferencesRepository()
     });
   }
