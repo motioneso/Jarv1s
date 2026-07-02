@@ -37,6 +37,7 @@
 ## Task 1: Lock Regression in ChatSessionManager
 
 **Files:**
+
 - Modify: `tests/unit/chat-session-manager.test.ts`
 
 - [ ] **Step 1: Write failing unit test**
@@ -77,6 +78,7 @@ Expected: fail because `stopTurn()` still calls `kill()` and no engine interrupt
 ## Task 2: Add Minimal Interrupt Path
 
 **Files:**
+
 - Modify: `packages/ai/src/adapters/multiplexer.ts`
 - Modify: `packages/ai/src/adapters/tmux-multiplexer.ts`
 - Modify: `packages/ai/src/adapters/herdr-multiplexer.ts`
@@ -201,6 +203,7 @@ Expected: pass.
 ## Task 3: Verify UI Stop Contract
 
 **Files:**
+
 - Test: `tests/e2e/chat-drawer.spec.ts`
 
 - [ ] **Step 1: Run existing focused e2e**
@@ -220,6 +223,7 @@ Skipped by default. Existing UI already satisfies #665 once backend Stop stops k
 ## Task 4: Gate and Commit
 
 **Files:**
+
 - All files changed above.
 
 - [ ] **Step 1: Run required gate**
