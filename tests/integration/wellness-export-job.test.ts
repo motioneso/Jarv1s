@@ -29,6 +29,8 @@ const routeUserId = "00000000-0000-4000-8000-000000000082";
 
 let appDb: Kysely<JarvisDatabase>;
 let dataContext: DataContextRunner;
+let workerDb: Kysely<JarvisDatabase>;
+let workerDataContext: DataContextRunner;
 let prevVaultBase: string | undefined;
 
 beforeAll(async () => {
@@ -51,6 +53,8 @@ beforeAll(async () => {
   }
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
   dataContext = new DataContextRunner(appDb);
+  workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 2 });
+  workerDataContext = new DataContextRunner(workerDb);
 
   prevVaultBase = getVaultBaseDir();
   process.env.JARVIS_VAULT_ROOT = await mkdtemp(join(tmpdir(), "well-export-job-"));
@@ -121,6 +125,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await appDb?.destroy();
+  await workerDb?.destroy();
   if (prevVaultBase) process.env.JARVIS_VAULT_ROOT = prevVaultBase;
 });
 
@@ -223,6 +228,38 @@ describe("Wellness export job + route (#484)", () => {
     expect(keys).toEqual(["actorUserId", "jobId", "kind"]);
     expect(JSON.stringify(payload)).not.toContain("checkins");
     expect(JSON.stringify(payload)).not.toContain("note");
+  });
+
+  it("runs under the actual jarvis_worker_runtime DB role, not just jarvis_app_runtime (#671)", async () => {
+    // #671: production workers run as jarvis_worker_runtime, a distinct DB role from the
+    // jarvis_app_runtime connection the rest of this file's tests use. A worker-role grant
+    // gap (UPDATE without SELECT — Postgres requires SELECT on any column referenced in an
+    // UPDATE's WHERE clause) caused "permission denied for table data_export_jobs" in prod
+    // even though every test above passed, because they never exercised the worker's actual
+    // role. This test creates the job under the app role (mirroring the route) and runs the
+    // handler under the worker role (mirroring registerDataContextWorker in production).
+    const exportRepo = new DataExportRepository();
+    const job = await dataContext.withDataContext(
+      { actorUserId: userId, requestId: "req:export-worker-role" },
+      (scopedDb) =>
+        exportRepo.createJob(scopedDb, userId, "html", {
+          from: "2026-02-01",
+          to: "2026-02-28",
+          categories: ["checkins"]
+        })
+    );
+
+    await workerDataContext.withDataContext(
+      { actorUserId: userId, requestId: "req:export-worker-role" },
+      (scopedDb) => handleWellnessExportJob(buildJobPayload(userId, job.id), scopedDb)
+    );
+
+    const finished = await dataContext.withDataContext(
+      { actorUserId: userId, requestId: "req:export-worker-role-check" },
+      (scopedDb) => exportRepo.getJobById(scopedDb, job.id)
+    );
+    expect(finished?.status).toBe("ready");
+    expect(finished?.error_message).toBeNull();
   });
 
   it("does not throw when the row is missing (no job to mark failed, no vault write)", async () => {

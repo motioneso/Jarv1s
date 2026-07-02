@@ -303,7 +303,12 @@ describe("MVP foundation scaffold", () => {
         { version: "0130", name: "0130_connector_imap_enum.sql" },
         { version: "0131", name: "0131_connector_imap_definitions.sql" },
         { version: "0132", name: "0132_email_imap_insert.sql" },
-        { version: "0133", name: "0133_sports_follows.sql" }
+        { version: "0133", name: "0133_sports_follows.sql" },
+        { version: "0134", name: "0134_data_export_jobs_worker_select_grant.sql" },
+        { version: "0135", name: "0135_wellness_worker_read_grants.sql" },
+        { version: "0136", name: "0136_admin_audit_events_worker_insert.sql" },
+        { version: "0137", name: "0137_data_export_jobs_worker_bounded_functions.sql" },
+        { version: "0138", name: "0138_worker_get_data_export_job.sql" }
       ]);
     } finally {
       await client.end();
