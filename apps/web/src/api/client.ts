@@ -63,6 +63,9 @@ import type {
   GoogleCompleteRequest,
   GoogleCompleteResponse,
   GoogleSyncResponse,
+  ImapConnectRequest,
+  ImapTestResult,
+  CreateConnectorAccountResponse,
   InterpretTaskSearchRequest,
   InterpretTaskSearchResponse,
   CreateTaskRequest,
@@ -982,6 +985,22 @@ export async function completeGoogleConnection(
   input: GoogleCompleteRequest
 ): Promise<GoogleCompleteResponse> {
   return requestJson<GoogleCompleteResponse>("/api/connectors/google/complete", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function testImapConnection(input: ImapConnectRequest): Promise<ImapTestResult> {
+  return requestJson<ImapTestResult>("/api/connectors/imap/test-connection", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function connectImapConnection(
+  input: ImapConnectRequest
+): Promise<CreateConnectorAccountResponse> {
+  return requestJson<CreateConnectorAccountResponse>("/api/connectors/imap/connect", {
     method: "POST",
     body: input
   });
