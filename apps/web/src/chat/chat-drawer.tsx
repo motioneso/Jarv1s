@@ -234,13 +234,15 @@ export function ChatDrawer(props: {
   );
 
   // Merge the optimistic user record into the live feed (#399). Only applied in live mode —
-  // history review uses the fetched messages directly.
+  // history review uses the fetched messages directly. The optimistic pending record is the
+  // NEWEST item, so it is appended AFTER the (older) fallback records — splicing it before
+  // them made a just-sent message render above prior turns until SSE settled (#664).
   const effectiveRecords: readonly TranscriptRecord[] = reviewing
     ? displayRecords
     : [
         ...displayRecords,
-        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : []),
-        ...visibleFallbackRecords
+        ...visibleFallbackRecords,
+        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : [])
       ];
 
   const isWaiting = !reviewing && (isSending || pendingUserText !== null);
