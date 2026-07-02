@@ -79,7 +79,7 @@ export async function handleExportBuildJob(
   });
 
   try {
-    await repository.updateJobStatus(scopedDb, jobId, "building");
+    await repository.workerUpdateJobStatus(scopedDb, jobId, "building");
 
     const userExport = await exportUserData({
       scopedDb,
@@ -141,10 +141,10 @@ export async function handleExportBuildJob(
 
     const completedAt = new Date();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await repository.completeJob(scopedDb, jobId, completedAt, expiresAt);
+    await repository.workerCompleteJob(scopedDb, jobId, completedAt, expiresAt);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await repository.failJob(scopedDb, jobId, message.slice(0, 500));
+    await repository.workerFailJob(scopedDb, jobId, message.slice(0, 500));
   } finally {
     await authDb.destroy();
   }
@@ -207,7 +207,7 @@ export async function handleExportCleanupJob(
         requestId: `export-cleanup:${expiredJob.id}`
       },
       async (scopedDb) => {
-        await repository.updateJobStatus(scopedDb, expiredJob.id, "expired");
+        await repository.workerUpdateJobStatus(scopedDb, expiredJob.id, "expired");
       }
     );
   }

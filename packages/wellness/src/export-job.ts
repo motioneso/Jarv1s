@@ -181,7 +181,7 @@ export async function handleWellnessExportJob(
     await handleWellnessExportJobInner(actorUserId, jobId, exportRepo, wellnessRepo, scopedDb);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await exportRepo.failJob(scopedDb, jobId, message.slice(0, 500));
+    await exportRepo.workerFailJob(scopedDb, jobId, message.slice(0, 500));
   }
 }
 
@@ -192,10 +192,10 @@ async function handleWellnessExportJobInner(
   wellnessRepo: WellnessRepository,
   scopedDb: DataContextDb
 ): Promise<void> {
-  await exportRepo.updateJobStatus(scopedDb, jobId, "building");
+  await exportRepo.workerUpdateJobStatus(scopedDb, jobId, "building");
 
   // Re-read the window + categories from the ROW (not the payload) — defense-in-depth.
-  const jobRow = await exportRepo.getJobById(scopedDb, jobId);
+  const jobRow = await exportRepo.workerGetJobById(scopedDb, jobId);
   if (!jobRow) {
     throw new Error(`Wellness export job ${jobId} not found`);
   }
@@ -273,7 +273,7 @@ async function handleWellnessExportJobInner(
 
   const completedAt = new Date();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  await exportRepo.completeJob(scopedDb, jobId, completedAt, expiresAt);
+  await exportRepo.workerCompleteJob(scopedDb, jobId, completedAt, expiresAt);
 
   // Metadata-only audit (no health content).
   await recordAuditEvent(scopedDb, {

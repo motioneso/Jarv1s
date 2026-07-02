@@ -168,7 +168,7 @@ describe("Data export", () => {
           .spyOn(
             (await import("../../packages/settings/src/data-export-repository.js"))
               .DataExportRepository.prototype,
-            "updateJobStatus"
+            "workerUpdateJobStatus"
           )
           .mockRejectedValueOnce(new Error("Forced failure"));
 
