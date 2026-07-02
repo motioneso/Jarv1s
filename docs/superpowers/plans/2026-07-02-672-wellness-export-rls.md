@@ -5,7 +5,7 @@
 - 0135 (from #671) grants `jarvis_worker_runtime` raw table `SELECT` on
   `wellness_checkins`/`medications`/`medication_logs`/`wellness_therapy_notes`, but adds **no RLS
   policy**. Existing SELECT policies on all 4 are `FOR SELECT TO jarvis_app_runtime USING
-  (owner_user_id = app.current_actor_user_id())` — scoped to the app role only.
+(owner_user_id = app.current_actor_user_id())` — scoped to the app role only.
 - Under FORCE RLS, worker role has the table grant but no matching policy → query succeeds,
   returns **zero rows**, no error. Confirms #672's premise exactly.
 - `WellnessRepository.listCheckinsForRange/listMedications/listLogsForRange/listTherapyNotesForRange`

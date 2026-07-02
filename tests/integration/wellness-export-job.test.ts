@@ -26,6 +26,7 @@ const { Client } = pg;
 
 const userId = "00000000-0000-4000-8000-000000000081";
 const routeUserId = "00000000-0000-4000-8000-000000000082";
+const workerRoleUserId = "00000000-0000-4000-8000-000000000083";
 
 let appDb: Kysely<JarvisDatabase>;
 let dataContext: DataContextRunner;
@@ -47,6 +48,11 @@ beforeAll(async () => {
       `INSERT INTO app.users (id, email, name, is_instance_admin)
        VALUES ($1, 'well-export-route@example.test', 'Route User', false)`,
       [routeUserId]
+    );
+    await client.query(
+      `INSERT INTO app.users (id, email, name, is_instance_admin)
+       VALUES ($1, 'well-export-worker-role@example.test', 'Worker Role User', false)`,
+      [workerRoleUserId]
     );
   } finally {
     await client.end();
@@ -260,6 +266,98 @@ describe("Wellness export job + route (#484)", () => {
     );
     expect(finished?.status).toBe("ready");
     expect(finished?.error_message).toBeNull();
+  });
+
+  it("exports all four category tables' owner data when run under jarvis_worker_runtime, not silently zero rows (#672)", async () => {
+    // #671 fixed worker-role permission errors on data_export_jobs/admin_audit_events but left
+    // the wellness content tables (wellness_checkins, medications, medication_logs,
+    // wellness_therapy_notes) with a worker-role table GRANT and no matching RLS policy. Under
+    // FORCE RLS that means the worker role's SELECTs against those tables silently return zero
+    // rows instead of erroring — the job still finishes "ready" with categories quietly empty.
+    // The #671 worker-role test above only asserts status === "ready" for a single category and
+    // does not seed/inspect content, so it would not catch this. This test seeds a dedicated,
+    // uniquely-marked owner's data across all four tables, runs the export under the real worker
+    // role, and asserts every marker actually made it into the exported HTML.
+    const med = await dataContext.withDataContext(
+      { actorUserId: workerRoleUserId, requestId: "req:worker-role-seed" },
+      (scopedDb) =>
+        new WellnessRepository().createMedication(scopedDb, {
+          name: "WORKER-ROLE-MARKER-MEDICATION",
+          frequencyType: "once_daily",
+          scheduleTimes: ["08:00"]
+        })
+    );
+    await dataContext.withDataContext(
+      { actorUserId: workerRoleUserId, requestId: "req:worker-role-seed" },
+      async (scopedDb) => {
+        await scopedDb.db
+          .insertInto("app.wellness_checkins")
+          .values({
+            owner_user_id: workerRoleUserId,
+            feeling_core: "happy",
+            intensity: 4,
+            energy: 3,
+            note: "WORKER-ROLE-MARKER-CHECKIN",
+            checked_in_at: new Date("2026-02-10T10:00:00Z")
+          })
+          .execute();
+        await scopedDb.db
+          .insertInto("app.medication_logs")
+          .values({
+            medication_id: med.id,
+            owner_user_id: workerRoleUserId,
+            status: "taken",
+            dose: "WORKER-ROLE-MARKER-DOSE",
+            scheduled_for: new Date("2026-02-12T08:00:00Z"),
+            logged_at: new Date("2026-02-12T08:01:00Z"),
+            prn_reason: null
+          })
+          .execute();
+        await scopedDb.db
+          .insertInto("app.wellness_therapy_notes")
+          .values({
+            owner_user_id: workerRoleUserId,
+            body: "WORKER-ROLE-MARKER-THERAPY",
+            created_at: new Date("2026-02-15T14:00:00Z")
+          })
+          .execute();
+      }
+    );
+
+    const exportRepo = new DataExportRepository();
+    const job = await dataContext.withDataContext(
+      { actorUserId: workerRoleUserId, requestId: "req:worker-role-export" },
+      (scopedDb) =>
+        exportRepo.createJob(scopedDb, workerRoleUserId, "html", {
+          from: "2026-02-01",
+          to: "2026-02-28",
+          categories: ["checkins", "medications", "therapyNotes"]
+        })
+    );
+
+    const html = await workerDataContext.withDataContext(
+      { actorUserId: workerRoleUserId, requestId: "req:worker-role-export" },
+      async (scopedDb) => {
+        await handleWellnessExportJob(buildJobPayload(workerRoleUserId, job.id), scopedDb);
+
+        const finished = await exportRepo.workerGetJobById(scopedDb, job.id);
+        expect(finished?.status).toBe("ready");
+        expect(finished?.error_message).toBeNull();
+
+        const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+        return vaultRunner.withVaultContext(
+          { actorUserId: workerRoleUserId, requestId: "req:worker-role-export" },
+          (vaultCtx) => readVaultFile(vaultCtx, `exports/${job.id}.html`)
+        );
+      }
+    );
+
+    // All four category tables' owner data must be present — a silent RLS omission would drop
+    // one or more of these while the job still reports "ready".
+    expect(html).toContain("WORKER-ROLE-MARKER-CHECKIN");
+    expect(html).toContain("WORKER-ROLE-MARKER-MEDICATION");
+    expect(html).toContain("WORKER-ROLE-MARKER-DOSE");
+    expect(html).toContain("WORKER-ROLE-MARKER-THERAPY");
   });
 
   it("does not throw when the row is missing (no job to mark failed, no vault write)", async () => {
