@@ -749,6 +749,7 @@ describe("CliChatEngineImpl — failure-path token redaction", () => {
       submit: vi.fn(),
       isAlive: vi.fn().mockResolvedValue(false),
       kill: vi.fn(),
+      interrupt: vi.fn(),
       attachCommand: () => ""
     };
   }

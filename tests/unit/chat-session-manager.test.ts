@@ -44,6 +44,7 @@ class FakeEngine {
   readonly provider = "anthropic" as const;
   launchOpts: EngineLaunchOpts | null = null;
   readonly submitted: string[] = [];
+  interrupted = false;
   killed = false;
   launchCount = 0;
   private readonly readScript: { records: TranscriptRecord[]; offset: number; complete: boolean }[];
@@ -75,6 +76,9 @@ class FakeEngine {
   }
   async kill(): Promise<void> {
     this.killed = true;
+  }
+  async interrupt(): Promise<void> {
+    this.interrupted = true;
   }
 }
 
@@ -527,7 +531,8 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
       submit: vi.fn().mockResolvedValue(undefined),
       readNew: vi.fn().mockResolvedValue({ records: [], offset: 0, complete: true }),
       isAlive: vi.fn().mockResolvedValue(true),
-      kill: vi.fn().mockResolvedValue(undefined)
+      kill: vi.fn().mockResolvedValue(undefined),
+      interrupt: vi.fn().mockResolvedValue(undefined)
     };
     const killSession = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatSessionManager(
@@ -643,7 +648,8 @@ describe("ChatSessionManager maintenance mutex (#342 §5.4)", () => {
         events.push(`kill-start:${label}`);
         await new Promise((r) => setTimeout(r, 5));
         events.push(`kill-end:${label}`);
-      })
+      }),
+      interrupt: vi.fn().mockResolvedValue(undefined)
     });
 
     const reconcileMcpTokens = vi.fn().mockImplementation(() => {
@@ -721,6 +727,9 @@ describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
     }
     async kill(): Promise<void> {
       this.killed = true;
+    }
+    async interrupt(): Promise<void> {
+      this.interrupted = true;
     }
   }
 
@@ -835,6 +844,7 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     readonly provider = "anthropic" as const;
     launchOpts: EngineLaunchOpts | null = null;
     readonly submitted: string[] = [];
+    interrupted = false;
     killed = false;
     private gate = new Promise<void>(() => {}); // never resolves by default
     private resolveGate: () => void = () => {};

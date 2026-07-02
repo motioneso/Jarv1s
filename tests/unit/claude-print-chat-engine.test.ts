@@ -40,6 +40,7 @@ function fakeMux(): Multiplexer & { opened: string[]; killed: MuxHandle[] } {
     async kill(handle) {
       this.killed.push(handle);
     },
+    async interrupt() {},
     attachCommand() {
       return "tmux attach";
     }

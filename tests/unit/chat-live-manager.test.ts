@@ -82,6 +82,7 @@ class FakeEngine implements CliChatEngine {
     this.killed = true;
     this.alive = false;
   }
+  async interrupt(): Promise<void> {}
 }
 
 /** An engine that completes after `pollsBeforeReply` readNew calls. */
@@ -115,6 +116,7 @@ class SlowEngine implements CliChatEngine {
   async kill(): Promise<void> {
     this.killed = true;
   }
+  async interrupt(): Promise<void> {}
 }
 
 /**
@@ -164,6 +166,7 @@ class GatedEngine implements CliChatEngine {
   async kill(): Promise<void> {
     this.killed = true;
   }
+  async interrupt(): Promise<void> {}
 }
 
 /**
@@ -220,6 +223,7 @@ class TranscriptFakeEngine implements CliChatEngine {
   async kill(): Promise<void> {
     this.killed = true;
   }
+  async interrupt(): Promise<void> {}
 }
 
 class FakePersistence implements ChatPersistencePort {
@@ -661,6 +665,7 @@ describe("createRealEngineFactory", () => {
       submit: async () => {},
       isAlive: async () => true,
       kill: async () => {},
+      interrupt: async () => {},
       attachCommand: () => "herdr"
     };
     const engine = createRealEngineFactory({ mux })("anthropic", "thread-1");

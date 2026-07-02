@@ -310,6 +310,7 @@ class FakeEngineForSession implements CliChatEngine {
     return true;
   }
   async kill(): Promise<void> {}
+  async interrupt(): Promise<void> {}
 }
 
 describe("launchSession — bounded inject (fake engine)", () => {

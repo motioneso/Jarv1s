@@ -67,6 +67,8 @@ class FakeLiveEngine implements CliChatEngine {
   }
 
   async kill(): Promise<void> {}
+
+  async interrupt(): Promise<void> {}
 }
 
 const fakeEngineFactory: ChatEngineFactory = (provider, sessionKey) =>
