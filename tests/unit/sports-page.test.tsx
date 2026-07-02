@@ -236,6 +236,61 @@ describe("SportsPage", () => {
     expect(eng1RowMarkup).not.toContain("is-you");
   });
 
+  it("shows one standings section at a time with paging controls", () => {
+    const html = render(
+      makeOverview({
+        standings: [
+          {
+            ...standingsGroup(),
+            competitionKey: "mlb",
+            competitionLabel: "MLB",
+            standingsShape: "table",
+            sections: [
+              {
+                label: "AL East",
+                rows: [
+                  {
+                    teamKey: "nyy",
+                    name: "New York Yankees",
+                    rank: 1,
+                    points: 52,
+                    wins: 52,
+                    losses: 31,
+                    draws: null,
+                    winPercent: null,
+                    qualifies: true
+                  }
+                ]
+              },
+              {
+                label: "AL West",
+                rows: [
+                  {
+                    teamKey: "hou",
+                    name: "Houston Astros",
+                    rank: 1,
+                    points: 49,
+                    wins: 49,
+                    losses: 34,
+                    draws: null,
+                    winPercent: null,
+                    qualifies: true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("AL East");
+    expect(html).toContain("New York Yankees");
+    expect(html).toContain("sp-standings__count");
+    expect(html).toContain("Next standings");
+    expect(html).not.toContain("AL West");
+    expect(html).not.toContain("Houston Astros");
+  });
+
   it("renders the empty state with a follow CTA when nothing is followed", () => {
     const html = render(
       makeOverview({

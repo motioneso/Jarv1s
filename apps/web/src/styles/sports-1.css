@@ -38,25 +38,6 @@
   color: var(--text-muted);
   margin: 10px 0 0;
 }
-.sp-top__aside {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex: none;
-}
-.sp-preview {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.sp-preview__lbl {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
 /* ---- crest (image when available, token swatch fallback with initials) ---- */
 .sp-crest {
   flex: none;
@@ -799,41 +780,52 @@
 .sp-standings__hd {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   padding: 13px 14px 10px;
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
 }
+.sp-standings__title,
+.sp-standings__nav {
+  display: inline-flex;
+  align-items: center;
+}
+.sp-standings__title {
+  gap: 8px;
+}
+.sp-standings__nav {
+  gap: 5px;
+}
 .sp-standings__hd svg {
   color: var(--text-subtle);
 }
-.sp-standings__tabs {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  padding: 0 12px 10px;
-}
-.sp-stab {
+.sp-iconbtn {
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: var(--transition-control);
 }
-.sp-stab:hover {
+.sp-iconbtn:hover {
   background: var(--surface-2);
+  color: var(--text);
 }
-.sp-stab.is-on {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
+.sp-standings__count {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  min-width: 28px;
+  text-align: center;
 }
 .sp-tbl {
   width: 100%;
@@ -968,7 +960,7 @@
 }
 .sp-emptyboard {
   display: grid;
-  grid-template-columns: 1fr 316px;
+  grid-template-columns: 1fr;
   gap: 30px;
   margin-top: 42px;
   padding-top: 30px;

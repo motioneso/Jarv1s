@@ -2,6 +2,7 @@ import "../styles/sports-1.css";
 import "../styles/sports-3.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
   FollowedNextMatch,
   FollowedTeamCard,
@@ -46,7 +47,7 @@ export function SportsPage() {
   if (!data) {
     return (
       <div className="sp-wrap">
-        <PageHeader degraded={false} />
+        <PageHeader />
         <p className="sp-lede" role="status">
           {overviewQuery.isError ? "Sports are unavailable right now." : "Loading your teams…"}
         </p>
@@ -58,7 +59,7 @@ export function SportsPage() {
 
   return (
     <div className="sp-wrap">
-      <PageHeader degraded={data.degraded} />
+      <PageHeader />
 
       {hasFollows ? (
         <>
@@ -74,7 +75,7 @@ export function SportsPage() {
   );
 }
 
-function PageHeader(props: { degraded: boolean }) {
+function PageHeader() {
   return (
     <header className="sp-top">
       <div className="sp-top__main">
@@ -82,11 +83,6 @@ function PageHeader(props: { degraded: boolean }) {
         <p className="sp-lede">
           Latest scores and what&rsquo;s next, then the wider slate and the headlines that matter.
         </p>
-      </div>
-      <div className="sp-top__aside">
-        <div className="sp-preview">
-          <span className="sp-preview__lbl">{props.degraded ? "Delayed" : "Live"}</span>
-        </div>
       </div>
     </header>
   );
@@ -240,9 +236,9 @@ function SplitSection(props: { data: SportsOverviewResponse; followedPairs: Read
     <div className="sp-split">
       <div className="sp-body">
         <Scoreboard groups={props.data.scoreboard} followedPairs={props.followedPairs} />
+        <TopStoriesRail headlines={props.data.topStories} followedPairs={props.followedPairs} />
       </div>
       <div className="sp-railcol">
-        <TopStoriesRail headlines={props.data.topStories} followedPairs={props.followedPairs} />
         <StandingsRail groups={props.data.standings} followedPairs={props.followedPairs} />
       </div>
     </div>
@@ -359,77 +355,95 @@ function StandingsRail(props: {
   groups: readonly StandingsGroup[];
   followedPairs: ReadonlySet<string>;
 }) {
-  const [tab, setTab] = useState(0);
-  const group = props.groups[Math.min(tab, props.groups.length - 1)];
-  if (!group) return null;
+  const pages = props.groups.flatMap((group) =>
+    group.sections.map((section) => ({ group, section }))
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const activeIndex = Math.min(pageIndex, pages.length - 1);
+  const page = pages[activeIndex];
+  if (!page) return null;
+  const { group, section } = page;
+  const hasPages = pages.length > 1;
+  const showPrev = () => setPageIndex((index) => (index + pages.length - 1) % pages.length);
+  const showNext = () => setPageIndex((index) => (index + 1) % pages.length);
+  const label = section.label ?? group.competitionLabel;
   return (
     <section className="sp-standings" aria-label="Standings">
       <div className="sp-standings__hd">
-        <TrophyIcon />
-        Standings
-      </div>
-      {props.groups.length > 1 ? (
-        <div className="sp-standings__tabs">
-          {props.groups.map((candidate, index) => (
+        <span className="sp-standings__title">
+          <TrophyIcon />
+          Standings
+        </span>
+        {hasPages ? (
+          <span className="sp-standings__nav">
             <button
-              key={candidate.competitionKey}
               type="button"
-              className={`sp-stab${index === tab ? " is-on" : ""}`}
-              onClick={() => setTab(index)}
+              className="sp-iconbtn"
+              onClick={showPrev}
+              aria-label="Previous standings"
             >
-              {candidate.competitionLabel}
+              <ChevronLeft size={14} aria-hidden="true" />
             </button>
-          ))}
-        </div>
-      ) : null}
-      {group.sections.map((section) => (
-        <table className="sp-tbl" key={section.label ?? "all"}>
-          <thead>
-            <tr>
-              {group.standingsShape !== "record" ? <th className="pos">#</th> : null}
-              <th className="tm">{section.label ?? group.competitionLabel}</th>
+            <span className="sp-standings__count">
+              {activeIndex + 1}/{pages.length}
+            </span>
+            <button
+              type="button"
+              className="sp-iconbtn"
+              onClick={showNext}
+              aria-label="Next standings"
+            >
+              <ChevronRight size={14} aria-hidden="true" />
+            </button>
+          </span>
+        ) : null}
+      </div>
+      <table className="sp-tbl">
+        <thead>
+          <tr>
+            {group.standingsShape !== "record" ? <th className="pos">#</th> : null}
+            <th className="tm">{label}</th>
+            {group.standingsShape === "record" ? (
+              <>
+                <th>W-L</th>
+                <th>{section.rows.some((r) => r.points !== null) ? "Pts" : "Pct"}</th>
+              </>
+            ) : (
+              <th>Pts</th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {section.rows.map((row) => (
+            <tr
+              key={row.teamKey}
+              className={
+                isFollowed(props.followedPairs, group.competitionKey, row.teamKey)
+                  ? "is-you"
+                  : undefined
+              }
+            >
+              {group.standingsShape !== "record" ? (
+                <td className="pos">
+                  {row.qualifies ? <span className="sp-tbl__adv" /> : null}
+                  {row.rank}
+                </td>
+              ) : null}
+              <td className="tm">
+                <span className="nm">{row.name}</span>
+              </td>
               {group.standingsShape === "record" ? (
                 <>
-                  <th>W-L</th>
-                  <th>{section.rows.some((r) => r.points !== null) ? "Pts" : "Pct"}</th>
+                  <td>{recordLine(row)}</td>
+                  <td>{row.points ?? formatPct(row.winPercent)}</td>
                 </>
               ) : (
-                <th>Pts</th>
+                <td>{row.points ?? "–"}</td>
               )}
             </tr>
-          </thead>
-          <tbody>
-            {section.rows.map((row) => (
-              <tr
-                key={row.teamKey}
-                className={
-                  isFollowed(props.followedPairs, group.competitionKey, row.teamKey)
-                    ? "is-you"
-                    : undefined
-                }
-              >
-                {group.standingsShape !== "record" ? (
-                  <td className="pos">
-                    {row.qualifies ? <span className="sp-tbl__adv" /> : null}
-                    {row.rank}
-                  </td>
-                ) : null}
-                <td className="tm">
-                  <span className="nm">{row.name}</span>
-                </td>
-                {group.standingsShape === "record" ? (
-                  <>
-                    <td>{recordLine(row)}</td>
-                    <td>{row.points ?? formatPct(row.winPercent)}</td>
-                  </>
-                ) : (
-                  <td>{row.points ?? "–"}</td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ))}
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
@@ -472,8 +486,6 @@ function EmptyState(props: { data: SportsOverviewResponse; followedPairs: Readon
         <div className="sp-emptyboard">
           <div className="sp-body">
             <Scoreboard groups={props.data.scoreboard} followedPairs={props.followedPairs} />
-          </div>
-          <div className="sp-railcol">
             <TopStoriesRail headlines={props.data.topStories} followedPairs={props.followedPairs} />
           </div>
           <LeagueNewsSection groups={props.data.leagueNews} />
