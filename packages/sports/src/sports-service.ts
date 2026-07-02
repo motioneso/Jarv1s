@@ -3,7 +3,6 @@ import type {
   FollowedTeamCard,
   GameSide,
   GameSummary,
-  Headline,
   IsoDate,
   OverviewHero,
   ScoreboardGroup,
@@ -16,7 +15,11 @@ import type {
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
 import { SportsCache } from "./sports-cache.js";
-import type { SportsSource } from "./source/sports-source.js";
+import type {
+  SourceHeadline,
+  SourceTeamRef,
+  SportsSource
+} from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
 export type FollowedFact = { competitionKey: string; text: string };
@@ -67,11 +70,9 @@ export class SportsService {
 
   private readonly scoreboards = new SportsCache<GameSummary[]>();
   private readonly standings = new SportsCache<StandingsRow[]>();
-  private readonly headlines = new SportsCache<Headline[]>();
+  private readonly headlines = new SportsCache<SourceHeadline[]>();
   private readonly schedules = new SportsCache<GameSummary[]>();
-  private readonly teams = new SportsCache<
-    SportsCatalogResponse["competitions"][number]["teams"]
-  >();
+  private readonly teams = new SportsCache<SourceTeamRef[]>();
 
   constructor(deps: SportsServiceDependencies) {
     this.source = deps.source;
@@ -118,7 +119,7 @@ export class SportsService {
 
     const scoreboardByComp = new Map<string, GameSummary[]>();
     const standingsByComp = new Map<string, StandingsRow[]>();
-    const headlinesByComp = new Map<string, Headline[]>();
+    const headlinesByComp = new Map<string, SourceHeadline[]>();
     for (const key of competitionKeys) {
       scoreboardByComp.set(
         key,
@@ -284,7 +285,7 @@ export class SportsService {
     followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
     scoreboardByComp: Map<string, GameSummary[]>,
     competitionKeys: readonly string[],
-    headlinesByComp: Map<string, Headline[]>
+    headlinesByComp: Map<string, SourceHeadline[]>
   ): OverviewHero {
     let hero: { game: GameSummary; side: GameSide } | undefined;
     let todayCount = 0;
@@ -316,7 +317,7 @@ export class SportsService {
     follow: SportsFollowDto & { teamKey: string },
     games: readonly GameSummary[],
     standings: readonly StandingsRow[],
-    headlines: readonly Headline[],
+    headlines: readonly SourceHeadline[],
     schedule: readonly GameSummary[]
   ): FollowedTeamCard {
     const { teamKey } = follow;

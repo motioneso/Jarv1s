@@ -86,4 +86,20 @@ describe("EspnSportsSource", () => {
     });
     expect(teams[0]?.crestUrl).toContain("dal.png");
   });
+
+  it("parses news images and provider team tags", async () => {
+    const src = createEspnSportsSource(okFetch(fixture("nfl-news.json")));
+    const headlines = await src.getHeadlines("nfl");
+    expect(headlines[0]?.imageUrl).toBe("https://a.espncdn.com/photo/2026/0104/cowboys-header.jpg");
+    expect(headlines[0]?.sourceTeamIds).toEqual(["6"]);
+    expect(headlines[0]?.teamKeys).toEqual([]); // the service fills these, not the source
+    expect(headlines[1]?.imageUrl).toBeNull();
+    expect(headlines[1]?.sourceTeamIds).toEqual([]);
+  });
+
+  it("carries the provider team id on listTeams", async () => {
+    const src = createEspnSportsSource(okFetch(fixture("nfl-teams.json")));
+    const teams = await src.listTeams("nfl");
+    expect(teams[0]?.sourceTeamId).toBe("6");
+  });
 });

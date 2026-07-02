@@ -48,6 +48,8 @@ export interface Headline {
   readonly title: string;
   readonly url: string;
   readonly publishedAt: string;
+  readonly imageUrl: string | null; // first "header" image, else first image, else null
+  readonly teamKeys: readonly string[]; // filled by the service join (Task 4); source emits []
 }
 
 export interface CompetitionRef {
@@ -190,13 +192,15 @@ const standingsRowSchema = {
 const headlineSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "competitionKey", "title", "url", "publishedAt"],
+  required: ["id", "competitionKey", "title", "url", "publishedAt", "imageUrl", "teamKeys"],
   properties: {
     id: { type: "string" },
     competitionKey: { type: "string" },
     title: { type: "string" },
     url: { type: "string" },
-    publishedAt: { type: "string" }
+    publishedAt: { type: "string" },
+    imageUrl: { type: ["string", "null"] },
+    teamKeys: { type: "array", items: { type: "string" } }
   }
 } as const;
 

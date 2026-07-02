@@ -1,14 +1,7 @@
-import type {
-  GameSide,
-  GameSummary,
-  Headline,
-  IsoDate,
-  StandingsRow,
-  TeamRef
-} from "@jarv1s/shared";
+import type { GameSide, GameSummary, IsoDate, StandingsRow } from "@jarv1s/shared";
 
 import { catalogEntry } from "./catalog.js";
-import type { SportsSource } from "./sports-source.js";
+import type { SourceHeadline, SourceTeamRef, SportsSource } from "./sports-source.js";
 
 // ESPN's unofficial public JSON (no key). Two base hosts are in play: the `site.api`
 // host serves scoreboard/news/teams/schedule; standings lives under a different `/apis/v2`
@@ -127,7 +120,7 @@ export class EspnSportsSource implements SportsSource {
 
   constructor(private readonly fetchFn: typeof fetch = fetch) {}
 
-  async listTeams(competitionKey: string): Promise<TeamRef[]> {
+  async listTeams(competitionKey: string): Promise<SourceTeamRef[]> {
     const { sport, league } = resolve(competitionKey);
     const data = (await fetchJson(
       this.fetchFn,
@@ -156,8 +149,9 @@ export class EspnSportsSource implements SportsSource {
         competitionKey,
         name: team?.displayName ?? teamKey,
         shortName: team?.shortDisplayName ?? team?.displayName ?? teamKey,
-        crestUrl: team?.logos?.[0]?.href ?? null
-      } satisfies TeamRef;
+        crestUrl: team?.logos?.[0]?.href ?? null,
+        sourceTeamId: team?.id ?? null
+      } satisfies SourceTeamRef;
     });
   }
 
@@ -210,7 +204,7 @@ export class EspnSportsSource implements SportsSource {
     });
   }
 
-  async getHeadlines(competitionKey: string): Promise<Headline[]> {
+  async getHeadlines(competitionKey: string): Promise<SourceHeadline[]> {
     const { sport, league } = resolve(competitionKey);
     const data = (await fetchJson(
       this.fetchFn,
@@ -222,14 +216,25 @@ export class EspnSportsSource implements SportsSource {
         headline?: string;
         published?: string;
         links?: { web?: { href?: string } };
+        images?: readonly { type?: string; url?: string }[];
+        categories?: readonly { type?: string; teamId?: number | string }[];
       }[];
     };
-    return (data.articles ?? []).map((article, index) => ({
-      id: String(article.id ?? index),
-      competitionKey,
-      title: article.headline ?? "",
-      url: article.links?.web?.href ?? "",
-      publishedAt: article.published ?? ""
-    }));
+    return (data.articles ?? []).map((article, index) => {
+      const images = article.images ?? [];
+      const image = images.find((i) => i.type === "header" && i.url) ?? images.find((i) => i.url);
+      return {
+        id: String(article.id ?? index),
+        competitionKey,
+        title: article.headline ?? "",
+        url: article.links?.web?.href ?? "",
+        publishedAt: article.published ?? "",
+        imageUrl: image?.url ?? null,
+        teamKeys: [],
+        sourceTeamIds: (article.categories ?? [])
+          .filter((c) => c.type === "team" && c.teamId != null)
+          .map((c) => String(c.teamId))
+      };
+    });
   }
 }

@@ -1,15 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type {
-  GameSide,
-  GameSummary,
-  Headline,
-  SportsFollowDto,
-  StandingsRow
-} from "@jarv1s/shared";
+import type { GameSide, GameSummary, SportsFollowDto, StandingsRow } from "@jarv1s/shared";
 
-import type { SportsSource } from "../../packages/sports/src/source/sports-source.js";
+import type {
+  SourceHeadline,
+  SportsSource
+} from "../../packages/sports/src/source/sports-source.js";
 import {
   SportsService,
   type SportsServiceDependencies
@@ -110,13 +107,16 @@ const nflStandings: StandingsRow[] = [
   }
 ];
 
-const nflHeadlines: Headline[] = [
+const nflHeadlines: SourceHeadline[] = [
   {
     id: "h1",
     competitionKey: "nfl",
     title: "Cowboys clinch the division",
     url: "https://example.com/h1",
-    publishedAt: `${TODAY}T12:00:00.000Z`
+    publishedAt: `${TODAY}T12:00:00.000Z`,
+    imageUrl: null,
+    teamKeys: [],
+    sourceTeamIds: ["6"]
   }
 ];
 
@@ -242,7 +242,8 @@ describe("SportsService.getCatalog", () => {
               competitionKey,
               name: "Dallas Cowboys",
               shortName: "DAL",
-              crestUrl: null
+              crestUrl: null,
+              sourceTeamId: "6"
             }
           ]
         })

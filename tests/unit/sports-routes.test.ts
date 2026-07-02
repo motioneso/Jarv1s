@@ -46,7 +46,14 @@ function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
   return {
     imageHosts: [],
     listTeams: async (competitionKey) => [
-      { teamKey: "dal", competitionKey, name: "Dallas Cowboys", shortName: "DAL", crestUrl: null }
+      {
+        teamKey: "dal",
+        competitionKey,
+        name: "Dallas Cowboys",
+        shortName: "DAL",
+        crestUrl: null,
+        sourceTeamId: "6"
+      }
     ],
     getScoreboard: async () => [dalLiveGame],
     getSchedule: async () => [],
@@ -118,6 +125,8 @@ describe("sports routes", () => {
     expect(body.hero.mode).toBe("gameday");
     expect(body.followedTeamKeys).toContain("dal");
     expect(body.degraded).toBe(false);
+    expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
+    expect(JSON.stringify(body)).not.toContain("sourceTeamId");
     await app.close();
   });
 
@@ -130,6 +139,8 @@ describe("sports routes", () => {
     expect(body.competitions.map((c: { competitionKey: string }) => c.competitionKey)).toContain(
       "nfl"
     );
+    expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
+    expect(JSON.stringify(body)).not.toContain("sourceTeamId");
     await app.close();
   });
 
