@@ -40,7 +40,7 @@ already applies to `jarvis_worker_runtime`. No RLS/policy change needed — gran
 - `pnpm --filter @jarv1s/settings test -- wellness-export-job` (or repo's integration test
   command for that file) green, including the new worker-role test — reproduce-then-fix: run
   it once against the pre-migration tree to confirm it fails with `permission denied for table
-  data_export_jobs`, then apply the migration and confirm green.
+data_export_jobs`, then apply the migration and confirm green.
 - `pnpm format:check && pnpm lint && pnpm typecheck` on touched files.
 - Full `pnpm test:integration` for `tests/integration/foundation.test.ts` (migration list
   assertion) and the wellness export test file.
