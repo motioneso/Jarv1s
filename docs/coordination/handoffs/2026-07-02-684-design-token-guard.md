@@ -8,7 +8,7 @@
 **Branch:** `coord/684-design-token-guard`
 **Build skill path:** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `Coordinator`
-**Coordinator session id:** `019f245c-4bc8-7411-a7a9-17d0bb0c5f67`
+**Coordinator session id:** `019f2486-7a52-71e3-baad-36300c3f6a9c`
 **Relay threshold:** countable events - ~80-100k tokens OR a compaction summary in your own context.
 
 ## Start
