@@ -177,6 +177,21 @@ export async function handleWellnessExportJob(
   const exportRepo = new DataExportRepository();
   const wellnessRepo = new WellnessRepository();
 
+  try {
+    await handleWellnessExportJobInner(actorUserId, jobId, exportRepo, wellnessRepo, scopedDb);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    await exportRepo.failJob(scopedDb, jobId, message.slice(0, 500));
+  }
+}
+
+async function handleWellnessExportJobInner(
+  actorUserId: string,
+  jobId: string,
+  exportRepo: DataExportRepository,
+  wellnessRepo: WellnessRepository,
+  scopedDb: DataContextDb
+): Promise<void> {
   await exportRepo.updateJobStatus(scopedDb, jobId, "building");
 
   // Re-read the window + categories from the ROW (not the payload) — defense-in-depth.

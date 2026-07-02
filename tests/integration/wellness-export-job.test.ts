@@ -181,7 +181,8 @@ describe("Wellness export job + route (#484)", () => {
 
   it("re-reads timeframe + categories from the job row, not the payload (defense-in-depth)", async () => {
     // The payload only carries {actorUserId, jobId, kind}. The handler must derive everything
-    // else from the row. If the row has no params, it errors (does not silently export all).
+    // else from the row. If the row has no params, it fails the job (does not silently export
+    // all, and does not leave the row stuck in 'building' forever).
     const exportRepo = new DataExportRepository();
     await dataContext.withDataContext(
       { actorUserId: userId, requestId: "req:export-no-params" },
@@ -195,15 +196,16 @@ describe("Wellness export job + route (#484)", () => {
           .where("id", "=", job.id)
           .execute();
 
+        // The handler catches internally and marks the job failed rather than rejecting —
+        // pg-boss retries would otherwise leave the row stuck in 'building' with no signal
+        // reaching the polling client.
         await expect(
           handleWellnessExportJob(buildJobPayload(userId, job.id), scopedDb)
-        ).rejects.toThrow(/missing from\/to params/);
+        ).resolves.toBeUndefined();
 
         const failed = await exportRepo.getJobById(scopedDb, job.id);
-        // The handler set status to 'building' then threw; the pg-boss wrapper would mark
-        // failed, but the bare handler leaves it 'building'. The contract we assert here is
-        // that it threw and produced no vault file + no ready status.
-        expect(failed?.status).not.toBe("ready");
+        expect(failed?.status).toBe("failed");
+        expect(failed?.error_message).toMatch(/missing from\/to params/);
       }
     );
   });
@@ -223,16 +225,17 @@ describe("Wellness export job + route (#484)", () => {
     expect(JSON.stringify(payload)).not.toContain("note");
   });
 
-  it("marks the job failed when the row is missing (handler throws 'not found')", async () => {
+  it("does not throw when the row is missing (no job to mark failed, no vault write)", async () => {
     await dataContext.withDataContext(
       { actorUserId: userId, requestId: "req:export-fail" },
       async (scopedDb) => {
-        // Use a job id that was never inserted — the handler's re-read returns undefined and
-        // it throws "not found" (no vault file written, no ready status).
+        // Use a job id that was never inserted — the handler's re-read returns undefined,
+        // the inner handler throws "not found", and the outer catch swallows it (there's no
+        // row to mark failed, so failJob is a harmless no-op) rather than rejecting.
         const missingJobId = "ffffffff-ffff-4000-8000-000000000099";
         await expect(
           handleWellnessExportJob(buildJobPayload(userId, missingJobId), scopedDb)
-        ).rejects.toThrow(/not found/);
+        ).resolves.toBeUndefined();
         // Assert nothing was written for this id.
         const vaultRunner = new VaultContextRunner(getVaultBaseDir());
         await expect(
