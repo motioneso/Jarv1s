@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type { GameSide, GameSummary, SportsFollowDto, StandingsRow } from "@jarv1s/shared";
+import type { GameSide, GameSummary, SportsFollowDto } from "@jarv1s/shared";
 
 import type {
   SourceHeadline,
-  SportsSource
+  SportsSource,
+  StandingsTable
 } from "../../packages/sports/src/source/sports-source.js";
 import {
   SportsService,
@@ -94,18 +95,26 @@ const dalSchedule: GameSummary[] = [
   }
 ];
 
-const nflStandings: StandingsRow[] = [
-  {
-    teamKey: "dal",
-    name: "Dallas Cowboys",
-    rank: 1,
-    points: null,
-    wins: 10,
-    losses: 2,
-    draws: null,
-    qualifies: true
-  }
-];
+const nflStandings: StandingsTable = {
+  sections: [
+    {
+      label: "National Football Conference",
+      rows: [
+        {
+          teamKey: "dal",
+          name: "Dallas Cowboys",
+          rank: 1,
+          points: null,
+          wins: 10,
+          losses: 2,
+          draws: null,
+          winPercent: 0.833,
+          qualifies: true
+        }
+      ]
+    }
+  ]
+};
 
 const nflHeadlines: SourceHeadline[] = [
   {
@@ -178,6 +187,8 @@ describe("SportsService.getOverview", () => {
     expect(card?.form).toEqual(["W", "L", "D"]);
     expect(card?.standing).toContain("#1");
     expect(card?.nextMatch).toContain("GB");
+    expect(overview.standings[0]?.standingsShape).toBe("record");
+    expect(overview.standings[0]?.sections[0]?.label).toBe("National Football Conference");
   });
 
   it("falls back to a story hero on a quiet day", async () => {

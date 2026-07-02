@@ -9,6 +9,13 @@ export interface SourceHeadline extends Headline {
   readonly sourceTeamIds: readonly string[];
 }
 
+export interface StandingsTable {
+  readonly sections: readonly {
+    readonly label: string | null;
+    readonly rows: readonly StandingsRow[];
+  }[];
+}
+
 // LOADER-SEAM(sports): the swappable data-source contract (D3). ESPN today; a keyed
 // provider later is a one-file change. No route/service/manifest may bypass this.
 export interface SportsSource {
@@ -21,6 +28,6 @@ export interface SportsSource {
   listTeams(competitionKey: string): Promise<SourceTeamRef[]>;
   getScoreboard(competitionKey: string, day: IsoDate): Promise<GameSummary[]>;
   getSchedule(teamKey: string, competitionKey: string): Promise<GameSummary[]>;
-  getStandings(competitionKey: string): Promise<StandingsRow[]>;
+  getStandings(competitionKey: string): Promise<StandingsTable>;
   getHeadlines(competitionKey: string): Promise<SourceHeadline[]>;
 }

@@ -24,6 +24,7 @@ describe("SportsSettings", () => {
           label: "FIFA World Cup",
           kind: "tournament",
           marquee: true,
+          standingsShape: "groups",
           teams: [
             {
               teamKey: "team.bra",
@@ -52,6 +53,7 @@ describe("SportsSettings", () => {
           label: "Premier League",
           kind: "league",
           marquee: false,
+          standingsShape: "table",
           teams: [
             {
               teamKey: "team.ars",
@@ -82,6 +84,7 @@ describe("SportsSettings", () => {
           label: "Premier League",
           kind: "league",
           marquee: false,
+          standingsShape: "table",
           teams: []
         }
       ]

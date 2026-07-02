@@ -1,7 +1,12 @@
 import type { GameSide, GameSummary, IsoDate, StandingsRow } from "@jarv1s/shared";
 
 import { catalogEntry } from "./catalog.js";
-import type { SourceHeadline, SourceTeamRef, SportsSource } from "./sports-source.js";
+import type {
+  SourceHeadline,
+  SourceTeamRef,
+  SportsSource,
+  StandingsTable
+} from "./sports-source.js";
 
 // ESPN's unofficial public JSON (no key). Two base hosts are in play: the `site.api`
 // host serves scoreboard/news/teams/schedule; standings lives under a different `/apis/v2`
@@ -109,6 +114,21 @@ function statValue(
   return stats?.find((s) => s.name === name)?.value;
 }
 
+function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
+  const teamKey = (entry.team?.abbreviation ?? entry.team?.id ?? "").toLowerCase();
+  return {
+    teamKey,
+    name: entry.team?.displayName ?? teamKey,
+    rank: statValue(entry.stats, "rank") ?? 0,
+    points: statValue(entry.stats, "points") ?? null,
+    wins: statValue(entry.stats, "wins") ?? 0,
+    losses: statValue(entry.stats, "losses") ?? 0,
+    draws: statValue(entry.stats, "ties") ?? null,
+    winPercent: statValue(entry.stats, "winPercent") ?? null,
+    qualifies: entry.note != null
+  };
+}
+
 // --- Adapter -------------------------------------------------------------------------------
 
 export function createEspnSportsSource(fetchFn: typeof fetch = fetch): SportsSource {
@@ -176,32 +196,29 @@ export class EspnSportsSource implements SportsSource {
     return (data.events ?? []).map((event) => toGame(event, competitionKey));
   }
 
-  async getStandings(competitionKey: string): Promise<StandingsRow[]> {
+  async getStandings(competitionKey: string): Promise<StandingsTable> {
     const { sport, league } = resolve(competitionKey);
     const data = (await fetchJson(
       this.fetchFn,
       `${CORE_BASE}/${sport}/${league}/standings`,
       `${league} standings`
     )) as {
-      children?: readonly { standings?: { entries?: readonly EspnStandingsEntry[] } }[];
+      children?: readonly {
+        name?: string;
+        abbreviation?: string;
+        standings?: { entries?: readonly EspnStandingsEntry[] };
+      }[];
       standings?: { entries?: readonly EspnStandingsEntry[] };
     };
-    const entries = data.children?.[0]?.standings?.entries ?? data.standings?.entries ?? [];
-    return entries.map((entry) => {
-      const teamKey = (entry.team?.abbreviation ?? entry.team?.id ?? "").toLowerCase();
-      const points = statValue(entry.stats, "points");
-      const draws = statValue(entry.stats, "ties");
-      return {
-        teamKey,
-        name: entry.team?.displayName ?? teamKey,
-        rank: statValue(entry.stats, "rank") ?? 0,
-        points: points ?? null,
-        wins: statValue(entry.stats, "wins") ?? 0,
-        losses: statValue(entry.stats, "losses") ?? 0,
-        draws: draws ?? null,
-        qualifies: entry.note != null
-      } satisfies StandingsRow;
-    });
+    const children = data.children ?? [];
+    const sections =
+      children.length > 0
+        ? children.map((child) => ({
+            label: child.name ?? child.abbreviation ?? null,
+            rows: (child.standings?.entries ?? []).map(toStandingsRow)
+          }))
+        : [{ label: null, rows: (data.standings?.entries ?? []).map(toStandingsRow) }];
+    return { sections: sections.filter((section) => section.rows.length > 0) };
   }
 
   async getHeadlines(competitionKey: string): Promise<SourceHeadline[]> {

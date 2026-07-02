@@ -68,16 +68,23 @@ function standingsGroup(): StandingsGroup {
   return {
     competitionKey: "epl",
     competitionLabel: "Premier League",
-    rows: [
+    standingsShape: "record",
+    sections: [
       {
-        teamKey: "ars",
-        name: "Arsenal",
-        rank: 1,
-        points: 40,
-        wins: 12,
-        losses: 2,
-        draws: 4,
-        qualifies: true
+        label: null,
+        rows: [
+          {
+            teamKey: "ars",
+            name: "Arsenal",
+            rank: 1,
+            points: 40,
+            wins: 12,
+            losses: 2,
+            draws: 4,
+            winPercent: null,
+            qualifies: true
+          }
+        ]
       }
     ]
   };
@@ -151,6 +158,8 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("is-you");
     expect(html).toContain("Premier League");
+    expect(html).toContain("W-L");
+    expect(html).not.toContain(">#<");
   });
 
   it("renders the empty state with a follow CTA when nothing is followed", () => {

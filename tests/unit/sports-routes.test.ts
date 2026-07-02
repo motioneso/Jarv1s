@@ -57,7 +57,7 @@ function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
     ],
     getScoreboard: async () => [dalLiveGame],
     getSchedule: async () => [],
-    getStandings: async () => [],
+    getStandings: async () => ({ sections: [] }),
     getHeadlines: async () => [],
     ...overrides
   };

@@ -15,7 +15,12 @@ import type {
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
 import { SportsCache } from "./sports-cache.js";
-import type { SourceHeadline, SourceTeamRef, SportsSource } from "./source/sports-source.js";
+import type {
+  SourceHeadline,
+  SourceTeamRef,
+  SportsSource,
+  StandingsTable
+} from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
 export type FollowedFact = { competitionKey: string; text: string };
@@ -47,6 +52,7 @@ const HEADLINES_TTL_MS = 10 * 60 * 1000;
 const SCHEDULE_TTL_MS = 10 * 60 * 1000;
 const TEAMS_TTL_MS = 24 * 60 * 60 * 1000;
 const FORM_LENGTH = 5;
+const EMPTY_STANDINGS: StandingsTable = { sections: [] };
 
 /** Mutable degraded flag threaded through a single composition pass. */
 interface DegradeState {
@@ -65,7 +71,7 @@ export class SportsService {
   private readonly now: () => Date;
 
   private readonly scoreboards = new SportsCache<GameSummary[]>();
-  private readonly standings = new SportsCache<StandingsRow[]>();
+  private readonly standings = new SportsCache<StandingsTable>();
   private readonly headlines = new SportsCache<SourceHeadline[]>();
   private readonly schedules = new SportsCache<GameSummary[]>();
   private readonly teams = new SportsCache<SourceTeamRef[]>();
@@ -95,6 +101,7 @@ export class SportsService {
         label: entry.label,
         kind: entry.kind,
         marquee: entry.marquee,
+        standingsShape: entry.standingsShape,
         teams
       });
     }
@@ -114,7 +121,7 @@ export class SportsService {
     );
 
     const scoreboardByComp = new Map<string, GameSummary[]>();
-    const standingsByComp = new Map<string, StandingsRow[]>();
+    const standingsByComp = new Map<string, StandingsTable>();
     const headlinesByComp = new Map<string, SourceHeadline[]>();
     for (const key of competitionKeys) {
       scoreboardByComp.set(
@@ -135,7 +142,7 @@ export class SportsService {
           key,
           STANDINGS_TTL_MS,
           () => this.source.getStandings(key),
-          [],
+          EMPTY_STANDINGS,
           state
         )
       );
@@ -166,7 +173,7 @@ export class SportsService {
         this.buildCard(
           follow,
           scoreboardByComp.get(follow.competitionKey) ?? [],
-          standingsByComp.get(follow.competitionKey) ?? [],
+          (standingsByComp.get(follow.competitionKey)?.sections ?? []).flatMap((s) => s.rows),
           headlinesByComp.get(follow.competitionKey) ?? [],
           schedule
         )
@@ -187,9 +194,10 @@ export class SportsService {
       .map((key) => ({
         competitionKey: key,
         competitionLabel: catalogEntry(key)?.label ?? key,
-        rows: standingsByComp.get(key) ?? []
+        standingsShape: catalogEntry(key)?.standingsShape ?? "table",
+        sections: standingsByComp.get(key)?.sections ?? []
       }))
-      .filter((group) => group.rows.length > 0);
+      .filter((group) => group.sections.some((section) => section.rows.length > 0));
 
     const headlines = competitionKeys.flatMap((key) => headlinesByComp.get(key) ?? []);
 

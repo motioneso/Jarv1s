@@ -9,7 +9,8 @@ import type {
   OverviewHero,
   ScoreboardGroup,
   SportsOverviewResponse,
-  StandingsGroup
+  StandingsGroup,
+  StandingsRow
 } from "@jarv1s/shared";
 
 import { getSportsOverview } from "../api/sports-client";
@@ -424,34 +425,62 @@ function StandingsRail(props: {
           ))}
         </div>
       ) : null}
-      <table className="sp-tbl">
-        <thead>
-          <tr>
-            <th className="pos">#</th>
-            <th className="tm">{group.competitionLabel}</th>
-            <th>P</th>
-          </tr>
-        </thead>
-        <tbody>
-          {group.rows.map((row) => (
-            <tr
-              key={row.teamKey}
-              className={props.followedKeys.has(row.teamKey) ? "is-you" : undefined}
-            >
-              <td className="pos">
-                {row.qualifies ? <span className="sp-tbl__adv" /> : null}
-                {row.rank}
-              </td>
-              <td className="tm">
-                <span className="nm">{row.name}</span>
-              </td>
-              <td>{row.points ?? row.wins}</td>
+      {group.sections.map((section) => (
+        <table className="sp-tbl" key={section.label ?? "all"}>
+          <thead>
+            <tr>
+              {group.standingsShape !== "record" ? <th className="pos">#</th> : null}
+              <th className="tm">{section.label ?? group.competitionLabel}</th>
+              {group.standingsShape === "record" ? (
+                <>
+                  <th>W-L</th>
+                  <th>{section.rows.some((r) => r.points !== null) ? "Pts" : "Pct"}</th>
+                </>
+              ) : (
+                <th>Pts</th>
+              )}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {section.rows.map((row) => (
+              <tr
+                key={row.teamKey}
+                className={props.followedKeys.has(row.teamKey) ? "is-you" : undefined}
+              >
+                {group.standingsShape !== "record" ? (
+                  <td className="pos">
+                    {row.qualifies ? <span className="sp-tbl__adv" /> : null}
+                    {row.rank}
+                  </td>
+                ) : null}
+                <td className="tm">
+                  <span className="nm">{row.name}</span>
+                </td>
+                {group.standingsShape === "record" ? (
+                  <>
+                    <td>{recordLine(row)}</td>
+                    <td>{row.points ?? formatPct(row.winPercent)}</td>
+                  </>
+                ) : (
+                  <td>{row.points ?? "–"}</td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
     </section>
   );
+}
+
+function recordLine(row: StandingsRow): string {
+  return row.draws !== null && row.draws > 0
+    ? `${row.wins}-${row.losses}-${row.draws}`
+    : `${row.wins}-${row.losses}`;
+}
+
+function formatPct(winPercent: number | null): string {
+  return winPercent === null ? "–" : winPercent.toFixed(3).replace(/^0/, "");
 }
 
 /* ---------------------------------------------------------------- Empty state */

@@ -39,7 +39,15 @@ export interface StandingsRow {
   readonly wins: number;
   readonly losses: number;
   readonly draws: number | null;
+  readonly winPercent: number | null; // US leagues; null for soccer
   readonly qualifies: boolean; // advancement/qualification marker
+}
+
+export type StandingsShape = "table" | "groups" | "record";
+
+export interface StandingsSection {
+  readonly label: string | null; // "Group A", "American Football Conference"; null = single table
+  readonly rows: readonly StandingsRow[];
 }
 
 export interface Headline {
@@ -57,6 +65,7 @@ export interface CompetitionRef {
   readonly label: string; // "NFL", "Premier League"
   readonly kind: "league" | "tournament";
   readonly marquee: boolean; // World Cup flag
+  readonly standingsShape: StandingsShape;
 }
 
 export interface SportsFollowDto {
@@ -99,7 +108,8 @@ export interface ScoreboardGroup {
 export interface StandingsGroup {
   readonly competitionKey: string;
   readonly competitionLabel: string;
-  readonly rows: readonly StandingsRow[];
+  readonly standingsShape: StandingsShape;
+  readonly sections: readonly StandingsSection[];
 }
 
 export interface SportsOverviewResponse {
@@ -176,7 +186,17 @@ const gameSummarySchema = {
 const standingsRowSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["teamKey", "name", "rank", "points", "wins", "losses", "draws", "qualifies"],
+  required: [
+    "teamKey",
+    "name",
+    "rank",
+    "points",
+    "wins",
+    "losses",
+    "draws",
+    "winPercent",
+    "qualifies"
+  ],
   properties: {
     teamKey: { type: "string" },
     name: { type: "string" },
@@ -185,7 +205,18 @@ const standingsRowSchema = {
     wins: { type: "number" },
     losses: { type: "number" },
     draws: { type: ["number", "null"] },
+    winPercent: { type: ["number", "null"] },
     qualifies: { type: "boolean" }
+  }
+} as const;
+
+const standingsSectionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["label", "rows"],
+  properties: {
+    label: { type: ["string", "null"] },
+    rows: { type: "array", items: standingsRowSchema }
   }
 } as const;
 
@@ -207,12 +238,13 @@ const headlineSchema = {
 const competitionRefSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["competitionKey", "label", "kind", "marquee"],
+  required: ["competitionKey", "label", "kind", "marquee", "standingsShape"],
   properties: {
     competitionKey: { type: "string" },
     label: { type: "string" },
     kind: { type: "string", enum: ["league", "tournament"] },
-    marquee: { type: "boolean" }
+    marquee: { type: "boolean" },
+    standingsShape: { type: "string", enum: ["table", "groups", "record"] }
   }
 } as const;
 
@@ -273,11 +305,12 @@ const scoreboardGroupSchema = {
 const standingsGroupSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["competitionKey", "competitionLabel", "rows"],
+  required: ["competitionKey", "competitionLabel", "standingsShape", "sections"],
   properties: {
     competitionKey: { type: "string" },
     competitionLabel: { type: "string" },
-    rows: { type: "array", items: standingsRowSchema }
+    standingsShape: { type: "string", enum: ["table", "groups", "record"] },
+    sections: { type: "array", items: standingsSectionSchema }
   }
 } as const;
 
@@ -346,7 +379,7 @@ export const sportsCatalogResponseSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["competitionKey", "label", "kind", "marquee", "teams"],
+            required: ["competitionKey", "label", "kind", "marquee", "standingsShape", "teams"],
             properties: {
               ...competitionRefSchema.properties,
               teams: { type: "array", items: teamRefSchema }
