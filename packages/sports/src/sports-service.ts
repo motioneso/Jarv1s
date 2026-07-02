@@ -5,6 +5,7 @@ import type {
   FollowedTeamNews,
   GameSide,
   GameSummary,
+  Headline,
   IsoDate,
   LeagueNewsGroup,
   OverviewHero,
@@ -219,8 +220,11 @@ export class SportsService {
       hero,
       followed: cards,
       scoreboard,
-      topStories,
-      leagueNews,
+      topStories: topStories.map(toPublicHeadline),
+      leagueNews: leagueNews.map((group) => ({
+        ...group,
+        headlines: group.headlines.map(toPublicHeadline)
+      })),
       standings,
       followedTeams: followedTeams.map((f) => ({
         competitionKey: f.competitionKey,
@@ -344,7 +348,8 @@ export class SportsService {
           others > 0 ? `${others} more followed game${others === 1 ? "" : "s"} today` : null
       };
     }
-    return { mode: "story", headline: topStories[0] ?? null };
+    const top = topStories[0];
+    return { mode: "story", headline: top ? toPublicHeadline(top) : null };
   }
 
   private buildCard(
@@ -423,6 +428,15 @@ function resolveHeadlineTeamKeys(
 
 function byNewest(a: SourceHeadline, b: SourceHeadline): number {
   return b.publishedAt.localeCompare(a.publishedAt);
+}
+
+// `SourceHeadline` carries `sourceTeamIds` (provider ids) for the team-key join; strip it
+// before a headline reaches a response boundary — required wherever a single headline sits
+// inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
+// objects with properties outside the matched branch instead of silently dropping them.
+function toPublicHeadline(headline: Headline): Headline {
+  const { id, competitionKey, title, url, publishedAt, imageUrl, teamKeys } = headline;
+  return { id, competitionKey, title, url, publishedAt, imageUrl, teamKeys };
 }
 
 // Spec §E ranking: (1) headlines tagged with a followed team, newest first;
