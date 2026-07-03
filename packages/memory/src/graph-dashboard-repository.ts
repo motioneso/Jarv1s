@@ -53,37 +53,6 @@ export class MemoryGraphDashboardRepository {
     };
   }
 
-  async listEntitiesForDashboard(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    opts: {
-      readonly statuses?: readonly string[];
-      readonly limit: number;
-      readonly cursor?: string;
-    }
-  ): Promise<{ items: MemoryEntityRecord[]; nextCursor?: string }> {
-    assertDataContextDb(scopedDb);
-    const statuses = opts.statuses ?? ["active"];
-    const fetchLimit = opts.limit + 1;
-    const result = await sql<EntityRow>`
-      SELECT *
-      FROM app.memory_entities
-      WHERE owner_user_id = ${ownerUserId}::uuid
-        AND status = ANY(${statuses}::text[])
-        AND (${opts.cursor ?? null}::uuid IS NULL OR id < ${opts.cursor ?? null}::uuid)
-      ORDER BY pinned DESC, importance DESC, updated_at DESC, id DESC
-      LIMIT ${fetchLimit}
-    `.execute(scopedDb.db);
-
-    const rows = result.rows.map(mapEntity);
-    const hasMore = rows.length > opts.limit;
-    const items = hasMore ? rows.slice(0, opts.limit) : rows;
-    return {
-      items,
-      nextCursor: hasMore ? items[items.length - 1]?.id : undefined
-    };
-  }
-
   async countFactsByStatus(
     scopedDb: DataContextDb,
     ownerUserId: string

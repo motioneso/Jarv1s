@@ -127,21 +127,6 @@ export class MemoryCandidatesRepository {
     return this.#mark(scopedDb, ownerUserId, id, "rejected", reason);
   }
 
-  async findBySignature(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    signature: string
-  ): Promise<MemoryCandidateRecord | undefined> {
-    assertDataContextDb(scopedDb);
-    const result = await sql<CandidateRow>`
-      SELECT *
-      FROM app.memory_candidates
-      WHERE owner_user_id = ${ownerUserId}::uuid
-        AND candidate_signature = ${signature}
-    `.execute(scopedDb.db);
-    return result.rows[0] ? mapCandidate(result.rows[0]) : undefined;
-  }
-
   async listPending(
     scopedDb: DataContextDb,
     ownerUserId: string,

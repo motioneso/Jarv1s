@@ -161,14 +161,6 @@ export class GraphMemoryRecallService {
     return this.repository.markFactStale(scopedDb, ownerUserId, target.factId);
   }
 
-  async link(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    input: MemoryRememberInput
-  ): Promise<MemoryWriteResult> {
-    return this.remember(scopedDb, ownerUserId, input);
-  }
-
   async pin(
     scopedDb: DataContextDb,
     ownerUserId: string,

@@ -46,35 +46,6 @@ export class ChatMemorySuppressionsRepository {
     `.execute(scopedDb.db);
   }
 
-  async insertCorrection(
-    scopedDb: DataContextDb,
-    ownerUserId: string,
-    data: {
-      readonly signature: string;
-      readonly category: FactCategory;
-      readonly content: string;
-      readonly factId: string;
-      readonly beforeContent: string;
-      readonly afterContent: string;
-    }
-  ): Promise<void> {
-    await sql`
-      INSERT INTO app.chat_memory_suppressions
-        (owner_user_id, signature, category, content, reason, source, fact_id,
-         before_content, after_content)
-      VALUES
-        (${ownerUserId}::uuid, ${data.signature}, ${data.category}, ${data.content},
-         'corrected', 'chat', ${data.factId}::uuid, ${data.beforeContent}, ${data.afterContent})
-      ON CONFLICT (owner_user_id, signature) DO UPDATE SET
-        reason = EXCLUDED.reason,
-        source = EXCLUDED.source,
-        fact_id = EXCLUDED.fact_id,
-        before_content = EXCLUDED.before_content,
-        after_content = EXCLUDED.after_content,
-        created_at = now()
-    `.execute(scopedDb.db);
-  }
-
   async isSuppressed(
     scopedDb: DataContextDb,
     ownerUserId: string,
@@ -89,32 +60,6 @@ export class ChatMemorySuppressionsRepository {
       ) AS "exists"
     `.execute(scopedDb.db);
     return result.rows[0]?.exists ?? false;
-  }
-
-  async listSuppressions(
-    scopedDb: DataContextDb,
-    ownerUserId: string
-  ): Promise<MemorySuppression[]> {
-    const result = await sql<{
-      id: string;
-      owner_user_id: string;
-      signature: string;
-      category: FactCategory;
-      content: string;
-      reason: MemorySuppressionReason;
-      source: MemoryCorrectionSource;
-      fact_id: string | null;
-      before_content: string | null;
-      after_content: string | null;
-      created_at: Date;
-    }>`
-      SELECT *
-      FROM app.chat_memory_suppressions
-      WHERE owner_user_id = ${ownerUserId}::uuid
-      ORDER BY created_at DESC
-    `.execute(scopedDb.db);
-
-    return result.rows.map((row) => this.#mapRow(row));
   }
 
   async listCorrections(
