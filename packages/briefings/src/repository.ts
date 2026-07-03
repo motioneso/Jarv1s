@@ -239,6 +239,17 @@ export class BriefingsRepository {
       return { run, created: true };
     }
 
+    let sameDayMorningMeta: Record<string, unknown> | null = null;
+    if (definition.briefing_type === "evening") {
+      try {
+        const morningRun = await this.findSameLocalDayMorningRun(scopedDb, definition, now);
+        sameDayMorningMeta =
+          (morningRun?.source_metadata as Record<string, unknown> | undefined) ?? null;
+      } catch {
+        sameDayMorningMeta = null; // optional context — never fail the evening run on it
+      }
+    }
+
     const composed = await composeBriefing(
       scopedDb,
       definition,
@@ -246,6 +257,7 @@ export class BriefingsRepository {
         runKind: input.runKind,
         runId: input.runId,
         jobId: input.jobId,
+        sameDayMorningMeta,
         now
       },
       input.composeDeps
@@ -306,6 +318,27 @@ export class BriefingsRepository {
       .limit(5)
       .execute();
 
+    return recent.find((run) => {
+      const created = run.created_at instanceof Date ? run.created_at : new Date(run.created_at);
+      return localPeriodString(definition, created) === currentPeriod;
+    });
+  }
+
+  private async findSameLocalDayMorningRun(
+    scopedDb: DataContextDb,
+    definition: BriefingDefinition,
+    now: Date
+  ): Promise<BriefingRun | undefined> {
+    const currentPeriod = localPeriodString(definition, now);
+    const recent = await scopedDb.db
+      .selectFrom("app.briefing_runs")
+      .selectAll()
+      .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+      .where("briefing_type", "=", "morning")
+      .where("status", "=", "succeeded")
+      .orderBy("created_at", "desc")
+      .limit(5)
+      .execute();
     return recent.find((run) => {
       const created = run.created_at instanceof Date ? run.created_at : new Date(run.created_at);
       return localPeriodString(definition, created) === currentPeriod;

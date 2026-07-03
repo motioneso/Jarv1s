@@ -59,6 +59,34 @@ export { SYNTHESIS_INSTRUCTIONS_EVENING, TRUSTED_INSTRUCTIONS_EVENING };
 const LENS_ITEM_CAP = 5; // per lens → ≤15 reconciliation lines before the char cap
 const COMPLETED_LOOKBACK_MS = 48 * 3_600_000; // over-fetch; withinLocalDay is authoritative
 const TASKS_RECONCILIATION_LABEL = "TASKS — DAY RECONCILIATION";
+const MORNING_PLAN_ITEM_CAP = 6;
+
+/**
+ * Context-only cross-reference to the same-day morning run. Reads ONLY the derived
+ * signal `summary` strings from the morning metadata (never cached bodies) and
+ * re-sanitizes them — they cross the trust boundary again here.
+ */
+function morningPlanSection(meta: Record<string, unknown> | null | undefined): Section | null {
+  if (!meta) return null;
+  const lines: string[] = [];
+  for (const key of ["calendarSignals", "emailSignals"] as const) {
+    const arr = meta[key];
+    if (!Array.isArray(arr)) continue;
+    for (const entry of arr) {
+      if (lines.length >= MORNING_PLAN_ITEM_CAP) break;
+      if (
+        entry &&
+        typeof entry === "object" &&
+        typeof (entry as { summary?: unknown }).summary === "string"
+      ) {
+        const line = sanitizeExternal((entry as { summary: string }).summary);
+        if (line) lines.push(line);
+      }
+    }
+  }
+  if (lines.length === 0) return null;
+  return { key: "morning_plan", label: "THIS MORNING'S PLAN", lines, count: lines.length };
+}
 
 function charCap(lines: readonly string[]): { lines: string[]; truncated: boolean } {
   const out: string[] = [];
@@ -341,6 +369,11 @@ export async function composeEveningBriefing(
   }
   sections.push(chats);
 
+  const morningPlan = morningPlanSection(input.sameDayMorningMeta);
+  if (morningPlan) {
+    sections.push(morningPlan);
+  }
+
   const hasFreshnessDeps = !!(deps.connectorSyncAt ?? deps.vaultLastWriteAt);
   const sourceTimestamps = hasFreshnessDeps
     ? await resolveBriefingFreshness(
@@ -365,7 +398,7 @@ export async function composeEveningBriefing(
     goalCount: goals.count,
     sportsCount: sports.count,
     chatTurnCount: chats.count,
-    morningRunReferenced: false,
+    morningRunReferenced: morningPlan !== null,
     gaps,
     ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
   };

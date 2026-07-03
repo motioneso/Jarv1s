@@ -3,14 +3,13 @@ import type { FastifyBaseLogger } from "fastify";
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
 import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
 import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
-import type { FocusSignalInput, PriorityResult, PrioritySource } from "@jarv1s/priority";
-import type { BriefingDefinition, BriefingRunStatus, BriefingType, DataContextDb } from "@jarv1s/db";
+import type { FocusSignalInput } from "@jarv1s/priority";
+import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
 import type { CalendarSignalSettings, EmailSignalSettings } from "./signals.js";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
-import { sanitizeExternal } from "./trust-boundary.js";
 
 export type GenerateChatFn = (input: GenerateChatInput) => Promise<{ readonly text: string }>;
 
@@ -66,6 +65,12 @@ export interface ComposeRunInput {
   /** Single captured "now" from the caller so lock-day, idempotency, and the local-day
    *  content window all agree across a midnight boundary. Defaults to a fresh Date(). */
   readonly now?: Date;
+  /**
+   * Evening runs only: the same-local-day morning run's source_metadata, resolved by the
+   * repository (compose cannot import repository — circular). Optional and degradable:
+   * absent/null emits no morning_plan block and no gap.
+   */
+  readonly sameDayMorningMeta?: Record<string, unknown> | null;
 }
 
 export interface BriefingGap {

@@ -260,4 +260,54 @@ describe("evening briefing compose (spec 2026-07-02, #695)", () => {
     // The event from earlier today should not appear
     expect(prompt).not.toContain("Earlier today event");
   });
+
+  it("cross-references the same-local-day morning run as a context-only morning_plan block", async () => {
+    // Generate a morning run first (same user, manual) with seeded calendar/email so its
+    // metadata carries calendarSignals/emailSignals, then the evening run.
+    const morningDef = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.createDefinition(db, {
+        title: "Morning",
+        briefingType: "morning",
+        selectedToolNames: defaultToolNamesFor("morning")
+      })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      repository.generateRun(db, morningDef.id, {
+        moduleManifests,
+        runKind: "manual",
+        composeDeps: makeComposeDeps(async () => ({ text: "MORNING OK" }))
+      })
+    );
+
+    const bootstrap = new Client({ connectionString: connectionStrings.bootstrap });
+    await bootstrap.connect();
+    try {
+      await bootstrap.query(
+        `UPDATE app.briefing_runs SET source_metadata = $1 WHERE definition_id = $2`,
+        [
+          JSON.stringify({
+            calendarSignals: [{ summary: "Mock morning calendar signal" }],
+            emailSignals: [{ summary: "Mock morning email signal" }]
+          }),
+          morningDef.id
+        ]
+      );
+    } finally {
+      await bootstrap.end();
+    }
+
+    const { run, prompt } = await runEvening();
+    expect(prompt).toContain('<external_source type="morning_plan">');
+    expect(prompt).toContain("Mock morning calendar signal");
+    expect(prompt).toContain("Mock morning email signal");
+    expect((run.source_metadata as Record<string, unknown>).morningRunReferenced).toBe(true);
+  });
+
+  it("omits morning_plan (no block, no gap) when no same-day morning run exists", async () => {
+    const { run, prompt } = await runEveningAsUserB(); // userB has no morning run
+    expect(prompt).not.toContain('<external_source type="morning_plan">');
+    const meta = run.source_metadata as Record<string, unknown>;
+    expect(meta.morningRunReferenced).toBe(false);
+    expect(meta.gaps).not.toContainEqual(expect.objectContaining({ source: "morning_plan" }));
+  });
 });
