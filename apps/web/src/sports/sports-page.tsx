@@ -366,6 +366,10 @@ function StandingsRail(props: {
   const hasPages = pages.length > 1;
   const showPrev = () => setPageIndex((index) => (index + pages.length - 1) % pages.length);
   const showNext = () => setPageIndex((index) => (index + 1) % pages.length);
+  const selectLeague = (competitionKey: string) => {
+    const nextIndex = pages.findIndex((p) => p.group.competitionKey === competitionKey);
+    if (nextIndex >= 0) setPageIndex(nextIndex);
+  };
   const label = section.label ?? group.competitionLabel;
   return (
     <section className="sp-standings" aria-label="Standings">
@@ -376,6 +380,18 @@ function StandingsRail(props: {
         </span>
         {hasPages ? (
           <span className="sp-standings__nav">
+            <select
+              className="sp-standings__select"
+              aria-label="Select standings league"
+              value={group.competitionKey}
+              onChange={(event) => selectLeague(event.currentTarget.value)}
+            >
+              {props.groups.map((option) => (
+                <option key={option.competitionKey} value={option.competitionKey}>
+                  {option.competitionLabel}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               className="sp-iconbtn"
