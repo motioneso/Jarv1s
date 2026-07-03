@@ -344,11 +344,11 @@ describe("composeBriefing — gathering", () => {
     const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
     const trustedMatch = prompt.match(/<trusted_instructions>([\s\S]*?)<\/trusted_instructions>/);
     expect(trustedMatch).not.toBeNull();
-    expect(trustedMatch![1]).toContain("evening-review writer");
-    expect(trustedMatch![1]).toContain("day in review");
-    expect(trustedMatch![1]).not.toContain("Write report");
-    expect(prompt).toContain('<external_source type="tasks">');
-    expect(prompt).toContain("Write report");
+    expect(trustedMatch![1]).toContain("evening chief of staff");
+    expect(trustedMatch![1]).toContain("end-of-day report");
+    expect(trustedMatch![1]).not.toContain("Pay invoice");
+    expect(prompt).toContain('<external_source type="commitments">');
+    expect(prompt).toContain("Pay invoice");
   });
 
   it("injects the saved persona block into the synthesis prompt", async () => {

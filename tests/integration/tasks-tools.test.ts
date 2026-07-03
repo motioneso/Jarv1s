@@ -283,6 +283,31 @@ describe("Tasks module — assistant read tools", () => {
     expect(returned?.tags.map((t) => t.id)).toContain(tag.id);
   });
 
+  it("tasks.list: completedAfter returns only tasks completed after the given instant", async () => {
+    const tool = getTool("tasks.list");
+    const statusTool = getTool("tasks.updateStatus");
+
+    const target = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "completedAfter target" })
+    );
+    await dataContext.withDataContext(userAContext(), (db) =>
+      statusTool!.execute!(db, { taskId: target.id, status: "done" }, toolCtx(ids.userA))
+    );
+
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const recent = await dataContext.withDataContext(userAContext(), (db) =>
+      tool!.execute!(db, { status: "done", completedAfter: past }, toolCtx(ids.userA))
+    );
+    const recentItems = recent.data.items as TaskDto[];
+    expect(recentItems.some((t) => t.id === target.id)).toBe(true);
+
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const none = await dataContext.withDataContext(userAContext(), (db) =>
+      tool!.execute!(db, { status: "done", completedAfter: future }, toolCtx(ids.userA))
+    );
+    expect((none.data.items as TaskDto[]).some((t) => t.id === target.id)).toBe(false);
+  });
+
   it("repository listFiltered applies list, status, and tag predicates together", async () => {
     const list = await dataContext.withDataContext(userAContext(), (db) =>
       listsRepo.getOrCreate(db, "Filtered-list")

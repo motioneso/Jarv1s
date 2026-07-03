@@ -63,6 +63,7 @@ export interface ListTasksCriteria {
   readonly priority?: number;
   readonly dueBefore?: Date;
   readonly dueAfter?: Date;
+  readonly completedAfter?: Date;
   readonly quadrant?: TaskQuadrant;
   readonly now?: Date;
 }
@@ -111,6 +112,11 @@ export class TasksRepository {
     }
     if (criteria.dueAfter !== undefined) {
       query = query.where("t.due_at", "is not", null).where("t.due_at", ">", criteria.dueAfter);
+    }
+    if (criteria.completedAfter !== undefined) {
+      query = query
+        .where("t.completed_at", "is not", null)
+        .where("t.completed_at", ">", criteria.completedAfter);
     }
     if (criteria.tagId !== undefined) {
       const tagId = criteria.tagId;

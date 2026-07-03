@@ -11,26 +11,25 @@ import { describe, expect, it } from "vitest";
 // file (not process.cwd()) so it is stable regardless of where vitest is invoked.
 const here = dirname(fileURLToPath(import.meta.url));
 const composePath = resolve(here, "../../packages/briefings/src/compose.ts");
-const source = readFileSync(composePath, "utf8");
+const composeSource = readFileSync(composePath, "utf8");
+const composeEveningPath = resolve(here, "../../packages/briefings/src/compose-evening.ts");
+const eveningSource = readFileSync(composeEveningPath, "utf8");
+const tbPath = resolve(here, "../../packages/briefings/src/trust-boundary.ts");
+const tbSource = readFileSync(tbPath, "utf8");
 
 describe("briefings prompt-isolation (static)", () => {
   it("builds morning and evening trusted preambles as pure literal constants", () => {
-    const matches = [
-      ...source.matchAll(/const TRUSTED_INSTRUCTIONS_(MORNING|EVENING) = `([\s\S]*?)`;/g)
-    ];
-    expect(
-      matches.map((match) => match[1]).sort(),
-      "morning and evening trusted constants must exist as template literals"
-    ).toEqual(["EVENING", "MORNING"]);
+    const morning = composeSource.match(/const TRUSTED_INSTRUCTIONS_MORNING = `([\s\S]*?)`;/);
+    const evening = eveningSource.match(/const TRUSTED_INSTRUCTIONS_EVENING = `([\s\S]*?)`;/);
+    expect(morning, "morning trusted constant must be a template literal").not.toBeNull();
+    expect(evening, "evening trusted constant must be a template literal").not.toBeNull();
+    expect(composeSource).not.toContain("TRUSTED_INSTRUCTIONS_EVENING = `");
 
-    // No external/section value may be referenced inside the trusted preamble. If any of
-    // these identifiers appear, external content can leak into the trusted text.
     const forbidden = ["sections", "body", ".lines", ".key", ".label", ".count"];
-    for (const match of matches) {
-      const trustedLiteral = match[2]!;
+    for (const literal of [morning![1]!, evening![1]!]) {
       for (const token of forbidden) {
         expect(
-          trustedLiteral,
+          literal,
           `trusted preamble must not reference external value "${token}"`
         ).not.toContain(token);
       }
@@ -38,15 +37,19 @@ describe("briefings prompt-isolation (static)", () => {
   });
 
   it("uses the delimited trust-boundary scheme", () => {
-    expect(source).toContain("<trusted_instructions>");
-    expect(source).toContain("</trusted_instructions>");
+    expect(composeSource).toContain("<trusted_instructions>");
+    expect(composeSource).toContain("<trusted_instructions>");
+    expect(composeSource).toContain("</trusted_instructions>");
+    expect(eveningSource).toContain("<trusted_instructions>");
+    expect(eveningSource).toContain("</trusted_instructions>");
+    expect(eveningSource).toContain('from "./trust-boundary.js"');
     // The external block type attribute is interpolated from the section key (a constant).
-    expect(source).toContain('<external_source type="${section.key}">');
-    expect(source).toContain("</external_source>");
+    expect(tbSource).toContain('<external_source type="${section.key}">');
+    expect(tbSource).toContain("</external_source>");
   });
 
   it("names every untrusted channel (incl. the reserved web_research tag) in the trust boundary", () => {
-    // The channel names are part of the literal trust-boundary text in compose.ts.
+    // The channel names are part of the literal trust-boundary text in trust-boundary.ts.
     for (const channel of [
       "commitments",
       "tasks",
@@ -54,18 +57,24 @@ describe("briefings prompt-isolation (static)", () => {
       "email",
       "vault",
       "chats",
+      "tasks_reconciliation",
+      "calendar_tomorrow",
+      "email_today",
+      "morning_plan",
+      "goals",
+      "sports",
       "web_research"
     ]) {
-      expect(source, `trust boundary must name channel "${channel}"`).toContain(channel);
+      expect(tbSource, `trust boundary must name channel "${channel}"`).toContain(channel);
     }
   });
 
   it("neutralizes sentinel tokens via sanitizeExternal at every external emission point", () => {
-    expect(source).toMatch(/function sanitizeExternal/);
-    expect(source).toContain("SENTINEL_TOKEN_PATTERN");
+    expect(tbSource).toMatch(/function sanitizeExternal/);
+    expect(tbSource).toContain("SENTINEL_TOKEN_PATTERN");
     // Every external_source block is rendered through renderExternalBlock, and the lines
     // it emits are produced by format callbacks / the vault join routed through sanitizeExternal.
-    expect(source).toMatch(/function renderExternalBlock/);
+    expect(tbSource).toMatch(/function renderExternalBlock/);
   });
 });
 
