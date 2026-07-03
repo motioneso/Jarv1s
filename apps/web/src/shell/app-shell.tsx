@@ -41,6 +41,7 @@ import { useUserLocale } from "../locale/locale-format";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
+import { BrandMark } from "./brand-mark";
 import { ChatControlsProvider } from "./chat-controls-context";
 import { ASK_JARVIS_STARTER, consumeAskJarvis } from "../onboarding/ask-jarvis-handoff";
 import { HeaderWeather } from "../today/header-weather";
@@ -70,17 +71,6 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
   settings: Settings,
   trophy: Trophy
 };
-
-/** Strata mark — neutral bars in currentColor, the active stratum in Pine. */
-function BrandMark() {
-  return (
-    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
-      <rect x="4" y="5.5" width="13" height="3" rx="1.5" fill="currentColor" />
-      <rect x="4" y="10.5" width="16" height="3" rx="1.5" fill="var(--accent)" />
-      <rect x="4" y="15.5" width="9" height="3" rx="1.5" fill="currentColor" />
-    </svg>
-  );
-}
 
 export function AppShell(props: AppShellProps) {
   const queryClient = useQueryClient();
