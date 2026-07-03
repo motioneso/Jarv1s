@@ -8,7 +8,7 @@ import {
   List as ListIcon,
   LoaderCircle,
   Search,
-  Sparkles,
+  GitCommitHorizontal,
   Tag
 } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
@@ -227,7 +227,7 @@ export function TasksPage() {
               onClick={submitSearchIntent}
               type="button"
             >
-              <Sparkles size={14} aria-hidden="true" />
+              <GitCommitHorizontal size={14} aria-hidden="true" />
             </button>
           </label>
         </div>

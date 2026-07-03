@@ -1,12 +1,4 @@
-import {
-  CalendarCheck,
-  Clock,
-  GitCommitHorizontal,
-  MapPin,
-  Sparkles,
-  Users,
-  X
-} from "lucide-react";
+import { CalendarCheck, Clock, GitCommitHorizontal, MapPin, Users, X } from "lucide-react";
 import { fmtDateLabel, fmtDur, fmtTime, type CalendarViewEvent } from "./calendar-model.js";
 
 interface CalendarPeekProps {
@@ -90,7 +82,7 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
         </div>
         {isBlock ? (
           <div className="cal-peek__held">
-            <Sparkles size={14} />
+            <GitCommitHorizontal size={14} />
             <span>
               Jarvis can move or shorten this block when your day changes. Hard events always come
               first.

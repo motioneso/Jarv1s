@@ -4,10 +4,10 @@ import {
   ChevronDown,
   Clock,
   BookmarkPlus,
+  GitCommitHorizontal,
   MessageSquareText,
   MoreHorizontal,
   Play,
-  Sparkles,
   Square,
   SquarePen,
   ThumbsDown,
@@ -16,6 +16,8 @@ import {
   X
 } from "lucide-react";
 import { type KeyboardEvent, type UIEvent, useCallback, useEffect, useRef, useState } from "react";
+
+import { BrandMark } from "../shell/brand-mark";
 
 import {
   cancelChatTurn,
@@ -306,7 +308,7 @@ export function ChatDrawer(props: {
     <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
       <div className="chatd__head">
         <span className="chatd__mark">
-          <Sparkles size={16} aria-hidden="true" />
+          <BrandMark size={16} />
         </span>
         <div className="chatd__id">
           <div className="chatd__name">Jarvis</div>
@@ -383,7 +385,7 @@ export function ChatDrawer(props: {
           {isWaiting ? (
             <div className="chatd-loading" aria-live="polite" aria-label="Jarvis is thinking">
               <span className="chatd-msg__av">
-                <Sparkles size={14} aria-hidden="true" />
+                <BrandMark size={14} />
               </span>
               <svg
                 className="chatd-loading__bar"
@@ -573,7 +575,7 @@ function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) 
   return (
     <details className="chatd-peek">
       <summary className="chatd-peek__summary">
-        <Sparkles size={13} aria-hidden="true" />
+        <GitCommitHorizontal size={13} aria-hidden="true" />
         <span className="chatd-peek__label">Behind the scenes</span>
         <span className="chatd-peek__count">
           {count} {count === 1 ? "step" : "steps"}
@@ -632,7 +634,7 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
   return (
     <div className="chatd-msg">
       <span className="chatd-msg__av">
-        <Sparkles size={14} aria-hidden="true" />
+        <BrandMark size={14} />
       </span>
       <div className="chatd-bubble">
         <MarkdownMessage
@@ -848,7 +850,7 @@ function EmptyState(props: {
   return (
     <div className="chatd-empty">
       <span className="chatd-empty__mark">
-        <Sparkles size={22} aria-hidden="true" />
+        <BrandMark size={22} />
       </span>
       <div className="chatd-empty__title">What can I help with?</div>
       <div className="chatd-empty__sub">
