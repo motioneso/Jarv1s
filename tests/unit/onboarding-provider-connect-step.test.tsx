@@ -49,6 +49,8 @@ describe("ProviderCard (rendered)", () => {
       })
     );
     expect(html).toContain("https://claude.ai/oauth/x");
+    expect(html).toContain('class="onb-auth__paste"');
+    expect(html).toContain('class="onb-auth__code"');
     expect(html.toLowerCase()).toContain("paste");
   });
 

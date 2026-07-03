@@ -44,21 +44,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <div role="alert" style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
-          <h1 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>Something went wrong.</h1>
-          <p style={{ marginBottom: "1rem", color: "#555" }}>Reload the page to continue.</p>
-          <button
-            type="button"
-            onClick={this.handleReload}
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "1rem",
-              cursor: "pointer",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              background: "#fff"
-            }}
-          >
+        <div className="jds-crash" role="alert">
+          <h1 className="jds-crash__title">Something went wrong.</h1>
+          <p className="jds-crash__copy">Reload the page to continue.</p>
+          <button className="jds-btn jds-btn--primary" type="button" onClick={this.handleReload}>
             Reload
           </button>
         </div>

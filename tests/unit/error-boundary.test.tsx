@@ -36,6 +36,10 @@ describe("ErrorBoundary (SSR happy path)", () => {
     const html = renderToString(createElement(ForcedErrorBoundary, null, "should-not-render"));
     expect(html).toContain("Something went wrong.");
     expect(html).toContain("Reload");
+    expect(html).toContain('class="jds-crash"');
+    expect(html).toContain("jds-btn");
+    expect(html).not.toContain("system-ui");
+    expect(html).not.toContain("#555");
     expect(html.toLowerCase()).not.toContain("should-not-render");
   });
 
