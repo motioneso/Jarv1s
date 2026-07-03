@@ -2,9 +2,6 @@ import type { JarvisGoal } from "@jarv1s/goals";
 import type {
   AddTaskActivityRequest,
   AssignTaskTagRequest,
-  RenameTaskListRequest,
-  DeleteTaskListRequest,
-  RenameTaskTagRequest,
   CreateAiConfiguredModelRequest,
   CreateAiConfiguredModelResponse,
   CreateAiProviderConfigRequest,
@@ -25,7 +22,6 @@ import type {
   DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
   GetAiSummaryResponse,
-  ListAiCapabilityRoutesResponse,
   ListMySessionsResponse,
   RevokeMyOtherSessionsResponse,
   RevokeMySessionResponse,
@@ -34,8 +30,6 @@ import type {
   PatchAiCapabilityTierPreferenceRequest,
   PreviewPersonaResponse,
   PutAdminChatModelOverrideRequest,
-  PutAiCapabilityRouteRequest,
-  PutAiCapabilityRouteResponse,
   PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
@@ -52,11 +46,8 @@ import type {
   CreateMedicationLogRequest,
   CreateMedicationLogResponse,
   CreateMedicationRequest,
-  CreateTaskListRequest,
-  CreateTaskListResponse,
   CreateTaskTagRequest,
   CreateTaskTagResponse,
-  GetCalendarEventResponse,
   GetTaskPreferencesResponse,
   GoogleAuthorizeRequest,
   GoogleAuthorizeResponse,
@@ -82,7 +73,6 @@ import type {
   ListChatThreadsResponse,
   SendChatTurnResponse,
   ListConnectorAccountsResponse,
-  ListConnectorProvidersResponse,
   ListMedicationsResponse,
   ListAdminModulesResponse,
   ListModulesResponse,
@@ -101,22 +91,16 @@ import type {
   MeResponse,
   OnboardingStatusResponse,
   OnboardingCompleteResponse,
-  OnboardingProviderCheckRequest,
-  OnboardingProviderCheckResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
   TestAiProviderConfigResponse,
   LookupAiCapabilityRouteResponse,
-  RunBriefingDefinitionRequest,
-  RunBriefingDefinitionResponse,
   UpdateBriefingDefinitionRequest,
   UpdateBriefingDefinitionResponse,
   UpdateAiConfiguredModelRequest,
   UpdateAiConfiguredModelResponse,
   UpdateAiProviderConfigRequest,
   UpdateAiProviderConfigResponse,
-  UpdateConnectorAccountRequest,
-  UpdateConnectorAccountResponse,
   UpdateMedicationRequest,
   UpdateTaskPreferencesRequest,
   UpdateTaskPreferencesResponse,
@@ -347,15 +331,6 @@ export async function skipOnboarding(): Promise<OnboardingCompleteResponse> {
   return requestJson<OnboardingCompleteResponse>("/api/onboarding/skip", { method: "POST" });
 }
 
-export async function testOnboardingProviderConnection(
-  input: OnboardingProviderCheckRequest
-): Promise<OnboardingProviderCheckResponse> {
-  return requestJson<OnboardingProviderCheckResponse>("/api/onboarding/provider-check", {
-    method: "POST",
-    body: input
-  });
-}
-
 export async function signUpEmail(input: SignUpEmailRequest): Promise<void> {
   await requestJson<unknown>("/api/auth/sign-up/email", {
     method: "POST",
@@ -419,44 +394,6 @@ export async function unassignTaskTag(taskId: string, tagId: string): Promise<Ge
   );
 }
 
-export async function renameTaskList(
-  listId: string,
-  input: RenameTaskListRequest
-): Promise<CreateTaskListResponse> {
-  return requestJson<CreateTaskListResponse>(`/api/tasks/lists/${encodeURIComponent(listId)}`, {
-    method: "PATCH",
-    body: input
-  });
-}
-
-export async function deleteTaskList(
-  listId: string,
-  input?: DeleteTaskListRequest
-): Promise<{ deleted: boolean }> {
-  return requestJson<{ deleted: boolean }>(`/api/tasks/lists/${encodeURIComponent(listId)}`, {
-    method: "DELETE",
-    body: input ?? {}
-  });
-}
-
-export async function renameTaskTag(
-  listId: string,
-  tagId: string,
-  input: RenameTaskTagRequest
-): Promise<CreateTaskTagResponse> {
-  return requestJson<CreateTaskTagResponse>(
-    `/api/tasks/lists/${encodeURIComponent(listId)}/tags/${encodeURIComponent(tagId)}`,
-    { method: "PATCH", body: input }
-  );
-}
-
-export async function deleteTaskTag(listId: string, tagId: string): Promise<{ deleted: boolean }> {
-  return requestJson<{ deleted: boolean }>(
-    `/api/tasks/lists/${encodeURIComponent(listId)}/tags/${encodeURIComponent(tagId)}`,
-    { method: "DELETE" }
-  );
-}
-
 export async function createTask(input: CreateTaskRequest): Promise<CreateTaskResponse> {
   return requestJson<CreateTaskResponse>("/api/tasks", { method: "POST", body: input });
 }
@@ -501,12 +438,6 @@ export async function breakdownTask(
 
 export async function listTaskLists(): Promise<ListTaskListsResponse> {
   return requestJson<ListTaskListsResponse>("/api/tasks/lists");
-}
-
-export async function createTaskList(
-  input: CreateTaskListRequest
-): Promise<CreateTaskListResponse> {
-  return requestJson<CreateTaskListResponse>("/api/tasks/lists", { method: "POST", body: input });
 }
 
 export async function listTaskTags(listId: string): Promise<ListTaskTagsResponse> {
@@ -639,10 +570,6 @@ export async function listCalendarEvents(): Promise<ListCalendarEventsResponse> 
   return requestJson<ListCalendarEventsResponse>("/api/calendar/events");
 }
 
-export async function getCalendarEvent(id: string): Promise<GetCalendarEventResponse> {
-  return requestJson<GetCalendarEventResponse>(`/api/calendar/events/${encodeURIComponent(id)}`);
-}
-
 export async function listChatThreads(): Promise<ListChatThreadsResponse> {
   return requestJson<ListChatThreadsResponse>("/api/chat/threads");
 }
@@ -685,10 +612,6 @@ export async function resumeChat(threadId: string): Promise<void> {
   });
 }
 
-export async function switchChatProvider(): Promise<void> {
-  await requestJson<unknown>("/api/chat/switch", { method: "POST" });
-}
-
 export function chatStreamUrl(): string {
   return "/api/chat/stream";
 }
@@ -701,10 +624,6 @@ export async function resolveActionRequest(
     `/api/chat/action-requests/${encodeURIComponent(actionRequestId)}/resolve`,
     { method: "POST", body: { status } }
   );
-}
-
-export async function listConnectorProviders(): Promise<ListConnectorProvidersResponse> {
-  return requestJson<ListConnectorProvidersResponse>("/api/connectors/providers");
 }
 
 export async function getAiSummary(): Promise<GetAiSummaryResponse> {
@@ -791,23 +710,6 @@ export async function lookupAiCapabilityRoute(
 ): Promise<LookupAiCapabilityRouteResponse> {
   return requestJson<LookupAiCapabilityRouteResponse>(
     `/api/ai/capability-route/${encodeURIComponent(capability)}`
-  );
-}
-
-export async function listAiCapabilityRoutes(): Promise<ListAiCapabilityRoutesResponse> {
-  return requestJson<ListAiCapabilityRoutesResponse>("/api/ai/capability-routes");
-}
-
-export async function putAiCapabilityRoute(
-  capability: AiModelCapability,
-  input: PutAiCapabilityRouteRequest
-): Promise<PutAiCapabilityRouteResponse> {
-  return requestJson<PutAiCapabilityRouteResponse>(
-    `/api/ai/capability-routes/${encodeURIComponent(capability)}`,
-    {
-      method: "PUT",
-      body: input
-    }
   );
 }
 
@@ -935,16 +837,6 @@ export async function updateBriefingDefinition(
   );
 }
 
-export async function runBriefingDefinition(
-  id: string,
-  input: RunBriefingDefinitionRequest
-): Promise<RunBriefingDefinitionResponse> {
-  return requestJson<RunBriefingDefinitionResponse>(
-    `/api/briefings/definitions/${encodeURIComponent(id)}/run`,
-    { method: "POST", body: input }
-  );
-}
-
 export async function listBriefingRuns(id: string): Promise<ListBriefingRunsResponse> {
   return requestJson<ListBriefingRunsResponse>(
     `/api/briefings/definitions/${encodeURIComponent(id)}/runs`
@@ -953,16 +845,6 @@ export async function listBriefingRuns(id: string): Promise<ListBriefingRunsResp
 
 export async function listConnectorAccounts(): Promise<ListConnectorAccountsResponse> {
   return requestJson<ListConnectorAccountsResponse>("/api/connectors/accounts");
-}
-
-export async function updateConnectorAccount(
-  id: string,
-  input: UpdateConnectorAccountRequest
-): Promise<UpdateConnectorAccountResponse> {
-  return requestJson<UpdateConnectorAccountResponse>(
-    `/api/connectors/accounts/${encodeURIComponent(id)}`,
-    { method: "PATCH", body: input }
-  );
 }
 
 export async function revokeConnectorAccount(id: string): Promise<RevokeConnectorAccountResponse> {
