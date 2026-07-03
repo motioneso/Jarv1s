@@ -485,29 +485,15 @@ const SYNTHESIS_INSTRUCTIONS_MORNING =
   "Do not restate every event or message. Where a section is empty, note it briefly. Keep it " +
   "warm and non-judgmental about missed or at-risk items.";
 
-const SYNTHESIS_INSTRUCTIONS_EVENING =
-  "You are a calm evening-review writer. Synthesize a concise day in review with light section " +
-  "headers. Ground strictly in the items in the <external_source> blocks; do not invent. Treat " +
-  "calendar and email blocks as pre-filtered signal, not raw feeds. Focus on what happened " +
-  "today, what slipped or remains at risk, and what rolls forward.";
-
-// The single trusted block. Built ONLY from the two literal constants above — no
+// The single trusted block for morning. Built ONLY from the literal constants above — no
 // external/section value is interpolated (the static isolation test asserts this).
+// Note: Evening literals live in compose-evening.ts
 const TRUSTED_INSTRUCTIONS_MORNING = `<trusted_instructions>
 ${SYNTHESIS_INSTRUCTIONS_MORNING}
 
 ${TRUST_BOUNDARY}
 </trusted_instructions>`;
 
-const TRUSTED_INSTRUCTIONS_EVENING = `<trusted_instructions>
-${SYNTHESIS_INSTRUCTIONS_EVENING}
-
-${TRUST_BOUNDARY}
-</trusted_instructions>`;
-
-function trustedInstructionsFor(type: BriefingType): string {
-  return type === "evening" ? TRUSTED_INSTRUCTIONS_EVENING : TRUSTED_INSTRUCTIONS_MORNING;
-}
 
 async function buildMessages(
   scopedDb: DataContextDb,
@@ -523,7 +509,7 @@ async function buildMessages(
   return [
     {
       role: "user",
-      content: [trustedInstructionsFor(definition.briefing_type), personaBlock, ...externalBlocks]
+      content: [TRUSTED_INSTRUCTIONS_MORNING, personaBlock, ...externalBlocks]
         .filter(Boolean)
         .join("\n\n")
     }

@@ -12,27 +12,24 @@ import { describe, expect, it } from "vitest";
 const here = dirname(fileURLToPath(import.meta.url));
 const composePath = resolve(here, "../../packages/briefings/src/compose.ts");
 const composeSource = readFileSync(composePath, "utf8");
+const composeEveningPath = resolve(here, "../../packages/briefings/src/compose-evening.ts");
+const eveningSource = readFileSync(composeEveningPath, "utf8");
 const tbPath = resolve(here, "../../packages/briefings/src/trust-boundary.ts");
 const tbSource = readFileSync(tbPath, "utf8");
 
 describe("briefings prompt-isolation (static)", () => {
   it("builds morning and evening trusted preambles as pure literal constants", () => {
-    const matches = [
-      ...composeSource.matchAll(/const TRUSTED_INSTRUCTIONS_(MORNING|EVENING) = `([\s\S]*?)`;/g)
-    ];
-    expect(
-      matches.map((match) => match[1]).sort(),
-      "morning and evening trusted constants must exist as template literals"
-    ).toEqual(["EVENING", "MORNING"]);
+    const morning = composeSource.match(/const TRUSTED_INSTRUCTIONS_MORNING = `([\s\S]*?)`;/);
+    const evening = eveningSource.match(/const TRUSTED_INSTRUCTIONS_EVENING = `([\s\S]*?)`;/);
+    expect(morning, "morning trusted constant must be a template literal").not.toBeNull();
+    expect(evening, "evening trusted constant must be a template literal").not.toBeNull();
+    expect(composeSource).not.toContain("TRUSTED_INSTRUCTIONS_EVENING = `");
 
-    // No external/section value may be referenced inside the trusted preamble. If any of
-    // these identifiers appear, external content can leak into the trusted text.
     const forbidden = ["sections", "body", ".lines", ".key", ".label", ".count"];
-    for (const match of matches) {
-      const trustedLiteral = match[2]!;
+    for (const literal of [morning![1]!, evening![1]!]) {
       for (const token of forbidden) {
         expect(
-          trustedLiteral,
+          literal,
           `trusted preamble must not reference external value "${token}"`
         ).not.toContain(token);
       }
@@ -41,7 +38,11 @@ describe("briefings prompt-isolation (static)", () => {
 
   it("uses the delimited trust-boundary scheme", () => {
     expect(composeSource).toContain("<trusted_instructions>");
+    expect(composeSource).toContain("<trusted_instructions>");
     expect(composeSource).toContain("</trusted_instructions>");
+    expect(eveningSource).toContain("<trusted_instructions>");
+    expect(eveningSource).toContain("</trusted_instructions>");
+    expect(eveningSource).toContain('from "./trust-boundary.js"');
     // The external block type attribute is interpolated from the section key (a constant).
     expect(tbSource).toContain('<external_source type="${section.key}">');
     expect(tbSource).toContain("</external_source>");
