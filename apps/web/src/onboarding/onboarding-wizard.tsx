@@ -1,12 +1,13 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, Flag, LogIn, Minus, Play, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Flag, LogIn, Minus, Play } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import type { OnboardingStatusResponse, OnboardingStepsDto } from "@jarv1s/shared";
 
 import { completeOnboarding, getOnboardingStatus, skipOnboarding } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { BrandMark } from "../shell/brand-mark";
 import { ApiKeyOptOutStep } from "./api-key-opt-out-step";
 import { CliAuthStep } from "./cli-auth-step";
 import { ConnectorStep } from "./connector-step";
@@ -433,7 +434,7 @@ export function FinishStep(props: {
               disabled={props.pending}
               onClick={props.onAskJarvis}
             >
-              <Sparkles size={16} aria-hidden="true" /> Ask Jarvis
+              <BrandMark size={16} /> Ask Jarvis
             </button>
             <button
               className="ghost-button"
