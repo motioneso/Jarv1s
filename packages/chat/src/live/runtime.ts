@@ -126,7 +126,7 @@ export interface RpcEngineFactory {
  * (re)connect AND on a `bootId` change (§5.6). `logger` is the {method,id,sessionKey,bytes}-only
  * debug logger (§6.4) — it MUST NOT log frame bodies.
  */
-export function createRpcEngineFactory(opts: {
+function createRpcEngineFactory(opts: {
   readonly socketPath: string;
   readonly rpcSecret: string;
   readonly onReconcile?: (driver: RpcReconcileDriver) => Promise<void>;

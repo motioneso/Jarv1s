@@ -9,7 +9,7 @@ import {
 
 import { chatListTodaysTurnsExecute } from "./tools.js";
 
-export const CHAT_MODULE_ID = "chat";
+const CHAT_MODULE_ID = "chat";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const chatModuleManifest = {

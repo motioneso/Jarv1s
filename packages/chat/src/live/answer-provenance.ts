@@ -60,7 +60,7 @@ export function stripAnswerMarkers(text: string, validIds: ReadonlySet<string>):
 
 // ── Support id sequencing ─────────────────────────────────────────────────────
 
-export function supportIdForIndex(idx: number): string {
+function supportIdForIndex(idx: number): string {
   return `S${idx + 1}`;
 }
 
@@ -169,12 +169,6 @@ export function memoryItemToSupport(item: MemoryRecallItem, idx: number): Answer
     occurredAt,
     canDereference: false
   };
-}
-
-// ── Render context line with support id ──────────────────────────────────────
-
-export function renderContextLineWithSupportId(line: string, supportId: string): string {
-  return `[support=${supportId}] ${line}`;
 }
 
 // ── Finalizer ─────────────────────────────────────────────────────────────────

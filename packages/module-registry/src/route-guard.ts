@@ -133,7 +133,7 @@ export interface RegisteredRoute {
   readonly url: string;
 }
 
-export interface RouteCoverageInput {
+interface RouteCoverageInput {
   readonly registered: readonly RegisteredRoute[];
   readonly manifests: readonly JarvisModuleManifest[];
   readonly platformAllowlist: ReadonlySet<RouteKey>;
