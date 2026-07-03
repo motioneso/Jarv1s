@@ -662,6 +662,10 @@
   font-weight: var(--weight-semibold);
   box-shadow: var(--shadow-xs);
 }
+.jds-segmented__opt:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
 .jds-segmented__opt svg {
   width: 15px;
   height: 15px;
