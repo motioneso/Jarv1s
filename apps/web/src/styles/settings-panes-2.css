@@ -811,6 +811,12 @@
   color: var(--text);
   font-weight: 600;
 }
+.aud__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
 .aud__cat {
   font-family: var(--font-mono);
   font-size: 9.5px;
