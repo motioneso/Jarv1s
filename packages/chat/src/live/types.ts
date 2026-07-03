@@ -91,7 +91,3 @@ export interface CliChatEngine {
    */
   resetActivityDeadline?(): void;
 }
-
-export interface ChatTurnSeed {
-  readonly priorTurns: readonly { role: "user" | "assistant"; content: string }[];
-}

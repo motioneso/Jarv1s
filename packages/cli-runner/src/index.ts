@@ -5,25 +5,17 @@
  */
 
 export { CliRunnerServer, type CliRunnerServerDeps } from "./server.js";
-export { CliChatEngineHost, NotLaunchedError, type EngineHostDeps } from "./engine-host.js";
+export { CliChatEngineHost, type EngineHostDeps } from "./engine-host.js";
 export { serveConnection, type ByteChannel, type ConnectionDeps } from "./connection.js";
 export {
   stepHelloServer,
   isHandshakeFrame,
-  newNonce,
   type HelloServerState,
   type HelloStep
 } from "./hello.js";
 export { buildSanitizedCliEnv } from "./sanitized-env.js";
 export { createSanitizedTmuxIo } from "./runner-io.js";
-export { Mutex } from "./mutex.js";
-export {
-  readConfig,
-  createCliRunner,
-  sourceSelfUpdateDisableEnv,
-  main,
-  type CliRunnerConfig
-} from "./main.js";
+export { sourceSelfUpdateDisableEnv, main, type CliRunnerConfig } from "./main.js";
 export {
   InstallService,
   InstallBadRequestError,
@@ -38,9 +30,4 @@ export {
   type LoginServiceDeps,
   type LoginFlowOutcome
 } from "./login-service.js";
-export {
-  LOGIN_ADAPTERS,
-  LOGIN_ADAPTER_ISSUES,
-  loadLoginAdapters,
-  type LoginAdapterIssue
-} from "./login-adapters.js";
+export { LOGIN_ADAPTERS, loadLoginAdapters, type LoginAdapterIssue } from "./login-adapters.js";

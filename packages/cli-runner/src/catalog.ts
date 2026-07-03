@@ -324,7 +324,7 @@ function validateEntry(entry: CatalogEntry, issues: CatalogValidationIssue[]): C
  * plus the list of demotions. Call once at module load; a `blocked`-everything result
  * never reaches a real install because §A.2.3 rejects blocked providers.
  */
-export function loadCatalog(raw: Record<RpcProviderKind, CatalogEntry> = RAW_CATALOG): {
+function loadCatalog(raw: Record<RpcProviderKind, CatalogEntry> = RAW_CATALOG): {
   catalog: ProviderCatalog;
   issues: CatalogValidationIssue[];
 } {
