@@ -799,6 +799,17 @@
 .sp-standings__nav {
   gap: 5px;
 }
+.sp-standings__select {
+  max-width: 96px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+}
 .sp-standings__hd svg {
   color: var(--text-subtle);
 }

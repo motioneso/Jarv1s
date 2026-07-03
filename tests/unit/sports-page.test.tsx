@@ -285,6 +285,8 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("AL East");
     expect(html).toContain("New York Yankees");
+    expect(html).toContain("Select standings league");
+    expect(html).toContain("<option");
     expect(html).toContain("sp-standings__count");
     expect(html).toContain("Next standings");
     expect(html).not.toContain("AL West");
