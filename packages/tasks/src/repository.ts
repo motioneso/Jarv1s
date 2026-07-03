@@ -128,8 +128,11 @@ export class TasksRepository {
       const urgentBefore = new Date(
         (criteria.now ?? new Date()).getTime() + TASK_URGENCY_WINDOW_MS
       );
-      // Derive the predicate from the one quadrant matrix + shared threshold, so the SQL
-      // filter cannot diverge from classifyTaskQuadrant. Each axis is expressed once.
+      // Derive the predicate from the single shared quadrant matrix + threshold, so
+      // the SQL filter cannot drift from the in-memory mirror. Each axis is expressed
+      // once here (TASK_QUADRANT_AXES / TASK_IMPORTANT_PRIORITY_MIN /
+      // TASK_URGENCY_WINDOW_MS, re-exported via ./classification.js from @jarv1s/shared);
+      // the frontend's equivalent classifier is `quadrantOf` in @jarv1s/shared.
       const axes = TASK_QUADRANT_AXES[criteria.quadrant];
       const importantExpr = axes.important
         ? sql<boolean>`t.priority is not null and t.priority >= ${TASK_IMPORTANT_PRIORITY_MIN}`
