@@ -6,11 +6,7 @@
  * results.
  */
 
-import type {
-  PriorityCandidate,
-  PriorityModelPreferenceV1,
-  FocusSignalInput
-} from "@jarv1s/priority";
+import type { PriorityCandidate, PriorityModelPreferenceV1 } from "@jarv1s/priority";
 import { PriorityPreferencesRepository } from "@jarv1s/priority";
 import type { DataContextDb } from "@jarv1s/db";
 
@@ -85,17 +81,4 @@ export async function readPriorityModel(
     return priorityPreferences.defaults();
   }
   return priorityPreferences.get(await preferencesRepository.get(scopedDb, PRIORITY_MODEL_KEY));
-}
-
-export interface ComposeDepsForPriority {
-  readonly moduleManifests: readonly {
-    manifest: { readonly focusSignalProviders?: readonly unknown[] };
-  }[];
-}
-
-export async function getFocusReadiness(
-  scopedDb: DataContextDb,
-  deps: ComposeDepsForPriority
-): Promise<readonly FocusSignalInput[]> {
-  return [];
 }
