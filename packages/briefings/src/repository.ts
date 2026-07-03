@@ -225,8 +225,8 @@ export class BriefingsRepository {
       }
     }
 
-    // Blocked-tool guard preserved: a non-read selected tool blocks the run.
     const blocked = definition.selected_tool_names.some((name) => {
+      if (name === "vault" || name === "chats") return false;
       const tool = findAssistantToolFromManifests(input.composeDeps.moduleManifests, name);
       return !tool || tool.risk !== "read";
     });

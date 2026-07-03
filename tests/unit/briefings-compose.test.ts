@@ -325,7 +325,7 @@ describe("composeBriefing — gathering", () => {
     expect(trustedMatch![1]).toContain("sports");
   });
 
-  it.skip("uses an evening review prompt for evening definitions without moving data into trusted text", async () => {
+  it("uses an evening review prompt for evening definitions without moving data into trusted text", async () => {
     const capturedMessages: unknown[] = [];
     const deps = makeFakeDeps({
       generateChat: async (input: GenerateChatInput) => {
@@ -346,9 +346,9 @@ describe("composeBriefing — gathering", () => {
     expect(trustedMatch).not.toBeNull();
     expect(trustedMatch![1]).toContain("evening chief of staff");
     expect(trustedMatch![1]).toContain("end-of-day report");
-    expect(trustedMatch![1]).not.toContain("Write report");
-    expect(prompt).toContain('<external_source type="tasks">');
-    expect(prompt).toContain("Write report");
+    expect(trustedMatch![1]).not.toContain("Pay invoice");
+    expect(prompt).toContain('<external_source type="commitments">');
+    expect(prompt).toContain("Pay invoice");
   });
 
   it("injects the saved persona block into the synthesis prompt", async () => {

@@ -72,7 +72,7 @@ export interface BriefingGap {
   readonly source: string;
   // No `empty_cache`: we cannot distinguish synced-empty from not-synced-yet until the
   // connector-sync slice lands cache state, so an empty source is just `empty`.
-  readonly reason: "tool_failed" | "truncated" | "empty";
+  readonly reason: "tool_failed" | "truncated" | "empty" | "unwired";
 }
 
 export interface ComposeResult {

@@ -8,8 +8,21 @@ interface ResolveFreshnessOpts {
   vaultLastWriteAt?: (scopedDb: DataContextDb) => Promise<Date | null>;
 }
 
-const CONNECTOR_SOURCES = new Set<string>(["email", "calendar"]);
-const REALTIME_SOURCES = new Set<string>(["tasks", "commitments", "chats", "goals"]);
+const CONNECTOR_SOURCE_KINDS = new Map<string, ConnectorKind>([
+  ["email", "email"],
+  ["calendar", "calendar"],
+  ["email_today", "email"],
+  ["calendar_tomorrow", "calendar"]
+]);
+
+const REALTIME_SOURCES = new Set<string>([
+  "tasks",
+  "commitments",
+  "chats",
+  "goals",
+  "tasks_reconciliation",
+  "morning_plan"
+]);
 
 export async function resolveBriefingFreshness(
   scopedDb: DataContextDb,
@@ -24,10 +37,11 @@ export async function resolveBriefingFreshness(
       if (REALTIME_SOURCES.has(key)) {
         return { source: key, freshnessKind: "realtime", asOf: capturedAtIso };
       }
-      if (CONNECTOR_SOURCES.has(key)) {
+      const connectorKind = CONNECTOR_SOURCE_KINDS.get(key);
+      if (connectorKind) {
         let asOf: string | null = null;
         try {
-          const t = (await opts.connectorSyncAt?.(scopedDb, key as ConnectorKind)) ?? null;
+          const t = (await opts.connectorSyncAt?.(scopedDb, connectorKind)) ?? null;
           asOf = t ? t.toISOString() : null;
         } catch {
           // keep asOf as null on error

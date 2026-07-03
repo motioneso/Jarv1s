@@ -6,49 +6,31 @@ import {
   readCalendarSignalSettings,
   readEmailSignalSettings,
   synthesizeWithConfiguredModel,
-  SECTION_ITEM_CAP,
-  SECTION_CHAR_CAP,
-  ECONOMY_MAX_OUTPUT_TOKENS,
   type ComposeDeps,
   type ComposeRunInput,
   type ComposeResult,
   type Section,
-  type BriefingGap,
-  type SynthesisFailureReason
+  type BriefingGap
 } from "./compose-shared.js";
 import { sanitizeExternal, renderExternalBlock, TRUST_BOUNDARY } from "./trust-boundary.js";
-import { randomUUID } from "node:crypto";
-
-import type { FastifyBaseLogger } from "fastify";
-
-import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
-import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
-import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
+import type { ChatTurn } from "@jarv1s/ai";
 import {
   rankPriorityCandidates,
-  type FocusSignalInput,
   type PriorityResult,
   type PrioritySource
 } from "@jarv1s/priority";
 import type {
   BriefingDefinition,
-  BriefingRunStatus,
-  BriefingType,
   DataContextDb
 } from "@jarv1s/db";
-import type { MemoryRetriever } from "@jarv1s/memory";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
-import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
+import { composeEveningBriefing } from "./compose-evening.js";
 
 import { resolveBriefingFreshness } from "./freshness.js";
 import { timezoneFor } from "./schedule.js";
 import {
   contextTokens,
   deriveCalendarSignals,
-  deriveEmailSignals,
-  type CalendarSignalSettings,
-  type EmailSignalSettings
+  deriveEmailSignals
 } from "./signals.js";
 import {
   calendarSignalsToCandidates,
@@ -94,6 +76,9 @@ export async function composeBriefing(
   input: ComposeRunInput,
   deps: ComposeDeps
 ): Promise<ComposeResult> {
+  if (definition.briefing_type === "evening") {
+    return composeEveningBriefing(scopedDb, definition, input, deps);
+  }
   const gaps: BriefingGap[] = [];
   // Use the caller's captured `now` (so the idempotency lock-day and the content window
   // agree); fall back to a fresh Date() for a direct/manual call that omits it.
