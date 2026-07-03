@@ -38,7 +38,7 @@ export function LiveDot(): ReactNode {
 export function RationaleChip(props: { children: ReactNode }): ReactNode {
   return (
     <span className="sp-rationale">
-      <SparkIcon />
+      <JarvisMarkIcon />
       {props.children}
     </span>
   );
@@ -58,7 +58,7 @@ export function FormPips(props: { form: readonly ("W" | "D" | "L")[] }): ReactNo
   );
 }
 
-export function SparkIcon(): ReactNode {
+export function JarvisMarkIcon(): ReactNode {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -71,7 +71,9 @@ export function SparkIcon(): ReactNode {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M3 12h6" />
+      <path d="M15 12h6" />
     </svg>
   );
 }

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../api/query-keys";
 import { getWellnessInsights } from "../api/client";
 
-function SparklesIcon() {
+function JarvisMarkIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -14,11 +14,9 @@ function SparklesIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-      <path d="M5 3v4" />
-      <path d="M19 17v4" />
-      <path d="M3 5h4" />
-      <path d="M17 19h4" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M3 12h6" />
+      <path d="M15 12h6" />
     </svg>
   );
 }
@@ -142,8 +140,7 @@ const INSIGHT_ICONS: Record<string, React.ReactNode> = {
   Sun: <SunIcon />,
   CloudRain: <CloudRainIcon />,
   NotebookPen: <NotebookPenIcon />,
-  Pill: <PillIcon />,
-  Sparkles: <SparklesIcon />
+  Pill: <PillIcon />
 };
 
 interface Props {
@@ -162,7 +159,7 @@ export function WellnessInsights({ onReviewNotes }: Props) {
     <div className="wl-insights">
       <div className="wl-insights__hd">
         <span className="ic">
-          <SparklesIcon />
+          <JarvisMarkIcon />
         </span>
         <span className="t">What this month is telling you</span>
         <span className="meta">30 days</span>
