@@ -542,7 +542,6 @@ export function defaultToolNamesFor(type: BriefingType): string[] {
         "tasks.list",
         "calendar.listVisibleEvents",
         "email.listVisibleMessages",
-        "vault",
         "chat.listTodaysTurns",
         "goals.list",
         "sports.followedFactsToday"

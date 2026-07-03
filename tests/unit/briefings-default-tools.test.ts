@@ -18,4 +18,10 @@ describe("briefing default tool sets", () => {
   it("does NOT include sports.followedFactsToday in the weekly_review default", () => {
     expect(defaultToolNamesFor("weekly_review")).not.toContain("sports.followedFactsToday");
   });
+
+  it("includes vault in morning and weekly_review, but not evening", () => {
+    expect(defaultToolNamesFor("morning")).toContain("vault");
+    expect(defaultToolNamesFor("weekly_review")).toContain("vault");
+    expect(defaultToolNamesFor("evening")).not.toContain("vault");
+  });
 });
