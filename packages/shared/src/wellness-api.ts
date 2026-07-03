@@ -722,8 +722,6 @@ export const updateCheckinRouteSchema = {
 // Emotion taxonomy (core emotion → feelings → body sensations) adapted from an
 // emotion–sensation reference wheel. Values are original to this design.
 
-export const WHEEL_VERSION = "jarvis-emotion-v1";
-
 /** polarity × intensity(1-5) → mood index (−5…+5) */
 export const EMOTION_POLARITY: Readonly<Record<WellnessEmotionCore, number>> = {
   happy: 1.0,
