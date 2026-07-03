@@ -92,13 +92,3 @@ export interface CreateJarvisGoalEvidenceRequest {
   readonly summary: string;
   readonly occurredAt?: string | null;
 }
-
-export interface SourceVerifier {
-  readonly sourceKind: string;
-  readonly verify: (sourceRef: string, actorUserId: string) => Promise<boolean>;
-}
-
-export interface SourceVerifierRegistry {
-  readonly register: (verifier: SourceVerifier) => void;
-  readonly verify: (sourceKind: string, sourceRef: string, actorUserId: string) => Promise<boolean>;
-}
