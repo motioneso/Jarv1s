@@ -4,15 +4,8 @@
  * Implements ChatProviderAdapter (defined in chat-adapter.ts).
  */
 
-import type {
-  ChatTurn,
-  ChatActivityEvent,
-  GenerateChatInput,
-  ChatProviderAdapter
-} from "../chat-adapter.js";
+import type { GenerateChatInput, ChatProviderAdapter } from "../chat-adapter.js";
 import type { ProviderKind } from "./transcript-reader.js";
-
-export type { ChatTurn, ChatActivityEvent, GenerateChatInput, ChatProviderAdapter, ProviderKind };
 
 // ---------------------------------------------------------------------------
 // HttpApiAdapter
