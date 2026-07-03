@@ -76,6 +76,22 @@ export default tseslint.config(
         caches: "readonly",
         self: "readonly"
       }
+    },
+    rules: {
+      // #685: sparkle glyphs are a banned AI tell in the app UI.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "lucide-react",
+              importNames: ["Sparkles"],
+              message:
+                "Sparkles is a banned AI-tell marker (#685). Use GitCommitHorizontal for Jarvis-held/generated items or BrandMark for product identity."
+            }
+          ]
+        }
+      ]
     }
   }
 );
