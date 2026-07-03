@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, CornerDownRight, PencilLine, Sparkles } from "lucide-react";
+import { Check, CornerDownRight, PencilLine, GitCommitHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -100,7 +100,7 @@ function Persona({ who }: { readonly who: string }) {
       setSaved(next);
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings.persona });
       toast("Persona saved. Your next briefing and replies will use this voice.", {
-        icon: <Sparkles size={17} />
+        icon: <GitCommitHorizontal size={17} />
       });
     },
     onError: (error) => {
@@ -189,7 +189,7 @@ function Persona({ who }: { readonly who: string }) {
 
       <div className="ppv">
         <div className="ppv__hd">
-          <Sparkles size={13} aria-hidden="true" />
+          <GitCommitHorizontal size={13} aria-hidden="true" />
           How {p.assistantName || "Jarvis"} would sound
         </div>
         <div className="ppv__bubble ppv__bubble--main">
@@ -265,7 +265,7 @@ function ChatModel() {
         ? result.settings.selectedModel
         : result.settings.defaultModel;
       toast(`Chat now uses ${model?.displayName ?? "the instance default"}`, {
-        icon: <Sparkles size={17} />
+        icon: <GitCommitHorizontal size={17} />
       });
     },
     onError: (error) => {
@@ -333,7 +333,7 @@ function ChatModel() {
       ) : (
         <div className="ai-empty">
           <div className="ai-empty__ic">
-            <Sparkles size={20} aria-hidden="true" />
+            <GitCommitHorizontal size={20} aria-hidden="true" />
           </div>
           <div className="ai-empty__main">
             <div className="ai-empty__t">No assistant configured yet</div>

@@ -7,7 +7,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  Sparkles,
+  GitCommitHorizontal,
   Terminal,
   Trash2,
   Unlink,
@@ -186,7 +186,7 @@ function AddModelForm(props: { readonly providerConfigId: string; readonly onClo
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Model added", { icon: <Sparkles size={17} /> });
+      toast("Model added", { icon: <GitCommitHorizontal size={17} /> });
       props.onClose();
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
@@ -200,7 +200,7 @@ function AddModelForm(props: { readonly providerConfigId: string; readonly onClo
 
   return (
     <form className="ai-model-form" onSubmit={submit}>
-      <Note icon={<Sparkles size={13} />}>
+      <Note icon={<GitCommitHorizontal size={13} />}>
         Auto-detecting a provider's models on connect is coming. For now, register them here.
       </Note>
       <Field label="Model id">
@@ -320,7 +320,7 @@ function ProviderCard(props: {
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Models added", { icon: <Sparkles size={17} /> });
+      toast("Models added", { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -606,7 +606,7 @@ function RouterRow(props: {
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.capability.k) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Tier updated", { icon: <Sparkles size={17} /> });
+      toast("Tier updated", { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -793,7 +793,7 @@ export function AiProvidersPane() {
     onSuccess: (_data, option) => {
       setPick(false);
       void invalidate();
-      toast(`Added ${option.label}`, { icon: <Sparkles size={17} /> });
+      toast(`Added ${option.label}`, { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift", icon: <X size={17} /> })
   });
@@ -822,7 +822,7 @@ export function AiProvidersPane() {
     mutationFn: (enabled: boolean) => putAdminChatModelOverrideEnabled({ enabled }),
     onSuccess: () => {
       void invalidate();
-      toast("Chat override setting updated", { icon: <Sparkles size={17} /> });
+      toast("Chat override setting updated", { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -832,7 +832,7 @@ export function AiProvidersPane() {
     onSuccess: (_data, input) => {
       void invalidate();
       toast(`${input.model.displayName} override access updated`, {
-        icon: <Sparkles size={17} />
+        icon: <GitCommitHorizontal size={17} />
       });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
@@ -890,7 +890,7 @@ export function AiProvidersPane() {
         {providers.length === 0 ? (
           <div className="ai-empty">
             <div className="ai-empty__ic">
-              <Sparkles size={20} aria-hidden="true" />
+              <GitCommitHorizontal size={20} aria-hidden="true" />
             </div>
             <div className="ai-empty__main">
               <div className="ai-empty__t">No providers yet</div>
@@ -991,7 +991,7 @@ export function AiProvidersPane() {
       <ChatLockGroup />
       <EmbeddingConfigGroup />
       <WebSearchKeyGroup />
-      <Note icon={<Sparkles size={13} />}>
+      <Note icon={<GitCommitHorizontal size={13} />}>
         Each person can override which model powers their own chat under{" "}
         <b>Personal → Assistant &amp; AI</b>. Everything else follows the routing above.
       </Note>

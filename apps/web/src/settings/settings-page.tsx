@@ -18,7 +18,7 @@ import {
   ServerCog,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
+  GitCommitHorizontal,
   UserRound,
   Users,
   type LucideIcon
@@ -125,7 +125,7 @@ const HostPane = lazyPane(() =>
 
 const PERSONAL_SECTIONS = [
   { id: "profile", icon: UserRound, label: "Profile & account", Pane: ProfilePane },
-  { id: "assistant", icon: Sparkles, label: "Assistant & AI", Pane: AssistantPane },
+  { id: "assistant", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AssistantPane },
   { id: "priorities", icon: ListChecks, label: "Priorities", Pane: PrioritiesPane },
   { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
   { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
@@ -139,7 +139,7 @@ const PERSONAL_SECTIONS = [
 const ADMIN_SECTIONS = [
   { id: "people", icon: Users, label: "People & access", Pane: PeoplePane },
   { id: "identity", icon: Fingerprint, label: "Identity & registration", Pane: IdentityPane },
-  { id: "aiproviders", icon: Sparkles, label: "Assistant & AI", Pane: AiProvidersPane },
+  { id: "aiproviders", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AiProvidersPane },
   { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane },
   { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
   { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
