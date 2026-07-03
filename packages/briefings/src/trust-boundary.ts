@@ -62,7 +62,10 @@ export const TRUST_BOUNDARY =
  * join. Empty channels still emit a block ("(none today)") so the structure is
  * deterministic and the model always sees where a section is empty.
  */
-export function renderExternalBlock(section: { readonly key: string; readonly lines: readonly string[] }): string {
+export function renderExternalBlock(section: {
+  readonly key: string;
+  readonly lines: readonly string[];
+}): string {
   const inner =
     section.lines.length > 0 ? section.lines.map((line) => `- ${line}`).join("\n") : "(none today)";
   return `<external_source type="${section.key}">\n${inner}\n</external_source>`;

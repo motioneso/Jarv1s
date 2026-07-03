@@ -14,24 +14,13 @@ import {
 } from "./compose-shared.js";
 import { sanitizeExternal, renderExternalBlock, TRUST_BOUNDARY } from "./trust-boundary.js";
 import type { ChatTurn } from "@jarv1s/ai";
-import {
-  rankPriorityCandidates,
-  type PriorityResult,
-  type PrioritySource
-} from "@jarv1s/priority";
-import type {
-  BriefingDefinition,
-  DataContextDb
-} from "@jarv1s/db";
+import { rankPriorityCandidates, type PriorityResult, type PrioritySource } from "@jarv1s/priority";
+import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
 import { composeEveningBriefing } from "./compose-evening.js";
 
 import { resolveBriefingFreshness } from "./freshness.js";
 import { timezoneFor } from "./schedule.js";
-import {
-  contextTokens,
-  deriveCalendarSignals,
-  deriveEmailSignals
-} from "./signals.js";
+import { contextTokens, deriveCalendarSignals, deriveEmailSignals } from "./signals.js";
 import {
   calendarSignalsToCandidates,
   emailSignalsToCandidates,
@@ -47,8 +36,6 @@ const VAULT_EXCERPT_CHARS = 400;
 // generation can't blow the economy cost envelope. Wired into the adapter via
 // GenerateChatInput.maxOutputTokens (A5b) — the adapter clamps its provider
 // max_tokens to this when present.
-
-
 
 function orderByPriority<T>(
   items: readonly T[],
@@ -447,7 +434,11 @@ export async function composeBriefing(
       vaultCount: vault.count,
       chatTurnCount: chats.count,
       notes: vaultNotes,
-      aiModel: { id: synth.model.id, displayName: synth.model.display_name, tier: synth.model.tier },
+      aiModel: {
+        id: synth.model.id,
+        displayName: synth.model.display_name,
+        tier: synth.model.tier
+      },
       gaps,
       degraded: false,
       ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
@@ -479,7 +470,6 @@ ${SYNTHESIS_INSTRUCTIONS_MORNING}
 ${TRUST_BOUNDARY}
 </trusted_instructions>`;
 
-
 async function buildMessages(
   scopedDb: DataContextDb,
   definition: BriefingDefinition,
@@ -500,7 +490,6 @@ async function buildMessages(
     }
   ];
 }
-
 
 export {
   gatherToolSection,

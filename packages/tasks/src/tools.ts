@@ -31,16 +31,17 @@ function statusSummary(status: "todo" | "done" | "archived", title: string): str
 export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
 
-  const { listId, tagId, status, priority, dueBefore, dueAfter, quadrant, completedAfter } = input as {
-    listId?: string;
-    tagId?: string;
-    status?: string;
-    priority?: number;
-    dueBefore?: string;
-    dueAfter?: string;
-    quadrant?: string;
-    completedAfter?: string;
-  };
+  const { listId, tagId, status, priority, dueBefore, dueAfter, quadrant, completedAfter } =
+    input as {
+      listId?: string;
+      tagId?: string;
+      status?: string;
+      priority?: number;
+      dueBefore?: string;
+      dueAfter?: string;
+      quadrant?: string;
+      completedAfter?: string;
+    };
 
   const tasks = await repository.listFiltered(scopedDb, {
     listId,

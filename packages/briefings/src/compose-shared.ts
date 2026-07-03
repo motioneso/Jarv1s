@@ -94,7 +94,6 @@ export interface Section {
   readonly rawItems?: readonly Record<string, unknown>[];
 }
 
-
 export function ctxFor(definition: BriefingDefinition, input: ComposeRunInput) {
   return {
     actorUserId: definition.owner_user_id,
@@ -102,7 +101,6 @@ export function ctxFor(definition: BriefingDefinition, input: ComposeRunInput) {
     chatSessionId: ""
   };
 }
-
 
 /**
  * Authoritative per-user local-day check for a field we are EXPLICITLY day-bounding.
@@ -130,11 +128,9 @@ export function withinLocalDay(isoOrDate: unknown, now: Date, timeZone: string):
   return fmt(ts) === fmt(now);
 }
 
-
 export function findExecute(manifests: readonly JarvisModuleManifest[], toolName: string) {
   return manifests.flatMap((m) => m.assistantTools ?? []).find((t) => t.name === toolName);
 }
-
 
 export function capLines(lines: string[]): { lines: string[]; truncated: boolean } {
   const itemCapped = lines.slice(0, SECTION_ITEM_CAP);
@@ -152,16 +148,13 @@ export function capLines(lines: string[]): { lines: string[]; truncated: boolean
   return { lines: out, truncated };
 }
 
-
 export function emptySection(key: string, label: string): Section {
   return { key, label, lines: [], count: 0 };
 }
 
-
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
 
 export async function sourceIncludedInBriefings(
   scopedDb: DataContextDb,
@@ -174,7 +167,6 @@ export async function sourceIncludedInBriefings(
   return isBehaviorEnabled(scopedDb, deps.sourceBehaviorPolicy, behaviorId);
 }
 
-
 export async function readPreference(
   scopedDb: DataContextDb,
   deps: ComposeDeps,
@@ -183,16 +175,13 @@ export async function readPreference(
   return deps.sourceBehaviorPolicy?.preferencesRepository.get(scopedDb, key) ?? null;
 }
 
-
 export function boolPreference(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
-
 export function intPreference(value: unknown, fallback: 0 | 1 | 2): 0 | 1 | 2 {
   return value === 0 || value === 1 || value === 2 ? value : fallback;
 }
-
 
 export async function readCalendarSignalSettings(
   scopedDb: DataContextDb,
@@ -215,7 +204,6 @@ export async function readCalendarSignalSettings(
   };
 }
 
-
 export async function readEmailSignalSettings(
   scopedDb: DataContextDb,
   deps: ComposeDeps
@@ -233,7 +221,6 @@ export async function readEmailSignalSettings(
     autoSend: boolPreference(autoSend, false)
   };
 }
-
 
 /** Gather one tool-backed section; never throws — failures become gaps. */
 export async function gatherToolSection(
@@ -275,7 +262,12 @@ export async function gatherToolSection(
     const toolServices = deps.featureGrantService
       ? { featureGrants: deps.featureGrantService }
       : {};
-    const result = await tool.execute(scopedDb, args.toolInput ?? {}, ctxFor(definition, input), toolServices);
+    const result = await tool.execute(
+      scopedDb,
+      args.toolInput ?? {},
+      ctxFor(definition, input),
+      toolServices
+    );
     const data = isRecord(result.data) ? result.data : {};
     const raw = data[args.arrayKey];
     let items = Array.isArray(raw) ? raw.filter(isRecord) : [];
@@ -313,11 +305,9 @@ export async function gatherToolSection(
   }
 }
 
-
 export function defaultCreateAdapter(kind: ProviderKind, apiKey: string, baseUrl: string | null) {
   return new HttpApiAdapter(kind, apiKey, baseUrl ? { baseUrl } : {});
 }
-
 
 export async function buildPersonaBlock(
   scopedDb: DataContextDb,

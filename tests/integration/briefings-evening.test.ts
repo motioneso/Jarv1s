@@ -163,8 +163,19 @@ describe("evening briefing compose (spec 2026-07-02, #695)", () => {
 
   it("reconciles tasks into tagged lenses", async () => {
     const tasksRepo = new TasksRepository();
-    const updateStatusTool = moduleManifests.flatMap(m => m.assistantTools ?? []).find((t) => t.name === "tasks.updateStatus")!;
-    const toolCtx = { runId: "test", userId: ids.userA, actorUserId: ids.userA, authId: "test", contextType: "manual" as const, vaultRecordIds: [], requestId: "req", chatSessionId: "chat-1" };
+    const updateStatusTool = moduleManifests
+      .flatMap((m) => m.assistantTools ?? [])
+      .find((t) => t.name === "tasks.updateStatus")!;
+    const toolCtx = {
+      runId: "test",
+      userId: ids.userA,
+      actorUserId: ids.userA,
+      authId: "test",
+      contextType: "manual" as const,
+      vaultRecordIds: [],
+      requestId: "req",
+      chatSessionId: "chat-1"
+    };
 
     // Completed today
     const completedTask = await dataContext.withDataContext(userAContext(), (db) =>
@@ -309,5 +320,17 @@ describe("evening briefing compose (spec 2026-07-02, #695)", () => {
     const meta = run.source_metadata as Record<string, unknown>;
     expect(meta.morningRunReferenced).toBe(false);
     expect(meta.gaps).not.toContainEqual(expect.objectContaining({ source: "morning_plan" }));
+  });
+
+  it("RLS: another user cannot read an evening run or its definition", async () => {
+    const { run } = await runEvening();
+    const stolenRun = await dataContext.withDataContext(userBContext(), (db) =>
+      repository.getOwnedRunById(db, run.id)
+    );
+    expect(stolenRun).toBeUndefined();
+    const stolenDef = await dataContext.withDataContext(userBContext(), (db) =>
+      repository.getOwnedDefinitionById(db, run.definition_id)
+    );
+    expect(stolenDef).toBeUndefined();
   });
 });
