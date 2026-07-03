@@ -528,7 +528,7 @@ export const tasksModuleManifest = {
     {
       name: "tasks.list",
       description:
-        "List tasks visible to the actor. Optional filters: listId, tagId, status (todo|done|archived), priority (1–5 integer), dueBefore/dueAfter (ISO 8601 date strings), quadrant (do|schedule|delegate|eliminate — Eisenhower matrix).",
+        "List tasks visible to the actor. Optional filters: listId, tagId, status (todo|done|archived), priority (1–5 integer), dueBefore/dueAfter (ISO 8601 date strings), quadrant (do|schedule|delegate|eliminate — Eisenhower matrix), completedAfter (ISO 8601 date-time — only tasks completed after this instant).",
       permissionId: "tasks.view",
       risk: "read",
       inputSchema: {
@@ -540,7 +540,8 @@ export const tasksModuleManifest = {
           priority: { type: "integer", minimum: 1, maximum: 5 },
           dueBefore: { type: "string" },
           dueAfter: { type: "string" },
-          quadrant: { type: "string", enum: ["do", "schedule", "delegate", "eliminate"] }
+          quadrant: { type: "string", enum: ["do", "schedule", "delegate", "eliminate"] },
+          completedAfter: { type: "string" }
         }
       },
       outputSchema: taskItemsToolOutputSchema,

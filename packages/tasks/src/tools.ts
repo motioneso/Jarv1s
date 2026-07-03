@@ -31,7 +31,7 @@ function statusSummary(status: "todo" | "done" | "archived", title: string): str
 export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
 
-  const { listId, tagId, status, priority, dueBefore, dueAfter, quadrant } = input as {
+  const { listId, tagId, status, priority, dueBefore, dueAfter, quadrant, completedAfter } = input as {
     listId?: string;
     tagId?: string;
     status?: string;
@@ -39,6 +39,7 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
     dueBefore?: string;
     dueAfter?: string;
     quadrant?: string;
+    completedAfter?: string;
   };
 
   const tasks = await repository.listFiltered(scopedDb, {
@@ -48,6 +49,7 @@ export const taskListExecute: ToolExecute = async (scopedDb, input, _ctx): Promi
     priority,
     dueBefore: dueBefore ? new Date(dueBefore) : undefined,
     dueAfter: dueAfter ? new Date(dueAfter) : undefined,
+    completedAfter: completedAfter ? new Date(completedAfter) : undefined,
     quadrant:
       quadrant === "do" ||
       quadrant === "schedule" ||
