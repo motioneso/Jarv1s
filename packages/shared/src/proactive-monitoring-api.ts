@@ -52,11 +52,6 @@ export interface ProactiveMonitoringSettingsDto {
 
 export const PROACTIVE_MONITORING_PREFERENCE_KEY = "proactive.monitoring.v1";
 
-export const PROACTIVE_SOURCE_DEFAULT: ProactiveSourcePreference = {
-  enabled: false,
-  dailyCardCap: 3
-};
-
 export function defaultProactiveMonitoringPreference(): ProactiveMonitoringPreferenceV1 {
   return {
     version: 1,

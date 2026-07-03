@@ -29,7 +29,6 @@ import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } fro
 
 export const WELLNESS_MODULE_ID = "wellness";
 export const WELLNESS_MEDICATION_REMINDER_QUEUE = "wellness-medication-reminder";
-export const WELLNESS_EXPORT_QUEUE_NAME = WELLNESS_EXPORT_QUEUE;
 export const wellnessModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
