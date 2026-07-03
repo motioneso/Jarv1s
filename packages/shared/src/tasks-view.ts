@@ -13,7 +13,7 @@ export const TASK_QUADRANT_AXES: Record<TaskQuadrant, { important: boolean; urge
   eliminate: { important: false, urgent: false }
 };
 
-export interface PriorityLevel {
+interface PriorityLevel {
   readonly value: 1 | 2 | 3 | 4 | 5;
   readonly label: string;
 }
@@ -27,11 +27,7 @@ export const PRIORITY_LEVELS: readonly PriorityLevel[] = [
   { value: 1, label: "Someday" }
 ];
 
-export function priorityLabel(priority: number | null): string {
-  return PRIORITY_LEVELS.find((l) => l.value === priority)?.label ?? "No priority";
-}
-
-export interface QuadrantMeta {
+interface QuadrantMeta {
   readonly key: TaskQuadrant;
   readonly title: string;
   readonly subtitle: string;
@@ -58,7 +54,7 @@ export function quadrantOf(task: TaskDto): TaskQuadrant {
   return quadrant ?? "eliminate";
 }
 
-export interface PriorityGroup {
+interface PriorityGroup {
   readonly value: 1 | 2 | 3 | 4 | 5 | null;
   readonly label: string;
   readonly tasks: TaskDto[];
@@ -83,8 +79,4 @@ export function groupByPriority(tasks: readonly TaskDto[]): PriorityGroup[] {
     tasks: tasks.filter((t) => t.priority === null).sort(byDueThenTitle)
   });
   return groups;
-}
-
-export function quadrantTasks(tasks: readonly TaskDto[], quadrant: TaskQuadrant): TaskDto[] {
-  return tasks.filter((t) => quadrantOf(t) === quadrant).sort(byDueThenTitle);
 }
