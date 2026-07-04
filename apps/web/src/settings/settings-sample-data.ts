@@ -142,49 +142,12 @@ export const DEFAULT_CHAT: ChatSettings = {
 
 export type NotificationSensitivity = "quiet" | "balanced" | "proactive";
 
-export interface NotificationType {
-  readonly k: string;
-  readonly name: string;
-  readonly desc: string;
-  readonly on: boolean;
-}
-
 export interface NotificationsSettings {
   readonly sensitivity: NotificationSensitivity;
-  readonly channels: { readonly app: boolean; readonly push: boolean; readonly email: boolean };
-  readonly types: readonly NotificationType[];
 }
 
 export const DEFAULT_NOTIFICATIONS: NotificationsSettings = {
-  sensitivity: "balanced",
-  channels: { app: true, push: true, email: false },
-  types: [
-    {
-      k: "commitments",
-      name: "Commitment reminders",
-      desc: "When something you committed to is coming due.",
-      on: true
-    },
-    {
-      k: "calendar",
-      name: "Calendar changes",
-      desc: "New invites, moved meetings and conflicts.",
-      on: true
-    },
-    { k: "email", name: "Email flags", desc: "A thread Jarvis thinks needs you today.", on: true },
-    {
-      k: "wellness",
-      name: "Wellness nudges",
-      desc: "Gentle check-ins — never about productivity.",
-      on: true
-    },
-    {
-      k: "modules",
-      name: "Module alerts",
-      desc: "Finance, knowledge and other module signals.",
-      on: false
-    }
-  ]
+  sensitivity: "balanced"
 };
 
 export const NOTIFICATION_SENSITIVITY_HINT: Record<NotificationSensitivity, string> = {

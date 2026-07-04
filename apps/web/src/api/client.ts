@@ -21,6 +21,7 @@ import type {
   PutYoloUserRequest,
   DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
+  ListNotificationPreferencesResponse,
   GetQuietHoursSettingsResponse,
   GetAiSummaryResponse,
   ListMySessionsResponse,
@@ -34,6 +35,8 @@ import type {
   PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
+  PutNotificationPreferenceRequest,
+  PutNotificationPreferenceResponse,
   PutQuietHoursSettingsRequest,
   PutQuietHoursSettingsResponse,
   PutPersonaSettingsRequest,
@@ -216,6 +219,23 @@ export async function putQuietHoursSettings(
     method: "PUT",
     body
   });
+}
+
+export async function getNotificationPreferences(): Promise<ListNotificationPreferencesResponse> {
+  return requestJson<ListNotificationPreferencesResponse>("/api/me/notification-preferences");
+}
+
+export async function putNotificationPreference(
+  moduleId: string,
+  body: PutNotificationPreferenceRequest
+): Promise<PutNotificationPreferenceResponse> {
+  return requestJson<PutNotificationPreferenceResponse>(
+    `/api/me/notification-preferences/${encodeURIComponent(moduleId)}`,
+    {
+      method: "PUT",
+      body
+    }
+  );
 }
 
 export async function listThemes(): Promise<ListThemesResponse> {

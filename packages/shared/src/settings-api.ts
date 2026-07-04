@@ -131,7 +131,12 @@ export const putNotificationPreferenceRouteSchema = {
       required: ["preference", "unreadCount"],
       properties: {
         preference: notificationPreferenceSchema,
-        unreadCount: { type: ["integer", "null"], minimum: 0 }
+        unreadCount: {
+          anyOf: [
+            { type: "integer", minimum: 0 },
+            { type: "null" }
+          ]
+        }
       }
     },
     400: errorResponseSchema,

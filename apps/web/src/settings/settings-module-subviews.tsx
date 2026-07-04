@@ -12,10 +12,12 @@ import {
 } from "./settings-sample-data";
 import {
   createBriefingDefinition,
+  getNotificationPreferences,
   getLocaleSettings,
   listSourceBehaviors,
   listAiAssistantTools,
   listBriefingDefinitions,
+  putNotificationPreference,
   putSourceBehavior,
   updateBriefingDefinition
 } from "../api/client";
@@ -27,7 +29,7 @@ import {
   targetTimeFor,
   updateDefinitionRequest
 } from "../briefings/briefing-settings-model";
-import { Choice, Field, Group, NotWired, Note, Row, Segmented, Switch } from "./settings-ui";
+import { Badge, Choice, Field, Group, NotWired, Note, Row, Segmented, Switch } from "./settings-ui";
 import {
   BRIEFING_SOURCE_BEHAVIORS,
   findSourceBehaviorEnabled,
@@ -302,13 +304,44 @@ export function ChatSettingsView(props: { readonly onBack: () => void }) {
 export function NotificationSettings(props: {
   readonly onBack: () => void;
   readonly onCat?: (id: string) => void;
+  readonly onModuleSettings?: (id: "briefings") => void;
 }) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<NotificationsSettings>(DEFAULT_NOTIFICATIONS);
+  const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<NotificationsSettings>) => setState((s) => ({ ...s, ...patch }));
-  const setCh = (k: keyof NotificationsSettings["channels"], v: boolean) =>
-    set({ channels: { ...state.channels, [k]: v } });
-  const toggleType = (k: string, on: boolean) =>
-    set({ types: state.types.map((t) => (t.k === k ? { ...t, on } : t)) });
+  const preferencesQuery = useQuery({
+    queryKey: queryKeys.settings.notificationPreferences,
+    queryFn: getNotificationPreferences,
+    retry: false
+  });
+  const mutation = useMutation({
+    mutationFn: (input: { readonly moduleId: string; readonly enabled: boolean; readonly clearUnread?: boolean }) =>
+      putNotificationPreference(input.moduleId, {
+        enabled: input.enabled,
+        clearUnread: input.clearUnread
+      }),
+    onSuccess: (data) => {
+      setError(null);
+      queryClient.setQueryData(queryKeys.settings.notificationPreferences, (current) => {
+        const existing = current as Awaited<ReturnType<typeof getNotificationPreferences>> | undefined;
+        return {
+          preferences: (existing?.preferences ?? []).map((preference) =>
+            preference.moduleId === data.preference.moduleId ? data.preference : preference
+          )
+        };
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list });
+    },
+    onError: (err) => setError(readError(err))
+  });
+  const toggleModule = (moduleId: string, enabled: boolean) => {
+    const clearUnread =
+      !enabled &&
+      window.confirm("Mark existing unread notifications from this module as read?");
+    mutation.mutate({ moduleId, enabled, clearUnread });
+  };
+  const preferences = preferencesQuery.data?.preferences ?? [];
 
   return (
     <ModuleSub
@@ -317,7 +350,6 @@ export function NotificationSettings(props: {
       sub="What's worth surfacing, and how loudly"
       onBack={props.onBack}
     >
-      <NotWired>Notification settings aren't saved or applied yet.</NotWired>
       <Group title="Sensitivity" desc="How readily Jarvis interrupts you.">
         <div className="nsens">
           <Segmented<NotificationSensitivity>
@@ -335,39 +367,66 @@ export function NotificationSettings(props: {
       </Group>
 
       <Group title="Channels" desc="Where notifications reach you.">
-        <ToggleRow
+        <Row
           name="In-app"
           desc="The notification center inside Jarvis."
-          on={state.channels.app}
-          onChange={(v) => setCh("app", v)}
+          control={<Badge tone="pine">Enabled</Badge>}
         />
-        <ToggleRow
+        <Row
           name="Push"
-          desc="System notifications on this device."
-          on={state.channels.push}
-          onChange={(v) => setCh("push", v)}
+          desc="System notifications on this device. Tracked in #743."
+          coming
         />
-        <ToggleRow
+        <Row
           name="Email digest"
-          desc="A once-daily summary, instead of live alerts."
-          on={state.channels.email}
-          onChange={(v) => setCh("email", v)}
+          desc="A once-daily summary, instead of live alerts. Tracked in #742."
+          coming
         />
       </Group>
 
-      <Group
-        title="What you hear about"
-        desc="Mute a whole category without changing your sensitivity."
-      >
-        {state.types.map((t) => (
-          <ToggleRow
-            key={t.k}
-            name={t.name}
-            desc={t.desc}
-            on={t.on}
-            onChange={(v) => toggleType(t.k, v)}
+      <Group title="Modules" desc="Mute a module without changing its own settings.">
+        {error ? <NotWired>{error}</NotWired> : null}
+        {preferences.length ? (
+          preferences.map((preference) => (
+            <Row
+              key={preference.moduleId}
+              name={preference.moduleName}
+              desc={
+                preference.moduleId === "briefings" ? (
+                  <>
+                    Briefing-ready notifications.{" "}
+                    <button
+                      type="button"
+                      className="note__link"
+                      onClick={() => props.onModuleSettings?.("briefings")}
+                    >
+                      Configure
+                    </button>
+                  </>
+                ) : (
+                  "Module notifications."
+                )
+              }
+              control={
+                <Switch
+                  ariaLabel={`Notify from ${preference.moduleName}`}
+                  checked={preference.enabled}
+                  disabled={mutation.isPending}
+                  onChange={(enabled) => toggleModule(preference.moduleId, enabled)}
+                />
+              }
+            />
+          ))
+        ) : (
+          <Row
+            name={preferencesQuery.isLoading ? "Loading modules..." : "No module notifications"}
+            desc={
+              preferencesQuery.isLoading
+                ? "Checking enabled modules."
+                : "Enabled notification-capable modules will appear here."
+            }
           />
-        ))}
+        )}
       </Group>
       <Note icon={<MoonStar size={13} />}>
         Quiet hours always win — Jarvis stays silent then unless something is urgent. Set them in{" "}
