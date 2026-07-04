@@ -20,6 +20,7 @@ import {
   createAiProvider,
   deleteWebSearchKey,
   discoverAiModels,
+  getAdminYoloSettings,
   getWebSearchKey,
   getCapabilityTierPreferences,
   getChatModelOverrideSettings,
@@ -27,7 +28,10 @@ import {
   listAiProviders,
   lookupAiCapabilityRoute,
   patchCapabilityTierPreference,
+  postAdminYoloAllowAll,
   putAdminChatModelOverrideEnabled,
+  putAdminYoloInstance,
+  putAdminYoloUser,
   putWebSearchKey,
   revokeAiProvider,
   testAiProvider,
@@ -50,7 +54,8 @@ import type {
   AiModelTier,
   AiProviderConfigDto,
   AiProviderExecutionMode,
-  AiProviderKind
+  AiProviderKind,
+  YoloAdminUserDto
 } from "@jarv1s/shared";
 
 const PROVIDER_CATALOG: readonly { readonly label: string; readonly kind: AiProviderKind }[] = [
@@ -747,6 +752,142 @@ function WebSearchKeyGroup() {
   );
 }
 
+/* ----------------------------------------------------------------- YOLO */
+
+function roleLabel(user: YoloAdminUserDto): string {
+  return user.isBootstrapOwner ? "Owner" : user.isInstanceAdmin ? "Admin" : "Member";
+}
+
+function YoloAdminGroup() {
+  const queryClient = useQueryClient();
+  const { toast, confirm } = useFeedback();
+  const [selectedUserId, setSelectedUserId] = useState("");
+
+  const yoloQuery = useQuery({
+    queryKey: queryKeys.settings.adminYolo,
+    queryFn: getAdminYoloSettings,
+    retry: false
+  });
+  const yoloMutation = useMutation({
+    mutationFn: (
+      vars:
+        | { kind: "instance"; enabled: boolean }
+        | { kind: "user"; id: string; allowed: boolean }
+        | { kind: "allowAll" }
+    ) => {
+      if (vars.kind === "instance") return putAdminYoloInstance({ enabled: vars.enabled });
+      if (vars.kind === "allowAll") return postAdminYoloAllowAll();
+      return putAdminYoloUser(vars.id, { allowed: vars.allowed });
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.adminYolo, data);
+      toast("YOLO settings updated");
+      setSelectedUserId("");
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+
+  const users = yoloQuery.data?.users ?? [];
+  const activeCandidates = users.filter((u) => u.status === "active" && !u.yoloAllowed);
+  const allowedUsers = users.filter((u) => u.yoloAllowed);
+
+  return (
+    <Group
+      title="YOLO / auto-approval"
+      desc="Blanket auto-approval for interactive chat actions. RLS and account permissions still apply."
+    >
+      <Row
+        name="Instance master"
+        desc="When off, all saved per-user YOLO choices are inert."
+        control={
+          <Switch
+            ariaLabel="YOLO instance master"
+            checked={yoloQuery.data?.instanceEnabled ?? false}
+            disabled={yoloMutation.isPending}
+            onChange={(enabled) =>
+              enabled
+                ? confirm({
+                    title: "Enable YOLO for this instance?",
+                    description:
+                      "This also enables YOLO for your admin account. Jarvis can run destructive chat actions without asking.",
+                    confirmLabel: "Enable YOLO",
+                    danger: true,
+                    onConfirm: () => yoloMutation.mutate({ kind: "instance", enabled })
+                  })
+                : yoloMutation.mutate({ kind: "instance", enabled })
+            }
+          />
+        }
+      />
+      <Row
+        name="Allow all current members"
+        desc="Snapshot only. Future accounts still default off."
+        control={
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            disabled={yoloMutation.isPending}
+            onClick={() => yoloMutation.mutate({ kind: "allowAll" })}
+          >
+            Allow all
+          </button>
+        }
+      />
+      <Row
+        name="Add allowed member"
+        desc="Active members who are not yet YOLO-allowed."
+        control={
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Select
+              value={selectedUserId}
+              aria-label="Select member to add"
+              disabled={yoloMutation.isPending || activeCandidates.length === 0}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+            >
+              <option value="">
+                {activeCandidates.length ? "Select a member…" : "No active members to add"}
+              </option>
+              {activeCandidates.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.email} ({roleLabel(u)})
+                </option>
+              ))}
+            </Select>
+            <button
+              type="button"
+              className="jds-btn jds-btn--secondary jds-btn--sm"
+              disabled={!selectedUserId || yoloMutation.isPending}
+              onClick={() =>
+                yoloMutation.mutate({ kind: "user", id: selectedUserId, allowed: true })
+              }
+            >
+              Add
+            </button>
+          </div>
+        }
+      />
+      {allowedUsers.map((user) => (
+        <Row
+          key={user.id}
+          name={user.name || user.email}
+          desc={`${roleLabel(user)} · ${user.yoloEnabled ? "self-enabled" : "self off"}${user.yoloActive ? " · active" : ""}`}
+          control={
+            <button
+              type="button"
+              className="jds-btn jds-btn--quiet jds-btn--sm"
+              aria-label={`Remove YOLO allowance for ${user.email}`}
+              disabled={yoloMutation.isPending}
+              onClick={() => yoloMutation.mutate({ kind: "user", id: user.id, allowed: false })}
+            >
+              Remove
+            </button>
+          }
+        />
+      ))}
+    </Group>
+  );
+}
+
 /* ----------------------------------------------------------------- Pane */
 
 export function AiProvidersPane() {
@@ -991,6 +1132,7 @@ export function AiProvidersPane() {
       <ChatLockGroup />
       <EmbeddingConfigGroup />
       <WebSearchKeyGroup />
+      <YoloAdminGroup />
       <Note icon={<GitCommitHorizontal size={13} />}>
         Each person can override which model powers their own chat under{" "}
         <b>Personal → Assistant &amp; AI</b>. Everything else follows the routing above.
