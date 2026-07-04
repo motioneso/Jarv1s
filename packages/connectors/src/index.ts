@@ -20,3 +20,7 @@ export * from "./repository.js";
 export * from "./routes.js";
 export * from "./sync-jobs.js";
 export * from "./freshness.js";
+export * from "./source-context/types.js";
+export * from "./source-context/email.js";
+export * from "./source-context/calendar.js";
+export * from "./source-context/service.js";
