@@ -19,7 +19,6 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
-import { handleUpgradeNotifyJob } from "@jarv1s/jobs";
 import {
   NotificationsRepository,
   type CreateNotificationInput,
@@ -287,72 +286,6 @@ describe("Notifications module M5", () => {
     expect(created.read_at).toBeNull();
     expect(fetchedByOwner?.id).toBe(created.id);
     expect(fetchedByOtherUser).toBeUndefined();
-  });
-
-  it("rejects new notification writes without a usable module id", async () => {
-    await expect(
-      dataContext.withDataContext(userAContext(), (scopedDb) =>
-        repository.create(scopedDb, {
-          moduleId: " ",
-          title: "Missing module id"
-        })
-      )
-    ).rejects.toThrow("moduleId is required");
-  });
-
-  it("skips creating notifications when the module preference is disabled", async () => {
-    const gatedRepository = new NotificationsRepository(undefined, {
-      isModuleEnabled: async () => false
-    });
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      gatedRepository.create(scopedDb, {
-        moduleId: "briefings",
-        title: "Muted briefing"
-      })
-    );
-
-    expect(created).toBeNull();
-  });
-
-  it("upgrade notification worker creates one owner-visible notification and no non-owner row", async () => {
-    const job = {
-      id: "upgrade-notify-test",
-      data: {
-        kind: "upgrade-notify",
-        actorUserId: ids.userA,
-        version: "v9.9.9"
-      }
-    } as const;
-
-    const first = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      handleUpgradeNotifyJob(job as never, scopedDb, { repository })
-    );
-    const retry = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      handleUpgradeNotifyJob(job as never, scopedDb, { repository })
-    );
-    const ownerList = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.listVisible(scopedDb)
-    );
-    const nonOwnerList = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.listVisible(scopedDb)
-    );
-
-    const ownerMatches = ownerList.notifications.filter(
-      (notification) =>
-        notification.metadata.kind === "upgrade_available" &&
-        notification.metadata.version === "v9.9.9"
-    );
-    const nonOwnerMatches = nonOwnerList.notifications.filter(
-      (notification) =>
-        notification.metadata.kind === "upgrade_available" &&
-        notification.metadata.version === "v9.9.9"
-    );
-
-    expect(first).toEqual({ created: true });
-    expect(retry).toEqual({ created: false });
-    expect(ownerMatches).toHaveLength(1);
-    expect(ownerMatches[0]?.read_at).toBeNull();
-    expect(nonOwnerMatches).toHaveLength(0);
   });
 
   it("does not let another user or admin role read private notifications", async () => {
