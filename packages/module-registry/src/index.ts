@@ -117,6 +117,7 @@ import type {
 } from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
+  type NotificationPreferencePort,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
   registerNotificationsRoutes
@@ -407,6 +408,19 @@ export function isPeopleNotesSuggestUpdatesEnabled(
   );
 }
 
+export function createNotificationPreferencePort(
+  preferencesRepository = new PreferencesRepository()
+): NotificationPreferencePort {
+  return {
+    async isModuleEnabled(scopedDb, moduleId) {
+      const raw = await preferencesRepository.get(scopedDb, `notifications:${moduleId}`);
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return true;
+      const enabled = (raw as { enabled?: unknown }).enabled;
+      return typeof enabled === "boolean" ? enabled : true;
+    }
+  };
+}
+
 function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveScheduleFn {
   return async (actorUserId, pref) => {
     const allProviders = proactiveMonitorProvidersFor(getBuiltInModuleManifests());
@@ -500,6 +514,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         onboardingLogin: deps.onboardingLogin,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),
+        notificationUnreadPort: new NotificationsRepository(),
         boss: deps.boss,
         // #449: wire the per-actor 15-min notes-sync heartbeat. Injected as a hook
         // (not imported in @jarv1s/settings) because @jarv1s/notes already depends
@@ -791,7 +806,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           }),
           sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger })
         },
-        notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
+        notificationsRepository: new NotificationsRepository(
+          quietHoursPortImpl,
+          createNotificationPreferencePort()
+        ),
         logger: briefingsLogger
       });
     }

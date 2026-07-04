@@ -264,7 +264,7 @@ describe("Notifications module M5", () => {
   });
 
   it("creates private notifications for the active actor by default", async () => {
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, {
         moduleId: "briefings",
         title: "Private default notification",
@@ -273,7 +273,7 @@ describe("Notifications module M5", () => {
           source: "integration-test"
         }
       })
-    );
+    ))!;
     const fetchedByOwner = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.getById(scopedDb, created.id)
     );
@@ -298,6 +298,20 @@ describe("Notifications module M5", () => {
         })
       )
     ).rejects.toThrow("moduleId is required");
+  });
+
+  it("skips creating notifications when the module preference is disabled", async () => {
+    const gatedRepository = new NotificationsRepository(undefined, {
+      isModuleEnabled: async () => false
+    });
+    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      gatedRepository.create(scopedDb, {
+        moduleId: "briefings",
+        title: "Muted briefing"
+      })
+    );
+
+    expect(created).toBeNull();
   });
 
   it("upgrade notification worker creates one owner-visible notification and no non-owner row", async () => {
@@ -554,7 +568,7 @@ describe("Notifications module M5", () => {
   });
 
   it("create() applies the input-side metadata projection (Verification 3a)", async () => {
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, {
         moduleId: "briefings",
         title: "Projection at input",
@@ -572,7 +586,7 @@ describe("Notifications module M5", () => {
           nullable: null
         }
       })
-    );
+    ))!;
     expect(created.metadata).toEqual({
       source: "input-projection",
       count: 9,
@@ -586,13 +600,13 @@ describe("Notifications module M5", () => {
   });
 
   it("serializeNotification projects raw DB metadata through GET /api/notifications (Verification 3b/REST)", async () => {
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, {
         moduleId: "briefings",
         title: "DTO module id probe",
         metadata: { source: "dto-module-id" }
       })
-    );
+    ))!;
     const response = await server.inject({
       method: "GET",
       url: "/api/notifications",
@@ -710,13 +724,13 @@ describe("Notifications module M5", () => {
     //
     // We mint a FRESH notification (so prior tests' markRead calls don't pre-set read_at),
     // assert it starts unread, then markRead and assert the row is returned with read_at set.
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, {
         moduleId: "briefings",
         title: "MarkRead round-trip probe",
         metadata: { source: "test" }
       })
-    );
+    ))!;
     const beforeRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.getById(scopedDb, created.id)
     );
@@ -847,9 +861,9 @@ describe("Notifications module M5", () => {
   });
 
   it("new notification defaults to urgency 'normal' and deferred_until is null without a port", async () => {
-    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const n = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, { moduleId: "briefings", title: "Default urgency" })
-    );
+    ))!;
     expect(n.urgency).toBe("normal");
     expect(n.deferred_until).toBeNull();
   });
@@ -860,13 +874,13 @@ describe("Notifications module M5", () => {
       getLocaleTimezone: async () => null
     };
     const repo = new NotificationsRepository(allDayPort);
-    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const n = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repo.create(scopedDb, {
         moduleId: "briefings",
         title: "Urgent skip deferral",
         urgency: "urgent"
       })
-    );
+    ))!;
     expect(n.urgency).toBe("urgent");
     expect(n.deferred_until).toBeNull();
   });
@@ -879,9 +893,9 @@ describe("Notifications module M5", () => {
     };
     const repo = new NotificationsRepository(allDayPort);
 
-    const deferred = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const deferred = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repo.create(scopedDb, { moduleId: "briefings", title: "Deferred normal", urgency: "normal" })
-    );
+    ))!;
     expect(deferred.deferred_until).toBeInstanceOf(Date);
     // deferred_until must be in the future (end of today's 23:59 UTC window)
     expect(deferred.deferred_until!.getTime()).toBeGreaterThan(Date.now());
@@ -942,9 +956,9 @@ describe("Notifications module M5", () => {
       getLocaleTimezone: async () => null
     };
     const repo = new NotificationsRepository(disabledPort);
-    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const n = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repo.create(scopedDb, { moduleId: "briefings", title: "Disabled quiet hours" })
-    );
+    ))!;
     expect(n.deferred_until).toBeNull();
   });
 });

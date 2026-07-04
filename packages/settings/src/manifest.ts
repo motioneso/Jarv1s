@@ -21,6 +21,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     defaultEnabled: true,
     required: true
   },
+  notifications: { supported: true },
   navigation: [
     {
       id: "settings",
@@ -105,6 +106,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/quiet-hours",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
+      path: "/api/me/notification-preferences",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/notification-preferences/:moduleId",
       permissionId: "settings.write"
     },
     {
