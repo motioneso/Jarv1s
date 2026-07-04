@@ -626,7 +626,13 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   if (view === "briefings") return <BriefingSettings onBack={() => setView(null)} />;
   if (view === "chat") return <ChatSettingsView onBack={() => setView(null)} />;
   if (view === "notifications")
-    return <NotificationSettings onBack={() => setView(null)} onCat={onSelectSection} />;
+    return (
+      <NotificationSettings
+        onBack={() => setView(null)}
+        onCat={onSelectSection}
+        onModuleSettings={(id) => setView(id)}
+      />
+    );
   if (view && typeof view === "object") {
     return (
       <ModuleSettingsRouter

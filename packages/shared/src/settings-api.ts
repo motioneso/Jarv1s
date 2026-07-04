@@ -17,6 +17,26 @@ export interface PutQuietHoursSettingsRequest {
 
 export type PutQuietHoursSettingsResponse = GetQuietHoursSettingsResponse;
 
+export interface NotificationPreferenceDto {
+  readonly moduleId: string;
+  readonly moduleName: string;
+  readonly enabled: boolean;
+}
+
+export interface ListNotificationPreferencesResponse {
+  readonly preferences: readonly NotificationPreferenceDto[];
+}
+
+export interface PutNotificationPreferenceRequest {
+  readonly enabled: boolean;
+  readonly clearUnread?: boolean;
+}
+
+export interface PutNotificationPreferenceResponse {
+  readonly preference: NotificationPreferenceDto;
+  readonly unreadCount: number | null;
+}
+
 const quietHoursSchema = {
   type: "object",
   additionalProperties: false,
@@ -57,5 +77,68 @@ export const putQuietHoursSettingsRouteSchema = {
     },
     400: errorResponseSchema,
     401: errorResponseSchema
+  }
+} as const;
+
+const notificationPreferenceSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["moduleId", "moduleName", "enabled"],
+  properties: {
+    moduleId: { type: "string" },
+    moduleName: { type: "string" },
+    enabled: { type: "boolean" }
+  }
+} as const;
+
+export const listNotificationPreferencesRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["preferences"],
+      properties: {
+        preferences: {
+          type: "array",
+          items: notificationPreferenceSchema
+        }
+      }
+    },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const putNotificationPreferenceRouteSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["moduleId"],
+    properties: { moduleId: { type: "string" } }
+  },
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["enabled"],
+    properties: {
+      enabled: { type: "boolean" },
+      clearUnread: { type: "boolean" }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["preference", "unreadCount"],
+      properties: {
+        preference: notificationPreferenceSchema,
+        unreadCount: {
+          anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }]
+        }
+      }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
+    422: errorResponseSchema
   }
 } as const;

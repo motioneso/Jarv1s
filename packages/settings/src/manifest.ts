@@ -6,8 +6,10 @@ export const settingsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
 
+export const SETTINGS_MODULE_ID = "settings";
+
 export const settingsModuleManifest: JarvisModuleManifest = {
-  id: "settings",
+  id: SETTINGS_MODULE_ID,
   name: "Settings",
   version: "0.0.0",
   publisher: "jarv1s",
@@ -19,6 +21,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     defaultEnabled: true,
     required: true
   },
+  notifications: { supported: true },
   navigation: [
     {
       id: "settings",
@@ -103,6 +106,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PUT",
       path: "/api/me/quiet-hours",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
+      path: "/api/me/notification-preferences",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/notification-preferences/:moduleId",
       permissionId: "settings.write"
     },
     {

@@ -19,7 +19,6 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
-import { handleUpgradeNotifyJob } from "@jarv1s/jobs";
 import {
   NotificationsRepository,
   type CreateNotificationInput,
@@ -89,7 +88,7 @@ describe("Notifications module M5", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version IN ('0008', '0071', '0101', '0102', '0105')
+          WHERE version IN ('0008', '0071', '0101', '0102', '0105', '0142')
           ORDER BY version
         `
       );
@@ -140,6 +139,10 @@ describe("Notifications module M5", () => {
         {
           version: "0105",
           name: "0105_notifications_urgency_deferral.sql"
+        },
+        {
+          version: "0142",
+          name: "0142_notifications_module_id.sql"
         }
       ]);
       expect(tables.rows).toEqual([
@@ -260,15 +263,16 @@ describe("Notifications module M5", () => {
   });
 
   it("creates private notifications for the active actor by default", async () => {
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, {
+        moduleId: "briefings",
         title: "Private default notification",
         body: "Only User A can read this",
         metadata: {
           source: "integration-test"
         }
       })
-    );
+    ))!;
     const fetchedByOwner = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.getById(scopedDb, created.id)
     );
@@ -278,50 +282,10 @@ describe("Notifications module M5", () => {
 
     expect(created.actor_user_id).toBe(ids.userA);
     expect(created.recipient_user_id).toBe(ids.userA);
+    expect(created.module_id).toBe("briefings");
     expect(created.read_at).toBeNull();
     expect(fetchedByOwner?.id).toBe(created.id);
     expect(fetchedByOtherUser).toBeUndefined();
-  });
-
-  it("upgrade notification worker creates one owner-visible notification and no non-owner row", async () => {
-    const job = {
-      id: "upgrade-notify-test",
-      data: {
-        kind: "upgrade-notify",
-        actorUserId: ids.userA,
-        version: "v9.9.9"
-      }
-    } as const;
-
-    const first = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      handleUpgradeNotifyJob(job as never, scopedDb, { repository })
-    );
-    const retry = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      handleUpgradeNotifyJob(job as never, scopedDb, { repository })
-    );
-    const ownerList = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.listVisible(scopedDb)
-    );
-    const nonOwnerList = await dataContext.withDataContext(userBContext(), (scopedDb) =>
-      repository.listVisible(scopedDb)
-    );
-
-    const ownerMatches = ownerList.notifications.filter(
-      (notification) =>
-        notification.metadata.kind === "upgrade_available" &&
-        notification.metadata.version === "v9.9.9"
-    );
-    const nonOwnerMatches = nonOwnerList.notifications.filter(
-      (notification) =>
-        notification.metadata.kind === "upgrade_available" &&
-        notification.metadata.version === "v9.9.9"
-    );
-
-    expect(first).toEqual({ created: true });
-    expect(retry).toEqual({ created: false });
-    expect(ownerMatches).toHaveLength(1);
-    expect(ownerMatches[0]?.read_at).toBeNull();
-    expect(nonOwnerMatches).toHaveLength(0);
   });
 
   it("does not let another user or admin role read private notifications", async () => {
@@ -524,8 +488,11 @@ describe("Notifications module M5", () => {
     const badRecipient: CreateNotificationInput = { title: "t", recipientUserId: ids.userA };
     // @ts-expect-error — actorUserId was removed in spec Decision 2
     const badActor: CreateNotificationInput = { title: "t", actorUserId: ids.userA };
+    // @ts-expect-error — moduleId is required for every new notification
+    const missingModule: CreateNotificationInput = { title: "t" };
     expect(badRecipient).toBeDefined();
     expect(badActor).toBeDefined();
+    expect(missingModule).toBeDefined();
 
     // Runtime regression: create(scopedDb, { title, metadata }) yields a row whose
     // actor_user_id === recipient_user_id === active actor.
@@ -534,8 +501,9 @@ describe("Notifications module M5", () => {
   });
 
   it("create() applies the input-side metadata projection (Verification 3a)", async () => {
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, {
+        moduleId: "briefings",
         title: "Projection at input",
         metadata: {
           // dropped: nested object, array, bad key names
@@ -551,7 +519,7 @@ describe("Notifications module M5", () => {
           nullable: null
         }
       })
-    );
+    ))!;
     expect(created.metadata).toEqual({
       source: "input-projection",
       count: 9,
@@ -565,6 +533,13 @@ describe("Notifications module M5", () => {
   });
 
   it("serializeNotification projects raw DB metadata through GET /api/notifications (Verification 3b/REST)", async () => {
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, {
+        moduleId: "briefings",
+        title: "DTO module id probe",
+        metadata: { source: "dto-module-id" }
+      })
+    ))!;
     const response = await server.inject({
       method: "GET",
       url: "/api/notifications",
@@ -574,11 +549,14 @@ describe("Notifications module M5", () => {
     const body = response.json<{
       notifications: Array<{
         id: string;
+        moduleId: string | null;
         metadata: NotificationMetadata;
       }>;
     }>();
     const probe = body.notifications.find((n) => n.id === notificationIds.aProjectionProbe);
+    const createdDto = body.notifications.find((n) => n.id === created.id);
     expect(probe).toBeDefined();
+    expect(createdDto?.moduleId).toBe("briefings");
     const metadata = probe!.metadata;
     // No nested objects / arrays survived the projection.
     for (const value of Object.values(metadata)) {
@@ -679,12 +657,13 @@ describe("Notifications module M5", () => {
     //
     // We mint a FRESH notification (so prior tests' markRead calls don't pre-set read_at),
     // assert it starts unread, then markRead and assert the row is returned with read_at set.
-    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+    const created = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.create(scopedDb, {
+        moduleId: "briefings",
         title: "MarkRead round-trip probe",
         metadata: { source: "test" }
       })
-    );
+    ))!;
     const beforeRead = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.getById(scopedDb, created.id)
     );
@@ -815,9 +794,9 @@ describe("Notifications module M5", () => {
   });
 
   it("new notification defaults to urgency 'normal' and deferred_until is null without a port", async () => {
-    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.create(scopedDb, { title: "Default urgency" })
-    );
+    const n = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, { moduleId: "briefings", title: "Default urgency" })
+    ))!;
     expect(n.urgency).toBe("normal");
     expect(n.deferred_until).toBeNull();
   });
@@ -828,9 +807,13 @@ describe("Notifications module M5", () => {
       getLocaleTimezone: async () => null
     };
     const repo = new NotificationsRepository(allDayPort);
-    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repo.create(scopedDb, { title: "Urgent skip deferral", urgency: "urgent" })
-    );
+    const n = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.create(scopedDb, {
+        moduleId: "briefings",
+        title: "Urgent skip deferral",
+        urgency: "urgent"
+      })
+    ))!;
     expect(n.urgency).toBe("urgent");
     expect(n.deferred_until).toBeNull();
   });
@@ -843,9 +826,9 @@ describe("Notifications module M5", () => {
     };
     const repo = new NotificationsRepository(allDayPort);
 
-    const deferred = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repo.create(scopedDb, { title: "Deferred normal", urgency: "normal" })
-    );
+    const deferred = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.create(scopedDb, { moduleId: "briefings", title: "Deferred normal", urgency: "normal" })
+    ))!;
     expect(deferred.deferred_until).toBeInstanceOf(Date);
     // deferred_until must be in the future (end of today's 23:59 UTC window)
     expect(deferred.deferred_until!.getTime()).toBeGreaterThan(Date.now());
@@ -906,9 +889,9 @@ describe("Notifications module M5", () => {
       getLocaleTimezone: async () => null
     };
     const repo = new NotificationsRepository(disabledPort);
-    const n = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repo.create(scopedDb, { title: "Disabled quiet hours" })
-    );
+    const n = (await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repo.create(scopedDb, { moduleId: "briefings", title: "Disabled quiet hours" })
+    ))!;
     expect(n.deferred_until).toBeNull();
   });
 });

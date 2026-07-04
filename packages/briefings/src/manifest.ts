@@ -32,6 +32,7 @@ export const briefingsModuleManifest = {
     defaultEnabled: true,
     required: true
   },
+  notifications: { supported: true },
   database: {
     migrations: ["sql/0015_briefings_module.sql", "sql/0116_briefing_type.sql"],
     migrationDirectories: ["packages/briefings/sql"],

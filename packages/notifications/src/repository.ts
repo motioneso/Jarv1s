@@ -27,6 +27,7 @@ export interface ListNotificationsResult {
  * wide here only because callers should not have to construct the bounded form themselves.
  */
 export interface CreateNotificationInput {
+  readonly moduleId: string;
   readonly title: string;
   readonly body?: string | null;
   readonly metadata?: Record<string, unknown>;
@@ -41,6 +42,10 @@ export interface CreateNotificationInput {
 export interface QuietHoursPort {
   getSettings(scopedDb: DataContextDb): Promise<unknown>;
   getLocaleTimezone(scopedDb: DataContextDb): Promise<string | null>;
+}
+
+export interface NotificationPreferencePort {
+  isModuleEnabled(scopedDb: DataContextDb, moduleId: string): Promise<boolean>;
 }
 
 export interface QuietHoursSettings {
@@ -140,7 +145,10 @@ export async function resolveTimezone(
 }
 
 export class NotificationsRepository {
-  constructor(private readonly quietHoursPort?: QuietHoursPort) {}
+  constructor(
+    private readonly quietHoursPort?: QuietHoursPort,
+    private readonly notificationPreferencePort?: NotificationPreferencePort
+  ) {}
 
   async listVisible(scopedDb: DataContextDb): Promise<ListNotificationsResult> {
     assertDataContextDb(scopedDb);
@@ -167,8 +175,17 @@ export class NotificationsRepository {
   async create(
     scopedDb: DataContextDb,
     input: CreateNotificationInput
-  ): Promise<NotificationWithReadState> {
+  ): Promise<NotificationWithReadState | null> {
     assertDataContextDb(scopedDb);
+    if (!input.moduleId?.trim()) {
+      throw new Error("moduleId is required");
+    }
+    if (
+      this.notificationPreferencePort &&
+      !(await this.notificationPreferencePort.isModuleEnabled(scopedDb, input.moduleId))
+    ) {
+      return null;
+    }
 
     const projectedMetadata = projectNotificationMetadata(input.metadata);
     const urgency = input.urgency ?? "normal";
@@ -188,6 +205,7 @@ export class NotificationsRepository {
       .values({
         id: randomUUID(),
         // V1 actor-scoped delivery: both ids are always the active actor.
+        module_id: input.moduleId,
         actor_user_id: sql<string>`app.current_actor_user_id()`,
         recipient_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
@@ -239,6 +257,7 @@ export class NotificationsRepository {
       )
       SELECT
         n.id AS id,
+        n.module_id AS module_id,
         n.actor_user_id AS actor_user_id,
         n.recipient_user_id AS recipient_user_id,
         n.title AS title,
@@ -270,6 +289,33 @@ export class NotificationsRepository {
             sql<Date>`now()`.as("read_at")
           ])
           // Only mark visible (not still-deferred) notifications as read
+          .where(sql<SqlBool>`(deferred_until IS NULL OR now() >= deferred_until)`)
+      )
+      .onConflict((oc) =>
+        oc.columns(["notification_id", "user_id"]).doUpdateSet({
+          read_at: sql<Date>`excluded.read_at`
+        })
+      )
+      .execute();
+
+    return this.countUnread(scopedDb);
+  }
+
+  async markModuleRead(scopedDb: DataContextDb, moduleId: string): Promise<number> {
+    assertDataContextDb(scopedDb);
+
+    await scopedDb.db
+      .insertInto("app.notification_reads")
+      .columns(["notification_id", "user_id", "read_at"])
+      .expression((eb) =>
+        eb
+          .selectFrom("app.notifications")
+          .select([
+            "id as notification_id",
+            sql<string>`app.current_actor_user_id()`.as("user_id"),
+            sql<Date>`now()`.as("read_at")
+          ])
+          .where("module_id", "=", moduleId)
           .where(sql<SqlBool>`(deferred_until IS NULL OR now() >= deferred_until)`)
       )
       .onConflict((oc) =>
@@ -317,6 +363,7 @@ export class NotificationsRepository {
       )
       .select([
         "notifications.id as id",
+        "notifications.module_id as module_id",
         "notifications.actor_user_id as actor_user_id",
         "notifications.recipient_user_id as recipient_user_id",
         "notifications.title as title",

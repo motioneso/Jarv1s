@@ -51,6 +51,10 @@ import { registerThemeRoutes } from "./themes-routes.js";
 import { registerYoloRoutes } from "./yolo-routes.js";
 import { registerNotesSourceRoutes, type ReconcileNotesScheduleFn } from "./notes-source-routes.js";
 import {
+  registerNotificationPreferencesRoutes,
+  type NotificationUnreadPort
+} from "./notification-preferences-routes.js";
+import {
   registerMeAccountRoutes,
   type HasPasswordCredentialPort,
   type VerifySelfPasswordPort
@@ -141,6 +145,7 @@ export interface SettingsRoutesDependencies {
   readonly reconcileNotesSchedule?: ReconcileNotesScheduleFn;
   /** Optional: reconcile per-source proactive-monitoring recurring jobs on settings save. */
   readonly reconcileProactiveSchedule?: ReconcileProactiveScheduleFn;
+  readonly notificationUnreadPort?: NotificationUnreadPort;
 }
 
 interface SettingParams {
@@ -176,6 +181,12 @@ export function registerSettingsRoutes(
     hasPasswordCredential: dependencies.hasPasswordCredential
   });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
+  registerNotificationPreferencesRoutes(server, {
+    ...dependencies,
+    repository,
+    preferencesRepository,
+    notificationUnreadPort: dependencies.notificationUnreadPort
+  });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   registerPriorityRoutes(server, { ...dependencies, preferencesRepository });
   registerYoloRoutes(server, {

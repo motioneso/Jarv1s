@@ -105,6 +105,7 @@ export function registerNotificationsRoutes(
 export function serializeNotification(notification: NotificationWithReadState): NotificationDto {
   return {
     id: notification.id,
+    moduleId: notification.module_id,
     actorUserId: notification.actor_user_id,
     recipientUserId: notification.recipient_user_id,
     title: notification.title,
