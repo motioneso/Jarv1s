@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jarv1s Ritual Redesign Mockup</title>
+    <style>
+      :root {
+        --paper: #fbfaf6;
+        --surface: #ffffff;
+        --surface-2: #f5f3ed;
+        --surface-3: #edeae1;
+        --ink: #292621;
+        --ink-2: #5b564d;
+        --ink-3: #6f6a5e;
+        --line: rgba(38, 34, 28, 0.1);
+        --line-strong: rgba(38, 34, 28, 0.18);
+        --pine: #2f6a4c;
+        --pine-soft: #e8f0ea;
+        --pine-ink: #1f4c36;
+        --amber: #aa6d18;
+        --amber-soft: #f8edd7;
+        --steel: #4c6b89;
+        --steel-soft: #e7edf3;
+        --red: #b23c2e;
+        --shadow: 0 18px 60px rgba(38, 34, 28, 0.08), 0 2px 8px rgba(38, 34, 28, 0.04);
+        --sans: "Hanken Grotesk", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        --serif: "Newsreader", Georgia, "Times New Roman", serif;
+        --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top left, rgba(47, 106, 76, 0.08), transparent 30rem),
+          linear-gradient(180deg, var(--paper), #f7f4ed 58%, var(--paper));
+        color: var(--ink);
+        font-family: var(--sans);
+      }
+
+      .frame {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 272px minmax(0, 1fr) 360px;
+      }
+
+      .rail {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        padding: 28px 20px;
+        border-right: 1px solid var(--line);
+        background: rgba(251, 250, 246, 0.8);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 36px;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background: var(--surface);
+        color: var(--pine);
+        font: 700 20px var(--serif);
+        box-shadow: 0 6px 18px rgba(38, 34, 28, 0.05);
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 15px;
+        letter-spacing: 0.01em;
+      }
+
+      .brand span,
+      .tiny {
+        color: var(--ink-3);
+        font: 600 11px var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .nav {
+        display: grid;
+        gap: 6px;
+      }
+
+      .nav a,
+      .nav button {
+        width: 100%;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        color: var(--ink-2);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 11px 12px;
+        font: 650 14px var(--sans);
+        text-align: left;
+        text-decoration: none;
+      }
+
+      .nav a.active {
+        background: var(--pine-soft);
+        color: var(--pine-ink);
+      }
+
+      .nav .count {
+        color: var(--ink-3);
+        font: 600 11px var(--mono);
+      }
+
+      .rail-card {
+        margin-top: 32px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface);
+      }
+
+      .rail-card p {
+        margin: 8px 0 14px;
+        color: var(--ink-2);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .main {
+        padding: 34px 38px 56px;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        align-items: center;
+        margin-bottom: 34px;
+      }
+
+      .search {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 620px;
+        padding: 13px 16px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.62);
+        color: var(--ink-3);
+        box-shadow: 0 4px 24px rgba(38, 34, 28, 0.04);
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      .button {
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--ink);
+        padding: 11px 15px;
+        font: 700 13px var(--sans);
+      }
+
+      .button.primary {
+        border-color: var(--pine);
+        background: var(--pine);
+        color: white;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.12fr) minmax(280px, 0.88fr);
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      .brief {
+        position: relative;
+        overflow: hidden;
+        padding: 34px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .brief:before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto;
+        height: 5px;
+        background: linear-gradient(90deg, var(--pine), var(--amber), var(--steel));
+      }
+
+      .eyebrow {
+        color: var(--pine-ink);
+        font: 700 12px var(--mono);
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 12px 0 12px;
+        max-width: 12ch;
+        font: 600 clamp(44px, 7vw, 82px) / 0.94 var(--serif);
+        letter-spacing: -0.035em;
+      }
+
+      .lede {
+        max-width: 62ch;
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 18px;
+        line-height: 1.55;
+      }
+
+      .brief-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .metric {
+        padding: 15px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface-2);
+      }
+
+      .metric b {
+        display: block;
+        font: 700 30px var(--serif);
+      }
+
+      .metric span {
+        color: var(--ink-3);
+        font: 650 12px var(--sans);
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.72);
+        box-shadow: 0 8px 28px rgba(38, 34, 28, 0.05);
+      }
+
+      .panel.pad {
+        padding: 22px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 16px;
+      }
+
+      h2 {
+        margin: 4px 0 0;
+        font: 650 26px / 1.05 var(--serif);
+        letter-spacing: -0.018em;
+      }
+
+      .prose {
+        color: var(--ink-2);
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 12px;
+      }
+
+      .bucket {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 15px;
+        align-items: start;
+      }
+
+      .bucket-time {
+        padding-top: 14px;
+        color: var(--ink-3);
+        font: 700 11px var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .bucket-card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface);
+      }
+
+      .bucket-card h3 {
+        margin: 0 0 5px;
+        font-size: 15px;
+      }
+
+      .bucket-card p {
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .bucket-card.is-risk {
+        background: var(--amber-soft);
+        border-color: rgba(170, 109, 24, 0.24);
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+        gap: 24px;
+        margin-top: 24px;
+      }
+
+      .briefing-page {
+        padding: 26px;
+        min-height: 560px;
+      }
+
+      .article-title {
+        max-width: 15ch;
+        margin: 10px 0 18px;
+        font: 600 44px / 0.98 var(--serif);
+        letter-spacing: -0.026em;
+      }
+
+      .article-body {
+        max-width: 64ch;
+        color: var(--ink-2);
+        font: 17px / 1.68 var(--serif);
+      }
+
+      .article-body p {
+        margin: 0 0 18px;
+      }
+
+      .callout {
+        margin: 26px 0;
+        padding: 18px 20px;
+        border-left: 3px solid var(--pine);
+        background: var(--pine-soft);
+        color: var(--pine-ink);
+        font: 600 15px / 1.5 var(--sans);
+      }
+
+      .right {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        padding: 28px 22px;
+        border-left: 1px solid var(--line);
+        background: rgba(251, 250, 246, 0.74);
+        backdrop-filter: blur(18px);
+        overflow: auto;
+      }
+
+      .chat-card {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: var(--surface);
+      }
+
+      .chat-card h2 {
+        font-size: 23px;
+      }
+
+      .msg {
+        margin-top: 14px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface-2);
+        color: var(--ink-2);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .field {
+        margin-top: 16px;
+        display: flex;
+        gap: 8px;
+        padding: 9px 9px 9px 14px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--ink-3);
+        font-size: 13px;
+      }
+
+      .status-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .status {
+        padding: 13px 14px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+      }
+
+      .status strong {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+      }
+
+      .status p {
+        margin: 6px 0 0;
+        color: var(--ink-3);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: var(--surface-2);
+        color: var(--ink-2);
+        font: 700 11px var(--mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .pill.pine {
+        background: var(--pine-soft);
+        color: var(--pine-ink);
+      }
+
+      .pill.amber {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .pill.steel {
+        background: var(--steel-soft);
+        color: var(--steel);
+      }
+
+      .notes {
+        margin-top: 26px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: var(--surface-2);
+      }
+
+      .notes ul {
+        margin: 12px 0 0;
+        padding-left: 18px;
+        color: var(--ink-2);
+        line-height: 1.55;
+      }
+
+      @media (max-width: 1180px) {
+        .frame {
+          grid-template-columns: 88px minmax(0, 1fr);
+        }
+
+        .rail {
+          padding: 22px 12px;
+        }
+
+        .brand div,
+        .nav span:first-child,
+        .rail-card,
+        .right {
+          display: none;
+        }
+      }
+
+      @media (max-width: 860px) {
+        .frame,
+        .hero,
+        .two-col {
+          display: block;
+        }
+
+        .rail {
+          position: static;
+          height: auto;
+        }
+
+        .main {
+          padding: 24px 18px 40px;
+        }
+
+        .brief-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .panel,
+        .brief,
+        .briefing-page {
+          margin-top: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <aside class="rail" aria-label="Primary navigation">
+        <div class="brand">
+          <div class="mark">J</div>
+          <div>
+            <strong>Jarv1s</strong>
+            <span>private daily OS</span>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a class="active" href="#"><span>Today</span><span class="count">4</span></a>
+          <a href="#"><span>Tasks</span><span class="count">18</span></a>
+          <a href="#"><span>Briefings</span><span class="count">2</span></a>
+          <a href="#"><span>Calendar</span><span class="count">6</span></a>
+          <a href="#"><span>Notes</span><span class="count">241</span></a>
+          <a href="#"><span>Settings</span></a>
+        </nav>
+
+        <section class="rail-card">
+          <span class="tiny">Recovery mode</span>
+          <p>This slipped. We can reset it. No ceremony required.</p>
+          <button class="button">Start reset</button>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <div class="search">Search tasks, notes, context, and the useful bits you forgot.</div>
+          <div class="actions">
+            <button class="button">Evening prep</button>
+            <button class="button primary">Ask Jarv1s</button>
+          </div>
+        </div>
+
+        <section class="hero">
+          <div class="brief">
+            <span class="eyebrow">Morning briefing</span>
+            <h1>Ready, not rushed.</h1>
+            <p class="lede">
+              You have two decisions that matter, one commitment drifting, and a clean calendar window at
+              2:30. I would protect that window. It is doing more work than it looks like.
+            </p>
+            <div class="brief-grid">
+              <div class="metric"><b>2</b><span>Priorities</span></div>
+              <div class="metric"><b>1</b><span>At risk</span></div>
+              <div class="metric"><b>90m</b><span>Protected focus</span></div>
+            </div>
+          </div>
+
+          <aside class="panel pad">
+            <div class="section-head">
+              <div>
+                <span class="eyebrow">Start here</span>
+                <h2>The few things that matter most</h2>
+              </div>
+            </div>
+            <div class="timeline">
+              <div class="bucket">
+                <div class="bucket-time">Morning</div>
+                <div class="bucket-card">
+                  <h3>Confirm launch story sequence</h3>
+                  <p>Source: product notes and yesterday's open loop.</p>
+                </div>
+              </div>
+              <div class="bucket">
+                <div class="bucket-time">Afternoon</div>
+                <div class="bucket-card is-risk">
+                  <h3>Renegotiate the vendor follow-up</h3>
+                  <p>This is now at risk. Smallest useful next step: send a new time.</p>
+                </div>
+              </div>
+              <div class="bucket">
+                <div class="bucket-time">Evening</div>
+                <div class="bucket-card">
+                  <h3>Prep tomorrow's first block</h3>
+                  <p>Ten minutes tonight saves the morning from becoming archaeology.</p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <div class="two-col">
+          <section class="panel briefing-page">
+            <span class="eyebrow">Editorial briefing surface</span>
+            <h2 class="article-title">The day in plain terms</h2>
+            <div class="article-body">
+              <p>
+                The calendar is not the problem today. The handoffs are. You have room to move, but only if
+                the 2:30 block stays clean and the drifting vendor thread gets a quick reset before lunch.
+              </p>
+              <p>
+                The work story is close enough to review. Do not rebuild it. Tighten the claim, pick the
+                supporting screen, and leave the edge cases for the follow-up doc.
+              </p>
+              <div class="callout">
+                Recommended move: protect the 2:30 block and use the first 15 minutes to choose what will not
+                happen today.
+              </div>
+              <p>
+                Tonight, the only useful preparation is light: capture tomorrow's first action and close the
+                loop on anything that would otherwise wake you up at an unreasonable hour.
+              </p>
+            </div>
+          </section>
+
+          <section class="panel pad">
+            <div class="section-head">
+              <div>
+                <span class="eyebrow">Chronological flow</span>
+                <h2>Today, by rhythm</h2>
+              </div>
+            </div>
+            <div class="status-list">
+              <div class="status">
+                <strong>Morning <span class="pill pine">prepare</span></strong>
+                <p>Review commitments, make the first decision, then stop fiddling with the list.</p>
+              </div>
+              <div class="status">
+                <strong>Midday <span class="pill amber">recover</span></strong>
+                <p>One loose thread needs a reset. Amber means human drift, not system failure.</p>
+              </div>
+              <div class="status">
+                <strong>Evening <span class="pill steel">close loops</span></strong>
+                <p>Tomorrow prep stays calm, concise, and reversible.</p>
+              </div>
+            </div>
+            <div class="notes">
+              <span class="tiny">Implementation notes</span>
+              <ul>
+                <li>Uses the existing warm paper, ink, pine, amber, and steel language.</li>
+                <li>Keeps chat as a secondary tool, not the product spine.</li>
+                <li>Shows drift in amber, reserving red for actual errors.</li>
+                <li>Leans editorial for briefings and chronological for action.</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <aside class="right">
+        <section class="chat-card">
+          <span class="eyebrow">Assistant drawer</span>
+          <h2>Useful, not impressed with itself</h2>
+          <p class="prose">
+            Jarv1s can explain the recommendation, draft the reset note, or turn the briefing into a focused
+            action list. It does not need to perform a light show first.
+          </p>
+          <div class="msg">
+            I would not add more tasks. I would pick the one handoff that would make tomorrow less annoying
+            and handle that first.
+          </div>
+          <div class="field">Ask about this briefing...</div>
+        </section>
+
+        <section class="notes">
+          <span class="tiny">Voice samples</span>
+          <ul>
+            <li>A few things changed. I would start here.</li>
+            <li>Here is the smallest useful next step.</li>
+            <li>This slipped. We can reset it.</li>
+            <li>Prepared, not performative.</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
