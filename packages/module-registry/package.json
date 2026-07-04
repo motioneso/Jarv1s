@@ -30,6 +30,7 @@
     "@jarv1s/sports": "workspace:*",
     "@jarv1s/tasks": "workspace:*",
     "@jarv1s/usefulness-feedback": "workspace:*",
+    "@jarv1s/vault": "workspace:*",
     "@jarv1s/web-research": "workspace:*",
     "@jarv1s/weather": "workspace:*",
     "@jarv1s/wellness": "workspace:*",

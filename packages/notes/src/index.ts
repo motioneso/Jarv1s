@@ -11,7 +11,10 @@ export {
   handleNotesSyncJob,
   handleNotesSyncJobWithDataContext,
   registerNotesJobWorkers,
+  runNotesAfterSyncHook,
   writeNotesLastSync,
+  type NotesAfterSyncHook,
+  type NotesAfterSyncInput,
   type NotesLastSync,
   type NotesSyncJobPayload,
   type NotesSyncJobResult

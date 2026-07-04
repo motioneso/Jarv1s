@@ -11,12 +11,14 @@ import {
 import {
   peopleModuleManifest,
   peopleModuleSqlMigrationDirectory,
+  PeopleNotesService,
   registerPeopleRoutes,
   registerPersonIndexWorker,
   registerSyncPersonMemoryWorker,
   PERSON_INDEX_QUEUE,
   SYNC_PERSON_MEMORY_QUEUE
 } from "@jarv1s/people";
+import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
 import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
 import {
@@ -821,7 +823,17 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     registerWorkers: (boss, deps) =>
       registerNotesJobWorkers(boss, deps.dataContext, {
         embeddingProviderFactory: createRuntimeEmbeddingProvider,
-        preferencesRepository: new PreferencesRepository()
+        preferencesRepository: new PreferencesRepository(),
+        afterSync: async ({ actorUserId }) => {
+          const accessContext = { actorUserId, requestId: "notes-sync:people" };
+          const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+          const peopleNotes = new PeopleNotesService();
+          await vaultRunner.withVaultContext(accessContext, (vaultCtx) =>
+            deps.dataContext.withDataContext(accessContext, (scopedDb) =>
+              peopleNotes.refreshFromFolder(scopedDb, vaultCtx, actorUserId)
+            )
+          );
+        }
       })
   },
   {
@@ -883,7 +895,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerPeopleRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
-        boss: deps.boss
+        boss: deps.boss,
+        vaultRunner: new VaultContextRunner(getVaultBaseDir()),
+        peopleNotesService: new PeopleNotesService()
       }),
     registerWorkers: async (boss, deps) => {
       const indexId = await registerPersonIndexWorker(boss, deps.dataContext, {
