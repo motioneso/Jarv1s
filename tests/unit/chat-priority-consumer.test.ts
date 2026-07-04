@@ -2,9 +2,14 @@
  * Chat priority consumer tests.
  */
 
-import { describe, it, expect } from "vitest";
-import { crossToolCandidatesToPriority, rankChatContext } from "@jarv1s/chat/priority-consumer";
+import { describe, it, expect, vi } from "vitest";
+import {
+  crossToolCandidatesToPriority,
+  rankChatContext,
+  readPriorityModel
+} from "@jarv1s/chat/priority-consumer";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { DataContextDb } from "@jarv1s/db";
 
 describe("chat priority consumer", () => {
   it("converts cross-tool candidates to priority candidates", () => {
@@ -65,5 +70,40 @@ describe("chat priority consumer", () => {
       source: "tasks",
       band: "high"
     });
+  });
+});
+
+describe("readPriorityModel", () => {
+  const scopedDb = {} as unknown as DataContextDb;
+
+  it("returns defaults when no preferences repository is provided", async () => {
+    const model = await readPriorityModel(scopedDb);
+    expect(model).toMatchObject({
+      version: 1,
+      mode: "balanced",
+      anchors: [],
+      mutedSources: []
+    });
+  });
+
+  it("reads priority.model.v1 through the injected reader and normalizes it", async () => {
+    const stored = {
+      version: 1,
+      mode: "deadline_first",
+      anchors: [],
+      mutedSources: ["email"],
+      updatedAt: "2026-07-01T00:00:00Z"
+    };
+    const reader = { get: vi.fn().mockResolvedValue(stored) };
+    const model = await readPriorityModel(scopedDb, reader);
+    expect(reader.get).toHaveBeenCalledWith(scopedDb, "priority.model.v1");
+    expect(model.mode).toBe("deadline_first");
+    expect(model.mutedSources).toEqual(["email"]);
+  });
+
+  it("falls back to defaults when the stored value is invalid", async () => {
+    const reader = { get: vi.fn().mockResolvedValue({ garbage: true }) };
+    const model = await readPriorityModel(scopedDb, reader);
+    expect(model.mode).toBe("balanced");
   });
 });
