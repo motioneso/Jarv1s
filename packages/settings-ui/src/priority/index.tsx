@@ -17,6 +17,35 @@ interface PrioritySettingsProps {
   readonly onSuccess?: () => void;
 }
 
+function titleCase(value: string): string {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function Toggle(props: {
+  readonly label: string;
+  readonly checked: boolean;
+  readonly disabled?: boolean;
+  readonly onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="jds-switch">
+      <input
+        type="checkbox"
+        aria-label={props.label}
+        checked={props.checked}
+        disabled={props.disabled}
+        onChange={(event) => props.onChange(event.target.checked)}
+      />
+      <span className="jds-switch__track">
+        <span className="jds-switch__thumb" />
+      </span>
+    </label>
+  );
+}
+
 export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) {
   const queryClient = useQueryClient();
   const { data: model, isLoading } = useQuery<PriorityModelPreferenceV1>({
@@ -50,8 +79,8 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
     }
   });
 
-  if (isLoading) return <div className="loading">Loading priority settings...</div>;
-  if (!model) return <div className="error">Failed to load priority settings</div>;
+  if (isLoading) return <p className="set2-note">Loading priority settings...</p>;
+  if (!model) return <p className="set2-note">Failed to load priority settings</p>;
 
   const addAnchor = () => {
     const newAnchor: PriorityAnchor = {
@@ -101,112 +130,207 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
   };
 
   return (
-    <div className="priority-settings">
-      <div className="priority-mode">
-        <label>Priority Mode</label>
-        <select
-          value={model.mode}
-          onChange={(e) => {
-            mutation.mutate({
-              ...model,
-              mode: e.target.value as PriorityModelPreferenceV1["mode"],
-              updatedAt: new Date().toISOString()
-            });
-          }}
-        >
-          <option value="balanced">Balanced</option>
-          <option value="deadline_first">Deadline First</option>
-          <option value="energy_protective">Energy Protective</option>
-        </select>
+    <>
+      <div className="pane__head">
+        <h2 className="pane__title">Priorities</h2>
+        <p className="pane__desc">
+          Tell Jarvis which projects, people, and sources should shape what rises to the top.
+        </p>
       </div>
 
-      <div className="priority-anchors">
-        <div className="anchors-header">
-          <label>Anchors</label>
-          <button type="button" onClick={addAnchor} className="add-anchor">
-            <Plus size={16} />
-            Add Anchor
-          </button>
+      <section className="pane__card">
+        <header className="pane__cardhead">
+          <div className="pane__cardheadmain">
+            <div className="pane__cardtitle">Priority model</div>
+            <div className="pane__carddesc">Choose the default bias Jarvis applies.</div>
+          </div>
+        </header>
+        <div className="pane__cardbody">
+          <div className="fld">
+            <div className="fld__lbl">Mode</div>
+            <div className="fld__row">
+              <select
+                className="jds-select"
+                value={model.mode}
+                disabled={mutation.isPending}
+                onChange={(e) => {
+                  mutation.mutate({
+                    ...model,
+                    mode: e.target.value as PriorityModelPreferenceV1["mode"],
+                    updatedAt: new Date().toISOString()
+                  });
+                }}
+              >
+                <option value="balanced">Balanced</option>
+                <option value="deadline_first">Deadline first</option>
+                <option value="energy_protective">Energy protective</option>
+              </select>
+            </div>
+            <div className="fld__hint">Balanced is the default for mixed workdays.</div>
+          </div>
         </div>
-        {model.anchors.map((anchor, index) => (
-          <div key={anchor.id} className="anchor-row">
-            <input
-              type="checkbox"
-              checked={anchor.enabled}
-              onChange={(e) => updateAnchor(index, { enabled: e.target.checked })}
-            />
-            <select
-              value={anchor.kind}
-              onChange={(e) =>
-                updateAnchor(index, { kind: e.target.value as PriorityAnchor["kind"] })
-              }
-            >
-              {VALID_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {kind.charAt(0).toUpperCase() + kind.slice(1)}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Label"
-              value={anchor.label}
-              onChange={(e) => updateAnchor(index, { label: e.target.value })}
-              maxLength={120}
-            />
-            <input
-              type="text"
-              placeholder="Aliases (comma-separated)"
-              value={anchor.aliases.join(", ")}
-              onChange={(e) =>
-                updateAnchor(index, {
-                  aliases: e.target.value
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                })
-              }
-            />
-            <select
-              value={anchor.weight}
-              onChange={(e) =>
-                updateAnchor(index, { weight: Number(e.target.value) as PriorityAnchor["weight"] })
-              }
-            >
-              {VALID_WEIGHTS.map((weight) => (
-                <option key={weight} value={weight}>
-                  {weight > 0 ? `+${weight}` : weight}
-                </option>
-              ))}
-            </select>
+      </section>
+
+      <section className="pane__card">
+        <header className="pane__cardhead">
+          <div className="pane__cardheadmain">
+            <div className="pane__cardtitle">Anchors</div>
+            <div className="pane__carddesc">People, projects, goals, or obligations to weight.</div>
+          </div>
+          <div className="pane__cardaction">
             <button
               type="button"
-              onClick={() => removeAnchor(index)}
-              className="remove-anchor"
-              aria-label="Remove anchor"
+              onClick={addAnchor}
+              className="jds-btn jds-btn--secondary jds-btn--sm"
+              disabled={mutation.isPending}
             >
-              <Trash2 size={16} />
+              <span className="jds-btn__icon">
+                <Plus size={15} aria-hidden="true" />
+              </span>
+              Add
             </button>
           </div>
-        ))}
-      </div>
+        </header>
+        <div className="pane__cardbody">
+          {model.anchors.length === 0 ? <p className="set2-note">No anchors yet.</p> : null}
+          {model.anchors.map((anchor, index) => (
+            <div key={anchor.id} className="set-row">
+              <div className="set-row__main">
+                <div className="set-row__name">{anchor.label || "Untitled anchor"}</div>
+                <div className="set-row__desc">
+                  {titleCase(anchor.kind)} · Weight{" "}
+                  {anchor.weight > 0 ? `+${anchor.weight}` : anchor.weight}
+                </div>
+                <div className="fld">
+                  <div className="fld__lbl">Label</div>
+                  <div className="fld__row">
+                    <input
+                      className="jds-input"
+                      type="text"
+                      placeholder="Project, person, goal..."
+                      value={anchor.label}
+                      disabled={mutation.isPending}
+                      onChange={(e) => updateAnchor(index, { label: e.target.value })}
+                      maxLength={120}
+                    />
+                  </div>
+                </div>
+                <div className="fld">
+                  <div className="fld__lbl">Aliases</div>
+                  <div className="fld__row">
+                    <input
+                      className="jds-input"
+                      type="text"
+                      placeholder="Comma-separated names"
+                      value={anchor.aliases.join(", ")}
+                      disabled={mutation.isPending}
+                      onChange={(e) =>
+                        updateAnchor(index, {
+                          aliases: e.target.value
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean)
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="set-row__control">
+                <div className="fld">
+                  <div className="fld__lbl">Kind</div>
+                  <div className="fld__row">
+                    <select
+                      className="jds-select"
+                      value={anchor.kind}
+                      disabled={mutation.isPending}
+                      onChange={(e) =>
+                        updateAnchor(index, { kind: e.target.value as PriorityAnchor["kind"] })
+                      }
+                    >
+                      {VALID_KINDS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {titleCase(kind)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="fld">
+                  <div className="fld__lbl">Weight</div>
+                  <div className="fld__row">
+                    <select
+                      className="jds-select"
+                      value={anchor.weight}
+                      disabled={mutation.isPending}
+                      onChange={(e) =>
+                        updateAnchor(index, {
+                          weight: Number(e.target.value) as PriorityAnchor["weight"]
+                        })
+                      }
+                    >
+                      {VALID_WEIGHTS.map((weight) => (
+                        <option key={weight} value={weight}>
+                          {weight > 0 ? `+${weight}` : weight}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <Toggle
+                  label={`${anchor.label || "Anchor"} enabled`}
+                  checked={anchor.enabled}
+                  disabled={mutation.isPending}
+                  onChange={(checked) => updateAnchor(index, { enabled: checked })}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeAnchor(index)}
+                  className="jds-btn jds-btn--quiet jds-btn--sm"
+                  aria-label="Remove anchor"
+                  disabled={mutation.isPending}
+                >
+                  <span className="jds-btn__icon">
+                    <Trash2 size={15} aria-hidden="true" />
+                  </span>
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <div className="priority-muted-sources">
-        <label>Muted Sources</label>
-        {VALID_SOURCES.map((source) => (
-          <label key={source} className="source-checkbox">
-            <input
-              type="checkbox"
-              checked={model.mutedSources.includes(source)}
-              onChange={() => toggleMutedSource(source)}
-            />
-            {source.charAt(0).toUpperCase() + source.slice(1)}
-          </label>
-        ))}
-      </div>
+      <section className="pane__card">
+        <header className="pane__cardhead">
+          <div className="pane__cardheadmain">
+            <div className="pane__cardtitle">Muted sources</div>
+            <div className="pane__carddesc">
+              Sources Jarvis should ignore when ranking priority.
+            </div>
+          </div>
+        </header>
+        <div className="pane__cardbody">
+          {VALID_SOURCES.map((source) => (
+            <div key={source} className="set-row">
+              <div className="set-row__main">
+                <div className="set-row__name">{titleCase(source)}</div>
+              </div>
+              <div className="set-row__control">
+                <Toggle
+                  label={`Mute ${source}`}
+                  checked={model.mutedSources.includes(source)}
+                  disabled={mutation.isPending}
+                  onChange={() => toggleMutedSource(source)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      {mutation.isPending && <div className="saving">Saving...</div>}
-      {mutation.error && <div className="error">{mutation.error.message}</div>}
-    </div>
+      {mutation.isPending ? <p className="set2-note">Saving...</p> : null}
+      {mutation.error ? <p className="set2-note">{mutation.error.message}</p> : null}
+    </>
   );
 }
