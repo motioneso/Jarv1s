@@ -30,12 +30,15 @@ import {
 import {
   collectCrossToolContextAndItems,
   planCrossToolReasoning,
+  renderCrossToolContextBlock,
   type CrossToolReadRunner
 } from "./cross-tool-reasoning.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { neutralizeSeedFraming } from "./prompt-safety.js";
+import { rankChatContext, reorderByPriority } from "../priority-consumer.js";
 import { estimateTokens, renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
+import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
 export interface Clock {
@@ -161,8 +164,8 @@ export interface ChatSessionManagerDeps {
   readonly recall?: RecallPort;
   /** Optional per-turn hidden context retrieval. Empty/failed result submits the raw turn. */
   readonly passiveRetrieval?: PassiveRetrievalPort;
-  /** Optional cross-tool read runner for pre-turn context fan-out. */
   readonly crossToolRead?: CrossToolReadRunner;
+  readonly priorityModel?: { getModel(actorUserId: string): Promise<PriorityModelPreferenceV1> };
   /**
    * #342 (§4.1.2) — does the ENGINE own the replay submit+drain?
    *
@@ -623,15 +626,36 @@ export class ChatSessionManager {
           : Promise.resolve({ block: "", items: [] })
       ]);
 
-      // Convert evidence to pending support items for provenance
+      let crossTool = crossToolResult;
+      if (this.deps.priorityModel && crossTool.items.length > 0) {
+        try {
+          const model = await this.deps.priorityModel.getModel(actorUserId);
+          const ranked = rankChatContext(
+            crossTool.items.map(({ source, title, summary, dueAt, startsAt }) => ({
+              source,
+              title,
+              summary,
+              dueAt,
+              startsAt,
+              textForAnchorMatch: [title, summary]
+            })),
+            model,
+            localNow,
+            threadCtx.localTimezone ?? "UTC"
+          );
+          const reordered = reorderByPriority(crossTool.items, ranked);
+          crossTool = { block: renderCrossToolContextBlock(reordered), items: reordered };
+        } catch {
+          crossTool = crossToolResult;
+        }
+      }
+
       let idx = 0;
       const memoryItems = passiveResult.items.map((item) => memoryItemToSupport(item, idx++));
-      const crossToolItems = crossToolResult.items.map((item) =>
-        crossToolItemToSupport(item, idx++)
-      );
+      const crossToolItems = crossTool.items.map((item) => crossToolItemToSupport(item, idx++));
       const pendingItems: AnswerSourceSupport[] = [...memoryItems, ...crossToolItems];
 
-      const combined = combineHiddenContextBlocks(passiveResult.block, crossToolResult.block);
+      const combined = combineHiddenContextBlocks(passiveResult.block, crossTool.block);
       return {
         text: combined ? `${combined}\n\n${text}` : text,
         pendingItems

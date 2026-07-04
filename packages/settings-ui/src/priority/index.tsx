@@ -11,6 +11,11 @@ import { Badge, Field, Group, Note, PaneHead, Row, Select, Switch } from "../ind
 
 const VALID_KINDS = ["project", "person", "domain", "goal", "obligation"] as const;
 const VALID_SOURCES = ["tasks", "calendar", "email", "notes", "memory", "wellness"] as const;
+/**
+ * Sources no active consumer feeds into priority ranking. Muting them is stored
+ * but has no effect yet.
+ */
+const UNWIRED_SOURCES: ReadonlySet<string> = new Set(["memory", "wellness"]);
 const VALID_WEIGHTS = [-2, -1, 0, 1, 2] as const;
 
 function titleCase(value: string): string {
@@ -288,7 +293,11 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
           <Row
             key={source}
             name={titleCase(source)}
-            desc="Exclude this source from priority ranking."
+            desc={
+              UNWIRED_SOURCES.has(source)
+                ? "Nothing feeds this source into ranking yet, so muting has no effect."
+                : "Exclude this source from priority ranking."
+            }
             control={
               <Switch
                 ariaLabel={`Mute ${source}`}

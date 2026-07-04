@@ -706,6 +706,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         personaPreferences: new PreferencesRepository(),
         localePreferences: new PreferencesRepository(),
         agencyPreferences: new PreferencesRepository(),
+        priorityPreferences: new PreferencesRepository(),
         googleConnectionService: deps.googleConnectionService,
         googleApiClient: deps.googleApiClient,
         connectorsRepository: deps.connectorsRepository,
