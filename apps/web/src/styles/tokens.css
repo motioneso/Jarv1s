@@ -5,11 +5,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap");
 
 /*
- * Jarv1s token layer — adopted wholesale from the Jarvis Design System
- * ("Chronological Flow / Ritual Model"): a near-monochrome EDITORIAL canvas
- * (warm newsprint paper + ink) with ONE living accent, PINE. Amber = normal
- * human drift (anti-shame, never error-red); Red = true error only; Steel =
- * quiet info. Dark theme is a WARM charcoal, never a blue-black cockpit.
+ * Jarv1s token layer — PARK PRESS (epic #726): a warm OAT-paper canvas with
+ * ONE living accent, FOREST, plus a decorative GOLD co-accent (straps, labels,
+ * active markers — never semantic). Amber = normal human drift (anti-shame,
+ * never error-red); Red = true error only; Steel = quiet info. Dark theme is
+ * a WARM charcoal, never a blue-black cockpit.
  *
  * This file carries the DESIGN-SYSTEM token names verbatim (so the ported
  * components.css / kit.css resolve unchanged: --surface = white card,
@@ -23,30 +23,49 @@
   /* ============ COLOR — primitives ============ */
   /* User themes may override aesthetic variables only: paper/surface/ink/line/accent.
      Semantic red/amber/steel stay locked so error/caution/info meaning remains stable. */
-  /* Neutrals: warm paper & ink */
-  --paper: #fbfaf6;
-  --surface: #ffffff;
-  --surface-2: #f5f3ed;
-  --surface-3: #edeae1;
-  --scrim: rgba(38, 34, 28, 0.38);
+  /* Neutrals: warm oat paper & ink (Park Press) */
+  --paper: #ece4d1;
+  --surface: #f6f0e1;
+  --surface-2: #e3dac4;
+  --surface-3: #d9cfb5;
+  --scrim: rgba(46, 40, 30, 0.42);
   --white: #ffffff;
 
-  --line-subtle: rgba(38, 34, 28, 0.04);
-  --line: rgba(38, 34, 28, 0.08);
-  --line-strong: rgba(38, 34, 28, 0.16);
+  --line-subtle: rgba(46, 40, 30, 0.06);
+  --line: rgba(46, 40, 30, 0.11);
+  --line-strong: rgba(46, 40, 30, 0.22);
 
   --ink: #292621;
   --ink-2: #5b564d;
   --ink-3: #8b8678;
   --ink-4: #9a958a;
 
-  /* Pine — primary brand accent */
-  --pine: #2f6a4c;
-  --pine-hover: #285c42;
-  --pine-active: #21503a;
-  --pine-soft: #e8f0ea;
-  --pine-soft-2: #d6e6dc;
-  --pine-ink: #1f4c36;
+  /* Forest — primary brand accent (the active accent-ramp slot; park themes
+     override --forest* per [data-theme] block below) */
+  --forest: #294b39;
+  --forest-hover: #244232;
+  --forest-active: #203a2c;
+  --forest-soft: #dbe2d3;
+  --forest-soft-2: #c9d5c0;
+  --forest-ink: #1e3a2a;
+
+  /* Gold — DECORATIVE co-accent (straps, labels, active markers). Never a
+     semantic caution color — that is --amber. --gold-ink is the text-safe cut. */
+  --gold: #c2872b;
+  --gold-strong: #a86f1d;
+  --gold-soft: #f1e2c2;
+  --gold-soft-2: #e8d3a4;
+  --gold-ink: #6d4a12;
+
+  /* DEPRECATED bridges — kept because ~30 kit rules and the custom-theme
+     runtime (theme-runtime.ts) still read --pine*. Follow-up issue renames
+     consumers, then these go. Do not add new --pine consumers. */
+  --pine: var(--forest);
+  --pine-hover: var(--forest-hover);
+  --pine-active: var(--forest-active);
+  --pine-soft: var(--forest-soft);
+  --pine-soft-2: var(--forest-soft-2);
+  --pine-ink: var(--forest-ink);
 
   /* Amber — drift / at-risk / recovery (anti-shame) */
   --amber: #aa6d18;
@@ -77,8 +96,8 @@
      ramp reads below WCAG AA 4.5:1 on --paper (ink-3 ~3.4:1, ink-4 ~2.9:1).
      These darker text-only values clear AA while the ink-3/ink-4 primitives
      stay put for their non-text uses (priority dots, borders, avatars). #354. */
-  --text-subtle: #6f6a5e; /* 5.1:1 on --paper */
-  --text-faint: #767163; /* 4.6:1 on --paper */
+  --text-subtle: #615a48; /* 5.4:1 on oat --paper */
+  --text-faint: #6a6350; /* 4.7:1 on oat --paper */
   --text-on-accent: #ffffff;
 
   --border: var(--line);
@@ -88,7 +107,7 @@
   --accent: var(--pine);
   --accent-hover: var(--pine-hover);
   --accent-active: var(--pine-active);
-  --accent-fg: #2a6147;
+  --accent-fg: var(--forest); /* 7.7:1 on oat; park themes re-point --forest */
   --accent-soft: var(--pine-soft);
   --accent-soft-fg: var(--pine-ink);
   /* Primary-button fill. Defaults to --accent (light passes WCAG AA at 6.4:1);
@@ -111,7 +130,7 @@
   --info-soft: var(--steel-soft);
   --info-soft-fg: var(--steel-ink);
 
-  --focus-ring: rgba(47, 106, 76, 0.45);
+  --focus-ring: rgba(41, 75, 57, 0.45);
   --governor-opacity: 0.7;
 
   /* ============ TYPOGRAPHY ============ */
@@ -179,8 +198,10 @@
   --border-w: 1px;
   --border-w-strong: 1.5px;
 
-  --shadow-xs: 0 2px 8px rgba(38, 34, 28, 0.03);
-  --shadow-sm: 0 4px 16px rgba(38, 34, 28, 0.04), 0 1px 2px rgba(38, 34, 28, 0.03);
+  /* Park Press: flat surfaces separate by hairline rules, not blur. xs/sm are
+     now keyline rings; only md/lg/xl remain real elevation. */
+  --shadow-xs: 0 0 0 1px var(--line);
+  --shadow-sm: 0 0 0 1px var(--line-strong);
   --shadow-md: 0 8px 24px rgba(38, 34, 28, 0.05), 0 2px 6px rgba(38, 34, 28, 0.04);
   --shadow-lg: 0 16px 40px rgba(38, 34, 28, 0.06), 0 4px 12px rgba(38, 34, 28, 0.05);
   --shadow-xl: 0 32px 64px rgba(38, 34, 28, 0.1), 0 8px 24px rgba(38, 34, 28, 0.08);
@@ -246,13 +267,13 @@
   --shadow-control: var(--shadow-sm);
   --shadow-pop: 0 20px 50px rgb(0 0 0 / 25%);
   --shadow-drawer: -8px 0 24px rgba(38, 34, 28, 0.16);
-  --topbar-bg: rgb(251 250 246 / 0.85);
+  --topbar-bg: rgb(236 228 209 / 0.85);
   --scrim-strong: rgb(0 0 0 / 45%);
   --surface-hover: rgba(38, 34, 28, 0.06);
   --hairline-contrast: rgba(0, 0, 0, 0.06);
   --white-translucent: rgba(255, 255, 255, 0.18);
-  --accent-soft-border: rgb(47 106 76 / 0.45);
-  --accent-soft-border-weak: rgb(47 106 76 / 0.32);
+  --accent-soft-border: rgb(41 75 57 / 0.45);
+  --accent-soft-border-weak: rgb(41 75 57 / 0.32);
   --provenance-said: var(--pine-ink);
   --provenance-said-bg: var(--pine-soft);
   --provenance-said-border: var(--pine-soft-2);
@@ -289,12 +310,18 @@
   --text-subtle: #9b968a; /* 5.9:1 on dark --paper */
   --text-faint: #8b8578; /* 4.8:1 on dark --paper */
 
-  --pine: #2f875e;
-  --pine-hover: #359769;
-  --pine-active: #2a7a54;
-  --pine-soft: #1e392b;
-  --pine-soft-2: #244836;
-  --pine-ink: #9ad7b8;
+  --forest: #3e8a63;
+  --forest-hover: #48996f;
+  --forest-active: #357857;
+  --forest-soft: #22392c;
+  --forest-soft-2: #2a4636;
+  --forest-ink: #a3d1b8;
+
+  --gold: #d9a04b;
+  --gold-strong: #e3b268;
+  --gold-soft: #3a2e14;
+  --gold-soft-2: #46381a;
+  --gold-ink: #ecca8b;
 
   --amber: #d6a24e;
   --amber-strong: #e2b266;
@@ -312,11 +339,11 @@
   --steel-ink: #aec8e0;
 
   --text-on-accent: #f4fbf6;
-  --accent-fg: #6bc093;
-  --focus-ring: rgba(47, 135, 94, 0.45);
+  --accent-fg: #82c7a5;
+  --focus-ring: rgba(62, 138, 99, 0.45);
   /* Darken the primary-button fill in dark so the near-white label clears WCAG AA
-     (#f4fbf6 on --pine was 4.21:1; on --pine-active #2a7a54 it is ~4.7:1). #354. */
-  --btn-primary-bg: var(--pine-active);
+     (on --forest-active #357857 it is ~5.3:1). #354. */
+  --btn-primary-bg: var(--forest-active);
 
   --shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.28);
@@ -326,8 +353,8 @@
 
   --shadow-drawer: -8px 0 28px rgba(0, 0, 0, 0.6);
   --topbar-bg: rgb(28 26 22 / 0.85);
-  --accent-soft-border: rgb(47 135 94 / 0.5);
-  --accent-soft-border-weak: rgb(47 135 94 / 0.36);
+  --accent-soft-border: rgb(62 138 99 / 0.5);
+  --accent-soft-border-weak: rgb(62 138 99 / 0.36);
 }
 
 @media (prefers-reduced-motion: reduce) {
