@@ -69,7 +69,19 @@ function cannedToolData(toolName: string): Record<string, unknown> {
             endsAt: "2026-06-13T10:00:00.000Z",
             title: "Client review"
           }
-        ]
+        ],
+        accounts: [
+          {
+            account: {
+              connectorAccountId: "conn-cal-1",
+              providerId: "google",
+              providerLabel: "Google Calendar"
+            },
+            source: "live",
+            degradedReason: null
+          }
+        ],
+        gaps: []
       };
     case "email.listVisibleMessages":
       return {
@@ -79,9 +91,25 @@ function cannedToolData(toolName: string): Record<string, unknown> {
             connectorAccountId: "conn-email-1",
             sender: "boss@x.com",
             subject: "Re: budget",
-            snippet: "Can you reply today?"
+            snippet: "Can you reply today?",
+            actionability: "needs_reply",
+            importance: "normal",
+            confidence: 0.9,
+            source: "live"
           }
-        ]
+        ],
+        accounts: [
+          {
+            account: {
+              connectorAccountId: "conn-email-1",
+              providerId: "google",
+              providerLabel: "Gmail"
+            },
+            source: "live",
+            degradedReason: null
+          }
+        ],
+        gaps: []
       };
     case "chat.listTodaysTurns":
       return {
@@ -732,14 +760,16 @@ describe("composeBriefing — local-day bounding", () => {
                       connectorAccountId: "conn-1",
                       sender: "billing@example.test",
                       subject: "Invoice due today",
-                      snippet: "Payment due today"
+                      snippet: "Payment due today",
+                      actionability: "needs_action"
                     },
                     {
                       id: "bill-2",
                       connectorAccountId: "conn-1",
                       sender: "bank@example.test",
                       subject: "Past due statement",
-                      snippet: "Past due notice"
+                      snippet: "Past due notice",
+                      actionability: "needs_action"
                     },
                     {
                       id: "urgent-1",
@@ -747,14 +777,16 @@ describe("composeBriefing — local-day bounding", () => {
                       sender: "pm@example.test",
                       subject: "Can you reply before the 3pm review?",
                       snippet: "Need this today",
-                      receivedAt: "2026-06-13T08:30:00.000Z"
+                      receivedAt: "2026-06-13T08:30:00.000Z",
+                      actionability: "needs_reply"
                     },
                     {
                       id: "plan-1",
                       connectorAccountId: "conn-1",
                       sender: "legal@example.test",
                       subject: "Contract draft for meeting",
-                      snippet: "Please review before tomorrow"
+                      snippet: "Please review before tomorrow",
+                      actionability: "time_sensitive_info"
                     },
                     {
                       id: "follow-1",
@@ -762,14 +794,16 @@ describe("composeBriefing — local-day bounding", () => {
                       sender: "partner@example.test",
                       subject: "Following up on the open thread",
                       snippet: "Can you respond when you have a minute?",
-                      receivedAt: "2026-05-30T08:30:00.000Z"
+                      receivedAt: "2026-05-30T08:30:00.000Z",
+                      actionability: "needs_reply"
                     },
                     {
                       id: "extra-1",
                       connectorAccountId: "conn-1",
                       sender: "ops@example.test",
                       subject: "Due today",
-                      snippet: "Urgent follow up needed"
+                      snippet: "Urgent follow up needed",
+                      actionability: "needs_action"
                     }
                   ]
                 }
@@ -900,7 +934,8 @@ describe("composeBriefing — prompt boundary-forgery (escaped inert data)", () 
                           connectorAccountId: "attacker-conn",
                           sender: "attacker@example.test",
                           subject: `${payload}UNIT-CANARY-LEAK`,
-                          snippet: "Can you reply today?"
+                          snippet: "Can you reply today?",
+                          actionability: "needs_reply"
                         }
                       ]
                     }
@@ -934,6 +969,153 @@ describe("composeBriefing — prompt boundary-forgery (escaped inert data)", () 
       expect(emailBlock![1]).toContain("UNIT-CANARY-LEAK");
     }
   );
+});
+
+describe("composeBriefing — live-first source context (#729)", () => {
+  function withEmailToolData(deps: ComposeDeps, data: Record<string, unknown>): ComposeDeps {
+    return {
+      ...deps,
+      moduleManifests: deps.moduleManifests.map((m) => ({
+        ...m,
+        assistantTools: (m.assistantTools ?? []).map((t) =>
+          t.name === "email.listVisibleMessages"
+            ? { ...t, execute: (async () => ({ data })) as ToolExecute }
+            : t
+        )
+      }))
+    };
+  }
+
+  it("keeps only actionable triage items in the email prompt block", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = withEmailToolData(
+      makeFakeDeps({
+        generateChat: async (input: GenerateChatInput) => {
+          capturedMessages.push(input.messages);
+          return { text: "synth narrative" };
+        }
+      }),
+      {
+        messages: [
+          {
+            id: "msg-actionable",
+            connectorAccountId: "conn-email-1",
+            sender: "boss@x.com",
+            subject: "Budget approval",
+            snippet: "Can you reply today?",
+            actionability: "needs_reply"
+          },
+          {
+            // Reply-shaped snippet on a noise item: proves the filter is triage-based,
+            // not a regex over the text.
+            id: "msg-noise",
+            connectorAccountId: "conn-email-1",
+            sender: "spam@example.test",
+            subject: "SPAM-NOISE-SUBJECT",
+            snippet: "Can you reply today?",
+            actionability: "noise"
+          },
+          {
+            // waiting_on_someone only surfaces at high importance or confidence ≥ 0.7.
+            id: "msg-waiting-low",
+            connectorAccountId: "conn-email-1",
+            sender: "vendor@example.test",
+            subject: "WAITING-LOW-SUBJECT",
+            snippet: "Can you reply today?",
+            actionability: "waiting_on_someone",
+            importance: "low",
+            confidence: 0.4
+          }
+        ],
+        accounts: [],
+        gaps: []
+      }
+    );
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    const emailBlock = prompt.match(
+      /<external_source type="email">\n([\s\S]*?)\n<\/external_source>/
+    );
+    expect(emailBlock, "email block must be present").not.toBeNull();
+    expect(emailBlock![1]).toContain("Budget approval");
+    expect(emailBlock![1]).not.toContain("SPAM-NOISE-SUBJECT");
+    expect(emailBlock![1]).not.toContain("WAITING-LOW-SUBJECT");
+  });
+
+  it("marks the briefing degraded and records provenance when an account serves cache", async () => {
+    const deps = withEmailToolData(makeFakeDeps(), {
+      messages: [
+        {
+          id: "msg-1",
+          connectorAccountId: "conn-email-1",
+          sender: "boss@x.com",
+          subject: "Re: budget",
+          snippet: "Can you reply today?",
+          actionability: "needs_reply",
+          source: "cache",
+          degradedReason: "network_error"
+        }
+      ],
+      accounts: [
+        {
+          account: {
+            connectorAccountId: "conn-email-1",
+            providerId: "google",
+            providerLabel: "Gmail"
+          },
+          source: "cache",
+          degradedReason: "network_error"
+        }
+      ],
+      gaps: []
+    });
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    const md = result.sourceMetadata as {
+      degraded: boolean;
+      sourceContext: {
+        email: { accounts: unknown[] };
+        calendar: { accounts: unknown[] };
+      };
+    };
+    expect(md.degraded).toBe(true);
+    expect(md.sourceContext.email.accounts).toEqual([
+      { connectorAccountId: "conn-email-1", source: "cache", degradedReason: "network_error" }
+    ]);
+    expect(md.sourceContext.calendar.accounts).toEqual([
+      { connectorAccountId: "conn-cal-1", source: "live", degradedReason: null }
+    ]);
+  });
+
+  it("records a source_auth briefing gap when a live read reports an auth gap", async () => {
+    const deps = withEmailToolData(makeFakeDeps(), {
+      messages: [],
+      accounts: [],
+      gaps: [
+        {
+          account: {
+            connectorAccountId: "conn-email-1",
+            providerId: "google",
+            providerLabel: "Gmail"
+          },
+          reason: "auth_error"
+        }
+      ]
+    });
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    expect(result.sourceMetadata.gaps).toEqual(
+      expect.arrayContaining([expect.objectContaining({ source: "email", reason: "source_auth" })])
+    );
+    const md = result.sourceMetadata as {
+      sourceContext: { email: { gaps: unknown[] } };
+    };
+    expect(md.sourceContext.email.gaps).toEqual([
+      { connectorAccountId: "conn-email-1", reason: "auth_error" }
+    ]);
+  });
 });
 
 describe("composeBriefing — source freshness", () => {

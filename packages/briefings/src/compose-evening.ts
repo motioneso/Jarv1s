@@ -6,7 +6,10 @@ import {
   emptySection,
   buildPersonaBlock,
   gatherToolSection,
+  isActionableTriage,
   readEmailSignalSettings,
+  recordSourceAuthGap,
+  sourceContextMetaFor,
   sourceIncludedInBriefings,
   synthesizeWithConfiguredModel,
   SECTION_CHAR_CAP,
@@ -230,6 +233,7 @@ export async function composeEveningBriefing(
           label: "TOMORROW'S CALENDAR",
           toolName: "calendar.listVisibleEvents",
           arrayKey: "events",
+          metaKeys: ["accounts", "gaps"],
           format: (e) =>
             [sanitizeExternal(e.startsAt), sanitizeExternal(e.title)].filter(Boolean).join(" · ")
         },
@@ -275,10 +279,22 @@ export async function composeEveningBriefing(
           label: "EMAIL ARRIVED TODAY",
           toolName: "email.listVisibleMessages",
           arrayKey: "messages",
+          metaKeys: ["accounts", "gaps"],
           // Authoritative user-tz "arrived today" bound.
           localDayField: "receivedAt",
+          // Actionable triage only (#729 §7): noise/fyi/unknown never become prompt lines,
+          // and the allow-list is sender · subject · actionability · summary-or-snippet.
           format: (m) =>
-            [sanitizeExternal(m.sender), sanitizeExternal(m.subject)].filter(Boolean).join(" · ")
+            isActionableTriage(m)
+              ? [
+                  sanitizeExternal(m.sender),
+                  sanitizeExternal(m.subject),
+                  sanitizeExternal(m.actionability),
+                  sanitizeExternal(m.summary) || sanitizeExternal(m.snippet)
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : ""
         },
         emailScratch,
         now,
@@ -286,10 +302,24 @@ export async function composeEveningBriefing(
       )
     : emptySection("email_today", "EMAIL ARRIVED TODAY");
   gaps.push(...emailScratch.filter((g) => g.reason === "tool_failed"));
+  const calendarSourceContext = sourceContextMetaFor(rawCalendar);
+  const emailSourceContext = sourceContextMetaFor(rawEmail);
+  recordSourceAuthGap("calendar_tomorrow", calendarSourceContext, gaps);
+  recordSourceAuthGap("email_today", emailSourceContext, gaps);
+  const sourceContextDegraded = [
+    ...calendarSourceContext.accounts,
+    ...emailSourceContext.accounts
+  ].some((account) => account.source === "cache");
   const emailSettings = await readEmailSignalSettings(scopedDb, deps);
   const context = contextTokens(tasksReconciliation.lines, commitments.lines);
   const emailSignals = includeEmail
-    ? deriveEmailSignals({ items: rawEmail.rawItems ?? [], now, context, settings: emailSettings })
+    ? deriveEmailSignals({
+        // Same triage filter as the prompt lines: noise/fyi/unknown never seed signals.
+        items: (rawEmail.rawItems ?? []).filter(isActionableTriage),
+        now,
+        context,
+        settings: emailSettings
+      })
     : [];
   const emailSelected = definition.selected_tool_names.includes("email.listVisibleMessages");
   if (includeEmail && emailSelected && emailSignals.length === 0) {
@@ -400,6 +430,8 @@ export async function composeEveningBriefing(
     chatTurnCount: chats.count,
     morningRunReferenced: morningPlan !== null,
     gaps,
+    // Live/cache provenance per connected account (#729).
+    sourceContext: { email: emailSourceContext, calendar: calendarSourceContext },
     ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
   };
 
@@ -435,7 +467,9 @@ export async function composeEveningBriefing(
         displayName: synth.model.display_name,
         tier: synth.model.tier
       },
-      degraded: false
+      // Degraded when any source-context account was served from cache (#729); a synthesis
+      // failure still routes through fallbackEvening with its own degradedReason.
+      degraded: sourceContextDegraded
     }
   };
 }
