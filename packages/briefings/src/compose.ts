@@ -6,6 +6,9 @@ import {
   readCalendarSignalSettings,
   readEmailSignalSettings,
   synthesizeWithConfiguredModel,
+  isActionableTriage,
+  sourceContextMetaFor,
+  recordSourceAuthGap,
   type ComposeDeps,
   type ComposeRunInput,
   type ComposeResult,
@@ -131,6 +134,7 @@ export async function composeBriefing(
           label: "CALENDAR",
           toolName: "calendar.listVisibleEvents",
           arrayKey: "events",
+          metaKeys: ["accounts", "gaps"],
           format: (e) =>
             [sanitizeExternal(e.startsAt), sanitizeExternal(e.title)].filter(Boolean).join(" · ")
         },
@@ -151,16 +155,34 @@ export async function composeBriefing(
           label: "EMAIL SUMMARIES + SIGNALS",
           toolName: "email.listVisibleMessages",
           arrayKey: "messages",
+          metaKeys: ["accounts", "gaps"],
+          // Actionable triage only (#729 §7): noise/fyi/unknown never become prompt lines,
+          // and the allow-list is sender · subject · actionability · summary-or-snippet.
           format: (m) =>
-            [sanitizeExternal(m.sender), sanitizeExternal(m.subject), sanitizeExternal(m.snippet)]
-              .filter(Boolean)
-              .join(" · ")
+            isActionableTriage(m)
+              ? [
+                  sanitizeExternal(m.sender),
+                  sanitizeExternal(m.subject),
+                  sanitizeExternal(m.actionability),
+                  sanitizeExternal(m.summary) || sanitizeExternal(m.snippet)
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : ""
         },
         gaps,
         now,
         timeZone
       )
     : emptySection("email", "EMAIL SUMMARIES + SIGNALS");
+  const calendarSourceContext = sourceContextMetaFor(rawCalendar);
+  const emailSourceContext = sourceContextMetaFor(rawEmail);
+  recordSourceAuthGap("calendar", calendarSourceContext, gaps);
+  recordSourceAuthGap("email", emailSourceContext, gaps);
+  const sourceContextDegraded = [
+    ...calendarSourceContext.accounts,
+    ...emailSourceContext.accounts
+  ].some((account) => account.source === "cache");
 
   // Vault: semantic ∪ recency, deduped by id/source path. Best-effort.
   const vaultLines: string[] = [];
@@ -250,7 +272,8 @@ export async function composeBriefing(
     : [];
   const emailSignals = includeEmail
     ? deriveEmailSignals({
-        items: rawEmail.rawItems ?? [],
+        // Same triage filter as the prompt lines: noise/fyi/unknown never seed signals.
+        items: (rawEmail.rawItems ?? []).filter(isActionableTriage),
         now,
         context,
         settings: emailSettings
@@ -440,7 +463,10 @@ export async function composeBriefing(
         tier: synth.model.tier
       },
       gaps,
-      degraded: false,
+      // Live/cache provenance per connected account (#729): degraded means at least one
+      // account was served from the fallback cache after a transient live-read failure.
+      sourceContext: { email: emailSourceContext, calendar: calendarSourceContext },
+      degraded: sourceContextDegraded,
       ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
     }
   };

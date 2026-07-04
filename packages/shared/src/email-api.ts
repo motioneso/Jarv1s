@@ -92,6 +92,65 @@ export const getEmailMessageResponseSchema = {
   }
 } as const;
 
+// Email-derived task creation modes (#729 §5). `suggest` is the default: staged
+// `suggested` tasks the user reviews; auto modes promote a narrow slice to real todos.
+export const EMAIL_TASK_CREATION_MODES = ["off", "suggest", "auto_safe", "auto"] as const;
+
+export type EmailTaskCreationMode = (typeof EMAIL_TASK_CREATION_MODES)[number];
+
+export const DEFAULT_EMAIL_TASK_MODE: EmailTaskCreationMode = "suggest";
+
+export const EMAIL_TASK_MODE_PREF_KEY = "email.task_creation_mode";
+
+export function parseEmailTaskMode(value: unknown): EmailTaskCreationMode {
+  return typeof value === "string" &&
+    (EMAIL_TASK_CREATION_MODES as readonly string[]).includes(value)
+    ? (value as EmailTaskCreationMode)
+    : DEFAULT_EMAIL_TASK_MODE;
+}
+
+export interface EmailTaskCreationModeResponse {
+  readonly mode: EmailTaskCreationMode;
+}
+
+export interface UpdateEmailTaskCreationModeRequest {
+  readonly mode: EmailTaskCreationMode;
+}
+
+export const emailTaskCreationModeResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["mode"],
+  properties: {
+    mode: { type: "string", enum: [...EMAIL_TASK_CREATION_MODES] }
+  }
+} as const;
+
+export const updateEmailTaskCreationModeRequestSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["mode"],
+  properties: {
+    mode: { type: "string", enum: [...EMAIL_TASK_CREATION_MODES] }
+  }
+} as const;
+
+export const getEmailTaskCreationModeRouteSchema = {
+  response: {
+    200: emailTaskCreationModeResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const updateEmailTaskCreationModeRouteSchema = {
+  body: updateEmailTaskCreationModeRequestSchema,
+  response: {
+    200: emailTaskCreationModeResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
 export const listEmailMessagesRouteSchema = {
   response: {
     200: listEmailMessagesResponseSchema,

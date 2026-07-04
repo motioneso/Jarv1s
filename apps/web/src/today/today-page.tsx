@@ -60,6 +60,7 @@ import {
   scheduleTodayModeRefresh
 } from "./evening-mode";
 import { ProactiveCards } from "./proactive-cards";
+import { SuggestedFromEmailSection } from "./today-suggested-email";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
@@ -143,7 +144,6 @@ export function TodayPage(props: {
       }, 500);
     }
   });
-
   const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
@@ -181,6 +181,7 @@ export function TodayPage(props: {
   const lists = listsQuery.data?.lists ?? [];
 
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
+  const suggestedTasks = tasks.filter((t) => t.status === "suggested");
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
   const priorities = open.filter(isDoFirst);
   const atRisk = open.filter((t) => isAtRisk(t, locale.timezone));
@@ -329,6 +330,12 @@ export function TodayPage(props: {
               </div>
             ) : null}
           </section>
+
+          <SuggestedFromEmailSection
+            tasks={suggestedTasks}
+            locale={locale}
+            onOpen={(id) => setDialog({ id })}
+          />
 
           {feed.overnight.length > 0 ? <OvernightSection items={feed.overnight} /> : null}
 

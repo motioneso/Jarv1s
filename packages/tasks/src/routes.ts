@@ -38,6 +38,11 @@ import { sendJob } from "@jarv1s/jobs";
 import { handleRouteError } from "@jarv1s/module-sdk";
 
 import { HttpError } from "./errors.js";
+import {
+  recordTriageFeedbackIfNeeded,
+  resolveTriageVerdict,
+  type EmailTriageFeedbackPort
+} from "./email-feedback.js";
 import type { DeferredTaskStatusPayload } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
 import { parseRecurrenceSpec, type RecurrenceSpec } from "./recurrence.js";
@@ -81,6 +86,7 @@ export interface TasksRoutesDependencies extends TaskSearchRouteDependencies {
     readonly actorUserId: string;
     readonly requestId: string;
   }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
+  readonly emailTriageFeedback?: EmailTriageFeedbackPort;
 }
 
 interface TaskParams {
@@ -287,18 +293,31 @@ export function registerTasksRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseUpdateTaskBody(request.body);
-        const { task, tags } = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            const row = await repository.update(scopedDb, request.params.id, input);
+        const { task, tags, triageVerdict, taskSourceRef } =
+          await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+            const prior = await repository.getById(scopedDb, request.params.id);
+            const row = prior
+              ? await repository.update(scopedDb, request.params.id, input)
+              : undefined;
             const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
-            return { task: row, tags: t };
-          }
-        );
+            return {
+              task: row,
+              tags: t,
+              triageVerdict: prior ? resolveTriageVerdict(prior, input.status) : null,
+              taskSourceRef: prior?.source_ref ?? null
+            };
+          });
 
         if (!task) {
           return reply.code(404).send({ error: "Task not found" });
         }
+
+        await recordTriageFeedbackIfNeeded(dependencies, accessContext, request.log, {
+          taskId: task.id,
+          taskSourceRef,
+          title: task.title,
+          triageVerdict
+        });
 
         return { task: serializeTask(task, tags) };
       } catch (error) {
@@ -933,3 +952,5 @@ function applyReadinessCap(
   const cap = aggregate <= 0.25 ? 3 : 5;
   return tasks.slice(0, cap);
 }
+
+export type { EmailTriageFeedbackPort } from "./email-feedback.js";

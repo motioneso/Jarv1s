@@ -128,6 +128,13 @@ export default defineConfig({
         )
       },
       {
+        // Subpath export; must precede the bare "@jarv1s/module-sdk" alias.
+        find: "@jarv1s/module-sdk/core-version",
+        replacement: fileURLToPath(
+          new URL("./packages/module-sdk/src/core-version.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/module-sdk",
         replacement: fileURLToPath(new URL("./packages/module-sdk/src/index.ts", import.meta.url))
       },

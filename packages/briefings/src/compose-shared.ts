@@ -50,6 +50,14 @@ export interface ComposeDeps {
       feature: "email" | "calendar"
     ): Promise<ReadonlySet<string>>;
   };
+  /**
+   * Injected by the composition root; live-first email/calendar reads for the read tools (#729).
+   * Structural — briefings never imports connectors (module isolation).
+   */
+  readonly sourceContextService?: {
+    listEmailContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
+    listCalendarContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
+  };
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -77,7 +85,9 @@ export interface BriefingGap {
   readonly source: string;
   // No `empty_cache`: we cannot distinguish synced-empty from not-synced-yet until the
   // connector-sync slice lands cache state, so an empty source is just `empty`.
-  readonly reason: "tool_failed" | "truncated" | "empty" | "unwired";
+  // `source_auth` (#729): a live-first source-context read reported an auth/grant/revocation
+  // gap — the user must reconnect or re-grant; the data was NOT silently served from cache.
+  readonly reason: "tool_failed" | "truncated" | "empty" | "unwired" | "source_auth";
 }
 
 export interface ComposeResult {
@@ -92,6 +102,8 @@ export interface Section {
   readonly lines: readonly string[];
   readonly count: number;
   readonly rawItems?: readonly Record<string, unknown>[];
+  /** Named top-level tool-response keys captured via `metaKeys` (e.g. source-context accounts/gaps). */
+  readonly meta?: Record<string, unknown>;
 }
 
 export function ctxFor(definition: BriefingDefinition, input: ComposeRunInput) {
@@ -244,6 +256,12 @@ export async function gatherToolSection(
     readonly format: (item: Record<string, unknown>) => string;
     /** When set, items are filtered to the definition's local day on this field. */
     readonly localDayField?: string;
+    /**
+     * Named top-level keys copied verbatim from the tool's `data` onto `Section.meta`
+     * (#729: `accounts`/`gaps` from the source-context tools). Metadata only — meta never
+     * enters prompt lines.
+     */
+    readonly metaKeys?: readonly string[];
   },
   gaps: BriefingGap[],
   now: Date,
@@ -259,9 +277,10 @@ export async function gatherToolSection(
     return { key: args.key, label: args.label, lines: [], count: 0 };
   }
   try {
-    const toolServices = deps.featureGrantService
-      ? { featureGrants: deps.featureGrantService }
-      : {};
+    const toolServices = {
+      ...(deps.featureGrantService ? { featureGrants: deps.featureGrantService } : {}),
+      ...(deps.sourceContextService ? { sourceContext: deps.sourceContextService } : {})
+    };
     const result = await tool.execute(
       scopedDb,
       args.toolInput ?? {},
@@ -269,6 +288,11 @@ export async function gatherToolSection(
       toolServices
     );
     const data = isRecord(result.data) ? result.data : {};
+    const meta: Record<string, unknown> = {};
+    for (const metaKey of args.metaKeys ?? []) {
+      if (metaKey in data) meta[metaKey] = data[metaKey];
+    }
+    const withMeta = args.metaKeys ? { meta } : {};
     const raw = data[args.arrayKey];
     let items = Array.isArray(raw) ? raw.filter(isRecord) : [];
     // Authoritative per-user local-day bound (tools return all visible rows; sync
@@ -281,14 +305,21 @@ export async function gatherToolSection(
       // "not synced yet" until the connector-sync slice lands cache state. Do NOT
       // claim `empty_cache` — that would over-state knowledge we don't have.
       gaps.push({ source: args.key, reason: "empty" });
-      return { key: args.key, label: args.label, lines: [], count: 0, rawItems: [] };
+      return { key: args.key, label: args.label, lines: [], count: 0, rawItems: [], ...withMeta };
     }
     const allLines = items.map(args.format).filter((line) => line.length > 0);
     const { lines, truncated } = capLines(allLines);
     if (truncated) {
       gaps.push({ source: args.key, reason: "truncated" });
     }
-    return { key: args.key, label: args.label, lines, count: items.length, rawItems: items };
+    return {
+      key: args.key,
+      label: args.label,
+      lines,
+      count: items.length,
+      rawItems: items,
+      ...withMeta
+    };
   } catch (error) {
     const e = error instanceof Error ? error : new Error(String(error));
     deps.logger?.error(
@@ -302,6 +333,85 @@ export async function gatherToolSection(
     );
     gaps.push({ source: args.key, reason: "tool_failed" });
     return { key: args.key, label: args.label, lines: [], count: 0, rawItems: [] };
+  }
+}
+
+// ── Live-first source-context triage projection (#729) ─────────────────────────
+
+const ALWAYS_ACTIONABLE_TRIAGE = new Set(["needs_reply", "needs_action", "time_sensitive_info"]);
+
+/**
+ * Prompt-line filter for triaged email items (spec #729 §7): noise/fyi/unknown never reach
+ * the synthesis prompt; waiting_on_someone only when it is clearly important (high importance
+ * or confident classification). Items without an actionability field are excluded — the
+ * source-context tool always attaches one, so its absence means non-triaged data.
+ */
+export function isActionableTriage(item: Record<string, unknown>): boolean {
+  const actionability = item.actionability;
+  if (typeof actionability !== "string") return false;
+  if (ALWAYS_ACTIONABLE_TRIAGE.has(actionability)) return true;
+  if (actionability === "waiting_on_someone") {
+    return (
+      item.importance === "high" || (typeof item.confidence === "number" && item.confidence >= 0.7)
+    );
+  }
+  return false;
+}
+
+export interface SourceContextSectionMeta {
+  readonly accounts: ReadonlyArray<{
+    readonly connectorAccountId: string;
+    readonly source: "live" | "cache";
+    readonly degradedReason: string | null;
+  }>;
+  readonly gaps: ReadonlyArray<{
+    readonly connectorAccountId: string | null;
+    readonly reason: string;
+  }>;
+}
+
+/**
+ * Project a source-context tool response's accounts/gaps (captured via `metaKeys`) into the
+ * compact shape persisted on briefing source_metadata. Explicit field pick — never the raw
+ * account objects, so provider metadata additions can never silently reach stored run rows.
+ */
+export function sourceContextMetaFor(section: Section): SourceContextSectionMeta {
+  const accountsRaw = section.meta?.accounts;
+  const accounts = (Array.isArray(accountsRaw) ? accountsRaw.filter(isRecord) : []).map((entry) => {
+    const account = isRecord(entry.account) ? entry.account : {};
+    return {
+      connectorAccountId:
+        typeof account.connectorAccountId === "string" ? account.connectorAccountId : "unknown",
+      source: entry.source === "live" ? ("live" as const) : ("cache" as const),
+      degradedReason: typeof entry.degradedReason === "string" ? entry.degradedReason : null
+    };
+  });
+  const gapsRaw = section.meta?.gaps;
+  const gaps = (Array.isArray(gapsRaw) ? gapsRaw.filter(isRecord) : []).map((gap) => ({
+    connectorAccountId:
+      isRecord(gap.account) && typeof gap.account.connectorAccountId === "string"
+        ? gap.account.connectorAccountId
+        : null,
+    reason: typeof gap.reason === "string" ? gap.reason : "unknown"
+  }));
+  return { accounts, gaps };
+}
+
+/** Source-context gap reasons that need user action (reconnect / re-grant), not a retry. */
+const SOURCE_AUTH_GAP_REASONS = new Set([
+  "auth_error",
+  "connector_revoked",
+  "feature_grant_disabled"
+]);
+
+/** Record a `source_auth` briefing gap when a source-context read hit an auth/grant problem. */
+export function recordSourceAuthGap(
+  sectionKey: string,
+  contextMeta: SourceContextSectionMeta,
+  gaps: BriefingGap[]
+): void {
+  if (contextMeta.gaps.some((gap) => SOURCE_AUTH_GAP_REASONS.has(gap.reason))) {
+    gaps.push({ source: sectionKey, reason: "source_auth" });
   }
 }
 

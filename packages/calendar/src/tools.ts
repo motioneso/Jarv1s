@@ -1,27 +1,132 @@
 import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type { ToolContext, ToolExecute, ToolResult, ToolServices } from "@jarv1s/module-sdk";
+import { nullableStringSchema } from "@jarv1s/shared";
 
 import type { CalendarWriteService } from "./calendar-write-service.js";
 import { resolveWindow, type FocusBlockInput, type PartOfDay } from "./focus-time.js";
-import { CalendarRepository } from "./repository.js";
-import { serializeCalendarEvent } from "./serialize.js";
 
-const repository = new CalendarRepository();
+export const calendarToolEventsOutputSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["events", "accounts", "gaps"],
+  properties: {
+    events: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "id",
+          "connectorAccountId",
+          "providerLabel",
+          "title",
+          "startsAt",
+          "endsAt",
+          "allDay",
+          "location",
+          "attendeeCount",
+          "flags",
+          "source",
+          "degradedReason"
+        ],
+        properties: {
+          id: { type: "string", description: "Provider event key" },
+          connectorAccountId: { type: "string" },
+          providerLabel: { type: "string" },
+          title: { type: "string" },
+          startsAt: { type: "string" },
+          endsAt: { type: "string" },
+          allDay: { type: "boolean" },
+          location: nullableStringSchema,
+          attendeeCount: { type: "number" },
+          flags: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["conflict", "early", "late", "has_location", "prep_attendees"]
+            }
+          },
+          source: { type: "string", enum: ["live", "cache"] },
+          degradedReason: nullableStringSchema
+        }
+      }
+    },
+    accounts: {
+      type: "array",
+      items: {
+        type: "object",
+        description: "Per-account read outcome: source live|cache and any degradedReason"
+      }
+    },
+    gaps: {
+      type: "array",
+      items: {
+        type: "object",
+        description:
+          "Accounts that could not be read at all (auth_error, connector_revoked, " +
+          "feature_grant_disabled, unsupported_provider, service_unavailable)"
+      }
+    }
+  }
+} as const;
 
-// Structural interface — no @jarv1s/connectors import (module isolation).
-interface FeatureGrantService {
-  grantedAccountIds(
-    scopedDb: DataContextDb,
-    feature: "email" | "calendar"
-  ): Promise<ReadonlySet<string>>;
+// Structural interfaces — no @jarv1s/connectors import (module isolation). Shapes mirror
+// the connectors SourceContextService calendar surface.
+interface SourceAccountMetaShape {
+  readonly connectorAccountId: string;
+  readonly providerId: string;
+  readonly providerLabel: string;
 }
 
-function narrowFeatureGrants(services: ToolServices | undefined): FeatureGrantService {
-  const svc = (services ?? {}).featureGrants as FeatureGrantService | undefined;
-  if (!svc || typeof svc.grantedAccountIds !== "function") {
-    throw new Error("featureGrants service is not available");
+interface CalendarContextItemShape {
+  readonly eventKey: string;
+  readonly account: SourceAccountMetaShape;
+  readonly title: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly allDay: boolean;
+  readonly location: string | null;
+  readonly attendeeCount: number;
+  readonly flags: readonly string[];
+  readonly source: "live" | "cache";
+  readonly degradedReason: string | null;
+}
+
+interface SourceContextService {
+  listEmailContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
+  listCalendarContext(
+    scopedDb: DataContextDb,
+    input: { windowStart?: string; windowEnd?: string; limit?: number }
+  ): Promise<{
+    items: readonly CalendarContextItemShape[];
+    accounts: readonly unknown[];
+    gaps: readonly unknown[];
+  }>;
+}
+
+function narrowSourceContext(services: ToolServices | undefined): SourceContextService {
+  const svc = (services ?? {}).sourceContext as SourceContextService | undefined;
+  if (!svc || typeof svc.listCalendarContext !== "function") {
+    throw new Error("sourceContext service is not available"); // fail closed — never stale direct cache reads
   }
   return svc;
+}
+
+function serializeCalendarContextItem(item: CalendarContextItemShape) {
+  return {
+    id: item.eventKey,
+    connectorAccountId: item.account.connectorAccountId,
+    providerLabel: item.account.providerLabel,
+    title: item.title,
+    startsAt: item.startsAt,
+    endsAt: item.endsAt,
+    allDay: item.allDay,
+    location: item.location,
+    attendeeCount: item.attendeeCount,
+    flags: item.flags,
+    source: item.source,
+    degradedReason: item.degradedReason
+  };
 }
 
 // Configured default timezone for part-of-day band resolution + the card preview. This is
@@ -41,16 +146,16 @@ export const calendarListVisibleEventsExecute: ToolExecute = async (
   services
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const featureGrants = narrowFeatureGrants(services);
-  const grantedIds = await featureGrants.grantedAccountIds(scopedDb, "calendar");
-  const startsAfter =
-    typeof input.startsAfter === "string" ? new Date(input.startsAfter) : undefined;
-  const startsBefore =
-    typeof input.startsBefore === "string" ? new Date(input.startsBefore) : undefined;
+  const sourceContext = narrowSourceContext(services);
+  const windowStart = typeof input.startsAfter === "string" ? input.startsAfter : undefined;
+  const windowEnd = typeof input.startsBefore === "string" ? input.startsBefore : undefined;
   const limit = typeof input.limit === "number" && input.limit > 0 ? input.limit : undefined;
-  const events = await repository.listVisible(scopedDb, { startsAfter, startsBefore, limit });
-  const filtered = events.filter((e) => grantedIds.has(e.connector_account_id));
-  return { data: { events: filtered.map(serializeCalendarEvent) } };
+  const { items, accounts, gaps } = await sourceContext.listCalendarContext(scopedDb, {
+    ...(windowStart ? { windowStart } : {}),
+    ...(windowEnd ? { windowEnd } : {}),
+    ...(limit ? { limit } : {})
+  });
+  return { data: { events: items.map(serializeCalendarContextItem), accounts, gaps } };
 };
 
 function narrowCalendarWrite(services: ToolServices | undefined): CalendarWriteService {

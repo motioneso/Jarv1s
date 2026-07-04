@@ -154,6 +154,8 @@ describe("source behavior policy", () => {
     expect(byId.get("calendar.briefings")).toMatchObject({ default: "default-on" });
     expect(byId.get("email.briefings")).toMatchObject({ default: "default-on" });
     expect(byId.get("calendar.planning")?.default).toBe("coming-soon");
-    expect(byId.get("email.capture-tasks")?.default).toBe("coming-soon");
+    // #729: capture-tasks became functional (suggested-task engine); thread-summaries is still pending.
+    expect(byId.get("email.capture-tasks")?.default).toBe("default-on");
+    expect(byId.get("email.thread-summaries")?.default).toBe("coming-soon");
   });
 });

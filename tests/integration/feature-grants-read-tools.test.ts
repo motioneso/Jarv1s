@@ -1,33 +1,37 @@
 /**
  * Integration tests: per-account feature grants gate email and calendar read tools.
  *
- * Covers all three read paths (chat gateway passes `readToolServices`, briefings passes
- * `featureGrantService`, cross-tool uses `runReadToolForActor` with `readToolServices`).
- * Here we test the tool-level execute functions directly — the gateway / briefings path
- * wiring is validated by typecheck + the unit tests for the gateway itself.
+ * Live-first (#729): the read tools no longer take a `featureGrants` service — they route
+ * through `services.sourceContext`, and the REAL source-context readers enforce the grant
+ * chain per account (revoked status → connector_revoked gap; feature grant off →
+ * feature_grant_disabled gap; missing service → loud fail-closed throw). These tests run
+ * the real buildSourceContextService against the integration database with only the
+ * provider network edge faked.
  *
- * Three failure modes tested:
- *  1. Granted account   → rows returned
- *  2. Revoked account   → rows filtered out (zero results, no error)
+ * Failure modes covered per tool:
+ *  1. Granted account   → live items returned (revoked sibling surfaces as a gap, no rows)
+ *  2. Grant disabled    → feature_grant_disabled gap, zero items, provider NEVER called
  *  3. Missing service   → throws loud error (fail-closed)
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { randomUUID } from "node:crypto";
 import pg from "pg";
 
-import {
-  DataContextRunner,
-  assertDataContextDb,
-  createDatabase,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
-import { sql } from "kysely";
 import { EmailRepository, emailListVisibleMessagesExecute } from "@jarv1s/email";
 import { calendarListVisibleEventsExecute } from "@jarv1s/calendar";
-import { buildFeatureGrantService, ConnectorsRepository } from "@jarv1s/connectors";
+import {
+  buildFeatureGrantService,
+  featureGrantsPrefKey,
+  ConnectorsRepository
+} from "@jarv1s/connectors";
 
+import {
+  buildTestSourceContextService,
+  fakeEmailProvider,
+  parsedEmail
+} from "./source-context-helpers.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -36,18 +40,36 @@ const ACCOUNT_EMAIL = "70000000-0000-4000-8000-000000000001";
 const ACCOUNT_CALENDAR = "70000000-0000-4000-8000-000000000002";
 const ACCOUNT_REVOKED = "70000000-0000-4000-8000-000000000003";
 
-function granted(accountId: string) {
-  return { featureGrants: { grantedAccountIds: async () => new Set([accountId]) } };
+/** Pref stub that revokes one feature for one account; everything else is default-on. */
+function prefsDisabling(accountId: string) {
+  return {
+    get: async (_scopedDb: unknown, key: string) =>
+      key === featureGrantsPrefKey(accountId) ? { email: false, calendar: false } : null
+  };
 }
 
-function grantNone() {
-  return { featureGrants: { grantedAccountIds: async () => new Set<string>() } };
+function readGaps(
+  result: Record<string, unknown>
+): Array<{ connectorAccountId: string | null; reason: string }> {
+  const gaps = (result as { gaps?: unknown }).gaps;
+  if (!Array.isArray(gaps)) throw new Error("Expected gaps array in tool result");
+  return gaps.map((gap) => {
+    const entry = gap as { account?: { connectorAccountId?: unknown } | null; reason?: unknown };
+    return {
+      connectorAccountId:
+        typeof entry.account?.connectorAccountId === "string"
+          ? entry.account.connectorAccountId
+          : null,
+      reason: String(entry.reason)
+    };
+  });
 }
 
 describe("Feature-grants read-tool filtering", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
   let emailRepository: EmailRepository;
+  let cachedEmailId: string;
 
   beforeAll(async () => {
     await resetFoundationDatabase();
@@ -57,11 +79,11 @@ describe("Feature-grants read-tool filtering", () => {
     dataContext = new DataContextRunner(appDb);
     emailRepository = new EmailRepository();
 
-    // Seed one email and one calendar event for userA
+    // Cached copy of the live message — proves the live item joins its cache row id.
     await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "seed:email" },
       async (scopedDb) => {
-        await emailRepository.createCachedMessageForTest(scopedDb, {
+        const row = await emailRepository.createCachedMessageForTest(scopedDb, {
           connectorAccountId: ACCOUNT_EMAIL,
           sender: "alice@example.test",
           subject: "Test subject",
@@ -69,33 +91,7 @@ describe("Feature-grants read-tool filtering", () => {
           receivedAt: new Date().toISOString(),
           externalId: "grant-test-email-1"
         });
-      }
-    );
-
-    await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "seed:calendar" },
-      async (scopedDb) => {
-        assertDataContextDb(scopedDb);
-        const now = new Date();
-        const later = new Date(now.getTime() + 3600_000);
-        await scopedDb.db
-          .insertInto("app.calendar_events")
-          .values({
-            id: randomUUID(),
-            connector_account_id: ACCOUNT_CALENDAR,
-            owner_user_id: sql<string>`app.current_actor_user_id()`,
-            title: "Grant test event",
-            starts_at: now.toISOString(),
-            ends_at: later.toISOString(),
-            location: null,
-            summary: null,
-            body_excerpt: null,
-            external_id: "grant-test-cal-1",
-            external_metadata: {},
-            created_at: now,
-            updated_at: now
-          })
-          .execute();
+        cachedEmailId = row.id;
       }
     );
   });
@@ -108,60 +104,119 @@ describe("Feature-grants read-tool filtering", () => {
 
   // ── Email tool ─────────────────────────────────────────────────────────────────
 
-  it("email tool: returns messages for granted account", async () => {
+  it("email tool: returns live messages for the granted account; revoked sibling is a gap", async () => {
+    const sourceContext = buildTestSourceContextService({
+      googleProvider: fakeEmailProvider<string>([parsedEmail({ externalId: "grant-test-email-1" })])
+    });
     const result = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "r:email-granted" },
-      (scopedDb) => emailListVisibleMessagesExecute(scopedDb, {}, ctx, granted(ACCOUNT_EMAIL))
+      (scopedDb) => emailListVisibleMessagesExecute(scopedDb, {}, ctx, { sourceContext })
     );
     const messages = result.data.messages as Array<Record<string, unknown>>;
-    expect(messages.some((m) => m.connectorAccountId === ACCOUNT_EMAIL)).toBe(true);
+    const granted = messages.filter((m) => m.connectorAccountId === ACCOUNT_EMAIL);
+    expect(granted).toHaveLength(1);
+    expect(granted[0]?.id).toBe("grant-test-email-1");
+    expect(granted[0]?.source).toBe("live");
+    expect(granted[0]?.cacheMessageId).toBe(cachedEmailId);
+    // The revoked account never yields rows — it surfaces honestly as a gap.
+    expect(messages.filter((m) => m.connectorAccountId === ACCOUNT_REVOKED)).toHaveLength(0);
+    expect(readGaps(result.data)).toContainEqual({
+      connectorAccountId: ACCOUNT_REVOKED,
+      reason: "connector_revoked"
+    });
   });
 
-  it("email tool: filters out messages for revoked account", async () => {
+  it("email tool: grant-disabled account yields a gap, zero rows, and no provider call", async () => {
+    let providerCalled = false;
+    const sourceContext = buildTestSourceContextService({
+      preferencesRepository: prefsDisabling(ACCOUNT_EMAIL),
+      googleProvider: fakeEmailProvider<string>([], {
+        listError: () => {
+          providerCalled = true;
+          return new Error("provider must not be called for a grant-disabled account");
+        }
+      })
+    });
     const result = await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "r:email-revoked" },
-      (scopedDb) => emailListVisibleMessagesExecute(scopedDb, {}, ctx, grantNone())
+      { actorUserId: ids.userA, requestId: "r:email-revoked-grant" },
+      (scopedDb) => emailListVisibleMessagesExecute(scopedDb, {}, ctx, { sourceContext })
     );
     const messages = result.data.messages as Array<Record<string, unknown>>;
     expect(messages.filter((m) => m.connectorAccountId === ACCOUNT_EMAIL)).toHaveLength(0);
+    expect(readGaps(result.data)).toContainEqual({
+      connectorAccountId: ACCOUNT_EMAIL,
+      reason: "feature_grant_disabled"
+    });
+    expect(providerCalled).toBe(false);
   });
 
-  it("email tool: throws loudly when featureGrants service is absent (fail-closed)", async () => {
+  it("email tool: throws loudly when sourceContext service is absent (fail-closed)", async () => {
     await expect(
       dataContext.withDataContext(
         { actorUserId: ids.userA, requestId: "r:email-no-svc" },
         (scopedDb) => emailListVisibleMessagesExecute(scopedDb, {}, ctx, {})
       )
-    ).rejects.toThrow("featureGrants service is not available");
+    ).rejects.toThrow("sourceContext service is not available");
   });
 
   // ── Calendar tool ──────────────────────────────────────────────────────────────
 
-  it("calendar tool: returns events for granted account", async () => {
+  it("calendar tool: returns live events for the granted account", async () => {
+    const now = Date.now();
+    const sourceContext = buildTestSourceContextService({
+      googleClient: {
+        listCalendarEvents: async () => [
+          {
+            id: "grant-test-cal-live-1",
+            summary: "Grant test event",
+            start: { dateTime: new Date(now + 3600_000).toISOString() },
+            end: { dateTime: new Date(now + 7200_000).toISOString() }
+          }
+        ]
+      }
+    });
     const result = await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "r:cal-granted" },
-      (scopedDb) => calendarListVisibleEventsExecute(scopedDb, {}, ctx, granted(ACCOUNT_CALENDAR))
+      (scopedDb) => calendarListVisibleEventsExecute(scopedDb, {}, ctx, { sourceContext })
     );
     const events = result.data.events as Array<Record<string, unknown>>;
-    expect(events.some((e) => e.connectorAccountId === ACCOUNT_CALENDAR)).toBe(true);
+    const granted = events.filter((e) => e.connectorAccountId === ACCOUNT_CALENDAR);
+    expect(granted).toHaveLength(1);
+    expect(granted[0]?.id).toBe("grant-test-cal-live-1");
+    expect(granted[0]?.source).toBe("live");
   });
 
-  it("calendar tool: filters out events for revoked account", async () => {
+  it("calendar tool: grant-disabled account yields a gap, zero rows, and no provider call", async () => {
+    let providerCalled = false;
+    const sourceContext = buildTestSourceContextService({
+      preferencesRepository: prefsDisabling(ACCOUNT_CALENDAR),
+      googleClient: {
+        listCalendarEvents: async () => {
+          providerCalled = true;
+          throw new Error("provider must not be called for a grant-disabled account");
+        }
+      }
+    });
     const result = await dataContext.withDataContext(
-      { actorUserId: ids.userA, requestId: "r:cal-revoked" },
-      (scopedDb) => calendarListVisibleEventsExecute(scopedDb, {}, ctx, grantNone())
+      { actorUserId: ids.userA, requestId: "r:cal-revoked-grant" },
+      (scopedDb) => calendarListVisibleEventsExecute(scopedDb, {}, ctx, { sourceContext })
     );
     const events = result.data.events as Array<Record<string, unknown>>;
     expect(events.filter((e) => e.connectorAccountId === ACCOUNT_CALENDAR)).toHaveLength(0);
+    expect(readGaps(result.data)).toContainEqual({
+      connectorAccountId: ACCOUNT_CALENDAR,
+      reason: "feature_grant_disabled"
+    });
+    expect(providerCalled).toBe(false);
   });
 
-  it("calendar tool: throws loudly when featureGrants service is absent (fail-closed)", async () => {
+  it("calendar tool: throws loudly when sourceContext service is absent (fail-closed)", async () => {
     await expect(
       dataContext.withDataContext(
         { actorUserId: ids.userA, requestId: "r:cal-no-svc" },
         (scopedDb) => calendarListVisibleEventsExecute(scopedDb, {}, ctx, {})
       )
-    ).rejects.toThrow("featureGrants service is not available");
+    ).rejects.toThrow("sourceContext service is not available");
   });
 
   // ── buildFeatureGrantService status guard (regression: revoked accounts leaked) ──
@@ -197,11 +252,14 @@ async function seedGrantsTestData(): Promise<void> {
   const client = new Client({ connectionString: connectionStrings.bootstrap });
   await client.connect();
   try {
+    // Unified 'google' provider rows (#729): the live readers only support provider_type
+    // google/imap, and the email_messages INSERT policy's google branch requires the full
+    // gmail.modify scope URL, so the cached seed above stays insertable.
     await client.query(
       `INSERT INTO app.connector_accounts (id, provider_id, owner_user_id, scopes, status, revoked_at, encrypted_secret)
-       VALUES ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', NULL, '{}'::jsonb),
-              ($3, 'google-calendar', $2, ARRAY['https://www.googleapis.com/auth/calendar']::text[], 'active', NULL, '{}'::jsonb),
-              ($4, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'revoked', now(), '{}'::jsonb)`,
+       VALUES ($1, 'google', $2, ARRAY['https://www.googleapis.com/auth/gmail.modify']::text[], 'active', NULL, '{}'::jsonb),
+              ($3, 'google', $2, ARRAY['https://www.googleapis.com/auth/calendar']::text[], 'active', NULL, '{}'::jsonb),
+              ($4, 'google', $2, ARRAY['https://www.googleapis.com/auth/gmail.modify']::text[], 'revoked', now(), '{}'::jsonb)`,
       [ACCOUNT_EMAIL, ids.userA, ACCOUNT_CALENDAR, ACCOUNT_REVOKED]
     );
   } finally {

@@ -5,6 +5,7 @@ import type {
   ChatThreadDto,
   CreateTaskRequest,
   EmailMessageDto,
+  EmailTaskCreationMode,
   MeResponse,
   NotificationDto,
   TaskDefaultView,
@@ -47,6 +48,8 @@ export interface MockApiState
   chatMessages?: Record<string, ChatMessageDto[]>;
   chatThreads?: ChatThreadDto[];
   emailMessages?: EmailMessageDto[];
+  /** Email → task creation mode (#729); defaults to "suggest". */
+  emailTaskMode?: EmailTaskCreationMode;
   adminUsers?: UserDto[];
   notifications: NotificationDto[];
   revokedAdminSessionCount?: number;
@@ -287,6 +290,9 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
     handleEmailMessageDetailRoute(route, state)
   );
   await page.route("**/api/email/messages", (route) => handleEmailMessageListRoute(route, state));
+  await page.route("**/api/email/task-creation-mode", (route) =>
+    handleEmailTaskModeRoute(route, state)
+  );
   await page.route(/\/api\/notifications\/[^/]+\/read$/, (route) =>
     handleNotificationReadRoute(route, state)
   );
@@ -369,6 +375,22 @@ async function handleEmailMessageListRoute(route: Route, state: MockApiState): P
   }
 
   return fulfillJson(route, 200, { messages: state.emailMessages ?? [] });
+}
+
+async function handleEmailTaskModeRoute(route: Route, state: MockApiState): Promise<void> {
+  const request = route.request();
+
+  if (request.method() === "GET") {
+    return fulfillJson(route, 200, { mode: state.emailTaskMode ?? "suggest" });
+  }
+
+  if (request.method() === "PUT") {
+    const input = request.postDataJSON() as { mode: EmailTaskCreationMode };
+    state.emailTaskMode = input.mode;
+    return fulfillJson(route, 200, { mode: input.mode });
+  }
+
+  return fulfillJson(route, 405, { error: "Method not allowed" });
 }
 
 async function handleEmailMessageDetailRoute(route: Route, state: MockApiState): Promise<void> {

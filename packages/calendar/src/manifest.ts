@@ -12,6 +12,7 @@ import {
 
 import {
   calendarListVisibleEventsExecute,
+  calendarToolEventsOutputSchema,
   calendarProposeFocusBlockExecute,
   summarizeProposeFocusBlock,
   calendarDeleteEventExecute,
@@ -166,7 +167,10 @@ export const calendarModuleManifest = {
   assistantTools: [
     {
       name: "calendar.listVisibleEvents",
-      description: "List cached calendar events owned by or shared with the active actor.",
+      description:
+        "List the actor's upcoming calendar events, read live from each connected account with " +
+        "planning flags (conflict, early, late, has_location, prep_attendees); falls back to " +
+        "cache only on transient provider failures, with source and gap metadata.",
       permissionId: "calendar.view",
       risk: "read",
       inputSchema: {
@@ -174,11 +178,11 @@ export const calendarModuleManifest = {
         properties: {
           startsAfter: {
             type: "string",
-            description: "ISO 8601 instant; only return events starting on or after this time"
+            description: "ISO 8601 instant; window start (defaults to now)"
           },
           startsBefore: {
             type: "string",
-            description: "ISO 8601 instant; only return events starting before this time"
+            description: "ISO 8601 instant; window end (defaults to 48h after the window start)"
           },
           limit: {
             type: "number",
@@ -186,7 +190,7 @@ export const calendarModuleManifest = {
           }
         }
       },
-      outputSchema: listCalendarEventsResponseSchema,
+      outputSchema: calendarToolEventsOutputSchema,
       execute: calendarListVisibleEventsExecute
     },
     {

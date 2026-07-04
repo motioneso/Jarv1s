@@ -70,7 +70,8 @@ export const queryKeys = {
   },
   email: {
     list: ["email", "list"] as const,
-    detail: (id: string) => ["email", "detail", id] as const
+    detail: (id: string) => ["email", "detail", id] as const,
+    taskMode: ["email", "task-mode"] as const
   },
   notifications: {
     list: ["notifications", "list"] as const

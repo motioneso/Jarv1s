@@ -1,4 +1,4 @@
-import { assertDataContextDb, type EmailMessage } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type {
   ActionRequestPreview,
   ToolContext,
@@ -7,40 +7,158 @@ import type {
   ToolResult,
   ToolServices
 } from "@jarv1s/module-sdk";
-import { emailMessageDtoSchema, nullableStringSchema } from "@jarv1s/shared";
+import { nullableStringSchema } from "@jarv1s/shared";
 
 import type { EmailWriteService, ReplyInput } from "./email-write-service.js";
 import { deriveReplyTarget } from "./reply-mime.js";
 import { EmailRepository } from "./repository.js";
-import { serializeEmailMessage } from "./routes.js";
 
 const repository = new EmailRepository();
 
 export const emailToolMessageOutputSchema = {
-  ...emailMessageDtoSchema,
-  required: [...emailMessageDtoSchema.required, "connectorAccountId"],
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "cacheMessageId",
+    "connectorAccountId",
+    "providerLabel",
+    "sender",
+    "recipients",
+    "subject",
+    "receivedAt",
+    "threadId",
+    "snippet",
+    "summary",
+    "actionability",
+    "importance",
+    "confidence",
+    "reason",
+    "dueDate",
+    "suggestedTasks",
+    "source",
+    "degradedReason"
+  ],
   properties: {
-    ...emailMessageDtoSchema.properties,
+    id: { type: "string", description: "Provider message key (live) or cached external id" },
+    cacheMessageId: nullableStringSchema,
     connectorAccountId: { type: "string" },
+    providerLabel: { type: "string" },
+    sender: { type: "string" },
+    recipients: { type: "array", items: { type: "string" } },
+    subject: { type: "string" },
+    receivedAt: { type: "string" },
     threadId: nullableStringSchema,
-    connectorLabel: nullableStringSchema
+    snippet: nullableStringSchema,
+    summary: nullableStringSchema,
+    actionability: {
+      type: "string",
+      enum: [
+        "needs_reply",
+        "needs_action",
+        "time_sensitive_info",
+        "waiting_on_someone",
+        "fyi",
+        "noise",
+        "unknown"
+      ]
+    },
+    importance: { type: "string" },
+    confidence: { type: "number" },
+    reason: nullableStringSchema,
+    dueDate: nullableStringSchema,
+    suggestedTasks: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "dueDate"],
+        properties: { title: { type: "string" }, dueDate: nullableStringSchema }
+      }
+    },
+    source: { type: "string", enum: ["live", "cache"] },
+    degradedReason: nullableStringSchema
   }
 } as const;
 
-// Structural interface — no @jarv1s/connectors import (module isolation).
-interface FeatureGrantService {
-  grantedAccountIds(
-    scopedDb: Parameters<ToolExecute>[0],
-    feature: "email" | "calendar"
-  ): Promise<ReadonlySet<string>>;
+// Structural interfaces — no @jarv1s/connectors import (module isolation). Shapes mirror
+// the connectors SourceContextService email surface.
+interface SourceAccountMetaShape {
+  readonly connectorAccountId: string;
+  readonly providerId: string;
+  readonly providerLabel: string;
 }
 
-function narrowFeatureGrants(services: ToolServices | undefined): FeatureGrantService {
-  const svc = (services ?? {}).featureGrants as FeatureGrantService | undefined;
-  if (!svc || typeof svc.grantedAccountIds !== "function") {
-    throw new Error("featureGrants service is not available");
+interface EmailContextItemShape {
+  readonly messageKey: string;
+  readonly account: SourceAccountMetaShape;
+  readonly sender: string;
+  readonly recipients: readonly string[];
+  readonly subject: string;
+  readonly receivedAt: string;
+  readonly threadId: string | null;
+  readonly snippet: string | null;
+  readonly summary: string | null;
+  readonly actionability: string;
+  readonly importance: string;
+  readonly confidence: number;
+  readonly reason: string | null;
+  readonly dueDate: string | null;
+  readonly suggestedTasks: ReadonlyArray<{
+    readonly title: string;
+    readonly dueDate: string | null;
+  }>;
+  readonly source: "live" | "cache";
+  readonly degradedReason: string | null;
+  readonly cacheMessageId: string | null;
+}
+
+interface SourceContextService {
+  listEmailContext(
+    scopedDb: DataContextDb,
+    input: { limitPerAccount?: number }
+  ): Promise<{
+    items: readonly EmailContextItemShape[];
+    accounts: readonly unknown[];
+    gaps: readonly unknown[];
+  }>;
+  listCalendarContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
+}
+
+function narrowSourceContext(services: ToolServices | undefined): SourceContextService {
+  const svc = (services ?? {}).sourceContext as SourceContextService | undefined;
+  if (!svc || typeof svc.listEmailContext !== "function") {
+    throw new Error("sourceContext service is not available"); // fail closed — never stale direct cache reads
   }
   return svc;
+}
+
+/** Explicit field pick — no spread, so a leaked body/bodyExcerpt can never pass through. */
+function serializeEmailContextItem(item: EmailContextItemShape) {
+  return {
+    id: item.messageKey,
+    cacheMessageId: item.cacheMessageId,
+    connectorAccountId: item.account.connectorAccountId,
+    providerLabel: item.account.providerLabel,
+    sender: item.sender,
+    recipients: item.recipients,
+    subject: item.subject,
+    receivedAt: item.receivedAt,
+    threadId: item.threadId,
+    snippet: item.snippet,
+    summary: item.summary,
+    actionability: item.actionability,
+    importance: item.importance,
+    confidence: item.confidence,
+    reason: item.reason,
+    dueDate: item.dueDate,
+    suggestedTasks: item.suggestedTasks.map((task) => ({
+      title: task.title,
+      dueDate: task.dueDate
+    })),
+    source: item.source,
+    degradedReason: item.degradedReason
+  };
 }
 
 export const emailListVisibleMessagesExecute: ToolExecute = async (
@@ -50,26 +168,10 @@ export const emailListVisibleMessagesExecute: ToolExecute = async (
   services
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
-  const featureGrants = narrowFeatureGrants(services);
-  const grantedIds = await featureGrants.grantedAccountIds(scopedDb, "email");
-  const messages = await repository.listVisibleForBriefing(scopedDb);
-  const filtered = messages.filter((m) => grantedIds.has(m.connector_account_id));
-  return { data: { messages: filtered.map(serializeEmailToolMessage) } };
+  const sourceContext = narrowSourceContext(services);
+  const { items, accounts, gaps } = await sourceContext.listEmailContext(scopedDb, {});
+  return { data: { messages: items.map(serializeEmailContextItem), accounts, gaps } };
 };
-
-function serializeEmailToolMessage(message: EmailMessage) {
-  const base = serializeEmailMessage(message);
-  const md: Record<string, unknown> =
-    message.external_metadata != null && typeof message.external_metadata === "object"
-      ? (message.external_metadata as Record<string, unknown>)
-      : {};
-  return {
-    ...base,
-    connectorAccountId: message.connector_account_id,
-    threadId: typeof md.threadId === "string" ? md.threadId : null,
-    connectorLabel: typeof md.connectorLabel === "string" ? md.connectorLabel : null
-  };
-}
 
 // ── Reply write tools (email.draftReply / email.sendReply) ────────────────────────────────
 //

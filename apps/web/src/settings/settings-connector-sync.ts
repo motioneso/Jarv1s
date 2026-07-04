@@ -8,12 +8,6 @@ export type ConnectorAccountHealth = {
   readonly canReconnect: boolean;
 };
 
-export function canSyncConnectorAccount(
-  account: Pick<ConnectorAccountDto, "providerType" | "status">
-): boolean {
-  return account.providerType === "google" && account.status !== "revoked";
-}
-
 export function isConnectorSyncInFlight(
   account: Pick<ConnectorAccountDto, "lastSyncStartedAt" | "lastSyncFinishedAt">
 ): boolean {

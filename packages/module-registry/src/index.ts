@@ -84,13 +84,18 @@ import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   IMAP_SYNC_QUEUE_DEFINITIONS,
+  MONITOR_QUEUE_DEFINITIONS,
   buildFeatureGrantService,
+  buildRuntimeSourceContextService,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
   getConnectorSyncAt,
   registerConnectorsJobWorkers,
   registerConnectorsRoutes,
   registerImapSyncWorker,
+  registerSourceMonitorWorkers,
+  parseEmailSourceRef,
+  type EmailTaskCreationPort,
   type GoogleApiClient,
   type GoogleConnectionService
 } from "@jarv1s/connectors";
@@ -100,6 +105,7 @@ import { resolveTimeZone, type ProactiveSource } from "@jarv1s/shared";
 import {
   emailModuleManifest,
   emailModuleSqlMigrationDirectory,
+  EmailRepository,
   registerEmailRoutes
 } from "@jarv1s/email";
 import { assertMetadataOnlyPayload, FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
@@ -142,11 +148,13 @@ import {
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
+  TasksRepository,
   registerTasksJobWorkers,
   registerTasksRoutes,
   TasksCompatibilityHelper,
   tasksModuleManifest,
-  tasksModuleSqlMigrationDirectory
+  tasksModuleSqlMigrationDirectory,
+  type EmailTriageFeedbackPort
 } from "@jarv1s/tasks";
 import {
   goalsModuleManifest,
@@ -425,6 +433,49 @@ function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveSchedu
   };
 }
 
+/**
+ * Composes the tasks module's EmailTriageFeedbackPort over the email cache and the
+ * connectors feedback store. Lives here because only the composition root may import
+ * both modules; enrichment comes from the CACHED row (metadata columns only) — full
+ * bodies never reach the learning record (#729 §9).
+ */
+export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
+  const emailRepository = new EmailRepository();
+  const connectorsRepository = new ConnectorsRepository();
+  return {
+    async record(scopedDb, input) {
+      const parsedRef = input.taskSourceRef ? parseEmailSourceRef(input.taskSourceRef) : null;
+      const row = parsedRef
+        ? await emailRepository.getByConnectorAccountAndExternalId(
+            scopedDb,
+            parsedRef.connectorAccountId,
+            parsedRef.externalId
+          )
+        : undefined;
+      const signals = (row?.signals ?? {}) as {
+        actionability?: { category?: string };
+        confidence?: number;
+      };
+      const sender = row?.sender ?? "unknown";
+      const senderDomain = sender.includes("@")
+        ? (sender.split("@").pop() ?? "unknown").toLowerCase()
+        : "unknown";
+      await connectorsRepository.recordTriageFeedback(scopedDb, {
+        connectorAccountId: row?.connector_account_id ?? null,
+        actionability: signals.actionability?.category ?? "unknown",
+        sender,
+        senderDomain,
+        subjectPrefix: row ? row.subject.slice(0, 120) : null,
+        actionType: null,
+        confidence: typeof signals.confidence === "number" ? signals.confidence : null,
+        modelVersion: null,
+        verdict: input.verdict,
+        reason: null
+      });
+    }
+  };
+}
+
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
@@ -496,7 +547,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: connectorsModuleManifest,
     sqlMigrationDirectories: [connectorsModuleSqlMigrationDirectory],
-    queueDefinitions: [...GOOGLE_SYNC_QUEUE_DEFINITIONS, ...IMAP_SYNC_QUEUE_DEFINITIONS],
+    queueDefinitions: [
+      ...GOOGLE_SYNC_QUEUE_DEFINITIONS,
+      ...IMAP_SYNC_QUEUE_DEFINITIONS,
+      ...MONITOR_QUEUE_DEFINITIONS
+    ],
     registerRoutes: (server, deps) =>
       registerConnectorsRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
@@ -508,7 +563,29 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext
       });
       const imapWorkIds = await registerImapSyncWorker(boss, { dataContext: deps.dataContext });
-      return [...googleWorkIds, ...imapWorkIds];
+      // Structural task-creation port: connectors never imports the tasks module — the
+      // composition root hands it a two-method adapter over TasksRepository (module isolation).
+      const tasksRepositoryForEmail = new TasksRepository();
+      const emailTaskPort: EmailTaskCreationPort = {
+        async create(scopedDb, input) {
+          const task = await tasksRepositoryForEmail.create(scopedDb, {
+            title: input.title,
+            description: input.description ?? undefined,
+            status: input.status,
+            dueAt: input.dueAt ?? undefined,
+            priority: input.priority ?? undefined,
+            source: input.source,
+            sourceRef: input.sourceRef,
+            externalKey: input.externalKey
+          });
+          return { id: task.id };
+        }
+      };
+      const monitorWorkIds = await registerSourceMonitorWorkers(boss, {
+        dataContext: deps.dataContext,
+        taskPort: emailTaskPort
+      });
+      return [...googleWorkIds, ...imapWorkIds, ...monitorWorkIds];
     }
   },
   {
@@ -524,7 +601,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         localePreferencesRepository: new PreferencesRepository(),
         aiRepository: new AiRepository(),
         aiSecretCipher: createAiSecretCipher(),
-        focusSignals: deps.focusSignals
+        focusSignals: deps.focusSignals,
+        emailTriageFeedback: createEmailTriageFeedbackPort()
       }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
   },
@@ -597,7 +675,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               featureGrants: buildFeatureGrantService({
                 connectorsRepository: deps.connectorsRepository,
                 preferencesRepository: new PreferencesRepository()
-              })
+              }),
+              sourceContext: buildRuntimeSourceContextService()
             }
           : undefined
       });
@@ -635,6 +714,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               connectorsRepository: deps.connectorsRepository,
               preferencesRepository: new PreferencesRepository()
             })
+          : undefined,
+        sourceContextService: deps.connectorsRepository
+          ? buildRuntimeSourceContextService()
           : undefined
       }),
     registerWorkers: (boss, deps) =>
@@ -705,7 +787,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           featureGrantService: buildFeatureGrantService({
             connectorsRepository: new ConnectorsRepository(),
             preferencesRepository: new PreferencesRepository()
-          })
+          }),
+          sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger })
         },
         notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
         logger: briefingsLogger

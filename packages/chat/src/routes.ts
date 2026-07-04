@@ -42,7 +42,8 @@ import type {
   ConnectorsRepository,
   FeatureGrantService,
   GoogleApiClient,
-  GoogleConnectionService
+  GoogleConnectionService,
+  SourceContextService
 } from "@jarv1s/connectors";
 import { sendJob } from "@jarv1s/jobs";
 import {
@@ -107,6 +108,8 @@ export interface ChatRoutesDependencies {
   readonly connectorsRepository?: ConnectorsRepository;
   /** Injected by the composition root; gates email/calendar read tools to accounts with active grants. */
   readonly featureGrantService?: FeatureGrantService;
+  /** Injected by the composition root; live-first email/calendar reads for the read tools (#729). */
+  readonly sourceContextService?: SourceContextService;
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
@@ -178,7 +181,8 @@ export function registerChatRoutes(
                 googleApiClient: dependencies.googleApiClient,
                 connectorsRepository: dependencies.connectorsRepository,
                 boss: dependencies.boss,
-                featureGrantService: dependencies.featureGrantService
+                featureGrantService: dependencies.featureGrantService,
+                sourceContextService: dependencies.sourceContextService
               },
               agencyPreferences: dependencies.agencyPreferences,
               localePreferences: dependencies.localePreferences
@@ -608,6 +612,7 @@ export function buildChatGatewayDependencies(args: {
     connectorsRepository?: ConnectorsRepository;
     boss?: PgBoss;
     featureGrantService?: FeatureGrantService;
+    sourceContextService?: SourceContextService;
   };
 }): AssistantToolGatewayDependencies {
   return {
@@ -655,9 +660,17 @@ export function buildChatGatewayDependencies(args: {
         }
       ),
     toolServices: buildChatToolServices(args.collaborators),
-    readToolServices: args.collaborators.featureGrantService
-      ? { featureGrants: args.collaborators.featureGrantService }
-      : undefined,
+    readToolServices:
+      args.collaborators.featureGrantService || args.collaborators.sourceContextService
+        ? {
+            ...(args.collaborators.featureGrantService
+              ? { featureGrants: args.collaborators.featureGrantService }
+              : {}),
+            ...(args.collaborators.sourceContextService
+              ? { sourceContext: args.collaborators.sourceContextService }
+              : {})
+          }
+        : undefined,
     resolveLocalTimezone: args.localePreferences
       ? (actorUserId) =>
           args.runner.withDataContext(

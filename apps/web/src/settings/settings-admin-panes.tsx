@@ -33,8 +33,7 @@ import {
   revokeAdminUserSessions,
   rejectUser,
   setChatMultiplexerSettings,
-  setAdminModuleDisabled,
-  syncGoogleConnector
+  setAdminModuleDisabled
 } from "../api/client";
 import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
@@ -607,23 +606,12 @@ export function InstanceModulesPane() {
 /* ---------------------------------------------------------- Connector oversight */
 
 export function OversightPane() {
-  const { toast } = useFeedback();
-  const queryClient = useQueryClient();
   const accountsQuery = useQuery({
     queryKey: queryKeys.settings.adminConnectorAccounts,
     queryFn: listAdminConnectorAccounts,
     retry: false
   });
   const accounts = accountsQuery.data?.accounts ?? [];
-  const syncMutation = useMutation({
-    mutationFn: syncGoogleConnector,
-    onSuccess: (data) => {
-      const msg = data.deduped ? "Sync already in progress" : "Sync queued";
-      toast(msg);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminConnectorAccounts });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
   return (
     <>
       <PaneHead
@@ -653,23 +641,13 @@ export function OversightPane() {
                   </div>
                   <div className="cono__meta">
                     {account.providerType}
-                    {lastFinished ? ` · ${lastFinished}` : ""}
+                    {lastFinished ? ` · Fallback cache updated ${lastFinished}` : ""}
                     {errorLabel ? ` · ${errorLabel}` : ""}
                   </div>
                   <div className="cono__err">
                     <Badge tone={health.badgeTone} dot={health.badgeTone !== "amber"}>
                       {health.label}
                     </Badge>
-                    {account.status !== "revoked" && account.providerType === "google" && (
-                      <button
-                        type="button"
-                        className="cono__sync-btn"
-                        disabled={syncMutation.isPending}
-                        onClick={() => syncMutation.mutate()}
-                      >
-                        {syncMutation.isPending ? "Syncing…" : "Sync now"}
-                      </button>
-                    )}
                   </div>
                 </div>
               );
