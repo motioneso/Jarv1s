@@ -162,7 +162,7 @@ describe("source behavior settings API", () => {
   it("rejects coming-soon writes", async () => {
     const response = await server.inject({
       method: "PUT",
-      url: "/api/me/source-behaviors/email.capture-tasks",
+      url: "/api/me/source-behaviors/email.thread-summaries",
       headers: userAHeaders(),
       payload: { enabled: true }
     });

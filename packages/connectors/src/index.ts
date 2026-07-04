@@ -24,5 +24,6 @@ export * from "./freshness.js";
 export * from "./source-context/types.js";
 export * from "./source-context/email.js";
 export * from "./source-context/calendar.js";
+export * from "./source-context/email-tasks.js";
 export * from "./source-context/service.js";
 export * from "./source-context/runtime.js";

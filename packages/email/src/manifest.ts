@@ -3,10 +3,12 @@ import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { emailMonitorProvider } from "./monitor-provider.js";
 import {
+  emailTaskCreationModeResponseSchema,
   getEmailMessageResponseSchema,
   getEmailBriefingSettingsResponseSchema,
   listEmailMessagesResponseSchema,
-  updateEmailBriefingSettingsRequestSchema
+  updateEmailBriefingSettingsRequestSchema,
+  updateEmailTaskCreationModeRequestSchema
 } from "@jarv1s/shared";
 
 import {
@@ -100,8 +102,10 @@ export const emailModuleManifest = {
         {
           id: "email.capture-tasks",
           name: "Capture tasks",
-          description: "Turn emails into tasks when they imply an action.",
-          default: "coming-soon"
+          description:
+            "Turn emails into tasks when they imply an action. Suggested by default; " +
+            "auto modes are opt-in per user.",
+          default: "default-on"
         },
         {
           id: "email.thread-summaries",
@@ -142,6 +146,19 @@ export const emailModuleManifest = {
       path: "/api/email/briefing-settings",
       requestSchema: updateEmailBriefingSettingsRequestSchema,
       responseSchema: getEmailBriefingSettingsResponseSchema,
+      permissionId: "email.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/email/task-creation-mode",
+      responseSchema: emailTaskCreationModeResponseSchema,
+      permissionId: "email.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/email/task-creation-mode",
+      requestSchema: updateEmailTaskCreationModeRequestSchema,
+      responseSchema: emailTaskCreationModeResponseSchema,
       permissionId: "email.manage"
     }
   ],
