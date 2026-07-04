@@ -56,4 +56,38 @@ describe("SettingsPeoplePane", () => {
     const html = renderWithQuery(createElement(SettingsPeoplePane), client);
     expect(html).toContain("confirm in chat");
   });
+
+  it("shows the suggest note updates toggle reflecting a disabled override", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.sourceBehaviors, {
+      sources: [
+        {
+          id: "people-notes",
+          name: "People notes",
+          description: "People records projected from the configured People notes folder.",
+          behaviors: [
+            {
+              id: "people.notes.suggest-updates",
+              sourceId: "people-notes",
+              name: "Suggest note updates",
+              description: "",
+              default: "default-on",
+              enabled: false,
+              toggleable: true
+            }
+          ]
+        }
+      ]
+    });
+    const html = renderWithQuery(createElement(SettingsPeoplePane), client);
+    expect(html).toContain("Suggest note updates");
+    expect(html).not.toContain('checked=""');
+  });
+
+  it("defaults the suggest note updates toggle to on with no override present", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderWithQuery(createElement(SettingsPeoplePane), client);
+    expect(html).toContain("Suggest note updates");
+    expect(html).toContain('checked=""');
+  });
 });
