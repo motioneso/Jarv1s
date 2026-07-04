@@ -331,6 +331,27 @@ export interface EmailMessagesTable {
   updated_at: TimestampColumn;
 }
 
+export type TriageFeedbackVerdict = "accepted" | "rejected";
+
+// app.email_triage_feedback (#729 §6): accept/reject learning signals for email triage
+// suggestions. Owner-only under FORCE RLS; no email bodies — subject_prefix is writer-capped.
+export interface EmailTriageFeedbackTable {
+  id: string;
+  owner_user_id: string;
+  connector_account_id: string | null;
+  source: string;
+  actionability: string;
+  sender: string;
+  sender_domain: string;
+  subject_prefix: string | null;
+  action_type: string | null;
+  confidence: number | null;
+  model_version: string | null;
+  verdict: TriageFeedbackVerdict;
+  reason: string | null;
+  created_at: TimestampColumn;
+}
+
 export type AiAuthMethod = "cli" | "api_key";
 
 export interface AiProviderConfigsTable {
@@ -882,6 +903,7 @@ export interface JarvisDatabase {
   "app.connector_oauth_pending": ConnectorOauthPendingTable;
   "app.calendar_events": CalendarEventsTable;
   "app.email_messages": EmailMessagesTable;
+  "app.email_triage_feedback": EmailTriageFeedbackTable;
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
