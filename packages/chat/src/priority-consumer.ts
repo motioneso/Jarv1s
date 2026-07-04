@@ -70,3 +70,20 @@ export function rankChatContext(
     focusReadiness: []
   });
 }
+
+export function reorderByPriority<T extends { readonly source: string; readonly title: string }>(
+  items: readonly T[],
+  ranked: readonly PriorityResult[]
+): T[] {
+  if (ranked.length === 0) return [...items];
+  const order = new Map<string, number>();
+  for (const [index, result] of ranked.entries()) {
+    const key = `${result.source}::${result.title}`;
+    if (!order.has(key)) order.set(key, index);
+  }
+  return [...items].sort(
+    (a, b) =>
+      (order.get(`${a.source}::${a.title}`) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(`${b.source}::${b.title}`) ?? Number.MAX_SAFE_INTEGER)
+  );
+}

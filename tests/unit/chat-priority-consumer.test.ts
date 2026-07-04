@@ -6,7 +6,8 @@ import { describe, it, expect, vi } from "vitest";
 import {
   crossToolCandidatesToPriority,
   rankChatContext,
-  readPriorityModel
+  readPriorityModel,
+  reorderByPriority
 } from "@jarv1s/chat/priority-consumer";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 import type { DataContextDb } from "@jarv1s/db";
@@ -105,5 +106,48 @@ describe("readPriorityModel", () => {
     const reader = { get: vi.fn().mockResolvedValue({ garbage: true }) };
     const model = await readPriorityModel(scopedDb, reader);
     expect(model.mode).toBe("balanced");
+  });
+});
+
+describe("reorderByPriority", () => {
+  const items = [
+    { source: "calendar", title: "Standup", summary: "Standup" },
+    { source: "tasks", title: "Fix bug", summary: "Fix bug" },
+    { source: "notes", title: "Ideas", summary: "Ideas" }
+  ];
+
+  it("reorders mixed-source items to match the ranked results", () => {
+    const ranked = [
+      { source: "tasks", title: "Fix bug", score: 90, band: "high", reasons: [] },
+      { source: "notes", title: "Ideas", score: 50, band: "normal", reasons: [] },
+      { source: "calendar", title: "Standup", score: 10, band: "low", reasons: [] }
+    ] as const;
+    const result = reorderByPriority(items, ranked);
+    expect(result.map((i) => i.source)).toEqual(["tasks", "notes", "calendar"]);
+  });
+
+  it("returns items unchanged when ranked results are empty", () => {
+    expect(reorderByPriority(items, [])).toEqual(items);
+  });
+
+  it("keeps unmatched items at the end in their original relative order", () => {
+    const ranked = [
+      { source: "notes", title: "Ideas", score: 90, band: "high", reasons: [] }
+    ] as const;
+    const result = reorderByPriority(items, ranked);
+    expect(result.map((i) => i.title)).toEqual(["Ideas", "Standup", "Fix bug"]);
+  });
+
+  it("does not confuse same title across different sources", () => {
+    const dupes = [
+      { source: "tasks", title: "Review", summary: "t" },
+      { source: "email", title: "Review", summary: "e" }
+    ];
+    const ranked = [
+      { source: "email", title: "Review", score: 90, band: "high", reasons: [] },
+      { source: "tasks", title: "Review", score: 10, band: "low", reasons: [] }
+    ] as const;
+    const result = reorderByPriority(dupes, ranked);
+    expect(result.map((i) => i.summary)).toEqual(["e", "t"]);
   });
 });
