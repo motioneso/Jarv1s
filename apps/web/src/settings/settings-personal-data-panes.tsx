@@ -41,8 +41,7 @@ import {
   putLocaleSettings,
   putSourceBehavior,
   revokeConnectorAccount,
-  setMyModuleDisabled,
-  syncGoogleConnector
+  setMyModuleDisabled
 } from "../api/client";
 import { getConnectorFeatureGrants, updateConnectorFeatureGrants } from "../api/connectors-client";
 import {
@@ -53,11 +52,7 @@ import {
 } from "../api/notes-client";
 import { queryKeys } from "../api/query-keys";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
-import {
-  canSyncConnectorAccount,
-  getConnectorAccountHealth,
-  isConnectorSyncInFlight
-} from "./settings-connector-sync";
+import { getConnectorAccountHealth, isConnectorSyncInFlight } from "./settings-connector-sync";
 import { GoogleConnect } from "./settings-google-connect";
 import {
   BriefingSettings,
@@ -118,8 +113,6 @@ function AccountRow(props: {
   readonly account: ConnectorAccountDto;
   readonly onRevoke: () => void;
   readonly onReconnect: () => void;
-  readonly onSync?: () => void;
-  readonly syncPending?: boolean;
 }) {
   const { account } = props;
   const queryClient = useQueryClient();
@@ -154,11 +147,18 @@ function AccountRow(props: {
         <div className="acct__sub">
           <span>{account.providerType}</span>
           <span className="acct__dot">·</span>
+          <span>Live connection</span>
           <Indicator status={health.indicator} label={health.label} />
         </div>
         {account.scopes.length ? (
           <div className="acct__scopes">{account.scopes.join(" · ")}</div>
         ) : null}
+        <div className="acct__scopes">
+          Fallback cache{" "}
+          {account.lastSyncFinishedAt
+            ? `updated ${formatTimestamp(account.lastSyncFinishedAt, account.lastSyncFinishedAt)}`
+            : "not yet populated"}
+        </div>
         {health.alert ? <div className="acct__alert">{health.alert}</div> : null}
         {account.status !== "revoked" && (hasEmail || hasCalendar) ? (
           <div className="acct__features">
@@ -191,19 +191,6 @@ function AccountRow(props: {
             onClick={props.onReconnect}
           >
             Reconnect
-          </button>
-        ) : null}
-        {canSyncConnectorAccount(account) ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() => props.onSync?.()}
-            disabled={props.syncPending}
-          >
-            <span className="jds-btn__icon">
-              <RefreshCw size={15} className={props.syncPending ? "spin" : ""} />
-            </span>
-            {props.syncPending ? "Syncing..." : "Sync now"}
           </button>
         ) : null}
         {account.status !== "revoked" ? (
@@ -294,29 +281,15 @@ function ConnectedPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
   const [flow, setFlow] = useState<null | "picker" | "google">(null);
-  const [recentlySynced, setRecentlySynced] = useState(false);
-  const [syncTick, setSyncTick] = useState(0);
-  const syncMutation = useMutation({
-    mutationFn: syncGoogleConnector,
-    onSuccess: (data) => {
-      toast(data.deduped ? "Sync already in progress" : "Sync queued", {
-        icon: <RefreshCw size={17} />
-      });
-      setRecentlySynced(true);
-      setSyncTick((tick) => tick + 1);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
   const accountsQuery = useQuery({
     queryKey: queryKeys.connectors.accounts,
     queryFn: listConnectorAccounts,
     retry: false,
+    // Background refresh keeps the fallback-cache line honest while a first
+    // snapshot is still landing after connect; there is no manual sync anymore.
     refetchInterval: (query) => {
       const accounts = query.state.data?.accounts ?? [];
-      return syncMutation.isPending || recentlySynced || accounts.some(isConnectorSyncInFlight)
-        ? 2000
-        : false;
+      return accounts.some(isConnectorSyncInFlight) ? 2000 : false;
     },
     refetchIntervalInBackground: false
   });
@@ -334,11 +307,6 @@ function ConnectedPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  useEffect(() => {
-    if (!recentlySynced) return;
-    const stop = setTimeout(() => setRecentlySynced(false), 30_000);
-    return () => clearTimeout(stop);
-  }, [recentlySynced, syncTick]);
   const accounts = accountsQuery.data?.accounts ?? [];
 
   if (flow === "google") {
@@ -387,8 +355,6 @@ function ConnectedPane() {
                   onConfirm: () => revokeMutation.mutate(account.id)
                 })
               }
-              onSync={() => syncMutation.mutate()}
-              syncPending={syncMutation.isPending}
             />
           ))
         )}

@@ -53,7 +53,6 @@ import type {
   GoogleAuthorizeResponse,
   GoogleCompleteRequest,
   GoogleCompleteResponse,
-  GoogleSyncResponse,
   ImapConnectRequest,
   ImapTestResult,
   CreateConnectorAccountResponse,
@@ -886,10 +885,6 @@ export async function connectImapConnection(
     method: "POST",
     body: input
   });
-}
-
-export async function syncGoogleConnector(): Promise<GoogleSyncResponse> {
-  return requestJson<GoogleSyncResponse>("/api/connectors/google/sync", { method: "POST" });
 }
 
 export async function markNotificationRead(id: string): Promise<MarkNotificationReadResponse> {
