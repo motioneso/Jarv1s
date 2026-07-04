@@ -407,21 +407,45 @@ export interface BuiltInModuleRegistration {
 const PROACTIVE_CHECK_CRON = "*/30 * * * *";
 export const PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID = "people.notes.suggest-updates";
 
-function buildCalendarFollowThroughPort(): NonNullable<ComposeDeps["calendarFollowThrough"]> {
-  const tasksRepository = new TasksRepository();
-  const aiRepository = new AiRepository();
+export function buildCalendarFollowThroughPort(
+  deps: {
+    readonly tasksRepository?: Pick<TasksRepository, "create">;
+    readonly aiRepository?: Pick<AiRepository, "listActionPolicies">;
+    readonly calendarWrite?: {
+      proposeAndInsert(
+        scopedDb: DataContextDb,
+        ctx: {
+          readonly actorUserId: string;
+          readonly requestId: string;
+          readonly chatSessionId: string;
+        },
+        window: {
+          readonly start: Date;
+          readonly end: Date;
+          readonly durationMinutes: number;
+          readonly title: string;
+        },
+        options: { readonly requireCacheMirror: true; readonly followThroughTargetRef: string }
+      ): Promise<{ readonly created: boolean; readonly calendarEventId?: string }>;
+    };
+  } = {}
+): NonNullable<ComposeDeps["calendarFollowThrough"]> {
+  const tasksRepository = deps.tasksRepository ?? new TasksRepository();
+  const aiRepository = deps.aiRepository ?? new AiRepository();
   const connectorsRepository = new ConnectorsRepository();
   const calendarRepository = new CalendarRepository();
-  const calendarWrite = buildCalendarWriteService({
-    googleService: new RuntimeGoogleConnectionService({
-      repository: connectorsRepository,
-      cipher: createConnectorSecretCipher(),
-      oauthClient: new GoogleOAuthClient()
-    }),
-    googleApiClient: new RuntimeGoogleApiClient(),
-    connectorsRepository,
-    calendarRepository
-  });
+  const calendarWrite =
+    deps.calendarWrite ??
+    buildCalendarWriteService({
+      googleService: new RuntimeGoogleConnectionService({
+        repository: connectorsRepository,
+        cipher: createConnectorSecretCipher(),
+        oauthClient: new GoogleOAuthClient()
+      }),
+      googleApiClient: new RuntimeGoogleApiClient(),
+      connectorsRepository,
+      calendarRepository
+    });
 
   return {
     async executeAutoActions({ scopedDb, actorUserId, requestId, targetRef, signal }) {
@@ -466,20 +490,38 @@ function buildCalendarFollowThroughPort(): NonNullable<ComposeDeps["calendarFoll
   };
 }
 
-function buildCalendarFollowThroughSideEffects() {
-  const tasksRepository = new TasksRepository();
+export function buildCalendarFollowThroughSideEffects(
+  deps: {
+    readonly tasksRepository?: Pick<TasksRepository, "getById" | "update">;
+    readonly calendarRepository?: Pick<CalendarRepository, "getById">;
+    readonly calendarWrite?: {
+      deleteEvent(
+        scopedDb: DataContextDb,
+        ctx: {
+          readonly actorUserId: string;
+          readonly requestId: string;
+          readonly chatSessionId: string;
+        },
+        input: { readonly eventId: string }
+      ): Promise<{ readonly deleted: boolean }>;
+    };
+  } = {}
+) {
+  const tasksRepository = deps.tasksRepository ?? new TasksRepository();
   const connectorsRepository = new ConnectorsRepository();
-  const calendarRepository = new CalendarRepository();
-  const calendarWrite = buildCalendarWriteService({
-    googleService: new RuntimeGoogleConnectionService({
-      repository: connectorsRepository,
-      cipher: createConnectorSecretCipher(),
-      oauthClient: new GoogleOAuthClient()
-    }),
-    googleApiClient: new RuntimeGoogleApiClient(),
-    connectorsRepository,
-    calendarRepository
-  });
+  const calendarRepository = deps.calendarRepository ?? new CalendarRepository();
+  const calendarWrite =
+    deps.calendarWrite ??
+    buildCalendarWriteService({
+      googleService: new RuntimeGoogleConnectionService({
+        repository: connectorsRepository,
+        cipher: createConnectorSecretCipher(),
+        oauthClient: new GoogleOAuthClient()
+      }),
+      googleApiClient: new RuntimeGoogleApiClient(),
+      connectorsRepository,
+      calendarRepository: calendarRepository as CalendarRepository
+    });
 
   return {
     async removeCreatedRefs(
@@ -490,12 +532,13 @@ function buildCalendarFollowThroughSideEffects() {
       const refs = readCalendarFollowThroughRefs(metadata);
       if (!refs) return null;
       const sourceRef = calendarFollowThroughSourceRef(refs.targetRef);
+      const removed: string[] = [];
 
       if (refs.taskId) {
         const task = await tasksRepository.getById(scopedDb, refs.taskId);
         if (task && isCalendarFollowThroughTask(task, sourceRef)) {
           await tasksRepository.update(scopedDb, task.id, { status: "archived" });
-          return `task:${task.id}`;
+          removed.push(`task:${task.id}`);
         }
       }
 
@@ -507,11 +550,11 @@ function buildCalendarFollowThroughSideEffects() {
             { actorUserId, requestId: "feedback:calendar-follow-through", chatSessionId: "" },
             { eventId: event.id }
           );
-          return result.deleted ? `calendar_event:${event.id}` : null;
+          if (result.deleted) removed.push(`calendar_event:${event.id}`);
         }
       }
 
-      return null;
+      return removed.length > 0 ? removed.join(",") : null;
     }
   };
 }
@@ -824,7 +867,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: calendarModuleManifest,
     sqlMigrationDirectories: [calendarModuleSqlMigrationDirectory],
     queueDefinitions: CALENDAR_QUEUE_DEFINITIONS,
-    registerRoutes: registerCalendarRoutes,
+    registerRoutes: (server, deps) =>
+      registerCalendarRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        calendarWritebackPolicy: {
+          set: (scopedDb, moduleId, actionFamilyId, tier) =>
+            new AiRepository().setActionPolicy(scopedDb, moduleId, actionFamilyId, tier)
+        }
+      }),
     registerWorkers: (boss, deps) => registerCalendarJobWorkers(boss, deps.dataContext)
   },
   {

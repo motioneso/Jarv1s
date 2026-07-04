@@ -41,7 +41,6 @@ export interface CalendarSignalSettings {
   readonly lookaheadDays: 0 | 1 | 2;
   readonly prepTaskMode: CalendarAutomationMode;
   readonly timeBlockMode: CalendarAutomationMode;
-  readonly commitmentMode: CalendarAutomationMode;
 }
 
 export interface EmailSignalSettings {

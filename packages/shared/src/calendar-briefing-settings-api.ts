@@ -19,7 +19,6 @@ export interface CalendarBriefingSettingsDto {
   readonly lookaheadDays: 0 | 1 | 2;
   readonly prepTaskMode: CalendarAutomationMode;
   readonly timeBlockMode: CalendarAutomationMode;
-  readonly commitmentMode: CalendarAutomationMode;
   readonly suggestTasks: boolean;
   readonly createTasks: boolean;
   readonly suggestTimeBlocks: boolean;
@@ -34,7 +33,6 @@ export interface UpdateCalendarBriefingSettingsRequest {
   readonly lookaheadDays?: 0 | 1 | 2;
   readonly prepTaskMode?: CalendarAutomationMode;
   readonly timeBlockMode?: CalendarAutomationMode;
-  readonly commitmentMode?: CalendarAutomationMode;
   readonly suggestTasks?: boolean;
   readonly createTasks?: boolean;
   readonly suggestTimeBlocks?: boolean;
@@ -52,7 +50,6 @@ export const calendarBriefingSettingsDtoSchema = {
     "lookaheadDays",
     "prepTaskMode",
     "timeBlockMode",
-    "commitmentMode",
     "suggestTasks",
     "createTasks",
     "suggestTimeBlocks",
@@ -62,7 +59,6 @@ export const calendarBriefingSettingsDtoSchema = {
     lookaheadDays: { type: "number", enum: [0, 1, 2] },
     prepTaskMode: { type: "string", enum: [...CALENDAR_AUTOMATION_MODES] },
     timeBlockMode: { type: "string", enum: [...CALENDAR_AUTOMATION_MODES] },
-    commitmentMode: { type: "string", enum: [...CALENDAR_AUTOMATION_MODES] },
     suggestTasks: { type: "boolean" },
     createTasks: { type: "boolean" },
     suggestTimeBlocks: { type: "boolean" },
@@ -86,7 +82,6 @@ export const updateCalendarBriefingSettingsRequestSchema = {
     lookaheadDays: { type: "number", enum: [0, 1, 2] },
     prepTaskMode: { type: "string", enum: [...CALENDAR_AUTOMATION_MODES] },
     timeBlockMode: { type: "string", enum: [...CALENDAR_AUTOMATION_MODES] },
-    commitmentMode: { type: "string", enum: [...CALENDAR_AUTOMATION_MODES] },
     suggestTasks: { type: "boolean" },
     createTasks: { type: "boolean" },
     suggestTimeBlocks: { type: "boolean" },

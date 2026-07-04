@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
 import { buildCalendarWriteService } from "@jarv1s/chat";
+import { GoogleApiError } from "@jarv1s/connectors";
 
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;
 
@@ -116,5 +117,48 @@ describe("calendar write feature grants", () => {
     expect(result.googleEventId).toBeUndefined();
     expect(result.calendarEventId).toBeUndefined();
     expect(deletedEventId).toBe(insertedEventId);
+  });
+
+  it("preserves cached calendarEventId on idempotent 409 retries", async () => {
+    const service = buildCalendarWriteService({
+      connectorsRepository: {
+        getCalendarWriteScopeState: async () => ({
+          accountId: "00000000-0000-0000-0000-00000000ca10",
+          hasScope: true
+        }),
+        getActiveGoogleAccountSecret: async () => ({ id: "google-account-1" })
+      },
+      preferencesRepository: { get: async () => ({ email: true, calendar: true }) },
+      googleService: { getFreshAccessToken: async () => "token" },
+      googleApiClient: {
+        freeBusy: async () => ({ busy: [] }),
+        insertEvent: async () => {
+          throw new GoogleApiError("conflict", 409);
+        }
+      },
+      calendarRepository: {
+        getByExternalId: async () => ({ id: "cached-calendar-event-1" })
+      }
+    } as never);
+
+    const result = await service.proposeAndInsert(
+      scopedDb,
+      {
+        actorUserId: "00000000-0000-0000-0000-000000000001",
+        requestId: "req",
+        chatSessionId: "chat"
+      },
+      {
+        start: new Date("2026-06-17T13:00:00Z"),
+        end: new Date("2026-06-17T16:00:00Z"),
+        durationMinutes: 60,
+        title: "Focus"
+      },
+      { requireCacheMirror: true, followThroughTargetRef: "calendar:prep:1" }
+    );
+
+    expect(result.created).toBe(true);
+    expect(result.calendarMirror).toBe("written");
+    expect(result.calendarEventId).toBe("cached-calendar-event-1");
   });
 });

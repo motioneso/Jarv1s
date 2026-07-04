@@ -2,23 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Group, Note, PaneHead, Row, Select, Switch } from "@jarv1s/settings-ui";
 import type {
-  AiActionPolicyTier,
   CalendarAutomationMode,
   GetCalendarBriefingSettingsResponse,
-  GetAiActionPoliciesResponse,
   ListSourceBehaviorsResponse,
-  PatchAiActionPolicyResponse,
   PutSourceBehaviorResponse,
   UpdateCalendarBriefingSettingsRequest,
   UpdateCalendarBriefingSettingsResponse
 } from "@jarv1s/shared";
 
 const CALENDAR_BEHAVIOR_ID = "calendar.briefings";
-const CALENDAR_MODULE_ID = "calendar";
-const CALENDAR_WRITEBACK_FAMILY_ID = "calendar_writeback";
 const SOURCE_BEHAVIORS_KEY = ["settings", "source-behaviors"] as const;
 const CALENDAR_SETTINGS_KEY = ["calendar", "briefing-settings"] as const;
-const ACTION_POLICY_KEY = ["ai", "action-policy"] as const;
 
 export const CALENDAR_MODE_OPTIONS: ReadonlyArray<{
   readonly value: CalendarAutomationMode;
@@ -66,17 +60,6 @@ function patchCalendarSettings(body: UpdateCalendarBriefingSettingsRequest) {
   });
 }
 
-function getActionPolicies() {
-  return requestJson<GetAiActionPoliciesResponse>("/api/ai/action-policy");
-}
-
-function patchWritebackPolicy(tier: AiActionPolicyTier) {
-  return requestJson<PatchAiActionPolicyResponse>(
-    `/api/ai/action-policy/${encodeURIComponent(CALENDAR_MODULE_ID)}/${encodeURIComponent(CALENDAR_WRITEBACK_FAMILY_ID)}`,
-    { method: "PATCH", body: { tier } }
-  );
-}
-
 export default function CalendarSettings() {
   const queryClient = useQueryClient();
   const sourceBehaviors = useQuery({ queryKey: SOURCE_BEHAVIORS_KEY, queryFn: getSourceBehaviors });
@@ -92,11 +75,6 @@ export default function CalendarSettings() {
     mutationFn: patchCalendarSettings,
     onSuccess: (data) => queryClient.setQueryData(CALENDAR_SETTINGS_KEY, data)
   });
-  const policiesQuery = useQuery({ queryKey: ACTION_POLICY_KEY, queryFn: getActionPolicies });
-  const writebackPolicyMutation = useMutation({
-    mutationFn: patchWritebackPolicy,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ACTION_POLICY_KEY })
-  });
 
   const behaviorEnabled =
     sourceBehaviors.data?.sources
@@ -105,25 +83,15 @@ export default function CalendarSettings() {
   const settings = (settingsMutation.data ?? settingsQuery.data)?.settings;
   const prepTaskMode = settings?.prepTaskMode ?? "suggest";
   const timeBlockMode = settings?.timeBlockMode ?? "suggest";
-  const commitmentMode = settings?.commitmentMode ?? "off";
   const prepTaskModeOption = CALENDAR_MODE_OPTIONS.find((option) => option.value === prepTaskMode);
   const timeBlockModeOption = CALENDAR_MODE_OPTIONS.find(
     (option) => option.value === timeBlockMode
-  );
-  const commitmentModeOption = CALENDAR_MODE_OPTIONS.find(
-    (option) => option.value === commitmentMode
   );
   const disabled =
     sourceBehaviors.isLoading ||
     settingsQuery.isLoading ||
     behaviorMutation.isPending ||
     settingsMutation.isPending;
-  const writebackPolicyDisabled = policiesQuery.isLoading || writebackPolicyMutation.isPending;
-
-  function updateTimeBlockMode(mode: CalendarAutomationMode) {
-    settingsMutation.mutate({ timeBlockMode: mode });
-    writebackPolicyMutation.mutate(mode === "auto" ? "trusted_auto" : "ask_each_time");
-  }
 
   return (
     <>
@@ -187,30 +155,10 @@ export default function CalendarSettings() {
             <Select
               aria-label="Time blocks"
               value={timeBlockMode}
-              disabled={disabled || writebackPolicyDisabled}
-              onChange={(event) =>
-                updateTimeBlockMode(event.currentTarget.value as CalendarAutomationMode)
-              }
-            >
-              {CALENDAR_MODE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          }
-        />
-        <Row
-          name="Commitment detection"
-          desc={commitmentModeOption?.desc ?? "How meeting commitments become tracked commitments."}
-          control={
-            <Select
-              aria-label="Commitment detection"
-              value={commitmentMode}
               disabled={disabled}
               onChange={(event) =>
                 settingsMutation.mutate({
-                  commitmentMode: event.currentTarget.value as CalendarAutomationMode
+                  timeBlockMode: event.currentTarget.value as CalendarAutomationMode
                 })
               }
             >
@@ -226,9 +174,7 @@ export default function CalendarSettings() {
       {sourceBehaviors.isError ||
       settingsQuery.isError ||
       behaviorMutation.isError ||
-      settingsMutation.isError ||
-      policiesQuery.isError ||
-      writebackPolicyMutation.isError ? (
+      settingsMutation.isError ? (
         <Note>Could not save calendar briefing settings. Try again.</Note>
       ) : null}
     </>

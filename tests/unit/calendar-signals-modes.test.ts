@@ -27,7 +27,7 @@ function actions(
     now: new Date("2026-07-04T12:00:00.000Z"),
     timeZone: "UTC",
     context: new Set(),
-    settings: { lookaheadDays: 2, prepTaskMode, timeBlockMode, commitmentMode: "off" }
+    settings: { lookaheadDays: 2, prepTaskMode, timeBlockMode }
   }).flatMap((signal) => signal.suggestedActions);
 }
 

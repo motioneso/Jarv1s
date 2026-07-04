@@ -10,5 +10,6 @@ it("keeps every Calendar automation mode reachable from Calendar settings", () =
   }
   expect(source).toContain("prepTaskMode");
   expect(source).toContain("timeBlockMode");
-  expect(source).toContain("commitmentMode");
+  expect(source).not.toContain("commitmentMode");
+  expect(source).not.toContain("Commitment detection");
 });

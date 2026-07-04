@@ -10,7 +10,6 @@ import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import {
-  DEFAULT_CALENDAR_OFF_MODE,
   parseCalendarAutomationMode,
   normalizePersonaSettings,
   renderPersonaText
@@ -229,8 +228,7 @@ export async function readCalendarSignalSettings(
     suggestTimeBlocks,
     blockTime,
     storedPrepTaskMode,
-    storedTimeBlockMode,
-    storedCommitmentMode
+    storedTimeBlockMode
   ] = await Promise.all([
     readPreference(scopedDb, deps, "calendar.briefing_lookahead_days"),
     readPreference(scopedDb, deps, "calendar.signal_suggest_tasks"),
@@ -238,8 +236,7 @@ export async function readCalendarSignalSettings(
     readPreference(scopedDb, deps, "calendar.signal_suggest_time_blocks"),
     readPreference(scopedDb, deps, "calendar.signal_block_time"),
     readPreference(scopedDb, deps, "calendar.prep_task_mode"),
-    readPreference(scopedDb, deps, "calendar.time_block_mode"),
-    readPreference(scopedDb, deps, "calendar.commitment_mode")
+    readPreference(scopedDb, deps, "calendar.time_block_mode")
   ]);
   const legacyPrepTaskMode =
     createTasks === true ? "auto" : suggestTasks === false ? "off" : "suggest";
@@ -248,8 +245,7 @@ export async function readCalendarSignalSettings(
   return {
     lookaheadDays: intPreference(lookaheadDays, 2),
     prepTaskMode: parseCalendarAutomationMode(storedPrepTaskMode, legacyPrepTaskMode),
-    timeBlockMode: parseCalendarAutomationMode(storedTimeBlockMode, legacyTimeBlockMode),
-    commitmentMode: parseCalendarAutomationMode(storedCommitmentMode, DEFAULT_CALENDAR_OFF_MODE)
+    timeBlockMode: parseCalendarAutomationMode(storedTimeBlockMode, legacyTimeBlockMode)
   };
 }
 

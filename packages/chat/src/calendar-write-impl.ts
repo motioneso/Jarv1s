@@ -187,6 +187,13 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         // shifted:false/conflict:none and skip the cache mirror (mirroring the wrong time would
         // corrupt the cache). The Google event remains the source of truth (Codex HIGH round 3).
         if (error instanceof GoogleApiError && error.statusCode === 409) {
+          const active = await deps.connectorsRepository.getActiveGoogleAccountSecret(scopedDb);
+          const cached = active
+            ? await deps.calendarRepository.getByExternalId(scopedDb, {
+                connectorAccountId: active.id,
+                externalId: eventId
+              })
+            : undefined;
           return {
             created: true,
             resolvedStart: resolved.start.toISOString(),
@@ -194,7 +201,8 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
             shifted: false,
             conflict: "none",
             googleEventId: eventId,
-            calendarMirror: "skipped-error",
+            calendarEventId: cached?.id,
+            calendarMirror: cached ? "written" : "skipped-error",
             message: "This focus block is already on your calendar."
           };
         }

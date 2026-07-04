@@ -55,6 +55,20 @@ export class CalendarRepository {
       .executeTakeFirst();
   }
 
+  async getByExternalId(
+    scopedDb: DataContextDb,
+    input: { readonly connectorAccountId: string; readonly externalId: string }
+  ): Promise<CalendarEvent | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.calendar_events")
+      .selectAll()
+      .where("connector_account_id", "=", input.connectorAccountId)
+      .where("external_id", "=", input.externalId)
+      .executeTakeFirst();
+  }
+
   async upsertCachedEvent(
     scopedDb: DataContextDb,
     input: CreateCachedCalendarEventInput
