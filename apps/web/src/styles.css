@@ -320,7 +320,9 @@ a {
   height: 1.5rem;
   display: grid;
   place-items: center;
-  color: var(--ink);
+  /* currentColor drives the mark's outer bars; on the forest rail they must be
+     the cream rail foreground, not ink, or the mark vanishes. */
+  color: var(--rail-fg);
 }
 
 .brand-mark svg {
