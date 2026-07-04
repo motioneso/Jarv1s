@@ -7,6 +7,7 @@ import {
   type ProposeFocusResult,
   type ResolvedWindow,
   type CalendarRepository,
+  type CalendarWriteOptions,
   type DeleteEventInput,
   type DeleteEventResult
 } from "@jarv1s/calendar";
@@ -42,7 +43,8 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
     async proposeAndInsert(
       scopedDbRaw: unknown,
       ctx: ToolContext,
-      window: FocusBlockWindow
+      window: FocusBlockWindow,
+      options: CalendarWriteOptions = {}
     ): Promise<ProposeFocusResult> {
       assertDataContextDb(scopedDbRaw);
       const scopedDb = scopedDbRaw as DataContextDb;
@@ -185,6 +187,13 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         // shifted:false/conflict:none and skip the cache mirror (mirroring the wrong time would
         // corrupt the cache). The Google event remains the source of truth (Codex HIGH round 3).
         if (error instanceof GoogleApiError && error.statusCode === 409) {
+          const active = await deps.connectorsRepository.getActiveGoogleAccountSecret(scopedDb);
+          const cached = active
+            ? await deps.calendarRepository.getByExternalId(scopedDb, {
+                connectorAccountId: active.id,
+                externalId: eventId
+              })
+            : undefined;
           return {
             created: true,
             resolvedStart: resolved.start.toISOString(),
@@ -192,7 +201,8 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
             shifted: false,
             conflict: "none",
             googleEventId: eventId,
-            calendarMirror: "skipped-error",
+            calendarEventId: cached?.id,
+            calendarMirror: cached ? "written" : "skipped-error",
             message: "This focus block is already on your calendar."
           };
         }
@@ -208,7 +218,30 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
       }
 
       // 5. Best-effort cache mirror (gated on connector-sync RLS 0066). Never fails the call.
-      const calendarMirror = await mirrorEvent(deps, scopedDb, inserted, slot, resolved);
+      const mirrored = await mirrorEvent(deps, scopedDb, inserted, slot, resolved, {
+        followThroughTargetRef: options.followThroughTargetRef
+      });
+      if (options.requireCacheMirror && mirrored.status !== "written") {
+        try {
+          await deps.googleApiClient.deleteEvent({
+            accessToken,
+            calendarId: "primary",
+            eventId: inserted.id
+          });
+        } catch {
+          // Provider rollback is best-effort; caller still gets created:false because no tracked
+          // Jarv1s row exists for safe later cancellation.
+        }
+        return {
+          created: false,
+          resolvedStart: slot.start.toISOString(),
+          resolvedEnd: slot.end.toISOString(),
+          shifted: slot.shifted,
+          conflict: slot.conflict === "none" ? "none" : "shifted",
+          calendarMirror: mirrored.status,
+          message: "Couldn't track the Calendar-created block safely, so it was not kept."
+        };
+      }
 
       return {
         created: true,
@@ -217,7 +250,8 @@ export function buildCalendarWriteService(deps: CalendarWriteImplDeps): Calendar
         shifted: slot.shifted,
         conflict: slot.conflict === "none" ? "none" : "shifted",
         googleEventId: inserted.id,
-        calendarMirror
+        calendarEventId: mirrored.calendarEventId,
+        calendarMirror: mirrored.status
       };
     },
 
@@ -348,12 +382,13 @@ async function mirrorEvent(
   scopedDb: DataContextDb,
   inserted: { id: string; htmlLink?: string },
   slot: { start: Date; end: Date },
-  resolved: ResolvedWindow
-): Promise<"written" | "skipped-rls" | "skipped-error"> {
+  resolved: ResolvedWindow,
+  options: { readonly followThroughTargetRef?: string } = {}
+): Promise<{ status: "written" | "skipped-rls" | "skipped-error"; calendarEventId?: string }> {
   try {
     const active = await deps.connectorsRepository.getActiveGoogleAccountSecret(scopedDb);
-    if (!active) return "skipped-error";
-    await deps.calendarRepository.upsertCachedEvent(scopedDb, {
+    if (!active) return { status: "skipped-error" };
+    const row = await deps.calendarRepository.upsertCachedEvent(scopedDb, {
       connectorAccountId: active.id,
       externalId: inserted.id,
       title: resolved.title,
@@ -362,10 +397,13 @@ async function mirrorEvent(
       externalMetadata: {
         jarvisCreated: true,
         source: "proposeFocusBlock",
-        htmlLink: inserted.htmlLink ?? null
+        htmlLink: inserted.htmlLink ?? null,
+        ...(options.followThroughTargetRef
+          ? { followThroughTargetRef: options.followThroughTargetRef }
+          : {})
       }
     });
-    return "written";
+    return { status: "written", calendarEventId: row.id };
   } catch (error) {
     // The calendar INSERT policy requires provider_type IN (...,'google') (connector-sync
     // migration 0066). If absent, the WITH CHECK fails — record skipped-rls; the Google event
@@ -374,10 +412,12 @@ async function mirrorEvent(
     // by an RLS WITH CHECK / policy violation); message text is locale/version-dependent, so
     // only fall back to it (Codex MED #7). pg/Kysely surface `code` on the error object.
     const code = (error as { code?: string } | null)?.code;
-    if (code === "42501") return "skipped-rls";
+    if (code === "42501") return { status: "skipped-rls" };
     const message = error instanceof Error ? error.message : "";
-    return /row-level security|violates row-level|policy/i.test(message)
-      ? "skipped-rls"
-      : "skipped-error";
+    return {
+      status: /row-level security|violates row-level|policy/i.test(message)
+        ? "skipped-rls"
+        : "skipped-error"
+    };
   }
 }

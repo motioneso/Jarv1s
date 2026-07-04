@@ -10,7 +10,14 @@ import {
   type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { getBuiltInModuleManifests, getBuiltInModuleRegistrations } from "@jarv1s/module-registry";
+import {
+  buildCalendarFollowThroughSideEffects,
+  getBuiltInModuleManifests,
+  getBuiltInModuleRegistrations
+} from "@jarv1s/module-registry";
+import { CalendarRepository, calendarFollowThroughSourceRef } from "@jarv1s/calendar";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import { TasksRepository } from "@jarv1s/tasks";
 import {
   FeedbackTargetVerifierRegistry,
   registerUsefulnessFeedbackRoutes,
@@ -640,6 +647,114 @@ describe("usefulness feedback routes", () => {
     expect(Object.keys(userExport.tables.usefulnessFeedbackSignals[0] ?? {})).not.toContain(
       "summaryText"
     );
+  });
+
+  it("merges briefing target metadata so recomposition preserves Calendar refs", async () => {
+    const repository = new UsefulnessFeedbackRepository();
+    const dataContext = new DataContextRunner(appDb);
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      await repository.upsertTarget(scopedDb, {
+        ownerUserId: ids.userA,
+        targetKind: "briefing_item",
+        targetRef: "calendar:prep:merge",
+        surface: "briefing",
+        sourceKind: "calendar",
+        sourceLabel: "Calendar",
+        metadata: {
+          calendarFollowThrough: {
+            targetRef: "calendar:prep:merge",
+            calendarEventId: "calendar-event-1"
+          }
+        }
+      });
+      await repository.upsertTarget(scopedDb, {
+        ownerUserId: ids.userA,
+        targetKind: "briefing_item",
+        targetRef: "calendar:prep:merge",
+        surface: "briefing",
+        sourceKind: "calendar",
+        sourceLabel: "Calendar",
+        metadata: { signalType: "prep_needed" }
+      });
+
+      const target = await repository.findTarget(
+        scopedDb,
+        ids.userA,
+        "briefing_item",
+        "calendar:prep:merge",
+        "briefing"
+      );
+      expect(target?.metadata_json).toMatchObject({
+        signalType: "prep_needed",
+        calendarFollowThrough: {
+          targetRef: "calendar:prep:merge",
+          calendarEventId: "calendar-event-1"
+        }
+      });
+    });
+  });
+
+  it("removes both Calendar-created refs and denies cross-user refs", async () => {
+    const dataContext = new DataContextRunner(appDb);
+    const tasks = new TasksRepository();
+    const calendar = new CalendarRepository();
+    const connectors = new ConnectorsRepository();
+    const cipher = createConnectorSecretCipher();
+    const targetRef = "calendar:prep:both";
+    const sourceRef = calendarFollowThroughSourceRef(targetRef);
+    let deletedEventId: string | null = null;
+
+    const refs = await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const account = await connectors.upsertGoogleAccount(scopedDb, {
+        scopes: ["https://www.googleapis.com/auth/calendar"],
+        encryptedSecret: cipher.encryptJson({ kind: "google-oauth" })
+      });
+      const task = await tasks.create(scopedDb, {
+        title: "Prep",
+        status: "todo",
+        source: "calendar",
+        sourceRef,
+        externalKey: sourceRef
+      });
+      const event = await calendar.upsertCachedEvent(scopedDb, {
+        connectorAccountId: account.id,
+        externalId: "google-event-both",
+        title: "Prep time",
+        startsAt: "2026-07-04T09:00:00.000Z",
+        endsAt: "2026-07-04T10:00:00.000Z",
+        externalMetadata: { jarvisCreated: true, followThroughTargetRef: targetRef }
+      });
+      return { taskId: task.id, calendarEventId: event.id };
+    });
+
+    const sideEffects = buildCalendarFollowThroughSideEffects({
+      calendarWrite: {
+        deleteEvent: async (_scopedDb, _ctx, input) => {
+          deletedEventId = input.eventId;
+          return { deleted: true };
+        }
+      }
+    });
+    const metadata = { calendarFollowThrough: { targetRef, ...refs } };
+
+    const denied = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "req:feedback-b" },
+      (scopedDb) => sideEffects.removeCreatedRefs(scopedDb, ids.userB, metadata)
+    );
+    expect(denied).toBeNull();
+    expect(deletedEventId).toBeNull();
+
+    const removed = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      sideEffects.removeCreatedRefs(scopedDb, ids.userA, metadata)
+    );
+    expect(removed).toContain(`task:${refs.taskId}`);
+    expect(removed).toContain(`calendar_event:${refs.calendarEventId}`);
+    expect(deletedEventId).toBe(refs.calendarEventId);
+
+    const archived = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      tasks.getById(scopedDb, refs.taskId)
+    );
+    expect(archived?.status).toBe("archived");
   });
 });
 

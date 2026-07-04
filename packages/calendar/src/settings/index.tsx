@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Group, Note, PaneHead, Row, Switch } from "@jarv1s/settings-ui";
+import { Group, Note, PaneHead, Row, Select, Switch } from "@jarv1s/settings-ui";
 import type {
+  CalendarAutomationMode,
   GetCalendarBriefingSettingsResponse,
   ListSourceBehaviorsResponse,
   PutSourceBehaviorResponse,
@@ -12,6 +13,16 @@ import type {
 const CALENDAR_BEHAVIOR_ID = "calendar.briefings";
 const SOURCE_BEHAVIORS_KEY = ["settings", "source-behaviors"] as const;
 const CALENDAR_SETTINGS_KEY = ["calendar", "briefing-settings"] as const;
+
+export const CALENDAR_MODE_OPTIONS: ReadonlyArray<{
+  readonly value: CalendarAutomationMode;
+  readonly label: string;
+  readonly desc: string;
+}> = [
+  { value: "off", label: "Off", desc: "Do not create suggestions or actions." },
+  { value: "suggest", label: "Suggest", desc: "Show a governed suggestion for review." },
+  { value: "auto", label: "Auto", desc: "Run the scoped action without asking again." }
+];
 
 async function requestJson<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -70,6 +81,12 @@ export default function CalendarSettings() {
       .flatMap((source) => source.behaviors)
       .find((behavior) => behavior.id === CALENDAR_BEHAVIOR_ID)?.enabled ?? true;
   const settings = (settingsMutation.data ?? settingsQuery.data)?.settings;
+  const prepTaskMode = settings?.prepTaskMode ?? "suggest";
+  const timeBlockMode = settings?.timeBlockMode ?? "suggest";
+  const prepTaskModeOption = CALENDAR_MODE_OPTIONS.find((option) => option.value === prepTaskMode);
+  const timeBlockModeOption = CALENDAR_MODE_OPTIONS.find(
+    (option) => option.value === timeBlockMode
+  );
   const disabled =
     sourceBehaviors.isLoading ||
     settingsQuery.isLoading ||
@@ -110,51 +127,47 @@ export default function CalendarSettings() {
       </Group>
       <Group title="Follow-through">
         <Row
-          name="Suggest prep tasks"
-          desc="Allow the briefing to recommend a task when a meeting likely needs prep."
+          name="Prep tasks"
+          desc={prepTaskModeOption?.desc ?? "How meeting prep becomes tasks."}
           control={
-            <Switch
-              ariaLabel="Suggest prep tasks"
-              checked={settings?.suggestTasks ?? true}
+            <Select
+              aria-label="Prep tasks"
+              value={prepTaskMode}
               disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ suggestTasks: value })}
-            />
+              onChange={(event) =>
+                settingsMutation.mutate({
+                  prepTaskMode: event.currentTarget.value as CalendarAutomationMode
+                })
+              }
+            >
+              {CALENDAR_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           }
         />
         <Row
-          name="Create prep tasks automatically"
-          desc="Only affects the normal action loop; briefings still do not bypass approval policy."
+          name="Time blocks"
+          desc={timeBlockModeOption?.desc ?? "How calendar signals become time blocks."}
           control={
-            <Switch
-              ariaLabel="Create prep tasks automatically"
-              checked={settings?.createTasks ?? false}
+            <Select
+              aria-label="Time blocks"
+              value={timeBlockMode}
               disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ createTasks: value })}
-            />
-          }
-        />
-        <Row
-          name="Suggest time blocks"
-          desc="Allow the briefing to recommend buffer or work blocks when the schedule is tight."
-          control={
-            <Switch
-              ariaLabel="Suggest time blocks"
-              checked={settings?.suggestTimeBlocks ?? true}
-              disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ suggestTimeBlocks: value })}
-            />
-          }
-        />
-        <Row
-          name="Block time automatically"
-          desc="Still routes through the normal calendar action policy; this does not create a briefing bypass."
-          control={
-            <Switch
-              ariaLabel="Block time automatically"
-              checked={settings?.blockTime ?? false}
-              disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ blockTime: value })}
-            />
+              onChange={(event) =>
+                settingsMutation.mutate({
+                  timeBlockMode: event.currentTarget.value as CalendarAutomationMode
+                })
+              }
+            >
+              {CALENDAR_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           }
         />
       </Group>

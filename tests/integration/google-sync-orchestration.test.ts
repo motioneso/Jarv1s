@@ -8,7 +8,7 @@ import {
   runGoogleSync,
   type GoogleSyncPayload
 } from "@jarv1s/connectors";
-import { CalendarRepository } from "@jarv1s/calendar";
+import { CalendarRepository, isCalendarFollowThroughEvent } from "@jarv1s/calendar";
 import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
@@ -425,6 +425,68 @@ describe("runGoogleSync handler", () => {
         .execute()
     );
     expect(rows.map((row) => row.external_id)).toEqual(["fresh-event"]);
+  });
+
+  it("preserves Calendar follow-through provenance across sync before not_useful removal", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const calendar = new CalendarRepository();
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
+    await handles.workerDataContext.withDataContext(ctx, (db) =>
+      calendar.upsertCachedEvent(db, {
+        connectorAccountId: accountId,
+        externalId: "auto-block-1",
+        title: "Prep time",
+        startsAt: "2026-06-13T09:00:00.000Z",
+        endsAt: "2026-06-13T10:00:00.000Z",
+        externalMetadata: { jarvisCreated: true, followThroughTargetRef: "calendar:prep:abc" }
+      })
+    );
+
+    await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["calendar"] }),
+        googleClient: {
+          listCalendarEvents: async () => [
+            {
+              id: "auto-block-1",
+              summary: "Prep time",
+              htmlLink: "https://calendar.example/auto-block-1",
+              status: "confirmed",
+              attendees: [{ email: "a@example.com" }],
+              start: { dateTime: "2026-06-13T09:00:00Z" },
+              end: { dateTime: "2026-06-13T10:00:00Z" }
+            }
+          ],
+          listMessageIds: async () => [],
+          getMessage: async () => ({ id: "x" })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        },
+        now: () => new Date("2026-06-13T12:00:00.000Z")
+      })
+    );
+
+    const row = await handles.workerDataContext.withDataContext(ctx, (db) =>
+      db.db
+        .selectFrom("app.calendar_events")
+        .selectAll()
+        .where("connector_account_id", "=", accountId)
+        .where("external_id", "=", "auto-block-1")
+        .executeTakeFirstOrThrow()
+    );
+
+    expect(row.external_metadata).toMatchObject({
+      jarvisCreated: true,
+      followThroughTargetRef: "calendar:prep:abc",
+      status: "confirmed",
+      attendeeCount: 1
+    });
+    expect(isCalendarFollowThroughEvent(row, "calendar:prep:abc")).toBe(true);
   });
 
   it("records a no-active-connection error without throwing", async () => {

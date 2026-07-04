@@ -561,6 +561,8 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(initialCalendar.statusCode).toBe(200);
     expect(initialCalendar.json<{ settings: Record<string, unknown> }>().settings).toEqual({
       lookaheadDays: 2,
+      prepTaskMode: "suggest",
+      timeBlockMode: "suggest",
       suggestTasks: true,
       createTasks: false,
       suggestTimeBlocks: true,
@@ -590,6 +592,8 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(updateCalendar.statusCode).toBe(200);
     expect(updateCalendar.json<{ settings: Record<string, unknown> }>().settings).toMatchObject({
       lookaheadDays: 0,
+      prepTaskMode: "auto",
+      timeBlockMode: "auto",
       suggestTasks: true,
       createTasks: true,
       suggestTimeBlocks: true,
