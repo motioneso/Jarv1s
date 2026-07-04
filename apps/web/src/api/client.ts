@@ -53,8 +53,6 @@ import type {
   GoogleAuthorizeResponse,
   GoogleCompleteRequest,
   GoogleCompleteResponse,
-  EmailTaskCreationModeResponse,
-  UpdateEmailTaskCreationModeRequest,
   ImapConnectRequest,
   ImapTestResult,
   CreateConnectorAccountResponse,
@@ -846,19 +844,6 @@ export async function listBriefingRuns(id: string): Promise<ListBriefingRunsResp
 
 export async function listConnectorAccounts(): Promise<ListConnectorAccountsResponse> {
   return requestJson<ListConnectorAccountsResponse>("/api/connectors/accounts");
-}
-
-export async function getEmailTaskMode(): Promise<EmailTaskCreationModeResponse> {
-  return requestJson<EmailTaskCreationModeResponse>("/api/email/task-creation-mode");
-}
-
-export async function putEmailTaskMode(
-  body: UpdateEmailTaskCreationModeRequest
-): Promise<EmailTaskCreationModeResponse> {
-  return requestJson<EmailTaskCreationModeResponse>("/api/email/task-creation-mode", {
-    method: "PUT",
-    body
-  });
 }
 
 export async function revokeConnectorAccount(id: string): Promise<RevokeConnectorAccountResponse> {

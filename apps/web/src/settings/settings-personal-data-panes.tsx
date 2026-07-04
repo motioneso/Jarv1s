@@ -36,10 +36,8 @@ import {
   getLocaleSettings,
   getModules,
   getMyModules,
-  listSourceBehaviors,
   listConnectorAccounts,
   putLocaleSettings,
-  putSourceBehavior,
   revokeConnectorAccount,
   setMyModuleDisabled
 } from "../api/client";
@@ -59,11 +57,6 @@ import {
   ChatSettingsView,
   NotificationSettings
 } from "./settings-module-subviews";
-import {
-  sourceBehaviorStatus,
-  type DataSource as DataSourceModel,
-  type DataSourceBehavior
-} from "./settings-data-source-model";
 import { useFeedback } from "./settings-feedback";
 import { resolveModuleSettingsDeepLink } from "./module-settings-deep-link";
 import { settingsModuleControlModel } from "./settings-module-view-model";
@@ -81,7 +74,6 @@ import {
   Select,
   Switch
 } from "./settings-ui";
-import { EmailTaskCreationRow } from "./settings-email-task-mode";
 import { VaultChooser } from "./settings-vault-chooser";
 import {
   type ConnectorAccountDto,
@@ -367,7 +359,7 @@ function ConnectedPane() {
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
         These are your accounts and their trust state — not backend provider definitions. What each
-        account powers is set in <b>Data sources</b>.
+        account powers is set in its module settings.
       </Note>
     </>
   );
@@ -384,20 +376,6 @@ function formatLastSync(at: string | null, lastError?: string): string {
 function SourcesPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
-  const sourcesQuery = useQuery({
-    queryKey: queryKeys.settings.sourceBehaviors,
-    queryFn: listSourceBehaviors,
-    retry: false
-  });
-  const sourceMutation = useMutation({
-    mutationFn: (input: { readonly id: string; readonly enabled: boolean }) =>
-      putSourceBehavior(input.id, { enabled: input.enabled }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.settings.sourceBehaviors, data);
-      toast("Source behavior saved", { icon: <ShieldCheck size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
 
   // Notes source (#449): real API calls replace the prior NotWired stub.
   const notesSourceQuery = useQuery({
@@ -493,57 +471,8 @@ function SourcesPane() {
     <>
       <PaneHead
         title="Data sources"
-        desc="Calendar, email and your notes as Jarvis sees them. Not provider settings — what Jarvis is allowed to do with each source."
+        desc="Connect a notes folder Jarvis can index and use as context."
       />
-      {sourcesQuery.isLoading ? (
-        <Group title="Sources" desc="Loading source behavior policy.">
-          <Row name="Loading" desc="Fetching current source permissions." />
-        </Group>
-      ) : null}
-      {sourcesQuery.isError ? (
-        <Group title="Sources" desc="Could not load source behavior policy.">
-          <Row name="Unavailable" desc={readError(sourcesQuery.error)} />
-        </Group>
-      ) : null}
-      {(sourcesQuery.data?.sources ?? []).map((source: DataSourceModel) => {
-        const Icon = moduleIcon(source.id);
-        return (
-          <Group
-            key={source.id}
-            title={
-              <span className="src-title">
-                <Icon size={18} aria-hidden="true" />
-                {source.name}
-              </span>
-            }
-            desc={source.description}
-          >
-            {source.behaviors.map((behavior: DataSourceBehavior) => {
-              const status = sourceBehaviorStatus(behavior);
-              return (
-                <Row
-                  key={behavior.id}
-                  name={behavior.name}
-                  desc={behavior.description}
-                  control={
-                    behavior.toggleable ? (
-                      <Switch
-                        ariaLabel={`${source.name} — ${behavior.name}`}
-                        checked={behavior.enabled}
-                        disabled={sourceMutation.isPending}
-                        onChange={(enabled) => sourceMutation.mutate({ id: behavior.id, enabled })}
-                      />
-                    ) : (
-                      <Badge tone={status.tone}>{status.label}</Badge>
-                    )
-                  }
-                />
-              );
-            })}
-            {source.id === "email" ? <EmailTaskCreationRow /> : null}
-          </Group>
-        );
-      })}
 
       <Group
         title={
