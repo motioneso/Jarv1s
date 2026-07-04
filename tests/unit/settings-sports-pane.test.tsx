@@ -220,7 +220,10 @@ describe("SportsSettings", () => {
 describe("is-active styling coverage (#691)", () => {
   const epl = TWO_LEAGUES.find((c) => c.competitionKey === "epl")!;
   const followed = new Map([
-    ["epl::team.ars", { id: "f1", competitionKey: "epl", teamKey: "team.ars", createdAt: "2026-01-01T00:00:00Z" }]
+    [
+      "epl::team.ars",
+      { id: "f1", competitionKey: "epl", teamKey: "team.ars", createdAt: "2026-01-01T00:00:00Z" }
+    ]
   ]);
 
   it("marks a followed team is-active in search results, unfollowed team not", () => {
