@@ -105,6 +105,7 @@ export interface ChatRoutesDependencies {
   readonly boss?: PgBoss;
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
+  readonly chatPreferences?: PreferencesPort;
   readonly localePreferences?: PreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
   /** Priority preferences port — forwarded to the chat runtime for cross-tool context ranking (#721). */
@@ -216,6 +217,7 @@ export function registerChatRoutes(
       : undefined,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
+    chatPreferences: dependencies.chatPreferences,
     localePreferences: dependencies.localePreferences,
     priorityPreferences: dependencies.priorityPreferences,
     mcpTokenLifecycle: wiring
