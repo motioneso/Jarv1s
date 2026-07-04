@@ -57,7 +57,6 @@
   align-items: center;
   justify-content: center;
   color: var(--accent-fg);
-  box-shadow: var(--shadow-xs);
 }
 .coming-title {
   font-family: var(--font-serif);
@@ -157,7 +156,6 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
 }
 .today-feedback__list button,
 .today-feedback__status button {
@@ -419,19 +417,20 @@
 .cmd-eyebrow {
   font-family: var(--font-mono);
   font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--text-subtle);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--gold-ink);
 }
 .cmd-hello {
-  font-family: var(--font-serif);
-  font-size: 38px;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-  line-height: 1.08;
-  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-5xl);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.02;
+  margin: 10px 0 0;
 }
 .cmd-lede {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 18px;
   line-height: 1.55;
   color: var(--text-muted);
@@ -449,9 +448,9 @@
   margin-top: 22px;
 }
 .cmd-stat {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
   padding: 11px 13px;
 }
 .cmd-stat .k {
@@ -685,7 +684,6 @@
 .wx__day.is-today {
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-xs);
 }
 .wx__d {
   font-size: 11px;
@@ -724,7 +722,6 @@
 }
 .cmd-stat:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow-xs);
   transform: translateY(-1px);
 }
 .cmd-stat:active {
