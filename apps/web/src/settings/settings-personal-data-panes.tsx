@@ -110,6 +110,10 @@ const DEFAULT_QUIET_HOURS: QuietHoursSettingsDto = {
   timezone: null
 };
 
+export function isValidQuietHoursTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
 function moduleIcon(id: string): LucideIcon {
   return MODULE_ICONS[id] ?? Boxes;
 }
@@ -917,7 +921,10 @@ function GeneralPane() {
               value={quietHours.start}
               aria-label="Quiet hours from"
               disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
-              onChange={(event) => updateQuietHours({ start: event.currentTarget.value })}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (isValidQuietHoursTime(value)) updateQuietHours({ start: value });
+              }}
               style={{ flex: "0 0 130px", minWidth: 0 }}
             />
             <span style={{ color: "var(--text-faint)" }}>→</span>
@@ -927,7 +934,10 @@ function GeneralPane() {
               value={quietHours.end}
               aria-label="Quiet hours to"
               disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
-              onChange={(event) => updateQuietHours({ end: event.currentTarget.value })}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (isValidQuietHoursTime(value)) updateQuietHours({ end: value });
+              }}
               style={{ flex: "0 0 130px", minWidth: 0 }}
             />
           </div>
