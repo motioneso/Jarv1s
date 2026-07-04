@@ -179,7 +179,9 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
         connector_account_id: OTHER_CONNECTOR_ACCOUNT_ID,
         source: "email"
       });
-      expect(rows[0]?.subject_prefix).toBe("Different message that happens to share an external id");
+      expect(rows[0]?.subject_prefix).toBe(
+        "Different message that happens to share an external id"
+      );
     } finally {
       await app.close();
     }
