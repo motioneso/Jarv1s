@@ -411,8 +411,68 @@
   margin: 0 auto;
   padding: 30px 40px 80px;
 }
-.cmd-hero {
-  max-width: 70ch;
+.cmd-masthead {
+  border-bottom: 3px solid var(--ink);
+  padding-bottom: 26px;
+}
+.cmd-dateline {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  padding-bottom: 18px;
+}
+.cmd-masthead__row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+}
+.cmd-masthead__main {
+  max-width: 72ch;
+  min-width: 0;
+}
+.cmd-title {
+  margin: 12px 0 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-black);
+  font-size: clamp(42px, 5.6vw, 72px);
+  letter-spacing: var(--tracking-tight);
+  line-height: 0.98;
+  text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+}
+.cmd-title__accent {
+  color: var(--accent);
+}
+.cmd-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.cmd-clock__time {
+  font-family: var(--font-mono);
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--text);
+}
+.cmd-clock__ap {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  margin-top: 6px;
+}
+@media (max-width: 720px) {
+  .cmd-clock {
+    display: none;
+  }
 }
 .cmd-eyebrow {
   font-family: var(--font-mono);
@@ -420,14 +480,6 @@
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--gold-ink);
-}
-.cmd-hello {
-  font-family: var(--font-display);
-  font-size: var(--text-5xl);
-  font-weight: var(--weight-black);
-  letter-spacing: var(--tracking-tight);
-  line-height: 1.02;
-  margin: 10px 0 0;
 }
 .cmd-lede {
   font-family: var(--font-sans);
@@ -441,11 +493,49 @@
   font-weight: 600;
 }
 
-.cmd-stats {
+.cmd-next {
+  background: var(--rail-bg);
+  color: var(--rail-fg);
+  border-radius: var(--radius-xs);
+  padding: 18px 18px 16px;
+}
+.cmd-next__k {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--rail-fg-muted);
+}
+.cmd-next__v {
+  font-family: var(--font-mono);
+  font-size: 44px;
+  line-height: 1;
+  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.cmd-next__what {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 12px;
+  color: var(--rail-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmd-glance__title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  margin-bottom: 10px;
+}
+.cmd-glance__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 22px;
 }
 .cmd-stat {
   background: var(--paper);
@@ -492,6 +582,14 @@
   gap: 44px;
   align-items: start;
   margin-top: 30px;
+}
+@media (min-width: 1081px) {
+  /* Keyline between the columns, newspaper-style: the aside carries the rule. */
+  .cmd-aside {
+    border-left: 1px solid var(--line-strong);
+    padding-left: 32px;
+    margin-left: -32px;
+  }
 }
 @media (max-width: 1080px) {
   .cmd-grid {
@@ -739,11 +837,6 @@
 }
 .cmd-stat .k {
   justify-content: flex-start;
-}
-
-/* accent name in hero */
-.cmd-hello .nm {
-  color: var(--accent-fg);
 }
 
 /* ===== Walking the day (meetings) ===== */

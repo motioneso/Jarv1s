@@ -53,6 +53,7 @@ import {
   addDaysToKey,
   buildEveningLede,
   deriveTodayMode,
+  type TodayMode,
   effectiveEveningTimeZone,
   EveningReviewSection,
   EveningSupportSections,
@@ -87,6 +88,13 @@ export function TodayPage(props: {
   const wellnessEnabled = props.wellnessEnabled ?? false;
   const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
   const [, forceTodayModeRefresh] = useState(0);
+  // The masthead clock and next-event countdown read `now`; tick a re-render each
+  // half-minute so they stay honest while the page sits open.
+  const [, forceClockTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => forceClockTick((value) => value + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
   const eventsQuery = useQuery({
@@ -224,45 +232,35 @@ export function TodayPage(props: {
   // is clear. Show the stat shortcuts only once at least one tile carries a count.
   const hasStatSignal =
     priorities.length > 0 || atRisk.length > 0 || todayEvents.length > 0 || doneToday > 0;
+  // Priorities and at-risk overlap (a Do First task can also be due today), so the
+  // masthead count dedupes by id: it reads as "N need you", not a double-counted sum.
+  const needsYou = new Set([...priorities, ...atRisk].map((t) => t.id)).size;
+  const upcomingLeft = upcoming.filter((e) => new Date(e.startsAt).getTime() >= now.getTime());
+  const headline = buildHeadline(todayMode, needsYou, upcomingLeft.length, doneToday);
+  const nextEvent = upcoming[0];
+  const nextStarted = nextEvent ? new Date(nextEvent.startsAt).getTime() <= now.getTime() : false;
 
   return (
     <div className="cmd-wrap">
-      <header className="cmd-hero">
-        <h1 className="cmd-hello">
-          {greeting()}, <span className="nm">{name}</span>.
-        </h1>
-        <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
-      </header>
-
-      {hasStatSignal ? (
-        <div className="cmd-stats">
-          <Stat
-            k="Priorities"
-            v={priorities.length}
-            icon={<Target size={12} />}
-            onClick={() => navigate("/tasks?focus=priorities")}
-          />
-          <Stat
-            k="At risk"
-            v={atRisk.length}
-            warn={atRisk.length > 0}
-            icon={<Clock size={12} />}
-            onClick={() => navigate("/tasks?focus=atrisk")}
-          />
-          <Stat
-            k="Events"
-            v={todayEvents.length}
-            icon={<CalendarDays size={12} />}
-            onClick={() => navigate("/calendar")}
-          />
-          <Stat
-            k="Done today"
-            v={doneToday}
-            icon={<CheckCircle2 size={12} />}
-            onClick={() => navigate("/tasks?focus=donetoday")}
-          />
+      <header className="cmd-masthead">
+        <div className="cmd-dateline">{datelineLabel(now, locale)}</div>
+        <div className="cmd-masthead__row">
+          <div className="cmd-masthead__main">
+            <p className="cmd-eyebrow">
+              {greeting()}, {name}
+            </p>
+            <h1 className="cmd-title">
+              <span>{headline.top}</span>
+              <span className="cmd-title__accent">{headline.accent}</span>
+            </h1>
+            <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
+          </div>
+          <div className="cmd-clock" aria-hidden="true">
+            <span className="cmd-clock__time">{timeLabel(now.toISOString(), locale)}</span>
+            <span className="cmd-clock__ap">{ampm(now.toISOString(), locale)}</span>
+          </div>
         </div>
-      ) : null}
+      </header>
 
       <div className="cmd-grid">
         <div>
@@ -416,6 +414,52 @@ export function TodayPage(props: {
         </div>
 
         <aside className="cmd-aside">
+          {nextEvent ? (
+            <div className="cmd-next">
+              <div className="cmd-next__k">{nextStarted ? "Now · ends in" : "Next event in"}</div>
+              <div className="cmd-next__v">
+                {countdownLabel(nextStarted ? nextEvent.endsAt : nextEvent.startsAt, now)}
+              </div>
+              <div className="cmd-next__what">
+                {nextEvent.title} · {timeLabel(nextEvent.startsAt, locale)}
+                {ampm(nextEvent.startsAt, locale)}
+              </div>
+            </div>
+          ) : null}
+
+          {hasStatSignal ? (
+            <div className="cmd-glance">
+              <div className="cmd-glance__title">At a glance</div>
+              <div className="cmd-glance__grid">
+                <Stat
+                  k="Priorities"
+                  v={priorities.length}
+                  icon={<Target size={12} />}
+                  onClick={() => navigate("/tasks?focus=priorities")}
+                />
+                <Stat
+                  k="At risk"
+                  v={atRisk.length}
+                  warn={atRisk.length > 0}
+                  icon={<Clock size={12} />}
+                  onClick={() => navigate("/tasks?focus=atrisk")}
+                />
+                <Stat
+                  k="Events"
+                  v={todayEvents.length}
+                  icon={<CalendarDays size={12} />}
+                  onClick={() => navigate("/calendar")}
+                />
+                <Stat
+                  k="Done today"
+                  v={doneToday}
+                  icon={<CheckCircle2 size={12} />}
+                  onClick={() => navigate("/tasks?focus=donetoday")}
+                />
+              </div>
+            </div>
+          ) : null}
+
           <div className="inst">
             <div className="inst__head">
               <span className="inst__title">Today's agenda</span>
@@ -869,6 +913,63 @@ function NewsDesk(props: {
 }
 
 // ---- helpers ----
+const NUM_WORDS = [
+  "ZERO",
+  "ONE",
+  "TWO",
+  "THREE",
+  "FOUR",
+  "FIVE",
+  "SIX",
+  "SEVEN",
+  "EIGHT",
+  "NINE",
+  "TEN",
+  "ELEVEN",
+  "TWELVE"
+] as const;
+
+function numWord(n: number): string {
+  return NUM_WORDS[n] ?? String(n);
+}
+
+function buildHeadline(
+  mode: TodayMode,
+  needsYou: number,
+  eventsLeft: number,
+  done: number
+): { readonly top: string; readonly accent: string } {
+  if (mode === "evening") {
+    if (done > 0) return { top: numWord(done), accent: done === 1 ? "THING DONE" : "THINGS DONE" };
+    return { top: "THE DAY,", accent: "REVIEWED" };
+  }
+  if (needsYou > 0)
+    return { top: numWord(needsYou), accent: needsYou === 1 ? "NEEDS YOU" : "NEED YOU" };
+  if (eventsLeft > 0) return { top: numWord(eventsLeft), accent: "ON THE BOOKS" };
+  return { top: "ALL CLEAR", accent: "TODAY" };
+}
+
+function datelineLabel(now: Date, locale: LocaleSettingsDto): string {
+  const iso = now.toISOString();
+  const weekday = formatDate(iso, locale, { weekday: "long" });
+  const date = formatDate(iso, locale, { day: "2-digit", month: "long", year: "numeric" });
+  // Edition number = day of the year in the user's timezone, newspaper-masthead style.
+  const key = localDay(now, locale.timezone);
+  const edition =
+    Math.floor(
+      (Date.parse(`${key}T00:00:00Z`) - Date.parse(`${key.slice(0, 4)}-01-01T00:00:00Z`)) /
+        86_400_000
+    ) + 1;
+  return `${weekday} · ${date} · No.${edition}`;
+}
+
+function countdownLabel(iso: string, now: Date): string {
+  const mins = Math.max(0, Math.round((Date.parse(iso) - now.getTime()) / 60_000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
 function firstName(name: string, email: string): string {
   const source = name.trim() || email.split("@")[0] || "there";
   const base = source.split(/\s+/)[0] ?? source;
