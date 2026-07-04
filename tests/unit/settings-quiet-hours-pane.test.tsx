@@ -1,3 +1,6 @@
+import { createElement, type ReactElement } from "react";
+import { renderToString } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GetQuietHoursSettingsResponse } from "@jarv1s/shared";
@@ -52,3 +55,35 @@ describe("quiet-hours settings client", () => {
     expect(queryKeys.settings.quietHours).toEqual(["settings", "quiet-hours"]);
   });
 });
+
+describe("GeneralPane quiet-hours controls", () => {
+  it("renders backend quiet-hours values and removes coming-soon copy", async () => {
+    const html = await renderPane((client) => {
+      client.setQueryData(queryKeys.settings.locale, {
+        locale: { timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" }
+      });
+      client.setQueryData(queryKeys.settings.quietHours, quietHours);
+    });
+
+    expect(html).toContain('aria-label="Enable quiet hours"');
+    expect(html).toContain('checked=""');
+    expect(html).toContain('value="22:00"');
+    expect(html).toContain('value="07:00"');
+    expect(html).not.toContain(["Saving quiet hours", " is coming soon"].join(""));
+    expect(html).not.toContain("BACKEND-TODO");
+  });
+});
+
+async function renderPane(seed: (client: QueryClient) => void): Promise<string> {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  seed(client);
+  const { FeedbackProvider } = await import("../../apps/web/src/settings/settings-feedback.js");
+  const { GeneralPane } = await import("../../apps/web/src/settings/settings-personal-data-panes.js");
+  return renderToString(
+    createElement(
+      FeedbackProvider,
+      null,
+      createElement(QueryClientProvider, { client }, createElement(GeneralPane) as ReactElement)
+    )
+  );
+}

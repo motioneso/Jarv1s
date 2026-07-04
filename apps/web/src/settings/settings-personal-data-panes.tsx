@@ -36,8 +36,10 @@ import {
   getLocaleSettings,
   getModules,
   getMyModules,
+  getQuietHoursSettings,
   listConnectorAccounts,
   putLocaleSettings,
+  putQuietHoursSettings,
   revokeConnectorAccount,
   setMyModuleDisabled
 } from "../api/client";
@@ -78,6 +80,7 @@ import { VaultChooser } from "./settings-vault-chooser";
 import {
   type ConnectorAccountDto,
   type LocaleSettingsDto,
+  type QuietHoursSettingsDto,
   type PutNotesSourceRequest
 } from "@jarv1s/shared";
 
@@ -98,6 +101,13 @@ const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
   timezone: "America/Los_Angeles",
   region: "en-US",
   dateFormat: "24"
+};
+
+const DEFAULT_QUIET_HOURS: QuietHoursSettingsDto = {
+  enabled: false,
+  start: "22:00",
+  end: "07:00",
+  timezone: null
 };
 
 function moduleIcon(id: string): LucideIcon {
@@ -801,8 +811,24 @@ function GeneralPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const quietHoursQuery = useQuery({
+    queryKey: queryKeys.settings.quietHours,
+    queryFn: getQuietHoursSettings,
+    retry: false
+  });
+  const quietHours = quietHoursQuery.data?.quietHours ?? DEFAULT_QUIET_HOURS;
+  const quietHoursMutation = useMutation({
+    mutationFn: (next: QuietHoursSettingsDto) => putQuietHoursSettings({ quietHours: next }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.quietHours, data);
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
   const updateLocale = (patch: Partial<LocaleSettingsDto>) => {
     localeMutation.mutate({ ...locale, ...patch });
+  };
+  const updateQuietHours = (patch: Partial<QuietHoursSettingsDto>) => {
+    quietHoursMutation.mutate({ ...quietHours, ...patch });
   };
 
   return (
@@ -867,7 +893,14 @@ function GeneralPane() {
       >
         <Row
           name="Enable quiet hours"
-          control={<Switch ariaLabel="Enable quiet hours" checked onChange={() => undefined} />}
+          control={
+            <Switch
+              ariaLabel="Enable quiet hours"
+              checked={quietHours.enabled}
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(enabled) => updateQuietHours({ enabled })}
+            />
+          }
         />
         <div className="fld">
           <div className="fld__lbl">From / to</div>
@@ -875,23 +908,25 @@ function GeneralPane() {
             <input
               className="jds-input"
               type="time"
-              defaultValue="21:00"
+              value={quietHours.start}
               aria-label="Quiet hours from"
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(event) => updateQuietHours({ start: event.currentTarget.value })}
               style={{ flex: "0 0 130px", minWidth: 0 }}
             />
             <span style={{ color: "var(--text-faint)" }}>→</span>
             <input
               className="jds-input"
               type="time"
-              defaultValue="07:00"
+              value={quietHours.end}
               aria-label="Quiet hours to"
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(event) => updateQuietHours({ end: event.currentTarget.value })}
               style={{ flex: "0 0 130px", minWidth: 0 }}
             />
           </div>
         </div>
       </Group>
-      {/* BACKEND-TODO: persist quiet-hours window. */}
-      <Note>Saving quiet hours is coming soon — these don't persist yet.</Note>
     </>
   );
 }
