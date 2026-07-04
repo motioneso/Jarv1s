@@ -26,9 +26,8 @@ describe("quiet-hours settings client", () => {
       .mockImplementation(() =>
         Promise.resolve(new Response(JSON.stringify(quietHours), { status: 200 }))
       );
-    const { getQuietHoursSettings, putQuietHoursSettings } = await import(
-      "../../apps/web/src/api/client.js"
-    );
+    const { getQuietHoursSettings, putQuietHoursSettings } =
+      await import("../../apps/web/src/api/client.js");
 
     await expect(getQuietHoursSettings()).resolves.toEqual(quietHours);
     await expect(putQuietHoursSettings({ quietHours: quietHours.quietHours })).resolves.toEqual(
@@ -78,7 +77,8 @@ async function renderPane(seed: (client: QueryClient) => void): Promise<string> 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seed(client);
   const { FeedbackProvider } = await import("../../apps/web/src/settings/settings-feedback.js");
-  const { GeneralPane } = await import("../../apps/web/src/settings/settings-personal-data-panes.js");
+  const { GeneralPane } =
+    await import("../../apps/web/src/settings/settings-personal-data-panes.js");
   return renderToString(
     createElement(
       FeedbackProvider,

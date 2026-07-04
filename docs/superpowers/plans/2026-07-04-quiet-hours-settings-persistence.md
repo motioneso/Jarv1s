@@ -28,6 +28,7 @@
 ### Task 1: Client Helpers
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Test: `tests/unit/settings-quiet-hours-pane.test.tsx`
@@ -63,9 +64,8 @@ describe("quiet-hours settings client", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(JSON.stringify(quietHours), { status: 200 }));
-    const { getQuietHoursSettings, putQuietHoursSettings } = await import(
-      "../../apps/web/src/api/client.js"
-    );
+    const { getQuietHoursSettings, putQuietHoursSettings } =
+      await import("../../apps/web/src/api/client.js");
 
     await expect(getQuietHoursSettings()).resolves.toEqual(quietHours);
     await expect(putQuietHoursSettings({ quietHours: quietHours.quietHours })).resolves.toEqual(
@@ -97,7 +97,8 @@ async function renderPane(seed: (client: QueryClient) => void): Promise<string> 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seed(client);
   const { FeedbackProvider } = await import("../../apps/web/src/settings/settings-feedback.js");
-  const { GeneralPane } = await import("../../apps/web/src/settings/settings-personal-data-panes.js");
+  const { GeneralPane } =
+    await import("../../apps/web/src/settings/settings-personal-data-panes.js");
   return renderToString(
     createElement(
       FeedbackProvider,
@@ -173,6 +174,7 @@ git commit -m "feat(settings): add quiet-hours web client"
 ### Task 2: General Pane Persistence Wiring
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-personal-data-panes.tsx`
 - Modify: `tests/unit/settings-quiet-hours-pane.test.tsx`
 
@@ -239,22 +241,22 @@ const DEFAULT_QUIET_HOURS: QuietHoursSettingsDto = {
 Inside `GeneralPane`, after `localeMutation`, add:
 
 ```ts
-  const quietHoursQuery = useQuery({
-    queryKey: queryKeys.settings.quietHours,
-    queryFn: getQuietHoursSettings,
-    retry: false
-  });
-  const quietHours = quietHoursQuery.data?.quietHours ?? DEFAULT_QUIET_HOURS;
-  const quietHoursMutation = useMutation({
-    mutationFn: (next: QuietHoursSettingsDto) => putQuietHoursSettings({ quietHours: next }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.settings.quietHours, data);
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const updateQuietHours = (patch: Partial<QuietHoursSettingsDto>) => {
-    quietHoursMutation.mutate({ ...quietHours, ...patch });
-  };
+const quietHoursQuery = useQuery({
+  queryKey: queryKeys.settings.quietHours,
+  queryFn: getQuietHoursSettings,
+  retry: false
+});
+const quietHours = quietHoursQuery.data?.quietHours ?? DEFAULT_QUIET_HOURS;
+const quietHoursMutation = useMutation({
+  mutationFn: (next: QuietHoursSettingsDto) => putQuietHoursSettings({ quietHours: next }),
+  onSuccess: (data) => {
+    queryClient.setQueryData(queryKeys.settings.quietHours, data);
+  },
+  onError: (error) => toast(readError(error), { tone: "drift" })
+});
+const updateQuietHours = (patch: Partial<QuietHoursSettingsDto>) => {
+  quietHoursMutation.mutate({ ...quietHours, ...patch });
+};
 ```
 
 Replace the quiet-hours `Row` and inputs with controlled values:
@@ -300,8 +302,10 @@ Replace the quiet-hours `Row` and inputs with controlled values:
 Delete:
 
 ```tsx
-      {/* BACKEND-TODO: persist quiet-hours window. */}
-      <Note>Saving quiet hours is coming soon — these don't persist yet.</Note>
+{
+  /* BACKEND-TODO: persist quiet-hours window. */
+}
+<Note>Saving quiet hours is coming soon — these don't persist yet.</Note>;
 ```
 
 - [ ] **Step 4: Run focused tests**
@@ -324,6 +328,7 @@ git commit -m "feat(settings): persist quiet-hours controls"
 ### Task 3: Gate
 
 **Files:**
+
 - No new files unless fixes are required.
 
 - [ ] **Step 1: Run focused quiet-hours search**
