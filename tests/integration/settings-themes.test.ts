@@ -99,6 +99,26 @@ describe("settings theme preferences", () => {
     expect(Object.keys(await readPreference("themes.custom"))).not.toContain("red");
   });
 
+  it("persists the optional gold token when provided", async () => {
+    const put = await putTheme(ids.sessionA, "gold-theme", {
+      name: "Golden",
+      tokens: { ...validThemeTokens, gold: "#c2872b" }
+    });
+
+    expect(put.statusCode).toBe(200);
+    expect(put.json<PutCustomThemeResponse>().theme.tokens.gold).toBe("#c2872b");
+
+    const list = await server.inject({
+      method: "GET",
+      url: "/api/me/themes",
+      headers: userHeaders(ids.sessionA)
+    });
+    const stored = list
+      .json<ListThemesResponse>()
+      .custom.find((theme) => theme.id === "gold-theme");
+    expect(stored?.tokens.gold).toBe("#c2872b");
+  });
+
   it("persists active custom theme per user", async () => {
     await putTheme(ids.sessionA, "my-blue", { name: "My Blue", tokens: validThemeTokens });
     const active = await setActive(ids.sessionA, "my-blue");

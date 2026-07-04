@@ -4,6 +4,7 @@ import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import {
   AESTHETIC_THEME_TOKEN_KEYS,
+  OPTIONAL_AESTHETIC_TOKEN_KEYS,
   deleteCustomThemeRouteSchema,
   listThemesRouteSchema,
   putActiveThemeRouteSchema,
@@ -191,7 +192,7 @@ function hasCompleteTokens(value: unknown): value is AestheticThemeTokens {
 function pickAestheticTokens(value: unknown): AestheticThemeTokens {
   const record = value as Record<string, unknown>;
   return Object.fromEntries(
-    AESTHETIC_THEME_TOKEN_KEYS.flatMap((key) =>
+    [...AESTHETIC_THEME_TOKEN_KEYS, ...OPTIONAL_AESTHETIC_TOKEN_KEYS].flatMap((key) =>
       typeof record[key] === "string" ? [[key, record[key]]] : []
     )
   ) as AestheticThemeTokens;

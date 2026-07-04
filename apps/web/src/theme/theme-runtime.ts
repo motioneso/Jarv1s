@@ -1,4 +1,8 @@
-import { AESTHETIC_THEME_TOKEN_KEYS, type AestheticThemeTokens } from "@jarv1s/shared";
+import {
+  AESTHETIC_THEME_TOKEN_KEYS,
+  type AestheticThemeTokenKey,
+  type AestheticThemeTokens
+} from "@jarv1s/shared";
 
 export interface CSSStyleDeclarationLike {
   setProperty(name: string, value: string): void;
@@ -9,7 +13,8 @@ export interface CSSStyleDeclarationLike {
 const THEME_COLOR_RE =
   /^#[0-9a-fA-F]{6}$|^rgb\((25[0-5]|2[0-4]\d|1?\d?\d),\s*(25[0-5]|2[0-4]\d|1?\d?\d),\s*(25[0-5]|2[0-4]\d|1?\d?\d)\)$/;
 
-const TOKEN_TO_VAR: Record<keyof AestheticThemeTokens, string> = {
+/* Only the required 12 map 1:1 to a var; the optional gold slot derives a ramp below. */
+const TOKEN_TO_VAR: Record<AestheticThemeTokenKey, string> = {
   paper: "--paper",
   surface: "--surface",
   surface2: "--surface-2",
@@ -39,7 +44,12 @@ const CLEARED_RUNTIME_VARS = [
   "--accent-soft-fg",
   "--accent-strong",
   "--btn-primary-bg",
-  "--focus-ring"
+  "--focus-ring",
+  "--gold",
+  "--gold-strong",
+  "--gold-soft",
+  "--gold-soft-2",
+  "--gold-ink"
 ] as const;
 
 export function isThemeColor(value: string): boolean {
@@ -88,6 +98,17 @@ export function applyThemeTokens(
   style.setProperty("--pine-ink", style.getPropertyValue("--accent-soft-fg"));
   style.setProperty("--accent-strong", "var(--accent-hover)");
   style.setProperty("--focus-ring", `color-mix(in srgb, ${tokens.accent} 45%, transparent)`);
+
+  if (tokens.gold) {
+    const gold = parseThemeColor(tokens.gold);
+    if (gold) {
+      style.setProperty("--gold", tokens.gold);
+      style.setProperty("--gold-strong", rgbToHex(mix(gold, { r: 0, g: 0, b: 0 }, 0.18)));
+      style.setProperty("--gold-soft", rgbToHex(mix(gold, { r: 255, g: 255, b: 255 }, 0.82)));
+      style.setProperty("--gold-soft-2", rgbToHex(mix(gold, { r: 255, g: 255, b: 255 }, 0.72)));
+      style.setProperty("--gold-ink", rgbToHex(mix(gold, { r: 0, g: 0, b: 0 }, 0.45)));
+    }
+  }
 }
 
 export function readCurrentAestheticTokens(style: CSSStyleDeclarationLike): AestheticThemeTokens {
