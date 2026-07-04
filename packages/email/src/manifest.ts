@@ -159,7 +159,10 @@ export const emailModuleManifest = {
   assistantTools: [
     {
       name: "email.listVisibleMessages",
-      description: "List cached email messages owned by or shared with the active actor.",
+      description:
+        "List the actor's recent email, read live from each connected account with triage " +
+        "(actionability, importance) attached; falls back to cache only on transient provider " +
+        "failures, with source and gap metadata.",
       permissionId: "email.view",
       risk: "read",
       inputSchema: {
@@ -169,11 +172,27 @@ export const emailModuleManifest = {
       outputSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["messages"],
+        required: ["messages", "accounts", "gaps"],
         properties: {
           messages: {
             type: "array",
             items: emailToolMessageOutputSchema
+          },
+          accounts: {
+            type: "array",
+            items: {
+              type: "object",
+              description: "Per-account read outcome: source live|cache and any degradedReason"
+            }
+          },
+          gaps: {
+            type: "array",
+            items: {
+              type: "object",
+              description:
+                "Accounts that could not be read at all (auth_error, connector_revoked, " +
+                "feature_grant_disabled, unsupported_provider, service_unavailable)"
+            }
           }
         }
       },
