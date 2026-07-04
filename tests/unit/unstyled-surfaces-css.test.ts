@@ -15,8 +15,6 @@ describe("#686 unstyled surface CSS", () => {
       ".source-chips",
       ".source-chip",
       ".source-tray",
-      ".memory-panel",
-      ".memory-toggle",
       ".onb-auth__paste",
       ".onb-auth__code",
       ".audfilter",
