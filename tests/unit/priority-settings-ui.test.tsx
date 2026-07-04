@@ -19,4 +19,30 @@ describe("PrioritySettings", () => {
     expect(html).toContain("pane__card");
     expect(html).not.toContain('class="loading"');
   });
+
+  it("labels unwired muted sources as having no effect yet", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["priority-model"], {
+      version: 1,
+      mode: "balanced",
+      anchors: [],
+      mutedSources: [],
+      updatedAt: "2026-07-01T00:00:00Z"
+    });
+
+    const html = renderToString(
+      <QueryClientProvider client={queryClient}>
+        <PrioritySettings />
+      </QueryClientProvider>
+    );
+
+    expect(html).toContain("Exclude this source from priority ranking.");
+    expect(html).toContain("Nothing feeds this source into ranking yet, so muting has no effect.");
+    // Wired sources keep the active copy; the two unwired ones get the explainer.
+    const activeCopy = html.split("Exclude this source from priority ranking.").length - 1;
+    const unwiredCopy =
+      html.split("Nothing feeds this source into ranking yet, so muting has no effect.").length - 1;
+    expect(activeCopy).toBe(4);
+    expect(unwiredCopy).toBe(2);
+  });
 });
