@@ -9,7 +9,12 @@ import type { CalendarSignalSettings, EmailSignalSettings } from "./signals.js";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
-import { normalizePersonaSettings, renderPersonaText } from "@jarv1s/shared";
+import {
+  DEFAULT_CALENDAR_OFF_MODE,
+  parseCalendarAutomationMode,
+  normalizePersonaSettings,
+  renderPersonaText
+} from "@jarv1s/shared";
 
 export type GenerateChatFn = (input: GenerateChatInput) => Promise<{ readonly text: string }>;
 
@@ -57,6 +62,24 @@ export interface ComposeDeps {
   readonly sourceContextService?: {
     listEmailContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
     listCalendarContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
+  };
+  readonly calendarFollowThrough?: {
+    executeAutoActions(args: {
+      readonly scopedDb: DataContextDb;
+      readonly actorUserId: string;
+      readonly requestId: string;
+      readonly targetRef: string;
+      readonly signal: {
+        readonly summary: string;
+        readonly suggestedActions: readonly string[];
+        readonly startsAt?: string;
+        readonly endsAt?: string;
+      };
+    }): Promise<{
+      readonly targetRef: string;
+      readonly taskId?: string;
+      readonly calendarEventId?: string;
+    }>;
   };
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
@@ -199,20 +222,34 @@ export async function readCalendarSignalSettings(
   scopedDb: DataContextDb,
   deps: ComposeDeps
 ): Promise<CalendarSignalSettings> {
-  const [lookaheadDays, suggestTasks, createTasks, suggestTimeBlocks, blockTime] =
-    await Promise.all([
-      readPreference(scopedDb, deps, "calendar.briefing_lookahead_days"),
-      readPreference(scopedDb, deps, "calendar.signal_suggest_tasks"),
-      readPreference(scopedDb, deps, "calendar.signal_create_tasks"),
-      readPreference(scopedDb, deps, "calendar.signal_suggest_time_blocks"),
-      readPreference(scopedDb, deps, "calendar.signal_block_time")
-    ]);
+  const [
+    lookaheadDays,
+    suggestTasks,
+    createTasks,
+    suggestTimeBlocks,
+    blockTime,
+    storedPrepTaskMode,
+    storedTimeBlockMode,
+    storedCommitmentMode
+  ] = await Promise.all([
+    readPreference(scopedDb, deps, "calendar.briefing_lookahead_days"),
+    readPreference(scopedDb, deps, "calendar.signal_suggest_tasks"),
+    readPreference(scopedDb, deps, "calendar.signal_create_tasks"),
+    readPreference(scopedDb, deps, "calendar.signal_suggest_time_blocks"),
+    readPreference(scopedDb, deps, "calendar.signal_block_time"),
+    readPreference(scopedDb, deps, "calendar.prep_task_mode"),
+    readPreference(scopedDb, deps, "calendar.time_block_mode"),
+    readPreference(scopedDb, deps, "calendar.commitment_mode")
+  ]);
+  const legacyPrepTaskMode =
+    createTasks === true ? "auto" : suggestTasks === false ? "off" : "suggest";
+  const legacyTimeBlockMode =
+    blockTime === true ? "auto" : suggestTimeBlocks === false ? "off" : "suggest";
   return {
     lookaheadDays: intPreference(lookaheadDays, 2),
-    suggestTasks: boolPreference(suggestTasks, true),
-    createTasks: boolPreference(createTasks, false),
-    suggestTimeBlocks: boolPreference(suggestTimeBlocks, true),
-    blockTime: boolPreference(blockTime, false)
+    prepTaskMode: parseCalendarAutomationMode(storedPrepTaskMode, legacyPrepTaskMode),
+    timeBlockMode: parseCalendarAutomationMode(storedTimeBlockMode, legacyTimeBlockMode),
+    commitmentMode: parseCalendarAutomationMode(storedCommitmentMode, DEFAULT_CALENDAR_OFF_MODE)
   };
 }
 

@@ -1,17 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Group, Note, PaneHead, Row, Switch } from "@jarv1s/settings-ui";
+import { Group, Note, PaneHead, Row, Select, Switch } from "@jarv1s/settings-ui";
 import type {
+  AiActionPolicyTier,
+  CalendarAutomationMode,
   GetCalendarBriefingSettingsResponse,
+  GetAiActionPoliciesResponse,
   ListSourceBehaviorsResponse,
+  PatchAiActionPolicyResponse,
   PutSourceBehaviorResponse,
   UpdateCalendarBriefingSettingsRequest,
   UpdateCalendarBriefingSettingsResponse
 } from "@jarv1s/shared";
 
 const CALENDAR_BEHAVIOR_ID = "calendar.briefings";
+const CALENDAR_MODULE_ID = "calendar";
+const CALENDAR_WRITEBACK_FAMILY_ID = "calendar_writeback";
 const SOURCE_BEHAVIORS_KEY = ["settings", "source-behaviors"] as const;
 const CALENDAR_SETTINGS_KEY = ["calendar", "briefing-settings"] as const;
+const ACTION_POLICY_KEY = ["ai", "action-policy"] as const;
+
+export const CALENDAR_MODE_OPTIONS: ReadonlyArray<{
+  readonly value: CalendarAutomationMode;
+  readonly label: string;
+  readonly desc: string;
+}> = [
+  { value: "off", label: "Off", desc: "Do not create suggestions or actions." },
+  { value: "suggest", label: "Suggest", desc: "Show a governed suggestion for review." },
+  { value: "auto", label: "Auto", desc: "Run the scoped action without asking again." }
+];
 
 async function requestJson<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
   const headers = new Headers(init?.headers);
@@ -49,6 +66,17 @@ function patchCalendarSettings(body: UpdateCalendarBriefingSettingsRequest) {
   });
 }
 
+function getActionPolicies() {
+  return requestJson<GetAiActionPoliciesResponse>("/api/ai/action-policy");
+}
+
+function patchWritebackPolicy(tier: AiActionPolicyTier) {
+  return requestJson<PatchAiActionPolicyResponse>(
+    `/api/ai/action-policy/${encodeURIComponent(CALENDAR_MODULE_ID)}/${encodeURIComponent(CALENDAR_WRITEBACK_FAMILY_ID)}`,
+    { method: "PATCH", body: { tier } }
+  );
+}
+
 export default function CalendarSettings() {
   const queryClient = useQueryClient();
   const sourceBehaviors = useQuery({ queryKey: SOURCE_BEHAVIORS_KEY, queryFn: getSourceBehaviors });
@@ -64,17 +92,38 @@ export default function CalendarSettings() {
     mutationFn: patchCalendarSettings,
     onSuccess: (data) => queryClient.setQueryData(CALENDAR_SETTINGS_KEY, data)
   });
+  const policiesQuery = useQuery({ queryKey: ACTION_POLICY_KEY, queryFn: getActionPolicies });
+  const writebackPolicyMutation = useMutation({
+    mutationFn: patchWritebackPolicy,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ACTION_POLICY_KEY })
+  });
 
   const behaviorEnabled =
     sourceBehaviors.data?.sources
       .flatMap((source) => source.behaviors)
       .find((behavior) => behavior.id === CALENDAR_BEHAVIOR_ID)?.enabled ?? true;
   const settings = (settingsMutation.data ?? settingsQuery.data)?.settings;
+  const prepTaskMode = settings?.prepTaskMode ?? "suggest";
+  const timeBlockMode = settings?.timeBlockMode ?? "suggest";
+  const commitmentMode = settings?.commitmentMode ?? "off";
+  const prepTaskModeOption = CALENDAR_MODE_OPTIONS.find((option) => option.value === prepTaskMode);
+  const timeBlockModeOption = CALENDAR_MODE_OPTIONS.find(
+    (option) => option.value === timeBlockMode
+  );
+  const commitmentModeOption = CALENDAR_MODE_OPTIONS.find(
+    (option) => option.value === commitmentMode
+  );
   const disabled =
     sourceBehaviors.isLoading ||
     settingsQuery.isLoading ||
     behaviorMutation.isPending ||
     settingsMutation.isPending;
+  const writebackPolicyDisabled = policiesQuery.isLoading || writebackPolicyMutation.isPending;
+
+  function updateTimeBlockMode(mode: CalendarAutomationMode) {
+    settingsMutation.mutate({ timeBlockMode: mode });
+    writebackPolicyMutation.mutate(mode === "auto" ? "trusted_auto" : "ask_each_time");
+  }
 
   return (
     <>
@@ -110,58 +159,76 @@ export default function CalendarSettings() {
       </Group>
       <Group title="Follow-through">
         <Row
-          name="Suggest prep tasks"
-          desc="Allow the briefing to recommend a task when a meeting likely needs prep."
+          name="Prep tasks"
+          desc={prepTaskModeOption?.desc ?? "How meeting prep becomes tasks."}
           control={
-            <Switch
-              ariaLabel="Suggest prep tasks"
-              checked={settings?.suggestTasks ?? true}
+            <Select
+              aria-label="Prep tasks"
+              value={prepTaskMode}
               disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ suggestTasks: value })}
-            />
+              onChange={(event) =>
+                settingsMutation.mutate({
+                  prepTaskMode: event.currentTarget.value as CalendarAutomationMode
+                })
+              }
+            >
+              {CALENDAR_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           }
         />
         <Row
-          name="Create prep tasks automatically"
-          desc="Only affects the normal action loop; briefings still do not bypass approval policy."
+          name="Time blocks"
+          desc={timeBlockModeOption?.desc ?? "How calendar signals become time blocks."}
           control={
-            <Switch
-              ariaLabel="Create prep tasks automatically"
-              checked={settings?.createTasks ?? false}
-              disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ createTasks: value })}
-            />
+            <Select
+              aria-label="Time blocks"
+              value={timeBlockMode}
+              disabled={disabled || writebackPolicyDisabled}
+              onChange={(event) =>
+                updateTimeBlockMode(event.currentTarget.value as CalendarAutomationMode)
+              }
+            >
+              {CALENDAR_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           }
         />
         <Row
-          name="Suggest time blocks"
-          desc="Allow the briefing to recommend buffer or work blocks when the schedule is tight."
+          name="Commitment detection"
+          desc={commitmentModeOption?.desc ?? "How meeting commitments become tracked commitments."}
           control={
-            <Switch
-              ariaLabel="Suggest time blocks"
-              checked={settings?.suggestTimeBlocks ?? true}
+            <Select
+              aria-label="Commitment detection"
+              value={commitmentMode}
               disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ suggestTimeBlocks: value })}
-            />
-          }
-        />
-        <Row
-          name="Block time automatically"
-          desc="Still routes through the normal calendar action policy; this does not create a briefing bypass."
-          control={
-            <Switch
-              ariaLabel="Block time automatically"
-              checked={settings?.blockTime ?? false}
-              disabled={disabled}
-              onChange={(value) => settingsMutation.mutate({ blockTime: value })}
-            />
+              onChange={(event) =>
+                settingsMutation.mutate({
+                  commitmentMode: event.currentTarget.value as CalendarAutomationMode
+                })
+              }
+            >
+              {CALENDAR_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           }
         />
       </Group>
       {sourceBehaviors.isError ||
       settingsQuery.isError ||
       behaviorMutation.isError ||
-      settingsMutation.isError ? (
+      settingsMutation.isError ||
+      policiesQuery.isError ||
+      writebackPolicyMutation.isError ? (
         <Note>Could not save calendar briefing settings. Try again.</Note>
       ) : null}
     </>

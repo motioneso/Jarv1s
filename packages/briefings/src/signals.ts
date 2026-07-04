@@ -1,3 +1,5 @@
+import type { CalendarAutomationMode } from "@jarv1s/shared";
+
 export interface CalendarBriefingSignal {
   readonly type:
     | "prep_needed"
@@ -12,6 +14,11 @@ export interface CalendarBriefingSignal {
   readonly endsAt?: string;
   readonly relevanceReasons: readonly string[];
   readonly suggestedActions: readonly string[];
+  readonly followThrough?: {
+    readonly targetRef: string;
+    readonly taskId?: string;
+    readonly calendarEventId?: string;
+  };
 }
 
 export interface EmailBriefingSignal {
@@ -32,10 +39,9 @@ export interface EmailBriefingSignal {
 
 export interface CalendarSignalSettings {
   readonly lookaheadDays: 0 | 1 | 2;
-  readonly suggestTasks: boolean;
-  readonly createTasks: boolean;
-  readonly suggestTimeBlocks: boolean;
-  readonly blockTime: boolean;
+  readonly prepTaskMode: CalendarAutomationMode;
+  readonly timeBlockMode: CalendarAutomationMode;
+  readonly commitmentMode: CalendarAutomationMode;
 }
 
 export interface EmailSignalSettings {
@@ -442,21 +448,27 @@ function deriveCalendarSuggestedActions(
   settings: CalendarSignalSettings
 ): string[] {
   const actions: string[] = [];
-  if ((type === "prep_needed" || type === "high_stakes_meeting") && settings.suggestTasks) {
+  if (
+    (type === "prep_needed" || type === "high_stakes_meeting") &&
+    settings.prepTaskMode === "suggest"
+  ) {
     actions.push("suggest_task");
   }
-  if (type === "prep_needed" && settings.createTasks) {
+  if (type === "prep_needed" && settings.prepTaskMode === "auto") {
     actions.push("create_task");
   }
   if (
     (type === "travel_transition_pressure" ||
       type === "usable_open_gap" ||
       type === "schedule_density_overload") &&
-    settings.suggestTimeBlocks
+    settings.timeBlockMode === "suggest"
   ) {
     actions.push("suggest_time_block");
   }
-  if ((type === "prep_needed" || type === "travel_transition_pressure") && settings.blockTime) {
+  if (
+    (type === "prep_needed" || type === "travel_transition_pressure") &&
+    settings.timeBlockMode === "auto"
+  ) {
     actions.push("block_time");
   }
   return actions;

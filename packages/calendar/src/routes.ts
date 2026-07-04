@@ -3,9 +3,11 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { handleRouteError } from "@jarv1s/module-sdk";
 import type { AccessContext, DataContextRunner, PreferencesPort } from "@jarv1s/db";
 import {
+  DEFAULT_CALENDAR_OFF_MODE,
   getCalendarBriefingSettingsRouteSchema,
   getCalendarEventRouteSchema,
   listCalendarEventsRouteSchema,
+  parseCalendarAutomationMode,
   type UpdateCalendarBriefingSettingsRequest,
   updateCalendarBriefingSettingsRouteSchema
 } from "@jarv1s/shared";
@@ -19,6 +21,9 @@ const CALENDAR_SIGNAL_SUGGEST_TASKS_KEY = "calendar.signal_suggest_tasks";
 const CALENDAR_SIGNAL_CREATE_TASKS_KEY = "calendar.signal_create_tasks";
 const CALENDAR_SIGNAL_SUGGEST_TIME_BLOCKS_KEY = "calendar.signal_suggest_time_blocks";
 const CALENDAR_SIGNAL_BLOCK_TIME_KEY = "calendar.signal_block_time";
+const CALENDAR_PREP_TASK_MODE_KEY = "calendar.prep_task_mode";
+const CALENDAR_TIME_BLOCK_MODE_KEY = "calendar.time_block_mode";
+const CALENDAR_COMMITMENT_MODE_KEY = "calendar.commitment_mode";
 
 export interface CalendarRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -138,6 +143,27 @@ export function registerCalendarRoutes(
                 body.blockTime
               );
             }
+            if (body.prepTaskMode !== undefined) {
+              await preferencesRepository.upsert(
+                scopedDb,
+                CALENDAR_PREP_TASK_MODE_KEY,
+                body.prepTaskMode
+              );
+            }
+            if (body.timeBlockMode !== undefined) {
+              await preferencesRepository.upsert(
+                scopedDb,
+                CALENDAR_TIME_BLOCK_MODE_KEY,
+                body.timeBlockMode
+              );
+            }
+            if (body.commitmentMode !== undefined) {
+              await preferencesRepository.upsert(
+                scopedDb,
+                CALENDAR_COMMITMENT_MODE_KEY,
+                body.commitmentMode
+              );
+            }
             return readCalendarBriefingSettings(scopedDb, preferencesRepository);
           }
         );
@@ -153,21 +179,45 @@ async function readCalendarBriefingSettings(
   scopedDb: Parameters<PreferencesPort["get"]>[0],
   preferencesRepository: PreferencesPort
 ) {
-  const [lookaheadDays, suggestTasks, createTasks, suggestTimeBlocks, blockTime] =
-    await Promise.all([
-      preferencesRepository.get(scopedDb, CALENDAR_BRIEFING_LOOKAHEAD_KEY),
-      preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_SUGGEST_TASKS_KEY),
-      preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_CREATE_TASKS_KEY),
-      preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_SUGGEST_TIME_BLOCKS_KEY),
-      preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_BLOCK_TIME_KEY)
-    ]);
+  const [
+    lookaheadDays,
+    suggestTasks,
+    createTasks,
+    suggestTimeBlocks,
+    blockTime,
+    storedPrepTaskMode,
+    storedTimeBlockMode,
+    storedCommitmentMode
+  ] = await Promise.all([
+    preferencesRepository.get(scopedDb, CALENDAR_BRIEFING_LOOKAHEAD_KEY),
+    preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_SUGGEST_TASKS_KEY),
+    preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_CREATE_TASKS_KEY),
+    preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_SUGGEST_TIME_BLOCKS_KEY),
+    preferencesRepository.get(scopedDb, CALENDAR_SIGNAL_BLOCK_TIME_KEY),
+    preferencesRepository.get(scopedDb, CALENDAR_PREP_TASK_MODE_KEY),
+    preferencesRepository.get(scopedDb, CALENDAR_TIME_BLOCK_MODE_KEY),
+    preferencesRepository.get(scopedDb, CALENDAR_COMMITMENT_MODE_KEY)
+  ]);
+  const legacyPrepTaskMode =
+    createTasks === true ? "auto" : suggestTasks === false ? "off" : "suggest";
+  const legacyTimeBlockMode =
+    blockTime === true ? "auto" : suggestTimeBlocks === false ? "off" : "suggest";
+  const prepTaskMode = parseCalendarAutomationMode(storedPrepTaskMode, legacyPrepTaskMode);
+  const timeBlockMode = parseCalendarAutomationMode(storedTimeBlockMode, legacyTimeBlockMode);
+  const commitmentMode = parseCalendarAutomationMode(
+    storedCommitmentMode,
+    DEFAULT_CALENDAR_OFF_MODE
+  );
 
   return {
     lookaheadDays:
       lookaheadDays === 0 || lookaheadDays === 1 || lookaheadDays === 2 ? lookaheadDays : 2,
-    suggestTasks: suggestTasks === false ? false : true,
-    createTasks: createTasks === true,
-    suggestTimeBlocks: suggestTimeBlocks === false ? false : true,
-    blockTime: blockTime === true
+    prepTaskMode,
+    timeBlockMode,
+    commitmentMode,
+    suggestTasks: prepTaskMode !== "off",
+    createTasks: prepTaskMode === "auto",
+    suggestTimeBlocks: timeBlockMode !== "off",
+    blockTime: timeBlockMode === "auto"
   } as const;
 }

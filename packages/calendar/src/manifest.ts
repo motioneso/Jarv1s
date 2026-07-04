@@ -157,6 +157,13 @@ export const calendarModuleManifest = {
   ],
   assistantActionFamilies: [
     {
+      id: "calendar_writeback",
+      label: "Calendar writeback",
+      description: "Create Calendar-owned Jarvis blocks on the user's calendar.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto"]
+    },
+    {
       id: "calendar_management",
       label: "Delete calendar events",
       description: "Let Jarvis delete events from your calendar. Always asks first.",
@@ -199,6 +206,8 @@ export const calendarModuleManifest = {
         "Propose and (on approval) create a focus-time block on the user's primary Google Calendar, conflict-checked live against their availability.",
       permissionId: "calendar.manage",
       risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "calendar_writeback",
       requiresServices: ["calendarWrite"],
       // NOTE: the gateway's validateToolInput (input-validation.ts) enforces only type + enum +
       // required (NOT format/pattern/minimum/maximum/additionalProperties — see its docstring and
