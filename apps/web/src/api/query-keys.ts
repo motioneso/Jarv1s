@@ -25,6 +25,7 @@ export const queryKeys = {
     adminYolo: ["settings", "admin", "yolo"] as const,
     hostDiagnostics: ["settings", "host-diagnostics"] as const,
     notesSource: ["settings", "notes-source"] as const,
+    quietHours: ["settings", "quiet-hours"] as const,
     notesSourceDirectories: (path: string | null) =>
       ["settings", "notes-source", "directories", path] as const,
     notesLastSync: ["settings", "notes-last-sync"] as const

@@ -21,6 +21,7 @@ import type {
   PutYoloUserRequest,
   DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
+  GetQuietHoursSettingsResponse,
   GetAiSummaryResponse,
   ListMySessionsResponse,
   RevokeMyOtherSessionsResponse,
@@ -33,6 +34,8 @@ import type {
   PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
+  PutQuietHoursSettingsRequest,
+  PutQuietHoursSettingsResponse,
   PutPersonaSettingsRequest,
   PutPersonaSettingsResponse,
   PutSourceBehaviorRequest,
@@ -197,6 +200,19 @@ export async function putLocaleSettings(
   body: PutLocaleSettingsRequest
 ): Promise<PutLocaleSettingsResponse> {
   return requestJson<PutLocaleSettingsResponse>("/api/me/locale", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function getQuietHoursSettings(): Promise<GetQuietHoursSettingsResponse> {
+  return requestJson<GetQuietHoursSettingsResponse>("/api/me/quiet-hours");
+}
+
+export async function putQuietHoursSettings(
+  body: PutQuietHoursSettingsRequest
+): Promise<PutQuietHoursSettingsResponse> {
+  return requestJson<PutQuietHoursSettingsResponse>("/api/me/quiet-hours", {
     method: "PUT",
     body
   });
