@@ -9,7 +9,7 @@ import type { Kysely } from "kysely";
 import type { JarvisDatabase } from "@jarv1s/db";
 
 import { resetFoundationDatabase, ids } from "../../../../tests/integration/test-database.js";
-import { PeopleNotesService } from "../notes-service.js";
+import { CanonicalNoteNotFoundError, PeopleNotesService } from "../notes-service.js";
 import { PeopleRepository } from "../repository.js";
 
 const connectionStrings = getJarvisDatabaseUrls();
@@ -295,5 +295,32 @@ body
         expect(person.status).toBe("archived");
       }
     );
+  });
+
+  it("throws CanonicalNoteNotFoundError when updating a person with no canonical note", async () => {
+    const service = new PeopleNotesService();
+    const repo = new PeopleRepository();
+    let personId = "";
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "settings-no-note" },
+      async (sdb) => {
+        await service.putSettings(sdb, ids.userA, { folder: "PeopleNoNote" });
+        const person = await repo.upsertPerson(sdb, {
+          ownerUserId: ids.userA,
+          displayName: "No Note Person",
+          confidence: 0.8
+        });
+        personId = person.id;
+      }
+    );
+
+    await withUserVault(async (vaultCtx) => {
+      await expect(
+        runner.withDataContext({ actorUserId: ids.userA, requestId: "update-no-note" }, (sdb) =>
+          service.updatePersonNote(sdb, vaultCtx, ids.userA, personId, { displayName: "X" })
+        )
+      ).rejects.toThrow(CanonicalNoteNotFoundError);
+    });
   });
 });

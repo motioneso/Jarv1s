@@ -5,7 +5,7 @@ import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import type { VaultContextRunner } from "@jarv1s/vault";
 import { PeopleRepository } from "./repository.js";
 import { PersonContextService } from "./service.js";
-import { PeopleNotesService } from "./notes-service.js";
+import { CanonicalNoteNotFoundError, PeopleNotesService } from "./notes-service.js";
 import { enqueuePersonIndexBatch } from "./jobs.js";
 import type { PersonSourceKind } from "./types.js";
 
@@ -264,10 +264,14 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
       return deps.dataContext.withDataContext(ac, async (sdb) => {
         const settings = await notesService.getSettings(sdb, ac.actorUserId);
         if (settings.folder && deps.vaultRunner) {
-          const result = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
-            notesService.updatePersonNote(sdb, vaultCtx, ac.actorUserId, id, updates)
-          );
-          return { person: result.person, notePath: result.notePath };
+          try {
+            const result = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+              notesService.updatePersonNote(sdb, vaultCtx, ac.actorUserId, id, updates)
+            );
+            return { person: result.person, notePath: result.notePath };
+          } catch (err) {
+            if (!(err instanceof CanonicalNoteNotFoundError)) throw err;
+          }
         }
         const person = await repo.updatePerson(sdb, ac.actorUserId, id, updates);
         return { person };
@@ -285,10 +289,14 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
       return deps.dataContext.withDataContext(ac, async (sdb) => {
         const settings = await notesService.getSettings(sdb, ac.actorUserId);
         if (settings.folder && deps.vaultRunner) {
-          const result = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
-            notesService.archivePersonNote(sdb, vaultCtx, ac.actorUserId, id)
-          );
-          return { archived: true, person: result.person, notePath: result.notePath };
+          try {
+            const result = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+              notesService.archivePersonNote(sdb, vaultCtx, ac.actorUserId, id)
+            );
+            return { archived: true, person: result.person, notePath: result.notePath };
+          } catch (err) {
+            if (!(err instanceof CanonicalNoteNotFoundError)) throw err;
+          }
         }
         await repo.archivePerson(sdb, ac.actorUserId, id);
         return { archived: true };

@@ -111,6 +111,54 @@ describe("People note write routes", () => {
 
     await app.close();
   });
+
+  it("falls back to DB-only update/archive when person has no canonical note", async () => {
+    const app = buildApp();
+    await app.ready();
+
+    await app.inject({
+      method: "PUT",
+      url: "/api/people/notes-settings",
+      payload: { folder: "PeopleNoNoteRoute" }
+    });
+
+    const repo = new PeopleRepository();
+    let personId = "";
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "no-note-setup" },
+      async (sdb) => {
+        const person = await repo.upsertPerson(sdb, {
+          ownerUserId: ids.userA,
+          displayName: "Projected Person",
+          confidence: 0.8
+        });
+        personId = person.id;
+      }
+    );
+
+    const patched = await app.inject({
+      method: "PATCH",
+      url: `/api/people/${personId}`,
+      payload: { displayName: "Projected Person Edited" }
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(JSON.parse(patched.body).person.displayName).toBe("Projected Person Edited");
+
+    const archived = await app.inject({ method: "POST", url: `/api/people/${personId}/archive` });
+    expect(archived.statusCode).toBe(200);
+    expect(JSON.parse(archived.body)).toEqual({ archived: true });
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "no-note-assert" },
+      async (sdb) => {
+        const person = await repo.getPerson(sdb, ids.userA, personId);
+        expect(person.displayName).toBe("Projected Person Edited");
+        expect(person.status).toBe("archived");
+      }
+    );
+
+    await app.close();
+  });
 });
 
 describe("GET /api/people", () => {

@@ -22,6 +22,13 @@ import type {
 
 export const PEOPLE_NOTES_FOLDER_PREFERENCE_KEY = "people-notes-folder";
 
+export class CanonicalNoteNotFoundError extends Error {
+  constructor(personId: string) {
+    super(`Canonical People note not found for person ${personId}`);
+    this.name = "CanonicalNoteNotFoundError";
+  }
+}
+
 export interface PeopleNotesServiceDeps {
   readonly preferencesRepository?: PreferencesRepository;
   readonly peopleRepository?: PeopleRepository;
@@ -254,9 +261,17 @@ export class PeopleNotesService {
     vaultCtx: VaultContext,
     folder: string
   ): Promise<LoadedPeopleNote[]> {
-    const paths = (await listVaultFilesRecursive(vaultCtx, folder)).filter((path) =>
-      path.endsWith(".md")
-    );
+    let allPaths: string[];
+    try {
+      allPaths = await listVaultFilesRecursive(vaultCtx, folder);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+        allPaths = [];
+      } else {
+        throw error;
+      }
+    }
+    const paths = allPaths.filter((path) => path.endsWith(".md"));
     const notes: LoadedPeopleNote[] = [];
     for (const path of paths) {
       const content = await readVaultFile(vaultCtx, path);
@@ -277,7 +292,7 @@ export class PeopleNotesService {
     const matches = (await this.loadPeopleNotes(vaultCtx, folder)).filter(
       (note) => note.parsed.frontmatter.jarvisPersonId === personId
     );
-    if (matches.length !== 1) throw new Error("Canonical People note not found");
+    if (matches.length !== 1) throw new CanonicalNoteNotFoundError(personId);
     return matches[0]!;
   }
 
