@@ -48,6 +48,7 @@ import {
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory
 } from "@jarv1s/structured-state";
+import { isBehaviorEnabled, type SourceBehaviorPreferencesPort } from "@jarv1s/source-behaviors";
 import {
   BRIEFINGS_QUEUE_DEFINITIONS,
   BriefingsRepository,
@@ -385,6 +386,18 @@ export interface BuiltInModuleRegistration {
 
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
 const PROACTIVE_CHECK_CRON = "*/30 * * * *";
+export const PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID = "people.notes.suggest-updates";
+
+export function isPeopleNotesSuggestUpdatesEnabled(
+  scopedDb: DataContextDb,
+  preferencesRepository: SourceBehaviorPreferencesPort = new PreferencesRepository()
+): Promise<boolean> {
+  return isBehaviorEnabled(
+    scopedDb,
+    { manifests: getBuiltInModuleManifests(), preferencesRepository },
+    PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID
+  );
+}
 
 function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveScheduleFn {
   return async (actorUserId, pref) => {
@@ -829,9 +842,12 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           const vaultRunner = new VaultContextRunner(getVaultBaseDir());
           const peopleNotes = new PeopleNotesService();
           await vaultRunner.withVaultContext(accessContext, (vaultCtx) =>
-            deps.dataContext.withDataContext(accessContext, (scopedDb) =>
-              peopleNotes.refreshFromFolder(scopedDb, vaultCtx, actorUserId)
-            )
+            deps.dataContext.withDataContext(accessContext, async (scopedDb) => {
+              if (!(await isPeopleNotesSuggestUpdatesEnabled(scopedDb))) {
+                return { projected: 0, candidates: 0 };
+              }
+              return peopleNotes.refreshFromFolder(scopedDb, vaultCtx, actorUserId);
+            })
           );
         }
       })

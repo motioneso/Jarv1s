@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
 import { readVaultFile, VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
 import type { Kysely } from "kysely";
@@ -29,6 +29,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await db?.destroy();
   if (vaultRoot) await rm(vaultRoot, { recursive: true, force: true });
+});
+
+beforeEach(async () => {
+  await resetFoundationDatabase();
 });
 
 async function withUserVault<T>(work: Parameters<VaultContextRunner["withVaultContext"]>[1]) {
@@ -120,6 +124,88 @@ body
       expect(result.projected).toBe(0);
       expect(result.candidates).toBe(1);
     });
+  });
+
+  it("counts and records review candidates for notes missing jarvisPersonId", async () => {
+    const service = new PeopleNotesService();
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "settings-missing-id" },
+      async (sdb) => {
+        await service.putSettings(sdb, ids.userA, { folder: "PeopleMissingId" });
+      }
+    );
+
+    await withUserVault(async (vaultCtx) => {
+      await writeVaultFile(
+        vaultCtx,
+        "PeopleMissingId/No-Id.md",
+        `---
+displayName: Missing Id
+aliases: []
+emails: []
+phones: []
+status: active
+---
+body
+`
+      );
+
+      const result = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "refresh-missing-id" },
+        (sdb) => service.refreshFromFolder(sdb, vaultCtx, ids.userA)
+      );
+
+      expect(result.projected).toBe(0);
+      expect(result.candidates).toBe(1);
+    });
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "assert-missing-id" },
+      async (sdb) => {
+        const candidates = await new PeopleRepository().listMatchCandidates(sdb, ids.userA);
+        expect(candidates).toHaveLength(1);
+        expect(candidates[0]?.reasonSummary).toBe("People note missing jarvisPersonId");
+      }
+    );
+  });
+
+  it("creates review candidates for existing people without canonical notes", async () => {
+    const service = new PeopleNotesService();
+    const repo = new PeopleRepository();
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "settings-missing-note" },
+      async (sdb) => {
+        await service.putSettings(sdb, ids.userA, { folder: "PeopleMissingNote" });
+        await repo.upsertPerson(sdb, {
+          ownerUserId: ids.userA,
+          displayName: "Structured Only",
+          confidence: 0.8
+        });
+      }
+    );
+
+    await withUserVault(async (vaultCtx) => {
+      await writeVaultFile(vaultCtx, "PeopleMissingNote/README.txt", "configured folder");
+
+      const result = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "refresh-missing-note" },
+        (sdb) => service.refreshFromFolder(sdb, vaultCtx, ids.userA)
+      );
+
+      expect(result.projected).toBe(0);
+      expect(result.candidates).toBe(1);
+    });
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "assert-missing-note" },
+      async (sdb) => {
+        const candidates = await repo.listMatchCandidates(sdb, ids.userA);
+        expect(candidates).toHaveLength(1);
+        expect(candidates[0]?.reasonSummary).toBe("Existing People record missing canonical note");
+      }
+    );
   });
 
   it("writes notes first and preserves human body on edit", async () => {

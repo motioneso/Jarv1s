@@ -124,6 +124,7 @@ export class PeopleNotesService {
 
     const notes = await this.loadPeopleNotes(vaultCtx, folder);
     const byPersonId = new Map<string, LoadedPeopleNote[]>();
+    let candidates = 0;
     for (const note of notes) {
       const personId = note.parsed.frontmatter.jarvisPersonId;
       if (!personId) {
@@ -133,13 +134,13 @@ export class PeopleNotesService {
           "People note missing jarvisPersonId",
           [note.path]
         );
+        candidates += 1;
         continue;
       }
       byPersonId.set(personId, [...(byPersonId.get(personId) ?? []), note]);
     }
 
     let projected = 0;
-    let candidates = 0;
     for (const [personId, matches] of byPersonId) {
       if (matches.length !== 1) {
         await this.createReviewCandidate(
@@ -154,6 +155,12 @@ export class PeopleNotesService {
       await this.projectNote(scopedDb, ownerUserId, matches[0]!);
       projected += 1;
     }
+
+    candidates += await this.createMissingCanonicalNoteCandidates(
+      scopedDb,
+      ownerUserId,
+      new Set(byPersonId.keys())
+    );
 
     return { projected, candidates };
   }
@@ -339,6 +346,26 @@ export class PeopleNotesService {
       confidence: 0.5,
       ids: [...ids]
     });
+  }
+
+  private async createMissingCanonicalNoteCandidates(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    canonicalPersonIds: ReadonlySet<string>
+  ): Promise<number> {
+    const people = await this.peopleRepository.listPeople(scopedDb, ownerUserId, {});
+    let candidates = 0;
+    for (const person of people) {
+      if (person.status === "merged" || canonicalPersonIds.has(person.id)) continue;
+      await this.createReviewCandidate(
+        scopedDb,
+        ownerUserId,
+        "Existing People record missing canonical note",
+        [person.id]
+      );
+      candidates += 1;
+    }
+    return candidates;
   }
 
   private async nextNotePath(
