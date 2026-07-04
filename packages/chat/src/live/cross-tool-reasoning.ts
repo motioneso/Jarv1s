@@ -440,7 +440,9 @@ async function runSourcesWithConcurrencyLimit(
     // Race tagged copies (not the raw members) so we can identify — and remove —
     // exactly the promise that won, regardless of settle order.
     const { items, p } = await Promise.race(
-      [...inFlight].map((candidate) => candidate.then((settledItems) => ({ items: settledItems, p: candidate })))
+      [...inFlight].map((candidate) =>
+        candidate.then((settledItems) => ({ items: settledItems, p: candidate }))
+      )
     );
     inFlight.delete(p);
     results.push(...items);

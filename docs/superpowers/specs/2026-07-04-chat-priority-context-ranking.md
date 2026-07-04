@@ -39,4 +39,3 @@ the verified active briefing candidate set is tasks/calendar/email.
 - Muted-source behavior is accurate for the sources that actually have active consumers.
 - UI copy/controls do not imply unwired source behavior.
 - Tests cover chat ordering and muted-source behavior.
-
