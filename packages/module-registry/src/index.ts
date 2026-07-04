@@ -56,9 +56,14 @@ import {
   briefingsModuleSqlMigrationDirectory,
   createBriefingsFeedbackTargetVerifier,
   registerBriefingsJobWorkers,
-  registerBriefingsRoutes
+  registerBriefingsRoutes,
+  type ComposeDeps
 } from "@jarv1s/briefings";
 import {
+  CalendarRepository,
+  calendarFollowThroughSourceRef,
+  isCalendarFollowThroughEvent,
+  isCalendarFollowThroughTask,
   calendarModuleManifest,
   calendarModuleSqlMigrationDirectory,
   CALENDAR_QUEUE_DEFINITIONS,
@@ -71,6 +76,7 @@ import {
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
   buildEveningInterviewSeed,
+  buildCalendarWriteService,
   chatCommitmentProvider,
   ChatRepository,
   createChatFeedbackTargetVerifier,
@@ -89,7 +95,11 @@ import {
   buildRuntimeSourceContextService,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
+  createConnectorSecretCipher,
   getConnectorSyncAt,
+  GoogleApiClient as RuntimeGoogleApiClient,
+  GoogleConnectionService as RuntimeGoogleConnectionService,
+  GoogleOAuthClient,
   registerConnectorsJobWorkers,
   registerConnectorsRoutes,
   registerImapSyncWorker,
@@ -396,6 +406,156 @@ export interface BuiltInModuleRegistration {
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
 const PROACTIVE_CHECK_CRON = "*/30 * * * *";
 export const PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID = "people.notes.suggest-updates";
+
+function buildCalendarFollowThroughPort(): NonNullable<ComposeDeps["calendarFollowThrough"]> {
+  const tasksRepository = new TasksRepository();
+  const aiRepository = new AiRepository();
+  const connectorsRepository = new ConnectorsRepository();
+  const calendarRepository = new CalendarRepository();
+  const calendarWrite = buildCalendarWriteService({
+    googleService: new RuntimeGoogleConnectionService({
+      repository: connectorsRepository,
+      cipher: createConnectorSecretCipher(),
+      oauthClient: new GoogleOAuthClient()
+    }),
+    googleApiClient: new RuntimeGoogleApiClient(),
+    connectorsRepository,
+    calendarRepository
+  });
+
+  return {
+    async executeAutoActions({ scopedDb, actorUserId, requestId, targetRef, signal }) {
+      const refs: { targetRef: string; taskId?: string; calendarEventId?: string } = { targetRef };
+      const sourceRef = calendarFollowThroughSourceRef(targetRef);
+
+      if (signal.suggestedActions.includes("create_task")) {
+        const task = await tasksRepository.create(scopedDb, {
+          title: signal.summary,
+          status: "todo",
+          source: "calendar",
+          sourceRef,
+          externalKey: sourceRef
+        });
+        refs.taskId = task.id;
+      }
+
+      if (signal.suggestedActions.includes("block_time")) {
+        const policies = await aiRepository.listActionPolicies(scopedDb);
+        const writebackPolicy = policies.find(
+          (policy) =>
+            policy.moduleId === "calendar" && policy.actionFamilyId === "calendar_writeback"
+        );
+        if (writebackPolicy?.tier === "trusted_auto") {
+          const window = calendarFollowThroughWindow(signal);
+          if (window) {
+            const result = await calendarWrite.proposeAndInsert(
+              scopedDb,
+              { actorUserId, requestId, chatSessionId: "" },
+              window,
+              { requireCacheMirror: true, followThroughTargetRef: targetRef }
+            );
+            if (result.created && result.calendarEventId) {
+              refs.calendarEventId = result.calendarEventId;
+            }
+          }
+        }
+      }
+
+      return refs;
+    }
+  };
+}
+
+function buildCalendarFollowThroughSideEffects() {
+  const tasksRepository = new TasksRepository();
+  const connectorsRepository = new ConnectorsRepository();
+  const calendarRepository = new CalendarRepository();
+  const calendarWrite = buildCalendarWriteService({
+    googleService: new RuntimeGoogleConnectionService({
+      repository: connectorsRepository,
+      cipher: createConnectorSecretCipher(),
+      oauthClient: new GoogleOAuthClient()
+    }),
+    googleApiClient: new RuntimeGoogleApiClient(),
+    connectorsRepository,
+    calendarRepository
+  });
+
+  return {
+    async removeCreatedRefs(
+      scopedDb: DataContextDb,
+      actorUserId: string,
+      metadata: Record<string, unknown>
+    ): Promise<string | null> {
+      const refs = readCalendarFollowThroughRefs(metadata);
+      if (!refs) return null;
+      const sourceRef = calendarFollowThroughSourceRef(refs.targetRef);
+
+      if (refs.taskId) {
+        const task = await tasksRepository.getById(scopedDb, refs.taskId);
+        if (task && isCalendarFollowThroughTask(task, sourceRef)) {
+          await tasksRepository.update(scopedDb, task.id, { status: "archived" });
+          return `task:${task.id}`;
+        }
+      }
+
+      if (refs.calendarEventId) {
+        const event = await calendarRepository.getById(scopedDb, refs.calendarEventId);
+        if (event && isCalendarFollowThroughEvent(event, refs.targetRef)) {
+          const result = await calendarWrite.deleteEvent(
+            scopedDb,
+            { actorUserId, requestId: "feedback:calendar-follow-through", chatSessionId: "" },
+            { eventId: event.id }
+          );
+          return result.deleted ? `calendar_event:${event.id}` : null;
+        }
+      }
+
+      return null;
+    }
+  };
+}
+
+function readCalendarFollowThroughRefs(metadata: Record<string, unknown>): {
+  readonly targetRef: string;
+  readonly taskId?: string;
+  readonly calendarEventId?: string;
+} | null {
+  const raw = metadata.calendarFollowThrough;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.targetRef !== "string" || record.targetRef.length === 0) return null;
+  const refs = {
+    targetRef: record.targetRef,
+    ...(typeof record.taskId === "string" ? { taskId: record.taskId } : {}),
+    ...(typeof record.calendarEventId === "string"
+      ? { calendarEventId: record.calendarEventId }
+      : {})
+  };
+  return refs.taskId || refs.calendarEventId ? refs : null;
+}
+
+function calendarFollowThroughWindow(signal: {
+  readonly type?: string;
+  readonly summary: string;
+  readonly startsAt?: string;
+  readonly endsAt?: string;
+}): { start: Date; end: Date; durationMinutes: number; title: string } | null {
+  const start = signal.startsAt ? new Date(signal.startsAt) : null;
+  if (!start || Number.isNaN(start.getTime())) return null;
+  const end = signal.endsAt ? new Date(signal.endsAt) : null;
+  if (signal.type === "prep_needed") {
+    const prepEnd = start;
+    const prepStart = new Date(prepEnd.getTime() - 60 * 60_000);
+    return { start: prepStart, end: prepEnd, durationMinutes: 60, title: "Prep time" };
+  }
+  if (!end || Number.isNaN(end.getTime()) || end <= start) return null;
+  const durationMinutes = Math.min(
+    120,
+    Math.max(15, Math.floor((end.getTime() - start.getTime()) / 60_000))
+  );
+  return { start, end, durationMinutes, title: "Focus time" };
+}
 
 export function isPeopleNotesSuggestUpdatesEnabled(
   scopedDb: DataContextDb,
@@ -804,7 +964,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             connectorsRepository: new ConnectorsRepository(),
             preferencesRepository: new PreferencesRepository()
           }),
-          sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger })
+          sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger }),
+          calendarFollowThrough: buildCalendarFollowThroughPort()
         },
         notificationsRepository: new NotificationsRepository(
           quietHoursPortImpl,
@@ -863,7 +1024,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             cardRepository.markDismissed(scopedDb, _actorUserId, cardId).then(() => undefined),
           undoDismissCard: (scopedDb, _actorUserId, cardId) =>
             cardRepository.reactivate(scopedDb, _actorUserId, cardId).then(() => undefined)
-        }
+        },
+        calendarFollowThroughSideEffects: buildCalendarFollowThroughSideEffects()
       });
     }
   },

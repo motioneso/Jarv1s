@@ -20,9 +20,15 @@ export interface ProposeFocusResult {
   readonly shifted: boolean;
   readonly conflict: "none" | "shifted" | "no-clear-slot";
   readonly googleEventId?: string;
+  readonly calendarEventId?: string;
   readonly calendarMirror: "written" | "skipped-rls" | "skipped-error";
   /** Human-facing reason when created=false (e.g. re-consent, no connection). Never a secret. */
   readonly message?: string;
+}
+
+export interface CalendarWriteOptions {
+  readonly requireCacheMirror?: boolean;
+  readonly followThroughTargetRef?: string;
 }
 
 export interface DeleteEventInput {
@@ -47,7 +53,8 @@ export interface CalendarWriteService {
   proposeAndInsert(
     scopedDb: unknown, // DataContextDb; calendar/impl narrows via assertDataContextDb
     ctx: ToolContext,
-    window: FocusBlockWindow
+    window: FocusBlockWindow,
+    options?: CalendarWriteOptions
   ): Promise<ProposeFocusResult>;
   deleteEvent(
     scopedDb: unknown,

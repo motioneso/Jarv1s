@@ -38,16 +38,26 @@ function deriveSignalItems(
     if (!signalType || !summary) return [];
     return [
       {
-        feedbackItemId: `${sourceKind}:${signalType}:${shortHash([sourceKind, signalType, summary])}`,
+        feedbackItemId: briefingSignalFeedbackItemId(sourceKind, signalType, summary),
         targetKind: "briefing_item" as const,
         surface: "briefing" as const,
         sourceKind,
         sourceLabel,
         priorityBand: priorityBand(signal.score),
-        metadata: { signalType }
+        metadata: signal.followThrough
+          ? { signalType, calendarFollowThrough: signal.followThrough }
+          : { signalType }
       }
     ];
   });
+}
+
+export function briefingSignalFeedbackItemId(
+  sourceKind: string,
+  signalType: string,
+  summary: string
+): string {
+  return `${sourceKind}:${signalType}:${shortHash([sourceKind, signalType, summary])}`;
 }
 
 function shortHash(parts: readonly string[]): string {

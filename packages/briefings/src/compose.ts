@@ -9,6 +9,7 @@ import {
   isActionableTriage,
   sourceContextMetaFor,
   recordSourceAuthGap,
+  ctxFor,
   type ComposeDeps,
   type ComposeRunInput,
   type ComposeResult,
@@ -31,6 +32,7 @@ import {
   tasksToCandidates
 } from "./priority-consumer.js";
 import { fallback } from "./fallback.js";
+import { briefingSignalFeedbackItemId } from "./feedback-targets.js";
 
 // ── Caps (one conservative economy budget) ─────────────────────────────────────
 const VAULT_CHUNK_CAP = 6;
@@ -333,7 +335,7 @@ export async function composeBriefing(
     ...tasks,
     lines: orderByPriority(tasks.lines, "tasks", (line) => line, priorityResults)
   };
-  const prioritizedCalendarSignals = orderByPriority(
+  let prioritizedCalendarSignals = orderByPriority(
     calendarSignals,
     "calendar",
     (signal) => signal.summary,
@@ -352,6 +354,14 @@ export async function composeBriefing(
   if (includeEmail && (rawEmail.rawItems?.length ?? 0) > 0 && emailSignals.length === 0) {
     gaps.push({ source: "email", reason: "empty" });
   }
+
+  prioritizedCalendarSignals = await attachCalendarFollowThrough(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    prioritizedCalendarSignals
+  );
 
   const calendar: Section = {
     key: rawCalendar.key,
@@ -470,6 +480,56 @@ export async function composeBriefing(
       ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
     }
   };
+}
+
+async function attachCalendarFollowThrough<
+  T extends {
+    readonly type: string;
+    readonly summary: string;
+    readonly suggestedActions: readonly string[];
+    readonly startsAt?: string;
+    readonly endsAt?: string;
+  }
+>(
+  scopedDb: DataContextDb,
+  definition: BriefingDefinition,
+  input: ComposeRunInput,
+  deps: ComposeDeps,
+  signals: readonly T[]
+): Promise<T[]> {
+  if (!deps.calendarFollowThrough) return [...signals];
+  const ctx = ctxFor(definition, input);
+  return Promise.all(
+    signals.map(async (signal) => {
+      if (
+        !signal.suggestedActions.includes("create_task") &&
+        !signal.suggestedActions.includes("block_time")
+      ) {
+        return signal;
+      }
+      const targetRef = briefingSignalFeedbackItemId("calendar", signal.type, signal.summary);
+      try {
+        const followThrough = await deps.calendarFollowThrough!.executeAutoActions({
+          scopedDb,
+          actorUserId: ctx.actorUserId,
+          requestId: ctx.requestId,
+          targetRef,
+          signal
+        });
+        return { ...signal, followThrough };
+      } catch (error) {
+        deps.logger?.error(
+          {
+            event: "calendar_follow_through_failed",
+            error: error instanceof Error ? error.name : "UnknownError",
+            signalType: signal.type
+          },
+          "calendar follow-through failed"
+        );
+        return signal;
+      }
+    })
+  );
 }
 
 // ── Trust boundary (prompt-injection hardening, #316) ──────────────────────────

@@ -61,4 +61,60 @@ describe("calendar write feature grants", () => {
     expect(googleCalls).toBe(0);
     expect(cacheCalls).toBe(0);
   });
+
+  it("rolls back provider insert when auto follow-through cannot mirror the cache row", async () => {
+    let insertedEventId: string | null = null;
+    let deletedEventId: string | null = null;
+    const service = buildCalendarWriteService({
+      connectorsRepository: {
+        getCalendarWriteScopeState: async () => ({
+          accountId: "00000000-0000-0000-0000-00000000ca10",
+          hasScope: true
+        }),
+        getActiveGoogleAccountSecret: async () => ({ id: "google-account-1" })
+      },
+      preferencesRepository: { get: async () => ({ email: true, calendar: true }) },
+      googleService: { getFreshAccessToken: async () => "token" },
+      googleApiClient: {
+        freeBusy: async () => ({ busy: [] }),
+        insertEvent: async ({ eventId }: { eventId: string }) => {
+          insertedEventId = eventId;
+          return { id: eventId };
+        },
+        deleteEvent: async ({ eventId }: { eventId: string }) => {
+          deletedEventId = eventId;
+          return { deleted: "deleted" };
+        }
+      },
+      calendarRepository: {
+        upsertCachedEvent: async () => {
+          const error = new Error("new row violates row-level security policy");
+          (error as { code?: string }).code = "42501";
+          throw error;
+        }
+      }
+    } as never);
+
+    const result = await service.proposeAndInsert(
+      scopedDb,
+      {
+        actorUserId: "00000000-0000-0000-0000-000000000001",
+        requestId: "req",
+        chatSessionId: "chat"
+      },
+      {
+        start: new Date("2026-06-17T13:00:00Z"),
+        end: new Date("2026-06-17T16:00:00Z"),
+        durationMinutes: 60,
+        title: "Focus"
+      },
+      { requireCacheMirror: true, followThroughTargetRef: "calendar:prep:1" }
+    );
+
+    expect(result.created).toBe(false);
+    expect(result.calendarMirror).toBe("skipped-rls");
+    expect(result.googleEventId).toBeUndefined();
+    expect(result.calendarEventId).toBeUndefined();
+    expect(deletedEventId).toBe(insertedEventId);
+  });
 });
