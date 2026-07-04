@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_EMAIL_TASK_MODE,
+  emailSourceRef,
   emailTaskExternalKey,
+  parseEmailSourceRef,
   parseEmailTaskMode,
   planEmailTasks,
   type EmailContextItem
@@ -70,6 +72,40 @@ describe("emailTaskExternalKey", () => {
   });
 });
 
+describe("emailSourceRef / parseEmailSourceRef", () => {
+  it("round-trips connector account id and external id", () => {
+    const ref = emailSourceRef("acct-1", "msg-9");
+    expect(ref).toBe("acct-1:msg-9");
+    expect(parseEmailSourceRef(ref)).toEqual({ connectorAccountId: "acct-1", externalId: "msg-9" });
+  });
+
+  it("distinguishes two accounts sharing the same external id (email_messages is unique per account, not globally)", () => {
+    const refA = emailSourceRef("acct-a", "shared-external-id");
+    const refB = emailSourceRef("acct-b", "shared-external-id");
+    expect(refA).not.toBe(refB);
+    expect(parseEmailSourceRef(refA)).toEqual({
+      connectorAccountId: "acct-a",
+      externalId: "shared-external-id"
+    });
+    expect(parseEmailSourceRef(refB)).toEqual({
+      connectorAccountId: "acct-b",
+      externalId: "shared-external-id"
+    });
+  });
+
+  it("preserves a colon inside the external id itself", () => {
+    const ref = emailSourceRef("acct-1", "provider:weird:id");
+    expect(parseEmailSourceRef(ref)).toEqual({
+      connectorAccountId: "acct-1",
+      externalId: "provider:weird:id"
+    });
+  });
+
+  it("returns null for a malformed ref with no separator", () => {
+    expect(parseEmailSourceRef("no-separator-here")).toBeNull();
+  });
+});
+
 describe("planEmailTasks — candidate selection", () => {
   it("mode off plans nothing", () => {
     expect(plan([item()], "off")).toEqual([]);
@@ -89,7 +125,7 @@ describe("planEmailTasks — candidate selection", () => {
     );
     expect(planned).toHaveLength(2);
     expect(planned.every((t) => t.status === "suggested")).toBe(true);
-    expect(planned[0]?.sourceRef).toBe("msg-1");
+    expect(planned[0]?.sourceRef).toBe(emailSourceRef("acct-1", "msg-1"));
     expect(planned[0]?.externalKey).toBe(
       emailTaskExternalKey("acct-1", "msg-1", "Approve Q3 budget")
     );
@@ -191,9 +227,9 @@ describe("planEmailTasks — status by mode", () => {
       "auto_safe"
     );
     expect(planned.map((t) => [t.sourceRef, t.status])).toEqual([
-      ["msg-1", "todo"],
-      ["msg-2", "suggested"],
-      ["msg-3", "suggested"]
+      [emailSourceRef("acct-1", "msg-1"), "todo"],
+      [emailSourceRef("acct-1", "msg-2"), "suggested"],
+      [emailSourceRef("acct-1", "msg-3"), "suggested"]
     ]);
   });
 

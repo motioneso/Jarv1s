@@ -62,6 +62,27 @@ export function emailTaskExternalKey(
   return `${connectorAccountId}:${messageKey}:${normalized}`;
 }
 
+/**
+ * email_messages is unique on (connector_account_id, external_id), never on external_id alone —
+ * two different connector accounts can legitimately share the same provider message id. A
+ * task's source_ref must therefore carry BOTH, not the bare external id, so triage-feedback
+ * lookup (EmailRepository.getByConnectorAccountAndExternalId) resolves the correct account.
+ */
+export function emailSourceRef(connectorAccountId: string, externalId: string): string {
+  return `${connectorAccountId}:${externalId}`;
+}
+
+export function parseEmailSourceRef(
+  sourceRef: string
+): { connectorAccountId: string; externalId: string } | null {
+  const separatorIndex = sourceRef.indexOf(":");
+  if (separatorIndex <= 0 || separatorIndex === sourceRef.length - 1) return null;
+  return {
+    connectorAccountId: sourceRef.slice(0, separatorIndex),
+    externalId: sourceRef.slice(separatorIndex + 1)
+  };
+}
+
 export interface PlanEmailTasksInput {
   readonly items: readonly EmailContextItem[];
   readonly mode: EmailTaskCreationMode;
@@ -116,7 +137,7 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
         description: boundedDescription(item),
         dueAt,
         priority: priorityFor(item, dueAt, nowMs),
-        sourceRef: item.messageKey,
+        sourceRef: emailSourceRef(item.account.connectorAccountId, item.messageKey),
         externalKey: emailTaskExternalKey(
           item.account.connectorAccountId,
           item.messageKey,

@@ -94,6 +94,7 @@ import {
   registerConnectorsRoutes,
   registerImapSyncWorker,
   registerSourceMonitorWorkers,
+  parseEmailSourceRef,
   type EmailTaskCreationPort,
   type GoogleApiClient,
   type GoogleConnectionService
@@ -443,8 +444,13 @@ export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
   const connectorsRepository = new ConnectorsRepository();
   return {
     async record(scopedDb, input) {
-      const row = input.taskSourceRef
-        ? await emailRepository.getByExternalId(scopedDb, input.taskSourceRef)
+      const parsedRef = input.taskSourceRef ? parseEmailSourceRef(input.taskSourceRef) : null;
+      const row = parsedRef
+        ? await emailRepository.getByConnectorAccountAndExternalId(
+            scopedDb,
+            parsedRef.connectorAccountId,
+            parsedRef.externalId
+          )
         : undefined;
       const signals = (row?.signals ?? {}) as {
         actionability?: { category?: string };

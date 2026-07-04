@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { emailSourceRef } from "@jarv1s/connectors";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import { EmailRepository } from "@jarv1s/email";
 import { createEmailTriageFeedbackPort } from "@jarv1s/module-registry";
@@ -15,6 +16,7 @@ import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 
 const CONNECTOR_ACCOUNT_ID = "e7f1a4a0-9b2c-4d3e-8f10-000000000729";
+const OTHER_CONNECTOR_ACCOUNT_ID = "e7f1a4a0-9b2c-4d3e-8f10-000000000730";
 const EMAIL_EXTERNAL_ID = "gmail-msg-feedback-1";
 
 describe("Tasks — email triage feedback on suggested-task accept/reject (spec #729 §6)", () => {
@@ -38,9 +40,11 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
           INSERT INTO app.connector_accounts (
             id, provider_id, owner_user_id, scopes, status, encrypted_secret
           )
-          VALUES ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', '{}'::jsonb)
+          VALUES
+            ($1, 'google-email', $3, ARRAY['gmail.readonly']::text[], 'active', '{}'::jsonb),
+            ($2, 'google-email', $3, ARRAY['gmail.readonly']::text[], 'active', '{}'::jsonb)
         `,
-        [CONNECTOR_ACCOUNT_ID, ids.userA]
+        [CONNECTOR_ACCOUNT_ID, OTHER_CONNECTOR_ACCOUNT_ID, ids.userA]
       );
     } finally {
       await client.end();
@@ -55,6 +59,20 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
         receivedAt: new Date("2026-07-01T09:00:00.000Z"),
         externalId: EMAIL_EXTERNAL_ID,
         signals: { actionability: { category: "needs_action" }, confidence: 0.9 }
+      })
+    );
+
+    // Same external_id, DIFFERENT connector account — email_messages is unique on
+    // (connector_account_id, external_id), never on external_id alone (#729 QA finding).
+    await dataContext.withDataContext(ctx, (scopedDb) =>
+      emailRepository.upsertCachedMessage(scopedDb, {
+        connectorAccountId: OTHER_CONNECTOR_ACCOUNT_ID,
+        sender: "notifications@other-vendor.example",
+        recipients: ["me@self.example"],
+        subject: "Different message that happens to share an external id",
+        receivedAt: new Date("2026-07-02T09:00:00.000Z"),
+        externalId: EMAIL_EXTERNAL_ID,
+        signals: { actionability: { category: "needs_reply" }, confidence: 0.8 }
       })
     );
   });
@@ -81,7 +99,7 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
         title: "Pay invoice 4711",
         status: "suggested",
         source: "email",
-        sourceRef: EMAIL_EXTERNAL_ID,
+        sourceRef: emailSourceRef(CONNECTOR_ACCOUNT_ID, EMAIL_EXTERNAL_ID),
         externalKey: `email:${CONNECTOR_ACCOUNT_ID}:${EMAIL_EXTERNAL_ID}:${randomUUID()}`
       })
     );
@@ -127,6 +145,46 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
     }
   });
 
+  it("two connector accounts sharing the same external_id: feedback resolves the ACCOUNT-SCOPED row, never the other account's", async () => {
+    const app = await buildApp(createEmailTriageFeedbackPort());
+    try {
+      const before = (await listFeedbackRows()).length;
+      const task = await dataContext.withDataContext(ctx, (scopedDb) =>
+        tasksRepository.create(scopedDb, {
+          title: "Reply to the other vendor",
+          status: "suggested",
+          source: "email",
+          sourceRef: emailSourceRef(OTHER_CONNECTOR_ACCOUNT_ID, EMAIL_EXTERNAL_ID),
+          externalKey: `email:${OTHER_CONNECTOR_ACCOUNT_ID}:${EMAIL_EXTERNAL_ID}:${randomUUID()}`
+        })
+      );
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/tasks/${task.id}`,
+        payload: { status: "todo" }
+      });
+      expect(res.statusCode).toBe(200);
+
+      const rows = await listFeedbackRows();
+      expect(rows).toHaveLength(before + 1);
+      // Must be enriched from OTHER_CONNECTOR_ACCOUNT_ID's message, not CONNECTOR_ACCOUNT_ID's
+      // (both share EMAIL_EXTERNAL_ID) — a bare external_id lookup would have returned whichever
+      // row query planning happened to pick, silently misattributing the feedback.
+      expect(rows[0]).toMatchObject({
+        verdict: "accepted",
+        sender: "notifications@other-vendor.example",
+        sender_domain: "other-vendor.example",
+        actionability: "needs_reply",
+        connector_account_id: OTHER_CONNECTOR_ACCOUNT_ID,
+        source: "email"
+      });
+      expect(rows[0]?.subject_prefix).toBe("Different message that happens to share an external id");
+    } finally {
+      await app.close();
+    }
+  });
+
   it("PATCH suggested → archived records a rejected feedback row", async () => {
     const app = await buildApp(createEmailTriageFeedbackPort());
     try {
@@ -156,7 +214,7 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
           title: "Task whose email left the cache",
           status: "suggested",
           source: "email",
-          sourceRef: "gmail-msg-evicted",
+          sourceRef: emailSourceRef(CONNECTOR_ACCOUNT_ID, "gmail-msg-evicted"),
           externalKey: `email:${CONNECTOR_ACCOUNT_ID}:gmail-msg-evicted:${randomUUID()}`
         })
       );

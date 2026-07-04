@@ -80,8 +80,15 @@ export class EmailRepository {
       .executeTakeFirst();
   }
 
-  async getByExternalId(
+  /**
+   * external_id is unique only per connector account (UNIQUE (connector_account_id,
+   * external_id) — see 0012_email_module.sql), never globally: two different accounts can
+   * share the same provider message id. Both columns are required so this never resolves
+   * the wrong account's row.
+   */
+  async getByConnectorAccountAndExternalId(
     scopedDb: DataContextDb,
+    connectorAccountId: string,
     externalId: string
   ): Promise<EmailMessage | undefined> {
     assertDataContextDb(scopedDb);
@@ -90,8 +97,8 @@ export class EmailRepository {
     return scopedDb.db
       .selectFrom("app.email_messages")
       .selectAll()
+      .where("connector_account_id", "=", connectorAccountId)
       .where("external_id", "=", externalId)
-      .limit(1)
       .executeTakeFirst();
   }
 
