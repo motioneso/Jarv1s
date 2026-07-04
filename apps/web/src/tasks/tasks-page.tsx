@@ -96,13 +96,20 @@ export function TasksPage() {
     }
   });
 
+  // Suggested-task review (#729): accept promotes to todo, dismiss archives.
+  const triageMutation = useMutation({
+    mutationFn: (input: { readonly task: TaskDto; readonly status: "todo" | "archived" }) =>
+      updateTask(input.task.id, { status: input.status }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
+    }
+  });
+
   const interpretMutation = useMutation({
     mutationFn: (query: string) => interpretTaskSearch({ query }),
     onSuccess: (response) => {
       const nextIntent = intentForUi(response.intent);
-      // `suggested` has no status-filter segment yet — the suggested-task review UI (#729)
-      // surfaces staged tasks elsewhere.
-      if (response.intent.status && response.intent.status !== "suggested") {
+      if (response.intent.status) {
         setStatusFilter(response.intent.status);
         clearFocus();
       }
@@ -400,9 +407,11 @@ export function TasksPage() {
         <TaskListView
           tasks={visibleTasks}
           lists={lists}
-          isUpdating={updateMutation.isPending}
+          isUpdating={updateMutation.isPending || triageMutation.isPending}
           onToggleDone={(task) => updateMutation.mutate(task)}
           onOpen={(task) => setDialog({ id: task.id })}
+          onAccept={(task) => triageMutation.mutate({ task, status: "todo" })}
+          onDismiss={(task) => triageMutation.mutate({ task, status: "archived" })}
         />
       )}
 

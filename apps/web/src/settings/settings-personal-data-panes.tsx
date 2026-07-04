@@ -33,11 +33,13 @@ import {
 } from "virtual:jarvis-module-settings";
 
 import {
+  getEmailTaskMode,
   getLocaleSettings,
   getModules,
   getMyModules,
   listSourceBehaviors,
   listConnectorAccounts,
+  putEmailTaskMode,
   putLocaleSettings,
   putSourceBehavior,
   revokeConnectorAccount,
@@ -82,7 +84,13 @@ import {
   Switch
 } from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
-import type { ConnectorAccountDto, LocaleSettingsDto, PutNotesSourceRequest } from "@jarv1s/shared";
+import {
+  DEFAULT_EMAIL_TASK_MODE,
+  type ConnectorAccountDto,
+  type EmailTaskCreationMode,
+  type LocaleSettingsDto,
+  type PutNotesSourceRequest
+} from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
@@ -376,6 +384,64 @@ function formatLastSync(at: string | null, lastError?: string): string {
   return lastError ? `Last sync failed: ${relative}` : `Last sync: ${relative}`;
 }
 
+const EMAIL_TASK_MODE_OPTIONS: ReadonlyArray<{
+  readonly value: EmailTaskCreationMode;
+  readonly label: string;
+  readonly desc: string;
+}> = [
+  { value: "off", label: "Off", desc: "Never create tasks from email." },
+  { value: "suggest", label: "Suggest", desc: "Stage suggestions for your review (default)." },
+  {
+    value: "auto_safe",
+    label: "Auto for safe items",
+    desc: "Auto-add bills and hard deadlines; stage the rest."
+  },
+  { value: "auto", label: "Auto", desc: "Auto-add anything Jarvis is confident about." }
+];
+
+/** Email → task creation mode (#729), rendered inside the email source card. */
+function EmailTaskCreationRow() {
+  const queryClient = useQueryClient();
+  const { toast } = useFeedback();
+  const modeQuery = useQuery({
+    queryKey: queryKeys.email.taskMode,
+    queryFn: getEmailTaskMode,
+    retry: false
+  });
+  const mode = modeQuery.data?.mode ?? DEFAULT_EMAIL_TASK_MODE;
+  const modeMutation = useMutation({
+    mutationFn: (next: EmailTaskCreationMode) => putEmailTaskMode({ mode: next }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.email.taskMode, data);
+      toast("Task creation mode saved", { icon: <ShieldCheck size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const current = EMAIL_TASK_MODE_OPTIONS.find((option) => option.value === mode);
+  return (
+    <Row
+      name="Task creation"
+      desc={current?.desc ?? "How email becomes tasks."}
+      control={
+        <Select
+          value={mode}
+          aria-label="Email task creation mode"
+          disabled={modeQuery.isLoading || modeMutation.isPending}
+          onChange={(event) =>
+            modeMutation.mutate(event.currentTarget.value as EmailTaskCreationMode)
+          }
+        >
+          {EMAIL_TASK_MODE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      }
+    />
+  );
+}
+
 function SourcesPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
@@ -535,6 +601,7 @@ function SourcesPane() {
                 />
               );
             })}
+            {source.id === "email" ? <EmailTaskCreationRow /> : null}
           </Group>
         );
       })}

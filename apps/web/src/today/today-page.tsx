@@ -143,6 +143,14 @@ export function TodayPage(props: {
       }, 500);
     }
   });
+  // Suggested-task review (#729): accept promotes to todo, dismiss archives.
+  const triageMutation = useMutation({
+    mutationFn: (input: { readonly task: TaskDto; readonly status: "todo" | "archived" }) =>
+      updateTask(input.task.id, { status: input.status }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
+    }
+  });
 
   const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
   const [medsModalOpen, setMedsModalOpen] = useState(false);
@@ -181,6 +189,7 @@ export function TodayPage(props: {
   const lists = listsQuery.data?.lists ?? [];
 
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
+  const suggestedTasks = tasks.filter((t) => t.status === "suggested");
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
   const priorities = open.filter(isDoFirst);
   const atRisk = open.filter((t) => isAtRisk(t, locale.timezone));
@@ -329,6 +338,61 @@ export function TodayPage(props: {
               </div>
             ) : null}
           </section>
+
+          {suggestedTasks.length > 0 ? (
+            <section className="jds-brief">
+              <div className="jds-brief__head">
+                <span className="jds-brief__kicker">Suggested from email</span>
+              </div>
+              <div className="jds-brief__title">Waiting for your say-so</div>
+              <div className="loose">
+                {suggestedTasks.map((task) => (
+                  <div className="loose-row" key={task.id} style={{ cursor: "default" }}>
+                    <span className="loose-row__ic">
+                      <GitCommitHorizontal size={15} aria-hidden="true" />
+                    </span>
+                    <button
+                      type="button"
+                      className="loose-row__main"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        font: "inherit",
+                        color: "inherit",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        padding: 0
+                      }}
+                      onClick={() => setDialog({ id: task.id })}
+                    >
+                      <div className="loose-row__title">{task.title}</div>
+                      <div className="loose-row__meta">
+                        {task.dueAt ? `Due ${shortDate(task.dueAt, locale)}` : task.source}
+                      </div>
+                    </button>
+                    <div className="loose-row__act" style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--sm jds-btn--secondary"
+                        disabled={triageMutation.isPending}
+                        onClick={() => triageMutation.mutate({ task, status: "todo" })}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--sm jds-btn--quiet"
+                        disabled={triageMutation.isPending}
+                        onClick={() => triageMutation.mutate({ task, status: "archived" })}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {feed.overnight.length > 0 ? <OvernightSection items={feed.overnight} /> : null}
 
