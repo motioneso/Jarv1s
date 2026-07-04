@@ -2,7 +2,7 @@
  * Webfonts — the three-role type system (open-license, swappable for self-hosted woff2).
  * @import MUST stay first in the cascade entry file.
  */
-@import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 /*
  * Jarv1s token layer — PARK PRESS (epic #726): a warm OAT-paper canvas with
@@ -138,8 +138,13 @@
   --texture-blend: multiply;
 
   /* ============ TYPOGRAPHY ============ */
-  --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  /* INTERIM: Helvetica system stack stands in for self-hosted Neue Haas Grotesk
+     (licensed woff2 wiring is a follow-up under epic #726). */
+  --font-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-sans: "Helvetica Neue", Helvetica, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  /* DEPRECATED bridge: serif retires from the core language (spec §2). Kit CSS
+     still reads --font-serif; follow-up issue renames those ~60 uses. */
+  --font-serif: var(--font-display);
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --text-2xs: 11px;
@@ -164,7 +169,7 @@
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
-  --weight-black: 800;
+  --weight-black: 900;
 
   --tracking-tight: -0.014em;
   --tracking-snug: -0.006em;

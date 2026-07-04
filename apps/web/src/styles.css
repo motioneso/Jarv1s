@@ -12,9 +12,8 @@
   font-feature-settings: "ss01", "cv01";
 }
 
-/* Editorial serif (Newsreader) for reading-surface headings; the UI chrome
-   stays in Hanken Grotesk sans. This is what makes Jarvis read like a briefing
-   packet rather than a SaaS dashboard. */
+/* Park Press: one grotesk family carries both display and chrome duty —
+   headings differentiate by weight, not by switching to a serif. */
 .auth-panel h1,
 .page-heading h1,
 .coming-title,
