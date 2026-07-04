@@ -73,6 +73,9 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("PUT", "/api/admin/chat-multiplexer"),
   // host diagnostics: admin-gated platform route owned by no module (read-only, #255)
   routeKey("GET", "/api/admin/host/diagnostics"),
+  // host actions: admin-gated platform routes owned by no module (#740)
+  routeKey("POST", "/api/admin/host/restart"),
+  routeKey("POST", "/api/admin/host/herdr/install"),
   routeKey("GET", "/api/admin/audit-events"),
   // onboarding (Phase 2): admin-gated platform routes owned by no module
   routeKey("GET", "/api/onboarding/status"),
