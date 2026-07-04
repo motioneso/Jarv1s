@@ -2,12 +2,6 @@
    sports-1.css purely for the 1000-line file-size gate (sports-1.css has no headroom); imported
    by the settings shell since packages don't import their own CSS. */
 
-.sp-pickhead {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .sp-whole {
   display: flex;
   align-items: center;
@@ -185,34 +179,4 @@
 .sp-chip__remove:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.sp-grouphead {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  padding: 5px 10px;
-  cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  transition: var(--transition-control);
-}
-.sp-grouphead:hover {
-  background: var(--surface-2);
-}
-.sp-grouphead__count {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.02em;
-}
-.sp-grouphead__chev {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text-faint);
 }
