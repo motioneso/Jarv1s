@@ -122,10 +122,16 @@ function fakeProvider<TCredential>(
 }
 
 const IMAP_SECRET: ImapConnectionSecret = {
-  host: "imap.example.com",
-  port: 993,
+  kind: "imap-password",
+  providerId: "yahoo-imap",
   username: "ben",
-  password: "pw"
+  password: "pw",
+  imapHost: "imap.example.com",
+  imapPort: 993,
+  imapTls: true,
+  smtpHost: "smtp.example.com",
+  smtpPort: 465,
+  smtpSecurity: "implicit_tls"
 };
 
 function makeDeps(overrides: Partial<EmailSourceContextDeps> = {}): EmailSourceContextDeps & {
@@ -327,7 +333,7 @@ describe("listEmailContext", () => {
     });
     const result = await listEmailContext(scopedDb, deps, {});
     expect(result.items).toHaveLength(1);
-    const item = result.items[0] as Record<string, unknown>;
+    const item = result.items[0] as unknown as Record<string, unknown>;
     expect("body" in item).toBe(false);
     expect(String(item.summary ?? "").length).toBeLessThanOrEqual(600);
   });
