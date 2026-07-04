@@ -1,23 +1,43 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Group, Note, PaneHead, Row, Switch } from "@jarv1s/settings-ui";
+import { Group, Note, PaneHead, Row, Select, Switch } from "@jarv1s/settings-ui";
 import type {
   AiActionPolicyTier,
+  EmailTaskCreationMode,
+  EmailTaskCreationModeResponse,
   GetAiActionPoliciesResponse,
   GetEmailBriefingSettingsResponse,
   ListSourceBehaviorsResponse,
   PatchAiActionPolicyResponse,
   PutSourceBehaviorResponse,
+  UpdateEmailTaskCreationModeRequest,
   UpdateEmailBriefingSettingsRequest,
   UpdateEmailBriefingSettingsResponse
 } from "@jarv1s/shared";
+import { DEFAULT_EMAIL_TASK_MODE } from "@jarv1s/shared";
 
 const EMAIL_BEHAVIOR_ID = "email.briefings";
 const DRAFTS_MODULE_ID = "email";
 const DRAFTS_FAMILY_ID = "email_drafts";
 const SOURCE_BEHAVIORS_KEY = ["settings", "source-behaviors"] as const;
 const EMAIL_SETTINGS_KEY = ["email", "briefing-settings"] as const;
+const EMAIL_TASK_MODE_KEY = ["email", "task-mode"] as const;
 const ACTION_POLICY_KEY = ["ai", "action-policy"] as const;
+
+export const EMAIL_TASK_MODE_OPTIONS: ReadonlyArray<{
+  readonly value: EmailTaskCreationMode;
+  readonly label: string;
+  readonly desc: string;
+}> = [
+  { value: "off", label: "Off", desc: "Never create tasks from email." },
+  { value: "suggest", label: "Suggest", desc: "Stage suggestions for your review (default)." },
+  {
+    value: "auto_safe",
+    label: "Auto for safe items",
+    desc: "Auto-add bills and hard deadlines; stage the rest."
+  },
+  { value: "auto", label: "Auto", desc: "Auto-add anything Jarvis is confident about." }
+];
 
 // The "draft replies without asking" toggle maps the generic email_drafts action
 // policy between the two tiers the family allows: ON = trusted_auto (auto-execute
@@ -77,6 +97,17 @@ function patchEmailSettings(body: UpdateEmailBriefingSettingsRequest) {
   });
 }
 
+function getEmailTaskMode() {
+  return requestJson<EmailTaskCreationModeResponse>("/api/email/task-creation-mode");
+}
+
+function putEmailTaskMode(body: UpdateEmailTaskCreationModeRequest) {
+  return requestJson<EmailTaskCreationModeResponse>("/api/email/task-creation-mode", {
+    method: "PUT",
+    body
+  });
+}
+
 function getActionPolicies() {
   return requestJson<GetAiActionPoliciesResponse>("/api/ai/action-policy");
 }
@@ -103,6 +134,13 @@ export default function EmailSettings() {
     mutationFn: patchEmailSettings,
     onSuccess: (data) => queryClient.setQueryData(EMAIL_SETTINGS_KEY, data)
   });
+  const taskModeQuery = useQuery({ queryKey: EMAIL_TASK_MODE_KEY, queryFn: getEmailTaskMode });
+  const taskModeMutation = useMutation({
+    mutationFn: (mode: EmailTaskCreationMode) => putEmailTaskMode({ mode }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(EMAIL_TASK_MODE_KEY, data);
+    }
+  });
   const policiesQuery = useQuery({ queryKey: ACTION_POLICY_KEY, queryFn: getActionPolicies });
   const draftPolicyMutation = useMutation({
     mutationFn: patchDraftPolicy,
@@ -114,12 +152,16 @@ export default function EmailSettings() {
       .flatMap((source) => source.behaviors)
       .find((behavior) => behavior.id === EMAIL_BEHAVIOR_ID)?.enabled ?? true;
   const settings = (settingsMutation.data ?? settingsQuery.data)?.settings;
+  const taskMode = (taskModeMutation.data ?? taskModeQuery.data)?.mode ?? DEFAULT_EMAIL_TASK_MODE;
+  const taskModeOption = EMAIL_TASK_MODE_OPTIONS.find((option) => option.value === taskMode);
   const draftAutoTier = draftAutoTierFromPolicies(policiesQuery.data?.policies ?? []);
   const disabled =
     sourceBehaviors.isLoading ||
     settingsQuery.isLoading ||
+    taskModeQuery.isLoading ||
     behaviorMutation.isPending ||
-    settingsMutation.isPending;
+    settingsMutation.isPending ||
+    taskModeMutation.isPending;
   const draftPolicyDisabled = policiesQuery.isLoading || draftPolicyMutation.isPending;
 
   return (
@@ -143,6 +185,26 @@ export default function EmailSettings() {
         />
       </Group>
       <Group title="Follow-through">
+        <Row
+          name="Task creation"
+          desc={taskModeOption?.desc ?? "How email becomes tasks."}
+          control={
+            <Select
+              value={taskMode}
+              aria-label="Email task creation mode"
+              disabled={disabled}
+              onChange={(event) =>
+                taskModeMutation.mutate(event.currentTarget.value as EmailTaskCreationMode)
+              }
+            >
+              {EMAIL_TASK_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          }
+        />
         <Row
           name="Create tasks from email signals"
           desc="Allow briefing-worthy email to become task proposals through the normal task action loop."
@@ -212,8 +274,10 @@ export default function EmailSettings() {
       </Group>
       {sourceBehaviors.isError ||
       settingsQuery.isError ||
+      taskModeQuery.isError ||
       behaviorMutation.isError ||
       settingsMutation.isError ||
+      taskModeMutation.isError ||
       policiesQuery.isError ||
       draftPolicyMutation.isError ? (
         <Note>Could not save email settings. Try again.</Note>
