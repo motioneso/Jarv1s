@@ -215,9 +215,7 @@ export function SettingsPeoplePane() {
                   behavior.id
                 )}
                 disabled={sourceBehaviorMutation.isPending}
-                onChange={(enabled) =>
-                  sourceBehaviorMutation.mutate({ id: behavior.id, enabled })
-                }
+                onChange={(enabled) => sourceBehaviorMutation.mutate({ id: behavior.id, enabled })}
               />
             }
           />
