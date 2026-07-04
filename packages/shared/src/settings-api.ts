@@ -132,10 +132,7 @@ export const putNotificationPreferenceRouteSchema = {
       properties: {
         preference: notificationPreferenceSchema,
         unreadCount: {
-          anyOf: [
-            { type: "integer", minimum: 0 },
-            { type: "null" }
-          ]
+          anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }]
         }
       }
     },

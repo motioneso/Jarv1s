@@ -37,6 +37,7 @@ describe("handleUpgradeNotifyJob", () => {
     expect(repository.create).toHaveBeenCalledWith(
       {},
       {
+        moduleId: "settings",
         title: "Jarvis v1.1.0 is available",
         body: "A newer version of Jarvis is available. View the release notes and upgrade from Settings -> Diagnostics.",
         urgency: "normal",

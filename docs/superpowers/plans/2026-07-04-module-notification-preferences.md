@@ -51,6 +51,7 @@
 ### Task 1: Shared Contracts And Manifest Marker
 
 **Files:**
+
 - Modify `packages/module-sdk/src/index.ts`
 - Modify `packages/shared/src/notifications-api.ts`
 - Modify `packages/shared/src/settings-api.ts`
@@ -123,7 +124,9 @@ export interface PutNotificationPreferenceResponse {
 Route schemas:
 
 ```ts
-export const listNotificationPreferencesRouteSchema = { response: { 200: listNotificationPreferencesResponseSchema } } as const;
+export const listNotificationPreferencesRouteSchema = {
+  response: { 200: listNotificationPreferencesResponseSchema }
+} as const;
 export const putNotificationPreferenceRouteSchema = {
   params: { type: "object", required: ["moduleId"], properties: { moduleId: { type: "string" } } },
   body: putNotificationPreferenceRequestSchema,
@@ -144,6 +147,7 @@ Expected: may still fail only on implementation references not yet added.
 ### Task 2: Database Column And Serialization
 
 **Files:**
+
 - Create `packages/notifications/sql/0106_notifications_module_id.sql`
 - Modify `packages/notifications/src/manifest.ts`
 - Modify `packages/db/src/types.ts`
@@ -215,6 +219,7 @@ Expected: migration applies; remaining type errors point to repository create in
 ### Task 3: Repository Enforcement
 
 **Files:**
+
 - Modify `packages/notifications/src/repository.ts`
 - Modify `tests/integration/notifications.test.ts`
 
@@ -269,7 +274,10 @@ export class NotificationsRepository {
     private readonly notificationPreferencePort?: NotificationPreferencePort
   ) {}
 
-  async create(scopedDb: DataContextDb, input: CreateNotificationInput): Promise<NotificationWithReadState | null> {
+  async create(
+    scopedDb: DataContextDb,
+    input: CreateNotificationInput
+  ): Promise<NotificationWithReadState | null> {
     assertDataContextDb(scopedDb);
     if (!input.moduleId.trim()) throw new Error("moduleId is required");
     if (
@@ -307,6 +315,7 @@ Expected: notifications tests pass; producer call sites fail until Task 5.
 ### Task 4: Settings Preference API
 
 **Files:**
+
 - Create `packages/settings/src/notification-preferences-routes.ts`
 - Modify `packages/settings/src/routes.ts`
 - Modify `tests/integration/notification-preferences.test.ts` or `tests/integration/settings.test.ts`
@@ -388,6 +397,7 @@ Expected: route tests pass.
 ### Task 5: Manifest Opt-In And Producers
 
 **Files:**
+
 - Modify `packages/briefings/src/manifest.ts`
 - Modify `packages/settings/src/manifest.ts`
 - Modify `packages/briefings/src/jobs.ts`
@@ -446,6 +456,7 @@ Expected: producers compile and existing notification tests pass.
 ### Task 6: Frontend API And Notifications Panel
 
 **Files:**
+
 - Modify `apps/web/src/api/client.ts`
 - Modify `apps/web/src/api/query-keys.ts`
 - Modify `apps/web/src/settings/settings-sample-data.ts`

@@ -316,7 +316,11 @@ export function NotificationSettings(props: {
     retry: false
   });
   const mutation = useMutation({
-    mutationFn: (input: { readonly moduleId: string; readonly enabled: boolean; readonly clearUnread?: boolean }) =>
+    mutationFn: (input: {
+      readonly moduleId: string;
+      readonly enabled: boolean;
+      readonly clearUnread?: boolean;
+    }) =>
       putNotificationPreference(input.moduleId, {
         enabled: input.enabled,
         clearUnread: input.clearUnread
@@ -324,7 +328,9 @@ export function NotificationSettings(props: {
     onSuccess: (data) => {
       setError(null);
       queryClient.setQueryData(queryKeys.settings.notificationPreferences, (current) => {
-        const existing = current as Awaited<ReturnType<typeof getNotificationPreferences>> | undefined;
+        const existing = current as
+          | Awaited<ReturnType<typeof getNotificationPreferences>>
+          | undefined;
         return {
           preferences: (existing?.preferences ?? []).map((preference) =>
             preference.moduleId === data.preference.moduleId ? data.preference : preference
@@ -337,8 +343,7 @@ export function NotificationSettings(props: {
   });
   const toggleModule = (moduleId: string, enabled: boolean) => {
     const clearUnread =
-      !enabled &&
-      window.confirm("Mark existing unread notifications from this module as read?");
+      !enabled && window.confirm("Mark existing unread notifications from this module as read?");
     mutation.mutate({ moduleId, enabled, clearUnread });
   };
   const preferences = preferencesQuery.data?.preferences ?? [];
@@ -372,11 +377,7 @@ export function NotificationSettings(props: {
           desc="The notification center inside Jarvis."
           control={<Badge tone="pine">Enabled</Badge>}
         />
-        <Row
-          name="Push"
-          desc="System notifications on this device. Tracked in #743."
-          coming
-        />
+        <Row name="Push" desc="System notifications on this device. Tracked in #743." coming />
         <Row
           name="Email digest"
           desc="A once-daily summary, instead of live alerts. Tracked in #742."
