@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BriefingDefinitionDto } from "@jarv1s/shared";
 
 import {
+  createDefinitionRequest,
   defaultScheduleMetadataFor,
   findDefinition
 } from "../../apps/web/src/briefings/briefing-settings-model.js";
@@ -17,6 +18,18 @@ describe("briefing settings model", () => {
     expect(findDefinition(definitions, "evening")?.scheduleMetadata.targetTime).toBe("19:00");
     expect(defaultScheduleMetadataFor("evening").targetTime).toBe("19:00");
     expect(defaultScheduleMetadataFor("morning").targetTime).toBe("07:00");
+  });
+
+  it("defaults new evening definitions to the user-local timezone fallback", () => {
+    const request = createDefinitionRequest({
+      briefingType: "evening",
+      selectedToolNames: ["tasks.list"]
+    });
+
+    expect(request.scheduleMetadata).toEqual({
+      targetTime: "19:00",
+      timezone: "America/Los_Angeles"
+    });
   });
 });
 
