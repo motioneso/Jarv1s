@@ -33,4 +33,3 @@ removal of hardcoded coming-soon quiet-hours UI.
 - Switch and time inputs reflect backend state.
 - Coming-soon quiet-hours copy is gone.
 - Existing quiet-hours deferral behavior remains consistent with #250.
-

@@ -67,4 +67,3 @@ nothing, but `Coming soon` rows are fine when they point at concrete tracked wor
 - `~/Jarv1s/packages/notifications/src/manifest.ts`
 - `~/Jarv1s/packages/shared/*notifications*`
 - module manifests that opt into notifications
-

@@ -7,9 +7,12 @@ import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { HostPane, IdentityPane } from "../../apps/web/src/settings/settings-admin-panes.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
 
-function renderWithQuery(node: React.ReactNode, client = new QueryClient({
-  defaultOptions: { queries: { retry: false } }
-})): string {
+function renderWithQuery(
+  node: React.ReactNode,
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  })
+): string {
   return renderToString(
     createElement(QueryClientProvider, { client }, createElement(FeedbackProvider, null, node))
   );

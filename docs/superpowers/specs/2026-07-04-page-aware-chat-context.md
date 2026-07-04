@@ -65,4 +65,3 @@ page context. The core use case is natural questions like "why does this say X o
 - `~/Jarv1s/packages/chat/src/live/*`
 - `~/Jarv1s/packages/chat/src/routes.ts`
 - `~/Jarv1s/packages/shared/*chat*`
-

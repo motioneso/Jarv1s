@@ -31,4 +31,3 @@ Underlying `selectedToolNames` remain internal IDs for briefing creation. This i
 - Briefings settings no longer displays raw assistant tool names.
 - If the card remains, labels are human-readable and stable.
 - Tests cover label mapping or card removal so raw tool IDs do not return to the UI.
-

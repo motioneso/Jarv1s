@@ -61,10 +61,7 @@ import {
 } from "./settings-module-subviews";
 import { useFeedback } from "./settings-feedback";
 import { resolveModuleSettingsDeepLink } from "./module-settings-deep-link";
-import {
-  settingsModuleControlModel,
-  visibleUserToggleModules
-} from "./settings-module-view-model";
+import { settingsModuleControlModel, visibleUserToggleModules } from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
   Badge,
@@ -740,10 +737,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
 
   return (
     <>
-      <PaneHead
-        title="Modules"
-        desc="Additional parts of Jarvis you can turn on or off."
-      />
+      <PaneHead title="Modules" desc="Additional parts of Jarvis you can turn on or off." />
       <Group title="Additional modules" desc="Switch on the extras you want to use.">
         {modules.length ? (
           modules.map(renderRow)

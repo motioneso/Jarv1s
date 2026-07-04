@@ -17,9 +17,10 @@ function registerTestRoutes(actions: {
     repository: {} as never,
     assertAdminUser: async () => ({ id: "admin-1" }) as never,
     handleRouteError: (error, reply) => {
-      const status = typeof (error as { statusCode?: unknown }).statusCode === "number"
-        ? ((error as { statusCode: number }).statusCode)
-        : 500;
+      const status =
+        typeof (error as { statusCode?: unknown }).statusCode === "number"
+          ? (error as { statusCode: number }).statusCode
+          : 500;
       return reply.status(status).send({ error: (error as Error).message });
     },
     requestRestart: actions.requestRestart,

@@ -57,4 +57,3 @@ briefing inclusion can also appear in Briefings because that is where users may 
 - `~/Jarv1s/packages/email/src/settings/index.tsx`
 - `~/Jarv1s/packages/calendar/src/manifest.ts`
 - `~/Jarv1s/packages/email/src/manifest.ts`
-

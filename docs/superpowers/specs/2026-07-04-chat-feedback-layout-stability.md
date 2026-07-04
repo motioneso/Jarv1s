@@ -27,4 +27,3 @@ response header/actions.
 - Showing `Saved` and `Undo` does not reduce the body text column width.
 - Controls remain accessible and do not overlap content on mobile-width chat panes.
 - Long responses preserve normal readable wrapping before and after feedback state changes.
-

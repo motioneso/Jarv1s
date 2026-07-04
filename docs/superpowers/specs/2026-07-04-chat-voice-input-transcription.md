@@ -62,4 +62,3 @@ provider routing, privacy, and data-retention boundaries. It needs its own imple
 - `~/Jarv1s/packages/ai`
 - `~/Jarv1s/packages/chat`
 - `~/Jarv1s/packages/shared/*ai*`
-
