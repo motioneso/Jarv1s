@@ -17,13 +17,13 @@ import type { Kysely } from "kysely";
 
 import type { AiRepository } from "@jarv1s/ai";
 import { createAiSecretCipher } from "@jarv1s/ai";
+import { BriefingsRepository, composeBriefing, type ComposeDeps } from "@jarv1s/briefings";
 import {
-  BriefingsRepository,
-  composeBriefing,
+  DataContextRunner,
+  createDatabase,
   type BriefingDefinition,
-  type ComposeDeps
-} from "@jarv1s/briefings";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+  type JarvisDatabase
+} from "@jarv1s/db";
 import { EmailRepository } from "@jarv1s/email";
 import { featureGrantsPrefKey } from "@jarv1s/connectors";
 import type { MemoryRetriever } from "@jarv1s/memory";

@@ -1,15 +1,12 @@
 /** Shared fake-deps harness for the briefings-compose unit suites. */
 import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
-import type { GenerateChatInput } from "@jarv1s/ai";
 import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
 import type { MemoryRetriever } from "@jarv1s/memory";
 import type { JarvisModuleManifest, ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 import type { FocusSignalInput, PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
 import {
-  composeBriefing,
   type ComposeDeps,
-  type ComposeResult,
   type ComposeRunInput,
   type GenerateChatFn
 } from "../../packages/briefings/src/compose.js";

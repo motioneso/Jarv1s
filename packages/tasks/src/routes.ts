@@ -1,14 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type {
-  AccessContext,
-  DataContextDb,
-  DataContextRunner,
-  PreferencesPort,
-  Task,
-  TaskStatus
-} from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, PreferencesPort, TaskStatus } from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
   assignTaskTagRouteSchema,
@@ -45,6 +38,11 @@ import { sendJob } from "@jarv1s/jobs";
 import { handleRouteError } from "@jarv1s/module-sdk";
 
 import { HttpError } from "./errors.js";
+import {
+  recordTriageFeedbackIfNeeded,
+  resolveTriageVerdict,
+  type EmailTriageFeedbackPort
+} from "./email-feedback.js";
 import type { DeferredTaskStatusPayload } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
 import { parseRecurrenceSpec, type RecurrenceSpec } from "./recurrence.js";
@@ -66,22 +64,6 @@ import {
   serializeTaskPreferences,
   serializeTaskTag
 } from "./serialize.js";
-
-/**
- * Structural port for recording accept/reject feedback when a user resolves an
- * email-suggested task. Implemented by the composition root over the connectors
- * module's triage-feedback store — tasks never imports connectors (module isolation).
- */
-export interface EmailTriageFeedbackPort {
-  record(
-    scopedDb: DataContextDb,
-    input: {
-      readonly taskSourceRef: string | null;
-      readonly verdict: "accepted" | "rejected";
-      readonly title: string;
-    }
-  ): Promise<void>;
-}
 
 export interface TasksRoutesDependencies extends TaskSearchRouteDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -105,26 +87,6 @@ export interface TasksRoutesDependencies extends TaskSearchRouteDependencies {
     readonly requestId: string;
   }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
   readonly emailTriageFeedback?: EmailTriageFeedbackPort;
-}
-
-/**
- * A status change on an email-suggested task IS the user's triage verdict:
- * todo/done = accepted, archived = rejected. Anything else records nothing.
- */
-function resolveTriageVerdict(
-  prior: Task,
-  nextStatus: TaskStatus | undefined
-): "accepted" | "rejected" | null {
-  if (prior.source !== "email" || prior.status !== "suggested") {
-    return null;
-  }
-  if (nextStatus === "todo" || nextStatus === "done") {
-    return "accepted";
-  }
-  if (nextStatus === "archived") {
-    return "rejected";
-  }
-  return null;
 }
 
 interface TaskParams {
@@ -350,26 +312,12 @@ export function registerTasksRoutes(
           return reply.code(404).send({ error: "Task not found" });
         }
 
-        // Feedback recording runs OUTSIDE the update transaction and is failure-isolated
-        // (mirrors reconcileRecurrenceSchedule): learning must never break the user's action.
-        if (triageVerdict && dependencies.emailTriageFeedback) {
-          const feedbackPort = dependencies.emailTriageFeedback;
-          try {
-            await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-              feedbackPort.record(scopedDb, {
-                taskSourceRef,
-                verdict: triageVerdict,
-                title: task.title
-              })
-            );
-          } catch (feedbackError) {
-            // Log without task title or email content — id + verdict only.
-            request.log.warn(
-              { err: feedbackError, taskId: task.id, verdict: triageVerdict },
-              "email triage feedback recording failed"
-            );
-          }
-        }
+        await recordTriageFeedbackIfNeeded(dependencies, accessContext, request.log, {
+          taskId: task.id,
+          taskSourceRef,
+          title: task.title,
+          triageVerdict
+        });
 
         return { task: serializeTask(task, tags) };
       } catch (error) {
@@ -1004,3 +952,5 @@ function applyReadinessCap(
   const cap = aggregate <= 0.25 ? 3 : 5;
   return tasks.slice(0, cap);
 }
+
+export type { EmailTriageFeedbackPort } from "./email-feedback.js";
