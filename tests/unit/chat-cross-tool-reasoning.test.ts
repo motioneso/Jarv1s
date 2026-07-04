@@ -327,6 +327,40 @@ describe("collectCrossToolContextAndItems", () => {
     expect(result.items).toEqual([]);
     expect(mockReader.runReadTool).not.toHaveBeenCalled();
   });
+
+  it("collects items from every source when two sources settle close together", async () => {
+    const now = new Date().toISOString();
+    const soonIso = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const reader: CrossToolReadRunner = {
+      runReadTool: vi.fn(async (_actor: string, toolName: string) => {
+        if (toolName === "tasks.focus") {
+          return { ok: true, data: { items: [{ title: "Write quarterly report", priority: 3 }] } };
+        }
+        if (toolName === "tasks.atRisk" || toolName === "tasks.overdue") {
+          return { ok: true, data: { items: [] } };
+        }
+        if (toolName === "calendar.listVisibleEvents") {
+          return {
+            ok: true,
+            data: {
+              events: [{ title: "Today work sync", starts_at: soonIso, summary: "Today work sync" }]
+            }
+          };
+        }
+        return { ok: false };
+      })
+    };
+    const plan = planCrossToolReasoning({
+      userText: "what should I work on today",
+      threadTitle: null,
+      recentTurns: [],
+      localNowIso: now,
+      localTimezone: "UTC"
+    });
+    const result = await collectCrossToolContextAndItems("u1", plan, reader, now);
+    const sources = result.items.map((item) => item.source).sort();
+    expect(sources).toEqual(["calendar", "tasks"]);
+  });
 });
 
 describe("normalizeCalendarResult — timezone-aware sourceLabel (#579)", () => {
