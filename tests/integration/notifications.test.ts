@@ -89,7 +89,7 @@ describe("Notifications module M5", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version IN ('0008', '0071', '0101', '0102', '0105')
+          WHERE version IN ('0008', '0071', '0101', '0102', '0105', '0142')
           ORDER BY version
         `
       );
@@ -140,6 +140,10 @@ describe("Notifications module M5", () => {
         {
           version: "0105",
           name: "0105_notifications_urgency_deferral.sql"
+        },
+        {
+          version: "0142",
+          name: "0142_notifications_module_id.sql"
         }
       ]);
       expect(tables.rows).toEqual([
@@ -279,6 +283,7 @@ describe("Notifications module M5", () => {
 
     expect(created.actor_user_id).toBe(ids.userA);
     expect(created.recipient_user_id).toBe(ids.userA);
+    expect(created.module_id).toBe("briefings");
     expect(created.read_at).toBeNull();
     expect(fetchedByOwner?.id).toBe(created.id);
     expect(fetchedByOtherUser).toBeUndefined();
@@ -581,6 +586,13 @@ describe("Notifications module M5", () => {
   });
 
   it("serializeNotification projects raw DB metadata through GET /api/notifications (Verification 3b/REST)", async () => {
+    const created = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.create(scopedDb, {
+        moduleId: "briefings",
+        title: "DTO module id probe",
+        metadata: { source: "dto-module-id" }
+      })
+    );
     const response = await server.inject({
       method: "GET",
       url: "/api/notifications",
@@ -590,11 +602,14 @@ describe("Notifications module M5", () => {
     const body = response.json<{
       notifications: Array<{
         id: string;
+        moduleId: string | null;
         metadata: NotificationMetadata;
       }>;
     }>();
     const probe = body.notifications.find((n) => n.id === notificationIds.aProjectionProbe);
+    const createdDto = body.notifications.find((n) => n.id === created.id);
     expect(probe).toBeDefined();
+    expect(createdDto?.moduleId).toBe("briefings");
     const metadata = probe!.metadata;
     // No nested objects / arrays survived the projection.
     for (const value of Object.values(metadata)) {

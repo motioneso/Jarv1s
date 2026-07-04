@@ -192,6 +192,7 @@ export class NotificationsRepository {
       .values({
         id: randomUUID(),
         // V1 actor-scoped delivery: both ids are always the active actor.
+        module_id: input.moduleId,
         actor_user_id: sql<string>`app.current_actor_user_id()`,
         recipient_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
@@ -243,6 +244,7 @@ export class NotificationsRepository {
       )
       SELECT
         n.id AS id,
+        n.module_id AS module_id,
         n.actor_user_id AS actor_user_id,
         n.recipient_user_id AS recipient_user_id,
         n.title AS title,
@@ -321,6 +323,7 @@ export class NotificationsRepository {
       )
       .select([
         "notifications.id as id",
+        "notifications.module_id as module_id",
         "notifications.actor_user_id as actor_user_id",
         "notifications.recipient_user_id as recipient_user_id",
         "notifications.title as title",

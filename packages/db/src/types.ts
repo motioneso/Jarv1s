@@ -241,6 +241,7 @@ export interface TaskPreferencesTable {
 
 export interface NotificationsTable {
   id: string;
+  module_id: string | null;
   actor_user_id: string | null;
   recipient_user_id: string | null;
   title: string;

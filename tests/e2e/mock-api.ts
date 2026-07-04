@@ -811,6 +811,7 @@ export function createMockNotification(
 ): NotificationDto {
   return {
     id,
+    moduleId: "briefings",
     actorUserId: "user-1",
     recipientUserId: "user-1",
     title,

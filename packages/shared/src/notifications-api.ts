@@ -17,6 +17,7 @@ export type NotificationMetadata = Record<string, NotificationMetadataValue>;
 
 export interface NotificationDto {
   readonly id: string;
+  readonly moduleId: string | null;
   readonly actorUserId: string | null;
   readonly recipientUserId: string | null;
   readonly title: string;
@@ -65,6 +66,7 @@ export const notificationDtoSchema = {
   type: "object",
   required: [
     "id",
+    "moduleId",
     "actorUserId",
     "recipientUserId",
     "title",
@@ -75,6 +77,7 @@ export const notificationDtoSchema = {
   ],
   properties: {
     id: { type: "string" },
+    moduleId: nullableStringSchema,
     actorUserId: nullableStringSchema,
     recipientUserId: nullableStringSchema,
     title: { type: "string" },
