@@ -4,6 +4,8 @@ import type {
   ChatMultiplexerSettingsDto,
   GetAiAdminUserPinResponse,
   HostDiagnosticsDto,
+  HostRestartResponse,
+  InstallHerdrResponse,
   ListAdminAuditEventsResponse,
   ListAdminConnectorAccountsResponse,
   ListAuthProviderStatusesResponse,
@@ -128,4 +130,12 @@ export async function setChatMultiplexerSettings(
 
 export async function getHostDiagnostics(): Promise<HostDiagnosticsDto> {
   return requestJson<HostDiagnosticsDto>("/api/admin/host/diagnostics");
+}
+
+export async function postHostRestart(): Promise<HostRestartResponse> {
+  return requestJson<HostRestartResponse>("/api/admin/host/restart", { method: "POST" });
+}
+
+export async function postInstallHerdr(): Promise<InstallHerdrResponse> {
+  return requestJson<InstallHerdrResponse>("/api/admin/host/herdr/install", { method: "POST" });
 }

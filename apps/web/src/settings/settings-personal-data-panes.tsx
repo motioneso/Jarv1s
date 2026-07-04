@@ -71,7 +71,10 @@ import {
 } from "./settings-data-source-model";
 import { useFeedback } from "./settings-feedback";
 import { resolveModuleSettingsDeepLink } from "./module-settings-deep-link";
-import { settingsModuleControlModel } from "./settings-module-view-model";
+import {
+  settingsModuleControlModel,
+  visibleUserToggleModules
+} from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
   Badge,
@@ -669,21 +672,6 @@ const CAT_BY_ID: Record<string, string> = { knowledge: "memory" };
 const CONTRIBUTED_SETTINGS_MODULE_IDS = new Set(
   MODULE_SETTINGS_SURFACES.filter((surface) => surface.hasEntry).map((surface) => surface.moduleId)
 );
-// The modules a person actually uses/configures, in the order the design shows
-// them. Everything else the registry exposes is internal infrastructure.
-const USER_FACING_MODULES = new Set([
-  "tasks",
-  "calendar",
-  "briefings",
-  "chat",
-  "notifications",
-  "knowledge",
-  "wellness",
-  "sports",
-  "finance"
-]);
-// The extras a person opts into. Everything else user-facing is core (always on).
-const OPTIONAL_MODULES = new Set(["wellness", "sports", "finance"]);
 type ModuleSub = "briefings" | "chat" | "notifications";
 type ModuleSettingsView = ModuleSub | { readonly moduleId: string };
 
@@ -729,13 +717,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     );
   }
 
-  // Curated to the user-facing module set. The registry also carries internal
-  // infrastructure modules (settings, connectors, email, ai, memory,
-  // structured-state) that are not something a person configures here.
-  const modules = (myQuery.data?.modules ?? []).filter((m) => USER_FACING_MODULES.has(m.id));
-  const core = modules.filter((m) => !OPTIONAL_MODULES.has(m.id));
-  const optional = modules.filter((m) => OPTIONAL_MODULES.has(m.id));
-  const hasChat = modules.some((m) => m.id === "chat");
+  const modules = visibleUserToggleModules(myQuery.data?.modules ?? []);
   const pathFor = (id: string): string | null =>
     modulesQuery.data?.modules.find((m) => m.id === id)?.navigation[0]?.path ?? null;
 
@@ -822,7 +804,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
           </div>
         </div>
         <div className="modrow__act">
-          {OPTIONAL_MODULES.has(module.id) && control.kind === "toggle" ? (
+          {control.kind === "toggle" ? (
             <Switch
               ariaLabel={`Use ${module.name}`}
               checked={control.checked}
@@ -839,38 +821,15 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     <>
       <PaneHead
         title="Modules"
-        desc="The parts of Jarvis you use, and how each one behaves. Settings-only modules configure right here; the rest open their own screen."
+        desc="Additional parts of Jarvis you can turn on or off."
       />
-      <Group title="Core modules" desc="Core to Jarvis — always on.">
-        {core.length ? (
-          core.map(renderRow)
-        ) : (
-          <Row name={myQuery.isLoading ? "Loading modules…" : "No modules"} />
-        )}
-        {!hasChat ? (
-          <div className="modrow" key="chat-synthetic">
-            <div className="modrow__ic">
-              <MessagesSquare size={19} aria-hidden="true" />
-            </div>
-            <div className="modrow__main">
-              <div className="modrow__name">Chat</div>
-              <div className="modrow__desc">{moduleDescription("chat")}</div>
-            </div>
-            <div className="modrow__act">
-              <button type="button" className="modrow__link" onClick={() => setView("chat")}>
-                Configure <ArrowRight size={14} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </Group>
-      <Group title="Optional modules" desc="Switch on the extras you want to use.">
-        {optional.length ? (
-          optional.map(renderRow)
+      <Group title="Additional modules" desc="Switch on the extras you want to use.">
+        {modules.length ? (
+          modules.map(renderRow)
         ) : (
           <Row
-            name="No optional modules"
-            desc="Optional modules will appear here when available."
+            name={myQuery.isLoading ? "Loading modules…" : "No additional modules"}
+            desc="Additional modules will appear here when available."
           />
         )}
       </Group>

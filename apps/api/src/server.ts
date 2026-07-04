@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -81,6 +82,8 @@ export interface CreateApiServerOptions {
   };
   /** TEST-ONLY. Injected fetch for weather HTTP calls. */
   readonly fetchFn?: typeof fetch;
+  readonly requestRestart?: () => void | Promise<void>;
+  readonly installHerdr?: () => void | Promise<void>;
 }
 
 export interface ApiServerConfig {
@@ -361,6 +364,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleApiClient,
       connectorsRepository,
       hostDiagnostics,
+      requestRestart:
+        options.requestRestart ??
+        (process.env.NODE_ENV === "test" ? undefined : () => scheduleProcessRestart(server)),
+      installHerdr:
+        options.installHerdr ??
+        (process.env.NODE_ENV === "test" ? undefined : installHerdrFromOfficialScript),
       fetchFn: options.fetchFn
     });
 
@@ -631,8 +640,6 @@ function resolveDeployMode(raw: string | undefined): HostDiagnosticsInfo["deploy
   }
 }
 
-// Documented, fixed operator command per deploy mode. There is NO in-process restart
-// endpoint (#255): restart is operator-managed, so we only surface the command to run.
 function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | null {
   switch (mode) {
     case "compose":
@@ -644,6 +651,29 @@ function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | nu
     default:
       return null;
   }
+}
+
+function scheduleProcessRestart(server: FastifyInstance): void {
+  server.log.info("admin requested API restart");
+  const timer = setTimeout(() => process.exit(0), 250);
+  timer.unref?.();
+}
+
+function installHerdrFromOfficialScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "sh",
+      ["-c", "curl -fsSL https://herdr.dev/install.sh | sh"],
+      { timeout: 120_000, maxBuffer: 1024 * 1024 },
+      (error) => {
+        if (error) {
+          reject(new Error("Herdr installation failed"));
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
 }
 
 function registerPlatformRoutes(server: FastifyInstance, authRuntime: JarvisAuthRuntime): void {

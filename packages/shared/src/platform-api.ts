@@ -670,6 +670,42 @@ export const getHostDiagnosticsRouteSchema = {
   }
 } as const;
 
+export interface HostRestartResponse {
+  readonly accepted: true;
+}
+
+export const postHostRestartRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["accepted"],
+      additionalProperties: false,
+      properties: { accepted: { type: "boolean", const: true } }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    503: errorResponseSchema
+  }
+} as const;
+
+export interface InstallHerdrResponse {
+  readonly installed: true;
+}
+
+export const postInstallHerdrRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["installed"],
+      additionalProperties: false,
+      properties: { installed: { type: "boolean", const: true } }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    503: errorResponseSchema
+  }
+} as const;
+
 // ── Module enablement (admin + self-service) ────────────────────────────────
 
 export interface AdminModuleDto {

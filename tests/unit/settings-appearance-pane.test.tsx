@@ -7,6 +7,7 @@ import type { AestheticThemeTokens } from "@jarv1s/shared";
 import {
   AppearancePane,
   contrastRatio,
+  saveThemeDraft,
   slugifyThemeId,
   tokensToCssVars
 } from "../../apps/web/src/settings/settings-appearance-pane.js";
@@ -71,6 +72,26 @@ describe("AppearancePane — palette auto-staging wiring", () => {
 });
 
 describe("appearance pane helpers", () => {
+  it("saves and activates the custom theme draft", async () => {
+    const calls: string[] = [];
+    const response = await saveThemeDraft(
+      { id: "my-blue", name: "My Blue", tokens },
+      {
+        putCustomTheme: async (id, body) => {
+          calls.push(`put:${id}:${body.name}`);
+          return { theme: { id, name: body.name ?? "", builtIn: false, tokens } };
+        },
+        setActiveTheme: async (body) => {
+          calls.push(`active:${body.id}`);
+          return { builtIn: [], custom: [], activeId: body.id };
+        }
+      }
+    );
+
+    expect(response.theme.id).toBe("my-blue");
+    expect(calls).toEqual(["put:my-blue:My Blue", "active:my-blue"]);
+  });
+
   it("slugifies theme names into route-safe ids", () => {
     expect(slugifyThemeId(" Coolors Sunset! ")).toBe("coolors-sunset");
     expect(slugifyThemeId("!!!")).toMatch(/^theme-/);

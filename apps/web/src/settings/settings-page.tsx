@@ -35,7 +35,7 @@ import {
   writeSettingsStorage
 } from "./settings-storage";
 import type { PaneProps } from "./settings-types";
-import { PrioritySettings, Segmented, Switch } from "./settings-ui";
+import { PrioritySettings, Segmented } from "./settings-ui";
 import type { MeResponse } from "@jarv1s/shared";
 
 type SettingsPane = ComponentType<PaneProps>;
@@ -159,9 +159,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
   const [mode, setMode] = useState<"personal" | "admin">(() =>
     isAdmin && readSettingsStorage(storage, "mode") === "admin" ? "admin" : "personal"
   );
-  const [advanced, setAdvanced] = useState<boolean>(
-    () => readSettingsStorage(storage, "advanced") === "1"
-  );
   const [categoryPersonal, setCategoryPersonal] = useState<PersonalSectionId>(() =>
     coerceSettingsSectionId(PERSONAL_SECTIONS, readSettingsStorage(storage, "categoryPersonal"))
   );
@@ -170,10 +167,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
   );
 
   useEffect(() => writeSettingsStorage(storage, "mode", mode), [mode, storage]);
-  useEffect(
-    () => writeSettingsStorage(storage, "advanced", advanced ? "1" : "0"),
-    [advanced, storage]
-  );
   useEffect(
     () => writeSettingsStorage(storage, "categoryPersonal", categoryPersonal),
     [categoryPersonal, storage]
@@ -194,7 +187,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
     } else if (isAdmin && ADMIN_SECTIONS.some((section) => section.id === requested)) {
       setMode("admin");
       setCategoryAdmin(requested as AdminSectionId);
-      if (requested === "host") setAdvanced(true);
     }
     const next = new URLSearchParams(searchParams);
     next.delete("section");
@@ -232,13 +224,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
           ) : (
             <span />
           )}
-          <label className="set2__adv">
-            <span className="set2__adv-tx">
-              <span className="set2__adv-t">Advanced</span>
-              <span className="set2__adv-d">Show provider, host &amp; developer detail</span>
-            </span>
-            <Switch ariaLabel="Advanced settings" checked={advanced} onChange={setAdvanced} />
-          </label>
         </div>
 
         <div className="set2__grid">
@@ -273,7 +258,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
           <div className="set2__pane">
             <Suspense fallback={<div className="pane__loading">Loading settings...</div>}>
               <Pane
-                advanced={advanced}
                 me={me}
                 onNavigate={(path) => navigate(path)}
                 onSelectSection={(id) => setActiveSection(id as PersonalSectionId | AdminSectionId)}
