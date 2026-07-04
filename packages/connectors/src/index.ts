@@ -15,6 +15,8 @@ export * from "./imap-probe-client.js";
 export * from "./imap-secret.js";
 export * from "./imap-sync-jobs.js";
 export * from "./live-tools.js";
+export * from "./monitor-jobs.js";
+export * from "./monitor-schedule.js";
 export * from "./manifest.js";
 export * from "./oauth.js";
 export * from "./repository.js";

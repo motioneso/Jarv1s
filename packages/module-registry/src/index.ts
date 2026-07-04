@@ -84,6 +84,7 @@ import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   IMAP_SYNC_QUEUE_DEFINITIONS,
+  MONITOR_QUEUE_DEFINITIONS,
   buildFeatureGrantService,
   buildRuntimeSourceContextService,
   connectorsModuleManifest,
@@ -92,6 +93,8 @@ import {
   registerConnectorsJobWorkers,
   registerConnectorsRoutes,
   registerImapSyncWorker,
+  registerSourceMonitorWorkers,
+  type EmailTaskCreationPort,
   type GoogleApiClient,
   type GoogleConnectionService
 } from "@jarv1s/connectors";
@@ -143,6 +146,7 @@ import {
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
+  TasksRepository,
   registerTasksJobWorkers,
   registerTasksRoutes,
   TasksCompatibilityHelper,
@@ -497,7 +501,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: connectorsModuleManifest,
     sqlMigrationDirectories: [connectorsModuleSqlMigrationDirectory],
-    queueDefinitions: [...GOOGLE_SYNC_QUEUE_DEFINITIONS, ...IMAP_SYNC_QUEUE_DEFINITIONS],
+    queueDefinitions: [
+      ...GOOGLE_SYNC_QUEUE_DEFINITIONS,
+      ...IMAP_SYNC_QUEUE_DEFINITIONS,
+      ...MONITOR_QUEUE_DEFINITIONS
+    ],
     registerRoutes: (server, deps) =>
       registerConnectorsRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
@@ -509,7 +517,29 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext
       });
       const imapWorkIds = await registerImapSyncWorker(boss, { dataContext: deps.dataContext });
-      return [...googleWorkIds, ...imapWorkIds];
+      // Structural task-creation port: connectors never imports the tasks module — the
+      // composition root hands it a two-method adapter over TasksRepository (module isolation).
+      const tasksRepositoryForEmail = new TasksRepository();
+      const emailTaskPort: EmailTaskCreationPort = {
+        async create(scopedDb, input) {
+          const task = await tasksRepositoryForEmail.create(scopedDb, {
+            title: input.title,
+            description: input.description ?? undefined,
+            status: input.status,
+            dueAt: input.dueAt ?? undefined,
+            priority: input.priority ?? undefined,
+            source: input.source,
+            sourceRef: input.sourceRef,
+            externalKey: input.externalKey
+          });
+          return { id: task.id };
+        }
+      };
+      const monitorWorkIds = await registerSourceMonitorWorkers(boss, {
+        dataContext: deps.dataContext,
+        taskPort: emailTaskPort
+      });
+      return [...googleWorkIds, ...imapWorkIds, ...monitorWorkIds];
     }
   },
   {
