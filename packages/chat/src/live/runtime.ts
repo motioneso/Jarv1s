@@ -19,6 +19,7 @@ import type { PgBoss } from "pg-boss";
 import type { RecallPort } from "../recall-port.js";
 import { PassiveContextRetriever, type PassiveMemoryGraphRecallPort } from "./passive-retrieval.js";
 import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
+import { ChatPriorityModelAdapter } from "./priority-model-adapter.js";
 
 import { resolveChatHome } from "./chat-home.js";
 import {
@@ -215,6 +216,8 @@ export interface CreateChatSessionRuntimeDeps {
   readonly personaPreferences?: PersonaPreferencesPort;
   /** Locale preferences port — used to read the user's IANA timezone for the system prompt. */
   readonly localePreferences?: PreferencesPort;
+  /** Priority preferences port — reads `priority.model.v1` to rank cross-tool chat context (#721). */
+  readonly priorityPreferences?: PreferencesPort;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
     readonly mint: (
@@ -392,6 +395,12 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
       : undefined,
     crossToolRead: deps.crossToolGateway
       ? buildCrossToolReadAdapter(deps.crossToolGateway)
+      : undefined,
+    priorityModel: deps.priorityPreferences
+      ? new ChatPriorityModelAdapter({
+          dataContext: deps.dataContext,
+          preferencesRepository: deps.priorityPreferences
+        })
       : undefined
   });
 

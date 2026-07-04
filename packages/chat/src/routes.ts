@@ -102,6 +102,8 @@ export interface ChatRoutesDependencies {
   readonly personaPreferences?: PersonaPreferencesPort;
   readonly localePreferences?: PreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
+  /** Priority preferences port — forwarded to the chat runtime for cross-tool context ranking (#721). */
+  readonly priorityPreferences?: PreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
@@ -209,6 +211,7 @@ export function registerChatRoutes(
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
     localePreferences: dependencies.localePreferences,
+    priorityPreferences: dependencies.priorityPreferences,
     mcpTokenLifecycle: wiring
       ? {
           mint: async (actorUserId: string) => {
