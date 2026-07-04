@@ -104,6 +104,7 @@ import { resolveTimeZone, type ProactiveSource } from "@jarv1s/shared";
 import {
   emailModuleManifest,
   emailModuleSqlMigrationDirectory,
+  EmailRepository,
   registerEmailRoutes
 } from "@jarv1s/email";
 import { assertMetadataOnlyPayload, FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
@@ -151,7 +152,8 @@ import {
   registerTasksRoutes,
   TasksCompatibilityHelper,
   tasksModuleManifest,
-  tasksModuleSqlMigrationDirectory
+  tasksModuleSqlMigrationDirectory,
+  type EmailTriageFeedbackPort
 } from "@jarv1s/tasks";
 import {
   goalsModuleManifest,
@@ -430,6 +432,44 @@ function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveSchedu
   };
 }
 
+/**
+ * Composes the tasks module's EmailTriageFeedbackPort over the email cache and the
+ * connectors feedback store. Lives here because only the composition root may import
+ * both modules; enrichment comes from the CACHED row (metadata columns only) — full
+ * bodies never reach the learning record (#729 §9).
+ */
+export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
+  const emailRepository = new EmailRepository();
+  const connectorsRepository = new ConnectorsRepository();
+  return {
+    async record(scopedDb, input) {
+      const row = input.taskSourceRef
+        ? await emailRepository.getByExternalId(scopedDb, input.taskSourceRef)
+        : undefined;
+      const signals = (row?.signals ?? {}) as {
+        actionability?: { category?: string };
+        confidence?: number;
+      };
+      const sender = row?.sender ?? "unknown";
+      const senderDomain = sender.includes("@")
+        ? (sender.split("@").pop() ?? "unknown").toLowerCase()
+        : "unknown";
+      await connectorsRepository.recordTriageFeedback(scopedDb, {
+        connectorAccountId: row?.connector_account_id ?? null,
+        actionability: signals.actionability?.category ?? "unknown",
+        sender,
+        senderDomain,
+        subjectPrefix: row ? row.subject.slice(0, 120) : null,
+        actionType: null,
+        confidence: typeof signals.confidence === "number" ? signals.confidence : null,
+        modelVersion: null,
+        verdict: input.verdict,
+        reason: null
+      });
+    }
+  };
+}
+
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
@@ -555,7 +595,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         localePreferencesRepository: new PreferencesRepository(),
         aiRepository: new AiRepository(),
         aiSecretCipher: createAiSecretCipher(),
-        focusSignals: deps.focusSignals
+        focusSignals: deps.focusSignals,
+        emailTriageFeedback: createEmailTriageFeedbackPort()
       }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
   },

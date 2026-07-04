@@ -1,7 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextRunner, PreferencesPort, TaskStatus } from "@jarv1s/db";
+import type {
+  AccessContext,
+  DataContextDb,
+  DataContextRunner,
+  PreferencesPort,
+  Task,
+  TaskStatus
+} from "@jarv1s/db";
 import {
   addTaskActivityRouteSchema,
   assignTaskTagRouteSchema,
@@ -60,6 +67,22 @@ import {
   serializeTaskTag
 } from "./serialize.js";
 
+/**
+ * Structural port for recording accept/reject feedback when a user resolves an
+ * email-suggested task. Implemented by the composition root over the connectors
+ * module's triage-feedback store — tasks never imports connectors (module isolation).
+ */
+export interface EmailTriageFeedbackPort {
+  record(
+    scopedDb: DataContextDb,
+    input: {
+      readonly taskSourceRef: string | null;
+      readonly verdict: "accepted" | "rejected";
+      readonly title: string;
+    }
+  ): Promise<void>;
+}
+
 export interface TasksRoutesDependencies extends TaskSearchRouteDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
@@ -81,6 +104,27 @@ export interface TasksRoutesDependencies extends TaskSearchRouteDependencies {
     readonly actorUserId: string;
     readonly requestId: string;
   }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
+  readonly emailTriageFeedback?: EmailTriageFeedbackPort;
+}
+
+/**
+ * A status change on an email-suggested task IS the user's triage verdict:
+ * todo/done = accepted, archived = rejected. Anything else records nothing.
+ */
+function resolveTriageVerdict(
+  prior: Task,
+  nextStatus: TaskStatus | undefined
+): "accepted" | "rejected" | null {
+  if (prior.source !== "email" || prior.status !== "suggested") {
+    return null;
+  }
+  if (nextStatus === "todo" || nextStatus === "done") {
+    return "accepted";
+  }
+  if (nextStatus === "archived") {
+    return "rejected";
+  }
+  return null;
 }
 
 interface TaskParams {
@@ -287,17 +331,44 @@ export function registerTasksRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseUpdateTaskBody(request.body);
-        const { task, tags } = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            const row = await repository.update(scopedDb, request.params.id, input);
+        const { task, tags, triageVerdict, taskSourceRef } =
+          await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+            const prior = await repository.getById(scopedDb, request.params.id);
+            const row = prior
+              ? await repository.update(scopedDb, request.params.id, input)
+              : undefined;
             const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
-            return { task: row, tags: t };
-          }
-        );
+            return {
+              task: row,
+              tags: t,
+              triageVerdict: prior ? resolveTriageVerdict(prior, input.status) : null,
+              taskSourceRef: prior?.source_ref ?? null
+            };
+          });
 
         if (!task) {
           return reply.code(404).send({ error: "Task not found" });
+        }
+
+        // Feedback recording runs OUTSIDE the update transaction and is failure-isolated
+        // (mirrors reconcileRecurrenceSchedule): learning must never break the user's action.
+        if (triageVerdict && dependencies.emailTriageFeedback) {
+          const feedbackPort = dependencies.emailTriageFeedback;
+          try {
+            await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+              feedbackPort.record(scopedDb, {
+                taskSourceRef,
+                verdict: triageVerdict,
+                title: task.title
+              })
+            );
+          } catch (feedbackError) {
+            // Log without task title or email content — id + verdict only.
+            request.log.warn(
+              { err: feedbackError, taskId: task.id, verdict: triageVerdict },
+              "email triage feedback recording failed"
+            );
+          }
         }
 
         return { task: serializeTask(task, tags) };

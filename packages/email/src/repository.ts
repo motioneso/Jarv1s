@@ -80,6 +80,21 @@ export class EmailRepository {
       .executeTakeFirst();
   }
 
+  async getByExternalId(
+    scopedDb: DataContextDb,
+    externalId: string
+  ): Promise<EmailMessage | undefined> {
+    assertDataContextDb(scopedDb);
+
+    // Visibility is intentionally enforced by forced RLS; unauthorized rows read as absent.
+    return scopedDb.db
+      .selectFrom("app.email_messages")
+      .selectAll()
+      .where("external_id", "=", externalId)
+      .limit(1)
+      .executeTakeFirst();
+  }
+
   async createCachedMessageForTest(
     scopedDb: DataContextDb,
     input: CreateCachedEmailMessageInput
