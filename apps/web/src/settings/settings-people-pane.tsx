@@ -15,10 +15,16 @@ import {
   updatePerson,
   type MatchCandidateDto
 } from "../api/people-client";
+import { listSourceBehaviors, putSourceBehavior } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
+import {
+  PEOPLE_NOTES_SOURCE_BEHAVIORS,
+  findSourceBehaviorEnabled,
+  writeSourceBehaviorCache
+} from "./settings-source-behaviors";
 import { readError } from "./settings-types";
-import { Badge, Group, Note, PaneHead, Row } from "./settings-ui";
+import { Badge, Group, Note, PaneHead, Row, Switch } from "./settings-ui";
 
 function candidateKindLabel(kind: MatchCandidateDto["candidateKind"]): string {
   switch (kind) {
@@ -63,6 +69,19 @@ export function SettingsPeoplePane() {
     queryKey: queryKeys.people.notesSettings,
     queryFn: getPeopleNotesSettings,
     retry: false
+  });
+
+  const sourceBehaviorsQuery = useQuery({
+    queryKey: queryKeys.settings.sourceBehaviors,
+    queryFn: listSourceBehaviors,
+    retry: false
+  });
+
+  const sourceBehaviorMutation = useMutation({
+    mutationFn: (input: { readonly id: string; readonly enabled: boolean }) =>
+      putSourceBehavior(input.id, { enabled: input.enabled }),
+    onSuccess: (data) => writeSourceBehaviorCache(queryClient, data),
+    onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
   const acceptMutation = useMutation({
@@ -183,6 +202,26 @@ export function SettingsPeoplePane() {
             </button>
           }
         />
+        {PEOPLE_NOTES_SOURCE_BEHAVIORS.map((behavior) => (
+          <Row
+            key={behavior.id}
+            name={behavior.label}
+            desc={behavior.description}
+            control={
+              <Switch
+                ariaLabel={behavior.label}
+                checked={findSourceBehaviorEnabled(
+                  sourceBehaviorsQuery.data?.sources ?? [],
+                  behavior.id
+                )}
+                disabled={sourceBehaviorMutation.isPending}
+                onChange={(enabled) =>
+                  sourceBehaviorMutation.mutate({ id: behavior.id, enabled })
+                }
+              />
+            }
+          />
+        ))}
       </Group>
 
       <Group title={`Review matches${pending.length > 0 ? ` (${pending.length})` : ""}`}>
