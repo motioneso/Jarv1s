@@ -4,14 +4,7 @@ import { sql } from "kysely";
 import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
 import type { ConnectorSyncStatus, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { registerDataContextWorker } from "@jarv1s/jobs";
-import {
-  AiRepository,
-  HttpApiAdapter,
-  createAiSecretCipher,
-  parseAiApiKeyCredential,
-  type AiConfiguredModelSafeRow,
-  type ProviderKind
-} from "@jarv1s/ai";
+import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 import { PreferencesRepository } from "@jarv1s/structured-state";
@@ -27,6 +20,7 @@ import { decryptGoogleConnectionSecret, GoogleConnectionService } from "./google
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
 import { extractEmailSignals, type EmailExtractDeps } from "./email-extract.js";
+import { buildEmailExtractDeps } from "./extract-deps.js";
 import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provider.js";
 
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
@@ -566,39 +560,7 @@ export async function registerConnectorsJobWorkers(
     GOOGLE_SYNC_QUEUE,
     deps.dataContext,
     async (job, scopedDb) => {
-      const emailExtractDeps: EmailExtractDeps = {
-        selectModel: (tier) => aiRepo.selectModelForCapability(scopedDb, "summarization", tier),
-        runChat: async (model, prompt) => {
-          // `model` is the AiConfiguredModelSafeRow returned by selectModelForCapability:
-          // it carries provider_config_id, provider_kind, and provider_model_id directly.
-          // Load + decrypt the provider credential in-process (never logged/forwarded), then
-          // call the adapter.
-          const row = model as AiConfiguredModelSafeRow;
-          const provider = await aiRepo.selectProviderWithCredential(
-            scopedDb,
-            row.provider_config_id
-          );
-          if (!provider) return { text: "" };
-          const credential = parseAiApiKeyCredential(
-            aiCipher.decryptJson(provider.encrypted_credential)
-          );
-          if (!credential) return { text: "" };
-          // HttpApiAdapter supports anthropic/openai-compatible/google (ProviderKind); narrow
-          // the wider AiProviderKind at this boundary — the router already selected the model.
-          const adapter = new HttpApiAdapter(
-            row.provider_kind as ProviderKind,
-            credential.apiKey,
-            provider.base_url ? { baseUrl: provider.base_url } : {}
-          );
-          return adapter.generateChat({
-            model: {
-              provider_kind: row.provider_kind,
-              provider_model_id: row.provider_model_id
-            },
-            messages: [{ role: "user", content: prompt }]
-          });
-        }
-      };
+      const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher);
 
       const result = await runGoogleSync(scopedDb, {
         getActiveAccount: async (db) => {

@@ -1,6 +1,7 @@
 export * from "./crypto.js";
 export * from "./email-extract.js";
 export * from "./email-read-provider.js";
+export * from "./extract-deps.js";
 export * from "./feature-grant-service.js";
 export * from "./feature-grants.js";
 export * from "./google-api-client.js";
@@ -24,3 +25,4 @@ export * from "./source-context/types.js";
 export * from "./source-context/email.js";
 export * from "./source-context/calendar.js";
 export * from "./source-context/service.js";
+export * from "./source-context/runtime.js";

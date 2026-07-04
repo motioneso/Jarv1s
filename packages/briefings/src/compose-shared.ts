@@ -50,6 +50,14 @@ export interface ComposeDeps {
       feature: "email" | "calendar"
     ): Promise<ReadonlySet<string>>;
   };
+  /**
+   * Injected by the composition root; live-first email/calendar reads for the read tools (#729).
+   * Structural — briefings never imports connectors (module isolation).
+   */
+  readonly sourceContextService?: {
+    listEmailContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
+    listCalendarContext(scopedDb: DataContextDb, input: Record<string, unknown>): Promise<unknown>;
+  };
   /** Injectable for tests; defaults to constructing a real HttpApiAdapter. */
   readonly createAdapter?: (
     kind: ProviderKind,
@@ -259,9 +267,10 @@ export async function gatherToolSection(
     return { key: args.key, label: args.label, lines: [], count: 0 };
   }
   try {
-    const toolServices = deps.featureGrantService
-      ? { featureGrants: deps.featureGrantService }
-      : {};
+    const toolServices = {
+      ...(deps.featureGrantService ? { featureGrants: deps.featureGrantService } : {}),
+      ...(deps.sourceContextService ? { sourceContext: deps.sourceContextService } : {})
+    };
     const result = await tool.execute(
       scopedDb,
       args.toolInput ?? {},

@@ -85,6 +85,7 @@ import {
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   IMAP_SYNC_QUEUE_DEFINITIONS,
   buildFeatureGrantService,
+  buildRuntimeSourceContextService,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
   getConnectorSyncAt,
@@ -597,7 +598,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               featureGrants: buildFeatureGrantService({
                 connectorsRepository: deps.connectorsRepository,
                 preferencesRepository: new PreferencesRepository()
-              })
+              }),
+              sourceContext: buildRuntimeSourceContextService()
             }
           : undefined
       });
@@ -635,6 +637,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               connectorsRepository: deps.connectorsRepository,
               preferencesRepository: new PreferencesRepository()
             })
+          : undefined,
+        sourceContextService: deps.connectorsRepository
+          ? buildRuntimeSourceContextService()
           : undefined
       }),
     registerWorkers: (boss, deps) =>
@@ -705,7 +710,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           featureGrantService: buildFeatureGrantService({
             connectorsRepository: new ConnectorsRepository(),
             preferencesRepository: new PreferencesRepository()
-          })
+          }),
+          sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger })
         },
         notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
         logger: briefingsLogger
