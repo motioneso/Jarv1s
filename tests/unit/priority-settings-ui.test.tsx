@@ -15,5 +15,8 @@ describe("PrioritySettings", () => {
     );
 
     expect(html).toContain("Loading priority settings");
+    expect(html).toContain("pane__title");
+    expect(html).toContain("pane__card");
+    expect(html).not.toContain('class="loading"');
   });
 });
