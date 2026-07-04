@@ -1,11 +1,18 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Archive, Plus, RefreshCw, Save, X } from "lucide-react";
 
 import {
   acceptCandidate,
+  archivePerson,
+  createPerson,
+  getPeopleNotesSettings,
   listMatchCandidates,
   listPeople,
-  refreshIndex,
+  putPeopleNotesSettings,
+  refreshPeopleNotes,
   rejectCandidate,
+  updatePerson,
   type MatchCandidateDto
 } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";
@@ -34,6 +41,11 @@ const DESTRUCTIVE_KINDS: ReadonlySet<MatchCandidateDto["candidateKind"]> = new S
 export function SettingsPeoplePane() {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const [folderDraft, setFolderDraft] = useState("");
+  const [createName, setCreateName] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   const candidatesQuery = useQuery({
     queryKey: queryKeys.people.matchCandidates,
@@ -44,6 +56,12 @@ export function SettingsPeoplePane() {
   const peopleQuery = useQuery({
     queryKey: queryKeys.people.list,
     queryFn: () => listPeople({ limit: 50 }),
+    retry: false
+  });
+
+  const notesSettingsQuery = useQuery({
+    queryKey: queryKeys.people.notesSettings,
+    queryFn: getPeopleNotesSettings,
     retry: false
   });
 
@@ -59,15 +77,61 @@ export function SettingsPeoplePane() {
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
+  const saveFolderMutation = useMutation({
+    mutationFn: () => putPeopleNotesSettings({ folder: folderDraft.trim() || null }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.people.notesSettings, data);
+      toast(data.folder ? `People folder set to ${data.folder}.` : "People folder cleared.");
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+
   const refreshMutation = useMutation({
-    mutationFn: () => refreshIndex(),
-    onSuccess: (data) => toast(`Queued ${data.enqueued} sources for indexing.`),
+    mutationFn: () => refreshPeopleNotes(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.people.list });
+      queryClient.invalidateQueries({ queryKey: queryKeys.people.matchCandidates });
+      toast(`Projected ${data.projected}; ${data.candidates} review candidates.`);
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createPerson({
+        displayName: createName.trim(),
+        emails: createEmail.trim() ? [createEmail.trim()] : undefined
+      }),
+    onSuccess: () => {
+      setCreateName("");
+      setCreateEmail("");
+      queryClient.invalidateQueries({ queryKey: queryKeys.people.list });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (input: { id: string; displayName: string }) =>
+      updatePerson(input.id, { displayName: input.displayName }),
+    onSuccess: () => {
+      setEditingId(null);
+      setEditingName("");
+      queryClient.invalidateQueries({ queryKey: queryKeys.people.list });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) => archivePerson(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.people.list }),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
   const candidates = candidatesQuery.data?.candidates ?? [];
   const pending = candidates.filter((c) => c.status === "pending");
   const people = peopleQuery.data?.people ?? [];
+  const configuredFolder = notesSettingsQuery.data?.folder ?? null;
+  const folderValue = folderDraft || configuredFolder || "";
 
   return (
     <>
@@ -75,6 +139,49 @@ export function SettingsPeoplePane() {
         title="People & context"
         desc="Everyone Jarvis knows about — people extracted from your emails, calendar, and notes."
       />
+
+      <Group title="People notes">
+        <Row
+          name="Folder"
+          desc={configuredFolder ? `Vault folder: ${configuredFolder}` : "No People folder configured."}
+          control={
+            <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                className="jds-input"
+                value={folderValue}
+                placeholder="People"
+                aria-label="People folder"
+                onChange={(event) => setFolderDraft(event.target.value)}
+                style={{ width: 180 }}
+              />
+              <button
+                type="button"
+                className="jds-btn jds-btn--sm jds-btn--ghost"
+                disabled={saveFolderMutation.isPending}
+                onClick={() => saveFolderMutation.mutate()}
+                title="Save folder"
+              >
+                <Save size={15} aria-hidden="true" />
+              </button>
+            </span>
+          }
+        />
+        <Row
+          name="Refresh from notes"
+          desc="Scan the configured folder and update projected People records."
+          control={
+            <button
+              type="button"
+              className="jds-btn jds-btn--sm jds-btn--ghost"
+              disabled={refreshMutation.isPending || !configuredFolder}
+              onClick={() => refreshMutation.mutate()}
+              title="Refresh"
+            >
+              <RefreshCw size={15} aria-hidden="true" />
+            </button>
+          }
+        />
+      </Group>
 
       <Group title={`Review matches${pending.length > 0 ? ` (${pending.length})` : ""}`}>
         {pending.length === 0 ? (
@@ -120,6 +227,39 @@ export function SettingsPeoplePane() {
       </Group>
 
       <Group title={`People${people.length > 0 ? ` (${people.length})` : ""}`}>
+        <Row
+          name="Create person"
+          desc="Creates a canonical note in the configured folder."
+          control={
+            <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                className="jds-input"
+                value={createName}
+                placeholder="Name"
+                aria-label="Person name"
+                onChange={(event) => setCreateName(event.target.value)}
+                style={{ width: 160 }}
+              />
+              <input
+                className="jds-input"
+                value={createEmail}
+                placeholder="Email"
+                aria-label="Person email"
+                onChange={(event) => setCreateEmail(event.target.value)}
+                style={{ width: 180 }}
+              />
+              <button
+                type="button"
+                className="jds-btn jds-btn--sm jds-btn--pine"
+                disabled={createMutation.isPending || !configuredFolder || !createName.trim()}
+                onClick={() => createMutation.mutate()}
+                title="Create person"
+              >
+                <Plus size={15} aria-hidden="true" />
+              </button>
+            </span>
+          }
+        />
         {people.length === 0 ? (
           <Row
             name="No people yet"
@@ -129,33 +269,76 @@ export function SettingsPeoplePane() {
           people.map((person) => (
             <Row
               key={person.id}
-              name={person.displayName}
+              name={
+                editingId === person.id ? (
+                  <input
+                    className="jds-input"
+                    value={editingName}
+                    aria-label="Display name"
+                    onChange={(event) => setEditingName(event.target.value)}
+                    style={{ width: 220 }}
+                  />
+                ) : (
+                  person.displayName
+                )
+              }
               desc={person.relationshipSummary ?? person.contextSummary ?? undefined}
               control={
-                <Badge tone={person.status === "active" ? "pine" : "neutral"}>
-                  {person.status}
-                </Badge>
+                <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Badge tone={person.status === "active" ? "pine" : "neutral"}>
+                    {person.status}
+                  </Badge>
+                  {editingId === person.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--sm jds-btn--pine"
+                        disabled={updateMutation.isPending || !editingName.trim()}
+                        onClick={() =>
+                          updateMutation.mutate({ id: person.id, displayName: editingName.trim() })
+                        }
+                        title="Save name"
+                      >
+                        <Save size={15} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        onClick={() => setEditingId(null)}
+                        title="Cancel"
+                      >
+                        <X size={15} aria-hidden="true" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        disabled={!configuredFolder}
+                        onClick={() => {
+                          setEditingId(person.id);
+                          setEditingName(person.displayName);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        disabled={archiveMutation.isPending || !configuredFolder}
+                        onClick={() => archiveMutation.mutate(person.id)}
+                        title="Archive"
+                      >
+                        <Archive size={15} aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </span>
               }
             />
           ))
         )}
-      </Group>
-
-      <Group title="Index">
-        <Row
-          name="Refresh index"
-          desc="Re-scan all connected sources for new contacts. Runs in the background."
-          control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--sm jds-btn--ghost"
-              disabled={refreshMutation.isPending}
-              onClick={() => refreshMutation.mutate()}
-            >
-              {refreshMutation.isPending ? "Queuing…" : "Refresh"}
-            </button>
-          }
-        />
       </Group>
     </>
   );

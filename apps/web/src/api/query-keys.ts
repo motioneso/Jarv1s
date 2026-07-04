@@ -114,6 +114,7 @@ export const queryKeys = {
   },
   people: {
     list: ["people", "list"] as const,
+    notesSettings: ["people", "notes-settings"] as const,
     matchCandidates: ["people", "match-candidates"] as const
   }
 };
