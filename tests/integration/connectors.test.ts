@@ -14,6 +14,7 @@ import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   IMAP_SYNC_QUEUE_DEFINITIONS,
+  MONITOR_QUEUE_DEFINITIONS,
   connectorsModuleManifest,
   createConnectorSecretCipher,
   type EncryptedConnectorSecret
@@ -233,7 +234,8 @@ describe("Connectors encrypted foundation", () => {
     ]);
     expect(registration?.queueDefinitions).toEqual([
       ...GOOGLE_SYNC_QUEUE_DEFINITIONS,
-      ...IMAP_SYNC_QUEUE_DEFINITIONS
+      ...IMAP_SYNC_QUEUE_DEFINITIONS,
+      ...MONITOR_QUEUE_DEFINITIONS
     ]);
     expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/people/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/commitments/sql");

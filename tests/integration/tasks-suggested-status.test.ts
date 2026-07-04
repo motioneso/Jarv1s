@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { sql } from "kysely";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import { TasksRepository } from "@jarv1s/tasks";
@@ -56,6 +57,57 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
 
     expect(second.id).toBe(first.id);
     expect(second.title).toBe("Original suggested task");
+  });
+
+  it("enforces (owner, source, external_key) uniqueness at the database level", async () => {
+    const first = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Index-guarded task",
+        status: "suggested",
+        source: "email",
+        externalKey: "email:conn-1:msg-index-1"
+      })
+    );
+
+    // The repository's check-then-insert dedupe has a race window; the partial unique
+    // index is the real backstop. Bypass the check by cloning the row directly.
+    await expect(
+      dataContext.withDataContext(ctx, (scopedDb) =>
+        sql`
+          INSERT INTO app.tasks
+            (id, owner_user_id, list_id, title, status, position, source, external_key, created_at, updated_at)
+          SELECT gen_random_uuid(), owner_user_id, list_id, 'Racing duplicate', status, 0,
+                 source, external_key, now(), now()
+          FROM app.tasks WHERE id = ${first.id}
+        `.execute(scopedDb.db)
+      )
+    ).rejects.toThrow(/tasks_source_external_key_idx|duplicate key/);
+  });
+
+  it("scopes external_key uniqueness per owner: another user can hold the same key", async () => {
+    const KEY = "email:conn-1:msg-cross-user-1";
+    const taskA = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "User A suggestion",
+        status: "suggested",
+        source: "email",
+        externalKey: KEY
+      })
+    );
+    const taskB = await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "req:suggested-status-b" },
+      (scopedDb) =>
+        repository.create(scopedDb, {
+          title: "User B suggestion",
+          status: "suggested",
+          source: "email",
+          externalKey: KEY
+        })
+    );
+
+    expect(taskB.id).not.toBe(taskA.id);
+    expect(taskB.owner_user_id).toBe(ids.userB);
+    expect(taskB.title).toBe("User B suggestion");
   });
 
   it("promotes suggested → todo without setting completed_at", async () => {

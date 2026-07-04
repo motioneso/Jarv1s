@@ -319,9 +319,13 @@ export async function listEmailContext(
         { stage: "source-context-email", accountId: account.id, name: (error as Error)?.name },
         "live email read failed; serving cache fallback"
       );
+      // LIVE_EMAIL_CAP bounds provider fetch cost, not what we already hold: the
+      // repository's briefing read is itself bounded AND deliberately rescues older
+      // reply-shaped threads that sort last, so a blanket slice here would drop them.
+      // Only an explicit caller limit narrows the fallback.
       const fallback = cachedRows
         .filter((row) => row.connector_account_id === account.id)
-        .slice(0, limit)
+        .slice(0, input.limitPerAccount !== undefined ? limit : cachedRows.length)
         .map((row) => cacheItem(row, meta, classified.degradedReason));
       items.push(...fallback);
       accounts.push({ account: meta, source: "cache", degradedReason: classified.degradedReason });

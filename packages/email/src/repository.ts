@@ -117,6 +117,8 @@ export class EmailRepository {
         received_at: input.receivedAt,
         external_id: input.externalId,
         external_metadata: input.externalMetadata ?? {},
+        summary: input.summary ?? null,
+        signals: input.signals ?? {},
         created_at: now,
         updated_at: now
       })

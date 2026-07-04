@@ -78,12 +78,7 @@ export interface EmailContextItem {
   readonly cacheMessageId: string | null;
 }
 
-export type CalendarContextFlag =
-  | "conflict"
-  | "early"
-  | "late"
-  | "has_location"
-  | "prep_attendees";
+export type CalendarContextFlag = "conflict" | "early" | "late" | "has_location" | "prep_attendees";
 
 export interface CalendarContextItem {
   readonly eventKey: string;

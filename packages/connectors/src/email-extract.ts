@@ -323,8 +323,7 @@ function safeActionability(value: unknown, body: string): EmailActionabilitySign
   const category = ACTIONABILITY_CATEGORIES.includes(o.category as EmailActionabilityCategory)
     ? (o.category as EmailActionabilityCategory)
     : "unknown";
-  const suggestedTasks =
-    category === "noise" ? [] : safeActionItems(o.suggestedTasks, body);
+  const suggestedTasks = category === "noise" ? [] : safeActionItems(o.suggestedTasks, body);
   return {
     category,
     reason: safeSignalStr(o.reason, body),
@@ -436,7 +435,9 @@ function stripIfBodyReconstructed(signals: EmailSignals, normalizedBody: string)
       actionItems: [],
       deadlines: [],
       // Keep the enum-only classification: the category itself carries no body text.
-      ...(signals.actionability ? { actionability: { category: signals.actionability.category } } : {})
+      ...(signals.actionability
+        ? { actionability: { category: signals.actionability.category } }
+        : {})
     };
   }
   return signals;

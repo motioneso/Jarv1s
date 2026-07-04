@@ -183,8 +183,18 @@ describe("AI read-only assistant tool execution foundation", () => {
     expect(readIds(notifications.result, "notifications")).toEqual([notificationIds.aPrivate]);
     // notificationIds.forUserB is seeded with recipient=userB, so userA must NOT see it
     expect(readIds(notifications.result, "notifications")).not.toContain(notificationIds.forUserB);
-    expect(readIds(calendar.result, "events")).toEqual([calendarEventIds.aPrivate]);
-    expect(readIds(email.result, "messages")).toEqual([emailMessageIds.aPrivate]);
+    // Live-first source context (#729): the seeded accounts use the legacy split
+    // google-calendar/google-email providers, which the live readers don't support, so
+    // the read fails closed as an unsupported_provider gap for the actor's OWN account —
+    // never a silent cache fallback, never another user's rows.
+    expect(readIds(calendar.result, "events")).toEqual([]);
+    expect(readGaps(calendar.result)).toEqual([
+      { connectorAccountId: connectorAccountIds.aCalendar, reason: "unsupported_provider" }
+    ]);
+    expect(readIds(email.result, "messages")).toEqual([]);
+    expect(readGaps(email.result)).toEqual([
+      { connectorAccountId: connectorAccountIds.aEmail, reason: "unsupported_provider" }
+    ]);
     // Tasks are owner-or-share only now (not workspace-scoped): the workspace context
     // returns the same set as the personal context, and the workspace-only task stays hidden.
     expect(readIds(workspaceTasks.result, "items")).toEqual([
@@ -453,6 +463,8 @@ describe("AI read-only assistant tool execution foundation", () => {
       "export.cleanup",
       "connectors.google-sync",
       "connectors.imap-sync",
+      "connectors.email-monitor",
+      "connectors.calendar-monitor",
       "tasks-deferred-status",
       "tasks-recurrence-materialize",
       "goals-memory-sync",
@@ -929,6 +941,31 @@ function userBContext(): AccessContext {
     actorUserId: ids.userB,
     requestId: "request:user-b-ai-tools"
   };
+}
+
+/** Source-context gaps (#729), reduced to the account id + reason the tests assert on. */
+function readGaps(
+  result: Record<string, unknown> | null
+): Array<{ connectorAccountId: string | null; reason: string }> {
+  const gaps = result?.["gaps"];
+
+  if (!Array.isArray(gaps)) {
+    throw new Error("Expected gaps array in assistant tool result");
+  }
+
+  return gaps.map((gap) => {
+    const entry = gap as {
+      account?: { connectorAccountId?: unknown } | null;
+      reason?: unknown;
+    };
+    return {
+      connectorAccountId:
+        typeof entry.account?.connectorAccountId === "string"
+          ? entry.account.connectorAccountId
+          : null,
+      reason: String(entry.reason)
+    };
+  });
 }
 
 function readIds(result: Record<string, unknown> | null, key: string): string[] {

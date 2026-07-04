@@ -1,7 +1,7 @@
+import type { createAiSecretCipher } from "@jarv1s/ai";
 import {
   HttpApiAdapter,
   parseAiApiKeyCredential,
-  createAiSecretCipher,
   type AiConfiguredModelSafeRow,
   type AiRepository,
   type ProviderKind
