@@ -72,6 +72,36 @@ describe("chat priority consumer", () => {
       band: "high"
     });
   });
+
+  it("excludes muted-source candidates from chat context", () => {
+    const model: PriorityModelPreferenceV1 = {
+      version: 1,
+      mode: "balanced",
+      anchors: [],
+      mutedSources: ["email"],
+      updatedAt: "2026-06-27T00:00:00Z"
+    };
+    const candidates = [
+      {
+        source: "email" as const,
+        title: "Muted email",
+        textForAnchorMatch: ["muted email"]
+      },
+      {
+        source: "tasks" as const,
+        title: "Visible task",
+        textForAnchorMatch: ["visible task"]
+      }
+    ];
+    const ranked = rankChatContext(
+      candidates,
+      model,
+      "2026-06-27T12:00:00Z",
+      "America/Los_Angeles"
+    );
+    expect(ranked.find((r) => r.source === "email")).toBeUndefined();
+    expect(ranked).toHaveLength(1);
+  });
 });
 
 describe("readPriorityModel", () => {

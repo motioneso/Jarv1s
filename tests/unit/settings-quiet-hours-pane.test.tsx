@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GetQuietHoursSettingsResponse } from "@jarv1s/shared";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
+import { isValidQuietHoursTime } from "../../apps/web/src/settings/settings-personal-data-panes.js";
 
 vi.mock("virtual:jarvis-module-settings", () => ({
   MODULE_SETTINGS_SURFACES: [],
@@ -52,6 +53,18 @@ describe("quiet-hours settings client", () => {
 
   it("has a dedicated settings query key", () => {
     expect(queryKeys.settings.quietHours).toEqual(["settings", "quiet-hours"]);
+  });
+});
+
+describe("isValidQuietHoursTime", () => {
+  it("accepts valid HH:MM", () => {
+    expect(isValidQuietHoursTime("22:00")).toBe(true);
+    expect(isValidQuietHoursTime("07:05")).toBe(true);
+  });
+  it("rejects empty string and malformed values", () => {
+    expect(isValidQuietHoursTime("")).toBe(false);
+    expect(isValidQuietHoursTime("24:00")).toBe(false);
+    expect(isValidQuietHoursTime("7:5")).toBe(false);
   });
 });
 

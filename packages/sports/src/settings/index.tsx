@@ -140,7 +140,7 @@ function FollowedSummary(props: {
   );
 }
 
-function SearchResults(props: {
+export function SearchResults(props: {
   query: string;
   competitions: readonly CompetitionWithTeams[];
   followsByKey: Map<string, SportsFollowDto>;
@@ -192,7 +192,7 @@ function SearchResults(props: {
   );
 }
 
-function CompetitionGroup(props: {
+export function CompetitionGroup(props: {
   competition: CompetitionWithTeams;
   followsByKey: Map<string, SportsFollowDto>;
   onToggle: (competitionKey: string, teamKey: string | null) => void;
