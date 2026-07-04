@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import SportsSettings, {
   filterTeams,
-  leagueMatches
+  leagueMatches,
+  SearchResults,
+  CompetitionGroup
 } from "../../packages/sports/src/settings/index.js";
 
 const CATALOG_KEY = ["sports", "catalog"] as const;
@@ -212,5 +214,55 @@ describe("SportsSettings", () => {
     expect(leagueMatches("nfl", TWO_LEAGUES).map((c) => c.competitionKey)).toEqual(["nfl"]);
     expect(leagueMatches("zzz", TWO_LEAGUES)).toHaveLength(0);
     expect(leagueMatches("", TWO_LEAGUES)).toHaveLength(0);
+  });
+});
+
+describe("is-active styling coverage (#691)", () => {
+  const epl = TWO_LEAGUES.find((c) => c.competitionKey === "epl")!;
+  const followed = new Map([
+    ["epl::team.ars", { id: "f1", competitionKey: "epl", teamKey: "team.ars", createdAt: "2026-01-01T00:00:00Z" }]
+  ]);
+
+  it("marks a followed team is-active in search results, unfollowed team not", () => {
+    const html = renderToString(
+      createElement(SearchResults, {
+        query: "premier",
+        competitions: [epl],
+        followsByKey: followed,
+        onToggle: () => {},
+        pending: false
+      })
+    );
+    expect(html).toContain("is-active");
+    expect(html).toMatch(/sp-team is-active/);
+  });
+
+  it("marks a followed team is-active in the expanded competition group, unfollowed team not", () => {
+    const html = renderToString(
+      createElement(CompetitionGroup, {
+        competition: epl,
+        followsByKey: followed,
+        onToggle: () => {},
+        pending: false,
+        expanded: true,
+        onToggleExpand: () => {}
+      })
+    );
+    expect(html).toContain("is-active");
+    expect(html).toMatch(/sp-team is-active/);
+  });
+
+  it("does not mark an unfollowed team is-active", () => {
+    const html = renderToString(
+      createElement(CompetitionGroup, {
+        competition: epl,
+        followsByKey: new Map(),
+        onToggle: () => {},
+        pending: false,
+        expanded: true,
+        onToggleExpand: () => {}
+      })
+    );
+    expect(html).not.toContain("is-active");
   });
 });
