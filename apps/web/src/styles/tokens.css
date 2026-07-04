@@ -256,6 +256,17 @@
   --border-default: var(--border);
   --accent-strong: var(--accent-hover);
 
+  /* Committed forest nav field (spec §3.3). --rail-bg rides --forest-ink so
+     park themes re-ground the rail automatically; dark overrides it (dark's
+     forest-ink is a LIGHT tint, unusable as a ground). */
+  --rail-bg: var(--forest-ink);
+  --rail-fg: #ede5d2;
+  --rail-fg-muted: rgba(237, 229, 210, 0.72);
+  --rail-hover-bg: rgba(237, 229, 210, 0.08);
+  --rail-active-bg: rgba(0, 0, 0, 0.28);
+  --rail-divider: rgba(237, 229, 210, 0.14);
+  --rail-marker: var(--gold);
+
   --state-attention: var(--amber-strong);
   --state-recovery: var(--amber-strong);
   --warning: var(--amber-strong);
@@ -367,6 +378,9 @@
   --topbar-bg: rgb(28 26 22 / 0.85);
   --accent-soft-border: rgb(62 138 99 / 0.5);
   --accent-soft-border-weak: rgb(62 138 99 / 0.36);
+
+  /* Dark's --forest-ink is a light tint (text duty); the rail needs a ground. */
+  --rail-bg: #182b21;
 }
 
 /* ------------------------------------------------------------------------- */
