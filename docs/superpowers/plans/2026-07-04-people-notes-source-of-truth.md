@@ -60,6 +60,7 @@
 ## Task 1: Canonical Note Format
 
 **Files:**
+
 - Create: `packages/people/src/notes-format.ts`
 - Create: `packages/people/src/__tests__/notes-format.test.ts`
 
@@ -67,11 +68,7 @@
 
 ```ts
 import { describe, expect, it } from "vitest";
-import {
-  formatPeopleNote,
-  parsePeopleNote,
-  replaceJarvisManagedSection
-} from "../notes-format.js";
+import { formatPeopleNote, parsePeopleNote, replaceJarvisManagedSection } from "../notes-format.js";
 
 describe("people note format", () => {
   it("parses stable frontmatter without body loss", () => {
@@ -112,7 +109,8 @@ Human text stays.
   });
 
   it("replaces only the managed section", () => {
-    const original = "# Person\n\nHuman before.\n\n<!-- jarvis:people:start -->\nold\n<!-- jarvis:people:end -->\n\nHuman after.";
+    const original =
+      "# Person\n\nHuman before.\n\n<!-- jarvis:people:start -->\nold\n<!-- jarvis:people:end -->\n\nHuman after.";
     const next = replaceJarvisManagedSection(original, "new managed summary");
     expect(next).toContain("Human before.");
     expect(next).toContain("new managed summary");
@@ -150,6 +148,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 2: Note Projection Service
 
 **Files:**
+
 - Create: `packages/people/src/notes-service.ts`
 - Modify: `packages/people/src/repository.ts`
 - Modify: `packages/people/src/types.ts`
@@ -158,6 +157,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - [ ] **Step 1: Write failing tests**
 
 Cover:
+
 - two notes with the same `jarvisPersonId` produce one pending review candidate, not two People rows.
 - one valid note upserts exactly one People projection with identity rows for aliases/emails/phones.
 - create/edit/archive writes the note through a branded `VaultContext`, then updates DB projection.
@@ -174,6 +174,7 @@ Expected: FAIL because service/helpers do not exist.
 - [ ] **Step 3: Implement projection helpers**
 
 Add only these repository helpers:
+
 - `upsertPersonProjection(scopedDb, { ownerUserId, personId, displayName, status, relationshipSummary, contextSummary, confidence })`
 - `listPeopleMissingCanonicalNotes(scopedDb, ownerUserId, canonicalPersonIds)`
 - `upsertReviewCandidate(scopedDb, params)` reusing existing `upsertMatchCandidate`.
@@ -185,6 +186,7 @@ No schema changes.
 Use preference key `people-notes-folder`.
 
 Methods:
+
 - `getSettings(scopedDb, ownerUserId)`
 - `putSettings(scopedDb, ownerUserId, { folder })`
 - `refreshFromFolder(scopedDb, vaultCtx, ownerUserId)`
@@ -193,6 +195,7 @@ Methods:
 - `archivePersonNote(scopedDb, vaultCtx, ownerUserId, personId)`
 
 Rules:
+
 - scan only `.md` files under configured folder with `listVaultFilesRecursive(vaultCtx, folder)`.
 - a parsed note with `jarvisPersonId` is canonical for that person.
 - duplicate `jarvisPersonId` or same display/email mapping to multiple notes creates review candidate and skips destructive overwrite.
@@ -217,6 +220,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 3: Routes And Source Behavior
 
 **Files:**
+
 - Modify: `packages/people/src/routes.ts`
 - Modify: `packages/people/src/manifest.ts`
 - Modify: `packages/people/src/index.ts`
@@ -225,6 +229,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - [ ] **Step 1: Write failing route tests**
 
 Cover:
+
 - `GET /api/people/notes-settings` returns `{ folder: null }` by default.
 - `PUT /api/people/notes-settings` stores a relative folder.
 - `POST /api/people` creates a note and returns projected person when folder is configured.
@@ -240,17 +245,20 @@ Expected: FAIL for missing routes.
 - [ ] **Step 3: Implement routes**
 
 Extend `PeopleRouteDependencies` with optional:
+
 - `preferencesRepository`
 - `vaultRunner`
 - `peopleNotesService`
 
 Add routes:
+
 - `GET /api/people/notes-settings`
 - `PUT /api/people/notes-settings`
 - `POST /api/people/notes/refresh`
 - `POST /api/people`
 
 Change existing:
+
 - `PATCH /api/people/:id`
 - `POST /api/people/:id/archive`
 
@@ -270,12 +278,13 @@ sourceBehaviors: [
       {
         id: "people.notes.suggest-updates",
         name: "Suggest note updates",
-        description: "Create review candidates for Jarvis-managed People note updates instead of silently changing human notes.",
+        description:
+          "Create review candidates for Jarvis-managed People note updates instead of silently changing human notes.",
         default: "default-on"
       }
     ]
   }
-]
+];
 ```
 
 - [ ] **Step 5: Run passing tests**
@@ -296,6 +305,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 4: Notes Sync Hook
 
 **Files:**
+
 - Modify: `packages/notes/src/jobs.ts`
 - Modify: `packages/notes/src/index.ts`
 - Modify: `packages/module-registry/src/index.ts`
@@ -332,6 +342,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 5: Settings UI
 
 **Files:**
+
 - Modify: `apps/web/src/api/people-client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-people-pane.tsx`
@@ -339,6 +350,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - [ ] **Step 1: Add client methods**
 
 Add:
+
 - `getPeopleNotesSettings`
 - `putPeopleNotesSettings`
 - `refreshPeopleNotes`
@@ -349,6 +361,7 @@ Add:
 - [ ] **Step 2: Update pane**
 
 Add:
+
 - People folder row using existing `VaultChooser`.
 - Sync/refresh action.
 - Create person form with display name.

@@ -32,7 +32,10 @@ afterAll(async () => {
 });
 
 async function withUserVault<T>(work: Parameters<VaultContextRunner["withVaultContext"]>[1]) {
-  return vaultRunner.withVaultContext({ actorUserId: ids.userA, requestId: "people-notes" }, work) as Promise<T>;
+  return vaultRunner.withVaultContext(
+    { actorUserId: ids.userA, requestId: "people-notes" },
+    work
+  ) as Promise<T>;
 }
 
 describe("PeopleNotesService", () => {
@@ -88,9 +91,12 @@ Human note.
   it("creates review candidate for duplicate canonical notes", async () => {
     const service = new PeopleNotesService();
 
-    await runner.withDataContext({ actorUserId: ids.userA, requestId: "settings-dup" }, async (sdb) => {
-      await service.putSettings(sdb, ids.userA, { folder: "PeopleDup" });
-    });
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "settings-dup" },
+      async (sdb) => {
+        await service.putSettings(sdb, ids.userA, { folder: "PeopleDup" });
+      }
+    );
 
     await withUserVault(async (vaultCtx) => {
       const note = `---
@@ -121,9 +127,12 @@ body
     let personId = "";
     let notePath = "";
 
-    await runner.withDataContext({ actorUserId: ids.userA, requestId: "settings-write" }, async (sdb) => {
-      await service.putSettings(sdb, ids.userA, { folder: "PeopleWrite" });
-    });
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "settings-write" },
+      async (sdb) => {
+        await service.putSettings(sdb, ids.userA, { folder: "PeopleWrite" });
+      }
+    );
 
     await withUserVault(async (vaultCtx) => {
       const created = await runner.withDataContext(
@@ -154,11 +163,14 @@ body
       expect(edited).toContain("Human-owned detail.");
     });
 
-    await runner.withDataContext({ actorUserId: ids.userA, requestId: "assert-edit" }, async (sdb) => {
-      const repo = new PeopleRepository();
-      const person = await repo.getPerson(sdb, ids.userA, personId);
-      expect(person.displayName).toBe("Amazing Grace");
-    });
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "assert-edit" },
+      async (sdb) => {
+        const repo = new PeopleRepository();
+        const person = await repo.getPerson(sdb, ids.userA, personId);
+        expect(person.displayName).toBe("Amazing Grace");
+      }
+    );
   });
 
   it("archives by updating the note without deleting it", async () => {
@@ -166,9 +178,12 @@ body
     let personId = "";
     let notePath = "";
 
-    await runner.withDataContext({ actorUserId: ids.userA, requestId: "settings-archive" }, async (sdb) => {
-      await service.putSettings(sdb, ids.userA, { folder: "PeopleArchive" });
-    });
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "settings-archive" },
+      async (sdb) => {
+        await service.putSettings(sdb, ids.userA, { folder: "PeopleArchive" });
+      }
+    );
 
     await withUserVault(async (vaultCtx) => {
       const created = await runner.withDataContext(
@@ -186,10 +201,13 @@ body
       expect(archived).toContain("status: archived");
     });
 
-    await runner.withDataContext({ actorUserId: ids.userA, requestId: "assert-archive" }, async (sdb) => {
-      const repo = new PeopleRepository();
-      const person = await repo.getPerson(sdb, ids.userA, personId);
-      expect(person.status).toBe("archived");
-    });
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "assert-archive" },
+      async (sdb) => {
+        const repo = new PeopleRepository();
+        const person = await repo.getPerson(sdb, ids.userA, personId);
+        expect(person.status).toBe("archived");
+      }
+    );
   });
 });

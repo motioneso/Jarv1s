@@ -462,7 +462,11 @@ export class PeopleRepository {
     return rows.map((r) => rowToIdentity(r as Record<string, unknown>));
   }
 
-  async deleteNoteIdentities(scopedDb: unknown, ownerUserId: string, personId: string): Promise<void> {
+  async deleteNoteIdentities(
+    scopedDb: unknown,
+    ownerUserId: string,
+    personId: string
+  ): Promise<void> {
     assertDataContextDb(scopedDb);
     await scopedDb.db
       .deleteFrom("app.person_context_identities")

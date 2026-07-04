@@ -143,7 +143,9 @@ export function SettingsPeoplePane() {
       <Group title="People notes">
         <Row
           name="Folder"
-          desc={configuredFolder ? `Vault folder: ${configuredFolder}` : "No People folder configured."}
+          desc={
+            configuredFolder ? `Vault folder: ${configuredFolder}` : "No People folder configured."
+          }
           control={
             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input

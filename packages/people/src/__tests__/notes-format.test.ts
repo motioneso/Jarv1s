@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  formatPeopleNote,
-  parsePeopleNote,
-  replaceJarvisManagedSection
-} from "../notes-format.js";
+import { formatPeopleNote, parsePeopleNote, replaceJarvisManagedSection } from "../notes-format.js";
 
 describe("people note format", () => {
   it("parses stable frontmatter without body loss", () => {

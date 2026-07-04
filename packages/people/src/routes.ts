@@ -22,7 +22,8 @@ export interface PeopleRouteDependencies {
 export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDependencies): void {
   const repo = deps.repo ?? new PeopleRepository();
   const svc = deps.svc ?? new PersonContextService(repo);
-  const notesService = deps.peopleNotesService ?? new PeopleNotesService({ peopleRepository: repo });
+  const notesService =
+    deps.peopleNotesService ?? new PeopleNotesService({ peopleRepository: repo });
 
   // GET /api/people
   app.get("/api/people", { schema: { response: { 200: Type.Any() } } }, async (request) => {

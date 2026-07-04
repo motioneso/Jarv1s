@@ -97,7 +97,10 @@ export class PeopleNotesService {
   }
 
   async getSettings(scopedDb: DataContextDb, _ownerUserId: string): Promise<PeopleNotesSettings> {
-    const stored = await this.preferencesRepository.get(scopedDb, PEOPLE_NOTES_FOLDER_PREFERENCE_KEY);
+    const stored = await this.preferencesRepository.get(
+      scopedDb,
+      PEOPLE_NOTES_FOLDER_PREFERENCE_KEY
+    );
     return { folder: typeof stored === "string" && stored.length > 0 ? stored : null };
   }
 
@@ -124,9 +127,12 @@ export class PeopleNotesService {
     for (const note of notes) {
       const personId = note.parsed.frontmatter.jarvisPersonId;
       if (!personId) {
-        await this.createReviewCandidate(scopedDb, ownerUserId, "People note missing jarvisPersonId", [
-          note.path
-        ]);
+        await this.createReviewCandidate(
+          scopedDb,
+          ownerUserId,
+          "People note missing jarvisPersonId",
+          [note.path]
+        );
         continue;
       }
       byPersonId.set(personId, [...(byPersonId.get(personId) ?? []), note]);
@@ -136,10 +142,12 @@ export class PeopleNotesService {
     let candidates = 0;
     for (const [personId, matches] of byPersonId) {
       if (matches.length !== 1) {
-        await this.createReviewCandidate(scopedDb, ownerUserId, "Duplicate canonical People notes", [
-          personId,
-          ...matches.map((match) => match.path)
-        ]);
+        await this.createReviewCandidate(
+          scopedDb,
+          ownerUserId,
+          "Duplicate canonical People notes",
+          [personId, ...matches.map((match) => match.path)]
+        );
         candidates += 1;
         continue;
       }
@@ -235,7 +243,10 @@ export class PeopleNotesService {
     return this.updatePersonNote(scopedDb, vaultCtx, ownerUserId, personId, { status: "archived" });
   }
 
-  private async loadPeopleNotes(vaultCtx: VaultContext, folder: string): Promise<LoadedPeopleNote[]> {
+  private async loadPeopleNotes(
+    vaultCtx: VaultContext,
+    folder: string
+  ): Promise<LoadedPeopleNote[]> {
     const paths = (await listVaultFilesRecursive(vaultCtx, folder)).filter((path) =>
       path.endsWith(".md")
     );

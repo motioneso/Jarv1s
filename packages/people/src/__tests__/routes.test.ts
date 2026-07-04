@@ -100,11 +100,14 @@ describe("People note write routes", () => {
     const archived = await app.inject({ method: "POST", url: `/api/people/${personId}/archive` });
     expect(archived.statusCode).toBe(200);
 
-    await vaultRunner.withVaultContext({ actorUserId: ids.userA, requestId: "assert-route" }, async (ctx) => {
-      const note = await readVaultFile(ctx, notePath);
-      expect(note).toContain("displayName: Route Person Edited");
-      expect(note).toContain("status: archived");
-    });
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "assert-route" },
+      async (ctx) => {
+        const note = await readVaultFile(ctx, notePath);
+        expect(note).toContain("displayName: Route Person Edited");
+        expect(note).toContain("status: archived");
+      }
+    );
 
     await app.close();
   });
