@@ -164,16 +164,8 @@ export interface ChatSessionManagerDeps {
   readonly recall?: RecallPort;
   /** Optional per-turn hidden context retrieval. Empty/failed result submits the raw turn. */
   readonly passiveRetrieval?: PassiveRetrievalPort;
-  /** Optional cross-tool read runner for pre-turn context fan-out. */
   readonly crossToolRead?: CrossToolReadRunner;
-  /**
-   * Optional priority-model reader (#721). When present and cross-tool evidence was
-   * collected, engineText re-ranks that evidence with the user's priority model and
-   * re-renders the context block — already-loaded items only, never new source reads.
-   */
-  readonly priorityModel?: {
-    getModel(actorUserId: string): Promise<PriorityModelPreferenceV1>;
-  };
+  readonly priorityModel?: { getModel(actorUserId: string): Promise<PriorityModelPreferenceV1> };
   /**
    * #342 (§4.1.2) — does the ENGINE own the replay submit+drain?
    *
@@ -639,13 +631,13 @@ export class ChatSessionManager {
         try {
           const model = await this.deps.priorityModel.getModel(actorUserId);
           const ranked = rankChatContext(
-            crossTool.items.map((item) => ({
-              source: item.source,
-              title: item.title,
-              summary: item.summary,
-              dueAt: item.dueAt,
-              startsAt: item.startsAt,
-              textForAnchorMatch: [item.title, item.summary]
+            crossTool.items.map(({ source, title, summary, dueAt, startsAt }) => ({
+              source,
+              title,
+              summary,
+              dueAt,
+              startsAt,
+              textForAnchorMatch: [title, summary]
             })),
             model,
             localNow,
@@ -654,11 +646,10 @@ export class ChatSessionManager {
           const reordered = reorderByPriority(crossTool.items, ranked);
           crossTool = { block: renderCrossToolContextBlock(reordered), items: reordered };
         } catch {
-          // Priority reorder is best-effort: keep the relevance-sorted order.
+          crossTool = crossToolResult;
         }
       }
 
-      // Convert evidence to pending support items for provenance
       let idx = 0;
       const memoryItems = passiveResult.items.map((item) => memoryItemToSupport(item, idx++));
       const crossToolItems = crossTool.items.map((item) => crossToolItemToSupport(item, idx++));
