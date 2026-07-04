@@ -27,6 +27,7 @@
 ## Task 1: Shared Chat Settings Contract
 
 **Files:**
+
 - Create: `packages/shared/src/chat-settings-api.ts`
 - Modify: `packages/shared/src/index.ts`
 - Test: `tests/unit/chat-settings-api.test.ts`
@@ -106,8 +107,10 @@ export function isChatResponseStyle(value: unknown): value is ChatResponseStyle 
 }
 
 export function renderChatResponseStyleInstruction(style: ChatResponseStyle): string {
-  if (style === "concise") return "Default response style: concise. Prefer short, direct answers unless detail is required.";
-  if (style === "detailed") return "Default response style: detailed. Include useful context, reasoning, and next steps.";
+  if (style === "concise")
+    return "Default response style: concise. Prefer short, direct answers unless detail is required.";
+  if (style === "detailed")
+    return "Default response style: detailed. Include useful context, reasoning, and next steps.";
   return "Default response style: balanced. Be direct, with enough context to be useful.";
 }
 
@@ -174,6 +177,7 @@ git commit -m "feat: add chat settings contract"
 ## Task 2: Persist Chat Settings
 
 **Files:**
+
 - Modify: `packages/chat/src/routes.ts`
 - Test: `tests/integration/chat-settings.test.ts`
 
@@ -302,6 +306,7 @@ git commit -m "feat: persist chat settings"
 ## Task 3: Apply Response Style To Runtime
 
 **Files:**
+
 - Modify: `packages/chat/src/live/runtime.ts`
 - Modify: `packages/chat/src/routes.ts`
 - Modify: `packages/module-registry/src/index.ts`
@@ -392,6 +397,7 @@ git commit -m "feat: apply chat response style"
 ## Task 4: Wire Settings UI And Remove Fake Controls
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-module-subviews.tsx`

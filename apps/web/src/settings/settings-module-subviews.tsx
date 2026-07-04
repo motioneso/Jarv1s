@@ -65,21 +65,6 @@ function ModuleSub(props: {
   );
 }
 
-function ToggleRow(props: {
-  readonly name: string;
-  readonly desc: string;
-  readonly on: boolean;
-  readonly onChange: (value: boolean) => void;
-}) {
-  return (
-    <Row
-      name={props.name}
-      desc={props.desc}
-      control={<Switch ariaLabel={props.name} checked={props.on} onChange={props.onChange} />}
-    />
-  );
-}
-
 function readError(error: unknown): string {
   return error instanceof Error ? error.message : "Could not update settings";
 }

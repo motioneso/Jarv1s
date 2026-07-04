@@ -482,7 +482,9 @@ export async function resolveChatPersona(
       Promise.all([
         deps.personaPreferences ? deps.personaPreferences.get(scopedDb, "persona.bundle") : null,
         deps.localePreferences ? deps.localePreferences.get(scopedDb, "locale") : null,
-        deps.chatPreferences ? deps.chatPreferences.get(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY) : null
+        deps.chatPreferences
+          ? deps.chatPreferences.get(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY)
+          : null
       ])
   );
 
