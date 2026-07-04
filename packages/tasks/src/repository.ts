@@ -395,6 +395,9 @@ export class TasksRepository {
       .select("id")
       .where("parent_task_id", "=", parentId)
       .where("status", "!=", parentStatus)
+      // A `suggested` child is a staged email-derived task nobody reviewed (#729 §5);
+      // closing the parent must not silently mark it done/archived.
+      .where("status", "!=", "suggested")
       .execute();
 
     if (openChildren.length === 0) return;

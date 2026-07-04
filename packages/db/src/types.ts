@@ -159,7 +159,7 @@ export interface RlsProbeItemsTable {
   created_at: TimestampColumn;
 }
 
-export type TaskStatus = "todo" | "done" | "archived";
+export type TaskStatus = "todo" | "suggested" | "done" | "archived";
 export type ShareLevel = "view" | "contribute" | "manage";
 export type ConnectorProviderType = "calendar" | "email" | "google" | "imap";
 export type ConnectorProviderStatus = "available" | "disabled";

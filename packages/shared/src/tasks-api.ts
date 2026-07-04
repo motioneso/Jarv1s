@@ -1,7 +1,7 @@
 import { nullableStringSchema } from "./schema-fragments.js";
 import type { TaskQuadrant } from "./tasks-view.js";
 
-export const TASK_STATUSES = ["todo", "done", "archived"] as const;
+export const TASK_STATUSES = ["todo", "suggested", "done", "archived"] as const;
 export const TASK_EFFORTS = ["quick", "medium", "large"] as const;
 
 export type TaskApiStatus = (typeof TASK_STATUSES)[number];

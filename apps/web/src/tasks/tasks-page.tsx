@@ -100,7 +100,9 @@ export function TasksPage() {
     mutationFn: (query: string) => interpretTaskSearch({ query }),
     onSuccess: (response) => {
       const nextIntent = intentForUi(response.intent);
-      if (response.intent.status) {
+      // `suggested` has no status-filter segment yet — the suggested-task review UI (#729)
+      // surfaces staged tasks elsewhere.
+      if (response.intent.status && response.intent.status !== "suggested") {
         setStatusFilter(response.intent.status);
         clearFocus();
       }
