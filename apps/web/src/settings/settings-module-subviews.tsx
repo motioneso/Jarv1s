@@ -1,22 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bell, MessageSquare, MessagesSquare, MoonStar, Sunrise } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import type { ChatResponseStyle } from "@jarv1s/shared";
 
 import {
-  DEFAULT_CHAT,
   DEFAULT_NOTIFICATIONS,
   NOTIFICATION_SENSITIVITY_HINT,
-  type ChatSettings,
   type NotificationSensitivity,
   type NotificationsSettings
 } from "./settings-sample-data";
 import {
   createBriefingDefinition,
+  getChatSettings,
   getNotificationPreferences,
   getLocaleSettings,
   listSourceBehaviors,
   listAiAssistantTools,
   listBriefingDefinitions,
+  putChatSettings,
   putNotificationPreference,
   putSourceBehavior,
   updateBriefingDefinition
@@ -36,8 +37,7 @@ import {
   writeSourceBehaviorCache
 } from "./settings-source-behaviors";
 
-// BACKEND-TODO: persist + apply the Chat / Notifications settings objects.
-// Those sub-views are controlled local state only — nothing is saved or fed into behavior yet.
+// BACKEND-TODO: persist + apply Notifications sensitivity.
 
 /* Shared takeover chrome for a settings-only module. */
 function ModuleSub(props: {
@@ -245,9 +245,18 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
 }
 
 export function ChatSettingsView(props: { readonly onBack: () => void }) {
-  const [state, setState] = useState<ChatSettings>(DEFAULT_CHAT);
-  const set = (patch: Partial<ChatSettings>) => setState((s) => ({ ...s, ...patch }));
+  const queryClient = useQueryClient();
   const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.chat.settings,
+    queryFn: getChatSettings
+  });
+  const mutation = useMutation({
+    mutationFn: putChatSettings,
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.chat.settings, data)
+  });
+  const style = settingsQuery.data?.chat.responseStyle ?? "balanced";
+  const error = settingsQuery.error ?? mutation.error;
 
   return (
     <ModuleSub
@@ -256,41 +265,25 @@ export function ChatSettingsView(props: { readonly onBack: () => void }) {
       sub="How Jarvis talks with you"
       onBack={props.onBack}
     >
-      <NotWired>Chat settings aren't saved or applied yet.</NotWired>
+      {error ? <NotWired>{readError(error)}</NotWired> : null}
       <Group title="Replies">
         <Choice
-          label="Response length"
-          hint="Jarvis's default. It still expands when something genuinely needs it."
-          value={cap(state.length)}
-          options={["Concise", "Balanced", "Thorough"]}
-          onChange={(v) => set({ length: v.toLowerCase() as ChatSettings["length"] })}
-        />
-        <ToggleRow
-          name="Stream responses"
-          desc="Show words as they're written, instead of all at once."
-          on={state.streaming}
-          onChange={(v) => set({ streaming: v })}
-        />
-        <ToggleRow
-          name="Suggested actions"
-          desc="Offer quick follow-ups beneath replies — turn into a task, add to calendar."
-          on={state.suggestions}
-          onChange={(v) => set({ suggestions: v })}
+          key={style}
+          label="Response style"
+          hint="Saved default for generated chat answers."
+          value={cap(style)}
+          options={["Concise", "Balanced", "Detailed"]}
+          onChange={(v) =>
+            mutation.mutate({ chat: { responseStyle: v.toLowerCase() as ChatResponseStyle } })
+          }
         />
       </Group>
 
-      <Group title="Memory & input">
-        <ToggleRow
-          name="Remember across conversations"
-          desc="Carry context between chats. Turn off for one-shot, stateless replies."
-          on={state.crossSession}
-          onChange={(v) => set({ crossSession: v })}
-        />
-        <ToggleRow
+      <Group title="Input">
+        <Row
           name="Voice input"
-          desc="Hold to talk instead of typing. Audio is transcribed on this server and never leaves it."
-          on={state.voice}
-          onChange={(v) => set({ voice: v })}
+          desc="Tracked for #738. Voice capture is not enabled in Chat settings yet."
+          control={<Badge tone="steel">Coming soon</Badge>}
         />
       </Group>
       <Note icon={<MessageSquare size={13} />}>

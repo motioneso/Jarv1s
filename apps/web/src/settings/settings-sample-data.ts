@@ -124,22 +124,6 @@ export const DEFAULT_BRIEFINGS: BriefingsSettings = {
   ]
 };
 
-export interface ChatSettings {
-  readonly length: "concise" | "balanced" | "thorough";
-  readonly suggestions: boolean;
-  readonly voice: boolean;
-  readonly crossSession: boolean;
-  readonly streaming: boolean;
-}
-
-export const DEFAULT_CHAT: ChatSettings = {
-  length: "balanced",
-  suggestions: true,
-  voice: false,
-  crossSession: true,
-  streaming: true
-};
-
 export type NotificationSensitivity = "quiet" | "balanced" | "proactive";
 
 export interface NotificationsSettings {
