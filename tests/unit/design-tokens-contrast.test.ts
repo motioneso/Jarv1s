@@ -65,9 +65,14 @@ function assertPairs(theme: Map<string, string> | undefined, label: string) {
   ).toBeGreaterThanOrEqual(4.5);
   // --forest is a fill/UI-component color (text duty is --accent-fg, above):
   // WCAG 1.4.11 non-text floor, 3:1.
-  expect(contrast(resolve("--forest", theme), paper), `${label} accent/paper`).toBeGreaterThanOrEqual(3);
+  expect(
+    contrast(resolve("--forest", theme), paper),
+    `${label} accent/paper`
+  ).toBeGreaterThanOrEqual(3);
   // Gold is decorative: 3:1 non-text floor only.
-  expect(contrast(resolve("--gold", theme), paper), `${label} gold/paper`).toBeGreaterThanOrEqual(2.0);
+  expect(contrast(resolve("--gold", theme), paper), `${label} gold/paper`).toBeGreaterThanOrEqual(
+    2.0
+  );
 }
 
 describe("Park Press token contrast (WCAG AA)", () => {
