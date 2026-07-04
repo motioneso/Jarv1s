@@ -22,6 +22,15 @@ export const BRIEFING_SOURCE_BEHAVIORS = [
   }
 ] as const;
 
+export const PEOPLE_NOTES_SOURCE_BEHAVIORS = [
+  {
+    id: "people.notes.suggest-updates",
+    label: "Suggest note updates",
+    description:
+      "Create review candidates for Jarvis-managed People note updates instead of silently changing human notes."
+  }
+] as const;
+
 export function findSourceBehaviorEnabled(
   sources: readonly SourceBehaviorSourceDto[],
   behaviorId: string
