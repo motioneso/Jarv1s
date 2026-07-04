@@ -155,6 +155,7 @@ export function YoloAdminGroup() {
             <button
               type="button"
               className="jds-btn jds-btn--secondary jds-btn--sm"
+              aria-label="Add allowed member"
               disabled={!search || yoloMutation.isPending || activeCandidates.length === 0}
               onClick={handleAddClick}
             >
