@@ -37,6 +37,7 @@ Both already expose `email.briefings` / `calendar.briefings` toggles through `/a
 ## Task 1: Add Source-Behavior Mirror Model
 
 **Files:**
+
 - Create: `apps/web/src/settings/settings-source-behaviors.ts`
 - Create: `tests/settings-source-behaviors.test.ts`
 
@@ -45,16 +46,15 @@ Both already expose `email.briefings` / `calendar.briefings` toggles through `/a
 Create `tests/settings-source-behaviors.test.ts`:
 
 ```ts
-import { QueryClient } from "@tanstack/react-query";
 import { expect, it } from "vitest";
+import type { ListSourceBehaviorsResponse } from "@jarv1s/shared";
 
-import { queryKeys } from "../apps/web/src/api/query-keys";
+import { queryKeys } from "../apps/web/src/api/query-keys.js";
 import {
   BRIEFING_SOURCE_BEHAVIORS,
   findSourceBehaviorEnabled,
   writeSourceBehaviorCache
-} from "../apps/web/src/settings/settings-source-behaviors";
-import type { ListSourceBehaviorsResponse } from "@jarv1s/shared";
+} from "../apps/web/src/settings/settings-source-behaviors.js";
 
 const response: ListSourceBehaviorsResponse = {
   sources: [
@@ -65,8 +65,10 @@ const response: ListSourceBehaviorsResponse = {
       behaviors: [
         {
           id: "email.briefings",
+          sourceId: "email",
           name: "Include in briefings",
           description: "Email briefing signal",
+          default: "default-on",
           enabled: false,
           toggleable: true
         }
@@ -79,8 +81,10 @@ const response: ListSourceBehaviorsResponse = {
       behaviors: [
         {
           id: "calendar.briefings",
+          sourceId: "calendar",
           name: "Include in briefings",
           description: "Calendar briefing signal",
+          default: "default-on",
           enabled: true,
           toggleable: true
         }
@@ -103,9 +107,17 @@ it("reads behavior state and defaults on when the backend row is absent", () => 
 });
 
 it("writes source-behavior mutation results to the shared settings cache key", () => {
-  const queryClient = new QueryClient();
+  const writes = new Map<readonly unknown[], ListSourceBehaviorsResponse>();
+  const queryClient = {
+    setQueryData: (
+      queryKey: typeof queryKeys.settings.sourceBehaviors,
+      data: ListSourceBehaviorsResponse
+    ) => {
+      writes.set(queryKey, data);
+    }
+  };
   writeSourceBehaviorCache(queryClient, response);
-  expect(queryClient.getQueryData(queryKeys.settings.sourceBehaviors)).toEqual(response);
+  expect(writes.get(queryKeys.settings.sourceBehaviors)).toEqual(response);
 });
 ```
 
@@ -124,10 +136,16 @@ Expected: FAIL because `settings-source-behaviors.ts` does not exist.
 Create `apps/web/src/settings/settings-source-behaviors.ts`:
 
 ```ts
-import type { QueryClient } from "@tanstack/react-query";
 import type { ListSourceBehaviorsResponse, SourceBehaviorSourceDto } from "@jarv1s/shared";
 
-import { queryKeys } from "../api/query-keys";
+import { queryKeys } from "../api/query-keys.js";
+
+interface SourceBehaviorCacheClient {
+  setQueryData: (
+    queryKey: typeof queryKeys.settings.sourceBehaviors,
+    data: ListSourceBehaviorsResponse
+  ) => void;
+}
 
 export const BRIEFING_SOURCE_BEHAVIORS = [
   {
@@ -147,14 +165,13 @@ export function findSourceBehaviorEnabled(
   behaviorId: string
 ): boolean {
   return (
-    sources
-      .flatMap((source) => source.behaviors)
-      .find((behavior) => behavior.id === behaviorId)?.enabled ?? true
+    sources.flatMap((source) => source.behaviors).find((behavior) => behavior.id === behaviorId)
+      ?.enabled ?? true
   );
 }
 
 export function writeSourceBehaviorCache(
-  queryClient: QueryClient,
+  queryClient: SourceBehaviorCacheClient,
   data: ListSourceBehaviorsResponse
 ): void {
   queryClient.setQueryData(queryKeys.settings.sourceBehaviors, data);
@@ -181,6 +198,7 @@ git commit -m "test: cover briefing source behavior cache"
 ## Task 2: Wire Briefings Toggles And Trim Data Sources
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-module-subviews.tsx`
 - Modify: `apps/web/src/settings/settings-personal-data-panes.tsx`
 - Test: `tests/settings-source-behaviors.test.ts`
@@ -234,22 +252,24 @@ const error =
 Replace the Briefings `Sources` group body with:
 
 ```tsx
-<Row name="Read tools" desc={sourceListDescription(selectedToolNames)} />
-{BRIEFING_SOURCE_BEHAVIORS.map((behavior) => (
-  <Row
-    key={behavior.id}
-    name={behavior.label}
-    desc={behavior.description}
-    control={
-      <Switch
-        ariaLabel={behavior.label}
-        checked={findSourceBehaviorEnabled(sourceBehaviorsQuery.data?.sources ?? [], behavior.id)}
-        disabled={busy}
-        onChange={(enabled) => sourceBehaviorMutation.mutate({ id: behavior.id, enabled })}
-      />
-    }
-  />
-))}
+<>
+  <Row name="Read tools" desc={sourceListDescription(selectedToolNames)} />
+  {BRIEFING_SOURCE_BEHAVIORS.map((behavior) => (
+    <Row
+      key={behavior.id}
+      name={behavior.label}
+      desc={behavior.description}
+      control={
+        <Switch
+          ariaLabel={behavior.label}
+          checked={findSourceBehaviorEnabled(sourceBehaviorsQuery.data?.sources ?? [], behavior.id)}
+          disabled={busy}
+          onChange={(enabled) => sourceBehaviorMutation.mutate({ id: behavior.id, enabled })}
+        />
+      }
+    />
+  ))}
+</>
 ```
 
 - [ ] **Step 3: Remove generic source behaviors from Data sources**
@@ -263,7 +283,7 @@ In `apps/web/src/settings/settings-personal-data-panes.tsx`:
 - Change `PaneHead` description to:
 
 ```tsx
-desc="Connect a notes folder Jarvis can index and use as context."
+<PaneHead title="Data sources" desc="Connect a notes folder Jarvis can index and use as context." />
 ```
 
 - Change the Connected accounts note from:

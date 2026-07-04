@@ -1,7 +1,13 @@
-import type { QueryClient } from "@tanstack/react-query";
 import type { ListSourceBehaviorsResponse, SourceBehaviorSourceDto } from "@jarv1s/shared";
 
-import { queryKeys } from "../api/query-keys";
+import { queryKeys } from "../api/query-keys.js";
+
+interface SourceBehaviorCacheClient {
+  setQueryData: (
+    queryKey: typeof queryKeys.settings.sourceBehaviors,
+    data: ListSourceBehaviorsResponse
+  ) => void;
+}
 
 export const BRIEFING_SOURCE_BEHAVIORS = [
   {
@@ -21,14 +27,13 @@ export function findSourceBehaviorEnabled(
   behaviorId: string
 ): boolean {
   return (
-    sources
-      .flatMap((source) => source.behaviors)
-      .find((behavior) => behavior.id === behaviorId)?.enabled ?? true
+    sources.flatMap((source) => source.behaviors).find((behavior) => behavior.id === behaviorId)
+      ?.enabled ?? true
   );
 }
 
 export function writeSourceBehaviorCache(
-  queryClient: QueryClient,
+  queryClient: SourceBehaviorCacheClient,
   data: ListSourceBehaviorsResponse
 ): void {
   queryClient.setQueryData(queryKeys.settings.sourceBehaviors, data);

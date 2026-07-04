@@ -13,8 +13,10 @@ import {
 import {
   createBriefingDefinition,
   getLocaleSettings,
+  listSourceBehaviors,
   listAiAssistantTools,
   listBriefingDefinitions,
+  putSourceBehavior,
   updateBriefingDefinition
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -26,6 +28,11 @@ import {
   updateDefinitionRequest
 } from "../briefings/briefing-settings-model";
 import { Choice, Field, Group, NotWired, Note, Row, Segmented, Switch } from "./settings-ui";
+import {
+  BRIEFING_SOURCE_BEHAVIORS,
+  findSourceBehaviorEnabled,
+  writeSourceBehaviorCache
+} from "./settings-source-behaviors";
 
 // BACKEND-TODO: persist + apply the Chat / Notifications settings objects.
 // Those sub-views are controlled local state only — nothing is saved or fed into behavior yet.
@@ -93,6 +100,11 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
     queryKey: queryKeys.ai.assistantTools,
     queryFn: listAiAssistantTools
   });
+  const sourceBehaviorsQuery = useQuery({
+    queryKey: queryKeys.settings.sourceBehaviors,
+    queryFn: listSourceBehaviors,
+    retry: false
+  });
   const localeQuery = useQuery({
     queryKey: queryKeys.settings.locale,
     queryFn: getLocaleSettings
@@ -135,12 +147,24 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.briefings.definitions });
     }
   });
+  const sourceBehaviorMutation = useMutation({
+    mutationFn: (input: { readonly id: string; readonly enabled: boolean }) =>
+      putSourceBehavior(input.id, { enabled: input.enabled }),
+    onSuccess: (data) => writeSourceBehaviorCache(queryClient, data)
+  });
   const busy =
     definitionsQuery.isLoading ||
     toolsQuery.isLoading ||
+    sourceBehaviorsQuery.isLoading ||
     mutation.isPending ||
+    sourceBehaviorMutation.isPending ||
     selectedToolNames.length === 0;
-  const error = definitionsQuery.error ?? toolsQuery.error ?? mutation.error;
+  const error =
+    definitionsQuery.error ??
+    toolsQuery.error ??
+    sourceBehaviorsQuery.error ??
+    mutation.error ??
+    sourceBehaviorMutation.error;
 
   return (
     <ModuleSub
@@ -195,6 +219,24 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
 
       <Group title="Sources">
         <Row name="Read tools" desc={sourceListDescription(selectedToolNames)} />
+        {BRIEFING_SOURCE_BEHAVIORS.map((behavior) => (
+          <Row
+            key={behavior.id}
+            name={behavior.label}
+            desc={behavior.description}
+            control={
+              <Switch
+                ariaLabel={behavior.label}
+                checked={findSourceBehaviorEnabled(
+                  sourceBehaviorsQuery.data?.sources ?? [],
+                  behavior.id
+                )}
+                disabled={busy}
+                onChange={(enabled) => sourceBehaviorMutation.mutate({ id: behavior.id, enabled })}
+              />
+            }
+          />
+        ))}
       </Group>
     </ModuleSub>
   );

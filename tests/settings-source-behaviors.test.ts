@@ -1,13 +1,12 @@
-import { QueryClient } from "@tanstack/react-query";
 import { expect, it } from "vitest";
 import type { ListSourceBehaviorsResponse } from "@jarv1s/shared";
 
-import { queryKeys } from "../apps/web/src/api/query-keys";
+import { queryKeys } from "../apps/web/src/api/query-keys.js";
 import {
   BRIEFING_SOURCE_BEHAVIORS,
   findSourceBehaviorEnabled,
   writeSourceBehaviorCache
-} from "../apps/web/src/settings/settings-source-behaviors";
+} from "../apps/web/src/settings/settings-source-behaviors.js";
 
 const response: ListSourceBehaviorsResponse = {
   sources: [
@@ -60,7 +59,15 @@ it("reads behavior state and defaults on when the backend row is absent", () => 
 });
 
 it("writes source-behavior mutation results to the shared settings cache key", () => {
-  const queryClient = new QueryClient();
+  const writes = new Map<readonly unknown[], ListSourceBehaviorsResponse>();
+  const queryClient = {
+    setQueryData: (
+      queryKey: typeof queryKeys.settings.sourceBehaviors,
+      data: ListSourceBehaviorsResponse
+    ) => {
+      writes.set(queryKey, data);
+    }
+  };
   writeSourceBehaviorCache(queryClient, response);
-  expect(queryClient.getQueryData(queryKeys.settings.sourceBehaviors)).toEqual(response);
+  expect(writes.get(queryKeys.settings.sourceBehaviors)).toEqual(response);
 });
