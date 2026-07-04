@@ -12,15 +12,20 @@ import type {
   PreferencesPort
 } from "@jarv1s/db";
 import {
+  CHAT_SETTINGS_PREFERENCE_KEY,
+  getChatSettingsRouteSchema,
   listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
+  normalizeChatSettings,
+  putChatSettingsRouteSchema,
   type AnswerSourceSupportCard,
   type ChatActivityEventDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
   type ChatThreadDto,
   type FreshnessKind,
+  type PutChatSettingsRequest,
   type SourceFreshnessEntry,
   type SourceFreshnessV1
 } from "@jarv1s/shared";
@@ -100,6 +105,7 @@ export interface ChatRoutesDependencies {
   readonly boss?: PgBoss;
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
+  readonly chatPreferences?: PreferencesPort;
   readonly localePreferences?: PreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
   /** Priority preferences port — forwarded to the chat runtime for cross-tool context ranking (#721). */
@@ -148,6 +154,7 @@ export function registerChatRoutes(
   dependencies: ChatRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new ChatRepository();
+  const chatSettingsRepo = new PreferencesRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();
   const suppressionsRepo = new ChatMemorySuppressionsRepository();
@@ -210,6 +217,7 @@ export function registerChatRoutes(
       : undefined,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
+    chatPreferences: dependencies.chatPreferences,
     localePreferences: dependencies.localePreferences,
     priorityPreferences: dependencies.priorityPreferences,
     mcpTokenLifecycle: wiring
@@ -348,6 +356,42 @@ export function registerChatRoutes(
         );
         if (!messages) return reply.code(404).send({ error: "Chat thread not found" });
         return { messages: messages.map(serializeMessage) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // ── Chat settings ──────────────────────────────────────────────────────────
+
+  server.get(
+    "/api/chat/settings",
+    { schema: getChatSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const raw = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          chatSettingsRepo.get(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY)
+        );
+        return { chat: normalizeChatSettings(raw) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/chat/settings",
+    { schema: putChatSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const body = request.body as PutChatSettingsRequest;
+        const chat = normalizeChatSettings(body.chat);
+        await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          chatSettingsRepo.upsert(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY, chat)
+        );
+        return { chat };
       } catch (error) {
         return handleRouteError(error, reply);
       }

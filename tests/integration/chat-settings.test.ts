@@ -1,0 +1,114 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { OutgoingHttpHeaders } from "node:http";
+import type { Kysely } from "kysely";
+
+import { createApiServer } from "../../apps/api/src/server.js";
+import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import type { GetChatSettingsResponse } from "@jarv1s/shared";
+
+import {
+  connectionStrings,
+  resetEmptyFoundationDatabase,
+  setInstanceSetting
+} from "./test-database.js";
+
+function cookieHeader(headers: OutgoingHttpHeaders): string {
+  const setCookie = headers["set-cookie"];
+  const cookies = Array.isArray(setCookie)
+    ? setCookie
+    : typeof setCookie === "string" || typeof setCookie === "number"
+      ? [String(setCookie)]
+      : [];
+  return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
+}
+
+describe("chat settings", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let server: ReturnType<typeof createApiServer>;
+  let ownerCookie: string;
+  let memberCookie: string;
+
+  beforeAll(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    await setInstanceSetting("registration.requires_approval", { value: false });
+    server = createApiServer({ appDb, logger: false });
+    await server.ready();
+
+    ownerCookie = await signUp("Owner", "owner.chat-settings@example.test");
+    memberCookie = await signUp("Member", "member.chat-settings@example.test");
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  });
+
+  it("returns balanced defaults before any update", async () => {
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/chat/settings",
+      headers: { cookie: ownerCookie }
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json<GetChatSettingsResponse>()).toEqual({
+      chat: { responseStyle: "balanced" }
+    });
+  });
+
+  it("persists response style per user", async () => {
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/chat/settings",
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: { chat: { responseStyle: "concise" } }
+    });
+
+    expect(put.statusCode).toBe(200);
+
+    const owner = await server.inject({
+      method: "GET",
+      url: "/api/chat/settings",
+      headers: { cookie: ownerCookie }
+    });
+    expect(owner.json<GetChatSettingsResponse>().chat.responseStyle).toBe("concise");
+
+    const member = await server.inject({
+      method: "GET",
+      url: "/api/chat/settings",
+      headers: { cookie: memberCookie }
+    });
+    expect(member.json<GetChatSettingsResponse>().chat.responseStyle).toBe("balanced");
+  });
+
+  it("rejects unsupported response styles", async () => {
+    const res = await server.inject({
+      method: "PUT",
+      url: "/api/chat/settings",
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: { chat: { responseStyle: "verbose" } }
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("requires authentication", async () => {
+    const res = await server.inject({ method: "GET", url: "/api/chat/settings" });
+    expect(res.statusCode).toBe(401);
+  });
+
+  async function signUp(name: string, email: string): Promise<string> {
+    const signUp = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: {
+        name,
+        email,
+        password: "correct horse battery staple"
+      }
+    });
+    expect(signUp.statusCode).toBe(200);
+    return cookieHeader(signUp.headers);
+  }
+});

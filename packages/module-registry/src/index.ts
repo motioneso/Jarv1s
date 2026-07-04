@@ -719,6 +719,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         mcpServerUrl: deps.mcpServerUrl,
         boss: deps.boss,
         personaPreferences: new PreferencesRepository(),
+        chatPreferences: new PreferencesRepository(),
         localePreferences: new PreferencesRepository(),
         agencyPreferences: new PreferencesRepository(),
         priorityPreferences: new PreferencesRepository(),

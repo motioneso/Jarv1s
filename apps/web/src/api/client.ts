@@ -11,6 +11,7 @@ import type {
   AddTaskActivityResponse,
   AiModelCapability,
   BootstrapStatusResponse,
+  GetChatSettingsResponse,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
   GetWebSearchKeyResponse,
@@ -31,6 +32,8 @@ import type {
   AiCapabilityTierPreferencesResponse,
   PatchAiCapabilityTierPreferenceRequest,
   PreviewPersonaResponse,
+  PutChatSettingsRequest,
+  PutChatSettingsResponse,
   PutAdminChatModelOverrideRequest,
   PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
@@ -615,6 +618,19 @@ export async function listChatThreadMessages(
   return requestJson<ListChatThreadMessagesResponse>(
     `/api/chat/threads/${encodeURIComponent(threadId)}/messages`
   );
+}
+
+export async function getChatSettings(): Promise<GetChatSettingsResponse> {
+  return requestJson<GetChatSettingsResponse>("/api/chat/settings");
+}
+
+export async function putChatSettings(
+  input: PutChatSettingsRequest
+): Promise<PutChatSettingsResponse> {
+  return requestJson<PutChatSettingsResponse>("/api/chat/settings", {
+    method: "PUT",
+    body: input
+  });
 }
 
 export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
