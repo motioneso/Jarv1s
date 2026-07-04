@@ -11,6 +11,7 @@ import type {
   AddTaskActivityResponse,
   AiModelCapability,
   BootstrapStatusResponse,
+  GetChatSettingsResponse,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
   GetWebSearchKeyResponse,
@@ -21,6 +22,8 @@ import type {
   PutYoloUserRequest,
   DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
+  ListNotificationPreferencesResponse,
+  GetQuietHoursSettingsResponse,
   GetAiSummaryResponse,
   ListMySessionsResponse,
   RevokeMyOtherSessionsResponse,
@@ -29,10 +32,16 @@ import type {
   AiCapabilityTierPreferencesResponse,
   PatchAiCapabilityTierPreferenceRequest,
   PreviewPersonaResponse,
+  PutChatSettingsRequest,
+  PutChatSettingsResponse,
   PutAdminChatModelOverrideRequest,
   PutChatModelOverrideRequest,
   PutLocaleSettingsRequest,
   PutLocaleSettingsResponse,
+  PutNotificationPreferenceRequest,
+  PutNotificationPreferenceResponse,
+  PutQuietHoursSettingsRequest,
+  PutQuietHoursSettingsResponse,
   PutPersonaSettingsRequest,
   PutPersonaSettingsResponse,
   PutSourceBehaviorRequest,
@@ -53,7 +62,6 @@ import type {
   GoogleAuthorizeResponse,
   GoogleCompleteRequest,
   GoogleCompleteResponse,
-  GoogleSyncResponse,
   ImapConnectRequest,
   ImapTestResult,
   CreateConnectorAccountResponse,
@@ -201,6 +209,36 @@ export async function putLocaleSettings(
     method: "PUT",
     body
   });
+}
+
+export async function getQuietHoursSettings(): Promise<GetQuietHoursSettingsResponse> {
+  return requestJson<GetQuietHoursSettingsResponse>("/api/me/quiet-hours");
+}
+
+export async function putQuietHoursSettings(
+  body: PutQuietHoursSettingsRequest
+): Promise<PutQuietHoursSettingsResponse> {
+  return requestJson<PutQuietHoursSettingsResponse>("/api/me/quiet-hours", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function getNotificationPreferences(): Promise<ListNotificationPreferencesResponse> {
+  return requestJson<ListNotificationPreferencesResponse>("/api/me/notification-preferences");
+}
+
+export async function putNotificationPreference(
+  moduleId: string,
+  body: PutNotificationPreferenceRequest
+): Promise<PutNotificationPreferenceResponse> {
+  return requestJson<PutNotificationPreferenceResponse>(
+    `/api/me/notification-preferences/${encodeURIComponent(moduleId)}`,
+    {
+      method: "PUT",
+      body
+    }
+  );
 }
 
 export async function listThemes(): Promise<ListThemesResponse> {
@@ -582,6 +620,19 @@ export async function listChatThreadMessages(
   );
 }
 
+export async function getChatSettings(): Promise<GetChatSettingsResponse> {
+  return requestJson<GetChatSettingsResponse>("/api/chat/settings");
+}
+
+export async function putChatSettings(
+  input: PutChatSettingsRequest
+): Promise<PutChatSettingsResponse> {
+  return requestJson<PutChatSettingsResponse>("/api/chat/settings", {
+    method: "PUT",
+    body: input
+  });
+}
+
 export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
   return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
@@ -886,10 +937,6 @@ export async function connectImapConnection(
     method: "POST",
     body: input
   });
-}
-
-export async function syncGoogleConnector(): Promise<GoogleSyncResponse> {
-  return requestJson<GoogleSyncResponse>("/api/connectors/google/sync", { method: "POST" });
 }
 
 export async function markNotificationRead(id: string): Promise<MarkNotificationReadResponse> {

@@ -30,6 +30,13 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
+import { ConnectorsRepository } from "@jarv1s/connectors";
+
+import {
+  buildTestSourceContextService,
+  fakeEmailProvider,
+  transientProviderError
+} from "./source-context-helpers.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -554,6 +561,8 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(initialCalendar.statusCode).toBe(200);
     expect(initialCalendar.json<{ settings: Record<string, unknown> }>().settings).toEqual({
       lookaheadDays: 2,
+      prepTaskMode: "suggest",
+      timeBlockMode: "suggest",
       suggestTasks: true,
       createTasks: false,
       suggestTimeBlocks: true,
@@ -583,6 +592,8 @@ describe("Calendar and Email connector-backed read modules", () => {
     expect(updateCalendar.statusCode).toBe(200);
     expect(updateCalendar.json<{ settings: Record<string, unknown> }>().settings).toMatchObject({
       lookaheadDays: 0,
+      prepTaskMode: "auto",
+      timeBlockMode: "auto",
       suggestTasks: true,
       createTasks: true,
       suggestTimeBlocks: true,
@@ -598,6 +609,26 @@ describe("Calendar and Email connector-backed read modules", () => {
   });
 
   it("keeps email connector-account context on the assistant-tool path without widening REST egress", async () => {
+    // Live-first (#729): this test focuses on connector-account context riding along in
+    // the tool result, not on grant filtering. The suite's legacy split-provider seed is
+    // projected to the unified google shape so the live reader accepts the account, and
+    // a transient provider failure drops the read to the seeded cache row.
+    const realConnectors = new ConnectorsRepository();
+    const sourceContext = buildTestSourceContextService({
+      connectorsRepository: {
+        listAccounts: async (scopedDb) =>
+          (await realConnectors.listAccounts(scopedDb))
+            .filter((row) => row.id === connectorAccountIds.aEmail)
+            .map((row) => ({
+              ...row,
+              provider_id: "google",
+              provider_type: "google" as const,
+              scopes: ["https://www.googleapis.com/auth/gmail.modify"]
+            }))
+      },
+      googleProvider: fakeEmailProvider<string>([], { listError: transientProviderError })
+    });
+
     const toolResult = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       emailListVisibleMessagesExecute(
         scopedDb,
@@ -607,13 +638,12 @@ describe("Calendar and Email connector-backed read modules", () => {
           requestId: "r:email-tool",
           chatSessionId: ""
         },
-        // Stub: grant the seeded account; this test focuses on connector-account context, not grant filtering.
-        { featureGrants: { grantedAccountIds: async () => new Set([connectorAccountIds.aEmail]) } }
+        { sourceContext }
       )
     );
 
     const message = (toolResult.data.messages as Array<Record<string, unknown>>).find(
-      (row) => row.id === emailMessageIds.aPrivate
+      (row) => row.cacheMessageId === emailMessageIds.aPrivate
     );
 
     expect(message?.connectorAccountId).toBe(connectorAccountIds.aEmail);

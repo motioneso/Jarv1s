@@ -17,11 +17,13 @@ import {
 import {
   aggregateFocusSignals,
   createActiveModulesResolver,
+  createNotificationPreferencePort,
   focusSignalProvidersFor,
   getAllQueueDefinitions,
   getBuiltInModuleManifests,
   registerBuiltInModuleWorkers
 } from "@jarv1s/module-registry";
+import { NotificationsRepository } from "@jarv1s/notifications";
 
 // ---------------------------------------------------------------------------
 // Bounded graceful-shutdown timeout (ms). On SIGINT/SIGTERM the worker waits
@@ -145,7 +147,10 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   await boss.work(UPGRADE_CHECK_QUEUE, async () => {
     await handleUpgradeCheckJob(workerDb, boss);
   });
-  await registerUpgradeNotifyWorker(boss, dataContext, { logger: workerLogger });
+  await registerUpgradeNotifyWorker(boss, dataContext, {
+    logger: workerLogger,
+    repository: new NotificationsRepository(undefined, createNotificationPreferencePort())
+  });
 
   await registerBuiltInModuleWorkers(boss, {
     rootDb: workerDb,

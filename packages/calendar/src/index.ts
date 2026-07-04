@@ -5,4 +5,5 @@ export * from "./serialize.js";
 export * from "./focus-time.js";
 export * from "./tools.js";
 export * from "./calendar-write-service.js";
+export * from "./follow-through.js";
 export * from "./jobs.js";

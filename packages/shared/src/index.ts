@@ -10,6 +10,7 @@ export * from "./briefings-api.js";
 export * from "./calendar-briefing-settings-api.js";
 export * from "./calendar-api.js";
 export * from "./chat-api.js";
+export * from "./chat-settings-api.js";
 export * from "./connectors-api.js";
 export * from "./email-api.js";
 export * from "./email-briefing-settings-api.js";

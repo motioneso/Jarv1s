@@ -22,7 +22,6 @@ import {
   deleteAdminUser,
   demoteUser,
   getChatMultiplexerSettings,
-  getAdminYoloSettings,
   getHostDiagnostics,
   getRegistrationSettings,
   listAdminConnectorAccounts,
@@ -39,8 +38,7 @@ import {
   revokeAdminUserSessions,
   rejectUser,
   setChatMultiplexerSettings,
-  setAdminModuleDisabled,
-  syncGoogleConnector
+  setAdminModuleDisabled
 } from "../api/client";
 import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
@@ -325,28 +323,6 @@ export function PeoplePane({ me }: PaneProps) {
     queryFn: listAdminUsers,
     retry: false
   });
-  const yoloQuery = useQuery({
-    queryKey: queryKeys.settings.adminYolo,
-    queryFn: getAdminYoloSettings,
-    retry: false
-  });
-  const yoloMutation = useMutation({
-    mutationFn: (
-      vars:
-        | { kind: "instance"; enabled: boolean }
-        | { kind: "user"; id: string; allowed: boolean }
-        | { kind: "allowAll" }
-    ) => {
-      if (vars.kind === "instance") return putAdminYoloInstance({ enabled: vars.enabled });
-      if (vars.kind === "allowAll") return postAdminYoloAllowAll();
-      return putAdminYoloUser(vars.id, { allowed: vars.allowed });
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.settings.adminYolo, data);
-      toast("YOLO settings updated");
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
   const actionMutation = useMutation({
     mutationFn: (vars: ActionVars) => vars.fn(vars.id),
     onSuccess: (data, vars) => {
@@ -458,63 +434,6 @@ export function PeoplePane({ me }: PaneProps) {
           ))}
         </Group>
       ) : null}
-      <Group
-        title="YOLO / auto-approval"
-        desc="Blanket auto-approval for interactive chat actions. RLS and account permissions still apply."
-      >
-        <Row
-          name="Instance master"
-          desc="When off, all saved per-user YOLO choices are inert."
-          control={
-            <Switch
-              ariaLabel="YOLO instance master"
-              checked={yoloQuery.data?.instanceEnabled ?? false}
-              disabled={yoloMutation.isPending}
-              onChange={(enabled) =>
-                enabled
-                  ? confirm({
-                      title: "Enable YOLO for this instance?",
-                      description:
-                        "This also enables YOLO for your admin account. Jarvis can run destructive chat actions without asking.",
-                      confirmLabel: "Enable YOLO",
-                      danger: true,
-                      onConfirm: () => yoloMutation.mutate({ kind: "instance", enabled })
-                    })
-                  : yoloMutation.mutate({ kind: "instance", enabled })
-              }
-            />
-          }
-        />
-        <Row
-          name="Allow all current members"
-          desc="Snapshot only. Future accounts still default off."
-          control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
-              disabled={yoloMutation.isPending}
-              onClick={() => yoloMutation.mutate({ kind: "allowAll" })}
-            >
-              Allow all
-            </button>
-          }
-        />
-        {(yoloQuery.data?.users ?? []).map((user) => (
-          <Row
-            key={user.id}
-            name={user.name || user.email}
-            desc={`${roleLabel(user)} · ${user.yoloEnabled ? "self-enabled" : "self off"}${user.yoloActive ? " · active" : ""}`}
-            control={
-              <Switch
-                ariaLabel={`Allow YOLO for ${user.email}`}
-                checked={user.yoloAllowed}
-                disabled={yoloMutation.isPending}
-                onChange={(allowed) => yoloMutation.mutate({ kind: "user", id: user.id, allowed })}
-              />
-            }
-          />
-        ))}
-      </Group>
       <Group title="Members" desc="New people create an account, then wait for approval here.">
         <div className="ppl">
           {members.length ? (
@@ -666,23 +585,12 @@ export function InstanceModulesPane() {
 /* ---------------------------------------------------------- Connector oversight */
 
 export function OversightPane() {
-  const { toast } = useFeedback();
-  const queryClient = useQueryClient();
   const accountsQuery = useQuery({
     queryKey: queryKeys.settings.adminConnectorAccounts,
     queryFn: listAdminConnectorAccounts,
     retry: false
   });
   const accounts = accountsQuery.data?.accounts ?? [];
-  const syncMutation = useMutation({
-    mutationFn: syncGoogleConnector,
-    onSuccess: (data) => {
-      const msg = data.deduped ? "Sync already in progress" : "Sync queued";
-      toast(msg);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminConnectorAccounts });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
   return (
     <>
       <PaneHead
@@ -712,23 +620,13 @@ export function OversightPane() {
                   </div>
                   <div className="cono__meta">
                     {account.providerType}
-                    {lastFinished ? ` · ${lastFinished}` : ""}
+                    {lastFinished ? ` · Fallback cache updated ${lastFinished}` : ""}
                     {errorLabel ? ` · ${errorLabel}` : ""}
                   </div>
                   <div className="cono__err">
                     <Badge tone={health.badgeTone} dot={health.badgeTone !== "amber"}>
                       {health.label}
                     </Badge>
-                    {account.status !== "revoked" && account.providerType === "google" && (
-                      <button
-                        type="button"
-                        className="cono__sync-btn"
-                        disabled={syncMutation.isPending}
-                        onClick={() => syncMutation.mutate()}
-                      >
-                        {syncMutation.isPending ? "Syncing…" : "Sync now"}
-                      </button>
-                    )}
                   </div>
                 </div>
               );

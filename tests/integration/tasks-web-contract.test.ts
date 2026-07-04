@@ -6,9 +6,9 @@ import { createDatabase } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
-describe("tasks status contract (Plan 3 narrowing)", () => {
-  it("TASK_STATUSES is narrowed to todo|done|archived; in_progress retired", () => {
-    expect([...TASK_STATUSES]).toEqual(["todo", "done", "archived"]);
+describe("tasks status contract (Plan 3 narrowing + #729 suggested)", () => {
+  it("TASK_STATUSES is todo|suggested|done|archived; in_progress retired", () => {
+    expect([...TASK_STATUSES]).toEqual(["todo", "suggested", "done", "archived"]);
     // @ts-expect-error — in_progress is no longer assignable to TaskApiStatus
     const retired: TaskApiStatus = "in_progress";
     expect(retired).toBe("in_progress");

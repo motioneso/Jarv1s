@@ -1,0 +1,158 @@
+import { createElement, type ReactElement } from "react";
+import { renderToString } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  getConnectorAccountHealth,
+  isConnectorSyncInFlight
+} from "../../apps/web/src/settings/settings-connector-sync.js";
+
+import type { ConnectorAccountDto } from "@jarv1s/shared";
+
+vi.mock("virtual:jarvis-module-settings", () => ({
+  MODULE_SETTINGS_SURFACES: [],
+  MODULE_SETTINGS_COMPONENTS: {}
+}));
+type HealthAccount = Parameters<typeof getConnectorAccountHealth>[0];
+
+const baseAccount: HealthAccount = {
+  providerType: "google",
+  status: "active",
+  lastSyncStartedAt: "2026-06-30T12:00:00.000Z",
+  lastSyncFinishedAt: "2026-06-30T12:00:05.000Z",
+  lastSyncStatus: "success",
+  lastSyncError: null
+};
+
+describe("connector sync account health", () => {
+  it("treats a failed Gmail sync as loud needs-attention with a reconnect CTA", () => {
+    const health = getConnectorAccountHealth({
+      ...baseAccount,
+      lastSyncStatus: "failed",
+      lastSyncError: "auth-error"
+    });
+
+    expect(health).toMatchObject({
+      indicator: "error",
+      badgeTone: "amber",
+      label: "Needs attention",
+      canReconnect: true
+    });
+    expect(health.alert).toContain("Google access needs to be refreshed");
+  });
+
+  it("keeps partial syncs visible without sending users through reconnect", () => {
+    const health = getConnectorAccountHealth({
+      ...baseAccount,
+      lastSyncStatus: "partial",
+      lastSyncError: "email-message-error"
+    });
+
+    expect(health).toMatchObject({
+      indicator: "error",
+      badgeTone: "amber",
+      label: "Partial",
+      canReconnect: false
+    });
+    expect(health.alert).toContain("Cached Google data may be stale");
+  });
+
+  it("keeps polling while a started sync has not finished", () => {
+    const account = {
+      ...baseAccount,
+      lastSyncStartedAt: "2026-06-30T12:01:00.000Z",
+      lastSyncFinishedAt: "2026-06-30T12:00:05.000Z",
+      lastSyncStatus: null
+    };
+
+    expect(isConnectorSyncInFlight(account)).toBe(true);
+    expect(getConnectorAccountHealth(account)).toMatchObject({
+      indicator: "idle",
+      badgeTone: "neutral",
+      label: "Syncing"
+    });
+  });
+
+  it("lets revocation win over stale sync metadata", () => {
+    const health = getConnectorAccountHealth({
+      ...baseAccount,
+      status: "revoked",
+      lastSyncStatus: "failed",
+      lastSyncError: "auth-error"
+    });
+
+    expect(health).toMatchObject({
+      indicator: "idle",
+      badgeTone: "neutral",
+      label: "Revoked",
+      canReconnect: false
+    });
+  });
+});
+
+const connectedAccount: ConnectorAccountDto = {
+  id: "acct-1",
+  providerId: "google-email",
+  providerType: "google",
+  providerDisplayName: "Google (Gmail + Calendar)",
+  providerStatus: "available",
+  ownerUserId: "user-1",
+  scopes: ["gmail.readonly"],
+  status: "active",
+  hasSecret: true,
+  revokedAt: null,
+  createdAt: "2026-06-30T11:00:00.000Z",
+  updatedAt: "2026-06-30T12:00:05.000Z",
+  lastSyncStartedAt: "2026-06-30T12:00:00.000Z",
+  lastSyncFinishedAt: "2026-06-30T12:00:05.000Z",
+  lastSyncStatus: "success",
+  lastSyncError: null,
+  lastSyncCounts: null
+};
+
+async function renderPane(
+  Pane: () => ReactElement | null,
+  seed: (client: QueryClient) => void
+): Promise<string> {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  seed(client);
+  const { FeedbackProvider } = await import("../../apps/web/src/settings/settings-feedback.js");
+  return renderToString(
+    createElement(
+      FeedbackProvider,
+      null,
+      createElement(QueryClientProvider, { client }, createElement(Pane))
+    )
+  );
+}
+
+describe("connector settings panes without manual sync (spec #729 §7)", () => {
+  it("ConnectedPane shows live vs fallback-cache health with no Sync now button", async () => {
+    const { queryKeys } = await import("../../apps/web/src/api/query-keys.js");
+    const { ConnectedPane } =
+      await import("../../apps/web/src/settings/settings-personal-data-panes.js");
+
+    const html = await renderPane(ConnectedPane, (client) => {
+      client.setQueryData(queryKeys.connectors.accounts, { accounts: [connectedAccount] });
+    });
+
+    expect(html).not.toContain("Sync now");
+    expect(html).toContain("Live connection");
+    expect(html).toContain("Fallback cache");
+  });
+
+  it("admin OversightPane shows fallback-cache metadata with no Sync now button", async () => {
+    const { queryKeys } = await import("../../apps/web/src/api/query-keys.js");
+    const { OversightPane } = await import("../../apps/web/src/settings/settings-admin-panes.js");
+
+    const html = await renderPane(OversightPane, (client) => {
+      client.setQueryData(queryKeys.settings.adminConnectorAccounts, {
+        accounts: [connectedAccount]
+      });
+    });
+
+    expect(html).not.toContain("Sync now");
+    expect(html).toContain("Fallback cache");
+  });
+});

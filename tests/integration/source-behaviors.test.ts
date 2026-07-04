@@ -114,6 +114,7 @@ describe("source behavior settings API", () => {
     expect((body.sources as Array<{ id: string }>).map((source) => source.id)).toEqual([
       "calendar",
       "email",
+      "people-notes",
       "test-source"
     ]);
     expect(findBehavior(body, "calendar.briefings")).toMatchObject({
@@ -125,6 +126,12 @@ describe("source behavior settings API", () => {
       enabled: false,
       default: "coming-soon",
       toggleable: false
+    });
+    expect(findBehavior(body, "people.notes.suggest-updates")).toMatchObject({
+      sourceId: "people-notes",
+      enabled: true,
+      default: "default-on",
+      toggleable: true
     });
     expect(findBehavior(body, "test-source.briefings")).toMatchObject({
       sourceId: "test-source",
@@ -155,7 +162,7 @@ describe("source behavior settings API", () => {
   it("rejects coming-soon writes", async () => {
     const response = await server.inject({
       method: "PUT",
-      url: "/api/me/source-behaviors/email.capture-tasks",
+      url: "/api/me/source-behaviors/email.thread-summaries",
       headers: userAHeaders(),
       payload: { enabled: true }
     });

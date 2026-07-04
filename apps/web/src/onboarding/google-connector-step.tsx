@@ -128,7 +128,12 @@ export function GoogleConnectorStep(props: {
         GOOGLE_CONNECT_SUCCESS_QUERY_KEYS.map((queryKey) =>
           queryClient.invalidateQueries({ queryKey })
         )
-      ).then(() => setMode("connected"))
+      ).then(() => {
+        setImapUsername("");
+        setImapPassword("");
+        setImapTestResult(null);
+        setMode("connected");
+      })
   });
   const accounts = accountsQuery.data?.accounts ?? [];
   const connected = props.done || accounts.length > 0;

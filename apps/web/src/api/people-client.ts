@@ -17,6 +17,27 @@ export interface PersonDto {
   readonly updatedAt: string;
 }
 
+export interface PeopleNotesSettingsDto {
+  readonly folder: string | null;
+}
+
+export interface PeopleNoteWriteResponse {
+  readonly person: PersonDto;
+  readonly notePath: string;
+}
+
+export interface CreatePersonRequest {
+  readonly displayName: string;
+  readonly aliases?: readonly string[];
+  readonly emails?: readonly string[];
+  readonly phones?: readonly string[];
+}
+
+export interface UpdatePersonRequest {
+  readonly displayName?: string;
+  readonly status?: "active" | "archived";
+}
+
 export interface MatchCandidateDto {
   readonly id: string;
   readonly candidateKind: PersonCandidateKind;
@@ -40,6 +61,45 @@ export async function listPeople(params?: {
 
 export async function listMatchCandidates(): Promise<{ candidates: MatchCandidateDto[] }> {
   return requestJson<{ candidates: MatchCandidateDto[] }>("/api/people/match-candidates");
+}
+
+export async function getPeopleNotesSettings(): Promise<PeopleNotesSettingsDto> {
+  return requestJson<PeopleNotesSettingsDto>("/api/people/notes-settings");
+}
+
+export async function putPeopleNotesSettings(
+  body: PeopleNotesSettingsDto
+): Promise<PeopleNotesSettingsDto> {
+  return requestJson<PeopleNotesSettingsDto>("/api/people/notes-settings", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function refreshPeopleNotes(): Promise<{ projected: number; candidates: number }> {
+  return requestJson<{ projected: number; candidates: number }>("/api/people/notes/refresh", {
+    method: "POST"
+  });
+}
+
+export async function createPerson(body: CreatePersonRequest): Promise<PeopleNoteWriteResponse> {
+  return requestJson<PeopleNoteWriteResponse>("/api/people", { method: "POST", body });
+}
+
+export async function updatePerson(
+  id: string,
+  body: UpdatePersonRequest
+): Promise<PeopleNoteWriteResponse> {
+  return requestJson<PeopleNoteWriteResponse>(`/api/people/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body
+  });
+}
+
+export async function archivePerson(id: string): Promise<PeopleNoteWriteResponse> {
+  return requestJson<PeopleNoteWriteResponse>(`/api/people/${encodeURIComponent(id)}/archive`, {
+    method: "POST"
+  });
 }
 
 export async function acceptCandidate(id: string): Promise<{ accepted: boolean }> {

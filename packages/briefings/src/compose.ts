@@ -6,6 +6,10 @@ import {
   readCalendarSignalSettings,
   readEmailSignalSettings,
   synthesizeWithConfiguredModel,
+  isActionableTriage,
+  sourceContextMetaFor,
+  recordSourceAuthGap,
+  ctxFor,
   type ComposeDeps,
   type ComposeRunInput,
   type ComposeResult,
@@ -28,6 +32,7 @@ import {
   tasksToCandidates
 } from "./priority-consumer.js";
 import { fallback } from "./fallback.js";
+import { briefingSignalFeedbackItemId } from "./feedback-targets.js";
 
 // ── Caps (one conservative economy budget) ─────────────────────────────────────
 const VAULT_CHUNK_CAP = 6;
@@ -131,6 +136,7 @@ export async function composeBriefing(
           label: "CALENDAR",
           toolName: "calendar.listVisibleEvents",
           arrayKey: "events",
+          metaKeys: ["accounts", "gaps"],
           format: (e) =>
             [sanitizeExternal(e.startsAt), sanitizeExternal(e.title)].filter(Boolean).join(" · ")
         },
@@ -151,16 +157,34 @@ export async function composeBriefing(
           label: "EMAIL SUMMARIES + SIGNALS",
           toolName: "email.listVisibleMessages",
           arrayKey: "messages",
+          metaKeys: ["accounts", "gaps"],
+          // Actionable triage only (#729 §7): noise/fyi/unknown never become prompt lines,
+          // and the allow-list is sender · subject · actionability · summary-or-snippet.
           format: (m) =>
-            [sanitizeExternal(m.sender), sanitizeExternal(m.subject), sanitizeExternal(m.snippet)]
-              .filter(Boolean)
-              .join(" · ")
+            isActionableTriage(m)
+              ? [
+                  sanitizeExternal(m.sender),
+                  sanitizeExternal(m.subject),
+                  sanitizeExternal(m.actionability),
+                  sanitizeExternal(m.summary) || sanitizeExternal(m.snippet)
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : ""
         },
         gaps,
         now,
         timeZone
       )
     : emptySection("email", "EMAIL SUMMARIES + SIGNALS");
+  const calendarSourceContext = sourceContextMetaFor(rawCalendar);
+  const emailSourceContext = sourceContextMetaFor(rawEmail);
+  recordSourceAuthGap("calendar", calendarSourceContext, gaps);
+  recordSourceAuthGap("email", emailSourceContext, gaps);
+  const sourceContextDegraded = [
+    ...calendarSourceContext.accounts,
+    ...emailSourceContext.accounts
+  ].some((account) => account.source === "cache");
 
   // Vault: semantic ∪ recency, deduped by id/source path. Best-effort.
   const vaultLines: string[] = [];
@@ -250,7 +274,8 @@ export async function composeBriefing(
     : [];
   const emailSignals = includeEmail
     ? deriveEmailSignals({
-        items: rawEmail.rawItems ?? [],
+        // Same triage filter as the prompt lines: noise/fyi/unknown never seed signals.
+        items: (rawEmail.rawItems ?? []).filter(isActionableTriage),
         now,
         context,
         settings: emailSettings
@@ -310,7 +335,7 @@ export async function composeBriefing(
     ...tasks,
     lines: orderByPriority(tasks.lines, "tasks", (line) => line, priorityResults)
   };
-  const prioritizedCalendarSignals = orderByPriority(
+  let prioritizedCalendarSignals = orderByPriority(
     calendarSignals,
     "calendar",
     (signal) => signal.summary,
@@ -329,6 +354,14 @@ export async function composeBriefing(
   if (includeEmail && (rawEmail.rawItems?.length ?? 0) > 0 && emailSignals.length === 0) {
     gaps.push({ source: "email", reason: "empty" });
   }
+
+  prioritizedCalendarSignals = await attachCalendarFollowThrough(
+    scopedDb,
+    definition,
+    input,
+    deps,
+    prioritizedCalendarSignals
+  );
 
   const calendar: Section = {
     key: rawCalendar.key,
@@ -440,10 +473,63 @@ export async function composeBriefing(
         tier: synth.model.tier
       },
       gaps,
-      degraded: false,
+      // Live/cache provenance per connected account (#729): degraded means at least one
+      // account was served from the fallback cache after a transient live-read failure.
+      sourceContext: { email: emailSourceContext, calendar: calendarSourceContext },
+      degraded: sourceContextDegraded,
       ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
     }
   };
+}
+
+async function attachCalendarFollowThrough<
+  T extends {
+    readonly type: string;
+    readonly summary: string;
+    readonly suggestedActions: readonly string[];
+    readonly startsAt?: string;
+    readonly endsAt?: string;
+  }
+>(
+  scopedDb: DataContextDb,
+  definition: BriefingDefinition,
+  input: ComposeRunInput,
+  deps: ComposeDeps,
+  signals: readonly T[]
+): Promise<T[]> {
+  if (!deps.calendarFollowThrough) return [...signals];
+  const ctx = ctxFor(definition, input);
+  return Promise.all(
+    signals.map(async (signal) => {
+      if (
+        !signal.suggestedActions.includes("create_task") &&
+        !signal.suggestedActions.includes("block_time")
+      ) {
+        return signal;
+      }
+      const targetRef = briefingSignalFeedbackItemId("calendar", signal.type, signal.summary);
+      try {
+        const followThrough = await deps.calendarFollowThrough!.executeAutoActions({
+          scopedDb,
+          actorUserId: ctx.actorUserId,
+          requestId: ctx.requestId,
+          targetRef,
+          signal
+        });
+        return { ...signal, followThrough };
+      } catch (error) {
+        deps.logger?.error(
+          {
+            event: "calendar_follow_through_failed",
+            error: error instanceof Error ? error.name : "UnknownError",
+            signalType: signal.type
+          },
+          "calendar follow-through failed"
+        );
+        return signal;
+      }
+    })
+  );
 }
 
 // ── Trust boundary (prompt-injection hardening, #316) ──────────────────────────

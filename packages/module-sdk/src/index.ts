@@ -369,6 +369,10 @@ export interface ModuleFeatureFlagManifest {
   readonly defaultEnabled: boolean;
 }
 
+export interface ModuleNotificationManifest {
+  readonly supported: true;
+}
+
 export interface ModuleNavigationEntryManifest {
   readonly id: string;
   readonly label: string;
@@ -469,6 +473,7 @@ export interface JarvisModuleManifest {
   readonly settings?: readonly ModuleSettingsSurfaceManifest[];
   readonly permissions?: readonly ModulePermissionManifest[];
   readonly featureFlags?: readonly ModuleFeatureFlagManifest[];
+  readonly notifications?: ModuleNotificationManifest;
   readonly routes?: readonly ModuleRouteManifest[];
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];

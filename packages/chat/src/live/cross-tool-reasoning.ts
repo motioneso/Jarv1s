@@ -420,18 +420,13 @@ async function runSourcesWithConcurrencyLimit(
   const queue = [...plan.sources];
 
   // Track live promises as a Set so we can race them
-  const inFlight = new Set<Promise<{ items: CrossToolEvidenceItem[]; p: Promise<unknown> }>>();
+  const inFlight = new Set<Promise<CrossToolEvidenceItem[]>>();
 
   const runOne = (source: CrossToolSource) => {
-    const p: Promise<{ items: CrossToolEvidenceItem[]; p: Promise<unknown> }> = withDeadline(
+    const p = withDeadline(
       fetchSource(actorUserId, source, plan.query, reader, localNowIso, timezone),
       PER_SOURCE_TIMEOUT_MS
-    )
-      .catch(() => [] as CrossToolEvidenceItem[])
-      .then((items) => {
-        inFlight.delete(p);
-        return { items, p };
-      });
+    ).catch(() => [] as CrossToolEvidenceItem[]);
     inFlight.add(p);
     return p;
   };
@@ -442,7 +437,14 @@ async function runSourcesWithConcurrencyLimit(
   }
 
   while (inFlight.size > 0) {
-    const { items } = await Promise.race(inFlight);
+    // Race tagged copies (not the raw members) so we can identify — and remove —
+    // exactly the promise that won, regardless of settle order.
+    const { items, p } = await Promise.race(
+      [...inFlight].map((candidate) =>
+        candidate.then((settledItems) => ({ items: settledItems, p: candidate }))
+      )
+    );
+    inFlight.delete(p);
     results.push(...items);
     // Fill the freed slot if more sources remain
     if (queue.length > 0) {

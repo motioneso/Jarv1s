@@ -12,15 +12,20 @@ import type {
   PreferencesPort
 } from "@jarv1s/db";
 import {
+  CHAT_SETTINGS_PREFERENCE_KEY,
+  getChatSettingsRouteSchema,
   listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
+  normalizeChatSettings,
+  putChatSettingsRouteSchema,
   type AnswerSourceSupportCard,
   type ChatActivityEventDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
   type ChatThreadDto,
   type FreshnessKind,
+  type PutChatSettingsRequest,
   type SourceFreshnessEntry,
   type SourceFreshnessV1
 } from "@jarv1s/shared";
@@ -42,7 +47,8 @@ import type {
   ConnectorsRepository,
   FeatureGrantService,
   GoogleApiClient,
-  GoogleConnectionService
+  GoogleConnectionService,
+  SourceContextService
 } from "@jarv1s/connectors";
 import { sendJob } from "@jarv1s/jobs";
 import {
@@ -99,14 +105,19 @@ export interface ChatRoutesDependencies {
   readonly boss?: PgBoss;
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
+  readonly chatPreferences?: PreferencesPort;
   readonly localePreferences?: PreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
+  /** Priority preferences port — forwarded to the chat runtime for cross-tool context ranking (#721). */
+  readonly priorityPreferences?: PreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
   readonly connectorsRepository?: ConnectorsRepository;
   /** Injected by the composition root; gates email/calendar read tools to accounts with active grants. */
   readonly featureGrantService?: FeatureGrantService;
+  /** Injected by the composition root; live-first email/calendar reads for the read tools (#729). */
+  readonly sourceContextService?: SourceContextService;
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
@@ -143,6 +154,7 @@ export function registerChatRoutes(
   dependencies: ChatRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new ChatRepository();
+  const chatSettingsRepo = new PreferencesRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();
   const suppressionsRepo = new ChatMemorySuppressionsRepository();
@@ -178,7 +190,8 @@ export function registerChatRoutes(
                 googleApiClient: dependencies.googleApiClient,
                 connectorsRepository: dependencies.connectorsRepository,
                 boss: dependencies.boss,
-                featureGrantService: dependencies.featureGrantService
+                featureGrantService: dependencies.featureGrantService,
+                sourceContextService: dependencies.sourceContextService
               },
               agencyPreferences: dependencies.agencyPreferences,
               localePreferences: dependencies.localePreferences
@@ -204,7 +217,9 @@ export function registerChatRoutes(
       : undefined,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
+    chatPreferences: dependencies.chatPreferences,
     localePreferences: dependencies.localePreferences,
+    priorityPreferences: dependencies.priorityPreferences,
     mcpTokenLifecycle: wiring
       ? {
           mint: async (actorUserId: string) => {
@@ -341,6 +356,42 @@ export function registerChatRoutes(
         );
         if (!messages) return reply.code(404).send({ error: "Chat thread not found" });
         return { messages: messages.map(serializeMessage) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // ── Chat settings ──────────────────────────────────────────────────────────
+
+  server.get(
+    "/api/chat/settings",
+    { schema: getChatSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const raw = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          chatSettingsRepo.get(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY)
+        );
+        return { chat: normalizeChatSettings(raw) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/chat/settings",
+    { schema: putChatSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const body = request.body as PutChatSettingsRequest;
+        const chat = normalizeChatSettings(body.chat);
+        await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          chatSettingsRepo.upsert(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY, chat)
+        );
+        return { chat };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -608,6 +659,7 @@ export function buildChatGatewayDependencies(args: {
     connectorsRepository?: ConnectorsRepository;
     boss?: PgBoss;
     featureGrantService?: FeatureGrantService;
+    sourceContextService?: SourceContextService;
   };
 }): AssistantToolGatewayDependencies {
   return {
@@ -655,9 +707,17 @@ export function buildChatGatewayDependencies(args: {
         }
       ),
     toolServices: buildChatToolServices(args.collaborators),
-    readToolServices: args.collaborators.featureGrantService
-      ? { featureGrants: args.collaborators.featureGrantService }
-      : undefined,
+    readToolServices:
+      args.collaborators.featureGrantService || args.collaborators.sourceContextService
+        ? {
+            ...(args.collaborators.featureGrantService
+              ? { featureGrants: args.collaborators.featureGrantService }
+              : {}),
+            ...(args.collaborators.sourceContextService
+              ? { sourceContext: args.collaborators.sourceContextService }
+              : {})
+          }
+        : undefined,
     resolveLocalTimezone: args.localePreferences
       ? (actorUserId) =>
           args.runner.withDataContext(

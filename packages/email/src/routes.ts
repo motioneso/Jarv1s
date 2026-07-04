@@ -3,12 +3,17 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { handleRouteError } from "@jarv1s/module-sdk";
 import type { AccessContext, DataContextRunner, EmailMessage, PreferencesPort } from "@jarv1s/db";
 import {
+  EMAIL_TASK_MODE_PREF_KEY,
   getEmailBriefingSettingsRouteSchema,
   getEmailMessageRouteSchema,
+  getEmailTaskCreationModeRouteSchema,
   listEmailMessagesRouteSchema,
+  parseEmailTaskMode,
   type EmailMessageDto,
   type UpdateEmailBriefingSettingsRequest,
-  updateEmailBriefingSettingsRouteSchema
+  type UpdateEmailTaskCreationModeRequest,
+  updateEmailBriefingSettingsRouteSchema,
+  updateEmailTaskCreationModeRouteSchema
 } from "@jarv1s/shared";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 
@@ -134,6 +139,41 @@ export function registerEmailRoutes(
           }
         );
         return { settings };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/email/task-creation-mode",
+    { schema: getEmailTaskCreationModeRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const mode = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) =>
+            parseEmailTaskMode(await preferencesRepository.get(scopedDb, EMAIL_TASK_MODE_PREF_KEY))
+        );
+        return { mode };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/email/task-creation-mode",
+    { schema: updateEmailTaskCreationModeRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as UpdateEmailTaskCreationModeRequest;
+        await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          preferencesRepository.upsert(scopedDb, EMAIL_TASK_MODE_PREF_KEY, body.mode)
+        );
+        return { mode: body.mode };
       } catch (error) {
         return handleRouteError(error, reply);
       }

@@ -1,6 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner, UsefulnessFeedbackSignal } from "@jarv1s/db";
+import type {
+  AccessContext,
+  DataContextDb,
+  DataContextRunner,
+  UsefulnessFeedbackSignal
+} from "@jarv1s/db";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
   createUsefulnessFeedbackRouteSchema,
@@ -33,6 +38,13 @@ export interface UsefulnessFeedbackRoutesDependencies {
       actorUserId: string,
       cardId: string
     ): Promise<void>;
+  };
+  readonly calendarFollowThroughSideEffects?: {
+    removeCreatedRefs(
+      scopedDb: DataContextDb,
+      actorUserId: string,
+      metadata: Record<string, unknown>
+    ): Promise<string | null>;
   };
   readonly manualMemoryCandidates?: {
     createPendingManualCandidate(
@@ -122,6 +134,18 @@ export function registerUsefulnessFeedbackRoutes(
             );
             effectKind = "proactive_card_dismissed";
             effectRef = input.targetRef;
+          }
+          if (input.kind === "not_useful" && input.targetKind === "briefing_item") {
+            const removedRef =
+              (await dependencies.calendarFollowThroughSideEffects?.removeCreatedRefs(
+                scopedDb,
+                access.actorUserId,
+                verification.metadata ?? {}
+              )) ?? null;
+            if (removedRef) {
+              effectKind = "calendar_follow_through_removed";
+              effectRef = removedRef;
+            }
           }
 
           return {

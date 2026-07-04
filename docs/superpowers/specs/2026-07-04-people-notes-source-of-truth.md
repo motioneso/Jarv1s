@@ -73,4 +73,3 @@ Jarv1s should not maintain a separate source of truth that drifts from those not
 - `~/Jarv1s/packages/memory`
 - `~/Jarv1s/packages/vault`
 - `~/Jarv1s/packages/shared/*people*`
-

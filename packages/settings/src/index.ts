@@ -7,6 +7,7 @@ export * from "./data-export-repository.js";
 export * from "./onboarding-routes.js";
 export * from "./preferences-port.js";
 export * from "./locale-routes.js";
+export * from "./notification-preferences-routes.js";
 export * from "./web-search-key.js";
 export * from "./web-search-key-routes.js";
 export * from "./runtime-config-keys.js";

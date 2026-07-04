@@ -10,7 +10,8 @@ import {
   type ConnectorProviderStatus,
   type ConnectorProviderType,
   type ConnectorSyncStatus,
-  type DataContextDb
+  type DataContextDb,
+  type TriageFeedbackVerdict
 } from "@jarv1s/db";
 import type { ConnectorSyncCounts } from "@jarv1s/shared";
 
@@ -60,6 +61,25 @@ export interface UpdateConnectorAccountInput {
 export interface AdminUserCheckRow {
   readonly id: string;
   readonly is_instance_admin: boolean;
+}
+
+export interface TriageFeedbackInput {
+  readonly connectorAccountId: string | null;
+  readonly actionability: string;
+  readonly sender: string;
+  readonly senderDomain: string;
+  readonly subjectPrefix: string | null;
+  readonly actionType: string | null;
+  readonly confidence: number | null;
+  readonly modelVersion: string | null;
+  readonly verdict: TriageFeedbackVerdict;
+  readonly reason: string | null;
+}
+
+export interface TriageRejectionAggregate {
+  readonly senderDomain: string;
+  readonly rejected: number;
+  readonly accepted: number;
 }
 
 export class ConnectorsRepository {
@@ -452,6 +472,61 @@ export class ConnectorsRepository {
       accountId: row.id,
       hasScope: row.scopes.includes("https://www.googleapis.com/auth/gmail.modify")
     };
+  }
+
+  /**
+   * Record one accept/reject verdict for an email triage suggestion (#729 §6). Metadata
+   * only — never message bodies; subject_prefix is defensively capped at 120 chars here
+   * even though callers truncate first. Rows are owner-only under FORCE RLS.
+   */
+  async recordTriageFeedback(scopedDb: DataContextDb, input: TriageFeedbackInput): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.email_triage_feedback")
+      .values({
+        id: randomUUID(),
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        connector_account_id: input.connectorAccountId,
+        source: "email",
+        actionability: input.actionability,
+        sender: input.sender,
+        sender_domain: input.senderDomain,
+        subject_prefix: input.subjectPrefix === null ? null : input.subjectPrefix.slice(0, 120),
+        action_type: input.actionType,
+        confidence: input.confidence,
+        model_version: input.modelVersion,
+        verdict: input.verdict,
+        reason: input.reason,
+        created_at: new Date()
+      })
+      .execute();
+  }
+
+  /**
+   * Per-sender-domain accept/reject counts for the actor's own feedback, used by the
+   * triage learning pass to demote repeatedly rejected domains. COUNT comes back from
+   * pg as a string, hence the Number() casts.
+   */
+  async listTriageRejectionAggregates(
+    scopedDb: DataContextDb
+  ): Promise<TriageRejectionAggregate[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.email_triage_feedback")
+      .select((eb) => [
+        "sender_domain",
+        eb.fn.count<string>("id").filterWhere("verdict", "=", "rejected").as("rejected"),
+        eb.fn.count<string>("id").filterWhere("verdict", "=", "accepted").as("accepted")
+      ])
+      .groupBy("sender_domain")
+      .orderBy("sender_domain")
+      .execute();
+
+    return rows.map((row) => ({
+      senderDomain: row.sender_domain,
+      rejected: Number(row.rejected),
+      accepted: Number(row.accepted)
+    }));
   }
 
   private async requireVisibleAccount(

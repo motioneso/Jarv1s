@@ -9,7 +9,7 @@ import {
 
 import { matchesFocus, type TaskFocus } from "./focus.js";
 
-export const statusFilters = ["all", "todo", "done", "archived"] as const;
+export const statusFilters = ["all", "todo", "suggested", "done", "archived"] as const;
 export type StatusFilter = (typeof statusFilters)[number];
 export type ListState = "included" | "solo" | "excluded";
 

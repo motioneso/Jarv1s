@@ -596,6 +596,9 @@ importers:
       '@jarv1s/settings':
         specifier: workspace:*
         version: link:../settings
+      '@jarv1s/source-behaviors':
+        specifier: workspace:*
+        version: link:../source-behaviors
       '@jarv1s/sports':
         specifier: workspace:*
         version: link:../sports
@@ -608,6 +611,9 @@ importers:
       '@jarv1s/usefulness-feedback':
         specifier: workspace:*
         version: link:../usefulness-feedback
+      '@jarv1s/vault':
+        specifier: workspace:*
+        version: link:../vault
       '@jarv1s/weather':
         specifier: workspace:*
         version: link:../weather
@@ -692,6 +698,12 @@ importers:
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
+      '@jarv1s/structured-state':
+        specifier: workspace:*
+        version: link:../structured-state
+      '@jarv1s/vault':
+        specifier: workspace:*
+        version: link:../vault
       '@sinclair/typebox':
         specifier: ^0.34.13
         version: 0.34.49

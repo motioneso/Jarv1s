@@ -14,6 +14,7 @@ import { sendJob } from "@jarv1s/jobs";
 import { recordAuditEvent } from "@jarv1s/settings";
 import { reconcileGoogleAccountSchedule } from "./google-schedule.js";
 import { reconcileImapAccountSchedule } from "./imap-schedule.js";
+import { reconcileMonitorSchedules } from "./monitor-schedule.js";
 import {
   createConnectorAccountRouteSchema,
   getFeatureGrantsRouteSchema,
@@ -149,6 +150,13 @@ export function registerConnectorsRoutes(
         }
         try {
           await reconcileGoogleAccountSchedule(dependencies.boss, accessContext.actorUserId, true);
+          await reconcileMonitorSchedules(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            { email: true, calendar: true },
+            true
+          );
         } catch (error) {
           request.log.warn(
             { event: "connectors.google_schedule_reconcile_failed", name: (error as Error).name },
@@ -212,6 +220,13 @@ export function registerConnectorsRoutes(
             dependencies.boss,
             accessContext.actorUserId,
             account.id,
+            true
+          );
+          await reconcileMonitorSchedules(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            { email: true, calendar: false },
             true
           );
         } catch (error) {
@@ -378,6 +393,22 @@ export function registerConnectorsRoutes(
               "google schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
             );
           }
+        }
+
+        try {
+          // connected=false unschedules both monitor queues regardless of capability flags.
+          await reconcileMonitorSchedules(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            { email: true, calendar: true },
+            false
+          );
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.monitor_schedule_reconcile_failed", name: (error as Error).name },
+            "monitor schedule unreconcile failed on revoke; monitors may keep running until next reconcile"
+          );
         }
 
         return { account: serializeAccount(account) };

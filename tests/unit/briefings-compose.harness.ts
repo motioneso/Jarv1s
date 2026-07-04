@@ -1,0 +1,284 @@
+/** Shared fake-deps harness for the briefings-compose unit suites. */
+import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
+import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
+import type { MemoryRetriever } from "@jarv1s/memory";
+import type { JarvisModuleManifest, ToolExecute, ToolResult } from "@jarv1s/module-sdk";
+import type { FocusSignalInput, PriorityModelPreferenceV1 } from "@jarv1s/priority";
+
+import {
+  type ComposeDeps,
+  type ComposeRunInput,
+  type GenerateChatFn
+} from "../../packages/briefings/src/compose.js";
+
+export const fakeScopedDb = {} as DataContextDb;
+
+export const FIXED_NOW = new Date("2026-06-13T12:00:00.000Z");
+
+export function definition(overrides: Partial<BriefingDefinition> = {}): BriefingDefinition {
+  return {
+    id: "def-1",
+    owner_user_id: "owner-1",
+    title: "Morning",
+    briefing_type: "morning",
+    cadence: "daily",
+    // UTC so the fixed-now local-day filter is trivially satisfied by the canned dates.
+    schedule_metadata: { targetTime: "06:00", timezone: "UTC" },
+    enabled: true,
+    selected_tool_names: [
+      "commitments.listVisible",
+      "tasks.list",
+      "calendar.listVisibleEvents",
+      "email.listVisibleMessages",
+      "vault",
+      "chat.listTodaysTurns"
+    ],
+    last_run_at: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides
+  } as BriefingDefinition;
+}
+
+export const runInput: ComposeRunInput = {
+  runKind: "manual",
+  runId: "run-1",
+  now: FIXED_NOW
+};
+
+// Canned per-tool data keyed by the tool name compose calls. Day-bounded sources
+// (calendar/chats) use FIXED_NOW's UTC date so withinLocalDay keeps them.
+export const TODAY_ISO = "2026-06-13T09:00:00.000Z";
+
+export function cannedToolData(toolName: string): Record<string, unknown> {
+  switch (toolName) {
+    case "commitments.listVisible":
+      return { commitments: [{ title: "Pay invoice", status: "open", dueAt: null }] };
+    case "tasks.list":
+      return { items: [{ title: "Write report", status: "todo" }] };
+    case "calendar.listVisibleEvents":
+      return {
+        events: [
+          {
+            id: "evt-1",
+            startsAt: TODAY_ISO,
+            endsAt: "2026-06-13T10:00:00.000Z",
+            title: "Client review"
+          }
+        ],
+        accounts: [
+          {
+            account: {
+              connectorAccountId: "conn-cal-1",
+              providerId: "google",
+              providerLabel: "Google Calendar"
+            },
+            source: "live",
+            degradedReason: null
+          }
+        ],
+        gaps: []
+      };
+    case "email.listVisibleMessages":
+      return {
+        messages: [
+          {
+            id: "msg-1",
+            connectorAccountId: "conn-email-1",
+            sender: "boss@x.com",
+            subject: "Re: budget",
+            snippet: "Can you reply today?",
+            actionability: "needs_reply",
+            importance: "normal",
+            confidence: 0.9,
+            source: "live"
+          }
+        ],
+        accounts: [
+          {
+            account: {
+              connectorAccountId: "conn-email-1",
+              providerId: "google",
+              providerLabel: "Gmail"
+            },
+            source: "live",
+            degradedReason: null
+          }
+        ],
+        gaps: []
+      };
+    case "chat.listTodaysTurns":
+      return {
+        turns: [{ role: "user", excerpt: "what's up", threadTitle: "T", createdAt: TODAY_ISO }]
+      };
+    case "sports.followedFactsToday":
+      return { facts: [{ competitionKey: "nfl", text: "Cowboys play tonight 7:20pm" }] };
+    default:
+      return {};
+  }
+}
+
+export interface FakeOptions {
+  readonly generateChat?: GenerateChatFn;
+  readonly credentialPayload?: Record<string, unknown>;
+  /** Tool name whose execute throws, to exercise the gaps path. */
+  readonly failTool?: string;
+  /** Omit a model so compose takes the degraded "no_model" fallback. */
+  readonly noModel?: boolean;
+  readonly personaPreference?: unknown;
+  readonly priorityModel?: PriorityModelPreferenceV1;
+  readonly focusReadiness?: readonly FocusSignalInput[];
+  readonly userName?: string;
+  readonly disabledBehaviors?: ReadonlySet<string>;
+  readonly preferences?: Readonly<Record<string, unknown>>;
+}
+
+export function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
+  const toolNames = [
+    "commitments.listVisible",
+    "tasks.list",
+    "calendar.listVisibleEvents",
+    "email.listVisibleMessages",
+    "chat.listTodaysTurns",
+    "sports.followedFactsToday"
+  ];
+  const assistantTools = toolNames.map((name) => {
+    const execute: ToolExecute = async (): Promise<ToolResult> => {
+      if (name === failTool) {
+        throw new Error("boom");
+      }
+      return { data: cannedToolData(name) };
+    };
+    return {
+      name,
+      description: name,
+      permissionId: "x.view",
+      risk: "read" as const,
+      inputSchema: { type: "object", properties: {} },
+      execute
+    };
+  });
+  return [
+    {
+      id: "fake",
+      name: "Fake",
+      version: "0.0.0",
+      publisher: "test",
+      lifecycle: "required",
+      compatibility: { jarv1s: ">=0.0.0" },
+      assistantTools,
+      sourceBehaviors: [
+        {
+          id: "calendar",
+          name: "Calendar",
+          description: "Calendar source",
+          behaviors: [
+            {
+              id: "calendar.briefings",
+              name: "Include in briefings",
+              description: "Calendar in briefings",
+              default: "default-on"
+            }
+          ]
+        },
+        {
+          id: "email",
+          name: "Email",
+          description: "Email source",
+          behaviors: [
+            {
+              id: "email.briefings",
+              name: "Include in briefings",
+              description: "Email in briefings",
+              default: "default-on"
+            }
+          ]
+        }
+      ]
+    }
+  ];
+}
+
+export function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
+  const aiRepository = {
+    async selectModelForCapability() {
+      if (options.noModel) {
+        return undefined;
+      }
+      return {
+        id: "model-1",
+        provider_config_id: "pc-1",
+        provider_kind: "anthropic",
+        provider_model_id: "claude-3-5-haiku",
+        display_name: "Haiku",
+        tier: "economy"
+      };
+    },
+    async selectProviderWithCredential() {
+      return {
+        id: "pc-1",
+        base_url: null,
+        encrypted_credential: { v: 1 }
+      };
+    }
+  } as unknown as AiRepository;
+
+  const cipher = {
+    decryptJson() {
+      return options.credentialPayload ?? { apiKey: "fake-key" };
+    }
+  } as unknown as AiSecretCipher;
+
+  const memoryRetriever = {
+    async retrieve() {
+      return [
+        {
+          id: "chunk-1",
+          sourcePath: "notes/today.md",
+          lineStart: 1,
+          lineEnd: 3,
+          text: "vault recall content",
+          similarity: 0.9
+        }
+      ];
+    },
+    async retrieveRecent() {
+      return [];
+    }
+  } as unknown as MemoryRetriever;
+
+  return {
+    moduleManifests: makeFakeManifests(options.failTool),
+    aiRepository,
+    cipher,
+    memoryRetriever,
+    personaRepository: {
+      get: async () => options.personaPreference ?? null
+    },
+    priorityPreferencesRepository: {
+      get: async (_scopedDb, key) =>
+        key === "priority.model.v1" ? (options.priorityModel ?? null) : null
+    },
+    focusReadiness: async () => options.focusReadiness ?? [],
+    resolveUserName: async () => options.userName ?? "Ben",
+    sourceBehaviorPolicy: {
+      manifests: makeFakeManifests(options.failTool),
+      preferencesRepository: {
+        get: async (_scopedDb, key) => {
+          if (key === "sourceBehaviors" && options.disabledBehaviors) {
+            return Object.fromEntries(
+              [...options.disabledBehaviors].map((behaviorId) => [behaviorId, false])
+            );
+          }
+          return options.preferences?.[key] ?? null;
+        },
+        getWithMetadata: async () => null,
+        upsert: async () => undefined
+      }
+    },
+    createAdapter: () => ({
+      generateChat:
+        options.generateChat ?? (async () => ({ text: "synth narrative" }) as { text: string })
+    })
+  };
+}

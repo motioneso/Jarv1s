@@ -3,10 +3,12 @@ import { fileURLToPath } from "node:url";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { emailMonitorProvider } from "./monitor-provider.js";
 import {
+  emailTaskCreationModeResponseSchema,
   getEmailMessageResponseSchema,
   getEmailBriefingSettingsResponseSchema,
   listEmailMessagesResponseSchema,
-  updateEmailBriefingSettingsRequestSchema
+  updateEmailBriefingSettingsRequestSchema,
+  updateEmailTaskCreationModeRequestSchema
 } from "@jarv1s/shared";
 
 import {
@@ -100,8 +102,10 @@ export const emailModuleManifest = {
         {
           id: "email.capture-tasks",
           name: "Capture tasks",
-          description: "Turn emails into tasks when they imply an action.",
-          default: "coming-soon"
+          description:
+            "Turn emails into tasks when they imply an action. Suggested by default; " +
+            "auto modes are opt-in per user.",
+          default: "default-on"
         },
         {
           id: "email.thread-summaries",
@@ -143,6 +147,19 @@ export const emailModuleManifest = {
       requestSchema: updateEmailBriefingSettingsRequestSchema,
       responseSchema: getEmailBriefingSettingsResponseSchema,
       permissionId: "email.manage"
+    },
+    {
+      method: "GET",
+      path: "/api/email/task-creation-mode",
+      responseSchema: emailTaskCreationModeResponseSchema,
+      permissionId: "email.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/email/task-creation-mode",
+      requestSchema: updateEmailTaskCreationModeRequestSchema,
+      responseSchema: emailTaskCreationModeResponseSchema,
+      permissionId: "email.manage"
     }
   ],
   assistantActionFamilies: [
@@ -159,7 +176,10 @@ export const emailModuleManifest = {
   assistantTools: [
     {
       name: "email.listVisibleMessages",
-      description: "List cached email messages owned by or shared with the active actor.",
+      description:
+        "List the actor's recent email, read live from each connected account with triage " +
+        "(actionability, importance) attached; falls back to cache only on transient provider " +
+        "failures, with source and gap metadata.",
       permissionId: "email.view",
       risk: "read",
       inputSchema: {
@@ -169,11 +189,27 @@ export const emailModuleManifest = {
       outputSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["messages"],
+        required: ["messages", "accounts", "gaps"],
         properties: {
           messages: {
             type: "array",
             items: emailToolMessageOutputSchema
+          },
+          accounts: {
+            type: "array",
+            items: {
+              type: "object",
+              description: "Per-account read outcome: source live|cache and any degradedReason"
+            }
+          },
+          gaps: {
+            type: "array",
+            items: {
+              type: "object",
+              description:
+                "Accounts that could not be read at all (auth_error, connector_revoked, " +
+                "feature_grant_disabled, unsupported_provider, service_unavailable)"
+            }
           }
         }
       },

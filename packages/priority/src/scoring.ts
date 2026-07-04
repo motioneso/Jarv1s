@@ -181,10 +181,6 @@ function computeScore(
     }
   }
 
-  if (model.mutedSources.includes(candidate.source)) {
-    score = Math.min(score, BANDS.low.max);
-  }
-
   return { score: Math.max(0, Math.min(100, score)), reasons };
 }
 
@@ -207,7 +203,10 @@ export function rankPriorityCandidates(input: PriorityScoreInput): PriorityResul
   }
 
   const readiness = minReadiness(input.focusReadiness);
-  const scored = input.candidates.map((candidate) => {
+  const activeCandidates = input.candidates.filter(
+    (candidate) => !input.model.mutedSources.includes(candidate.source)
+  );
+  const scored = activeCandidates.map((candidate) => {
     const { score, reasons } = computeScore(
       candidate,
       input.model,
