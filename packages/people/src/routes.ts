@@ -2,8 +2,10 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { PgBoss } from "pg-boss";
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { VaultContextRunner } from "@jarv1s/vault";
 import { PeopleRepository } from "./repository.js";
 import { PersonContextService } from "./service.js";
+import { PeopleNotesService } from "./notes-service.js";
 import { enqueuePersonIndexBatch } from "./jobs.js";
 import type { PersonSourceKind } from "./types.js";
 
@@ -13,11 +15,14 @@ export interface PeopleRouteDependencies {
   readonly boss?: PgBoss;
   readonly repo?: PeopleRepository;
   readonly svc?: PersonContextService;
+  readonly vaultRunner?: VaultContextRunner;
+  readonly peopleNotesService?: PeopleNotesService;
 }
 
 export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDependencies): void {
   const repo = deps.repo ?? new PeopleRepository();
   const svc = deps.svc ?? new PersonContextService(repo);
+  const notesService = deps.peopleNotesService ?? new PeopleNotesService({ peopleRepository: repo });
 
   // GET /api/people
   app.get("/api/people", { schema: { response: { 200: Type.Any() } } }, async (request) => {
@@ -145,6 +150,71 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
     }
   );
 
+  const notesSettingsSchema = Type.Object({
+    folder: Type.Union([Type.String(), Type.Null()])
+  });
+
+  app.get(
+    "/api/people/notes-settings",
+    { schema: { response: { 200: notesSettingsSchema } } },
+    async (request) => {
+      const ac = await deps.resolveAccessContext(request);
+      return deps.dataContext.withDataContext(ac, (sdb) =>
+        notesService.getSettings(sdb, ac.actorUserId)
+      );
+    }
+  );
+
+  app.put(
+    "/api/people/notes-settings",
+    { schema: { body: notesSettingsSchema, response: { 200: notesSettingsSchema } } },
+    async (request) => {
+      const ac = await deps.resolveAccessContext(request);
+      const body = request.body as { folder: string | null };
+      return deps.dataContext.withDataContext(ac, (sdb) =>
+        notesService.putSettings(sdb, ac.actorUserId, body)
+      );
+    }
+  );
+
+  app.post("/api/people/notes/refresh", async (request) => {
+    const ac = await deps.resolveAccessContext(request);
+    if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
+    return deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+      deps.dataContext.withDataContext(ac, (sdb) =>
+        notesService.refreshFromFolder(sdb, vaultCtx, ac.actorUserId)
+      )
+    );
+  });
+
+  const createSchema = Type.Object({
+    displayName: Type.String(),
+    aliases: Type.Optional(Type.Array(Type.String())),
+    emails: Type.Optional(Type.Array(Type.String())),
+    phones: Type.Optional(Type.Array(Type.String()))
+  });
+
+  app.post(
+    "/api/people",
+    { schema: { body: createSchema, response: { 200: Type.Any() } } },
+    async (request) => {
+      const ac = await deps.resolveAccessContext(request);
+      if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
+      const body = request.body as {
+        displayName: string;
+        aliases?: string[];
+        emails?: string[];
+        phones?: string[];
+      };
+      return deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+        deps.dataContext.withDataContext(ac, async (sdb) => {
+          const result = await notesService.createPersonNote(sdb, vaultCtx, ac.actorUserId, body);
+          return { person: result.person, notePath: result.notePath };
+        })
+      );
+    }
+  );
+
   // GET /api/people/:id
   app.get("/api/people/:id", { schema: { response: { 200: Type.Any() } } }, async (request) => {
     const ac = await deps.resolveAccessContext(request);
@@ -191,6 +261,13 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
       const { id } = request.params as { id: string };
       const updates = request.body as { displayName?: string; status?: "active" | "archived" };
       return deps.dataContext.withDataContext(ac, async (sdb) => {
+        const settings = await notesService.getSettings(sdb, ac.actorUserId);
+        if (settings.folder && deps.vaultRunner) {
+          const result = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+            notesService.updatePersonNote(sdb, vaultCtx, ac.actorUserId, id, updates)
+          );
+          return { person: result.person, notePath: result.notePath };
+        }
         const person = await repo.updatePerson(sdb, ac.actorUserId, id, updates);
         return { person };
       });
@@ -205,6 +282,13 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
       const ac = await deps.resolveAccessContext(request);
       const { id } = request.params as { id: string };
       return deps.dataContext.withDataContext(ac, async (sdb) => {
+        const settings = await notesService.getSettings(sdb, ac.actorUserId);
+        if (settings.folder && deps.vaultRunner) {
+          const result = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+            notesService.archivePersonNote(sdb, vaultCtx, ac.actorUserId, id)
+          );
+          return { archived: true, person: result.person, notePath: result.notePath };
+        }
         await repo.archivePerson(sdb, ac.actorUserId, id);
         return { archived: true };
       });
