@@ -62,6 +62,7 @@ export class CalendarRepository {
     assertDataContextDb(scopedDb);
 
     const now = new Date();
+    const externalMetadata = input.externalMetadata ?? {};
 
     return scopedDb.db
       .insertInto("app.calendar_events")
@@ -76,7 +77,7 @@ export class CalendarRepository {
         summary: input.summary ?? null,
         body_excerpt: input.bodyExcerpt ?? null,
         external_id: input.externalId,
-        external_metadata: input.externalMetadata ?? {},
+        external_metadata: externalMetadata,
         created_at: now,
         updated_at: now
       })
@@ -88,7 +89,9 @@ export class CalendarRepository {
           location: input.location ?? null,
           summary: input.summary ?? null,
           body_excerpt: input.bodyExcerpt ?? null,
-          external_metadata: input.externalMetadata ?? {},
+          external_metadata: sql`app.calendar_events.external_metadata || ${JSON.stringify(
+            externalMetadata
+          )}::jsonb`,
           updated_at: now
         })
       )
