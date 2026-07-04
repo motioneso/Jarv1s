@@ -1,6 +1,6 @@
 import type { LocaleSettingsDto, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
-import { DEFAULT_LOCALE, formatDate, formatTime } from "./locale/locale-format.js";
+import { DEFAULT_LOCALE, formatDate } from "./locale/locale-format.js";
 
 const TOP_SECTION = "__top";
 const SECTION_ORDER: readonly string[] = [TOP_SECTION, "Plan", "You"];
@@ -46,7 +46,8 @@ export const webRoutes: readonly WebRouteMeta[] = [
     id: "today",
     path: "/today",
     title: "Today",
-    subtitle: (now, locale) => `${dateEyebrow(now, locale)} · ${timeEyebrow(now, locale)}`,
+    // Date + time live in the Today masthead (dateline + clock) — keep them out of the topbar.
+    subtitle: () => "",
     match: (pathname) => pathname === "/" || pathname.startsWith("/today")
   },
   {
@@ -150,10 +151,6 @@ function dateEyebrow(now: Date, locale: LocaleSettingsDto): string {
   const month = formatDate(now, locale, { month: "short" });
   const day = formatDate(now, locale, { day: "numeric" });
   return `${weekday} · ${month} ${day}`.toUpperCase();
-}
-
-function timeEyebrow(now: Date, locale: LocaleSettingsDto): string {
-  return formatTime(now, locale).replace(/\s?[AP]M$/i, "");
 }
 
 function monthEyebrow(now: Date, locale: LocaleSettingsDto): string {
