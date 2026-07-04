@@ -6,8 +6,10 @@ export const settingsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
 
+export const SETTINGS_MODULE_ID = "settings";
+
 export const settingsModuleManifest: JarvisModuleManifest = {
-  id: "settings",
+  id: SETTINGS_MODULE_ID,
   name: "Settings",
   version: "0.0.0",
   publisher: "jarv1s",

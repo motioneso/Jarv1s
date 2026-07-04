@@ -27,6 +27,7 @@ export interface ListNotificationsResult {
  * wide here only because callers should not have to construct the bounded form themselves.
  */
 export interface CreateNotificationInput {
+  readonly moduleId: string;
   readonly title: string;
   readonly body?: string | null;
   readonly metadata?: Record<string, unknown>;
@@ -169,6 +170,9 @@ export class NotificationsRepository {
     input: CreateNotificationInput
   ): Promise<NotificationWithReadState> {
     assertDataContextDb(scopedDb);
+    if (!input.moduleId?.trim()) {
+      throw new Error("moduleId is required");
+    }
 
     const projectedMetadata = projectNotificationMetadata(input.metadata);
     const urgency = input.urgency ?? "normal";
