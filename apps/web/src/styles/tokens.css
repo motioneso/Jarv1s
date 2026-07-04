@@ -364,6 +364,58 @@
   --accent-soft-border-weak: rgb(62 138 99 / 0.36);
 }
 
+/* ------------------------------------------------------------------------- */
+/* NATIONAL-PARK THEMES — light-ground accent swaps (spec §4). Each overrides */
+/* only the --forest ramp slot + accent-derived literals.                     */
+/* ------------------------------------------------------------------------- */
+[data-theme="sage"] {
+  --forest: #4a5d3a;
+  --forest-hover: #415233;
+  --forest-active: #3a492d;
+  --forest-soft: #dee2cd;
+  --forest-soft-2: #cdd4b6;
+  --forest-ink: #35432a;
+  --focus-ring: rgba(74, 93, 58, 0.45);
+  --accent-soft-border: rgb(74 93 58 / 0.45);
+  --accent-soft-border-weak: rgb(74 93 58 / 0.32);
+}
+
+[data-theme="canyon"] {
+  --forest: #8a4b2b;
+  --forest-hover: #794226;
+  --forest-active: #6c3a22;
+  --forest-soft: #ecdccc;
+  --forest-soft-2: #e0c8b0;
+  --forest-ink: #63361f;
+  --focus-ring: rgba(138, 75, 43, 0.45);
+  --accent-soft-border: rgb(138 75 43 / 0.45);
+  --accent-soft-border-weak: rgb(138 75 43 / 0.32);
+}
+
+[data-theme="teal"] {
+  --forest: #2f6d6a;
+  --forest-hover: #29605d;
+  --forest-active: #255553;
+  --forest-soft: #d5e2dd;
+  --forest-soft-2: #c2d5cf;
+  --forest-ink: #224e4c;
+  --focus-ring: rgba(47, 109, 106, 0.45);
+  --accent-soft-border: rgb(47 109 106 / 0.45);
+  --accent-soft-border-weak: rgb(47 109 106 / 0.32);
+}
+
+[data-theme="dusk"] {
+  --forest: #4b4a63;
+  --forest-hover: #424157;
+  --forest-active: #3a3a4d;
+  --forest-soft: #dcdbe2;
+  --forest-soft-2: #cbcad5;
+  --forest-ink: #363547;
+  --focus-ring: rgba(75, 74, 99, 0.45);
+  --accent-soft-border: rgb(75 74 99 / 0.45);
+  --accent-soft-border-weak: rgb(75 74 99 / 0.32);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-instant: 0ms;

@@ -21,7 +21,13 @@ import { handleSettingsRouteError } from "./route-error.js";
 const CUSTOM_THEMES_KEY = "themes.custom";
 const ACTIVE_THEME_KEY = "themes.active";
 const BUILT_IN_THEMES: readonly BuiltInThemeDto[] = [
-  { id: "light", name: "Light", builtIn: true },
+  // The "light" id keeps its value so stored active-theme preferences and
+  // localStorage survive; only the display name changed for Park Press.
+  { id: "light", name: "Forest", builtIn: true },
+  { id: "sage", name: "Sage", builtIn: true },
+  { id: "canyon", name: "Canyon", builtIn: true },
+  { id: "teal", name: "Teal", builtIn: true },
+  { id: "dusk", name: "Dusk", builtIn: true },
   { id: "dark", name: "Dark", builtIn: true }
 ];
 const BUILT_IN_IDS: ReadonlySet<string> = new Set(BUILT_IN_THEMES.map((theme) => theme.id));

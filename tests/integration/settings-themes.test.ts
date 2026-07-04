@@ -74,7 +74,11 @@ describe("settings theme preferences", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json<ListThemesResponse>()).toEqual({
       builtIn: [
-        { id: "light", name: "Light", builtIn: true },
+        { id: "light", name: "Forest", builtIn: true },
+        { id: "sage", name: "Sage", builtIn: true },
+        { id: "canyon", name: "Canyon", builtIn: true },
+        { id: "teal", name: "Teal", builtIn: true },
+        { id: "dusk", name: "Dusk", builtIn: true },
         { id: "dark", name: "Dark", builtIn: true }
       ],
       custom: [],

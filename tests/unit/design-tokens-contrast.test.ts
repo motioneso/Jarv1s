@@ -11,12 +11,12 @@ const css = readFileSync(cssPath, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 function blockFor(selector: string): Map<string, string> {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = css.match(new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\n\\}`));
-  if (!match) throw new Error(`selector not found in tokens.css: ${selector}`);
+  const body = css.match(new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\n\\}`))?.[1];
+  if (body === undefined) throw new Error(`selector not found in tokens.css: ${selector}`);
   const decls = new Map<string, string>();
-  for (const line of match[1].split(";")) {
+  for (const line of body.split(";")) {
     const m = line.match(/(--[\w-]+)\s*:\s*([^;]+)/);
-    if (m) decls.set(m[1], m[2].trim());
+    if (m?.[1] && m[2]) decls.set(m[1], m[2].trim());
   }
   return decls;
 }
@@ -27,14 +27,14 @@ function resolve(name: string, theme?: Map<string, string>, depth = 0): string {
   if (depth > 10) throw new Error(`var chain too deep: ${name}`);
   const raw = theme?.get(name) ?? root.get(name);
   if (!raw) throw new Error(`token not defined: ${name}`);
-  const varRef = raw.match(/^var\((--[\w-]+)\)$/);
-  return varRef ? resolve(varRef[1], theme, depth + 1) : raw;
+  const varRef = raw.match(/^var\((--[\w-]+)\)$/)?.[1];
+  return varRef ? resolve(varRef, theme, depth + 1) : raw;
 }
 
 function parseColor(value: string): [number, number, number] {
-  const hex = value.match(/^#([0-9a-f]{6})$/i);
+  const hex = value.match(/^#([0-9a-f]{6})$/i)?.[1];
   if (hex) {
-    const n = parseInt(hex[1], 16);
+    const n = parseInt(hex, 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   }
   throw new Error(`not an opaque hex color (test only asserts opaque pairs): ${value}`);
@@ -73,4 +73,17 @@ function assertPairs(theme: Map<string, string> | undefined, label: string) {
 describe("Park Press token contrast (WCAG AA)", () => {
   it("light theme clears AA", () => assertPairs(undefined, "light"));
   it("dark theme clears AA", () => assertPairs(blockFor('[data-theme="dark"]'), "dark"));
+});
+
+describe("national-park themes", () => {
+  for (const id of ["sage", "canyon", "teal", "dusk"]) {
+    it(`${id} accent clears AA on oat`, () => {
+      const theme = blockFor(`[data-theme="${id}"]`);
+      const paper = resolve("--paper", theme);
+      expect(contrast(resolve("--forest", theme), paper)).toBeGreaterThanOrEqual(4.5);
+      expect(
+        contrast(resolve("--text-on-accent", theme), resolve("--forest", theme))
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });

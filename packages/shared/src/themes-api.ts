@@ -17,7 +17,7 @@ export const AESTHETIC_THEME_TOKEN_KEYS = [
 
 export type AestheticThemeTokenKey = (typeof AESTHETIC_THEME_TOKEN_KEYS)[number];
 export type AestheticThemeTokens = Record<AestheticThemeTokenKey, string>;
-export type BuiltInThemeId = "light" | "dark";
+export type BuiltInThemeId = "light" | "sage" | "canyon" | "teal" | "dusk" | "dark";
 
 export interface BuiltInThemeDto {
   readonly id: BuiltInThemeId;
@@ -83,7 +83,7 @@ const builtInThemeSchema = {
   additionalProperties: false,
   required: ["id", "name", "builtIn"],
   properties: {
-    id: { type: "string", enum: ["light", "dark"] },
+    id: { type: "string", enum: ["light", "sage", "canyon", "teal", "dusk", "dark"] },
     name: { type: "string" },
     builtIn: { type: "boolean", const: true }
   }
