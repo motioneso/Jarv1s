@@ -11,12 +11,14 @@ import {
 import {
   peopleModuleManifest,
   peopleModuleSqlMigrationDirectory,
+  PeopleNotesService,
   registerPeopleRoutes,
   registerPersonIndexWorker,
   registerSyncPersonMemoryWorker,
   PERSON_INDEX_QUEUE,
   SYNC_PERSON_MEMORY_QUEUE
 } from "@jarv1s/people";
+import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
 import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
 import {
@@ -46,6 +48,7 @@ import {
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory
 } from "@jarv1s/structured-state";
+import { isBehaviorEnabled, type SourceBehaviorPreferencesPort } from "@jarv1s/source-behaviors";
 import {
   BRIEFINGS_QUEUE_DEFINITIONS,
   BriefingsRepository,
@@ -383,6 +386,18 @@ export interface BuiltInModuleRegistration {
 
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
 const PROACTIVE_CHECK_CRON = "*/30 * * * *";
+export const PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID = "people.notes.suggest-updates";
+
+export function isPeopleNotesSuggestUpdatesEnabled(
+  scopedDb: DataContextDb,
+  preferencesRepository: SourceBehaviorPreferencesPort = new PreferencesRepository()
+): Promise<boolean> {
+  return isBehaviorEnabled(
+    scopedDb,
+    { manifests: getBuiltInModuleManifests(), preferencesRepository },
+    PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID
+  );
+}
 
 function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveScheduleFn {
   return async (actorUserId, pref) => {
@@ -821,7 +836,20 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     registerWorkers: (boss, deps) =>
       registerNotesJobWorkers(boss, deps.dataContext, {
         embeddingProviderFactory: createRuntimeEmbeddingProvider,
-        preferencesRepository: new PreferencesRepository()
+        preferencesRepository: new PreferencesRepository(),
+        afterSync: async ({ actorUserId }) => {
+          const accessContext = { actorUserId, requestId: "notes-sync:people" };
+          const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+          const peopleNotes = new PeopleNotesService();
+          await vaultRunner.withVaultContext(accessContext, (vaultCtx) =>
+            deps.dataContext.withDataContext(accessContext, async (scopedDb) => {
+              if (!(await isPeopleNotesSuggestUpdatesEnabled(scopedDb))) {
+                return { projected: 0, candidates: 0 };
+              }
+              return peopleNotes.refreshFromFolder(scopedDb, vaultCtx, actorUserId);
+            })
+          );
+        }
       })
   },
   {
@@ -883,7 +911,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerPeopleRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
-        boss: deps.boss
+        boss: deps.boss,
+        vaultRunner: new VaultContextRunner(getVaultBaseDir()),
+        peopleNotesService: new PeopleNotesService()
       }),
     registerWorkers: async (boss, deps) => {
       const indexId = await registerPersonIndexWorker(boss, deps.dataContext, {

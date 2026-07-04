@@ -38,6 +38,13 @@ export type {
 
 export { PersonContextService, RequiresExplicitActionError } from "./service.js";
 
+export { PeopleNotesService, PEOPLE_NOTES_FOLDER_PREFERENCE_KEY } from "./notes-service.js";
+export type {
+  CreatePersonNoteInput,
+  UpdatePersonNoteInput,
+  PeopleNoteWriteResult
+} from "./notes-service.js";
+
 export { PEOPLE_TOOLS } from "./tools.js";
 
 export type {
@@ -60,5 +67,7 @@ export type {
   PersonLinkKind,
   PersonCandidateKind,
   PersonCandidateStatus,
-  PersonEventKind
+  PersonEventKind,
+  PeopleNotesSettings,
+  PeopleNotesRefreshResult
 } from "./types.js";

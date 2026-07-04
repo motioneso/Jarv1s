@@ -168,3 +168,12 @@ export interface RefreshIndexParams {
     reason: string;
   }>;
 }
+
+export interface PeopleNotesSettings {
+  readonly folder: string | null;
+}
+
+export interface PeopleNotesRefreshResult {
+  readonly projected: number;
+  readonly candidates: number;
+}

@@ -58,6 +58,13 @@ export interface NotesLastSync {
   readonly lastError?: string;
 }
 
+export interface NotesAfterSyncInput {
+  readonly actorUserId: string;
+  readonly sourcePath: string | null;
+}
+
+export type NotesAfterSyncHook = (input: NotesAfterSyncInput) => Promise<void>;
+
 type NotesFileIngestStatus = "ingested" | "skipped";
 export type EmbeddingProviderFactory = (scopedDb: DataContextDb) => Promise<EmbeddingProvider>;
 
@@ -412,6 +419,7 @@ export async function writeNotesLastSync(
 export interface RegisterNotesJobWorkersOptions {
   readonly embeddingProviderFactory?: EmbeddingProviderFactory;
   readonly preferencesRepository: PreferencesRepository;
+  readonly afterSync?: NotesAfterSyncHook;
 }
 
 async function defaultEmbeddingProviderFactory(
@@ -420,6 +428,15 @@ async function defaultEmbeddingProviderFactory(
   return createEmbeddingProvider(
     await getEmbeddingProviderConfig(new RuntimeConfigResolver(scopedDb))
   );
+}
+
+export async function runNotesAfterSyncHook(
+  result: NotesSyncJobResult,
+  hook: NotesAfterSyncHook | undefined,
+  input: NotesAfterSyncInput
+): Promise<void> {
+  if (!hook || result.noOp) return;
+  await hook(input);
 }
 
 export async function registerNotesJobWorkers(
@@ -450,6 +467,10 @@ export async function registerNotesJobWorkers(
         // after unlink) must NOT write a last-sync row, otherwise it clobbers a
         // real run's stats with zeros.
         if (!result.noOp) {
+          await runNotesAfterSyncHook(result, options.afterSync, {
+            actorUserId: accessContext.actorUserId,
+            sourcePath: job.data.sourcePath ?? null
+          });
           await writeNotesLastSync(dataContext, accessContext, options.preferencesRepository, {
             at: new Date().toISOString(),
             ingested: result.ingested,
