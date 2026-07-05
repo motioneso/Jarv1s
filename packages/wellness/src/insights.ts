@@ -205,6 +205,7 @@ export function computeInsights(
   // missed doses (no log row) are counted in the denominator — not just logged rows.
   const totalScheduled = totalExpectedSlots ?? scheduledLogs.length;
   const adh = totalScheduled > 0 ? Math.round((takenCount / totalScheduled) * 100) : 0;
+  const missedCount = Math.max(totalScheduled - takenCount, 0);
   const adhTone: WellnessInsightDto["tone"] = adh >= 85 ? "pine" : "amber";
   results.push({
     key: "adherence",
@@ -213,7 +214,9 @@ export function computeInsights(
     lead: `${adh.toString()}% adherence`,
     rest:
       " on your medication over the last 30 days" +
-      (adh >= 85 ? " — steady." : " — a few evening doses slipped.")
+      (adh >= 85
+        ? " — steady."
+        : ` — ${missedCount.toString()} dose${missedCount === 1 ? "" : "s"} missed.`)
   });
 
   return results;

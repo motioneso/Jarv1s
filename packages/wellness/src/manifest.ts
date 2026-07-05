@@ -48,15 +48,9 @@ export const wellnessModuleManifest = {
     supportsUserDisable: true
   },
   database: {
-    migrations: [
-      "sql/0082_wellness_checkins.sql",
-      "sql/0083_wellness_medications.sql",
-      "sql/0084_wellness_medication_logs.sql",
-      "sql/0088_wellness_emotion_taxonomy.sql",
-      "sql/0089_wellness_therapy_notes.sql",
-      "sql/0114_data_export_jobs_format_and_params.sql",
-      "sql/0115_list_expired_data_export_jobs_format.sql"
-    ],
+    // No consumer reads this list (migrationDirectories is the operative mechanism below);
+    // left empty rather than hand-maintained to avoid drifting out of sync with sql/ again.
+    migrations: [],
     migrationDirectories: ["packages/wellness/sql"],
     ownedTables: [
       "app.wellness_checkins",
@@ -104,7 +98,7 @@ export const wellnessModuleManifest = {
     {
       id: "wellness.update",
       label: "Update wellness",
-      description: "Update the active actor's own medications.",
+      description: "Update the active actor's own check-ins, medications, and AI-consent setting.",
       scope: "user",
       actions: ["update"]
     },
@@ -128,7 +122,7 @@ export const wellnessModuleManifest = {
       path: "/api/wellness/ai-consent",
       requestSchema: putWellnessAiConsentRequestSchema,
       responseSchema: wellnessAiConsentResponseSchema,
-      permissionId: "wellness.view"
+      permissionId: "wellness.update"
     },
     {
       method: "POST",
