@@ -313,7 +313,8 @@ describe("MVP foundation scaffold", () => {
         { version: "0140", name: "0140_task_status_suggested.sql" },
         { version: "0141", name: "0141_email_triage_feedback.sql" },
         { version: "0142", name: "0142_notifications_module_id.sql" },
-        { version: "0143", name: "0143_wellness_checkins_local_date_backfill.sql" }
+        { version: "0143", name: "0143_wellness_checkins_local_date_backfill.sql" },
+        { version: "0144", name: "0144_google_sync_sweep_accounts.sql" }
       ]);
     } finally {
       await client.end();
