@@ -631,8 +631,6 @@ function resolveDeployMode(raw: string | undefined): HostDiagnosticsInfo["deploy
   }
 }
 
-// Documented, fixed operator command per deploy mode. There is NO in-process restart
-// endpoint (#255): restart is operator-managed, so we only surface the command to run.
 function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | null {
   switch (mode) {
     case "compose":

@@ -17,7 +17,7 @@ describe("settings storage", () => {
 
     expect(values.get("jarvis.settings:v1:mode")).toBe("admin");
     expect(readSettingsStorage(storage, "mode")).toBe("admin");
-    expect(readSettingsStorage(storage, "advanced")).toBeNull();
+    expect(readSettingsStorage(storage, "categoryPersonal")).toBeNull();
   });
 
   it("falls back to null when browser storage throws", () => {
