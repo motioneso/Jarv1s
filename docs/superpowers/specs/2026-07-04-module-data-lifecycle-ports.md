@@ -87,6 +87,16 @@ their per-module knowledge.
    `packages/module-registry/src/index.ts:1254-1281`, extended): every table in a manifest's
    `database.ownedTables` MUST be covered by its `dataLifecycle.deletion.tables`. Modules with
    owned tables and **no** `dataLifecycle` fail registration — coverage is opt-out-impossible.
+
+   **Phase gating (boot-safety):** the mandatory check cannot be global on day one — **18
+   manifests declare `ownedTables` today** and Phase A migrates only wellness + sports; an
+   unconditional assertion would fail boot for the other 16. The assertion therefore ships with
+   an explicit `LIFECYCLE_MIGRATION_PENDING` allowlist (module ids, hardcoded next to the
+   assertion, review-visible): listed modules skip the mandatory-declaration check; unlisted
+   modules must declare, and any module that HAS a `dataLifecycle` is fully checked regardless of
+   the list. Each Phase B PR removes its module from the list; the final Phase B PR deletes the
+   list, making the assertion unconditional. A unit test pins the list's exact contents so a new
+   module can't quietly join it — the list only ever shrinks.
    Export is not forced per-table (some tables are derived caches with nothing user-meaningful to
    export), but a module with owned tables and zero `exportSections` must set an explicit
    `exportSections: []` — visible in review, not an accident of omission.
@@ -135,7 +145,9 @@ their per-module knowledge.
 
 Phase A (SDK + assertions + wellness + sports):
 
-- Registry assertion red/green: a test manifest with an owned table and no lifecycle must fail.
+- Registry assertion red/green: a test manifest with an owned table, no lifecycle, and not on the
+  pending allowlist must fail; the same manifest ON the allowlist must boot. Real boot with the
+  Phase A tree (16 pending modules) stays green.
 - Cascade-truth integration test (attempt: declare cascade on a non-cascading table → red).
 - Export byte-compat: full-account export before/after Phase A is deep-equal (fixture-seeded
   integration test; extend `tests/integration/data-export*`). The hub's direct reads of

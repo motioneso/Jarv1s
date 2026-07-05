@@ -53,9 +53,16 @@ script cover).
        { group: ["@jarv1s/*/src/*"], message: "Deep import into another package's src. Use its public exports." },
        { group: ["../../*/src/*", "../../../*/src/*", "../../../../*/src/*"],
          message: "Relative import crossing a package boundary. Depend on the package and use its public exports." },
+       { group: ["**/packages/*/src/*"],
+         message: "Path import into a workspace package's src. Depend on the package and use its public exports." },
      ],
    }],
    ```
+
+   The third group exists because `*` does not cross `/` in these globs: a sibling-package
+   reach-in (`../../chat/src/x`) matches group two, but an app-to-package reach-in
+   (`../../../packages/sports/src/x` from `apps/web/src`) has an extra `packages/` segment and
+   would escape it. `**/packages/*/src/*` catches that shape at any depth.
 
    **Flat-config merge trap (implementation-critical):** in ESLint flat config, a later config
    object's `no-restricted-imports` entry **replaces** the earlier one — it does not merge.
