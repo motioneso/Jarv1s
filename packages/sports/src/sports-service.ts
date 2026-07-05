@@ -1,20 +1,21 @@
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type {
-  FollowedNextMatch,
-  FollowedTeamCard,
-  FollowedTeamNews,
-  GameSide,
-  GameSummary,
-  Headline,
-  IsoDate,
-  LeagueNewsGroup,
-  OverviewHero,
-  ScoreboardGroup,
-  SportsCatalogResponse,
-  SportsFollowDto,
-  SportsOverviewResponse,
-  StandingsGroup,
-  StandingsRow
+import {
+  localDay,
+  type FollowedNextMatch,
+  type FollowedTeamCard,
+  type FollowedTeamNews,
+  type GameSide,
+  type GameSummary,
+  type Headline,
+  type IsoDate,
+  type LeagueNewsGroup,
+  type OverviewHero,
+  type ScoreboardGroup,
+  type SportsCatalogResponse,
+  type SportsFollowDto,
+  type SportsOverviewResponse,
+  type StandingsGroup,
+  type StandingsRow
 } from "@jarv1s/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
@@ -49,6 +50,11 @@ export interface SportsServiceDependencies {
   /** Clock seam (default `() => new Date()`); tests inject a fixed instant. */
   readonly now?: () => Date;
 }
+
+// ESPN's `scoreboard?dates=YYYYMMDD` param is interpreted in US Eastern time, not UTC — the
+// calendar day sent to the source (and cached under) must match that boundary or evening
+// games fall on the wrong side of the UTC/Eastern midnight gap (#761).
+const ESPN_TIMEZONE = "America/New_York";
 
 const SCOREBOARD_TTL_MS = 3 * 60 * 1000;
 const STANDINGS_TTL_MS = 10 * 60 * 1000;
@@ -284,7 +290,7 @@ export class SportsService {
   // --- internals ----------------------------------------------------------
 
   private today(): IsoDate {
-    return this.now().toISOString().slice(0, 10);
+    return localDay(this.now(), ESPN_TIMEZONE);
   }
 
   private async cached<T>(
