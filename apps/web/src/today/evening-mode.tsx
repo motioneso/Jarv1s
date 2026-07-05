@@ -142,11 +142,9 @@ export function EveningReviewSection(props: {
             const freshness = parseBriefingFreshness(props.run.sourceMetadata);
             return freshness ? <BriefingStaleBanner freshness={freshness} /> : null;
           })()}
-          {props.kind === "primary" ? (
-            <SummaryText value={props.run.summaryText} />
-          ) : (
+          {props.kind === "compact" ? (
             <p className="cmd-empty">{compactSummary(props.run.summaryText)}</p>
-          )}
+          ) : null}
           <BriefingFeedbackMenu targetRef={props.run.id} onChanged={props.onFeedbackChanged} />
         </>
       ) : (
@@ -250,27 +248,6 @@ export function EveningSupportSections(props: {
   );
 }
 
-function SummaryText(props: { readonly value: string }) {
-  const blocks = summaryBlocks(props.value);
-  if (blocks.length === 0) return <p className="cmd-empty">No summary yet.</p>;
-  return (
-    <div className="cmd-evening-summary">
-      {blocks.map((block, index) =>
-        block.kind === "bullet" ? (
-          <div className="overnight__row" key={`${block.text}-${index}`}>
-            <span className="jds-badge jds-badge--pine">•</span>
-            <span className="tx">{block.text}</span>
-          </div>
-        ) : (
-          <p className="cmd-leadin" key={`${block.text}-${index}`}>
-            {block.text}
-          </p>
-        )
-      )}
-    </div>
-  );
-}
-
 function compactSummary(value: string): string {
   const text = value.replace(/\s+/g, " ").trim();
   if (text.length <= 220) return text;
@@ -291,36 +268,6 @@ function targetTimeLabel(value: string): string {
   return minute === 0
     ? `${displayHour} ${suffix}`
     : `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
-}
-
-function summaryBlocks(
-  value: string
-): Array<{ readonly kind: "paragraph" | "bullet"; readonly text: string }> {
-  const blocks: Array<{ readonly kind: "paragraph" | "bullet"; readonly text: string }> = [];
-  for (const chunk of value
-    .replace(/\r/g, "")
-    .trim()
-    .split(/\n\s*\n/)) {
-    const lines = chunk
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const paragraph: string[] = [];
-    for (const line of lines) {
-      const bullet = /^[-*]\s+(.+)$/.exec(line);
-      if (bullet?.[1]) {
-        if (paragraph.length > 0) {
-          blocks.push({ kind: "paragraph", text: paragraph.join(" ") });
-          paragraph.length = 0;
-        }
-        blocks.push({ kind: "bullet", text: bullet[1] });
-      } else {
-        paragraph.push(line);
-      }
-    }
-    if (paragraph.length > 0) blocks.push({ kind: "paragraph", text: paragraph.join(" ") });
-  }
-  return blocks;
 }
 
 function timeLabel(iso: string, locale: LocaleSettingsDto): string {
