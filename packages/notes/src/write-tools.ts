@@ -211,6 +211,13 @@ export const notesEditExecute: ToolExecute = async (
   if (typeof raw.oldText !== "string" || typeof raw.newText !== "string") {
     throw new HttpError(400, "oldText and newText must be strings");
   }
+  // An empty oldText makes `content.split(oldText).length - 1` length-dependent: it can equal
+  // exactly 1 for some file lengths, slipping past the "appears once" guard below and causing
+  // `content.replace("", newText)` to silently prepend newText. Reject it outright, independent
+  // of file content/length.
+  if (raw.oldText.length === 0) {
+    throw new HttpError(400, "oldText must be non-empty");
+  }
 
   const root = await resolveSource(scopedDb);
   const rel = requireMarkdownPath(coerceToRelativePath(raw.path, root));
