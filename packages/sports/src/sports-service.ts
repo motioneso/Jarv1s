@@ -66,6 +66,16 @@ const FORM_LENGTH = 5;
 const TOP_STORIES_CAP = 6; // Ben 2026-07-01
 const EMPTY_STANDINGS: StandingsTable = { sections: [] };
 
+// A brand-new user with zero follows (no teams, no whole-league follows) would otherwise drive
+// `competitionKeys` to `[]`, so `getOverview` never fetches any scoreboard/headline data and the
+// page renders as a lone empty-state CTA — the opposite of spec §4.6a's "useful any day" promise
+// (#764). Fall back to this small fixed slate so the populated-empty-state branch the frontend
+// already ships (`hasSlate` in sports-page.tsx) has something to show alongside the "follow your
+// teams" CTA. Deliberately the major year-round domestic leagues (not `marquee`, which flags only
+// the World Cup for the follow picker) so at least one is in season on any given day: NFL
+// (fall/winter), NBA/NHL (fall-spring), MLB (spring-fall), Premier League (fall-spring).
+const DEFAULT_SLATE_COMPETITION_KEYS: readonly string[] = ["nfl", "nba", "nhl", "mlb", "eng.1"];
+
 /** Mutable degraded flag threaded through a single composition pass. */
 interface DegradeState {
   degraded: boolean;
@@ -120,7 +130,11 @@ export class SportsService {
     );
     const state: DegradeState = { degraded: false };
     const today = this.today();
-    const competitionKeys = unique(follows.map((f) => f.competitionKey));
+    // Zero follows (team or whole-league) → fetch the default slate instead of nothing (#764).
+    const competitionKeys =
+      follows.length > 0
+        ? unique(follows.map((f) => f.competitionKey))
+        : [...DEFAULT_SLATE_COMPETITION_KEYS];
     const followedTeams = follows.filter((f): f is SportsFollowDto & { teamKey: string } =>
       Boolean(f.teamKey)
     );

@@ -386,6 +386,65 @@ describe("SportsService.getOverview", () => {
       expect(overview.hero.headline?.id).toBe(overview.topStories[0]?.id);
     }
   });
+
+  // #764: a brand-new user with zero follows (no teams, no whole-league follows) previously drove
+  // `competitionKeys` to `[]`, so the overview fetched nothing and the page rendered as a lone
+  // empty-state CTA. It must instead fall back to a small fixed default slate so the frontend's
+  // existing populated-empty-state branch (`hasSlate` in sports-page.tsx) has scores/headlines to
+  // show alongside the "follow your teams" CTA.
+  it("falls back to a default slate of major leagues when the user follows nothing", async () => {
+    const requestedComps: string[] = [];
+    const nbaGame: GameSummary = {
+      id: "nba1",
+      competitionKey: "nba",
+      startsAt: `${TODAY}T20:00:00.000Z`,
+      state: "final",
+      statusDetail: "FT",
+      home: side({
+        teamKey: "bos",
+        shortName: "BOS",
+        name: "Boston Celtics",
+        score: 101,
+        winner: true
+      }),
+      away: side({ teamKey: "mia", shortName: "MIA", name: "Miami Heat", score: 98 })
+    };
+    const nbaHeadline: SourceHeadline = {
+      id: "hd1",
+      competitionKey: "nba",
+      title: "Celtics roll past Heat",
+      url: "https://example.com/hd1",
+      publishedAt: `${TODAY}T13:00:00.000Z`,
+      imageUrl: null,
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const service = new SportsService(
+      makeDeps({
+        follows: [],
+        source: makeSource({
+          getScoreboard: async (competitionKey) => {
+            requestedComps.push(competitionKey);
+            return competitionKey === "nba" ? [nbaGame] : [];
+          },
+          getHeadlines: async (competitionKey) => (competitionKey === "nba" ? [nbaHeadline] : [])
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+
+    expect(overview.followed).toEqual([]);
+    expect(overview.followedTeams).toEqual([]);
+    expect(overview.followedLeagues).toEqual([]);
+    // the populated-empty-state branch (sports-page.tsx `hasSlate`) needs at least one of these
+    expect(
+      overview.scoreboard.length + overview.topStories.length + overview.leagueNews.length
+    ).toBeGreaterThan(0);
+    expect(overview.scoreboard.find((g) => g.competitionKey === "nba")?.games).toEqual([nbaGame]);
+    expect(overview.topStories.map((h) => h.id)).toContain("hd1");
+    // a small fixed set of major year-round leagues, not the whole catalog (no tournaments)
+    expect(new Set(requestedComps)).toEqual(new Set(["nfl", "nba", "nhl", "mlb", "eng.1"]));
+  });
 });
 
 describe("SportsService.getFollowedFactsForToday", () => {
