@@ -33,7 +33,8 @@ import {
   type ExportTherapyNoteItem,
   type WellnessExportDocument
 } from "./export-render.js";
-import { WellnessRepository } from "./repository.js";
+import { medicationLogBelongsToDate, WellnessRepository } from "./repository.js";
+import { computeSchedule } from "./schedule.js";
 
 export const WELLNESS_EXPORT_QUEUE = "wellness-export";
 
@@ -167,6 +168,21 @@ function resolveOwnerName(nameFromDb: string | null | undefined, actorUserId: st
   return trimmed && trimmed.length > 0 ? trimmed : actorUserId;
 }
 
+/**
+ * Civil UTC days from `fromStr` to `toStr` inclusive (both `YYYY-MM-DD`), each returned as a
+ * UTC-midnight anchor Date — the same shape `computeSchedule` expects for its `date` param.
+ */
+function enumerateUtcDays(fromStr: string, toStr: string): Date[] {
+  const days: Date[] = [];
+  const end = new Date(`${toStr}T00:00:00.000Z`).getTime();
+  let cursor = new Date(`${fromStr}T00:00:00.000Z`).getTime();
+  while (cursor <= end) {
+    days.push(new Date(cursor));
+    cursor += 24 * 60 * 60 * 1000;
+  }
+  return days;
+}
+
 // ── Worker handler ──────────────────────────────────────────────────────────
 
 export async function handleWellnessExportJob(
@@ -239,7 +255,24 @@ async function handleWellnessExportJobInner(
       : await wellnessRepo.listCheckinsForRange(scopedDb, from, to);
     const windowLogs = wantsMeds ? logs : await wellnessRepo.listLogsForRange(scopedDb, from, to);
     const windowMeds = wantsMeds ? meds : await wellnessRepo.listMedications(scopedDb);
-    insights = computeInsights(windowCheckins, windowLogs, windowMeds, new Date());
+    // Count expected scheduled slots across the export window (same computeSchedule day-loop
+    // the /insights route uses, routes.ts's totalExpectedSlots block) so missed doses (no log
+    // row) count in the adherence denominator — otherwise the export inflates adherence % above
+    // what the app itself shows for the same window (#770 / M2). This mirrors the route's
+    // UTC-anchored from/to window; per-user timezone here is out of scope (#771).
+    let totalExpectedSlots = 0;
+    for (const day of enumerateUtcDays(fromStr, toStr)) {
+      const dayLogs = windowLogs.filter((log) => medicationLogBelongsToDate(log, day));
+      const slots = computeSchedule(windowMeds, dayLogs, day);
+      totalExpectedSlots += slots.filter((s) => !s.asNeeded).length;
+    }
+    insights = computeInsights(
+      windowCheckins,
+      windowLogs,
+      windowMeds,
+      new Date(),
+      totalExpectedSlots
+    );
   }
 
   // Map logs to render items (each log needs its medication name).
