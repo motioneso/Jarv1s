@@ -237,12 +237,14 @@ export class EspnSportsSource implements SportsSource {
         categories?: readonly { type?: string; teamId?: number | string }[];
       }[];
     };
+    const competitionLabel = catalogEntry(competitionKey)?.label ?? competitionKey;
     return (data.articles ?? []).map((article, index) => {
       const images = article.images ?? [];
       const image = images.find((i) => i.type === "header" && i.url) ?? images.find((i) => i.url);
       return {
         id: String(article.id ?? index),
         competitionKey,
+        competitionLabel,
         title: article.headline ?? "",
         url: article.links?.web?.href ?? "",
         publishedAt: article.published ?? "",

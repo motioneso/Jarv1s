@@ -71,9 +71,13 @@ export function SportsPage() {
     return (
       <div className="sp-wrap">
         <PageHeader />
-        <p className="sp-lede" role="status">
-          {overviewQuery.isError ? "Sports are unavailable right now." : "Loading your teams…"}
-        </p>
+        {overviewQuery.isError ? (
+          <p className="sp-lede" role="status">
+            Sports are unavailable right now.
+          </p>
+        ) : (
+          <SportsSkeleton />
+        )}
       </div>
     );
   }
@@ -88,6 +92,7 @@ export function SportsPage() {
   return (
     <div className="sp-wrap">
       <PageHeader />
+      {data.degraded ? <DegradedBand /> : null}
 
       {hasFollows ? (
         <>
@@ -120,6 +125,29 @@ function PageHeader() {
   );
 }
 
+// Quiet, non-blocking notice for a partial provider outage — the page still renders with
+// whatever loaded, this just explains why something might be missing (#765 M1).
+function DegradedBand() {
+  return (
+    <p className="sp-degraded" role="status">
+      Scores are temporarily unavailable for some leagues. Showing what we could load.
+    </p>
+  );
+}
+
+// Cold-load placeholder while the first overview fetch is in flight — matches the shapes of
+// the sections it stands in for so nothing jumps around once real data lands (#765 M2).
+function SportsSkeleton() {
+  return (
+    <div className="sp-skeleton" role="status" aria-label="Loading your teams">
+      <div className="sp-skel sp-skel--hero" aria-hidden="true" />
+      <div className="sp-skel sp-skel--row" aria-hidden="true" />
+      <div className="sp-skel sp-skel--row" aria-hidden="true" />
+      <div className="sp-skel sp-skel--row" aria-hidden="true" />
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- Hero */
 
 function Hero(props: { hero: OverviewHero }) {
@@ -130,7 +158,7 @@ function Hero(props: { hero: OverviewHero }) {
 }
 
 function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }) {
-  const { game, rationale, alsoToday } = props.hero;
+  const { game, competitionLabel, rationale, alsoToday } = props.hero;
   return (
     <section className="sp-hero sp-hero--live" aria-label="Gameday">
       <div className="sp-hero__eyebrow">
@@ -140,7 +168,7 @@ function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }
             Live
           </span>
         ) : (
-          <span className="sp-hero__comp">{game.competitionKey.toUpperCase()}</span>
+          <span className="sp-hero__comp">{competitionLabel}</span>
         )}
         <span className="sp-hero__phase">{game.statusDetail}</span>
       </div>

@@ -126,16 +126,24 @@ function FollowedSummary(props: {
     <div className="sp-summary" role="list" aria-label="Followed teams and leagues">
       {props.follows.map((follow) => {
         const competition = props.competitionsByKey.get(follow.competitionKey);
+        // A competitionKey with no catalog entry (e.g. a retired/renamed league) would
+        // otherwise render as a raw, unhumanized key — call it out instead (#765 M3). Still
+        // removable via the same button below.
+        const orphan = competition === undefined;
         const wholeLeague = follow.teamKey === null;
         const team = wholeLeague
           ? null
           : competition?.teams.find((t) => t.teamKey === follow.teamKey);
-        const label = wholeLeague
-          ? `All ${competition?.label ?? follow.competitionKey}`
-          : ((team?.shortName || team?.name || follow.teamKey) ?? "");
-        const name = wholeLeague
-          ? (competition?.label ?? follow.competitionKey)
-          : (team?.name ?? follow.teamKey ?? "");
+        const label = orphan
+          ? `Unrecognized league (${follow.competitionKey})`
+          : wholeLeague
+            ? `All ${competition?.label ?? follow.competitionKey}`
+            : ((team?.shortName || team?.name || follow.teamKey) ?? "");
+        const name = orphan
+          ? label
+          : wholeLeague
+            ? (competition?.label ?? follow.competitionKey)
+            : (team?.name ?? follow.teamKey ?? "");
         return (
           <span key={follow.id} className="sp-chip" role="listitem">
             <PickCrest
@@ -237,6 +245,10 @@ export default function SportsSettings() {
     followsQuery.isError ||
     followMutation.isError ||
     unfollowMutation.isError;
+  // Partial failure (some competitions' teams didn't load) vs. total query failure — the
+  // catalog still renders with what succeeded, so this needs its own quiet notice + retry
+  // rather than the blanket error message above (#765 M1).
+  const catalogDegraded = catalogQuery.data?.degraded === true;
 
   const [search, setSearch] = useState("");
   const query = search.trim();
@@ -280,6 +292,18 @@ export default function SportsSettings() {
       ) : (
         <Note>Search above to find teams or leagues to follow.</Note>
       )}
+      {!error && catalogDegraded ? (
+        <Note>
+          Some leagues didn&rsquo;t load just now.{" "}
+          <button
+            type="button"
+            className="sp-managebtn"
+            onClick={() => void catalogQuery.refetch()}
+          >
+            Retry
+          </button>
+        </Note>
+      ) : null}
       {error ? <Note>Could not load or save sports follows. Try again.</Note> : null}
     </>
   );

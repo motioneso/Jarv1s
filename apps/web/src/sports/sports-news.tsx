@@ -46,9 +46,7 @@ export function StoryHero(props: { headline: Headline | null }) {
         <div className="sp-photo sp-photo--herostory" aria-hidden="true" />
       )}
       <div className="sp-hero__storybody">
-        <span className="sp-hero__comp">
-          {headline ? headline.competitionKey.toUpperCase() : "Sports"}
-        </span>
+        <span className="sp-hero__comp">{headline ? headline.competitionLabel : "Sports"}</span>
         <h2 className="sp-hero__headline">
           {headline ? (
             <a className="sp-hero__link" href={headline.url} target="_blank" rel="noreferrer">
@@ -90,7 +88,7 @@ export function TopStoriesRail(props: {
             rel="noreferrer"
           >
             <div className="sp-hl__top">
-              <span className="sp-hl__comp">{headline.competitionKey.toUpperCase()}</span>
+              <span className="sp-hl__comp">{headline.competitionLabel}</span>
               {headline.teamKeys.some((k) =>
                 isFollowed(props.followedPairs, headline.competitionKey, k)
               ) ? (

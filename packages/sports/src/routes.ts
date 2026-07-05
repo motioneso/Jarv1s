@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { handleRouteError } from "@jarv1s/module-sdk";
+import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
   createSportsFollowResponseSchema,
   deleteSportsFollowResponseSchema,
@@ -14,6 +14,7 @@ import {
 
 import { SportsFollowsRepository } from "./repository.js";
 import { SportsService, type SportsFollowsReader } from "./sports-service.js";
+import { catalogEntry } from "./source/catalog.js";
 import type { SportsSource } from "./source/sports-source.js";
 
 /**
@@ -99,6 +100,9 @@ export function registerSportsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = request.body as CreateSportsFollowRequest;
+        if (!catalogEntry(input.competitionKey)) {
+          throw new HttpError(400, `Unknown competition: ${input.competitionKey}`);
+        }
         const follow = await dependencies.dataContext.withDataContext(accessContext, (db) =>
           repository.create(db, input)
         );

@@ -120,6 +120,7 @@ const nflHeadlines: SourceHeadline[] = [
   {
     id: "h1",
     competitionKey: "nfl",
+    competitionLabel: "NFL",
     title: "Cowboys clinch the division",
     url: "https://example.com/h1",
     publishedAt: `${TODAY}T12:00:00.000Z`,
@@ -300,6 +301,7 @@ describe("SportsService.getOverview", () => {
     const manyHeadlines = Array.from({ length: 9 }, (_, i) => ({
       id: `h${i}`,
       competitionKey: "nfl",
+      competitionLabel: "NFL",
       title: `Story ${i}`,
       url: `https://example.com/h${i}`,
       publishedAt: `2026-07-01T0${i}:00:00.000Z`,
@@ -349,6 +351,7 @@ describe("SportsService.getOverview", () => {
     const nbaHeadline: SourceHeadline = {
       id: "hn1",
       competitionKey: "nba",
+      competitionLabel: "NBA",
       title: "NBA free agency shakes up the West",
       url: "https://example.com/hn1",
       publishedAt: `${TODAY}T13:00:00.000Z`,
@@ -412,6 +415,7 @@ describe("SportsService.getOverview", () => {
     const nbaHeadline: SourceHeadline = {
       id: "hd1",
       competitionKey: "nba",
+      competitionLabel: "NBA",
       title: "Celtics roll past Heat",
       url: "https://example.com/hd1",
       publishedAt: `${TODAY}T13:00:00.000Z`,
