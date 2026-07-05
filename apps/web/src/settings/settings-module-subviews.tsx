@@ -26,7 +26,9 @@ import { queryKeys } from "../api/query-keys";
 import {
   createDefinitionRequest,
   findDefinition,
+  readSourceLabels,
   readToolNames,
+  sourceListDescription,
   targetTimeFor,
   updateDefinitionRequest
 } from "../briefings/briefing-settings-model";
@@ -69,14 +71,6 @@ function readError(error: unknown): string {
   return error instanceof Error ? error.message : "Could not update settings";
 }
 
-function sourceListDescription(names: readonly string[]): string {
-  if (names.length === 0) {
-    return "No read-only sources configured yet. Briefings need at least one.";
-  }
-  const headline = `${names.length} read-only source${names.length === 1 ? "" : "s"} available for scheduled synthesis`;
-  return `${headline}: ${names.join(", ")}.`;
-}
-
 export function BriefingSettings(props: { readonly onBack: () => void }) {
   const queryClient = useQueryClient();
   const definitionsQuery = useQuery({
@@ -99,6 +93,7 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
   const localTimezone = localeQuery.data?.locale.timezone;
   const definitions = definitionsQuery.data?.definitions ?? [];
   const selectedToolNames = readToolNames(toolsQuery.data?.tools ?? []);
+  const sourceLabels = readSourceLabels(toolsQuery.data?.tools ?? []);
   const morning = findDefinition(definitions, "morning");
   const evening = findDefinition(definitions, "evening");
   const mutation = useMutation({
@@ -205,7 +200,7 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
       </Group>
 
       <Group title="Sources">
-        <Row name="Read tools" desc={sourceListDescription(selectedToolNames)} />
+        <Row name="Read tools" desc={sourceListDescription(sourceLabels)} />
         {BRIEFING_SOURCE_BEHAVIORS.map((behavior) => (
           <Row
             key={behavior.id}
