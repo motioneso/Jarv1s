@@ -615,6 +615,12 @@ export interface WellnessCheckinsTable {
     "wheel" | "assisted" | undefined,
     "wheel" | "assisted"
   >;
+  // `local_date` (YYYY-MM-DD) + `timezone_offset` (minutes east of UTC) are the #326/#771
+  // day-boundary remediation columns: the caller's calendar day at check-in time, derived via
+  // `resolveRouteTimeZone` on write. `local_date` is nullable only for rows that predate the
+  // write-path fix; going forward every insert supplies both.
+  local_date: string | null;
+  timezone_offset: ColumnType<number, number | undefined, number>;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }

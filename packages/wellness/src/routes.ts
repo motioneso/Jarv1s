@@ -135,10 +135,11 @@ export function registerWellnessRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseCheckinBody(request.body);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const checkin = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
-            const created = await repo.createCheckin(scopedDb, input);
+            const created = await repo.createCheckin(scopedDb, input, timeZone);
             const consentGranted = await resolveWellnessConsent(
               dependencies,
               preferences,

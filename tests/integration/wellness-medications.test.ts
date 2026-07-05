@@ -75,6 +75,69 @@ describe("wellness REST routes", () => {
     }
   });
 
+  it("POST /api/wellness/checkins persists local_date from the request timezone, not UTC (#326/#771)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 06:30 UTC is 23:30 the evening *before* in America/Los_Angeles (PDT, UTC-7 in June): the
+    // UTC calendar day has already rolled over, but the caller's local calendar day has not.
+    vi.setSystemTime(new Date("2026-06-09T06:30:00.000Z"));
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "happy" },
+        headers: { "x-timezone": "America/Los_Angeles" }
+      });
+      expect(created.statusCode).toBe(201);
+      const checkinId = created.json().checkin.id as string;
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        const row = await client.query<{ local_date: string; timezone_offset: number }>(
+          `SELECT local_date, timezone_offset FROM app.wellness_checkins WHERE id = $1`,
+          [checkinId]
+        );
+        expect(row.rows[0]?.local_date).toBe("2026-06-08");
+        expect(row.rows[0]?.timezone_offset).toBe(-420);
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST /api/wellness/checkins without a request timezone defaults local_date to UTC (#326/#771)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-09T06:30:00.000Z"));
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "happy" }
+      });
+      expect(created.statusCode).toBe(201);
+      const checkinId = created.json().checkin.id as string;
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        const row = await client.query<{ local_date: string; timezone_offset: number }>(
+          `SELECT local_date, timezone_offset FROM app.wellness_checkins WHERE id = $1`,
+          [checkinId]
+        );
+        expect(row.rows[0]?.local_date).toBe("2026-06-09");
+        expect(row.rows[0]?.timezone_offset).toBe(0);
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
   it("POST a check-in with a feeling path mismatch is rejected 400", async () => {
     const app = await buildApp(userId);
     try {
