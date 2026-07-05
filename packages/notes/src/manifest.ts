@@ -114,7 +114,14 @@ export const notesModuleManifest = {
       inputSchema: notesCreateInputSchema,
       outputSchema: notesWriteResultSchema,
       execute: notesCreateExecute,
-      summarize: (input) => `Create note ${String(input.path)}.`
+      // overwrite:true replaces an existing note's entire content — that's a destructive act
+      // wearing a "create" label. Disclose it in the summary and force confirmation even if
+      // note_changes has been promoted to trusted_auto (never silently auto-run a data-loss call).
+      requiresConfirmation: (input) => input.overwrite === true,
+      summarize: (input) =>
+        input.overwrite === true
+          ? `Overwrite note ${String(input.path)} (replaces existing content).`
+          : `Create note ${String(input.path)}.`
     },
     {
       name: "notes.edit",
