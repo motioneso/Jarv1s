@@ -725,6 +725,14 @@ function parseLogDoseBody(body: unknown): LogDoseInput {
   if (status !== "prn" && !scheduledFor) {
     throw new HttpError(400, "scheduledFor is required for taken/skipped doses");
   }
+  // PRN doses are unscheduled by definition (scheduled_for IS NULL — repository.logDose does a
+  // plain insert for them). A "prn" log carrying a scheduledFor would instead take the
+  // scheduled-dose upsert path and CLOBBER the prior taken/skipped record for that slot,
+  // regressing it to "pending" in the schedule view (#770 / M3). Reject before it reaches the
+  // repository.
+  if (status === "prn" && scheduledFor) {
+    throw new HttpError(400, "scheduledFor must not be set for prn doses");
+  }
   return {
     status,
     dose: optionalNullableString(value["dose"], "dose"),
