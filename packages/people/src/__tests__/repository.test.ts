@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
@@ -120,6 +122,50 @@ describe("PeopleRepository", () => {
       expect(identities.length).toBeGreaterThan(0);
       expect("normalizedValue" in identities[0]!).toBe(false);
       expect("sourceRef" in identities[0]!).toBe(false);
+    });
+  });
+
+  it("upsertPersonProjection's ON CONFLICT update is owner-scoped independent of RLS (#758/#749)", async () => {
+    const repo = new PeopleRepository();
+    const acA = { actorUserId: ids.userA, requestId: "r-owner-scope-1" };
+
+    let personId: string | undefined;
+    await runner.withDataContext(acA, async (sdb) => {
+      const p = await repo.upsertPersonProjection(sdb, {
+        ownerUserId: ids.userA,
+        personId: randomUUID(),
+        displayName: "Eve"
+      });
+      personId = p.id;
+    });
+
+    // The conflict target (`id`) is caller-controlled, so a second actor could supply an id that
+    // collides with another user's existing row. RLS already blocks this in production, but to
+    // prove the `.where("owner_user_id", ...)` predicate on the DO UPDATE SET clause is itself
+    // doing work (not just RLS), run the attempted cross-owner update on the RLS-bypassing
+    // bootstrap (superuser) connection: a zero-row update there can only come from the predicate.
+    const bootstrapDb = createDatabase({ connectionString: connectionStrings.bootstrap });
+    const bootstrapRunner = new DataContextRunner(bootstrapDb);
+    try {
+      await bootstrapRunner.withDataContext(
+        { actorUserId: ids.userB, requestId: "r-owner-scope-2" },
+        async (sdb) => {
+          await expect(
+            repo.upsertPersonProjection(sdb, {
+              ownerUserId: ids.userB,
+              personId: personId!,
+              displayName: "Attacker overwrite"
+            })
+          ).rejects.toThrow();
+        }
+      );
+    } finally {
+      await bootstrapDb.destroy();
+    }
+
+    await runner.withDataContext(acA, async (sdb) => {
+      const p = await repo.getPerson(sdb, ids.userA, personId!);
+      expect(p.displayName).toBe("Eve");
     });
   });
 });
