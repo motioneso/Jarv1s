@@ -41,4 +41,4 @@ $$;
 
 REVOKE ALL ON FUNCTION app.list_connected_google_calendar_accounts() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.list_connected_google_calendar_accounts()
-  TO jarvis_worker_runtime, jarvis_app_runtime;
+  TO jarvis_worker_runtime;

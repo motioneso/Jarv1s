@@ -5,7 +5,7 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import {
   CALENDAR_SCOPE,
   ConnectorsRepository,
@@ -82,6 +82,24 @@ describe("google sync sweep (#792)", () => {
 
     expect(send).not.toHaveBeenCalled();
     expect(await listConnectedGoogleCalendarAccounts(rootDb)).toEqual([]);
+  });
+
+  it("keeps direct connector_accounts SELECT under jarvis_worker_runtime owner-scoped — only the SECURITY DEFINER function bypasses RLS", async () => {
+    // 0143 grants EXECUTE on the sweep's SECURITY DEFINER function to jarvis_worker_runtime
+    // only (never jarvis_app_runtime), and its RLS bypass policy is scoped to the function's
+    // owning role (jarvis_migration_owner) alone. This proves the bypass doesn't leak to
+    // ordinary jarvis_worker_runtime table access: with no actor context set on the raw
+    // worker connection, a ordinary SELECT against app.connector_accounts must still return
+    // zero rows even though a matching account exists.
+    const account = await connectGoogleAccount(userA(), [CALENDAR_SCOPE]);
+    try {
+      const direct = await sql<{ id: string }>`
+        SELECT id FROM app.connector_accounts WHERE id = ${account.id}
+      `.execute(rootDb);
+      expect(direct.rows).toEqual([]);
+    } finally {
+      await revokeGoogleAccount(userA(), account.id);
+    }
   });
 
   it("lists only active, calendar-scoped google accounts, excluding gmail-only and revoked ones", async () => {
