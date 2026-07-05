@@ -281,15 +281,22 @@ export class PeopleRepository {
         updated_at: now
       })
       .onConflict((oc) =>
-        oc.column("id").doUpdateSet({
-          display_name: params.displayName,
-          relationship_summary: params.relationshipSummary ?? null,
-          context_summary: params.contextSummary ?? null,
-          status,
-          confidence: params.confidence ?? 1,
-          archived_at: status === "archived" ? now : null,
-          updated_at: now
-        })
+        // `id` is user/caller-controlled (e.g. an inbound identity-linking flow), so the update
+        // half of this upsert is scoped to the same owner as a defense-in-depth belt-and-suspenders
+        // check, even though RLS (USING/WITH CHECK owner_user_id = current_actor_user_id()) already
+        // blocks a cross-owner row from being touched here today.
+        oc
+          .column("id")
+          .doUpdateSet({
+            display_name: params.displayName,
+            relationship_summary: params.relationshipSummary ?? null,
+            context_summary: params.contextSummary ?? null,
+            status,
+            confidence: params.confidence ?? 1,
+            archived_at: status === "archived" ? now : null,
+            updated_at: now
+          })
+          .where("app.person_context_people.owner_user_id", "=", params.ownerUserId)
       )
       .returningAll()
       .executeTakeFirstOrThrow();
