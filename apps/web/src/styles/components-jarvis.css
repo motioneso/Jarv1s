@@ -637,12 +637,14 @@
   border-radius: var(--radius-lg);
   cursor: pointer;
   text-align: left;
-  color: var(--text);
+  /* The usermenu sits on the forest rail — surface text tokens would render
+     ink-on-forest and disappear until hover. */
+  color: var(--rail-fg);
   transition: var(--transition-control);
 }
 .jds-usermenu__trigger:hover,
 .jds-usermenu__trigger.is-open {
-  background: var(--surface-2);
+  background: var(--rail-hover-bg);
 }
 .jds-usermenu__av {
   flex: none;
@@ -664,14 +666,14 @@
 }
 .jds-usermenu__sub {
   font-size: var(--text-xs);
-  color: var(--text-subtle);
+  color: var(--rail-fg-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .jds-usermenu__chev {
   flex: none;
-  color: var(--text-faint);
+  color: var(--rail-fg-muted);
   display: inline-flex;
 }
 .jds-usermenu__pop {
