@@ -100,7 +100,7 @@
 .jds-crash__title {
   margin: 0;
   color: var(--text);
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-2xl);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);

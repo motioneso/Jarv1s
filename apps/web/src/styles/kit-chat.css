@@ -157,7 +157,7 @@
 .chatd-bubble {
   grid-column: 2;
   grid-row: 1;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
   color: var(--text);
@@ -286,7 +286,7 @@
   justify-content: center;
 }
 .chatd-empty__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 19px;
   color: var(--text);
   margin-top: 12px;
@@ -903,7 +903,7 @@
   margin-top: var(--space-1);
   padding-right: var(--space-7);
   color: var(--text);
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-lg);
   line-height: var(--leading-snug);
 }
