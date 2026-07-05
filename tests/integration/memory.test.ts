@@ -838,6 +838,135 @@ describe("MemoryRepository recency", () => {
   });
 });
 
+// ── MemoryRepository.listRecentVaultFiles (#767) ──────────────────────────────
+//
+// Regression coverage for #767: listRecentVaultFiles hardcoded source_kind = 'vault'
+// in both its queries, so notesMonitorProvider's call with intent to scan the notes
+// corpus silently returned nothing. It was also missing the explicit
+// owner_user_id = app.current_actor_user_id() predicate that sibling queries
+// (vectorSearch, listRecentChunks) carry as defense-in-depth alongside RLS.
+
+describe("MemoryRepository.listRecentVaultFiles", () => {
+  const repo = new MemoryRepository();
+  const provider = new StubEmbeddingProvider();
+
+  const vaultFilesUserId = "00000000-0000-4000-8000-000000000020";
+
+  async function makeChunks(
+    sourcePath: string,
+    texts: string[]
+  ): Promise<
+    Array<{
+      sourcePath: string;
+      lineStart: number;
+      lineEnd: number;
+      contentHash: string;
+      text: string;
+      embedding: number[];
+    }>
+  > {
+    return Promise.all(
+      texts.map(async (text, i) => ({
+        sourcePath,
+        lineStart: i * 10,
+        lineEnd: i * 10 + 5,
+        contentHash: Buffer.from(text).toString("hex"),
+        text,
+        embedding: await provider.embedDocument(text)
+      }))
+    );
+  }
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'memory-vaultfiles@example.test', false)`,
+        [vaultFilesUserId]
+      );
+    } finally {
+      await client.end();
+    }
+
+    await dataContext.withDataContext(ctx(vaultFilesUserId), async (scopedDb) => {
+      const notesPath = "notes/priority-note.md";
+      const vaultPath = "vault/unrelated-note.md";
+
+      await repo.upsertFileChunks(
+        scopedDb,
+        vaultFilesUserId,
+        notesPath,
+        await makeChunks(notesPath, ["Remember to follow up with Alice about the roadmap"]),
+        "stub",
+        "0",
+        "notes"
+      );
+      await repo.upsertFileIndex(
+        scopedDb,
+        vaultFilesUserId,
+        "notes",
+        notesPath,
+        "h-notes",
+        1,
+        "stub",
+        "0"
+      );
+
+      await repo.upsertFileChunks(
+        scopedDb,
+        vaultFilesUserId,
+        vaultPath,
+        await makeChunks(vaultPath, ["Unrelated vault content"]),
+        "stub",
+        "0",
+        "vault"
+      );
+      await repo.upsertFileIndex(
+        scopedDb,
+        vaultFilesUserId,
+        "vault",
+        vaultPath,
+        "h-vault",
+        1,
+        "stub",
+        "0"
+      );
+    });
+  });
+
+  it("returns files for the requested sourceKind ('notes'), not the default 'vault' kind", async () => {
+    await dataContext.withDataContext(ctx(vaultFilesUserId), async (scopedDb) => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const notesFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5, "notes");
+      expect(notesFiles.some((f) => f.sourcePath === "notes/priority-note.md")).toBe(true);
+      expect(notesFiles.some((f) => f.sourcePath === "vault/unrelated-note.md")).toBe(false);
+      const notesFile = notesFiles.find((f) => f.sourcePath === "notes/priority-note.md");
+      expect(notesFile?.chunks.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("defaults to sourceKind 'vault' when not specified (preserves existing callers)", async () => {
+    await dataContext.withDataContext(ctx(vaultFilesUserId), async (scopedDb) => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const vaultFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5);
+      expect(vaultFiles.some((f) => f.sourcePath === "vault/unrelated-note.md")).toBe(true);
+      expect(vaultFiles.some((f) => f.sourcePath === "notes/priority-note.md")).toBe(false);
+    });
+  });
+
+  it("is owner-scoped: another user sees nothing, independent of RLS", async () => {
+    await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const notesFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5, "notes");
+      const vaultFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5, "vault");
+      expect(notesFiles).toHaveLength(0);
+      expect(vaultFiles.some((f) => f.sourcePath === "vault/unrelated-note.md")).toBe(false);
+    });
+  });
+});
+
 // ── MemoryRepository — assertDataContextDb guard ──────────────────────────────
 
 describe("MemoryRepository — assertDataContextDb guard", () => {

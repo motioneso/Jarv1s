@@ -59,7 +59,7 @@ export const notesMonitorProvider: ProactiveMonitorProvider = {
     const lookback = new Date(now.getTime() - LOOKBACK_HOURS * 60 * 60 * 1000);
 
     const memoryRepo = new MemoryRepository();
-    const recentFiles = await memoryRepo.listRecentVaultFiles(db, lookback, 50, 5);
+    const recentFiles = await memoryRepo.listRecentVaultFiles(db, lookback, 50, 5, "notes");
 
     if (recentFiles.length === 0) {
       return { signals: [], nextCursor: { checkedAt: input.now } };
