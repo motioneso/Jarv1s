@@ -132,7 +132,7 @@
   border-color: transparent;
 }
 .jds-btn--accentSoft:hover {
-  background: var(--pine-soft-2);
+  background: var(--forest-soft-2);
 }
 
 .jds-btn--danger {
@@ -285,9 +285,9 @@
   color: var(--text-muted);
   border-color: var(--border);
 }
-.jds-badge--pine {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+.jds-badge--forest {
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .jds-badge--amber {
   background: var(--amber-soft);
@@ -369,8 +369,8 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-pill);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
   font-family: var(--font-sans);
   font-weight: var(--weight-semibold);
   font-size: var(--text-sm);

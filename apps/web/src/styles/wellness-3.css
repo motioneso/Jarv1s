@@ -35,9 +35,9 @@
   gap: 5px;
   padding: 5px 11px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--pine-soft-2);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  border: 1px solid var(--forest-soft-2);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -70,8 +70,8 @@
 }
 .wl-prn__chip.is-on {
   border-color: var(--accent);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
   font-weight: 600;
 }
 .wl-prn__input {
@@ -170,7 +170,7 @@
 .wl-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 
 .wl-modal__desc {

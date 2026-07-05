@@ -185,7 +185,7 @@
 }
 .wl-tadd:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .wl-tadd__ic {
   color: var(--accent-fg);
@@ -431,7 +431,7 @@
   background: var(--accent);
 }
 .wl-steps__d.is-done {
-  background: var(--pine-soft-2);
+  background: var(--forest-soft-2);
 }
 
 .wl-q {
@@ -628,7 +628,7 @@
 .wl-note-field:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .wl-note-field::placeholder {
   color: var(--text-faint);

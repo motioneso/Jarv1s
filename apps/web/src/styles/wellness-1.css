@@ -168,7 +168,7 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: inline-flex;
   align-items: center;
@@ -518,7 +518,7 @@
   gap: 10px;
   padding: 15px 20px 14px;
   border-bottom: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, var(--pine-soft) 0%, transparent 160%);
+  background: linear-gradient(180deg, var(--forest-soft) 0%, transparent 160%);
 }
 .wl-insights__hd .ic {
   color: var(--accent-fg);
@@ -561,8 +561,8 @@
   justify-content: center;
   margin-top: 1px;
 }
-.wl-insight__ic--pine {
-  background: var(--pine-soft);
+.wl-insight__ic--forest {
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .wl-insight__ic--amber {
@@ -679,7 +679,7 @@
 .wl-help__btn.is-on {
   border-color: var(--accent);
   color: var(--accent-fg);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .wl-help__scrim {
   position: fixed;

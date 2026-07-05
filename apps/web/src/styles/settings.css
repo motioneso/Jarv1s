@@ -140,9 +140,9 @@
   color: var(--text);
 }
 .set2__navitem.is-active {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
+  color: var(--forest-ink);
 }
 .set2__navitem .ic {
   display: inline-flex;

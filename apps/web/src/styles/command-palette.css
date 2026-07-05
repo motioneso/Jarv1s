@@ -112,8 +112,8 @@
 }
 
 .kbar__item.is-active {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
 }
 
 .kbar__item .ic {

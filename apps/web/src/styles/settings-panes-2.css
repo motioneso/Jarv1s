@@ -165,7 +165,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .dexp__readymain {

@@ -255,7 +255,7 @@
 }
 .jds-governor.is-confirmed {
   border-style: solid;
-  border-color: var(--pine-soft-2);
+  border-color: var(--forest-soft-2);
   background: transparent;
   background-image: none;
 }
@@ -292,8 +292,8 @@
   color: var(--steel-ink);
 }
 .jds-drift--today {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .jds-drift--atrisk {
   background: var(--amber-soft);
@@ -484,8 +484,8 @@
   flex: none;
 }
 .jds-fact--confirmed .jds-fact__icon {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .jds-fact--inferred .jds-fact__icon {
   background: var(--surface-2);
@@ -576,8 +576,8 @@
   transition: var(--transition-control);
 }
 .jds-perm__crud-cell.is-on {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
   border-color: transparent;
 }
 

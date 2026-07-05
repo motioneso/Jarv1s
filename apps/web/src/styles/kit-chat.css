@@ -44,7 +44,7 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: flex;
   align-items: center;
@@ -93,7 +93,7 @@
   color: var(--text);
 }
 .chatd__hbtn.is-on {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .chatd__body-wrap {
@@ -148,7 +148,7 @@
   height: 26px;
   border-radius: 8px;
   flex: none;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: flex;
   align-items: center;
@@ -279,7 +279,7 @@
   width: 46px;
   height: 46px;
   border-radius: 13px;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: inline-flex;
   align-items: center;
@@ -320,8 +320,8 @@
 }
 .chatd-sugg__btn:hover {
   border-color: var(--accent);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 
 /* past sessions */
@@ -348,7 +348,7 @@
   background: var(--surface-2);
 }
 .chatd-sess__row.is-selected {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   border-color: var(--accent);
 }
 .chatd-sess__ic {
@@ -415,7 +415,7 @@
 }
 .chatd-input:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
   background: var(--surface);
 }
 .chatd-input.is-readonly {

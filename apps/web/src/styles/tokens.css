@@ -57,16 +57,6 @@
   --gold-soft-2: #e8d3a4;
   --gold-ink: #6d4a12;
 
-  /* DEPRECATED bridges — kept because ~30 kit rules and the custom-theme
-     runtime (theme-runtime.ts) still read --pine*. Follow-up issue renames
-     consumers, then these go. Do not add new --pine consumers. */
-  --pine: var(--forest);
-  --pine-hover: var(--forest-hover);
-  --pine-active: var(--forest-active);
-  --pine-soft: var(--forest-soft);
-  --pine-soft-2: var(--forest-soft-2);
-  --pine-ink: var(--forest-ink);
-
   /* Amber — drift / at-risk / recovery (anti-shame) */
   --amber: #aa6d18;
   --amber-strong: #8a5a0f;
@@ -104,12 +94,12 @@
   --border-subtle: var(--line-subtle);
   --border-strong: var(--line-strong);
 
-  --accent: var(--pine);
-  --accent-hover: var(--pine-hover);
-  --accent-active: var(--pine-active);
+  --accent: var(--forest);
+  --accent-hover: var(--forest-hover);
+  --accent-active: var(--forest-active);
   --accent-fg: var(--forest); /* 7.7:1 on oat; park themes re-point --forest */
-  --accent-soft: var(--pine-soft);
-  --accent-soft-fg: var(--pine-ink);
+  --accent-soft: var(--forest-soft);
+  --accent-soft-fg: var(--forest-ink);
   /* Primary-button fill. Defaults to --accent (light passes WCAG AA at 6.4:1);
      the dark theme overrides this so the near-white CTA label clears 4.5:1
      (was 4.21:1). See issue #354. */
@@ -244,8 +234,8 @@
   --surface-subtle: var(--surface-2);
   --surface-track: var(--surface-3);
   --surface-divider: var(--line);
-  --surface-active: var(--pine-soft);
-  --surface-accent-soft: var(--pine-soft);
+  --surface-active: var(--forest-soft);
+  --surface-accent-soft: var(--forest-soft);
   --surface-assistant: var(--surface-2);
   --panel: var(--surface);
   --panel-subtle: var(--surface-2);
@@ -270,7 +260,7 @@
 
   --bucket-morning: var(--amber-strong);
   --bucket-afternoon: var(--steel);
-  --bucket-evening: var(--pine);
+  --bucket-evening: var(--forest);
 
   --priority-urgent: var(--red);
   --priority-high: var(--amber);
@@ -291,9 +281,9 @@
   --white-translucent: rgba(255, 255, 255, 0.18);
   --accent-soft-border: rgb(41 75 57 / 0.45);
   --accent-soft-border-weak: rgb(41 75 57 / 0.32);
-  --provenance-said: var(--pine-ink);
-  --provenance-said-bg: var(--pine-soft);
-  --provenance-said-border: var(--pine-soft-2);
+  --provenance-said: var(--forest-ink);
+  --provenance-said-bg: var(--forest-soft);
+  --provenance-said-border: var(--forest-soft-2);
   --provenance-inferred: var(--amber-ink);
   --provenance-inferred-bg: var(--amber-soft);
   --provenance-inferred-border: var(--amber-soft-2);
