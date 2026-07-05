@@ -522,6 +522,43 @@ describe("Wellness export route POST /api/wellness/export (#484)", () => {
     expect((job?.params as { categories?: string[] }).categories).toEqual(["checkins"]);
   });
 
+  it("reuses the pending job when the same window/categories are re-requested (#772)", async () => {
+    // The prior test left an html job pending for routeUserId with
+    // {from: 2026-02-01, to: 2026-02-28, categories: [checkins]}. Re-requesting the identical
+    // selection should return the same job, not error.
+    const first = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      payload: { from: "2026-02-01", to: "2026-02-28", categories: ["checkins"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(first.statusCode).toBe(202);
+
+    const again = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      // Same categories, different array order — must still be treated as a match.
+      payload: { from: "2026-02-01", to: "2026-02-28", categories: ["checkins"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(again.statusCode).toBe(202);
+    expect(again.json()).toEqual(first.json());
+  });
+
+  it("returns 409 instead of silently swapping params while a differently-scoped export is pending (#772)", async () => {
+    // Same pending job from routeUserId, but this request asks for a different window. Before
+    // #772 this silently returned the old job's {jobId, status} with the new selection dropped
+    // on the floor; now it must surface the conflict instead of pretending it queued the new one.
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      payload: { from: "2026-03-01", to: "2026-03-15", categories: ["checkins", "medications"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ error: expect.stringContaining("already in progress") });
+  });
+
   it("rejects from > to with 400", async () => {
     const res = await server.inject({
       method: "POST",
