@@ -956,14 +956,22 @@ describe("MemoryRepository.listRecentVaultFiles", () => {
     });
   });
 
-  it("is owner-scoped: another user sees nothing, independent of RLS", async () => {
-    await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const notesFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5, "notes");
-      const vaultFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5, "vault");
-      expect(notesFiles).toHaveLength(0);
-      expect(vaultFiles.some((f) => f.sourcePath === "vault/unrelated-note.md")).toBe(false);
-    });
+  it("is owner-scoped independent of RLS: owner_user_id predicate alone blocks another user's rows on the RLS-bypassing bootstrap connection (#767)", async () => {
+    // Superusers bypass RLS unconditionally, so zero rows here can only come from the
+    // owner_user_id predicate itself. Manually verified: deleting it leaks otherUserId's row.
+    const bootstrapDb = createDatabase({ connectionString: connectionStrings.bootstrap });
+    const bootstrapRunner = new DataContextRunner(bootstrapDb);
+    try {
+      await bootstrapRunner.withDataContext(ctx(otherUserId), async (scopedDb) => {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const notesFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5, "notes");
+        const vaultFiles = await repo.listRecentVaultFiles(scopedDb, since, 50, 5, "vault");
+        expect(notesFiles).toHaveLength(0);
+        expect(vaultFiles).toHaveLength(0);
+      });
+    } finally {
+      await bootstrapDb.destroy();
+    }
   });
 });
 
