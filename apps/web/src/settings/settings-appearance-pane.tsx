@@ -245,12 +245,14 @@ export function AppearancePane() {
               })}
             </div>
             <div className="theme-ramp" aria-label="Generated accent ramp">
-              {Object.entries(deriveAccentRamp(draft.tokens.accent)).map(([name, value]) => (
-                <span className="theme-ramp__item" key={name}>
-                  <span className="theme-swatch" style={{ background: value }} />
-                  <span>{name.replace("--", "")}</span>
-                </span>
-              ))}
+              {Object.entries(deriveAccentRamp(draft.tokens.accent, draft.tokens.paper)).map(
+                ([name, value]) => (
+                  <span className="theme-ramp__item" key={name}>
+                    <span className="theme-swatch" style={{ background: value }} />
+                    <span>{name.replace("--", "")}</span>
+                  </span>
+                )
+              )}
             </div>
             <Field label="Paste palette">
               <textarea
