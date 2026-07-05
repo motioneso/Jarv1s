@@ -51,7 +51,7 @@
   min-width: 0;
 }
 .gflow__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -777,7 +777,7 @@ button.theme-swatch {
 .theme-preview h3 {
   margin: 0;
   color: var(--ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-2xl);
 }
 .theme-preview p {

@@ -61,7 +61,7 @@
 }
 
 .sp-news__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 15px;
   line-height: 1.35;
   color: var(--text);

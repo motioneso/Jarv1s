@@ -142,9 +142,6 @@
      (licensed woff2 wiring is a follow-up under epic #726). */
   --font-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-sans: "Helvetica Neue", Helvetica, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
-  /* DEPRECATED bridge: serif retires from the core language (spec §2). Kit CSS
-     still reads --font-serif; follow-up issue renames those ~60 uses. */
-  --font-serif: var(--font-display);
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --text-2xs: 11px;
