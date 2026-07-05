@@ -375,6 +375,60 @@ describe("SportsService.getFollowedFactsForToday", () => {
   });
 });
 
+describe("SportsService.today() timezone handling (#761)", () => {
+  // 2026-07-05T01:30:00Z is 9:30pm on July 4 in US Eastern (EDT, UTC-4) — the UTC calendar
+  // date has already rolled over to July 5, but ESPN's `dates=` param (and tonight's game)
+  // is still July 4 in Eastern. A UTC-based `today()` would ask ESPN for the wrong day.
+  const LATE_EVENING_ET = new Date("2026-07-05T01:30:00.000Z");
+  const ET_DATE = "2026-07-04";
+  const UTC_DATE = "2026-07-05";
+
+  it("requests the Eastern calendar date (not the UTC date) from the scoreboard source", async () => {
+    const seenDates: string[] = [];
+    const source = makeSource({
+      getScoreboard: async (_competitionKey, day) => {
+        seenDates.push(day);
+        return [];
+      }
+    });
+    const service = new SportsService({ ...makeDeps({ source }), now: () => LATE_EVENING_ET });
+    await service.getOverview(userA);
+    expect(seenDates).toEqual([ET_DATE]);
+    expect(seenDates).not.toContain(UTC_DATE);
+  });
+
+  it("uses the Eastern calendar date for the briefing's followed-facts lookup too", async () => {
+    const seenDates: string[] = [];
+    const source = makeSource({
+      getScoreboard: async (_competitionKey, day) => {
+        seenDates.push(day);
+        return [dalLiveGame];
+      }
+    });
+    const service = new SportsService({ ...makeDeps({ source }), now: () => LATE_EVENING_ET });
+    const { facts } = await service.getFollowedFactsForToday(
+      {} as DataContextDb,
+      userA.actorUserId
+    );
+    expect(seenDates).toEqual([ET_DATE]);
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it("still resolves the same-day Eastern date at a UTC instant that's also same-day (control)", async () => {
+    // 2026-07-01T18:00:00Z (the shared FIXED_NOW) is 2pm ET the same day — no rollover in play.
+    const seenDates: string[] = [];
+    const source = makeSource({
+      getScoreboard: async (_competitionKey, day) => {
+        seenDates.push(day);
+        return [];
+      }
+    });
+    const service = new SportsService(makeDeps({ source }));
+    await service.getOverview(userA);
+    expect(seenDates).toEqual([TODAY]);
+  });
+});
+
 describe("SportsService.getCatalog", () => {
   it("lists the approved competitions with fetched teams", async () => {
     const service = new SportsService(
