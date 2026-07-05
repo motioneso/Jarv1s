@@ -1,6 +1,7 @@
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import {
   localDay,
+  type FollowedLeagueRef,
   type FollowedNextMatch,
   type FollowedTeamCard,
   type FollowedTeamNews,
@@ -123,6 +124,15 @@ export class SportsService {
     const followedTeams = follows.filter((f): f is SportsFollowDto & { teamKey: string } =>
       Boolean(f.teamKey)
     );
+    // Whole-league follows (teamKey: null) are first-class in the picker but produce no
+    // FollowedTeamCard — surface them separately so the client can tell "follows nothing"
+    // apart from "follows leagues, not teams" (#763).
+    const followedLeagues: FollowedLeagueRef[] = follows
+      .filter((f) => !f.teamKey)
+      .map((f) => ({
+        competitionKey: f.competitionKey,
+        competitionLabel: catalogEntry(f.competitionKey)?.label ?? f.competitionKey
+      }));
 
     const scoreboardByComp = new Map<string, GameSummary[]>();
     const standingsByComp = new Map<string, StandingsTable>();
@@ -191,7 +201,10 @@ export class SportsService {
       );
     }
 
-    const topStories = rankTopStories(headlinesByComp, followedTeams);
+    // Rank across every followed competition (team or whole-league), not just team-followed
+    // ones — otherwise a league-only follower's competition never contributes a top story and
+    // the story hero has nothing personalized to fall back to (#763).
+    const topStories = rankTopStories(headlinesByComp, followedTeams, competitionKeys);
     const topStoryIds = new Set(topStories.map((h) => h.id));
     const leagueNews: LeagueNewsGroup[] = competitionKeys
       .map((key) => ({
@@ -236,6 +249,7 @@ export class SportsService {
         competitionKey: f.competitionKey,
         teamKey: f.teamKey
       })),
+      followedLeagues,
       degraded: state.degraded
     };
   }
@@ -447,9 +461,13 @@ function toPublicHeadline(headline: Headline): Headline {
 
 // Spec §E ranking: (1) headlines tagged with a followed team, newest first;
 // (2) the newest headline of each followed competition not already included; cap 6.
+// `followedCompetitionKeys` covers every followed competition — team-followed or
+// whole-league-followed — so a league-only follower's competition still contributes a
+// top story and the story hero has something personalized to fall back to (#763).
 function rankTopStories(
   headlinesByComp: ReadonlyMap<string, readonly SourceHeadline[]>,
-  followedTeams: readonly (SportsFollowDto & { teamKey: string })[]
+  followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
+  followedCompetitionKeys: readonly string[]
 ): SourceHeadline[] {
   const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
   const picked: SourceHeadline[] = [];
@@ -464,7 +482,7 @@ function rankTopStories(
       pickedIds.add(headline.id);
     }
   }
-  for (const comp of unique(followedTeams.map((f) => f.competitionKey))) {
+  for (const comp of followedCompetitionKeys) {
     const newest = [...(headlinesByComp.get(comp) ?? [])]
       .sort(byNewest)
       .find((h) => !pickedIds.has(h.id));

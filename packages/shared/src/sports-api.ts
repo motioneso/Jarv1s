@@ -80,6 +80,14 @@ export interface FollowedTeamRef {
   readonly teamKey: string;
 }
 
+// A whole-competition follow (teamKey: null on the DTO) — surfaced separately from
+// FollowedTeamCard[] so the client can tell "follows nothing" apart from "follows leagues,
+// not teams" (#763).
+export interface FollowedLeagueRef {
+  readonly competitionKey: string;
+  readonly competitionLabel: string;
+}
+
 // Composed page (GET /api/sports/overview)
 export type OverviewHero =
   | {
@@ -143,6 +151,7 @@ export interface SportsOverviewResponse {
   readonly leagueNews: readonly LeagueNewsGroup[];
   readonly standings: readonly StandingsGroup[];
   readonly followedTeams: readonly FollowedTeamRef[]; // for is-you marking on the client
+  readonly followedLeagues: readonly FollowedLeagueRef[]; // whole-competition follows (#763)
   readonly degraded: boolean; // source failed → cached/empty
 }
 
@@ -344,6 +353,16 @@ const followedTeamCardSchema = {
   }
 } as const;
 
+const followedLeagueRefSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["competitionKey", "competitionLabel"],
+  properties: {
+    competitionKey: { type: "string" },
+    competitionLabel: { type: "string" }
+  }
+} as const;
+
 const scoreboardGroupSchema = {
   type: "object",
   additionalProperties: false,
@@ -416,6 +435,7 @@ export const sportsOverviewResponseSchema = {
         "leagueNews",
         "standings",
         "followedTeams",
+        "followedLeagues",
         "degraded"
       ],
       properties: {
@@ -437,6 +457,7 @@ export const sportsOverviewResponseSchema = {
             }
           }
         },
+        followedLeagues: { type: "array", items: followedLeagueRefSchema },
         degraded: { type: "boolean" }
       }
     },

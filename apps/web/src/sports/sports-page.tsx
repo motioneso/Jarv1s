@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
+  FollowedLeagueRef,
   FollowedNextMatch,
   FollowedTeamCard,
   GameSide,
@@ -77,7 +78,12 @@ export function SportsPage() {
     );
   }
 
-  const hasFollows = data.followed.length > 0;
+  // A whole-league follow (no individual team) is a first-class picker option — treat it as
+  // "has follows" too, and never fall through to the "Follow your teams" empty state just
+  // because there's no team card to show (#763).
+  const hasTeamFollows = data.followed.length > 0;
+  const hasLeagueFollows = data.followedLeagues.length > 0;
+  const hasFollows = hasTeamFollows || hasLeagueFollows;
 
   return (
     <div className="sp-wrap">
@@ -86,7 +92,11 @@ export function SportsPage() {
       {hasFollows ? (
         <>
           <Hero hero={data.hero} />
-          <FollowedSection followed={data.followed} />
+          {hasTeamFollows ? (
+            <FollowedSection followed={data.followed} />
+          ) : (
+            <FollowedLeaguesSection leagues={data.followedLeagues} />
+          )}
           <SplitSection data={data} followedPairs={followedPairs} />
           <LeagueNewsSection groups={data.leagueNews} />
         </>
@@ -189,6 +199,31 @@ function FollowedSection(props: { followed: readonly FollowedTeamCard[] }) {
       <div className="sp-fcgrid">
         {props.followed.map((card) => (
           <FollowedCard key={`${card.competitionKey}:${card.teamKey}`} card={card} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Distinct header/state for users who only follow whole leagues (no individual teams) — never
+// shown alongside FollowedSection; the two are mutually exclusive per render (#763).
+function FollowedLeaguesSection(props: { leagues: readonly FollowedLeagueRef[] }) {
+  const count = props.leagues.length;
+  return (
+    <section className="sp-sec" aria-label="Followed leagues">
+      <div className="sp-sec__head">
+        <h2 className="sp-sec__title">
+          Following <span className="sub">{`${count} league${count === 1 ? "" : "s"}`}</span>
+        </h2>
+        <a className="sp-managebtn" href={SETTINGS_HREF}>
+          Manage
+        </a>
+      </div>
+      <div className="sp-chips">
+        {props.leagues.map((league) => (
+          <span key={league.competitionKey} className="sp-chip is-on">
+            {league.competitionLabel}
+          </span>
         ))}
       </div>
     </section>
