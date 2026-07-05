@@ -332,6 +332,31 @@ describe("SportsPage", () => {
     expect(html).toContain("Top stories");
   });
 
+  // #764: a genuine zero-follow user (no teams, no leagues) previously saw a blank page because
+  // the backend never fetched any competition data. The frontend already had this rendering path
+  // (`hasSlate` below) — it just needed the backend to actually populate scoreboard/topStories/
+  // leagueNews for a zero-follow user (see SportsService.getOverview's default slate).
+  it("renders the follow CTA together with a populated default slate for a zero-follow user", () => {
+    const html = render(
+      makeOverview({
+        followed: [],
+        followedTeams: [],
+        followedLeagues: [],
+        hero: {
+          mode: "story",
+          headline: headline("lead", "nba", "Celtics roll past Heat")
+        }
+      })
+    );
+    expect(html).toContain("Follow your teams");
+    expect(html).toContain("Choose teams to follow");
+    // the default slate (scoreboard/top stories/league news) renders alongside the CTA, not a
+    // blank page (H4/#764)
+    expect(html).toContain("Top stories");
+    expect(html).toContain("Vikings clinch division on late field goal");
+    expect(html).toContain("Cowboys sign veteran lineman");
+  });
+
   it("still renders scores and headlines on a quiet day (story hero)", () => {
     const html = render(
       makeOverview({
