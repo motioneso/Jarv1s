@@ -13,6 +13,7 @@ import {
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
+  GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
   IMAP_SYNC_QUEUE_DEFINITIONS,
   MONITOR_QUEUE_DEFINITIONS,
   connectorsModuleManifest,
@@ -226,7 +227,8 @@ describe("Connectors encrypted foundation", () => {
       "sql/0099_connector_health_metadata.sql",
       "sql/0100_connector_admin_safe_metadata_health.sql",
       "sql/0130_connector_imap_enum.sql",
-      "sql/0131_connector_imap_definitions.sql"
+      "sql/0131_connector_imap_definitions.sql",
+      "sql/0144_google_sync_sweep_accounts.sql"
     ]);
     expect(manifest?.settings?.map((surface) => surface.path)).toEqual([
       "/settings/connectors",
@@ -234,6 +236,7 @@ describe("Connectors encrypted foundation", () => {
     ]);
     expect(registration?.queueDefinitions).toEqual([
       ...GOOGLE_SYNC_QUEUE_DEFINITIONS,
+      ...GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
       ...IMAP_SYNC_QUEUE_DEFINITIONS,
       ...MONITOR_QUEUE_DEFINITIONS
     ]);
