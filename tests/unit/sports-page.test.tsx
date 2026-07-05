@@ -11,7 +11,7 @@ import type {
   StandingsGroup
 } from "@jarv1s/shared";
 
-import { SportsPage } from "../../apps/web/src/sports/sports-page.js";
+import { hasLiveGame, SportsPage } from "../../apps/web/src/sports/sports-page.js";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 
 // Root suite renders @jarv1s/web components with react-dom/server (no jsdom /
@@ -331,5 +331,69 @@ describe("SportsPage", () => {
     expect(html).toContain("Top stories");
     expect(html).toContain("League news");
     expect(html).toContain("Cowboys sign veteran lineman");
+  });
+});
+
+// #762: the overview query's refetchInterval decides whether to keep polling by asking
+// hasLiveGame() whether the last-fetched payload actually contains a live game — otherwise a
+// LiveDot pulses forever over a score that stopped updating the moment the page mounted.
+describe("hasLiveGame (#762)", () => {
+  const quietHero = {
+    mode: "story" as const,
+    headline: headline("lead", "epl", "The transfer window is heating up")
+  };
+
+  it("is false when nothing in the payload is live", () => {
+    const overview = makeOverview({
+      hero: quietHero,
+      followed: [followedCard({ status: "news" })],
+      scoreboard: [
+        {
+          competitionKey: "nfl",
+          competitionLabel: "NFL",
+          games: [{ ...liveGame(), state: "final", statusDetail: "FT" }]
+        }
+      ]
+    });
+    expect(hasLiveGame(overview)).toBe(false);
+  });
+
+  it("is false for undefined data (query hasn't resolved yet)", () => {
+    expect(hasLiveGame(undefined)).toBe(false);
+  });
+
+  it("is true when the gameday hero's game is live", () => {
+    // makeOverview()'s default hero is a live gameday game.
+    expect(hasLiveGame(makeOverview())).toBe(true);
+  });
+
+  it("is true when a followed team card is live even with a story hero", () => {
+    const overview = makeOverview({
+      hero: quietHero,
+      followed: [followedCard({ status: "live" })],
+      scoreboard: [
+        {
+          competitionKey: "nfl",
+          competitionLabel: "NFL",
+          games: [{ ...liveGame(), state: "final", statusDetail: "FT" }]
+        }
+      ]
+    });
+    expect(hasLiveGame(overview)).toBe(true);
+  });
+
+  it("is true when a scoreboard game is live even with no gameday hero or live followed card", () => {
+    const overview = makeOverview({
+      hero: quietHero,
+      followed: [followedCard({ status: "news" })],
+      scoreboard: [
+        {
+          competitionKey: "nfl",
+          competitionLabel: "NFL",
+          games: [liveGame()]
+        }
+      ]
+    });
+    expect(hasLiveGame(overview)).toBe(true);
   });
 });
