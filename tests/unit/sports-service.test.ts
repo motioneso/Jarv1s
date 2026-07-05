@@ -336,6 +336,46 @@ describe("SportsService.getOverview", () => {
     }
   });
 
+  // #763: whole-league follows (teamKey: null) are a first-class picker option but produce no
+  // FollowedTeamCard — the overview must surface them separately and let their headlines feed
+  // the story hero, so a league-only follower isn't treated as following nothing.
+  it("surfaces whole-league follows separately and lets them feed the story hero", async () => {
+    const nbaFollow: SportsFollowDto = {
+      id: "f2",
+      competitionKey: "nba",
+      teamKey: null,
+      createdAt: "2026-06-01T00:00:00.000Z"
+    };
+    const nbaHeadline: SourceHeadline = {
+      id: "hn1",
+      competitionKey: "nba",
+      title: "NBA free agency shakes up the West",
+      url: "https://example.com/hn1",
+      publishedAt: `${TODAY}T13:00:00.000Z`,
+      imageUrl: null,
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const service = new SportsService(
+      makeDeps({
+        follows: [nbaFollow],
+        source: makeSource({
+          getScoreboard: async () => [],
+          getHeadlines: async (competitionKey) => (competitionKey === "nba" ? [nbaHeadline] : [])
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.followed).toEqual([]);
+    expect(overview.followedTeams).toEqual([]);
+    expect(overview.followedLeagues).toEqual([{ competitionKey: "nba", competitionLabel: "NBA" }]);
+    expect(overview.topStories.map((h) => h.id)).toContain("hn1");
+    expect(overview.hero.mode).toBe("story");
+    if (overview.hero.mode === "story") {
+      expect(overview.hero.headline?.title).toBe("NBA free agency shakes up the West");
+    }
+  });
+
   it("uses the top-ranked story for the story hero", async () => {
     const service = new SportsService(
       makeDeps({ source: makeSource({ getScoreboard: async () => [] }) })

@@ -139,6 +139,7 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
     ],
     standings: [standingsGroup()],
     followedTeams: [{ competitionKey: "nfl", teamKey: "min" }],
+    followedLeagues: [],
     degraded: false,
     ...overrides
   };
@@ -306,6 +307,29 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("Follow your teams");
     expect(html).toContain("Choose teams to follow");
+  });
+
+  // #763: a whole-league follow (no individual team) is a first-class picker option — the
+  // page must not treat that user as if they follow nothing.
+  it("shows a distinct leagues header (not the empty-state CTA) for a league-only follower", () => {
+    const html = render(
+      makeOverview({
+        followed: [],
+        followedTeams: [],
+        followedLeagues: [{ competitionKey: "epl", competitionLabel: "Premier League" }],
+        hero: {
+          mode: "story",
+          headline: headline("lead", "epl", "The transfer window is heating up")
+        }
+      })
+    );
+    expect(html).not.toContain("Follow your teams");
+    expect(html).not.toContain("Choose teams to follow");
+    expect(html).toContain("Following");
+    expect(html).toContain("1 league");
+    expect(html).toContain("Premier League");
+    // scoreboard/standings/headlines still render for league-only followers
+    expect(html).toContain("Top stories");
   });
 
   it("still renders scores and headlines on a quiet day (story hero)", () => {
