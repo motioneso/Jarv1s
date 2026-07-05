@@ -22,7 +22,7 @@ export function defaultScheduleMetadataFor(
 } {
   return {
     targetTime: briefingType === "evening" ? "19:00" : "07:00",
-    timezone: timezone ?? "UTC"
+    timezone: timezone ?? "America/Los_Angeles"
   };
 }
 

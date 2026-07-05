@@ -136,8 +136,8 @@ describe("TodayPage evening mode", () => {
 
     expect(html.indexOf("Evening review")).toBeLessThan(html.indexOf("Start here"));
     expect(html).toContain("What happened today");
-    expect(html).toContain("Wrapped the launch notes.");
-    expect(html).toContain("Sent follow-ups");
+    expect(html).not.toContain("Wrapped the launch notes.");
+    expect(html).not.toContain("Sent follow-ups");
     expect(html).toContain("Accomplished today");
     expect(html).toContain("Carrying forward");
     expect(html).toContain("Tomorrow");

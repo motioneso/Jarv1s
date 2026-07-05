@@ -74,6 +74,18 @@ export type ToolExecute = (
 export type ToolSummarize = (input: ToolInput, ctx: ToolContext) => string;
 
 /**
+ * Optional per-call override for the run/confirm decision. When it returns true for a given
+ * call's input, the gateway treats that call as always-confirm — equivalent to `risk:
+ * "destructive"` — even if the tool's `actionFamilyId` has been promoted to `trusted_auto`.
+ * Use this when a tool's risk is input-shaped: most calls are an ordinary write (safe to
+ * auto-run once trusted), but a particular input combination is actually destructive (e.g.
+ * `notes.create` with `overwrite: true`, which replaces existing content). Tools with `risk:
+ * "destructive"` already always confirm and don't need this; a `risk: "read"` tool ignores it
+ * (reads never confirm).
+ */
+export type ToolRequiresConfirmation = (input: ToolInput) => boolean;
+
+/**
  * Rich, server-derived preview of a proposed write for the Approve/Deny card. Unlike the
  * persisted `inputSummary` (key-names only), this is computed under the actor's DataContextDb
  * from owner-visible cached state and rides the live SSE stream ONLY — it is never persisted
@@ -437,6 +449,12 @@ export interface ModuleAssistantToolManifest {
   readonly featureFlagId?: string;
   readonly execute?: ToolExecute;
   readonly summarize?: ToolSummarize;
+  /**
+   * Optional per-call override of the run/confirm policy decision (see ToolRequiresConfirmation).
+   * Forces "confirm" for calls where it returns true, regardless of actionFamilyId tier — the
+   * write→trusted_auto auto-run path never applies to those calls.
+   */
+  readonly requiresConfirmation?: ToolRequiresConfirmation;
   /**
    * Optional async producer of a rich Approve/Deny card preview, derived server-side under the
    * actor's DataContextDb (see ToolPreview). The gateway calls it at card-creation time and

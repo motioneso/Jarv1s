@@ -36,7 +36,7 @@ describe("gateway policy resolver", () => {
     };
 
     // No familyId set
-    const decision = await resolvePolicy(tool, "mock_module", createMockLookup(null, null));
+    const decision = await resolvePolicy(tool, "mock_module", {}, createMockLookup(null, null));
     expect(decision).toBe("confirm");
   });
 
@@ -61,6 +61,7 @@ describe("gateway policy resolver", () => {
     const decision = await resolvePolicy(
       tool,
       "mock_module",
+      {},
       createMockLookup("trusted_auto", manifest)
     );
     expect(decision).toBe("confirm");
@@ -87,6 +88,7 @@ describe("gateway policy resolver", () => {
     const decision = await resolvePolicy(
       tool,
       "mock_module",
+      {},
       createMockLookup("trusted_auto", manifest)
     );
     expect(decision).toBe("confirm");
@@ -113,8 +115,39 @@ describe("gateway policy resolver", () => {
     const decision = await resolvePolicy(
       tool,
       "mock_module",
+      {},
       createMockLookup("trusted_auto", manifest)
     );
     expect(decision).toBe("run");
+  });
+
+  it("requiresConfirmation overrides trusted_auto for calls it flags as destructive", async () => {
+    const tool: ModuleAssistantToolManifest = {
+      name: "mock.tool",
+      description: "Mock tool",
+      permissionId: "mock.perm",
+      actionFamilyId: "mock_family",
+      risk: "write",
+      executionPolicy: "auto",
+      inputSchema: {},
+      outputSchema: {},
+      execute: async () => ({ data: {} }),
+      requiresConfirmation: (input) => input["overwrite"] === true
+    };
+
+    const manifest: ModuleAssistantActionFamilyManifest = {
+      ...baseManifest,
+      allowedTiers: ["ask_each_time", "trusted_auto"]
+    };
+    const lookup = createMockLookup("trusted_auto", manifest);
+
+    // Ordinary call: still auto-runs under trusted_auto.
+    await expect(resolvePolicy(tool, "mock_module", {}, lookup)).resolves.toBe("run");
+
+    // Flagged call: forced to confirm even though the family is trusted_auto and the tool's
+    // own executionPolicy is "auto".
+    await expect(resolvePolicy(tool, "mock_module", { overwrite: true }, lookup)).resolves.toBe(
+      "confirm"
+    );
   });
 });

@@ -4,6 +4,7 @@ import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import {
   AESTHETIC_THEME_TOKEN_KEYS,
+  OPTIONAL_AESTHETIC_TOKEN_KEYS,
   deleteCustomThemeRouteSchema,
   listThemesRouteSchema,
   putActiveThemeRouteSchema,
@@ -21,7 +22,13 @@ import { handleSettingsRouteError } from "./route-error.js";
 const CUSTOM_THEMES_KEY = "themes.custom";
 const ACTIVE_THEME_KEY = "themes.active";
 const BUILT_IN_THEMES: readonly BuiltInThemeDto[] = [
-  { id: "light", name: "Light", builtIn: true },
+  // The "light" id keeps its value so stored active-theme preferences and
+  // localStorage survive; only the display name changed for Park Press.
+  { id: "light", name: "Forest", builtIn: true },
+  { id: "sage", name: "Sage", builtIn: true },
+  { id: "canyon", name: "Canyon", builtIn: true },
+  { id: "teal", name: "Teal", builtIn: true },
+  { id: "dusk", name: "Dusk", builtIn: true },
   { id: "dark", name: "Dark", builtIn: true }
 ];
 const BUILT_IN_IDS: ReadonlySet<string> = new Set(BUILT_IN_THEMES.map((theme) => theme.id));
@@ -185,7 +192,7 @@ function hasCompleteTokens(value: unknown): value is AestheticThemeTokens {
 function pickAestheticTokens(value: unknown): AestheticThemeTokens {
   const record = value as Record<string, unknown>;
   return Object.fromEntries(
-    AESTHETIC_THEME_TOKEN_KEYS.flatMap((key) =>
+    [...AESTHETIC_THEME_TOKEN_KEYS, ...OPTIONAL_AESTHETIC_TOKEN_KEYS].flatMap((key) =>
       typeof record[key] === "string" ? [[key, record[key]]] : []
     )
   ) as AestheticThemeTokens;

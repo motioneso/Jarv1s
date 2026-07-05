@@ -677,11 +677,6 @@
   color: var(--text);
   margin-top: 7px;
 }
-.tk-quad__desc {
-  font-size: 12px;
-  color: var(--text-subtle);
-  margin-top: 2px;
-}
 .tk-quad__n {
   float: right;
   font-family: var(--font-mono);
