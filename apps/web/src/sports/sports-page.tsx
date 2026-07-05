@@ -24,6 +24,10 @@ import { isFollowed, LeagueNewsSection, NewsIcon, StoryHero, TopStoriesRail } fr
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
+// Matches the server's SCOREBOARD_TTL_MS cadence (packages/sports/src/sports-service.ts) without
+// over-polling once nothing is actually live (#762).
+const LIVE_REFETCH_INTERVAL_MS = 60_000;
+
 // "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2)
 function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
   const at = next.startsAt;
@@ -32,10 +36,28 @@ function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): st
   return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${date} · ${time}`;
 }
 
+// A still-pulsing LiveDot next to a frozen score is worse than no live indicator at all — this
+// decides whether the overview query should keep polling (#762). Exported for direct unit testing
+// of the polling decision (see tests/unit/sports-page.test.tsx).
+export function hasLiveGame(data: SportsOverviewResponse | undefined): boolean {
+  if (!data) return false;
+  if (data.hero.mode === "gameday" && data.hero.game.state === "live") return true;
+  if (data.followed.some((card) => card.status === "live")) return true;
+  return data.scoreboard.some((group) => group.games.some((game) => game.state === "live"));
+}
+
 export function SportsPage() {
   const overviewQuery = useQuery({
     queryKey: queryKeys.sports.overview,
-    queryFn: () => getSportsOverview()
+    queryFn: () => getSportsOverview(),
+    // Poll only while a live game is actually in the payload; a static interval would be wasteful
+    // once nothing is live, and with no interval at all the page never refetches after mount, so a
+    // live score silently goes stale behind a still-pulsing LiveDot (#762). Re-enable window-focus
+    // refetch for this query specifically (overriding the app-wide default in main.tsx) so tabbing
+    // back in also gets a fresh read, independent of the interval timer.
+    refetchInterval: (query) => (hasLiveGame(query.state.data) ? LIVE_REFETCH_INTERVAL_MS : false),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true
   });
   const data = overviewQuery.data;
 
