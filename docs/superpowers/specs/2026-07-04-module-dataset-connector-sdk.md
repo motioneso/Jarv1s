@@ -1,10 +1,10 @@
 # Dataset connector SDK (generalize SportsSource into a core connector surface)
 
-**Status:** draft (2026-07-04) — design spec for task issue #800, part of epic #798 (module docking
-seams). Flip #800 to `RFA` once approved.
+**Status:** draft (2026-07-04, rev 2 after adversarial cross-model review) — design spec for task
+issue #800, part of epic #798 (module docking seams). Flip #800 to `RFA` once approved.
 
-**Grounded on:** `origin/main` @ `cc23e808` (audit verified at `2797fc1f`). Re-run
-`pnpm audit:preflight` before building.
+**Grounded on:** `origin/main` @ `1c307466` (audit findings verified at `2797fc1f`; rev 2 findings
+verified at `1c307466`). Re-run `pnpm audit:preflight` before building.
 
 ---
 
@@ -28,6 +28,11 @@ gets no platform help. Sports had to build everything bespoke:
   `apps/api/src/static-web.ts:31`.
 - Composition-root construction: `createEspnSportsSource(deps.fetchFn)` injected into
   `registerSportsRoutes` (`packages/module-registry/src/index.ts:1133-1138`).
+- **A second, uninjected construction path:** `packages/sports/src/briefing-tool.ts:17-19` builds
+  its own `new SportsService({ source: createEspnSportsSource(), ... })` with a throwing stub
+  `dataContext` — so assistant-tool network I/O currently bypasses the composition root entirely
+  (no injected `fetchFn`, no shared cache). Any generalization that only replaces the route wiring
+  would leave this path outside the runtime's host pinning and caching.
 
 Every one of those pieces except the ESPN payload mapping is platform-shaped. The next
 external-data module (weather #217, finance, news) would copy-paste the cache, the degradation
@@ -64,6 +69,7 @@ is a provider (ESPN); a **dataset** is one fetchable, cacheable unit (nfl scoreb
      readonly key: string; // e.g. "scoreboard" — unique within the source
      readonly ttlMs: number;
      readonly staleness: "serve-stale-on-error" | "degrade-empty"; // sports uses degrade-empty
+     readonly staleRetentionMs?: number; // serve-stale-on-error only; default 6 h
    }
    ```
 
@@ -79,7 +85,14 @@ deps)` returning `getDataset(key, params)`:
      (explicit non-goal; sports README §9 defers snapshot tables).
    - **Degradation contract**: on adapter failure, apply the dataset's `staleness` policy and
      surface `degraded: true` in the envelope — the sports pattern, now standard:
-     `{ data, degraded, fetchedAt }`.
+     `{ data, degraded, fetchedAt }`. Note `serve-stale-on-error` is a **new capability, not a
+     generalization**: today's `SportsCache` deletes expired entries on read
+     (`if (Date.now() > entry.expiresAt) this.map.delete(key)`), so nothing stale survives to be
+     served. The runtime cache therefore keeps two horizons per entry: `expiresAt` (TTL — entry no
+     longer fresh, refetch) and `evictAt` (`expiresAt + staleRetentionMs` — entry actually
+     dropped). `degrade-empty` datasets set `evictAt = expiresAt` (today's behavior, byte-identical
+     for sports); `serve-stale-on-error` datasets retain the expired entry within the stale window
+     and serve it with `degraded: true` when the refetch fails.
    - **Host pinning**: the runtime wraps `fetchFn` and rejects any request whose hostname is not in
      `fetchHosts` (exact match, no wildcards; https only; redirects re-checked). This is the SSRF
      floor — an adapter bug or hostile URL in payload data cannot make the platform fetch elsewhere
@@ -99,24 +112,37 @@ deps)` returning `getDataset(key, params)`:
      source's `imageHosts`. `apps/api/src/static-web.ts:31` is unchanged;
      `tests/unit/static-web-csp.test.ts` keeps the sync honest.
 
-4. **Credentials (`api-key` sources only).** Stored via the existing encrypted secret machinery
-   (AES-256-GCM at rest, same store the connectors/AI credentials use), entered through a settings
-   surface, decrypted only inside the dataset runtime, handed to the adapter per-call, never
-   logged, never in job payloads, never in responses (Hard Invariant: secrets never escape). An
-   `api-key` source whose key is absent behaves as permanently `degraded` — never an error page.
+4. **Credentials: deferred — this slice ships `none` only.** The enum reserves `"api-key"`, but
+   no keyed source exists yet and, more importantly, no generic dataset-secret storage exists
+   today: connector and AI credentials each have their own dedicated encrypted tables and
+   ownership models — there is no "existing machinery" a dataset key could simply reuse. Shipping
+   `api-key` would require a new table + migration, an ownership decision (instance-level vs
+   per-user), a settings surface, and RLS classification — real design work that belongs in its
+   own slice with the first keyed source (weather #217 is the likely driver). Until then:
+   registration **rejects** any manifest declaring `credential: "api-key"` with a pointer to this
+   spec, so the enum can't be used half-built. The runtime's adapter `ctx` shape leaves room for
+   the future `credential` field. All Hard-Invariant handling requirements (AES-256-GCM at rest,
+   decrypt only inside the runtime, never logged / in job payloads / in responses; absent key ⇒
+   permanently `degraded`, never an error page) transfer to that future spec as constraints.
 
 5. **Sports migration (the proof):** `SportsSource`'s five methods become five dataset keys
    (`teams`, `scoreboard`, `schedule`, `standings`, `headlines`); `EspnSportsSource` becomes the
    `espn` adapter (payload mapping unchanged); `SportsCache` is deleted in favor of the runtime
-   cache with identical TTLs; `SportsService` consumes the `DatasetClient`. Fixtures
+   cache with identical TTLs; `SportsService` consumes the `DatasetClient`. **Both construction
+   paths migrate:** the route wiring at `module-registry:1133-1138` AND the briefing tool's
+   self-built service (`packages/sports/src/briefing-tool.ts:17-19`) — the briefing tool must
+   receive the same composition-root `DatasetClient` (sharing its cache and host pinning) instead
+   of constructing `createEspnSportsSource()` itself. A registration-time assertion or lint sweep
+   confirms no module code calls a source factory outside the runtime. Fixtures
    (`packages/sports/src/source/__fixtures__/*.json`) drive the same unit tests through the
    injectable `fetchFn`. Behavior change: zero (assert via existing
    `sports-service/espn-source/sports-cache` test suites, updated only for the new seams).
 
 ## Non-goals
 
-- **No OAuth flows** (scope guardrail: real OAuth callbacks need their own milestone; `credential`
-  is `none | api-key` only, and the enum leaves room).
+- **No OAuth flows** (scope guardrail: real OAuth callbacks need their own milestone).
+- **No `api-key` sources in this slice** — enum value reserved, registration rejects it until the
+  dataset-credential spec lands (see Architecture §4).
 - **No persisted snapshots / sync workers** — on-demand fetch only, matching sports today. A
   future spec can add a snapshot worker without changing the manifest shape (add a
   `schedule` field then).
@@ -127,10 +153,11 @@ deps)` returning `getDataset(key, params)`:
 ## Verification
 
 - Unit: host-pinning rejection (including redirect-hop escape attempt), TTL expiry, both staleness
-  policies, api-key never appears in an error/log envelope (grep-based assertion in test), CSP
-  union derivation.
-- Integration: sports routes + briefing tool behave byte-identically against fixtures; registry
-  assertions reject a duplicate source id and a malformed host.
+  policies (incl. stale-retention: expired entry served with `degraded: true` inside the window,
+  evicted after), registration rejection of `credential: "api-key"`, CSP union derivation.
+- Integration: sports routes + briefing tool behave byte-identically against fixtures (briefing
+  tool now exercised through the shared `DatasetClient`); registry assertions reject a duplicate
+  source id and a malformed host.
 - `pnpm verify:foundation` + `test:release-hardening` green; `audit:release-hardening` — extend the
   release-hardening audit script to sweep `externalSources` host lists.
 
@@ -140,6 +167,8 @@ deps)` returning `getDataset(key, params)`:
   default 500) — sports' unbounded map is fine at its scale but the SDK must not be.
 - **Weather (#217)** should be the second consumer; if its shape doesn't fit this manifest, the
   design is wrong — sanity-check the spec against #217's needs during review.
-- Open: does `api-key` entry ship in this slice or land with the first keyed source? Default:
-  define the enum + runtime plumbing now, build the settings entry UI with the first keyed source
-  (avoid speculative UI).
+- **Briefing-tool DataContext stub:** migrating the briefing tool onto the composition-root client
+  removes its throwing `dataContext` stub only for source I/O; the stub pattern itself (tool runs
+  without user data access) is out of scope here — note it for the lifecycle spec if it recurs.
+- Resolved (was open): `api-key` entry ships with the first keyed source, not this slice — no
+  speculative UI, no half-specified secret storage (Architecture §4).
