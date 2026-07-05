@@ -2,12 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
-import {
-  getHostDiagnosticsRouteSchema,
-  postHostRestartRouteSchema,
-  postInstallHerdrRouteSchema,
-  type ChatMultiplexerAvailability
-} from "@jarv1s/shared";
+import { getHostDiagnosticsRouteSchema, type ChatMultiplexerAvailability } from "@jarv1s/shared";
 
 import { buildHostDiagnostics, type HostDiagnosticsProvider } from "./host-diagnostics.js";
 import type { SettingsRepository } from "./repository.js";
@@ -20,8 +15,6 @@ export interface HostDiagnosticsRoutesDependencies {
   readonly chatMultiplexerAvailability?: ChatMultiplexerAvailability;
   /** Runtime-facts provider; injected by the composition root. Absent → 503. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
-  readonly requestRestart?: () => void | Promise<void>;
-  readonly installHerdr?: () => void | Promise<void>;
   readonly assertAdminUser: (scopedDb: DataContextDb, userId: string) => Promise<User>;
   readonly handleRouteError: (error: unknown, reply: FastifyReply) => unknown;
 }
@@ -92,46 +85,6 @@ export function registerHostDiagnosticsRoutes(
           latestAvailableVersion,
           releaseNotes
         });
-      } catch (error) {
-        return dependencies.handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.post(
-    "/api/admin/host/restart",
-    { schema: postHostRestartRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await dependencies.assertAdminUser(scopedDb, accessContext.actorUserId);
-        });
-        if (!dependencies.requestRestart) {
-          throw new HttpError(503, "Restart is not available");
-        }
-        await dependencies.requestRestart();
-        return { accepted: true };
-      } catch (error) {
-        return dependencies.handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.post(
-    "/api/admin/host/herdr/install",
-    { schema: postInstallHerdrRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await dependencies.assertAdminUser(scopedDb, accessContext.actorUserId);
-        });
-        if (!dependencies.installHerdr) {
-          throw new HttpError(503, "Herdr installation is not available");
-        }
-        await dependencies.installHerdr();
-        return { installed: true };
       } catch (error) {
         return dependencies.handleRouteError(error, reply);
       }

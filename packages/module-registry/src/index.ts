@@ -348,8 +348,6 @@ export interface BuiltInRouteDependencies {
   readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
   /** Host diagnostics runtime-facts provider (#255), built by the API composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
-  readonly requestRestart?: () => void | Promise<void>;
-  readonly installHerdr?: () => void | Promise<void>;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   /**
    * Bounded, live onboarding probes (Phase 2). Built inside registerBuiltInApiRoutes (sync,
@@ -714,8 +712,6 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         bootstrapConnectionString: deps.bootstrapConnectionString,
         chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
         hostDiagnostics: deps.hostDiagnostics,
-        requestRestart: deps.requestRestart,
-        installHerdr: deps.installHerdr,
         onboardingProbes: deps.onboardingProbes,
         onboardingInstall: deps.onboardingInstall,
         onboardingLogin: deps.onboardingLogin,
