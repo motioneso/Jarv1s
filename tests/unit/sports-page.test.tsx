@@ -95,6 +95,12 @@ function standingsGroup(): StandingsGroup {
   };
 }
 
+const TEST_COMPETITION_LABELS: Record<string, string> = {
+  nfl: "NFL",
+  nba: "NBA",
+  epl: "Premier League"
+};
+
 function headline(
   id: string,
   competitionKey: string,
@@ -104,6 +110,7 @@ function headline(
   return {
     id,
     competitionKey,
+    competitionLabel: TEST_COMPETITION_LABELS[competitionKey] ?? competitionKey.toUpperCase(),
     title,
     url: "https://example.test/" + id,
     publishedAt: "2026-07-01T18:00:00Z",
@@ -118,6 +125,7 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
     hero: {
       mode: "gameday",
       game: liveGame(),
+      competitionLabel: "NFL",
       rationale: "You follow the Vikings — they are on now",
       alsoToday: "2 other followed games today"
     },

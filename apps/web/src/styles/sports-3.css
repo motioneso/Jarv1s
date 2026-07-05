@@ -72,3 +72,42 @@
   font-size: 11px;
   color: var(--text-faint);
 }
+
+/* Degraded-source notice (#765 M1) — modeled on .bfresh__stale (kit-today-misc.css). */
+.sp-degraded {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+}
+
+/* Cold-load skeleton (#765 M2) — same block rhythm as the hero + followed rows it stands in
+   for, so nothing jumps once real data replaces it. */
+.sp-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.sp-skel {
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+}
+
+.sp-skel--hero {
+  height: 180px;
+}
+
+.sp-skel--row {
+  height: 64px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sp-skel {
+    animation: sp-pulse 1.6s ease-in-out infinite;
+  }
+}

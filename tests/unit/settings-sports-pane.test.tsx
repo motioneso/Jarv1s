@@ -178,6 +178,25 @@ describe("SportsSettings", () => {
     expect(html).toContain("All NFL");
   });
 
+  it("renders an orphan follow (unknown competitionKey) with a notice instead of a raw key", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES });
+    client.setQueryData(FOLLOWS_KEY, {
+      follows: [
+        {
+          id: "orphan1",
+          competitionKey: "xyz.retired",
+          teamKey: null,
+          createdAt: "2026-01-01T00:00:00Z"
+        }
+      ]
+    });
+    const html = renderWithQuery(client);
+    expect(html).toContain("Unrecognized league (xyz.retired)");
+    // still removable
+    expect(html).toContain("sp-chip__remove");
+  });
+
   it("searchLeagues includes the parent league of matching teams, deduped by competitionKey", () => {
     // Direct label match.
     expect(searchLeagues("prem", TWO_LEAGUES).map((c) => c.competitionKey)).toEqual(["epl"]);
