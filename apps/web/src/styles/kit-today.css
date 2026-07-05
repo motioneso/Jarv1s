@@ -667,7 +667,7 @@
 .sched-row--now .sched-row__body::before {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--pine-soft);
+  box-shadow: 0 0 0 4px var(--forest-soft);
 }
 .sched-row--done .sched-row__body::before {
   background: var(--accent);

@@ -123,7 +123,7 @@
 }
 .sp-hero--live {
   background: var(--surface);
-  border-color: var(--pine-soft-2);
+  border-color: var(--forest-soft-2);
 }
 .sp-hero__eyebrow {
   display: flex;
@@ -350,7 +350,7 @@
   text-decoration: none;
 }
 .sp-managebtn:hover {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 
 /* ---- followed-team cards (cross-sport consistent shape) ---- */
@@ -411,11 +411,11 @@
 }
 .sp-tag--live {
   color: var(--accent-fg);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .sp-tag--today {
-  color: var(--pine-ink);
-  background: var(--pine-soft);
+  color: var(--forest-ink);
+  background: var(--forest-soft);
 }
 .sp-tag--news {
   color: var(--steel-ink);
@@ -484,8 +484,8 @@
   font-weight: 700;
 }
 .sp-formpip--w {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .sp-formpip--d {
   background: var(--steel-soft);
@@ -602,8 +602,8 @@
   background: var(--surface);
 }
 .sp-game--you {
-  border-color: var(--pine-soft-2);
-  background: var(--pine-soft);
+  border-color: var(--forest-soft-2);
+  background: var(--forest-soft);
 }
 .sp-game__sides {
   flex: 1;
@@ -893,7 +893,7 @@
   text-overflow: ellipsis;
 }
 .sp-tbl tr.is-you td {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .sp-tbl tr.is-you .nm {
   color: var(--accent-fg);
@@ -966,8 +966,8 @@
   text-decoration: none;
 }
 .sp-nofollow__btn:hover {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
 }
 .sp-emptyboard {
   display: grid;

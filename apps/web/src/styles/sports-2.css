@@ -21,8 +21,8 @@
   background: var(--surface-2);
 }
 .sp-whole.is-active {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
 }
 .sp-whole__lbl {
   font-size: 13px;
@@ -30,7 +30,7 @@
   color: var(--ink);
 }
 .sp-whole.is-active .sp-whole__lbl {
-  color: var(--pine-ink);
+  color: var(--forest-ink);
 }
 .sp-whole__state {
   font-family: var(--font-mono);
@@ -41,7 +41,7 @@
   color: var(--text-faint);
 }
 .sp-whole.is-active .sp-whole__state {
-  color: var(--pine-ink);
+  color: var(--forest-ink);
 }
 
 .sp-teamgrid {
@@ -69,9 +69,9 @@
   background: var(--surface-2);
 }
 .sp-team.is-active {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
+  color: var(--forest-ink);
 }
 .sp-team:disabled,
 .sp-whole:disabled {
@@ -130,7 +130,7 @@
 }
 .sp-search__input:focus {
   outline: none;
-  border-color: var(--pine-soft-2);
+  border-color: var(--forest-soft-2);
   background: var(--surface-2);
 }
 
@@ -144,14 +144,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--pine-soft-2);
-  background: var(--pine-soft);
+  border: 1px solid var(--forest-soft-2);
+  background: var(--forest-soft);
   border-radius: var(--radius-lg);
   padding: 4px 6px 4px 8px;
   font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 600;
-  color: var(--pine-ink);
+  color: var(--forest-ink);
 }
 .sp-chip__lbl {
   white-space: nowrap;
@@ -170,7 +170,7 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
-  color: var(--pine-ink);
+  color: var(--forest-ink);
   transition: var(--transition-control);
 }
 .sp-chip__remove:hover {

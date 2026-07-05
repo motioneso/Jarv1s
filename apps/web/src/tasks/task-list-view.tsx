@@ -16,12 +16,12 @@ import { effortLabels } from "./task-format.js";
 
 /** Stable per-list dot colour (lists carry no colour of their own). */
 const LIST_COLORS = [
-  "var(--pine)",
+  "var(--forest)",
   "var(--steel)",
   "var(--amber)",
   "var(--red)",
   "var(--ink-3)",
-  "var(--pine-hover)"
+  "var(--forest-hover)"
 ];
 
 /** Build a stable listId → {name, color} lookup shared by list + matrix views. */
@@ -31,7 +31,7 @@ export function listColorMap(
   return new Map(
     lists.map((list, index) => [
       list.id,
-      { name: list.name, color: LIST_COLORS[index % LIST_COLORS.length] ?? "var(--pine)" }
+      { name: list.name, color: LIST_COLORS[index % LIST_COLORS.length] ?? "var(--forest)" }
     ])
   );
 }

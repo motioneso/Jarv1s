@@ -47,7 +47,7 @@
 }
 .tk-tagfield:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-tagfield .ic {
   color: var(--text-faint);
@@ -82,8 +82,8 @@
   cursor: pointer;
 }
 .tk-tagfield__action:hover:not(:disabled) {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .tk-tagfield__action:disabled {
   cursor: default;
@@ -128,8 +128,8 @@
 }
 .tk-tagmenu__item:hover,
 .tk-tagmenu__item.is-active {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .tk-tagmenu__item .hash {
   font-family: var(--font-mono);
@@ -180,7 +180,7 @@
 }
 .tk-listbtn.is-open {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-listbtn__dot {
   width: 8px;
@@ -208,11 +208,11 @@
   margin-top: 2px;
 }
 .tk-tagmenu__item.is-solo {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .tk-tagmenu__item.is-solo .nm {
   font-weight: 700;
-  color: var(--pine-ink);
+  color: var(--forest-ink);
 }
 .tk-tagmenu__item.is-excluded {
   opacity: 0.5;
@@ -301,7 +301,7 @@
 }
 .tk-add:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-add__plus {
   color: var(--accent-fg);
@@ -695,10 +695,10 @@
   padding: 16px 10px;
 }
 .tk-quad--do .tk-quad__head {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .tk-quad--do .tk-quad__tag {
-  color: var(--pine-ink);
+  color: var(--forest-ink);
 }
 .tk-quad--do .tk-quad__tag .dot {
   background: var(--accent);

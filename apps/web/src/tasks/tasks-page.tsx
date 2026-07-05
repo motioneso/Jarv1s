@@ -586,7 +586,7 @@ function ListFilterMenu(props: {
                 className={`tk-tagmenu__item ${cls}`}
                 onClick={() => props.onCycle(list.id)}
               >
-                <span className="tk-listbtn__dot" style={{ background: "var(--pine)" }} />
+                <span className="tk-listbtn__dot" style={{ background: "var(--forest)" }} />
                 <span className="nm">{list.name}</span>
                 {st === "solo" ? (
                   <span className="tk-liststate tk-liststate--only">Only</span>

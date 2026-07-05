@@ -106,8 +106,8 @@
 }
 
 .onb__step.is-current {
-  border-color: var(--pine-soft-2);
-  background: var(--pine-soft);
+  border-color: var(--forest-soft-2);
+  background: var(--forest-soft);
 }
 
 .onb__step.is-locked {
@@ -431,9 +431,9 @@
 .connected-summary {
   display: grid;
   gap: 0.55rem;
-  border: 1px solid var(--pine-soft-2);
+  border: 1px solid var(--forest-soft-2);
   border-radius: var(--radius-md);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   padding: 0.85rem;
 }
 
@@ -508,8 +508,8 @@
 }
 
 .onb-install-links a:hover {
-  border-color: var(--pine-soft-2);
-  background: var(--pine-soft);
+  border-color: var(--forest-soft-2);
+  background: var(--forest-soft);
 }
 
 .onb-provider-strip {

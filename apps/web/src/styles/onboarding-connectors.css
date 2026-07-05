@@ -116,7 +116,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -138,10 +138,10 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  border: 1px solid var(--pine-soft-2);
+  border: 1px solid var(--forest-soft-2);
   border-radius: var(--radius-sm);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
   padding: 0.06rem 0.45rem;
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -242,7 +242,7 @@
 
 .onb-json-upload:hover {
   border-color: var(--accent);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 
 .onb-json-upload input {
@@ -291,9 +291,9 @@
   gap: 0.95rem;
   margin-top: 1.375rem;
   padding: 1.125rem;
-  border: 1px solid var(--pine-soft-2);
+  border: 1px solid var(--forest-soft-2);
   border-radius: var(--radius-card);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 
 .onb-confirm__mark {
@@ -310,7 +310,7 @@
 
 .onb-confirm__t {
   margin: 0;
-  color: var(--pine-ink);
+  color: var(--forest-ink);
   font-size: 1.03rem;
   font-weight: 700;
 }
@@ -387,7 +387,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--pine-ink);
+  color: var(--forest-ink);
   font-size: 0.75rem;
   font-weight: 650;
 }
@@ -471,13 +471,13 @@
 .onb-tour__ic {
   width: 2.5rem;
   height: 2.5rem;
-  border: 1px solid var(--pine-soft-2);
+  border: 1px solid var(--forest-soft-2);
   border-radius: var(--radius-lg);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 
@@ -542,9 +542,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--pine-soft-2);
+  border: 1px solid var(--forest-soft-2);
   border-radius: var(--radius-xl);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 
@@ -605,7 +605,7 @@
 }
 
 .onb-recap__ic.ok {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 

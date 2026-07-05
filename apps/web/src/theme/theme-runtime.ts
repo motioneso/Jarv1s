@@ -31,12 +31,12 @@ const TOKEN_TO_VAR: Record<AestheticThemeTokenKey, string> = {
 
 const CLEARED_RUNTIME_VARS = [
   ...Object.values(TOKEN_TO_VAR),
-  "--pine",
-  "--pine-hover",
-  "--pine-active",
-  "--pine-soft",
-  "--pine-soft-2",
-  "--pine-ink",
+  "--forest",
+  "--forest-hover",
+  "--forest-active",
+  "--forest-soft",
+  "--forest-soft-2",
+  "--forest-ink",
   "--accent-hover",
   "--accent-active",
   "--accent-soft",
@@ -87,15 +87,15 @@ export function applyThemeTokens(
     const value = tokens[key];
     if (isThemeColor(value)) style.setProperty(TOKEN_TO_VAR[key], value);
   }
-  style.setProperty("--pine", tokens.accent);
+  style.setProperty("--forest", tokens.accent);
   for (const [name, value] of Object.entries(deriveAccentRamp(tokens.accent))) {
     style.setProperty(name, value);
   }
-  style.setProperty("--pine-hover", style.getPropertyValue("--accent-hover"));
-  style.setProperty("--pine-active", style.getPropertyValue("--accent-active"));
-  style.setProperty("--pine-soft", style.getPropertyValue("--accent-soft"));
-  style.setProperty("--pine-soft-2", style.getPropertyValue("--accent-soft-2"));
-  style.setProperty("--pine-ink", style.getPropertyValue("--accent-soft-fg"));
+  style.setProperty("--forest-hover", style.getPropertyValue("--accent-hover"));
+  style.setProperty("--forest-active", style.getPropertyValue("--accent-active"));
+  style.setProperty("--forest-soft", style.getPropertyValue("--accent-soft"));
+  style.setProperty("--forest-soft-2", style.getPropertyValue("--accent-soft-2"));
+  style.setProperty("--forest-ink", style.getPropertyValue("--accent-soft-fg"));
   style.setProperty("--accent-strong", "var(--accent-hover)");
   style.setProperty("--focus-ring", `color-mix(in srgb, ${tokens.accent} 45%, transparent)`);
 

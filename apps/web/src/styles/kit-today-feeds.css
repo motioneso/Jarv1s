@@ -73,8 +73,8 @@
   font-weight: 700;
 }
 .sport__out.w {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .sport__out.l {
   background: var(--surface-2);
@@ -207,8 +207,8 @@
 
 /* ===== Wellness widget (rail) ===== */
 .well {
-  background: var(--pine-soft);
-  border: 1px solid var(--pine-soft-2);
+  background: var(--forest-soft);
+  border: 1px solid var(--forest-soft-2);
   border-radius: 12px;
   padding: 15px 16px 14px;
 }
@@ -227,12 +227,12 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--pine-ink);
+  color: var(--forest-ink);
 }
 .well__line {
   font-family: var(--font-sans);
   font-size: 14.5px;
-  color: var(--pine-ink);
+  color: var(--forest-ink);
   line-height: 1.45;
   margin: 6px 0 12px;
 }
@@ -251,9 +251,9 @@
   gap: 7px;
   padding: 9px 10px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--pine-soft-2);
+  border: 1px solid var(--forest-soft-2);
   background: var(--surface);
-  color: var(--pine-ink);
+  color: var(--forest-ink);
   font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 600;
@@ -333,9 +333,9 @@
   border-color: var(--border-strong);
 }
 .wd-dot.is-on {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   border-color: var(--accent);
-  color: var(--pine-ink);
+  color: var(--forest-ink);
   font-weight: 600;
 }
 .wd-q {
@@ -360,7 +360,7 @@
 .wd-note:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 
 /* rail customize affordance */
@@ -384,5 +384,5 @@
 .rail-customize:hover {
   border-color: var(--accent);
   color: var(--accent-fg);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
