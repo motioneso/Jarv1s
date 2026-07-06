@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import pg from "pg";
 
@@ -21,10 +19,10 @@ export interface DeleteUserDataOptions {
    * Module-owned deletion tables derived from `dataLifecycle.deletion.tables`
    * (#801 Phase A). API callers get this from the composition root
    * (`@jarv1s/module-registry`'s `getModuleDeletionTables`/`MODULE_DELETION_TABLES`);
-   * the CLI entrypoint derives it itself via a dynamic import in `main()` below —
-   * this file must never statically import `@jarv1s/module-registry` (it would
-   * create a package cycle: settings -> module-registry -> settings). Defaults to
-   * empty so existing callers/tests are unaffected until they opt in.
+   * the CLI entrypoint (`scripts/delete-user-data-cli.ts`) derives it there — this
+   * library file must never reference `@jarv1s/module-registry` in any form (see
+   * the CLI file's header for the bundle mis-emit + ESM deadlock that causes).
+   * Defaults to empty so existing callers/tests are unaffected until they opt in.
    */
   readonly moduleDeletionTables?: readonly { table: string; countPredicate: string }[];
 }
@@ -247,42 +245,6 @@ export async function deleteUserData(
   }
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-
-  if (!args.userId) {
-    throw new Error(
-      "Usage: pnpm delete:user -- --user-id <uuid> [--actor-user-id <uuid>] [--execute --confirm-user-id <uuid>]"
-    );
-  }
-
-  // Dynamic import ONLY: @jarv1s/settings imports this file's deleteUserData, and
-  // @jarv1s/module-registry imports @jarv1s/settings, so a static import here would
-  // create a package cycle (settings -> module-registry -> settings). The CLI
-  // entrypoint is the one place that can safely load module-registry, since it
-  // never runs inside the settings package's own module graph.
-  const { getModuleDeletionTables } = await import("@jarv1s/module-registry");
-
-  const result = await deleteUserData({
-    actorUserId: args.actorUserId,
-    confirmUserId: args.confirmUserId,
-    dryRun: !args.execute,
-    userId: args.userId,
-    moduleDeletionTables: getModuleDeletionTables()
-  });
-
-  console.log(JSON.stringify(result, null, 2));
-
-  if (result.dryRun) {
-    console.log(
-      "Dry run only — no rows or vault data deleted. On --execute, the user's on-disk " +
-        "vault subtree is removed via VaultContext after the DB commit."
-    );
-  } else if (result.vaultDeleted) {
-    console.log(`Removed on-disk vault subtree for user ${result.userId}.`);
-  }
-}
-
 async function readCounts(
   client: pg.Client,
   userId: string,
@@ -309,49 +271,9 @@ async function readCounts(
   return Object.fromEntries(entries);
 }
 
-function parseArgs(args: readonly string[]): {
-  readonly actorUserId?: string;
-  readonly confirmUserId?: string;
-  readonly execute: boolean;
-  readonly userId?: string;
-} {
-  return {
-    actorUserId: readFlag(args, "--actor-user-id"),
-    confirmUserId: readFlag(args, "--confirm-user-id"),
-    execute: args.includes("--execute"),
-    userId: readFlag(args, "--user-id")
-  };
-}
-
-function readFlag(args: readonly string[], name: string): string | undefined {
-  const index = args.indexOf(name);
-
-  if (index === -1) {
-    return undefined;
-  }
-
-  const value = args[index + 1];
-  if (!value) {
-    throw new Error(`${name} requires a value`);
-  }
-
-  return value;
-}
-
-// Run the CLI only when this file is executed directly (tsx scripts/delete-user-data.ts),
-// never when it is imported as a library (packages/settings/src/routes.ts reuses
-// deleteUserData) and — critically — never when esbuild bundles it into a resident
-// entrypoint (deployable-stack §5): in a bundle import.meta.url collapses to the
-// bundle's own URL (e.g. .../dist/server.js), so the path-equality alone would
-// misfire. Requiring import.meta.url to still point at THIS script's filename keeps
-// the guard false inside any bundle.
-const isThisModuleEntry =
-  import.meta.url.endsWith("delete-user-data.ts") ||
-  import.meta.url.endsWith("delete-user-data.js");
-if (
-  isThisModuleEntry &&
-  process.argv[1] &&
-  fileURLToPath(import.meta.url) === resolve(process.argv[1])
-) {
-  await main();
-}
+// NOTE: no CLI entry here. The `pnpm delete:user` entrypoint lives in
+// `scripts/delete-user-data-cli.ts` — this file is a pure library (imported by
+// packages/settings) and must never reference `@jarv1s/module-registry` in any
+// form (static, or even a guarded dynamic import): see the header comment in the
+// CLI file for the esbuild bundle mis-emit and the ESM top-level-await deadlock
+// that referencing it from here causes (#801 Phase A, QA on PR #816).

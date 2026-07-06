@@ -243,15 +243,16 @@ import { buildOnboardingInstall } from "./onboarding-install.js";
 import { buildOnboardingLogin } from "./onboarding-login.js";
 
 // Declared here (not `apps/api/src/server.ts`, which sets it via an onRequest hook)
-// because module-registry is the composition root reached by every TS program that
-// needs it: apps/api's own program includes server.ts directly, but module-registry
-// is also transitively reachable from isolated programs like apps/web's `tsc` run
-// (via settings -> scripts/delete-user-data.ts's dynamic `import("@jarv1s/module-registry")`)
-// and from every built-in module (e.g. wellness's `resolveRouteTimeZone`) that reads
-// `request.timeZone` through `resolveRequestTimeZoneForRoute` below. Ambient module
-// augmentations only apply within the program they're compiled into, so keeping this
-// next to the one file everyone already imports avoids "works in one tsc invocation,
-// breaks in another" drift (#801 Phase A).
+// because module-registry is the composition root every consumer of the field
+// already reaches: apps/api sets `request.timeZone` and imports this package
+// directly, and every built-in module that reads it (e.g. wellness's
+// `resolveRouteTimeZone` via `resolveRequestTimeZoneForRoute` below) is wired
+// through here. Ambient module augmentations only apply within the TS program
+// they're compiled into, so keeping the declaration next to the file everyone
+// already imports avoids "works in one tsc invocation, breaks in another" drift
+// (#801 Phase A — apps/web's isolated `tsc` once reached wellness routes through
+// a since-removed settings -> module-registry import edge and couldn't see the
+// augmentation while it lived in server.ts).
 declare module "fastify" {
   interface FastifyRequest {
     timeZone?: string;
