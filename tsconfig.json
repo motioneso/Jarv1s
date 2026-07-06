@@ -31,6 +31,7 @@
       "@jarv1s/jobs/*": ["packages/jobs/src/*"],
       "@jarv1s/module-registry": ["packages/module-registry/src/index.ts"],
       "@jarv1s/module-sdk": ["packages/module-sdk/src/index.ts"],
+      "@jarv1s/module-web-sdk": ["packages/module-web-sdk/src/index.ts"],
       "@jarv1s/notifications": ["packages/notifications/src/index.ts"],
       "@jarv1s/priority": ["packages/priority/src/index.ts"],
       "@jarv1s/settings": ["packages/settings/src/index.ts"],
@@ -38,6 +39,7 @@
       "@jarv1s/settings-ui/vite": ["packages/settings-ui/src/vite.ts"],
       "@jarv1s/shared": ["packages/shared/src/index.ts"],
       "@jarv1s/sports": ["packages/sports/src/index.ts"],
+      "@jarv1s/sports/web": ["packages/sports/src/web/index.tsx"],
       "@jarv1s/source-behaviors": ["packages/source-behaviors/src/index.ts"],
       "@jarv1s/tasks": ["packages/tasks/src/index.ts"],
       "@jarv1s/memory": ["packages/memory/src/index.ts"],
@@ -63,6 +65,7 @@
   "include": [
     "apps/api/**/*.ts",
     "apps/worker/**/*.ts",
+    "apps/web/src/vite-env.d.ts",
     "packages/**/*.ts",
     "playwright.config.ts",
     "scripts/**/*.ts",
