@@ -7,7 +7,8 @@ import {
   deleteSportsFollowResponseSchema,
   sportsCatalogResponseSchema,
   sportsFollowsResponseSchema,
-  sportsOverviewResponseSchema
+  sportsOverviewResponseSchema,
+  sportsStandingsResponseSchema
 } from "@jarv1s/shared";
 
 import { sportsFollowedFactsTodayExecute } from "./briefing-tool.js";
@@ -90,6 +91,12 @@ export const sportsModuleManifest = {
       method: "GET",
       path: "/api/sports/overview",
       responseSchema: sportsOverviewResponseSchema,
+      permissionId: "sports.view"
+    },
+    {
+      method: "GET",
+      path: "/api/sports/standings",
+      responseSchema: sportsStandingsResponseSchema,
       permissionId: "sports.view"
     },
     {

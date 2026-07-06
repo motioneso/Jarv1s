@@ -48,7 +48,7 @@ interface EspnStandingsEntry {
     readonly abbreviation?: string;
     readonly displayName?: string;
   };
-  readonly note?: unknown;
+  readonly note?: { readonly description?: string; readonly color?: string } | null;
   readonly stats?: readonly { readonly name?: string; readonly value?: number }[];
 }
 
@@ -125,7 +125,9 @@ function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
     losses: statValue(entry.stats, "losses") ?? 0,
     draws: statValue(entry.stats, "ties") ?? null,
     winPercent: statValue(entry.stats, "winPercent") ?? null,
-    qualifies: entry.note != null
+    qualifies: entry.note != null,
+    qualificationNote: entry.note?.description ?? null,
+    qualificationColor: entry.note?.color ?? null
   };
 }
 
@@ -264,6 +266,7 @@ async function getHeadlines(
     articles?: readonly {
       id?: number | string;
       headline?: string;
+      description?: string;
       published?: string;
       links?: { web?: { href?: string } };
       images?: readonly { type?: string; url?: string }[];
@@ -282,6 +285,7 @@ async function getHeadlines(
       url: article.links?.web?.href ?? "",
       publishedAt: article.published ?? "",
       imageUrl: image?.url ?? null,
+      summary: article.description ?? "",
       teamKeys: [],
       sourceTeamIds: (article.categories ?? [])
         .filter((c) => c.type === "team" && c.teamId != null)

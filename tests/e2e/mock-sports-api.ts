@@ -83,6 +83,7 @@ function headline(id: string, competitionKey: string, title: string): Headline {
     url: `https://example.test/${id}`,
     publishedAt: "2026-07-06T18:00:00Z",
     imageUrl: null,
+    summary: "",
     teamKeys: []
   };
 }
@@ -123,7 +124,9 @@ function standingsGroup(): StandingsGroup {
             losses: 2,
             draws: 4,
             winPercent: null,
-            qualifies: true
+            qualifies: true,
+            qualificationNote: null,
+            qualificationColor: null
           },
           {
             teamKey: "liv",
@@ -134,7 +137,9 @@ function standingsGroup(): StandingsGroup {
             losses: 3,
             draws: 5,
             winPercent: null,
-            qualifies: true
+            qualifies: true,
+            qualificationNote: null,
+            qualificationColor: null
           }
         ]
       }

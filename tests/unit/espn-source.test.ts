@@ -80,7 +80,9 @@ describe("EspnDatasetAdapter", () => {
       losses: 2,
       draws: 4,
       winPercent: null,
-      qualifies: true
+      qualifies: true,
+      qualificationNote: "UEFA Champions League",
+      qualificationColor: "#2a66d1"
     });
     expect((table.sections[0]?.rows[1] as { qualifies: boolean }).qualifies).toBe(false);
   });

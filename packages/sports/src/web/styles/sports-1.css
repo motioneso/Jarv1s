@@ -508,249 +508,6 @@
   background: var(--surface-2);
   color: var(--text-subtle);
 }
-/* ============================================================= SPLIT: scores + headlines */
-.sp-split {
-  display: grid;
-  grid-template-columns: 1fr 316px;
-  gap: var(--space-7);
-  margin-top: var(--space-7);
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .sp-split {
-    grid-template-columns: 1fr;
-  }
-}
-.sp-body {
-  min-width: 0;
-}
-
-/* ---- scoreboard ---- */
-.sp-chips {
-  display: flex;
-  gap: var(--space-1);
-  flex-wrap: wrap;
-}
-.sp-chip {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: var(--transition-control);
-}
-.sp-chip:hover {
-  background: var(--surface-2);
-}
-.sp-chip.is-on {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
-}
-.sp-board {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-.sp-boardgrp__hd {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
-  margin-bottom: var(--space-1);
-  border-bottom: 2px solid var(--border);
-}
-.sp-boardgrp__hd .nm {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--text);
-}
-.sp-boardgrp__games {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0 var(--space-6);
-  margin-top: 0;
-}
-.sp-game {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--border-subtle);
-}
-.sp-game--you {
-  background: var(--forest-soft);
-  padding-left: var(--space-2);
-  padding-right: var(--space-2);
-}
-.sp-game__sides {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  justify-content: center;
-}
-.sp-game__side {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--text-muted);
-}
-.sp-game__side.is-win {
-  color: var(--text);
-}
-.sp-game__side.is-mine .sp-game__team {
-  color: var(--accent-fg);
-  font-weight: 600;
-}
-.sp-game__side .sp-crest {
-  border-radius: 6px;
-}
-.sp-game__team {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.sp-game__rec {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-  margin-right: var(--space-0-5);
-}
-.sp-game__side.is-win .sp-game__team {
-  font-weight: 700;
-}
-.sp-game__num {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-md);
-  font-weight: 700;
-  color: var(--text);
-  min-width: 16px;
-  text-align: right;
-}
-.sp-game__status {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: var(--space-1);
-  text-align: right;
-  min-width: 56px;
-}
-.sp-game__live {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  color: var(--accent-fg);
-}
-.sp-game__ft {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.sp-game__time {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  color: var(--text-muted);
-}
-
-/* ---- headlines rail ---- */
-.sp-railcol {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  position: sticky;
-  top: var(--space-3);
-}
-.sp-rail {
-  padding: 0;
-  border-top: 2px solid var(--border);
-}
-.sp-rail__hd {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) 0 var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--text);
-}
-.sp-rail__hd svg {
-  color: var(--text-subtle);
-}
-.sp-rail__list {
-  display: flex;
-  flex-direction: column;
-}
-.sp-hl {
-  display: block;
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--border-subtle);
-  text-decoration: none;
-  transition: background 140ms ease;
-}
-.sp-hl:hover {
-  background: var(--surface-2);
-}
-.sp-hl__top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-1);
-}
-.sp-hl__comp {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-subtle);
-}
-.sp-hl__you {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--accent-fg);
-}
-.sp-hl__you .d {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.sp-hl__title {
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  line-height: 1.34;
-  color: var(--text);
-  text-wrap: pretty;
-}
-
 /* ---- standings (rail) ---- */
 .sp-standings {
   padding: 0;
@@ -878,14 +635,28 @@
   color: var(--accent-fg);
   font-weight: 700;
 }
+/* Numbered marker keyed to the legend below the table — a note index, not a color, so
+   distinct notes (e.g. Champions League vs. relegation) stay distinguishable (#841). */
 .sp-tbl__adv {
   display: inline-block;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent);
+  min-width: 12px;
   margin-right: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  color: var(--accent);
+  text-align: center;
   vertical-align: middle;
+}
+/* Visually-hidden note text for screen readers — same clip-rect technique as
+   apps/web/src/styles/onboarding-connectors.css's .onb-json-upload input. */
+.sp-tbl__advtext {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* ============================================================= EMPTY STATE */

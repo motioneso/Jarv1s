@@ -41,6 +41,8 @@ export interface StandingsRow {
   readonly draws: number | null;
   readonly winPercent: number | null; // US leagues; null for soccer
   readonly qualifies: boolean; // advancement/qualification marker
+  readonly qualificationNote: string | null; // e.g. "UEFA Champions League"; null when none (#841)
+  readonly qualificationColor: string | null; // raw source hex; carried for a later design pass (#841)
 }
 
 export type StandingsShape = "table" | "groups" | "record";
@@ -58,6 +60,7 @@ export interface Headline {
   readonly url: string;
   readonly publishedAt: string;
   readonly imageUrl: string | null; // first "header" image, else first image, else null
+  readonly summary: string; // short article blurb from the source; "" when absent (#840)
   readonly teamKeys: readonly string[]; // filled by the service join (Task 4); source emits []
 }
 
@@ -166,6 +169,11 @@ export interface SportsFollowsResponse {
   readonly follows: readonly SportsFollowDto[];
 }
 
+/** `GET /api/sports/standings?competitionKey=<key>` response (#842). */
+export interface SportsStandingsResponse {
+  readonly group: StandingsGroup;
+}
+
 export interface CreateSportsFollowRequest {
   readonly competitionKey: string;
   readonly teamKey?: string | null;
@@ -231,7 +239,9 @@ const standingsRowSchema = {
     "losses",
     "draws",
     "winPercent",
-    "qualifies"
+    "qualifies",
+    "qualificationNote",
+    "qualificationColor"
   ],
   properties: {
     teamKey: { type: "string" },
@@ -242,7 +252,9 @@ const standingsRowSchema = {
     losses: { type: "number" },
     draws: { type: ["number", "null"] },
     winPercent: { type: ["number", "null"] },
-    qualifies: { type: "boolean" }
+    qualifies: { type: "boolean" },
+    qualificationNote: { type: ["string", "null"] },
+    qualificationColor: { type: ["string", "null"] }
   }
 } as const;
 
@@ -267,6 +279,7 @@ const headlineSchema = {
     "url",
     "publishedAt",
     "imageUrl",
+    "summary",
     "teamKeys"
   ],
   properties: {
@@ -277,6 +290,7 @@ const headlineSchema = {
     url: { type: "string" },
     publishedAt: { type: "string" },
     imageUrl: { type: ["string", "null"] },
+    summary: { type: "string" },
     teamKeys: { type: "array", items: { type: "string" } }
   }
 } as const;
@@ -515,6 +529,29 @@ export const sportsFollowsResponseSchema = {
         follows: { type: "array", items: followDtoSchema }
       }
     },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const sportsStandingsResponseSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    required: ["competitionKey"],
+    properties: {
+      competitionKey: { type: "string", minLength: 1, maxLength: 100 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["group"],
+      properties: {
+        group: standingsGroupSchema
+      }
+    },
+    400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;

@@ -244,6 +244,24 @@ export class SportsService {
     };
   }
 
+  /** One league's standings, fetched on demand (#842). Never throws; degrades to empty sections. */
+  async getStandings(competitionKey: string): Promise<StandingsGroup> {
+    const state: DegradeState = { degraded: false };
+    const table = await this.cached<StandingsTable>(
+      "standings",
+      { competitionKey },
+      EMPTY_STANDINGS,
+      state
+    );
+    const entry = catalogEntry(competitionKey);
+    return {
+      competitionKey,
+      competitionLabel: entry?.label ?? competitionKey,
+      standingsShape: entry?.standingsShape ?? "table",
+      sections: table.sections
+    };
+  }
+
   /**
    * Compact today-facts for followed competitions/teams, for the daily briefing.
    * `scopedDb` is already opened under `withDataContext` by the caller. Never throws.
@@ -430,9 +448,28 @@ function byNewest(a: SourceHeadline, b: SourceHeadline): number {
 // inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
 // objects with properties outside the matched branch instead of silently dropping them.
 function toPublicHeadline(headline: Headline): Headline {
-  const { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys } =
-    headline;
-  return { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys };
+  const {
+    id,
+    competitionKey,
+    competitionLabel,
+    title,
+    url,
+    publishedAt,
+    imageUrl,
+    summary,
+    teamKeys
+  } = headline;
+  return {
+    id,
+    competitionKey,
+    competitionLabel,
+    title,
+    url,
+    publishedAt,
+    imageUrl,
+    summary,
+    teamKeys
+  };
 }
 
 // Spec §E ranking: (1) headlines tagged with a followed team, newest first;

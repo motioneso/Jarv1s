@@ -288,4 +288,124 @@ describe("sports routes", () => {
     expect(res.statusCode).toBe(401);
     await app.close();
   });
+
+  it("carries Headline.summary through the overview response (#840)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeSource({
+        getHeadlines: async () => [
+          {
+            id: "n1",
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            title: "Vikings clinch division",
+            url: "https://example.test/n1",
+            publishedAt: "2026-07-01T18:00:00Z",
+            imageUrl: null,
+            summary: "A late field goal sealed the NFC North.",
+            teamKeys: [],
+            sourceTeamIds: []
+          }
+        ]
+      })
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("A late field goal sealed the NFC North.");
+    await app.close();
+  });
+
+  it("carries standings qualification note + color through the overview (#841)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        getStandings: async () => ({
+          sections: [
+            {
+              label: null,
+              rows: [
+                {
+                  teamKey: "ars",
+                  name: "Arsenal",
+                  rank: 1,
+                  points: 40,
+                  wins: 12,
+                  losses: 2,
+                  draws: 4,
+                  winPercent: null,
+                  qualifies: true,
+                  qualificationNote: "UEFA Champions League",
+                  qualificationColor: "#2a66d1"
+                }
+              ]
+            }
+          ]
+        })
+      }),
+      repo: makeRepo([
+        {
+          id: "f1",
+          competitionKey: "eng.1",
+          teamKey: null,
+          createdAt: "2026-06-01T00:00:00.000Z"
+        }
+      ])
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("UEFA Champions League");
+    expect(res.body).toContain("#2a66d1");
+    await app.close();
+  });
+
+  it("GET /api/sports/standings returns one league's group (#842)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        getStandings: async () => ({
+          sections: [
+            {
+              label: "AFC East",
+              rows: [
+                {
+                  teamKey: "buf",
+                  name: "Buffalo Bills",
+                  rank: 1,
+                  points: null,
+                  wins: 11,
+                  losses: 3,
+                  draws: null,
+                  winPercent: 0.786,
+                  qualifies: true,
+                  qualificationNote: null,
+                  qualificationColor: null
+                }
+              ]
+            }
+          ]
+        })
+      })
+    });
+    await app.ready();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sports/standings?competitionKey=nfl"
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.group.competitionKey).toBe("nfl");
+    expect(body.group.competitionLabel).toBe("NFL");
+    expect(body.group.sections[0].label).toBe("AFC East");
+    await app.close();
+  });
+
+  it("GET /api/sports/standings rejects an unknown competitionKey with 400 (#842)", async () => {
+    const { app } = buildApp();
+    await app.ready();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sports/standings?competitionKey=xyz.nope"
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

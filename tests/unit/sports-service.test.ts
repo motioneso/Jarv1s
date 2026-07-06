@@ -171,7 +171,9 @@ const nflStandings: StandingsTable = {
           losses: 2,
           draws: null,
           winPercent: 0.833,
-          qualifies: true
+          qualifies: true,
+          qualificationNote: null,
+          qualificationColor: null
         }
       ]
     }
@@ -187,6 +189,7 @@ const nflHeadlines: SourceHeadline[] = [
     url: "https://example.com/h1",
     publishedAt: `${TODAY}T12:00:00.000Z`,
     imageUrl: null,
+    summary: "",
     teamKeys: [],
     sourceTeamIds: ["6"]
   }
@@ -367,6 +370,7 @@ describe("SportsService.getOverview", () => {
       url: `https://example.com/h${i}`,
       publishedAt: `2026-07-01T0${i}:00:00.000Z`,
       imageUrl: null,
+      summary: "",
       teamKeys: [],
       sourceTeamIds: ["6"]
     }));
@@ -417,6 +421,7 @@ describe("SportsService.getOverview", () => {
       url: "https://example.com/hn1",
       publishedAt: `${TODAY}T13:00:00.000Z`,
       imageUrl: null,
+      summary: "",
       teamKeys: [],
       sourceTeamIds: []
     };
@@ -481,6 +486,7 @@ describe("SportsService.getOverview", () => {
       url: "https://example.com/hd1",
       publishedAt: `${TODAY}T13:00:00.000Z`,
       imageUrl: null,
+      summary: "",
       teamKeys: [],
       sourceTeamIds: []
     };
