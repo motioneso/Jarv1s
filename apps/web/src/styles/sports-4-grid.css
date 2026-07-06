@@ -175,8 +175,13 @@
 }
 
 /* ============================================================= EDITORIAL GRID */
+/* Zeroes the sp-split gutter so the rail divider reads as a hairline (via .sp-railcol's
+   border+padding) instead of open whitespace. grid-template-columns is intentionally NOT
+   redeclared here: sports-1.css already sets 1fr 316px (desktop) and collapses to 1fr under
+   max-width:900px — a duplicate unconditional value here would win the cascade (this file
+   loads after sports-1.css) and silently defeat that mobile single-column breakpoint (#829
+   Task 5 screenshot sweep caught the regression: two-column layout stayed at 390px width). */
 .sp-split {
-  grid-template-columns: 1fr 316px;
   gap: 0;
 }
 .sp-railcol {
