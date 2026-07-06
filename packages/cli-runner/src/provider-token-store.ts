@@ -12,7 +12,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
+import type { RpcProviderKind } from "@jarv1s/chat/live";
 
 const TOKEN_DIR = ".jarvis/cli-tokens";
 

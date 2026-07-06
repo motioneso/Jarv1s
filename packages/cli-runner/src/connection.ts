@@ -11,29 +11,26 @@
 import { redactSecrets } from "@jarv1s/ai";
 
 import {
+  CliChatUnavailableError,
   decodeFrame,
   encodeFrame,
   MAX_FRAME_BYTES,
+  type RpcBeginLoginParams,
+  type RpcCancelLoginParams,
   type RpcErr,
   type RpcErrorCode,
   type RpcFrame,
   type RpcHandshakeFrame,
+  type RpcInstallProviderParams,
   type RpcLaunchParams,
   type RpcOk,
+  type RpcPollLoginParams,
+  type RpcProbeProviderParams,
+  type RpcProviderKind,
   type RpcReadNewParams,
   type RpcRequest,
-  type RpcProbeProviderParams,
-  type RpcProviderKind
-} from "../../chat/src/live/rpc-contract.js";
-import { CliChatUnavailableError } from "../../chat/src/live/errors.js";
-
-import type { RpcInstallProviderParams } from "../../chat/src/live/install-contract.js";
-import type {
-  RpcBeginLoginParams,
-  RpcCancelLoginParams,
-  RpcPollLoginParams,
-  RpcSubmitLoginTokenParams
-} from "../../chat/src/live/login-contract.js";
+  type RpcSubmitLoginTokenParams
+} from "@jarv1s/chat/live";
 
 import { NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
 import { InstallBadRequestError } from "./install-service.js";

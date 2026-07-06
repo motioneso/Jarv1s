@@ -14,8 +14,7 @@ import { dirname } from "node:path";
 
 import { cliAvailable, tmuxAvailable, type ProviderKind } from "@jarv1s/ai";
 
-import { probeProvider } from "../../chat/src/live/cli-chat-engine.js";
-import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
+import { probeProvider, type RpcProviderKind } from "@jarv1s/chat/live";
 
 import { PROVIDER_CATALOG } from "./catalog.js";
 import { CliChatEngineHost } from "./engine-host.js";
