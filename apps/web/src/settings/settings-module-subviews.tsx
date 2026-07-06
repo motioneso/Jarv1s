@@ -17,6 +17,7 @@ import {
   listSourceBehaviors,
   listAiAssistantTools,
   listBriefingDefinitions,
+  lookupAiCapabilityRoute,
   putChatSettings,
   putNotificationPreference,
   putSourceBehavior,
@@ -224,7 +225,10 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
   );
 }
 
-export function ChatSettingsView(props: { readonly onBack: () => void }) {
+export function ChatSettingsView(props: {
+  readonly onBack: () => void;
+  readonly onCat?: (id: string) => void;
+}) {
   const queryClient = useQueryClient();
   const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
   const settingsQuery = useQuery({
@@ -237,6 +241,15 @@ export function ChatSettingsView(props: { readonly onBack: () => void }) {
   });
   const style = settingsQuery.data?.chat.responseStyle ?? "balanced";
   const error = settingsQuery.error ?? mutation.error;
+
+  // Voice input (#738) has no settings of its own here — Chat settings only reflects whether the
+  // shared "transcription" AI capability route is configured+healthy, and links out to the one
+  // place that configures it. No duplicate provider UI, no separate "enable voice" toggle.
+  const transcriptionRouteQuery = useQuery({
+    queryKey: queryKeys.ai.capability("transcription"),
+    queryFn: () => lookupAiCapabilityRoute("transcription")
+  });
+  const voiceAvailable = Boolean(transcriptionRouteQuery.data?.route?.available);
 
   return (
     <ModuleSub
@@ -262,8 +275,24 @@ export function ChatSettingsView(props: { readonly onBack: () => void }) {
       <Group title="Input">
         <Row
           name="Voice input"
-          desc="Tracked for #738. Voice capture is not enabled in Chat settings yet."
-          control={<Badge tone="steel">Coming soon</Badge>}
+          desc={
+            voiceAvailable
+              ? "A transcription model is configured — tap the mic in the composer to dictate."
+              : "Set up a transcription model in Assistant & AI to enable the composer's mic."
+          }
+          control={
+            voiceAvailable ? (
+              <Badge tone="pine">Ready</Badge>
+            ) : (
+              <button
+                type="button"
+                className="note__link"
+                onClick={() => props.onCat?.("assistant")}
+              >
+                Set up
+              </button>
+            )
+          }
         />
       </Group>
       <Note icon={<MessageSquare size={13} />}>

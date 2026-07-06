@@ -28,6 +28,7 @@ import {
   resolveAiAssistantActionResponseSchema,
   revokeAiProviderConfigResponseSchema,
   testAiProviderConfigResponseSchema,
+  transcribeAudioResponseSchema,
   updateAiConfiguredModelRequestSchema,
   updateAiConfiguredModelResponseSchema,
   updateAiProviderConfigRequestSchema,
@@ -214,6 +215,12 @@ export const aiModuleManifest = {
       requestSchema: putAiCapabilityRouteRequestSchema,
       responseSchema: putAiCapabilityRouteResponseSchema,
       permissionId: "ai.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/ai/transcriptions",
+      responseSchema: transcribeAudioResponseSchema,
+      permissionId: "ai.route"
     },
     {
       method: "GET",

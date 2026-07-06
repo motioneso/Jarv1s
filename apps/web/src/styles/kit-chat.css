@@ -456,6 +456,32 @@
   background: var(--border-strong);
   cursor: default;
 }
+.chatd-mic {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  transition: var(--transition-control);
+}
+.chatd-mic:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chatd-mic.is-recording {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.chatd-mic:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .chatd-next {
   display: flex;
   align-items: center;

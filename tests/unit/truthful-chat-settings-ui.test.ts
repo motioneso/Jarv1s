@@ -10,7 +10,12 @@ describe("truthful chat settings UI", () => {
     expect(source).not.toContain("Suggested actions");
     expect(source).not.toContain("Remember across conversations");
     expect(source).toContain("Response style");
-    expect(source).toContain("Coming soon");
+    // Voice input (#738) is real now, not a stub — Chat settings reflects live
+    // capability-route status (configured+healthy) and links out to Assistant & AI to set it
+    // up, rather than claiming a fake "Coming soon".
+    expect(source).not.toContain("Coming soon");
+    expect(source).toContain('lookupAiCapabilityRoute("transcription")');
+    expect(source).toContain("Assistant & AI");
   });
 
   it("uses the real chat settings API client", () => {
