@@ -169,9 +169,9 @@ describe("SportsPage", () => {
     expect(html).toContain("sp-masthead__title");
   });
 
-  it("renders the gameday hero with the rationale, both teams, and scores", () => {
+  it("renders the gameday hero without rationale text, with both teams and scores", () => {
     const html = render(makeOverview());
-    expect(html).toContain("You follow the Vikings — they are on now");
+    expect(html).not.toContain("You follow the Vikings — they are on now");
     expect(html).toContain("Minnesota Vikings");
     expect(html).toContain("Dallas Cowboys");
     expect(html).toContain("21");
@@ -226,7 +226,6 @@ describe("SportsPage", () => {
 
     expect(html).not.toContain("SOURCE_PREGAME_STRING");
     expect(html).toContain('<span class="sp-hero__phase">16:20</span>');
-    expect(html).toContain('<span class="sp-game__time">16:20</span>');
   });
 
   it("renders the followed-team ticker block with form pips and next match", () => {
@@ -235,6 +234,14 @@ describe("SportsPage", () => {
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
     expect(html).toContain("vs Green Bay Packers");
+  });
+
+  it("renders the 2-up Latest column without the RANKED eyebrow or explainer dek", () => {
+    const html = render(makeOverview());
+    expect(html).toContain("sp-grid");
+    expect(html).toContain("sp-latest");
+    expect(html).toContain("Latest");
+    expect(html).not.toContain("RANKED");
   });
 
   it("renders a news-status ticker block as a link to the story", () => {
@@ -299,7 +306,6 @@ describe("SportsPage", () => {
     const html = render(
       makeOverview({
         standings: [
-          standingsGroup(),
           {
             competitionKey: "eng.1",
             competitionLabel: "Championship",
@@ -324,11 +330,11 @@ describe("SportsPage", () => {
                 ]
               }
             ]
-          }
+          },
+          standingsGroup()
         ]
       })
     );
-    expect(html).toContain("is-mine");
     const eng1RowStart = html.indexOf("Minnows FC");
     const eng1RowMarkup = html.slice(Math.max(0, eng1RowStart - 400), eng1RowStart);
     expect(eng1RowMarkup).not.toContain("is-you");
@@ -473,8 +479,8 @@ describe("SportsPage", () => {
     expect(html).toContain("Following");
     expect(html).toContain("1 league");
     expect(html).toContain("Premier League");
-    // scoreboard/standings/headlines still render for league-only followers
-    expect(html).toContain("Top stories");
+    // standings/headlines still render for league-only followers
+    expect(html).toContain("Latest");
   });
 
   // #764: a genuine zero-follow user (no teams, no leagues) previously saw a blank page because
@@ -495,14 +501,14 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("Follow your teams");
     expect(html).toContain("Choose teams to follow");
-    // the default slate (scoreboard/top stories/league news) renders alongside the CTA, not a
+    // the default slate (latest/standings/league news) renders alongside the CTA, not a
     // blank page (H4/#764)
-    expect(html).toContain("Top stories");
+    expect(html).toContain("Latest");
     expect(html).toContain("Vikings clinch division on late field goal");
     expect(html).toContain("Cowboys sign veteran lineman");
   });
 
-  it("still renders scores and headlines on a quiet day (story hero)", () => {
+  it("still renders the story hero and headlines on a quiet day", () => {
     const html = render(
       makeOverview({
         hero: {
@@ -518,11 +524,12 @@ describe("SportsPage", () => {
     expect(html).toContain("NFL");
     expect(html).toContain('src="https://a.espncdn.com/photo/2026/story.jpg"');
     expect(html).toContain('href="https://example.test/lead"'); // hero title links out
+    expect(html).not.toContain("No followed team is playing right now");
   });
 
-  it("renders the top stories rail and league news grid", () => {
+  it("renders the latest column and league news grid", () => {
     const html = render(makeOverview());
-    expect(html).toContain("Top stories");
+    expect(html).toContain("Latest");
     expect(html).toContain("League news");
     expect(html).toContain("Cowboys sign veteran lineman");
   });

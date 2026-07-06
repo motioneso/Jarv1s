@@ -2,35 +2,20 @@ import "./styles/sports-1.css";
 import "./styles/sports-3.css";
 import "./styles/sports-4-grid.css";
 import "./styles/sports-5-editorial.css";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
   FollowedTeamCard,
   GameSide,
-  GameSummary,
   OverviewHero,
-  ScoreboardGroup,
   SportsOverviewResponse
 } from "@jarv1s/shared";
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";
-import {
-  CalendarIcon,
-  Crest,
-  FormPips,
-  LiveDot,
-  RationaleChip,
-  TrophyIcon
-} from "./sports-parts.js";
-import {
-  isFollowed,
-  LeagueNewsSection,
-  NewsIcon,
-  StoryHero,
-  TopStoriesRail
-} from "./sports-news.js";
+import { CalendarIcon, Crest, FormPips, LiveDot, TrophyIcon } from "./sports-parts.js";
+import { LatestColumn, LeagueNewsSection, NewsIcon, StoryHero } from "./sports-news.js";
 import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
 import { AroundLeaguesTicker } from "./sports-around-ticker.js";
 import { StandingsRail } from "./sports-standings.js";
@@ -104,7 +89,7 @@ export function SportsPage() {
           <SportsTicker followed={data.followed} leagues={data.followedLeagues} />
           <AroundLeaguesTicker groups={data.scoreboard} />
           <Hero hero={data.hero} />
-          <SplitSection data={data} followedPairs={followedPairs} />
+          <BroadsheetGrid overview={data} followedPairs={followedPairs} />
           <LeagueNewsSection groups={data.leagueNews} />
         </>
       ) : (
@@ -157,7 +142,7 @@ function Hero(props: { hero: OverviewHero }) {
 }
 
 function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }) {
-  const { game, competitionLabel, rationale, alsoToday } = props.hero;
+  const { game, competitionLabel, alsoToday } = props.hero;
   const locale = useUserLocale();
   return (
     <section className="sp-hero sp-hero--live" aria-label="Gameday">
@@ -187,7 +172,6 @@ function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }
         <HeroSide side={game.home} />
       </div>
       <div className="sp-hero__foot">
-        <RationaleChip>{rationale}</RationaleChip>
         <span className="sp-hero__note">
           {game.home.name} vs {game.away.name}
         </span>
@@ -274,125 +258,20 @@ export function FollowedCard(props: { card: FollowedTeamCard }) {
   );
 }
 
-/* ---------------------------------------------------------------- Split: scores + rail */
+/* ---------------------------------------------------------------- Broadsheet body */
 
-function SplitSection(props: { data: SportsOverviewResponse; followedPairs: ReadonlySet<string> }) {
-  return (
-    <div className="sp-split">
-      <div className="sp-body">
-        <Scoreboard groups={props.data.scoreboard} followedPairs={props.followedPairs} />
-        <TopStoriesRail headlines={props.data.topStories} followedPairs={props.followedPairs} />
-      </div>
-      <div className="sp-railcol">
-        <StandingsRail groups={props.data.standings} followedPairs={props.followedPairs} />
-      </div>
-    </div>
-  );
-}
-
-function Scoreboard(props: {
-  groups: readonly ScoreboardGroup[];
+function BroadsheetGrid(props: {
+  overview: SportsOverviewResponse;
   followedPairs: ReadonlySet<string>;
 }) {
-  const [active, setActive] = useState<string>("all");
-  const groups =
-    active === "all" ? props.groups : props.groups.filter((g) => g.competitionKey === active);
-
   return (
-    <section className="sp-sec" aria-label="Scores">
-      <div className="sp-sec__head">
-        <h2 className="sp-sec__title">Scores</h2>
-        <div className="sp-chips">
-          <button
-            type="button"
-            className={`sp-chip${active === "all" ? " is-on" : ""}`}
-            onClick={() => setActive("all")}
-          >
-            All
-          </button>
-          {props.groups.map((group) => (
-            <button
-              key={group.competitionKey}
-              type="button"
-              className={`sp-chip${active === group.competitionKey ? " is-on" : ""}`}
-              onClick={() => setActive(group.competitionKey)}
-            >
-              {group.competitionLabel}
-            </button>
-          ))}
-        </div>
+    <div className="sp-grid">
+      <div className="sp-grid__main">
+        <LatestColumn headlines={props.overview.topStories} followedPairs={props.followedPairs} />
       </div>
-      <div className="sp-board">
-        {groups.map((group) => (
-          <div key={group.competitionKey} className="sp-boardgrp">
-            <div className="sp-boardgrp__hd">
-              <span className="nm">{group.competitionLabel}</span>
-            </div>
-            <div className="sp-boardgrp__games">
-              {group.games.map((game) => (
-                <GameRow key={game.id} game={game} followedPairs={props.followedPairs} />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function GameRow(props: { game: GameSummary; followedPairs: ReadonlySet<string> }) {
-  const { game } = props;
-  const locale = useUserLocale();
-  const mine =
-    isFollowed(props.followedPairs, game.competitionKey, game.home.teamKey) ||
-    isFollowed(props.followedPairs, game.competitionKey, game.away.teamKey);
-  return (
-    <div className={`sp-game${mine ? " sp-game--you" : ""}`}>
-      <div className="sp-game__sides">
-        <GameSideRow
-          side={game.away}
-          competitionKey={game.competitionKey}
-          followedPairs={props.followedPairs}
-        />
-        <GameSideRow
-          side={game.home}
-          competitionKey={game.competitionKey}
-          followedPairs={props.followedPairs}
-        />
-      </div>
-      <div className="sp-game__status">
-        {game.state === "live" ? (
-          <span className="sp-game__live">
-            <LiveDot />
-            {game.statusDetail}
-          </span>
-        ) : game.state === "final" ? (
-          <span className="sp-game__ft">{game.statusDetail}</span>
-        ) : (
-          <span className="sp-game__time">{formatTime(game.startsAt, locale)}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function GameSideRow(props: {
-  side: GameSide;
-  competitionKey: string;
-  followedPairs: ReadonlySet<string>;
-}) {
-  const mine = isFollowed(props.followedPairs, props.competitionKey, props.side.teamKey);
-  return (
-    <div className={`sp-game__side${props.side.winner ? " is-win" : ""}${mine ? " is-mine" : ""}`}>
-      <Crest
-        name={props.side.name}
-        shortName={props.side.shortName}
-        crestUrl={props.side.crestUrl}
-        size="sm"
-      />
-      <span className="sp-game__team">{props.side.name}</span>
-      {props.side.record ? <span className="sp-game__rec">{props.side.record}</span> : null}
-      <span className="sp-game__num">{props.side.score ?? "–"}</span>
+      <aside className="sp-grid__rail">
+        <StandingsRail groups={props.overview.standings} followedPairs={props.followedPairs} />
+      </aside>
     </div>
   );
 }
@@ -401,8 +280,8 @@ function GameSideRow(props: {
 
 function EmptyState(props: { data: SportsOverviewResponse; followedPairs: ReadonlySet<string> }) {
   const hasSlate =
-    props.data.scoreboard.length > 0 ||
     props.data.topStories.length > 0 ||
+    props.data.standings.length > 0 ||
     props.data.leagueNews.length > 0;
   return (
     <>
@@ -423,10 +302,7 @@ function EmptyState(props: { data: SportsOverviewResponse; followedPairs: Readon
       </section>
       {hasSlate ? (
         <div className="sp-emptyboard">
-          <div className="sp-body">
-            <Scoreboard groups={props.data.scoreboard} followedPairs={props.followedPairs} />
-            <TopStoriesRail headlines={props.data.topStories} followedPairs={props.followedPairs} />
-          </div>
+          <BroadsheetGrid overview={props.data} followedPairs={props.followedPairs} />
           <LeagueNewsSection groups={props.data.leagueNews} />
         </div>
       ) : null}
