@@ -252,7 +252,7 @@ Khoj **Automations** = cron'd query → email ([docs.khoj.dev/features/automatio
 
 Rows = capabilities Jarvis could add. Columns = the four lenses. Cells = ✓ (directly serves that lens), ◐ (indirectly serves it).
 
-**Tracking (rev 2):** #1 → epic #818 · #2 → epic #819 · #3 → issue #820 · #4 → issue #821 · #5 → issue #822 (citations portion shipped via #539) · #6 → issue #823 · #8 → issue #824 · #9 + #10 → issue #822 · #11 → prompt tier spec'd in issue #760, code tier in epic #818 · #12 → issue #826 · #13 → notifications slice spec'd in issue #742 · #14 (+#15, #16 behind the same seam) → issue #825. Rows #7 and #17–#32 intentionally have no issues yet — they depend on Wave-1 outcomes or need a milestone decision first.
+**Tracking (rev 2):** #1 → epic #818 · #2 → epic #819 · #3 → issue #820 · #4 → issue #821 · #5 → issue #822 (citations portion shipped via #539) · #6 → issue #823 · #8 → issue #824 · #9 + #10 → issue #822 · #11 → prompt tier spec'd in issue #760, code tier in epic #818 · #12 → issue #826 · #13 → notifications slice spec'd in issue #742 · #14 (+#15, #16 behind the same seam) → issue #825. Rows #7 and #17–#32 are parked in deferred issue #827 with per-row activation triggers — nothing is built from #827 directly; when a trigger fires, promote the row to its own issue + spec.
 
 | #   | Feature                                                            | Dev-enable | Autonomy | RAG | UX/Integ | Priority           |
 | --- | ------------------------------------------------------------------ | ---------- | -------- | --- | -------- | ------------------ |
