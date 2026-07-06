@@ -159,7 +159,11 @@ function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }
       </div>
       <div className="sp-hero__match">
         <HeroSide side={game.away} />
-        <div className="sp-hero__score">
+        <div
+          className="sp-hero__score"
+          aria-live={game.state === "live" ? "polite" : undefined}
+          aria-atomic="true"
+        >
           <span className="n">{game.away.score ?? "–"}</span>
           <span className="dash">–</span>
           <span className="n">{game.home.score ?? "–"}</span>

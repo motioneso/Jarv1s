@@ -168,6 +168,8 @@ describe("SportsPage", () => {
     expect(html).toContain("21");
     // live pulse present for a live game
     expect(html).toContain("sp-livedot");
+    // live score is a scoped aria-live region so screen readers hear updates
+    expect(html).toContain('aria-live="polite"');
   });
 
   it("renders the followed-team ticker block with form pips and next match", () => {
