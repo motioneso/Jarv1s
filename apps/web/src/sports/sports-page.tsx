@@ -1,12 +1,10 @@
 import "../styles/sports-1.css";
 import "../styles/sports-3.css";
+import "../styles/sports-4-grid.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
-  FollowedLeagueRef,
-  FollowedNextMatch,
-  FollowedTeamCard,
   GameSide,
   GameSummary,
   OverviewHero,
@@ -15,27 +13,18 @@ import type {
   StandingsGroup,
   StandingsRow
 } from "@jarv1s/shared";
-import type { LocaleSettingsDto } from "@jarv1s/shared";
 
 import { getSportsOverview } from "../api/sports-client";
 import { queryKeys } from "../api/query-keys";
-import { formatDate, formatTime, useUserLocale } from "../locale/locale-format.js";
-import { CalendarIcon, Crest, FormPips, LiveDot, RationaleChip, TrophyIcon } from "./sports-parts";
-import { isFollowed, LeagueNewsSection, NewsIcon, StoryHero, TopStoriesRail } from "./sports-news";
+import { CalendarIcon, Crest, LiveDot, RationaleChip, TrophyIcon } from "./sports-parts";
+import { isFollowed, LeagueNewsSection, StoryHero, TopStoriesRail } from "./sports-news";
+import { SportsTicker } from "./sports-ticker";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
 // Matches the server's SCOREBOARD_TTL_MS cadence (packages/sports/src/sports-service.ts) without
 // over-polling once nothing is actually live (#762).
 const LIVE_REFETCH_INTERVAL_MS = 60_000;
-
-// "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2)
-function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
-  const at = next.startsAt;
-  const date = formatDate(at, locale, { weekday: "short", month: "short", day: "numeric" });
-  const time = formatTime(at, locale);
-  return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${date} · ${time}`;
-}
 
 // A still-pulsing LiveDot next to a frozen score is worse than no live indicator at all — this
 // decides whether the overview query should keep polling (#762). Exported for direct unit testing
@@ -96,12 +85,8 @@ export function SportsPage() {
 
       {hasFollows ? (
         <>
+          <SportsTicker followed={data.followed} leagues={data.followedLeagues} />
           <Hero hero={data.hero} />
-          {hasTeamFollows ? (
-            <FollowedSection followed={data.followed} />
-          ) : (
-            <FollowedLeaguesSection leagues={data.followedLeagues} />
-          )}
           <SplitSection data={data} followedPairs={followedPairs} />
           <LeagueNewsSection groups={data.leagueNews} />
         </>
@@ -208,109 +193,6 @@ function HeroSide(props: { side: GameSide }) {
       />
       <span className="sp-hero__team">{props.side.name}</span>
     </div>
-  );
-}
-
-/* ---------------------------------------------------------------- Followed teams */
-
-function FollowedSection(props: { followed: readonly FollowedTeamCard[] }) {
-  return (
-    <section className="sp-sec" aria-label="Followed teams">
-      <div className="sp-sec__head">
-        <h2 className="sp-sec__title">
-          Your teams <span className="sub">{props.followed.length} followed</span>
-        </h2>
-        <a className="sp-managebtn" href={SETTINGS_HREF}>
-          Manage
-        </a>
-      </div>
-      <div className="sp-fcgrid">
-        {props.followed.map((card) => (
-          <FollowedCard key={`${card.competitionKey}:${card.teamKey}`} card={card} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// Distinct header/state for users who only follow whole leagues (no individual teams) — never
-// shown alongside FollowedSection; the two are mutually exclusive per render (#763).
-function FollowedLeaguesSection(props: { leagues: readonly FollowedLeagueRef[] }) {
-  const count = props.leagues.length;
-  return (
-    <section className="sp-sec" aria-label="Followed leagues">
-      <div className="sp-sec__head">
-        <h2 className="sp-sec__title">
-          Following <span className="sub">{`${count} league${count === 1 ? "" : "s"}`}</span>
-        </h2>
-        <a className="sp-managebtn" href={SETTINGS_HREF}>
-          Manage
-        </a>
-      </div>
-      <div className="sp-chips">
-        {props.leagues.map((league) => (
-          <span key={league.competitionKey} className="sp-chip is-on">
-            {league.competitionLabel}
-          </span>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function FollowedCard(props: { card: FollowedTeamCard }) {
-  const { card } = props;
-  const locale = useUserLocale();
-  return (
-    <article className="sp-fc">
-      <div className="sp-fc__hd">
-        <Crest name={card.name} crestUrl={card.crestUrl} size="md" />
-        <div className="sp-fc__id">
-          <span className="sp-fc__name">{card.name}</span>
-          <span className="sp-fc__comp">{card.competitionLabel}</span>
-        </div>
-        <span className={`sp-tag sp-tag--${card.status}`}>{card.status}</span>
-      </div>
-
-      <div className="sp-fc__primary">
-        {card.status === "news" ? (
-          <>
-            <span className="sp-fc__newsic">
-              <NewsIcon />
-            </span>
-            {card.news ? (
-              <a className="sp-fc__newstx" href={card.news.url} target="_blank" rel="noreferrer">
-                {card.news.title}
-              </a>
-            ) : (
-              <span className="sp-fc__newstx">No recent news</span>
-            )}
-          </>
-        ) : (
-          <span className="sp-fc__resscore">{card.primary}</span>
-        )}
-      </div>
-
-      <div className="sp-fc__form">
-        {card.standing ? (
-          <span className="sp-fc__standing">
-            <TrophyIcon />
-            {card.standing}
-          </span>
-        ) : null}
-        <FormPips form={card.form} />
-      </div>
-
-      {card.nextMatch ? (
-        <div className="sp-fc__next">
-          <span className="sp-fc__nextlbl">
-            <CalendarIcon />
-            Next
-          </span>
-          <span className="sp-fc__nextmatch">{formatNextMatch(card.nextMatch, locale)}</span>
-        </div>
-      ) : null}
-    </article>
   );
 }
 

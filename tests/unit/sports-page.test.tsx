@@ -170,14 +170,15 @@ describe("SportsPage", () => {
     expect(html).toContain("sp-livedot");
   });
 
-  it("renders the followed-team card with form pips and next match", () => {
+  it("renders the followed-team ticker block with form pips and next match", () => {
     const html = render(makeOverview());
+    expect(html).toContain("sp-ticker");
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
     expect(html).toContain("vs Green Bay Packers");
   });
 
-  it("renders a news-status card as a link to the story", () => {
+  it("renders a news-status ticker block as a link to the story", () => {
     const html = render(
       makeOverview({
         followed: [
@@ -333,6 +334,7 @@ describe("SportsPage", () => {
     );
     expect(html).not.toContain("Follow your teams");
     expect(html).not.toContain("Choose teams to follow");
+    expect(html).toContain("sp-tk--league");
     expect(html).toContain("Following");
     expect(html).toContain("1 league");
     expect(html).toContain("Premier League");
