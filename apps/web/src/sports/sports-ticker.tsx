@@ -68,6 +68,7 @@ function TickerTeam(props: { card: FollowedTeamCard }) {
       <div className="sp-tk__hd">
         <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
         <span className="sp-tk__name">{card.name}</span>
+        <span className="sp-tk__comp">{card.competitionLabel}</span>
         {card.status === "live" ? (
           <span className="sp-tk__live">
             <LiveDot />

@@ -18,6 +18,7 @@
   overflow-x: auto;
   scrollbar-width: thin;
   /* overflow affordance: content fades at the right edge instead of clipping hard */
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 32px), transparent);
   mask-image: linear-gradient(to right, black calc(100% - 32px), transparent);
 }
 .sp-ticker__scroll:focus-visible {
@@ -72,6 +73,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.sp-tk__comp {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
 }
 .sp-tk__live {
   display: inline-flex;

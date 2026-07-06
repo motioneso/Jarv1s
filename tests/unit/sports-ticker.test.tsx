@@ -49,6 +49,8 @@ describe("SportsTicker", () => {
     expect(html).toContain("sp-formpip");
     expect(html).toContain("2nd · NFC North");
     expect(html).toContain("vs Green Bay Packers");
+    expect(html).toContain("NFL");
+    expect(html).toContain("sp-tk__comp");
   });
 
   it("renders a news-status team as a link to the story", () => {
