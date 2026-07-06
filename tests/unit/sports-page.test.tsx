@@ -395,6 +395,49 @@ describe("SportsPage", () => {
     expect(html).not.toContain("Houston Astros");
   });
 
+  it("offers all catalog leagues in the standings selector, not only ones with data", () => {
+    const html = render(makeOverview()); // overview has only one standings group
+    expect(html).toContain(">NBA<");
+    expect(html).toContain(">Premier League<");
+  });
+
+  it("renders a qualification legend from the row note (#841)", () => {
+    const html = render(
+      makeOverview({
+        standings: [
+          {
+            competitionKey: "eng.1",
+            competitionLabel: "Premier League",
+            standingsShape: "table",
+            sections: [
+              {
+                label: null,
+                rows: [
+                  {
+                    teamKey: "ars",
+                    name: "Arsenal",
+                    rank: 1,
+                    points: 40,
+                    wins: 12,
+                    losses: 2,
+                    draws: 4,
+                    winPercent: null,
+                    qualifies: true,
+                    qualificationNote: "UEFA Champions League",
+                    qualificationColor: "#2a66d1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        followedTeams: [{ competitionKey: "eng.1", teamKey: "ars" }]
+      })
+    );
+    expect(html).toContain("sp-legend");
+    expect(html).toContain("UEFA Champions League");
+  });
+
   it("renders the empty state with a follow CTA when nothing is followed", () => {
     const html = render(
       makeOverview({

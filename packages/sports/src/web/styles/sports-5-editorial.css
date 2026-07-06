@@ -114,3 +114,27 @@
 .sp-around__nav[hidden] {
   display: none;
 }
+
+/* Qualification legend under the standings table (#841): explains the sp-tbl__adv marker. */
+.sp-legend {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.sp-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.sp-legend__marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+  flex: none;
+}

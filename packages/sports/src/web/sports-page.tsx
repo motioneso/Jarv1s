@@ -4,16 +4,13 @@ import "./styles/sports-4-grid.css";
 import "./styles/sports-5-editorial.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
   FollowedTeamCard,
   GameSide,
   GameSummary,
   OverviewHero,
   ScoreboardGroup,
-  SportsOverviewResponse,
-  StandingsGroup,
-  StandingsRow
+  SportsOverviewResponse
 } from "@jarv1s/shared";
 
 import { getSportsOverview } from "./sports-client.js";
@@ -36,6 +33,7 @@ import {
 } from "./sports-news.js";
 import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
 import { AroundLeaguesTicker } from "./sports-around-ticker.js";
+import { StandingsRail } from "./sports-standings.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
@@ -397,129 +395,6 @@ function GameSideRow(props: {
       <span className="sp-game__num">{props.side.score ?? "–"}</span>
     </div>
   );
-}
-
-function StandingsRail(props: {
-  groups: readonly StandingsGroup[];
-  followedPairs: ReadonlySet<string>;
-}) {
-  const pages = props.groups.flatMap((group) =>
-    group.sections.map((section) => ({ group, section }))
-  );
-  const [pageIndex, setPageIndex] = useState(0);
-  const activeIndex = Math.min(pageIndex, pages.length - 1);
-  const page = pages[activeIndex];
-  if (!page) return null;
-  const { group, section } = page;
-  const hasPages = pages.length > 1;
-  const showPrev = () => setPageIndex((index) => (index + pages.length - 1) % pages.length);
-  const showNext = () => setPageIndex((index) => (index + 1) % pages.length);
-  const selectLeague = (competitionKey: string) => {
-    const nextIndex = pages.findIndex((p) => p.group.competitionKey === competitionKey);
-    if (nextIndex >= 0) setPageIndex(nextIndex);
-  };
-  const label = section.label ?? group.competitionLabel;
-  return (
-    <section className="sp-standings" aria-label="Standings">
-      <div className="sp-standings__hd">
-        <span className="sp-standings__title">
-          <TrophyIcon />
-          Standings
-        </span>
-        {hasPages ? (
-          <span className="sp-standings__nav">
-            <select
-              className="sp-standings__select"
-              aria-label="Select standings league"
-              value={group.competitionKey}
-              onChange={(event) => selectLeague(event.currentTarget.value)}
-            >
-              {props.groups.map((option) => (
-                <option key={option.competitionKey} value={option.competitionKey}>
-                  {option.competitionLabel}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="sp-iconbtn"
-              onClick={showPrev}
-              aria-label="Previous standings"
-            >
-              <ChevronLeft size={14} aria-hidden="true" />
-            </button>
-            <span className="sp-standings__count">
-              {activeIndex + 1}/{pages.length}
-            </span>
-            <button
-              type="button"
-              className="sp-iconbtn"
-              onClick={showNext}
-              aria-label="Next standings"
-            >
-              <ChevronRight size={14} aria-hidden="true" />
-            </button>
-          </span>
-        ) : null}
-      </div>
-      <table className="sp-tbl">
-        <thead>
-          <tr>
-            {group.standingsShape !== "record" ? <th className="pos">#</th> : null}
-            <th className="tm">{label}</th>
-            {group.standingsShape === "record" ? (
-              <>
-                <th>W-L</th>
-                <th>{section.rows.some((r) => r.points !== null) ? "Pts" : "Pct"}</th>
-              </>
-            ) : (
-              <th>Pts</th>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {section.rows.map((row) => (
-            <tr
-              key={row.teamKey}
-              className={
-                isFollowed(props.followedPairs, group.competitionKey, row.teamKey)
-                  ? "is-you"
-                  : undefined
-              }
-            >
-              {group.standingsShape !== "record" ? (
-                <td className="pos">
-                  {row.qualifies ? <span className="sp-tbl__adv" /> : null}
-                  {row.rank}
-                </td>
-              ) : null}
-              <td className="tm">
-                <span className="nm">{row.name}</span>
-              </td>
-              {group.standingsShape === "record" ? (
-                <>
-                  <td>{recordLine(row)}</td>
-                  <td>{row.points ?? formatPct(row.winPercent)}</td>
-                </>
-              ) : (
-                <td>{row.points ?? "–"}</td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
-function recordLine(row: StandingsRow): string {
-  return row.draws !== null && row.draws > 0
-    ? `${row.wins}-${row.losses}-${row.draws}`
-    : `${row.wins}-${row.losses}`;
-}
-
-function formatPct(winPercent: number | null): string {
-  return winPercent === null ? "–" : winPercent.toFixed(3).replace(/^0/, "");
 }
 
 /* ---------------------------------------------------------------- Empty state */
