@@ -89,8 +89,8 @@
 .sp-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .sp-skel {

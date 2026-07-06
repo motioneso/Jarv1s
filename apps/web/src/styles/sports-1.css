@@ -748,7 +748,7 @@
 /* ============================================================= EMPTY STATE */
 .sp-empty {
   position: relative;
-  margin-top: 24px;
+  margin-top: var(--space-6);
 }
 .sp-empty__inner {
   text-align: center;
@@ -789,7 +789,7 @@
 .sp-nofollow__btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--accent-fg);
