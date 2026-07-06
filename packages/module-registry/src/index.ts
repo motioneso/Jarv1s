@@ -194,11 +194,13 @@ import {
 } from "@jarv1s/wellness";
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 import {
-  createEspnSportsSource,
+  configureSportsBriefingService,
+  createEspnDatasetAdapter,
   registerSportsRoutes,
   sportsModuleManifest,
   sportsModuleSqlMigrationDirectory
 } from "@jarv1s/sports";
+import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
 import {
   notesModuleManifest,
   notesCommitmentProvider,
@@ -1157,14 +1159,30 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: sportsModuleManifest,
     sqlMigrationDirectories: [sportsModuleSqlMigrationDirectory],
     queueDefinitions: [],
-    registerRoutes: (server, deps) =>
-      // LOADER-SEAM(sports) 2: DI wiring + construction of the SportsSource adapter in the
-      // composition root (which concrete source lives here, not in the manifest).
+    registerRoutes: (server, deps) => {
+      // LOADER-SEAM(sports) 2: DI wiring + construction of the dataset-connector-SDK runtime
+      // client (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md) bound to the
+      // module's manifest-declared `espn` external source, in the composition root (which
+      // concrete adapter/host-pinning config applies lives here, not in the manifest itself).
+      // Sports is the sole migration case this slice, so the client is wired inline rather than
+      // via a generic per-module map on `BuiltInModuleRegistration`.
+      const [espnSource] = sportsModuleManifest.externalSources ?? [];
+      if (!espnSource) {
+        throw new Error("sports module manifest is missing its `espn` externalSources entry");
+      }
+      const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
+        fetchFn: deps.fetchFn
+      });
+      // LOADER-SEAM(sports) 3: the briefing tool (`briefing-tool.ts`) is constructed from
+      // static manifest data at import time, before this wiring runs, so it adopts the client
+      // via a late-bound setter (mirrors `adoptChatRpcConnection` above for the chat RPC path).
+      configureSportsBriefingService(datasetClient);
       registerSportsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
-        source: createEspnSportsSource(deps.fetchFn)
-      })
+        datasetClient
+      });
+    }
   },
   {
     manifest: notesModuleManifest,
@@ -1307,9 +1325,17 @@ export const LIFECYCLE_MIGRATION_PENDING: readonly string[] = [
 assertModulesCompatible(BUILT_IN_MODULES.map((module) => module.manifest));
 assertModuleRegistryConsistency(BUILT_IN_MODULES);
 
-// LOADER-SEAM(sports) 7: the web CSP img-src allowlist follows the constructed source.
-// Built from the same factory as the route wiring below so the two can never diverge.
-export const MODULE_IMAGE_CSP_HOSTS: readonly string[] = createEspnSportsSource().imageHosts;
+// LOADER-SEAM(sports) 7: the web CSP img-src allowlist is derived from every built-in module's
+// manifest-declared `externalSources[].imageHosts` (dataset-connector SDK), not from a single
+// hardcoded source factory — so it can never diverge from what routing is actually allowed to
+// fetch/render, and automatically picks up any future module that declares image hosts.
+export const MODULE_IMAGE_CSP_HOSTS: readonly string[] = Array.from(
+  new Set(
+    BUILT_IN_MODULES.flatMap((module) =>
+      (module.manifest.externalSources ?? []).flatMap((source) => source.imageHosts ?? [])
+    )
+  )
+);
 
 export function assertModuleRegistryConsistency(
   registrations: readonly BuiltInModuleRegistration[] = BUILT_IN_MODULES
@@ -1320,6 +1346,7 @@ export function assertModuleRegistryConsistency(
   );
   const routeKeys = new Map<string, string>();
   const ownedTables = new Map<string, string>();
+  const externalSourceIds = new Map<string, string>();
 
   for (const registration of registrations) {
     const moduleId = registration.manifest.id;
@@ -1337,6 +1364,22 @@ export function assertModuleRegistryConsistency(
     const moduleOwnedTables = registration.manifest.database?.ownedTables ?? [];
     for (const table of moduleOwnedTables) {
       assertUniqueRegistryKey(ownedTables, table, moduleId, "owned table");
+    }
+
+    // Dataset connector SDK (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md):
+    // registration-time validation of every module's declared external data sources. Purely
+    // manifest-driven (no adapter needed) so it applies uniformly regardless of whether a
+    // module's composition-root wiring has migrated to a `DatasetClient` yet.
+    for (const source of registration.manifest.externalSources ?? []) {
+      assertUniqueRegistryKey(externalSourceIds, source.id, moduleId, "external source id");
+      assertValidFetchHosts(source.id, source.fetchHosts);
+      if (source.credential === "api-key") {
+        throw new Error(
+          `External source "${source.id}" (module "${moduleId}") declares credential "api-key", ` +
+            "which is reserved but not yet supported — no secret storage exists for connector " +
+            "credentials in this slice (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md)"
+        );
+      }
     }
 
     const lifecycle = registration.manifest.dataLifecycle;

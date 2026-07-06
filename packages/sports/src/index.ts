@@ -5,6 +5,8 @@ export {
   sportsModuleManifest,
   sportsModuleSqlMigrationDirectory
 } from "./manifest.js";
-export { sportsFollowedFactsTodayExecute } from "./briefing-tool.js";
-export { createEspnSportsSource } from "./source/espn-source.js";
-export type { SportsSource } from "./source/sports-source.js";
+export {
+  configureSportsBriefingService,
+  sportsFollowedFactsTodayExecute
+} from "./briefing-tool.js";
+export { createEspnDatasetAdapter } from "./source/espn-source.js";

@@ -502,6 +502,70 @@ export interface JarvisModuleManifest {
   readonly proactiveMonitor?: ProactiveMonitorProvider;
   readonly personContextProvider?: PersonContextProvider;
   readonly dataLifecycle?: ModuleDataLifecycleManifest;
+  readonly externalSources?: readonly ModuleExternalSourceManifest[];
+}
+
+/**
+ * Dataset connector SDK (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md).
+ * A module declares external HTTP data sources it needs here; the `@jarv1s/datasets` runtime
+ * host executes fetches under the declared constraints (host pinning, TTL caching, staleness
+ * policy). Adapters never call global `fetch` directly — they receive a pinned `fetchFn` via
+ * {@link ExternalSourceAdapterContext}.
+ */
+export type ModuleExternalSourceCredential = "none" | "api-key";
+
+/**
+ * Context an `ExternalSourceAdapter` receives per call. `fetchFn` is already host-pinned
+ * (exact-hostname allowlist, https-only, redirect-hop re-validated) to the declaring source's
+ * `fetchHosts` — adapters must use it instead of the global `fetch`. `apiKey` is present only
+ * when the source declares `credential: "api-key"`; this slice rejects that credential at
+ * registration, so it is always absent today (reserved for a future slice).
+ */
+export interface ExternalSourceAdapterContext {
+  readonly fetchFn: typeof fetch;
+  readonly apiKey?: string;
+}
+
+/**
+ * The swappable per-source fetch contract. `datasetKey` selects one of the source's declared
+ * `datasets`; `params` is the adapter-defined (and adapter-validated) request shape for that
+ * dataset. Return value is opaque to the runtime — the module's own service layer owns typing.
+ */
+export interface ExternalSourceAdapter {
+  fetchDataset(
+    datasetKey: string,
+    params: Record<string, unknown>,
+    ctx: ExternalSourceAdapterContext
+  ): Promise<unknown>;
+}
+
+export interface ModuleDatasetManifest {
+  /** Unique within the declaring source, e.g. "scoreboard". */
+  readonly key: string;
+  readonly ttlMs: number;
+  /**
+   * "serve-stale-on-error" keeps a stale cache entry available for `staleRetentionMs` after
+   * expiry so a fetch failure can still serve it (degraded); "degrade-empty" drops the entry at
+   * TTL expiry and falls back to the caller-supplied fallback value on fetch failure.
+   */
+  readonly staleness: "serve-stale-on-error" | "degrade-empty";
+  /** serve-stale-on-error only; defaults to 6 hours. */
+  readonly staleRetentionMs?: number;
+}
+
+export interface ModuleExternalSourceManifest {
+  /** Globally unique across every built-in module; asserted at registration. */
+  readonly id: string;
+  readonly displayName: string;
+  /** OAuth is deliberately excluded (non-goal). "api-key" is reserved; registration rejects it. */
+  readonly credential: ModuleExternalSourceCredential;
+  /** Exact hostnames the adapter may hit. Lowercase, no port, no IP literal. */
+  readonly fetchHosts: readonly string[];
+  /** Aggregated into the web CSP img-src allowlist. */
+  readonly imageHosts?: readonly string[];
+  readonly datasets: readonly ModuleDatasetManifest[];
+  /** Rate-courtesy minimum interval between fetches to this source, in ms. Defaults to none. */
+  readonly minIntervalMs?: number;
 }
 
 /** Context passed to a module's data-lifecycle hooks (export collect, etc.). */

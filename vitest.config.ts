@@ -115,6 +115,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/connectors/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/datasets",
+        replacement: fileURLToPath(new URL("./packages/datasets/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/db",
         replacement: fileURLToPath(new URL("./packages/db/src/index.ts", import.meta.url))
       },
