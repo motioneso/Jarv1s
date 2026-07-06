@@ -1,6 +1,6 @@
 # Notification email digest delivery (#742)
 
-**Status:** Proposed — awaiting Ben's approval
+**Status:** Proposed — decisions recorded, pending final read-through
 **Date:** 2026-07-05
 **Tier:** routine (delivery mechanism, content-redaction discipline required)
 **Builds on:** #14, #735, docs/superpowers/specs/2026-07-04-module-notification-preferences.md, docs/superpowers/specs/2026-07-04-quiet-hours-settings-persistence.md
@@ -50,7 +50,7 @@ exists in the repo today (which turns out not to be a general-purpose "send a ne
 - No urgent/system bypass in digest either, consistent with #735 §2 ("no urgent/system bypass in
   Notifications").
 
-### 3. Sending path — the big open item
+### 3. Sending path — RESOLVED: (a), via the user's own connected account
 
 Searched the repo for any existing outbound-email capability (`sendMail`, `nodemailer`, SMTP, SES,
 Resend, Postmark). What exists:
@@ -74,30 +74,18 @@ Resend, Postmark). What exists:
   SES/Resend/Postmark account, no SMTP relay credential store for Jarvis-as-sender rather than
   user-as-sender).
 
-**Two real options, both legitimate, neither free:**
+**Decided (Ben, 2026-07-06): (a), send via the user's own connected account.** Extend
+`EmailWriteProvider` with a `sendNew`-style method (no `threadId`), address the message to the
+user's own on-file email address, and send it through whichever provider (Google/IMAP) the user
+already has connected for reading/writing email. Reasoning: no new secret type, no new vendor, stays
+inside the existing "credentials never escape" boundary that's already audited for this module. A
+user with zero email connectors configured simply cannot receive digest — per Ben, "if they don't
+have an email connected they won't need it." This is a deliberate scope narrowing, not an oversight:
+digest availability is gated on connector presence, not treated as a gap to fill.
 
-- **(a) Send via the user's own connected account.** Extend `EmailWriteProvider` with a
-  `sendNew`-style method (no `threadId`), address the message to the user's own on-file email
-  address, and send it through whichever provider (Google/IMAP) the user already has connected for
-  reading/writing email. Pro: no new secret type, no new vendor, stays inside the existing
-  "credentials never escape" boundary that's already audited for this module. Con: only works for
-  users who have connected Google or IMAP at all; a user with zero email connectors configured
-  cannot receive a digest under this option, which may be a meaningful chunk of the user base.
-- **(b) New system-level outbound sender.** Add a transactional email provider (SES/Resend/Postmark/
-  a bare SMTP relay) as Jarvis's own sending identity, independent of any user's connected accounts.
-  Pro: works for every user regardless of connector state. Con: genuinely new outbound infrastructure
-  — new secret class to encrypt/store/rotate, new failure modes, a real vendor decision, and (per
-  CLAUDE.md's "provider-agnostic" spirit applied to infra, not just AI) ideally sits behind a thin
-  `DigestEmailSender` adapter interface (`send(to, subject, text, html)`) so the vendor is swappable
-  without leaking a specific SDK into the digest compose/worker logic. This is the more scalable
-  answer but is a bigger scope item that arguably deserves sign-off as its own decision, not a detail
-  buried inside this spec.
-
-This spec does **not** pick (a) vs (b) — that's the first thing to resolve with Ben before any build
-issue is filed (see Open Questions). Whichever is chosen, the adapter boundary (`DigestEmailSender`)
-should exist either way so the digest worker never imports a vendor SDK or a connector-provider type
-directly — that satisfies the provider-agnostic guardrail without over-building a plugin system for
-a single sender.
+**(b) (new system-level outbound sender) is rejected for v1** — not pursued. If a future need for
+digest independent of connector state emerges, it would need its own spec (new secret class, vendor
+decision, `DigestEmailSender`-style adapter).
 
 ### 4. Scheduled compose job
 
@@ -133,12 +121,11 @@ a single sender.
 
 ### 6. Quiet hours and duplicate suppression
 
-- Quiet hours (#733) governs *live* notification deferral timing; digest is inherently a batched,
-  user-scheduled send, so the two don't compose the same way live push would. Proposed rule: quiet
-  hours does **not** block or shift the digest send time — the user already chose `targetTime`
-  deliberately as part of enabling digest, and that choice should be respected as-is. Flagged as an
-  open question below in case Ben wants the digest send itself deferred when `targetTime` happens to
-  fall inside the user's quiet-hours window.
+- **Decided (Ben, 2026-07-06): quiet hours does not affect digest.** Quiet hours (#733) governs
+  *in-app* notification deferral only; digest is a batched, user-scheduled send. The user's chosen
+  `targetTime` is respected as-is regardless of whether it falls inside their quiet-hours window —
+  quiet hours is not a general delivery-timing concept, it's specifically an in-app-interruption
+  control.
 - Duplicate suppression: each digest run needs a per-user watermark (`lastDigestSentAt` or a
   `lastIncludedNotificationId` high-water mark) so the same notification is never included in two
   digests. Store it alongside the digest preference row and advance it only after a confirmed
@@ -155,44 +142,61 @@ a single sender.
   system, or any cross-user send path.
 - No urgent/system bypass of module preferences for digest (consistent with #735).
 - No new category system — digest rides the existing per-module preference, not a parallel taxonomy.
-- Do not resolve the (a)-vs-(b) sending-path decision inside a build PR without Ben's sign-off first —
-  it changes secret-handling scope materially either way.
+- Sending path is decided as (a) — see §3. A future system-level sender (b) is out of scope for this
+  spec entirely and would need its own spec if ever pursued.
 - No rich HTML template engine or per-module custom email layouts in v1 — a single plain
   text/minimal-HTML digest template is sufficient for the acceptance bar below.
+- No in-job retry on send failure (see §6 duplicate suppression / decisions below) — a failed send is
+  not retried within the same job; the watermark is simply not advanced, so the next scheduled digest
+  naturally includes whatever was missed.
 
-## Open questions
+## Decisions (Ben, 2026-07-06)
 
-1. **Sending path: (a) via the user's own connected Google/IMAP account, or (b) a new system-level
-   transactional email provider?** This is the largest undecided scope item — (b) is new outbound
-   infrastructure (new secret class, new vendor decision) arguably big enough to want its own
-   milestone/spec rather than a section of this one; (a) is narrower but leaves users with no
-   connected email connector unable to receive digests at all. Needs Ben's call before a build issue
-   is filed.
-2. If (b): which vendor (SES / Resend / Postmark / bare SMTP relay), and does Jarvis's deployment
-   model (self-hosted, per CLAUDE.md's install/compose story) make a specific one clearly preferable?
-3. Cadence granularity: is `daily`/`weekly` enough, or does the issue's "user scheduling controls"
-   imply something more flexible (e.g. arbitrary N-day interval)? Recommend starting with
-   `daily`/`weekly` only and treating anything finer as a later enhancement.
-4. Quiet hours: should the digest send be deferred/shifted if the user's chosen `targetTime` falls
-   inside their quiet-hours window, or is a user-chosen send time exempt by definition (this spec's
-   default assumption in §6)?
-5. Empty-digest handling: skip the send entirely when zero eligible notifications accumulated (likely
-   yes — avoid mailbox noise), or send a "nothing new" digest? Recommend skip.
-6. What happens if the user has no verified email address on file at all (e.g. account created via a
-   flow that never captured one)? Digest toggle should probably stay disabled/unavailable in that
-   case rather than silently failing sends.
-7. Unsubscribe/one-click-disable: does the digest email itself need a direct link back to the digest
-   setting (good practice, low effort) even though this isn't a marketing email subject to CAN-SPAM
-   in the traditional sense?
-8. Retry/backoff policy on send failure — one attempt with the next scheduled digest picking up
-   anything missed (relying on the watermark), or an explicit retry within the same job?
+All open questions from the prior draft are resolved:
+
+1. **Sending path: (a)**, via the user's own connected Google/IMAP account — see §3. Also resolves
+   the "no connector configured" case: the digest toggle simply stays unavailable for that user, by
+   design, not as an error state — "if they don't have an email connected they won't need it."
+2. *(vendor choice for option (b))* — moot, dropped, since (b) was not chosen.
+3. **Cadence granularity: `daily`/`weekly` only** for v1; the user picks which. Finer-grained
+   scheduling (arbitrary N-day intervals) is a later enhancement if ever requested.
+4. **Quiet hours does not affect digest timing** — see §6. Quiet hours is an in-app-interruption
+   control, not a general delivery-timing concept; the user's chosen `targetTime` is exempt by
+   definition.
+5. **Empty-digest handling: skip.** Zero eligible notifications since the last successful send means
+   no email is sent — avoids mailbox noise from a "nothing new" message.
+6. **No verified/connected email → toggle unavailable.** Same resolution as #1 — this is not a
+   distinct failure mode to handle, it's the same "no connector, no digest" gate.
+7. **Unsubscribe/one-click-disable: yes.** The digest email includes a direct link back to the
+   digest setting in Notifications settings.
+8. **Retry/backoff: none.** No in-job retry on send failure. The watermark is only advanced on a
+   confirmed successful send, so a failed digest is silently absorbed — the next scheduled digest
+   picks up anything missed automatically. Simpler than building real retry/backoff into a periodic
+   job, and avoids duplicate-send edge cases from a partial failure.
+
+No open questions remain from the prior draft. Any further questions (exact email template wording,
+subject-line copy) are implementation details for the build PR, not spec-blocking.
 
 ## Acceptance criteria
 
 - Email digest is **not** shown as an active toggle in Notifications settings until this is actually
-  built and this spec's chosen sending path is implemented end-to-end (the #735 `Coming soon` row
-  stays as-is until then).
+  built (the #735 `Coming soon` row stays as-is until then).
 - Users can enable/disable digest and configure cadence (`daily`/`weekly`) and send time/timezone.
+- The digest toggle is unavailable (not merely non-functional) for a user with no connected
+  Google/IMAP email connector — verified by a test asserting the disabled/unavailable state, not a
+  silent send failure.
+- Digest sends through the user's own connected email connector (Google/IMAP), addressed to their
+  own on-file address, via a new `sendNew`-style `EmailWriteProvider` method — verified by a test
+  that a digest send does not require or reference any `threadId`.
+- A digest send is skipped entirely (no email sent) when zero eligible notifications have
+  accumulated since the last successful send.
+- The digest send fires at the user's chosen `targetTime`/timezone regardless of whether that time
+  falls inside their quiet-hours window — a test asserts digest delivery is unaffected by quiet-hours
+  configuration.
+- The digest email includes a working link back to the digest setting in Notifications settings.
+- A failed digest send does not retry within the job and does not advance the watermark — a test
+  simulating a failed send followed by a successful next-cycle send asserts the missed notifications
+  are included in that next digest, not dropped.
 - Digest content is gated by the same per-module notification preference used for in-app delivery —
   a module disabled in Notifications settings never appears in digest either.
 - Digest never includes a notification twice across runs (watermark-based duplicate suppression) and

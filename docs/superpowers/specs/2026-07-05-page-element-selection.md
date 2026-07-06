@@ -1,6 +1,8 @@
 # Explicit page element selection for Jarvis context (#745)
 
-**Status:** Proposed — awaiting Ben's approval
+**Status:** Parked — 2026-07-05, Ben deferred further spec work pending a clearer real-world
+use case (see open questions below — deliberately left unresolved; do not pick this back up
+without checking with Ben first)
 **Date:** 2026-07-05
 **Tier:** security-sensitive (redaction/secrets surface)
 **Builds on:** #679 / docs/superpowers/specs/2026-07-04-page-aware-chat-context.md
