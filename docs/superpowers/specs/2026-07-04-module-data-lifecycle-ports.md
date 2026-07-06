@@ -120,13 +120,27 @@ their per-module knowledge.
 
 4. **Deletion inversion** (`scripts/delete-user-data.ts:84-87`): deletion itself stays exactly
    what it is today — the single `DELETE FROM app.users` plus FK cascades; **no module code runs
-   in the script**. What changes is where the table list comes from: the script imports the
-   registry and derives its per-table count/verification list from every module's
-   `deletion.tables` (plus the platform-table list, which stays in the script — it owns platform
-   data; modules own module data). Declarations feed three checks: the registration-time parity
-   assertion (§2), the cascade-truth integration test (§2), and the script's before/after count
-   sweep — so a module whose table doesn't actually cascade is caught in CI, not discovered after
-   a deletion request.
+   in the script**. What changes is where the table list comes from: it is derived from every
+   module's `deletion.tables` (plus the platform-table list, which stays in the script — it owns
+   platform data; modules own module data).
+
+   **The script must NOT statically import `@jarv1s/module-registry`** — that would create a
+   package cycle: `packages/settings` imports `deleteUserData` from this script
+   (`me-account-routes.ts:11`, `routes.ts:41`), and `module-registry` depends on
+   `@jarv1s/settings` (`packages/module-registry/package.json`), so a static registry import
+   pulls module-registry into settings' own build graph. Instead:
+   - `deleteUserData()` gains a `moduleDeletionTables: readonly string[]` parameter — the
+     API-route callers receive the derived list from the composition root (apps/api already holds
+     the registry; thread it through `registerSettingsRoutes` deps like every other port).
+   - The CLI entrypoint derives the list via a **dynamic `import("@jarv1s/module-registry")`
+     inside the already-guarded `main()` path** (the `import.meta.url` guard at
+     `delete-user-data.ts:317-323` ensures `main()` never runs when the file is bundled into the
+     settings routes, so the dynamic import never executes — and never enters the static graph —
+     in that context).
+
+   Declarations feed three checks: the registration-time parity assertion (§2), the cascade-truth
+   integration test (§2), and the script's before/after count sweep — so a module whose table
+   doesn't actually cascade is caught in CI, not discovered after a deletion request.
 
 5. **Migration path:** Phase A: SDK field + assertions + wellness (the richest case) + sports (the
    first cascade declaration). Phase B: sweep remaining data-bearing modules (tasks, notes, goals,
