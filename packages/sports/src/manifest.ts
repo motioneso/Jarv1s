@@ -115,5 +115,15 @@ export const sportsModuleManifest = {
       inputSchema: { type: "object", properties: {} },
       execute: sportsFollowedFactsTodayExecute
     }
-  ]
+  ],
+  dataLifecycle: {
+    // Sports has no full-account export data today (follows are catalog references, not
+    // exported); declared explicitly per the parity assertion (owned tables + no export
+    // sections still requires an explicit empty exportSections).
+    exportSections: [],
+    deletion: {
+      strategy: "cascade",
+      tables: [{ table: "app.sports_follows" }]
+    }
+  }
 } satisfies JarvisModuleManifest;

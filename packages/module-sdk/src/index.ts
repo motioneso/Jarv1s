@@ -501,6 +501,58 @@ export interface JarvisModuleManifest {
   readonly focusSignal?: FocusSignalProvider;
   readonly proactiveMonitor?: ProactiveMonitorProvider;
   readonly personContextProvider?: PersonContextProvider;
+  readonly dataLifecycle?: ModuleDataLifecycleManifest;
+}
+
+/** Context passed to a module's data-lifecycle hooks (export collect, etc.). */
+export interface ModuleLifecycleContext {
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
+/**
+ * A module's contribution to full-account export and account deletion. See
+ * docs/superpowers/specs/2026-07-04-module-data-lifecycle-ports.md for the design.
+ */
+export interface ModuleDataLifecycleManifest {
+  readonly exportSections?: readonly ModuleExportSection[];
+  readonly deletion: ModuleDeletionDecl;
+}
+
+export interface ModuleExportSection {
+  /**
+   * Top-level property name under the archive's `sections` object — e.g. "wellness".
+   * The archive is nested; a section's collect() returns that exact nested object, so
+   * the assembled archive stays deep-equal to today's hand-written output.
+   */
+  readonly key: string;
+  readonly displayName: string;
+  /**
+   * Runs under the actor's own DataContextDb (RLS-scoped). `scopedDb` stays `unknown`
+   * here — module-sdk has no @jarv1s/db dependency; modules narrow it via
+   * assertDataContextDb, the established pattern for assistant tools. Returns the
+   * JSON-serializable section object (nested sub-keys included).
+   */
+  readonly collect: (scopedDb: unknown, ctx: ModuleLifecycleContext) => Promise<unknown>;
+}
+
+export interface ModuleDeletionDecl {
+  /** This slice: cascade-only. A "purge" strategy with an executable hook is deferred. */
+  readonly strategy: "cascade";
+  /** FK cascade chain to app.users, verified by an integration test (not the boot assertion). */
+  readonly tables: readonly ModuleDeletionTable[];
+}
+
+export interface ModuleDeletionTable {
+  /** e.g. "app.wellness_checkins" */
+  readonly table: string;
+  /**
+   * SQL boolean predicate over $1::uuid (the target user id) for the deletion script's
+   * before/after count sweep. Defaults to "owner_user_id = $1::uuid" — the shape most of
+   * the script's current list uses. Tables scoped differently declare theirs explicitly,
+   * e.g. "user_id = $1::uuid" or a join predicate.
+   */
+  readonly countPredicate?: string;
 }
 
 /** Boundary of text from a source that may contain commitments. */

@@ -17,6 +17,16 @@ export interface DeleteUserDataOptions {
   readonly dryRun?: boolean;
   readonly requestId?: string;
   readonly userId: string;
+  /**
+   * Module-owned deletion tables derived from `dataLifecycle.deletion.tables`
+   * (#801 Phase A). API callers get this from the composition root
+   * (`@jarv1s/module-registry`'s `getModuleDeletionTables`/`MODULE_DELETION_TABLES`);
+   * the CLI entrypoint derives it itself via a dynamic import in `main()` below —
+   * this file must never statically import `@jarv1s/module-registry` (it would
+   * create a package cycle: settings -> module-registry -> settings). Defaults to
+   * empty so existing callers/tests are unaffected until they opt in.
+   */
+  readonly moduleDeletionTables?: readonly { table: string; countPredicate: string }[];
 }
 
 export interface DeleteUserDataResult {
@@ -80,11 +90,8 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   // Shares: a user's deletion removes shares they granted AND shares granted to them
   // (both FKs are ON DELETE CASCADE — 0017).
   ["app.shares", "owner_user_id = $1::uuid OR grantee_user_id = $1::uuid"],
-  // Wellness module (0082–0089).
-  ["app.wellness_checkins", "owner_user_id = $1::uuid"],
-  ["app.medications", "owner_user_id = $1::uuid"],
-  ["app.medication_logs", "owner_user_id = $1::uuid"],
-  ["app.wellness_therapy_notes", "owner_user_id = $1::uuid"],
+  // Wellness module (0082–0089) moved to its dataLifecycle.deletion declaration
+  // (#801 Phase A, packages/wellness/src/manifest.ts) — no longer hardcoded here.
   // Memory: chunks/links/file-index/facts + the chat-memory settings/suppressions.
   // All owner_user_id / user_id ON DELETE CASCADE.
   ["app.memory_chunks", "owner_user_id = $1::uuid"],
@@ -128,11 +135,13 @@ export async function deleteUserData(
     connectionString: options.bootstrapConnectionString ?? getJarvisDatabaseUrls().bootstrap
   });
 
+  const moduleDeletionTables = options.moduleDeletionTables ?? [];
+
   await client.connect();
   try {
     await client.query("BEGIN");
 
-    const counts = await readCounts(client, options.userId);
+    const counts = await readCounts(client, options.userId, moduleDeletionTables);
 
     if (dryRun) {
       await client.query("ROLLBACK");
@@ -247,11 +256,19 @@ async function main(): Promise<void> {
     );
   }
 
+  // Dynamic import ONLY: @jarv1s/settings imports this file's deleteUserData, and
+  // @jarv1s/module-registry imports @jarv1s/settings, so a static import here would
+  // create a package cycle (settings -> module-registry -> settings). The CLI
+  // entrypoint is the one place that can safely load module-registry, since it
+  // never runs inside the settings package's own module graph.
+  const { getModuleDeletionTables } = await import("@jarv1s/module-registry");
+
   const result = await deleteUserData({
     actorUserId: args.actorUserId,
     confirmUserId: args.confirmUserId,
     dryRun: !args.execute,
-    userId: args.userId
+    userId: args.userId,
+    moduleDeletionTables: getModuleDeletionTables()
   });
 
   console.log(JSON.stringify(result, null, 2));
@@ -268,13 +285,22 @@ async function main(): Promise<void> {
 
 async function readCounts(
   client: pg.Client,
-  userId: string
+  userId: string,
+  moduleDeletionTables: readonly { table: string; countPredicate: string }[] = []
 ): Promise<Readonly<Record<string, number>>> {
   const entries: Array<readonly [string, number]> = [];
 
   for (const [table, predicate] of userScopedCountQueries) {
     const result = await client.query<{ count: string }>(
       `SELECT count(*) AS count FROM ${table} WHERE ${predicate}`,
+      [userId]
+    );
+    entries.push([table, Number(result.rows[0]?.count ?? 0)]);
+  }
+
+  for (const { table, countPredicate } of moduleDeletionTables) {
+    const result = await client.query<{ count: string }>(
+      `SELECT count(*) AS count FROM ${table} WHERE ${countPredicate}`,
       [userId]
     );
     entries.push([table, Number(result.rows[0]?.count ?? 0)]);
