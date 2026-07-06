@@ -18,7 +18,7 @@ import type {
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
-import { formatDate, useUserLocale } from "./locale.js";
+import { formatDate, formatTime, useUserLocale } from "./locale.js";
 import {
   CalendarIcon,
   Crest,
@@ -160,6 +160,7 @@ function Hero(props: { hero: OverviewHero }) {
 
 function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }) {
   const { game, competitionLabel, rationale, alsoToday } = props.hero;
+  const locale = useUserLocale();
   return (
     <section className="sp-hero sp-hero--live" aria-label="Gameday">
       <div className="sp-hero__eyebrow">
@@ -170,7 +171,9 @@ function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }
           </span>
         ) : null}
         <span className="sp-hero__comp">{competitionLabel}</span>
-        <span className="sp-hero__phase">{game.statusDetail}</span>
+        <span className="sp-hero__phase">
+          {game.state === "pre" ? formatTime(game.startsAt, locale) : game.statusDetail}
+        </span>
       </div>
       <div className="sp-hero__match">
         <HeroSide side={game.away} />
@@ -341,6 +344,7 @@ function Scoreboard(props: {
 
 function GameRow(props: { game: GameSummary; followedPairs: ReadonlySet<string> }) {
   const { game } = props;
+  const locale = useUserLocale();
   const mine =
     isFollowed(props.followedPairs, game.competitionKey, game.home.teamKey) ||
     isFollowed(props.followedPairs, game.competitionKey, game.away.teamKey);
@@ -367,7 +371,7 @@ function GameRow(props: { game: GameSummary; followedPairs: ReadonlySet<string> 
         ) : game.state === "final" ? (
           <span className="sp-game__ft">{game.statusDetail}</span>
         ) : (
-          <span className="sp-game__time">{game.statusDetail}</span>
+          <span className="sp-game__time">{formatTime(game.startsAt, locale)}</span>
         )}
       </div>
     </div>

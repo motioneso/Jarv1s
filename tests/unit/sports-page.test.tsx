@@ -201,6 +201,34 @@ describe("SportsPage", () => {
     expect(html).not.toContain("aria-atomic");
   });
 
+  it("renders pre-game match times in a clock format, not the raw source status", () => {
+    const preGame: GameSummary = {
+      ...liveGame(),
+      id: "g-pre",
+      state: "pre",
+      statusDetail: "SOURCE_PREGAME_STRING",
+      startsAt: "2026-07-01T23:20:00Z",
+      home: { ...liveGame().home, score: null },
+      away: { ...liveGame().away, score: null }
+    };
+    const html = render(
+      makeOverview({
+        hero: {
+          mode: "gameday",
+          game: preGame,
+          competitionLabel: "NFL",
+          rationale: "You follow the Vikings — they play today",
+          alsoToday: null
+        },
+        scoreboard: [{ competitionKey: "nfl", competitionLabel: "NFL", games: [preGame] }]
+      })
+    );
+
+    expect(html).not.toContain("SOURCE_PREGAME_STRING");
+    expect(html).toContain('<span class="sp-hero__phase">16:20</span>');
+    expect(html).toContain('<span class="sp-game__time">16:20</span>');
+  });
+
   it("renders the followed-team ticker block with form pips and next match", () => {
     const html = render(makeOverview());
     expect(html).toContain("sp-ticker");
