@@ -3,7 +3,9 @@ import { fileURLToPath } from "node:url";
 
 import pg from "pg";
 
+import { isPinnableHost } from "@jarv1s/datasets";
 import { getJarvisDatabaseUrls } from "@jarv1s/db";
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 
 const { Client } = pg;
 
@@ -121,11 +123,45 @@ export interface AppSchemaTableRlsState {
   readonly tableName: string;
 }
 
+/**
+ * externalSources host-list sweep (docs/superpowers/specs/2026-07-04-module-dataset-connector-
+ * sdk.md, Verification). Registration-time `assertModuleRegistryConsistency` already rejects an
+ * invalid `fetchHost` before the composition root can boot, so every module reachable here has
+ * already passed — this is a defense-in-depth re-check using the same `isPinnableHost` predicate,
+ * so drift between the two call sites (or a future bypass of the registration gate) surfaces here
+ * too, not just at boot.
+ */
+export interface ExternalSourceHostAudit {
+  readonly moduleId: string;
+  readonly sourceId: string;
+  readonly fetchHosts: readonly string[];
+  readonly imageHosts: readonly string[];
+  readonly valid: boolean;
+}
+
+function auditExternalSourceHosts(): readonly ExternalSourceHostAudit[] {
+  const audits: ExternalSourceHostAudit[] = [];
+  for (const manifest of getBuiltInModuleManifests()) {
+    for (const source of manifest.externalSources ?? []) {
+      const hosts = [...source.fetchHosts, ...(source.imageHosts ?? [])];
+      audits.push({
+        moduleId: manifest.id,
+        sourceId: source.id,
+        fetchHosts: source.fetchHosts,
+        imageHosts: source.imageHosts ?? [],
+        valid: hosts.length > 0 && hosts.every((host) => isPinnableHost(host))
+      });
+    }
+  }
+  return audits;
+}
+
 export interface ReleaseHardeningAuditReport {
   readonly adminAuditPrivileges: AdminAuditPrivileges;
   readonly appSchemaCoverage: readonly AppSchemaTableRlsState[];
   readonly authSecretTables: readonly AuthSecretTableAudit[];
   readonly authOwnerTable: readonly AuthSecretTableAudit[];
+  readonly externalSources: readonly ExternalSourceHostAudit[];
   readonly failures: readonly string[];
   readonly passed: boolean;
   readonly protectedTables: readonly ProtectedTableAudit[];
@@ -149,21 +185,31 @@ export async function auditReleaseHardening(
     const authOwnerTableAudits = await readAuthSecretAudits(client, [...authOwnerTable]);
     const adminAuditPrivileges = await readAdminAuditPrivileges(client);
     const appSchemaCoverage = await readAllAppSchemaTables(client);
-    const failures = collectFailures(
-      roles,
-      tableAudits,
-      transientTableAudits,
-      authSecretTableAudits,
-      authOwnerTableAudits,
-      adminAuditPrivileges,
-      appSchemaCoverage
-    );
+    const externalSources = auditExternalSourceHosts();
+    const failures = [
+      ...collectFailures(
+        roles,
+        tableAudits,
+        transientTableAudits,
+        authSecretTableAudits,
+        authOwnerTableAudits,
+        adminAuditPrivileges,
+        appSchemaCoverage
+      ),
+      ...externalSources
+        .filter((source) => !source.valid)
+        .map(
+          (source) =>
+            `external source "${source.sourceId}" (module "${source.moduleId}") declares an invalid host`
+        )
+    ];
 
     return {
       adminAuditPrivileges,
       appSchemaCoverage,
       authSecretTables: authSecretTableAudits,
       authOwnerTable: authOwnerTableAudits,
+      externalSources,
       failures,
       passed: failures.length === 0,
       protectedTables: tableAudits,

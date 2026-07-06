@@ -41,6 +41,7 @@ const packagesRoot = join(process.cwd(), "packages");
 const PLATFORM_PACKAGES = new Set([
   "@jarv1s/ai", // provider-agnostic AI capability router (CLAUDE.md invariant), not a feature
   "@jarv1s/auth",
+  "@jarv1s/datasets", // dataset connector SDK runtime host (host pinning, cache, TTL) — infra, not a product domain
   "@jarv1s/db",
   "@jarv1s/jobs",
   "@jarv1s/memory",

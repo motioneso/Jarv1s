@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 
+import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import type {
@@ -14,7 +15,72 @@ import {
   registerSportsRoutes,
   type SportsRoutesDependencies
 } from "../../packages/sports/src/routes.js";
-import type { SportsSource } from "../../packages/sports/src/source/sports-source.js";
+import type {
+  SourceHeadline,
+  SourceTeamRef,
+  StandingsTable
+} from "../../packages/sports/src/source/sports-source.js";
+
+/**
+ * A fake `DatasetClient` dispatching by dataset key, mirroring the shape the retired
+ * directly-injected `SportsSource` fixture used (`listTeams`/`getScoreboard`/etc), so the
+ * per-test overrides below stay close to their pre-migration form. Errors thrown by a handler
+ * are caught here (as the real `createDatasetClient` does) and reported as `degraded: true`
+ * with the caller-supplied fallback.
+ */
+interface FakeSourceHandlers {
+  listTeams?: (competitionKey: string) => Promise<SourceTeamRef[]>;
+  getScoreboard?: (competitionKey: string, day: string) => Promise<GameSummary[]>;
+  getSchedule?: (teamKey: string, competitionKey: string) => Promise<GameSummary[]>;
+  getStandings?: (competitionKey: string) => Promise<StandingsTable>;
+  getHeadlines?: (competitionKey: string) => Promise<SourceHeadline[]>;
+}
+
+function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
+  return {
+    async getDataset<T>(
+      datasetKey: string,
+      params: Record<string, unknown>,
+      options: { fallback: T }
+    ): Promise<DatasetEnvelope<T>> {
+      try {
+        let data: unknown;
+        switch (datasetKey) {
+          case "teams":
+            data = await (handlers.listTeams ?? (async () => []))(params.competitionKey as string);
+            break;
+          case "scoreboard":
+            data = await (handlers.getScoreboard ?? (async () => []))(
+              params.competitionKey as string,
+              params.day as string
+            );
+            break;
+          case "schedule":
+            data = await (handlers.getSchedule ?? (async () => []))(
+              params.teamKey as string,
+              params.competitionKey as string
+            );
+            break;
+          case "standings":
+            data = await (handlers.getStandings ?? (async () => ({ sections: [] })))(
+              params.competitionKey as string
+            );
+            break;
+          case "headlines":
+            data = await (handlers.getHeadlines ?? (async () => []))(
+              params.competitionKey as string
+            );
+            break;
+          default:
+            throw new Error(`unknown dataset "${datasetKey}"`);
+        }
+        return { data: data as T, degraded: false, fetchedAt: new Date().toISOString() };
+      } catch {
+        return { data: options.fallback, degraded: true, fetchedAt: new Date().toISOString() };
+      }
+    }
+  };
+}
 
 const userA: AccessContext = {
   actorUserId: "00000000-0000-0000-0000-00000000000a",
@@ -42,9 +108,8 @@ const dalLiveGame: GameSummary = {
   away: side({ teamKey: "min", shortName: "MIN", name: "Minnesota Vikings", score: 14 })
 };
 
-function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
-  return {
-    imageHosts: [],
+function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
+  return makeDatasetClient({
     listTeams: async (competitionKey) => [
       {
         teamKey: "dal",
@@ -60,7 +125,7 @@ function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
     getStandings: async () => ({ sections: [] }),
     getHeadlines: async () => [],
     ...overrides
-  };
+  });
 }
 
 interface FakeRepo {
@@ -107,7 +172,7 @@ function buildApp(overrides: Partial<SportsRoutesDependencies> & { repo?: FakeRe
     ]);
   const app = Fastify();
   const deps: SportsRoutesDependencies = {
-    source: overrides.source ?? makeSource(),
+    datasetClient: overrides.datasetClient ?? makeSource(),
     dataContext: {
       withDataContext: async <T>(_ac: AccessContext, work: (db: DataContextDb) => Promise<T>) =>
         work({} as DataContextDb)

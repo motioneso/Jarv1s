@@ -1,17 +1,79 @@
 import { describe, expect, it } from "vitest";
 
+import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import type { GameSide, GameSummary, SportsFollowDto } from "@jarv1s/shared";
 
 import type {
   SourceHeadline,
-  SportsSource,
+  SourceTeamRef,
   StandingsTable
 } from "../../packages/sports/src/source/sports-source.js";
 import {
   SportsService,
   type SportsServiceDependencies
 } from "../../packages/sports/src/sports-service.js";
+
+/**
+ * A fake `DatasetClient` dispatching by dataset key, mirroring the shape the retired
+ * directly-injected `SportsSource` fixture used (`listTeams`/`getScoreboard`/etc). Errors thrown
+ * by a handler are caught here (as the real `createDatasetClient` does) and reported as
+ * `degraded: true` with the caller-supplied fallback — preserving the service's pre-migration
+ * "never throws, degrades instead" contract for these tests.
+ */
+interface FakeSourceHandlers {
+  listTeams?: (competitionKey: string) => Promise<SourceTeamRef[]>;
+  getScoreboard?: (competitionKey: string, day: string) => Promise<GameSummary[]>;
+  getSchedule?: (teamKey: string, competitionKey: string) => Promise<GameSummary[]>;
+  getStandings?: (competitionKey: string) => Promise<StandingsTable>;
+  getHeadlines?: (competitionKey: string) => Promise<SourceHeadline[]>;
+}
+
+function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
+  return {
+    async getDataset<T>(
+      datasetKey: string,
+      params: Record<string, unknown>,
+      options: { fallback: T }
+    ): Promise<DatasetEnvelope<T>> {
+      try {
+        let data: unknown;
+        switch (datasetKey) {
+          case "teams":
+            data = await (handlers.listTeams ?? (async () => []))(params.competitionKey as string);
+            break;
+          case "scoreboard":
+            data = await (handlers.getScoreboard ?? (async () => []))(
+              params.competitionKey as string,
+              params.day as string
+            );
+            break;
+          case "schedule":
+            data = await (handlers.getSchedule ?? (async () => []))(
+              params.teamKey as string,
+              params.competitionKey as string
+            );
+            break;
+          case "standings":
+            data = await (handlers.getStandings ?? (async () => ({ sections: [] })))(
+              params.competitionKey as string
+            );
+            break;
+          case "headlines":
+            data = await (handlers.getHeadlines ?? (async () => []))(
+              params.competitionKey as string
+            );
+            break;
+          default:
+            throw new Error(`unknown dataset "${datasetKey}"`);
+        }
+        return { data: data as T, degraded: false, fetchedAt: new Date().toISOString() };
+      } catch {
+        return { data: options.fallback, degraded: true, fetchedAt: new Date().toISOString() };
+      }
+    }
+  };
+}
 
 const FIXED_NOW = new Date("2026-07-01T18:00:00.000Z");
 const TODAY = "2026-07-01";
@@ -137,27 +199,26 @@ const dalTeamFollow: SportsFollowDto = {
   createdAt: "2026-06-01T00:00:00.000Z"
 };
 
-function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
-  return {
-    imageHosts: [],
+function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
+  return makeDatasetClient({
     listTeams: async () => [],
     getScoreboard: async () => [dalLiveGame],
     getSchedule: async () => dalSchedule,
     getStandings: async () => nflStandings,
     getHeadlines: async () => nflHeadlines,
     ...overrides
-  };
+  });
 }
 
 function makeDeps(
   overrides: {
-    source?: SportsSource;
+    source?: DatasetClient;
     follows?: SportsFollowDto[];
   } = {}
 ): SportsServiceDependencies {
   const follows = overrides.follows ?? [dalTeamFollow];
   return {
-    source: overrides.source ?? makeSource(),
+    datasetClient: overrides.source ?? makeSource(),
     dataContext: {
       withDataContext: async <T>(_ac: AccessContext, work: (db: DataContextDb) => Promise<T>) =>
         work({} as DataContextDb)

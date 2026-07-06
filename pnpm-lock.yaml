@@ -468,6 +468,12 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1
 
+  packages/datasets:
+    dependencies:
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
+
   packages/db:
     dependencies:
       kysely:
@@ -605,6 +611,9 @@ importers:
       '@jarv1s/connectors':
         specifier: workspace:*
         version: link:../connectors
+      '@jarv1s/datasets':
+        specifier: workspace:*
+        version: link:../datasets
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
@@ -866,6 +875,9 @@ importers:
 
   packages/sports:
     dependencies:
+      '@jarv1s/datasets':
+        specifier: workspace:*
+        version: link:../datasets
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db

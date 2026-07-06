@@ -17,6 +17,7 @@
     "@jarv1s/cli-runner": "workspace:*",
     "@jarv1s/commitments": "workspace:*",
     "@jarv1s/connectors": "workspace:*",
+    "@jarv1s/datasets": "workspace:*",
     "@jarv1s/db": "workspace:*",
     "@jarv1s/email": "workspace:*",
     "@jarv1s/goals": "workspace:*",
