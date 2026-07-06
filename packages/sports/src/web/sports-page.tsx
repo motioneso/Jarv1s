@@ -35,6 +35,7 @@ import {
   TopStoriesRail
 } from "./sports-news.js";
 import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
+import { AroundLeaguesTicker } from "./sports-around-ticker.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
@@ -103,6 +104,7 @@ export function SportsPage() {
       {hasFollows ? (
         <>
           <SportsTicker followed={data.followed} leagues={data.followedLeagues} />
+          <AroundLeaguesTicker groups={data.scoreboard} />
           <Hero hero={data.hero} />
           <SplitSection data={data} followedPairs={followedPairs} />
           <LeagueNewsSection groups={data.leagueNews} />

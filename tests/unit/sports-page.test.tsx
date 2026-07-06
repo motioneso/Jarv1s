@@ -225,6 +225,33 @@ describe("SportsPage", () => {
     expect(html).toContain("Cowboys clinch the division");
   });
 
+  it("renders the around-the-leagues scores strip with one label per league group", () => {
+    const html = render(
+      makeOverview({
+        scoreboard: [
+          { competitionKey: "nfl", competitionLabel: "NFL", games: [liveGame()] },
+          {
+            competitionKey: "nba",
+            competitionLabel: "NBA",
+            games: [
+              {
+                ...liveGame(),
+                id: "g2",
+                competitionKey: "nba",
+                state: "final",
+                statusDetail: "Final"
+              }
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("sp-around");
+    expect(html).toContain("sp-around__league"); // league label rendered once per group
+    expect(html).toContain("Scroll left");
+    expect(html).toContain("Scroll right");
+  });
+
   it("marks a followed team in the standings and scoreboard (is-you / is-mine)", () => {
     const html = render(
       makeOverview({
