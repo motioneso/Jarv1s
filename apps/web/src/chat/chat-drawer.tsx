@@ -19,6 +19,7 @@ import { type KeyboardEvent, type UIEvent, useCallback, useEffect, useRef, useSt
 
 import { BrandMark } from "../shell/brand-mark";
 
+import { maybeCapturePageContext } from "./page-context";
 import {
   cancelChatTurn,
   clearChat,
@@ -188,7 +189,7 @@ export function ChatDrawer(props: {
       setPendingUserText(trimmed);
       void (async () => {
         try {
-          const result = await sendChatTurn(trimmed);
+          const result = await sendChatTurn(trimmed, maybeCapturePageContext(trimmed)); // #679
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
             { kind: "user", text: trimmed, messageId: result.userMessageId },
@@ -295,8 +296,7 @@ export function ChatDrawer(props: {
       setDrainAfterStopText(queuedText);
     }
     void cancelChatTurn().catch(() => {
-      // best-effort: the turn ends server-side regardless; a network error here just means the
-      // local isSending flag clears when the POST /turn promise settles.
+      // best-effort: the turn ends server-side regardless; a network error here just clears isSending.
     });
   };
 

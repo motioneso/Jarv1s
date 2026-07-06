@@ -98,6 +98,7 @@ import type {
   MedicationScheduleResponse,
   MeResponse,
   OnboardingStatusResponse,
+  PageContextSnapshotDto,
   OnboardingCompleteResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
@@ -633,10 +634,19 @@ export async function putChatSettings(
   });
 }
 
-export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
+/**
+ * #679 — `pageContext` is a bounded, redacted snapshot of what the user currently sees
+ * (see apps/web/src/chat/page-context.ts), attached ONLY when the caller decides the
+ * message is asking about the current page. Optional and best-effort: the server
+ * silently drops a malformed/oversized value rather than rejecting the turn.
+ */
+export async function sendChatTurn(
+  text: string,
+  pageContext?: PageContextSnapshotDto
+): Promise<SendChatTurnResponse> {
   return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
-    body: { text }
+    body: pageContext ? { text, pageContext } : { text }
   });
 }
 
