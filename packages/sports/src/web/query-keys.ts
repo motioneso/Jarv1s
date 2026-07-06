@@ -8,5 +8,6 @@
 export const sportsQueryKeys = {
   overview: ["sports", "overview"] as const,
   catalog: ["sports", "catalog"] as const,
-  follows: ["sports", "follows"] as const
+  follows: ["sports", "follows"] as const,
+  standings: (competitionKey: string) => ["sports", "standings", competitionKey] as const
 };

@@ -169,6 +169,11 @@ export interface SportsFollowsResponse {
   readonly follows: readonly SportsFollowDto[];
 }
 
+/** `GET /api/sports/standings?competitionKey=<key>` response (#842). */
+export interface SportsStandingsResponse {
+  readonly group: StandingsGroup;
+}
+
 export interface CreateSportsFollowRequest {
   readonly competitionKey: string;
   readonly teamKey?: string | null;
@@ -524,6 +529,29 @@ export const sportsFollowsResponseSchema = {
         follows: { type: "array", items: followDtoSchema }
       }
     },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const sportsStandingsResponseSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    required: ["competitionKey"],
+    properties: {
+      competitionKey: { type: "string", minLength: 1, maxLength: 100 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["group"],
+      properties: {
+        group: standingsGroupSchema
+      }
+    },
+    400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;

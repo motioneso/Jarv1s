@@ -357,4 +357,55 @@ describe("sports routes", () => {
     expect(res.body).toContain("#2a66d1");
     await app.close();
   });
+
+  it("GET /api/sports/standings returns one league's group (#842)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        getStandings: async () => ({
+          sections: [
+            {
+              label: "AFC East",
+              rows: [
+                {
+                  teamKey: "buf",
+                  name: "Buffalo Bills",
+                  rank: 1,
+                  points: null,
+                  wins: 11,
+                  losses: 3,
+                  draws: null,
+                  winPercent: 0.786,
+                  qualifies: true,
+                  qualificationNote: null,
+                  qualificationColor: null
+                }
+              ]
+            }
+          ]
+        })
+      })
+    });
+    await app.ready();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sports/standings?competitionKey=nfl"
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.group.competitionKey).toBe("nfl");
+    expect(body.group.competitionLabel).toBe("NFL");
+    expect(body.group.sections[0].label).toBe("AFC East");
+    await app.close();
+  });
+
+  it("GET /api/sports/standings rejects an unknown competitionKey with 400 (#842)", async () => {
+    const { app } = buildApp();
+    await app.ready();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sports/standings?competitionKey=xyz.nope"
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

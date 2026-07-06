@@ -9,6 +9,7 @@ import {
   sportsCatalogResponseSchema,
   sportsFollowsResponseSchema,
   sportsOverviewResponseSchema,
+  sportsStandingsResponseSchema,
   type CreateSportsFollowRequest,
   type SportsFollowDto
 } from "@jarv1s/shared";
@@ -74,6 +75,24 @@ export function registerSportsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         return await service.getOverview(accessContext);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/sports/standings",
+    { schema: sportsStandingsResponseSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const { competitionKey } = request.query as { competitionKey: string };
+        if (!catalogEntry(competitionKey)) {
+          throw new HttpError(400, `Unknown competition: ${competitionKey}`);
+        }
+        const group = await service.getStandings(competitionKey);
+        return { group };
       } catch (error) {
         return handleRouteError(error, reply);
       }
