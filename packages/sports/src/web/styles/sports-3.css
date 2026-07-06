@@ -16,60 +16,6 @@
   text-underline-offset: 0.2em;
 }
 
-.sp-news__grp {
-  margin-top: var(--space-4);
-}
-
-.sp-news__comp {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
-.sp-news__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0 var(--space-6);
-  margin-top: var(--space-2);
-}
-
-.sp-news__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--border-subtle);
-  text-decoration: none;
-  transition: var(--transition-control);
-}
-
-.sp-news__card:hover {
-  background: var(--surface-2);
-}
-
-.sp-news__img {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border-radius: 0;
-  background: var(--surface-2);
-}
-
-.sp-news__title {
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  line-height: 1.35;
-  color: var(--text);
-}
-
-.sp-news__date {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  color: var(--text-faint);
-}
-
 /* Degraded-source notice (#765 M1) — hairline treatment, same copy and role="status". A straight
    2px functional status rule (not the banned curved/rounded card accent) — same family as the
    task-priority borders. */
@@ -105,11 +51,6 @@
 
 .sp-skel--hero {
   height: 180px;
-}
-
-.sp-skel--row {
-  height: 64px;
-  border-top: 1px solid var(--border-subtle);
 }
 
 @media (prefers-reduced-motion: no-preference) {

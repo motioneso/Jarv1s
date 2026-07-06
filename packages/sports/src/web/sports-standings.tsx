@@ -56,6 +56,13 @@ export function StandingsRail(props: {
         ).values()
       )
     : [];
+  // Structural (not color) differentiator between distinct notes — e.g. Champions League vs.
+  // relegation — so the legend is matchable to rows and a relegation row can't be mistaken for
+  // a qualification row. The exact color treatment for `qualificationColor` is a deferred design
+  // pass (#841); this is index/number-based only.
+  const noteIndex = new Map(
+    legendNotes.map((row, index) => [row.qualificationNote as string, index + 1])
+  );
 
   return (
     <section className="sp-standings" aria-label="Standings">
@@ -110,6 +117,7 @@ export function StandingsRail(props: {
           section={section}
           label={label}
           followedPairs={props.followedPairs}
+          noteIndex={noteIndex}
         />
       ) : (
         <p className="sp-standings__empty">
@@ -118,9 +126,11 @@ export function StandingsRail(props: {
       )}
       {legendNotes.length > 0 ? (
         <ul className="sp-legend" aria-label="Qualification key">
-          {legendNotes.map((row) => (
+          {legendNotes.map((row, index) => (
             <li className="sp-legend__item" key={row.qualificationNote}>
-              <span className="sp-legend__marker" aria-hidden="true" />
+              <span className="sp-legend__marker" aria-hidden="true">
+                {index + 1}
+              </span>
               {row.qualificationNote}
             </li>
           ))}
@@ -135,8 +145,9 @@ function StandingsTable(props: {
   section: StandingsSection;
   label: string;
   followedPairs: ReadonlySet<string>;
+  noteIndex: ReadonlyMap<string, number>;
 }) {
-  const { group, section, label } = props;
+  const { group, section, label, noteIndex } = props;
   return (
     <table className="sp-tbl">
       <thead>
@@ -165,7 +176,14 @@ function StandingsTable(props: {
           >
             {group.standingsShape !== "record" ? (
               <td className="pos">
-                {row.qualifies ? <span className="sp-tbl__adv" /> : null}
+                {row.qualifies ? (
+                  <span className="sp-tbl__adv" title={row.qualificationNote ?? undefined}>
+                    {row.qualificationNote ? noteIndex.get(row.qualificationNote) : "•"}
+                    {row.qualificationNote ? (
+                      <span className="sp-tbl__advtext"> — {row.qualificationNote}</span>
+                    ) : null}
+                  </span>
+                ) : null}
                 {row.rank}
               </td>
             ) : null}

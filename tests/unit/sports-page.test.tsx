@@ -285,6 +285,10 @@ describe("SportsPage", () => {
     expect(html).toContain("sp-around__league"); // league label rendered once per group
     expect(html).toContain("Scroll left");
     expect(html).toContain("Scroll right");
+    // #841 fix: live and final games surface the source statusDetail (clock/period, "Final"),
+    // not just the raw score — a bare score alone can't tell a live game from a final one.
+    expect(html).toContain("Q3 4:12");
+    expect(html).toContain("Final");
   });
 
   it("marks a followed team in the standings and scoreboard (is-you / is-mine)", () => {
@@ -442,6 +446,88 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("sp-legend");
     expect(html).toContain("UEFA Champions League");
+  });
+
+  it("differentiates relegation from qualification structurally, not by color (#841)", () => {
+    const html = render(
+      makeOverview({
+        standings: [
+          {
+            competitionKey: "eng.1",
+            competitionLabel: "Premier League",
+            standingsShape: "table",
+            sections: [
+              {
+                label: null,
+                rows: [
+                  {
+                    teamKey: "ars",
+                    name: "Arsenal",
+                    rank: 1,
+                    points: 40,
+                    wins: 12,
+                    losses: 2,
+                    draws: 4,
+                    winPercent: null,
+                    qualifies: true,
+                    qualificationNote: "UEFA Champions League",
+                    qualificationColor: "#2a66d1"
+                  },
+                  {
+                    teamKey: "shf",
+                    name: "Sheffield Town",
+                    rank: 20,
+                    points: 22,
+                    wins: 5,
+                    losses: 20,
+                    draws: 3,
+                    winPercent: null,
+                    qualifies: true,
+                    qualificationNote: "Relegation",
+                    qualificationColor: "#c1272d"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    );
+    // both notes get their own legend entry with a distinct numeral marker
+    expect(html).toContain("UEFA Champions League");
+    expect(html).toContain("Relegation");
+    const markerMatches = [...html.matchAll(/sp-legend__marker[^>]*>(\d+)</g)].map((m) => m[1]);
+    expect(markerMatches).toEqual(["1", "2"]);
+    // qualificationColor is carried by the API but the color treatment is a deferred design
+    // pass — the fix must not paint it, so the hex values must not leak into rendered markup.
+    expect(html).not.toContain("#2a66d1");
+    expect(html).not.toContain("#c1272d");
+  });
+
+  it("shows an image for only the first headline in a news-band league group (#841)", () => {
+    const html = render(
+      makeOverview({
+        leagueNews: [
+          {
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            headlines: [
+              headline("nb1", "nfl", "Cowboys sign veteran lineman", {
+                imageUrl: "https://a.espncdn.com/photo/nb1.jpg"
+              }),
+              headline("nb2", "nfl", "Giants extend head coach", {
+                imageUrl: "https://a.espncdn.com/photo/nb2.jpg"
+              })
+            ]
+          }
+        ]
+      })
+    );
+    // both headlines carry an imageUrl from the source, but only the group's lead story gets
+    // a thumbnail in the band (spec: "at most one lead thumbnail per group").
+    expect(html).toContain('src="https://a.espncdn.com/photo/nb1.jpg"');
+    expect(html).not.toContain('src="https://a.espncdn.com/photo/nb2.jpg"');
+    expect(html.match(/sp-newsband__img/g)).toHaveLength(1);
   });
 
   it("renders the empty state with a follow CTA when nothing is followed", () => {

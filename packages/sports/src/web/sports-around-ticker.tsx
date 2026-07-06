@@ -6,15 +6,14 @@ import { formatTime, useUserLocale } from "./locale.js";
 
 function scoreLabel(game: GameSummary, locale: LocaleSettingsDto): string {
   if (game.state === "pre") return formatTime(game.startsAt, locale);
-  const away = game.away.score ?? 0;
-  const home = game.home.score ?? 0;
-  return `${game.away.shortName} ${away}–${home} ${game.home.shortName}`;
+  const away = game.away.score ?? "–";
+  const home = game.home.score ?? "–";
+  return `${game.away.shortName} ${away}–${home} ${game.home.shortName} · ${game.statusDetail}`;
 }
 
 // Second, denser scores strip under the followed-teams ticker: every league's games in one
-// horizontally-scrollable row, grouped by competition (#839 task 5). Distinct from the
-// chip-filtered <Scoreboard> section below the hero — this is an at-a-glance "everything that's
-// on" strip, not a browseable list.
+// horizontally-scrollable row, grouped by competition (#839). Complements the hero above it —
+// this is an at-a-glance "everything that's on" strip, not a browseable list.
 export function AroundLeaguesTicker({ groups }: { readonly groups: readonly ScoreboardGroup[] }) {
   const locale = useUserLocale();
   const scrollRef = useRef<HTMLDivElement>(null);

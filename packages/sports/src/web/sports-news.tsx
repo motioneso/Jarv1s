@@ -126,9 +126,9 @@ export function NewsBand({ groups }: { readonly groups: readonly LeagueNewsGroup
       </div>
       <div className="sp-newsband__grid">
         {shown.flatMap((group) =>
-          group.headlines.map((headline) => (
-            <article className="sp-newsband__card" key={headline.id}>
-              {headline.imageUrl ? (
+          group.headlines.map((headline, index) => (
+            <article className="sp-newsband__card" key={`${group.competitionKey}:${headline.id}`}>
+              {index === 0 && headline.imageUrl ? (
                 <img className="sp-newsband__img" src={headline.imageUrl} alt="" loading="lazy" />
               ) : null}
               <span className="sp-hl__comp">{group.competitionLabel}</span>
