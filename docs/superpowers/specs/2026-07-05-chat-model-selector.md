@@ -1,14 +1,19 @@
 # Chat model selector in chat (#759)
 
-**Status:** Proposed — awaiting Ben's approval
+**Status:** Proposed — decisions recorded, pending final read-through
 **Date:** 2026-07-05
 **Tier:** routine
 **Builds on:** the existing chat model override feature — `packages/ai/src/chat-model-override.ts`
 (`resolveChatModelOverride`), `AiRepository.getChatModelOverridePreference` /
 `setChatModelOverridePreference` (`packages/ai/src/repository.ts`), routes
 `GET`/`PUT /api/ai/chat-model-override` (`packages/ai/src/routes.ts`), and the current Settings UI
-at `apps/web/src/settings/settings-ai-pane.tsx` (`ChatModel` component). This is shipped and working
-today, just not surfaced in the chat UI itself.
+at `apps/web/src/settings/settings-ai-pane.tsx` (`ChatModel` component). It also builds on existing
+admin/provider infrastructure: configured model rows already carry `providerId`
+(`packages/ai/src/repository.ts`, `CreateAiProviderInput` / provider linkage on
+`ai_configured_models`), provider model discovery already exists through
+`ModelDiscoveryService.discoverModels` and `GET`/`POST /api/ai/providers/:id/.../discover-models`
+(`packages/ai/src/provider-validation-routes.ts`), and capability pinning already exists through
+`PUT /api/ai/capability-routes/:capability` (`packages/ai/src/capability-route-routes.ts`).
 
 ## Problem
 
@@ -19,87 +24,125 @@ and going to **Settings → AI → Chat model**, where a dropdown lets them pick
 feature requests the `chat` capability — it is not read as a per-turn parameter, and
 `POST /api/chat/turn` never receives a model ID.
 
-Issue #759 asks for this control to live directly in the chat surface, and specifies a stronger
-behavior than the Settings pane currently has: changing the model should start a new chat, not
-just change what powers the rest of the current thread.
+Issue #759 asks for this control to live directly in the chat surface. The important product line
+is provider identity:
+
+- Selecting a different model from the same provider as the current chat's model behaves like a
+  CLI `/model` command. The current thread continues; subsequent answers come from the newly
+  selected model.
+- Selecting a model from a different provider starts a new chat session under that provider/model.
+  The current thread's context/history does not carry over. This is a hard technical/product line,
+  not a preference.
+
+The admin side also has shipped pieces that are not yet exposed as the primary workflow for chat:
+admins can discover provider models through live provider APIs, and admins can pin a specific model
+to the `chat` capability instance-wide. The gap is UI/workflow glue, not a new model-resolution
+architecture.
 
 ## Scope
 
-- Add a model selector to the chat drawer (`apps/web/src/chat/chat-drawer.tsx`), sourced from the
-  same data the Settings pane already fetches from `GET /api/ai/chat-model-override`
-  (`defaultModel`, `selectableOverrideModels`, `overrideEnabled`, `currentOverrideModelId`) — no new
-  backend endpoint, no new model-listing logic.
-- Selecting a model in the chat header does two things, both using existing machinery:
-  1. Calls `PUT /api/ai/chat-model-override` with the chosen `modelId` (same mutation
-     `settings-ai-pane.tsx` already uses) to persist it as the user's override preference.
-  2. Runs the existing `startNewChat()` flow already wired to the drawer's "New chat" button
-     (`clearChat()` + `props.clearRecords()` + invalidate `queryKeys.chat.threads`), so the next
-     message starts a fresh thread under the newly selected model.
-- Reuse the existing `Select` control pattern and `jds-*` styling from `settings-ai-pane.tsx`'s
-  `ChatModel` component rather than inventing a new dropdown primitive.
-- Mirror the Settings pane's existing locked/empty states: if `overrideEnabled` is `false` (admin
-  has disabled override) or no `defaultModel` is configured, the in-chat selector reflects that
-  (read-only / hidden) rather than introducing new UI states.
-- Leave the Settings → AI "Chat model" control in place, unchanged — this issue adds a second,
-  more convenient entry point to the same preference, it does not replace the existing one.
+- Add a compact, chat-input-adjacent model selector to the chat drawer
+  (`apps/web/src/chat/chat-drawer.tsx`). It should be a simple field/pill with a drop-up selection
+  near the message composer, in the spirit of Claude Desktop, ChatGPT Desktop, and Hermes Desktop
+  inline model pickers. It is not a chat-header dropdown and not a Settings-style control.
+- Source the selector from the same chat-model-override data path Settings uses today, with the
+  minimum DTO/routing additions needed to know provider identity for the current and candidate
+  models. `providerId` already exists on configured model rows, so this comparison should be a
+  lookup against existing data, not new schema.
+- Same-provider selection:
+  1. Persists the selected `modelId` through the existing `PUT /api/ai/chat-model-override`
+     mutation.
+  2. Keeps the current chat thread open, like sending `/model` in a CLI session.
+- Cross-provider selection:
+  1. Shows a clear warning/confirmation before changing anything: the current thread's context does
+     not carry over and a new chat will start under the selected provider/model.
+  2. On confirmation, persists the selected `modelId` through the existing
+     `PUT /api/ai/chat-model-override` mutation.
+  3. Starts a new chat using the existing drawer flow (`clearChat()` + `props.clearRecords()` +
+     invalidate `queryKeys.chat.threads`), so the next message begins under the newly selected
+     provider/model.
+- Incognito chats use the identical selector and switching rules. Incognito's only special behavior
+  remains what is already built: no thread persisted to history and no contribution to Jarvis
+  memory/facts.
+- Keep the existing Settings → AI "Chat model" user control working. The chat selector is the
+  direct in-conversation entry point to the same user preference.
+- Add admin UI/workflow glue for provider models and chat capability selection:
+  - Let admins turn discovered provider models into usable `ai_configured_models` rows without
+    manual one-by-one `POST /api/ai/models` work for every model they want available.
+  - Expose the existing `PUT /api/ai/capability-routes/:capability` pinning path as the primary
+    admin UX for choosing the instance-wide `chat` model directly, bypassing the
+    interactive/reasoning/economy tier ladder for chat when pinned.
+- Leave background/non-chat jobs on the existing capability/tier machinery. For example,
+  `summarization` at the `economy` tier should continue resolving through the platform default path.
 
 ## Non-goals / Guardrails
 
-- **No router bypass.** The selector must read its model list only from the existing
-  `GET /api/ai/chat-model-override` response (`allowedModels` / `selectableOverrideModels`). No
-  model IDs may be hardcoded in chat UI/route code — this is the same set already gated by the
-  admin's per-model `allowUserOverride` flag (`settings-ai-admin-pane.tsx`) and the instance
-  `CHAT_MODEL_OVERRIDE_SETTING_KEY` toggle.
-- **No new secret surface.** The selector must not add any field to
-  `serializeChatModelOverrideSettings`'s output beyond what already reaches the frontend today —
-  no credential, API key, or raw provider-auth detail. Verify the DTO isn't widened while wiring
-  this up.
+- **No model-resolution rearchitecture.** Provider discovery, configured model creation, capability
+  routes, user overrides, and tier fallback already exist. This issue wires those paths into the
+  right chat/admin UX; it does not replace them.
+- **No router bypass.** The chat selector must read its selectable model list from the AI package's
+  existing override/capability data paths. No model IDs may be hardcoded in chat UI/route code.
+- **No new configured-model schema.** Provider comparison uses existing configured model/provider
+  linkage (`providerId` on `ai_configured_models`). Do not add a parallel provider identity model
+  just for chat switching.
+- **No new secret surface.** It is acceptable to expose non-secret provider identity needed for
+  same-provider vs cross-provider switching. Do not expose credential, API key, raw provider-auth
+  detail, or any other secret in frontend DTOs.
 - **No per-turn model parameter.** Do not add a `modelId` field to `POST /api/chat/turn` or thread
   it through `packages/chat`'s routes. The override stays a sticky preference resolved inside
-  `packages/ai` when the `chat` capability is requested — duplicating that resolution in
-  `packages/chat` would violate module isolation (chat would be reaching into AI's routing job).
-- **No thread/message schema change.** Do not add a "model used" column to threads or messages to
-  make this work — the existing new-chat-then-message flow doesn't require one. If a future
-  requirement needs per-thread model history, that's a separate spec.
-- **Out of scope:** the admin pane's `allowUserOverride` / instance `overrideEnabled` controls
-  (`settings-ai-admin-pane.tsx`) are untouched by this issue.
+  `packages/ai` when the `chat` capability is requested.
+- **No thread/message schema change for this issue.** Do not add a "model used" column to threads
+  or messages to make this work. If a future requirement needs per-thread model history, that is a
+  separate spec.
+- **No proactive capability-mismatch warning.** If the user asks the selected model to do something
+  it cannot do, such as vision on a text-only model, the chat/model should answer that it is not
+  capable when asked. Do not build separate warning UI for this.
+- **Do not remove tier fallback.** Admin chat pinning can bypass the tier ladder for `chat`, but the
+  tier ladder remains the default platform path for background/non-chat capabilities and for chat
+  when no direct chat pin applies.
+
+## Resolved decisions
+
+- Same-provider model changes continue the current thread.
+- Cross-provider model changes require a confirmation and then start a new chat; they are not
+  silent resets and not hard blocks.
+- The selector belongs near the composer as an inline/drop-up control, not in the header row.
+- Incognito uses the same selector behavior as normal chat.
+- Capability mismatch is handled by the selected model/chat response, not by preflight UI.
+- Admin work is in scope only as workflow/UI glue around existing discovery, configured model, and
+  capability-route mechanisms.
 
 ## Open questions
 
-- Does "start a new chat" mean the existing client-side `startNewChat()` reset (a thread is only
-  created lazily server-side on first message), or must a new thread row be created eagerly at
-  selection time — e.g., so an empty "chat with Model X" appears in history even if the user never
-  sends a message?
-- Model choice is stored as a single global `chat.modelOverride` preference — is that sufficient
-  (picking a model always becomes the new default for all future new chats too), or does the issue
-  intend a "just for this one chat" scope distinct from "always use this model" that the current
-  data model doesn't support?
-- If the user is mid-thread (has already sent messages) and opens the in-chat selector, should
-  switching models be blocked, warned ("this will start a new chat and lose this conversation's
-  context"), or just always trigger the new-chat reset silently, same as the "New chat" button
-  today?
-- How should the selector handle a model that lacks a capability the current conversation relied on
-  (e.g., vision on an upload-heavy thread) — rely purely on the existing `capabilities.includes`
-  filtering in `resolveChatModelOverride`/`isActiveChatModel` (model simply isn't listed), or show
-  an explicit warning?
-- Where does the control fit in the already-populated chat drawer header (`BrandMark`, name/status,
-  "New chat", "History", "Close")? Inline dropdown next to those icon buttons, a secondary header
-  row, or an overflow/kebab menu?
-- Should incognito chats (`clearChat({ incognito: true })`) interact with the in-chat selector at
-  all, or is the selector only relevant to normal (persisted) chats?
+- Exact warning copy for the cross-provider confirmation dialog.
+- Exact visual shape of the composer-adjacent field/pill and drop-up menu, within the existing chat
+  drawer design language.
 
 ## Acceptance criteria for future build
 
-- A model selector is visible directly in the chat drawer, not only in Settings → AI, listing the
-  same models Settings already shows (instance default + any `allowUserOverride` models) sourced
-  from the existing `GET /api/ai/chat-model-override` response.
-- Selecting a different model in chat persists the preference (`PUT /api/ai/chat-model-override`)
-  and starts a new chat, matching today's "New chat" button behavior, so the next message is
-  answered by the newly selected model.
+- A compact model selector is visible near the chat composer, not only in Settings → AI and not in
+  the chat drawer header.
+- The selector lists the instance default plus eligible configured chat models, sourced from the AI
+  package's existing chat override/capability data paths, with provider identity available for
+  switching decisions.
+- Selecting a model from the same provider persists the preference through
+  `PUT /api/ai/chat-model-override` and keeps the current thread open; the next assistant answer in
+  that thread uses the newly selected model.
+- Selecting a model from a different provider shows a confirmation first. Confirming persists the
+  preference through `PUT /api/ai/chat-model-override` and starts a new chat using the existing
+  drawer reset flow.
+- Incognito chats expose the same selector and same switching behavior; they still do not persist to
+  history or contribute to Jarvis memory/facts.
+- Admin AI settings let an admin import/use discovered provider models as configured models without
+  one-by-one manual model creation for each desired model.
+- Admin AI settings expose direct `chat` capability model pinning through the existing
+  `PUT /api/ai/capability-routes/:capability` mechanism as the primary chat model selection path,
+  while preserving tier fallback for background/non-chat capabilities.
 - When override is disabled by the admin or no default model is configured, the in-chat selector
   reflects that state without erroring, matching the existing locked/empty patterns already in
   `settings-ai-pane.tsx`.
-- No new provider SDK call, no hardcoded model list, and no credential/secret field added to any
-  response reaching the frontend.
-- The existing Settings → AI chat model control continues to work unchanged.
+- No new provider SDK call from the chat UI, no hardcoded model list, no credential/secret field
+  added to frontend responses, no `modelId` added to `POST /api/chat/turn`, and no thread/message
+  schema change.
+- The existing Settings → AI chat model user control continues to work.
 - `pnpm verify:foundation` passes for the eventual implementation PR.

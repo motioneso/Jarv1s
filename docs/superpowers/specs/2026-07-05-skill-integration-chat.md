@@ -1,10 +1,11 @@
 # Skill integration for Jarvis chat (#760)
 
-**Status:** Proposed — awaiting Ben's approval
+**Status:** Proposed — decisions recorded, pending final read-through
 **Date:** 2026-07-05
 **Tier:** `security-sensitive` — this introduces the first user-authored content that is deliberately
-fed back to the model as instructions (not just data the model reads). That is a new trust boundary
-distinct from anything currently in chat; see Guardrails.
+fed back to the model as instructions (not just data the model reads). Ben's decision is that a skill
+body is trusted instruction content for the invocation, same trust tier as persona/system-prompt
+content, with the existing MCP gateway confirm/audit model as the safety boundary; see Guardrails.
 **Builds on:** epic #22 (chat CLI-bridge + MCP gateway, shipped) — this spec reuses its permission
 model but does not assume it already supports what #760 asks for. See "What already exists" below.
 
@@ -33,9 +34,9 @@ notification-preferences precedent (#735) before scoping this:
   (`packages/chat/src/live/persona.ts`) writes a persona string into the CLI's context file
   (`CLAUDE.md`/`AGENTS.md`/`GEMINI.md` depending on provider) in a neutral per-user directory outside
   the repo. It already sanitizes one untrusted input (`sanitizeUserName`) specifically because
-  anything written into that file becomes instructions the model treats as ground truth (#136). Any
-  skill content injected into a prompt inherits this same risk and must go through equivalent
-  sanitization — it cannot be treated as inert text just because it's markdown.
+  anything written into that file becomes instructions the model treats as ground truth (#136). A
+  skill body is likewise instruction content, not inert markdown, but Ben's decision is that it is
+  trusted for the invocation rather than adversarial/quarantined input.
 - **No slash-command parsing exists anywhere in the repo today** (verified via repo-wide search).
   Autocomplete-on-`/` is pure net-new chat-input UI plus a lookup, not an extension of something
   half-built.
@@ -54,31 +55,64 @@ notification-preferences precedent (#735) before scoping this:
   edited outside the app and synced in (mirroring "add skill.md files to a library" literally), vault
   storage is the natural fit. If skills are meant to be authored/pasted inside the app UI, a normal
   owner-scoped DB table (mirroring e.g. `packages/notifications` preference rows) is simpler and needs
-  no filesystem sync job. This spec does not pick one — see Open Questions.
+  no filesystem sync job. Ben wants both in-app authoring/editing and third-party import, so this spec
+  proposes a small hybrid: canonical owner-scoped skill records for the app UI, with file upload and an
+  optional watched skill-directory drop importing standard skill files into those records.
 - **`skill.md` (frontmatter + markdown body) does map naturally onto Claude Code's own skill format**,
   which is a reasonable starting shape for the file (name, description, trigger conditions, body
   instructions). But nothing in the runtime today executes a Claude Code skill — adopting the file
   *shape* is not the same as adopting Claude Code's skill *runtime* (which can shell out, read/write
   disk, invoke sub-tools). Confusing the two is the single biggest risk in this issue; see Guardrails.
 
-## Scope (of this spec, not the build)
+## Scope
 
-This spec's job is to narrow #760 into a buildable, approved slice. Candidate in-scope items for a
-first slice, pending Ben's answers to Open Questions:
+This spec narrows #760 into a buildable slice with Ben's decisions recorded:
 
-- A skill entity: id, owner user, title, description, body (markdown instructions), enabled flag,
-  source (`authored` | `imported`), timestamps.
+- A skill library inside `packages/chat`, not a new `packages/skills` module. This is chat-scoped:
+  settings management and invocation both exist to support Jarvis chat, so putting it in a separate
+  module would make modularity less meaningful rather than more.
+- A skill entity: id, owner user, name, description, standard frontmatter fields, body (markdown
+  instructions), enabled flag, source (`authored` | `uploaded` | `watched-directory`), source metadata,
+  timestamps.
 - A settings surface ("Skill library") to list, create, edit, enable/disable, and delete skills —
   same family as other per-user library-style settings panes.
-- A slash-command autocomplete affordance in the chat input: typing `/` opens a filtered list of the
-  user's *enabled* skills by name; selecting one inserts/executes it.
-- A defined invocation semantic for what "running" a skill means at the model layer (see Open
-  Questions — this is the crux of the whole feature and must be decided before build, not improvised
-  during it).
+- In-app authoring/editing and third-party import. Import paths are file upload for `.md`/skill files,
+  plus a watched skill-directory drop mirroring the vault ingestion style if the existing vault
+  machinery can support it cleanly.
+- No URL import. This intentionally avoids reopening the known `web.read` SSRF-adjacent risk class.
+- A slash-command autocomplete affordance in any chat input surface, including the evening-interview
+  flow: typing `/` opens a filtered list of the user's *enabled* skills by name; selecting one runs it.
+- Invocation semantics matching CLI skill use: the selected skill's body is loaded as trusted
+  instruction content for that invocation. Jarvis does not add special restrictions on what users can
+  write or how they choose to invoke their own skills.
+- Standard skill file format, not a Jarvis-specific format: v1 adopts the Claude Code-style
+  frontmatter + markdown body shape (`name`, `description`, trigger/frontmatter fields, instruction
+  body). Jarvis may persist parsed fields, but the portable file remains a normal skill file.
 - Reuse of the existing per-user preference precedent (#735-style) for the enabled/disabled flag —
   no new toggle mechanism.
 - Reuse of the existing MCP gateway confirm/audit chokepoint for anything a skill causes the model to
   do that isn't pure text (i.e., skills never get a private side channel to tools).
+- No save-time uniqueness rejection for duplicate names. If a user imports or creates two same-named
+  skills, that is on the user. If runtime lookup ever needs to pick one from an ambiguous slash command,
+  use a deterministic resolution order rather than blocking save; Claude Code's source/scope
+  namespacing precedent is a reasonable model.
+
+## Storage proposal requiring Fable review
+
+Proposed default: make the chat-owned DB record the canonical app state, with importers converting
+standard skill files into those records.
+
+- In-app create/edit writes the owner-scoped chat skill record.
+- File upload parses a standard skill file and creates or updates a skill record without any URL fetch.
+- Watched-directory import, if built in the first slice, watches a user-owned skill directory through
+  the vault-style ingestion path and mirrors discovered skill files into chat skill records.
+- The original uploaded/dropped file contents should be preserved enough to round-trip ordinary
+  frontmatter + markdown without inventing a Jarvis-only format.
+
+This storage design should get a critical second-opinion review from Fable once the spec is otherwise
+finalized. The review should specifically pressure-test whether DB-canonical + file import is the
+right split, whether watched-directory sync creates unnecessary reconciliation complexity, and whether
+the chosen RLS/source-metadata model keeps owner boundaries obvious.
 
 ## Non-goals / Guardrails
 
@@ -90,13 +124,16 @@ first slice, pending Ben's answers to Open Questions:
   the user's existing module grants don't already cover. If a skill's instructions cause the model to
   call an existing tool, that call still goes through the normal confirm/audit path — no exceptions
   carved out for "the user wrote this skill themselves."
-- **Secrets never escape.** User-authored skill content is untrusted input the moment it can
-  influence what the model says or does next (same class of risk as the persona `sanitizeUserName`
-  fix for #136, but with a much larger attack surface — a whole file body instead of one name field).
-  A skill must never be able to cause the model to echo connector credentials, auth tokens, session
-  tokens, or other secrets into its own output, into a tool call argument, or into another user's
-  visible data. This needs an explicit design (sanitization, injection framing, or both) before build
-  — flagged as an open question, not assumed solved by "it's just markdown."
+- **No skills-specific sanitization/quarantine layer.** A skill body is trusted instruction content for
+  the invocation, same trust tier as existing persona/system-prompt content. Do not wrap it as
+  adversarial content requiring special delimited framing, do not strip its instruction language, and
+  do not add a skills-specific approval mode. The safety boundary is the existing per-user action
+  approval setting: confirm-gated users still approve gated actions, and users in "yolo"/auto-approve
+  mode have already accepted that account-wide risk tier.
+- **Secrets still do not become a skill capability.** Skills inherit the existing runtime's access
+  boundaries. They do not get connector credentials, auth tokens, session tokens, direct DB access, or
+  a private exfiltration path. This is enforced by the same module/tool/gateway boundaries as ordinary
+  chat, not by a separate skill-body sanitizer.
 - **No module bypass.** Do not let skill content directly query another module's tables or invoke
   internals — any effect on other modules must go through their declared public tool/route surface,
   same as everything else (hard invariant: module isolation).
@@ -104,78 +141,56 @@ first slice, pending Ben's answers to Open Questions:
   (e.g. a vault-folder skill sync mirroring notes ingest) — payload carries IDs/kind only, never the
   skill body itself.
 - **Do not build a marketplace, sharing, or skill-distribution mechanism in this slice.** #760 asks
-  for personal create/import/manage/toggle only. Multi-user skill sharing (if ever wanted) is a
-  separate milestone with its own spec and RLS shareability classification.
+  for personal create/import/manage/toggle only. File upload and watched-directory import are personal
+  import paths, not distribution features. Multi-user skill sharing (if ever wanted) is a separate
+  milestone with its own spec and RLS shareability classification.
 - **Do not silently adopt the Claude Code skill runtime's capabilities** (arbitrary script execution,
   filesystem access, sub-agent spawning). If any future slice wants richer skills than "prompt
   instructions applied to the current turn," that is new scope requiring its own spec and threat
   model, not a quiet extension of this one.
 
-## Open questions (must be resolved before this can move from Proposed to Approved)
+## Remaining implementation details
 
-This issue is unusually open-ended; the following are genuine forks, not details to improvise mid-build:
+Ben's eight product/security decisions are recorded above. These are implementation details to settle
+during build planning or Fable's storage review, not unresolved product forks:
 
-1. **What does "running" a skill actually do to the model call?** Candidates, in increasing order of
-   power and risk:
-   - (a) Insert the skill body as a one-turn instruction prefix on the next message only (safest,
-     closest to a canned prompt/macro).
-   - (b) Append the skill into the persona/system-prompt file for the rest of the session (breaks
-     prompt-cache byte-stability per `DEVELOPMENT_STANDARDS.md`'s Prompt-Cache Discipline section
-     unless carefully scoped — the persona file is supposed to be byte-stable per user).
-   - (c) Grant the skill's declared tool names as a temporary allowlist addition for that turn.
-   This spec cannot proceed to Approved without Ben picking one; (a) is the recommended default given
-   the guardrails above, but that is a recommendation, not a decision made here.
-2. **Is `skills` its own module or does it live inside `packages/chat`?** It has its own entity,
-   settings surface, and (likely) DB table — that argues for a dedicated module (`packages/skills`)
-   per the module-isolation invariant, with chat consuming it only through a declared interface. Needs
-   Ben's confirmation before scaffolding.
-3. **Storage: vault-backed files or a DB table?** "Add skill.md files to a library" reads literally as
-   file import (vault, like notes), but "create/manage" reads more like an in-app authoring UI backed
-   by a normal table (like other settings entities). These have very different build costs (vault
-   implies a sync job + file-watch infra; a table is a single migration + CRUD routes). Needs a
-   decision, not both built speculatively.
-4. **What is "import"?** Paste raw markdown, upload a `.md` file, or pull from a URL/repo? File upload
-   introduces a new upload surface if one doesn't already exist for user content; URL import
-   introduces an SSRF-shaped surface (the codebase already has one open finding on `web.read`
-   SSRF-adjacent risk per project history — a skill importer must not reopen that class of issue).
-5. **Autocomplete scope: chat only, or every text input that could reasonably invoke a skill?** #760
-   says "within Jarvis chat" — confirm this is chat-input-only and not, e.g., the evening-interview
-   flow or other assistant surfaces that also run model turns.
-6. **Frontmatter schema for `skill.md`:** if the file format borrows Claude Code's skill shape (name,
-   description, trigger keywords), does Jarvis define its own minimal schema now, or explicitly defer
-   compatibility with any external skill format? Needs an explicit "v1 fields" list, not an implicit
-   copy of an external spec that may change out from under it.
-7. **Conflict/collision handling:** two skills with the same slash-command name, or a skill name that
-   collides with a future built-in command — reject at save time, or last-write-wins? Needs a rule
-   before autocomplete UI can be built deterministically.
-8. **Sanitization approach for skill bodies:** does this reuse/extend `sanitizePersonaName`-style
-   collapsing (aggressive, so likely too lossy for a multi-paragraph skill body), or does it need a
-   different technique (e.g. clearly-delimited untrusted-content framing so the model can distinguish
-   "instructions from a skill" from "the platform persona") — same class of problem `passive-retrieval`
-   /`answer-provenance` already solve for external content in `packages/chat/src/live/`, worth
-   reviewing as prior art before inventing a new mechanism.
+1. **Exact persistence shape.** Decide the concrete table/columns and whether enabled state is a
+   column on the skill record or a separate #735-style preference row keyed by `skillId`.
+2. **Watched-directory reconciliation.** Decide whether v1 supports two-way editing for watched files
+   or a simpler import-only mirror. Import-only is smaller and avoids surprising overwrites; two-way
+   sync should wait unless explicitly required.
+3. **Ambiguous command resolution order.** No uniqueness validation is required. The build still needs
+   a deterministic UI/runtime ordering for duplicate names (for example: exact selected record id from
+   autocomplete wins; typed bare-name fallback sorts by enabled first, source/scope, then updated time).
 
 ## Acceptance criteria for future build
 
-(Draft — will need revision once the Open Questions above are answered; capturing the shape Ben should
-expect to review, not a final bar.)
-
 - A user can create a skill (title, description, body) in a Skill library settings surface and see it
   persisted across reload.
-- A user can import an existing `skill.md`-shaped file into their library via whatever import
-  mechanism is approved in Open Question 4.
+- A user can edit an existing skill in-app and keep the standard frontmatter + markdown body shape
+  intact.
+- A user can import an existing standard skill file via file upload. No URL import exists.
+- If watched-directory import is included in v1, dropping a standard skill file into the configured
+  user-owned skill directory makes it available in the library without bypassing owner scoping.
 - A user can toggle any skill on/off individually; a disabled skill never appears in slash-command
   autocomplete and never affects a chat turn.
-- Typing `/` in the chat input surfaces a filtered, autocomplete list of the user's *enabled* skills
-  only; selecting one applies the invocation semantic decided in Open Question 1.
+- Typing `/` in any chat input surface, including evening interview, surfaces a filtered autocomplete
+  list of the user's *enabled* skills; selecting one runs that specific skill.
+- Running a skill loads its body as trusted instruction content for that invocation, like using a skill
+  from the CLI. Jarvis does not add a special skill-body sanitizer, quarantine wrapper, or
+  skill-specific approval mode.
+- A skill uses the standard Claude Code-style frontmatter + markdown body shape; Jarvis does not invent
+  a bespoke skill file format.
+- Duplicate skill names are allowed at save/import time. The UI remains deterministic by selecting a
+  concrete skill record from autocomplete rather than relying on global name uniqueness.
 - No skill can cause a tool call that bypasses `AssistantToolGateway`'s existing risk-tier/confirm/audit
   path — verified by a test that a write/destructive-risk tool invoked "because a skill said so" still
-  produces a pending action-request row, not a silent execution.
-- No skill body can cause a secret (connector credential, auth token, session token) to appear in the
-  model's output or in a tool-call argument — verified by an adversarial test with a crafted skill
-  body attempting exfiltration via prompt injection.
+  produces a pending action-request row for confirm-gated users, not a silent execution.
+- If the user has account-level "yolo"/auto-approve mode enabled, skill-triggered tool calls inherit
+  that already-accepted risk posture exactly like ordinary chat-triggered tool calls.
 - Skill CRUD and toggle state respect ordinary per-owner RLS (owner-only unless a future sharing
   milestone changes that) — no cross-user visibility of another user's skill library.
 - Adding this feature does not regress prompt-cache byte-stability for the persona file (Development
-  Standards, "Prompt-Cache Discipline") — whatever invocation semantic is chosen must not make the
-  per-user persona file's byte content vary turn-to-turn if it's a hit in Open Question 1's option (b).
+  Standards, "Prompt-Cache Discipline"). Running a skill should not require rewriting the per-user
+  persona file turn-to-turn.
+- The storage design receives Fable's critical second-opinion review before build approval.
