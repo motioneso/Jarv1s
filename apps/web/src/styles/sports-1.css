@@ -15,9 +15,9 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
+  gap: var(--space-6);
   flex-wrap: wrap;
-  padding-bottom: 22px;
+  padding-bottom: var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
 }
 .sp-top__main {
@@ -307,14 +307,14 @@
 
 /* ============================================================= SECTIONS */
 .sp-sec {
-  margin-top: 30px;
+  margin-top: var(--space-7);
 }
 .sp-sec__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 .sp-sec__title {
   font-family: var(--font-sans);
@@ -339,7 +339,7 @@
 /* ---- shared form-pip row (rendered by FormPips; still used by the ticker, #829) ---- */
 .sp-fc__formrow {
   display: inline-flex;
-  gap: 3px;
+  gap: var(--space-1);
   margin-left: auto;
 }
 .sp-formpip {
@@ -350,7 +350,7 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--text-2xs);
   font-weight: 700;
 }
 .sp-formpip--w {

@@ -15,7 +15,11 @@ import {
 } from "./mock-api.js";
 import { createMockAiModel, createMockAiProvider } from "./mock-ai-api.js";
 import { defaultOnboardingStatus } from "./mock-onboarding-api.js";
-import { registerMockSportsRoutes, sportsOverviewFixture } from "./mock-sports-api.js";
+import {
+  registerMockSportsRoutes,
+  sportsOverviewDegradedFixture,
+  sportsOverviewFixture
+} from "./mock-sports-api.js";
 
 // Output dir is gitignored (under test-results/) and overridable via SCREENS_DIR.
 const OUT = process.env.SCREENS_DIR ?? "test-results/design-screens";
@@ -304,4 +308,14 @@ test("capture: sports reduced motion", async ({ page }) => {
   await shot(page, "20-sports-reduced-motion-skeleton");
   await page.waitForTimeout(1600);
   await shot(page, "21-sports-reduced-motion");
+});
+
+// Partial-provider-outage pass: DegradedBand notice must render above the (still-populated)
+// sections, not replace them (#765 M1).
+test("capture: sports degraded", async ({ page }) => {
+  await baseState(page);
+  await registerMockSportsRoutes(page, sportsOverviewDegradedFixture);
+  await page.goto("/sports");
+  await page.waitForTimeout(600);
+  await shot(page, "22-sports-degraded");
 });

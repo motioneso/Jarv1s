@@ -46,6 +46,34 @@ function liveGame(): GameSummary {
   };
 }
 
+function finalGame(): GameSummary {
+  return {
+    id: "g-final",
+    competitionKey: "mlb",
+    startsAt: "2026-07-06T17:05:00Z",
+    state: "final",
+    statusDetail: "FT",
+    home: {
+      teamKey: "nyy",
+      name: "New York Yankees",
+      shortName: "NYY",
+      crestUrl: null,
+      score: 6,
+      record: "58-40",
+      winner: true
+    },
+    away: {
+      teamKey: "bos",
+      name: "Boston Red Sox",
+      shortName: "BOS",
+      crestUrl: null,
+      score: 3,
+      record: "50-48",
+      winner: false
+    }
+  };
+}
+
 function headline(id: string, competitionKey: string, title: string): Headline {
   return {
     id,
@@ -236,7 +264,8 @@ export const sportsOverviewFixture: SportsOverviewResponse = {
           }
         }
       ]
-    }
+    },
+    { competitionKey: "mlb", competitionLabel: "MLB", games: [finalGame()] }
   ],
   topStories: [
     headline("h1", "nfl", "Vikings clinch division on late field goal"),
@@ -266,6 +295,13 @@ export const sportsOverviewFixture: SportsOverviewResponse = {
   ],
   followedLeagues: [{ competitionKey: "mlb", competitionLabel: "MLB" }],
   degraded: false
+};
+
+// Partial-provider-outage variant (#765 M1 DegradedBand) — same shape, just the flag flipped, for
+// the one capture case that needs to render the degraded notice.
+export const sportsOverviewDegradedFixture: SportsOverviewResponse = {
+  ...sportsOverviewFixture,
+  degraded: true
 };
 
 async function fulfillJson(route: Route, status: number, body: unknown): Promise<void> {
