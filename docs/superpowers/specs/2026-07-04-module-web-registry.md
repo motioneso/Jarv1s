@@ -1,8 +1,8 @@
 # Module web registry (frontend plugin seam)
 
-**Status:** draft (2026-07-04, rev 2 after adversarial cross-model review) — design spec for task
-issue #799, part of epic #798 (module docking seams). Extends ADR 0009 ("a module connects, never
-alters") to the web app. Flip #799 to `RFA` once this spec is approved.
+**Status:** Approved and implemented — Ben approved 2026-07-06; built and merged as PR #830
+(Phase A: mechanism + sports migration), closing issue #799, part of epic #798 (module docking
+seams). Extends ADR 0009 ("a module connects, never alters") to the web app.
 
 **Grounded on:** `origin/main` @ `1c307466` (audit findings verified at `2797fc1f`; rev 2 findings
 verified at `1c307466`). Re-run `pnpm audit:preflight` before building.
