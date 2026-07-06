@@ -52,7 +52,7 @@ already established.
 - **No device/session identity concept exists yet.** Nothing in `packages/auth` or `packages/db`
   currently models "this browser instance" as an addressable entity. Per-device Push
   enable/disable (required by the issue's acceptance list) needs a new concept: a push
-  subscription row *is* the device identity for this purpose — there is no existing session/device
+  subscription row _is_ the device identity for this purpose — there is no existing session/device
   table to hang it off.
 
 ## Scope
@@ -71,7 +71,7 @@ already established.
   though it's not a third-party connector), a `web-push`-equivalent send call, and a new pg-boss
   queue (e.g. `notifications.push-delivery`) that is the **first** consumer of "a notification was
   created" — meaning this spec also has to introduce the fan-out step itself (see Open questions).
-- A deferred-notification wake job: since Push is the first channel that needs to *act* when
+- A deferred-notification wake job: since Push is the first channel that needs to _act_ when
   `deferred_until` passes (in-app just re-polls), a recurring or delayed job to deliver
   quiet-hours-deferred notifications once their window ends.
 - Settings UI: replace the `Push` `Coming soon` row with a real per-device list (enable this
@@ -112,7 +112,7 @@ already established.
 ## Open questions (for Ben)
 
 1. **iOS installed-PWA push constraints.** iOS Safari only supports Web Push for a PWA that has
-   been *added to the home screen* (standalone `display: "standalone"` — already set in
+   been _added to the home screen_ (standalone `display: "standalone"` — already set in
    `manifest.webmanifest` — is necessary but not sufficient); push does not work in a regular
    Safari tab, and the permission prompt has different timing/UX rules than desktop Chrome/Firefox
    or Android. Do we scope V1 to desktop + Android only and treat iOS as best-effort/unsupported
@@ -130,8 +130,7 @@ already established.
    browser settings" message, or just show a static disabled row?
 4. **Subscription rotation/expiry handling.** Push subscriptions can silently expire or rotate
    (browser-driven); a `410 Gone`/`404` from the push service on send is the normal signal to
-   delete the stored subscription. Should this spec's delivery worker handle that inline (delete on
-   410) as baseline hygiene, or is that a follow-up? (Recommend: baseline, it's cheap and prevents
+   delete the stored subscription. Should this spec's delivery worker handle that inline (delete on 410) as baseline hygiene, or is that a follow-up? (Recommend: baseline, it's cheap and prevents
    permanently-dead rows accumulating.)
 5. **Quiet-hours wake mechanism.** In-app notifications rely on the client re-polling after
    `deferred_until` passes — nobody has to "deliver" anything. Push does need an active trigger.

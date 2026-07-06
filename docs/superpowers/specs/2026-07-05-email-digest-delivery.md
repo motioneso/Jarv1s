@@ -14,9 +14,9 @@ unavailable row pointing at this issue — it is not a working toggle. #742 asks
 (and later build) periodic email delivery of a user's accumulated module notifications, so someone
 who doesn't have the app open still hears about what happened.
 
-This spec grounds the design in the *actual* current system: the module-based notification
+This spec grounds the design in the _actual_ current system: the module-based notification
 preference model from #735, the quiet-hours persistence work from #733, the recurring-schedule
-pattern already used by proactive scanning and briefings, and the *only* outbound-email code that
+pattern already used by proactive scanning and briefings, and the _only_ outbound-email code that
 exists in the repo today (which turns out not to be a general-purpose "send a new email" capability
 — see §3 below, the single biggest open item).
 
@@ -42,7 +42,7 @@ exists in the repo today (which turns out not to be a general-purpose "send a ne
 - Digest content is **module-scoped**, exactly like the live in-app model in #735: a notification's
   `module_id` must belong to a module the user currently has enabled in Notifications settings.
   There is no separate "digest categories" list to invent — digest is a delivery channel over the
-  *same* preference surface, not a second preference system.
+  _same_ preference surface, not a second preference system.
 - Digest and in-app are **additive, not exclusive**: a notification still appears in-app immediately
   (unchanged); the digest email is a periodic recap of what accumulated, not a replacement channel.
   This matches "which notification categories appear in digest versus live in-app" from the issue —
@@ -62,14 +62,14 @@ Resend, Postmark). What exists:
     returns `{ ok: false }` immediately if `threadId` is falsy. It composes a MIME **reply** to that
     thread (`buildReplyMime`), not a fresh message.
   - It sends through the **user's own connected** Google OAuth token or IMAP/SMTP app-password
-    credentials (`getFreshAccessToken`, `getActiveImapAccountSecret`) — i.e. it sends *as the user*,
-    to *the message's sender*, from inside a synchronous chat-tool call. There is no system-initiated,
+    credentials (`getFreshAccessToken`, `getActiveImapAccountSecret`) — i.e. it sends _as the user_,
+    to _the message's sender_, from inside a synchronous chat-tool call. There is no system-initiated,
     scheduled-job send path anywhere in the codebase today.
   - Reusing it for a digest would mean either addressing a "reply" at nothing (no real thread to
     reply to — a digest is Jarvis-to-user, not user-to-someone-else) or extending both providers
     with a genuinely new "compose a fresh message" mode. That's a real code change to shared
     infrastructure other tools depend on, not a free reuse.
-- Nodemailer is already a dependency (via `ImapEmailWriteProvider`), so the *library* is available,
+- Nodemailer is already a dependency (via `ImapEmailWriteProvider`), so the _library_ is available,
   but there is no configured system-level sending identity (no verified "notifications@" sender, no
   SES/Resend/Postmark account, no SMTP relay credential store for Jarvis-as-sender rather than
   user-as-sender).
@@ -122,7 +122,7 @@ decision, `DigestEmailSender`-style adapter).
 ### 6. Quiet hours and duplicate suppression
 
 - **Decided (Ben, 2026-07-06): quiet hours does not affect digest.** Quiet hours (#733) governs
-  *in-app* notification deferral only; digest is a batched, user-scheduled send. The user's chosen
+  _in-app_ notification deferral only; digest is a batched, user-scheduled send. The user's chosen
   `targetTime` is respected as-is regardless of whether it falls inside their quiet-hours window —
   quiet hours is not a general delivery-timing concept, it's specifically an in-app-interruption
   control.
@@ -157,7 +157,7 @@ All open questions from the prior draft are resolved:
 1. **Sending path: (a)**, via the user's own connected Google/IMAP account — see §3. Also resolves
    the "no connector configured" case: the digest toggle simply stays unavailable for that user, by
    design, not as an error state — "if they don't have an email connected they won't need it."
-2. *(vendor choice for option (b))* — moot, dropped, since (b) was not chosen.
+2. _(vendor choice for option (b))_ — moot, dropped, since (b) was not chosen.
 3. **Cadence granularity: `daily`/`weekly` only** for v1; the user picks which. Finer-grained
    scheduling (arbitrary N-day intervals) is a later enhancement if ever requested.
 4. **Quiet hours does not affect digest timing** — see §6. Quiet hours is an in-app-interruption

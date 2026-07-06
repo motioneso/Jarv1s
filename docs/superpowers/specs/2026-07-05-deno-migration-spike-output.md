@@ -49,7 +49,7 @@ No unmet operational need — security, build time, or dependency surface — po
 - **Docker deploy:** single multi-stage `Dockerfile` (`node:24-bookworm-slim` base) builds the
   whole pnpm workspace, deliberately keeps the **full** `node_modules` + dev deps in the runtime
   stage (documented rationale: pnpm's `.pnpm` symlink layout breaks if pruned, and `tsx
-  scripts/migrate.ts` needs the full tree), installs `tmux`/`git`/`ca-certificates`/`bubblewrap` for
+scripts/migrate.ts` needs the full tree), installs `tmux`/`git`/`ca-certificates`/`bubblewrap` for
   the in-container CLI chat sidecar, and runs everything via `tsx`. `scripts/publish-images.sh` does
   multi-arch (amd64/arm64) buildx publish to GHCR — no runtime-specific logic there, but it publishes
   the same Dockerfile.
@@ -57,6 +57,7 @@ No unmet operational need — security, build time, or dependency surface — po
 ## Translation assessment (per the issue's explicit list)
 
 **Would translate cleanly (low friction):**
+
 - **Kysely** — runtime-agnostic by design, zero dependencies, explicitly used in production at Deno
   itself. The existing `pg`-based `PostgresDialect` works under Deno's npm compat layer unchanged;
   no code change needed even if the runtime changed underneath it.
@@ -72,8 +73,9 @@ No unmet operational need — security, build time, or dependency surface — po
   unchanged.
 
 **Would not translate cleanly (real friction, grounded in this repo's usage):**
+
 - **`import.meta.url`-relative path resolution (25 files, all module manifests + cli-runner).** This
-  is the single highest-risk item precisely *because* it already broke once (bundled-path-resolution
+  is the single highest-risk item precisely _because_ it already broke once (bundled-path-resolution
   trap). Deno's module resolution, permission model, and its own bundler/compile behavior around
   `import.meta.url` are not identical to Node's — re-validating all 25 sites (17 manifests +
   cli-runner's install/catalog/main paths + the api/worker entrypoints + `vite.config.ts`) under a
@@ -99,7 +101,7 @@ No unmet operational need — security, build time, or dependency surface — po
   setup for an additional plugin-compatibility layer, for no feature or performance gain this
   project needs.
 - **Docker deploy pipeline.** The current `Dockerfile` bakes in Node/pnpm-specific reasoning at
-  every stage: `node:24-bookworm-slim` base, `corepack`/pnpm store layout (explicitly *not* pruned
+  every stage: `node:24-bookworm-slim` base, `corepack`/pnpm store layout (explicitly _not_ pruned
   because pruning breaks the `.pnpm` symlink tree), `tsx`-based migrate/build scripts, and the
   tmux/bubblewrap/git layer for the CLI sidecar. None of this ports without a full rewrite of the
   image; Deno's own container story is a smaller ecosystem with far less operational precedent for
@@ -163,6 +165,7 @@ already-closed risk for a runtime whose main advertised gains (perf, permissions
 dependency story) don't address anything Jarv1s is short on.
 
 **Revisit triggers** (conditions under which this recommendation should be re-examined, not now):
+
 - Deno's native-addon FFI bridge and Postgres driver story mature and get independent
   production track record (not just "added in Deno 3") — say, 12+ months of real-world reports.
 - pg-boss (or a direct successor) ships explicit, tested Deno support.

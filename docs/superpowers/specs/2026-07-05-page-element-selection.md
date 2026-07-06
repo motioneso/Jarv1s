@@ -11,7 +11,7 @@ without checking with Ben first)
 
 V1 page awareness (#679) gives Jarvis a sanitized whole-page snapshot plus best-effort
 focus/selection when a browser focus or text selection naturally exists. It has no way for a user
-to *intentionally* say "this specific thing, right here" — a settings row, a stat tile, a card —
+to _intentionally_ say "this specific thing, right here" — a settings row, a stat tile, a card —
 and ask a targeted question about only that element. #745 owns that richer, deliberate
 point-and-select interaction: hover/highlight a UI element, click (or keyboard-select) it, and ask
 Jarvis about it with tightly scoped, sanitized context instead of the full-page snapshot.
@@ -28,7 +28,7 @@ snapshot schema), this spec's field list in §3.4 will need a compatibility pass
 rewrite from scratch.
 
 **Naming note:** the issue calls this "Agentation-style" element selection. The `mcp__agentation__*`
-tools available in this session are a *human developer feedback* annotation toolbar for a completely
+tools available in this session are a _human developer feedback_ annotation toolbar for a completely
 different workflow (devs annotating the app's own UI to leave notes for an agent) — they are not
 infrastructure #745 imports or calls. "Agentation-style" here means only the interaction pattern
 (hover → highlight → click-to-select → contextual annotation/question), reimplemented natively for
@@ -81,6 +81,7 @@ Reuses #679's sanitization vocabulary and posture (strip everything but a small 
 fields), scoped to one element instead of the whole page:
 
 **Included:**
+
 - Resolved semantic role (ARIA role or equivalent semantic tag/element type).
 - Accessible label/name (aria-label, associated `<label>`, or button/link text).
 - Visible text content of the element, trimmed and length-capped.
@@ -88,10 +89,11 @@ fields), scoped to one element instead of the whole page:
 - Current route/page title (same fields #679 already includes for the whole-page snapshot).
 - `data-testid`/`data-id`-style attributes **only** when they don't match a sensitive-value shape
   (no embedded emails, tokens, UUIDs tied to private records treated as opaque secrets, etc.) —
-  "when safe" per the issue, meaning: allow-list the attribute *name* pattern, then still run the
-  *value* through the same redaction pass as every other captured string.
+  "when safe" per the issue, meaning: allow-list the attribute _name_ pattern, then still run the
+  _value_ through the same redaction pass as every other captured string.
 
 **Excluded, unconditionally:**
+
 - Raw DOM/HTML, arbitrary attributes not on the allow-list above.
 - Any element that is `hidden`, `aria-hidden="true"`, `display:none`, or otherwise not visibly
   rendered — excluded entirely (no role/label/text captured at all), not merely redacted.
@@ -126,21 +128,21 @@ is available as fallback context for the immediate next 1–2 follow-up turns in
 the user's question doesn't include a new page-context signal (matching #679's existing "this/here"
 follow-up handling) — then it expires. It is never written into durable transcript metadata, memory,
 logs, or pg-boss job payloads (metadata-only job payload invariant). Consistent with #679 §2/§5:
-Jarvis may still extract derived, user-relevant *facts* from the resulting conversation through the
+Jarvis may still extract derived, user-relevant _facts_ from the resulting conversation through the
 normal memory pipeline, but never the raw captured element context, and private/incognito chat
 disables memory writes exactly as it does for #679.
 
 ## Non-goals / Guardrails
 
 - No reuse of the `mcp__agentation__*` MCP tools as infrastructure — they belong to a separate
-  human-developer-feedback workflow; only the hover/highlight/select *interaction pattern* is a
+  human-developer-feedback workflow; only the hover/highlight/select _interaction pattern_ is a
   reference here.
 - No full-page snapshot behavior change — that is #679's surface, unmodified by this spec.
 - No screenshot-based or vision-based element capture; this stays DOM/accessibility-tree based, same
   posture as #679.
 - No raw DOM/HTML ever crosses into a chat prompt, log, or stored record — hard invariant, not a
   design preference.
-- No secret, hidden, or field-privacy-sensitive *value* ever reaches the AI prompt, regardless of
+- No secret, hidden, or field-privacy-sensitive _value_ ever reaches the AI prompt, regardless of
   whether the user explicitly selected the element containing it. Explicit user intent to select an
   element does not override field privacy or the secrets-never-escape invariant.
 - No standing/session-long "sticky" selection — selection is short-lived per §3.6; this spec
