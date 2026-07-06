@@ -199,11 +199,6 @@
     margin-top: var(--space-6);
   }
 }
-/* Heavy section rule — the broadsheet section header pattern (reused by Task 4 states). */
-.sp-rule-head {
-  border-top: 2px solid var(--border);
-  padding-top: var(--space-2);
-}
 /* Broadsheet rank numerals on the headlines rail (NYT-mockup "1. 2. 3." treatment). */
 .sp-rail__list {
   counter-reset: sp-hl;

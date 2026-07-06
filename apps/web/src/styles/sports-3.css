@@ -3,7 +3,7 @@
 
 .sp-photo--img {
   object-fit: cover;
-  border-radius: var(--radius-card);
+  border-radius: 0;
 }
 
 .sp-hero__link {
@@ -13,7 +13,7 @@
 
 .sp-hero__link:hover {
   text-decoration: underline;
-  text-underline-offset: 3px;
+  text-underline-offset: 0.2em;
 }
 
 .sp-news__grp {

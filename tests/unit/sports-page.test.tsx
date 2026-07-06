@@ -171,6 +171,9 @@ describe("SportsPage", () => {
     // live score is a scoped aria-live region so screen readers hear updates
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('aria-atomic="true"');
+    // competitionLabel must render on every game surface, including the live hero
+    // (must-not-regress: live badge does not replace the competition label)
+    expect(html).toContain('<span class="sp-hero__comp">NFL</span>');
   });
 
   it("does not announce the hero score via aria-live when the game is not live", () => {

@@ -152,9 +152,8 @@ function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }
             <LiveDot />
             Live
           </span>
-        ) : (
-          <span className="sp-hero__comp">{competitionLabel}</span>
-        )}
+        ) : null}
+        <span className="sp-hero__comp">{competitionLabel}</span>
         <span className="sp-hero__phase">{game.statusDetail}</span>
       </div>
       <div className="sp-hero__match">

@@ -337,7 +337,7 @@
 }
 
 /* ---- shared form-pip row (rendered by FormPips; still used by the ticker, #829) ---- */
-.sp-fc__formrow {
+.sp-formrow {
   display: inline-flex;
   gap: var(--space-1);
   margin-left: auto;
@@ -537,7 +537,7 @@
   flex-direction: column;
   gap: var(--space-4);
   position: sticky;
-  top: 12px;
+  top: var(--space-3);
 }
 .sp-rail {
   padding: 0;
