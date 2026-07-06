@@ -1,5 +1,5 @@
-import "../styles/sports-1.css";
-import "../styles/sports-3.css";
+import "./styles/sports-1.css";
+import "./styles/sports-3.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,17 +17,31 @@ import type {
 } from "@jarv1s/shared";
 import type { LocaleSettingsDto } from "@jarv1s/shared";
 
-import { getSportsOverview } from "../api/sports-client";
-import { queryKeys } from "../api/query-keys";
-import { formatDate, formatTime, useUserLocale } from "../locale/locale-format.js";
-import { CalendarIcon, Crest, FormPips, LiveDot, RationaleChip, TrophyIcon } from "./sports-parts";
-import { isFollowed, LeagueNewsSection, NewsIcon, StoryHero, TopStoriesRail } from "./sports-news";
+import { getSportsOverview } from "./sports-client.js";
+import { sportsQueryKeys } from "./query-keys.js";
+import { formatDate, formatTime, useUserLocale } from "./locale.js";
+import {
+  CalendarIcon,
+  Crest,
+  FormPips,
+  LiveDot,
+  RationaleChip,
+  TrophyIcon
+} from "./sports-parts.js";
+import {
+  isFollowed,
+  LeagueNewsSection,
+  NewsIcon,
+  StoryHero,
+  TopStoriesRail
+} from "./sports-news.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
 // Matches the server's SCOREBOARD_TTL_MS cadence (packages/sports/src/sports-service.ts) without
-// over-polling once nothing is actually live (#762).
-const LIVE_REFETCH_INTERVAL_MS = 60_000;
+// over-polling once nothing is actually live (#762). Exported for reuse by the Today "Sports
+// desk" widget (./today-widget.tsx), which polls the same query on the same cadence.
+export const LIVE_REFETCH_INTERVAL_MS = 60_000;
 
 // "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2)
 function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
@@ -49,7 +63,7 @@ export function hasLiveGame(data: SportsOverviewResponse | undefined): boolean {
 
 export function SportsPage() {
   const overviewQuery = useQuery({
-    queryKey: queryKeys.sports.overview,
+    queryKey: sportsQueryKeys.overview,
     queryFn: () => getSportsOverview(),
     // Poll only while a live game is actually in the payload; a static interval would be wasteful
     // once nothing is live, and with no interval at all the page never refetches after mount, so a
@@ -258,7 +272,7 @@ function FollowedLeaguesSection(props: { leagues: readonly FollowedLeagueRef[] }
   );
 }
 
-function FollowedCard(props: { card: FollowedTeamCard }) {
+export function FollowedCard(props: { card: FollowedTeamCard }) {
   const { card } = props;
   const locale = useUserLocale();
   return (

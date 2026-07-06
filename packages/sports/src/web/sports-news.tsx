@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
 
-import { formatDate, useUserLocale } from "../locale/locale-format.js";
+import { formatDate, useUserLocale } from "./locale.js";
 
 export function isFollowed(
   pairs: ReadonlySet<string>,

@@ -11,8 +11,8 @@ import type {
   StandingsGroup
 } from "@jarv1s/shared";
 
-import { hasLiveGame, SportsPage } from "../../apps/web/src/sports/sports-page.js";
-import { queryKeys } from "../../apps/web/src/api/query-keys.js";
+import { hasLiveGame, SportsPage } from "../../packages/sports/src/web/sports-page.js";
+import { sportsQueryKeys } from "../../packages/sports/src/web/query-keys.js";
 
 // Root suite renders @jarv1s/web components with react-dom/server (no jsdom /
 // @testing-library — deliberately avoided repo-wide; see settings-appearance-pane.test.tsx).
@@ -155,7 +155,7 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
 
 function render(overview: SportsOverviewResponse): string {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(queryKeys.sports.overview, overview);
+  client.setQueryData(sportsQueryKeys.overview, overview);
   return renderToString(createElement(QueryClientProvider, { client }, createElement(SportsPage)));
 }
 

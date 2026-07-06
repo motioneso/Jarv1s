@@ -6,8 +6,8 @@ import {
   getSportsCatalog,
   getSportsOverview,
   listSportsFollows
-} from "../../apps/web/src/api/sports-client.js";
-import { queryKeys } from "../../apps/web/src/api/query-keys.js";
+} from "../../packages/sports/src/web/sports-client.js";
+import { sportsQueryKeys } from "../../packages/sports/src/web/query-keys.js";
 
 describe("sports API client", () => {
   afterEach(() => {
@@ -15,9 +15,9 @@ describe("sports API client", () => {
   });
 
   it("defines sports query keys", () => {
-    expect(queryKeys.sports.overview).toEqual(["sports", "overview"]);
-    expect(queryKeys.sports.catalog).toEqual(["sports", "catalog"]);
-    expect(queryKeys.sports.follows).toEqual(["sports", "follows"]);
+    expect(sportsQueryKeys.overview).toEqual(["sports", "overview"]);
+    expect(sportsQueryKeys.catalog).toEqual(["sports", "catalog"]);
+    expect(sportsQueryKeys.follows).toEqual(["sports", "follows"]);
   });
 
   it("calls sports endpoints with expected methods and paths", async () => {
