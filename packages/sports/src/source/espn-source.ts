@@ -264,6 +264,7 @@ async function getHeadlines(
     articles?: readonly {
       id?: number | string;
       headline?: string;
+      description?: string;
       published?: string;
       links?: { web?: { href?: string } };
       images?: readonly { type?: string; url?: string }[];
@@ -282,6 +283,7 @@ async function getHeadlines(
       url: article.links?.web?.href ?? "",
       publishedAt: article.published ?? "",
       imageUrl: image?.url ?? null,
+      summary: article.description ?? "",
       teamKeys: [],
       sourceTeamIds: (article.categories ?? [])
         .filter((c) => c.type === "team" && c.teamId != null)

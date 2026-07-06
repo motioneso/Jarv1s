@@ -115,6 +115,7 @@ function headline(
     url: "https://example.test/" + id,
     publishedAt: "2026-07-01T18:00:00Z",
     imageUrl: null,
+    summary: "",
     teamKeys: [],
     ...overrides
   };

@@ -288,4 +288,30 @@ describe("sports routes", () => {
     expect(res.statusCode).toBe(401);
     await app.close();
   });
+
+  it("carries Headline.summary through the overview response (#840)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeSource({
+        getHeadlines: async () => [
+          {
+            id: "n1",
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            title: "Vikings clinch division",
+            url: "https://example.test/n1",
+            publishedAt: "2026-07-01T18:00:00Z",
+            imageUrl: null,
+            summary: "A late field goal sealed the NFC North.",
+            teamKeys: [],
+            sourceTeamIds: []
+          }
+        ]
+      })
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("A late field goal sealed the NFC North.");
+    await app.close();
+  });
 });

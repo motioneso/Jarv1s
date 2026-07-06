@@ -58,6 +58,7 @@ export interface Headline {
   readonly url: string;
   readonly publishedAt: string;
   readonly imageUrl: string | null; // first "header" image, else first image, else null
+  readonly summary: string; // short article blurb from the source; "" when absent (#840)
   readonly teamKeys: readonly string[]; // filled by the service join (Task 4); source emits []
 }
 
@@ -267,6 +268,7 @@ const headlineSchema = {
     "url",
     "publishedAt",
     "imageUrl",
+    "summary",
     "teamKeys"
   ],
   properties: {
@@ -277,6 +279,7 @@ const headlineSchema = {
     url: { type: "string" },
     publishedAt: { type: "string" },
     imageUrl: { type: ["string", "null"] },
+    summary: { type: "string" },
     teamKeys: { type: "array", items: { type: "string" } }
   }
 } as const;

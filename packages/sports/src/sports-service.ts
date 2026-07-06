@@ -430,9 +430,28 @@ function byNewest(a: SourceHeadline, b: SourceHeadline): number {
 // inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
 // objects with properties outside the matched branch instead of silently dropping them.
 function toPublicHeadline(headline: Headline): Headline {
-  const { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys } =
-    headline;
-  return { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys };
+  const {
+    id,
+    competitionKey,
+    competitionLabel,
+    title,
+    url,
+    publishedAt,
+    imageUrl,
+    summary,
+    teamKeys
+  } = headline;
+  return {
+    id,
+    competitionKey,
+    competitionLabel,
+    title,
+    url,
+    publishedAt,
+    imageUrl,
+    summary,
+    teamKeys
+  };
 }
 
 // Spec §E ranking: (1) headlines tagged with a followed team, newest first;
