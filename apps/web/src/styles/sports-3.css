@@ -17,12 +17,12 @@
 }
 
 .sp-news__grp {
-  margin-top: 16px;
+  margin-top: var(--space-4);
 }
 
 .sp-news__comp {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-2xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -66,23 +66,26 @@
 
 .sp-news__date {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-2xs);
   color: var(--text-faint);
 }
 
-/* Degraded-source notice (#765 M1) — modeled on .bfresh__stale (kit-today-misc.css). */
+/* Degraded-source notice (#765 M1) — hairline treatment, same copy and role="status". A straight
+   2px functional status rule (not the banned curved/rounded card accent) — same family as the
+   task-priority borders. */
 .sp-degraded {
-  margin: 8px 0 0;
-  font-size: 12px;
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  padding: 6px 10px;
-  border-radius: var(--radius-md);
-  background: var(--warn-soft);
-  border: 1px solid var(--warn);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  border-radius: 0;
+  background: none;
+  border: none;
+  border-left: 2px solid var(--warn);
 }
 
-/* Cold-load skeleton (#765 M2) — same block rhythm as the hero + followed rows it stands in
-   for, so nothing jumps once real data replaces it. */
+/* Cold-load skeleton (#765 M2) — same block rhythm as the ticker + hero + followed rows it
+   stands in for, so nothing jumps once real data replaces it. */
 .sp-skeleton {
   display: flex;
   flex-direction: column;
@@ -91,8 +94,13 @@
 }
 
 .sp-skel {
-  border-radius: var(--radius-card);
+  border-radius: 0;
   background: var(--surface-2);
+}
+
+.sp-skel--ticker {
+  height: 96px;
+  border-top: 2px solid var(--border);
 }
 
 .sp-skel--hero {
@@ -101,6 +109,7 @@
 
 .sp-skel--row {
   height: 64px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 @media (prefers-reduced-motion: no-preference) {

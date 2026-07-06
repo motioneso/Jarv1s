@@ -125,8 +125,8 @@ function DegradedBand() {
 function SportsSkeleton() {
   return (
     <div className="sp-skeleton" role="status" aria-label="Loading your teams">
+      <div className="sp-skel sp-skel--ticker" aria-hidden="true" />
       <div className="sp-skel sp-skel--hero" aria-hidden="true" />
-      <div className="sp-skel sp-skel--row" aria-hidden="true" />
       <div className="sp-skel sp-skel--row" aria-hidden="true" />
       <div className="sp-skel sp-skel--row" aria-hidden="true" />
     </div>

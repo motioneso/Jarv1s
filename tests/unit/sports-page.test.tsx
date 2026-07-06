@@ -410,6 +410,15 @@ describe("SportsPage", () => {
     expect(html).toContain("League news");
     expect(html).toContain("Cowboys sign veteran lineman");
   });
+
+  it("renders a ticker-shaped skeleton row while loading", () => {
+    const client = new QueryClient(); // nothing primed → loading branch
+    const html = renderToString(
+      createElement(QueryClientProvider, { client }, createElement(SportsPage))
+    );
+    expect(html).toContain("sp-skel--ticker");
+    expect(html).toContain("sp-skel--hero");
+  });
 });
 
 // #762: the overview query's refetchInterval decides whether to keep polling by asking
