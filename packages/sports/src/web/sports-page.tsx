@@ -1,10 +1,11 @@
-import "../styles/sports-1.css";
-import "../styles/sports-3.css";
-import "../styles/sports-4-grid.css";
+import "./styles/sports-1.css";
+import "./styles/sports-3.css";
+import "./styles/sports-4-grid.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
+  FollowedTeamCard,
   GameSide,
   GameSummary,
   OverviewHero,
@@ -14,17 +15,32 @@ import type {
   StandingsRow
 } from "@jarv1s/shared";
 
-import { getSportsOverview } from "../api/sports-client";
-import { queryKeys } from "../api/query-keys";
-import { CalendarIcon, Crest, LiveDot, RationaleChip, TrophyIcon } from "./sports-parts";
-import { isFollowed, LeagueNewsSection, StoryHero, TopStoriesRail } from "./sports-news";
-import { SportsTicker } from "./sports-ticker";
+import { getSportsOverview } from "./sports-client.js";
+import { sportsQueryKeys } from "./query-keys.js";
+import { useUserLocale } from "./locale.js";
+import {
+  CalendarIcon,
+  Crest,
+  FormPips,
+  LiveDot,
+  RationaleChip,
+  TrophyIcon
+} from "./sports-parts.js";
+import {
+  isFollowed,
+  LeagueNewsSection,
+  NewsIcon,
+  StoryHero,
+  TopStoriesRail
+} from "./sports-news.js";
+import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
 // Matches the server's SCOREBOARD_TTL_MS cadence (packages/sports/src/sports-service.ts) without
-// over-polling once nothing is actually live (#762).
-const LIVE_REFETCH_INTERVAL_MS = 60_000;
+// over-polling once nothing is actually live (#762). Exported for reuse by the Today "Sports
+// desk" widget (./today-widget.tsx), which polls the same query on the same cadence.
+export const LIVE_REFETCH_INTERVAL_MS = 60_000;
 
 // A still-pulsing LiveDot next to a frozen score is worse than no live indicator at all — this
 // decides whether the overview query should keep polling (#762). Exported for direct unit testing
@@ -38,7 +54,7 @@ export function hasLiveGame(data: SportsOverviewResponse | undefined): boolean {
 
 export function SportsPage() {
   const overviewQuery = useQuery({
-    queryKey: queryKeys.sports.overview,
+    queryKey: sportsQueryKeys.overview,
     queryFn: () => getSportsOverview(),
     // Poll only while a live game is actually in the payload; a static interval would be wasteful
     // once nothing is live, and with no interval at all the page never refetches after mount, so a
@@ -196,6 +212,64 @@ function HeroSide(props: { side: GameSide }) {
       />
       <span className="sp-hero__team">{props.side.name}</span>
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Followed card (Today widget) */
+
+export function FollowedCard(props: { card: FollowedTeamCard }) {
+  const { card } = props;
+  const locale = useUserLocale();
+  return (
+    <article className="sp-fc">
+      <div className="sp-fc__hd">
+        <Crest name={card.name} crestUrl={card.crestUrl} size="md" />
+        <div className="sp-fc__id">
+          <span className="sp-fc__name">{card.name}</span>
+          <span className="sp-fc__comp">{card.competitionLabel}</span>
+        </div>
+        <span className={`sp-tag sp-tag--${card.status}`}>{card.status}</span>
+      </div>
+
+      <div className="sp-fc__primary">
+        {card.status === "news" ? (
+          <>
+            <span className="sp-fc__newsic">
+              <NewsIcon />
+            </span>
+            {card.news ? (
+              <a className="sp-fc__newstx" href={card.news.url} target="_blank" rel="noreferrer">
+                {card.news.title}
+              </a>
+            ) : (
+              <span className="sp-fc__newstx">No recent news</span>
+            )}
+          </>
+        ) : (
+          <span className="sp-fc__resscore">{card.primary}</span>
+        )}
+      </div>
+
+      <div className="sp-fc__form">
+        {card.standing ? (
+          <span className="sp-fc__standing">
+            <TrophyIcon />
+            {card.standing}
+          </span>
+        ) : null}
+        <FormPips form={card.form} />
+      </div>
+
+      {card.nextMatch ? (
+        <div className="sp-fc__next">
+          <span className="sp-fc__nextlbl">
+            <CalendarIcon />
+            Next
+          </span>
+          <span className="sp-fc__nextmatch">{formatNextMatch(card.nextMatch, locale)}</span>
+        </div>
+      ) : null}
+    </article>
   );
 }
 

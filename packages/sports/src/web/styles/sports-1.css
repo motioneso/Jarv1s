@@ -336,6 +336,149 @@
   text-transform: none;
 }
 
+/* ---- followed-team cards (cross-sport consistent shape) ---- */
+.sp-fcgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(266px, 1fr));
+  gap: 12px;
+}
+.sp-fc {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: 15px 16px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.sp-fc__hd {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.sp-fc__id {
+  flex: 1;
+  min-width: 0;
+}
+.sp-fc__name {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+}
+.sp-fc__comp {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.sp-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  background: var(--surface-2);
+  padding: 3px 7px;
+  border-radius: var(--radius-pill);
+}
+.sp-tag--live {
+  color: var(--accent-fg);
+  background: var(--forest-soft);
+}
+.sp-tag--today {
+  color: var(--forest-ink);
+  background: var(--forest-soft);
+}
+.sp-tag--news {
+  color: var(--steel-ink);
+  background: var(--steel-soft);
+}
+.sp-fc__primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 13px;
+}
+.sp-fc__resscore {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.sp-fc__newsic {
+  flex: none;
+  color: var(--steel);
+  display: inline-flex;
+  margin-top: 1px;
+}
+.sp-fc__newstx {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.sp-fc__form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 11px;
+}
+.sp-fc__standing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-subtle);
+}
+.sp-fc__standing svg {
+  color: var(--text-faint);
+}
+.sp-fc__next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border-subtle);
+}
+.sp-fc__nextlbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.sp-fc__nextlbl svg {
+  color: var(--text-faint);
+}
+.sp-fc__nextmatch {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 /* ---- shared form-pip row (rendered by FormPips; still used by the ticker, #829) ---- */
 .sp-formrow {
   display: inline-flex;

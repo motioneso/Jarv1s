@@ -1,9 +1,9 @@
 import type { FollowedLeagueRef, FollowedNextMatch, FollowedTeamCard } from "@jarv1s/shared";
 import type { LocaleSettingsDto } from "@jarv1s/shared";
 
-import { formatDate, formatTime, useUserLocale } from "../locale/locale-format.js";
-import { Crest, FormPips, LiveDot } from "./sports-parts";
-import { NewsIcon } from "./sports-news";
+import { formatDate, formatTime, useUserLocale } from "./locale.js";
+import { Crest, FormPips, LiveDot } from "./sports-parts.js";
+import { NewsIcon } from "./sports-news.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 

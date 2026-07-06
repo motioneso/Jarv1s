@@ -6,7 +6,7 @@ import type {
   SportsOverviewResponse
 } from "@jarv1s/shared";
 
-import { requestJson } from "./client.js";
+import { requestJson } from "@jarv1s/module-web-sdk";
 
 export async function getSportsOverview(): Promise<SportsOverviewResponse> {
   return requestJson<SportsOverviewResponse>("/api/sports/overview");

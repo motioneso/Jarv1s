@@ -9,25 +9,15 @@ import type {
   SportsFollowsResponse,
   TeamRef
 } from "@jarv1s/shared";
+import { requestJson } from "@jarv1s/module-web-sdk";
 
-const CATALOG_KEY = ["sports", "catalog"] as const;
-const FOLLOWS_KEY = ["sports", "follows"] as const;
+import { sportsQueryKeys } from "../web/query-keys.js";
+import "./sports-2.css";
+
+const CATALOG_KEY = sportsQueryKeys.catalog;
+const FOLLOWS_KEY = sportsQueryKeys.follows;
 
 type CompetitionWithTeams = CompetitionRef & { readonly teams: readonly TeamRef[] };
-
-async function requestJson<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
-  const headers = new Headers(init?.headers);
-  headers.set("accept", "application/json");
-  if (init?.body !== undefined) headers.set("content-type", "application/json");
-  const response = await fetch(path, {
-    ...init,
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-    credentials: "include",
-    headers
-  });
-  if (!response.ok) throw new Error(response.statusText || "Request failed");
-  return (await response.json()) as T;
-}
 
 function getCatalog() {
   return requestJson<SportsCatalogResponse>("/api/sports/catalog");

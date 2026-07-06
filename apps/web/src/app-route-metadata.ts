@@ -1,4 +1,5 @@
 import type { LocaleSettingsDto, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import { MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
 
 import { DEFAULT_LOCALE, formatDate } from "./locale/locale-format.js";
 
@@ -13,14 +14,9 @@ const SECTION_OF: Record<string, string> = {
 const HIDDEN_NAV_IDS = new Set(["chat", "briefings", "settings", "notifications"]);
 
 export interface WebRouteMeta {
-  readonly id:
-    | "today"
-    | "tasks"
-    | "notifications"
-    | "calendar"
-    | "wellness"
-    | "sports"
-    | "settings";
+  // Widened from a literal union (#799): module-contributed routes are discovered at build time
+  // from `virtual:jarvis-module-web`, so their ids are not statically enumerable here.
+  readonly id: string;
   readonly path: string;
   readonly title: string;
   readonly subtitle: (now: Date, locale: LocaleSettingsDto) => string;
@@ -78,13 +74,19 @@ export const webRoutes: readonly WebRouteMeta[] = [
     subtitle: dateEyebrow,
     match: (pathname) => pathname.startsWith("/wellness")
   },
-  {
-    id: "sports",
-    path: "/sports",
-    title: "Sports",
-    subtitle: () => "FOLLOWED",
-    match: (pathname) => pathname.startsWith("/sports")
-  },
+  // Module-contributed routes (#799): discovered from each module's `./web` manifest navigation
+  // at build time rather than hardcoded per module. Deviation from the prior sports entry: the
+  // generated subtitle is always empty (the manifest doesn't carry a topbar eyebrow string like
+  // the old sports-specific "FOLLOWED" label) — see PR description for the accepted trade-off.
+  ...MODULE_WEB_ROUTES.map(
+    (route): WebRouteMeta => ({
+      id: route.moduleId,
+      path: route.path,
+      title: route.label,
+      subtitle: () => "",
+      match: (pathname) => pathname.startsWith(route.path)
+    })
+  ),
   {
     id: "settings",
     path: "/settings",

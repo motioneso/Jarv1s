@@ -1,6 +1,6 @@
 /* Sports settings follow-picker (packages/sports/src/settings/index.tsx). Separate file from
    sports-1.css purely for the 1000-line file-size gate (sports-1.css has no headroom); imported
-   by the settings shell since packages don't import their own CSS. */
+   directly by index.tsx as a colocated side-effect import (module web registry, #799). */
 
 .sp-whole {
   display: flex;

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { MODULE_WEB_CONTRIBUTIONS, MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
 
 import {
   ApiError,
@@ -37,9 +38,26 @@ const TasksPage = lazy(() =>
 const WellnessPage = lazy(() =>
   import("./wellness/wellness-page").then((module) => ({ default: module.WellnessPage }))
 );
-const SportsPage = lazy(() =>
-  import("./sports/sports-page").then((module) => ({ default: module.SportsPage }))
-);
+
+/**
+ * Generic module-web route docking (#799). Each `virtual:jarvis-module-web` route entry names a
+ * moduleId + path from the module's backend manifest; the matching `./web` contribution is lazily
+ * loaded and its declared `routes[].element` (matched by path) is rendered. Computed once at
+ * module scope (not per-render) so each route keeps a stable `lazy()` identity across App renders.
+ */
+const moduleRoutes = MODULE_WEB_ROUTES.map((route) => ({
+  path: route.path,
+  moduleId: route.moduleId,
+  Component: lazy(async (): Promise<{ default: ComponentType }> => {
+    const entry = MODULE_WEB_CONTRIBUTIONS.find(
+      (candidate) => candidate.moduleId === route.moduleId
+    );
+    if (!entry) return { default: () => null };
+    const contribution = (await entry.load()).default;
+    const matched = contribution.routes?.find((candidate) => candidate.path === route.path);
+    return { default: () => <>{matched?.element ?? null}</> };
+  })
+}));
 
 export function App() {
   const queryClient = useQueryClient();
@@ -86,7 +104,6 @@ export function App() {
     return module?.active === true ? "enabled" : "denied";
   };
   const wellnessGate = myModulesEnabled("wellness");
-  const sportsGate = myModulesEnabled("sports");
   const onboardingQuery = useQuery({
     enabled: activeForOnboarding,
     queryKey: queryKeys.onboarding.status,
@@ -190,7 +207,13 @@ export function App() {
             <Route index element={<Navigate to={webRoutePath("today")} replace />} />
             <Route
               path={webRoutePath("today")}
-              element={<TodayPage me={meQuery.data} wellnessEnabled={wellnessGate === "enabled"} />}
+              element={
+                <TodayPage
+                  me={meQuery.data}
+                  wellnessEnabled={wellnessGate === "enabled"}
+                  disabledModuleIds={disabledModuleIds}
+                />
+              }
             />
             <Route path={webRoutePath("tasks")} element={<TasksPage />} />
             <Route path={webRoutePath("notifications")} element={<NotificationsPage />} />
@@ -203,14 +226,17 @@ export function App() {
                 </ModuleGatedRoute>
               }
             />
-            <Route
-              path={webRoutePath("sports")}
-              element={
-                <ModuleGatedRoute gate={sportsGate}>
-                  <SportsPage />
-                </ModuleGatedRoute>
-              }
-            />
+            {moduleRoutes.map(({ path, moduleId, Component }) => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <ModuleGatedRoute gate={myModulesEnabled(moduleId)}>
+                    <Component />
+                  </ModuleGatedRoute>
+                }
+              />
+            ))}
             <Route path={webRoutePath("settings")} element={<SettingsPage me={meQuery.data} />} />
             <Route path="*" element={<Navigate to={webRoutePath("today")} replace />} />
           </Routes>

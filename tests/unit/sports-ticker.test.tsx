@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FollowedLeagueRef, FollowedTeamCard } from "@jarv1s/shared";
 
-import { SportsTicker } from "../../apps/web/src/sports/sports-ticker.js";
+import { SportsTicker } from "../../packages/sports/src/web/sports-ticker.js";
 
 function card(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCard {
   return {
