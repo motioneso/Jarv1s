@@ -163,6 +163,12 @@ function render(overview: SportsOverviewResponse): string {
 }
 
 describe("SportsPage", () => {
+  it("renders the broadsheet masthead", () => {
+    const html = render(makeOverview());
+    expect(html).toContain("sp-masthead");
+    expect(html).toContain("sp-masthead__title");
+  });
+
   it("renders the gameday hero with the rationale, both teams, and scores", () => {
     const html = render(makeOverview());
     expect(html).toContain("You follow the Vikings — they are on now");

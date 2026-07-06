@@ -1,6 +1,7 @@
 import "./styles/sports-1.css";
 import "./styles/sports-3.css";
 import "./styles/sports-4-grid.css";
+import "./styles/sports-5-editorial.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,7 +18,7 @@ import type {
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
-import { useUserLocale } from "./locale.js";
+import { formatDate, useUserLocale } from "./locale.js";
 import {
   CalendarIcon,
   Crest,
@@ -114,14 +115,11 @@ export function SportsPage() {
 }
 
 function PageHeader() {
+  const locale = useUserLocale();
   return (
-    <header className="sp-top">
-      <div className="sp-top__main">
-        <h1 className="sp-title">Your teams, today.</h1>
-        <p className="sp-lede">
-          Latest scores and what&rsquo;s next, then the wider slate and the headlines that matter.
-        </p>
-      </div>
+    <header className="sp-masthead">
+      <h1 className="sp-masthead__title">Sports</h1>
+      <span className="sp-masthead__meta">{formatDate(new Date(), locale)}</span>
     </header>
   );
 }
