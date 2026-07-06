@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { GameSummary, LocaleSettingsDto, ScoreboardGroup } from "@jarv1s/shared";
 
@@ -21,14 +21,24 @@ export function AroundLeaguesTicker({ groups }: { readonly groups: readonly Scor
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
 
-  if (groups.length === 0) return null;
-
   function updateEdges(): void {
     const el = scrollRef.current;
     if (!el) return;
     setAtStart(el.scrollLeft <= 1);
     setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
   }
+
+  // Measure edges on mount and whenever `groups` changes (content can grow/shrink), plus on
+  // viewport resize — a wider viewport can turn an overflowing strip into a non-overflowing one.
+  // Without this, a strip that never fires `scroll` (content fits, or exactly fits) would render a
+  // dead right arrow at rest.
+  useEffect(() => {
+    updateEdges();
+    window.addEventListener("resize", updateEdges);
+    return () => window.removeEventListener("resize", updateEdges);
+  }, [groups]);
+
+  if (groups.length === 0) return null;
 
   function nudge(direction: -1 | 1): void {
     const el = scrollRef.current;
@@ -52,7 +62,8 @@ export function AroundLeaguesTicker({ groups }: { readonly groups: readonly Scor
         ref={scrollRef}
         onScroll={updateEdges}
         tabIndex={0}
-        role="group"
+        role="region"
+        aria-label="All scores, scrollable"
       >
         {groups.map((group) => (
           <div className="sp-around__group" key={group.competitionKey}>
