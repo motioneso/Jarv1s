@@ -135,8 +135,6 @@ export interface SettingsRoutesDependencies {
   readonly onboardingLogin?: OnboardingLoginDependencies;
   /** Host diagnostics runtime-facts provider (#255); injected by the composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
-  readonly requestRestart?: () => void | Promise<void>;
-  readonly installHerdr?: () => void | Promise<void>;
   /** pg-boss instance for enqueueing export.build jobs (#431). */
   readonly boss?: PgBoss;
   /**
@@ -693,8 +691,6 @@ export function registerSettingsRoutes(
     repository,
     chatMultiplexerAvailability: dependencies.chatMultiplexerAvailability,
     hostDiagnostics: dependencies.hostDiagnostics,
-    requestRestart: dependencies.requestRestart,
-    installHerdr: dependencies.installHerdr,
     assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
     handleRouteError
   });
