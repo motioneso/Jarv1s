@@ -69,7 +69,19 @@ their per-module knowledge.
 
    interface ModuleDeletionDecl {
      readonly strategy: "cascade"; // this slice: cascade-only (see §4)
-     readonly tables: readonly string[]; // FK ON DELETE CASCADE chain to app.users, verified
+     readonly tables: readonly ModuleDeletionTable[]; // FK cascade chain to app.users, verified
+   }
+
+   interface ModuleDeletionTable {
+     readonly table: string; // e.g. "app.wellness_checkins"
+     // SQL boolean predicate over $1::uuid (the target user id) for the deletion script's
+     // before/after count sweep. Defaults to "owner_user_id = $1::uuid" — the shape ~90% of
+     // the script's current list uses. Tables scoped differently declare theirs explicitly,
+     // exactly as the script's hardcoded [table, predicate] tuples do today: e.g.
+     // "user_id = $1::uuid" (chat_user_memory_settings) or a join
+     // ("task_id IN (SELECT id FROM app.tasks WHERE owner_user_id = $1::uuid)" for
+     // task_tag_assignments). Code-authored literal, same trust level as the current list.
+     readonly countPredicate?: string;
    }
    ```
 
@@ -85,7 +97,8 @@ their per-module knowledge.
 
 2. **Parity assertion** (`assertModuleRegistryConsistency`,
    `packages/module-registry/src/index.ts:1254-1281`, extended): every table in a manifest's
-   `database.ownedTables` MUST be covered by its `dataLifecycle.deletion.tables`. Modules with
+   `database.ownedTables` MUST be covered by its `dataLifecycle.deletion.tables` entries'
+   `table` values. Modules with
    owned tables and **no** `dataLifecycle` fail registration — coverage is opt-out-impossible.
 
    **Phase gating (boot-safety):** the mandatory check cannot be global on day one — **18
@@ -129,9 +142,14 @@ their per-module knowledge.
    (`me-account-routes.ts:11`, `routes.ts:41`), and `module-registry` depends on
    `@jarv1s/settings` (`packages/module-registry/package.json`), so a static registry import
    pulls module-registry into settings' own build graph. Instead:
-   - `deleteUserData()` gains a `moduleDeletionTables: readonly string[]` parameter — the
-     API-route callers receive the derived list from the composition root (apps/api already holds
-     the registry; thread it through `registerSettingsRoutes` deps like every other port).
+   - `deleteUserData()` gains a
+     `moduleDeletionTables: readonly { table: string; countPredicate: string }[]` parameter
+     (the default predicate already applied at derivation) — the script's count sweep uses these
+     exactly as it uses its hardcoded `[table, predicate]` tuples today (`delete-user-data.ts`
+     needs per-table user-scoping predicates — `owner_user_id`, `user_id`, joins — so bare table
+     names would not be enough to preserve the count/verification behavior). The API-route
+     callers receive the derived list from the composition root (apps/api already holds the
+     registry; thread it through `registerSettingsRoutes` deps like every other port).
    - The CLI entrypoint derives the list via a **dynamic `import("@jarv1s/module-registry")`
      inside the already-guarded `main()` path** (the `import.meta.url` guard at
      `delete-user-data.ts:317-323` ensures `main()` never runs when the file is bundled into the
