@@ -170,6 +170,23 @@ describe("SportsPage", () => {
     expect(html).toContain("sp-livedot");
     // live score is a scoped aria-live region so screen readers hear updates
     expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('aria-atomic="true"');
+  });
+
+  it("does not announce the hero score via aria-live when the game is not live", () => {
+    const html = render(
+      makeOverview({
+        hero: {
+          mode: "gameday",
+          game: { ...liveGame(), state: "final", statusDetail: "Final" },
+          competitionLabel: "NFL",
+          rationale: "You follow the Vikings — they are on now",
+          alsoToday: "2 other followed games today"
+        }
+      })
+    );
+    expect(html).not.toContain("aria-live");
+    expect(html).not.toContain("aria-atomic");
   });
 
   it("renders the followed-team ticker block with form pips and next match", () => {
