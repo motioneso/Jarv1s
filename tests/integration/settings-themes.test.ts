@@ -74,7 +74,11 @@ describe("settings theme preferences", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json<ListThemesResponse>()).toEqual({
       builtIn: [
-        { id: "light", name: "Light", builtIn: true },
+        { id: "light", name: "Forest", builtIn: true },
+        { id: "sage", name: "Sage", builtIn: true },
+        { id: "canyon", name: "Canyon", builtIn: true },
+        { id: "teal", name: "Teal", builtIn: true },
+        { id: "dusk", name: "Dusk", builtIn: true },
         { id: "dark", name: "Dark", builtIn: true }
       ],
       custom: [],
@@ -93,6 +97,26 @@ describe("settings theme preferences", () => {
     expect(theme).toMatchObject({ id: "my-blue", name: "My Blue", builtIn: false });
     expect(theme.tokens).toEqual(validThemeTokens);
     expect(Object.keys(await readPreference("themes.custom"))).not.toContain("red");
+  });
+
+  it("persists the optional gold token when provided", async () => {
+    const put = await putTheme(ids.sessionA, "gold-theme", {
+      name: "Golden",
+      tokens: { ...validThemeTokens, gold: "#c2872b" }
+    });
+
+    expect(put.statusCode).toBe(200);
+    expect(put.json<PutCustomThemeResponse>().theme.tokens.gold).toBe("#c2872b");
+
+    const list = await server.inject({
+      method: "GET",
+      url: "/api/me/themes",
+      headers: userHeaders(ids.sessionA)
+    });
+    const stored = list
+      .json<ListThemesResponse>()
+      .custom.find((theme) => theme.id === "gold-theme");
+    expect(stored?.tokens.gold).toBe("#c2872b");
   });
 
   it("persists active custom theme per user", async () => {

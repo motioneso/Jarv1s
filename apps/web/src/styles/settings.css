@@ -140,9 +140,9 @@
   color: var(--text);
 }
 .set2__navitem.is-active {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
+  color: var(--forest-ink);
 }
 .set2__navitem .ic {
   display: inline-flex;
@@ -204,7 +204,7 @@
   margin-bottom: 4px;
 }
 .pane__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 25px;
   font-weight: 600;
   letter-spacing: -0.012em;
@@ -235,7 +235,7 @@
   min-width: 0;
 }
 .pane__cardtitle {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.004em;

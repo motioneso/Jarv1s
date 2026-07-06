@@ -54,9 +54,9 @@ import type {
   InstallRecipe,
   NpmInstallRecipe,
   ProviderCatalog,
-  RpcInstallProviderResult
-} from "../../chat/src/live/install-contract.js";
-import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
+  RpcInstallProviderResult,
+  RpcProviderKind
+} from "@jarv1s/chat/live";
 
 import { findRepoRoot } from "./catalog.js";
 import { buildSanitizedCliEnv } from "./sanitized-env.js";

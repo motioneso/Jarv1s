@@ -50,6 +50,7 @@ const tasks = [
 async function baseState(page: Page) {
   await mockApi(page, {
     authenticated: true,
+    themeActiveId: "dark",
     connectorAccounts: [
       createMockConnectorAccount("connector-1", {
         providerId: "google-email",
@@ -100,6 +101,7 @@ test("dark: sign-in", async ({ page }) => {
 test("dark: onboarding", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
+    themeActiveId: "dark",
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
     notifications: [],
@@ -166,6 +168,7 @@ test("dark: settings + AI", async ({ page }) => {
 test("dark: wellness", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
+    themeActiveId: "dark",
     connectorAccounts: [],
     connectorProviders: [],
     notifications: [],

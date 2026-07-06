@@ -30,15 +30,13 @@ import {
   listLoginMuxSessions,
   listLoginMuxSessionsWithAge,
   LOGIN_SESSION_PREFIX,
-  type ProbeProviderResult
-} from "../../chat/src/live/cli-chat-engine.js";
-import type {
-  LoginAdapter,
-  LoginAdapterRegistry,
-  LoginFlowStatus,
-  LoginSurface
-} from "../../chat/src/live/login-contract.js";
-import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
+  type LoginAdapter,
+  type LoginAdapterRegistry,
+  type LoginFlowStatus,
+  type LoginSurface,
+  type ProbeProviderResult,
+  type RpcProviderKind
+} from "@jarv1s/chat/live";
 
 /**
  * A blocked/unknown/no-adapter provider, or a stale `loginId` — mapped to RpcErr

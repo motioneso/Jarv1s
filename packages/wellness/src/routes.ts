@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
   createCheckinRouteSchema,
@@ -29,7 +29,11 @@ import {
 } from "@jarv1s/shared";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 
-import { readWellnessAiConsentState, WELLNESS_AI_CONSENT_PREFERENCE_KEY } from "./ai-consent.js";
+import {
+  readWellnessAiConsentState,
+  resolveEffectiveWellnessConsent,
+  WELLNESS_AI_CONSENT_PREFERENCE_KEY
+} from "./ai-consent.js";
 import type {
   CreateCheckinInput,
   UpdateCheckinInput,
@@ -110,6 +114,11 @@ export function registerWellnessRoutes(
         const wellnessActive = await isWellnessActive(dependencies, accessContext.actorUserId);
         return dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
           await preferences.upsert(scopedDb, WELLNESS_AI_CONSENT_PREFERENCE_KEY, granted);
+          if (!granted) {
+            // Consent revoked: stop any already-written energy-trend fact from reaching
+            // prompts immediately, rather than waiting on the next check-in (#769).
+            await recallContributor.invalidateEnergyTrendFact(scopedDb, accessContext.actorUserId);
+          }
           return readWellnessAiConsentState(scopedDb, preferences, wellnessActive);
         });
       } catch (error) {
@@ -126,11 +135,22 @@ export function registerWellnessRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseCheckinBody(request.body);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const checkin = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
-            const created = await repo.createCheckin(scopedDb, input);
-            await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+            const created = await repo.createCheckin(scopedDb, input, timeZone);
+            const consentGranted = await resolveWellnessConsent(
+              dependencies,
+              preferences,
+              scopedDb,
+              accessContext.actorUserId
+            );
+            await recallContributor.refreshEnergyTrendFact(
+              scopedDb,
+              accessContext.actorUserId,
+              consentGranted
+            );
             return created;
           }
         );
@@ -172,7 +192,17 @@ export function registerWellnessRoutes(
           async (scopedDb) => {
             const updated = await repo.updateCheckin(scopedDb, request.params.id, input);
             if (updated && input.energy !== undefined) {
-              await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+              const consentGranted = await resolveWellnessConsent(
+                dependencies,
+                preferences,
+                scopedDb,
+                accessContext.actorUserId
+              );
+              await recallContributor.refreshEnergyTrendFact(
+                scopedDb,
+                accessContext.actorUserId,
+                consentGranted
+              );
             }
             return updated;
           }
@@ -456,6 +486,23 @@ async function isWellnessActive(
   return modules?.some((module) => module.id === "wellness") ?? true;
 }
 
+/**
+ * Resolve effective Wellness AI consent for a recall-contributor write path. Routes don't
+ * have a `ToolServices` registry handle (that's only injected on the tool-execution path —
+ * see `tools.ts`), so this passes `services: undefined` and supplies the module-active
+ * fallback directly via `isWellnessActive`, reusing the exact same
+ * `resolveEffectiveWellnessConsent` helper the AI-read tools gate on (#769).
+ */
+async function resolveWellnessConsent(
+  dependencies: WellnessRoutesDependencies,
+  preferences: PreferencesRepository,
+  scopedDb: DataContextDb,
+  actorUserId: string
+): Promise<boolean> {
+  const wellnessActive = await isWellnessActive(dependencies, actorUserId);
+  return resolveEffectiveWellnessConsent(scopedDb, preferences, undefined, wellnessActive);
+}
+
 async function resolveRouteTimeZone(
   dependencies: WellnessRoutesDependencies,
   request: FastifyRequest,
@@ -678,6 +725,14 @@ function parseLogDoseBody(body: unknown): LogDoseInput {
   // letting the DB CHECK surface a 500 (Codex R2).
   if (status !== "prn" && !scheduledFor) {
     throw new HttpError(400, "scheduledFor is required for taken/skipped doses");
+  }
+  // PRN doses are unscheduled by definition (scheduled_for IS NULL — repository.logDose does a
+  // plain insert for them). A "prn" log carrying a scheduledFor would instead take the
+  // scheduled-dose upsert path and CLOBBER the prior taken/skipped record for that slot,
+  // regressing it to "pending" in the schedule view (#770 / M3). Reject before it reaches the
+  // repository.
+  if (status === "prn" && scheduledFor) {
+    throw new HttpError(400, "scheduledFor must not be set for prn doses");
   }
   return {
     status,

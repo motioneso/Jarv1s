@@ -15,9 +15,14 @@ export const AESTHETIC_THEME_TOKEN_KEYS = [
   "accent"
 ] as const;
 
+/** Optional aesthetic tokens: absent = built-in constant applies. */
+export const OPTIONAL_AESTHETIC_TOKEN_KEYS = ["gold"] as const;
+
 export type AestheticThemeTokenKey = (typeof AESTHETIC_THEME_TOKEN_KEYS)[number];
-export type AestheticThemeTokens = Record<AestheticThemeTokenKey, string>;
-export type BuiltInThemeId = "light" | "dark";
+export type AestheticThemeTokens = Record<AestheticThemeTokenKey, string> & {
+  gold?: string;
+};
+export type BuiltInThemeId = "light" | "sage" | "canyon" | "teal" | "dusk" | "dark";
 
 export interface BuiltInThemeDto {
   readonly id: BuiltInThemeId;
@@ -62,8 +67,14 @@ const colorValueSchema = {
 } as const;
 
 const tokenProperties = Object.fromEntries(
-  AESTHETIC_THEME_TOKEN_KEYS.map((key) => [key, colorValueSchema])
-) as Record<AestheticThemeTokenKey, typeof colorValueSchema>;
+  [...AESTHETIC_THEME_TOKEN_KEYS, ...OPTIONAL_AESTHETIC_TOKEN_KEYS].map((key) => [
+    key,
+    colorValueSchema
+  ])
+) as Record<
+  AestheticThemeTokenKey | (typeof OPTIONAL_AESTHETIC_TOKEN_KEYS)[number],
+  typeof colorValueSchema
+>;
 
 export const aestheticThemeTokensSchema = {
   type: "object",
@@ -83,7 +94,7 @@ const builtInThemeSchema = {
   additionalProperties: false,
   required: ["id", "name", "builtIn"],
   properties: {
-    id: { type: "string", enum: ["light", "dark"] },
+    id: { type: "string", enum: ["light", "sage", "canyon", "teal", "dusk", "dark"] },
     name: { type: "string" },
     builtIn: { type: "boolean", const: true }
   }

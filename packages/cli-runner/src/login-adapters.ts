@@ -10,7 +10,7 @@
  *
  * SERVER-SIDE ONLY (cli-runner): the concrete values + `extractSurface` parsers are the
  * auth-flow allowlist and must NEVER ship to the browser bundle. The shared TYPES live in
- * `packages/chat/src/live/login-contract.ts`.
+ * `@jarv1s/chat/live` (packages/chat/src/live/login-contract.ts).
  *
  * Pinned 2026-06-20 (Phase 3) against the catalog-pinned CLI versions (claude 2.1.183,
  * codex 0.141.0). The concrete `loginArgv` / URL allowlists / userCode patterns below are
@@ -22,10 +22,10 @@ import type {
   LoginAdapter,
   LoginAdapterRegistry,
   LoginAuthUrlPattern,
-  LoginSurface
-} from "../../chat/src/live/login-contract.js";
-import type { ProviderCatalog } from "../../chat/src/live/install-contract.js";
-import type { RpcProviderKind } from "../../chat/src/live/rpc-contract.js";
+  LoginSurface,
+  ProviderCatalog,
+  RpcProviderKind
+} from "@jarv1s/chat/live";
 
 import { PROVIDER_CATALOG } from "./catalog.js";
 

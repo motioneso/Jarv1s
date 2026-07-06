@@ -38,12 +38,46 @@ export class WellnessRecallContributor {
   ) {}
 
   /**
+   * Supersede any active `[wellness:energy-trend]` profile fact for this owner, without
+   * writing a replacement. This is the consent-revocation path (#769): when
+   * `wellness.ai_consent_granted` flips to false, any trend fact already sitting in chat
+   * memory (an AI-prompt surface) must stop reaching prompts immediately, not merely on the
+   * next check-in. Also used defensively inside `refreshEnergyTrendFact` when a check-in
+   * fires while consent is withheld, so a stale fact never lingers.
+   */
+  async invalidateEnergyTrendFact(scopedDb: DataContextDb, ownerUserId: string): Promise<void> {
+    assertDataContextDb(scopedDb);
+    const active = await this.facts.listActiveFacts(scopedDb, ownerUserId);
+    for (const fact of active) {
+      if (fact.category === "profile" && fact.content.includes(ENERGY_TREND_TAG)) {
+        await this.facts.supersedeFact(scopedDb, fact.id);
+      }
+    }
+  }
+
+  /**
    * Recompute the energy-trend and store it as a single owner profile fact. Supersedes
    * any prior wellness energy-trend fact so only the latest is active. Uses the memory
    * module's PUBLIC API only — never imports memory internals (module-isolation).
+   *
+   * `consentGranted` MUST be the effective Wellness AI-consent state
+   * (`resolveEffectiveWellnessConsent` — the same helper `wellness.recentCheckIns` /
+   * `wellness.medicationAdherence` gate on). This method writes into
+   * `ChatMemoryFactsRepository`, which feeds chat prompts, so it is an AI-prompt surface
+   * exactly like those tools (#769) and must never write while consent is withheld. When
+   * consent is not granted, no new fact is derived or written; any existing active trend
+   * fact is superseded instead so it stops reaching prompts.
    */
-  async refreshEnergyTrendFact(scopedDb: DataContextDb, ownerUserId: string): Promise<void> {
+  async refreshEnergyTrendFact(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    consentGranted: boolean
+  ): Promise<void> {
     assertDataContextDb(scopedDb);
+    if (!consentGranted) {
+      await this.invalidateEnergyTrendFact(scopedDb, ownerUserId);
+      return;
+    }
     // Serialize concurrent refreshes for THIS owner so two near-simultaneous check-ins can't
     // each insert an energy-trend fact (leaving two active/contradictory facts). withDataContext
     // runs inside a transaction, so pg_advisory_xact_lock auto-releases on commit/rollback. The
@@ -61,12 +95,7 @@ export class WellnessRecallContributor {
 
     const trend = deriveEnergyTrend(recent as Array<Pick<WellnessCheckin, "energy">>);
 
-    const active = await this.facts.listActiveFacts(scopedDb, ownerUserId);
-    for (const fact of active) {
-      if (fact.category === "profile" && fact.content.includes(ENERGY_TREND_TAG)) {
-        await this.facts.supersedeFact(scopedDb, fact.id);
-      }
-    }
+    await this.invalidateEnergyTrendFact(scopedDb, ownerUserId);
 
     if (trend) {
       await this.facts.insertFact(scopedDb, ownerUserId, {

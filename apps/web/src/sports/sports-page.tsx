@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
+  FollowedLeagueRef,
   FollowedNextMatch,
   FollowedTeamCard,
   GameSide,
@@ -24,6 +25,10 @@ import { isFollowed, LeagueNewsSection, NewsIcon, StoryHero, TopStoriesRail } fr
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
+// Matches the server's SCOREBOARD_TTL_MS cadence (packages/sports/src/sports-service.ts) without
+// over-polling once nothing is actually live (#762).
+const LIVE_REFETCH_INTERVAL_MS = 60_000;
+
 // "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2)
 function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
   const at = next.startsAt;
@@ -32,10 +37,28 @@ function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): st
   return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${date} · ${time}`;
 }
 
+// A still-pulsing LiveDot next to a frozen score is worse than no live indicator at all — this
+// decides whether the overview query should keep polling (#762). Exported for direct unit testing
+// of the polling decision (see tests/unit/sports-page.test.tsx).
+export function hasLiveGame(data: SportsOverviewResponse | undefined): boolean {
+  if (!data) return false;
+  if (data.hero.mode === "gameday" && data.hero.game.state === "live") return true;
+  if (data.followed.some((card) => card.status === "live")) return true;
+  return data.scoreboard.some((group) => group.games.some((game) => game.state === "live"));
+}
+
 export function SportsPage() {
   const overviewQuery = useQuery({
     queryKey: queryKeys.sports.overview,
-    queryFn: () => getSportsOverview()
+    queryFn: () => getSportsOverview(),
+    // Poll only while a live game is actually in the payload; a static interval would be wasteful
+    // once nothing is live, and with no interval at all the page never refetches after mount, so a
+    // live score silently goes stale behind a still-pulsing LiveDot (#762). Re-enable window-focus
+    // refetch for this query specifically (overriding the app-wide default in main.tsx) so tabbing
+    // back in also gets a fresh read, independent of the interval timer.
+    refetchInterval: (query) => (hasLiveGame(query.state.data) ? LIVE_REFETCH_INTERVAL_MS : false),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true
   });
   const data = overviewQuery.data;
 
@@ -48,23 +71,37 @@ export function SportsPage() {
     return (
       <div className="sp-wrap">
         <PageHeader />
-        <p className="sp-lede" role="status">
-          {overviewQuery.isError ? "Sports are unavailable right now." : "Loading your teams…"}
-        </p>
+        {overviewQuery.isError ? (
+          <p className="sp-lede" role="status">
+            Sports are unavailable right now.
+          </p>
+        ) : (
+          <SportsSkeleton />
+        )}
       </div>
     );
   }
 
-  const hasFollows = data.followed.length > 0;
+  // A whole-league follow (no individual team) is a first-class picker option — treat it as
+  // "has follows" too, and never fall through to the "Follow your teams" empty state just
+  // because there's no team card to show (#763).
+  const hasTeamFollows = data.followed.length > 0;
+  const hasLeagueFollows = data.followedLeagues.length > 0;
+  const hasFollows = hasTeamFollows || hasLeagueFollows;
 
   return (
     <div className="sp-wrap">
       <PageHeader />
+      {data.degraded ? <DegradedBand /> : null}
 
       {hasFollows ? (
         <>
           <Hero hero={data.hero} />
-          <FollowedSection followed={data.followed} />
+          {hasTeamFollows ? (
+            <FollowedSection followed={data.followed} />
+          ) : (
+            <FollowedLeaguesSection leagues={data.followedLeagues} />
+          )}
           <SplitSection data={data} followedPairs={followedPairs} />
           <LeagueNewsSection groups={data.leagueNews} />
         </>
@@ -88,6 +125,29 @@ function PageHeader() {
   );
 }
 
+// Quiet, non-blocking notice for a partial provider outage — the page still renders with
+// whatever loaded, this just explains why something might be missing (#765 M1).
+function DegradedBand() {
+  return (
+    <p className="sp-degraded" role="status">
+      Scores are temporarily unavailable for some leagues. Showing what we could load.
+    </p>
+  );
+}
+
+// Cold-load placeholder while the first overview fetch is in flight — matches the shapes of
+// the sections it stands in for so nothing jumps around once real data lands (#765 M2).
+function SportsSkeleton() {
+  return (
+    <div className="sp-skeleton" role="status" aria-label="Loading your teams">
+      <div className="sp-skel sp-skel--hero" aria-hidden="true" />
+      <div className="sp-skel sp-skel--row" aria-hidden="true" />
+      <div className="sp-skel sp-skel--row" aria-hidden="true" />
+      <div className="sp-skel sp-skel--row" aria-hidden="true" />
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- Hero */
 
 function Hero(props: { hero: OverviewHero }) {
@@ -98,7 +158,7 @@ function Hero(props: { hero: OverviewHero }) {
 }
 
 function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }) {
-  const { game, rationale, alsoToday } = props.hero;
+  const { game, competitionLabel, rationale, alsoToday } = props.hero;
   return (
     <section className="sp-hero sp-hero--live" aria-label="Gameday">
       <div className="sp-hero__eyebrow">
@@ -108,7 +168,7 @@ function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }
             Live
           </span>
         ) : (
-          <span className="sp-hero__comp">{game.competitionKey.toUpperCase()}</span>
+          <span className="sp-hero__comp">{competitionLabel}</span>
         )}
         <span className="sp-hero__phase">{game.statusDetail}</span>
       </div>
@@ -167,6 +227,31 @@ function FollowedSection(props: { followed: readonly FollowedTeamCard[] }) {
       <div className="sp-fcgrid">
         {props.followed.map((card) => (
           <FollowedCard key={`${card.competitionKey}:${card.teamKey}`} card={card} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Distinct header/state for users who only follow whole leagues (no individual teams) — never
+// shown alongside FollowedSection; the two are mutually exclusive per render (#763).
+function FollowedLeaguesSection(props: { leagues: readonly FollowedLeagueRef[] }) {
+  const count = props.leagues.length;
+  return (
+    <section className="sp-sec" aria-label="Followed leagues">
+      <div className="sp-sec__head">
+        <h2 className="sp-sec__title">
+          Following <span className="sub">{`${count} league${count === 1 ? "" : "s"}`}</span>
+        </h2>
+        <a className="sp-managebtn" href={SETTINGS_HREF}>
+          Manage
+        </a>
+      </div>
+      <div className="sp-chips">
+        {props.leagues.map((league) => (
+          <span key={league.competitionKey} className="sp-chip is-on">
+            {league.competitionLabel}
+          </span>
         ))}
       </div>
     </section>

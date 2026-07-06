@@ -120,6 +120,7 @@ const nflHeadlines: SourceHeadline[] = [
   {
     id: "h1",
     competitionKey: "nfl",
+    competitionLabel: "NFL",
     title: "Cowboys clinch the division",
     url: "https://example.com/h1",
     publishedAt: `${TODAY}T12:00:00.000Z`,
@@ -300,6 +301,7 @@ describe("SportsService.getOverview", () => {
     const manyHeadlines = Array.from({ length: 9 }, (_, i) => ({
       id: `h${i}`,
       competitionKey: "nfl",
+      competitionLabel: "NFL",
       title: `Story ${i}`,
       url: `https://example.com/h${i}`,
       publishedAt: `2026-07-01T0${i}:00:00.000Z`,
@@ -336,6 +338,47 @@ describe("SportsService.getOverview", () => {
     }
   });
 
+  // #763: whole-league follows (teamKey: null) are a first-class picker option but produce no
+  // FollowedTeamCard — the overview must surface them separately and let their headlines feed
+  // the story hero, so a league-only follower isn't treated as following nothing.
+  it("surfaces whole-league follows separately and lets them feed the story hero", async () => {
+    const nbaFollow: SportsFollowDto = {
+      id: "f2",
+      competitionKey: "nba",
+      teamKey: null,
+      createdAt: "2026-06-01T00:00:00.000Z"
+    };
+    const nbaHeadline: SourceHeadline = {
+      id: "hn1",
+      competitionKey: "nba",
+      competitionLabel: "NBA",
+      title: "NBA free agency shakes up the West",
+      url: "https://example.com/hn1",
+      publishedAt: `${TODAY}T13:00:00.000Z`,
+      imageUrl: null,
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const service = new SportsService(
+      makeDeps({
+        follows: [nbaFollow],
+        source: makeSource({
+          getScoreboard: async () => [],
+          getHeadlines: async (competitionKey) => (competitionKey === "nba" ? [nbaHeadline] : [])
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.followed).toEqual([]);
+    expect(overview.followedTeams).toEqual([]);
+    expect(overview.followedLeagues).toEqual([{ competitionKey: "nba", competitionLabel: "NBA" }]);
+    expect(overview.topStories.map((h) => h.id)).toContain("hn1");
+    expect(overview.hero.mode).toBe("story");
+    if (overview.hero.mode === "story") {
+      expect(overview.hero.headline?.title).toBe("NBA free agency shakes up the West");
+    }
+  });
+
   it("uses the top-ranked story for the story hero", async () => {
     const service = new SportsService(
       makeDeps({ source: makeSource({ getScoreboard: async () => [] }) })
@@ -345,6 +388,66 @@ describe("SportsService.getOverview", () => {
     if (overview.hero.mode === "story") {
       expect(overview.hero.headline?.id).toBe(overview.topStories[0]?.id);
     }
+  });
+
+  // #764: a brand-new user with zero follows (no teams, no whole-league follows) previously drove
+  // `competitionKeys` to `[]`, so the overview fetched nothing and the page rendered as a lone
+  // empty-state CTA. It must instead fall back to a small fixed default slate so the frontend's
+  // existing populated-empty-state branch (`hasSlate` in sports-page.tsx) has scores/headlines to
+  // show alongside the "follow your teams" CTA.
+  it("falls back to a default slate of major leagues when the user follows nothing", async () => {
+    const requestedComps: string[] = [];
+    const nbaGame: GameSummary = {
+      id: "nba1",
+      competitionKey: "nba",
+      startsAt: `${TODAY}T20:00:00.000Z`,
+      state: "final",
+      statusDetail: "FT",
+      home: side({
+        teamKey: "bos",
+        shortName: "BOS",
+        name: "Boston Celtics",
+        score: 101,
+        winner: true
+      }),
+      away: side({ teamKey: "mia", shortName: "MIA", name: "Miami Heat", score: 98 })
+    };
+    const nbaHeadline: SourceHeadline = {
+      id: "hd1",
+      competitionKey: "nba",
+      competitionLabel: "NBA",
+      title: "Celtics roll past Heat",
+      url: "https://example.com/hd1",
+      publishedAt: `${TODAY}T13:00:00.000Z`,
+      imageUrl: null,
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const service = new SportsService(
+      makeDeps({
+        follows: [],
+        source: makeSource({
+          getScoreboard: async (competitionKey) => {
+            requestedComps.push(competitionKey);
+            return competitionKey === "nba" ? [nbaGame] : [];
+          },
+          getHeadlines: async (competitionKey) => (competitionKey === "nba" ? [nbaHeadline] : [])
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+
+    expect(overview.followed).toEqual([]);
+    expect(overview.followedTeams).toEqual([]);
+    expect(overview.followedLeagues).toEqual([]);
+    // the populated-empty-state branch (sports-page.tsx `hasSlate`) needs at least one of these
+    expect(
+      overview.scoreboard.length + overview.topStories.length + overview.leagueNews.length
+    ).toBeGreaterThan(0);
+    expect(overview.scoreboard.find((g) => g.competitionKey === "nba")?.games).toEqual([nbaGame]);
+    expect(overview.topStories.map((h) => h.id)).toContain("hd1");
+    // a small fixed set of major year-round leagues, not the whole catalog (no tournaments)
+    expect(new Set(requestedComps)).toEqual(new Set(["nfl", "nba", "nhl", "mlb", "eng.1"]));
   });
 });
 
@@ -372,6 +475,60 @@ describe("SportsService.getFollowedFactsForToday", () => {
       userA.actorUserId
     );
     expect(facts).toEqual([]);
+  });
+});
+
+describe("SportsService.today() timezone handling (#761)", () => {
+  // 2026-07-05T01:30:00Z is 9:30pm on July 4 in US Eastern (EDT, UTC-4) — the UTC calendar
+  // date has already rolled over to July 5, but ESPN's `dates=` param (and tonight's game)
+  // is still July 4 in Eastern. A UTC-based `today()` would ask ESPN for the wrong day.
+  const LATE_EVENING_ET = new Date("2026-07-05T01:30:00.000Z");
+  const ET_DATE = "2026-07-04";
+  const UTC_DATE = "2026-07-05";
+
+  it("requests the Eastern calendar date (not the UTC date) from the scoreboard source", async () => {
+    const seenDates: string[] = [];
+    const source = makeSource({
+      getScoreboard: async (_competitionKey, day) => {
+        seenDates.push(day);
+        return [];
+      }
+    });
+    const service = new SportsService({ ...makeDeps({ source }), now: () => LATE_EVENING_ET });
+    await service.getOverview(userA);
+    expect(seenDates).toEqual([ET_DATE]);
+    expect(seenDates).not.toContain(UTC_DATE);
+  });
+
+  it("uses the Eastern calendar date for the briefing's followed-facts lookup too", async () => {
+    const seenDates: string[] = [];
+    const source = makeSource({
+      getScoreboard: async (_competitionKey, day) => {
+        seenDates.push(day);
+        return [dalLiveGame];
+      }
+    });
+    const service = new SportsService({ ...makeDeps({ source }), now: () => LATE_EVENING_ET });
+    const { facts } = await service.getFollowedFactsForToday(
+      {} as DataContextDb,
+      userA.actorUserId
+    );
+    expect(seenDates).toEqual([ET_DATE]);
+    expect(facts.length).toBeGreaterThan(0);
+  });
+
+  it("still resolves the same-day Eastern date at a UTC instant that's also same-day (control)", async () => {
+    // 2026-07-01T18:00:00Z (the shared FIXED_NOW) is 2pm ET the same day — no rollover in play.
+    const seenDates: string[] = [];
+    const source = makeSource({
+      getScoreboard: async (_competitionKey, day) => {
+        seenDates.push(day);
+        return [];
+      }
+    });
+    const service = new SportsService(makeDeps({ source }));
+    await service.getOverview(userA);
+    expect(seenDates).toEqual([TODAY]);
   });
 });
 

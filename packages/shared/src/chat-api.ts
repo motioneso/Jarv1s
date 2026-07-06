@@ -93,6 +93,39 @@ export interface SendChatTurnResponse {
   readonly sourceFreshness?: SourceFreshnessV1 | null;
 }
 
+/**
+ * #679 — a bounded, redacted snapshot of what the user currently sees in the web app,
+ * captured client-side and attached to a chat turn ONLY when the user's message appears
+ * to ask about the current page. Never persisted: it is folded into the hidden
+ * engine-bound context for the single turn it arrives with (see
+ * ChatSessionManager.engineText) and is never written to `userText`/`recordTurn`, never
+ * queued in a pg-boss payload, and never reaches memory extraction. The client never
+ * captures raw input/textarea VALUES, and skips password fields and other sensitive-
+ * autocomplete fields entirely (see apps/web/src/chat/page-context.ts).
+ */
+export interface PageContextFocusedElementDto {
+  readonly tag: string;
+  readonly role: string | null;
+  readonly label: string | null;
+}
+
+export interface PageContextSnapshotDto {
+  readonly route: string;
+  readonly pageTitle: string;
+  readonly headings: readonly string[];
+  readonly buttons: readonly string[];
+  readonly labels: readonly string[];
+  readonly visibleText: readonly string[];
+  readonly focused: PageContextFocusedElementDto | null;
+  readonly selectedText: string | null;
+  readonly capturedAt: string;
+}
+
+export interface SendChatTurnRequest {
+  readonly text: string;
+  readonly pageContext?: PageContextSnapshotDto;
+}
+
 export type AnswerProvenanceSourceKind =
   | "memory"
   | "note"

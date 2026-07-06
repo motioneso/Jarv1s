@@ -76,9 +76,54 @@ export default tseslint.config(
         caches: "readonly",
         self: "readonly"
       }
-    },
+    }
+  },
+  {
+    // #802: module boundary enforcement. Packages/apps may only reach into another
+    // workspace package through its declared public exports — never its `src/` internals.
+    // Scoped to `packages/*/src` and `apps/*/src`; test dirs are exempt (tests may reach
+    // into source, per the existing `settings-sports-pane.test.tsx` pattern).
+    //
+    // Flat-config merge trap: a later `no-restricted-imports` config REPLACES an earlier
+    // one for any file the later block also matches — it does not merge. `apps/web/src`
+    // matches both this general boundary block and the lucide-ban block below, so the
+    // apps/web/src-specific block below carries BOTH `paths` and `patterns` in one rule
+    // entry to stay in effect there. This block covers packages/*/src and the non-web apps
+    // (api, worker) where only the boundary patterns apply.
+    files: ["packages/*/src/**/*.{js,ts,tsx}", "apps/*/src/**/*.{js,ts,tsx}"],
+    ignores: ["**/tests/**", "**/__tests__/**"],
     rules: {
-      // #685: sparkle glyphs are a banned AI tell in the app UI.
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@jarv1s/*/src/*"],
+              message: "Deep import into another package's src. Use its public exports."
+            },
+            {
+              group: ["../../*/src/*", "../../../*/src/*", "../../../../*/src/*"],
+              message:
+                "Relative import crossing a package boundary. Depend on the package and use its public exports."
+            },
+            {
+              group: ["**/packages/*/src/*"],
+              message:
+                "Path import into a workspace package's src. Depend on the package and use its public exports."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // apps/web/src is covered by BOTH the boundary rule above and the #685 lucide ban
+    // below; flat config lets a later `no-restricted-imports` entry fully replace an
+    // earlier one for the same file, so this block (later, more specific) merges both
+    // concerns into one rule entry rather than silently dropping one of them.
+    files: ["apps/web/src/**/*.{js,ts,tsx}"],
+    ignores: ["**/tests/**", "**/__tests__/**"],
+    rules: {
       "no-restricted-imports": [
         "error",
         {
@@ -88,6 +133,22 @@ export default tseslint.config(
               importNames: ["Sparkles"],
               message:
                 "Sparkles is a banned AI-tell marker (#685). Use GitCommitHorizontal for Jarvis-held/generated items or BrandMark for product identity."
+            }
+          ],
+          patterns: [
+            {
+              group: ["@jarv1s/*/src/*"],
+              message: "Deep import into another package's src. Use its public exports."
+            },
+            {
+              group: ["../../*/src/*", "../../../*/src/*", "../../../../*/src/*"],
+              message:
+                "Relative import crossing a package boundary. Depend on the package and use its public exports."
+            },
+            {
+              group: ["**/packages/*/src/*"],
+              message:
+                "Path import into a workspace package's src. Depend on the package and use its public exports."
             }
           ]
         }

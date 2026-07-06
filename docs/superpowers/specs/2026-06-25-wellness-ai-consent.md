@@ -195,3 +195,33 @@ connector spec.
 - A consent audit log (could be added later via the existing audit infrastructure).
 - Re-evaluating the "counts only, never a medication list" meds-tool output shape (unchanged; only
   the gate is added).
+
+## 11. Addendum (2026-07-04, #769) — enumerate every AI-prompt surface the switch governs
+
+**Gap found:** `WellnessRecallContributor.refreshEnergyTrendFact` writes a
+`[wellness:energy-trend] …` profile fact via `ChatMemoryFactsRepository` on every check-in
+create/update (`routes.ts`). Chat-memory facts are read back into chat prompts — an AI-prompt
+surface exactly like the two read tools — but this contributor was never wired to
+`resolveEffectiveWellnessConsent`. §4/§8 above only enumerated the two tools; the switch's
+_actual_ contract ("Jarvis can/cannot use my Wellness data") is broader than "the two read
+tools," and a recall contributor silently fell outside it. Fixed in #769: the contributor now
+takes the resolved effective-consent boolean and skips the write when consent is withheld, and
+revoking consent (`PUT /api/wellness/ai-consent` with `granted: false`) immediately supersedes
+any already-active `[wellness:energy-trend]` fact rather than waiting for the next check-in.
+
+**Rule going forward:** `wellness.ai_consent_granted` governs **every** surface that feeds
+Wellness-derived content into an AI prompt, not just tool calls. Enumerated surfaces as of
+2026-07-04:
+
+- `wellness.recentCheckIns` tool (`tools.ts`) — gated.
+- `wellness.medicationAdherence` tool (`tools.ts`) — gated.
+- `WellnessRecallContributor.refreshEnergyTrendFact` chat-memory fact (`recall-context.ts`) —
+  gated (this addendum).
+
+**Explicitly NOT governed** (not AI-prompt paths): `focus-signal.ts` (`wellnessFocusSignal`) feeds
+the in-app "Today" UI focus/readiness surface, not a prompt — no change needed there.
+
+Any future Wellness recall contributor, briefing section, or notification-composer input that
+feeds Wellness-derived content into an LLM prompt must resolve effective consent the same way
+(`resolveEffectiveWellnessConsent`) before writing/including that content. Do not assume "it's not
+one of the two tools" means the consent gate doesn't apply.

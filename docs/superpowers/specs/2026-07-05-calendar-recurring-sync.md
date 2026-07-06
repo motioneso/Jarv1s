@@ -1,6 +1,6 @@
 # Recurring Google Calendar sync (#792)
 
-**Status:** Proposed — awaiting Ben's approval
+**Status:** Approved
 **Date:** 2026-07-05
 **Tier:** `routine`
 **Builds on:** #473 / PR #494 (reconciliation logic, shipped, manual-trigger only)

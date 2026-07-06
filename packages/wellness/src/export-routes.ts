@@ -39,14 +39,23 @@ export function registerWellnessExportRoutes(
         const result = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
-            // Reuse an existing pending/building HTML export for this owner (avoid duplicates).
+            // Reuse an existing pending/building HTML export for this owner (avoid duplicates) —
+            // but only when it was requested with the same window/categories. A second request
+            // with different params while one is still pending must not silently return the
+            // stale selection (#772); surface the conflict instead.
             const existing = await repository.findActiveJobForUser(
               scopedDb,
               accessContext.actorUserId,
               "html"
             );
             if (existing) {
-              return { jobId: existing.id, status: existing.status };
+              if (exportParamsMatch(existing.params, { from, to, categories })) {
+                return { jobId: existing.id, status: existing.status };
+              }
+              throw new HttpError(
+                409,
+                "An export is already in progress with different parameters. Wait for it to finish before starting a new one."
+              );
             }
 
             const job = await repository.createJob(scopedDb, accessContext.actorUserId, "html", {
@@ -65,6 +74,27 @@ export function registerWellnessExportRoutes(
       }
     }
   );
+}
+
+// Exported params are re-read from the pending job row (JSON column) and compared against the
+// newly requested window/categories. Order-independent on categories.
+function exportParamsMatch(
+  existingParams: Record<string, unknown> | null,
+  requested: {
+    readonly from: string;
+    readonly to: string;
+    readonly categories: readonly WellnessExportCategory[];
+  }
+): boolean {
+  if (!existingParams) return false;
+  if (existingParams["from"] !== requested.from || existingParams["to"] !== requested.to) {
+    return false;
+  }
+  const existingCategories = existingParams["categories"];
+  if (!Array.isArray(existingCategories)) return false;
+  const a = [...existingCategories].sort();
+  const b = [...requested.categories].sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 function parseExportBody(body: unknown): {

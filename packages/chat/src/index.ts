@@ -8,6 +8,7 @@ export type { DataContextChatPersistenceDeps } from "./live/persistence.js";
 export { combineHiddenContextBlocks } from "./live/chat-session-manager.js";
 export * from "./live/recall-seed.js";
 export * from "./live/passive-retrieval.js";
+export { projectPageContextSnapshot, renderPageContextBlock } from "./live/page-context.js";
 export {
   planCrossToolReasoning,
   renderCrossToolContextBlock,

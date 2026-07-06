@@ -1,11 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { compareJarvisVersions } from "@jarv1s/module-sdk/core-version";
 import {
-  Download,
   KeyRound,
   LogOut,
   MoreHorizontal,
-  RefreshCw,
   ServerCog,
   ShieldCheck,
   Stethoscope,
@@ -29,8 +27,6 @@ import {
   listAdminUsers,
   promoteUser,
   putRegistrationSettings,
-  postHostRestart,
-  postInstallHerdr,
   reactivateUser,
   revokeAdminUserSessions,
   rejectUser,
@@ -666,21 +662,6 @@ export function HostPane() {
     onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  const installHerdrMutation = useMutation({
-    mutationFn: postInstallHerdr,
-    onSuccess: () => {
-      toast("Herdr installed. Restart Jarvis to use it.");
-      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.chatMultiplexer });
-      void muxQuery.refetch();
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const restartMutation = useMutation({
-    mutationFn: postHostRestart,
-    onSuccess: () => toast("Restart requested"),
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-
   const runDiagnostics = () => {
     setRanDiagnostics(true);
     void diagQuery.refetch();
@@ -689,12 +670,9 @@ export function HostPane() {
   const mux = muxQuery.data;
   const diag = diagQuery.data;
   const herdrAvailable = mux?.available.herdr === true;
-  const herdrPendingRestart = !herdrAvailable && installHerdrMutation.isSuccess;
   const herdrDesc = herdrAvailable
     ? "Herdr is usable on this host."
-    : herdrPendingRestart
-      ? "Restart Jarvis to make Herdr available."
-      : "Install Herdr to use it as a session backend.";
+    : "Herdr is not usable on this host.";
   return (
     <>
       <PaneHead
@@ -731,25 +709,9 @@ export function HostPane() {
           name="herdr available"
           desc={herdrDesc}
           control={
-            herdrAvailable ? (
-              <Badge tone="pine" dot>
-                Yes
-              </Badge>
-            ) : herdrPendingRestart ? (
-              <Badge tone="amber">Restart required</Badge>
-            ) : (
-              <button
-                type="button"
-                className="jds-btn jds-btn--secondary jds-btn--sm"
-                disabled={installHerdrMutation.isPending}
-                onClick={() => installHerdrMutation.mutate()}
-              >
-                <span className="jds-btn__icon">
-                  <Download size={15} />
-                </span>
-                {installHerdrMutation.isPending ? "Installing..." : "Install Herdr"}
-              </button>
-            )
+            <Badge tone={herdrAvailable ? "pine" : "neutral"} dot={herdrAvailable}>
+              {herdrAvailable ? "Yes" : "No"}
+            </Badge>
           }
         />
       </Group>
@@ -824,25 +786,6 @@ export function HostPane() {
           name="Log level"
           desc="Set with the LOG_LEVEL environment variable. Changing it takes effect after a restart."
           control={<Badge tone="neutral">{diag?.logLevel ?? "Run diagnostics to view"}</Badge>}
-        />
-      </Group>
-      <Group title="Restart">
-        <Row
-          name="Restart API"
-          desc="Restart Jarvis so restart-required host settings take effect."
-          control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--secondary jds-btn--sm"
-              disabled={restartMutation.isPending}
-              onClick={() => restartMutation.mutate()}
-            >
-              <span className="jds-btn__icon">
-                <RefreshCw size={15} />
-              </span>
-              {restartMutation.isPending ? "Restarting..." : "Restart"}
-            </button>
-          }
         />
       </Group>
     </>

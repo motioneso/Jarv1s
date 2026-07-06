@@ -98,7 +98,12 @@ function buildApp(overrides: Partial<SportsRoutesDependencies> & { repo?: FakeRe
   const repo =
     overrides.repo ??
     makeRepo([
-      { id: "f1", competitionKey: "nfl", teamKey: "dal", createdAt: "2026-06-01T00:00:00.000Z" }
+      {
+        id: "11111111-1111-1111-1111-111111111111",
+        competitionKey: "nfl",
+        teamKey: "dal",
+        createdAt: "2026-06-01T00:00:00.000Z"
+      }
     ]);
   const app = Fastify();
   const deps: SportsRoutesDependencies = {
@@ -172,13 +177,38 @@ describe("sports routes", () => {
     await app.close();
   });
 
+  it("POST /api/sports/follows rejects an unknown competitionKey with 400", async () => {
+    const { app, repo } = buildApp();
+    await app.ready();
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/sports/follows",
+      payload: { competitionKey: "xyz.made-up" }
+    });
+    expect(res.statusCode).toBe(400);
+    expect(repo.created).toEqual([]);
+    await app.close();
+  });
+
   it("DELETE /api/sports/follows/:id removes and returns ok", async () => {
     const { app, repo } = buildApp();
     await app.ready();
-    const res = await app.inject({ method: "DELETE", url: "/api/sports/follows/f1" });
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/sports/follows/11111111-1111-1111-1111-111111111111"
+    });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).ok).toBe(true);
-    expect(repo.removed).toEqual(["f1"]);
+    expect(repo.removed).toEqual(["11111111-1111-1111-1111-111111111111"]);
+    await app.close();
+  });
+
+  it("DELETE /api/sports/follows/:id rejects a non-uuid id with 400", async () => {
+    const { app, repo } = buildApp();
+    await app.ready();
+    const res = await app.inject({ method: "DELETE", url: "/api/sports/follows/not-a-uuid" });
+    expect(res.statusCode).toBe(400);
+    expect(repo.removed).toEqual([]);
     await app.close();
   });
 

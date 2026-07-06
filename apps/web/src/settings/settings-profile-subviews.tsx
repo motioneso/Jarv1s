@@ -23,6 +23,7 @@ import { useState } from "react";
 
 import {
   type LocaleSettingsDto,
+  type ListMySessionsResponse,
   type MeSessionDeviceKind,
   type MeSessionDto
 } from "@jarv1s/shared";
@@ -35,11 +36,11 @@ import {
   getDataExportStatus,
   getDataExportDownloadUrl,
   type ExportJobStatus
-} from "../api/client";
-import { queryKeys } from "../api/query-keys";
-import { formatDate, useUserLocale } from "../locale/locale-format";
-import { useFeedback } from "./settings-feedback";
-import { Badge, Group, Note, Row } from "./settings-ui";
+} from "../api/client.js";
+import { queryKeys } from "../api/query-keys.js";
+import { formatDate, useUserLocale } from "../locale/locale-format.js";
+import { useFeedback } from "./settings-feedback.js";
+import { Badge, Group, Note, Row } from "./settings-ui.js";
 
 /* ----------------------------------------------------------- Data export */
 
@@ -67,7 +68,7 @@ export function DataExport() {
     }
   });
 
-  const startMutation = useMutation({
+  const startMutation = useMutation<ExportJobStatus>({
     mutationFn: startDataExport,
     onSuccess: (data) => {
       setJobId(data.jobId);
@@ -215,24 +216,74 @@ function formatLastSeen(iso: string, locale: LocaleSettingsDto): string {
   return formatDate(iso, locale);
 }
 
+/**
+ * A group of sessions that look identical in the UI (same device label, browser, OS,
+ * and IP). There is no stable device id in `better_auth_sessions`, so grouping is a
+ * frontend-only display concern — every id in `ids` is still a real, individually
+ * revocable session (#handoff 2026-07-04).
+ */
+export interface SessionGroup {
+  readonly key: string;
+  readonly ids: readonly string[];
+  readonly display: MeSessionDto;
+  readonly isCurrent: boolean;
+  readonly lastSeenAt: string;
+  readonly count: number;
+}
+
+export function groupSessions(sessions: readonly MeSessionDto[]): SessionGroup[] {
+  const order: string[] = [];
+  const groups = new Map<string, MeSessionDto[]>();
+  for (const s of sessions) {
+    const key = `${s.deviceLabel}|${s.browser ?? ""}|${s.os ?? ""}|${s.ipAddress ?? ""}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(s);
+    } else {
+      groups.set(key, [s]);
+      order.push(key);
+    }
+  }
+  return order.map((key) => {
+    const members = groups.get(key)!;
+    const current = members.find((s) => s.isCurrent);
+    const mostRecent = members.reduce((a, b) =>
+      new Date(b.lastSeenAt).getTime() > new Date(a.lastSeenAt).getTime() ? b : a
+    );
+    const display = current ?? mostRecent;
+    return {
+      key,
+      ids: members.map((s) => s.id),
+      display,
+      isCurrent: current !== undefined,
+      lastSeenAt: display.lastSeenAt,
+      count: members.length
+    };
+  });
+}
+
 export function Sessions() {
   const { toast, confirm } = useFeedback();
   const locale = useUserLocale();
   const queryClient = useQueryClient();
-  const sessionsQuery = useQuery({
+  const sessionsQuery = useQuery<ListMySessionsResponse>({
     queryKey: queryKeys.settings.sessions,
     queryFn: listMySessions
   });
   const sessions = sessionsQuery.data?.sessions ?? [];
   const others = sessions.filter((s) => !s.isCurrent);
+  const groups = groupSessions(sessions);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.settings.sessions });
 
   const revokeOne = useMutation({
-    mutationFn: (id: string) => revokeMySession(id),
-    onSuccess: (_data, _id) => {
+    mutationFn: (ids: readonly string[]) => Promise.all(ids.map((id) => revokeMySession(id))),
+    onSuccess: (_data, ids) => {
       void refresh();
-      toast("Signed out device", { tone: "drift", icon: <LogOut size={17} /> });
+      toast(ids.length > 1 ? "Signed out devices" : "Signed out device", {
+        tone: "drift",
+        icon: <LogOut size={17} />
+      });
     },
     onError: () => toast("Couldn't sign out that device", { icon: <LogOut size={17} /> })
   });
@@ -250,14 +301,16 @@ export function Sessions() {
 
   // Confirm callbacks call mutate() directly — never inside a setState updater, which would
   // double-fire the destructive action under StrictMode.
-  const revoke = (s: MeSessionDto) =>
+  const revoke = (group: SessionGroup) =>
     confirm({
-      title: `Sign out ${s.deviceLabel}?`,
+      title: `Sign out ${group.display.deviceLabel}?`,
       description:
-        "That device will need to sign in again to reach Jarvis. Anyone using it right now is signed out immediately.",
-      confirmLabel: "Sign out device",
+        group.count > 1
+          ? "Those devices will need to sign in again to reach Jarvis. Anyone using them right now is signed out immediately."
+          : "That device will need to sign in again to reach Jarvis. Anyone using it right now is signed out immediately.",
+      confirmLabel: group.count > 1 ? `Sign out ${group.count} sessions` : "Sign out device",
       danger: true,
-      onConfirm: () => revokeOne.mutate(s.id)
+      onConfirm: () => revokeOne.mutate(group.ids)
     });
   const revokeAll = () =>
     confirm({
@@ -304,21 +357,23 @@ export function Sessions() {
         {!sessionsQuery.isLoading && !sessionsQuery.isError && sessions.length === 0 ? (
           <Row name="No active sessions" desc="There are no signed-in devices to show." />
         ) : null}
-        {sessions.map((s) => {
+        {groups.map((group) => {
+          const s = group.display;
           const Icon = KIND_ICON[s.deviceKind];
           return (
-            <div className="sess__row" key={s.id}>
+            <div className="sess__row" key={group.key}>
               <div className="sess__ic">
                 <Icon size={19} aria-hidden="true" />
               </div>
               <div className="sess__main">
                 <div className="sess__dev">
                   {s.deviceLabel}
-                  {s.isCurrent ? (
+                  {group.isCurrent ? (
                     <Badge tone="pine" dot>
                       This device
                     </Badge>
                   ) : null}
+                  {group.count > 1 ? <Badge tone="neutral">{group.count} sessions</Badge> : null}
                 </div>
                 <div className="sess__meta">{metaLine(s)}</div>
                 {s.ipAddress ? (
@@ -329,16 +384,16 @@ export function Sessions() {
                 ) : null}
               </div>
               <div className="sess__act">
-                <div className={`sess__last${s.isCurrent ? " sess__last--now" : ""}`}>
-                  {formatLastSeen(s.lastSeenAt, locale)}
+                <div className={`sess__last${group.isCurrent ? " sess__last--now" : ""}`}>
+                  {formatLastSeen(group.lastSeenAt, locale)}
                 </div>
-                {s.isCurrent ? (
+                {group.isCurrent ? (
                   <span className="sess__you">Current session</span>
                 ) : (
                   <button
                     type="button"
                     className="sess__revoke"
-                    onClick={() => revoke(s)}
+                    onClick={() => revoke(group)}
                     disabled={busy}
                   >
                     <LogOut size={14} aria-hidden="true" />

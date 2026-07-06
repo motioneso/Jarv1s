@@ -44,7 +44,7 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: flex;
   align-items: center;
@@ -93,7 +93,7 @@
   color: var(--text);
 }
 .chatd__hbtn.is-on {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .chatd__body-wrap {
@@ -148,7 +148,7 @@
   height: 26px;
   border-radius: 8px;
   flex: none;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: flex;
   align-items: center;
@@ -157,7 +157,7 @@
 .chatd-bubble {
   grid-column: 2;
   grid-row: 1;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
   color: var(--text);
@@ -279,14 +279,14 @@
   width: 46px;
   height: 46px;
   border-radius: 13px;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .chatd-empty__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 19px;
   color: var(--text);
   margin-top: 12px;
@@ -320,8 +320,8 @@
 }
 .chatd-sugg__btn:hover {
   border-color: var(--accent);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 
 /* past sessions */
@@ -348,7 +348,7 @@
   background: var(--surface-2);
 }
 .chatd-sess__row.is-selected {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   border-color: var(--accent);
 }
 .chatd-sess__ic {
@@ -415,7 +415,7 @@
 }
 .chatd-input:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
   background: var(--surface);
 }
 .chatd-input.is-readonly {
@@ -454,6 +454,32 @@
 }
 .chatd-send:disabled {
   background: var(--border-strong);
+  cursor: default;
+}
+.chatd-mic {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  transition: var(--transition-control);
+}
+.chatd-mic:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chatd-mic.is-recording {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.chatd-mic:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 .chatd-next {
@@ -903,7 +929,7 @@
   margin-top: var(--space-1);
   padding-right: var(--space-7);
   color: var(--text);
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-lg);
   line-height: var(--leading-snug);
 }

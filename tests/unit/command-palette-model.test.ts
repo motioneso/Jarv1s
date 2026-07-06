@@ -22,7 +22,11 @@ describe("command palette model", () => {
       themes: {
         activeId: "light",
         builtIn: [
-          { id: "light", name: "Light", builtIn: true },
+          { id: "light", name: "Forest", builtIn: true },
+          { id: "sage", name: "Sage", builtIn: true },
+          { id: "canyon", name: "Canyon", builtIn: true },
+          { id: "teal", name: "Teal", builtIn: true },
+          { id: "dusk", name: "Dusk", builtIn: true },
           { id: "dark", name: "Dark", builtIn: true }
         ],
         custom: [
@@ -66,7 +70,16 @@ describe("command palette model", () => {
 
     expect(
       commands.filter((command) => command.group === "Appearance").map((command) => command.id)
-    ).toEqual(["theme:light", "theme:dark", "theme:night-owl", "settings:appearance"]);
+    ).toEqual([
+      "theme:light",
+      "theme:sage",
+      "theme:canyon",
+      "theme:teal",
+      "theme:dusk",
+      "theme:dark",
+      "theme:night-owl",
+      "settings:appearance"
+    ]);
 
     expect(
       commands.filter((command) => command.group === "Settings").map((command) => command.id)

@@ -53,6 +53,7 @@ export interface StandingsSection {
 export interface Headline {
   readonly id: string;
   readonly competitionKey: string;
+  readonly competitionLabel: string; // "NFL", "Premier League" — never render competitionKey raw (#765 M4)
   readonly title: string;
   readonly url: string;
   readonly publishedAt: string;
@@ -80,11 +81,20 @@ export interface FollowedTeamRef {
   readonly teamKey: string;
 }
 
+// A whole-competition follow (teamKey: null on the DTO) — surfaced separately from
+// FollowedTeamCard[] so the client can tell "follows nothing" apart from "follows leagues,
+// not teams" (#763).
+export interface FollowedLeagueRef {
+  readonly competitionKey: string;
+  readonly competitionLabel: string;
+}
+
 // Composed page (GET /api/sports/overview)
 export type OverviewHero =
   | {
       readonly mode: "gameday";
       readonly game: GameSummary;
+      readonly competitionLabel: string; // "NFL" — never render competitionKey raw (#765 M4)
       readonly rationale: string;
       readonly alsoToday: string | null;
     }
@@ -143,11 +153,13 @@ export interface SportsOverviewResponse {
   readonly leagueNews: readonly LeagueNewsGroup[];
   readonly standings: readonly StandingsGroup[];
   readonly followedTeams: readonly FollowedTeamRef[]; // for is-you marking on the client
+  readonly followedLeagues: readonly FollowedLeagueRef[]; // whole-competition follows (#763)
   readonly degraded: boolean; // source failed → cached/empty
 }
 
 export interface SportsCatalogResponse {
   readonly competitions: readonly (CompetitionRef & { readonly teams: readonly TeamRef[] })[];
+  readonly degraded: boolean; // one or more competitions' teams failed to load (#765 M1)
 }
 
 export interface SportsFollowsResponse {
@@ -247,10 +259,20 @@ const standingsSectionSchema = {
 const headlineSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "competitionKey", "title", "url", "publishedAt", "imageUrl", "teamKeys"],
+  required: [
+    "id",
+    "competitionKey",
+    "competitionLabel",
+    "title",
+    "url",
+    "publishedAt",
+    "imageUrl",
+    "teamKeys"
+  ],
   properties: {
     id: { type: "string" },
     competitionKey: { type: "string" },
+    competitionLabel: { type: "string" },
     title: { type: "string" },
     url: { type: "string" },
     publishedAt: { type: "string" },
@@ -344,6 +366,16 @@ const followedTeamCardSchema = {
   }
 } as const;
 
+const followedLeagueRefSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["competitionKey", "competitionLabel"],
+  properties: {
+    competitionKey: { type: "string" },
+    competitionLabel: { type: "string" }
+  }
+} as const;
+
 const scoreboardGroupSchema = {
   type: "object",
   additionalProperties: false,
@@ -383,10 +415,11 @@ const overviewHeroSchema = {
     {
       type: "object",
       additionalProperties: false,
-      required: ["mode", "game", "rationale", "alsoToday"],
+      required: ["mode", "game", "competitionLabel", "rationale", "alsoToday"],
       properties: {
         mode: { type: "string", enum: ["gameday"] },
         game: gameSummarySchema,
+        competitionLabel: { type: "string" },
         rationale: { type: "string" },
         alsoToday: { type: ["string", "null"] }
       }
@@ -416,6 +449,7 @@ export const sportsOverviewResponseSchema = {
         "leagueNews",
         "standings",
         "followedTeams",
+        "followedLeagues",
         "degraded"
       ],
       properties: {
@@ -437,6 +471,7 @@ export const sportsOverviewResponseSchema = {
             }
           }
         },
+        followedLeagues: { type: "array", items: followedLeagueRefSchema },
         degraded: { type: "boolean" }
       }
     },
@@ -449,7 +484,7 @@ export const sportsCatalogResponseSchema = {
     200: {
       type: "object",
       additionalProperties: false,
-      required: ["competitions"],
+      required: ["competitions", "degraded"],
       properties: {
         competitions: {
           type: "array",
@@ -462,7 +497,8 @@ export const sportsCatalogResponseSchema = {
               teams: { type: "array", items: teamRefSchema }
             }
           }
-        }
+        },
+        degraded: { type: "boolean" }
       }
     },
     401: errorResponseSchema
@@ -510,6 +546,14 @@ export const createSportsFollowResponseSchema = {
 } as const;
 
 export const deleteSportsFollowResponseSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: {
+      id: { type: "string", format: "uuid" }
+    }
+  },
   response: {
     200: {
       type: "object",
@@ -519,6 +563,7 @@ export const deleteSportsFollowResponseSchema = {
         ok: { type: "boolean" }
       }
     },
+    400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;

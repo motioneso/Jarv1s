@@ -27,6 +27,7 @@ const { Client } = pg;
 const userId = "00000000-0000-4000-8000-000000000081";
 const routeUserId = "00000000-0000-4000-8000-000000000082";
 const workerRoleUserId = "00000000-0000-4000-8000-000000000083";
+const adherenceUserId = "00000000-0000-4000-8000-000000000085";
 
 let appDb: Kysely<JarvisDatabase>;
 let dataContext: DataContextRunner;
@@ -53,6 +54,11 @@ beforeAll(async () => {
       `INSERT INTO app.users (id, email, name, is_instance_admin)
        VALUES ($1, 'well-export-worker-role@example.test', 'Worker Role User', false)`,
       [workerRoleUserId]
+    );
+    await client.query(
+      `INSERT INTO app.users (id, email, name, is_instance_admin)
+       VALUES ($1, 'well-export-adherence@example.test', 'Adherence User', false)`,
+      [adherenceUserId]
     );
   } finally {
     await client.end();
@@ -360,6 +366,93 @@ describe("Wellness export job + route (#484)", () => {
     expect(html).toContain("WORKER-ROLE-MARKER-THERAPY");
   });
 
+  it("adherence % counts missed (unlogged) scheduled doses, not just logged rows (#770 / M2)", async () => {
+    // Regression test for the #770 M2 finding: export-job previously called computeInsights
+    // without totalExpectedSlots, so the adherence denominator fell back to logged rows only —
+    // missed doses (no log row at all) were invisible and adherence read inflated relative to
+    // what the app's own /insights route shows for the same window.
+    const repo = new WellnessRepository();
+    const exportRepo = new DataExportRepository();
+
+    const med = await dataContext.withDataContext(
+      { actorUserId: adherenceUserId, requestId: "req:adherence-seed" },
+      (scopedDb) =>
+        repo.createMedication(scopedDb, {
+          name: "AdherenceTestMed",
+          frequencyType: "once_daily",
+          scheduleTimes: ["08:00"]
+        })
+    );
+
+    await dataContext.withDataContext(
+      { actorUserId: adherenceUserId, requestId: "req:adherence-seed" },
+      async (scopedDb) => {
+        // 7 check-ins so computeInsights' low-data guard (>= 7 check-ins) doesn't suppress the
+        // adherence insight entirely.
+        for (let i = 1; i <= 7; i++) {
+          const dd = String(i).padStart(2, "0");
+          await scopedDb.db
+            .insertInto("app.wellness_checkins")
+            .values({
+              owner_user_id: adherenceUserId,
+              feeling_core: "happy",
+              intensity: 3,
+              checked_in_at: new Date(`2026-03-${dd}T09:00:00Z`)
+            })
+            .execute();
+        }
+
+        // 10-day window [2026-03-01, 2026-03-10], once-daily 08:00 schedule => 10 expected
+        // scheduled slots. Only 5 days get a "taken" log; the other 5 are silently missed (no
+        // log row at all — the case the pre-fix denominator could not see).
+        for (let day = 1; day <= 5; day++) {
+          const dd = String(day).padStart(2, "0");
+          await scopedDb.db
+            .insertInto("app.medication_logs")
+            .values({
+              medication_id: med.id,
+              owner_user_id: adherenceUserId,
+              status: "taken",
+              scheduled_for: new Date(`2026-03-${dd}T08:00:00Z`),
+              logged_at: new Date(`2026-03-${dd}T08:05:00Z`),
+              prn_reason: null
+            })
+            .execute();
+        }
+      }
+    );
+
+    const job = await dataContext.withDataContext(
+      { actorUserId: adherenceUserId, requestId: "req:adherence-export" },
+      (scopedDb) =>
+        exportRepo.createJob(scopedDb, adherenceUserId, "html", {
+          from: "2026-03-01",
+          to: "2026-03-10",
+          categories: ["medications", "insights"]
+        })
+    );
+
+    const html = await dataContext.withDataContext(
+      { actorUserId: adherenceUserId, requestId: "req:adherence-export" },
+      async (scopedDb) => {
+        await handleWellnessExportJob(buildJobPayload(adherenceUserId, job.id), scopedDb);
+        const finished = await exportRepo.getJobById(scopedDb, job.id);
+        expect(finished?.status).toBe("ready");
+
+        const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+        return vaultRunner.withVaultContext(
+          { actorUserId: adherenceUserId, requestId: "req:adherence-export" },
+          (vaultCtx) => readVaultFile(vaultCtx, `exports/${job.id}.html`)
+        );
+      }
+    );
+
+    // Fixed: 5 taken / 10 expected scheduled slots = 50%. Pre-fix behavior divided by logged
+    // rows only (5 taken / 5 logged = 100%), silently hiding the 5 missed doses.
+    expect(html).toContain("50% adherence");
+    expect(html).not.toContain("100% adherence");
+  });
+
   it("does not throw when the row is missing (no job to mark failed, no vault write)", async () => {
     await dataContext.withDataContext(
       { actorUserId: userId, requestId: "req:export-fail" },
@@ -427,6 +520,43 @@ describe("Wellness export route POST /api/wellness/export (#484)", () => {
     expect(job?.format).toBe("html");
     expect((job?.params as { from?: string }).from).toBe("2026-02-01");
     expect((job?.params as { categories?: string[] }).categories).toEqual(["checkins"]);
+  });
+
+  it("reuses the pending job when the same window/categories are re-requested (#772)", async () => {
+    // The prior test left an html job pending for routeUserId with
+    // {from: 2026-02-01, to: 2026-02-28, categories: [checkins]}. Re-requesting the identical
+    // selection should return the same job, not error.
+    const first = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      payload: { from: "2026-02-01", to: "2026-02-28", categories: ["checkins"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(first.statusCode).toBe(202);
+
+    const again = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      // Same categories, different array order — must still be treated as a match.
+      payload: { from: "2026-02-01", to: "2026-02-28", categories: ["checkins"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(again.statusCode).toBe(202);
+    expect(again.json()).toEqual(first.json());
+  });
+
+  it("returns 409 instead of silently swapping params while a differently-scoped export is pending (#772)", async () => {
+    // Same pending job from routeUserId, but this request asks for a different window. Before
+    // #772 this silently returned the old job's {jobId, status} with the new selection dropped
+    // on the floor; now it must surface the conflict instead of pretending it queued the new one.
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/wellness/export",
+      payload: { from: "2026-03-01", to: "2026-03-15", categories: ["checkins", "medications"] },
+      headers: { authorization: "Bearer route-token", "content-type": "application/json" }
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ error: expect.stringContaining("already in progress") });
   });
 
   it("rejects from > to with 400", async () => {

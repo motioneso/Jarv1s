@@ -301,7 +301,8 @@ export class MemoryRepository {
     scopedDb: DataContextDb,
     since: Date,
     limit: number,
-    chunksPerFile: number = 5
+    chunksPerFile: number = 5,
+    sourceKind: string = "vault"
   ): Promise<VaultFileWithChunks[]> {
     assertDataContextDb(scopedDb);
     const fileRows = await sql<{
@@ -311,7 +312,8 @@ export class MemoryRepository {
     }>`
       SELECT source_path, ingested_at, file_hash
       FROM app.memory_file_index
-      WHERE source_kind = 'vault'
+      WHERE owner_user_id = app.current_actor_user_id()
+        AND source_kind = ${sourceKind}
         AND ingested_at >= ${since}
       ORDER BY ingested_at DESC
       LIMIT ${limit}
@@ -326,7 +328,8 @@ export class MemoryRepository {
       }>`
         SELECT text, line_start, updated_at
         FROM app.memory_chunks
-        WHERE source_kind = 'vault'
+        WHERE owner_user_id = app.current_actor_user_id()
+          AND source_kind = ${sourceKind}
           AND source_path = ${file.source_path}
         ORDER BY line_start ASC
         LIMIT ${chunksPerFile}

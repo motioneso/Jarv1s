@@ -28,6 +28,7 @@ import {
 
 import type { ActiveModulesResolver } from "./gateway/types.js";
 import {
+  AI_MODEL_CAPABILITIES,
   createAiConfiguredModelRouteSchema,
   createAiProviderConfigRouteSchema,
   getChatModelOverrideSettingsRouteSchema,
@@ -79,6 +80,7 @@ import { ToolInputValidationError, validateToolInput } from "./gateway/input-val
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { registerAiAdminPinRoutes } from "./admin-ai-pin-routes.js";
 import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
+import { registerAiTranscriptionRoutes } from "./transcription-routes.js";
 import { registerCapabilityTierPreferenceRoutes } from "./capability-tier-preference-routes.js";
 import { registerActionPolicyRoutes } from "./action-policy-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
@@ -128,13 +130,7 @@ const EXECUTION_MODES = new Set<AiProviderExecutionMode>(["interactive", "non_in
 const CLI_PROVIDER_KINDS = new Set<CliProviderKind>(["anthropic", "openai-compatible", "google"]);
 const MODEL_STATUSES = new Set<AiModelStatus>(["active", "disabled"]);
 const MODEL_TIERS = new Set<AiModelTier>(["reasoning", "interactive", "economy"]);
-const MODEL_CAPABILITIES = new Set<AiModelCapability>([
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-]);
+const MODEL_CAPABILITIES = new Set<AiModelCapability>(AI_MODEL_CAPABILITIES);
 
 export function registerAiRoutes(
   server: FastifyInstance,
@@ -320,6 +316,7 @@ export function registerAiRoutes(
   );
 
   registerAiCapabilityRouteRoutes(server, dependencies, repository);
+  registerAiTranscriptionRoutes(server, dependencies, repository, secretCipher);
   registerCapabilityTierPreferenceRoutes(server, dependencies, repository);
   registerActionPolicyRoutes(server, dependencies, repository);
   registerAiAdminPinRoutes(server, dependencies, repository);

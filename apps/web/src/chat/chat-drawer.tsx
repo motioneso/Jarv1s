@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowUp,
   ChevronDown,
   Clock,
   BookmarkPlus,
@@ -8,17 +7,17 @@ import {
   MessageSquareText,
   MoreHorizontal,
   Play,
-  Square,
   SquarePen,
   ThumbsDown,
   ThumbsUp,
   Undo2,
   X
 } from "lucide-react";
-import { type KeyboardEvent, type UIEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type UIEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { BrandMark } from "../shell/brand-mark";
 
+import { maybeCapturePageContext } from "./page-context";
 import {
   cancelChatTurn,
   clearChat,
@@ -44,6 +43,7 @@ import type {
 } from "@jarv1s/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { ActionRequestCard } from "./action-request-card";
+import { Composer } from "./composer";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
 import { buildChatSeeds } from "./seeds";
@@ -188,7 +188,7 @@ export function ChatDrawer(props: {
       setPendingUserText(trimmed);
       void (async () => {
         try {
-          const result = await sendChatTurn(trimmed);
+          const result = await sendChatTurn(trimmed, maybeCapturePageContext(trimmed)); // #679
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
             { kind: "user", text: trimmed, messageId: result.userMessageId },
@@ -295,8 +295,7 @@ export function ChatDrawer(props: {
       setDrainAfterStopText(queuedText);
     }
     void cancelChatTurn().catch(() => {
-      // best-effort: the turn ends server-side regardless; a network error here just means the
-      // local isSending flag clears when the POST /turn promise settles.
+      // best-effort: the turn ends server-side regardless; a network error here just clears isSending.
     });
   };
 
@@ -877,124 +876,6 @@ function ReviewEmptyState() {
   return (
     <div className="chatd-empty chatd-empty--review">
       <div className="chatd-empty__title">No stored messages</div>
-    </div>
-  );
-}
-
-function Composer(props: {
-  readonly readOnly: boolean;
-  readonly isFounder: boolean;
-  readonly initialText?: string;
-  readonly isSending: boolean;
-  readonly sendError: string | null;
-  readonly needsProvider: boolean;
-  readonly lockedModelUnavailable: boolean;
-  readonly onSend: (text: string) => void;
-  readonly onStop: (queuedText: string | null) => void;
-}) {
-  // Lazy initializer: the starter seeds the input on mount only. After that, the user owns the
-  // value — typing/sending clears it and we never re-seed from the prop (no useEffect that would
-  // clobber edits or re-fire the chip on re-render).
-  const [text, setText] = useState(() => props.initialText ?? "");
-  const [queuedText, setQueuedText] = useState<string | null>(null);
-
-  const send = () => {
-    if (props.readOnly) return;
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    if (props.isSending) {
-      setQueuedText(trimmed);
-      setText("");
-      return;
-    }
-    props.onSend(trimmed);
-    setText("");
-  };
-
-  const restoreQueuedText = () => {
-    if (queuedText === null) return;
-    setText(queuedText);
-    setQueuedText(null);
-  };
-
-  const discardQueuedText = () => setQueuedText(null);
-
-  const stop = () => {
-    props.onStop(queuedText);
-    setQueuedText(null);
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      send();
-    }
-  };
-
-  return (
-    <div className="chatd__composer">
-      {props.needsProvider ? <ConnectProviderEmpty isFounder={props.isFounder} /> : null}
-      {props.lockedModelUnavailable ? (
-        <p className="chatd-lock-warn">
-          The locked chat model is unavailable. Contact your admin or go to <b>Settings → AI</b> to
-          re-enable it or clear the lock.
-        </p>
-      ) : null}
-      {props.sendError ? <p className="form-error">{props.sendError}</p> : null}
-      <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
-        <textarea
-          aria-label="Message Jarvis"
-          disabled={props.readOnly || props.lockedModelUnavailable}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={
-            props.lockedModelUnavailable
-              ? "Chat locked — model unavailable"
-              : props.readOnly
-                ? "Read-only history"
-                : "Message Jarvis…"
-          }
-          rows={1}
-          value={text}
-        />
-        <button
-          aria-label={props.isSending ? "Stop generating" : "Send"}
-          className="chatd-send"
-          disabled={
-            props.readOnly || props.lockedModelUnavailable || (!props.isSending && !text.trim())
-          }
-          title={props.isSending ? "Stop" : "Send"}
-          type="button"
-          onClick={props.isSending ? stop : send}
-        >
-          {props.isSending ? (
-            <Square size={15} aria-hidden="true" fill="currentColor" />
-          ) : (
-            <ArrowUp size={17} aria-hidden="true" />
-          )}
-        </button>
-      </div>
-      {queuedText !== null ? (
-        <div className="chatd-next" aria-live="polite">
-          <button
-            aria-label="Edit queued message"
-            className="chatd-next__text"
-            type="button"
-            onClick={restoreQueuedText}
-          >
-            Next: &quot;{queuedText}&quot;
-          </button>
-          <button
-            aria-label="Discard queued message"
-            className="chatd-next__x"
-            title="Discard queued message"
-            type="button"
-            onClick={discardQueuedText}
-          >
-            <X size={13} aria-hidden="true" />
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -613,7 +613,8 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   }, [searchParams, setSearchParams]);
 
   if (view === "briefings") return <BriefingSettings onBack={() => setView(null)} />;
-  if (view === "chat") return <ChatSettingsView onBack={() => setView(null)} />;
+  if (view === "chat")
+    return <ChatSettingsView onBack={() => setView(null)} onCat={onSelectSection} />;
   if (view === "notifications")
     return (
       <NotificationSettings

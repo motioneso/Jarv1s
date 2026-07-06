@@ -627,6 +627,16 @@ export const createMedicationLogRequestSchema = {
     dose: nullableStringSchema,
     prnReason: nullableStringSchema,
     scheduledFor: nullableStringSchema
+  },
+  // PRN doses are unscheduled by definition — a scheduledFor on a "prn" log would upsert onto
+  // an existing scheduled slot and clobber its taken/skipped record (#770 / M3). Tightened here
+  // as defense-in-depth alongside the route's explicit parse-time rejection.
+  if: {
+    properties: { status: { const: "prn" } },
+    required: ["status"]
+  },
+  then: {
+    properties: { scheduledFor: { type: "null" } }
   }
 } as const;
 

@@ -81,9 +81,16 @@ export class WellnessRepository {
   // ── Check-ins ──────────────────────────────────────────────────────────
   async createCheckin(
     scopedDb: DataContextDb,
-    input: CreateCheckinInput
+    input: CreateCheckinInput,
+    timeZone = "UTC"
   ): Promise<WellnessCheckin> {
     assertDataContextDb(scopedDb);
+    // #326/#771: derive the caller's calendar day + offset at check-in time from the
+    // resolved request timezone (never UTC-only), so day-boundary attribution (weekday
+    // insights, streaks) reflects the user's actual local day, not the server's UTC day.
+    const now = new Date();
+    const localDate = localDay(now, timeZone);
+    const timezoneOffsetMinutes = Math.round(timeZoneOffsetMs(now, timeZone) / 60_000);
     const row = await scopedDb.db
       .insertInto("app.wellness_checkins")
       .values({
@@ -95,7 +102,9 @@ export class WellnessRepository {
         intensity: input.intensity ?? null,
         energy: input.energy ?? null,
         note: input.note ?? null,
-        identified_via: input.identifiedVia ?? "wheel"
+        identified_via: input.identifiedVia ?? "wheel",
+        local_date: localDate,
+        timezone_offset: timezoneOffsetMinutes
       })
       .returningAll()
       .executeTakeFirstOrThrow();

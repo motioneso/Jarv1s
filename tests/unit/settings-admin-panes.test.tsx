@@ -28,7 +28,7 @@ describe("settings admin panes", () => {
     expect(html).not.toContain("No sign-in methods configured");
   });
 
-  it("offers a Herdr install action when tmux is the only available multiplexer", () => {
+  it("shows herdr availability as a status badge, with no install action", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.chatMultiplexer, {
       multiplexer: "auto",
@@ -38,10 +38,11 @@ describe("settings admin panes", () => {
     const html = renderWithQuery(createElement(HostPane), client);
 
     expect(html).toContain("tmux available");
-    expect(html).toContain("Install Herdr");
+    expect(html).toContain("herdr available");
+    expect(html).not.toContain("Install Herdr");
   });
 
-  it("renders a direct restart action without deployment mode or command copy rows", () => {
+  it("has no deployment mode, restart-command copy rows, or restart action", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.chatMultiplexer, {
       multiplexer: "auto",
@@ -50,9 +51,9 @@ describe("settings admin panes", () => {
 
     const html = renderWithQuery(createElement(HostPane), client);
 
-    expect(html).toContain("Restart API");
     expect(html).not.toContain("Deployment mode");
     expect(html).not.toContain("Restart command");
     expect(html).not.toContain("Operator-managed");
+    expect(html).not.toContain("Restart API");
   });
 });

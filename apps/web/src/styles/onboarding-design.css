@@ -70,7 +70,7 @@
 
 .onb-opt.is-sel {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--pine-soft) 40%, var(--surface));
+  background: color-mix(in srgb, var(--forest-soft) 40%, var(--surface));
   box-shadow:
     0 0 0 1px var(--accent),
     var(--shadow-xs);
@@ -155,10 +155,10 @@
   flex: none;
 }
 
-.onb-stat--pine {
-  border-color: var(--pine-soft-2);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+.onb-stat--forest {
+  border-color: var(--forest-soft-2);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 
 .onb-stat--steel {
@@ -256,7 +256,7 @@
 
 .onb-cli.is-sel {
   border-color: var(--accent);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
@@ -379,9 +379,9 @@
 }
 
 .onb-auth__res--in {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
-  box-shadow: inset 0 0 0 1px var(--pine-soft-2);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
+  box-shadow: inset 0 0 0 1px var(--forest-soft-2);
 }
 
 .onb-auth__res--out {

@@ -24,7 +24,7 @@
   max-width: 56ch;
 }
 .sp-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 34px;
   font-weight: 600;
   letter-spacing: -0.014em;
@@ -32,7 +32,7 @@
   margin: 0;
 }
 .sp-lede {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   line-height: 1.55;
   color: var(--text-muted);
@@ -123,7 +123,7 @@
 }
 .sp-hero--live {
   background: var(--surface);
-  border-color: var(--pine-soft-2);
+  border-color: var(--forest-soft-2);
 }
 .sp-hero__eyebrow {
   display: flex;
@@ -209,7 +209,7 @@
   color: var(--accent-fg);
 }
 .sp-hero__note {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   color: var(--text-muted);
 }
@@ -252,7 +252,7 @@
   min-width: 0;
 }
 .sp-hero__headline {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 27px;
   font-weight: 600;
   line-height: 1.18;
@@ -263,7 +263,7 @@
   text-wrap: pretty;
 }
 .sp-hero__dek {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.55;
   color: var(--text-muted);
@@ -350,7 +350,7 @@
   text-decoration: none;
 }
 .sp-managebtn:hover {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 
 /* ---- followed-team cards (cross-sport consistent shape) ---- */
@@ -411,11 +411,11 @@
 }
 .sp-tag--live {
   color: var(--accent-fg);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .sp-tag--today {
-  color: var(--pine-ink);
-  background: var(--pine-soft);
+  color: var(--forest-ink);
+  background: var(--forest-soft);
 }
 .sp-tag--news {
   color: var(--steel-ink);
@@ -443,7 +443,7 @@
   margin-top: 1px;
 }
 .sp-fc__newstx {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.4;
   color: var(--text-muted);
@@ -484,8 +484,8 @@
   font-weight: 700;
 }
 .sp-formpip--w {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .sp-formpip--d {
   background: var(--steel-soft);
@@ -602,8 +602,8 @@
   background: var(--surface);
 }
 .sp-game--you {
-  border-color: var(--pine-soft-2);
-  background: var(--pine-soft);
+  border-color: var(--forest-soft-2);
+  background: var(--forest-soft);
 }
 .sp-game__sides {
   flex: 1;
@@ -763,7 +763,7 @@
   background: var(--accent);
 }
 .sp-hl__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 15px;
   line-height: 1.34;
   color: var(--text);
@@ -893,7 +893,7 @@
   text-overflow: ellipsis;
 }
 .sp-tbl tr.is-you td {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .sp-tbl tr.is-you .nm {
   color: var(--accent-fg);
@@ -934,7 +934,7 @@
   margin-bottom: 18px;
 }
 .sp-empty__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 25px;
   font-weight: 600;
   letter-spacing: -0.012em;
@@ -942,7 +942,7 @@
   margin: 0;
 }
 .sp-empty__lede {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15.5px;
   line-height: 1.55;
   color: var(--text-muted);
@@ -966,8 +966,8 @@
   text-decoration: none;
 }
 .sp-nofollow__btn:hover {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
 }
 .sp-emptyboard {
   display: grid;

@@ -17,6 +17,7 @@ import {
   listSourceBehaviors,
   listAiAssistantTools,
   listBriefingDefinitions,
+  lookupAiCapabilityRoute,
   putChatSettings,
   putNotificationPreference,
   putSourceBehavior,
@@ -26,7 +27,9 @@ import { queryKeys } from "../api/query-keys";
 import {
   createDefinitionRequest,
   findDefinition,
+  readSourceLabels,
   readToolNames,
+  sourceListDescription,
   targetTimeFor,
   updateDefinitionRequest
 } from "../briefings/briefing-settings-model";
@@ -69,14 +72,6 @@ function readError(error: unknown): string {
   return error instanceof Error ? error.message : "Could not update settings";
 }
 
-function sourceListDescription(names: readonly string[]): string {
-  if (names.length === 0) {
-    return "No read-only sources configured yet. Briefings need at least one.";
-  }
-  const headline = `${names.length} read-only source${names.length === 1 ? "" : "s"} available for scheduled synthesis`;
-  return `${headline}: ${names.join(", ")}.`;
-}
-
 export function BriefingSettings(props: { readonly onBack: () => void }) {
   const queryClient = useQueryClient();
   const definitionsQuery = useQuery({
@@ -99,6 +94,7 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
   const localTimezone = localeQuery.data?.locale.timezone;
   const definitions = definitionsQuery.data?.definitions ?? [];
   const selectedToolNames = readToolNames(toolsQuery.data?.tools ?? []);
+  const sourceLabels = readSourceLabels(toolsQuery.data?.tools ?? []);
   const morning = findDefinition(definitions, "morning");
   const evening = findDefinition(definitions, "evening");
   const mutation = useMutation({
@@ -205,7 +201,7 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
       </Group>
 
       <Group title="Sources">
-        <Row name="Read tools" desc={sourceListDescription(selectedToolNames)} />
+        <Row name="Read tools" desc={sourceListDescription(sourceLabels)} />
         {BRIEFING_SOURCE_BEHAVIORS.map((behavior) => (
           <Row
             key={behavior.id}
@@ -229,7 +225,10 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
   );
 }
 
-export function ChatSettingsView(props: { readonly onBack: () => void }) {
+export function ChatSettingsView(props: {
+  readonly onBack: () => void;
+  readonly onCat?: (id: string) => void;
+}) {
   const queryClient = useQueryClient();
   const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
   const settingsQuery = useQuery({
@@ -242,6 +241,15 @@ export function ChatSettingsView(props: { readonly onBack: () => void }) {
   });
   const style = settingsQuery.data?.chat.responseStyle ?? "balanced";
   const error = settingsQuery.error ?? mutation.error;
+
+  // Voice input (#738) has no settings of its own here — Chat settings only reflects whether the
+  // shared "transcription" AI capability route is configured+healthy, and links out to the one
+  // place that configures it. No duplicate provider UI, no separate "enable voice" toggle.
+  const transcriptionRouteQuery = useQuery({
+    queryKey: queryKeys.ai.capability("transcription"),
+    queryFn: () => lookupAiCapabilityRoute("transcription")
+  });
+  const voiceAvailable = Boolean(transcriptionRouteQuery.data?.route?.available);
 
   return (
     <ModuleSub
@@ -267,8 +275,24 @@ export function ChatSettingsView(props: { readonly onBack: () => void }) {
       <Group title="Input">
         <Row
           name="Voice input"
-          desc="Tracked for #738. Voice capture is not enabled in Chat settings yet."
-          control={<Badge tone="steel">Coming soon</Badge>}
+          desc={
+            voiceAvailable
+              ? "A transcription model is configured — tap the mic in the composer to dictate."
+              : "Set up a transcription model in Assistant & AI to enable the composer's mic."
+          }
+          control={
+            voiceAvailable ? (
+              <Badge tone="pine">Ready</Badge>
+            ) : (
+              <button
+                type="button"
+                className="note__link"
+                onClick={() => props.onCat?.("assistant")}
+              >
+                Set up
+              </button>
+            )
+          }
         />
       </Group>
       <Note icon={<MessageSquare size={13} />}>

@@ -45,6 +45,10 @@ These are decisions, not code descriptions. Violating any of these is a blocker.
 The roadmap is tracked in GitHub. Keep the project board, milestones, and parent/child issue links
 current when doing roadmap work. Do not preserve status snapshots in this file.
 
+Every meaningful commit and PR must include a short user-facing summary of what changed, written in
+release-note language rather than implementation jargon. These summaries should be suitable for
+rolling up into "What's new"; if the change is not user-visible, say that plainly.
+
 ## Agent Knowledge Tools
 
 **CodeGraph** — use `codegraph_context` / `codegraph_trace` / `codegraph_explore` before
