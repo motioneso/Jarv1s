@@ -21,7 +21,7 @@ _Every task's requirements implicitly include these. Verbatim from the spec + CL
 - **DataContextDb only.** Every repository method takes a branded `DataContextDb` (call `assertDataContextDb`), never a root Kysely instance. Owner scoping is enforced by RLS (`owner_user_id = app.current_actor_user_id()`), not by application `WHERE` clauses.
 - **AccessContext shape is `{ actorUserId, requestId }`** — do not add fields.
 - **`imap` is the provider TYPE; `provider_id` is the preset.** One `provider_type` enum value (`'imap'`); one `connector_definitions` row per preset. Adding a provider later = a registry entry + a one-line idempotent seed, never a schema change.
-- **No stored `ok|auth_failed|unreachable` health enum in Slice B.** Test-connection *returns* that bounded label to the caller; persistent per-account health rides the existing `connector_account_status` (`active|error|revoked`) and the #254 sync-health columns (set in Slice C). Do not add a new health enum/column here (YAGNI).
+- **No stored `ok|auth_failed|unreachable` health enum in Slice B.** Test-connection _returns_ that bounded label to the caller; persistent per-account health rides the existing `connector_account_status` (`active|error|revoked`) and the #254 sync-health columns (set in Slice C). Do not add a new health enum/column here (YAGNI).
 
 ---
 
@@ -57,12 +57,14 @@ _Every task's requirements implicitly include these. Verbatim from the spec + CL
 ## Task B1: Add the `imap` provider type (enum + shared contract)
 
 **Files:**
+
 - Create: `packages/connectors/sql/<NNNN>_connector_imap_enum.sql`
 - Modify: `packages/shared/src/connectors-api.ts:3,112,162`
 - Modify: `packages/connectors/src/manifest.ts` (`database.migrations`)
 - Modify: `tests/integration/foundation.test.ts` (add one row)
 
 **Interfaces:**
+
 - Produces: `ConnectorProviderType` now includes `"imap"`; both JSON-schema enums accept `"imap"`.
 
 - [ ] **Step 1: Rebase + compute the migration number**
@@ -74,11 +76,13 @@ git rebase origin/main           # resolve onto current origin
 # Next number = highest NNNN_ prefix across all module sql dirs, +1:
 ls packages/*/sql/*.sql | sed -E 's@.*/([0-9]{4})_.*@\1@' | sort -n | tail -1
 ```
+
 Use that number + 1 for this file (`<NNNN>`), + 2 for B2. Expected on a fresh rebase: ≥ `0130`.
 
 - [ ] **Step 2: Write the enum migration**
 
 `packages/connectors/sql/<NNNN>_connector_imap_enum.sql`:
+
 ```sql
 -- Postgres forbids USING a newly ALTER-added enum value in the same transaction,
 -- so the value-add lives alone here; the definition seed that USES it is the next file.
@@ -92,6 +96,7 @@ In `packages/connectors/src/manifest.ts`, add `"<NNNN>_connector_imap_enum.sql"`
 - [ ] **Step 4: Add the shared contract value**
 
 In `packages/shared/src/connectors-api.ts`:
+
 - Line 3: `export type ConnectorProviderType = "calendar" | "email" | "google" | "imap";`
 - Line ~112 (`connectorProviderSchema`): `enum: ["calendar", "email", "google", "imap"]`
 - Line ~162 (`connectorAccountSchema`): `enum: ["calendar", "email", "google", "imap"]`
@@ -99,6 +104,7 @@ In `packages/shared/src/connectors-api.ts`:
 - [ ] **Step 5: Add the foundation.test.ts row (failing first)**
 
 In `tests/integration/foundation.test.ts`, add to the `toEqual([...])` array, in numeric position:
+
 ```ts
 { version: "<NNNN>", name: "<NNNN>_connector_imap_enum.sql" },
 ```
@@ -128,36 +134,51 @@ git commit -m "feat(connectors): add imap provider type (enum + shared contract)
 ## Task B2: Seed the preset definitions + in-code preset registry
 
 **Files:**
+
 - Create: `packages/connectors/sql/<NNNN+1>_connector_imap_definitions.sql`
 - Create: `packages/connectors/src/imap-presets.ts`
 - Create: `packages/connectors/src/imap-presets.test.ts`
 - Modify: `packages/connectors/src/manifest.ts`, `tests/integration/foundation.test.ts`
 
 **Interfaces:**
+
 - Produces: `IMAP_PRESETS: Record<string, ImapPreset>`, `getImapPreset(providerId): ImapPreset | undefined`, `IMAP_PROVIDER_IDS: readonly string[]`, and four seeded `connector_definitions` rows.
 
 - [ ] **Step 1: Write the registry test (failing)**
 
 `packages/connectors/src/imap-presets.test.ts`:
+
 ```ts
 import { describe, expect, it } from "vitest";
 import { IMAP_PRESETS, IMAP_PROVIDER_IDS, getImapPreset } from "./imap-presets.js";
 
 describe("imap presets", () => {
   it("exposes the four v1 password presets keyed by provider_id", () => {
-    expect(IMAP_PROVIDER_IDS).toEqual(["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"]);
+    expect(IMAP_PROVIDER_IDS).toEqual([
+      "imap-yahoo",
+      "imap-proton",
+      "imap-icloud",
+      "imap-fastmail"
+    ]);
   });
   it("yahoo preset uses TLS 993 / SMTPS 465 and password auth", () => {
     const yahoo = getImapPreset("imap-yahoo");
     expect(yahoo).toMatchObject({
-      imapHost: "imap.mail.yahoo.com", imapPort: 993, imapTls: true,
-      smtpHost: "smtp.mail.yahoo.com", smtpPort: 465, smtpTls: true,
-      authMethod: "password",
+      imapHost: "imap.mail.yahoo.com",
+      imapPort: 993,
+      imapTls: true,
+      smtpHost: "smtp.mail.yahoo.com",
+      smtpPort: 465,
+      smtpTls: true,
+      authMethod: "password"
     });
   });
   it("proton preset points at local Bridge", () => {
     expect(getImapPreset("imap-proton")).toMatchObject({
-      imapHost: "127.0.0.1", imapPort: 1143, smtpHost: "127.0.0.1", smtpPort: 1025,
+      imapHost: "127.0.0.1",
+      imapPort: 1143,
+      smtpHost: "127.0.0.1",
+      smtpPort: 1025
     });
   });
   it("returns undefined for unknown provider", () => {
@@ -174,6 +195,7 @@ Expected: FAIL — cannot find `./imap-presets.js`.
 - [ ] **Step 3: Implement the registry**
 
 `packages/connectors/src/imap-presets.ts`:
+
 ```ts
 export type ImapAuthMethod = "password" | "xoauth2";
 
@@ -193,33 +215,55 @@ export interface ImapPreset {
 
 export const IMAP_PRESETS: Record<string, ImapPreset> = {
   "imap-yahoo": {
-    providerId: "imap-yahoo", displayName: "Yahoo Mail",
-    imapHost: "imap.mail.yahoo.com", imapPort: 993, imapTls: true,
-    smtpHost: "smtp.mail.yahoo.com", smtpPort: 465, smtpTls: true,
+    providerId: "imap-yahoo",
+    displayName: "Yahoo Mail",
+    imapHost: "imap.mail.yahoo.com",
+    imapPort: 993,
+    imapTls: true,
+    smtpHost: "smtp.mail.yahoo.com",
+    smtpPort: 465,
+    smtpTls: true,
     authMethod: "password",
-    prerequisite: "Generate an app password in Yahoo Account Security; your normal password will not work.",
+    prerequisite:
+      "Generate an app password in Yahoo Account Security; your normal password will not work."
   },
   "imap-proton": {
-    providerId: "imap-proton", displayName: "Proton Mail (Bridge)",
-    imapHost: "127.0.0.1", imapPort: 1143, imapTls: false,
-    smtpHost: "127.0.0.1", smtpPort: 1025, smtpTls: false,
+    providerId: "imap-proton",
+    displayName: "Proton Mail (Bridge)",
+    imapHost: "127.0.0.1",
+    imapPort: 1143,
+    imapTls: false,
+    smtpHost: "127.0.0.1",
+    smtpPort: 1025,
+    smtpTls: false,
     authMethod: "password",
-    prerequisite: "Requires a paid Proton plan with Proton Mail Bridge installed and running on (or reachable from) this host.",
+    prerequisite:
+      "Requires a paid Proton plan with Proton Mail Bridge installed and running on (or reachable from) this host."
   },
   "imap-icloud": {
-    providerId: "imap-icloud", displayName: "iCloud Mail",
-    imapHost: "imap.mail.me.com", imapPort: 993, imapTls: true,
-    smtpHost: "smtp.mail.me.com", smtpPort: 587, smtpTls: true,
+    providerId: "imap-icloud",
+    displayName: "iCloud Mail",
+    imapHost: "imap.mail.me.com",
+    imapPort: 993,
+    imapTls: true,
+    smtpHost: "smtp.mail.me.com",
+    smtpPort: 587,
+    smtpTls: true,
     authMethod: "password",
-    prerequisite: "Generate an app-specific password at appleid.apple.com.",
+    prerequisite: "Generate an app-specific password at appleid.apple.com."
   },
   "imap-fastmail": {
-    providerId: "imap-fastmail", displayName: "Fastmail",
-    imapHost: "imap.fastmail.com", imapPort: 993, imapTls: true,
-    smtpHost: "smtp.fastmail.com", smtpPort: 465, smtpTls: true,
+    providerId: "imap-fastmail",
+    displayName: "Fastmail",
+    imapHost: "imap.fastmail.com",
+    imapPort: 993,
+    imapTls: true,
+    smtpHost: "smtp.fastmail.com",
+    smtpPort: 465,
+    smtpTls: true,
     authMethod: "password",
-    prerequisite: "Generate an app password in Fastmail Settings → Privacy & Security.",
-  },
+    prerequisite: "Generate an app password in Fastmail Settings → Privacy & Security."
+  }
 };
 
 export const IMAP_PROVIDER_IDS = Object.keys(IMAP_PRESETS) as readonly string[];
@@ -237,6 +281,7 @@ Expected: PASS.
 - [ ] **Step 5: Write the definitions seed migration**
 
 `packages/connectors/sql/<NNNN+1>_connector_imap_definitions.sql` (mirror `0044`'s transient-policy seed because `connector_definitions` is FORCE RLS):
+
 ```sql
 -- connector_definitions is FORCE ROW LEVEL SECURITY; seed under a transient migration-owner policy.
 CREATE POLICY connector_definitions_imap_seed ON app.connector_definitions
@@ -256,6 +301,7 @@ ON CONFLICT (provider_id) DO UPDATE SET
 
 DROP POLICY connector_definitions_imap_seed ON app.connector_definitions;
 ```
+
 > Note: `email.read` is the capability scope the Slice C RLS `imap`-insert branch will require (spec §6a). It is set here at connect time so Slice C needs no backfill.
 
 - [ ] **Step 6: Register migration + add foundation row**
@@ -266,6 +312,7 @@ DROP POLICY connector_definitions_imap_seed ON app.connector_definitions;
 - [ ] **Step 7: Add a seed integration assertion**
 
 Append to `tests/integration/connectors-imap.test.ts` (file created fully in B6; if it doesn't exist yet, create it with this one test now):
+
 ```ts
 it("seeds the four imap provider definitions readable by any actor", async () => {
   await resetFoundationDatabase();
@@ -273,9 +320,12 @@ it("seeds the four imap provider definitions readable by any actor", async () =>
   const dataContext = new DataContextRunner(appDb);
   const rows = await dataContext.withDataContext(
     { actorUserId: ids.userA, requestId: "req:a" },
-    (db) => new ConnectorsRepository().listProviders(db),
+    (db) => new ConnectorsRepository().listProviders(db)
   );
-  const imap = rows.filter((r) => r.providerType === "imap").map((r) => r.providerId).sort();
+  const imap = rows
+    .filter((r) => r.providerType === "imap")
+    .map((r) => r.providerId)
+    .sort();
   expect(imap).toEqual(["imap-fastmail", "imap-icloud", "imap-proton", "imap-yahoo"]);
   await appDb.destroy();
 });
@@ -301,27 +351,39 @@ git commit -m "feat(connectors): seed imap preset definitions + in-code preset r
 ## Task B3: IMAP credential secret shape + validator
 
 **Files:**
+
 - Create: `packages/connectors/src/imap-secret.ts`
 - Create: `packages/connectors/src/imap-secret.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ConnectorSecretCipher` (`packages/connectors/src/crypto.ts`) — `encryptJson(value): EncryptedSecret`, `decryptJson(envelope): Record<string, unknown>`.
 - Produces: `ImapConnectionSecret { kind: "imap-password"; providerId; username; password; imapHost; imapPort; imapTls; smtpHost; smtpPort; smtpTls }`; `decryptImapConnectionSecret(cipher, envelope): ImapConnectionSecret` (throws on wrong `kind`/shape).
 
 - [ ] **Step 1: Write the roundtrip + rejection test (failing)**
 
 `packages/connectors/src/imap-secret.test.ts`:
+
 ```ts
 import { describe, expect, it } from "vitest";
 import { ConnectorSecretCipher } from "./crypto.js";
 import { Keyring } from "@jarv1s/db";
 import { decryptImapConnectionSecret, type ImapConnectionSecret } from "./imap-secret.js";
 
-const cipher = new ConnectorSecretCipher(Keyring.fromRawKeys([{ id: "k1", key: Buffer.alloc(32, 7) }]));
+const cipher = new ConnectorSecretCipher(
+  Keyring.fromRawKeys([{ id: "k1", key: Buffer.alloc(32, 7) }])
+);
 const secret: ImapConnectionSecret = {
-  kind: "imap-password", providerId: "imap-yahoo", username: "a@yahoo.com", password: "app-pw-123",
-  imapHost: "imap.mail.yahoo.com", imapPort: 993, imapTls: true,
-  smtpHost: "smtp.mail.yahoo.com", smtpPort: 465, smtpTls: true,
+  kind: "imap-password",
+  providerId: "imap-yahoo",
+  username: "a@yahoo.com",
+  password: "app-pw-123",
+  imapHost: "imap.mail.yahoo.com",
+  imapPort: 993,
+  imapTls: true,
+  smtpHost: "smtp.mail.yahoo.com",
+  smtpPort: 465,
+  smtpTls: true
 };
 
 describe("imap secret", () => {
@@ -339,6 +401,7 @@ describe("imap secret", () => {
   });
 });
 ```
+
 > Confirm the real `Keyring` constructor name/signature against `packages/db/src/secret-cipher.ts` while implementing; adjust the test helper to match (the map shows `ConnectorSecretCipher extends JsonSecretCipher` taking a `Keyring`).
 
 - [ ] **Step 2: Run it (fails)**
@@ -349,6 +412,7 @@ Expected: FAIL — `./imap-secret.js` missing.
 - [ ] **Step 3: Implement the secret shape + validator**
 
 `packages/connectors/src/imap-secret.ts`:
+
 ```ts
 import type { ConnectorSecretCipher, EncryptedConnectorSecret } from "./crypto.js";
 
@@ -367,7 +431,7 @@ export interface ImapConnectionSecret extends Record<string, unknown> {
 
 export function decryptImapConnectionSecret(
   cipher: ConnectorSecretCipher,
-  envelope: EncryptedConnectorSecret,
+  envelope: EncryptedConnectorSecret
 ): ImapConnectionSecret {
   const value = cipher.decryptJson(envelope) as Partial<ImapConnectionSecret>;
   if (value.kind !== "imap-password") {
@@ -399,11 +463,13 @@ git commit -m "feat(connectors): imap-password connector secret shape + validato
 ## Task B4: IMAP/SMTP probe client + bounded-label mapping
 
 **Files:**
+
 - Create: `packages/connectors/src/imap-probe-client.ts`
 - Create: `packages/connectors/src/imap-probe-client.test.ts`
 - Modify: `packages/connectors/package.json` (add `imapflow`, `nodemailer`)
 
 **Interfaces:**
+
 - Produces: `type ImapProbeResult = "ok" | "auth_failed" | "tls_failed" | "unreachable"`; `interface ImapProbeClient { probe(input: ImapProbeInput): Promise<ImapProbeResult> }`; `LiveImapProbeClient implements ImapProbeClient`; `mapProbeError(err: unknown): Exclude<ImapProbeResult, "ok">` (exported for unit testing). `ImapProbeInput = { imapHost; imapPort; imapTls; smtpHost; smtpPort; smtpTls; username; password }`.
 
 - [ ] **Step 1: Add dependencies**
@@ -416,6 +482,7 @@ pnpm --filter @jarv1s/connectors add -D @types/nodemailer
 - [ ] **Step 2: Write the error-mapping test (failing)**
 
 `packages/connectors/src/imap-probe-client.test.ts`:
+
 ```ts
 import { describe, expect, it } from "vitest";
 import { mapProbeError } from "./imap-probe-client.js";
@@ -423,7 +490,9 @@ import { mapProbeError } from "./imap-probe-client.js";
 describe("mapProbeError", () => {
   it("maps auth rejections to auth_failed", () => {
     expect(mapProbeError({ authenticationFailed: true })).toBe("auth_failed");
-    expect(mapProbeError({ responseText: "[AUTHENTICATIONFAILED] Invalid credentials" })).toBe("auth_failed");
+    expect(mapProbeError({ responseText: "[AUTHENTICATIONFAILED] Invalid credentials" })).toBe(
+      "auth_failed"
+    );
   });
   it("maps TLS errors to tls_failed", () => {
     expect(mapProbeError({ code: "ERR_TLS_CERT_ALTNAME_INVALID" })).toBe("tls_failed");
@@ -448,6 +517,7 @@ Expected: FAIL — module missing.
 - [ ] **Step 4: Implement the probe client**
 
 `packages/connectors/src/imap-probe-client.ts`:
+
 ```ts
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
@@ -455,9 +525,14 @@ import nodemailer from "nodemailer";
 export type ImapProbeResult = "ok" | "auth_failed" | "tls_failed" | "unreachable";
 
 export interface ImapProbeInput {
-  readonly imapHost: string; readonly imapPort: number; readonly imapTls: boolean;
-  readonly smtpHost: string; readonly smtpPort: number; readonly smtpTls: boolean;
-  readonly username: string; readonly password: string;
+  readonly imapHost: string;
+  readonly imapPort: number;
+  readonly imapTls: boolean;
+  readonly smtpHost: string;
+  readonly smtpPort: number;
+  readonly smtpTls: boolean;
+  readonly username: string;
+  readonly password: string;
 }
 
 export interface ImapProbeClient {
@@ -469,11 +544,20 @@ export interface ImapProbeClient {
 export function mapProbeError(err: unknown): Exclude<ImapProbeResult, "ok"> {
   const e = (err ?? {}) as { code?: string; authenticationFailed?: boolean; responseText?: string };
   const text = typeof e.responseText === "string" ? e.responseText.toUpperCase() : "";
-  if (e.authenticationFailed || text.includes("AUTHENTICATIONFAILED") || text.includes("INVALID CREDENTIALS")) {
+  if (
+    e.authenticationFailed ||
+    text.includes("AUTHENTICATIONFAILED") ||
+    text.includes("INVALID CREDENTIALS")
+  ) {
     return "auth_failed";
   }
   if (typeof e.code === "string" && e.code.startsWith("ERR_TLS")) return "tls_failed";
-  if (e.code === "ECONNREFUSED" || e.code === "ENOTFOUND" || e.code === "ETIMEDOUT" || e.code === "EHOSTUNREACH") {
+  if (
+    e.code === "ECONNREFUSED" ||
+    e.code === "ENOTFOUND" ||
+    e.code === "ETIMEDOUT" ||
+    e.code === "EHOSTUNREACH"
+  ) {
     return "unreachable";
   }
   return "unreachable";
@@ -483,20 +567,29 @@ export class LiveImapProbeClient implements ImapProbeClient {
   async probe(input: ImapProbeInput): Promise<ImapProbeResult> {
     // 1) IMAP login.
     const imap = new ImapFlow({
-      host: input.imapHost, port: input.imapPort, secure: input.imapTls,
-      auth: { user: input.username, pass: input.password }, logger: false,
+      host: input.imapHost,
+      port: input.imapPort,
+      secure: input.imapTls,
+      auth: { user: input.username, pass: input.password },
+      logger: false
     });
     try {
       await imap.connect();
       await imap.logout();
     } catch (err) {
-      try { await imap.close(); } catch { /* already closed */ }
+      try {
+        await imap.close();
+      } catch {
+        /* already closed */
+      }
       return mapProbeError(err);
     }
     // 2) SMTP login.
     const transport = nodemailer.createTransport({
-      host: input.smtpHost, port: input.smtpPort, secure: input.smtpTls,
-      auth: { user: input.username, pass: input.password },
+      host: input.smtpHost,
+      port: input.smtpPort,
+      secure: input.smtpTls,
+      auth: { user: input.username, pass: input.password }
     });
     try {
       await transport.verify();
@@ -528,42 +621,47 @@ git commit -m "feat(connectors): imap/smtp probe client with bounded-label error
 ## Task B5: GreenMail CI container
 
 **Files:**
+
 - Modify: `infra/docker-compose.yml`
 - Modify: `tests/integration/test-database.ts` (or the env module) to read `JARVIS_TEST_IMAP_*`
 
 **Interfaces:**
+
 - Produces: a reachable IMAP (`:3143`) + SMTP (`:3025`) GreenMail server in CI, plus `JARVIS_TEST_IMAP_HOST/PORT/SMTP_PORT/USER/PASSWORD` env for tests. GreenMail auto-creates accounts on first login, so any `user:password` works.
 
 - [ ] **Step 1: Add the GreenMail service**
 
 In `infra/docker-compose.yml`, alongside `postgres`:
+
 ```yaml
-  greenmail:
-    image: greenmail/standalone:2.1.0
-    environment:
-      # Non-TLS IMAP/SMTP on high ports; auto-create users on login.
-      GREENMAIL_OPTS: "-Dgreenmail.setup.test.imap -Dgreenmail.setup.test.smtp -Dgreenmail.auth.disabled=false -Dgreenmail.users.login=email"
-    ports:
-      - "3143:3143"   # IMAP
-      - "3025:3025"   # SMTP
-    healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost 3143 && nc -z localhost 3025"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+greenmail:
+  image: greenmail/standalone:2.1.0
+  environment:
+    # Non-TLS IMAP/SMTP on high ports; auto-create users on login.
+    GREENMAIL_OPTS: "-Dgreenmail.setup.test.imap -Dgreenmail.setup.test.smtp -Dgreenmail.auth.disabled=false -Dgreenmail.users.login=email"
+  ports:
+    - "3143:3143" # IMAP
+    - "3025:3025" # SMTP
+  healthcheck:
+    test: ["CMD", "sh", "-c", "nc -z localhost 3143 && nc -z localhost 3025"]
+    interval: 5s
+    timeout: 3s
+    retries: 20
 ```
+
 > Verify the exact port/option names against the GreenMail standalone image tag chosen; GreenMail's default test ports are IMAP `3143` / SMTP `3025`. Pin the tag.
 
 - [ ] **Step 2: Wire the test env**
 
 Add to the integration test env resolver (where `JARVIS_*_DATABASE_URL` are read) defaults:
+
 ```ts
 export const testImap = {
   host: process.env.JARVIS_TEST_IMAP_HOST ?? "127.0.0.1",
   imapPort: Number(process.env.JARVIS_TEST_IMAP_PORT ?? 3143),
   smtpPort: Number(process.env.JARVIS_TEST_IMAP_SMTP_PORT ?? 3025),
   username: process.env.JARVIS_TEST_IMAP_USER ?? "probe@greenmail.test",
-  password: process.env.JARVIS_TEST_IMAP_PASSWORD ?? "probe-pw",
+  password: process.env.JARVIS_TEST_IMAP_PASSWORD ?? "probe-pw"
 };
 ```
 
@@ -584,11 +682,13 @@ git commit -m "test(connectors): add GreenMail IMAP/SMTP container for connector
 ## Task B6: `ImapConnectionService` (testConnection + connect) + repository upsert
 
 **Files:**
+
 - Create: `packages/connectors/src/imap-connection.ts`
 - Modify: `packages/connectors/src/repository.ts`
 - Modify/Create: `tests/integration/connectors-imap.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ImapProbeClient` (B4), `ConnectorSecretCipher` (B3), `ConnectorsRepository`, `getImapPreset` (B2), `DataContextDb`.
 - Produces:
   - `ConnectorsRepository.upsertImapAccount(scopedDb, { providerId, scopes, encryptedSecret }): Promise<ConnectorAccountSafeRow>`
@@ -597,6 +697,7 @@ git commit -m "test(connectors): add GreenMail IMAP/SMTP container for connector
 - [ ] **Step 1: Write the service + RLS test (failing)**
 
 Add to `tests/integration/connectors-imap.test.ts`:
+
 ```ts
 const fakeProbe = (result: ImapProbeResult): ImapProbeClient => ({ probe: async () => result });
 
@@ -605,20 +706,23 @@ it("connect encrypts the credential and creates an owner-scoped account", async 
   const appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
   const dataContext = new DataContextRunner(appDb);
   const repository = new ConnectorsRepository();
-  const cipher = new ConnectorSecretCipher(Keyring.fromRawKeys([{ id: "k1", key: Buffer.alloc(32, 7) }]));
+  const cipher = new ConnectorSecretCipher(
+    Keyring.fromRawKeys([{ id: "k1", key: Buffer.alloc(32, 7) }])
+  );
   const service = new ImapConnectionService({ repository, cipher, probeClient: fakeProbe("ok") });
 
   const account = await dataContext.withDataContext(
     { actorUserId: ids.userA, requestId: "req:a" },
-    (db) => service.connect(db, { providerId: "imap-yahoo", username: "a@yahoo.com", password: "app-pw" }),
+    (db) =>
+      service.connect(db, { providerId: "imap-yahoo", username: "a@yahoo.com", password: "app-pw" })
   );
   expect(account.providerId).toBe("imap-yahoo");
-  expect(JSON.stringify(account)).not.toContain("app-pw");   // no secret in the safe row
+  expect(JSON.stringify(account)).not.toContain("app-pw"); // no secret in the safe row
 
   // userB cannot see userA's account (RLS).
   const seenByB = await dataContext.withDataContext(
     { actorUserId: ids.userB, requestId: "req:b" },
-    (db) => repository.listAccounts(db),
+    (db) => repository.listAccounts(db)
   );
   expect(seenByB.find((r) => r.id === account.id)).toBeUndefined();
   await appDb.destroy();
@@ -630,23 +734,33 @@ it("connect refuses when the probe is not ok", async () => {
   const dataContext = new DataContextRunner(appDb);
   const service = new ImapConnectionService({
     repository: new ConnectorsRepository(),
-    cipher: new ConnectorSecretCipher(Keyring.fromRawKeys([{ id: "k1", key: Buffer.alloc(32, 7) }])),
-    probeClient: fakeProbe("auth_failed"),
+    cipher: new ConnectorSecretCipher(
+      Keyring.fromRawKeys([{ id: "k1", key: Buffer.alloc(32, 7) }])
+    ),
+    probeClient: fakeProbe("auth_failed")
   });
   await expect(
-    dataContext.withDataContext({ actorUserId: ids.userA, requestId: "req:a" },
-      (db) => service.connect(db, { providerId: "imap-yahoo", username: "a@yahoo.com", password: "bad" })),
+    dataContext.withDataContext({ actorUserId: ids.userA, requestId: "req:a" }, (db) =>
+      service.connect(db, { providerId: "imap-yahoo", username: "a@yahoo.com", password: "bad" })
+    )
   ).rejects.toThrow(/auth_failed/);
   await appDb.destroy();
 });
 ```
+
 Add a GreenMail-backed live probe test (real `LiveImapProbeClient` against `testImap`):
+
 ```ts
 it("LiveImapProbeClient returns ok against GreenMail", async () => {
   const result = await new LiveImapProbeClient().probe({
-    imapHost: testImap.host, imapPort: testImap.imapPort, imapTls: false,
-    smtpHost: testImap.host, smtpPort: testImap.smtpPort, smtpTls: false,
-    username: testImap.username, password: testImap.password,
+    imapHost: testImap.host,
+    imapPort: testImap.imapPort,
+    imapTls: false,
+    smtpHost: testImap.host,
+    smtpPort: testImap.smtpPort,
+    smtpTls: false,
+    username: testImap.username,
+    password: testImap.password
   });
   expect(result).toBe("ok");
 });
@@ -660,6 +774,7 @@ Expected: FAIL — `ImapConnectionService` / `upsertImapAccount` missing.
 - [ ] **Step 3: Add the repository upsert**
 
 In `packages/connectors/src/repository.ts` (mirror `upsertGoogleAccount` at line ~294):
+
 ```ts
 import { IMAP_PROVIDER_IDS } from "./imap-presets.js";
 
@@ -688,11 +803,13 @@ async upsertImapAccount(
   });
 }
 ```
+
 > Match the exact `createAccount`/`updateAccount` signatures present in the file; the map confirms `createAccount(scopedDb, input)` returns `ConnectorAccountSafeRow` and sets `owner_user_id` via `app.current_actor_user_id()`.
 
 - [ ] **Step 4: Implement the service**
 
 `packages/connectors/src/imap-connection.ts`:
+
 ```ts
 import type { DataContextDb } from "@jarv1s/db";
 import { assertDataContextDb } from "@jarv1s/db";
@@ -722,27 +839,42 @@ export class ImapConnectionService {
     assertDataContextDb(scopedDb);
     const preset = this.requirePreset(input.providerId);
     return this.deps.probeClient.probe({
-      imapHost: preset.imapHost, imapPort: preset.imapPort, imapTls: preset.imapTls,
-      smtpHost: preset.smtpHost, smtpPort: preset.smtpPort, smtpTls: preset.smtpTls,
-      username: input.username, password: input.password,
+      imapHost: preset.imapHost,
+      imapPort: preset.imapPort,
+      imapTls: preset.imapTls,
+      smtpHost: preset.smtpHost,
+      smtpPort: preset.smtpPort,
+      smtpTls: preset.smtpTls,
+      username: input.username,
+      password: input.password
     });
   }
 
-  async connect(scopedDb: DataContextDb, input: ImapConnectInput): Promise<ConnectorAccountSafeRow> {
+  async connect(
+    scopedDb: DataContextDb,
+    input: ImapConnectInput
+  ): Promise<ConnectorAccountSafeRow> {
     const result = await this.testConnection(scopedDb, input);
     if (result !== "ok") {
       throw new Error(`imap connect probe failed: ${result}`);
     }
     const preset = this.requirePreset(input.providerId);
     const secret: ImapConnectionSecret = {
-      kind: "imap-password", providerId: preset.providerId,
-      username: input.username, password: input.password,
-      imapHost: preset.imapHost, imapPort: preset.imapPort, imapTls: preset.imapTls,
-      smtpHost: preset.smtpHost, smtpPort: preset.smtpPort, smtpTls: preset.smtpTls,
+      kind: "imap-password",
+      providerId: preset.providerId,
+      username: input.username,
+      password: input.password,
+      imapHost: preset.imapHost,
+      imapPort: preset.imapPort,
+      imapTls: preset.imapTls,
+      smtpHost: preset.smtpHost,
+      smtpPort: preset.smtpPort,
+      smtpTls: preset.smtpTls
     };
     return this.deps.repository.upsertImapAccount(scopedDb, {
-      providerId: preset.providerId, scopes: ["email.read"],
-      encryptedSecret: this.deps.cipher.encryptJson(secret),
+      providerId: preset.providerId,
+      scopes: ["email.read"],
+      encryptedSecret: this.deps.cipher.encryptJson(secret)
     });
   }
 
@@ -772,29 +904,43 @@ git commit -m "feat(connectors): ImapConnectionService test+connect with owner-s
 ## Task B7: HTTP routes — `POST /api/connectors/imap/test` + `/connect`
 
 **Files:**
+
 - Modify: `packages/connectors/src/routes.ts`
 - Modify: `packages/connectors/src/manifest.ts` (routes array)
 - Modify: `packages/shared/src/connectors-api.ts` (request/response schemas)
 - Create: `tests/integration/connectors-imap-routes.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ImapConnectionService` (B6), `resolveAccessContext`, `dataContext.withDataContext`, `serializeAccount`.
 - Produces: `POST /api/connectors/imap/test` → `{ result: ImapProbeResult }`; `POST /api/connectors/imap/connect` → `201 { account }`. Body: `{ providerId, username, password }`. Both rate-limited (`oauthMax`, 1-minute window). Both require auth.
 
 - [ ] **Step 1: Add request/response schemas to the shared contract**
 
 In `packages/shared/src/connectors-api.ts` (mirror the `google*RouteSchema` block):
+
 ```ts
-export interface ImapConnectRequest { providerId: string; username: string; password: string }
-export interface ImapTestResult { result: "ok" | "auth_failed" | "tls_failed" | "unreachable" }
+export interface ImapConnectRequest {
+  providerId: string;
+  username: string;
+  password: string;
+}
+export interface ImapTestResult {
+  result: "ok" | "auth_failed" | "tls_failed" | "unreachable";
+}
 
 export const imapConnectRequestSchema = {
-  type: "object", required: ["providerId", "username", "password"], additionalProperties: false,
+  type: "object",
+  required: ["providerId", "username", "password"],
+  additionalProperties: false,
   properties: {
-    providerId: { type: "string", enum: ["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"] },
+    providerId: {
+      type: "string",
+      enum: ["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"]
+    },
     username: { type: "string", minLength: 1 },
-    password: { type: "string", minLength: 1 },
-  },
+    password: { type: "string", minLength: 1 }
+  }
 } as const;
 
 export const imapTestRouteSchema = { body: imapConnectRequestSchema } as const;
@@ -804,32 +950,43 @@ export const imapConnectRouteSchema = { body: imapConnectRequestSchema } as cons
 - [ ] **Step 2: Write the route test (failing)**
 
 `tests/integration/connectors-imap-routes.test.ts` (mirror `connectors-google.test.ts` route harness):
+
 ```ts
 it("rejects unauthenticated test-connection", async () => {
   const server = await buildImapTestServer({ probeResult: "ok" });
-  const res = await server.inject({ method: "POST", url: "/api/connectors/imap/test",
-    payload: { providerId: "imap-yahoo", username: "a@y.com", password: "x" } });
+  const res = await server.inject({
+    method: "POST",
+    url: "/api/connectors/imap/test",
+    payload: { providerId: "imap-yahoo", username: "a@y.com", password: "x" }
+  });
   expect(res.statusCode).toBe(401);
 });
 
 it("returns the bounded probe label for an authed test", async () => {
   const server = await buildImapTestServer({ probeResult: "auth_failed" });
-  const res = await server.inject({ method: "POST", url: "/api/connectors/imap/test",
+  const res = await server.inject({
+    method: "POST",
+    url: "/api/connectors/imap/test",
     headers: { authorization: "Bearer session-a" },
-    payload: { providerId: "imap-yahoo", username: "a@y.com", password: "x" } });
+    payload: { providerId: "imap-yahoo", username: "a@y.com", password: "x" }
+  });
   expect(res.statusCode).toBe(200);
   expect(res.json()).toEqual({ result: "auth_failed" });
 });
 
 it("creates an account on connect (201) and never echoes the password", async () => {
   const server = await buildImapTestServer({ probeResult: "ok" });
-  const res = await server.inject({ method: "POST", url: "/api/connectors/imap/connect",
+  const res = await server.inject({
+    method: "POST",
+    url: "/api/connectors/imap/connect",
     headers: { authorization: "Bearer session-a" },
-    payload: { providerId: "imap-yahoo", username: "a@y.com", password: "super-secret-pw" } });
+    payload: { providerId: "imap-yahoo", username: "a@y.com", password: "super-secret-pw" }
+  });
   expect(res.statusCode).toBe(201);
   expect(res.body).not.toContain("super-secret-pw");
 });
 ```
+
 > `buildImapTestServer` mirrors the google route harness: real Fastify, fake `resolveAccessContext` parsing `Bearer`, `ImapConnectionService` built with a `{ probe: async () => probeResult }` fake client, registered via `registerConnectorsRoutes`.
 
 - [ ] **Step 3: Run it (fails)**
@@ -840,30 +997,44 @@ Expected: FAIL — routes not registered.
 - [ ] **Step 4: Register the routes**
 
 In `packages/connectors/src/routes.ts`, add `imapService?: ImapConnectionService` to `ConnectorsRoutesDependencies`, then (mirror `/google/complete`):
+
 ```ts
 if (dependencies.imapService) {
   const imapService = dependencies.imapService;
-  server.post("/api/connectors/imap/test",
-    { schema: imapTestRouteSchema, config: { rateLimit: { max: oauthMax, timeWindow: "1 minute" } } },
+  server.post(
+    "/api/connectors/imap/test",
+    {
+      schema: imapTestRouteSchema,
+      config: { rateLimit: { max: oauthMax, timeWindow: "1 minute" } }
+    },
     async (request, reply) => {
       const accessContext = await dependencies.resolveAccessContext(request);
       const body = request.body as ImapConnectRequest;
-      const result = await dependencies.dataContext.withDataContext(accessContext,
-        (db) => imapService.testConnection(db, body));
+      const result = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+        imapService.testConnection(db, body)
+      );
       return reply.code(200).send({ result });
-    });
+    }
+  );
 
-  server.post("/api/connectors/imap/connect",
-    { schema: imapConnectRouteSchema, config: { rateLimit: { max: oauthMax, timeWindow: "1 minute" } } },
+  server.post(
+    "/api/connectors/imap/connect",
+    {
+      schema: imapConnectRouteSchema,
+      config: { rateLimit: { max: oauthMax, timeWindow: "1 minute" } }
+    },
     async (request, reply) => {
       const accessContext = await dependencies.resolveAccessContext(request);
       const body = request.body as ImapConnectRequest;
-      const account = await dependencies.dataContext.withDataContext(accessContext,
-        (db) => imapService.connect(db, body));
+      const account = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+        imapService.connect(db, body)
+      );
       return reply.code(201).send({ account: serializeAccount(account) });
-    });
+    }
+  );
 }
 ```
+
 Add the two routes to `manifest.ts` `routes` with `permissionId: "connectors.manage"`. Wire `imapService` where the connectors routes are constructed (same place `googleService` is built — construct with `repository`, `secretCipher`, and `new LiveImapProbeClient()`).
 
 - [ ] **Step 5: Run it (passes)**
@@ -874,6 +1045,7 @@ Expected: PASS — 401 unauth, 200 bounded label, 201 connect, no password echo.
 - [ ] **Step 6: Full gate + commit**
 
 Run: `pnpm verify:foundation` (lint + format:check + check:file-size + typecheck + test). Fix any file-size split (1000-line cap) or format issues.
+
 ```bash
 git add packages/connectors/src/routes.ts packages/connectors/src/manifest.ts \
         packages/shared/src/connectors-api.ts tests/integration/connectors-imap-routes.test.ts
