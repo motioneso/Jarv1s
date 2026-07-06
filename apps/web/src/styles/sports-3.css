@@ -31,7 +31,7 @@
 .sp-news__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  gap: 0 var(--space-6);
   margin-top: 8px;
 }
 
@@ -39,16 +39,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-subtle);
   text-decoration: none;
   transition: var(--transition-control);
 }
 
 .sp-news__card:hover {
-  border-color: var(--border);
   background: var(--surface-2);
 }
 
@@ -56,7 +53,7 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: calc(var(--radius-card) - 4px);
+  border-radius: 0;
   background: var(--surface-2);
 }
 
