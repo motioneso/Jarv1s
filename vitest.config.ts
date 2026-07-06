@@ -52,6 +52,11 @@ export default defineConfig({
         )
       },
       {
+        // Subpath export (#802); must precede the bare "@jarv1s/chat" alias below.
+        find: "@jarv1s/chat/live",
+        replacement: fileURLToPath(new URL("./packages/chat/src/live/public.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/chat",
         replacement: fileURLToPath(new URL("./packages/chat/src/index.ts", import.meta.url))
       },
@@ -110,6 +115,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/connectors/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/datasets",
+        replacement: fileURLToPath(new URL("./packages/datasets/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/db",
         replacement: fileURLToPath(new URL("./packages/db/src/index.ts", import.meta.url))
       },
@@ -137,6 +146,22 @@ export default defineConfig({
       {
         find: "@jarv1s/module-sdk",
         replacement: fileURLToPath(new URL("./packages/module-sdk/src/index.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/module-web-sdk",
+        replacement: fileURLToPath(
+          new URL("./packages/module-web-sdk/src/index.ts", import.meta.url)
+        )
+      },
+      {
+        // `apps/web/src/app-route-metadata.ts` imports the Vite-generated
+        // `virtual:jarvis-module-web` module (#799); this file has many transitive consumers
+        // (page-context, command-palette-model, section-tour-model, today-page, ...), so alias it
+        // globally to a test fixture instead of mocking it per-test-file.
+        find: "virtual:jarvis-module-web",
+        replacement: fileURLToPath(
+          new URL("./tests/fixtures/virtual-jarvis-module-web.ts", import.meta.url)
+        )
       },
       {
         find: "@jarv1s/notes",

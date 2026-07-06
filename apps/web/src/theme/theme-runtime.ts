@@ -31,12 +31,12 @@ const TOKEN_TO_VAR: Record<AestheticThemeTokenKey, string> = {
 
 const CLEARED_RUNTIME_VARS = [
   ...Object.values(TOKEN_TO_VAR),
-  "--pine",
-  "--pine-hover",
-  "--pine-active",
-  "--pine-soft",
-  "--pine-soft-2",
-  "--pine-ink",
+  "--forest",
+  "--forest-hover",
+  "--forest-active",
+  "--forest-soft",
+  "--forest-soft-2",
+  "--forest-ink",
   "--accent-hover",
   "--accent-active",
   "--accent-soft",
@@ -61,14 +61,21 @@ export function parsePalette(input: string): string[] {
   return [...new Set(matches.map((value) => value.trim()).filter(isThemeColor))];
 }
 
-export function deriveAccentRamp(accent: string): Record<string, string> {
+/**
+ * `paper` softs mix toward the active --paper ground (not pure white) so
+ * runtime-derived custom-theme softs read like the hand-tuned oat-tinted
+ * built-in softs instead of washed-out/chalky on the oat ground (#787).
+ * Falls back to white if `paper` isn't a parseable theme color.
+ */
+export function deriveAccentRamp(accent: string, paper: string): Record<string, string> {
   const color = parseThemeColor(accent);
   if (!color) return {};
+  const paperColor = parseThemeColor(paper) ?? { r: 255, g: 255, b: 255 };
   return {
     "--accent-hover": rgbToHex(mix(color, { r: 0, g: 0, b: 0 }, 0.12)),
     "--accent-active": rgbToHex(mix(color, { r: 0, g: 0, b: 0 }, 0.22)),
-    "--accent-soft": rgbToHex(mix(color, { r: 255, g: 255, b: 255 }, 0.86)),
-    "--accent-soft-2": rgbToHex(mix(color, { r: 255, g: 255, b: 255 }, 0.76)),
+    "--accent-soft": rgbToHex(mix(color, paperColor, 0.86)),
+    "--accent-soft-2": rgbToHex(mix(color, paperColor, 0.76)),
     "--accent-soft-fg": rgbToHex(mix(color, { r: 0, g: 0, b: 0 }, 0.28)),
     "--btn-primary-bg": accent
   };
@@ -87,25 +94,28 @@ export function applyThemeTokens(
     const value = tokens[key];
     if (isThemeColor(value)) style.setProperty(TOKEN_TO_VAR[key], value);
   }
-  style.setProperty("--pine", tokens.accent);
-  for (const [name, value] of Object.entries(deriveAccentRamp(tokens.accent))) {
+  style.setProperty("--forest", tokens.accent);
+  for (const [name, value] of Object.entries(deriveAccentRamp(tokens.accent, tokens.paper))) {
     style.setProperty(name, value);
   }
-  style.setProperty("--pine-hover", style.getPropertyValue("--accent-hover"));
-  style.setProperty("--pine-active", style.getPropertyValue("--accent-active"));
-  style.setProperty("--pine-soft", style.getPropertyValue("--accent-soft"));
-  style.setProperty("--pine-soft-2", style.getPropertyValue("--accent-soft-2"));
-  style.setProperty("--pine-ink", style.getPropertyValue("--accent-soft-fg"));
+  style.setProperty("--forest-hover", style.getPropertyValue("--accent-hover"));
+  style.setProperty("--forest-active", style.getPropertyValue("--accent-active"));
+  style.setProperty("--forest-soft", style.getPropertyValue("--accent-soft"));
+  style.setProperty("--forest-soft-2", style.getPropertyValue("--accent-soft-2"));
+  style.setProperty("--forest-ink", style.getPropertyValue("--accent-soft-fg"));
   style.setProperty("--accent-strong", "var(--accent-hover)");
   style.setProperty("--focus-ring", `color-mix(in srgb, ${tokens.accent} 45%, transparent)`);
 
   if (tokens.gold) {
     const gold = parseThemeColor(tokens.gold);
     if (gold) {
+      // Mix toward --paper (not pure white) for the same reason as the accent
+      // ramp above (#787) — keeps the gold softs oat-tinted, not chalky.
+      const paper = parseThemeColor(tokens.paper) ?? { r: 255, g: 255, b: 255 };
       style.setProperty("--gold", tokens.gold);
       style.setProperty("--gold-strong", rgbToHex(mix(gold, { r: 0, g: 0, b: 0 }, 0.18)));
-      style.setProperty("--gold-soft", rgbToHex(mix(gold, { r: 255, g: 255, b: 255 }, 0.82)));
-      style.setProperty("--gold-soft-2", rgbToHex(mix(gold, { r: 255, g: 255, b: 255 }, 0.72)));
+      style.setProperty("--gold-soft", rgbToHex(mix(gold, paper, 0.82)));
+      style.setProperty("--gold-soft-2", rgbToHex(mix(gold, paper, 0.72)));
       style.setProperty("--gold-ink", rgbToHex(mix(gold, { r: 0, g: 0, b: 0 }, 0.45)));
     }
   }

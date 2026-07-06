@@ -77,17 +77,109 @@ describe("assertModuleRegistryConsistency", () => {
   });
 
   it("rejects duplicate owned tables", () => {
+    // Both fixtures declare a satisfying dataLifecycle so the #801 parity check (below) does
+    // not preempt this duplicate-table assertion — the first module in registration order
+    // would otherwise fail that check first (it also has an owned table).
+    const satisfyingLifecycle = {
+      exportSections: [],
+      deletion: { strategy: "cascade" as const, tables: [{ table: "app.shared" }] }
+    };
     expect(() =>
       assertModuleRegistryConsistency([
         registration({
           id: "one",
-          database: { migrations: [], ownedTables: ["app.shared"] }
+          database: { migrations: [], ownedTables: ["app.shared"] },
+          dataLifecycle: satisfyingLifecycle
         }),
         registration({
           id: "two",
-          database: { migrations: [], ownedTables: ["app.shared"] }
+          database: { migrations: [], ownedTables: ["app.shared"] },
+          dataLifecycle: satisfyingLifecycle
         })
       ])
     ).toThrow(/duplicate owned table "app.shared"/i);
+  });
+
+  // #801 Phase A: dataLifecycle parity assertion.
+  describe("dataLifecycle parity (#801 Phase A)", () => {
+    it("RED: rejects a module with owned tables, no dataLifecycle, not on the allowlist", () => {
+      expect(() =>
+        assertModuleRegistryConsistency([
+          registration({
+            id: "unmigrated-fixture",
+            database: { migrations: [], ownedTables: ["app.unmigrated_fixture"] }
+          })
+        ])
+      ).toThrow(
+        /module "unmigrated-fixture" has owned tables but declares no datalifecycle.*not.*lifecycle_migration_pending allowlist/i
+      );
+    });
+
+    it("GREEN: accepts the same shape when the module id is on the allowlist", () => {
+      // "tasks" is a real LIFECYCLE_MIGRATION_PENDING entry (Phase B, not yet migrated) —
+      // reusing it here (rather than a synthetic id) proves the allowlist itself, not just
+      // the membership-check mechanics.
+      expect(() =>
+        assertModuleRegistryConsistency([
+          registration({
+            id: "tasks",
+            database: { migrations: [], ownedTables: ["app.tasks_fixture"] }
+          })
+        ])
+      ).not.toThrow();
+    });
+
+    it("rejects a dataLifecycle declaration that omits exportSections on a module with owned tables", () => {
+      expect(() =>
+        assertModuleRegistryConsistency([
+          registration({
+            id: "no-export-sections-fixture",
+            database: { migrations: [], ownedTables: ["app.fixture_table"] },
+            dataLifecycle: {
+              deletion: { strategy: "cascade", tables: [{ table: "app.fixture_table" }] }
+            }
+          })
+        ])
+      ).toThrow(/declares datalifecycle with owned tables but omits exportsections/i);
+    });
+
+    it("RED: rejects cascade deletion.tables missing an owned table (parity check)", () => {
+      expect(() =>
+        assertModuleRegistryConsistency([
+          registration({
+            id: "partial-deletion-fixture",
+            database: {
+              migrations: [],
+              ownedTables: ["app.fixture_a", "app.fixture_b"]
+            },
+            dataLifecycle: {
+              exportSections: [],
+              deletion: { strategy: "cascade", tables: [{ table: "app.fixture_a" }] }
+            }
+          })
+        ])
+      ).toThrow(/dataLifecycle.deletion.tables is missing owned table\(s\): app.fixture_b/);
+    });
+
+    it("GREEN: accepts a fully-declared dataLifecycle covering every owned table", () => {
+      expect(() =>
+        assertModuleRegistryConsistency([
+          registration({
+            id: "fully-migrated-fixture",
+            database: {
+              migrations: [],
+              ownedTables: ["app.fixture_a", "app.fixture_b"]
+            },
+            dataLifecycle: {
+              exportSections: [],
+              deletion: {
+                strategy: "cascade",
+                tables: [{ table: "app.fixture_a" }, { table: "app.fixture_b" }]
+              }
+            }
+          })
+        ])
+      ).not.toThrow();
+    });
   });
 });

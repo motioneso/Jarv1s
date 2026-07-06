@@ -1,30 +1,27 @@
+import type { DatasetClient } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type {
-  FollowedNextMatch,
-  FollowedTeamCard,
-  FollowedTeamNews,
-  GameSide,
-  GameSummary,
-  Headline,
-  IsoDate,
-  LeagueNewsGroup,
-  OverviewHero,
-  ScoreboardGroup,
-  SportsCatalogResponse,
-  SportsFollowDto,
-  SportsOverviewResponse,
-  StandingsGroup,
-  StandingsRow
+import {
+  localDay,
+  type FollowedLeagueRef,
+  type FollowedNextMatch,
+  type FollowedTeamCard,
+  type FollowedTeamNews,
+  type GameSide,
+  type GameSummary,
+  type Headline,
+  type IsoDate,
+  type LeagueNewsGroup,
+  type OverviewHero,
+  type ScoreboardGroup,
+  type SportsCatalogResponse,
+  type SportsFollowDto,
+  type SportsOverviewResponse,
+  type StandingsGroup,
+  type StandingsRow
 } from "@jarv1s/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
-import { SportsCache } from "./sports-cache.js";
-import type {
-  SourceHeadline,
-  SourceTeamRef,
-  SportsSource,
-  StandingsTable
-} from "./source/sports-source.js";
+import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
 export type FollowedFact = { competitionKey: string; text: string };
@@ -43,21 +40,37 @@ export interface SportsFollowsReader {
 }
 
 export interface SportsServiceDependencies {
-  readonly source: SportsSource;
+  /**
+   * The dataset-connector-SDK runtime client bound to the sports module's `espn` external
+   * source (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md). Replaces the
+   * former directly-injected `SportsSource` + in-service `SportsCache` — TTL, staleness policy,
+   * and host pinning now live in the manifest declaration + `@jarv1s/datasets` runtime, not here.
+   */
+  readonly datasetClient: DatasetClient;
   readonly dataContext: SportsDataContext;
   readonly repository: SportsFollowsReader;
   /** Clock seam (default `() => new Date()`); tests inject a fixed instant. */
   readonly now?: () => Date;
 }
 
-const SCOREBOARD_TTL_MS = 3 * 60 * 1000;
-const STANDINGS_TTL_MS = 10 * 60 * 1000;
-const HEADLINES_TTL_MS = 10 * 60 * 1000;
-const SCHEDULE_TTL_MS = 10 * 60 * 1000;
-const TEAMS_TTL_MS = 24 * 60 * 60 * 1000;
+// ESPN's `scoreboard?dates=YYYYMMDD` param is interpreted in US Eastern time, not UTC — the
+// calendar day sent to the source (and cached under) must match that boundary or evening
+// games fall on the wrong side of the UTC/Eastern midnight gap (#761).
+const ESPN_TIMEZONE = "America/New_York";
+
 const FORM_LENGTH = 5;
 const TOP_STORIES_CAP = 6; // Ben 2026-07-01
 const EMPTY_STANDINGS: StandingsTable = { sections: [] };
+
+// A brand-new user with zero follows (no teams, no whole-league follows) would otherwise drive
+// `competitionKeys` to `[]`, so `getOverview` never fetches any scoreboard/headline data and the
+// page renders as a lone empty-state CTA — the opposite of spec §4.6a's "useful any day" promise
+// (#764). Fall back to this small fixed slate so the populated-empty-state branch the frontend
+// already ships (`hasSlate` in sports-page.tsx) has something to show alongside the "follow your
+// teams" CTA. Deliberately the major year-round domestic leagues (not `marquee`, which flags only
+// the World Cup for the follow picker) so at least one is in season on any given day: NFL
+// (fall/winter), NBA/NHL (fall-spring), MLB (spring-fall), Premier League (fall-spring).
+const DEFAULT_SLATE_COMPETITION_KEYS: readonly string[] = ["nfl", "nba", "nhl", "mlb", "eng.1"];
 
 /** Mutable degraded flag threaded through a single composition pass. */
 interface DegradeState {
@@ -70,19 +83,13 @@ interface DegradeState {
  * degrades to authored empties (`degraded: true`) rather than propagating a 500.
  */
 export class SportsService {
-  private readonly source: SportsSource;
+  private readonly datasetClient: DatasetClient;
   private readonly dataContext: SportsDataContext;
   private readonly repository: SportsFollowsReader;
   private readonly now: () => Date;
 
-  private readonly scoreboards = new SportsCache<GameSummary[]>();
-  private readonly standings = new SportsCache<StandingsTable>();
-  private readonly headlines = new SportsCache<SourceHeadline[]>();
-  private readonly schedules = new SportsCache<GameSummary[]>();
-  private readonly teams = new SportsCache<SourceTeamRef[]>();
-
   constructor(deps: SportsServiceDependencies) {
-    this.source = deps.source;
+    this.datasetClient = deps.datasetClient;
     this.dataContext = deps.dataContext;
     this.repository = deps.repository;
     this.now = deps.now ?? (() => new Date());
@@ -90,102 +97,104 @@ export class SportsService {
 
   /** Competitions + teams for the follow picker. Never throws (empty teams on failure). */
   async getCatalog(): Promise<SportsCatalogResponse> {
-    const throwaway: DegradeState = { degraded: false };
-    const competitions = [];
-    for (const entry of SPORTS_CATALOG) {
-      const teams = await this.teamsFor(entry.competitionKey, throwaway);
-      competitions.push({
-        competitionKey: entry.competitionKey,
-        label: entry.label,
-        kind: entry.kind,
-        marquee: entry.marquee,
-        standingsShape: entry.standingsShape,
-        teams
-      });
-    }
-    return { competitions };
+    const state: DegradeState = { degraded: false };
+    // Fetched independently per competition — a slow/failing one shouldn't hold up the rest
+    // of the catalog (#765 M2).
+    const competitions = await Promise.all(
+      SPORTS_CATALOG.map(async (entry) => {
+        const teams = await this.teamsFor(entry.competitionKey, state);
+        return {
+          competitionKey: entry.competitionKey,
+          label: entry.label,
+          kind: entry.kind,
+          marquee: entry.marquee,
+          standingsShape: entry.standingsShape,
+          teams
+        };
+      })
+    );
+    // Surface partial failure to the client instead of silently returning "0 teams" with no
+    // explanation (#765 M1); the frontend shows a retry affordance when this is true.
+    return { competitions, degraded: state.degraded };
   }
 
   /** The composed `/api/sports/overview` payload for the actor. */
   async getOverview(accessContext: AccessContext): Promise<SportsOverviewResponse> {
-    const follows = await this.dataContext.withDataContext(accessContext, (db) =>
+    const rawFollows = await this.dataContext.withDataContext(accessContext, (db) =>
       this.repository.list(db)
     );
+    // Skip any follow row whose competitionKey isn't in the catalog (e.g. a retired entry)
+    // instead of letting it permanently degrade every load with no explanation — the picker
+    // flags these to the user separately as unrecognized (#765 M3).
+    const follows = rawFollows.filter((f) => catalogEntry(f.competitionKey) !== undefined);
     const state: DegradeState = { degraded: false };
     const today = this.today();
-    const competitionKeys = unique(follows.map((f) => f.competitionKey));
+    // Zero follows (team or whole-league) → fetch the default slate instead of nothing (#764).
+    const competitionKeys =
+      follows.length > 0
+        ? unique(follows.map((f) => f.competitionKey))
+        : [...DEFAULT_SLATE_COMPETITION_KEYS];
     const followedTeams = follows.filter((f): f is SportsFollowDto & { teamKey: string } =>
       Boolean(f.teamKey)
     );
+    // Whole-league follows (teamKey: null) are first-class in the picker but produce no
+    // FollowedTeamCard — surface them separately so the client can tell "follows nothing"
+    // apart from "follows leagues, not teams" (#763).
+    const followedLeagues: FollowedLeagueRef[] = follows
+      .filter((f) => !f.teamKey)
+      .map((f) => ({
+        competitionKey: f.competitionKey,
+        competitionLabel: catalogEntry(f.competitionKey)?.label ?? f.competitionKey
+      }));
 
-    const scoreboardByComp = new Map<string, GameSummary[]>();
-    const standingsByComp = new Map<string, StandingsTable>();
-    const headlinesByComp = new Map<string, SourceHeadline[]>();
-    const teamsByComp = new Map<string, readonly SourceTeamRef[]>();
-    for (const key of competitionKeys) {
-      scoreboardByComp.set(
-        key,
-        await this.cached(
-          this.scoreboards,
-          `${key}:${today}`,
-          SCOREBOARD_TTL_MS,
-          () => this.source.getScoreboard(key, today),
+    // Every competition is fetched independently and in parallel (scoreboard/standings/teams
+    // together, then headlines once teams resolves for the team-key join) instead of a serial
+    // crawl across all competitions — a cold load no longer pays N sequential round-trips
+    // (#765 M2).
+    const perComp = await Promise.all(
+      competitionKeys.map(async (key) => {
+        const [scoreboard, standingsTable, teams] = await Promise.all([
+          this.cached<GameSummary[]>("scoreboard", { competitionKey: key, day: today }, [], state),
+          this.cached<StandingsTable>("standings", { competitionKey: key }, EMPTY_STANDINGS, state),
+          this.teamsFor(key, state)
+        ]);
+        const headlines = resolveHeadlineTeamKeys(
+          await this.cached<SourceHeadline[]>("headlines", { competitionKey: key }, [], state),
+          teams
+        );
+        return { key, scoreboard, standingsTable, teams, headlines };
+      })
+    );
+    const scoreboardByComp = new Map(perComp.map((p) => [p.key, p.scoreboard]));
+    const standingsByComp = new Map(perComp.map((p) => [p.key, p.standingsTable]));
+    const headlinesByComp = new Map(perComp.map((p) => [p.key, p.headlines]));
+    const teamsByComp = new Map(perComp.map((p) => [p.key, p.teams]));
+
+    // One schedule fetch per followed team, also parallelized; `Promise.all` preserves
+    // input order so `cards` still lines up with `followedTeams` (#765 M2).
+    const cards: FollowedTeamCard[] = await Promise.all(
+      followedTeams.map(async (follow) => {
+        const schedule = await this.cached<GameSummary[]>(
+          "schedule",
+          { teamKey: follow.teamKey, competitionKey: follow.competitionKey },
           [],
           state
-        )
-      );
-      standingsByComp.set(
-        key,
-        await this.cached(
-          this.standings,
-          key,
-          STANDINGS_TTL_MS,
-          () => this.source.getStandings(key),
-          EMPTY_STANDINGS,
-          state
-        )
-      );
-      const teams = await this.teamsFor(key, state);
-      teamsByComp.set(key, teams);
-      headlinesByComp.set(
-        key,
-        resolveHeadlineTeamKeys(
-          await this.cached(
-            this.headlines,
-            key,
-            HEADLINES_TTL_MS,
-            () => this.source.getHeadlines(key),
-            [],
-            state
-          ),
-          teams
-        )
-      );
-    }
-
-    const cards: FollowedTeamCard[] = [];
-    for (const follow of followedTeams) {
-      const schedule = await this.cached(
-        this.schedules,
-        `${follow.competitionKey}:${follow.teamKey}`,
-        SCHEDULE_TTL_MS,
-        () => this.source.getSchedule(follow.teamKey, follow.competitionKey),
-        [],
-        state
-      );
-      cards.push(
-        this.buildCard(
+        );
+        return this.buildCard(
           follow,
           scoreboardByComp.get(follow.competitionKey) ?? [],
           (standingsByComp.get(follow.competitionKey)?.sections ?? []).flatMap((s) => s.rows),
           headlinesByComp.get(follow.competitionKey) ?? [],
           schedule,
           teamsByComp.get(follow.competitionKey) ?? []
-        )
-      );
-    }
+        );
+      })
+    );
 
-    const topStories = rankTopStories(headlinesByComp, followedTeams);
+    // Rank across every followed competition (team or whole-league), not just team-followed
+    // ones — otherwise a league-only follower's competition never contributes a top story and
+    // the story hero has nothing personalized to fall back to (#763).
+    const topStories = rankTopStories(headlinesByComp, followedTeams, competitionKeys);
     const topStoryIds = new Set(topStories.map((h) => h.id));
     const leagueNews: LeagueNewsGroup[] = competitionKeys
       .map((key) => ({
@@ -230,6 +239,7 @@ export class SportsService {
         competitionKey: f.competitionKey,
         teamKey: f.teamKey
       })),
+      followedLeagues,
       degraded: state.degraded
     };
   }
@@ -243,7 +253,8 @@ export class SportsService {
     _actorUserId: string
   ): Promise<{ facts: FollowedFact[] }> {
     try {
-      const follows = await this.repository.list(scopedDb);
+      const rawFollows = await this.repository.list(scopedDb);
+      const follows = rawFollows.filter((f) => catalogEntry(f.competitionKey) !== undefined);
       const today = this.today();
       const state: DegradeState = { degraded: false };
       const boards = new Map<string, GameSummary[]>();
@@ -253,11 +264,9 @@ export class SportsService {
         if (!boards.has(comp)) {
           boards.set(
             comp,
-            await this.cached(
-              this.scoreboards,
-              `${comp}:${today}`,
-              SCOREBOARD_TTL_MS,
-              () => this.source.getScoreboard(comp, today),
+            await this.cached<GameSummary[]>(
+              "scoreboard",
+              { competitionKey: comp, day: today },
               [],
               state
             )
@@ -284,41 +293,25 @@ export class SportsService {
   // --- internals ----------------------------------------------------------
 
   private today(): IsoDate {
-    return this.now().toISOString().slice(0, 10);
+    return localDay(this.now(), ESPN_TIMEZONE);
   }
 
   private async cached<T>(
-    cache: SportsCache<T>,
-    key: string,
-    ttlMs: number,
-    fetchValue: () => Promise<T>,
+    datasetKey: string,
+    params: Record<string, unknown>,
     fallback: T,
     state: DegradeState
   ): Promise<T> {
-    const hit = cache.get(key);
-    if (hit !== undefined) return hit;
-    try {
-      const value = await fetchValue();
-      cache.set(key, value, ttlMs);
-      return value;
-    } catch {
-      state.degraded = true;
-      return fallback;
-    }
+    const result = await this.datasetClient.getDataset<T>(datasetKey, params, { fallback });
+    if (result.degraded) state.degraded = true;
+    return result.data;
   }
 
   private async teamsFor(
     competitionKey: string,
     state: DegradeState
   ): Promise<readonly SourceTeamRef[]> {
-    return this.cached(
-      this.teams,
-      competitionKey,
-      TEAMS_TTL_MS,
-      () => this.source.listTeams(competitionKey),
-      [],
-      state
-    );
+    return this.cached<SourceTeamRef[]>("teams", { competitionKey }, [], state);
   }
 
   private buildHero(
@@ -326,7 +319,7 @@ export class SportsService {
     scoreboardByComp: Map<string, GameSummary[]>,
     topStories: readonly SourceHeadline[]
   ): OverviewHero {
-    let hero: { game: GameSummary; side: GameSide } | undefined;
+    let hero: { game: GameSummary; side: GameSide; competitionKey: string } | undefined;
     let todayCount = 0;
     for (const follow of followedTeams) {
       const game = findTeamGame(scoreboardByComp.get(follow.competitionKey) ?? [], follow.teamKey);
@@ -335,7 +328,7 @@ export class SportsService {
       const teamSide = sideFor(game, follow.teamKey);
       if (!teamSide) continue;
       if (!hero || (game.state === "live" && hero.game.state !== "live")) {
-        hero = { game, side: teamSide };
+        hero = { game, side: teamSide, competitionKey: follow.competitionKey };
       }
     }
     if (hero) {
@@ -343,6 +336,8 @@ export class SportsService {
       return {
         mode: "gameday",
         game: hero.game,
+        // Editorial UI shows the human label, never the raw key (#765 M4).
+        competitionLabel: catalogEntry(hero.competitionKey)?.label ?? hero.competitionKey,
         rationale: `You follow ${hero.side.name}.`,
         alsoToday:
           others > 0 ? `${others} more followed game${others === 1 ? "" : "s"} today` : null
@@ -435,15 +430,20 @@ function byNewest(a: SourceHeadline, b: SourceHeadline): number {
 // inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
 // objects with properties outside the matched branch instead of silently dropping them.
 function toPublicHeadline(headline: Headline): Headline {
-  const { id, competitionKey, title, url, publishedAt, imageUrl, teamKeys } = headline;
-  return { id, competitionKey, title, url, publishedAt, imageUrl, teamKeys };
+  const { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys } =
+    headline;
+  return { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys };
 }
 
 // Spec §E ranking: (1) headlines tagged with a followed team, newest first;
 // (2) the newest headline of each followed competition not already included; cap 6.
+// `followedCompetitionKeys` covers every followed competition — team-followed or
+// whole-league-followed — so a league-only follower's competition still contributes a
+// top story and the story hero has something personalized to fall back to (#763).
 function rankTopStories(
   headlinesByComp: ReadonlyMap<string, readonly SourceHeadline[]>,
-  followedTeams: readonly (SportsFollowDto & { teamKey: string })[]
+  followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
+  followedCompetitionKeys: readonly string[]
 ): SourceHeadline[] {
   const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
   const picked: SourceHeadline[] = [];
@@ -458,7 +458,7 @@ function rankTopStories(
       pickedIds.add(headline.id);
     }
   }
-  for (const comp of unique(followedTeams.map((f) => f.competitionKey))) {
+  for (const comp of followedCompetitionKeys) {
     const newest = [...(headlinesByComp.get(comp) ?? [])]
       .sort(byNewest)
       .find((h) => !pickedIds.has(h.id));

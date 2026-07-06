@@ -14,28 +14,19 @@
 import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
-  AnswerSourceSupport,
   AiProviderExecutionMode,
+  PageContextSnapshotDto,
   SourceFreshnessV1
 } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { RecallPort } from "../recall-port.js";
-import {
-  crossToolItemToSupport,
-  finalizeProvenance,
-  memoryItemToSupport,
-  parseAnswerMarkers
-} from "./answer-provenance.js";
-import {
-  collectCrossToolContextAndItems,
-  planCrossToolReasoning,
-  renderCrossToolContextBlock,
-  type CrossToolReadRunner
-} from "./cross-tool-reasoning.js";
+import { finalizeProvenance, parseAnswerMarkers } from "./answer-provenance.js";
+import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
+import { buildEngineText } from "./engine-text.js";
+import { resolveCachedPageContext, type CachedPageContext } from "./page-context.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { neutralizeSeedFraming } from "./prompt-safety.js";
-import { rankChatContext, reorderByPriority } from "../priority-consumer.js";
 import { estimateTokens, renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
@@ -196,9 +187,15 @@ interface UserSession {
   model: string;
   lastActivity: number;
   transcriptOffset: number;
+  /** #679 — last attached page-context snapshot; volatile (deleted with this object on
+   *  clear()/resumeThread()/switchProvider()/reapIdle()), reused within PAGE_CONTEXT_TTL_MS. */
+  lastPageContext?: CachedPageContext;
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
+/** #679 — a session-held page-context snapshot is reusable for a follow-up turn only
+ *  within this window; past it, resolvePageContext treats it as stale and drops it. */
+const PAGE_CONTEXT_TTL_MS = 5 * 60_000;
 
 /**
  * Thrown by submitTurn when a turn is already in flight for the same user. The
@@ -394,7 +391,8 @@ export class ChatSessionManager {
   async submitTurn(
     actorUserId: string,
     userName: string,
-    text: string
+    text: string,
+    pageContext?: PageContextSnapshotDto
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -409,7 +407,7 @@ export class ChatSessionManager {
     }
     this.turnsInFlight.add(actorUserId);
     try {
-      return await this.runTurn(actorUserId, userName, text);
+      return await this.runTurn(actorUserId, userName, text, pageContext);
     } finally {
       this.turnsInFlight.delete(actorUserId);
     }
@@ -426,7 +424,8 @@ export class ChatSessionManager {
   private async runTurn(
     actorUserId: string,
     userName: string,
-    text: string
+    text: string,
+    pageContext?: PageContextSnapshotDto
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -441,7 +440,20 @@ export class ChatSessionManager {
     this.turnControllers.set(actorUserId, controller);
 
     try {
-      const { text: engineText, pendingItems } = await this.engineText(actorUserId, text);
+      // #679 — resolved BEFORE engineText so it folds into the engine-bound text only —
+      // never into `text`, which is what recordTurn persists below.
+      const resolvedPageContext = this.resolvePageContext(session, pageContext);
+      const { text: engineText, pendingItems } = await buildEngineText(
+        {
+          persistence: this.deps.persistence,
+          passiveRetrieval: this.deps.passiveRetrieval,
+          crossToolRead: this.deps.crossToolRead,
+          priorityModel: this.deps.priorityModel
+        },
+        actorUserId,
+        text,
+        resolvedPageContext
+      );
       this.emit(actorUserId, { kind: "user", text });
       await session.engine.submit(engineText);
 
@@ -571,98 +583,20 @@ export class ChatSessionManager {
     }
   }
 
-  private async engineText(
-    actorUserId: string,
-    text: string
-  ): Promise<{ text: string; pendingItems: AnswerSourceSupport[] }> {
-    if (!this.deps.passiveRetrieval && !this.deps.crossToolRead) {
-      return { text, pendingItems: [] };
-    }
-    try {
-      const [{ recent }, threadCtx] = await Promise.all([
-        this.deps.persistence.listPriorTurns(actorUserId),
-        this.deps.persistence.getThreadContext(actorUserId)
-      ]);
-
-      const localNow = new Date().toISOString();
-      const plan =
-        this.deps.crossToolRead != null
-          ? planCrossToolReasoning({
-              userText: text,
-              threadTitle: threadCtx.threadTitle,
-              recentTurns: recent,
-              localNowIso: localNow,
-              localTimezone: threadCtx.localTimezone ?? "UTC"
-            })
-          : null;
-
-      const [passiveResult, crossToolResult] = await Promise.all([
-        this.deps.passiveRetrieval != null
-          ? (this.deps.passiveRetrieval.retrieveWithItems != null
-              ? this.deps.passiveRetrieval.retrieveWithItems({
-                  actorUserId,
-                  userText: text,
-                  threadTitle: threadCtx.threadTitle,
-                  recentTurns: recent
-                })
-              : this.deps.passiveRetrieval
-                  .retrieve({
-                    actorUserId,
-                    userText: text,
-                    threadTitle: threadCtx.threadTitle,
-                    recentTurns: recent
-                  })
-                  .then((block) => ({ block, items: [] as MemoryRecallItem[] }))
-            ).catch(() => ({ block: "", items: [] as MemoryRecallItem[] }))
-          : Promise.resolve({ block: "", items: [] as MemoryRecallItem[] }),
-        plan != null && this.deps.crossToolRead != null
-          ? collectCrossToolContextAndItems(
-              actorUserId,
-              plan,
-              this.deps.crossToolRead,
-              localNow,
-              threadCtx.localTimezone ?? "UTC"
-            ).catch(() => ({ block: "", items: [] }))
-          : Promise.resolve({ block: "", items: [] })
-      ]);
-
-      let crossTool = crossToolResult;
-      if (this.deps.priorityModel && crossTool.items.length > 0) {
-        try {
-          const model = await this.deps.priorityModel.getModel(actorUserId);
-          const ranked = rankChatContext(
-            crossTool.items.map(({ source, title, summary, dueAt, startsAt }) => ({
-              source,
-              title,
-              summary,
-              dueAt,
-              startsAt,
-              textForAnchorMatch: [title, summary]
-            })),
-            model,
-            localNow,
-            threadCtx.localTimezone ?? "UTC"
-          );
-          const reordered = reorderByPriority(crossTool.items, ranked);
-          crossTool = { block: renderCrossToolContextBlock(reordered), items: reordered };
-        } catch {
-          crossTool = crossToolResult;
-        }
-      }
-
-      let idx = 0;
-      const memoryItems = passiveResult.items.map((item) => memoryItemToSupport(item, idx++));
-      const crossToolItems = crossTool.items.map((item) => crossToolItemToSupport(item, idx++));
-      const pendingItems: AnswerSourceSupport[] = [...memoryItems, ...crossToolItems];
-
-      const combined = combineHiddenContextBlocks(passiveResult.block, crossTool.block);
-      return {
-        text: combined ? `${combined}\n\n${text}` : text,
-        pendingItems
-      };
-    } catch {
-      return { text, pendingItems: [] };
-    }
+  /** #679 — TTL/reuse policy lives in {@link resolveCachedPageContext} (pure, unit-tested);
+   *  this just wires it to the session's mutable cache. Never touches `persistence`. */
+  private resolvePageContext(
+    session: UserSession,
+    incoming: PageContextSnapshotDto | undefined
+  ): PageContextSnapshotDto | undefined {
+    const { resolved, nextCached } = resolveCachedPageContext(
+      session.lastPageContext,
+      incoming,
+      this.deps.clock.now(),
+      PAGE_CONTEXT_TTL_MS
+    );
+    session.lastPageContext = nextCached;
+    return resolved;
   }
 
   /**

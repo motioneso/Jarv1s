@@ -15,6 +15,11 @@ import {
 } from "./mock-api.js";
 import { createMockAiModel, createMockAiProvider } from "./mock-ai-api.js";
 import { defaultOnboardingStatus } from "./mock-onboarding-api.js";
+import {
+  registerMockSportsRoutes,
+  sportsOverviewDegradedFixture,
+  sportsOverviewFixture
+} from "./mock-sports-api.js";
 
 // Output dir is gitignored (under test-results/) and overridable via SCREENS_DIR.
 const OUT = process.env.SCREENS_DIR ?? "test-results/design-screens";
@@ -261,4 +266,56 @@ test("capture: mobile today", async ({ page }) => {
   await page.goto("/today");
   await page.waitForTimeout(600);
   await shot(page, "17-mobile-today");
+});
+
+// Broadsheet skin verification (#829 Task 5): ticker hairlines + overflow fade, edge-to-edge
+// hero, hairline grid with followed-game field highlight — see docs/superpowers/specs for §5/§6.
+test("capture: sports", async ({ page }) => {
+  await baseState(page);
+  await registerMockSportsRoutes(page);
+  await page.goto("/sports");
+  await page.waitForTimeout(600);
+  await shot(page, "18-sports");
+});
+
+test("capture: sports mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await baseState(page);
+  await registerMockSportsRoutes(page);
+  await page.goto("/sports");
+  await page.waitForTimeout(600);
+  await shot(page, "19-sports-mobile");
+});
+
+// Reduced-motion pass: skeleton (delayed response) then the settled hero, both captured with
+// prefers-reduced-motion: reduce emulated so the live dot / skeleton shimmer must be static.
+test("capture: sports reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await baseState(page);
+  await registerMockSportsRoutes(page); // sports module gate + overview route
+  // Override the overview route again (most-recently-registered wins) with a delayed response
+  // so the initial screenshot lands on the skeleton, not the settled hero.
+  await page.route("**/api/sports/overview", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(sportsOverviewFixture)
+    });
+  });
+  await page.goto("/sports");
+  await page.waitForTimeout(300);
+  await shot(page, "20-sports-reduced-motion-skeleton");
+  await page.waitForTimeout(1600);
+  await shot(page, "21-sports-reduced-motion");
+});
+
+// Partial-provider-outage pass: DegradedBand notice must render above the (still-populated)
+// sections, not replace them (#765 M1).
+test("capture: sports degraded", async ({ page }) => {
+  await baseState(page);
+  await registerMockSportsRoutes(page, sportsOverviewDegradedFixture);
+  await page.goto("/sports");
+  await page.waitForTimeout(600);
+  await shot(page, "22-sports-degraded");
 });

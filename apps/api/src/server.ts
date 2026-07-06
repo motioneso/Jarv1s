@@ -46,11 +46,13 @@ import { createModuleLogger } from "@jarv1s/module-sdk";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 
-declare module "fastify" {
-  interface FastifyRequest {
-    timeZone?: string;
-  }
-}
+// `FastifyRequest.timeZone` is declared in `@jarv1s/module-registry` (#801 Phase A),
+// not here: module-registry is the composition root that both the writer (this
+// file's onRequest hook) and every module-side reader (e.g. wellness routes)
+// already import, whereas this file is invisible to TS programs that don't include
+// apps/api. Ambient module augmentations only apply within the same compilation, so
+// the declaration lives where everyone touching `request.timeZone` is guaranteed to
+// reach it.
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
@@ -631,8 +633,6 @@ function resolveDeployMode(raw: string | undefined): HostDiagnosticsInfo["deploy
   }
 }
 
-// Documented, fixed operator command per deploy mode. There is NO in-process restart
-// endpoint (#255): restart is operator-managed, so we only surface the command to run.
 function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | null {
   switch (mode) {
     case "compose":

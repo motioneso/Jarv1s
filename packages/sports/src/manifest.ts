@@ -11,8 +11,15 @@ import {
 } from "@jarv1s/shared";
 
 import { sportsFollowedFactsTodayExecute } from "./briefing-tool.js";
+import { ESPN_FETCH_HOSTS, ESPN_IMAGE_HOSTS } from "./source/espn-source.js";
 
 export const SPORTS_MODULE_ID = "sports";
+
+// Same cadence as the pre-connector-SDK `SportsCache` TTL constants (now retired) — this slice
+// is a mechanical migration, not a behavior change (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md).
+const TEAMS_TTL_MS = 24 * 60 * 60 * 1000;
+const SCOREBOARD_TTL_MS = 3 * 60 * 1000;
+const STANDINGS_HEADLINES_SCHEDULE_TTL_MS = 10 * 60 * 1000;
 
 export const sportsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
@@ -114,6 +121,40 @@ export const sportsModuleManifest = {
       risk: "read",
       inputSchema: { type: "object", properties: {} },
       execute: sportsFollowedFactsTodayExecute
+    }
+  ],
+  dataLifecycle: {
+    // Sports has no full-account export data today (follows are catalog references, not
+    // exported); declared explicitly per the parity assertion (owned tables + no export
+    // sections still requires an explicit empty exportSections).
+    exportSections: [],
+    deletion: {
+      strategy: "cascade",
+      tables: [{ table: "app.sports_follows" }]
+    }
+  },
+  externalSources: [
+    {
+      id: "espn",
+      displayName: "ESPN",
+      credential: "none",
+      fetchHosts: ESPN_FETCH_HOSTS,
+      imageHosts: ESPN_IMAGE_HOSTS,
+      datasets: [
+        { key: "teams", ttlMs: TEAMS_TTL_MS, staleness: "degrade-empty" },
+        { key: "scoreboard", ttlMs: SCOREBOARD_TTL_MS, staleness: "degrade-empty" },
+        {
+          key: "standings",
+          ttlMs: STANDINGS_HEADLINES_SCHEDULE_TTL_MS,
+          staleness: "degrade-empty"
+        },
+        {
+          key: "headlines",
+          ttlMs: STANDINGS_HEADLINES_SCHEDULE_TTL_MS,
+          staleness: "degrade-empty"
+        },
+        { key: "schedule", ttlMs: STANDINGS_HEADLINES_SCHEDULE_TTL_MS, staleness: "degrade-empty" }
+      ]
     }
   ]
 } satisfies JarvisModuleManifest;

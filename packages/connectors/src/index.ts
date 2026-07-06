@@ -7,6 +7,7 @@ export * from "./feature-grants.js";
 export * from "./google-api-client.js";
 export * from "./google-connection.js";
 export * from "./google-email-write-provider.js";
+export * from "./google-sync-sweep.js";
 export * from "./imap-connection.js";
 export * from "./imap-email-read-provider.js";
 export * from "./imap-email-write-provider.js";

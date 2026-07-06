@@ -6,7 +6,7 @@
   box-sizing: border-box;
   border: 0;
   background: transparent;
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.012em;
@@ -53,7 +53,7 @@
   border-color: transparent;
 }
 .tk-statusctl__main.is-done:hover {
-  background: var(--pine-soft-2);
+  background: var(--forest-soft-2);
 }
 .tk-statusctl__main.is-archived {
   background: var(--surface-2);
@@ -83,7 +83,7 @@
   background: var(--accent-soft);
   color: var(--accent-soft-fg);
   border-color: transparent;
-  border-left-color: var(--pine-soft-2);
+  border-left-color: var(--forest-soft-2);
 }
 .tk-statusctl__main.is-archived + .tk-statusctl__more {
   background: var(--surface-2);

@@ -146,7 +146,7 @@ export class AssistantToolGateway {
       });
       return result;
     }
-    if ((await resolvePolicy(found.tool, found.dto.moduleId, lookup)) === "run") {
+    if ((await resolvePolicy(found.tool, found.dto.moduleId, input, lookup)) === "run") {
       const result = await this.runHandler(found, input, ctx);
       if (found.tool.risk !== "read") {
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };

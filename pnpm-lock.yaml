@@ -205,6 +205,9 @@ importers:
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
+      '@jarv1s/jobs':
+        specifier: workspace:*
+        version: link:../jobs
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
@@ -220,6 +223,9 @@ importers:
       kysely:
         specifier: ^0.29.2
         version: 0.29.2
+      pg-boss:
+        specifier: ^12.18.2
+        version: 12.18.2
 
   packages/auth:
     dependencies:
@@ -235,6 +241,9 @@ importers:
       better-auth:
         specifier: ^1.6.14
         version: 1.6.14(pg@8.21.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.8(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(tsx@4.22.4)))
+      kysely:
+        specifier: ^0.29.2
+        version: 0.29.2
       pg:
         specifier: ^8.21.0
         version: 8.21.0
@@ -328,18 +337,30 @@ importers:
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
+      '@jarv1s/email':
+        specifier: workspace:*
+        version: link:../email
       '@jarv1s/jobs':
         specifier: workspace:*
         version: link:../jobs
+      '@jarv1s/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/notes':
+        specifier: workspace:*
+        version: link:../notes
       '@jarv1s/priority':
         specifier: workspace:*
         version: link:../priority
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
+      '@jarv1s/structured-state':
+        specifier: workspace:*
+        version: link:../structured-state
       '@jarv1s/tasks':
         specifier: workspace:*
         version: link:../tasks
@@ -352,6 +373,9 @@ importers:
       kysely:
         specifier: ^0.29.2
         version: 0.29.2
+      pg-boss:
+        specifier: ^12.18.2
+        version: 12.18.2
 
   packages/cli-runner:
     dependencies:
@@ -364,6 +388,9 @@ importers:
 
   packages/commitments:
     dependencies:
+      '@jarv1s/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
@@ -373,9 +400,6 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@sinclair/typebox':
         specifier: ^0.34.13
         version: 0.34.49
@@ -409,9 +433,15 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/settings':
+        specifier: workspace:*
+        version: link:../settings
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
+      '@jarv1s/structured-state':
+        specifier: workspace:*
+        version: link:../structured-state
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
@@ -437,6 +467,12 @@ importers:
       '@types/nodemailer':
         specifier: ^8.0.1
         version: 8.0.1
+
+  packages/datasets:
+    dependencies:
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
 
   packages/db:
     dependencies:
@@ -485,12 +521,12 @@ importers:
       '@jarv1s/jobs':
         specifier: workspace:*
         version: link:../jobs
+      '@jarv1s/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@sinclair/typebox':
         specifier: ^0.34.13
         version: 0.34.49
@@ -515,6 +551,12 @@ importers:
       '@jarv1s/notifications':
         specifier: workspace:*
         version: link:../notifications
+      '@jarv1s/settings':
+        specifier: workspace:*
+        version: link:../settings
+      kysely:
+        specifier: ^0.29.2
+        version: 0.29.2
       pg-boss:
         specifier: ^12.18.2
         version: 12.18.2
@@ -563,9 +605,15 @@ importers:
       '@jarv1s/cli-runner':
         specifier: workspace:*
         version: link:../cli-runner
+      '@jarv1s/commitments':
+        specifier: workspace:*
+        version: link:../commitments
       '@jarv1s/connectors':
         specifier: workspace:*
         version: link:../connectors
+      '@jarv1s/datasets':
+        specifier: workspace:*
+        version: link:../datasets
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
@@ -590,12 +638,18 @@ importers:
       '@jarv1s/notifications':
         specifier: workspace:*
         version: link:../notifications
+      '@jarv1s/people':
+        specifier: workspace:*
+        version: link:../people
       '@jarv1s/proactive-monitoring':
         specifier: workspace:*
         version: link:../proactive-monitoring
       '@jarv1s/settings':
         specifier: workspace:*
         version: link:../settings
+      '@jarv1s/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@jarv1s/source-behaviors':
         specifier: workspace:*
         version: link:../source-behaviors
@@ -639,6 +693,16 @@ importers:
         specifier: ^5.6.2
         version: 5.8.5
 
+  packages/module-web-sdk:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
+
   packages/notes:
     dependencies:
       '@jarv1s/db':
@@ -665,6 +729,9 @@ importers:
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
+      pg-boss:
+        specifier: ^12.18.2
+        version: 12.18.2
 
   packages/notifications:
     dependencies:
@@ -695,9 +762,6 @@ importers:
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@jarv1s/structured-state':
         specifier: workspace:*
         version: link:../structured-state
@@ -745,6 +809,9 @@ importers:
       kysely:
         specifier: ^0.29.2
         version: 0.29.2
+      pg-boss:
+        specifier: ^12.18.2
+        version: 12.18.2
 
   packages/settings:
     dependencies:
@@ -784,9 +851,6 @@ importers:
       '@jarv1s/priority':
         specifier: workspace:*
         version: link:../priority
-      '@jarv1s/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@tanstack/react-query':
         specifier: ^5.0.0
         version: 5.101.0(react@19.2.7)
@@ -796,13 +860,13 @@ importers:
       react:
         specifier: ^19.0.0
         version: 19.2.7
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.17
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
 
   packages/shared:
     dependencies:
@@ -821,30 +885,43 @@ importers:
 
   packages/sports:
     dependencies:
+      '@jarv1s/datasets':
+        specifier: workspace:*
+        version: link:../datasets
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/module-web-sdk':
+        specifier: workspace:*
+        version: link:../module-web-sdk
       '@jarv1s/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
-        specifier: workspace:*
-        version: link:../structured-state
       '@tanstack/react-query':
         specifier: ^5.0.0
         version: 5.101.0(react@19.2.7)
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
+      kysely:
+        specifier: ^0.29.2
+        version: 0.29.2
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@19.2.7)
       react:
         specifier: ^19.0.0
         version: 19.2.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
 
   packages/structured-state:
     dependencies:
@@ -863,6 +940,9 @@ importers:
 
   packages/tasks:
     dependencies:
+      '@jarv1s/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
@@ -929,9 +1009,6 @@ importers:
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
-        specifier: workspace:*
-        version: link:../structured-state
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
@@ -947,12 +1024,18 @@ importers:
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
+      '@jarv1s/jobs':
+        specifier: workspace:*
+        version: link:../jobs
       '@jarv1s/memory':
         specifier: workspace:*
         version: link:../memory
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
+      '@jarv1s/settings':
+        specifier: workspace:*
+        version: link:../settings
       '@jarv1s/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
@@ -962,6 +1045,9 @@ importers:
       '@jarv1s/structured-state':
         specifier: workspace:*
         version: link:../structured-state
+      '@jarv1s/vault':
+        specifier: workspace:*
+        version: link:../vault
       '@tanstack/react-query':
         specifier: ^5.0.0
         version: 5.101.0(react@19.2.7)

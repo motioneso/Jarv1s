@@ -22,7 +22,8 @@ const baseAccount: HealthAccount = {
   lastSyncStartedAt: "2026-06-30T12:00:00.000Z",
   lastSyncFinishedAt: "2026-06-30T12:00:05.000Z",
   lastSyncStatus: "success",
-  lastSyncError: null
+  lastSyncError: null,
+  lastSyncCounts: null
 };
 
 describe("connector sync account health", () => {
@@ -46,7 +47,8 @@ describe("connector sync account health", () => {
     const health = getConnectorAccountHealth({
       ...baseAccount,
       lastSyncStatus: "partial",
-      lastSyncError: "email-message-error"
+      lastSyncError: "email-message-error",
+      lastSyncCounts: { emailFailures: 2 }
     });
 
     expect(health).toMatchObject({
@@ -55,6 +57,26 @@ describe("connector sync account health", () => {
       label: "Partial",
       canReconnect: false
     });
+    expect(health.alert).toContain("Some email messages could not be saved");
+    expect(health.alert).toContain("2 email messages failed");
+    expect(health.alert).toContain("Cached Google data may be stale");
+  });
+
+  it("explains message-cap partial syncs without inventing an item error", () => {
+    const health = getConnectorAccountHealth({
+      ...baseAccount,
+      lastSyncStatus: "partial",
+      lastSyncError: null,
+      lastSyncCounts: { emailUpserted: 50, calendarUpserted: 18, emailFailures: 0, truncated: true }
+    });
+
+    expect(health).toMatchObject({
+      indicator: "error",
+      badgeTone: "amber",
+      label: "Partial"
+    });
+    expect(health.alert).toContain("Last sync reached its message cap");
+    expect(health.alert).toContain("message cap reached");
     expect(health.alert).toContain("Cached Google data may be stale");
   });
 
@@ -71,6 +93,23 @@ describe("connector sync account health", () => {
       indicator: "idle",
       badgeTone: "neutral",
       label: "Syncing"
+    });
+  });
+
+  it("shows a fresh sync in progress instead of stale partial status", () => {
+    const account = {
+      ...baseAccount,
+      lastSyncStartedAt: "2026-06-30T12:01:00.000Z",
+      lastSyncFinishedAt: "2026-06-30T12:00:05.000Z",
+      lastSyncStatus: "partial" as const,
+      lastSyncError: "email-message-error"
+    };
+
+    expect(getConnectorAccountHealth(account)).toMatchObject({
+      indicator: "idle",
+      badgeTone: "neutral",
+      label: "Syncing",
+      alert: null
     });
   });
 

@@ -22,7 +22,7 @@ import {
   type RpcHello,
   type RpcHelloChallenge,
   type RpcHelloResponse
-} from "../../chat/src/live/rpc-contract.js";
+} from "@jarv1s/chat/live";
 
 /** HMAC-SHA256(secret, tag + nonce) → hex. */
 function proof(secret: string, tag: string, nonce: string): string {

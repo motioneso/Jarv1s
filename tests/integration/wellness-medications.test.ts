@@ -75,6 +75,69 @@ describe("wellness REST routes", () => {
     }
   });
 
+  it("POST /api/wellness/checkins persists local_date from the request timezone, not UTC (#326/#771)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 06:30 UTC is 23:30 the evening *before* in America/Los_Angeles (PDT, UTC-7 in June): the
+    // UTC calendar day has already rolled over, but the caller's local calendar day has not.
+    vi.setSystemTime(new Date("2026-06-09T06:30:00.000Z"));
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "happy" },
+        headers: { "x-timezone": "America/Los_Angeles" }
+      });
+      expect(created.statusCode).toBe(201);
+      const checkinId = created.json().checkin.id as string;
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        const row = await client.query<{ local_date: string; timezone_offset: number }>(
+          `SELECT local_date, timezone_offset FROM app.wellness_checkins WHERE id = $1`,
+          [checkinId]
+        );
+        expect(row.rows[0]?.local_date).toBe("2026-06-08");
+        expect(row.rows[0]?.timezone_offset).toBe(-420);
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST /api/wellness/checkins without a request timezone defaults local_date to UTC (#326/#771)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-09T06:30:00.000Z"));
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "happy" }
+      });
+      expect(created.statusCode).toBe(201);
+      const checkinId = created.json().checkin.id as string;
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        const row = await client.query<{ local_date: string; timezone_offset: number }>(
+          `SELECT local_date, timezone_offset FROM app.wellness_checkins WHERE id = $1`,
+          [checkinId]
+        );
+        expect(row.rows[0]?.local_date).toBe("2026-06-09");
+        expect(row.rows[0]?.timezone_offset).toBe(0);
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
   it("POST a check-in with a feeling path mismatch is rejected 400", async () => {
     const app = await buildApp(userId);
     try {
@@ -451,6 +514,55 @@ describe("wellness REST routes", () => {
         sched.json().slots as Array<{ medicationId: string; asNeeded: boolean; prnCount?: number }>
       ).find((s) => s.medicationId === medId && s.asNeeded);
       expect(slot?.prnCount).toBe(1);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("rejects a PRN log that carries scheduledFor (400) — would otherwise clobber a scheduled-dose record (#770 / M3)", async () => {
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: {
+          name: "Clobber guard",
+          frequencyType: "once_daily",
+          scheduleTimes: ["08:00"]
+        }
+      });
+      expect(created.statusCode).toBe(201);
+      const medId = created.json().medication.id as string;
+      const scheduledFor = "2026-06-22T08:00:00.000Z";
+
+      // Establish a real scheduled-dose record for this slot.
+      const taken = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: { status: "taken", scheduledFor }
+      });
+      expect(taken.statusCode).toBe(201);
+
+      // A PRN log carrying the same scheduledFor must be rejected — not silently upserted onto
+      // the scheduled-dose partial unique index, which would overwrite the "taken" record above
+      // (status -> "prn") and regress the slot to "pending" in the schedule view.
+      const prnWithScheduledFor = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: { status: "prn", scheduledFor }
+      });
+      expect(prnWithScheduledFor.statusCode).toBe(400);
+
+      // The original scheduled-dose record must be untouched.
+      const sched = await app.inject({
+        method: "GET",
+        url: "/api/wellness/medications/schedule?date=2026-06-22"
+      });
+      expect(sched.statusCode, sched.body).toBe(200);
+      const slot = (
+        sched.json().slots as Array<{ medicationId: string; asNeeded: boolean; status: string }>
+      ).find((s) => s.medicationId === medId && !s.asNeeded);
+      expect(slot?.status).toBe("taken");
     } finally {
       await app.close();
     }

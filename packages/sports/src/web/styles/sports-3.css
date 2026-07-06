@@ -1,0 +1,119 @@
+/* Sports feedback pass (#668) — story photos + league news grid.           */
+/* Tokens only; loaded after sports-1.css (sports-1 is at the size gate).   */
+
+.sp-photo--img {
+  object-fit: cover;
+  border-radius: 0;
+}
+
+.sp-hero__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sp-hero__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.sp-news__grp {
+  margin-top: var(--space-4);
+}
+
+.sp-news__comp {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.sp-news__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0 var(--space-6);
+  margin-top: var(--space-2);
+}
+
+.sp-news__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-subtle);
+  text-decoration: none;
+  transition: var(--transition-control);
+}
+
+.sp-news__card:hover {
+  background: var(--surface-2);
+}
+
+.sp-news__img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 0;
+  background: var(--surface-2);
+}
+
+.sp-news__title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.sp-news__date {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+/* Degraded-source notice (#765 M1) — hairline treatment, same copy and role="status". A straight
+   2px functional status rule (not the banned curved/rounded card accent) — same family as the
+   task-priority borders. */
+.sp-degraded {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  border-radius: 0;
+  background: none;
+  border: none;
+  border-left: 2px solid var(--warn);
+}
+
+/* Cold-load skeleton (#765 M2) — same block rhythm as the ticker + hero + followed rows it
+   stands in for, so nothing jumps once real data replaces it. */
+.sp-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.sp-skel {
+  border-radius: 0;
+  background: var(--surface-2);
+}
+
+.sp-skel--ticker {
+  height: 96px;
+  border-top: 2px solid var(--border);
+}
+
+.sp-skel--hero {
+  height: 180px;
+}
+
+.sp-skel--row {
+  height: 64px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sp-skel {
+    animation: sp-pulse 1.6s ease-in-out infinite;
+  }
+}

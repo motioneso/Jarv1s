@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { compareJarvisVersions } from "@jarv1s/module-sdk/core-version";
 import {
-  Copy,
   KeyRound,
   LogOut,
   MoreHorizontal,
@@ -26,7 +25,6 @@ import {
   listAdminConnectorAccounts,
   listAdminModules,
   listAdminUsers,
-  listAuthProviderStatuses,
   promoteUser,
   putRegistrationSettings,
   reactivateUser,
@@ -52,7 +50,6 @@ import {
   formatTimestamp,
   Group,
   Indicator,
-  Locked,
   Note,
   PaneHead,
   Row,
@@ -464,18 +461,12 @@ export function IdentityPane() {
     queryFn: getRegistrationSettings,
     retry: false
   });
-  const providersQuery = useQuery({
-    queryKey: queryKeys.settings.providers,
-    queryFn: listAuthProviderStatuses,
-    retry: false
-  });
   const putMutation = useMutation({
     mutationFn: (next: RegistrationSettingsDto) => putRegistrationSettings(next),
     onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.registrationSettings, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
   const reg = regQuery.data;
-  const providers = providersQuery.data?.providers ?? [];
 
   return (
     <>
@@ -508,25 +499,6 @@ export function IdentityPane() {
             />
           }
         />
-      </Group>
-      <Group title="Sign-in methods" desc="Which ways people are allowed to sign in.">
-        {providers.length ? (
-          providers.map((provider) => (
-            <Row
-              key={provider.id}
-              name={provider.displayName}
-              control={
-                <Badge tone={provider.enabled ? "pine" : "neutral"} dot={provider.enabled}>
-                  {provider.enabled ? "Enabled" : "Off"}
-                </Badge>
-              }
-            />
-          ))
-        ) : (
-          <Row
-            name={providersQuery.isLoading ? "Loading methods…" : "No sign-in methods configured"}
-          />
-        )}
       </Group>
       <Note icon={<Terminal size={13} />}>
         Auth provider configuration — client IDs, secrets, callback URLs — is handled in operator
@@ -670,20 +642,19 @@ export function OversightPane() {
 
 /* --------------------------------------------------------- Advanced host setup */
 
-export function HostPane({ advanced }: PaneProps) {
+export function HostPane() {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
   const [ranDiagnostics, setRanDiagnostics] = useState(false);
   const muxQuery = useQuery({
     queryKey: queryKeys.settings.chatMultiplexer,
     queryFn: getChatMultiplexerSettings,
-    enabled: advanced,
     retry: false
   });
   const diagQuery = useQuery({
     queryKey: queryKeys.settings.hostDiagnostics,
     queryFn: getHostDiagnostics,
-    enabled: advanced && ranDiagnostics,
+    enabled: ranDiagnostics,
     retry: false
   });
   const muxMutation = useMutation({
@@ -691,33 +662,17 @@ export function HostPane({ advanced }: PaneProps) {
     onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-
   const runDiagnostics = () => {
     setRanDiagnostics(true);
     void diagQuery.refetch();
   };
-  const copyCommand = (command: string) => {
-    void navigator.clipboard?.writeText(command);
-    toast("Copied restart command");
-  };
-
-  if (!advanced) {
-    return (
-      <>
-        <PaneHead
-          title="Advanced host setup"
-          desc="Multiplexer, CLI availability, restart-required settings, and diagnostics."
-        />
-        <Locked icon={<ServerCog size={24} />} title="Host diagnostics are hidden">
-          These are low-level operational controls. Turn on <b>Advanced</b> at the top of settings
-          to view and edit them.
-        </Locked>
-      </>
-    );
-  }
 
   const mux = muxQuery.data;
   const diag = diagQuery.data;
+  const herdrAvailable = mux?.available.herdr === true;
+  const herdrDesc = herdrAvailable
+    ? "Herdr is usable on this host."
+    : "Herdr is not usable on this host.";
   return (
     <>
       <PaneHead
@@ -752,10 +707,10 @@ export function HostPane({ advanced }: PaneProps) {
         />
         <Row
           name="herdr available"
-          desc="Whether herdr is usable on this host."
+          desc={herdrDesc}
           control={
-            <Badge tone={mux?.available.herdr ? "pine" : "neutral"} dot={mux?.available.herdr}>
-              {mux?.available.herdr ? "Yes" : "No"}
+            <Badge tone={herdrAvailable ? "pine" : "neutral"} dot={herdrAvailable}>
+              {herdrAvailable ? "Yes" : "No"}
             </Badge>
           }
         />
@@ -823,11 +778,6 @@ export function HostPane({ advanced }: PaneProps) {
             ) : null}
             <Row name="Commit" control={diag.commit ?? "—"} />
             <Row name="Bind address" control={`${diag.host}:${diag.port}`} />
-            <Row
-              name="Modules"
-              desc="Registered modules / declared module routes"
-              control={`${diag.moduleCount} / ${diag.routeCount}`}
-            />
           </>
         )}
       </Group>
@@ -836,37 +786,6 @@ export function HostPane({ advanced }: PaneProps) {
           name="Log level"
           desc="Set with the LOG_LEVEL environment variable. Changing it takes effect after a restart."
           control={<Badge tone="neutral">{diag?.logLevel ?? "Run diagnostics to view"}</Badge>}
-        />
-      </Group>
-      <Group title="Restart">
-        <Row
-          name="Restart"
-          desc="Restart is operator-managed — there is no in-app restart. Some changes apply only after the next restart."
-          control={<Badge tone="amber">Operator-managed</Badge>}
-        />
-        <Row
-          name="Deployment mode"
-          control={<Badge tone="neutral">{diag?.deployMode ?? "—"}</Badge>}
-        />
-        <Row
-          name="Restart command"
-          desc={diag?.restartCommand ?? "Run diagnostics to detect the documented command."}
-          control={
-            diag?.restartCommand ? (
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
-                onClick={() => copyCommand(diag.restartCommand as string)}
-              >
-                <span className="jds-btn__icon">
-                  <Copy size={15} />
-                </span>
-                Copy
-              </button>
-            ) : (
-              <Badge tone="neutral">—</Badge>
-            )
-          }
         />
       </Group>
     </>

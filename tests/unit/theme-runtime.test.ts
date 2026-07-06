@@ -48,7 +48,7 @@ describe("theme runtime", () => {
     expect(style.values.get("--paper")).toBe(validThemeTokens.paper);
     expect(style.values.get("--accent")).toBe(validThemeTokens.accent);
     expect(style.values.get("--accent-hover")).toBe(
-      deriveAccentRamp(validThemeTokens.accent)["--accent-hover"]
+      deriveAccentRamp(validThemeTokens.accent, validThemeTokens.paper)["--accent-hover"]
     );
     expect(style.values.has("--red")).toBe(false);
   });
@@ -59,6 +59,22 @@ describe("theme runtime", () => {
     applyThemeTokens(style, null);
 
     expect(style.values.size).toBe(0);
+  });
+
+  it("mixes accent softs toward --paper, not pure white, so custom themes match the oat-tinted built-in softs (#787)", () => {
+    const oatPaper = "#ece4d1"; // Park Press built-in oat ground
+    const ramp = deriveAccentRamp("#294b39", oatPaper); // built-in forest accent
+
+    // Oat-mixed softs land close to tokens.css's hand-tuned --forest-soft/-2
+    // (#dbe2d3 / #c9d5c0); a pure-white mix would instead be #e1e6e3 / #ccd4cf.
+    expect(ramp["--accent-soft"]).toBe("#d1cfbc");
+    expect(ramp["--accent-soft-2"]).toBe("#bdbfad");
+  });
+
+  it("falls back to a white mix when --paper isn't a parseable theme color", () => {
+    const ramp = deriveAccentRamp("#294b39", "not-a-color");
+    expect(ramp["--accent-soft"]).toBe("#e1e6e3");
+    expect(ramp["--accent-soft-2"]).toBe("#ccd4cf");
   });
 });
 

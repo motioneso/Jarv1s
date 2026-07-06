@@ -15,6 +15,7 @@ import {
 } from "./mock-api.js";
 import { createMockAiModel, createMockAiProvider } from "./mock-ai-api.js";
 import { defaultOnboardingStatus } from "./mock-onboarding-api.js";
+import { registerMockSportsRoutes } from "./mock-sports-api.js";
 
 // Output dir is gitignored (under test-results/) and overridable via SCREENS_DIR.
 const OUT = process.env.SCREENS_DIR ?? "test-results/design-screens-dark";
@@ -203,4 +204,14 @@ test("dark: wellness", async ({ page }) => {
   await page.goto("/wellness");
   await page.waitForTimeout(700);
   await shot(page, "10-wellness");
+});
+
+// Broadsheet skin verification (#829 Task 5): rail keyline contrast + --forest-soft followed-game
+// field must both read clearly in dark theme (spec §5/§6 checklist).
+test("dark: sports", async ({ page }) => {
+  await baseState(page);
+  await registerMockSportsRoutes(page);
+  await page.goto("/sports");
+  await page.waitForTimeout(600);
+  await shot(page, "11-sports");
 });

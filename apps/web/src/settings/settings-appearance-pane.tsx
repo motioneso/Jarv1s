@@ -21,6 +21,11 @@ interface DraftTheme {
   readonly tokens: AestheticThemeTokens;
 }
 
+interface SaveThemeDraftDeps {
+  readonly putCustomTheme: typeof putCustomTheme;
+  readonly setActiveTheme: typeof setActiveTheme;
+}
+
 type EditorTokenKey = AestheticThemeTokenKey | "gold";
 
 /* Gold is optional in the contract: themes saved without it keep the built-in
@@ -64,8 +69,7 @@ export function AppearancePane() {
     onError: (err) => setError(readError(err))
   });
   const saveMutation = useMutation({
-    mutationFn: (next: DraftTheme) =>
-      putCustomTheme(next.id, { name: next.name, tokens: next.tokens }),
+    mutationFn: (next: DraftTheme) => saveThemeDraft(next),
     onSuccess: async (response) => {
       setDraft(response.theme);
       setStatus("Saved");
@@ -241,12 +245,14 @@ export function AppearancePane() {
               })}
             </div>
             <div className="theme-ramp" aria-label="Generated accent ramp">
-              {Object.entries(deriveAccentRamp(draft.tokens.accent)).map(([name, value]) => (
-                <span className="theme-ramp__item" key={name}>
-                  <span className="theme-swatch" style={{ background: value }} />
-                  <span>{name.replace("--", "")}</span>
-                </span>
-              ))}
+              {Object.entries(deriveAccentRamp(draft.tokens.accent, draft.tokens.paper)).map(
+                ([name, value]) => (
+                  <span className="theme-ramp__item" key={name}>
+                    <span className="theme-swatch" style={{ background: value }} />
+                    <span>{name.replace("--", "")}</span>
+                  </span>
+                )
+              )}
             </div>
             <Field label="Paste palette">
               <textarea
@@ -311,6 +317,15 @@ export function AppearancePane() {
       ) : null}
     </>
   );
+}
+
+export async function saveThemeDraft(
+  draft: DraftTheme,
+  deps: SaveThemeDraftDeps = { putCustomTheme, setActiveTheme }
+) {
+  const response = await deps.putCustomTheme(draft.id, { name: draft.name, tokens: draft.tokens });
+  await deps.setActiveTheme({ id: response.theme.id });
+  return response;
 }
 
 function ThemeRow(props: {

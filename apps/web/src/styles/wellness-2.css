@@ -61,7 +61,7 @@
   font-weight: 600;
 }
 .wl-hrow__feel {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14.5px;
   color: var(--text-muted);
   flex: 1;
@@ -134,7 +134,7 @@
   margin-right: 4px;
 }
 .wl-hdetail__note {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14.5px;
   line-height: 1.55;
   color: var(--text);
@@ -167,7 +167,7 @@
   gap: 14px;
 }
 .wl-therapy__intro {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   color: var(--text-muted);
   line-height: 1.55;
@@ -185,7 +185,7 @@
 }
 .wl-tadd:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .wl-tadd__ic {
   color: var(--accent-fg);
@@ -250,7 +250,7 @@
   min-width: 0;
 }
 .wl-tnote__tx {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
   color: var(--text);
@@ -354,7 +354,7 @@
   color: var(--accent-fg);
 }
 .wl-modal__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.008em;
@@ -431,11 +431,11 @@
   background: var(--accent);
 }
 .wl-steps__d.is-done {
-  background: var(--pine-soft-2);
+  background: var(--forest-soft-2);
 }
 
 .wl-q {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 19px;
   font-weight: 600;
   color: var(--text);
@@ -628,7 +628,7 @@
 .wl-note-field:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .wl-note-field::placeholder {
   color: var(--text-faint);

@@ -4,7 +4,28 @@ export type AiAuthMethod = "cli" | "api_key";
 export type AiProviderExecutionMode = "interactive" | "non_interactive";
 export type AiModelStatus = "active" | "disabled";
 export type AiModelTier = "reasoning" | "interactive" | "economy";
-export type AiModelCapability = "chat" | "tool-use" | "json" | "vision" | "summarization";
+export type AiModelCapability =
+  | "chat"
+  | "tool-use"
+  | "json"
+  | "vision"
+  | "summarization"
+  | "transcription";
+
+/**
+ * Canonical, single-source-of-truth list of recognized capabilities. Every place that
+ * validates/enumerates capabilities (route param parsing, capability-route map schema,
+ * settings UI) should derive from this instead of hand-maintaining a parallel literal set —
+ * a capability added here and forgotten elsewhere silently 400s or drops from routing.
+ */
+export const AI_MODEL_CAPABILITIES: readonly AiModelCapability[] = [
+  "chat",
+  "tool-use",
+  "json",
+  "vision",
+  "summarization",
+  "transcription"
+];
 export type AiCapabilityRouteReason =
   | "admin-pin"
   | "admin-pin-unavailable"
@@ -199,6 +220,15 @@ export interface UpdateAiConfiguredModelResponse {
 
 export interface LookupAiCapabilityRouteResponse {
   readonly route: AiCapabilityRouteDto;
+}
+
+/**
+ * Response for POST /api/ai/transcriptions. Transcript text only — the raw audio that
+ * produced it is never stored, logged, or echoed back (secrets/private-data-never-escape
+ * invariant extends to transient uploads, not just credentials).
+ */
+export interface TranscribeAudioResponse {
+  readonly text: string;
 }
 
 export interface ListAiCapabilityRoutesResponse {

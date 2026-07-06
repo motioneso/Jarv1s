@@ -39,7 +39,7 @@
   gap: 2px;
 }
 .cal-range {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -105,7 +105,7 @@
   border-left: 3px solid var(--steel);
 }
 .cal-legend__sw--hold {
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   border: 1px dashed var(--accent);
 }
 .cal-legend__note {
@@ -168,7 +168,7 @@
   color: var(--text-subtle);
 }
 .cal-tg__dnum {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 21px;
   font-weight: 600;
   color: var(--text);
@@ -287,7 +287,7 @@
     );
 }
 .cal-tg__col.is-today {
-  background-color: color-mix(in srgb, var(--pine-soft) 32%, transparent);
+  background-color: color-mix(in srgb, var(--forest-soft) 32%, transparent);
 }
 
 /* event block */
@@ -380,7 +380,7 @@
 
 /* Jarvis-held block — governor treatment */
 .cal-ev--block .cal-ev__title {
-  color: var(--pine-ink);
+  color: var(--forest-ink);
 }
 .cal-ev--ghost {
   padding-left: 9px;
@@ -388,8 +388,8 @@
   background-color: var(--surface);
   background-image: repeating-linear-gradient(
     45deg,
-    color-mix(in srgb, var(--pine-soft) 80%, transparent) 0,
-    color-mix(in srgb, var(--pine-soft) 80%, transparent) 7px,
+    color-mix(in srgb, var(--forest-soft) 80%, transparent) 0,
+    color-mix(in srgb, var(--forest-soft) 80%, transparent) 7px,
     transparent 7px,
     transparent 14px
   );
@@ -399,15 +399,15 @@
 }
 .cal-ev--ghost .cal-ev__meta,
 .cal-ev--ghost .cal-ev__where {
-  color: color-mix(in srgb, var(--pine-ink) 62%, transparent);
+  color: color-mix(in srgb, var(--forest-ink) 62%, transparent);
 }
 .cal-ev--hatched {
   border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
   background-color: var(--surface);
   background-image: repeating-linear-gradient(
     45deg,
-    color-mix(in srgb, var(--pine-soft) 80%, transparent) 0,
-    color-mix(in srgb, var(--pine-soft) 80%, transparent) 7px,
+    color-mix(in srgb, var(--forest-soft) 80%, transparent) 0,
+    color-mix(in srgb, var(--forest-soft) 80%, transparent) 7px,
     transparent 7px,
     transparent 14px
   );
@@ -574,7 +574,7 @@
   flex: none;
 }
 .cal-mchip.is-block {
-  background: color-mix(in srgb, var(--pine-soft) 50%, transparent);
+  background: color-mix(in srgb, var(--forest-soft) 50%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 .cal-mchip.is-block .cal-mchip__dot {
@@ -695,7 +695,7 @@
   background: color-mix(in srgb, var(--ev) 15%, var(--surface));
 }
 .cal-peek__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
   line-height: 1.2;
@@ -758,7 +758,7 @@
   margin-top: 2px;
 }
 .cal-peek__note {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
   color: var(--text-muted);
@@ -771,9 +771,9 @@
   margin-top: 18px;
   padding: 12px 14px;
   border-radius: 10px;
-  background: var(--pine-soft);
-  border: 1px solid var(--pine-soft-2);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  border: 1px solid var(--forest-soft-2);
+  color: var(--forest-ink);
   font-size: 13px;
   line-height: 1.5;
 }

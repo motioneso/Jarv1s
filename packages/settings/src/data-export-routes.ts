@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { AccessContext, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import { createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { handleSettingsRouteError } from "./route-error.js";
 import { exportUserData } from "./data-export.js";
 
@@ -9,6 +10,7 @@ export interface DataExportRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly rootDb: Kysely<JarvisDatabase>;
+  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
 }
 
 export function registerDataExportRoutes(
@@ -30,7 +32,8 @@ export function registerDataExportRoutes(
           return exportUserData({
             scopedDb,
             authDb,
-            userId: accessContext.actorUserId
+            userId: accessContext.actorUserId,
+            listModuleManifests: dependencies.listModuleManifests
           });
         }
       );

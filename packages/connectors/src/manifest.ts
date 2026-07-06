@@ -56,7 +56,8 @@ export const connectorsModuleManifest = {
       "sql/0099_connector_health_metadata.sql",
       "sql/0100_connector_admin_safe_metadata_health.sql",
       "sql/0130_connector_imap_enum.sql",
-      "sql/0131_connector_imap_definitions.sql"
+      "sql/0131_connector_imap_definitions.sql",
+      "sql/0144_google_sync_sweep_accounts.sql"
     ],
     migrationDirectories: ["packages/connectors/sql"],
     ownedTables: [

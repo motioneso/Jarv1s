@@ -621,7 +621,7 @@ describe("wellness chat recall energy-trend fact", () => {
         intensity: 2,
         energy: 2
       });
-      await contributor.refreshEnergyTrendFact(db, userId);
+      await contributor.refreshEnergyTrendFact(db, userId, true);
       const active = await facts.listActiveFacts(db, userId);
       expect(
         active.some((f) => f.category === "profile" && f.content.toLowerCase().includes("energy"))
@@ -656,9 +656,11 @@ describe("wellness chat recall energy-trend fact", () => {
     // would read "no active fact" and each insert → two active facts. The lock serializes them.
     await Promise.all([
       dataContext.withDataContext(ctx(owner), (db) =>
-        contributor.refreshEnergyTrendFact(db, owner)
+        contributor.refreshEnergyTrendFact(db, owner, true)
       ),
-      dataContext.withDataContext(ctx(owner), (db) => contributor.refreshEnergyTrendFact(db, owner))
+      dataContext.withDataContext(ctx(owner), (db) =>
+        contributor.refreshEnergyTrendFact(db, owner, true)
+      )
     ]);
 
     const active = await dataContext.withDataContext(ctx(owner), (db) =>

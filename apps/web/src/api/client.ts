@@ -98,11 +98,13 @@ import type {
   MedicationScheduleResponse,
   MeResponse,
   OnboardingStatusResponse,
+  PageContextSnapshotDto,
   OnboardingCompleteResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
   TestAiProviderConfigResponse,
   LookupAiCapabilityRouteResponse,
+  TranscribeAudioResponse,
   UpdateBriefingDefinitionRequest,
   UpdateBriefingDefinitionResponse,
   UpdateAiConfiguredModelRequest,
@@ -633,10 +635,19 @@ export async function putChatSettings(
   });
 }
 
-export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
+/**
+ * #679 — `pageContext` is a bounded, redacted snapshot of what the user currently sees
+ * (see apps/web/src/chat/page-context.ts), attached ONLY when the caller decides the
+ * message is asking about the current page. Optional and best-effort: the server
+ * silently drops a malformed/oversized value rather than rejecting the turn.
+ */
+export async function sendChatTurn(
+  text: string,
+  pageContext?: PageContextSnapshotDto
+): Promise<SendChatTurnResponse> {
   return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
-    body: { text }
+    body: pageContext ? { text, pageContext } : { text }
   });
 }
 
@@ -762,6 +773,27 @@ export async function lookupAiCapabilityRoute(
   return requestJson<LookupAiCapabilityRouteResponse>(
     `/api/ai/capability-route/${encodeURIComponent(capability)}`
   );
+}
+
+/**
+ * Uploads a recorded audio clip for transcription and returns the transcript text only.
+ * Goes around `requestJson` (which always JSON-encodes) because the body here is the raw
+ * audio blob itself, sent with its own mime type as the content-type.
+ */
+export async function transcribeAudio(audio: Blob): Promise<TranscribeAudioResponse> {
+  const response = await fetch("/api/ai/transcriptions", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": audio.type || "audio/webm" },
+    body: audio
+  });
+
+  if (!response.ok) {
+    const { message, code } = await readErrorBody(response);
+    throw new ApiError(response.status, message, code);
+  }
+
+  return response.json() as Promise<TranscribeAudioResponse>;
 }
 
 export async function getCapabilityTierPreferences(): Promise<AiCapabilityTierPreferencesResponse> {

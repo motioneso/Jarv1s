@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 import SportsSettings, {
   filterTeams,
   leagueMatches,
-  SearchResults,
-  CompetitionGroup
+  searchLeagues,
+  SearchResults
 } from "../../packages/sports/src/settings/index.js";
 
 const CATALOG_KEY = ["sports", "catalog"] as const;
@@ -71,35 +71,18 @@ const TWO_LEAGUES: readonly CompetitionLite[] = [
 ];
 
 describe("SportsSettings", () => {
-  it("renders competition labels and marquee tag on the World Cup", () => {
+  it("renders search input and hint, no browse groups, when query is empty", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData(CATALOG_KEY, {
-      competitions: [
-        {
-          competitionKey: "fifa.world",
-          label: "FIFA World Cup",
-          kind: "tournament",
-          marquee: true,
-          standingsShape: "groups",
-          teams: [
-            {
-              teamKey: "team.bra",
-              competitionKey: "fifa.world",
-              name: "Brazil",
-              shortName: "BRA",
-              crestUrl: null
-            }
-          ]
-        }
-      ]
-    });
+    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES });
     client.setQueryData(FOLLOWS_KEY, { follows: [] });
     const html = renderWithQuery(client);
-    expect(html).toContain("FIFA World Cup");
-    expect(html).toContain("Marquee");
-    // Collapsed-by-default: team grid hidden, but count hint present.
-    expect(html).toContain("1<!-- --> team");
+    expect(html).toContain("sp-search__input");
+    expect(html).toContain("Search above to find teams or leagues to follow.");
+    // Browse sections are gone: no group headers, follow-all rows, or team buttons.
+    expect(html).not.toContain("sp-grouphead");
+    expect(html).not.toContain("Follow all of");
     expect(html).not.toContain("sp-teamgrid");
+    expect(html).not.toContain("Dallas Cowboys");
   });
 
   it("marks a followed team active", () => {
@@ -135,7 +118,7 @@ describe("SportsSettings", () => {
     expect(html).toContain("ARS");
   });
 
-  it("shows a whole-league follow button per competition", () => {
+  it("renders a followed team's crest image in the summary chip when crestUrl exists", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(CATALOG_KEY, {
       competitions: [
@@ -145,13 +128,26 @@ describe("SportsSettings", () => {
           kind: "league",
           marquee: false,
           standingsShape: "table",
-          teams: []
+          teams: [
+            {
+              teamKey: "team.ars",
+              competitionKey: "epl",
+              name: "Arsenal",
+              shortName: "ARS",
+              crestUrl: "https://example.com/crests/ars.png"
+            }
+          ]
         }
       ]
     });
-    client.setQueryData(FOLLOWS_KEY, { follows: [] });
+    client.setQueryData(FOLLOWS_KEY, {
+      follows: [
+        { id: "f1", competitionKey: "epl", teamKey: "team.ars", createdAt: "2026-01-01T00:00:00Z" }
+      ]
+    });
     const html = renderWithQuery(client);
-    expect(html).toContain("Follow all of <!-- -->Premier League");
+    expect(html).toContain("sp-chip");
+    expect(html).toContain('src="https://example.com/crests/ars.png"');
   });
 
   it("renders followed-team summary chips when follows exist", () => {
@@ -182,18 +178,34 @@ describe("SportsSettings", () => {
     expect(html).toContain("All NFL");
   });
 
-  it("collapses browse groups by default — team grid hidden until expanded", () => {
+  it("renders an orphan follow (unknown competitionKey) with a notice instead of a raw key", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES });
-    client.setQueryData(FOLLOWS_KEY, { follows: [] });
+    client.setQueryData(FOLLOWS_KEY, {
+      follows: [
+        {
+          id: "orphan1",
+          competitionKey: "xyz.retired",
+          teamKey: null,
+          createdAt: "2026-01-01T00:00:00Z"
+        }
+      ]
+    });
     const html = renderWithQuery(client);
-    // Follow-all affordance still present per competition.
-    expect(html).toContain("Follow all of <!-- -->NFL");
-    // Collapsed header present.
-    expect(html).toContain("sp-grouphead");
-    // Team buttons NOT rendered in collapsed initial state.
-    expect(html).not.toContain("sp-teamgrid");
-    expect(html).not.toContain("Dallas Cowboys");
+    expect(html).toContain("Unrecognized league (xyz.retired)");
+    // still removable
+    expect(html).toContain("sp-chip__remove");
+  });
+
+  it("searchLeagues includes the parent league of matching teams, deduped by competitionKey", () => {
+    // Direct label match.
+    expect(searchLeagues("prem", TWO_LEAGUES).map((c) => c.competitionKey)).toEqual(["epl"]);
+    // Team match surfaces its parent league even though the label doesn't match.
+    expect(searchLeagues("cowboys", TWO_LEAGUES).map((c) => c.competitionKey)).toEqual(["nfl"]);
+    // Label match + team match on the same league dedupes to one row.
+    expect(searchLeagues("nfl", TWO_LEAGUES).map((c) => c.competitionKey)).toEqual(["nfl"]);
+    expect(searchLeagues("zzz", TWO_LEAGUES)).toHaveLength(0);
+    expect(searchLeagues("", TWO_LEAGUES)).toHaveLength(0);
   });
 
   it("filterTeams matches team name/shortName and competition label, case-insensitive", () => {
@@ -240,30 +252,14 @@ describe("is-active styling coverage (#691)", () => {
     expect(html).toMatch(/sp-team is-active/);
   });
 
-  it("marks a followed team is-active in the expanded competition group, unfollowed team not", () => {
-    const html = renderToString(
-      createElement(CompetitionGroup, {
-        competition: epl,
-        followsByKey: followed,
-        onToggle: () => {},
-        pending: false,
-        expanded: true,
-        onToggleExpand: () => {}
-      })
-    );
-    expect(html).toContain("is-active");
-    expect(html).toMatch(/sp-team is-active/);
-  });
-
   it("does not mark an unfollowed team is-active", () => {
     const html = renderToString(
-      createElement(CompetitionGroup, {
-        competition: epl,
+      createElement(SearchResults, {
+        query: "premier",
+        competitions: [epl],
         followsByKey: new Map(),
         onToggle: () => {},
-        pending: false,
-        expanded: true,
-        onToggleExpand: () => {}
+        pending: false
       })
     );
     expect(html).not.toContain("is-active");

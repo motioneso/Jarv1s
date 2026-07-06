@@ -2,8 +2,6 @@ import type { MeResponse } from "@jarv1s/shared";
 
 /** Shared props every settings pane receives from the shell. */
 export interface PaneProps {
-  /** The persistent Advanced switch — reveals provider/host/developer detail. */
-  readonly advanced: boolean;
   readonly me: MeResponse;
   /** Navigate to an in-app route (used by "Open ↗" module links). */
   readonly onNavigate: (path: string) => void;

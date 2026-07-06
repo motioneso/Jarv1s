@@ -1,4 +1,4 @@
-export type SettingsStorageKey = "mode" | "advanced" | "categoryPersonal" | "categoryAdmin";
+export type SettingsStorageKey = "mode" | "categoryPersonal" | "categoryAdmin";
 
 interface SettingsStorage {
   readonly getItem: (key: string) => string | null;

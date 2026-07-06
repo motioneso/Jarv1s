@@ -1,21 +1,21 @@
 import type { GameSide, GameSummary, IsoDate, StandingsRow } from "@jarv1s/shared";
+import type { ExternalSourceAdapter, ExternalSourceAdapterContext } from "@jarv1s/module-sdk";
 
 import { catalogEntry } from "./catalog.js";
-import type {
-  SourceHeadline,
-  SourceTeamRef,
-  SportsSource,
-  StandingsTable
-} from "./sports-source.js";
+import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./sports-source.js";
 
 // ESPN's unofficial public JSON (no key). Two base hosts are in play: the `site.api`
 // host serves scoreboard/news/teams/schedule; standings lives under a different `/apis/v2`
-// path on the same host. Everything is reached only through this adapter (LOADER-SEAM(sports)).
+// path on the same host — both paths resolve to the single `site.api.espn.com` fetchHost
+// declared on the sports module's `externalSources` manifest entry. Everything is reached only
+// through this adapter (LOADER-SEAM(sports)), and only through the runtime's pinned `fetchFn`.
 const SITE_BASE = "https://site.api.espn.com/apis/site/v2/sports";
 const CORE_BASE = "https://site.api.espn.com/apis/v2/sports";
 
 // Hosts ESPN crest/photo URLs resolve to (team.logos + article images).
 export const ESPN_IMAGE_HOSTS: readonly string[] = ["a.espncdn.com", "s.secure.espncdn.com"];
+
+export const ESPN_FETCH_HOSTS: readonly string[] = ["site.api.espn.com"];
 
 // --- Minimal shapes for the fields we read (ESPN payloads carry far more) ------------------
 
@@ -129,129 +129,198 @@ function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
   };
 }
 
-// --- Adapter -------------------------------------------------------------------------------
+// --- Per-dataset fetchers --------------------------------------------------------------------
+// Params below are validated only by shape (the dataset runtime's params are untyped
+// `Record<string, unknown>`, per the connector SDK's `ExternalSourceAdapter` contract); the
+// module's own service layer is the trusted caller and always passes the fields declared here.
 
-export function createEspnSportsSource(fetchFn: typeof fetch = fetch): SportsSource {
-  return new EspnSportsSource(fetchFn);
+export interface EspnTeamsParams {
+  readonly competitionKey: string;
 }
 
-export class EspnSportsSource implements SportsSource {
-  readonly imageHosts = ESPN_IMAGE_HOSTS;
+export interface EspnScoreboardParams {
+  readonly competitionKey: string;
+  readonly day: IsoDate;
+}
 
-  constructor(private readonly fetchFn: typeof fetch = fetch) {}
+export interface EspnScheduleParams {
+  readonly teamKey: string;
+  readonly competitionKey: string;
+}
 
-  async listTeams(competitionKey: string): Promise<SourceTeamRef[]> {
-    const { sport, league } = resolve(competitionKey);
-    const data = (await fetchJson(
-      this.fetchFn,
-      `${SITE_BASE}/${sport}/${league}/teams`,
-      `${league} teams`
-    )) as {
-      sports?: readonly {
-        leagues?: readonly {
-          teams?: readonly {
-            team?: {
-              id?: string;
-              abbreviation?: string;
-              displayName?: string;
-              shortDisplayName?: string;
-              logos?: readonly { href?: string }[];
-            };
-          }[];
+export interface EspnStandingsParams {
+  readonly competitionKey: string;
+}
+
+export interface EspnHeadlinesParams {
+  readonly competitionKey: string;
+}
+
+async function listTeams(fetchFn: typeof fetch, params: EspnTeamsParams): Promise<SourceTeamRef[]> {
+  const { competitionKey } = params;
+  const { sport, league } = resolve(competitionKey);
+  const data = (await fetchJson(
+    fetchFn,
+    `${SITE_BASE}/${sport}/${league}/teams`,
+    `${league} teams`
+  )) as {
+    sports?: readonly {
+      leagues?: readonly {
+        teams?: readonly {
+          team?: {
+            id?: string;
+            abbreviation?: string;
+            displayName?: string;
+            shortDisplayName?: string;
+            logos?: readonly { href?: string }[];
+          };
         }[];
       }[];
-    };
-    const teams = data.sports?.[0]?.leagues?.[0]?.teams ?? [];
-    return teams.map(({ team }) => {
-      const teamKey = (team?.abbreviation ?? team?.id ?? "").toLowerCase();
-      return {
-        teamKey,
-        competitionKey,
-        name: team?.displayName ?? teamKey,
-        shortName: team?.shortDisplayName ?? team?.displayName ?? teamKey,
-        crestUrl: team?.logos?.[0]?.href ?? null,
-        sourceTeamId: team?.id ?? null
-      } satisfies SourceTeamRef;
-    });
-  }
+    }[];
+  };
+  const teams = data.sports?.[0]?.leagues?.[0]?.teams ?? [];
+  return teams.map(({ team }) => {
+    const teamKey = (team?.abbreviation ?? team?.id ?? "").toLowerCase();
+    return {
+      teamKey,
+      competitionKey,
+      name: team?.displayName ?? teamKey,
+      shortName: team?.shortDisplayName ?? team?.displayName ?? teamKey,
+      crestUrl: team?.logos?.[0]?.href ?? null,
+      sourceTeamId: team?.id ?? null
+    } satisfies SourceTeamRef;
+  });
+}
 
-  async getScoreboard(competitionKey: string, day: IsoDate): Promise<GameSummary[]> {
-    const { sport, league } = resolve(competitionKey);
-    const dates = day.replace(/-/g, "");
-    const data = (await fetchJson(
-      this.fetchFn,
-      `${SITE_BASE}/${sport}/${league}/scoreboard?dates=${dates}`,
-      `${league} scoreboard`
-    )) as { events?: readonly EspnEvent[] };
-    return (data.events ?? []).map((event) => toGame(event, competitionKey));
-  }
+async function getScoreboard(
+  fetchFn: typeof fetch,
+  params: EspnScoreboardParams
+): Promise<GameSummary[]> {
+  const { competitionKey, day } = params;
+  const { sport, league } = resolve(competitionKey);
+  const dates = day.replace(/-/g, "");
+  const data = (await fetchJson(
+    fetchFn,
+    `${SITE_BASE}/${sport}/${league}/scoreboard?dates=${dates}`,
+    `${league} scoreboard`
+  )) as { events?: readonly EspnEvent[] };
+  return (data.events ?? []).map((event) => toGame(event, competitionKey));
+}
 
-  async getSchedule(teamKey: string, competitionKey: string): Promise<GameSummary[]> {
-    const { sport, league } = resolve(competitionKey);
-    const data = (await fetchJson(
-      this.fetchFn,
-      `${SITE_BASE}/${sport}/${league}/teams/${teamKey}/schedule`,
-      `${league} schedule`
-    )) as { events?: readonly EspnEvent[] };
-    return (data.events ?? []).map((event) => toGame(event, competitionKey));
-  }
+async function getSchedule(
+  fetchFn: typeof fetch,
+  params: EspnScheduleParams
+): Promise<GameSummary[]> {
+  const { teamKey, competitionKey } = params;
+  const { sport, league } = resolve(competitionKey);
+  const data = (await fetchJson(
+    fetchFn,
+    `${SITE_BASE}/${sport}/${league}/teams/${teamKey}/schedule`,
+    `${league} schedule`
+  )) as { events?: readonly EspnEvent[] };
+  return (data.events ?? []).map((event) => toGame(event, competitionKey));
+}
 
-  async getStandings(competitionKey: string): Promise<StandingsTable> {
-    const { sport, league } = resolve(competitionKey);
-    const data = (await fetchJson(
-      this.fetchFn,
-      `${CORE_BASE}/${sport}/${league}/standings`,
-      `${league} standings`
-    )) as {
-      children?: readonly {
-        name?: string;
-        abbreviation?: string;
-        standings?: { entries?: readonly EspnStandingsEntry[] };
-      }[];
+async function getStandings(
+  fetchFn: typeof fetch,
+  params: EspnStandingsParams
+): Promise<StandingsTable> {
+  const { competitionKey } = params;
+  const { sport, league } = resolve(competitionKey);
+  const data = (await fetchJson(
+    fetchFn,
+    `${CORE_BASE}/${sport}/${league}/standings`,
+    `${league} standings`
+  )) as {
+    children?: readonly {
+      name?: string;
+      abbreviation?: string;
       standings?: { entries?: readonly EspnStandingsEntry[] };
-    };
-    const children = data.children ?? [];
-    const sections =
-      children.length > 0
-        ? children.map((child) => ({
-            label: child.name ?? child.abbreviation ?? null,
-            rows: (child.standings?.entries ?? []).map(toStandingsRow)
-          }))
-        : [{ label: null, rows: (data.standings?.entries ?? []).map(toStandingsRow) }];
-    return { sections: sections.filter((section) => section.rows.length > 0) };
-  }
+    }[];
+    standings?: { entries?: readonly EspnStandingsEntry[] };
+  };
+  const children = data.children ?? [];
+  const sections =
+    children.length > 0
+      ? children.map((child) => ({
+          label: child.name ?? child.abbreviation ?? null,
+          rows: (child.standings?.entries ?? []).map(toStandingsRow)
+        }))
+      : [{ label: null, rows: (data.standings?.entries ?? []).map(toStandingsRow) }];
+  return { sections: sections.filter((section) => section.rows.length > 0) };
+}
 
-  async getHeadlines(competitionKey: string): Promise<SourceHeadline[]> {
-    const { sport, league } = resolve(competitionKey);
-    const data = (await fetchJson(
-      this.fetchFn,
-      `${SITE_BASE}/${sport}/${league}/news`,
-      `${league} news`
-    )) as {
-      articles?: readonly {
-        id?: number | string;
-        headline?: string;
-        published?: string;
-        links?: { web?: { href?: string } };
-        images?: readonly { type?: string; url?: string }[];
-        categories?: readonly { type?: string; teamId?: number | string }[];
-      }[];
+async function getHeadlines(
+  fetchFn: typeof fetch,
+  params: EspnHeadlinesParams
+): Promise<SourceHeadline[]> {
+  const { competitionKey } = params;
+  const { sport, league } = resolve(competitionKey);
+  const data = (await fetchJson(
+    fetchFn,
+    `${SITE_BASE}/${sport}/${league}/news`,
+    `${league} news`
+  )) as {
+    articles?: readonly {
+      id?: number | string;
+      headline?: string;
+      published?: string;
+      links?: { web?: { href?: string } };
+      images?: readonly { type?: string; url?: string }[];
+      categories?: readonly { type?: string; teamId?: number | string }[];
+    }[];
+  };
+  const competitionLabel = catalogEntry(competitionKey)?.label ?? competitionKey;
+  return (data.articles ?? []).map((article, index) => {
+    const images = article.images ?? [];
+    const image = images.find((i) => i.type === "header" && i.url) ?? images.find((i) => i.url);
+    return {
+      id: String(article.id ?? index),
+      competitionKey,
+      competitionLabel,
+      title: article.headline ?? "",
+      url: article.links?.web?.href ?? "",
+      publishedAt: article.published ?? "",
+      imageUrl: image?.url ?? null,
+      teamKeys: [],
+      sourceTeamIds: (article.categories ?? [])
+        .filter((c) => c.type === "team" && c.teamId != null)
+        .map((c) => String(c.teamId))
     };
-    return (data.articles ?? []).map((article, index) => {
-      const images = article.images ?? [];
-      const image = images.find((i) => i.type === "header" && i.url) ?? images.find((i) => i.url);
-      return {
-        id: String(article.id ?? index),
-        competitionKey,
-        title: article.headline ?? "",
-        url: article.links?.web?.href ?? "",
-        publishedAt: article.published ?? "",
-        imageUrl: image?.url ?? null,
-        teamKeys: [],
-        sourceTeamIds: (article.categories ?? [])
-          .filter((c) => c.type === "team" && c.teamId != null)
-          .map((c) => String(c.teamId))
-      };
-    });
-  }
+  });
+}
+
+// --- Adapter (the `ExternalSourceAdapter` implementation the dataset runtime dispatches to) --
+
+const ESPN_DATASET_KEYS = ["teams", "scoreboard", "schedule", "standings", "headlines"] as const;
+type EspnDatasetKey = (typeof ESPN_DATASET_KEYS)[number];
+
+function isEspnDatasetKey(value: string): value is EspnDatasetKey {
+  return (ESPN_DATASET_KEYS as readonly string[]).includes(value);
+}
+
+export function createEspnDatasetAdapter(): ExternalSourceAdapter {
+  return {
+    async fetchDataset(
+      datasetKey: string,
+      params: Record<string, unknown>,
+      ctx: ExternalSourceAdapterContext
+    ): Promise<unknown> {
+      if (!isEspnDatasetKey(datasetKey)) {
+        throw new Error(`ESPN adapter: unknown dataset "${datasetKey}"`);
+      }
+      switch (datasetKey) {
+        case "teams":
+          return listTeams(ctx.fetchFn, params as unknown as EspnTeamsParams);
+        case "scoreboard":
+          return getScoreboard(ctx.fetchFn, params as unknown as EspnScoreboardParams);
+        case "schedule":
+          return getSchedule(ctx.fetchFn, params as unknown as EspnScheduleParams);
+        case "standings":
+          return getStandings(ctx.fetchFn, params as unknown as EspnStandingsParams);
+        case "headlines":
+          return getHeadlines(ctx.fetchFn, params as unknown as EspnHeadlinesParams);
+      }
+    }
+  };
 }

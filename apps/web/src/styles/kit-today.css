@@ -59,14 +59,14 @@
   color: var(--accent-fg);
 }
 .coming-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.01em;
   margin-top: 20px;
 }
 .coming-line {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   color: var(--text-muted);
   line-height: 1.6;
@@ -202,7 +202,7 @@
   padding-bottom: 8px;
 }
 .brief-hello {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 40px;
   font-weight: 600;
   letter-spacing: -0.012em;
@@ -219,7 +219,7 @@
   gap: 12px;
 }
 .brief-lede {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   line-height: 1.6;
   color: var(--text-muted);
@@ -269,7 +269,7 @@
   padding: 18px 22px 14px;
 }
 .section-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.006em;
@@ -336,7 +336,7 @@
   flex: none;
 }
 .eve-bubble {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   line-height: 1.6;
   color: var(--text);
@@ -667,7 +667,7 @@
 .sched-row--now .sched-row__body::before {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--pine-soft);
+  box-shadow: 0 0 0 4px var(--forest-soft);
 }
 .sched-row--done .sched-row__body::before {
   background: var(--accent);
@@ -870,7 +870,7 @@
   color: var(--text-faint);
 }
 .day-ev__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 17px;
   color: var(--text);
   line-height: 1.35;

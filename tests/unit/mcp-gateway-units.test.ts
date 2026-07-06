@@ -45,9 +45,9 @@ describe("gateway policy", () => {
   };
 
   it("runs reads and always confirms destructive tools", async () => {
-    await expect(resolvePolicy(tool("read"), "example", dummyLookup)).resolves.toBe("run");
+    await expect(resolvePolicy(tool("read"), "example", {}, dummyLookup)).resolves.toBe("run");
     await expect(
-      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", dummyLookup)
+      resolvePolicy({ ...tool("destructive"), executionPolicy: "auto" }, "example", {}, dummyLookup)
     ).resolves.toBe("confirm");
   });
 });

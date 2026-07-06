@@ -11,8 +11,8 @@ import type {
   StandingsGroup
 } from "@jarv1s/shared";
 
-import { SportsPage } from "../../apps/web/src/sports/sports-page.js";
-import { queryKeys } from "../../apps/web/src/api/query-keys.js";
+import { hasLiveGame, SportsPage } from "../../packages/sports/src/web/sports-page.js";
+import { sportsQueryKeys } from "../../packages/sports/src/web/query-keys.js";
 
 // Root suite renders @jarv1s/web components with react-dom/server (no jsdom /
 // @testing-library — deliberately avoided repo-wide; see settings-appearance-pane.test.tsx).
@@ -95,6 +95,12 @@ function standingsGroup(): StandingsGroup {
   };
 }
 
+const TEST_COMPETITION_LABELS: Record<string, string> = {
+  nfl: "NFL",
+  nba: "NBA",
+  epl: "Premier League"
+};
+
 function headline(
   id: string,
   competitionKey: string,
@@ -104,6 +110,7 @@ function headline(
   return {
     id,
     competitionKey,
+    competitionLabel: TEST_COMPETITION_LABELS[competitionKey] ?? competitionKey.toUpperCase(),
     title,
     url: "https://example.test/" + id,
     publishedAt: "2026-07-01T18:00:00Z",
@@ -118,6 +125,7 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
     hero: {
       mode: "gameday",
       game: liveGame(),
+      competitionLabel: "NFL",
       rationale: "You follow the Vikings — they are on now",
       alsoToday: "2 other followed games today"
     },
@@ -139,6 +147,7 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
     ],
     standings: [standingsGroup()],
     followedTeams: [{ competitionKey: "nfl", teamKey: "min" }],
+    followedLeagues: [],
     degraded: false,
     ...overrides
   };
@@ -146,7 +155,7 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
 
 function render(overview: SportsOverviewResponse): string {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(queryKeys.sports.overview, overview);
+  client.setQueryData(sportsQueryKeys.overview, overview);
   return renderToString(createElement(QueryClientProvider, { client }, createElement(SportsPage)));
 }
 
@@ -159,16 +168,39 @@ describe("SportsPage", () => {
     expect(html).toContain("21");
     // live pulse present for a live game
     expect(html).toContain("sp-livedot");
+    // live score is a scoped aria-live region so screen readers hear updates
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('aria-atomic="true"');
+    // competitionLabel must render on every game surface, including the live hero
+    // (must-not-regress: live badge does not replace the competition label)
+    expect(html).toContain('<span class="sp-hero__comp">NFL</span>');
   });
 
-  it("renders the followed-team card with form pips and next match", () => {
+  it("does not announce the hero score via aria-live when the game is not live", () => {
+    const html = render(
+      makeOverview({
+        hero: {
+          mode: "gameday",
+          game: { ...liveGame(), state: "final", statusDetail: "Final" },
+          competitionLabel: "NFL",
+          rationale: "You follow the Vikings — they are on now",
+          alsoToday: "2 other followed games today"
+        }
+      })
+    );
+    expect(html).not.toContain("aria-live");
+    expect(html).not.toContain("aria-atomic");
+  });
+
+  it("renders the followed-team ticker block with form pips and next match", () => {
     const html = render(makeOverview());
+    expect(html).toContain("sp-ticker");
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
     expect(html).toContain("vs Green Bay Packers");
   });
 
-  it("renders a news-status card as a link to the story", () => {
+  it("renders a news-status ticker block as a link to the story", () => {
     const html = render(
       makeOverview({
         followed: [
@@ -308,6 +340,55 @@ describe("SportsPage", () => {
     expect(html).toContain("Choose teams to follow");
   });
 
+  // #763: a whole-league follow (no individual team) is a first-class picker option — the
+  // page must not treat that user as if they follow nothing.
+  it("shows a distinct leagues header (not the empty-state CTA) for a league-only follower", () => {
+    const html = render(
+      makeOverview({
+        followed: [],
+        followedTeams: [],
+        followedLeagues: [{ competitionKey: "epl", competitionLabel: "Premier League" }],
+        hero: {
+          mode: "story",
+          headline: headline("lead", "epl", "The transfer window is heating up")
+        }
+      })
+    );
+    expect(html).not.toContain("Follow your teams");
+    expect(html).not.toContain("Choose teams to follow");
+    expect(html).toContain("sp-tk--league");
+    expect(html).toContain("Following");
+    expect(html).toContain("1 league");
+    expect(html).toContain("Premier League");
+    // scoreboard/standings/headlines still render for league-only followers
+    expect(html).toContain("Top stories");
+  });
+
+  // #764: a genuine zero-follow user (no teams, no leagues) previously saw a blank page because
+  // the backend never fetched any competition data. The frontend already had this rendering path
+  // (`hasSlate` below) — it just needed the backend to actually populate scoreboard/topStories/
+  // leagueNews for a zero-follow user (see SportsService.getOverview's default slate).
+  it("renders the follow CTA together with a populated default slate for a zero-follow user", () => {
+    const html = render(
+      makeOverview({
+        followed: [],
+        followedTeams: [],
+        followedLeagues: [],
+        hero: {
+          mode: "story",
+          headline: headline("lead", "nba", "Celtics roll past Heat")
+        }
+      })
+    );
+    expect(html).toContain("Follow your teams");
+    expect(html).toContain("Choose teams to follow");
+    // the default slate (scoreboard/top stories/league news) renders alongside the CTA, not a
+    // blank page (H4/#764)
+    expect(html).toContain("Top stories");
+    expect(html).toContain("Vikings clinch division on late field goal");
+    expect(html).toContain("Cowboys sign veteran lineman");
+  });
+
   it("still renders scores and headlines on a quiet day (story hero)", () => {
     const html = render(
       makeOverview({
@@ -331,5 +412,78 @@ describe("SportsPage", () => {
     expect(html).toContain("Top stories");
     expect(html).toContain("League news");
     expect(html).toContain("Cowboys sign veteran lineman");
+  });
+
+  it("renders a ticker-shaped skeleton row while loading", () => {
+    const client = new QueryClient(); // nothing primed → loading branch
+    const html = renderToString(
+      createElement(QueryClientProvider, { client }, createElement(SportsPage))
+    );
+    expect(html).toContain("sp-skel--ticker");
+    expect(html).toContain("sp-skel--hero");
+  });
+});
+
+// #762: the overview query's refetchInterval decides whether to keep polling by asking
+// hasLiveGame() whether the last-fetched payload actually contains a live game — otherwise a
+// LiveDot pulses forever over a score that stopped updating the moment the page mounted.
+describe("hasLiveGame (#762)", () => {
+  const quietHero = {
+    mode: "story" as const,
+    headline: headline("lead", "epl", "The transfer window is heating up")
+  };
+
+  it("is false when nothing in the payload is live", () => {
+    const overview = makeOverview({
+      hero: quietHero,
+      followed: [followedCard({ status: "news" })],
+      scoreboard: [
+        {
+          competitionKey: "nfl",
+          competitionLabel: "NFL",
+          games: [{ ...liveGame(), state: "final", statusDetail: "FT" }]
+        }
+      ]
+    });
+    expect(hasLiveGame(overview)).toBe(false);
+  });
+
+  it("is false for undefined data (query hasn't resolved yet)", () => {
+    expect(hasLiveGame(undefined)).toBe(false);
+  });
+
+  it("is true when the gameday hero's game is live", () => {
+    // makeOverview()'s default hero is a live gameday game.
+    expect(hasLiveGame(makeOverview())).toBe(true);
+  });
+
+  it("is true when a followed team card is live even with a story hero", () => {
+    const overview = makeOverview({
+      hero: quietHero,
+      followed: [followedCard({ status: "live" })],
+      scoreboard: [
+        {
+          competitionKey: "nfl",
+          competitionLabel: "NFL",
+          games: [{ ...liveGame(), state: "final", statusDetail: "FT" }]
+        }
+      ]
+    });
+    expect(hasLiveGame(overview)).toBe(true);
+  });
+
+  it("is true when a scoreboard game is live even with no gameday hero or live followed card", () => {
+    const overview = makeOverview({
+      hero: quietHero,
+      followed: [followedCard({ status: "news" })],
+      scoreboard: [
+        {
+          competitionKey: "nfl",
+          competitionLabel: "NFL",
+          games: [liveGame()]
+        }
+      ]
+    });
+    expect(hasLiveGame(overview)).toBe(true);
   });
 });

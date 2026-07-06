@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Badge, Group, Note, PaneHead } from "@jarv1s/settings-ui";
+import { Note, PaneHead } from "@jarv1s/settings-ui";
 import type {
   CompetitionRef,
   CreateSportsFollowRequest,
@@ -9,25 +9,15 @@ import type {
   SportsFollowsResponse,
   TeamRef
 } from "@jarv1s/shared";
+import { requestJson } from "@jarv1s/module-web-sdk";
 
-const CATALOG_KEY = ["sports", "catalog"] as const;
-const FOLLOWS_KEY = ["sports", "follows"] as const;
+import { sportsQueryKeys } from "../web/query-keys.js";
+import "./sports-2.css";
+
+const CATALOG_KEY = sportsQueryKeys.catalog;
+const FOLLOWS_KEY = sportsQueryKeys.follows;
 
 type CompetitionWithTeams = CompetitionRef & { readonly teams: readonly TeamRef[] };
-
-async function requestJson<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
-  const headers = new Headers(init?.headers);
-  headers.set("accept", "application/json");
-  if (init?.body !== undefined) headers.set("content-type", "application/json");
-  const response = await fetch(path, {
-    ...init,
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-    credentials: "include",
-    headers
-  });
-  if (!response.ok) throw new Error(response.statusText || "Request failed");
-  return (await response.json()) as T;
-}
 
 function getCatalog() {
   return requestJson<SportsCatalogResponse>("/api/sports/catalog");
@@ -72,7 +62,7 @@ function followKey(competitionKey: string, teamKey: string | null): string {
 /* ----- Sports-local, pure search helpers (unit-tested). No generic picker
    abstraction — scoped to this catalog shape on purpose. ----- */
 
-/** Flat team matches for a non-empty query. Empty query returns [] (browse owns that view). */
+/** Flat team matches for a non-empty query. Empty query returns []. */
 export function filterTeams(
   query: string,
   competitions: readonly CompetitionWithTeams[]
@@ -99,6 +89,22 @@ export function leagueMatches(
   return competitions.filter((c) => c.label.toLowerCase().includes(q));
 }
 
+/** League rows for search results: direct label matches plus the parent league of every
+    matching team (so "cowboys" also offers "Follow all of NFL"), deduped by competitionKey. */
+export function searchLeagues(
+  query: string,
+  competitions: readonly CompetitionWithTeams[]
+): readonly CompetitionWithTeams[] {
+  const byKey = new Map<string, CompetitionWithTeams>();
+  for (const competition of leagueMatches(query, competitions)) {
+    byKey.set(competition.competitionKey, competition);
+  }
+  for (const { competition } of filterTeams(query, competitions)) {
+    byKey.set(competition.competitionKey, competition);
+  }
+  return [...byKey.values()];
+}
+
 function FollowedSummary(props: {
   follows: readonly SportsFollowDto[];
   competitionsByKey: Map<string, CompetitionWithTeams>;
@@ -110,19 +116,31 @@ function FollowedSummary(props: {
     <div className="sp-summary" role="list" aria-label="Followed teams and leagues">
       {props.follows.map((follow) => {
         const competition = props.competitionsByKey.get(follow.competitionKey);
+        // A competitionKey with no catalog entry (e.g. a retired/renamed league) would
+        // otherwise render as a raw, unhumanized key — call it out instead (#765 M3). Still
+        // removable via the same button below.
+        const orphan = competition === undefined;
         const wholeLeague = follow.teamKey === null;
         const team = wholeLeague
           ? null
           : competition?.teams.find((t) => t.teamKey === follow.teamKey);
-        const label = wholeLeague
-          ? `All ${competition?.label ?? follow.competitionKey}`
-          : ((team?.shortName || team?.name || follow.teamKey) ?? "");
-        const name = wholeLeague
-          ? (competition?.label ?? follow.competitionKey)
-          : (team?.name ?? follow.teamKey ?? "");
+        const label = orphan
+          ? `Unrecognized league (${follow.competitionKey})`
+          : wholeLeague
+            ? `All ${competition?.label ?? follow.competitionKey}`
+            : ((team?.shortName || team?.name || follow.teamKey) ?? "");
+        const name = orphan
+          ? label
+          : wholeLeague
+            ? (competition?.label ?? follow.competitionKey)
+            : (team?.name ?? follow.teamKey ?? "");
         return (
           <span key={follow.id} className="sp-chip" role="listitem">
-            <PickCrest name={name} shortName={wholeLeague ? null : team?.shortName} />
+            <PickCrest
+              name={name}
+              shortName={wholeLeague ? null : team?.shortName}
+              crestUrl={wholeLeague ? null : team?.crestUrl}
+            />
             <span className="sp-chip__lbl">{label}</span>
             <button
               type="button"
@@ -148,7 +166,7 @@ export function SearchResults(props: {
   pending: boolean;
 }) {
   const teams = filterTeams(props.query, props.competitions);
-  const leagues = leagueMatches(props.query, props.competitions);
+  const leagues = searchLeagues(props.query, props.competitions);
   if (teams.length === 0 && leagues.length === 0) {
     return <Note>No teams or leagues match your search.</Note>;
   }
@@ -192,71 +210,6 @@ export function SearchResults(props: {
   );
 }
 
-export function CompetitionGroup(props: {
-  competition: CompetitionWithTeams;
-  followsByKey: Map<string, SportsFollowDto>;
-  onToggle: (competitionKey: string, teamKey: string | null) => void;
-  pending: boolean;
-  expanded: boolean;
-  onToggleExpand: (competitionKey: string) => void;
-}) {
-  const { competition, followsByKey, onToggle, pending, expanded, onToggleExpand } = props;
-  const wholeActive = followsByKey.has(followKey(competition.competitionKey, null));
-  return (
-    <Group
-      title={
-        <span className="sp-pickhead">
-          {competition.label}
-          {competition.marquee ? <Badge tone="pine">Marquee</Badge> : null}
-        </span>
-      }
-      action={
-        <button
-          type="button"
-          className="sp-grouphead"
-          aria-expanded={expanded}
-          aria-label={`${expanded ? "Collapse" : "Expand"} ${competition.label} teams`}
-          onClick={() => onToggleExpand(competition.competitionKey)}
-        >
-          <span className="sp-grouphead__count">
-            {competition.teams.length} team{competition.teams.length === 1 ? "" : "s"}
-          </span>
-          <span className="sp-grouphead__chev">{expanded ? "−" : "+"}</span>
-        </button>
-      }
-    >
-      <button
-        type="button"
-        className={`sp-whole${wholeActive ? " is-active" : ""}`}
-        disabled={pending}
-        onClick={() => onToggle(competition.competitionKey, null)}
-      >
-        <span className="sp-whole__lbl">Follow all of {competition.label}</span>
-        <span className="sp-whole__state">{wholeActive ? "Following" : "Follow"}</span>
-      </button>
-      {expanded ? (
-        <div className="sp-teamgrid">
-          {competition.teams.map((team) => {
-            const active = followsByKey.has(followKey(competition.competitionKey, team.teamKey));
-            return (
-              <button
-                key={team.teamKey}
-                type="button"
-                className={`sp-team${active ? " is-active" : ""}`}
-                disabled={pending}
-                onClick={() => onToggle(competition.competitionKey, team.teamKey)}
-              >
-                <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
-                <span className="sp-team__name">{team.shortName || team.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </Group>
-  );
-}
-
 export default function SportsSettings() {
   const queryClient = useQueryClient();
   const catalogQuery = useQuery({ queryKey: CATALOG_KEY, queryFn: getCatalog });
@@ -282,24 +235,18 @@ export default function SportsSettings() {
     followsQuery.isError ||
     followMutation.isError ||
     unfollowMutation.isError;
+  // Partial failure (some competitions' teams didn't load) vs. total query failure — the
+  // catalog still renders with what succeeded, so this needs its own quiet notice + retry
+  // rather than the blanket error message above (#765 M1).
+  const catalogDegraded = catalogQuery.data?.degraded === true;
 
   const [search, setSearch] = useState("");
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const query = search.trim();
 
   function toggle(competitionKey: string, teamKey: string | null) {
     const existing = followsByKey.get(followKey(competitionKey, teamKey));
     if (existing) unfollowMutation.mutate(existing.id);
     else followMutation.mutate({ competitionKey, teamKey });
-  }
-
-  function toggleExpand(competitionKey: string) {
-    setExpandedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(competitionKey)) next.delete(competitionKey);
-      else next.add(competitionKey);
-      return next;
-    });
   }
 
   return (
@@ -333,18 +280,20 @@ export default function SportsSettings() {
           pending={pending}
         />
       ) : (
-        competitions.map((competition) => (
-          <CompetitionGroup
-            key={competition.competitionKey}
-            competition={competition}
-            followsByKey={followsByKey}
-            onToggle={toggle}
-            pending={pending}
-            expanded={expandedKeys.has(competition.competitionKey)}
-            onToggleExpand={toggleExpand}
-          />
-        ))
+        <Note>Search above to find teams or leagues to follow.</Note>
       )}
+      {!error && catalogDegraded ? (
+        <Note>
+          Some leagues didn&rsquo;t load just now.{" "}
+          <button
+            type="button"
+            className="sp-managebtn"
+            onClick={() => void catalogQuery.refetch()}
+          >
+            Retry
+          </button>
+        </Note>
+      ) : null}
       {error ? <Note>Could not load or save sports follows. Try again.</Note> : null}
     </>
   );

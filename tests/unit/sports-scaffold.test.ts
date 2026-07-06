@@ -16,6 +16,7 @@ describe("sports scaffold", () => {
       leagueNews: [],
       standings: [],
       followedTeams: [],
+      followedLeagues: [],
       degraded: false
     };
     expect(empty.degraded).toBe(false);
