@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 
 import { exportUserData as exportUserDataDomain } from "../packages/settings/src/data-export.js";
 
@@ -34,7 +35,8 @@ export async function exportUserData(options: LegacyExportUserDataOptions) {
           scopedDb,
           authDb,
           userId: options.userId,
-          exportedAt
+          exportedAt,
+          listModuleManifests: getBuiltInModuleManifests
         })
     );
     return userExport;

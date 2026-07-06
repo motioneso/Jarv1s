@@ -93,7 +93,9 @@ describe("#239 account self-service deletion", () => {
     "app.entities",
     "app.preferences",
     "app.module_enablement",
-    "app.member_onboarding"
+    "app.member_onboarding",
+    // sports (#801 Phase A: first module with no prior hardcoded delete-script entry)
+    "app.sports_follows"
   ] as const;
 
   /**
@@ -175,11 +177,34 @@ describe("#239 account self-service deletion", () => {
          VALUES ($1, 'seeded.pref', '{"v": true}'::jsonb)`,
         [memberId]
       );
-      // wellness
+      // wellness (#801 Phase A: dataLifecycle.deletion covers all four owned tables)
+      const checkinId = randomUUID();
       await client.query(
-        `INSERT INTO app.wellness_checkins (owner_user_id, feeling_core)
-         VALUES ($1, 'happy')`,
-        [memberId]
+        `INSERT INTO app.wellness_checkins (id, owner_user_id, feeling_core)
+         VALUES ($1, $2, 'happy')`,
+        [checkinId, memberId]
+      );
+      const medicationId = randomUUID();
+      await client.query(
+        `INSERT INTO app.medications (id, owner_user_id, name, frequency_type)
+         VALUES ($1, $2, 'seeded medication', 'as_needed')`,
+        [medicationId, memberId]
+      );
+      await client.query(
+        `INSERT INTO app.medication_logs (id, medication_id, owner_user_id, scheduled_for, status)
+         VALUES ($1, $2, $3, now(), 'taken')`,
+        [randomUUID(), medicationId, memberId]
+      );
+      await client.query(
+        `INSERT INTO app.wellness_therapy_notes (id, owner_user_id, body)
+         VALUES ($1, $2, 'seeded therapy note')`,
+        [randomUUID(), memberId]
+      );
+      // sports (#801 Phase A: first cascade-only declaration, no prior hardcoded entry)
+      await client.query(
+        `INSERT INTO app.sports_follows (id, owner_user_id, competition_key)
+         VALUES ($1, $2, 'nfl')`,
+        [randomUUID(), memberId]
       );
       // connectors (pending oauth — holds encrypted_secret, but counts only)
       await client.query(
@@ -296,7 +321,13 @@ describe("#239 account self-service deletion", () => {
       ["app.chat_user_memory_settings", "user_id = $1::uuid"],
       ["app.commitments", "owner_user_id = $1::uuid"],
       ["app.preferences", "owner_user_id = $1::uuid"],
+      // wellness (#801 Phase A: dataLifecycle.deletion, all four owned tables)
       ["app.wellness_checkins", "owner_user_id = $1::uuid"],
+      ["app.medications", "owner_user_id = $1::uuid"],
+      ["app.medication_logs", "owner_user_id = $1::uuid"],
+      ["app.wellness_therapy_notes", "owner_user_id = $1::uuid"],
+      // sports (#801 Phase A: first cascade-only declaration)
+      ["app.sports_follows", "owner_user_id = $1::uuid"],
       ["app.connector_oauth_pending", "owner_user_id = $1::uuid"],
       ["app.module_enablement", "scope = 'user' AND user_id = $1::uuid"],
       ["app.member_onboarding", "user_id = $1::uuid"]

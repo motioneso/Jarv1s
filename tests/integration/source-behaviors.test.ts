@@ -4,7 +4,7 @@ import pg from "pg";
 import type { Kysely } from "kysely";
 
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 
@@ -89,6 +89,7 @@ describe("source behavior settings API", () => {
         throw new Error("unauthorized");
       },
       listModuleManifests: () => [...getBuiltInModuleManifests(), testManifest()],
+      moduleDeletionTables: getModuleDeletionTables(),
       preferencesRepository: new PreferencesRepository()
     });
     await server.ready();

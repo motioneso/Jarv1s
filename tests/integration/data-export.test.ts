@@ -10,7 +10,7 @@ import type { Kysely } from "kysely";
 import { VaultContextRunner, readVaultFile, writeVaultFile } from "@jarv1s/vault";
 
 import { fastify, type FastifyInstance } from "fastify";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import type { ExportBuildJobPayload } from "../../packages/settings/src/data-export-jobs.js";
 import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
@@ -47,7 +47,8 @@ describe("Data export", () => {
         }
         return { actorUserId: ids.userA, requestId: "req:test" };
       },
-      listModuleManifests: () => getBuiltInModuleManifests()
+      listModuleManifests: () => getBuiltInModuleManifests(),
+      moduleDeletionTables: getModuleDeletionTables()
     });
 
     await server.ready();
@@ -104,6 +105,162 @@ describe("Data export", () => {
     expect(Array.isArray(body.tables.jarvisGoals)).toBe(true);
     expect(Array.isArray(body.tables.jarvisGoalEvidence)).toBe(true);
     expect(Array.isArray(body.tables.jarvisActionAuditLog)).toBe(true);
+  });
+
+  // #801 Phase A golden test: wellness's dataLifecycle.exportSections collector (in
+  // @jarv1s/wellness) now produces the `wellness` archive section instead of settings reading
+  // app.wellness_checkins / app.wellness_therapy_notes directly. Byte-compat is the acceptance
+  // bar — this pins the exact shape (column names, ordering, null handling) both the sync flat
+  // `tables.*` surface and the async nested `sections.wellness` surface must still produce.
+  describe("wellness export byte-compat golden test (#801 Phase A)", () => {
+    const checkinId = "99999999-0000-4000-8000-000000000001";
+    const therapyNoteId = "99999999-0000-4000-8000-000000000002";
+    const checkedInAt = "2026-01-15T09:30:00.000Z";
+    const checkinCreatedAt = "2026-01-15T09:30:01.000Z";
+    const checkinUpdatedAt = "2026-01-15T09:30:02.000Z";
+    const noteCreatedAt = "2026-01-16T10:00:00.000Z";
+    const noteUpdatedAt = "2026-01-16T10:00:01.000Z";
+
+    const expectedCheckin = {
+      id: checkinId,
+      ownerUserId: ids.userA,
+      checkedInAt,
+      feelingCore: "happy",
+      feelingSecondary: "calm",
+      feelingTertiary: "settled",
+      wheelVersion: "jarvis-emotion-v1",
+      sensations: ["warmth", "ease"],
+      intensity: 3,
+      energy: 4,
+      note: "Golden fixture note (#801 Phase A byte-compat).",
+      identifiedVia: "wheel",
+      createdAt: checkinCreatedAt,
+      updatedAt: checkinUpdatedAt
+    };
+
+    const expectedTherapyNote = {
+      id: therapyNoteId,
+      ownerUserId: ids.userA,
+      body: "Golden fixture therapy note (#801 Phase A byte-compat).",
+      linkedCheckinId: null,
+      linkedEmotion: null,
+      createdAt: noteCreatedAt,
+      updatedAt: noteUpdatedAt
+    };
+
+    beforeAll(async () => {
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        await client.query(
+          `INSERT INTO app.wellness_checkins
+            (id, owner_user_id, checked_in_at, feeling_core, feeling_secondary, feeling_tertiary,
+             wheel_version, sensations, intensity, energy, note, identified_via, created_at, updated_at)
+           VALUES ($1, $2, $3, 'happy', 'calm', 'settled', 'jarvis-emotion-v1', ARRAY['warmth','ease'],
+             3, 4, $4, 'wheel', $5, $6)`,
+          [
+            checkinId,
+            ids.userA,
+            checkedInAt,
+            expectedCheckin.note,
+            checkinCreatedAt,
+            checkinUpdatedAt
+          ]
+        );
+        await client.query(
+          `INSERT INTO app.wellness_therapy_notes
+            (id, owner_user_id, body, linked_checkin_id, linked_emotion, created_at, updated_at)
+           VALUES ($1, $2, $3, NULL, NULL, $4, $5)`,
+          [therapyNoteId, ids.userA, expectedTherapyNote.body, noteCreatedAt, noteUpdatedAt]
+        );
+      } finally {
+        await client.end();
+      }
+    });
+
+    afterAll(async () => {
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        await client.query("DELETE FROM app.wellness_therapy_notes WHERE id = $1", [therapyNoteId]);
+        await client.query("DELETE FROM app.wellness_checkins WHERE id = $1", [checkinId]);
+      } finally {
+        await client.end();
+      }
+    });
+
+    it("sync flat-tables export surface (/api/settings/me/data-export) is byte-compat", async () => {
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/settings/me/data-export",
+        headers: { authorization: `Bearer ${ids.sessionA}` }
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as {
+        tables: { wellnessCheckins: unknown[]; wellnessTherapyNotes: unknown[] };
+      };
+      expect(
+        body.tables.wellnessCheckins.find((row) => (row as { id: string }).id === checkinId)
+      ).toEqual(expectedCheckin);
+      expect(
+        body.tables.wellnessTherapyNotes.find((row) => (row as { id: string }).id === therapyNoteId)
+      ).toEqual(expectedTherapyNote);
+    });
+
+    it("async nested-archive export surface (sections.wellness) is byte-compat", async () => {
+      const vaultRoot = await mkdtemp(join(tmpdir(), "jarvis-export-golden-"));
+      const originalVaultRoot = process.env.JARVIS_VAULT_ROOT;
+      process.env.JARVIS_VAULT_ROOT = vaultRoot;
+      try {
+        const { handleExportBuildJob } =
+          await import("../../packages/settings/src/data-export-jobs.js");
+        const repository = new (
+          await import("../../packages/settings/src/data-export-repository.js")
+        ).DataExportRepository();
+        const dataContext = new DataContextRunner(appDb);
+        const jobRecord = await dataContext.withDataContext(
+          { actorUserId: ids.userA, requestId: "req:test" },
+          (scopedDb) => repository.createJob(scopedDb, ids.userA)
+        );
+
+        await dataContext.withDataContext(
+          { actorUserId: ids.userA, requestId: "req:test" },
+          (scopedDb) => {
+            const jobPayload = {
+              data: {
+                actorUserId: ids.userA,
+                jobId: jobRecord.id,
+                kind: "export.build" as const
+              }
+            } as Job<ExportBuildJobPayload>;
+            return handleExportBuildJob(jobPayload, scopedDb, () => getBuiltInModuleManifests());
+          }
+        );
+
+        const vaultRunner = new VaultContextRunner(vaultRoot);
+        const archiveJson = await vaultRunner.withVaultContext(
+          { actorUserId: ids.userA },
+          (vaultCtx) => readVaultFile(vaultCtx, `exports/${jobRecord.id}.json`)
+        );
+        const archive = JSON.parse(archiveJson) as {
+          sections: { wellness: { checkins: unknown[]; therapy_notes: unknown[] } };
+        };
+
+        expect(
+          archive.sections.wellness.checkins.find((row) => (row as { id: string }).id === checkinId)
+        ).toEqual(expectedCheckin);
+        expect(
+          archive.sections.wellness.therapy_notes.find(
+            (row) => (row as { id: string }).id === therapyNoteId
+          )
+        ).toEqual(expectedTherapyNote);
+      } finally {
+        if (originalVaultRoot === undefined) delete process.env.JARVIS_VAULT_ROOT;
+        else process.env.JARVIS_VAULT_ROOT = originalVaultRoot;
+        await rm(vaultRoot, { recursive: true, force: true });
+      }
+    });
   });
 
   it("requires authentication", async () => {
@@ -177,7 +334,7 @@ describe("Data export", () => {
         } as Job<ExportBuildJobPayload>;
 
         try {
-          await handleExportBuildJob(jobPayload, scopedDb);
+          await handleExportBuildJob(jobPayload, scopedDb, () => getBuiltInModuleManifests());
 
           const updatedJob = await repository.getJobById(scopedDb, jobRecord.id);
           expect(updatedJob?.status).toBe("failed");

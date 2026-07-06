@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
 import { HttpError } from "@jarv1s/module-sdk";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 import { PreferencesRepository } from "@jarv1s/structured-state";
@@ -34,6 +34,7 @@ describe("priority model API", () => {
         throw new HttpError(401, "Unauthorized");
       },
       listModuleManifests: () => getBuiltInModuleManifests(),
+      moduleDeletionTables: getModuleDeletionTables(),
       preferencesRepository: new PreferencesRepository()
     });
     await server.ready();
