@@ -24,6 +24,14 @@
   color: var(--text-muted);
 }
 
+.sp-skel--around {
+  height: 2.5rem;
+}
+
+.sp-skel--grid {
+  height: 24rem;
+}
+
 /* Reusable editorial primitives (consumed by Latest / Standings / News). */
 .sp-col__kicker {
   font-family: var(--font-mono);

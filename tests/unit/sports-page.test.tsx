@@ -566,6 +566,17 @@ describe("SportsPage", () => {
     expect(html).toContain("sp-skel--ticker");
     expect(html).toContain("sp-skel--hero");
   });
+
+  it("renders a skeleton matching the new composition (two tickers + grid)", () => {
+    const client = new QueryClient(); // nothing primed → loading branch
+    const html = renderToString(
+      createElement(QueryClientProvider, { client }, createElement(SportsPage))
+    );
+    expect(html).toContain("sp-skel--ticker");
+    expect(html).toContain("sp-skel--around");
+    expect(html).toContain("sp-skel--hero");
+    expect(html).toContain("sp-skel--grid");
+  });
 });
 
 // #762: the overview query's refetchInterval decides whether to keep polling by asking
