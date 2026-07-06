@@ -48,7 +48,7 @@ interface EspnStandingsEntry {
     readonly abbreviation?: string;
     readonly displayName?: string;
   };
-  readonly note?: unknown;
+  readonly note?: { readonly description?: string; readonly color?: string } | null;
   readonly stats?: readonly { readonly name?: string; readonly value?: number }[];
 }
 
@@ -125,7 +125,9 @@ function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
     losses: statValue(entry.stats, "losses") ?? 0,
     draws: statValue(entry.stats, "ties") ?? null,
     winPercent: statValue(entry.stats, "winPercent") ?? null,
-    qualifies: entry.note != null
+    qualifies: entry.note != null,
+    qualificationNote: entry.note?.description ?? null,
+    qualificationColor: entry.note?.color ?? null
   };
 }
 

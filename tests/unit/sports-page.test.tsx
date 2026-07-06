@@ -87,7 +87,9 @@ function standingsGroup(): StandingsGroup {
             losses: 2,
             draws: 4,
             winPercent: null,
-            qualifies: true
+            qualifies: true,
+            qualificationNote: null,
+            qualificationColor: null
           }
         ]
       }
@@ -254,7 +256,9 @@ describe("SportsPage", () => {
                     losses: 6,
                     draws: 4,
                     winPercent: null,
-                    qualifies: false
+                    qualifies: false,
+                    qualificationNote: null,
+                    qualificationColor: null
                   }
                 ]
               }
@@ -291,7 +295,9 @@ describe("SportsPage", () => {
                     losses: 31,
                     draws: null,
                     winPercent: null,
-                    qualifies: true
+                    qualifies: true,
+                    qualificationNote: null,
+                    qualificationColor: null
                   }
                 ]
               },
@@ -307,7 +313,9 @@ describe("SportsPage", () => {
                     losses: 34,
                     draws: null,
                     winPercent: null,
-                    qualifies: true
+                    qualifies: true,
+                    qualificationNote: null,
+                    qualificationColor: null
                   }
                 ]
               }

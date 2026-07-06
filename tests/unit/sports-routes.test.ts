@@ -314,4 +314,47 @@ describe("sports routes", () => {
     expect(res.body).toContain("A late field goal sealed the NFC North.");
     await app.close();
   });
+
+  it("carries standings qualification note + color through the overview (#841)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        getStandings: async () => ({
+          sections: [
+            {
+              label: null,
+              rows: [
+                {
+                  teamKey: "ars",
+                  name: "Arsenal",
+                  rank: 1,
+                  points: 40,
+                  wins: 12,
+                  losses: 2,
+                  draws: 4,
+                  winPercent: null,
+                  qualifies: true,
+                  qualificationNote: "UEFA Champions League",
+                  qualificationColor: "#2a66d1"
+                }
+              ]
+            }
+          ]
+        })
+      }),
+      repo: makeRepo([
+        {
+          id: "f1",
+          competitionKey: "eng.1",
+          teamKey: null,
+          createdAt: "2026-06-01T00:00:00.000Z"
+        }
+      ])
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("UEFA Champions League");
+    expect(res.body).toContain("#2a66d1");
+    await app.close();
+  });
 });

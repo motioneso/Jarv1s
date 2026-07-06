@@ -124,7 +124,9 @@ function standingsGroup(): StandingsGroup {
             losses: 2,
             draws: 4,
             winPercent: null,
-            qualifies: true
+            qualifies: true,
+            qualificationNote: null,
+            qualificationColor: null
           },
           {
             teamKey: "liv",
@@ -135,7 +137,9 @@ function standingsGroup(): StandingsGroup {
             losses: 3,
             draws: 5,
             winPercent: null,
-            qualifies: true
+            qualifies: true,
+            qualificationNote: null,
+            qualificationColor: null
           }
         ]
       }

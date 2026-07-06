@@ -41,6 +41,8 @@ export interface StandingsRow {
   readonly draws: number | null;
   readonly winPercent: number | null; // US leagues; null for soccer
   readonly qualifies: boolean; // advancement/qualification marker
+  readonly qualificationNote: string | null; // e.g. "UEFA Champions League"; null when none (#841)
+  readonly qualificationColor: string | null; // raw source hex; carried for a later design pass (#841)
 }
 
 export type StandingsShape = "table" | "groups" | "record";
@@ -232,7 +234,9 @@ const standingsRowSchema = {
     "losses",
     "draws",
     "winPercent",
-    "qualifies"
+    "qualifies",
+    "qualificationNote",
+    "qualificationColor"
   ],
   properties: {
     teamKey: { type: "string" },
@@ -243,7 +247,9 @@ const standingsRowSchema = {
     losses: { type: "number" },
     draws: { type: ["number", "null"] },
     winPercent: { type: ["number", "null"] },
-    qualifies: { type: "boolean" }
+    qualifies: { type: "boolean" },
+    qualificationNote: { type: ["string", "null"] },
+    qualificationColor: { type: ["string", "null"] }
   }
 } as const;
 

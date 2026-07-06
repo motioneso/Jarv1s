@@ -171,7 +171,9 @@ const nflStandings: StandingsTable = {
           losses: 2,
           draws: null,
           winPercent: 0.833,
-          qualifies: true
+          qualifies: true,
+          qualificationNote: null,
+          qualificationColor: null
         }
       ]
     }
