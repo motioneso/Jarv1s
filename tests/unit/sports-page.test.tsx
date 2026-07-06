@@ -168,16 +168,39 @@ describe("SportsPage", () => {
     expect(html).toContain("21");
     // live pulse present for a live game
     expect(html).toContain("sp-livedot");
+    // live score is a scoped aria-live region so screen readers hear updates
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('aria-atomic="true"');
+    // competitionLabel must render on every game surface, including the live hero
+    // (must-not-regress: live badge does not replace the competition label)
+    expect(html).toContain('<span class="sp-hero__comp">NFL</span>');
   });
 
-  it("renders the followed-team card with form pips and next match", () => {
+  it("does not announce the hero score via aria-live when the game is not live", () => {
+    const html = render(
+      makeOverview({
+        hero: {
+          mode: "gameday",
+          game: { ...liveGame(), state: "final", statusDetail: "Final" },
+          competitionLabel: "NFL",
+          rationale: "You follow the Vikings — they are on now",
+          alsoToday: "2 other followed games today"
+        }
+      })
+    );
+    expect(html).not.toContain("aria-live");
+    expect(html).not.toContain("aria-atomic");
+  });
+
+  it("renders the followed-team ticker block with form pips and next match", () => {
     const html = render(makeOverview());
+    expect(html).toContain("sp-ticker");
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
     expect(html).toContain("vs Green Bay Packers");
   });
 
-  it("renders a news-status card as a link to the story", () => {
+  it("renders a news-status ticker block as a link to the story", () => {
     const html = render(
       makeOverview({
         followed: [
@@ -333,6 +356,7 @@ describe("SportsPage", () => {
     );
     expect(html).not.toContain("Follow your teams");
     expect(html).not.toContain("Choose teams to follow");
+    expect(html).toContain("sp-tk--league");
     expect(html).toContain("Following");
     expect(html).toContain("1 league");
     expect(html).toContain("Premier League");
@@ -388,6 +412,15 @@ describe("SportsPage", () => {
     expect(html).toContain("Top stories");
     expect(html).toContain("League news");
     expect(html).toContain("Cowboys sign veteran lineman");
+  });
+
+  it("renders a ticker-shaped skeleton row while loading", () => {
+    const client = new QueryClient(); // nothing primed → loading branch
+    const html = renderToString(
+      createElement(QueryClientProvider, { client }, createElement(SportsPage))
+    );
+    expect(html).toContain("sp-skel--ticker");
+    expect(html).toContain("sp-skel--hero");
   });
 });
 

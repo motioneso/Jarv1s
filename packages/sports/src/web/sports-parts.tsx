@@ -48,7 +48,7 @@ export function RationaleChip(props: { children: ReactNode }): ReactNode {
 export function FormPips(props: { form: readonly ("W" | "D" | "L")[] }): ReactNode {
   if (props.form.length === 0) return null;
   return (
-    <span className="sp-fc__formrow" aria-label="recent form">
+    <span className="sp-formrow" aria-label="recent form">
       {props.form.map((result, index) => (
         <span key={index} className={`sp-formpip sp-formpip--${result.toLowerCase()}`}>
           {result}

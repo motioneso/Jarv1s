@@ -1,11 +1,10 @@
 import "./styles/sports-1.css";
 import "./styles/sports-3.css";
+import "./styles/sports-4-grid.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
-  FollowedLeagueRef,
-  FollowedNextMatch,
   FollowedTeamCard,
   GameSide,
   GameSummary,
@@ -15,11 +14,10 @@ import type {
   StandingsGroup,
   StandingsRow
 } from "@jarv1s/shared";
-import type { LocaleSettingsDto } from "@jarv1s/shared";
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
-import { formatDate, formatTime, useUserLocale } from "./locale.js";
+import { useUserLocale } from "./locale.js";
 import {
   CalendarIcon,
   Crest,
@@ -35,6 +33,7 @@ import {
   StoryHero,
   TopStoriesRail
 } from "./sports-news.js";
+import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
@@ -42,14 +41,6 @@ const SETTINGS_HREF = "/settings?section=modules&module=sports";
 // over-polling once nothing is actually live (#762). Exported for reuse by the Today "Sports
 // desk" widget (./today-widget.tsx), which polls the same query on the same cadence.
 export const LIVE_REFETCH_INTERVAL_MS = 60_000;
-
-// "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2)
-function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
-  const at = next.startsAt;
-  const date = formatDate(at, locale, { weekday: "short", month: "short", day: "numeric" });
-  const time = formatTime(at, locale);
-  return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${date} · ${time}`;
-}
 
 // A still-pulsing LiveDot next to a frozen score is worse than no live indicator at all — this
 // decides whether the overview query should keep polling (#762). Exported for direct unit testing
@@ -110,12 +101,8 @@ export function SportsPage() {
 
       {hasFollows ? (
         <>
+          <SportsTicker followed={data.followed} leagues={data.followedLeagues} />
           <Hero hero={data.hero} />
-          {hasTeamFollows ? (
-            <FollowedSection followed={data.followed} />
-          ) : (
-            <FollowedLeaguesSection leagues={data.followedLeagues} />
-          )}
           <SplitSection data={data} followedPairs={followedPairs} />
           <LeagueNewsSection groups={data.leagueNews} />
         </>
@@ -154,8 +141,8 @@ function DegradedBand() {
 function SportsSkeleton() {
   return (
     <div className="sp-skeleton" role="status" aria-label="Loading your teams">
+      <div className="sp-skel sp-skel--ticker" aria-hidden="true" />
       <div className="sp-skel sp-skel--hero" aria-hidden="true" />
-      <div className="sp-skel sp-skel--row" aria-hidden="true" />
       <div className="sp-skel sp-skel--row" aria-hidden="true" />
       <div className="sp-skel sp-skel--row" aria-hidden="true" />
     </div>
@@ -181,14 +168,17 @@ function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }
             <LiveDot />
             Live
           </span>
-        ) : (
-          <span className="sp-hero__comp">{competitionLabel}</span>
-        )}
+        ) : null}
+        <span className="sp-hero__comp">{competitionLabel}</span>
         <span className="sp-hero__phase">{game.statusDetail}</span>
       </div>
       <div className="sp-hero__match">
         <HeroSide side={game.away} />
-        <div className="sp-hero__score">
+        <div
+          className="sp-hero__score"
+          aria-live={game.state === "live" ? "polite" : undefined}
+          aria-atomic={game.state === "live" ? "true" : undefined}
+        >
           <span className="n">{game.away.score ?? "–"}</span>
           <span className="dash">–</span>
           <span className="n">{game.home.score ?? "–"}</span>
@@ -225,52 +215,7 @@ function HeroSide(props: { side: GameSide }) {
   );
 }
 
-/* ---------------------------------------------------------------- Followed teams */
-
-function FollowedSection(props: { followed: readonly FollowedTeamCard[] }) {
-  return (
-    <section className="sp-sec" aria-label="Followed teams">
-      <div className="sp-sec__head">
-        <h2 className="sp-sec__title">
-          Your teams <span className="sub">{props.followed.length} followed</span>
-        </h2>
-        <a className="sp-managebtn" href={SETTINGS_HREF}>
-          Manage
-        </a>
-      </div>
-      <div className="sp-fcgrid">
-        {props.followed.map((card) => (
-          <FollowedCard key={`${card.competitionKey}:${card.teamKey}`} card={card} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// Distinct header/state for users who only follow whole leagues (no individual teams) — never
-// shown alongside FollowedSection; the two are mutually exclusive per render (#763).
-function FollowedLeaguesSection(props: { leagues: readonly FollowedLeagueRef[] }) {
-  const count = props.leagues.length;
-  return (
-    <section className="sp-sec" aria-label="Followed leagues">
-      <div className="sp-sec__head">
-        <h2 className="sp-sec__title">
-          Following <span className="sub">{`${count} league${count === 1 ? "" : "s"}`}</span>
-        </h2>
-        <a className="sp-managebtn" href={SETTINGS_HREF}>
-          Manage
-        </a>
-      </div>
-      <div className="sp-chips">
-        {props.leagues.map((league) => (
-          <span key={league.competitionKey} className="sp-chip is-on">
-            {league.competitionLabel}
-          </span>
-        ))}
-      </div>
-    </section>
-  );
-}
+/* ---------------------------------------------------------------- Followed card (Today widget) */
 
 export function FollowedCard(props: { card: FollowedTeamCard }) {
   const { card } = props;
