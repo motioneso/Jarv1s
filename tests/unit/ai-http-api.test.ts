@@ -341,3 +341,102 @@ describe("HttpApiAdapter — onActivity", () => {
     expect(events[0]!.kind).toBe("status");
   });
 });
+
+describe("HttpApiAdapter — transcribeAudio (#738)", () => {
+  it("posts multipart form data to the openai-compatible transcriptions endpoint", async () => {
+    let capturedUrl = "";
+    let capturedForm: FormData | undefined;
+    const fakeFetch = async (url: string | URL | Request, init?: RequestInit) => {
+      capturedUrl = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      capturedForm = init?.body as FormData;
+      const headers = new Headers(init?.headers);
+      expect(headers.get("authorization")).toBe("Bearer sk-test-openai");
+      return new Response(JSON.stringify({ text: "hello from whisper" }), { status: 200 });
+    };
+
+    const adapter = new HttpApiAdapter("openai-compatible", "sk-test-openai", {
+      fetch: fakeFetch as typeof fetch
+    });
+    const out = await adapter.transcribeAudio({
+      model: { provider_model_id: "whisper-1" },
+      audio: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" })
+    });
+
+    expect(capturedUrl).toBe("https://api.openai.com/v1/audio/transcriptions");
+    expect(capturedForm).toBeInstanceOf(FormData);
+    expect(capturedForm?.get("model")).toBe("whisper-1");
+    expect(capturedForm?.get("file")).toBeInstanceOf(Blob);
+    expect(out.text).toBe("hello from whisper");
+  });
+
+  it("respects a configured baseUrl (self-hosted/alternate providers, not hardcoded)", async () => {
+    let capturedUrl = "";
+    const fakeFetch = async (url: string | URL | Request) => {
+      capturedUrl = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      return new Response(JSON.stringify({ text: "ok" }), { status: 200 });
+    };
+
+    const adapter = new HttpApiAdapter("openai-compatible", "sk-test", {
+      fetch: fakeFetch as typeof fetch,
+      baseUrl: "https://self-hosted.example.test"
+    });
+    await adapter.transcribeAudio({
+      model: { provider_model_id: "parakeet-local" },
+      audio: new Blob([new Uint8Array([9])])
+    });
+
+    expect(capturedUrl).toBe("https://self-hosted.example.test/v1/audio/transcriptions");
+  });
+
+  it("rejects anthropic and google — no transcription REST surface behind this adapter", async () => {
+    const anthropicAdapter = new HttpApiAdapter("anthropic", "sk-test");
+    const googleAdapter = new HttpApiAdapter("google", "sk-test");
+
+    await expect(
+      anthropicAdapter.transcribeAudio({
+        model: { provider_model_id: "claude-3-5-sonnet-20241022" },
+        audio: new Blob([new Uint8Array([1])])
+      })
+    ).rejects.toThrow(/anthropic/);
+    await expect(
+      googleAdapter.transcribeAudio({
+        model: { provider_model_id: "gemini-2.0-flash" },
+        audio: new Blob([new Uint8Array([1])])
+      })
+    ).rejects.toThrow(/google/);
+  });
+
+  it("throws HTTP error without leaking the api key, and never echoes audio bytes", async () => {
+    const fakeFetch = async () => new Response("Unauthorized", { status: 401 });
+    const adapter = new HttpApiAdapter("openai-compatible", "sk-secret-transcription-key", {
+      fetch: fakeFetch as typeof fetch
+    });
+
+    await expect(
+      adapter.transcribeAudio({
+        model: { provider_model_id: "whisper-1" },
+        audio: new Blob([new Uint8Array([1, 2, 3])])
+      })
+    ).rejects.toThrow(/401/);
+    await expect(
+      adapter.transcribeAudio({
+        model: { provider_model_id: "whisper-1" },
+        audio: new Blob([new Uint8Array([1, 2, 3])])
+      })
+    ).rejects.not.toThrow(/sk-secret-transcription-key/);
+  });
+
+  it("throws when the provider response has no text field", async () => {
+    const fakeFetch = async () => new Response(JSON.stringify({ ok: true }), { status: 200 });
+    const adapter = new HttpApiAdapter("openai-compatible", "sk-test", {
+      fetch: fakeFetch as typeof fetch
+    });
+
+    await expect(
+      adapter.transcribeAudio({
+        model: { provider_model_id: "whisper-1" },
+        audio: new Blob([new Uint8Array([1])])
+      })
+    ).rejects.toThrow(/No text field/);
+  });
+});

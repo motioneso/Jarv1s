@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import {
   groupByPriority,
+  localDay,
   type LocaleSettingsDto,
   type TaskApiStatus,
   type TaskDto,
@@ -10,17 +11,17 @@ import {
   type TaskListDto
 } from "@jarv1s/shared";
 
-import { formatDate, todayDateKey, useUserLocale, zonedDateKey } from "../locale/locale-format.js";
+import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { effortLabels } from "./task-format.js";
 
 /** Stable per-list dot colour (lists carry no colour of their own). */
 const LIST_COLORS = [
-  "var(--pine)",
+  "var(--forest)",
   "var(--steel)",
   "var(--amber)",
   "var(--red)",
   "var(--ink-3)",
-  "var(--pine-hover)"
+  "var(--forest-hover)"
 ];
 
 /** Build a stable listId → {name, color} lookup shared by list + matrix views. */
@@ -30,7 +31,7 @@ export function listColorMap(
   return new Map(
     lists.map((list, index) => [
       list.id,
-      { name: list.name, color: LIST_COLORS[index % LIST_COLORS.length] ?? "var(--pine)" }
+      { name: list.name, color: LIST_COLORS[index % LIST_COLORS.length] ?? "var(--forest)" }
     ])
   );
 }
@@ -71,8 +72,8 @@ interface DueInfo {
     Exported for unit coverage of the per-row badge's timezone bucketing. */
 export function dueInfo(task: TaskDto, locale: LocaleSettingsDto): DueInfo | null {
   if (!task.dueAt) return null;
-  const todayKey = todayDateKey(locale.timezone);
-  const dueKey = zonedDateKey(task.dueAt, locale.timezone);
+  const todayKey = localDay(new Date(), locale.timezone);
+  const dueKey = localDay(task.dueAt, locale.timezone);
   const done = task.status === "done";
 
   if (dueKey < todayKey) {
@@ -111,6 +112,8 @@ export function TaskListView(props: {
   readonly isUpdating: boolean;
   readonly onToggleDone: (task: TaskDto) => void;
   readonly onOpen: (task: TaskDto) => void;
+  readonly onAccept?: (task: TaskDto) => void;
+  readonly onDismiss?: (task: TaskDto) => void;
 }) {
   const groups = groupByPriority(props.tasks).filter((group) => group.tasks.length > 0);
   const listMeta = listColorMap(props.lists);
@@ -140,6 +143,8 @@ export function TaskListView(props: {
                 isUpdating={props.isUpdating}
                 onToggleDone={props.onToggleDone}
                 onOpen={props.onOpen}
+                onAccept={props.onAccept}
+                onDismiss={props.onDismiss}
               />
             ))}
           </div>
@@ -165,6 +170,8 @@ export function TaskRow(props: {
   readonly compact?: boolean;
   readonly onToggleDone: (task: TaskDto) => void;
   readonly onOpen: (task: TaskDto) => void;
+  readonly onAccept?: (task: TaskDto) => void;
+  readonly onDismiss?: (task: TaskDto) => void;
 }) {
   const { task, compact = false } = props;
   const locale = useUserLocale();
@@ -173,26 +180,33 @@ export function TaskRow(props: {
   const due = dueInfo(task, locale);
   const tags = compact ? [] : (task.tags ?? []);
   const jarvis = !compact && isJarvisSource(task.source);
+  const suggested = task.status === "suggested" && Boolean(props.onAccept && props.onDismiss);
 
   return (
     <div className={`tk-task ${done ? "tk-task--done" : ""}`}>
       <span className="tk-task__bar" style={{ background: priorityColor(task.priority) }} />
       <span className="tk-task__check">
-        <label className="jds-check">
-          <input
-            type="checkbox"
-            checked={done}
-            disabled={props.isUpdating}
-            onChange={() => {
-              setOptimisticDone(!optimisticDone);
-              props.onToggleDone(task);
-            }}
-            aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
-          />
-          <span className="jds-check__box">
-            <Check size={13} aria-hidden="true" />
+        {suggested ? (
+          <span className="tk-task__src" title="Suggested by Jarvis">
+            <GitCommitHorizontal size={13} aria-hidden="true" />
           </span>
-        </label>
+        ) : (
+          <label className="jds-check">
+            <input
+              type="checkbox"
+              checked={done}
+              disabled={props.isUpdating}
+              onChange={() => {
+                setOptimisticDone(!optimisticDone);
+                props.onToggleDone(task);
+              }}
+              aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
+            />
+            <span className="jds-check__box">
+              <Check size={13} aria-hidden="true" />
+            </span>
+          </label>
+        )}
       </span>
       <button
         type="button"
@@ -243,6 +257,26 @@ export function TaskRow(props: {
         </span>
       </button>
       <div className="tk-task__right">
+        {suggested ? (
+          <>
+            <button
+              type="button"
+              className="jds-btn jds-btn--sm jds-btn--secondary"
+              disabled={props.isUpdating}
+              onClick={() => props.onAccept?.(task)}
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              className="jds-btn jds-btn--sm jds-btn--quiet"
+              disabled={props.isUpdating}
+              onClick={() => props.onDismiss?.(task)}
+            >
+              Dismiss
+            </button>
+          </>
+        ) : null}
         {!compact && task.effort ? <EffortDot effort={task.effort} /> : null}
         <button
           type="button"

@@ -10,7 +10,8 @@ import {
   type ConnectorProviderStatus,
   type ConnectorProviderType,
   type ConnectorSyncStatus,
-  type DataContextDb
+  type DataContextDb,
+  type TriageFeedbackVerdict
 } from "@jarv1s/db";
 import type { ConnectorSyncCounts } from "@jarv1s/shared";
 
@@ -60,6 +61,25 @@ export interface UpdateConnectorAccountInput {
 export interface AdminUserCheckRow {
   readonly id: string;
   readonly is_instance_admin: boolean;
+}
+
+export interface TriageFeedbackInput {
+  readonly connectorAccountId: string | null;
+  readonly actionability: string;
+  readonly sender: string;
+  readonly senderDomain: string;
+  readonly subjectPrefix: string | null;
+  readonly actionType: string | null;
+  readonly confidence: number | null;
+  readonly modelVersion: string | null;
+  readonly verdict: TriageFeedbackVerdict;
+  readonly reason: string | null;
+}
+
+export interface TriageRejectionAggregate {
+  readonly senderDomain: string;
+  readonly rejected: number;
+  readonly accepted: number;
 }
 
 export class ConnectorsRepository {
@@ -333,6 +353,79 @@ export class ConnectorsRepository {
   }
 
   /**
+   * IMAP analog of getActiveGoogleAccountSecret. Unlike Google (one fixed providerId), an
+   * actor may have several active IMAP accounts (one per preset), so this is keyed by the
+   * specific account id rather than a provider constant.
+   */
+  async getActiveImapAccountSecret(
+    scopedDb: DataContextDb,
+    accountId: string
+  ): Promise<{ id: string; encryptedSecret: EncryptedConnectorSecret } | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select(["id", "encrypted_secret"])
+      .where("id", "=", accountId)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return { id: row.id, encryptedSecret: row.encrypted_secret as EncryptedConnectorSecret };
+  }
+
+  /**
+   * Get account provider type by ID. Used by email write impl to dispatch to the correct provider.
+   */
+  async getAccountProviderType(
+    scopedDb: DataContextDb,
+    accountId: string
+  ): Promise<ConnectorProviderType | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await this.safeAccountQuery(scopedDb.db)
+      .where("accounts.id", "=", accountId)
+      .executeTakeFirst();
+    return row?.provider_type;
+  }
+
+  /**
+   * Upsert a generic-IMAP account keyed by providerId (one of the IMAP_PRESETS keys),
+   * unlike upsertGoogleAccount whose providerId is a single fixed constant — IMAP has
+   * one row per preset the actor has connected.
+   */
+  async upsertImapAccount(
+    scopedDb: DataContextDb,
+    input: { providerId: string; encryptedSecret: EncryptedConnectorSecret }
+  ): Promise<ConnectorAccountSafeRow> {
+    assertDataContextDb(scopedDb);
+    const definition = await scopedDb.db
+      .selectFrom("app.connector_definitions")
+      .select("default_scopes")
+      .where("provider_id", "=", input.providerId)
+      .executeTakeFirst();
+    const scopes = definition?.default_scopes ?? [];
+
+    const existing = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select("id")
+      .where("provider_id", "=", input.providerId)
+      .executeTakeFirst();
+    if (existing) {
+      const updated = await this.updateAccount(scopedDb, existing.id, {
+        scopes,
+        status: "active",
+        encryptedSecret: input.encryptedSecret
+      });
+      if (!updated) throw new Error("Failed to update imap account");
+      return updated;
+    }
+    return this.createAccount(scopedDb, {
+      providerId: input.providerId,
+      scopes,
+      status: "active",
+      encryptedSecret: input.encryptedSecret
+    });
+  }
+
+  /**
    * Read-only, owner-scoped check: does the active google account hold the calendar
    * write scope? Reads `accounts.scopes` (already owner-RLS-scoped). Returns false when
    * there is no active google account. Never decrypts the secret bundle.
@@ -356,6 +449,84 @@ export class ConnectorsRepository {
       accountId: row.id,
       hasScope: row.scopes.includes("https://www.googleapis.com/auth/calendar")
     };
+  }
+
+  /**
+   * Gmail-write analog of getCalendarWriteScopeState. Returns the single active Google account
+   * and whether its stored scopes include gmail.modify (the send/draft capability). Used by the
+   * email reply write-impl to gate the provider (only the active Google account can reply) and
+   * the scope (no Gmail write call without gmail.modify). Scope literal mirrors GMAIL_SCOPE.
+   */
+  async getGmailWriteScopeState(
+    scopedDb: DataContextDb
+  ): Promise<{ accountId: string; hasScope: boolean } | undefined> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.connector_accounts")
+      .select(["id", "scopes"])
+      .where("provider_id", "=", GOOGLE_PROVIDER_ID)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    if (!row) return undefined;
+    return {
+      accountId: row.id,
+      hasScope: row.scopes.includes("https://www.googleapis.com/auth/gmail.modify")
+    };
+  }
+
+  /**
+   * Record one accept/reject verdict for an email triage suggestion (#729 §6). Metadata
+   * only — never message bodies; subject_prefix is defensively capped at 120 chars here
+   * even though callers truncate first. Rows are owner-only under FORCE RLS.
+   */
+  async recordTriageFeedback(scopedDb: DataContextDb, input: TriageFeedbackInput): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.email_triage_feedback")
+      .values({
+        id: randomUUID(),
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        connector_account_id: input.connectorAccountId,
+        source: "email",
+        actionability: input.actionability,
+        sender: input.sender,
+        sender_domain: input.senderDomain,
+        subject_prefix: input.subjectPrefix === null ? null : input.subjectPrefix.slice(0, 120),
+        action_type: input.actionType,
+        confidence: input.confidence,
+        model_version: input.modelVersion,
+        verdict: input.verdict,
+        reason: input.reason,
+        created_at: new Date()
+      })
+      .execute();
+  }
+
+  /**
+   * Per-sender-domain accept/reject counts for the actor's own feedback, used by the
+   * triage learning pass to demote repeatedly rejected domains. COUNT comes back from
+   * pg as a string, hence the Number() casts.
+   */
+  async listTriageRejectionAggregates(
+    scopedDb: DataContextDb
+  ): Promise<TriageRejectionAggregate[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.email_triage_feedback")
+      .select((eb) => [
+        "sender_domain",
+        eb.fn.count<string>("id").filterWhere("verdict", "=", "rejected").as("rejected"),
+        eb.fn.count<string>("id").filterWhere("verdict", "=", "accepted").as("accepted")
+      ])
+      .groupBy("sender_domain")
+      .orderBy("sender_domain")
+      .execute();
+
+    return rows.map((row) => ({
+      senderDomain: row.sender_domain,
+      rejected: Number(row.rejected),
+      accepted: Number(row.accepted)
+    }));
   }
 
   private async requireVisibleAccount(

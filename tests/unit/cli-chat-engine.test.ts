@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CliChatEngineImpl,
@@ -49,6 +49,7 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).not.toContain('--tools ""');
     // §6.2: the launch line carries the mcp-config FILE PATH, never the token/JSON.
     expect(launchLine).toContain(".jarvis-claude-mcp.json");
+    expect(launchLine).toContain("--settings '/tmp/neutral/.jarvis-claude-settings.json'");
     expect(launchLine).not.toContain("jst_abc");
     expect(launchLine).not.toContain("Bearer");
     expect(launchLine).not.toContain("Authorization");
@@ -65,6 +66,17 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(mcpWrite).toBeDefined();
     expect(mcpWrite![1]).toContain("jst_abc");
     expect(io.run).toHaveBeenCalledWith("chmod", ["600", "/tmp/neutral/.jarvis-claude-mcp.json"]);
+    const permissionTokenWrite = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => String(c[0]).endsWith(".jarvis-claude-permission-token")
+    );
+    expect(permissionTokenWrite).toEqual([
+      "/tmp/neutral/.jarvis-claude-permission-token",
+      "jst_abc\n"
+    ]);
+    expect(io.run).toHaveBeenCalledWith("chmod", [
+      "600",
+      "/tmp/neutral/.jarvis-claude-permission-token"
+    ]);
   });
 
   it("removes the entire per-session neutral dir on kill (§6.5)", async () => {
@@ -180,6 +192,143 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).not.toContain("web_search");
     expect(launchLine).not.toContain("browser");
     expect(launchLine).not.toContain("browse");
+  });
+});
+
+describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
+  const ROOTS_VAR = "JARVIS_NOTES_ROOTS";
+  const originalRoots = process.env[ROOTS_VAR];
+
+  afterEach(() => {
+    if (originalRoots === undefined) delete process.env[ROOTS_VAR];
+    else process.env[ROOTS_VAR] = originalRoots;
+  });
+
+  it("ALLOW: pre-approves Read/Glob/Grep scoped to the configured vault mount", async () => {
+    process.env[ROOTS_VAR] = "/data/external-notes";
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "vault-allow-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).toContain("Read(/data/external-notes/**)");
+    expect(launchLine).toContain("Glob(/data/external-notes/**)");
+    expect(launchLine).toContain("Grep(/data/external-notes/**)");
+    expect(launchLine).toContain("mcp__jarvis__*");
+  });
+
+  it("DENY: a path outside the configured vault root is never allowlisted", async () => {
+    process.env[ROOTS_VAR] = "/data/external-notes";
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "vault-scope-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    // No blanket grant — only the configured root is scoped in, e.g. not "/etc" or "/" or home.
+    expect(launchLine).not.toContain("Read(/**)");
+    expect(launchLine).not.toContain("Read(/etc");
+    expect(launchLine).not.toContain("Read(~");
+  });
+
+  it("DENY: no vault patterns are granted when no vault is mounted (no roots configured)", async () => {
+    delete process.env[ROOTS_VAR];
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "no-vault-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toContain("Read(");
+    expect(launchLine).not.toContain("Glob(");
+    expect(launchLine).not.toContain("Grep(");
+    expect(launchLine).toContain("mcp__jarvis__*");
+  });
+
+  it("DENY: never grants write or execute tools, even with a vault configured", async () => {
+    process.env[ROOTS_VAR] = "/data/external-notes";
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "vault-no-write-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toContain("Write(");
+    expect(launchLine).not.toContain("Edit(");
+    expect(launchLine).not.toContain("Bash(");
+    expect(launchLine).not.toMatch(/\bWrite\b/);
+    expect(launchLine).not.toMatch(/\bEdit\b/);
+    expect(launchLine).not.toMatch(/\bBash\b/);
+  });
+
+  it("DENY: a malicious root cannot smuggle a separate Bash(* tool grant (security fix)", async () => {
+    process.env[ROOTS_VAR] = "/vault) Bash(*";
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "vault-injection-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toMatch(/\bBash\b/);
+    expect(launchLine).not.toContain("Read(/vault)");
+    expect(launchLine).toContain("mcp__jarvis__*");
+  });
+
+  it("DENY: a root containing '..' cannot escape the vault directory", async () => {
+    process.env[ROOTS_VAR] = "/data/external-notes/..";
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "vault-traversal-session", io);
+    await engine.launch({
+      neutralDir: "/tmp/neutral",
+      personaPath: "/tmp/persona.txt",
+      mcpToken: "jst_abc",
+      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
+    });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    expect(launchLine).not.toContain("Read(");
+    expect(launchLine).not.toContain("Glob(");
+    expect(launchLine).not.toContain("Grep(");
+    expect(launchLine).toContain("mcp__jarvis__*");
   });
 });
 
@@ -600,6 +749,7 @@ describe("CliChatEngineImpl — failure-path token redaction", () => {
       submit: vi.fn(),
       isAlive: vi.fn().mockResolvedValue(false),
       kill: vi.fn(),
+      interrupt: vi.fn(),
       attachCommand: () => ""
     };
   }

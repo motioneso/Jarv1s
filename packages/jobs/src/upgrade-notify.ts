@@ -1,5 +1,6 @@
 import type { DataContextDb } from "@jarv1s/db";
 import { NotificationsRepository } from "@jarv1s/notifications";
+import { SETTINGS_MODULE_ID } from "@jarv1s/settings";
 import type { Job, PgBoss } from "./pg-boss.js";
 import { UPGRADE_NOTIFY_QUEUE, registerDataContextWorker } from "./pg-boss.js";
 import type { DataContextRunner } from "@jarv1s/db";
@@ -28,6 +29,7 @@ export async function handleUpgradeNotifyJob(
 
   try {
     await repository.create(scopedDb, {
+      moduleId: SETTINGS_MODULE_ID,
       title: `Jarvis ${job.data.version} is available`,
       body: "A newer version of Jarvis is available. View the release notes and upgrade from Settings -> Diagnostics.",
       urgency: "normal",

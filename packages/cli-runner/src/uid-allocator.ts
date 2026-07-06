@@ -19,7 +19,7 @@ const MAX_SLOTS = 1_000;
 
 const SLOT_FILE = "uid-slots.json";
 
-export interface UidSlot {
+interface UidSlot {
   uid: number;
   gid: number;
 }

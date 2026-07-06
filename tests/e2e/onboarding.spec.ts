@@ -146,3 +146,47 @@ test("a status-endpoint error falls through to the app shell", async ({ page }) 
     page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
   ).not.toBeVisible();
 });
+
+test("onboarding offers IMAP providers while Microsoft remains soon", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+
+  for (const provider of ["Yahoo Mail", "Proton Mail", "iCloud", "Fastmail"]) {
+    await expect(
+      page.getByRole("button", { name: new RegExp(`Connect ${provider}`, "i") })
+    ).toBeVisible();
+  }
+
+  await expect(page.getByText("Outlook").locator("..").getByText("Soon")).toBeVisible();
+  await expect(page.getByText("Microsoft 365").locator("..").getByText("Soon")).toBeVisible();
+
+  await page.getByRole("button", { name: /Connect Proton Mail/i }).click();
+  await expect(
+    page.getByText(/Requires a paid Proton plan with Proton Mail Bridge installed and running/i)
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Passwords are encrypted at rest and never shown in logs or briefings/i)
+  ).toBeVisible();
+});

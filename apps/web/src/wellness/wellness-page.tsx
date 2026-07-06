@@ -4,6 +4,7 @@ import "../styles/wellness-3.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import {
+  localDay,
   moodIndex,
   moodBand,
   type CheckinDto,
@@ -27,7 +28,6 @@ import { CheckinModal, type CheckinFormValue } from "./checkin-modal";
 import { ManageMedsModal } from "./manage-meds-modal";
 import { WellnessExportModal } from "./export-modal";
 import { computeStreak } from "./wellness-date-utils";
-import { todayDateKey } from "../locale/locale-format";
 
 function useTheme(): "light" | "dark" {
   return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
@@ -109,11 +109,11 @@ export function WellnessPage() {
   });
 
   // Hero stats
-  const today = todayDateKey(localTimezone);
+  const today = localDay(new Date(), localTimezone);
 
   const last14 = checkins
     .filter((c) => {
-      const d = (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10);
+      const d = localDay(c.checkedInAt ?? c.createdAt ?? "", localTimezone);
       return d && d < today;
     })
     .slice(0, 14);
@@ -152,7 +152,7 @@ export function WellnessPage() {
 
   const openTodayEdit = () => {
     const todayCks = checkins
-      .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === today)
+      .filter((c) => localDay(c.checkedInAt ?? c.createdAt ?? "", localTimezone) === today)
       .sort((a, b) => {
         const da = a.checkedInAt ?? a.createdAt ?? "";
         const db = b.checkedInAt ?? b.createdAt ?? "";
@@ -241,6 +241,7 @@ export function WellnessPage() {
             else openFresh();
           }}
           onModalEdit={openTodayEdit}
+          timeZone={localTimezone}
         />
       </section>
 

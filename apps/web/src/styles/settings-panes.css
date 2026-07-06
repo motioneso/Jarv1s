@@ -49,7 +49,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .ai-src__main {
@@ -114,8 +114,8 @@
 }
 .provpick__item:hover {
   border-color: var(--accent);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .provpick__dot {
   width: 8px;
@@ -154,7 +154,7 @@
   color: var(--text-subtle);
 }
 .adv-locked__t {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 19px;
   color: var(--text);
   margin-top: 14px;
@@ -227,6 +227,19 @@
   font-size: 11px;
   color: var(--text-faint);
   margin-top: 4px;
+}
+.acct__alert {
+  display: inline-flex;
+  max-width: 520px;
+  margin-top: 8px;
+  border: 1px solid var(--amber-soft-2);
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+  padding: 7px 9px;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.35;
 }
 .acct__features {
   display: grid;
@@ -380,7 +393,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent-fg);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   border-radius: var(--radius-pill);
   padding: 2px 6px;
 }
@@ -664,7 +677,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .provcfg__cli {
@@ -777,7 +790,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .vault__main {

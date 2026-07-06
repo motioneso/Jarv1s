@@ -12,15 +12,20 @@ import type {
   PreferencesPort
 } from "@jarv1s/db";
 import {
+  CHAT_SETTINGS_PREFERENCE_KEY,
+  getChatSettingsRouteSchema,
   listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
+  normalizeChatSettings,
+  putChatSettingsRouteSchema,
   type AnswerSourceSupportCard,
   type ChatActivityEventDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
   type ChatThreadDto,
   type FreshnessKind,
+  type PutChatSettingsRequest,
   type SourceFreshnessEntry,
   type SourceFreshnessV1
 } from "@jarv1s/shared";
@@ -35,12 +40,15 @@ import {
   type SessionNotifier
 } from "@jarv1s/ai";
 import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
-import { getConnectorSyncAt } from "@jarv1s/connectors";
+import { EmailRepository } from "@jarv1s/email";
+import { PreferencesRepository } from "@jarv1s/structured-state";
+import { getConnectorSyncAt, type ConnectorSecretCipher } from "@jarv1s/connectors";
 import type {
   ConnectorsRepository,
   FeatureGrantService,
   GoogleApiClient,
-  GoogleConnectionService
+  GoogleConnectionService,
+  SourceContextService
 } from "@jarv1s/connectors";
 import { sendJob } from "@jarv1s/jobs";
 import {
@@ -63,6 +71,7 @@ const YOLO_ALLOWED_PREF_KEY = "yolo.allowed";
 const YOLO_ENABLED_PREF_KEY = "yolo.enabled";
 
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
+import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
@@ -78,7 +87,7 @@ import {
   type UserMemorySettings
 } from "./memory-settings-repository.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
-import { registerMcpTransportRoute } from "./mcp-transport.js";
+import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
 
 const STALE_ACTION_GRACE_MS = 5 * 60_000;
@@ -96,14 +105,19 @@ export interface ChatRoutesDependencies {
   readonly boss?: PgBoss;
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
+  readonly chatPreferences?: PreferencesPort;
   readonly localePreferences?: PreferencesPort;
   readonly agencyPreferences?: PreferencesPort;
+  /** Priority preferences port — forwarded to the chat runtime for cross-tool context ranking (#721). */
+  readonly priorityPreferences?: PreferencesPort;
   /** Connector collaborators for the calendar focus-time write tool (composition host). */
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
   readonly connectorsRepository?: ConnectorsRepository;
   /** Injected by the composition root; gates email/calendar read tools to accounts with active grants. */
   readonly featureGrantService?: FeatureGrantService;
+  /** Injected by the composition root; live-first email/calendar reads for the read tools (#729). */
+  readonly sourceContextService?: SourceContextService;
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
@@ -140,6 +154,7 @@ export function registerChatRoutes(
   dependencies: ChatRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new ChatRepository();
+  const chatSettingsRepo = new PreferencesRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();
   const suppressionsRepo = new ChatMemorySuppressionsRepository();
@@ -175,7 +190,8 @@ export function registerChatRoutes(
                 googleApiClient: dependencies.googleApiClient,
                 connectorsRepository: dependencies.connectorsRepository,
                 boss: dependencies.boss,
-                featureGrantService: dependencies.featureGrantService
+                featureGrantService: dependencies.featureGrantService,
+                sourceContextService: dependencies.sourceContextService
               },
               agencyPreferences: dependencies.agencyPreferences,
               localePreferences: dependencies.localePreferences
@@ -201,7 +217,9 @@ export function registerChatRoutes(
       : undefined,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
+    chatPreferences: dependencies.chatPreferences,
     localePreferences: dependencies.localePreferences,
+    priorityPreferences: dependencies.priorityPreferences,
     mcpTokenLifecycle: wiring
       ? {
           mint: async (actorUserId: string) => {
@@ -267,6 +285,7 @@ export function registerChatRoutes(
 
   if (wiring) {
     registerMcpTransportRoute(server, { gateway: wiring.gateway, tokens: wiring.tokens });
+    registerNativePermissionRoute(server, { gateway: wiring.gateway, tokens: wiring.tokens });
 
     server.post<{ Params: { id: string }; Body: { status: string } }>(
       "/api/chat/action-requests/:id/resolve",
@@ -337,6 +356,42 @@ export function registerChatRoutes(
         );
         if (!messages) return reply.code(404).send({ error: "Chat thread not found" });
         return { messages: messages.map(serializeMessage) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // ── Chat settings ──────────────────────────────────────────────────────────
+
+  server.get(
+    "/api/chat/settings",
+    { schema: getChatSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const raw = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          chatSettingsRepo.get(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY)
+        );
+        return { chat: normalizeChatSettings(raw) };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.put(
+    "/api/chat/settings",
+    { schema: putChatSettingsRouteSchema },
+    async (request, reply) => {
+      try {
+        const access = await dependencies.resolveAccessContext(request);
+        const body = request.body as PutChatSettingsRequest;
+        const chat = normalizeChatSettings(body.chat);
+        await dependencies.dataContext.withDataContext(access, (scopedDb) =>
+          chatSettingsRepo.upsert(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY, chat)
+        );
+        return { chat };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -543,6 +598,7 @@ export function buildChatToolServices(deps: {
   googleConnectionService?: GoogleConnectionService;
   googleApiClient?: GoogleApiClient;
   connectorsRepository?: ConnectorsRepository;
+  cipher?: ConnectorSecretCipher;
   boss?: PgBoss;
   featureGrantService?: FeatureGrantService;
 }): Record<string, unknown> {
@@ -557,6 +613,14 @@ export function buildChatToolServices(deps: {
         ? (eventId, actorUserId) =>
             sendCalendarCacheEvictJob(deps.boss!, { targetItemId: eventId, actorUserId })
         : undefined
+    });
+    services.emailWrite = buildEmailWriteService({
+      emailRepository: new EmailRepository(),
+      connectorsRepository: deps.connectorsRepository,
+      googleService: deps.googleConnectionService,
+      googleApiClient: deps.googleApiClient,
+      cipher: deps.cipher!,
+      preferencesRepository: new PreferencesRepository()
     });
   }
   if (deps.boss) {
@@ -595,6 +659,7 @@ export function buildChatGatewayDependencies(args: {
     connectorsRepository?: ConnectorsRepository;
     boss?: PgBoss;
     featureGrantService?: FeatureGrantService;
+    sourceContextService?: SourceContextService;
   };
 }): AssistantToolGatewayDependencies {
   return {
@@ -642,9 +707,17 @@ export function buildChatGatewayDependencies(args: {
         }
       ),
     toolServices: buildChatToolServices(args.collaborators),
-    readToolServices: args.collaborators.featureGrantService
-      ? { featureGrants: args.collaborators.featureGrantService }
-      : undefined,
+    readToolServices:
+      args.collaborators.featureGrantService || args.collaborators.sourceContextService
+        ? {
+            ...(args.collaborators.featureGrantService
+              ? { featureGrants: args.collaborators.featureGrantService }
+              : {}),
+            ...(args.collaborators.sourceContextService
+              ? { sourceContext: args.collaborators.sourceContextService }
+              : {})
+          }
+        : undefined,
     resolveLocalTimezone: args.localePreferences
       ? (actorUserId) =>
           args.runner.withDataContext(

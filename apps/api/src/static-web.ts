@@ -3,6 +3,8 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import { MODULE_IMAGE_CSP_HOSTS } from "@jarv1s/module-registry";
+
 export interface StaticWebOptions {
   readonly distDir?: string;
 }
@@ -26,10 +28,22 @@ const MIME: Record<string, string> = {
   ".woff2": "font/woff2"
 };
 
-const SPA_CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data:; font-src 'self' data:; worker-src 'self'; connect-src 'self'; " +
-  "frame-ancestors 'none'; base-uri 'self'";
+// LOADER-SEAM(sports): img-src extends to the hosts the composed SportsSource declares.
+// infra/nginx/jarv1s-web.conf must carry the same img-src (pinned by
+// tests/unit/static-web-csp.test.ts).
+const IMG_SRC = ["'self'", "data:", ...MODULE_IMAGE_CSP_HOSTS.map((h) => `https://${h}`)].join(" ");
+
+export const SPA_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  `img-src ${IMG_SRC}`,
+  "font-src 'self' data:",
+  "worker-src 'self'",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'"
+].join("; ");
 
 export function defaultWebDistDir(): string {
   return process.env.JARVIS_WEB_DIST_DIR ?? resolve(process.cwd(), "apps/web/dist");

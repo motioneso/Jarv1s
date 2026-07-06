@@ -12,6 +12,7 @@
  * transformers wrapper are kept EXTERNAL — they must be required from the pruned
  * production node_modules at runtime, never inlined (Open Risk #3/#6).
  */
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -83,7 +84,13 @@ async function buildTarget(target: Target): Promise<void> {
     },
     logLevel: "info"
   });
-  console.log(`built ${outfile}`);
+  // Parse-check the produced bundle (QA on PR #816): esbuild can emit invalid JS
+  // when a package cycle forces top-level-await propagation through its lazy
+  // __esm init wrappers (`await init_*()` inside a non-async function — the #357
+  // bundled-artifact trap class). `node --check` fails the build here instead of
+  // shipping a bundle that dies at boot inside the Docker prod smoke.
+  execFileSync(process.execPath, ["--check", resolve(root, outfile)], { stdio: "inherit" });
+  console.log(`built ${outfile} (parse-checked)`);
 }
 
 async function main(): Promise<void> {

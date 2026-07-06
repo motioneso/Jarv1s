@@ -52,6 +52,11 @@ export default defineConfig({
         )
       },
       {
+        // Subpath export (#802); must precede the bare "@jarv1s/chat" alias below.
+        find: "@jarv1s/chat/live",
+        replacement: fileURLToPath(new URL("./packages/chat/src/live/public.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/chat",
         replacement: fileURLToPath(new URL("./packages/chat/src/index.ts", import.meta.url))
       },
@@ -100,6 +105,12 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/commitments/src/index.ts", import.meta.url))
       },
       {
+        find: "@jarv1s/connectors/presets",
+        replacement: fileURLToPath(
+          new URL("./packages/connectors/src/imap-presets.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/connectors",
         replacement: fileURLToPath(new URL("./packages/connectors/src/index.ts", import.meta.url))
       },
@@ -119,6 +130,13 @@ export default defineConfig({
         find: "@jarv1s/module-registry",
         replacement: fileURLToPath(
           new URL("./packages/module-registry/src/index.ts", import.meta.url)
+        )
+      },
+      {
+        // Subpath export; must precede the bare "@jarv1s/module-sdk" alias.
+        find: "@jarv1s/module-sdk/core-version",
+        replacement: fileURLToPath(
+          new URL("./packages/module-sdk/src/core-version.ts", import.meta.url)
         )
       },
       {
@@ -160,6 +178,10 @@ export default defineConfig({
       {
         find: "@jarv1s/shared",
         replacement: fileURLToPath(new URL("./packages/shared/src/index.ts", import.meta.url))
+      },
+      {
+        find: "@jarv1s/sports",
+        replacement: fileURLToPath(new URL("./packages/sports/src/index.ts", import.meta.url))
       },
       {
         find: "@jarv1s/source-behaviors",

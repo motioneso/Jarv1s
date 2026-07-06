@@ -17,11 +17,13 @@ import {
 import {
   aggregateFocusSignals,
   createActiveModulesResolver,
+  createNotificationPreferencePort,
   focusSignalProvidersFor,
   getAllQueueDefinitions,
   getBuiltInModuleManifests,
   registerBuiltInModuleWorkers
 } from "@jarv1s/module-registry";
+import { NotificationsRepository } from "@jarv1s/notifications";
 
 // ---------------------------------------------------------------------------
 // Bounded graceful-shutdown timeout (ms). On SIGINT/SIGTERM the worker waits
@@ -31,16 +33,19 @@ import {
 const GRACEFUL_STOP_TIMEOUT_MS = 10_000;
 
 // ---------------------------------------------------------------------------
-// One-cron-owner invariant (F14)
+// One-background-engine-owner invariant (F14, #650)
 //
-// pg-boss's per-definition cron engine must run in EXACTLY ONE process. The
-// worker is that process: it constructs its boss with `{ schedule: true }`.
-// The API process (apps/api/src/server.ts) passes no override, so it keeps the
-// shared `createPgBossClient` default (`schedule: false`) and never starts a
-// second cron engine. Exported so the one-cron-owner invariant is unit-testable
-// at the worker call site (tests/unit/worker-schedule-mode.test.ts).
+// pg-boss's per-definition cron engine and active-job supervisor must run in
+// EXACTLY ONE process. The worker is that process: it constructs its boss with
+// `{ schedule: true, supervise: true }`. The API process (apps/api/src/server.ts)
+// passes no override, so it keeps the shared `createPgBossClient` defaults and
+// never starts a second background engine. Exported so this invariant is
+// unit-testable at the worker call site (tests/unit/worker-schedule-mode.test.ts).
 // ---------------------------------------------------------------------------
-export const WORKER_BOSS_OPTIONS: Partial<ConstructorOptions> = { schedule: true };
+export const WORKER_BOSS_OPTIONS: Partial<ConstructorOptions> = {
+  schedule: true,
+  supervise: true
+};
 
 /**
  * Emit a single structured startup line making the cron owner observable in logs.
@@ -85,11 +90,11 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   });
   const dataContext = new DataContextRunner(workerDb);
   const repository = new RlsProbeRepository();
-  // The worker is the SOLE pg-boss cron owner (F14): enable `schedule: true` here
-  // and ONLY here, so scheduled jobs (recurrence materialization, scheduled briefings)
-  // fire in exactly one place. The API process (apps/api/src/server.ts) keeps the
-  // shared `createPgBossClient` default (schedule:false). WORKER_BOSS_OPTIONS +
-  // logScheduleMode make the one-cron-owner invariant unit-testable + observable.
+  // The worker is the SOLE pg-boss cron + supervisor owner (F14, #650): enable
+  // schedule and supervise here and ONLY here, so scheduled jobs fire once and
+  // expired active jobs are reaped by one long-running process. The API process
+  // keeps the shared `createPgBossClient` defaults. WORKER_BOSS_OPTIONS +
+  // logScheduleMode make the ownership invariant unit-testable + observable.
   const boss = createPgBossClient(connectionString, WORKER_BOSS_OPTIONS);
   const resolveActiveModules = createActiveModulesResolver({
     dataContext,
@@ -142,7 +147,10 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   await boss.work(UPGRADE_CHECK_QUEUE, async () => {
     await handleUpgradeCheckJob(workerDb, boss);
   });
-  await registerUpgradeNotifyWorker(boss, dataContext, { logger: workerLogger });
+  await registerUpgradeNotifyWorker(boss, dataContext, {
+    logger: workerLogger,
+    repository: new NotificationsRepository(undefined, createNotificationPreferencePort())
+  });
 
   await registerBuiltInModuleWorkers(boss, {
     rootDb: workerDb,

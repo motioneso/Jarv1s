@@ -528,6 +528,147 @@ describe("PATCH /api/wellness/checkins/:id — energy triggers recall refresh (R
   });
 });
 
+describe("Wellness AI consent gates the energy-trend chat-memory fact (#769)", () => {
+  const consentOffUser = "00000000-0000-4000-8000-000000000054";
+  const consentRevokeUser = "00000000-0000-4000-8000-000000000055";
+
+  beforeAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'well-consent-off@example.test', false),
+                ($2, 'well-consent-revoke@example.test', false)
+         ON CONFLICT (id) DO NOTHING`,
+        [consentOffUser, consentRevokeUser]
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("POST /checkins does not write the energy-trend fact when consent is explicitly OFF", async () => {
+    await dataContext.withDataContext(ctx(consentOffUser), (db) =>
+      new PreferencesRepository().upsert(db, "wellness.ai_consent_granted", false)
+    );
+
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({
+        actorUserId: consentOffUser,
+        requestId: "req:consent-off-create"
+      }),
+      dataContext,
+      resolveActiveModules: async () => [{ id: "wellness" }]
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "sad", intensity: 2, energy: 2 }
+      });
+      expect(res.statusCode).toBe(201);
+
+      const facts = new ChatMemoryFactsRepository();
+      const active = await dataContext.withDataContext(ctx(consentOffUser), (db) =>
+        facts.listActiveFacts(db, consentOffUser)
+      );
+      expect(active.some((f) => f.content.includes("[wellness:energy-trend]"))).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("PATCH /checkins/:id does not write the energy-trend fact when consent is explicitly OFF", async () => {
+    await dataContext.withDataContext(ctx(consentOffUser), (db) =>
+      new PreferencesRepository().upsert(db, "wellness.ai_consent_granted", false)
+    );
+    const repo = new WellnessRepository();
+    let checkinId = "";
+    await dataContext.withDataContext(ctx(consentOffUser), async (db) => {
+      const c = await repo.createCheckin(db, { feelingCore: "sad", energy: 2 });
+      checkinId = c.id;
+    });
+
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({
+        actorUserId: consentOffUser,
+        requestId: "req:consent-off-patch"
+      }),
+      dataContext,
+      resolveActiveModules: async () => [{ id: "wellness" }]
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/wellness/checkins/${checkinId}`,
+        payload: { feelingCore: "sad", energy: 4 }
+      });
+      expect(res.statusCode).toBe(200);
+
+      const facts = new ChatMemoryFactsRepository();
+      const active = await dataContext.withDataContext(ctx(consentOffUser), (db) =>
+        facts.listActiveFacts(db, consentOffUser)
+      );
+      expect(active.some((f) => f.content.includes("[wellness:energy-trend]"))).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("PUT /ai-consent with granted:false supersedes an already-written energy-trend fact immediately", async () => {
+    // Start with explicit consent ON so the check-in path writes a fact.
+    await dataContext.withDataContext(ctx(consentRevokeUser), (db) =>
+      new PreferencesRepository().upsert(db, "wellness.ai_consent_granted", true)
+    );
+
+    const app = Fastify();
+    registerWellnessRoutes(app, {
+      resolveAccessContext: async () => ({
+        actorUserId: consentRevokeUser,
+        requestId: "req:consent-revoke"
+      }),
+      dataContext,
+      resolveActiveModules: async () => [{ id: "wellness" }]
+    });
+    await app.ready();
+    try {
+      const create = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "happy", intensity: 4, energy: 5 }
+      });
+      expect(create.statusCode).toBe(201);
+
+      const facts = new ChatMemoryFactsRepository();
+      const afterCreate = await dataContext.withDataContext(ctx(consentRevokeUser), (db) =>
+        facts.listActiveFacts(db, consentRevokeUser)
+      );
+      expect(afterCreate.some((f) => f.content.includes("[wellness:energy-trend]"))).toBe(true);
+
+      // Revoke consent via the settings endpoint — must supersede the fact right away, not
+      // wait for the next check-in (#769 core requirement).
+      const put = await app.inject({
+        method: "PUT",
+        url: "/api/wellness/ai-consent",
+        payload: { granted: false }
+      });
+      expect(put.statusCode).toBe(200);
+
+      const afterRevoke = await dataContext.withDataContext(ctx(consentRevokeUser), (db) =>
+        facts.listActiveFacts(db, consentRevokeUser)
+      );
+      expect(afterRevoke.some((f) => f.content.includes("[wellness:energy-trend]"))).toBe(false);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe("GET /api/wellness/medications/logs — adherence summary", () => {
   it("returns per-day summary without dose/prnReason fields", async () => {
     const app = Fastify();

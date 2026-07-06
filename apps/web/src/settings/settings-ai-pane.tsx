@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, CornerDownRight, PencilLine, Sparkles } from "lucide-react";
+import { Check, CornerDownRight, PencilLine, GitCommitHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -100,7 +100,7 @@ function Persona({ who }: { readonly who: string }) {
       setSaved(next);
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings.persona });
       toast("Persona saved. Your next briefing and replies will use this voice.", {
-        icon: <Sparkles size={17} />
+        icon: <GitCommitHorizontal size={17} />
       });
     },
     onError: (error) => {
@@ -131,7 +131,7 @@ function Persona({ who }: { readonly who: string }) {
   return (
     <Group
       title="Persona"
-      desc="How Jarvis sounds and carries itself. This is fed into every briefing and reply; the preview shows the effect."
+      desc="How Jarvis sounds and carries itself — write it yourself, or set it with the dials below. The preview shows the effect."
     >
       <Field
         label="Assistant name"
@@ -186,10 +186,18 @@ function Persona({ who }: { readonly who: string }) {
         options={["Encouraging", "Matter-of-fact", "Firm"]}
         onChange={(v) => set("recovery", v as RecoveryDial)}
       />
+      <Field
+        label="Apply dials"
+        hint="Overwrites the text above with a description built from these dials."
+      >
+        <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={applySeed}>
+          Use dials for text
+        </button>
+      </Field>
 
       <div className="ppv">
         <div className="ppv__hd">
-          <Sparkles size={13} aria-hidden="true" />
+          <GitCommitHorizontal size={13} aria-hidden="true" />
           How {p.assistantName || "Jarvis"} would sound
         </div>
         <div className="ppv__bubble ppv__bubble--main">
@@ -218,9 +226,6 @@ function Persona({ who }: { readonly who: string }) {
           {dirty ? "Unsaved changes" : "Saved. This is Jarvis's current voice."}
         </span>
         <span className="psona-save__acts">
-          <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={applySeed}>
-            Use dials
-          </button>
           <button
             type="button"
             className="jds-btn jds-btn--quiet jds-btn--sm"
@@ -265,7 +270,7 @@ function ChatModel() {
         ? result.settings.selectedModel
         : result.settings.defaultModel;
       toast(`Chat now uses ${model?.displayName ?? "the instance default"}`, {
-        icon: <Sparkles size={17} />
+        icon: <GitCommitHorizontal size={17} />
       });
     },
     onError: (error) => {
@@ -313,17 +318,10 @@ function ChatModel() {
               </Select>
             </Field>
           ) : (
-            <Field
-              label="Powering your chat"
-              hint="Your admin has locked chat to the instance default."
-            >
-              <input
-                className="jds-input"
-                value={`${defaultModel.providerDisplayName} · ${defaultModel.providerModelId}`}
-                readOnly
-                aria-label="Chat model"
-              />
-            </Field>
+            <Row
+              name="Powering your chat"
+              desc={`${defaultModel.providerDisplayName} · ${defaultModel.providerModelId} — locked to the instance default by your admin.`}
+            />
           )}
           <Note>
             Providers, credentials and which model handles each kind of work live in{" "}
@@ -333,7 +331,7 @@ function ChatModel() {
       ) : (
         <div className="ai-empty">
           <div className="ai-empty__ic">
-            <Sparkles size={20} aria-hidden="true" />
+            <GitCommitHorizontal size={20} aria-hidden="true" />
           </div>
           <div className="ai-empty__main">
             <div className="ai-empty__t">No assistant configured yet</div>

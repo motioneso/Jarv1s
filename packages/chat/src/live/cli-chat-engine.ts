@@ -40,7 +40,9 @@ import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
+import { writeClaudePermissionHook } from "./claude-permission-hook.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
 // Re-export the login MUX-session helpers (extracted to ./login-mux-sessions.ts to keep this file
 // under the 1000-line cap) so existing `from "./cli-chat-engine.js"` import sites are unchanged.
@@ -52,13 +54,10 @@ export {
   type LoginMuxSessionAge
 } from "./login-mux-sessions.js";
 
-/** Session name prefix used for all Jarv1s live sessions (the multiplexer `name` hint). */
 export const SESSION_PREFIX = "jarv1s-live-";
 
-/** The persona filename written under the per-session neutral dir (`0600`). */
 const PERSONA_FILENAME = "persona.md";
 
-/** Claude's MCP-config file (the FULL --mcp-config JSON incl. the bearer); `0600` (§6.2/§6.5). */
 const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
 
 export interface CliChatEngineOpts {
@@ -328,6 +327,10 @@ export class CliChatEngineImpl implements CliChatEngine {
     return this.mux.isAlive(this.handle);
   }
 
+  async interrupt(): Promise<void> {
+    if (this.handle !== null) await this.mux.interrupt(this.handle);
+  }
+
   async kill(): Promise<void> {
     try {
       if (this.handle !== null) {
@@ -481,8 +484,15 @@ export class CliChatEngineImpl implements CliChatEngine {
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
+      const settingsPath = await writeClaudePermissionHook(this.io, {
+        neutralDir: opts.neutralDir,
+        mcpToken: opts.mcpToken,
+        mcpServerUrl: opts.mcpServerUrl
+      });
       parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
-      parts.push('--allowedTools "mcp__jarvis__*"');
+      parts.push(`--settings ${shellQuote(settingsPath)}`);
+      const allowedTools = ["mcp__jarvis__*", ...vaultReadOnlyToolPatterns()].join(" ");
+      parts.push(`--allowedTools ${shellQuote(allowedTools)}`);
     } else {
       parts.push('--tools ""');
     }

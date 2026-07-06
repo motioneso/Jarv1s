@@ -159,9 +159,9 @@ export interface RlsProbeItemsTable {
   created_at: TimestampColumn;
 }
 
-export type TaskStatus = "todo" | "done" | "archived";
+export type TaskStatus = "todo" | "suggested" | "done" | "archived";
 export type ShareLevel = "view" | "contribute" | "manage";
-export type ConnectorProviderType = "calendar" | "email" | "google";
+export type ConnectorProviderType = "calendar" | "email" | "google" | "imap";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type ConnectorSyncStatus = "success" | "partial" | "failed";
@@ -241,6 +241,7 @@ export interface TaskPreferencesTable {
 
 export interface NotificationsTable {
   id: string;
+  module_id: string | null;
   actor_user_id: string | null;
   recipient_user_id: string | null;
   title: string;
@@ -329,6 +330,27 @@ export interface EmailMessagesTable {
   signals: JsonColumn;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
+}
+
+export type TriageFeedbackVerdict = "accepted" | "rejected";
+
+// app.email_triage_feedback (#729 §6): accept/reject learning signals for email triage
+// suggestions. Owner-only under FORCE RLS; no email bodies — subject_prefix is writer-capped.
+export interface EmailTriageFeedbackTable {
+  id: string;
+  owner_user_id: string;
+  connector_account_id: string | null;
+  source: string;
+  actionability: string;
+  sender: string;
+  sender_domain: string;
+  subject_prefix: string | null;
+  action_type: string | null;
+  confidence: number | null;
+  model_version: string | null;
+  verdict: TriageFeedbackVerdict;
+  reason: string | null;
+  created_at: TimestampColumn;
 }
 
 export type AiAuthMethod = "cli" | "api_key";
@@ -593,6 +615,12 @@ export interface WellnessCheckinsTable {
     "wheel" | "assisted" | undefined,
     "wheel" | "assisted"
   >;
+  // `local_date` (YYYY-MM-DD) + `timezone_offset` (minutes east of UTC) are the #326/#771
+  // day-boundary remediation columns: the caller's calendar day at check-in time, derived via
+  // `resolveRouteTimeZone` on write. `local_date` is nullable only for rows that predate the
+  // write-path fix; going forward every insert supplies both.
+  local_date: string | null;
+  timezone_offset: ColumnType<number, number | undefined, number>;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
@@ -847,6 +875,14 @@ import type {
   PersonContextIndexingStateTable
 } from "./people-types.js";
 
+export interface SportsFollowsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  competition_key: string;
+  team_key: string | null;
+  created_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -874,6 +910,7 @@ export interface JarvisDatabase {
   "app.connector_oauth_pending": ConnectorOauthPendingTable;
   "app.calendar_events": CalendarEventsTable;
   "app.email_messages": EmailMessagesTable;
+  "app.email_triage_feedback": EmailTriageFeedbackTable;
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
@@ -891,6 +928,7 @@ export interface JarvisDatabase {
   "app.entities": EntitiesTable;
   "app.preferences": PreferencesTable;
   "app.wellness_checkins": WellnessCheckinsTable;
+  "app.sports_follows": SportsFollowsTable;
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
@@ -911,7 +949,6 @@ export interface JarvisDatabase {
 }
 
 export type User = Selectable<UsersTable>;
-export type MemberOnboarding = Selectable<MemberOnboardingTable>;
 export type Share = Selectable<SharesTable>;
 export type InstanceSetting = Selectable<InstanceSettingsTable>;
 export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
@@ -923,14 +960,9 @@ export type TaskList = Selectable<TaskListsTable>;
 export type TaskTag = Selectable<TaskTagsTable>;
 export type TaskPreferences = Selectable<TaskPreferencesTable>;
 export type Notification = Selectable<NotificationsTable>;
-export type NotificationRead = Selectable<NotificationReadsTable>;
 export type ConnectorProvider = Selectable<ConnectorDefinitionsTable>;
-export type ConnectorAccount = Selectable<ConnectorAccountsTable>;
-export type ConnectorOauthPending = Selectable<ConnectorOauthPendingTable>;
 export type CalendarEvent = Selectable<CalendarEventsTable>;
 export type EmailMessage = Selectable<EmailMessagesTable>;
-export type AiProviderConfig = Selectable<AiProviderConfigsTable>;
-export type AiConfiguredModel = Selectable<AiConfiguredModelsTable>;
 export type AiAssistantActionRequest = Selectable<AiAssistantActionRequestsTable>;
 export type JarvisActionAuditLog = Selectable<JarvisActionAuditLogTable>;
 export type ChatThread = Selectable<ChatThreadsTable>;
@@ -938,15 +970,10 @@ export type ChatMessage = Selectable<ChatMessagesTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
 export type BriefingRun = Selectable<BriefingRunsTable>;
 export type UsefulnessFeedbackSignal = Selectable<UsefulnessFeedbackSignalsTable>;
-export type UsefulnessFeedbackTarget = Selectable<UsefulnessFeedbackTargetsTable>;
-export type JsonObject = JsonColumn;
 export type Commitment = Selectable<CommitmentsTable>;
 export type Entity = Selectable<EntitiesTable>;
-export type Preference = Selectable<PreferencesTable>;
 export type WellnessCheckin = Selectable<WellnessCheckinsTable>;
 export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
 export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;
 export type DataExportJob = Selectable<DataExportJobsTable>;
-export type ProactiveMonitorState = Selectable<ProactiveMonitorStateTable>;
-export type ProactiveCard = Selectable<ProactiveCardsTable>;

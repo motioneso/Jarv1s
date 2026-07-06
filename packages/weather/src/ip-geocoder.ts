@@ -6,7 +6,7 @@ interface IpWhoIsResponse {
   country: string;
 }
 
-export interface GeoLocation {
+interface GeoLocation {
   lat: number;
   lon: number;
   label: string;

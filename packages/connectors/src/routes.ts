@@ -12,12 +12,17 @@ import type {
 } from "@jarv1s/db";
 import { sendJob } from "@jarv1s/jobs";
 import { recordAuditEvent } from "@jarv1s/settings";
+import { reconcileGoogleAccountSchedule } from "./google-schedule.js";
+import { reconcileImapAccountSchedule } from "./imap-schedule.js";
+import { reconcileMonitorSchedules } from "./monitor-schedule.js";
 import {
   createConnectorAccountRouteSchema,
   getFeatureGrantsRouteSchema,
   googleAuthorizeRouteSchema,
   googleCompleteRouteSchema,
   googleSyncRouteSchema,
+  imapConnectRouteSchema,
+  imapTestRouteSchema,
   listAdminConnectorAccountsRouteSchema,
   listConnectorAccountsRouteSchema,
   listConnectorProvidersRouteSchema,
@@ -30,6 +35,7 @@ import {
   type CreateConnectorAccountRequest,
   type GoogleAuthorizeRequest,
   type GoogleCompleteRequest,
+  type ImapConnectRequest,
   type UpdateFeatureGrantsRequest,
   type UpdateConnectorAccountRequest
 } from "@jarv1s/shared";
@@ -43,6 +49,8 @@ import {
   resolveEffectiveGrants
 } from "./feature-grants.js";
 import { GoogleConnectionService, GoogleConnectError } from "./google-connection.js";
+import { ImapConnectError, ImapConnectionService } from "./imap-connection.js";
+import { LiveImapProbeClient } from "./imap-probe-client.js";
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository, type ConnectorAccountSafeRow } from "./repository.js";
 import { GOOGLE_SYNC_QUEUE } from "./sync-jobs.js";
@@ -55,6 +63,7 @@ export interface ConnectorsRoutesDependencies {
   readonly preferencesRepository?: PreferencesRepository;
   readonly secretCipher?: ConnectorSecretCipher;
   readonly googleService?: GoogleConnectionService;
+  readonly imapService?: ImapConnectionService;
 }
 
 interface AccountParams {
@@ -74,6 +83,13 @@ export function registerConnectorsRoutes(
       repository,
       cipher: secretCipher,
       oauthClient: new GoogleOAuthClient()
+    });
+  const imapService =
+    dependencies.imapService ??
+    new ImapConnectionService({
+      repository,
+      cipher: secretCipher,
+      probeClient: new LiveImapProbeClient()
     });
 
   server.post(
@@ -132,6 +148,21 @@ export function registerConnectorsRoutes(
             "sync-on-connect enqueue failed; user can sync manually"
           );
         }
+        try {
+          await reconcileGoogleAccountSchedule(dependencies.boss, accessContext.actorUserId, true);
+          await reconcileMonitorSchedules(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            { email: true, calendar: true },
+            true
+          );
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.google_schedule_reconcile_failed", name: (error as Error).name },
+            "google schedule reconcile failed; account is connected but will not auto-sync on schedule until reconnect"
+          );
+        }
         return reply.code(201).send({ account: serializeAccount(account) });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -163,6 +194,68 @@ export function registerConnectorsRoutes(
           deduped: jobId === null,
           jobId
         });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/connectors/imap/connect",
+    { schema: imapConnectRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const body = request.body as ImapConnectRequest;
+        const input = {
+          providerId: requiredString(body.providerId, "providerId"),
+          username: requiredString(body.username, "username"),
+          password: requiredString(body.password, "password")
+        };
+        const account = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
+          imapService.connect(scopedDb, input)
+        );
+        try {
+          await reconcileImapAccountSchedule(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            true
+          );
+          await reconcileMonitorSchedules(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            { email: true, calendar: false },
+            true
+          );
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
+            "imap schedule reconcile failed; account is connected but will not auto-sync until reconnect"
+          );
+        }
+        return reply.code(201).send({ account: serializeAccount(account) });
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/connectors/imap/test-connection",
+    { schema: imapTestRouteSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const body = request.body as ImapConnectRequest;
+        const input = {
+          providerId: requiredString(body.providerId, "providerId"),
+          username: requiredString(body.username, "username"),
+          password: requiredString(body.password, "password")
+        };
+        const result = await imapService.testConnection(input);
+        return reply.code(200).send(result);
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -269,6 +362,53 @@ export function registerConnectorsRoutes(
 
         if (!account) {
           return reply.code(404).send({ error: "Connector account not found" });
+        }
+
+        if (account.provider_type === "imap") {
+          try {
+            await reconcileImapAccountSchedule(
+              dependencies.boss,
+              accessContext.actorUserId,
+              account.id,
+              false
+            );
+          } catch (error) {
+            request.log.warn(
+              { event: "connectors.imap_schedule_reconcile_failed", name: (error as Error).name },
+              "imap schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
+            );
+          }
+        }
+
+        if (account.provider_type === "google") {
+          try {
+            await reconcileGoogleAccountSchedule(
+              dependencies.boss,
+              accessContext.actorUserId,
+              false
+            );
+          } catch (error) {
+            request.log.warn(
+              { event: "connectors.google_schedule_reconcile_failed", name: (error as Error).name },
+              "google schedule unreconcile failed on revoke; account may keep syncing until next reconcile"
+            );
+          }
+        }
+
+        try {
+          // connected=false unschedules both monitor queues regardless of capability flags.
+          await reconcileMonitorSchedules(
+            dependencies.boss,
+            accessContext.actorUserId,
+            account.id,
+            { email: true, calendar: true },
+            false
+          );
+        } catch (error) {
+          request.log.warn(
+            { event: "connectors.monitor_schedule_reconcile_failed", name: (error as Error).name },
+            "monitor schedule unreconcile failed on revoke; monitors may keep running until next reconcile"
+          );
         }
 
         return { account: serializeAccount(account) };
@@ -551,7 +691,9 @@ function handleRouteError(error: unknown, reply: FastifyReply) {
       (e, r) =>
         e instanceof GoogleConnectError
           ? r.code(e.statusCode).send({ error: e.message })
-          : undefined
+          : undefined,
+      (e, r) =>
+        e instanceof ImapConnectError ? r.code(e.statusCode).send({ error: e.message }) : undefined
     ],
     invalidRequestMessage: "Connector account request is invalid"
   });

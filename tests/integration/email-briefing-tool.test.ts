@@ -5,6 +5,11 @@ import pg from "pg";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { EmailRepository, emailListVisibleMessagesExecute } from "@jarv1s/email";
 
+import {
+  buildTestSourceContextService,
+  fakeEmailProvider,
+  transientProviderError
+} from "./source-context-helpers.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -63,14 +68,25 @@ describe("Email briefing assistant tool", () => {
           requestId: "r:email-tool-bounded",
           chatSessionId: ""
         },
-        // Stub: grant the seeded account so this test focuses on result-bounding, not grant filtering.
-        { featureGrants: { grantedAccountIds: async () => new Set([connectorAccountId]) } }
+        // Live-first (#729): a transient provider failure drops this read to the CACHE
+        // fallback, which must stay bounded while still rescuing the older reply-shaped
+        // thread the repository deliberately keeps.
+        {
+          sourceContext: buildTestSourceContextService({
+            googleProvider: fakeEmailProvider<string>([], {
+              listError: transientProviderError
+            })
+          })
+        }
       )
     );
 
     const messages = toolResult.data.messages as Array<Record<string, unknown>>;
     expect(messages.length).toBeLessThanOrEqual(225);
-    expect(messages.some((message) => message.id === olderThreadId)).toBe(true);
+    // Context items are keyed by provider-stable external id; the cache row id rides
+    // along as cacheMessageId. Every fallback row must be marked as degraded cache.
+    expect(messages.some((message) => message.cacheMessageId === olderThreadId)).toBe(true);
+    expect(messages.every((message) => message.source === "cache")).toBe(true);
   });
 });
 
@@ -92,7 +108,7 @@ async function seedEmailToolData(): Promise<void> {
           status,
           encrypted_secret
         )
-        VALUES ($1, 'google-email', $2, ARRAY['gmail.readonly']::text[], 'active', '{}'::jsonb)
+        VALUES ($1, 'google', $2, ARRAY['https://www.googleapis.com/auth/gmail.modify']::text[], 'active', '{}'::jsonb)
       `,
       [connectorAccountId, ids.userA]
     );

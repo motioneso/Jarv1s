@@ -169,6 +169,7 @@ describe("Tasks module M1", () => {
       "structured-state",
       "wellness",
       "weather",
+      "sports",
       "notes",
       "proactive-monitoring",
       "jarvis.commitments",

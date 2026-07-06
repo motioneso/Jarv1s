@@ -141,29 +141,32 @@ export function CalendarPage() {
         </div>
         <div className="cal-toolbar__right">
           {view === "week" ? (
-            <div className="segmented-control" aria-label="Week type">
+            <div className="jds-segmented" role="group" aria-label="Week type">
               <button
                 type="button"
-                className={workWeek ? "active" : ""}
+                className={`jds-segmented__opt ${workWeek ? "is-active" : ""}`}
+                aria-pressed={workWeek}
                 onClick={() => setWorkWeek(true)}
               >
                 Work week
               </button>
               <button
                 type="button"
-                className={!workWeek ? "active" : ""}
+                className={`jds-segmented__opt ${!workWeek ? "is-active" : ""}`}
+                aria-pressed={!workWeek}
                 onClick={() => setWorkWeek(false)}
               >
                 Full week
               </button>
             </div>
           ) : null}
-          <div className="segmented-control" aria-label="View">
+          <div className="jds-segmented" role="group" aria-label="View">
             {(["day", "week", "month"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
-                className={view === v ? "active" : ""}
+                className={`jds-segmented__opt ${view === v ? "is-active" : ""}`}
+                aria-pressed={view === v}
                 onClick={() => setView(v)}
               >
                 {v.charAt(0).toUpperCase() + v.slice(1)}

@@ -153,7 +153,7 @@ export class UsefulnessFeedbackRepository {
       SET source_kind = EXCLUDED.source_kind,
           source_label = EXCLUDED.source_label,
           priority_band = EXCLUDED.priority_band,
-          metadata_json = EXCLUDED.metadata_json,
+          metadata_json = app.usefulness_feedback_targets.metadata_json || EXCLUDED.metadata_json,
           last_seen_at = now()
     `.execute(scopedDb.db);
   }

@@ -1,260 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
 import type { GenerateChatInput } from "@jarv1s/ai";
-import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
-import type { MemoryRetriever } from "@jarv1s/memory";
-import type { JarvisModuleManifest, ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import type { FocusSignalInput, PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { ToolExecute } from "@jarv1s/module-sdk";
 
 import {
   composeBriefing,
   type ComposeDeps,
-  type ComposeResult,
-  type ComposeRunInput,
-  type GenerateChatFn
+  type ComposeResult
 } from "../../packages/briefings/src/compose.js";
-
-const fakeScopedDb = {} as DataContextDb;
-
-const FIXED_NOW = new Date("2026-06-13T12:00:00.000Z");
-
-function definition(overrides: Partial<BriefingDefinition> = {}): BriefingDefinition {
-  return {
-    id: "def-1",
-    owner_user_id: "owner-1",
-    title: "Morning",
-    briefing_type: "morning",
-    cadence: "daily",
-    // UTC so the fixed-now local-day filter is trivially satisfied by the canned dates.
-    schedule_metadata: { targetTime: "06:00", timezone: "UTC" },
-    enabled: true,
-    selected_tool_names: [
-      "commitments.listVisible",
-      "tasks.list",
-      "calendar.listVisibleEvents",
-      "email.listVisibleMessages",
-      "vault",
-      "chat.listTodaysTurns"
-    ],
-    last_run_at: null,
-    created_at: new Date(),
-    updated_at: new Date(),
-    ...overrides
-  } as BriefingDefinition;
-}
-
-const runInput: ComposeRunInput = {
-  runKind: "manual",
-  runId: "run-1",
-  now: FIXED_NOW
-};
-
-// Canned per-tool data keyed by the tool name compose calls. Day-bounded sources
-// (calendar/chats) use FIXED_NOW's UTC date so withinLocalDay keeps them.
-const TODAY_ISO = "2026-06-13T09:00:00.000Z";
-
-function cannedToolData(toolName: string): Record<string, unknown> {
-  switch (toolName) {
-    case "commitments.listVisible":
-      return { commitments: [{ title: "Pay invoice", status: "open", dueAt: null }] };
-    case "tasks.list":
-      return { items: [{ title: "Write report", status: "todo" }] };
-    case "calendar.listVisibleEvents":
-      return {
-        events: [
-          {
-            id: "evt-1",
-            startsAt: TODAY_ISO,
-            endsAt: "2026-06-13T10:00:00.000Z",
-            title: "Client review"
-          }
-        ]
-      };
-    case "email.listVisibleMessages":
-      return {
-        messages: [
-          {
-            id: "msg-1",
-            connectorAccountId: "conn-email-1",
-            sender: "boss@x.com",
-            subject: "Re: budget",
-            snippet: "Can you reply today?"
-          }
-        ]
-      };
-    case "chat.listTodaysTurns":
-      return {
-        turns: [{ role: "user", excerpt: "what's up", threadTitle: "T", createdAt: TODAY_ISO }]
-      };
-    default:
-      return {};
-  }
-}
-
-interface FakeOptions {
-  readonly generateChat?: GenerateChatFn;
-  readonly credentialPayload?: Record<string, unknown>;
-  /** Tool name whose execute throws, to exercise the gaps path. */
-  readonly failTool?: string;
-  /** Omit a model so compose takes the degraded "no_model" fallback. */
-  readonly noModel?: boolean;
-  readonly personaPreference?: unknown;
-  readonly priorityModel?: PriorityModelPreferenceV1;
-  readonly focusReadiness?: readonly FocusSignalInput[];
-  readonly userName?: string;
-  readonly disabledBehaviors?: ReadonlySet<string>;
-  readonly preferences?: Readonly<Record<string, unknown>>;
-}
-
-function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
-  const toolNames = [
-    "commitments.listVisible",
-    "tasks.list",
-    "calendar.listVisibleEvents",
-    "email.listVisibleMessages",
-    "chat.listTodaysTurns"
-  ];
-  const assistantTools = toolNames.map((name) => {
-    const execute: ToolExecute = async (): Promise<ToolResult> => {
-      if (name === failTool) {
-        throw new Error("boom");
-      }
-      return { data: cannedToolData(name) };
-    };
-    return {
-      name,
-      description: name,
-      permissionId: "x.view",
-      risk: "read" as const,
-      inputSchema: { type: "object", properties: {} },
-      execute
-    };
-  });
-  return [
-    {
-      id: "fake",
-      name: "Fake",
-      version: "0.0.0",
-      publisher: "test",
-      lifecycle: "required",
-      compatibility: { jarv1s: ">=0.0.0" },
-      assistantTools,
-      sourceBehaviors: [
-        {
-          id: "calendar",
-          name: "Calendar",
-          description: "Calendar source",
-          behaviors: [
-            {
-              id: "calendar.briefings",
-              name: "Include in briefings",
-              description: "Calendar in briefings",
-              default: "default-on"
-            }
-          ]
-        },
-        {
-          id: "email",
-          name: "Email",
-          description: "Email source",
-          behaviors: [
-            {
-              id: "email.briefings",
-              name: "Include in briefings",
-              description: "Email in briefings",
-              default: "default-on"
-            }
-          ]
-        }
-      ]
-    }
-  ];
-}
-
-function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
-  const aiRepository = {
-    async selectModelForCapability() {
-      if (options.noModel) {
-        return undefined;
-      }
-      return {
-        id: "model-1",
-        provider_config_id: "pc-1",
-        provider_kind: "anthropic",
-        provider_model_id: "claude-3-5-haiku",
-        display_name: "Haiku",
-        tier: "economy"
-      };
-    },
-    async selectProviderWithCredential() {
-      return {
-        id: "pc-1",
-        base_url: null,
-        encrypted_credential: { v: 1 }
-      };
-    }
-  } as unknown as AiRepository;
-
-  const cipher = {
-    decryptJson() {
-      return options.credentialPayload ?? { apiKey: "fake-key" };
-    }
-  } as unknown as AiSecretCipher;
-
-  const memoryRetriever = {
-    async retrieve() {
-      return [
-        {
-          id: "chunk-1",
-          sourcePath: "notes/today.md",
-          lineStart: 1,
-          lineEnd: 3,
-          text: "vault recall content",
-          similarity: 0.9
-        }
-      ];
-    },
-    async retrieveRecent() {
-      return [];
-    }
-  } as unknown as MemoryRetriever;
-
-  return {
-    moduleManifests: makeFakeManifests(options.failTool),
-    aiRepository,
-    cipher,
-    memoryRetriever,
-    personaRepository: {
-      get: async () => options.personaPreference ?? null
-    },
-    priorityPreferencesRepository: {
-      get: async (_scopedDb, key) =>
-        key === "priority.model.v1" ? (options.priorityModel ?? null) : null
-    },
-    focusReadiness: async () => options.focusReadiness ?? [],
-    resolveUserName: async () => options.userName ?? "Ben",
-    sourceBehaviorPolicy: {
-      manifests: makeFakeManifests(options.failTool),
-      preferencesRepository: {
-        get: async (_scopedDb, key) => {
-          if (key === "sourceBehaviors" && options.disabledBehaviors) {
-            return Object.fromEntries(
-              [...options.disabledBehaviors].map((behaviorId) => [behaviorId, false])
-            );
-          }
-          return options.preferences?.[key] ?? null;
-        },
-        getWithMetadata: async () => null,
-        upsert: async () => undefined
-      }
-    },
-    createAdapter: () => ({
-      generateChat:
-        options.generateChat ?? (async () => ({ text: "synth narrative" }) as { text: string })
-    })
-  };
-}
+import {
+  FIXED_NOW,
+  definition,
+  fakeScopedDb,
+  makeFakeDeps,
+  runInput
+} from "./briefings-compose.harness.js";
 
 describe("composeBriefing — gathering", () => {
   it("gathers sections in fixed priority order and assembles a prompt", async () => {
@@ -296,6 +56,32 @@ describe("composeBriefing — gathering", () => {
     );
   });
 
+  it("renders a sports section from followedFactsToday when selected (loader-seam 3)", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = makeFakeDeps({
+      generateChat: async (input: GenerateChatInput) => {
+        capturedMessages.push(input.messages);
+        return { text: "synth narrative" };
+      }
+    });
+    await composeBriefing(
+      fakeScopedDb,
+      definition({
+        selected_tool_names: ["tasks.list", "sports.followedFactsToday"]
+      }),
+      runInput,
+      deps
+    );
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    // The section is emitted as a delimited untrusted channel keyed by its section key,
+    // and the compact fact string is carried through verbatim.
+    expect(prompt).toContain('<external_source type="sports">');
+    expect(prompt).toContain("Cowboys play tonight 7:20pm");
+    // The channel is declared inside the trust boundary alongside the other external sources.
+    const trustedMatch = prompt.match(/<trusted_instructions>([\s\S]*?)<\/trusted_instructions>/);
+    expect(trustedMatch![1]).toContain("sports");
+  });
+
   it("uses an evening review prompt for evening definitions without moving data into trusted text", async () => {
     const capturedMessages: unknown[] = [];
     const deps = makeFakeDeps({
@@ -315,11 +101,11 @@ describe("composeBriefing — gathering", () => {
     const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
     const trustedMatch = prompt.match(/<trusted_instructions>([\s\S]*?)<\/trusted_instructions>/);
     expect(trustedMatch).not.toBeNull();
-    expect(trustedMatch![1]).toContain("evening-review writer");
-    expect(trustedMatch![1]).toContain("day in review");
-    expect(trustedMatch![1]).not.toContain("Write report");
-    expect(prompt).toContain('<external_source type="tasks">');
-    expect(prompt).toContain("Write report");
+    expect(trustedMatch![1]).toContain("evening chief of staff");
+    expect(trustedMatch![1]).toContain("end-of-day report");
+    expect(trustedMatch![1]).not.toContain("Pay invoice");
+    expect(prompt).toContain('<external_source type="commitments">');
+    expect(prompt).toContain("Pay invoice");
   });
 
   it("injects the saved persona block into the synthesis prompt", async () => {
@@ -703,14 +489,16 @@ describe("composeBriefing — local-day bounding", () => {
                       connectorAccountId: "conn-1",
                       sender: "billing@example.test",
                       subject: "Invoice due today",
-                      snippet: "Payment due today"
+                      snippet: "Payment due today",
+                      actionability: "needs_action"
                     },
                     {
                       id: "bill-2",
                       connectorAccountId: "conn-1",
                       sender: "bank@example.test",
                       subject: "Past due statement",
-                      snippet: "Past due notice"
+                      snippet: "Past due notice",
+                      actionability: "needs_action"
                     },
                     {
                       id: "urgent-1",
@@ -718,14 +506,16 @@ describe("composeBriefing — local-day bounding", () => {
                       sender: "pm@example.test",
                       subject: "Can you reply before the 3pm review?",
                       snippet: "Need this today",
-                      receivedAt: "2026-06-13T08:30:00.000Z"
+                      receivedAt: "2026-06-13T08:30:00.000Z",
+                      actionability: "needs_reply"
                     },
                     {
                       id: "plan-1",
                       connectorAccountId: "conn-1",
                       sender: "legal@example.test",
                       subject: "Contract draft for meeting",
-                      snippet: "Please review before tomorrow"
+                      snippet: "Please review before tomorrow",
+                      actionability: "time_sensitive_info"
                     },
                     {
                       id: "follow-1",
@@ -733,14 +523,16 @@ describe("composeBriefing — local-day bounding", () => {
                       sender: "partner@example.test",
                       subject: "Following up on the open thread",
                       snippet: "Can you respond when you have a minute?",
-                      receivedAt: "2026-05-30T08:30:00.000Z"
+                      receivedAt: "2026-05-30T08:30:00.000Z",
+                      actionability: "needs_reply"
                     },
                     {
                       id: "extra-1",
                       connectorAccountId: "conn-1",
                       sender: "ops@example.test",
                       subject: "Due today",
-                      snippet: "Urgent follow up needed"
+                      snippet: "Urgent follow up needed",
+                      actionability: "needs_action"
                     }
                   ]
                 }
@@ -871,7 +663,8 @@ describe("composeBriefing — prompt boundary-forgery (escaped inert data)", () 
                           connectorAccountId: "attacker-conn",
                           sender: "attacker@example.test",
                           subject: `${payload}UNIT-CANARY-LEAK`,
-                          snippet: "Can you reply today?"
+                          snippet: "Can you reply today?",
+                          actionability: "needs_reply"
                         }
                       ]
                     }
@@ -905,6 +698,153 @@ describe("composeBriefing — prompt boundary-forgery (escaped inert data)", () 
       expect(emailBlock![1]).toContain("UNIT-CANARY-LEAK");
     }
   );
+});
+
+describe("composeBriefing — live-first source context (#729)", () => {
+  function withEmailToolData(deps: ComposeDeps, data: Record<string, unknown>): ComposeDeps {
+    return {
+      ...deps,
+      moduleManifests: deps.moduleManifests.map((m) => ({
+        ...m,
+        assistantTools: (m.assistantTools ?? []).map((t) =>
+          t.name === "email.listVisibleMessages"
+            ? { ...t, execute: (async () => ({ data })) as ToolExecute }
+            : t
+        )
+      }))
+    };
+  }
+
+  it("keeps only actionable triage items in the email prompt block", async () => {
+    const capturedMessages: unknown[] = [];
+    const deps = withEmailToolData(
+      makeFakeDeps({
+        generateChat: async (input: GenerateChatInput) => {
+          capturedMessages.push(input.messages);
+          return { text: "synth narrative" };
+        }
+      }),
+      {
+        messages: [
+          {
+            id: "msg-actionable",
+            connectorAccountId: "conn-email-1",
+            sender: "boss@x.com",
+            subject: "Budget approval",
+            snippet: "Can you reply today?",
+            actionability: "needs_reply"
+          },
+          {
+            // Reply-shaped snippet on a noise item: proves the filter is triage-based,
+            // not a regex over the text.
+            id: "msg-noise",
+            connectorAccountId: "conn-email-1",
+            sender: "spam@example.test",
+            subject: "SPAM-NOISE-SUBJECT",
+            snippet: "Can you reply today?",
+            actionability: "noise"
+          },
+          {
+            // waiting_on_someone only surfaces at high importance or confidence ≥ 0.7.
+            id: "msg-waiting-low",
+            connectorAccountId: "conn-email-1",
+            sender: "vendor@example.test",
+            subject: "WAITING-LOW-SUBJECT",
+            snippet: "Can you reply today?",
+            actionability: "waiting_on_someone",
+            importance: "low",
+            confidence: 0.4
+          }
+        ],
+        accounts: [],
+        gaps: []
+      }
+    );
+
+    await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+
+    const prompt = (capturedMessages[0] as readonly { content: string }[])[0]!.content;
+    const emailBlock = prompt.match(
+      /<external_source type="email">\n([\s\S]*?)\n<\/external_source>/
+    );
+    expect(emailBlock, "email block must be present").not.toBeNull();
+    expect(emailBlock![1]).toContain("Budget approval");
+    expect(emailBlock![1]).not.toContain("SPAM-NOISE-SUBJECT");
+    expect(emailBlock![1]).not.toContain("WAITING-LOW-SUBJECT");
+  });
+
+  it("marks the briefing degraded and records provenance when an account serves cache", async () => {
+    const deps = withEmailToolData(makeFakeDeps(), {
+      messages: [
+        {
+          id: "msg-1",
+          connectorAccountId: "conn-email-1",
+          sender: "boss@x.com",
+          subject: "Re: budget",
+          snippet: "Can you reply today?",
+          actionability: "needs_reply",
+          source: "cache",
+          degradedReason: "network_error"
+        }
+      ],
+      accounts: [
+        {
+          account: {
+            connectorAccountId: "conn-email-1",
+            providerId: "google",
+            providerLabel: "Gmail"
+          },
+          source: "cache",
+          degradedReason: "network_error"
+        }
+      ],
+      gaps: []
+    });
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    const md = result.sourceMetadata as {
+      degraded: boolean;
+      sourceContext: {
+        email: { accounts: unknown[] };
+        calendar: { accounts: unknown[] };
+      };
+    };
+    expect(md.degraded).toBe(true);
+    expect(md.sourceContext.email.accounts).toEqual([
+      { connectorAccountId: "conn-email-1", source: "cache", degradedReason: "network_error" }
+    ]);
+    expect(md.sourceContext.calendar.accounts).toEqual([
+      { connectorAccountId: "conn-cal-1", source: "live", degradedReason: null }
+    ]);
+  });
+
+  it("records a source_auth briefing gap when a live read reports an auth gap", async () => {
+    const deps = withEmailToolData(makeFakeDeps(), {
+      messages: [],
+      accounts: [],
+      gaps: [
+        {
+          account: {
+            connectorAccountId: "conn-email-1",
+            providerId: "google",
+            providerLabel: "Gmail"
+          },
+          reason: "auth_error"
+        }
+      ]
+    });
+
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    expect(result.sourceMetadata.gaps).toEqual(
+      expect.arrayContaining([expect.objectContaining({ source: "email", reason: "source_auth" })])
+    );
+    const md = result.sourceMetadata as {
+      sourceContext: { email: { gaps: unknown[] } };
+    };
+    expect(md.sourceContext.email.gaps).toEqual([
+      { connectorAccountId: "conn-email-1", reason: "auth_error" }
+    ]);
+  });
 });
 
 describe("composeBriefing — source freshness", () => {

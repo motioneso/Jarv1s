@@ -26,6 +26,9 @@ import {
   type NotesSyncJobPayload
 } from "@jarv1s/notes";
 import { notesSearchExecute } from "../../packages/notes/src/tools.js";
+// notesMonitorProvider is internal wiring (registered via notesModuleManifest), not part of the
+// package's public API — imported directly from source, same pattern as notesSearchExecute above.
+import { notesMonitorProvider } from "../../packages/notes/src/monitor-provider.js";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -759,4 +762,102 @@ describe("notes.search tool", () => {
       delete process.env["JARVIS_NOTES_ROOTS"];
     }
   }, 60_000);
+});
+
+// ── notesMonitorProvider.collectSignals (#767) ────────────────────────────────
+//
+// Regression coverage for #767: notesMonitorProvider.collectSignals delegates to
+// MemoryRepository.listRecentVaultFiles, which hardcoded source_kind = 'vault' —
+// so it never saw files ingested by the notes sync job (source_kind = 'notes'),
+// and the proactive monitor silently never fired. This test ingests a real .md
+// file under a notes-kind path via the actual sync job, sets a matching priority
+// anchor, and asserts a priority_anchor_changed signal now fires.
+
+describe("notesMonitorProvider.collectSignals", () => {
+  let dataContext: DataContextRunner;
+  const provider = new StubEmbeddingProvider();
+  const prefsRepo = new PreferencesRepository();
+  const monitorUserId = "00000000-0000-4000-8100-000000000201";
+  let monitorNotesDir: string;
+
+  function makeJob(sourcePath: string): Job<NotesSyncJobPayload> {
+    return {
+      id: randomUUID(),
+      data: { actorUserId: monitorUserId, sourcePath }
+    } as unknown as Job<NotesSyncJobPayload>;
+  }
+
+  beforeAll(async () => {
+    monitorNotesDir = join(tmpdir(), `jarv1s-notes-monitor-${randomUUID()}`);
+    await mkdir(monitorNotesDir, { recursive: true });
+
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin)
+         VALUES ($1, 'notes-monitor@example.test', false) ON CONFLICT DO NOTHING`,
+        [monitorUserId]
+      );
+    } finally {
+      await client.end();
+    }
+
+    dataContext = new DataContextRunner(appDb);
+    process.env["JARVIS_NOTES_ROOTS"] = monitorNotesDir;
+
+    await writeFile(
+      join(monitorNotesDir, "roadmap.md"),
+      "# Planning\n\nFollow up on the Q3 Roadmap with the team this week.\n"
+    );
+
+    await dataContext.withDataContext(
+      { actorUserId: monitorUserId, requestId: "req:monitor-ingest" },
+      (scopedDb) => handleNotesSyncJob(makeJob(monitorNotesDir), scopedDb, provider, prefsRepo)
+    );
+  });
+
+  afterAll(async () => {
+    await rm(monitorNotesDir, { recursive: true, force: true });
+    delete process.env["JARVIS_NOTES_ROOTS"];
+  });
+
+  it("fires a priority_anchor_changed signal for a recently-ingested note matching an anchor", async () => {
+    const result = await dataContext.withDataContext(
+      { actorUserId: monitorUserId, requestId: "req:monitor-collect" },
+      (scopedDb) =>
+        notesMonitorProvider.collectSignals(scopedDb, {
+          ownerUserId: monitorUserId,
+          sinceCursor: null,
+          now: new Date().toISOString(),
+          timeZone: "UTC",
+          maxSignals: 10,
+          priorityAnchors: [{ label: "Roadmap", aliases: [] }]
+        })
+    );
+
+    expect(result.signals).toHaveLength(1);
+    expect(result.signals[0]).toMatchObject({
+      source: "notes",
+      signalType: "priority_anchor_changed",
+      title: "roadmap"
+    });
+  });
+
+  it("fires no signal when no priority anchor matches", async () => {
+    const result = await dataContext.withDataContext(
+      { actorUserId: monitorUserId, requestId: "req:monitor-no-match" },
+      (scopedDb) =>
+        notesMonitorProvider.collectSignals(scopedDb, {
+          ownerUserId: monitorUserId,
+          sinceCursor: null,
+          now: new Date().toISOString(),
+          timeZone: "UTC",
+          maxSignals: 10,
+          priorityAnchors: [{ label: "Nonexistent Topic Xyz", aliases: [] }]
+        })
+    );
+
+    expect(result.signals).toHaveLength(0);
+  });
 });

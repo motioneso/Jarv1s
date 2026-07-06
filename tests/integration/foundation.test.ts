@@ -299,7 +299,22 @@ describe("MVP foundation scaffold", () => {
         { version: "0126", name: "0126_app_runtime_calendar_events_delete.sql" },
         { version: "0127", name: "0127_jarvis_action_audit_log.sql" },
         { version: "0128", name: "0128_person_context.sql" },
-        { version: "0129", name: "0129_yolo_action_audit_mode.sql" }
+        { version: "0129", name: "0129_yolo_action_audit_mode.sql" },
+        { version: "0130", name: "0130_connector_imap_enum.sql" },
+        { version: "0131", name: "0131_connector_imap_definitions.sql" },
+        { version: "0132", name: "0132_email_imap_insert.sql" },
+        { version: "0133", name: "0133_sports_follows.sql" },
+        { version: "0134", name: "0134_data_export_jobs_worker_select_grant.sql" },
+        { version: "0135", name: "0135_wellness_worker_read_grants.sql" },
+        { version: "0136", name: "0136_admin_audit_events_worker_insert.sql" },
+        { version: "0137", name: "0137_data_export_jobs_worker_bounded_functions.sql" },
+        { version: "0138", name: "0138_worker_get_data_export_job.sql" },
+        { version: "0139", name: "0139_wellness_worker_read_policies.sql" },
+        { version: "0140", name: "0140_task_status_suggested.sql" },
+        { version: "0141", name: "0141_email_triage_feedback.sql" },
+        { version: "0142", name: "0142_notifications_module_id.sql" },
+        { version: "0143", name: "0143_wellness_checkins_local_date_backfill.sql" },
+        { version: "0144", name: "0144_google_sync_sweep_accounts.sql" }
       ]);
     } finally {
       await client.end();

@@ -9,7 +9,7 @@ import {
 
 import { chatListTodaysTurnsExecute } from "./tools.js";
 
-export const CHAT_MODULE_ID = "chat";
+const CHAT_MODULE_ID = "chat";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const chatModuleManifest = {
@@ -105,6 +105,8 @@ export const chatModuleManifest = {
     { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/threads/:id/resume", permissionId: "chat.message" },
+    { method: "GET", path: "/api/chat/settings", permissionId: "chat.view" },
+    { method: "PUT", path: "/api/chat/settings", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/memory/settings", permissionId: "chat.view" },
     { method: "PATCH", path: "/api/chat/memory/settings", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/memory/facts", permissionId: "chat.view" },
@@ -133,7 +135,8 @@ export const chatModuleManifest = {
       path: "/api/chat/messages/:messageId/provenance/:supportId/dereference",
       permissionId: "chat.view"
     },
-    { method: "POST", path: "/api/mcp", permissionId: "chat.message" }
+    { method: "POST", path: "/api/mcp", permissionId: "chat.message" },
+    { method: "POST", path: "/internal/permission", permissionId: "chat.message" }
   ],
   assistantTools: [
     {

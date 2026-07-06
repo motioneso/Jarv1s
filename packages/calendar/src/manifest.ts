@@ -12,6 +12,7 @@ import {
 
 import {
   calendarListVisibleEventsExecute,
+  calendarToolEventsOutputSchema,
   calendarProposeFocusBlockExecute,
   summarizeProposeFocusBlock,
   calendarDeleteEventExecute,
@@ -156,6 +157,13 @@ export const calendarModuleManifest = {
   ],
   assistantActionFamilies: [
     {
+      id: "calendar_writeback",
+      label: "Calendar writeback",
+      description: "Create Calendar-owned Jarvis blocks on the user's calendar.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto"]
+    },
+    {
       id: "calendar_management",
       label: "Delete calendar events",
       description: "Let Jarvis delete events from your calendar. Always asks first.",
@@ -166,7 +174,10 @@ export const calendarModuleManifest = {
   assistantTools: [
     {
       name: "calendar.listVisibleEvents",
-      description: "List cached calendar events owned by or shared with the active actor.",
+      description:
+        "List the actor's upcoming calendar events, read live from each connected account with " +
+        "planning flags (conflict, early, late, has_location, prep_attendees); falls back to " +
+        "cache only on transient provider failures, with source and gap metadata.",
       permissionId: "calendar.view",
       risk: "read",
       inputSchema: {
@@ -174,11 +185,11 @@ export const calendarModuleManifest = {
         properties: {
           startsAfter: {
             type: "string",
-            description: "ISO 8601 instant; only return events starting on or after this time"
+            description: "ISO 8601 instant; window start (defaults to now)"
           },
           startsBefore: {
             type: "string",
-            description: "ISO 8601 instant; only return events starting before this time"
+            description: "ISO 8601 instant; window end (defaults to 48h after the window start)"
           },
           limit: {
             type: "number",
@@ -186,7 +197,7 @@ export const calendarModuleManifest = {
           }
         }
       },
-      outputSchema: listCalendarEventsResponseSchema,
+      outputSchema: calendarToolEventsOutputSchema,
       execute: calendarListVisibleEventsExecute
     },
     {
@@ -195,6 +206,8 @@ export const calendarModuleManifest = {
         "Propose and (on approval) create a focus-time block on the user's primary Google Calendar, conflict-checked live against their availability.",
       permissionId: "calendar.manage",
       risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "calendar_writeback",
       requiresServices: ["calendarWrite"],
       // NOTE: the gateway's validateToolInput (input-validation.ts) enforces only type + enum +
       // required (NOT format/pattern/minimum/maximum/additionalProperties — see its docstring and

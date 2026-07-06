@@ -25,6 +25,8 @@ export const queryKeys = {
     adminYolo: ["settings", "admin", "yolo"] as const,
     hostDiagnostics: ["settings", "host-diagnostics"] as const,
     notesSource: ["settings", "notes-source"] as const,
+    quietHours: ["settings", "quiet-hours"] as const,
+    notificationPreferences: ["settings", "notification-preferences"] as const,
     notesSourceDirectories: (path: string | null) =>
       ["settings", "notes-source", "directories", path] as const,
     notesLastSync: ["settings", "notes-last-sync"] as const
@@ -62,6 +64,7 @@ export const queryKeys = {
     detail: (id: string) => ["calendar", "detail", id] as const
   },
   chat: {
+    settings: ["chat", "settings"] as const,
     threads: ["chat", "threads"] as const,
     messages: (threadId: string) => ["chat", "threads", threadId, "messages"] as const,
     memorySettings: ["chat", "memory-settings"] as const,
@@ -70,7 +73,8 @@ export const queryKeys = {
   },
   email: {
     list: ["email", "list"] as const,
-    detail: (id: string) => ["email", "detail", id] as const
+    detail: (id: string) => ["email", "detail", id] as const,
+    taskMode: ["email", "task-mode"] as const
   },
   notifications: {
     list: ["notifications", "list"] as const
@@ -92,6 +96,11 @@ export const queryKeys = {
     today: ["weather", "today"] as const,
     location: ["weather", "location"] as const
   },
+  sports: {
+    overview: ["sports", "overview"] as const,
+    catalog: ["sports", "catalog"] as const,
+    follows: ["sports", "follows"] as const
+  },
   wellness: {
     checkins: ["wellness", "checkins"] as const,
     medications: ["wellness", "medications"] as const,
@@ -109,6 +118,7 @@ export const queryKeys = {
   },
   people: {
     list: ["people", "list"] as const,
+    notesSettings: ["people", "notes-settings"] as const,
     matchCandidates: ["people", "match-candidates"] as const
   }
 };

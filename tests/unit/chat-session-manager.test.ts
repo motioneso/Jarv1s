@@ -44,6 +44,7 @@ class FakeEngine {
   readonly provider = "anthropic" as const;
   launchOpts: EngineLaunchOpts | null = null;
   readonly submitted: string[] = [];
+  interrupted = false;
   killed = false;
   launchCount = 0;
   private readonly readScript: { records: TranscriptRecord[]; offset: number; complete: boolean }[];
@@ -75,6 +76,9 @@ class FakeEngine {
   }
   async kill(): Promise<void> {
     this.killed = true;
+  }
+  async interrupt(): Promise<void> {
+    this.interrupted = true;
   }
 }
 
@@ -527,7 +531,8 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
       submit: vi.fn().mockResolvedValue(undefined),
       readNew: vi.fn().mockResolvedValue({ records: [], offset: 0, complete: true }),
       isAlive: vi.fn().mockResolvedValue(true),
-      kill: vi.fn().mockResolvedValue(undefined)
+      kill: vi.fn().mockResolvedValue(undefined),
+      interrupt: vi.fn().mockResolvedValue(undefined)
     };
     const killSession = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatSessionManager(
@@ -643,7 +648,8 @@ describe("ChatSessionManager maintenance mutex (#342 §5.4)", () => {
         events.push(`kill-start:${label}`);
         await new Promise((r) => setTimeout(r, 5));
         events.push(`kill-end:${label}`);
-      })
+      }),
+      interrupt: vi.fn().mockResolvedValue(undefined)
     });
 
     const reconcileMcpTokens = vi.fn().mockImplementation(() => {
@@ -693,6 +699,7 @@ describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
     readonly provider = "anthropic" as const;
     launchOpts: EngineLaunchOpts | null = null;
     readonly submitted: string[] = [];
+    interrupted = false;
     killed = false;
     constructor(
       private readonly readScript: {
@@ -720,6 +727,9 @@ describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
     }
     async kill(): Promise<void> {
       this.killed = true;
+    }
+    async interrupt(): Promise<void> {
+      this.interrupted = true;
     }
   }
 
@@ -834,6 +844,7 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     readonly provider = "anthropic" as const;
     launchOpts: EngineLaunchOpts | null = null;
     readonly submitted: string[] = [];
+    interrupted = false;
     killed = false;
     private gate = new Promise<void>(() => {}); // never resolves by default
     private resolveGate: () => void = () => {};
@@ -852,8 +863,7 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     async readNew(
       afterOffset: number
     ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
-      // Block until the test releases the gate (kill resolves it). A killed engine rejects its
-      // in-flight readNew (the real RPC path throws CliChatUnavailableError when the socket dies).
+      // Block until the test releases the gate (interrupt resolves it).
       await this.gate;
       if (this.killed) {
         throw new Error("engine killed");
@@ -867,9 +877,12 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     async isAlive(): Promise<boolean> {
       return !this.killed;
     }
+    async interrupt(): Promise<void> {
+      this.interrupted = true;
+      this.resolveGate();
+    }
     async kill(): Promise<void> {
       this.killed = true;
-      // Killing the engine unblocks the pending readNew (the real RPC path would reject).
       this.resolveGate();
     }
   }
@@ -891,7 +904,7 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     });
   }
 
-  it("stopTurn kills the engine, emits a 'Stopped by user.' status record, releases the turn lock, does not persist", async () => {
+  it("stopTurn interrupts the active turn, keeps the engine alive, releases the turn lock, does not persist", async () => {
     const engine = new GatedEngine();
     const manager = new ChatSessionManager(stopDeps(engine));
 
@@ -907,7 +920,7 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     // User clicks Stop.
     await manager.stopTurn("u1");
 
-    // The turn resolves (the killed engine unblocked the gate; the stop signal broke the loop).
+    // The turn resolves (the interrupted engine unblocked the gate; the stop signal broke the loop).
     const { reply } = await turnPromise;
     expect(reply).toBe(""); // no partial reply persisted
 
@@ -915,8 +928,9 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     const stopStatus = received.find((r) => r.kind === "status" && r.text === "Stopped by user.");
     expect(stopStatus).toBeDefined();
 
-    // The engine was killed.
-    expect(engine.killed).toBe(true);
+    // The engine was interrupted, not killed.
+    expect(engine.interrupted).toBe(true);
+    expect(engine.killed).toBe(false);
 
     // recordTurn was NOT called (turn never completed — coordinator ruling (a): persist nothing).
     expect(
@@ -924,10 +938,9 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
         .deps.persistence.recordTurn
     ).not.toHaveBeenCalled();
 
-    // The turn-in-flight lock is released: a new turn can start without a 409. The new turn will
-    // fail on the killed engine, but it must NOT be the ChatTurnInFlightError (lock released).
-    const second = await manager.submitTurn("u1", "Ben", "next").catch((e: unknown) => e);
-    expect(second).not.toBeInstanceOf(ChatTurnInFlightError);
+    // The turn-in-flight lock is released and the same engine remains reusable.
+    const second = await manager.submitTurn("u1", "Ben", "next");
+    expect(second.reply).toBe("should-not-persist");
   });
 
   it("stopTurn is idempotent (no-op when no turn in flight)", async () => {

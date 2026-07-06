@@ -22,7 +22,7 @@ export function defaultScheduleMetadataFor(
 } {
   return {
     targetTime: briefingType === "evening" ? "19:00" : "07:00",
-    timezone: timezone ?? "UTC"
+    timezone: timezone ?? "America/Los_Angeles"
   };
 }
 
@@ -38,6 +38,33 @@ export function readToolNames(tools: readonly AiAssistantToolDto[]): readonly st
     .filter((tool) => tool.risk === "read")
     .map((tool) => tool.name)
     .sort();
+}
+
+/**
+ * Human-readable, deduplicated module labels for the read-only tools available to briefings
+ * (e.g. "Calendar", "Email", "Tasks"). Derived from `AiAssistantToolDto.moduleName`, which is
+ * the module's own display name — never the raw function/method-style `tool.name` (e.g.
+ * `calendar.listVisibleEvents`). This is presentation-only: it does not change which tool IDs
+ * are selected/stored for briefing creation (see `readToolNames`).
+ */
+export function readSourceLabels(tools: readonly AiAssistantToolDto[]): readonly string[] {
+  const labels = new Set(
+    tools.filter((tool) => tool.risk === "read").map((tool) => tool.moduleName)
+  );
+  return Array.from(labels).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Renders the Sources card copy from human-readable module labels (e.g. "Calendar", "Email") —
+ * never from raw assistant tool/function names such as `calendar.listVisibleEvents`. Callers
+ * must pass labels already produced by `readSourceLabels`, not `readToolNames`.
+ */
+export function sourceListDescription(labels: readonly string[]): string {
+  if (labels.length === 0) {
+    return "No read-only sources configured yet. Briefings need at least one.";
+  }
+  const headline = `${labels.length} read-only source${labels.length === 1 ? "" : "s"} available for scheduled synthesis`;
+  return `${headline}: ${labels.join(", ")}.`;
 }
 
 export function createDefinitionRequest(input: {

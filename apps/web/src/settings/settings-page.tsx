@@ -2,6 +2,7 @@ import "../styles/settings.css";
 import "../styles/settings-panes.css";
 import "../styles/settings-panes-2.css";
 import "../styles/settings-panes-3.css";
+import "../styles/sports-2.css";
 
 import {
   Activity,
@@ -17,7 +18,7 @@ import {
   ServerCog,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
+  GitCommitHorizontal,
   UserRound,
   Users,
   type LucideIcon
@@ -34,7 +35,7 @@ import {
   writeSettingsStorage
 } from "./settings-storage";
 import type { PaneProps } from "./settings-types";
-import { PrioritySettings, Segmented, Switch } from "./settings-ui";
+import { PrioritySettings, Segmented } from "./settings-ui";
 import type { MeResponse } from "@jarv1s/shared";
 
 type SettingsPane = ComponentType<PaneProps>;
@@ -124,7 +125,7 @@ const HostPane = lazyPane(() =>
 
 const PERSONAL_SECTIONS = [
   { id: "profile", icon: UserRound, label: "Profile & account", Pane: ProfilePane },
-  { id: "assistant", icon: Sparkles, label: "Assistant & AI", Pane: AssistantPane },
+  { id: "assistant", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AssistantPane },
   { id: "priorities", icon: ListChecks, label: "Priorities", Pane: PrioritiesPane },
   { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
   { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
@@ -138,7 +139,7 @@ const PERSONAL_SECTIONS = [
 const ADMIN_SECTIONS = [
   { id: "people", icon: Users, label: "People & access", Pane: PeoplePane },
   { id: "identity", icon: Fingerprint, label: "Identity & registration", Pane: IdentityPane },
-  { id: "aiproviders", icon: Sparkles, label: "Assistant & AI", Pane: AiProvidersPane },
+  { id: "aiproviders", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AiProvidersPane },
   { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane },
   { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
   { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
@@ -158,9 +159,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
   const [mode, setMode] = useState<"personal" | "admin">(() =>
     isAdmin && readSettingsStorage(storage, "mode") === "admin" ? "admin" : "personal"
   );
-  const [advanced, setAdvanced] = useState<boolean>(
-    () => readSettingsStorage(storage, "advanced") === "1"
-  );
   const [categoryPersonal, setCategoryPersonal] = useState<PersonalSectionId>(() =>
     coerceSettingsSectionId(PERSONAL_SECTIONS, readSettingsStorage(storage, "categoryPersonal"))
   );
@@ -169,10 +167,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
   );
 
   useEffect(() => writeSettingsStorage(storage, "mode", mode), [mode, storage]);
-  useEffect(
-    () => writeSettingsStorage(storage, "advanced", advanced ? "1" : "0"),
-    [advanced, storage]
-  );
   useEffect(
     () => writeSettingsStorage(storage, "categoryPersonal", categoryPersonal),
     [categoryPersonal, storage]
@@ -193,7 +187,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
     } else if (isAdmin && ADMIN_SECTIONS.some((section) => section.id === requested)) {
       setMode("admin");
       setCategoryAdmin(requested as AdminSectionId);
-      if (requested === "host") setAdvanced(true);
     }
     const next = new URLSearchParams(searchParams);
     next.delete("section");
@@ -231,13 +224,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
           ) : (
             <span />
           )}
-          <label className="set2__adv">
-            <span className="set2__adv-tx">
-              <span className="set2__adv-t">Advanced</span>
-              <span className="set2__adv-d">Show provider, host &amp; developer detail</span>
-            </span>
-            <Switch ariaLabel="Advanced settings" checked={advanced} onChange={setAdvanced} />
-          </label>
         </div>
 
         <div className="set2__grid">
@@ -272,7 +258,6 @@ export function SettingsPage({ me }: SettingsPageProps) {
           <div className="set2__pane">
             <Suspense fallback={<div className="pane__loading">Loading settings...</div>}>
               <Pane
-                advanced={advanced}
                 me={me}
                 onNavigate={(path) => navigate(path)}
                 onSelectSection={(id) => setActiveSection(id as PersonalSectionId | AdminSectionId)}

@@ -68,7 +68,7 @@ export interface ExtractFactsJobPayload extends ActorScopedJobPayload {
  * Embed the most recent user+assistant turn-pair for a thread into memory_chunks
  * with source_kind='chat'. Idempotent via content hash.
  */
-export async function handleEmbedTurnJob(
+async function handleEmbedTurnJob(
   scopedDb: DataContextDb,
   ownerUserId: string,
   threadId: string,

@@ -80,6 +80,7 @@ export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
   "kind",
   "jobId",
   "resourceId",
+  "connectorAccountId",
   "idempotencyKey",
   "sourcePath",
   "source",

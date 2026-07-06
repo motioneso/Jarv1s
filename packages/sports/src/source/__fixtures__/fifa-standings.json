@@ -1,0 +1,39 @@
+{
+  "children": [
+    {
+      "name": "Group A",
+      "standings": {
+        "entries": [
+          {
+            "team": { "id": "202", "abbreviation": "MEX", "displayName": "Mexico" },
+            "note": { "description": "Advances to knockout stage", "color": "#2a66d1" },
+            "stats": [
+              { "name": "rank", "value": 1 },
+              { "name": "points", "value": 7 },
+              { "name": "wins", "value": 2 },
+              { "name": "losses", "value": 0 },
+              { "name": "ties", "value": 1 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Group B",
+      "standings": {
+        "entries": [
+          {
+            "team": { "id": "660", "abbreviation": "ENG", "displayName": "England" },
+            "stats": [
+              { "name": "rank", "value": 2 },
+              { "name": "points", "value": 4 },
+              { "name": "wins", "value": 1 },
+              { "name": "losses", "value": 0 },
+              { "name": "ties", "value": 1 }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -55,6 +55,20 @@ export class CalendarRepository {
       .executeTakeFirst();
   }
 
+  async getByExternalId(
+    scopedDb: DataContextDb,
+    input: { readonly connectorAccountId: string; readonly externalId: string }
+  ): Promise<CalendarEvent | undefined> {
+    assertDataContextDb(scopedDb);
+
+    return scopedDb.db
+      .selectFrom("app.calendar_events")
+      .selectAll()
+      .where("connector_account_id", "=", input.connectorAccountId)
+      .where("external_id", "=", input.externalId)
+      .executeTakeFirst();
+  }
+
   async upsertCachedEvent(
     scopedDb: DataContextDb,
     input: CreateCachedCalendarEventInput
@@ -62,6 +76,7 @@ export class CalendarRepository {
     assertDataContextDb(scopedDb);
 
     const now = new Date();
+    const externalMetadata = input.externalMetadata ?? {};
 
     return scopedDb.db
       .insertInto("app.calendar_events")
@@ -76,7 +91,7 @@ export class CalendarRepository {
         summary: input.summary ?? null,
         body_excerpt: input.bodyExcerpt ?? null,
         external_id: input.externalId,
-        external_metadata: input.externalMetadata ?? {},
+        external_metadata: externalMetadata,
         created_at: now,
         updated_at: now
       })
@@ -88,7 +103,9 @@ export class CalendarRepository {
           location: input.location ?? null,
           summary: input.summary ?? null,
           body_excerpt: input.bodyExcerpt ?? null,
-          external_metadata: input.externalMetadata ?? {},
+          external_metadata: sql`app.calendar_events.external_metadata || ${JSON.stringify(
+            externalMetadata
+          )}::jsonb`,
           updated_at: now
         })
       )

@@ -1,4 +1,5 @@
 import {
+  localDay,
   quadrantOf,
   type TaskDto,
   type TaskListDto,
@@ -7,9 +8,8 @@ import {
 } from "@jarv1s/shared";
 
 import { matchesFocus, type TaskFocus } from "./focus.js";
-import { todayDateKey, zonedDateKey } from "../locale/locale-format.js";
 
-export const statusFilters = ["all", "todo", "done", "archived"] as const;
+export const statusFilters = ["all", "todo", "suggested", "done", "archived"] as const;
 export type StatusFilter = (typeof statusFilters)[number];
 export type ListState = "included" | "solo" | "excluded";
 
@@ -129,8 +129,8 @@ function matchesDueIntent(task: TaskDto, due: TaskSearchIntent["due"], timeZone?
   if (due.kind === "none") return task.dueAt === null;
   if (!task.dueAt) return false;
 
-  const today = todayDateKey(timeZone);
-  const dueKey = zonedDateKey(task.dueAt, timeZone);
+  const today = localDay(new Date(), timeZone);
+  const dueKey = localDay(task.dueAt, timeZone);
   if (due.kind === "overdue") return dueKey < today;
   if (due.kind === "today") return dueKey === today;
   if (due.kind === "this_week") return dueKey >= today && dueKey <= addDaysKey(today, 6);

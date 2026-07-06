@@ -84,6 +84,35 @@
   background: var(--surface-3);
 }
 
+.jds-crash {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-4);
+  background: var(--bg);
+  color: var(--text);
+  padding: var(--space-7);
+  font-family: var(--font-sans);
+}
+
+.jds-crash__title {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.jds-crash__copy {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
 .jds-btn--quiet {
   background: transparent;
   color: var(--text-muted);
@@ -103,7 +132,7 @@
   border-color: transparent;
 }
 .jds-btn--accentSoft:hover {
-  background: var(--pine-soft-2);
+  background: var(--forest-soft-2);
 }
 
 .jds-btn--danger {
@@ -256,9 +285,9 @@
   color: var(--text-muted);
   border-color: var(--border);
 }
-.jds-badge--pine {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+.jds-badge--forest {
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .jds-badge--amber {
   background: var(--amber-soft);
@@ -340,8 +369,8 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-pill);
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
   font-family: var(--font-sans);
   font-weight: var(--weight-semibold);
   font-size: var(--text-sm);
@@ -661,6 +690,10 @@
   color: var(--text);
   font-weight: var(--weight-semibold);
   box-shadow: var(--shadow-xs);
+}
+.jds-segmented__opt:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 .jds-segmented__opt svg {
   width: 15px;

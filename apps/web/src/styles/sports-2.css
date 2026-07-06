@@ -1,0 +1,182 @@
+/* Sports settings follow-picker (packages/sports/src/settings/index.tsx). Separate file from
+   sports-1.css purely for the 1000-line file-size gate (sports-1.css has no headroom); imported
+   by the settings shell since packages don't import their own CSS. */
+
+.sp-whole {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: var(--transition-control);
+}
+.sp-whole:hover {
+  background: var(--surface-2);
+}
+.sp-whole.is-active {
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
+}
+.sp-whole__lbl {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.sp-whole.is-active .sp-whole__lbl {
+  color: var(--forest-ink);
+}
+.sp-whole__state {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.sp-whole.is-active .sp-whole__state {
+  color: var(--forest-ink);
+}
+
+.sp-teamgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.sp-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 7px 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: var(--transition-control);
+  text-align: left;
+}
+.sp-team:hover {
+  background: var(--surface-2);
+}
+.sp-team.is-active {
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
+  color: var(--forest-ink);
+}
+.sp-team:disabled,
+.sp-whole:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.sp-team__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-pickcrest {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  background: var(--surface-2);
+  color: var(--text-subtle);
+}
+.sp-pickcrest img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Search-first picker additions (#688): search input, followed-teams summary
+   chip row, collapsible browse group header. Token-only, appended. */
+
+.sp-search {
+  margin-bottom: 14px;
+}
+.sp-search__input {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 9px 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  transition: var(--transition-control);
+}
+.sp-search__input::placeholder {
+  color: var(--text-faint);
+}
+.sp-search__input:focus {
+  outline: none;
+  border-color: var(--forest-soft-2);
+  background: var(--surface-2);
+}
+
+.sp-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--forest-soft-2);
+  background: var(--forest-soft);
+  border-radius: var(--radius-lg);
+  padding: 4px 6px 4px 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--forest-ink);
+}
+.sp-chip__lbl {
+  white-space: nowrap;
+}
+.sp-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--forest-ink);
+  transition: var(--transition-control);
+}
+.sp-chip__remove:hover {
+  background: var(--surface-2);
+}
+.sp-chip__remove:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

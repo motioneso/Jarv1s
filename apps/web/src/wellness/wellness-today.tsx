@@ -1,14 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { EMOTIONS, moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
-import { getMedicationSchedule, logMedicationDose } from "../api/client";
-import { queryKeys } from "../api/query-keys";
-import { emoColor, coreLabel, type WellnessEmotionCore, type Theme } from "./emotion-taxonomy";
-
-function todayIso(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
+import { EMOTIONS, localDay, moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
+import { getMedicationSchedule, logMedicationDose } from "../api/client.js";
+import { queryKeys } from "../api/query-keys.js";
+import { emoColor, coreLabel, type WellnessEmotionCore, type Theme } from "./emotion-taxonomy.js";
 
 // Common quick-pick reasons for an as-needed dose. The user can pick one or type their own;
 // the chosen text is what gets stored (no placeholder is ever submitted).
@@ -192,10 +187,11 @@ function ClipboardCheckIcon() {
 interface MedTodayProps {
   theme: Theme;
   onManage: () => void;
+  timeZone?: string;
 }
 
-function MedToday({ theme: _theme, onManage }: MedTodayProps) {
-  const date = todayIso();
+function MedToday({ theme: _theme, onManage, timeZone }: MedTodayProps) {
+  const date = localDay(new Date(), timeZone);
   const queryClient = useQueryClient();
 
   const scheduleQuery = useQuery({
@@ -681,6 +677,27 @@ export interface WellnessTodayProps {
   onManage: () => void;
   onModalOpen: (seedEmotion?: WellnessEmotionCore | null) => void;
   onModalEdit: () => void;
+  /** IANA timezone from user locale settings. Defaults to browser timezone when absent. */
+  timeZone?: string;
+}
+
+/**
+ * Today's check-ins, day-bucketed in the user's persisted timezone (#636) rather than
+ * the UTC day embedded in the stored ISO timestamp. Exported for unit coverage of the
+ * todays-checkins bucketing fix.
+ */
+export function todaysCheckins(checkins: readonly CheckinDto[], timeZone?: string): CheckinDto[] {
+  const todayStr = localDay(new Date(), timeZone);
+  return checkins
+    .filter((c) => {
+      const ts = c.checkedInAt ?? c.createdAt ?? "";
+      return ts && localDay(ts, timeZone) === todayStr;
+    })
+    .sort((a, b) => {
+      const da = a.checkedInAt ?? a.createdAt ?? "";
+      const db = b.checkedInAt ?? b.createdAt ?? "";
+      return db < da ? -1 : 1;
+    });
 }
 
 export function WellnessToday({
@@ -689,20 +706,14 @@ export function WellnessToday({
   theme,
   onManage,
   onModalOpen,
-  onModalEdit
+  onModalEdit,
+  timeZone
 }: WellnessTodayProps) {
-  const todayStr = todayIso();
-  const todayCheckins = checkins
-    .filter((c) => (c.checkedInAt ?? c.createdAt ?? "").slice(0, 10) === todayStr)
-    .sort((a, b) => {
-      const da = a.checkedInAt ?? a.createdAt ?? "";
-      const db = b.checkedInAt ?? b.createdAt ?? "";
-      return db < da ? -1 : 1;
-    });
+  const todayCheckins = todaysCheckins(checkins, timeZone);
 
   return (
     <div className="wl-today">
-      <MedToday theme={theme} onManage={onManage} />
+      <MedToday theme={theme} onManage={onManage} timeZone={timeZone} />
       <CheckinToday
         todayCheckins={todayCheckins}
         theme={theme}

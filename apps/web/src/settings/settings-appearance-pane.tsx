@@ -21,7 +21,19 @@ interface DraftTheme {
   readonly tokens: AestheticThemeTokens;
 }
 
-const TOKEN_LABELS: Record<AestheticThemeTokenKey, string> = {
+interface SaveThemeDraftDeps {
+  readonly putCustomTheme: typeof putCustomTheme;
+  readonly setActiveTheme: typeof setActiveTheme;
+}
+
+type EditorTokenKey = AestheticThemeTokenKey | "gold";
+
+/* Gold is optional in the contract: themes saved without it keep the built-in
+   constant, so the editor seeds a default instead of requiring a value. */
+const DEFAULT_GOLD = "#c2872b";
+const EDITOR_TOKEN_KEYS: readonly EditorTokenKey[] = [...AESTHETIC_THEME_TOKEN_KEYS, "gold"];
+
+const TOKEN_LABELS: Record<EditorTokenKey, string> = {
   paper: "Paper",
   surface: "Surface",
   surface2: "Surface soft",
@@ -33,14 +45,15 @@ const TOKEN_LABELS: Record<AestheticThemeTokenKey, string> = {
   line: "Line",
   lineSubtle: "Line soft",
   lineStrong: "Line strong",
-  accent: "Accent"
+  accent: "Accent",
+  gold: "Gold (decorative)"
 };
 
 export function AppearancePane() {
   const queryClient = useQueryClient();
   const themesQuery = useQuery({ queryKey: queryKeys.settings.themes, queryFn: listThemes });
   const [draft, setDraft] = useState<DraftTheme | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<AestheticThemeTokenKey>("accent");
+  const [selectedSlot, setSelectedSlot] = useState<EditorTokenKey>("accent");
   const [paletteText, setPaletteText] = useState("");
   const [staged, setStaged] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +69,7 @@ export function AppearancePane() {
     onError: (err) => setError(readError(err))
   });
   const saveMutation = useMutation({
-    mutationFn: (next: DraftTheme) =>
-      putCustomTheme(next.id, { name: next.name, tokens: next.tokens }),
+    mutationFn: (next: DraftTheme) => saveThemeDraft(next),
     onSuccess: async (response) => {
       setDraft(response.theme);
       setStatus("Saved");
@@ -85,14 +97,22 @@ export function AppearancePane() {
     );
   }, [draft]);
 
-  const updateToken = (key: AestheticThemeTokenKey, value: string) => {
+  const goldWarning = useMemo(() => {
+    if (!draft?.tokens.gold) return null;
+    const ratio = contrastRatio(draft.tokens.gold, draft.tokens.paper);
+    return ratio < 3
+      ? `Gold on paper ${ratio.toFixed(2)}:1 — gold is decorative; aim for at least 3:1 on paper.`
+      : null;
+  }, [draft]);
+
+  const updateToken = (key: EditorTokenKey, value: string) => {
     setDraft((current) =>
       current ? { ...current, tokens: { ...current.tokens, [key]: value } } : current
     );
     setError(isThemeColor(value) ? null : "Use #rrggbb or rgb(r, g, b).");
   };
   const makeDraft = (name: string, tokens: AestheticThemeTokens) => {
-    setDraft({ id: slugifyThemeId(name), name, tokens });
+    setDraft({ id: slugifyThemeId(name), name, tokens: { gold: DEFAULT_GOLD, ...tokens } });
     setSelectedSlot("accent");
     setError(null);
     setStatus(null);
@@ -102,6 +122,10 @@ export function AppearancePane() {
     const invalid = AESTHETIC_THEME_TOKEN_KEYS.find((key) => !isThemeColor(draft.tokens[key]));
     if (invalid) {
       setError(`${TOKEN_LABELS[invalid]} must be #rrggbb or rgb(r, g, b).`);
+      return;
+    }
+    if (draft.tokens.gold !== undefined && !isThemeColor(draft.tokens.gold)) {
+      setError(`${TOKEN_LABELS.gold} must be #rrggbb or rgb(r, g, b).`);
       return;
     }
     saveMutation.mutate(draft);
@@ -192,38 +216,43 @@ export function AppearancePane() {
               />
             </Field>
             <div className="theme-token-grid">
-              {AESTHETIC_THEME_TOKEN_KEYS.map((key) => (
-                <label
-                  className={`theme-token ${selectedSlot === key ? "is-selected" : ""}`}
-                  key={key}
-                >
-                  <span className="theme-token__label">{TOKEN_LABELS[key]}</span>
-                  <span className="theme-token__controls">
-                    <input
-                      aria-label={`${TOKEN_LABELS[key]} color picker`}
-                      type="color"
-                      value={toHexInput(draft.tokens[key])}
-                      onFocus={() => setSelectedSlot(key)}
-                      onChange={(event) => updateToken(key, event.target.value)}
-                    />
-                    <input
-                      className="jds-input jds-input--sm"
-                      value={draft.tokens[key]}
-                      aria-invalid={!isThemeColor(draft.tokens[key])}
-                      onFocus={() => setSelectedSlot(key)}
-                      onChange={(event) => updateToken(key, event.target.value)}
-                    />
-                  </span>
-                </label>
-              ))}
+              {EDITOR_TOKEN_KEYS.map((key) => {
+                const value = draft.tokens[key] ?? DEFAULT_GOLD;
+                return (
+                  <label
+                    className={`theme-token ${selectedSlot === key ? "is-selected" : ""}`}
+                    key={key}
+                  >
+                    <span className="theme-token__label">{TOKEN_LABELS[key]}</span>
+                    <span className="theme-token__controls">
+                      <input
+                        aria-label={`${TOKEN_LABELS[key]} color picker`}
+                        type="color"
+                        value={toHexInput(value)}
+                        onFocus={() => setSelectedSlot(key)}
+                        onChange={(event) => updateToken(key, event.target.value)}
+                      />
+                      <input
+                        className="jds-input jds-input--sm"
+                        value={value}
+                        aria-invalid={!isThemeColor(value)}
+                        onFocus={() => setSelectedSlot(key)}
+                        onChange={(event) => updateToken(key, event.target.value)}
+                      />
+                    </span>
+                  </label>
+                );
+              })}
             </div>
             <div className="theme-ramp" aria-label="Generated accent ramp">
-              {Object.entries(deriveAccentRamp(draft.tokens.accent)).map(([name, value]) => (
-                <span className="theme-ramp__item" key={name}>
-                  <span className="theme-swatch" style={{ background: value }} />
-                  <span>{name.replace("--", "")}</span>
-                </span>
-              ))}
+              {Object.entries(deriveAccentRamp(draft.tokens.accent, draft.tokens.paper)).map(
+                ([name, value]) => (
+                  <span className="theme-ramp__item" key={name}>
+                    <span className="theme-swatch" style={{ background: value }} />
+                    <span>{name.replace("--", "")}</span>
+                  </span>
+                )
+              )}
             </div>
             <Field label="Paste palette">
               <textarea
@@ -278,6 +307,9 @@ export function AppearancePane() {
                 Low contrast: {contrastWarnings.join(", ")}. Save is allowed.
               </Note>
             ) : null}
+            {goldWarning ? (
+              <Note icon={<Palette size={13} aria-hidden="true" />}>{goldWarning}</Note>
+            ) : null}
             {error ? <Note>{error}</Note> : null}
             {status ? <Badge tone="pine">{status}</Badge> : null}
           </div>
@@ -285,6 +317,15 @@ export function AppearancePane() {
       ) : null}
     </>
   );
+}
+
+export async function saveThemeDraft(
+  draft: DraftTheme,
+  deps: SaveThemeDraftDeps = { putCustomTheme, setActiveTheme }
+) {
+  const response = await deps.putCustomTheme(draft.id, { name: draft.name, tokens: draft.tokens });
+  await deps.setActiveTheme({ id: response.theme.id });
+  return response;
 }
 
 function ThemeRow(props: {

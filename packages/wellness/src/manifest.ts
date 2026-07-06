@@ -23,13 +23,13 @@ import {
   wellnessInsightsRouteSchema
 } from "@jarv1s/shared";
 
+import { collectWellnessExportSection } from "./data-lifecycle.js";
 import { wellnessFocusSignal } from "./focus-signal.js";
 import { WELLNESS_EXPORT_QUEUE } from "./export-job.js";
 import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } from "./tools.js";
 
 export const WELLNESS_MODULE_ID = "wellness";
 export const WELLNESS_MEDICATION_REMINDER_QUEUE = "wellness-medication-reminder";
-export const WELLNESS_EXPORT_QUEUE_NAME = WELLNESS_EXPORT_QUEUE;
 export const wellnessModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
@@ -49,15 +49,9 @@ export const wellnessModuleManifest = {
     supportsUserDisable: true
   },
   database: {
-    migrations: [
-      "sql/0082_wellness_checkins.sql",
-      "sql/0083_wellness_medications.sql",
-      "sql/0084_wellness_medication_logs.sql",
-      "sql/0088_wellness_emotion_taxonomy.sql",
-      "sql/0089_wellness_therapy_notes.sql",
-      "sql/0114_data_export_jobs_format_and_params.sql",
-      "sql/0115_list_expired_data_export_jobs_format.sql"
-    ],
+    // No consumer reads this list (migrationDirectories is the operative mechanism below);
+    // left empty rather than hand-maintained to avoid drifting out of sync with sql/ again.
+    migrations: [],
     migrationDirectories: ["packages/wellness/sql"],
     ownedTables: [
       "app.wellness_checkins",
@@ -105,7 +99,7 @@ export const wellnessModuleManifest = {
     {
       id: "wellness.update",
       label: "Update wellness",
-      description: "Update the active actor's own medications.",
+      description: "Update the active actor's own check-ins, medications, and AI-consent setting.",
       scope: "user",
       actions: ["update"]
     },
@@ -129,7 +123,7 @@ export const wellnessModuleManifest = {
       path: "/api/wellness/ai-consent",
       requestSchema: putWellnessAiConsentRequestSchema,
       responseSchema: wellnessAiConsentResponseSchema,
-      permissionId: "wellness.view"
+      permissionId: "wellness.update"
     },
     {
       method: "POST",
@@ -258,5 +252,28 @@ export const wellnessModuleManifest = {
       execute: wellnessMedicationAdherenceExecute
     }
   ],
-  focusSignal: wellnessFocusSignal
+  focusSignal: wellnessFocusSignal,
+  dataLifecycle: {
+    // Full-account export (#801 Phase A): reproduces today's sections.wellness = { checkins,
+    // therapy_notes } exactly (byte-compat golden test in tests/integration/data-export.test.ts).
+    // medications / medication_logs feed the archive's separate structured_state section and
+    // are read there in @jarv1s/settings — not required here (only deletion.tables must cover
+    // every ownedTables entry).
+    exportSections: [
+      {
+        key: "wellness",
+        displayName: "Wellness",
+        collect: collectWellnessExportSection
+      }
+    ],
+    deletion: {
+      strategy: "cascade",
+      tables: [
+        { table: "app.wellness_checkins" },
+        { table: "app.medications" },
+        { table: "app.medication_logs" },
+        { table: "app.wellness_therapy_notes" }
+      ]
+    }
+  }
 } satisfies JarvisModuleManifest;

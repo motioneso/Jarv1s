@@ -19,6 +19,14 @@ export type SettingsModuleControlModel =
       readonly canOpenSettings: boolean;
     };
 
+const USER_TOGGLEABLE_MODULE_IDS = new Set(["wellness", "sports", "finance"]);
+
+export function visibleUserToggleModules(
+  modules: readonly SettingsModule[]
+): readonly SettingsModule[] {
+  return modules.filter((module) => USER_TOGGLEABLE_MODULE_IDS.has(module.id));
+}
+
 export function settingsModuleControlModel(module: SettingsModule): SettingsModuleControlModel {
   if (module.required) {
     return {

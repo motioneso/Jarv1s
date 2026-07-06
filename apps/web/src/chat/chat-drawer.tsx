@@ -1,22 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowUp,
   ChevronDown,
   Clock,
   BookmarkPlus,
+  GitCommitHorizontal,
   MessageSquareText,
   MoreHorizontal,
   Play,
-  Sparkles,
-  Square,
   SquarePen,
   ThumbsDown,
   ThumbsUp,
   Undo2,
   X
 } from "lucide-react";
-import { type KeyboardEvent, useCallback, useEffect, useState } from "react";
+import { type UIEvent, useCallback, useEffect, useRef, useState } from "react";
 
+import { BrandMark } from "../shell/brand-mark";
+
+import { maybeCapturePageContext } from "./page-context";
 import {
   cancelChatTurn,
   clearChat,
@@ -42,6 +43,7 @@ import type {
 } from "@jarv1s/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { ActionRequestCard } from "./action-request-card";
+import { Composer } from "./composer";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
 import { buildChatSeeds } from "./seeds";
@@ -76,6 +78,29 @@ export function ChatDrawer(props: {
   const queryClient = useQueryClient();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+
+  // #633: autoscroll to the newest message by default; pause it the moment the user scrolls
+  // away from the bottom, and resume (jumping straight to the latest record) on demand.
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
+  const AUTOSCROLL_THRESHOLD_PX = 48;
+
+  const handleBodyScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setStickToBottom(distanceFromBottom <= AUTOSCROLL_THRESHOLD_PX);
+  }, []);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior) => {
+    const el = bodyRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, []);
+
+  const jumpToLatest = useCallback(() => {
+    setStickToBottom(true);
+    scrollToLatest("smooth");
+  }, [scrollToLatest]);
 
   const resumeMutation = useMutation({
     mutationFn: (threadId: string) => resumeChat(threadId),
@@ -163,7 +188,7 @@ export function ChatDrawer(props: {
       setPendingUserText(trimmed);
       void (async () => {
         try {
-          const result = await sendChatTurn(trimmed);
+          const result = await sendChatTurn(trimmed, maybeCapturePageContext(trimmed)); // #679
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
             { kind: "user", text: trimmed, messageId: result.userMessageId },
@@ -202,6 +227,49 @@ export function ChatDrawer(props: {
     sendMessage(nextText);
   }, [drainAfterStopText, isSending, sendMessage]);
 
+  const reviewing = reviewThreadId !== null;
+  const displayRecords = reviewing
+    ? recordsFromMessages(messagesQuery.data?.messages ?? [])
+    : props.records;
+  const visibleFallbackRecords = fallbackRecords.filter(
+    (fallback) => !displayRecords.some((record) => sameTranscriptRecord(record, fallback))
+  );
+
+  // Merge the optimistic user record into the live feed (#399). Only applied in live mode —
+  // history review uses the fetched messages directly. The optimistic pending record is the
+  // NEWEST item, so it is appended AFTER the (older) fallback records — splicing it before
+  // them made a just-sent message render above prior turns until SSE settled (#664).
+  const effectiveRecords: readonly TranscriptRecord[] = reviewing
+    ? displayRecords
+    : [
+        ...displayRecords,
+        ...visibleFallbackRecords,
+        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : [])
+      ];
+
+  const isWaiting = !reviewing && (isSending || pendingUserText !== null);
+
+  // #633: switching what's displayed (new chat, opening a history row, toggling the history
+  // list, or the drawer itself (re)opening — #638) always re-pins to the bottom of the
+  // newly-shown content. Scrolls directly here (rather than relying solely on the effect below)
+  // because the drawer renders null while closed — bodyRef only attaches once `open` flips back
+  // to true, and the stickToBottom state set above wouldn't be visible to the other effect until
+  // a subsequent render.
+  useEffect(() => {
+    setStickToBottom(true);
+    if (props.open) {
+      scrollToLatest("auto");
+    }
+  }, [reviewThreadId, showHistory, props.open, scrollToLatest]);
+
+  // #633: jump straight to the bottom (no animation) whenever a new record/loading indicator
+  // lands while the user hasn't scrolled away.
+  useEffect(() => {
+    if (stickToBottom) {
+      scrollToLatest("auto");
+    }
+  }, [effectiveRecords.length, isWaiting, reviewThreadId, showHistory]);
+
   if (!props.open) {
     return null;
   }
@@ -227,39 +295,19 @@ export function ChatDrawer(props: {
       setDrainAfterStopText(queuedText);
     }
     void cancelChatTurn().catch(() => {
-      // best-effort: the turn ends server-side regardless; a network error here just means the
-      // local isSending flag clears when the POST /turn promise settles.
+      // best-effort: the turn ends server-side regardless; a network error here just clears isSending.
     });
   };
 
-  const reviewing = reviewThreadId !== null;
-  const displayRecords = reviewing
-    ? recordsFromMessages(messagesQuery.data?.messages ?? [])
-    : props.records;
   const selectedThread = (threadsQuery.data?.threads ?? []).find(
     (item) => item.id === reviewThreadId
   );
-  const visibleFallbackRecords = fallbackRecords.filter(
-    (fallback) => !displayRecords.some((record) => sameTranscriptRecord(record, fallback))
-  );
-
-  // Merge the optimistic user record into the live feed (#399). Only applied in live mode —
-  // history review uses the fetched messages directly.
-  const effectiveRecords: readonly TranscriptRecord[] = reviewing
-    ? displayRecords
-    : [
-        ...displayRecords,
-        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : []),
-        ...visibleFallbackRecords
-      ];
-
-  const isWaiting = !reviewing && (isSending || pendingUserText !== null);
 
   return (
     <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
       <div className="chatd__head">
         <span className="chatd__mark">
-          <Sparkles size={16} aria-hidden="true" />
+          <BrandMark size={16} />
         </span>
         <div className="chatd__id">
           <div className="chatd__name">Jarvis</div>
@@ -295,94 +343,107 @@ export function ChatDrawer(props: {
         </button>
       </div>
 
-      <div className="chatd__body">
-        {showHistory ? (
-          <HistoryList
-            selectedThreadId={reviewThreadId}
-            threads={threadsQuery.data?.threads ?? []}
-            onSelect={setReviewThreadId}
-            onResume={(id) => resumeMutation.mutate(id)}
-            resuming={resumeMutation.isPending}
-          />
-        ) : null}
-        {reviewing ? (
-          <div className="chatd-review">
-            <span>Reviewing {selectedThread?.title ?? "past chat"}</span>
-            <button
-              className="chatd-review__resume"
-              disabled={resumeMutation.isPending}
-              type="button"
-              onClick={() => reviewThreadId && resumeMutation.mutate(reviewThreadId)}
-            >
-              <Play size={13} aria-hidden="true" />
-              Resume this conversation
-            </button>
-          </div>
-        ) : null}
-        {effectiveRecords.length > 0 ? (
-          <Thread records={effectiveRecords} />
-        ) : reviewing ? (
-          <ReviewEmptyState />
-        ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
-          <ConnectProviderEmpty isFounder={props.isFounder} />
-        ) : (
-          <EmptyState
-            onSend={sendMessage}
-            isSending={isSending}
-            lockedModelUnavailable={lockedModelUnavailable}
-          />
-        )}
-        {isWaiting ? (
-          <div className="chatd-loading" aria-live="polite" aria-label="Jarvis is thinking">
-            <span className="chatd-msg__av">
-              <Sparkles size={14} aria-hidden="true" />
-            </span>
-            <svg
-              className="chatd-loading__bar"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 14 32 4"
-              fill="currentColor"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <path opacity="0.8" transform="translate(0 0)" d="M2 14 V18 H6 V14z">
-                <animateTransform
-                  attributeName="transform"
-                  type="translate"
-                  values="0 0; 24 0; 0 0"
-                  dur="2s"
-                  begin="0"
-                  repeatCount="indefinite"
-                  keySplines="0.2 0.2 0.4 0.8;0.2 0.2 0.4 0.8"
-                  calcMode="spline"
-                />
-              </path>
-              <path opacity="0.5" transform="translate(0 0)" d="M0 14 V18 H8 V14z">
-                <animateTransform
-                  attributeName="transform"
-                  type="translate"
-                  values="0 0; 24 0; 0 0"
-                  dur="2s"
-                  begin="0.1s"
-                  repeatCount="indefinite"
-                  keySplines="0.2 0.2 0.4 0.8;0.2 0.2 0.4 0.8"
-                  calcMode="spline"
-                />
-              </path>
-              <path opacity="0.25" transform="translate(0 0)" d="M0 14 V18 H8 V14z">
-                <animateTransform
-                  attributeName="transform"
-                  type="translate"
-                  values="0 0; 24 0; 0 0"
-                  dur="2s"
-                  begin="0.2s"
-                  repeatCount="indefinite"
-                  keySplines="0.2 0.2 0.4 0.8;0.2 0.2 0.4 0.8"
-                  calcMode="spline"
-                />
-              </path>
-            </svg>
-          </div>
+      <div className="chatd__body-wrap">
+        <div className="chatd__body" ref={bodyRef} onScroll={handleBodyScroll}>
+          {showHistory ? (
+            <HistoryList
+              selectedThreadId={reviewThreadId}
+              threads={threadsQuery.data?.threads ?? []}
+              onSelect={setReviewThreadId}
+              onResume={(id) => resumeMutation.mutate(id)}
+              resuming={resumeMutation.isPending}
+            />
+          ) : null}
+          {reviewing ? (
+            <div className="chatd-review">
+              <span>Reviewing {selectedThread?.title ?? "past chat"}</span>
+              <button
+                className="chatd-review__resume"
+                disabled={resumeMutation.isPending}
+                type="button"
+                onClick={() => reviewThreadId && resumeMutation.mutate(reviewThreadId)}
+              >
+                <Play size={13} aria-hidden="true" />
+                Resume this conversation
+              </button>
+            </div>
+          ) : null}
+          {effectiveRecords.length > 0 ? (
+            <Thread records={effectiveRecords} />
+          ) : reviewing ? (
+            <ReviewEmptyState />
+          ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
+            <ConnectProviderEmpty isFounder={props.isFounder} />
+          ) : (
+            <EmptyState
+              onSend={sendMessage}
+              isSending={isSending}
+              lockedModelUnavailable={lockedModelUnavailable}
+            />
+          )}
+          {isWaiting ? (
+            <div className="chatd-loading" aria-live="polite" aria-label="Jarvis is thinking">
+              <span className="chatd-msg__av">
+                <BrandMark size={14} />
+              </span>
+              <svg
+                className="chatd-loading__bar"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 14 32 4"
+                fill="currentColor"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <path opacity="0.8" transform="translate(0 0)" d="M2 14 V18 H6 V14z">
+                  <animateTransform
+                    attributeName="transform"
+                    type="translate"
+                    values="0 0; 24 0; 0 0"
+                    dur="2s"
+                    begin="0"
+                    repeatCount="indefinite"
+                    keySplines="0.2 0.2 0.4 0.8;0.2 0.2 0.4 0.8"
+                    calcMode="spline"
+                  />
+                </path>
+                <path opacity="0.5" transform="translate(0 0)" d="M0 14 V18 H8 V14z">
+                  <animateTransform
+                    attributeName="transform"
+                    type="translate"
+                    values="0 0; 24 0; 0 0"
+                    dur="2s"
+                    begin="0.1s"
+                    repeatCount="indefinite"
+                    keySplines="0.2 0.2 0.4 0.8;0.2 0.2 0.4 0.8"
+                    calcMode="spline"
+                  />
+                </path>
+                <path opacity="0.25" transform="translate(0 0)" d="M0 14 V18 H8 V14z">
+                  <animateTransform
+                    attributeName="transform"
+                    type="translate"
+                    values="0 0; 24 0; 0 0"
+                    dur="2s"
+                    begin="0.2s"
+                    repeatCount="indefinite"
+                    keySplines="0.2 0.2 0.4 0.8;0.2 0.2 0.4 0.8"
+                    calcMode="spline"
+                  />
+                </path>
+              </svg>
+            </div>
+          ) : null}
+        </div>
+        {!stickToBottom ? (
+          <button
+            aria-label="Jump to latest message"
+            className="chatd__jump"
+            type="button"
+            onClick={jumpToLatest}
+          >
+            <ChevronDown size={14} aria-hidden="true" />
+            Jump to latest
+          </button>
         ) : null}
       </div>
 
@@ -513,7 +574,7 @@ function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) 
   return (
     <details className="chatd-peek">
       <summary className="chatd-peek__summary">
-        <Sparkles size={13} aria-hidden="true" />
+        <GitCommitHorizontal size={13} aria-hidden="true" />
         <span className="chatd-peek__label">Behind the scenes</span>
         <span className="chatd-peek__count">
           {count} {count === 1 ? "step" : "steps"}
@@ -548,6 +609,7 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
         actionRequestId={props.record.actionRequestId}
         summary={props.record.summary ?? text}
         toolName={props.record.toolName ?? kind}
+        preview={props.record.preview}
       />
     );
   }
@@ -571,7 +633,7 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
   return (
     <div className="chatd-msg">
       <span className="chatd-msg__av">
-        <Sparkles size={14} aria-hidden="true" />
+        <BrandMark size={14} />
       </span>
       <div className="chatd-bubble">
         <MarkdownMessage
@@ -787,7 +849,7 @@ function EmptyState(props: {
   return (
     <div className="chatd-empty">
       <span className="chatd-empty__mark">
-        <Sparkles size={22} aria-hidden="true" />
+        <BrandMark size={22} />
       </span>
       <div className="chatd-empty__title">What can I help with?</div>
       <div className="chatd-empty__sub">
@@ -814,124 +876,6 @@ function ReviewEmptyState() {
   return (
     <div className="chatd-empty chatd-empty--review">
       <div className="chatd-empty__title">No stored messages</div>
-    </div>
-  );
-}
-
-function Composer(props: {
-  readonly readOnly: boolean;
-  readonly isFounder: boolean;
-  readonly initialText?: string;
-  readonly isSending: boolean;
-  readonly sendError: string | null;
-  readonly needsProvider: boolean;
-  readonly lockedModelUnavailable: boolean;
-  readonly onSend: (text: string) => void;
-  readonly onStop: (queuedText: string | null) => void;
-}) {
-  // Lazy initializer: the starter seeds the input on mount only. After that, the user owns the
-  // value — typing/sending clears it and we never re-seed from the prop (no useEffect that would
-  // clobber edits or re-fire the chip on re-render).
-  const [text, setText] = useState(() => props.initialText ?? "");
-  const [queuedText, setQueuedText] = useState<string | null>(null);
-
-  const send = () => {
-    if (props.readOnly) return;
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    if (props.isSending) {
-      setQueuedText(trimmed);
-      setText("");
-      return;
-    }
-    props.onSend(trimmed);
-    setText("");
-  };
-
-  const restoreQueuedText = () => {
-    if (queuedText === null) return;
-    setText(queuedText);
-    setQueuedText(null);
-  };
-
-  const discardQueuedText = () => setQueuedText(null);
-
-  const stop = () => {
-    props.onStop(queuedText);
-    setQueuedText(null);
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      send();
-    }
-  };
-
-  return (
-    <div className="chatd__composer">
-      {props.needsProvider ? <ConnectProviderEmpty isFounder={props.isFounder} /> : null}
-      {props.lockedModelUnavailable ? (
-        <p className="chatd-lock-warn">
-          The locked chat model is unavailable. Contact your admin or go to <b>Settings → AI</b> to
-          re-enable it or clear the lock.
-        </p>
-      ) : null}
-      {props.sendError ? <p className="form-error">{props.sendError}</p> : null}
-      <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
-        <textarea
-          aria-label="Message Jarvis"
-          disabled={props.readOnly || props.lockedModelUnavailable}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={
-            props.lockedModelUnavailable
-              ? "Chat locked — model unavailable"
-              : props.readOnly
-                ? "Read-only history"
-                : "Message Jarvis…"
-          }
-          rows={1}
-          value={text}
-        />
-        <button
-          aria-label={props.isSending ? "Stop generating" : "Send"}
-          className="chatd-send"
-          disabled={
-            props.readOnly || props.lockedModelUnavailable || (!props.isSending && !text.trim())
-          }
-          title={props.isSending ? "Stop" : "Send"}
-          type="button"
-          onClick={props.isSending ? stop : send}
-        >
-          {props.isSending ? (
-            <Square size={15} aria-hidden="true" fill="currentColor" />
-          ) : (
-            <ArrowUp size={17} aria-hidden="true" />
-          )}
-        </button>
-      </div>
-      {queuedText !== null ? (
-        <div className="chatd-next" aria-live="polite">
-          <button
-            aria-label="Edit queued message"
-            className="chatd-next__text"
-            type="button"
-            onClick={restoreQueuedText}
-          >
-            Next: &quot;{queuedText}&quot;
-          </button>
-          <button
-            aria-label="Discard queued message"
-            className="chatd-next__x"
-            title="Discard queued message"
-            type="button"
-            onClick={discardQueuedText}
-          >
-            <X size={13} aria-hidden="true" />
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

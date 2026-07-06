@@ -51,6 +51,10 @@ import { registerThemeRoutes } from "./themes-routes.js";
 import { registerYoloRoutes } from "./yolo-routes.js";
 import { registerNotesSourceRoutes, type ReconcileNotesScheduleFn } from "./notes-source-routes.js";
 import {
+  registerNotificationPreferencesRoutes,
+  type NotificationUnreadPort
+} from "./notification-preferences-routes.js";
+import {
   registerMeAccountRoutes,
   type HasPasswordCredentialPort,
   type VerifySelfPasswordPort
@@ -92,6 +96,14 @@ export interface SettingsRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders?: () => readonly AuthProviderStatusDto[];
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  /**
+   * Derived module-owned deletion tables (Phase A, #801), flattened by the composition
+   * root from every built-in module's `dataLifecycle.deletion.tables` (see
+   * @jarv1s/module-registry's `getModuleDeletionTables`/`MODULE_DELETION_TABLES`).
+   * Threaded to `deleteUserData` so migrated modules' rows come off this package's
+   * hardcoded `userScopedCountQueries` list.
+   */
+  readonly moduleDeletionTables: readonly { table: string; countPredicate: string }[];
   readonly preferencesRepository?: ProfilePreferencesPort;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   readonly repository?: SettingsRepository;
@@ -141,6 +153,7 @@ export interface SettingsRoutesDependencies {
   readonly reconcileNotesSchedule?: ReconcileNotesScheduleFn;
   /** Optional: reconcile per-source proactive-monitoring recurring jobs on settings save. */
   readonly reconcileProactiveSchedule?: ReconcileProactiveScheduleFn;
+  readonly notificationUnreadPort?: NotificationUnreadPort;
 }
 
 interface SettingParams {
@@ -173,9 +186,16 @@ export function registerSettingsRoutes(
     repository,
     bootstrapConnectionString: dependencies.bootstrapConnectionString,
     verifySelfPassword: dependencies.verifySelfPassword,
-    hasPasswordCredential: dependencies.hasPasswordCredential
+    hasPasswordCredential: dependencies.hasPasswordCredential,
+    moduleDeletionTables: dependencies.moduleDeletionTables
   });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
+  registerNotificationPreferencesRoutes(server, {
+    ...dependencies,
+    repository,
+    preferencesRepository,
+    notificationUnreadPort: dependencies.notificationUnreadPort
+  });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   registerPriorityRoutes(server, { ...dependencies, preferencesRepository });
   registerYoloRoutes(server, {
@@ -195,7 +215,8 @@ export function registerSettingsRoutes(
   registerDataExportRoutes(server, {
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,
-    rootDb: dependencies.rootDb
+    rootDb: dependencies.rootDb,
+    listModuleManifests: dependencies.listModuleManifests
   });
   if (dependencies.boss) {
     registerDataExportAsyncRoutes(server, {
@@ -517,7 +538,8 @@ export function registerSettingsRoutes(
         actorUserId: accessContext.actorUserId,
         requestId: requireRequestId(accessContext),
         bootstrapConnectionString: dependencies.bootstrapConnectionString,
-        dryRun: false
+        dryRun: false,
+        moduleDeletionTables: dependencies.moduleDeletionTables
       });
     } catch (error) {
       if (error instanceof LastActiveAdminError) {

@@ -1,0 +1,132 @@
+import type { FastifyInstance, FastifyRequest } from "fastify";
+
+import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
+import {
+  createSportsFollowResponseSchema,
+  deleteSportsFollowResponseSchema,
+  sportsCatalogResponseSchema,
+  sportsFollowsResponseSchema,
+  sportsOverviewResponseSchema,
+  type CreateSportsFollowRequest,
+  type SportsFollowDto
+} from "@jarv1s/shared";
+
+import { SportsFollowsRepository } from "./repository.js";
+import { SportsService, type SportsFollowsReader } from "./sports-service.js";
+import { catalogEntry } from "./source/catalog.js";
+import type { SportsSource } from "./source/sports-source.js";
+
+/**
+ * The follows persistence surface the routes need. `SportsFollowsRepository`
+ * satisfies it; tests inject a fake. (`SportsService` only reads via
+ * `SportsFollowsReader`; the CRUD routes also write, so this widens it.)
+ */
+export interface SportsFollowsWriter extends SportsFollowsReader {
+  create(scopedDb: DataContextDb, input: CreateSportsFollowRequest): Promise<SportsFollowDto>;
+  remove(scopedDb: DataContextDb, id: string): Promise<boolean>;
+}
+
+export interface SportsRoutesDependencies {
+  readonly dataContext: DataContextRunner;
+  readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
+  readonly source: SportsSource;
+  /** Optional injection point for tests; defaults to a real `SportsFollowsRepository`. */
+  readonly repository?: SportsFollowsWriter;
+  /** Clock seam forwarded to the service (default `() => new Date()`). */
+  readonly now?: () => Date;
+  /** Reserved for root wiring parity with other modules; unused when `source` is supplied. */
+  readonly fetchFn?: typeof fetch;
+}
+
+export function registerSportsRoutes(
+  server: FastifyInstance,
+  dependencies: SportsRoutesDependencies
+): void {
+  const repository: SportsFollowsWriter = dependencies.repository ?? new SportsFollowsRepository();
+  const service = new SportsService({
+    source: dependencies.source,
+    dataContext: dependencies.dataContext,
+    repository,
+    now: dependencies.now
+  });
+
+  server.get(
+    "/api/sports/catalog",
+    { schema: sportsCatalogResponseSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        return await service.getCatalog();
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/sports/overview",
+    { schema: sportsOverviewResponseSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        return await service.getOverview(accessContext);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/sports/follows",
+    { schema: sportsFollowsResponseSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const follows = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+          repository.list(db)
+        );
+        return { follows };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/sports/follows",
+    { schema: createSportsFollowResponseSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const input = request.body as CreateSportsFollowRequest;
+        if (!catalogEntry(input.competitionKey)) {
+          throw new HttpError(400, `Unknown competition: ${input.competitionKey}`);
+        }
+        const follow = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+          repository.create(db, input)
+        );
+        return { follow };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.delete(
+    "/api/sports/follows/:id",
+    { schema: deleteSportsFollowResponseSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const { id } = request.params as { id: string };
+        const ok = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+          repository.remove(db, id)
+        );
+        return { ok };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+}

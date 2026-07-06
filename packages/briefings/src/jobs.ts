@@ -16,7 +16,7 @@ import type { NotificationsRepository } from "@jarv1s/notifications";
 import type { BriefingRunKind, BriefingType } from "@jarv1s/shared";
 
 import type { ComposeDeps } from "./compose.js";
-import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
+import { BRIEFINGS_MODULE_ID, BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import { BriefingsRepository } from "./repository.js";
 
 export interface BriefingRunPayload extends ActorScopedJobPayload {
@@ -169,6 +169,7 @@ export async function registerBriefingsJobWorkers(
       ) {
         try {
           await options.notificationsRepository.create(scopedDb, {
+            moduleId: BRIEFINGS_MODULE_ID,
             title:
               outcome.run.briefing_type === "evening"
                 ? "Your evening review is ready"

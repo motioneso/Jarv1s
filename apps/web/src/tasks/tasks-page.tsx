@@ -8,7 +8,7 @@ import {
   List as ListIcon,
   LoaderCircle,
   Search,
-  Sparkles,
+  GitCommitHorizontal,
   Tag
 } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
@@ -93,6 +93,15 @@ export function TasksPage() {
       setTimeout(() => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
       }, 500);
+    }
+  });
+
+  // Suggested-task review (#729): accept promotes to todo, dismiss archives.
+  const triageMutation = useMutation({
+    mutationFn: (input: { readonly task: TaskDto; readonly status: "todo" | "archived" }) =>
+      updateTask(input.task.id, { status: input.status }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list });
     }
   });
 
@@ -227,7 +236,7 @@ export function TasksPage() {
               onClick={submitSearchIntent}
               type="button"
             >
-              <Sparkles size={14} aria-hidden="true" />
+              <GitCommitHorizontal size={14} aria-hidden="true" />
             </button>
           </label>
         </div>
@@ -398,9 +407,11 @@ export function TasksPage() {
         <TaskListView
           tasks={visibleTasks}
           lists={lists}
-          isUpdating={updateMutation.isPending}
+          isUpdating={updateMutation.isPending || triageMutation.isPending}
           onToggleDone={(task) => updateMutation.mutate(task)}
           onOpen={(task) => setDialog({ id: task.id })}
+          onAccept={(task) => triageMutation.mutate({ task, status: "todo" })}
+          onDismiss={(task) => triageMutation.mutate({ task, status: "archived" })}
         />
       )}
 
@@ -575,7 +586,7 @@ function ListFilterMenu(props: {
                 className={`tk-tagmenu__item ${cls}`}
                 onClick={() => props.onCycle(list.id)}
               >
-                <span className="tk-listbtn__dot" style={{ background: "var(--pine)" }} />
+                <span className="tk-listbtn__dot" style={{ background: "var(--forest)" }} />
                 <span className="nm">{list.name}</span>
                 {st === "solo" ? (
                   <span className="tk-liststate tk-liststate--only">Only</span>

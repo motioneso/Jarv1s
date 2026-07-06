@@ -1,0 +1,397 @@
+import { createHash, randomUUID } from "node:crypto";
+
+import type { DataContextDb } from "@jarv1s/db";
+import { PreferencesRepository } from "@jarv1s/structured-state";
+import {
+  listVaultFilesRecursive,
+  readVaultFile,
+  vaultFileExists,
+  writeVaultFile,
+  type VaultContext
+} from "@jarv1s/vault";
+
+import { normalizeIdentity } from "./matching.js";
+import { formatPeopleNote, parsePeopleNote, replaceJarvisManagedSection } from "./notes-format.js";
+import { PeopleRepository } from "./repository.js";
+import type {
+  PeopleNotesRefreshResult,
+  PeopleNotesSettings,
+  Person,
+  PersonStatus
+} from "./types.js";
+
+export const PEOPLE_NOTES_FOLDER_PREFERENCE_KEY = "people-notes-folder";
+
+export class CanonicalNoteNotFoundError extends Error {
+  constructor(personId: string) {
+    super(`Canonical People note not found for person ${personId}`);
+    this.name = "CanonicalNoteNotFoundError";
+  }
+}
+
+export interface PeopleNotesServiceDeps {
+  readonly preferencesRepository?: PreferencesRepository;
+  readonly peopleRepository?: PeopleRepository;
+}
+
+export interface CreatePersonNoteInput {
+  readonly displayName: string;
+  readonly aliases?: readonly string[];
+  readonly emails?: readonly string[];
+  readonly phones?: readonly string[];
+}
+
+export interface UpdatePersonNoteInput {
+  readonly displayName?: string;
+  readonly aliases?: readonly string[];
+  readonly emails?: readonly string[];
+  readonly phones?: readonly string[];
+  readonly status?: Exclude<PersonStatus, "merged">;
+  readonly relationshipSummary?: string | null;
+  readonly contextSummary?: string | null;
+}
+
+export interface PeopleNoteWriteResult {
+  readonly person: Person;
+  readonly notePath: string;
+}
+
+interface LoadedPeopleNote {
+  readonly path: string;
+  readonly content: string;
+  readonly parsed: NonNullable<ReturnType<typeof parsePeopleNote>>;
+}
+
+function hash(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 32);
+}
+
+function normalizeFolder(folder: string | null): string | null {
+  if (folder === null) return null;
+  const trimmed = folder.trim().replace(/^\/+|\/+$/g, "");
+  if (!trimmed || trimmed.includes("..")) {
+    throw new Error("People notes folder must be a relative folder");
+  }
+  return trimmed;
+}
+
+function slugName(displayName: string): string {
+  const slug = displayName
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "Person";
+}
+
+function managedSummary(input: {
+  readonly displayName: string;
+  readonly emails: readonly string[];
+  readonly phones: readonly string[];
+}): string {
+  const lines = [`Display name: ${input.displayName}`];
+  if (input.emails.length > 0) lines.push(`Emails: ${input.emails.join(", ")}`);
+  if (input.phones.length > 0) lines.push(`Phones: ${input.phones.join(", ")}`);
+  return lines.join("\n");
+}
+
+export class PeopleNotesService {
+  private readonly preferencesRepository: PreferencesRepository;
+  private readonly peopleRepository: PeopleRepository;
+
+  constructor(deps: PeopleNotesServiceDeps = {}) {
+    this.preferencesRepository = deps.preferencesRepository ?? new PreferencesRepository();
+    this.peopleRepository = deps.peopleRepository ?? new PeopleRepository();
+  }
+
+  async getSettings(scopedDb: DataContextDb, _ownerUserId: string): Promise<PeopleNotesSettings> {
+    const stored = await this.preferencesRepository.get(
+      scopedDb,
+      PEOPLE_NOTES_FOLDER_PREFERENCE_KEY
+    );
+    return { folder: typeof stored === "string" && stored.length > 0 ? stored : null };
+  }
+
+  async putSettings(
+    scopedDb: DataContextDb,
+    _ownerUserId: string,
+    settings: PeopleNotesSettings
+  ): Promise<PeopleNotesSettings> {
+    const folder = normalizeFolder(settings.folder);
+    await this.preferencesRepository.upsert(scopedDb, PEOPLE_NOTES_FOLDER_PREFERENCE_KEY, folder);
+    return { folder };
+  }
+
+  async refreshFromFolder(
+    scopedDb: DataContextDb,
+    vaultCtx: VaultContext,
+    ownerUserId: string
+  ): Promise<PeopleNotesRefreshResult> {
+    const { folder } = await this.getSettings(scopedDb, ownerUserId);
+    if (!folder) return { projected: 0, candidates: 0 };
+
+    const notes = await this.loadPeopleNotes(vaultCtx, folder);
+    const byPersonId = new Map<string, LoadedPeopleNote[]>();
+    let candidates = 0;
+    for (const note of notes) {
+      const personId = note.parsed.frontmatter.jarvisPersonId;
+      if (!personId) {
+        await this.createReviewCandidate(
+          scopedDb,
+          ownerUserId,
+          "People note missing jarvisPersonId",
+          [note.path]
+        );
+        candidates += 1;
+        continue;
+      }
+      byPersonId.set(personId, [...(byPersonId.get(personId) ?? []), note]);
+    }
+
+    let projected = 0;
+    for (const [personId, matches] of byPersonId) {
+      if (matches.length !== 1) {
+        await this.createReviewCandidate(
+          scopedDb,
+          ownerUserId,
+          "Duplicate canonical People notes",
+          [personId, ...matches.map((match) => match.path)]
+        );
+        candidates += 1;
+        continue;
+      }
+      await this.projectNote(scopedDb, ownerUserId, matches[0]!);
+      projected += 1;
+    }
+
+    candidates += await this.createMissingCanonicalNoteCandidates(
+      scopedDb,
+      ownerUserId,
+      new Set(byPersonId.keys())
+    );
+
+    return { projected, candidates };
+  }
+
+  async createPersonNote(
+    scopedDb: DataContextDb,
+    vaultCtx: VaultContext,
+    ownerUserId: string,
+    input: CreatePersonNoteInput
+  ): Promise<PeopleNoteWriteResult> {
+    const { folder } = await this.getSettings(scopedDb, ownerUserId);
+    if (!folder) throw new Error("People notes folder is not configured");
+
+    const personId = randomUUID();
+    const notePath = await this.nextNotePath(vaultCtx, folder, input.displayName, personId);
+    const body = replaceJarvisManagedSection(
+      `# ${input.displayName}\n`,
+      managedSummary({
+        displayName: input.displayName,
+        emails: input.emails ?? [],
+        phones: input.phones ?? []
+      })
+    );
+
+    const content = formatPeopleNote({
+      frontmatter: {
+        jarvisPersonId: personId,
+        displayName: input.displayName,
+        aliases: input.aliases ?? [],
+        emails: input.emails ?? [],
+        phones: input.phones ?? [],
+        status: "active"
+      },
+      body
+    });
+    await writeVaultFile(vaultCtx, notePath, content);
+    const person = await this.projectNote(scopedDb, ownerUserId, {
+      path: notePath,
+      content,
+      parsed: parsePeopleNote(content)!
+    });
+    return { person, notePath };
+  }
+
+  async updatePersonNote(
+    scopedDb: DataContextDb,
+    vaultCtx: VaultContext,
+    ownerUserId: string,
+    personId: string,
+    patch: UpdatePersonNoteInput
+  ): Promise<PeopleNoteWriteResult> {
+    const note = await this.findCanonicalNote(scopedDb, vaultCtx, ownerUserId, personId);
+    const frontmatter = {
+      ...note.parsed.frontmatter,
+      jarvisPersonId: personId,
+      displayName: patch.displayName ?? note.parsed.frontmatter.displayName,
+      aliases: patch.aliases ?? note.parsed.frontmatter.aliases,
+      emails: patch.emails ?? note.parsed.frontmatter.emails,
+      phones: patch.phones ?? note.parsed.frontmatter.phones,
+      status: patch.status ?? note.parsed.frontmatter.status
+    };
+    const body = replaceJarvisManagedSection(
+      note.parsed.body,
+      managedSummary({
+        displayName: frontmatter.displayName,
+        emails: frontmatter.emails,
+        phones: frontmatter.phones
+      })
+    );
+    const content = formatPeopleNote({ frontmatter, body });
+
+    await writeVaultFile(vaultCtx, note.path, content);
+    const person = await this.projectNote(scopedDb, ownerUserId, {
+      path: note.path,
+      content,
+      parsed: parsePeopleNote(content)!
+    });
+    return { person, notePath: note.path };
+  }
+
+  async archivePersonNote(
+    scopedDb: DataContextDb,
+    vaultCtx: VaultContext,
+    ownerUserId: string,
+    personId: string
+  ): Promise<PeopleNoteWriteResult> {
+    return this.updatePersonNote(scopedDb, vaultCtx, ownerUserId, personId, { status: "archived" });
+  }
+
+  private async loadPeopleNotes(
+    vaultCtx: VaultContext,
+    folder: string
+  ): Promise<LoadedPeopleNote[]> {
+    let allPaths: string[];
+    try {
+      allPaths = await listVaultFilesRecursive(vaultCtx, folder);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+        allPaths = [];
+      } else {
+        throw error;
+      }
+    }
+    const paths = allPaths.filter((path) => path.endsWith(".md"));
+    const notes: LoadedPeopleNote[] = [];
+    for (const path of paths) {
+      const content = await readVaultFile(vaultCtx, path);
+      const parsed = parsePeopleNote(content);
+      if (parsed) notes.push({ path, content, parsed });
+    }
+    return notes;
+  }
+
+  private async findCanonicalNote(
+    scopedDb: DataContextDb,
+    vaultCtx: VaultContext,
+    ownerUserId: string,
+    personId: string
+  ): Promise<LoadedPeopleNote> {
+    const { folder } = await this.getSettings(scopedDb, ownerUserId);
+    if (!folder) throw new Error("People notes folder is not configured");
+    const matches = (await this.loadPeopleNotes(vaultCtx, folder)).filter(
+      (note) => note.parsed.frontmatter.jarvisPersonId === personId
+    );
+    if (matches.length !== 1) throw new CanonicalNoteNotFoundError(personId);
+    return matches[0]!;
+  }
+
+  private async projectNote(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    note: LoadedPeopleNote
+  ): Promise<Person> {
+    const personId = note.parsed.frontmatter.jarvisPersonId;
+    if (!personId) throw new Error("People note missing jarvisPersonId");
+
+    const person = await this.peopleRepository.upsertPersonProjection(scopedDb, {
+      ownerUserId,
+      personId,
+      displayName: note.parsed.frontmatter.displayName,
+      status: note.parsed.frontmatter.status,
+      confidence: 1
+    });
+    await this.peopleRepository.deleteNoteIdentities(scopedDb, ownerUserId, person.id);
+
+    for (const alias of note.parsed.frontmatter.aliases) {
+      await this.peopleRepository.upsertIdentity(scopedDb, {
+        ownerUserId,
+        personId: person.id,
+        identityKind: "alias",
+        sourceKind: "note",
+        normalizedValue: normalizeIdentity("alias", alias),
+        displayValue: alias,
+        sourceRef: note.path,
+        sourceRefHash: hash(`${note.path}:alias:${alias}`),
+        status: "active",
+        confidence: 1,
+        provenance: "user_confirmed"
+      });
+    }
+
+    for (const email of note.parsed.frontmatter.emails) {
+      await this.peopleRepository.upsertIdentity(scopedDb, {
+        ownerUserId,
+        personId: person.id,
+        identityKind: "email_address",
+        sourceKind: "note",
+        normalizedValue: normalizeIdentity("email_address", email),
+        displayValue: email,
+        sourceRef: note.path,
+        sourceRefHash: hash(`${note.path}:email:${email}`),
+        status: "active",
+        confidence: 1,
+        provenance: "user_confirmed"
+      });
+    }
+
+    return person;
+  }
+
+  private async createReviewCandidate(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    reasonSummary: string,
+    ids: readonly string[]
+  ): Promise<void> {
+    await this.peopleRepository.upsertMatchCandidate(scopedDb, {
+      ownerUserId,
+      candidateKind: "create_person",
+      reasonSummary,
+      confidence: 0.5,
+      ids: [...ids]
+    });
+  }
+
+  private async createMissingCanonicalNoteCandidates(
+    scopedDb: DataContextDb,
+    ownerUserId: string,
+    canonicalPersonIds: ReadonlySet<string>
+  ): Promise<number> {
+    const people = await this.peopleRepository.listPeople(scopedDb, ownerUserId, {});
+    let candidates = 0;
+    for (const person of people) {
+      if (person.status === "merged" || canonicalPersonIds.has(person.id)) continue;
+      await this.createReviewCandidate(
+        scopedDb,
+        ownerUserId,
+        "Existing People record missing canonical note",
+        [person.id]
+      );
+      candidates += 1;
+    }
+    return candidates;
+  }
+
+  private async nextNotePath(
+    vaultCtx: VaultContext,
+    folder: string,
+    displayName: string,
+    personId: string
+  ): Promise<string> {
+    const base = `${folder}/${slugName(displayName)}`;
+    const first = `${base}.md`;
+    if (!(await vaultFileExists(vaultCtx, first))) return first;
+    return `${base}-${personId.slice(0, 8)}.md`;
+  }
+}

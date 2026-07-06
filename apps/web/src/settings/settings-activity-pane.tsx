@@ -5,6 +5,7 @@ import { listActionAuditLog } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { formatDateTime, useUserLocale } from "../locale/locale-format.js";
 import type { PaneProps } from "./settings-types.js";
+import { Select } from "./settings-ui.js";
 import type { ActionAuditLogEntryDto } from "@jarv1s/shared";
 
 type DateRange = "today" | "7d" | "30d" | "90d";
@@ -98,10 +99,7 @@ export function ActivityPane(_props: PaneProps) {
         <p className="settings-section__desc">Actions Jarvis ran on your behalf, last 90 days.</p>
       </header>
 
-      <div
-        className="audfilter"
-        style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}
-      >
+      <div className="audfilter">
         {(["today", "7d", "30d", "90d"] as DateRange[]).map((r) => (
           <button
             key={r}
@@ -113,8 +111,8 @@ export function ActivityPane(_props: PaneProps) {
           </button>
         ))}
         {families.length > 0 && (
-          <select
-            className="jds-select"
+          <Select
+            aria-label="Filter by action family"
             value={familyFilter}
             onChange={(e) => setFamilyFilter(e.target.value)}
           >
@@ -124,7 +122,7 @@ export function ActivityPane(_props: PaneProps) {
                 {f}
               </option>
             ))}
-          </select>
+          </Select>
         )}
       </div>
 
@@ -141,35 +139,21 @@ export function ActivityPane(_props: PaneProps) {
       )}
 
       {!isLoading && filtered.length > 0 && (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <div className="aud">
           {filtered.map((entry) => (
-            <li
-              key={entry.id}
-              className="aud__row"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "0.5rem",
-                padding: "0.75rem 0",
-                borderBottom: "1px solid var(--jds-border)"
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <span style={{ fontWeight: 500 }}>{entry.toolName}</span>
+            <div key={entry.id} className="aud__row">
+              <div className="aud__when" title={formatDateTime(entry.occurredAt, locale)}>
+                {relativeTime(entry.occurredAt)}
+              </div>
+              <div className="aud__what">
+                <b>{entry.toolName}</b>
                 {entry.actionFamilyId && (
-                  <span style={{ marginLeft: "0.375rem", opacity: 0.6, fontSize: "0.875em" }}>
-                    {entry.actionFamilyId}
-                  </span>
+                  <>
+                    {" "}
+                    <span>{entry.actionFamilyId}</span>
+                  </>
                 )}
-                <div
-                  style={{
-                    marginTop: "0.25rem",
-                    display: "flex",
-                    gap: "0.375rem",
-                    flexWrap: "wrap"
-                  }}
-                >
+                <div className="aud__badges">
                   <span className="jds-badge jds-badge--neutral">
                     {approvalLabel(entry.approvalMode)}
                   </span>
@@ -183,14 +167,10 @@ export function ActivityPane(_props: PaneProps) {
                   )}
                 </div>
               </div>
-              <div style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
-                <span className="aud__when" title={formatDateTime(entry.occurredAt, locale)}>
-                  {relativeTime(entry.occurredAt)}
-                </span>
-              </div>
-            </li>
+              <div className="aud__cat">{entry.toolModuleId}</div>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

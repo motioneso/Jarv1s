@@ -20,6 +20,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Sunrise,
+  Trophy,
   Unlink,
   Wallet,
   type LucideIcon
@@ -35,13 +36,12 @@ import {
   getLocaleSettings,
   getModules,
   getMyModules,
-  listSourceBehaviors,
+  getQuietHoursSettings,
   listConnectorAccounts,
   putLocaleSettings,
-  putSourceBehavior,
+  putQuietHoursSettings,
   revokeConnectorAccount,
-  setMyModuleDisabled,
-  syncGoogleConnector
+  setMyModuleDisabled
 } from "../api/client";
 import { getConnectorFeatureGrants, updateConnectorFeatureGrants } from "../api/connectors-client";
 import {
@@ -52,21 +52,16 @@ import {
 } from "../api/notes-client";
 import { queryKeys } from "../api/query-keys";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
-import { canSyncConnectorAccount } from "./settings-connector-sync";
+import { getConnectorAccountHealth, isConnectorSyncInFlight } from "./settings-connector-sync";
 import { GoogleConnect } from "./settings-google-connect";
 import {
   BriefingSettings,
   ChatSettingsView,
   NotificationSettings
 } from "./settings-module-subviews";
-import {
-  sourceBehaviorStatus,
-  type DataSource as DataSourceModel,
-  type DataSourceBehavior
-} from "./settings-data-source-model";
 import { useFeedback } from "./settings-feedback";
 import { resolveModuleSettingsDeepLink } from "./module-settings-deep-link";
-import { settingsModuleControlModel } from "./settings-module-view-model";
+import { settingsModuleControlModel, visibleUserToggleModules } from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
   Badge,
@@ -82,7 +77,12 @@ import {
   Switch
 } from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
-import type { ConnectorAccountDto, LocaleSettingsDto, PutNotesSourceRequest } from "@jarv1s/shared";
+import {
+  type ConnectorAccountDto,
+  type LocaleSettingsDto,
+  type QuietHoursSettingsDto,
+  type PutNotesSourceRequest
+} from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
@@ -91,6 +91,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   chat: MessagesSquare,
   knowledge: BrainCircuit,
   wellness: HeartPulse,
+  sports: Trophy,
   notifications: Bell,
   finance: Wallet,
   email: Mail
@@ -102,6 +103,17 @@ const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
   dateFormat: "24"
 };
 
+const DEFAULT_QUIET_HOURS: QuietHoursSettingsDto = {
+  enabled: false,
+  start: "22:00",
+  end: "07:00",
+  timezone: null
+};
+
+export function isValidQuietHoursTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
 function moduleIcon(id: string): LucideIcon {
   return MODULE_ICONS[id] ?? Boxes;
 }
@@ -112,15 +124,11 @@ function AccountRow(props: {
   readonly account: ConnectorAccountDto;
   readonly onRevoke: () => void;
   readonly onReconnect: () => void;
-  readonly onSync?: () => void;
-  readonly syncPending?: boolean;
 }) {
   const { account } = props;
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
-  const health =
-    account.status === "active" ? "ready" : account.status === "error" ? "error" : "idle";
-  const label = health === "ready" ? "Healthy" : health === "error" ? "Needs attention" : "Revoked";
+  const health = getConnectorAccountHealth(account);
   const hasEmail = hasEmailScope(account.scopes);
   const hasCalendar = hasCalendarScope(account.scopes);
   const featureQuery = useQuery({
@@ -150,11 +158,19 @@ function AccountRow(props: {
         <div className="acct__sub">
           <span>{account.providerType}</span>
           <span className="acct__dot">·</span>
-          <Indicator status={health} label={label} />
+          <span>Live connection</span>
+          <Indicator status={health.indicator} label={health.label} />
         </div>
         {account.scopes.length ? (
           <div className="acct__scopes">{account.scopes.join(" · ")}</div>
         ) : null}
+        <div className="acct__scopes">
+          Fallback cache{" "}
+          {account.lastSyncFinishedAt
+            ? `updated ${formatTimestamp(account.lastSyncFinishedAt, account.lastSyncFinishedAt)}`
+            : "not yet populated"}
+        </div>
+        {health.alert ? <div className="acct__alert">{health.alert}</div> : null}
         {account.status !== "revoked" && (hasEmail || hasCalendar) ? (
           <div className="acct__features">
             {hasEmail ? (
@@ -179,26 +195,13 @@ function AccountRow(props: {
         ) : null}
       </div>
       <div className="acct__actions">
-        {account.status === "error" ? (
+        {health.canReconnect ? (
           <button
             type="button"
             className="jds-btn jds-btn--secondary jds-btn--sm"
             onClick={props.onReconnect}
           >
             Reconnect
-          </button>
-        ) : null}
-        {canSyncConnectorAccount(account) ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() => props.onSync?.()}
-            disabled={props.syncPending}
-          >
-            <span className="jds-btn__icon">
-              <RefreshCw size={15} className={props.syncPending ? "spin" : ""} />
-            </span>
-            {props.syncPending ? "Syncing..." : "Sync now"}
           </button>
         ) : null}
         {account.status !== "revoked" ? (
@@ -289,23 +292,16 @@ function ConnectedPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
   const [flow, setFlow] = useState<null | "picker" | "google">(null);
-  const [recentlySynced, setRecentlySynced] = useState(false);
-  const [syncTick, setSyncTick] = useState(0);
-  const syncMutation = useMutation({
-    mutationFn: syncGoogleConnector,
-    onSuccess: () => {
-      toast("Sync started", { icon: <RefreshCw size={17} /> });
-      setRecentlySynced(true);
-      setSyncTick((tick) => tick + 1);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.connectors.accounts });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
   const accountsQuery = useQuery({
     queryKey: queryKeys.connectors.accounts,
     queryFn: listConnectorAccounts,
     retry: false,
-    refetchInterval: () => (syncMutation.isPending || recentlySynced ? 2000 : false),
+    // Background refresh keeps the fallback-cache line honest while a first
+    // snapshot is still landing after connect; there is no manual sync anymore.
+    refetchInterval: (query) => {
+      const accounts = query.state.data?.accounts ?? [];
+      return accounts.some(isConnectorSyncInFlight) ? 2000 : false;
+    },
     refetchIntervalInBackground: false
   });
   const revokeMutation = useMutation({
@@ -322,11 +318,6 @@ function ConnectedPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  useEffect(() => {
-    if (!recentlySynced) return;
-    const stop = setTimeout(() => setRecentlySynced(false), 30_000);
-    return () => clearTimeout(stop);
-  }, [recentlySynced, syncTick]);
   const accounts = accountsQuery.data?.accounts ?? [];
 
   if (flow === "google") {
@@ -364,11 +355,7 @@ function ConnectedPane() {
             <AccountRow
               key={account.id}
               account={account}
-              onReconnect={() =>
-                toast(`Reconnecting ${account.providerDisplayName}…`, {
-                  icon: <RefreshCw size={17} />
-                })
-              }
+              onReconnect={() => setFlow("google")}
               onRevoke={() =>
                 confirm({
                   title: `Revoke ${account.providerDisplayName} access?`,
@@ -379,8 +366,6 @@ function ConnectedPane() {
                   onConfirm: () => revokeMutation.mutate(account.id)
                 })
               }
-              onSync={() => syncMutation.mutate()}
-              syncPending={syncMutation.isPending}
             />
           ))
         )}
@@ -388,7 +373,7 @@ function ConnectedPane() {
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
         These are your accounts and their trust state — not backend provider definitions. What each
-        account powers is set in <b>Data sources</b>.
+        account powers is set in its module settings.
       </Note>
     </>
   );
@@ -405,20 +390,6 @@ function formatLastSync(at: string | null, lastError?: string): string {
 function SourcesPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
-  const sourcesQuery = useQuery({
-    queryKey: queryKeys.settings.sourceBehaviors,
-    queryFn: listSourceBehaviors,
-    retry: false
-  });
-  const sourceMutation = useMutation({
-    mutationFn: (input: { readonly id: string; readonly enabled: boolean }) =>
-      putSourceBehavior(input.id, { enabled: input.enabled }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.settings.sourceBehaviors, data);
-      toast("Source behavior saved", { icon: <ShieldCheck size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
 
   // Notes source (#449): real API calls replace the prior NotWired stub.
   const notesSourceQuery = useQuery({
@@ -514,56 +485,8 @@ function SourcesPane() {
     <>
       <PaneHead
         title="Data sources"
-        desc="Calendar, email and your notes as Jarvis sees them. Not provider settings — what Jarvis is allowed to do with each source."
+        desc="Connect a notes folder Jarvis can index and use as context."
       />
-      {sourcesQuery.isLoading ? (
-        <Group title="Sources" desc="Loading source behavior policy.">
-          <Row name="Loading" desc="Fetching current source permissions." />
-        </Group>
-      ) : null}
-      {sourcesQuery.isError ? (
-        <Group title="Sources" desc="Could not load source behavior policy.">
-          <Row name="Unavailable" desc={readError(sourcesQuery.error)} />
-        </Group>
-      ) : null}
-      {(sourcesQuery.data?.sources ?? []).map((source: DataSourceModel) => {
-        const Icon = moduleIcon(source.id);
-        return (
-          <Group
-            key={source.id}
-            title={
-              <span className="src-title">
-                <Icon size={18} aria-hidden="true" />
-                {source.name}
-              </span>
-            }
-            desc={source.description}
-          >
-            {source.behaviors.map((behavior: DataSourceBehavior) => {
-              const status = sourceBehaviorStatus(behavior);
-              return (
-                <Row
-                  key={behavior.id}
-                  name={behavior.name}
-                  desc={behavior.description}
-                  control={
-                    behavior.toggleable ? (
-                      <Switch
-                        ariaLabel={`${source.name} — ${behavior.name}`}
-                        checked={behavior.enabled}
-                        disabled={sourceMutation.isPending}
-                        onChange={(enabled) => sourceMutation.mutate({ id: behavior.id, enabled })}
-                      />
-                    ) : (
-                      <Badge tone={status.tone}>{status.label}</Badge>
-                    )
-                  }
-                />
-              );
-            })}
-          </Group>
-        );
-      })}
 
       <Group
         title={
@@ -661,20 +584,6 @@ const CAT_BY_ID: Record<string, string> = { knowledge: "memory" };
 const CONTRIBUTED_SETTINGS_MODULE_IDS = new Set(
   MODULE_SETTINGS_SURFACES.filter((surface) => surface.hasEntry).map((surface) => surface.moduleId)
 );
-// The modules a person actually uses/configures, in the order the design shows
-// them. Everything else the registry exposes is internal infrastructure.
-const USER_FACING_MODULES = new Set([
-  "tasks",
-  "calendar",
-  "briefings",
-  "chat",
-  "notifications",
-  "knowledge",
-  "wellness",
-  "finance"
-]);
-// The extras a person opts into. Everything else user-facing is core (always on).
-const OPTIONAL_MODULES = new Set(["wellness", "finance"]);
 type ModuleSub = "briefings" | "chat" | "notifications";
 type ModuleSettingsView = ModuleSub | { readonly moduleId: string };
 
@@ -704,9 +613,16 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   }, [searchParams, setSearchParams]);
 
   if (view === "briefings") return <BriefingSettings onBack={() => setView(null)} />;
-  if (view === "chat") return <ChatSettingsView onBack={() => setView(null)} />;
+  if (view === "chat")
+    return <ChatSettingsView onBack={() => setView(null)} onCat={onSelectSection} />;
   if (view === "notifications")
-    return <NotificationSettings onBack={() => setView(null)} onCat={onSelectSection} />;
+    return (
+      <NotificationSettings
+        onBack={() => setView(null)}
+        onCat={onSelectSection}
+        onModuleSettings={(id) => setView(id)}
+      />
+    );
   if (view && typeof view === "object") {
     return (
       <ModuleSettingsRouter
@@ -720,13 +636,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     );
   }
 
-  // Curated to the user-facing module set. The registry also carries internal
-  // infrastructure modules (settings, connectors, email, ai, memory,
-  // structured-state) that are not something a person configures here.
-  const modules = (myQuery.data?.modules ?? []).filter((m) => USER_FACING_MODULES.has(m.id));
-  const core = modules.filter((m) => !OPTIONAL_MODULES.has(m.id));
-  const optional = modules.filter((m) => OPTIONAL_MODULES.has(m.id));
-  const hasChat = modules.some((m) => m.id === "chat");
+  const modules = visibleUserToggleModules(myQuery.data?.modules ?? []);
   const pathFor = (id: string): string | null =>
     modulesQuery.data?.modules.find((m) => m.id === id)?.navigation[0]?.path ?? null;
 
@@ -813,7 +723,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
           </div>
         </div>
         <div className="modrow__act">
-          {OPTIONAL_MODULES.has(module.id) && control.kind === "toggle" ? (
+          {control.kind === "toggle" ? (
             <Switch
               ariaLabel={`Use ${module.name}`}
               checked={control.checked}
@@ -828,40 +738,14 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
 
   return (
     <>
-      <PaneHead
-        title="Modules"
-        desc="The parts of Jarvis you use, and how each one behaves. Settings-only modules configure right here; the rest open their own screen."
-      />
-      <Group title="Core modules" desc="Core to Jarvis — always on.">
-        {core.length ? (
-          core.map(renderRow)
-        ) : (
-          <Row name={myQuery.isLoading ? "Loading modules…" : "No modules"} />
-        )}
-        {!hasChat ? (
-          <div className="modrow" key="chat-synthetic">
-            <div className="modrow__ic">
-              <MessagesSquare size={19} aria-hidden="true" />
-            </div>
-            <div className="modrow__main">
-              <div className="modrow__name">Chat</div>
-              <div className="modrow__desc">{moduleDescription("chat")}</div>
-            </div>
-            <div className="modrow__act">
-              <button type="button" className="modrow__link" onClick={() => setView("chat")}>
-                Configure <ArrowRight size={14} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </Group>
-      <Group title="Optional modules" desc="Switch on the extras you want to use.">
-        {optional.length ? (
-          optional.map(renderRow)
+      <PaneHead title="Modules" desc="Additional parts of Jarvis you can turn on or off." />
+      <Group title="Additional modules" desc="Switch on the extras you want to use.">
+        {modules.length ? (
+          modules.map(renderRow)
         ) : (
           <Row
-            name="No optional modules"
-            desc="Optional modules will appear here when available."
+            name={myQuery.isLoading ? "Loading modules…" : "No additional modules"}
+            desc="Additional modules will appear here when available."
           />
         )}
       </Group>
@@ -891,8 +775,24 @@ function GeneralPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const quietHoursQuery = useQuery({
+    queryKey: queryKeys.settings.quietHours,
+    queryFn: getQuietHoursSettings,
+    retry: false
+  });
+  const quietHours = quietHoursQuery.data?.quietHours ?? DEFAULT_QUIET_HOURS;
+  const quietHoursMutation = useMutation({
+    mutationFn: (next: QuietHoursSettingsDto) => putQuietHoursSettings({ quietHours: next }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.quietHours, data);
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
   const updateLocale = (patch: Partial<LocaleSettingsDto>) => {
     localeMutation.mutate({ ...locale, ...patch });
+  };
+  const updateQuietHours = (patch: Partial<QuietHoursSettingsDto>) => {
+    quietHoursMutation.mutate({ ...quietHours, ...patch });
   };
 
   return (
@@ -957,7 +857,14 @@ function GeneralPane() {
       >
         <Row
           name="Enable quiet hours"
-          control={<Switch ariaLabel="Enable quiet hours" checked onChange={() => undefined} />}
+          control={
+            <Switch
+              ariaLabel="Enable quiet hours"
+              checked={quietHours.enabled}
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(enabled) => updateQuietHours({ enabled })}
+            />
+          }
         />
         <div className="fld">
           <div className="fld__lbl">From / to</div>
@@ -965,23 +872,31 @@ function GeneralPane() {
             <input
               className="jds-input"
               type="time"
-              defaultValue="21:00"
+              value={quietHours.start}
               aria-label="Quiet hours from"
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (isValidQuietHoursTime(value)) updateQuietHours({ start: value });
+              }}
               style={{ flex: "0 0 130px", minWidth: 0 }}
             />
             <span style={{ color: "var(--text-faint)" }}>→</span>
             <input
               className="jds-input"
               type="time"
-              defaultValue="07:00"
+              value={quietHours.end}
               aria-label="Quiet hours to"
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (isValidQuietHoursTime(value)) updateQuietHours({ end: value });
+              }}
               style={{ flex: "0 0 130px", minWidth: 0 }}
             />
           </div>
         </div>
       </Group>
-      {/* BACKEND-TODO: persist quiet-hours window. */}
-      <Note>Saving quiet hours is coming soon — these don't persist yet.</Note>
     </>
   );
 }

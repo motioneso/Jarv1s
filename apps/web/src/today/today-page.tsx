@@ -23,7 +23,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import type { CalendarEventDto, LocaleSettingsDto, MeResponse, TaskDto } from "@jarv1s/shared";
+import { localDay, type MeResponse, type TaskDto } from "@jarv1s/shared";
 
 import {
   createWellnessCheckin,
@@ -37,13 +37,7 @@ import {
   updateTask
 } from "../api/client";
 import { findDefinition, targetTimeFor } from "../briefings/briefing-settings-model";
-import {
-  formatDate,
-  formatTime,
-  todayDateKey,
-  useUserLocale,
-  zonedDateKey
-} from "../locale/locale-format";
+import { useUserLocale } from "../locale/locale-format";
 import { useChatControls } from "../shell/chat-controls-context";
 import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
@@ -60,8 +54,25 @@ import {
   scheduleTodayModeRefresh
 } from "./evening-mode";
 import { ProactiveCards } from "./proactive-cards";
+import { SuggestedFromEmailSection } from "./today-suggested-email";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
+import {
+  ampm,
+  buildHeadline,
+  buildLede,
+  byStart,
+  countdownLabel,
+  datelineLabel,
+  driftOf,
+  dueTs,
+  durationLabel,
+  firstName,
+  greeting,
+  isToday,
+  shortDate,
+  timeLabel
+} from "./today-labels";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
 import "../styles/wellness-1.css";
 import "../styles/wellness-2.css";
@@ -86,6 +97,13 @@ export function TodayPage(props: {
   const wellnessEnabled = props.wellnessEnabled ?? false;
   const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
   const [, forceTodayModeRefresh] = useState(0);
+  // The masthead clock and next-event countdown read `now`; tick a re-render each
+  // half-minute so they stay honest while the page sits open.
+  const [, forceClockTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => forceClockTick((value) => value + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
   const tasksQuery = useQuery({ queryKey: queryKeys.tasks.list, queryFn: () => listTasks() });
   const listsQuery = useQuery({ queryKey: queryKeys.tasks.lists, queryFn: listTaskLists });
   const eventsQuery = useQuery({
@@ -143,14 +161,13 @@ export function TodayPage(props: {
       }, 500);
     }
   });
-
   const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
   const medScheduleQuery = useQuery({
-    queryKey: queryKeys.wellness.schedule(todayDateKey(locale.timezone)),
-    queryFn: () => getMedicationSchedule(todayDateKey(locale.timezone)),
+    queryKey: queryKeys.wellness.schedule(localDay(new Date(), locale.timezone)),
+    queryFn: () => getMedicationSchedule(localDay(new Date(), locale.timezone)),
     enabled: wellnessEnabled
   });
   const medScheduledSlots = (medScheduleQuery.data?.slots ?? []).filter((s) => !s.asNeeded);
@@ -181,6 +198,7 @@ export function TodayPage(props: {
   const lists = listsQuery.data?.lists ?? [];
 
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
+  const suggestedTasks = tasks.filter((t) => t.status === "suggested");
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
   const priorities = open.filter(isDoFirst);
   const atRisk = open.filter((t) => isAtRisk(t, locale.timezone));
@@ -189,10 +207,9 @@ export function TodayPage(props: {
     () => events.filter((e) => isToday(e, locale.timezone)).sort(byStart),
     [events, locale.timezone]
   );
-  const tomorrowKey = addDaysToKey(zonedDateKey(now, locale.timezone), 1);
+  const tomorrowKey = addDaysToKey(localDay(now, locale.timezone), 1);
   const tomorrowEvents = useMemo(
-    () =>
-      events.filter((e) => zonedDateKey(e.startsAt, locale.timezone) === tomorrowKey).sort(byStart),
+    () => events.filter((e) => localDay(e.startsAt, locale.timezone) === tomorrowKey).sort(byStart),
     [events, locale.timezone, tomorrowKey]
   );
   const tomorrowTasks = tasks
@@ -200,7 +217,7 @@ export function TodayPage(props: {
       (task) =>
         task.status === "todo" &&
         task.dueAt !== null &&
-        zonedDateKey(task.dueAt, locale.timezone) === tomorrowKey
+        localDay(task.dueAt, locale.timezone) === tomorrowKey
     )
     .slice(0, 3);
   const upcoming = useMemo(
@@ -224,45 +241,35 @@ export function TodayPage(props: {
   // is clear. Show the stat shortcuts only once at least one tile carries a count.
   const hasStatSignal =
     priorities.length > 0 || atRisk.length > 0 || todayEvents.length > 0 || doneToday > 0;
+  // Priorities and at-risk overlap (a Do First task can also be due today), so the
+  // masthead count dedupes by id: it reads as "N need you", not a double-counted sum.
+  const needsYou = new Set([...priorities, ...atRisk].map((t) => t.id)).size;
+  const upcomingLeft = upcoming.filter((e) => new Date(e.startsAt).getTime() >= now.getTime());
+  const headline = buildHeadline(todayMode, needsYou, upcomingLeft.length, doneToday);
+  const nextEvent = upcoming[0];
+  const nextStarted = nextEvent ? new Date(nextEvent.startsAt).getTime() <= now.getTime() : false;
 
   return (
     <div className="cmd-wrap">
-      <header className="cmd-hero">
-        <h1 className="cmd-hello">
-          {greeting()}, <span className="nm">{name}</span>.
-        </h1>
-        <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
-      </header>
-
-      {hasStatSignal ? (
-        <div className="cmd-stats">
-          <Stat
-            k="Priorities"
-            v={priorities.length}
-            icon={<Target size={12} />}
-            onClick={() => navigate("/tasks?focus=priorities")}
-          />
-          <Stat
-            k="At risk"
-            v={atRisk.length}
-            warn={atRisk.length > 0}
-            icon={<Clock size={12} />}
-            onClick={() => navigate("/tasks?focus=atrisk")}
-          />
-          <Stat
-            k="Events"
-            v={todayEvents.length}
-            icon={<CalendarDays size={12} />}
-            onClick={() => navigate("/calendar")}
-          />
-          <Stat
-            k="Done today"
-            v={doneToday}
-            icon={<CheckCircle2 size={12} />}
-            onClick={() => navigate("/tasks?focus=donetoday")}
-          />
+      <header className="cmd-masthead">
+        <div className="cmd-dateline">{datelineLabel(now, locale)}</div>
+        <div className="cmd-masthead__row">
+          <div className="cmd-masthead__main">
+            <p className="cmd-eyebrow">
+              {greeting()}, {name}
+            </p>
+            <h1 className="cmd-title">
+              <span>{headline.top}</span>
+              <span className="cmd-title__accent">{headline.accent}</span>
+            </h1>
+            <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
+          </div>
+          <div className="cmd-clock" aria-hidden="true">
+            <span className="cmd-clock__time">{timeLabel(now.toISOString(), locale)}</span>
+            <span className="cmd-clock__ap">{ampm(now.toISOString(), locale)}</span>
+          </div>
         </div>
-      ) : null}
+      </header>
 
       <div className="cmd-grid">
         <div>
@@ -330,6 +337,12 @@ export function TodayPage(props: {
               </div>
             ) : null}
           </section>
+
+          <SuggestedFromEmailSection
+            tasks={suggestedTasks}
+            locale={locale}
+            onOpen={(id) => setDialog({ id })}
+          />
 
           {feed.overnight.length > 0 ? <OvernightSection items={feed.overnight} /> : null}
 
@@ -410,6 +423,52 @@ export function TodayPage(props: {
         </div>
 
         <aside className="cmd-aside">
+          {nextEvent ? (
+            <div className="cmd-next">
+              <div className="cmd-next__k">{nextStarted ? "Now · ends in" : "Next event in"}</div>
+              <div className="cmd-next__v">
+                {countdownLabel(nextStarted ? nextEvent.endsAt : nextEvent.startsAt, now)}
+              </div>
+              <div className="cmd-next__what">
+                {nextEvent.title} · {timeLabel(nextEvent.startsAt, locale)}
+                {ampm(nextEvent.startsAt, locale)}
+              </div>
+            </div>
+          ) : null}
+
+          {hasStatSignal ? (
+            <div className="cmd-glance">
+              <div className="cmd-glance__title">At a glance</div>
+              <div className="cmd-glance__grid">
+                <Stat
+                  k="Priorities"
+                  v={priorities.length}
+                  icon={<Target size={12} />}
+                  onClick={() => navigate("/tasks?focus=priorities")}
+                />
+                <Stat
+                  k="At risk"
+                  v={atRisk.length}
+                  warn={atRisk.length > 0}
+                  icon={<Clock size={12} />}
+                  onClick={() => navigate("/tasks?focus=atrisk")}
+                />
+                <Stat
+                  k="Events"
+                  v={todayEvents.length}
+                  icon={<CalendarDays size={12} />}
+                  onClick={() => navigate("/calendar")}
+                />
+                <Stat
+                  k="Done today"
+                  v={doneToday}
+                  icon={<CheckCircle2 size={12} />}
+                  onClick={() => navigate("/tasks?focus=donetoday")}
+                />
+              </div>
+            </div>
+          ) : null}
+
           <div className="inst">
             <div className="inst__head">
               <span className="inst__title">Today's agenda</span>
@@ -561,6 +620,7 @@ export function TodayPage(props: {
                   setMedsModalOpen(false);
                   setManageMedsOpen(true);
                 }}
+                timeZone={locale.timezone}
               />
             </div>
             <div className="wl-modal__foot">
@@ -862,84 +922,3 @@ function NewsDesk(props: {
 }
 
 // ---- helpers ----
-function firstName(name: string, email: string): string {
-  const source = name.trim() || email.split("@")[0] || "there";
-  const base = source.split(/\s+/)[0] ?? source;
-  return base.charAt(0).toUpperCase() + base.slice(1);
-}
-
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-function buildLede(priorities: number, atRisk: number, events: number): string {
-  const parts: string[] = [];
-  parts.push(
-    priorities > 0
-      ? `You have <b>${priorities} ${priorities === 1 ? "priority" : "priorities"}</b> to move today`
-      : "Nothing pressing right now"
-  );
-  if (events > 0) parts.push(`${events} ${events === 1 ? "event" : "events"} on the calendar`);
-  if (atRisk > 0)
-    parts.push(
-      `${atRisk} ${atRisk === 1 ? "thing has" : "things have"} slipped: we can reset without rushing`
-    );
-  return `${parts.join(", and ")}.`;
-}
-
-/** Drift bucket, day-classified in the user's persisted timezone (#579): the due date
-    and "today" are compared as `YYYY-MM-DD` keys resolved in `timeZone`, not the ambient
-    browser zone, so an evening-UTC due date doesn't read as "overdue" a day early. */
-function driftOf(task: TaskDto, timeZone?: string): "atrisk" | "overdue" | null {
-  if (!task.dueAt || task.status === "done") return null;
-  const todayK = todayDateKey(timeZone);
-  const dueK = zonedDateKey(task.dueAt, timeZone);
-  if (dueK < todayK) return "overdue";
-  // Both keys are user-zone `YYYY-MM-DD` → parse as UTC midnight for an exact day delta.
-  const driftDays =
-    (Date.parse(`${dueK}T00:00:00Z`) - Date.parse(`${todayK}T00:00:00Z`)) / 86_400_000;
-  if (driftDays <= 2) return "atrisk";
-  return null;
-}
-
-function dueTs(task: TaskDto): number {
-  return task.dueAt ? new Date(task.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
-}
-
-/** Whether a calendar event starts on the user's local "today" (#579). */
-function isToday(event: CalendarEventDto, timeZone?: string): boolean {
-  return zonedDateKey(event.startsAt, timeZone) === todayDateKey(timeZone);
-}
-
-function byStart(a: CalendarEventDto, b: CalendarEventDto): number {
-  return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
-}
-
-function timeLabel(iso: string, locale: LocaleSettingsDto): string {
-  return formatTime(iso, locale, { hour: "numeric", minute: "2-digit", hour12: true }).replace(
-    /\s?[AP]M$/i,
-    ""
-  );
-}
-
-function ampm(iso: string, locale: LocaleSettingsDto): string {
-  return /pm$/i.test(formatTime(iso, locale, { hour: "numeric", hour12: true })) ? "pm" : "am";
-}
-
-function durationLabel(event: CalendarEventDto): string {
-  const mins = Math.round(
-    (new Date(event.endsAt).getTime() - new Date(event.startsAt).getTime()) / 60000
-  );
-  if (mins <= 0) return "";
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}
-
-function shortDate(iso: string, locale: LocaleSettingsDto): string {
-  return formatDate(iso, locale, { month: "short", day: "numeric" });
-}

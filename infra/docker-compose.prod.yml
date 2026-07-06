@@ -7,6 +7,8 @@
 #     docker compose -p jarv1s-prod -f docker-compose.prod.yml --profile setup run --rm setup
 #   docker compose -p jarv1s-prod -f docker-compose.prod.yml \
 #     --env-file ./env.production.local up -d
+# Notes-enabled deploys must also pass `-f docker-compose.notes.yml`; it mounts
+# JARVIS_NOTES_VAULT_HOST_PATH at the fixed in-container /data/external-notes path.
 #
 # Manual migration recovery:
 #   docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local \
@@ -94,6 +96,10 @@ services:
       - "${JARVIS_WEB_PORT:-1533}:3000"
     volumes:
       - jarv1s-vault-data:/data/vaults
+      # Notes source mount: do not change the in-container target.
+      # If JARVIS_NOTES_ROOTS=/data/external-notes, deploy with
+      # `-f docker-compose.notes.yml` and set JARVIS_NOTES_VAULT_HOST_PATH
+      # to the host Markdown/Obsidian folder.
       - jarv1s-model-cache:/app/.cache/huggingface
       - jarv1s-cli-tools:/data/cli-tools
       - jarv1s-cli-auth:/data/cli-auth

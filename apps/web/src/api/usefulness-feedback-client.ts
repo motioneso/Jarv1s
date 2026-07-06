@@ -1,7 +1,6 @@
 import type {
   CreateUsefulnessFeedbackRequest,
-  CreateUsefulnessFeedbackResponse,
-  ListUsefulnessFeedbackResponse
+  CreateUsefulnessFeedbackResponse
 } from "@jarv1s/shared";
 
 import { requestJson } from "./client";
@@ -13,10 +12,6 @@ export async function createUsefulnessFeedback(
     method: "POST",
     body: input
   });
-}
-
-export async function listUsefulnessFeedback(): Promise<ListUsefulnessFeedbackResponse> {
-  return requestJson<ListUsefulnessFeedbackResponse>("/api/me/usefulness-feedback");
 }
 
 export async function undoUsefulnessFeedback(

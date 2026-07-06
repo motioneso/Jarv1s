@@ -68,19 +68,6 @@ export interface RpcInstallProviderResult {
   readonly alreadyInstalled?: boolean;
 }
 
-/**
- * OPTIONAL progress frame (install-contract §A.2.2). Phase-2 MVP is plain
- * request/response (the verb returns one terminal `RpcInstallProviderResult`); the
- * stream is RESERVED + additive and rides the SAME §3.4 envelope. If implemented, the
- * server MAY emit zero-or-more interim `RpcOk` frames echoing the request `id` with
- * `result: RpcInstallProgress` (`complete:false`) BEFORE the terminal frame.
- */
-export interface RpcInstallProgress {
-  readonly phase: "resolving" | "downloading" | "verifying" | "promoting";
-  readonly state: "installing"; // always "installing" during progress
-  readonly complete: false; // the client keeps reading until the terminal RpcInstallProviderResult
-}
-
 // ---------------------------------------------------------------------------
 // §A.1.1 — Recipe catalog TYPE (the supply-chain allowlist shape, frozen)
 // ---------------------------------------------------------------------------

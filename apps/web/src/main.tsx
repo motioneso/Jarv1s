@@ -48,6 +48,26 @@ if (import.meta.env.DEV) {
     mount.id = "agentation-root";
     document.body.appendChild(mount);
     const agentationEndpoint = `http://${window.location.hostname}:4747`;
-    createRoot(mount).render(<Agentation endpoint={agentationEndpoint} />);
+    createRoot(mount).render(<Agentation endpoint={agentationEndpoint} onCopy={legacyCopy} />);
   });
+}
+
+// navigator.clipboard only exists in secure contexts (HTTPS or localhost), so the
+// toolbar's built-in copy silently fails when the app is opened over plain-HTTP LAN.
+// execCommand("copy") still works there.
+function legacyCopy(markdown: string): void {
+  const textArea = document.createElement("textarea");
+  textArea.value = markdown;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  textArea.style.top = "0";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  try {
+    document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textArea);
+  }
 }

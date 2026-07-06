@@ -18,6 +18,7 @@
     "@jarv1s/shared": "workspace:*",
     "@jarv1s/usefulness-feedback": "workspace:*",
     "fastify": "^5.6.2",
-    "kysely": "^0.29.2"
+    "kysely": "^0.29.2",
+    "pg-boss": "^12.18.2"
   }
 }

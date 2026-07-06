@@ -18,6 +18,28 @@ const DAY_NAMES = [
   "Saturday"
 ] as const;
 
+/**
+ * Day-of-week (0=Sun ... 6=Sat) for a check-in, attributed to its *local* calendar day
+ * (#326/#771). Prefers the persisted `local_date` (YYYY-MM-DD, written on create via
+ * `resolveRouteTimeZone`); a plain `Date` parse of that key at UTC midnight is safe here —
+ * it is only used to recover the weekday of an already-resolved calendar date, not to derive
+ * one from an instant. Falls back to the UTC day of `checked_in_at` only for rows that predate
+ * the write-path fix (`local_date` still NULL).
+ */
+function checkinDayOfWeek(
+  checkin: Pick<WellnessCheckin, "checked_in_at" | "local_date">
+): number | null {
+  if (checkin.local_date) {
+    const date = new Date(`${checkin.local_date}T00:00:00.000Z`);
+    if (!Number.isNaN(date.getTime())) return date.getUTCDay();
+  }
+  if (checkin.checked_in_at) {
+    const date = new Date(checkin.checked_in_at);
+    if (!Number.isNaN(date.getTime())) return date.getUTCDay();
+  }
+  return null;
+}
+
 export function computeInsights(
   checkins: readonly WellnessCheckin[],
   logs: readonly MedicationLog[],
@@ -73,7 +95,9 @@ export function computeInsights(
   }
 
   // ── 2. Hardest / strongest weekday ────────────────────────────────────
-  // Group checkins by ISO day-of-week (0=Sun ... 6=Sat via getUTCDay)
+  // Group checkins by day-of-week, attributed to the check-in's *local* calendar day
+  // (#326/#771) — never the UTC day, which shifts weekday attribution for any user not on
+  // UTC (e.g. an 11pm Tuesday check-in in UTC-8 is still UTC-Wednesday).
   interface DayBucket {
     total: number;
     offCount: number;
@@ -81,9 +105,8 @@ export function computeInsights(
   }
   const dayBuckets = new Map<number, DayBucket>();
   for (const c of checkins) {
-    const date = c.checked_in_at ? new Date(c.checked_in_at) : null;
-    if (!date) continue;
-    const dow = date.getUTCDay();
+    const dow = checkinDayOfWeek(c);
+    if (dow === null) continue;
     const existing = dayBuckets.get(dow) ?? { total: 0, offCount: 0, onCount: 0 };
     const polarity = EMOTION_POLARITY[c.feeling_core as WellnessEmotionCore] ?? 0;
     const onTrack = polarity > 0;
@@ -182,6 +205,7 @@ export function computeInsights(
   // missed doses (no log row) are counted in the denominator — not just logged rows.
   const totalScheduled = totalExpectedSlots ?? scheduledLogs.length;
   const adh = totalScheduled > 0 ? Math.round((takenCount / totalScheduled) * 100) : 0;
+  const missedCount = Math.max(totalScheduled - takenCount, 0);
   const adhTone: WellnessInsightDto["tone"] = adh >= 85 ? "pine" : "amber";
   results.push({
     key: "adherence",
@@ -190,7 +214,9 @@ export function computeInsights(
     lead: `${adh.toString()}% adherence`,
     rest:
       " on your medication over the last 30 days" +
-      (adh >= 85 ? " — steady." : " — a few evening doses slipped.")
+      (adh >= 85
+        ? " — steady."
+        : ` — ${missedCount.toString()} dose${missedCount === 1 ? "" : "s"} missed.`)
   });
 
   return results;

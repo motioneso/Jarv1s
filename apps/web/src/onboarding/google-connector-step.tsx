@@ -17,7 +17,12 @@ import {
 } from "lucide-react";
 import type { ChangeEvent } from "react";
 
-import { listConnectorAccounts, revokeConnectorAccount } from "../api/client";
+import {
+  connectImapConnection,
+  listConnectorAccounts,
+  revokeConnectorAccount,
+  testImapConnection
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import {
   GOOGLE_CONNECT_SUCCESS_QUERY_KEYS,
@@ -26,14 +31,41 @@ import {
 import { importCredentialsJson } from "../connectors/google-credentials";
 import { FootNote, StepHeader } from "./onboarding-ui";
 
+const IMAP_PROVIDERS = [
+  {
+    id: "imap-yahoo",
+    name: "Yahoo Mail",
+    tile: "Y",
+    prerequisite:
+      "Generate an app password in Yahoo Account Security; your normal password will not work."
+  },
+  {
+    id: "imap-proton",
+    name: "Proton Mail",
+    tile: "P",
+    prerequisite:
+      "Requires a paid Proton plan with Proton Mail Bridge installed and running on or reachable from this host."
+  },
+  {
+    id: "imap-icloud",
+    name: "iCloud",
+    tile: "i",
+    prerequisite: "Generate an app-specific password at appleid.apple.com."
+  },
+  {
+    id: "imap-fastmail",
+    name: "Fastmail",
+    tile: "F",
+    prerequisite: "Generate an app password in Fastmail Settings > Privacy & Security."
+  }
+] as const;
+
 const SOON_PROVIDERS = [
   { id: "outlook", name: "Outlook", tile: "O" },
-  { id: "m365", name: "Microsoft 365", tile: "M" },
-  { id: "proton", name: "Proton Mail", tile: "P" },
-  { id: "icloud", name: "iCloud", tile: "i" },
-  { id: "yahoo", name: "Yahoo Mail", tile: "Y" },
-  { id: "fastmail", name: "Fastmail", tile: "F" }
+  { id: "m365", name: "Microsoft 365", tile: "M" }
 ] as const;
+
+type ImapProvider = (typeof IMAP_PROVIDERS)[number];
 
 export function GoogleConnectorStep(props: {
   readonly eyebrow: string;
@@ -42,9 +74,13 @@ export function GoogleConnectorStep(props: {
   readonly privacy: string;
   readonly done?: boolean;
 }) {
-  const [mode, setMode] = useState<"picker" | "connecting" | "connected">(
+  const [mode, setMode] = useState<"picker" | "connecting" | "imap" | "connected">(
     props.done ? "connected" : "picker"
   );
+  const [imapProvider, setImapProvider] = useState<ImapProvider>(IMAP_PROVIDERS[0]);
+  const [imapUsername, setImapUsername] = useState("");
+  const [imapPassword, setImapPassword] = useState("");
+  const [imapTestResult, setImapTestResult] = useState<string | null>(null);
   const [jsonImportStatus, setJsonImportStatus] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const accountsQuery = useQuery({
@@ -65,6 +101,39 @@ export function GoogleConnectorStep(props: {
           queryClient.invalidateQueries({ queryKey })
         )
       )
+  });
+  const imapInput = {
+    providerId: imapProvider.id,
+    username: imapUsername,
+    password: imapPassword
+  };
+  const imapReady = imapUsername.trim().length > 0 && imapPassword.length > 0;
+  const testImap = useMutation({
+    mutationFn: () => testImapConnection(imapInput),
+    onSuccess: ({ result }) =>
+      setImapTestResult(
+        result === "ok"
+          ? "Connection works."
+          : result === "auth_failed"
+            ? "The mail server rejected that username or password."
+            : result === "tls_failed"
+              ? "Could not establish a secure connection."
+              : "Could not reach the mail server."
+      )
+  });
+  const connectImap = useMutation({
+    mutationFn: () => connectImapConnection(imapInput),
+    onSuccess: () =>
+      Promise.all(
+        GOOGLE_CONNECT_SUCCESS_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        )
+      ).then(() => {
+        setImapUsername("");
+        setImapPassword("");
+        setImapTestResult(null);
+        setMode("connected");
+      })
   });
   const accounts = accountsQuery.data?.accounts ?? [];
   const connected = props.done || accounts.length > 0;
@@ -279,7 +348,101 @@ export function GoogleConnectorStep(props: {
     );
   }
 
+  if (mode === "imap") {
+    return (
+      <section className="onb-step" aria-labelledby="imap-connector-title">
+        <StepHeader
+          eyebrow={props.eyebrow}
+          title={`Connect ${imapProvider.name}`}
+          lede={props.lede}
+        />
+        <div className="onb-connector">
+          <div className="onb-connector__head">
+            <span className="onb-connector__g">{imapProvider.tile}</span>
+            <div className="onb-connector__t">
+              <div className="onb-connector__title">{imapProvider.name}</div>
+              <div className="onb-connector__sub">IMAP email sync · available now</div>
+            </div>
+          </div>
+          <div className="onb-guide__intro">
+            <span className="ic">
+              <ShieldCheck size={15} aria-hidden="true" />
+            </span>
+            <span>{imapProvider.prerequisite}</span>
+          </div>
+          <div className="onb-cred">
+            <div className="onb-cred__hd">Enter your email credentials</div>
+            <label className="onb-cred__field">
+              <span className="onb-cred__lbl">Email address</span>
+              <span className="onb-cred__in">
+                <span className="ic">
+                  <Mail size={15} aria-hidden="true" />
+                </span>
+                <input
+                  type="email"
+                  value={imapUsername}
+                  onChange={(event) => setImapUsername(event.target.value)}
+                  placeholder="you@example.com"
+                  spellCheck={false}
+                />
+              </span>
+            </label>
+            <label className="onb-cred__field">
+              <span className="onb-cred__lbl">App password</span>
+              <span className="onb-cred__in">
+                <span className="ic">
+                  <KeyRound size={15} aria-hidden="true" />
+                </span>
+                <input
+                  type="password"
+                  value={imapPassword}
+                  onChange={(event) => setImapPassword(event.target.value)}
+                  placeholder="Provider app password"
+                  spellCheck={false}
+                />
+              </span>
+            </label>
+            <div className="onb-cred__actions">
+              <button
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                type="button"
+                disabled={!imapReady || testImap.isPending}
+                onClick={() => testImap.mutate()}
+              >
+                Test connection
+              </button>
+              <button
+                className="jds-btn jds-btn--primary jds-btn--sm"
+                type="button"
+                disabled={!imapReady || connectImap.isPending}
+                onClick={() => connectImap.mutate()}
+              >
+                Connect {imapProvider.name}
+              </button>
+              <button
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                type="button"
+                onClick={() => setMode("picker")}
+              >
+                Cancel
+              </button>
+              <span className="onb-cred__hint">
+                Passwords are encrypted at rest and never shown in logs or briefings.
+              </span>
+            </div>
+            {imapTestResult ? <p className="gflow__p">{imapTestResult}</p> : null}
+            {testImap.error ? <p className="form-error">{errorMessage(testImap.error)}</p> : null}
+            {connectImap.error ? (
+              <p className="form-error">{errorMessage(connectImap.error)}</p>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (mode === "connected" || connected) {
+    const firstAccount = accounts[0];
     return (
       <section className="onb-step" aria-labelledby="google-connected-title">
         <div className="onb-eyebrow">Connected</div>
@@ -290,11 +453,13 @@ export function GoogleConnectorStep(props: {
           <div className="onb-confirm__main">
             <h1 id="google-connected-title" className="onb-confirm__t">
               {accounts.length > 1
-                ? `${accounts.length} Google accounts connected`
-                : "Google connected"}
+                ? `${accounts.length} accounts connected`
+                : firstAccount
+                  ? `${firstAccount.providerDisplayName} connected`
+                  : "Provider connected"}
             </h1>
             <div className="onb-confirm__s">
-              Calendar and email are now syncing. Jarvis will use them to provide better context.
+              Connected data is now syncing. Jarvis will use it to provide better context.
             </div>
           </div>
         </div>
@@ -308,7 +473,7 @@ export function GoogleConnectorStep(props: {
           {accounts.length > 0 ? (
             accounts.map((account) => (
               <div className="onb-acct" key={account.id}>
-                <span className="onb-acct__tile">G</span>
+                <span className="onb-acct__tile">{account.providerDisplayName.slice(0, 1)}</span>
                 <div className="onb-acct__main">
                   <div className="onb-acct__email">{account.providerDisplayName}</div>
                   <div className="onb-acct__meta">
@@ -317,7 +482,9 @@ export function GoogleConnectorStep(props: {
                       {account.status === "active" ? "Connected · syncing" : account.status}
                     </span>
                     <span className="onb-acct__sep">·</span>
-                    <span className="onb-acct__scopes">{formatScopes(account.scopes)}</span>
+                    <span className="onb-acct__scopes">
+                      {account.providerType === "imap" ? "Email" : formatScopes(account.scopes)}
+                    </span>
                   </div>
                 </div>
                 <button
@@ -352,7 +519,7 @@ export function GoogleConnectorStep(props: {
             <span className="onb-addmore__main">
               <span className="onb-addmore__t">Connect another account</span>
               <span className="onb-addmore__s">
-                Connect another Google account or preview upcoming services.
+                Connect another account or preview upcoming services.
               </span>
             </span>
           </button>
@@ -410,9 +577,29 @@ export function GoogleConnectorStep(props: {
       <div className="onb-provsec">
         <div className="onb-provsec__hd">
           <span className="onb-provsec__lbl">More services</span>
-          <span className="onb-provsec__note">On the way</span>
+          <span className="onb-provsec__note">Available now</span>
         </div>
         <div className="onb-provgrid">
+          {IMAP_PROVIDERS.map((provider) => (
+            <button
+              className="onb-provmini"
+              key={provider.id}
+              type="button"
+              onClick={() => {
+                setImapProvider(provider);
+                setImapTestResult(null);
+                setMode("imap");
+              }}
+            >
+              <span className="onb-provmini__tile">{provider.tile}</span>
+              <span className="onb-provmini__main">
+                <span className="onb-provmini__name">{provider.name}</span>
+                <span className="onb-provmini__soon">
+                  Connect {provider.name} <ArrowRight size={10} aria-hidden="true" />
+                </span>
+              </span>
+            </button>
+          ))}
           {SOON_PROVIDERS.map((provider) => (
             <div className="onb-provmini" key={provider.id} aria-disabled="true">
               <span className="onb-provmini__tile">{provider.tile}</span>
@@ -439,4 +626,8 @@ function formatScopes(scopes: readonly string[]): string {
   if (hasMail) return "Email";
   if (scopes.length === 1) return scopes[0] ?? "Connected";
   return `${scopes.length} scopes`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Connection failed.";
 }

@@ -42,7 +42,7 @@
   color: var(--accent-fg);
 }
 .tk-modal__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.012em;
@@ -113,7 +113,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 11px 13px;
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 18px;
   color: var(--text);
   background: var(--surface);
@@ -121,7 +121,7 @@
 .tk-titlein:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-textarea {
   width: 100%;
@@ -140,7 +140,7 @@
 .tk-textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-native {
   width: 100%;
@@ -157,7 +157,7 @@
 .tk-native:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-modal .jds-select,
 .tk-modal .jds-selectwrap {
@@ -184,7 +184,7 @@
 }
 .tk-tagedit:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-tagedit input {
   flex: 1;
@@ -343,7 +343,7 @@
 }
 .tk-peoplefield:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
 }
 .tk-peoplefield input {
   flex: 1;
@@ -425,8 +425,8 @@
   white-space: nowrap;
 }
 .tk-people__item:hover {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 
 /* ---- Activity / journal log ---- */
@@ -468,8 +468,8 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent-fg);
-  background: var(--pine-soft);
-  border: 1px solid var(--pine-soft-2);
+  background: var(--forest-soft);
+  border: 1px solid var(--forest-soft-2);
   padding: 1px 5px;
   border-radius: var(--radius-pill);
   vertical-align: middle;
@@ -497,9 +497,9 @@
   font-weight: 600;
 }
 .tk-act--jarvis .tk-act__text {
-  background: var(--pine-soft);
-  border-color: var(--pine-soft-2);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
+  color: var(--forest-ink);
 }
 .tk-act__typing {
   display: inline-flex;
@@ -507,8 +507,8 @@
   gap: 8px;
   font-size: 13px;
   color: var(--accent-fg);
-  background: var(--pine-soft);
-  border: 1px solid var(--pine-soft-2);
+  background: var(--forest-soft);
+  border: 1px solid var(--forest-soft-2);
   border-radius: 3px 12px 12px 12px;
   padding: 9px 13px;
 }
@@ -559,7 +559,7 @@
 }
 .tk-act-composer:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--pine-soft);
+  box-shadow: 0 0 0 3px var(--forest-soft);
   background: var(--surface);
 }
 .tk-act-composer textarea {

@@ -11,12 +11,14 @@ import {
 import {
   peopleModuleManifest,
   peopleModuleSqlMigrationDirectory,
+  PeopleNotesService,
   registerPeopleRoutes,
   registerPersonIndexWorker,
   registerSyncPersonMemoryWorker,
   PERSON_INDEX_QUEUE,
   SYNC_PERSON_MEMORY_QUEUE
 } from "@jarv1s/people";
+import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
 import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
 import {
@@ -46,6 +48,7 @@ import {
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory
 } from "@jarv1s/structured-state";
+import { isBehaviorEnabled, type SourceBehaviorPreferencesPort } from "@jarv1s/source-behaviors";
 import {
   BRIEFINGS_QUEUE_DEFINITIONS,
   BriefingsRepository,
@@ -53,9 +56,14 @@ import {
   briefingsModuleSqlMigrationDirectory,
   createBriefingsFeedbackTargetVerifier,
   registerBriefingsJobWorkers,
-  registerBriefingsRoutes
+  registerBriefingsRoutes,
+  type ComposeDeps
 } from "@jarv1s/briefings";
 import {
+  CalendarRepository,
+  calendarFollowThroughSourceRef,
+  isCalendarFollowThroughEvent,
+  isCalendarFollowThroughTask,
   calendarModuleManifest,
   calendarModuleSqlMigrationDirectory,
   CALENDAR_QUEUE_DEFINITIONS,
@@ -68,6 +76,7 @@ import {
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
   buildEveningInterviewSeed,
+  buildCalendarWriteService,
   chatCommitmentProvider,
   ChatRepository,
   createChatFeedbackTargetVerifier,
@@ -80,21 +89,35 @@ import {
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
+  GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
+  IMAP_SYNC_QUEUE_DEFINITIONS,
+  MONITOR_QUEUE_DEFINITIONS,
   buildFeatureGrantService,
+  buildRuntimeSourceContextService,
   connectorsModuleManifest,
   connectorsModuleSqlMigrationDirectory,
+  createConnectorSecretCipher,
   getConnectorSyncAt,
+  GoogleApiClient as RuntimeGoogleApiClient,
+  GoogleConnectionService as RuntimeGoogleConnectionService,
+  GoogleOAuthClient,
   registerConnectorsJobWorkers,
   registerConnectorsRoutes,
+  registerGoogleSyncSweepWorker,
+  registerImapSyncWorker,
+  registerSourceMonitorWorkers,
+  parseEmailSourceRef,
+  type EmailTaskCreationPort,
   type GoogleApiClient,
   type GoogleConnectionService
 } from "@jarv1s/connectors";
 import type { ActiveModulesResolver } from "@jarv1s/ai";
 import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import type { ProactiveSource } from "@jarv1s/shared";
+import { resolveTimeZone, type ProactiveSource } from "@jarv1s/shared";
 import {
   emailModuleManifest,
   emailModuleSqlMigrationDirectory,
+  EmailRepository,
   registerEmailRoutes
 } from "@jarv1s/email";
 import { assertMetadataOnlyPayload, FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
@@ -106,6 +129,7 @@ import type {
 } from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
+  type NotificationPreferencePort,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
   registerNotificationsRoutes
@@ -137,11 +161,13 @@ import {
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
+  TasksRepository,
   registerTasksJobWorkers,
   registerTasksRoutes,
   TasksCompatibilityHelper,
   tasksModuleManifest,
-  tasksModuleSqlMigrationDirectory
+  tasksModuleSqlMigrationDirectory,
+  type EmailTriageFeedbackPort
 } from "@jarv1s/tasks";
 import {
   goalsModuleManifest,
@@ -167,6 +193,12 @@ import {
   wellnessModuleSqlMigrationDirectory
 } from "@jarv1s/wellness";
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
+import {
+  createEspnSportsSource,
+  registerSportsRoutes,
+  sportsModuleManifest,
+  sportsModuleSqlMigrationDirectory
+} from "@jarv1s/sports";
 import {
   notesModuleManifest,
   notesCommitmentProvider,
@@ -209,6 +241,23 @@ import {
 } from "./chat-multiplexer.js";
 import { buildOnboardingInstall } from "./onboarding-install.js";
 import { buildOnboardingLogin } from "./onboarding-login.js";
+
+// Declared here (not `apps/api/src/server.ts`, which sets it via an onRequest hook)
+// because module-registry is the composition root every consumer of the field
+// already reaches: apps/api sets `request.timeZone` and imports this package
+// directly, and every built-in module that reads it (e.g. wellness's
+// `resolveRouteTimeZone` via `resolveRequestTimeZoneForRoute` below) is wired
+// through here. Ambient module augmentations only apply within the TS program
+// they're compiled into, so keeping the declaration next to the file everyone
+// already imports avoids "works in one tsc invocation, breaks in another" drift
+// (#801 Phase A — apps/web's isolated `tsc` once reached wellness routes through
+// a since-removed settings -> module-registry import edge and couldn't see the
+// augmentation while it lived in server.ts).
+declare module "fastify" {
+  interface FastifyRequest {
+    timeZone?: string;
+  }
+}
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -375,6 +424,224 @@ export interface BuiltInModuleRegistration {
 
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
 const PROACTIVE_CHECK_CRON = "*/30 * * * *";
+export const PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID = "people.notes.suggest-updates";
+
+export function buildCalendarFollowThroughPort(
+  deps: {
+    readonly tasksRepository?: Pick<TasksRepository, "create">;
+    readonly aiRepository?: Pick<AiRepository, "listActionPolicies">;
+    readonly calendarWrite?: {
+      proposeAndInsert(
+        scopedDb: DataContextDb,
+        ctx: {
+          readonly actorUserId: string;
+          readonly requestId: string;
+          readonly chatSessionId: string;
+        },
+        window: {
+          readonly start: Date;
+          readonly end: Date;
+          readonly durationMinutes: number;
+          readonly title: string;
+        },
+        options: { readonly requireCacheMirror: true; readonly followThroughTargetRef: string }
+      ): Promise<{ readonly created: boolean; readonly calendarEventId?: string }>;
+    };
+  } = {}
+): NonNullable<ComposeDeps["calendarFollowThrough"]> {
+  const tasksRepository = deps.tasksRepository ?? new TasksRepository();
+  const aiRepository = deps.aiRepository ?? new AiRepository();
+  const connectorsRepository = new ConnectorsRepository();
+  const calendarRepository = new CalendarRepository();
+  const calendarWrite =
+    deps.calendarWrite ??
+    buildCalendarWriteService({
+      googleService: new RuntimeGoogleConnectionService({
+        repository: connectorsRepository,
+        cipher: createConnectorSecretCipher(),
+        oauthClient: new GoogleOAuthClient()
+      }),
+      googleApiClient: new RuntimeGoogleApiClient(),
+      connectorsRepository,
+      calendarRepository
+    });
+
+  return {
+    async executeAutoActions({ scopedDb, actorUserId, requestId, targetRef, signal }) {
+      const refs: { targetRef: string; taskId?: string; calendarEventId?: string } = { targetRef };
+      const sourceRef = calendarFollowThroughSourceRef(targetRef);
+
+      if (signal.suggestedActions.includes("create_task")) {
+        const task = await tasksRepository.create(scopedDb, {
+          title: signal.summary,
+          status: "todo",
+          source: "calendar",
+          sourceRef,
+          externalKey: sourceRef
+        });
+        refs.taskId = task.id;
+      }
+
+      if (signal.suggestedActions.includes("block_time")) {
+        const policies = await aiRepository.listActionPolicies(scopedDb);
+        const writebackPolicy = policies.find(
+          (policy) =>
+            policy.moduleId === "calendar" && policy.actionFamilyId === "calendar_writeback"
+        );
+        if (writebackPolicy?.tier === "trusted_auto") {
+          const window = calendarFollowThroughWindow(signal);
+          if (window) {
+            const result = await calendarWrite.proposeAndInsert(
+              scopedDb,
+              { actorUserId, requestId, chatSessionId: "" },
+              window,
+              { requireCacheMirror: true, followThroughTargetRef: targetRef }
+            );
+            if (result.created && result.calendarEventId) {
+              refs.calendarEventId = result.calendarEventId;
+            }
+          }
+        }
+      }
+
+      return refs;
+    }
+  };
+}
+
+export function buildCalendarFollowThroughSideEffects(
+  deps: {
+    readonly tasksRepository?: Pick<TasksRepository, "getById" | "update">;
+    readonly calendarRepository?: Pick<CalendarRepository, "getById">;
+    readonly calendarWrite?: {
+      deleteEvent(
+        scopedDb: DataContextDb,
+        ctx: {
+          readonly actorUserId: string;
+          readonly requestId: string;
+          readonly chatSessionId: string;
+        },
+        input: { readonly eventId: string }
+      ): Promise<{ readonly deleted: boolean }>;
+    };
+  } = {}
+) {
+  const tasksRepository = deps.tasksRepository ?? new TasksRepository();
+  const connectorsRepository = new ConnectorsRepository();
+  const calendarRepository = deps.calendarRepository ?? new CalendarRepository();
+  const calendarWrite =
+    deps.calendarWrite ??
+    buildCalendarWriteService({
+      googleService: new RuntimeGoogleConnectionService({
+        repository: connectorsRepository,
+        cipher: createConnectorSecretCipher(),
+        oauthClient: new GoogleOAuthClient()
+      }),
+      googleApiClient: new RuntimeGoogleApiClient(),
+      connectorsRepository,
+      calendarRepository: calendarRepository as CalendarRepository
+    });
+
+  return {
+    async removeCreatedRefs(
+      scopedDb: DataContextDb,
+      actorUserId: string,
+      metadata: Record<string, unknown>
+    ): Promise<string | null> {
+      const refs = readCalendarFollowThroughRefs(metadata);
+      if (!refs) return null;
+      const sourceRef = calendarFollowThroughSourceRef(refs.targetRef);
+      const removed: string[] = [];
+
+      if (refs.taskId) {
+        const task = await tasksRepository.getById(scopedDb, refs.taskId);
+        if (task && isCalendarFollowThroughTask(task, sourceRef)) {
+          await tasksRepository.update(scopedDb, task.id, { status: "archived" });
+          removed.push(`task:${task.id}`);
+        }
+      }
+
+      if (refs.calendarEventId) {
+        const event = await calendarRepository.getById(scopedDb, refs.calendarEventId);
+        if (event && isCalendarFollowThroughEvent(event, refs.targetRef)) {
+          const result = await calendarWrite.deleteEvent(
+            scopedDb,
+            { actorUserId, requestId: "feedback:calendar-follow-through", chatSessionId: "" },
+            { eventId: event.id }
+          );
+          if (result.deleted) removed.push(`calendar_event:${event.id}`);
+        }
+      }
+
+      return removed.length > 0 ? removed.join(",") : null;
+    }
+  };
+}
+
+function readCalendarFollowThroughRefs(metadata: Record<string, unknown>): {
+  readonly targetRef: string;
+  readonly taskId?: string;
+  readonly calendarEventId?: string;
+} | null {
+  const raw = metadata.calendarFollowThrough;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.targetRef !== "string" || record.targetRef.length === 0) return null;
+  const refs = {
+    targetRef: record.targetRef,
+    ...(typeof record.taskId === "string" ? { taskId: record.taskId } : {}),
+    ...(typeof record.calendarEventId === "string"
+      ? { calendarEventId: record.calendarEventId }
+      : {})
+  };
+  return refs.taskId || refs.calendarEventId ? refs : null;
+}
+
+function calendarFollowThroughWindow(signal: {
+  readonly type?: string;
+  readonly summary: string;
+  readonly startsAt?: string;
+  readonly endsAt?: string;
+}): { start: Date; end: Date; durationMinutes: number; title: string } | null {
+  const start = signal.startsAt ? new Date(signal.startsAt) : null;
+  if (!start || Number.isNaN(start.getTime())) return null;
+  const end = signal.endsAt ? new Date(signal.endsAt) : null;
+  if (signal.type === "prep_needed") {
+    const prepEnd = start;
+    const prepStart = new Date(prepEnd.getTime() - 60 * 60_000);
+    return { start: prepStart, end: prepEnd, durationMinutes: 60, title: "Prep time" };
+  }
+  if (!end || Number.isNaN(end.getTime()) || end <= start) return null;
+  const durationMinutes = Math.min(
+    120,
+    Math.max(15, Math.floor((end.getTime() - start.getTime()) / 60_000))
+  );
+  return { start, end, durationMinutes, title: "Focus time" };
+}
+
+export function isPeopleNotesSuggestUpdatesEnabled(
+  scopedDb: DataContextDb,
+  preferencesRepository: SourceBehaviorPreferencesPort = new PreferencesRepository()
+): Promise<boolean> {
+  return isBehaviorEnabled(
+    scopedDb,
+    { manifests: getBuiltInModuleManifests(), preferencesRepository },
+    PEOPLE_NOTES_SUGGEST_UPDATES_BEHAVIOR_ID
+  );
+}
+
+export function createNotificationPreferencePort(
+  preferencesRepository = new PreferencesRepository()
+): NotificationPreferencePort {
+  return {
+    async isModuleEnabled(scopedDb, moduleId) {
+      const raw = await preferencesRepository.get(scopedDb, `notifications:${moduleId}`);
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return true;
+      const enabled = (raw as { enabled?: unknown }).enabled;
+      return typeof enabled === "boolean" ? enabled : true;
+    }
+  };
+}
 
 function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveScheduleFn {
   return async (actorUserId, pref) => {
@@ -402,6 +669,49 @@ function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveSchedu
   };
 }
 
+/**
+ * Composes the tasks module's EmailTriageFeedbackPort over the email cache and the
+ * connectors feedback store. Lives here because only the composition root may import
+ * both modules; enrichment comes from the CACHED row (metadata columns only) — full
+ * bodies never reach the learning record (#729 §9).
+ */
+export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
+  const emailRepository = new EmailRepository();
+  const connectorsRepository = new ConnectorsRepository();
+  return {
+    async record(scopedDb, input) {
+      const parsedRef = input.taskSourceRef ? parseEmailSourceRef(input.taskSourceRef) : null;
+      const row = parsedRef
+        ? await emailRepository.getByConnectorAccountAndExternalId(
+            scopedDb,
+            parsedRef.connectorAccountId,
+            parsedRef.externalId
+          )
+        : undefined;
+      const signals = (row?.signals ?? {}) as {
+        actionability?: { category?: string };
+        confidence?: number;
+      };
+      const sender = row?.sender ?? "unknown";
+      const senderDomain = sender.includes("@")
+        ? (sender.split("@").pop() ?? "unknown").toLowerCase()
+        : "unknown";
+      await connectorsRepository.recordTriageFeedback(scopedDb, {
+        connectorAccountId: row?.connector_account_id ?? null,
+        actionability: signals.actionability?.category ?? "unknown",
+        sender,
+        senderDomain,
+        subjectPrefix: row ? row.subject.slice(0, 120) : null,
+        actionType: null,
+        confidence: typeof signals.confidence === "number" ? signals.confidence : null,
+        modelVersion: null,
+        verdict: input.verdict,
+        reason: null
+      });
+    }
+  };
+}
+
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
@@ -414,6 +724,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         listConfiguredAuthProviders: deps.listConfiguredAuthProviders,
         listModuleManifests: deps.listModuleManifests,
+        moduleDeletionTables: MODULE_DELETION_TABLES,
         revokeUserSessions: deps.revokeUserSessions,
         meSessions: deps.meSessions,
         verifySelfPassword: deps.verifySelfPassword,
@@ -426,6 +737,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         onboardingLogin: deps.onboardingLogin,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),
+        notificationUnreadPort: new NotificationsRepository(),
         boss: deps.boss,
         // #449: wire the per-actor 15-min notes-sync heartbeat. Injected as a hook
         // (not imported in @jarv1s/settings) because @jarv1s/notes already depends
@@ -468,20 +780,59 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         }
       );
     },
-    registerWorkers: (boss, deps) => registerSettingsJobWorkers(boss, deps.dataContext, deps.rootDb)
+    registerWorkers: (boss, deps) =>
+      registerSettingsJobWorkers(boss, deps.dataContext, deps.rootDb, getBuiltInModuleManifests)
   },
   {
     manifest: connectorsModuleManifest,
     sqlMigrationDirectories: [connectorsModuleSqlMigrationDirectory],
-    queueDefinitions: GOOGLE_SYNC_QUEUE_DEFINITIONS,
+    queueDefinitions: [
+      ...GOOGLE_SYNC_QUEUE_DEFINITIONS,
+      ...GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
+      ...IMAP_SYNC_QUEUE_DEFINITIONS,
+      ...MONITOR_QUEUE_DEFINITIONS
+    ],
     registerRoutes: (server, deps) =>
       registerConnectorsRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         boss: deps.boss
       }),
-    registerWorkers: (boss, deps) =>
-      registerConnectorsJobWorkers(boss, { dataContext: deps.dataContext })
+    registerWorkers: async (boss, deps) => {
+      const googleWorkIds = await registerConnectorsJobWorkers(boss, {
+        dataContext: deps.dataContext
+      });
+      // #792: self-healing periodic sweep, additive to the connect/manual-sync triggers
+      // above. Needs the raw root Kysely handle (not DataContextDb) because it must
+      // enumerate connected accounts across ALL actors via a bounded SECURITY DEFINER
+      // function (sql/0143) — each subsequent GOOGLE_SYNC_QUEUE job it sends stays scoped
+      // to that job's own actorUserId exactly as it does today.
+      const googleSweepWorkId = await registerGoogleSyncSweepWorker(boss, deps.rootDb);
+      const imapWorkIds = await registerImapSyncWorker(boss, { dataContext: deps.dataContext });
+      // Structural task-creation port: connectors never imports the tasks module — the
+      // composition root hands it a two-method adapter over TasksRepository (module isolation).
+      const tasksRepositoryForEmail = new TasksRepository();
+      const emailTaskPort: EmailTaskCreationPort = {
+        async create(scopedDb, input) {
+          const task = await tasksRepositoryForEmail.create(scopedDb, {
+            title: input.title,
+            description: input.description ?? undefined,
+            status: input.status,
+            dueAt: input.dueAt ?? undefined,
+            priority: input.priority ?? undefined,
+            source: input.source,
+            sourceRef: input.sourceRef,
+            externalKey: input.externalKey
+          });
+          return { id: task.id };
+        }
+      };
+      const monitorWorkIds = await registerSourceMonitorWorkers(boss, {
+        dataContext: deps.dataContext,
+        taskPort: emailTaskPort
+      });
+      return [...googleWorkIds, googleSweepWorkId, ...imapWorkIds, ...monitorWorkIds];
+    }
   },
   {
     manifest: tasksModuleManifest,
@@ -496,7 +847,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         localePreferencesRepository: new PreferencesRepository(),
         aiRepository: new AiRepository(),
         aiSecretCipher: createAiSecretCipher(),
-        focusSignals: deps.focusSignals
+        focusSignals: deps.focusSignals,
+        emailTriageFeedback: createEmailTriageFeedbackPort()
       }),
     registerWorkers: (boss, dependencies) => registerTasksJobWorkers(boss, dependencies.dataContext)
   },
@@ -543,7 +895,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: calendarModuleManifest,
     sqlMigrationDirectories: [calendarModuleSqlMigrationDirectory],
     queueDefinitions: CALENDAR_QUEUE_DEFINITIONS,
-    registerRoutes: registerCalendarRoutes,
+    registerRoutes: (server, deps) =>
+      registerCalendarRoutes(server, {
+        resolveAccessContext: deps.resolveAccessContext,
+        dataContext: deps.dataContext,
+        calendarWritebackPolicy: {
+          set: (scopedDb, moduleId, actionFamilyId, tier) =>
+            new AiRepository().setActionPolicy(scopedDb, moduleId, actionFamilyId, tier)
+        }
+      }),
     registerWorkers: (boss, deps) => registerCalendarJobWorkers(boss, deps.dataContext)
   },
   {
@@ -569,7 +929,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               featureGrants: buildFeatureGrantService({
                 connectorsRepository: deps.connectorsRepository,
                 preferencesRepository: new PreferencesRepository()
-              })
+              }),
+              sourceContext: buildRuntimeSourceContextService()
             }
           : undefined
       });
@@ -597,8 +958,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         mcpServerUrl: deps.mcpServerUrl,
         boss: deps.boss,
         personaPreferences: new PreferencesRepository(),
+        chatPreferences: new PreferencesRepository(),
         localePreferences: new PreferencesRepository(),
         agencyPreferences: new PreferencesRepository(),
+        priorityPreferences: new PreferencesRepository(),
         googleConnectionService: deps.googleConnectionService,
         googleApiClient: deps.googleApiClient,
         connectorsRepository: deps.connectorsRepository,
@@ -607,6 +970,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               connectorsRepository: deps.connectorsRepository,
               preferencesRepository: new PreferencesRepository()
             })
+          : undefined,
+        sourceContextService: deps.connectorsRepository
+          ? buildRuntimeSourceContextService()
           : undefined
       }),
     registerWorkers: (boss, deps) =>
@@ -677,9 +1043,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           featureGrantService: buildFeatureGrantService({
             connectorsRepository: new ConnectorsRepository(),
             preferencesRepository: new PreferencesRepository()
-          })
+          }),
+          sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger }),
+          calendarFollowThrough: buildCalendarFollowThroughPort()
         },
-        notificationsRepository: new NotificationsRepository(quietHoursPortImpl),
+        notificationsRepository: new NotificationsRepository(
+          quietHoursPortImpl,
+          createNotificationPreferencePort()
+        ),
         logger: briefingsLogger
       });
     }
@@ -733,7 +1104,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             cardRepository.markDismissed(scopedDb, _actorUserId, cardId).then(() => undefined),
           undoDismissCard: (scopedDb, _actorUserId, cardId) =>
             cardRepository.reactivate(scopedDb, _actorUserId, cardId).then(() => undefined)
-        }
+        },
+        calendarFollowThroughSideEffects: buildCalendarFollowThroughSideEffects()
       });
     }
   },
@@ -747,10 +1119,18 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     sqlMigrationDirectories: [wellnessModuleSqlMigrationDirectory],
     queueDefinitions: [...WELLNESS_EXPORT_QUEUE_DEFINITIONS],
     registerRoutes: (server, deps) => {
+      const preferencesRepository = new PreferencesRepository();
       registerWellnessRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
-        resolveActiveModules: deps.resolveActiveModules
+        resolveActiveModules: deps.resolveActiveModules,
+        resolveRequestTimeZone: (request, accessContext) =>
+          resolveRequestTimeZoneForRoute(
+            request,
+            accessContext,
+            deps.dataContext,
+            preferencesRepository
+          )
       });
       registerWellnessExportRoutes(server, {
         boss: deps.boss,
@@ -773,6 +1153,20 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       })
   },
   {
+    // LOADER-SEAM(sports) 1: static import + registration object (manifest, sql dir, routes).
+    manifest: sportsModuleManifest,
+    sqlMigrationDirectories: [sportsModuleSqlMigrationDirectory],
+    queueDefinitions: [],
+    registerRoutes: (server, deps) =>
+      // LOADER-SEAM(sports) 2: DI wiring + construction of the SportsSource adapter in the
+      // composition root (which concrete source lives here, not in the manifest).
+      registerSportsRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        source: createEspnSportsSource(deps.fetchFn)
+      })
+  },
+  {
     manifest: notesModuleManifest,
     sqlMigrationDirectories: [notesModuleSqlMigrationDirectory],
     queueDefinitions: [...NOTES_QUEUE_DEFINITIONS],
@@ -786,7 +1180,20 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     registerWorkers: (boss, deps) =>
       registerNotesJobWorkers(boss, deps.dataContext, {
         embeddingProviderFactory: createRuntimeEmbeddingProvider,
-        preferencesRepository: new PreferencesRepository()
+        preferencesRepository: new PreferencesRepository(),
+        afterSync: async ({ actorUserId }) => {
+          const accessContext = { actorUserId, requestId: "notes-sync:people" };
+          const vaultRunner = new VaultContextRunner(getVaultBaseDir());
+          const peopleNotes = new PeopleNotesService();
+          await vaultRunner.withVaultContext(accessContext, (vaultCtx) =>
+            deps.dataContext.withDataContext(accessContext, async (scopedDb) => {
+              if (!(await isPeopleNotesSuggestUpdatesEnabled(scopedDb))) {
+                return { projected: 0, candidates: 0 };
+              }
+              return peopleNotes.refreshFromFolder(scopedDb, vaultCtx, actorUserId);
+            })
+          );
+        }
       })
   },
   {
@@ -848,7 +1255,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerPeopleRoutes(server, {
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
-        boss: deps.boss
+        boss: deps.boss,
+        vaultRunner: new VaultContextRunner(getVaultBaseDir()),
+        peopleNotesService: new PeopleNotesService()
       }),
     registerWorkers: async (boss, deps) => {
       const indexId = await registerPersonIndexWorker(boss, deps.dataContext, {
@@ -860,11 +1269,47 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   }
 ];
 
+/**
+ * Modules with owned tables that have not yet declared a `dataLifecycle` manifest field
+ * (see docs/superpowers/specs/2026-07-04-module-data-lifecycle-ports.md, Phase B). Listed
+ * modules skip the mandatory-declaration check in `assertModuleRegistryConsistency` below;
+ * any module that HAS a `dataLifecycle` is fully checked regardless of this list. Each
+ * Phase B PR removes its module from this list; the final Phase B PR deletes it, making the
+ * assertion unconditional. This list only ever shrinks — pinned exactly by a unit test.
+ *
+ * Declared BEFORE the module-load-time `assertModuleRegistryConsistency(BUILT_IN_MODULES)`
+ * call below (rather than after, as originally drafted): that call runs synchronously at
+ * import time, and a `const` referenced before its own declaration line throws a
+ * temporal-dead-zone ReferenceError — this ordering is load-bearing, not stylistic.
+ */
+export const LIFECYCLE_MIGRATION_PENDING: readonly string[] = [
+  "ai",
+  "briefings",
+  "calendar",
+  "chat",
+  "connectors",
+  "email",
+  "jarvis.commitments",
+  "memory",
+  "notes",
+  "notifications",
+  "people",
+  "proactive-monitoring",
+  "structured-state",
+  "tasks",
+  "usefulness-feedback",
+  "weather"
+];
+
 // Compat gate (ADR 0009 §3): validate every built-in's compatibility.jarv1s against
 // CORE_VERSION at load time, before any registration path runs. Throws if a module is
 // incompatible or not defaultEnabled, naming the offender.
 assertModulesCompatible(BUILT_IN_MODULES.map((module) => module.manifest));
 assertModuleRegistryConsistency(BUILT_IN_MODULES);
+
+// LOADER-SEAM(sports) 7: the web CSP img-src allowlist follows the constructed source.
+// Built from the same factory as the route wiring below so the two can never diverge.
+export const MODULE_IMAGE_CSP_HOSTS: readonly string[] = createEspnSportsSource().imageHosts;
 
 export function assertModuleRegistryConsistency(
   registrations: readonly BuiltInModuleRegistration[] = BUILT_IN_MODULES
@@ -889,8 +1334,40 @@ export function assertModuleRegistryConsistency(
       assertUniqueRegistryKey(routeKeys, `${route.method} ${route.path}`, moduleId, "route");
     }
 
-    for (const table of registration.manifest.database?.ownedTables ?? []) {
+    const moduleOwnedTables = registration.manifest.database?.ownedTables ?? [];
+    for (const table of moduleOwnedTables) {
       assertUniqueRegistryKey(ownedTables, table, moduleId, "owned table");
+    }
+
+    const lifecycle = registration.manifest.dataLifecycle;
+
+    if (moduleOwnedTables.length > 0) {
+      if (!lifecycle) {
+        if (!LIFECYCLE_MIGRATION_PENDING.includes(moduleId)) {
+          throw new Error(
+            `Module "${moduleId}" has owned tables but declares no dataLifecycle, and is not on ` +
+              "the LIFECYCLE_MIGRATION_PENDING allowlist (packages/module-registry/src/index.ts)"
+          );
+        }
+      } else if (lifecycle.exportSections === undefined) {
+        throw new Error(
+          `Module "${moduleId}" declares dataLifecycle with owned tables but omits ` +
+            'exportSections; declare "exportSections: []" explicitly if there is nothing to export'
+        );
+      }
+    }
+
+    if (lifecycle) {
+      const declaredDeletionTables = new Set(lifecycle.deletion.tables.map((entry) => entry.table));
+      const missingFromDeletion = moduleOwnedTables.filter(
+        (table) => !declaredDeletionTables.has(table)
+      );
+      if (missingFromDeletion.length > 0) {
+        throw new Error(
+          `Module "${moduleId}" dataLifecycle.deletion.tables is missing owned table(s): ` +
+            missingFromDeletion.join(", ")
+        );
+      }
     }
   }
 }
@@ -918,6 +1395,37 @@ export function getBuiltInModuleManifests(): readonly JarvisModuleManifest[] {
   return BUILT_IN_MODULES.map((module) => module.manifest);
 }
 
+/** Default predicate applied when a `ModuleDeletionTable` omits `countPredicate`. */
+export const DEFAULT_MODULE_DELETION_COUNT_PREDICATE = "owner_user_id = $1::uuid";
+
+export interface ResolvedModuleDeletionTable {
+  readonly table: string;
+  readonly countPredicate: string;
+}
+
+/**
+ * Flattens every built-in module's `dataLifecycle.deletion.tables` into the resolved
+ * (default-applied) list `scripts/delete-user-data.ts` sweeps for its before/after counts.
+ * Used both by the settings composition root below (API path) and by the deletion script's
+ * dynamic `import("@jarv1s/module-registry")` inside its `import.meta.url`-guarded `main()` —
+ * never call this from a statically-imported context in `@jarv1s/settings` (that would
+ * recreate the package cycle the dynamic import exists to avoid).
+ */
+export function getModuleDeletionTables(
+  manifests: readonly JarvisModuleManifest[] = getBuiltInModuleManifests()
+): readonly ResolvedModuleDeletionTable[] {
+  return manifests.flatMap((manifest) =>
+    (manifest.dataLifecycle?.deletion.tables ?? []).map((entry) => ({
+      table: entry.table,
+      countPredicate: entry.countPredicate ?? DEFAULT_MODULE_DELETION_COUNT_PREDICATE
+    }))
+  );
+}
+
+/** Module load time snapshot, mirrors the MODULE_IMAGE_CSP_HOSTS precedent above. */
+export const MODULE_DELETION_TABLES: readonly ResolvedModuleDeletionTable[] =
+  getModuleDeletionTables();
+
 /**
  * Build the focus-signal provider list from a manifest set. Pass the per-actor ACTIVE
  * manifests (resolveActiveModules(actorUserId)) so a per-user-disabled module is excluded.
@@ -929,6 +1437,36 @@ export function focusSignalProvidersFor(
   return manifests.flatMap((manifest) =>
     manifest.focusSignal ? [{ moduleId: manifest.id, provider: manifest.focusSignal }] : []
   );
+}
+
+type TimeZonePreferences = {
+  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+};
+
+type TimeZoneRunner = {
+  withDataContext<T>(
+    accessContext: AccessContext,
+    work: (scopedDb: DataContextDb) => Promise<T> | T
+  ): Promise<T>;
+};
+
+export async function resolveRequestTimeZoneForRoute(
+  request: { readonly timeZone?: string },
+  accessContext: AccessContext,
+  dataContext: TimeZoneRunner,
+  preferences: TimeZonePreferences
+): Promise<string> {
+  if (request.timeZone) return resolveTimeZone(request.timeZone, undefined);
+  const stored = await dataContext.withDataContext(accessContext, (scopedDb) =>
+    preferences.get(scopedDb, "locale")
+  );
+  return resolveTimeZone(undefined, extractStoredTimeZone(stored));
+}
+
+function extractStoredTimeZone(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const timeZone = (value as Record<string, unknown>)["timezone"];
+  return typeof timeZone === "string" ? timeZone : undefined;
 }
 
 /**

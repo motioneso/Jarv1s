@@ -13,6 +13,8 @@ import {
 } from "@jarv1s/ai";
 
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import { writeClaudePermissionHook } from "./claude-permission-hook.js";
+import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
 const SESSION_PREFIX = "jarv1s-live-";
 const PROMPT_FILENAME = ".jarvis-claude-print-prompt.txt";
@@ -106,6 +108,10 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     return this.currentHandle !== null ? this.mux.isAlive(this.currentHandle) : false;
   }
 
+  async interrupt(): Promise<void> {
+    if (this.currentHandle !== null) await this.mux.interrupt(this.currentHandle);
+  }
+
   async kill(): Promise<void> {
     if (this.currentHandle !== null) {
       await this.mux.kill(this.currentHandle);
@@ -140,8 +146,15 @@ export class ClaudePrintChatEngine implements CliChatEngine {
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
+      const settingsPath = await writeClaudePermissionHook(this.io, {
+        neutralDir: opts.neutralDir,
+        mcpToken: opts.mcpToken,
+        mcpServerUrl: opts.mcpServerUrl
+      });
       parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
-      parts.push('--allowedTools "mcp__jarvis__*"');
+      parts.push(`--settings ${shellQuote(settingsPath)}`);
+      const allowedTools = ["mcp__jarvis__*", ...vaultReadOnlyToolPatterns()].join(" ");
+      parts.push(`--allowedTools ${shellQuote(allowedTools)}`);
     } else {
       parts.push('--tools ""');
     }

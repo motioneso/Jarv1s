@@ -165,7 +165,7 @@ function extractModelIds(providerKind: AiProviderKind, json: unknown): string[] 
   return [];
 }
 
-export function inferTierFromModelId(providerKind: AiProviderKind, modelId: string): AiModelTier {
+function inferTierFromModelId(providerKind: AiProviderKind, modelId: string): AiModelTier {
   const id = modelId.toLowerCase();
   if (providerKind === "anthropic") {
     if (id.includes("opus")) return "reasoning";

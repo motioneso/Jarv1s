@@ -4,15 +4,8 @@
  * Implements ChatProviderAdapter (defined in chat-adapter.ts).
  */
 
-import type {
-  ChatTurn,
-  ChatActivityEvent,
-  GenerateChatInput,
-  ChatProviderAdapter
-} from "../chat-adapter.js";
+import type { GenerateChatInput, ChatProviderAdapter } from "../chat-adapter.js";
 import type { ProviderKind } from "./transcript-reader.js";
-
-export type { ChatTurn, ChatActivityEvent, GenerateChatInput, ChatProviderAdapter, ProviderKind };
 
 // ---------------------------------------------------------------------------
 // HttpApiAdapter
@@ -56,6 +49,48 @@ export class HttpApiAdapter implements ChatProviderAdapter {
 
     const json: unknown = await response.json();
     return { text: this.extractText(json) };
+  }
+
+  /**
+   * Transcribe an audio clip via the OpenAI-compatible `/v1/audio/transcriptions` REST
+   * surface. This endpoint shape is exposed by hosted providers (e.g. Groq) AND
+   * self-hosted Whisper/Parakeet-style servers alike, so routing through
+   * `providerKind: "openai-compatible"` (with its already-configurable baseUrl + API key)
+   * covers transcription without hardcoding a vendor or model — the capability router
+   * picked the model, this just calls it. Anthropic/Google have no equivalent audio
+   * transcription REST surface behind this adapter, so both throw a clear error instead of
+   * silently no-op'ing.
+   */
+  async transcribeAudio(input: {
+    readonly model: { readonly provider_model_id: string };
+    readonly audio: Blob;
+  }): Promise<{ readonly text: string }> {
+    if (this.providerKind !== "openai-compatible") {
+      throw new Error(`Transcription is not supported for provider kind: ${this.providerKind}`);
+    }
+
+    const base = this._baseUrl ?? "https://api.openai.com";
+    const form = new FormData();
+    form.set("model", input.model.provider_model_id);
+    form.set("file", input.audio, "audio");
+
+    const response = await this._fetch(`${base}/v1/audio/transcriptions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${this.apiKey}` },
+      body: form
+    });
+
+    if (!response.ok) {
+      // Never include the API key in error messages (security invariant)
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const json = (await response.json()) as { text?: unknown };
+    if (typeof json.text !== "string") {
+      throw new Error("No text field in transcription response");
+    }
+
+    return { text: json.text };
   }
 
   private buildRequest(input: GenerateChatInput): {

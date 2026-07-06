@@ -1,13 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  Globe,
   KeyRound,
   MinusCircle,
   Pencil,
   Plus,
   RefreshCw,
-  Sparkles,
+  GitCommitHorizontal,
   Terminal,
   Trash2,
   Unlink,
@@ -18,9 +17,7 @@ import { useState, type FormEvent } from "react";
 import {
   createAiModel,
   createAiProvider,
-  deleteWebSearchKey,
   discoverAiModels,
-  getWebSearchKey,
   getCapabilityTierPreferences,
   getChatModelOverrideSettings,
   listAiModels,
@@ -28,7 +25,6 @@ import {
   lookupAiCapabilityRoute,
   patchCapabilityTierPreference,
   putAdminChatModelOverrideEnabled,
-  putWebSearchKey,
   revokeAiProvider,
   testAiProvider,
   updateAiModel,
@@ -41,16 +37,19 @@ import { readError } from "./settings-types";
 import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
 import { EditModelForm } from "./settings-ai-edit-model-form";
 import { ChatLockGroup } from "./settings-ai-chat-lock-group";
-import type {
-  AiAuthMethod,
-  AiConfiguredModelDto,
-  AiDiscoverModelsItemDto,
-  AiDiscoverModelsResponse,
-  AiModelCapability,
-  AiModelTier,
-  AiProviderConfigDto,
-  AiProviderExecutionMode,
-  AiProviderKind
+import { YoloAdminGroup } from "./settings-yolo-admin-group";
+import { WebSearchKeyGroup } from "./settings-web-search-key-group";
+import {
+  AI_MODEL_CAPABILITIES,
+  type AiAuthMethod,
+  type AiConfiguredModelDto,
+  type AiDiscoverModelsItemDto,
+  type AiDiscoverModelsResponse,
+  type AiModelCapability,
+  type AiModelTier,
+  type AiProviderConfigDto,
+  type AiProviderExecutionMode,
+  type AiProviderKind
 } from "@jarv1s/shared";
 
 const PROVIDER_CATALOG: readonly { readonly label: string; readonly kind: AiProviderKind }[] = [
@@ -67,16 +66,11 @@ const CAP_SHORT: Record<AiModelCapability, string> = {
   "tool-use": "Tools",
   json: "JSON",
   vision: "Vision",
-  summarization: "Summary"
+  summarization: "Summary",
+  transcription: "Voice"
 };
 
-const ALL_CAPABILITIES: readonly AiModelCapability[] = [
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-];
+const ALL_CAPABILITIES: readonly AiModelCapability[] = AI_MODEL_CAPABILITIES;
 
 const TIERS: Record<AiModelTier, { label: string; hint: string }> = {
   reasoning: { label: "Reasoning", hint: "Deepest and slowest. Hard planning and judgment." },
@@ -186,7 +180,7 @@ function AddModelForm(props: { readonly providerConfigId: string; readonly onClo
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Model added", { icon: <Sparkles size={17} /> });
+      toast("Model added", { icon: <GitCommitHorizontal size={17} /> });
       props.onClose();
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
@@ -200,7 +194,7 @@ function AddModelForm(props: { readonly providerConfigId: string; readonly onClo
 
   return (
     <form className="ai-model-form" onSubmit={submit}>
-      <Note icon={<Sparkles size={13} />}>
+      <Note icon={<GitCommitHorizontal size={13} />}>
         Auto-detecting a provider's models on connect is coming. For now, register them here.
       </Note>
       <Field label="Model id">
@@ -320,7 +314,7 @@ function ProviderCard(props: {
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Models added", { icon: <Sparkles size={17} /> });
+      toast("Models added", { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -606,7 +600,7 @@ function RouterRow(props: {
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.capability.k) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Tier updated", { icon: <Sparkles size={17} /> });
+      toast("Tier updated", { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -646,106 +640,6 @@ function RouterRow(props: {
 }
 
 /* ------------------------------------------------------------- Web search */
-
-function WebSearchKeyGroup() {
-  const queryClient = useQueryClient();
-  const { toast, confirm } = useFeedback();
-  const [apiKey, setApiKey] = useState("");
-
-  const statusQuery = useQuery({
-    queryKey: queryKeys.ai.webSearchKey,
-    queryFn: getWebSearchKey,
-    retry: false
-  });
-  const status = statusQuery.data?.status;
-  const configured = status?.configured ?? false;
-  const fromEnv = status?.source === "env";
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.ai.webSearchKey });
-
-  const saveMutation = useMutation({
-    mutationFn: (key: string) => putWebSearchKey({ apiKey: key }),
-    onSuccess: () => {
-      setApiKey("");
-      void invalidate();
-      toast("Web search key saved", { icon: <Globe size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const revokeMutation = useMutation({
-    mutationFn: () => deleteWebSearchKey(),
-    onSuccess: () => {
-      void invalidate();
-      toast("Web search key removed", { tone: "drift", icon: <Trash2 size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-
-  return (
-    <Group
-      title="Web search"
-      desc="Jarvis searches the live web through Brave Search. Add an instance-wide API key to turn it on for everyone."
-    >
-      <Field
-        label="Brave Search API key"
-        hint="Stored encrypted. Never shown in chat, briefings or logs."
-      >
-        <input
-          className="jds-input"
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={configured ? "•••••••• (stored)" : "BSA…"}
-          aria-label="Brave Search API key"
-        />
-        <button
-          type="button"
-          className="jds-btn jds-btn--secondary jds-btn--sm"
-          disabled={!apiKey.trim() || saveMutation.isPending}
-          onClick={() => saveMutation.mutate(apiKey.trim())}
-        >
-          {saveMutation.isPending ? "Saving…" : "Save"}
-        </button>
-        {configured && !fromEnv ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            disabled={revokeMutation.isPending}
-            onClick={() =>
-              confirm({
-                title: "Remove web search key?",
-                description: "Jarvis stops searching the web until a new key is added.",
-                confirmLabel: "Remove",
-                danger: true,
-                onConfirm: () => revokeMutation.mutate()
-              })
-            }
-          >
-            Revoke
-          </button>
-        ) : null}
-      </Field>
-      <Note icon={<Globe size={13} />}>
-        {fromEnv ? (
-          <>
-            Using a key from the <code>JARVIS_BRAVE_SEARCH_API_KEY</code> environment variable.
-            Saving a key here overrides it; the env key can&apos;t be revoked from this screen.
-          </>
-        ) : configured ? (
-          <>Web search is on. Get or manage keys at the Brave Search API dashboard.</>
-        ) : (
-          <>
-            Web search is off until a key is added. Get one at{" "}
-            <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer">
-              brave.com/search/api
-            </a>
-            .
-          </>
-        )}
-      </Note>
-    </Group>
-  );
-}
 
 /* ----------------------------------------------------------------- Pane */
 
@@ -793,7 +687,7 @@ export function AiProvidersPane() {
     onSuccess: (_data, option) => {
       setPick(false);
       void invalidate();
-      toast(`Added ${option.label}`, { icon: <Sparkles size={17} /> });
+      toast(`Added ${option.label}`, { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift", icon: <X size={17} /> })
   });
@@ -822,7 +716,7 @@ export function AiProvidersPane() {
     mutationFn: (enabled: boolean) => putAdminChatModelOverrideEnabled({ enabled }),
     onSuccess: () => {
       void invalidate();
-      toast("Chat override setting updated", { icon: <Sparkles size={17} /> });
+      toast("Chat override setting updated", { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
@@ -832,7 +726,7 @@ export function AiProvidersPane() {
     onSuccess: (_data, input) => {
       void invalidate();
       toast(`${input.model.displayName} override access updated`, {
-        icon: <Sparkles size={17} />
+        icon: <GitCommitHorizontal size={17} />
       });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
@@ -890,7 +784,7 @@ export function AiProvidersPane() {
         {providers.length === 0 ? (
           <div className="ai-empty">
             <div className="ai-empty__ic">
-              <Sparkles size={20} aria-hidden="true" />
+              <GitCommitHorizontal size={20} aria-hidden="true" />
             </div>
             <div className="ai-empty__main">
               <div className="ai-empty__t">No providers yet</div>
@@ -991,7 +885,8 @@ export function AiProvidersPane() {
       <ChatLockGroup />
       <EmbeddingConfigGroup />
       <WebSearchKeyGroup />
-      <Note icon={<Sparkles size={13} />}>
+      <YoloAdminGroup />
+      <Note icon={<GitCommitHorizontal size={13} />}>
         Each person can override which model powers their own chat under{" "}
         <b>Personal → Assistant &amp; AI</b>. Everything else follows the routing above.
       </Note>

@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import type { DataContextDb } from "@jarv1s/db";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 import {
+  AI_MODEL_CAPABILITIES,
   listAiCapabilityRoutesRouteSchema,
   lookupAiCapabilityRouteRouteSchema,
   putAiCapabilityRouteRouteSchema,
@@ -15,13 +16,7 @@ import { type AiRoutesDependencies, serializeModel } from "./routes.js";
 
 type CapabilityParams = { readonly capability: string };
 
-const MODEL_CAPABILITIES = new Set<AiModelCapability>([
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-]);
+const MODEL_CAPABILITIES = new Set<AiModelCapability>(AI_MODEL_CAPABILITIES);
 
 export function registerAiCapabilityRouteRoutes(
   server: FastifyInstance,
@@ -130,7 +125,8 @@ function requireObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function parseCapability(value: string): AiModelCapability {
+/** Shared by transcription-routes.ts so both routes recognize exactly the same capability set. */
+export function parseCapability(value: string): AiModelCapability {
   if (MODEL_CAPABILITIES.has(value as AiModelCapability)) {
     return value as AiModelCapability;
   }

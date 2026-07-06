@@ -14,28 +14,22 @@
 import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
-  AnswerSourceSupport,
   AiProviderExecutionMode,
+  PageContextSnapshotDto,
   SourceFreshnessV1
 } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { RecallPort } from "../recall-port.js";
-import {
-  crossToolItemToSupport,
-  finalizeProvenance,
-  memoryItemToSupport,
-  parseAnswerMarkers
-} from "./answer-provenance.js";
-import {
-  collectCrossToolContextAndItems,
-  planCrossToolReasoning,
-  type CrossToolReadRunner
-} from "./cross-tool-reasoning.js";
+import { finalizeProvenance, parseAnswerMarkers } from "./answer-provenance.js";
+import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
+import { buildEngineText } from "./engine-text.js";
+import { resolveCachedPageContext, type CachedPageContext } from "./page-context.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { neutralizeSeedFraming } from "./prompt-safety.js";
 import { estimateTokens, renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, TranscriptRecord } from "./types.js";
+import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
 export interface Clock {
@@ -161,8 +155,8 @@ export interface ChatSessionManagerDeps {
   readonly recall?: RecallPort;
   /** Optional per-turn hidden context retrieval. Empty/failed result submits the raw turn. */
   readonly passiveRetrieval?: PassiveRetrievalPort;
-  /** Optional cross-tool read runner for pre-turn context fan-out. */
   readonly crossToolRead?: CrossToolReadRunner;
+  readonly priorityModel?: { getModel(actorUserId: string): Promise<PriorityModelPreferenceV1> };
   /**
    * #342 (§4.1.2) — does the ENGINE own the replay submit+drain?
    *
@@ -193,9 +187,15 @@ interface UserSession {
   model: string;
   lastActivity: number;
   transcriptOffset: number;
+  /** #679 — last attached page-context snapshot; volatile (deleted with this object on
+   *  clear()/resumeThread()/switchProvider()/reapIdle()), reused within PAGE_CONTEXT_TTL_MS. */
+  lastPageContext?: CachedPageContext;
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
+/** #679 — a session-held page-context snapshot is reusable for a follow-up turn only
+ *  within this window; past it, resolvePageContext treats it as stale and drops it. */
+const PAGE_CONTEXT_TTL_MS = 5 * 60_000;
 
 /**
  * Thrown by submitTurn when a turn is already in flight for the same user. The
@@ -391,7 +391,8 @@ export class ChatSessionManager {
   async submitTurn(
     actorUserId: string,
     userName: string,
-    text: string
+    text: string,
+    pageContext?: PageContextSnapshotDto
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -406,7 +407,7 @@ export class ChatSessionManager {
     }
     this.turnsInFlight.add(actorUserId);
     try {
-      return await this.runTurn(actorUserId, userName, text);
+      return await this.runTurn(actorUserId, userName, text, pageContext);
     } finally {
       this.turnsInFlight.delete(actorUserId);
     }
@@ -423,7 +424,8 @@ export class ChatSessionManager {
   private async runTurn(
     actorUserId: string,
     userName: string,
-    text: string
+    text: string,
+    pageContext?: PageContextSnapshotDto
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -438,7 +440,20 @@ export class ChatSessionManager {
     this.turnControllers.set(actorUserId, controller);
 
     try {
-      const { text: engineText, pendingItems } = await this.engineText(actorUserId, text);
+      // #679 — resolved BEFORE engineText so it folds into the engine-bound text only —
+      // never into `text`, which is what recordTurn persists below.
+      const resolvedPageContext = this.resolvePageContext(session, pageContext);
+      const { text: engineText, pendingItems } = await buildEngineText(
+        {
+          persistence: this.deps.persistence,
+          passiveRetrieval: this.deps.passiveRetrieval,
+          crossToolRead: this.deps.crossToolRead,
+          priorityModel: this.deps.priorityModel
+        },
+        actorUserId,
+        text,
+        resolvedPageContext
+      );
       this.emit(actorUserId, { kind: "user", text });
       await session.engine.submit(engineText);
 
@@ -464,6 +479,10 @@ export class ChatSessionManager {
             break;
           }
           throw new Error("readNew failed");
+        }
+        if (controller.signal.aborted) {
+          stopped = true;
+          break;
         }
         session.transcriptOffset = offset;
         if (records.length > 0) {
@@ -564,82 +583,25 @@ export class ChatSessionManager {
     }
   }
 
-  private async engineText(
-    actorUserId: string,
-    text: string
-  ): Promise<{ text: string; pendingItems: AnswerSourceSupport[] }> {
-    if (!this.deps.passiveRetrieval && !this.deps.crossToolRead) {
-      return { text, pendingItems: [] };
-    }
-    try {
-      const [{ recent }, threadCtx] = await Promise.all([
-        this.deps.persistence.listPriorTurns(actorUserId),
-        this.deps.persistence.getThreadContext(actorUserId)
-      ]);
-
-      const localNow = new Date().toISOString();
-      const plan =
-        this.deps.crossToolRead != null
-          ? planCrossToolReasoning({
-              userText: text,
-              threadTitle: threadCtx.threadTitle,
-              recentTurns: recent,
-              localNowIso: localNow,
-              localTimezone: threadCtx.localTimezone ?? "UTC"
-            })
-          : null;
-
-      const [passiveResult, crossToolResult] = await Promise.all([
-        this.deps.passiveRetrieval != null
-          ? (this.deps.passiveRetrieval.retrieveWithItems != null
-              ? this.deps.passiveRetrieval.retrieveWithItems({
-                  actorUserId,
-                  userText: text,
-                  threadTitle: threadCtx.threadTitle,
-                  recentTurns: recent
-                })
-              : this.deps.passiveRetrieval
-                  .retrieve({
-                    actorUserId,
-                    userText: text,
-                    threadTitle: threadCtx.threadTitle,
-                    recentTurns: recent
-                  })
-                  .then((block) => ({ block, items: [] as MemoryRecallItem[] }))
-            ).catch(() => ({ block: "", items: [] as MemoryRecallItem[] }))
-          : Promise.resolve({ block: "", items: [] as MemoryRecallItem[] }),
-        plan != null && this.deps.crossToolRead != null
-          ? collectCrossToolContextAndItems(
-              actorUserId,
-              plan,
-              this.deps.crossToolRead,
-              localNow,
-              threadCtx.localTimezone ?? "UTC"
-            ).catch(() => ({ block: "", items: [] }))
-          : Promise.resolve({ block: "", items: [] })
-      ]);
-
-      // Convert evidence to pending support items for provenance
-      let idx = 0;
-      const memoryItems = passiveResult.items.map((item) => memoryItemToSupport(item, idx++));
-      const crossToolItems = crossToolResult.items.map((item) =>
-        crossToolItemToSupport(item, idx++)
-      );
-      const pendingItems: AnswerSourceSupport[] = [...memoryItems, ...crossToolItems];
-
-      const combined = combineHiddenContextBlocks(passiveResult.block, crossToolResult.block);
-      return {
-        text: combined ? `${combined}\n\n${text}` : text,
-        pendingItems
-      };
-    } catch {
-      return { text, pendingItems: [] };
-    }
+  /** #679 — TTL/reuse policy lives in {@link resolveCachedPageContext} (pure, unit-tested);
+   *  this just wires it to the session's mutable cache. Never touches `persistence`. */
+  private resolvePageContext(
+    session: UserSession,
+    incoming: PageContextSnapshotDto | undefined
+  ): PageContextSnapshotDto | undefined {
+    const { resolved, nextCached } = resolveCachedPageContext(
+      session.lastPageContext,
+      incoming,
+      this.deps.clock.now(),
+      PAGE_CONTEXT_TTL_MS
+    );
+    session.lastPageContext = nextCached;
+    return resolved;
   }
 
   /**
    * #456 — user-driven Stop. Ends an in-flight turn cleanly: aborts the turn's stop signal,
-   * kills the engine (so any in-progress CLI work halts), emits a 'Stopped by user.' status
+   * interrupts the engine (so any in-progress CLI work halts), emits a 'Stopped by user.' status
    * record over SSE, and releases the turn-in-flight lock. Persists NOTHING (the turn never
    * completed — no partial reply, no user message). Idempotent: a no-op when no turn is in
    * flight for the user.
@@ -651,9 +613,9 @@ export class ChatSessionManager {
     const session = this.sessions.get(actorUserId);
     if (session) {
       try {
-        await session.engine.kill();
+        await session.engine.interrupt();
       } catch {
-        // best-effort: the stop signal already broke the loop; a kill failure must not wedge.
+        // best-effort: the stop signal already broke the loop; interrupt failure must not wedge.
       }
     }
   }

@@ -10,7 +10,10 @@ import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } f
 import { extractTimezone } from "../locale-utils.js";
 import type { DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
 import {
+  CHAT_SETTINGS_PREFERENCE_KEY,
   normalizePersonaSettings,
+  normalizeChatSettings,
+  renderChatResponseStyleInstruction,
   renderPersonaText,
   type AiProviderExecutionMode
 } from "@jarv1s/shared";
@@ -19,6 +22,7 @@ import type { PgBoss } from "pg-boss";
 import type { RecallPort } from "../recall-port.js";
 import { PassiveContextRetriever, type PassiveMemoryGraphRecallPort } from "./passive-retrieval.js";
 import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
+import { ChatPriorityModelAdapter } from "./priority-model-adapter.js";
 
 import { resolveChatHome } from "./chat-home.js";
 import {
@@ -126,7 +130,7 @@ export interface RpcEngineFactory {
  * (re)connect AND on a `bootId` change (§5.6). `logger` is the {method,id,sessionKey,bytes}-only
  * debug logger (§6.4) — it MUST NOT log frame bodies.
  */
-export function createRpcEngineFactory(opts: {
+function createRpcEngineFactory(opts: {
   readonly socketPath: string;
   readonly rpcSecret: string;
   readonly onReconcile?: (driver: RpcReconcileDriver) => Promise<void>;
@@ -213,8 +217,12 @@ export interface CreateChatSessionRuntimeDeps {
   /** Optional graph-only per-turn recall. */
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
   readonly personaPreferences?: PersonaPreferencesPort;
+  /** Chat preferences port — reads `chat.settings.v1` for response-style prompt shaping. */
+  readonly chatPreferences?: PreferencesPort;
   /** Locale preferences port — used to read the user's IANA timezone for the system prompt. */
   readonly localePreferences?: PreferencesPort;
+  /** Priority preferences port — reads `priority.model.v1` to rank cross-tool chat context (#721). */
+  readonly priorityPreferences?: PreferencesPort;
   /** Phase 2: MCP token lifecycle hooks — mint on engine launch, revoke on reap. */
   readonly mcpTokenLifecycle?: {
     readonly mint: (
@@ -392,6 +400,12 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
       : undefined,
     crossToolRead: deps.crossToolGateway
       ? buildCrossToolReadAdapter(deps.crossToolGateway)
+      : undefined,
+    priorityModel: deps.priorityPreferences
+      ? new ChatPriorityModelAdapter({
+          dataContext: deps.dataContext,
+          preferencesRepository: deps.priorityPreferences
+        })
       : undefined
   });
 
@@ -457,17 +471,20 @@ function buildCrossToolReadAdapter(gateway: {
   };
 }
 
-async function resolveChatPersona(
+export async function resolveChatPersona(
   deps: CreateChatSessionRuntimeDeps,
   actorUserId: string,
   userName: string
 ): Promise<string> {
-  const [stored, localeRaw] = await deps.dataContext.withDataContext(
+  const [stored, localeRaw, chatRaw] = await deps.dataContext.withDataContext(
     { actorUserId, requestId: "chat-live:resolve-persona" },
     (scopedDb) =>
       Promise.all([
         deps.personaPreferences ? deps.personaPreferences.get(scopedDb, "persona.bundle") : null,
-        deps.localePreferences ? deps.localePreferences.get(scopedDb, "locale") : null
+        deps.localePreferences ? deps.localePreferences.get(scopedDb, "locale") : null,
+        deps.chatPreferences
+          ? deps.chatPreferences.get(scopedDb, CHAT_SETTINGS_PREFERENCE_KEY)
+          : null
       ])
   );
 
@@ -482,6 +499,10 @@ async function resolveChatPersona(
   const tzBlock = timezone
     ? `User's local timezone: ${timezone}. Always display dates and times in this timezone.`
     : null;
+  const chatSettings = normalizeChatSettings(chatRaw);
+  const responseStyleBlock = renderChatResponseStyleInstruction(chatSettings.responseStyle);
 
-  return [DEFAULT_JARVIS_PERSONA, tzBlock, personaBlock].filter(Boolean).join("\n\n");
+  return [DEFAULT_JARVIS_PERSONA, tzBlock, personaBlock, responseStyleBlock]
+    .filter(Boolean)
+    .join("\n\n");
 }

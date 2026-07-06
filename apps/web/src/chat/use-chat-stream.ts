@@ -15,6 +15,17 @@ export type ChatRecordKind =
   | "action_request"
   | "action_result";
 
+/**
+ * Rich, server-derived Approve/Deny card preview (email reply recipient/subject/body). Rides the
+ * live SSE stream ONLY — the backend never persists it. Mirrors `@jarv1s/module-sdk`
+ * ActionRequestPreview; declared locally so the web bundle stays free of node-side deps.
+ */
+export interface ActionRequestPreview {
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+}
+
 export interface TranscriptRecord {
   readonly kind: ChatRecordKind;
   readonly text: string;
@@ -26,6 +37,20 @@ export interface TranscriptRecord {
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
   readonly sourceFreshness?: SourceFreshnessV1 | null;
+  readonly preview?: ActionRequestPreview;
+}
+
+function parsePreview(value: unknown): ActionRequestPreview | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.to !== "string" ||
+    typeof candidate.subject !== "string" ||
+    typeof candidate.body !== "string"
+  ) {
+    return undefined;
+  }
+  return { to: candidate.to, subject: candidate.subject, body: candidate.body };
 }
 
 function isChatRecordKind(value: string): value is ChatRecordKind {
@@ -108,7 +133,8 @@ export function parseRecord(data: unknown): TranscriptRecord | null {
       sourceFreshness:
         parsed.sourceFreshness && typeof parsed.sourceFreshness === "object"
           ? (parsed.sourceFreshness as SourceFreshnessV1)
-          : undefined
+          : undefined,
+      preview: parsePreview(parsed.preview)
     };
   } catch {
     return null;

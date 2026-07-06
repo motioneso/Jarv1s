@@ -589,7 +589,10 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
                   {
                     sender: "attacker@example.test",
                     subject: overrides?.emailSubject ?? `${CANARY_CHANNELS.email} subject`,
-                    snippet: "snippet"
+                    snippet: "snippet",
+                    // Live-first (#729): the email section only renders actionable triage
+                    // categories, so the canary must be actionable to reach the prompt at all.
+                    actionability: "needs_reply"
                   }
                 ]
               }

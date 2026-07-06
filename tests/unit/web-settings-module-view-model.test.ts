@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  visibleUserToggleModules,
   settingsModuleControlModel,
   type SettingsModule
 } from "../../apps/web/src/settings/settings-module-view-model.js";
@@ -55,5 +56,18 @@ describe("settings module view model", () => {
       label: "Required",
       canOpenSettings: true
     });
+  });
+
+  it("keeps the personal module switcher to additional modules only", () => {
+    const visible = visibleUserToggleModules([
+      moduleRow({ id: "goals", name: "Goals" }),
+      moduleRow({ id: "notes", name: "Notes" }),
+      moduleRow({ id: "commitments", name: "Commitments" }),
+      moduleRow({ id: "people", name: "People & Context" }),
+      moduleRow({ id: "sports", name: "Sports" }),
+      moduleRow({ id: "finance", name: "Finance" })
+    ]);
+
+    expect(visible.map((module) => module.name)).toEqual(["Sports", "Finance"]);
   });
 });

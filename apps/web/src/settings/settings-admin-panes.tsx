@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { compareJarvisVersions } from "@jarv1s/module-sdk/core-version";
 import {
-  Copy,
   KeyRound,
   LogOut,
   MoreHorizontal,
@@ -21,24 +20,18 @@ import {
   deleteAdminUser,
   demoteUser,
   getChatMultiplexerSettings,
-  getAdminYoloSettings,
   getHostDiagnostics,
   getRegistrationSettings,
   listAdminConnectorAccounts,
   listAdminModules,
   listAdminUsers,
-  listAuthProviderStatuses,
   promoteUser,
   putRegistrationSettings,
-  putAdminYoloInstance,
-  putAdminYoloUser,
-  postAdminYoloAllowAll,
   reactivateUser,
   revokeAdminUserSessions,
   rejectUser,
   setChatMultiplexerSettings,
-  setAdminModuleDisabled,
-  syncGoogleConnector
+  setAdminModuleDisabled
 } from "../api/client";
 import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
@@ -47,6 +40,7 @@ import {
   createAdminUserPolicyContext,
   type AdminUserAction
 } from "./settings-admin-policy";
+import { getConnectorAccountHealth } from "./settings-connector-sync";
 import { useFeedback } from "./settings-feedback";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import { MarkdownMessage } from "../chat/markdown-message";
@@ -56,11 +50,11 @@ import {
   formatTimestamp,
   Group,
   Indicator,
-  Locked,
   Note,
   PaneHead,
   Row,
   Segmented,
+  Select,
   Switch,
   type BadgeTone
 } from "./settings-ui";
@@ -254,8 +248,7 @@ function AiPinRow(props: { readonly user: UserDto }) {
             : "No active models configured by this user."
         }
         control={
-          <select
-            className="jds-input"
+          <Select
             aria-label={`Pinned AI provider for ${props.user.name || props.user.email}`}
             value={value}
             disabled={disabled}
@@ -267,7 +260,7 @@ function AiPinRow(props: { readonly user: UserDto }) {
                 {model.displayName}
               </option>
             ))}
-          </select>
+          </Select>
         }
       />
     </div>
@@ -322,28 +315,6 @@ export function PeoplePane({ me }: PaneProps) {
     queryKey: queryKeys.settings.adminUsers,
     queryFn: listAdminUsers,
     retry: false
-  });
-  const yoloQuery = useQuery({
-    queryKey: queryKeys.settings.adminYolo,
-    queryFn: getAdminYoloSettings,
-    retry: false
-  });
-  const yoloMutation = useMutation({
-    mutationFn: (
-      vars:
-        | { kind: "instance"; enabled: boolean }
-        | { kind: "user"; id: string; allowed: boolean }
-        | { kind: "allowAll" }
-    ) => {
-      if (vars.kind === "instance") return putAdminYoloInstance({ enabled: vars.enabled });
-      if (vars.kind === "allowAll") return postAdminYoloAllowAll();
-      return putAdminYoloUser(vars.id, { allowed: vars.allowed });
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.settings.adminYolo, data);
-      toast("YOLO settings updated");
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
   });
   const actionMutation = useMutation({
     mutationFn: (vars: ActionVars) => vars.fn(vars.id),
@@ -456,63 +427,6 @@ export function PeoplePane({ me }: PaneProps) {
           ))}
         </Group>
       ) : null}
-      <Group
-        title="YOLO / auto-approval"
-        desc="Blanket auto-approval for interactive chat actions. RLS and account permissions still apply."
-      >
-        <Row
-          name="Instance master"
-          desc="When off, all saved per-user YOLO choices are inert."
-          control={
-            <Switch
-              ariaLabel="YOLO instance master"
-              checked={yoloQuery.data?.instanceEnabled ?? false}
-              disabled={yoloMutation.isPending}
-              onChange={(enabled) =>
-                enabled
-                  ? confirm({
-                      title: "Enable YOLO for this instance?",
-                      description:
-                        "This also enables YOLO for your admin account. Jarvis can run destructive chat actions without asking.",
-                      confirmLabel: "Enable YOLO",
-                      danger: true,
-                      onConfirm: () => yoloMutation.mutate({ kind: "instance", enabled })
-                    })
-                  : yoloMutation.mutate({ kind: "instance", enabled })
-              }
-            />
-          }
-        />
-        <Row
-          name="Allow all current members"
-          desc="Snapshot only. Future accounts still default off."
-          control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
-              disabled={yoloMutation.isPending}
-              onClick={() => yoloMutation.mutate({ kind: "allowAll" })}
-            >
-              Allow all
-            </button>
-          }
-        />
-        {(yoloQuery.data?.users ?? []).map((user) => (
-          <Row
-            key={user.id}
-            name={user.name || user.email}
-            desc={`${roleLabel(user)} · ${user.yoloEnabled ? "self-enabled" : "self off"}${user.yoloActive ? " · active" : ""}`}
-            control={
-              <Switch
-                ariaLabel={`Allow YOLO for ${user.email}`}
-                checked={user.yoloAllowed}
-                disabled={yoloMutation.isPending}
-                onChange={(allowed) => yoloMutation.mutate({ kind: "user", id: user.id, allowed })}
-              />
-            }
-          />
-        ))}
-      </Group>
       <Group title="Members" desc="New people create an account, then wait for approval here.">
         <div className="ppl">
           {members.length ? (
@@ -547,18 +461,12 @@ export function IdentityPane() {
     queryFn: getRegistrationSettings,
     retry: false
   });
-  const providersQuery = useQuery({
-    queryKey: queryKeys.settings.providers,
-    queryFn: listAuthProviderStatuses,
-    retry: false
-  });
   const putMutation = useMutation({
     mutationFn: (next: RegistrationSettingsDto) => putRegistrationSettings(next),
     onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.registrationSettings, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
   const reg = regQuery.data;
-  const providers = providersQuery.data?.providers ?? [];
 
   return (
     <>
@@ -591,25 +499,6 @@ export function IdentityPane() {
             />
           }
         />
-      </Group>
-      <Group title="Sign-in methods" desc="Which ways people are allowed to sign in.">
-        {providers.length ? (
-          providers.map((provider) => (
-            <Row
-              key={provider.id}
-              name={provider.displayName}
-              control={
-                <Badge tone={provider.enabled ? "pine" : "neutral"} dot={provider.enabled}>
-                  {provider.enabled ? "Enabled" : "Off"}
-                </Badge>
-              }
-            />
-          ))
-        ) : (
-          <Row
-            name={providersQuery.isLoading ? "Loading methods…" : "No sign-in methods configured"}
-          />
-        )}
       </Group>
       <Note icon={<Terminal size={13} />}>
         Auth provider configuration — client IDs, secrets, callback URLs — is handled in operator
@@ -689,23 +578,12 @@ export function InstanceModulesPane() {
 /* ---------------------------------------------------------- Connector oversight */
 
 export function OversightPane() {
-  const { toast } = useFeedback();
-  const queryClient = useQueryClient();
   const accountsQuery = useQuery({
     queryKey: queryKeys.settings.adminConnectorAccounts,
     queryFn: listAdminConnectorAccounts,
     retry: false
   });
   const accounts = accountsQuery.data?.accounts ?? [];
-  const syncMutation = useMutation({
-    mutationFn: syncGoogleConnector,
-    onSuccess: (data) => {
-      const msg = data.deduped ? "Sync already in progress" : "Sync queued";
-      toast(msg);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminConnectorAccounts });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
   return (
     <>
       <PaneHead
@@ -719,24 +597,7 @@ export function OversightPane() {
               // Health now derives from durable sync outcome, not just `status`. Revoked wins;
               // a partial run shows "Partial"; a failed run or an error status needs attention;
               // otherwise healthy. The bounded error label shows only for partial/failed.
-              const health =
-                account.status === "revoked"
-                  ? { label: "Revoked", tone: "neutral" as const, indicator: "idle" as const }
-                  : account.lastSyncStatus === "partial"
-                    ? { label: "Partial", tone: "amber" as const, indicator: "error" as const }
-                    : account.lastSyncStatus === "failed" || account.status === "error"
-                      ? {
-                          label: "Needs attention",
-                          tone: "amber" as const,
-                          indicator: "error" as const
-                        }
-                      : account.lastSyncStatus === null
-                        ? {
-                            label: "Awaiting first sync",
-                            tone: "neutral" as const,
-                            indicator: "idle" as const
-                          }
-                        : { label: "Healthy", tone: "pine" as const, indicator: "ready" as const };
+              const health = getConnectorAccountHealth(account);
               const lastFinished = account.lastSyncFinishedAt
                 ? formatTimestamp(account.lastSyncFinishedAt, account.lastSyncFinishedAt)
                 : null;
@@ -752,23 +613,13 @@ export function OversightPane() {
                   </div>
                   <div className="cono__meta">
                     {account.providerType}
-                    {lastFinished ? ` · ${lastFinished}` : ""}
+                    {lastFinished ? ` · Fallback cache updated ${lastFinished}` : ""}
                     {errorLabel ? ` · ${errorLabel}` : ""}
                   </div>
                   <div className="cono__err">
-                    <Badge tone={health.tone} dot={health.tone !== "amber"}>
+                    <Badge tone={health.badgeTone} dot={health.badgeTone !== "amber"}>
                       {health.label}
                     </Badge>
-                    {account.status !== "revoked" && account.providerType === "google" && (
-                      <button
-                        type="button"
-                        className="cono__sync-btn"
-                        disabled={syncMutation.isPending}
-                        onClick={() => syncMutation.mutate()}
-                      >
-                        {syncMutation.isPending ? "Syncing…" : "Sync now"}
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -791,20 +642,19 @@ export function OversightPane() {
 
 /* --------------------------------------------------------- Advanced host setup */
 
-export function HostPane({ advanced }: PaneProps) {
+export function HostPane() {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
   const [ranDiagnostics, setRanDiagnostics] = useState(false);
   const muxQuery = useQuery({
     queryKey: queryKeys.settings.chatMultiplexer,
     queryFn: getChatMultiplexerSettings,
-    enabled: advanced,
     retry: false
   });
   const diagQuery = useQuery({
     queryKey: queryKeys.settings.hostDiagnostics,
     queryFn: getHostDiagnostics,
-    enabled: advanced && ranDiagnostics,
+    enabled: ranDiagnostics,
     retry: false
   });
   const muxMutation = useMutation({
@@ -812,33 +662,17 @@ export function HostPane({ advanced }: PaneProps) {
     onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-
   const runDiagnostics = () => {
     setRanDiagnostics(true);
     void diagQuery.refetch();
   };
-  const copyCommand = (command: string) => {
-    void navigator.clipboard?.writeText(command);
-    toast("Copied restart command");
-  };
-
-  if (!advanced) {
-    return (
-      <>
-        <PaneHead
-          title="Advanced host setup"
-          desc="Multiplexer, CLI availability, restart-required settings, and diagnostics."
-        />
-        <Locked icon={<ServerCog size={24} />} title="Host diagnostics are hidden">
-          These are low-level operational controls. Turn on <b>Advanced</b> at the top of settings
-          to view and edit them.
-        </Locked>
-      </>
-    );
-  }
 
   const mux = muxQuery.data;
   const diag = diagQuery.data;
+  const herdrAvailable = mux?.available.herdr === true;
+  const herdrDesc = herdrAvailable
+    ? "Herdr is usable on this host."
+    : "Herdr is not usable on this host.";
   return (
     <>
       <PaneHead
@@ -873,10 +707,10 @@ export function HostPane({ advanced }: PaneProps) {
         />
         <Row
           name="herdr available"
-          desc="Whether herdr is usable on this host."
+          desc={herdrDesc}
           control={
-            <Badge tone={mux?.available.herdr ? "pine" : "neutral"} dot={mux?.available.herdr}>
-              {mux?.available.herdr ? "Yes" : "No"}
+            <Badge tone={herdrAvailable ? "pine" : "neutral"} dot={herdrAvailable}>
+              {herdrAvailable ? "Yes" : "No"}
             </Badge>
           }
         />
@@ -944,11 +778,6 @@ export function HostPane({ advanced }: PaneProps) {
             ) : null}
             <Row name="Commit" control={diag.commit ?? "—"} />
             <Row name="Bind address" control={`${diag.host}:${diag.port}`} />
-            <Row
-              name="Modules"
-              desc="Registered modules / declared module routes"
-              control={`${diag.moduleCount} / ${diag.routeCount}`}
-            />
           </>
         )}
       </Group>
@@ -957,37 +786,6 @@ export function HostPane({ advanced }: PaneProps) {
           name="Log level"
           desc="Set with the LOG_LEVEL environment variable. Changing it takes effect after a restart."
           control={<Badge tone="neutral">{diag?.logLevel ?? "Run diagnostics to view"}</Badge>}
-        />
-      </Group>
-      <Group title="Restart">
-        <Row
-          name="Restart"
-          desc="Restart is operator-managed — there is no in-app restart. Some changes apply only after the next restart."
-          control={<Badge tone="amber">Operator-managed</Badge>}
-        />
-        <Row
-          name="Deployment mode"
-          control={<Badge tone="neutral">{diag?.deployMode ?? "—"}</Badge>}
-        />
-        <Row
-          name="Restart command"
-          desc={diag?.restartCommand ?? "Run diagnostics to detect the documented command."}
-          control={
-            diag?.restartCommand ? (
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
-                onClick={() => copyCommand(diag.restartCommand as string)}
-              >
-                <span className="jds-btn__icon">
-                  <Copy size={15} />
-                </span>
-                Copy
-              </button>
-            ) : (
-              <Badge tone="neutral">—</Badge>
-            )
-          }
         />
       </Group>
     </>

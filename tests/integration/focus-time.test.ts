@@ -89,6 +89,20 @@ describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
     expect(text).toMatch(/next clear slot/i);
   });
 
+  it("calendar.proposeFocusBlock belongs to calendar_writeback and can be trusted_auto", () => {
+    const family = calendarModuleManifest.assistantActionFamilies?.find(
+      (f) => f.id === "calendar_writeback"
+    );
+    expect(family?.defaultTier).toBe("ask_each_time");
+    expect(family?.allowedTiers).toEqual(["ask_each_time", "trusted_auto"]);
+
+    const tool = calendarModuleManifest.assistantTools?.find(
+      (t) => t.name === "calendar.proposeFocusBlock"
+    );
+    expect(tool?.actionFamilyId).toBe("calendar_writeback");
+    expect(tool?.executionPolicy).toBe("auto");
+  });
+
   it("on approve, execute resolves a window and delegates to services.calendarWrite", async () => {
     let captured: { start: Date; end: Date; durationMinutes: number; title: string } | null = null;
     const fakeService = {

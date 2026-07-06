@@ -1,9 +1,10 @@
 import Fastify from "fastify";
 import { type Kysely } from "kysely";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { registerRequestTimeZoneHook } from "../../apps/api/src/server.js";
 import { registerWellnessRoutes } from "@jarv1s/wellness";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -42,6 +43,7 @@ afterAll(async () => {
 describe("wellness REST routes", () => {
   async function buildApp(actorUserId: string) {
     const app = Fastify();
+    registerRequestTimeZoneHook(app);
     registerWellnessRoutes(app, {
       resolveAccessContext: async () => ({ actorUserId, requestId: "req:route-test" }),
       dataContext
@@ -49,6 +51,10 @@ describe("wellness REST routes", () => {
     await app.ready();
     return app;
   }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("POST /api/wellness/checkins creates; GET lists owner-scoped", async () => {
     const app = await buildApp(userId);
@@ -64,6 +70,69 @@ describe("wellness REST routes", () => {
       const listed = await app.inject({ method: "GET", url: "/api/wellness/checkins?limit=5" });
       expect(listed.statusCode).toBe(200);
       expect(listed.json().checkins.length).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST /api/wellness/checkins persists local_date from the request timezone, not UTC (#326/#771)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 06:30 UTC is 23:30 the evening *before* in America/Los_Angeles (PDT, UTC-7 in June): the
+    // UTC calendar day has already rolled over, but the caller's local calendar day has not.
+    vi.setSystemTime(new Date("2026-06-09T06:30:00.000Z"));
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "happy" },
+        headers: { "x-timezone": "America/Los_Angeles" }
+      });
+      expect(created.statusCode).toBe(201);
+      const checkinId = created.json().checkin.id as string;
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        const row = await client.query<{ local_date: string; timezone_offset: number }>(
+          `SELECT local_date, timezone_offset FROM app.wellness_checkins WHERE id = $1`,
+          [checkinId]
+        );
+        expect(row.rows[0]?.local_date).toBe("2026-06-08");
+        expect(row.rows[0]?.timezone_offset).toBe(-420);
+      } finally {
+        await client.end();
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST /api/wellness/checkins without a request timezone defaults local_date to UTC (#326/#771)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-09T06:30:00.000Z"));
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/checkins",
+        payload: { feelingCore: "happy" }
+      });
+      expect(created.statusCode).toBe(201);
+      const checkinId = created.json().checkin.id as string;
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        const row = await client.query<{ local_date: string; timezone_offset: number }>(
+          `SELECT local_date, timezone_offset FROM app.wellness_checkins WHERE id = $1`,
+          [checkinId]
+        );
+        expect(row.rows[0]?.local_date).toBe("2026-06-09");
+        expect(row.rows[0]?.timezone_offset).toBe(0);
+      } finally {
+        await client.end();
+      }
     } finally {
       await app.close();
     }
@@ -350,6 +419,150 @@ describe("wellness REST routes", () => {
         }
       });
       expect(res.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("buckets adherence summary by request timezone, not UTC day", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-20T01:00:00.000Z"));
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: {
+          name: "Late dose",
+          frequencyType: "once_daily",
+          scheduleTimes: ["21:30"]
+        }
+      });
+      expect(created.statusCode).toBe(201);
+      const medId = created.json().medication.id as string;
+
+      const logged = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: {
+          status: "taken",
+          scheduledFor: "2026-06-19T21:30:00.000Z"
+        }
+      });
+      expect(logged.statusCode).toBe(201);
+
+      const summary = await app.inject({
+        method: "GET",
+        url: "/api/wellness/medications/logs?sinceDays=1",
+        headers: { "x-timezone": "America/New_York" }
+      });
+
+      expect(summary.statusCode, summary.body).toBe(200);
+      const days = summary.json().days as Array<{
+        date: string;
+        doses: Array<{ medicationId: string; status: string }>;
+      }>;
+      expect(days).toHaveLength(1);
+      expect(days[0]?.date).toBe("2026-06-19");
+      expect(days[0]?.doses).toContainEqual(
+        expect.objectContaining({ medicationId: medId, status: "taken" })
+      );
+    } finally {
+      vi.useRealTimers();
+      await app.close();
+    }
+  });
+
+  it("includes PRN logs from the request timezone day in medication schedule", async () => {
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: { name: "PRN boundary", frequencyType: "as_needed" }
+      });
+      expect(created.statusCode).toBe(201);
+      const medId = created.json().medication.id as string;
+
+      const logged = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: { status: "prn" }
+      });
+      expect(logged.statusCode).toBe(201);
+      const logId = logged.json().log.id as string;
+
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        await client.query(`UPDATE app.medication_logs SET logged_at = $1 WHERE id = $2`, [
+          "2026-06-20T01:00:00.000Z",
+          logId
+        ]);
+      } finally {
+        await client.end();
+      }
+
+      const sched = await app.inject({
+        method: "GET",
+        url: "/api/wellness/medications/schedule?date=2026-06-19",
+        headers: { "x-timezone": "America/New_York" }
+      });
+
+      expect(sched.statusCode, sched.body).toBe(200);
+      const slot = (
+        sched.json().slots as Array<{ medicationId: string; asNeeded: boolean; prnCount?: number }>
+      ).find((s) => s.medicationId === medId && s.asNeeded);
+      expect(slot?.prnCount).toBe(1);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("rejects a PRN log that carries scheduledFor (400) — would otherwise clobber a scheduled-dose record (#770 / M3)", async () => {
+    const app = await buildApp(userId);
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/api/wellness/medications",
+        payload: {
+          name: "Clobber guard",
+          frequencyType: "once_daily",
+          scheduleTimes: ["08:00"]
+        }
+      });
+      expect(created.statusCode).toBe(201);
+      const medId = created.json().medication.id as string;
+      const scheduledFor = "2026-06-22T08:00:00.000Z";
+
+      // Establish a real scheduled-dose record for this slot.
+      const taken = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: { status: "taken", scheduledFor }
+      });
+      expect(taken.statusCode).toBe(201);
+
+      // A PRN log carrying the same scheduledFor must be rejected — not silently upserted onto
+      // the scheduled-dose partial unique index, which would overwrite the "taken" record above
+      // (status -> "prn") and regress the slot to "pending" in the schedule view.
+      const prnWithScheduledFor = await app.inject({
+        method: "POST",
+        url: `/api/wellness/medications/${medId}/logs`,
+        payload: { status: "prn", scheduledFor }
+      });
+      expect(prnWithScheduledFor.statusCode).toBe(400);
+
+      // The original scheduled-dose record must be untouched.
+      const sched = await app.inject({
+        method: "GET",
+        url: "/api/wellness/medications/schedule?date=2026-06-22"
+      });
+      expect(sched.statusCode, sched.body).toBe(200);
+      const slot = (
+        sched.json().slots as Array<{ medicationId: string; asNeeded: boolean; status: string }>
+      ).find((s) => s.medicationId === medId && !s.asNeeded);
+      expect(slot?.status).toBe("taken");
     } finally {
       await app.close();
     }

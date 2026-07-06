@@ -73,6 +73,48 @@ export type ToolExecute = (
 /** Optional human-readable description of a proposed write, for the Approve/Deny card. */
 export type ToolSummarize = (input: ToolInput, ctx: ToolContext) => string;
 
+/**
+ * Optional per-call override for the run/confirm decision. When it returns true for a given
+ * call's input, the gateway treats that call as always-confirm — equivalent to `risk:
+ * "destructive"` — even if the tool's `actionFamilyId` has been promoted to `trusted_auto`.
+ * Use this when a tool's risk is input-shaped: most calls are an ordinary write (safe to
+ * auto-run once trusted), but a particular input combination is actually destructive (e.g.
+ * `notes.create` with `overwrite: true`, which replaces existing content). Tools with `risk:
+ * "destructive"` already always confirm and don't need this; a `risk: "read"` tool ignores it
+ * (reads never confirm).
+ */
+export type ToolRequiresConfirmation = (input: ToolInput) => boolean;
+
+/**
+ * Rich, server-derived preview of a proposed write for the Approve/Deny card. Unlike the
+ * persisted `inputSummary` (key-names only), this is computed under the actor's DataContextDb
+ * from owner-visible cached state and rides the live SSE stream ONLY — it is never persisted
+ * to the action_request row, audit log, job payload, export, or prompt. The email reply tools
+ * use it to show the derived recipient/subject and the composed body on the card without ever
+ * writing the body to durable storage (spec §5 / metadata-only persistence).
+ */
+export interface ActionRequestPreview {
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+}
+
+/**
+ * Optional async producer of an ActionRequestPreview. Called by the gateway inside
+ * `withDataContext` at card-creation time (only for a tool that declares it), so it can look
+ * up owner-visible cached state to derive the preview. `scopedDb` is a DataContextDb typed
+ * `unknown` (same reason as ToolExecute — no module-sdk -> db dependency); the owning module
+ * narrows it. Returning `undefined` (or throwing — the gateway guards) means "no preview": the
+ * card still renders from the summary. It must never throw sensitive detail; it returns only
+ * the secret-free preview shape.
+ */
+export type ToolPreview = (
+  scopedDb: unknown,
+  input: ToolInput,
+  ctx: ToolContext,
+  services?: ToolServices
+) => Promise<ActionRequestPreview | undefined>;
+
 /** A normalized readiness/energy signal contributed by ANY module to the focus path. */
 export interface FocusSignal {
   /** Stable id of the contributing module, e.g. "wellness". */
@@ -339,6 +381,10 @@ export interface ModuleFeatureFlagManifest {
   readonly defaultEnabled: boolean;
 }
 
+export interface ModuleNotificationManifest {
+  readonly supported: true;
+}
+
 export interface ModuleNavigationEntryManifest {
   readonly id: string;
   readonly label: string;
@@ -404,6 +450,20 @@ export interface ModuleAssistantToolManifest {
   readonly execute?: ToolExecute;
   readonly summarize?: ToolSummarize;
   /**
+   * Optional per-call override of the run/confirm policy decision (see ToolRequiresConfirmation).
+   * Forces "confirm" for calls where it returns true, regardless of actionFamilyId tier — the
+   * write→trusted_auto auto-run path never applies to those calls.
+   */
+  readonly requiresConfirmation?: ToolRequiresConfirmation;
+  /**
+   * Optional async producer of a rich Approve/Deny card preview, derived server-side under the
+   * actor's DataContextDb (see ToolPreview). The gateway calls it at card-creation time and
+   * streams the result to the client; it is NEVER persisted (the durable row keeps the
+   * key-names-only `inputSummary`). Used by the email reply tools to show the derived
+   * recipient/subject + composed body without persisting the body.
+   */
+  readonly preview?: ToolPreview;
+  /**
    * Names of composition-layer services this tool's execute requires in the 4th
    * `services` argument (e.g. ["calendarWrite"]). Declaration only — the module does
    * not construct the service. The composition host builds it and registers it on the
@@ -431,6 +491,7 @@ export interface JarvisModuleManifest {
   readonly settings?: readonly ModuleSettingsSurfaceManifest[];
   readonly permissions?: readonly ModulePermissionManifest[];
   readonly featureFlags?: readonly ModuleFeatureFlagManifest[];
+  readonly notifications?: ModuleNotificationManifest;
   readonly routes?: readonly ModuleRouteManifest[];
   readonly jobs?: readonly ModuleJobManifest[];
   readonly shareableResources?: readonly ModuleShareableResourceManifest[];
@@ -440,6 +501,58 @@ export interface JarvisModuleManifest {
   readonly focusSignal?: FocusSignalProvider;
   readonly proactiveMonitor?: ProactiveMonitorProvider;
   readonly personContextProvider?: PersonContextProvider;
+  readonly dataLifecycle?: ModuleDataLifecycleManifest;
+}
+
+/** Context passed to a module's data-lifecycle hooks (export collect, etc.). */
+export interface ModuleLifecycleContext {
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
+/**
+ * A module's contribution to full-account export and account deletion. See
+ * docs/superpowers/specs/2026-07-04-module-data-lifecycle-ports.md for the design.
+ */
+export interface ModuleDataLifecycleManifest {
+  readonly exportSections?: readonly ModuleExportSection[];
+  readonly deletion: ModuleDeletionDecl;
+}
+
+export interface ModuleExportSection {
+  /**
+   * Top-level property name under the archive's `sections` object — e.g. "wellness".
+   * The archive is nested; a section's collect() returns that exact nested object, so
+   * the assembled archive stays deep-equal to today's hand-written output.
+   */
+  readonly key: string;
+  readonly displayName: string;
+  /**
+   * Runs under the actor's own DataContextDb (RLS-scoped). `scopedDb` stays `unknown`
+   * here — module-sdk has no @jarv1s/db dependency; modules narrow it via
+   * assertDataContextDb, the established pattern for assistant tools. Returns the
+   * JSON-serializable section object (nested sub-keys included).
+   */
+  readonly collect: (scopedDb: unknown, ctx: ModuleLifecycleContext) => Promise<unknown>;
+}
+
+export interface ModuleDeletionDecl {
+  /** This slice: cascade-only. A "purge" strategy with an executable hook is deferred. */
+  readonly strategy: "cascade";
+  /** FK cascade chain to app.users, verified by an integration test (not the boot assertion). */
+  readonly tables: readonly ModuleDeletionTable[];
+}
+
+export interface ModuleDeletionTable {
+  /** e.g. "app.wellness_checkins" */
+  readonly table: string;
+  /**
+   * SQL boolean predicate over $1::uuid (the target user id) for the deletion script's
+   * before/after count sweep. Defaults to "owner_user_id = $1::uuid" — the shape most of
+   * the script's current list uses. Tables scoped differently declare theirs explicitly,
+   * e.g. "user_id = $1::uuid" or a join predicate.
+   */
+  readonly countPredicate?: string;
 }
 
 /** Boundary of text from a source that may contain commitments. */

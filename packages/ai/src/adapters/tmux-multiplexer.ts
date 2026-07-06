@@ -72,6 +72,10 @@ export class TmuxMultiplexer implements Multiplexer {
     await this.runChecked(["send-keys", "-t", handle, "Enter"]);
   }
 
+  async interrupt(handle: MuxHandle): Promise<void> {
+    await this.runChecked(["send-keys", "-t", handle, "Escape"]);
+  }
+
   private async runChecked(args: readonly string[]): Promise<void> {
     const { code, stderr } = await this.io.run("tmux", args);
     if (code !== 0) {

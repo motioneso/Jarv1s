@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
   createCheckinRouteSchema,
@@ -22,13 +22,18 @@ import {
   MEDICATION_FREQUENCY_TYPES,
   MEDICATION_LOG_STATUSES,
   isValidFeelingPath,
+  localDay,
   type MedicationFrequencyTypeApi,
   type MedicationLogStatusApi,
   type WellnessEmotionCore as WellnessFeelingCore
 } from "@jarv1s/shared";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 
-import { readWellnessAiConsentState, WELLNESS_AI_CONSENT_PREFERENCE_KEY } from "./ai-consent.js";
+import {
+  readWellnessAiConsentState,
+  resolveEffectiveWellnessConsent,
+  WELLNESS_AI_CONSENT_PREFERENCE_KEY
+} from "./ai-consent.js";
 import type {
   CreateCheckinInput,
   UpdateCheckinInput,
@@ -37,7 +42,7 @@ import type {
   LogDoseInput,
   UpdateMedicationInput
 } from "./repository.js";
-import { WellnessRepository } from "./repository.js";
+import { medicationLogBelongsToDate, WellnessRepository } from "./repository.js";
 import { WellnessRecallContributor } from "./recall-context.js";
 import { computeSchedule } from "./schedule.js";
 import {
@@ -54,6 +59,10 @@ export interface WellnessRoutesDependencies {
   readonly resolveActiveModules?: (
     actorUserId: string
   ) => Promise<readonly { readonly id: string }[]>;
+  readonly resolveRequestTimeZone?: (
+    request: FastifyRequest,
+    accessContext: AccessContext
+  ) => Promise<string>;
   readonly repository?: WellnessRepository;
 }
 
@@ -105,6 +114,11 @@ export function registerWellnessRoutes(
         const wellnessActive = await isWellnessActive(dependencies, accessContext.actorUserId);
         return dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
           await preferences.upsert(scopedDb, WELLNESS_AI_CONSENT_PREFERENCE_KEY, granted);
+          if (!granted) {
+            // Consent revoked: stop any already-written energy-trend fact from reaching
+            // prompts immediately, rather than waiting on the next check-in (#769).
+            await recallContributor.invalidateEnergyTrendFact(scopedDb, accessContext.actorUserId);
+          }
           return readWellnessAiConsentState(scopedDb, preferences, wellnessActive);
         });
       } catch (error) {
@@ -121,11 +135,22 @@ export function registerWellnessRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseCheckinBody(request.body);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const checkin = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
-            const created = await repo.createCheckin(scopedDb, input);
-            await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+            const created = await repo.createCheckin(scopedDb, input, timeZone);
+            const consentGranted = await resolveWellnessConsent(
+              dependencies,
+              preferences,
+              scopedDb,
+              accessContext.actorUserId
+            );
+            await recallContributor.refreshEnergyTrendFact(
+              scopedDb,
+              accessContext.actorUserId,
+              consentGranted
+            );
             return created;
           }
         );
@@ -167,7 +192,17 @@ export function registerWellnessRoutes(
           async (scopedDb) => {
             const updated = await repo.updateCheckin(scopedDb, request.params.id, input);
             if (updated && input.energy !== undefined) {
-              await recallContributor.refreshEnergyTrendFact(scopedDb, accessContext.actorUserId);
+              const consentGranted = await resolveWellnessConsent(
+                dependencies,
+                preferences,
+                scopedDb,
+                accessContext.actorUserId
+              );
+              await recallContributor.refreshEnergyTrendFact(
+                scopedDb,
+                accessContext.actorUserId,
+                consentGranted
+              );
             }
             return updated;
           }
@@ -238,6 +273,7 @@ export function registerWellnessRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const query = request.query as Record<string, unknown>;
         const dateStr = parseDateParam(query["date"]);
         const date = new Date(`${dateStr}T00:00:00.000Z`);
@@ -245,7 +281,7 @@ export function registerWellnessRoutes(
           accessContext,
           async (scopedDb) => ({
             meds: await repo.listMedications(scopedDb),
-            logs: await repo.listLogsForDate(scopedDb, date)
+            logs: await repo.listLogsForDate(scopedDb, date, timeZone)
           })
         );
         return { date: dateStr, slots: computeSchedule(meds, logs, date) };
@@ -292,6 +328,7 @@ export function registerWellnessRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const now = new Date();
         const sinceDays = 30;
         const { checkins, logs, meds } = await dependencies.dataContext.withDataContext(
@@ -306,19 +343,8 @@ export function registerWellnessRoutes(
         // are included in the adherence denominator (not just logged rows).
         let totalExpectedSlots = 0;
         for (let i = sinceDays - 1; i >= 0; i--) {
-          const ts = now.getTime() - i * 86_400_000;
-          const day = new Date(
-            Date.UTC(
-              new Date(ts).getUTCFullYear(),
-              new Date(ts).getUTCMonth(),
-              new Date(ts).getUTCDate()
-            )
-          );
-          const dayEnd = new Date(day.getTime() + 86_400_000);
-          const dayLogs = logs.filter((l) => {
-            const sf = l.scheduled_for ? new Date(l.scheduled_for as string | Date) : null;
-            return sf && sf >= day && sf < dayEnd;
-          });
+          const day = new Date(`${addDays(localDay(now, timeZone), -i)}T00:00:00.000Z`);
+          const dayLogs = logs.filter((log) => medicationLogBelongsToDate(log, day, timeZone));
           const slots = computeSchedule(meds, dayLogs, day);
           totalExpectedSlots += slots.filter((s) => !s.asNeeded).length;
         }
@@ -395,6 +421,7 @@ export function registerWellnessRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        const timeZone = await resolveRouteTimeZone(dependencies, request, accessContext);
         const query = request.query as Record<string, unknown>;
         const sinceDays = parseSinceDays(query["sinceDays"]);
         const { meds, logs } = await dependencies.dataContext.withDataContext(
@@ -407,21 +434,10 @@ export function registerWellnessRoutes(
         const now = new Date();
         const days = [];
         for (let i = sinceDays - 1; i >= 0; i--) {
-          const ts = now.getTime() - i * 86_400_000;
-          const day = new Date(
-            Date.UTC(
-              new Date(ts).getUTCFullYear(),
-              new Date(ts).getUTCMonth(),
-              new Date(ts).getUTCDate()
-            )
-          );
-          const dayEnd = new Date(day.getTime() + 86_400_000);
-          const dayLogs = logs.filter((l) => {
-            const sf = l.scheduled_for ? new Date(l.scheduled_for as string | Date) : null;
-            return sf && sf >= day && sf < dayEnd;
-          });
+          const dateStr = addDays(localDay(now, timeZone), -i);
+          const day = new Date(`${dateStr}T00:00:00.000Z`);
+          const dayLogs = logs.filter((log) => medicationLogBelongsToDate(log, day, timeZone));
           const slots = computeSchedule(meds, dayLogs, day);
-          const dateStr = day.toISOString().slice(0, 10);
           days.push({
             date: dateStr,
             scheduledCount: slots.filter((s) => !s.asNeeded).length,
@@ -468,6 +484,36 @@ async function isWellnessActive(
 ): Promise<boolean> {
   const modules = await dependencies.resolveActiveModules?.(actorUserId);
   return modules?.some((module) => module.id === "wellness") ?? true;
+}
+
+/**
+ * Resolve effective Wellness AI consent for a recall-contributor write path. Routes don't
+ * have a `ToolServices` registry handle (that's only injected on the tool-execution path —
+ * see `tools.ts`), so this passes `services: undefined` and supplies the module-active
+ * fallback directly via `isWellnessActive`, reusing the exact same
+ * `resolveEffectiveWellnessConsent` helper the AI-read tools gate on (#769).
+ */
+async function resolveWellnessConsent(
+  dependencies: WellnessRoutesDependencies,
+  preferences: PreferencesRepository,
+  scopedDb: DataContextDb,
+  actorUserId: string
+): Promise<boolean> {
+  const wellnessActive = await isWellnessActive(dependencies, actorUserId);
+  return resolveEffectiveWellnessConsent(scopedDb, preferences, undefined, wellnessActive);
+}
+
+async function resolveRouteTimeZone(
+  dependencies: WellnessRoutesDependencies,
+  request: FastifyRequest,
+  accessContext: AccessContext
+): Promise<string> {
+  return dependencies.resolveRequestTimeZone?.(request, accessContext) ?? request.timeZone ?? "UTC";
+}
+
+function addDays(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return localDay(new Date(Date.UTC(year!, month! - 1, day! + days)), "UTC");
 }
 
 // ── Body parsers ─────────────────────────────────────────────────────────────
@@ -679,6 +725,14 @@ function parseLogDoseBody(body: unknown): LogDoseInput {
   // letting the DB CHECK surface a 500 (Codex R2).
   if (status !== "prn" && !scheduledFor) {
     throw new HttpError(400, "scheduledFor is required for taken/skipped doses");
+  }
+  // PRN doses are unscheduled by definition (scheduled_for IS NULL — repository.logDose does a
+  // plain insert for them). A "prn" log carrying a scheduledFor would instead take the
+  // scheduled-dose upsert path and CLOBBER the prior taken/skipped record for that slot,
+  // regressing it to "pending" in the schedule view (#770 / M3). Reject before it reaches the
+  // repository.
+  if (status === "prn" && scheduledFor) {
+    throw new HttpError(400, "scheduledFor must not be set for prn doses");
   }
   return {
     status,

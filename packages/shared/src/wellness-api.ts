@@ -627,6 +627,16 @@ export const createMedicationLogRequestSchema = {
     dose: nullableStringSchema,
     prnReason: nullableStringSchema,
     scheduledFor: nullableStringSchema
+  },
+  // PRN doses are unscheduled by definition — a scheduledFor on a "prn" log would upsert onto
+  // an existing scheduled slot and clobber its taken/skipped record (#770 / M3). Tightened here
+  // as defense-in-depth alongside the route's explicit parse-time rejection.
+  if: {
+    properties: { status: { const: "prn" } },
+    required: ["status"]
+  },
+  then: {
+    properties: { scheduledFor: { type: "null" } }
   }
 } as const;
 
@@ -721,8 +731,6 @@ export const updateCheckinRouteSchema = {
 // server-only wellness index, whose manifest pulls `node:url` (Codex R1: bundle bloat/break).
 // Emotion taxonomy (core emotion → feelings → body sensations) adapted from an
 // emotion–sensation reference wheel. Values are original to this design.
-
-export const WHEEL_VERSION = "jarvis-emotion-v1";
 
 /** polarity × intensity(1-5) → mood index (−5…+5) */
 export const EMOTION_POLARITY: Readonly<Record<WellnessEmotionCore, number>> = {

@@ -412,6 +412,123 @@ test("does not inject executable HTML from untrusted markdown", async ({ page })
   ).toBeUndefined();
 });
 
+test("#638: reopening the drawer scrolls to the newest message, not the top", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  // Enough records to overflow the drawer body so a fresh (top-scrolled) mount is
+  // visibly distinguishable from a bottom-pinned one.
+  const events = Array.from(
+    { length: 30 },
+    (_, i) => `data: ${JSON.stringify({ kind: "reply", text: `Message number ${i}` })}\n\n`
+  ).join("");
+  let streamServed = false;
+  await page.route("**/api/chat/stream", async (route) => {
+    if (streamServed) {
+      return; // hold reconnect open; no replay
+    }
+    streamServed = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body: events
+    });
+  });
+
+  await page.goto("/");
+
+  const navToggle = page.getByRole("button", { name: "Chat with Jarvis" });
+  await navToggle.click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText("Message number 29")).toBeVisible();
+
+  // Close, then reopen — the drawer unmounts its scroll container while closed (renders
+  // null), so a fresh mount must re-pin to the newest message rather than starting at the top.
+  await navToggle.click();
+  await expect(drawer).toBeHidden();
+  await navToggle.click();
+  await expect(drawer).toBeVisible();
+
+  await expect(drawer.getByText("Message number 29")).toBeInViewport();
+});
+
+test("#664: a sent message renders after the prior turn, not at the top", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+
+  // Hold the SSE stream open WITHOUT delivering any records. This isolates the
+  // POST-fallback path: props.records stays empty, so records rendered while waiting for
+  // the stream come entirely from fallbackRecords + the optimistic pending bubble.
+  await page.route("**/api/chat/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body: ""
+    })
+  );
+
+  // POST /turn #1 resolves immediately so its user+reply land in fallbackRecords before #2.
+  // POST /turn #2 is held pending so the optimistic pending bubble stays on screen for the
+  // ordering assertion (once it resolves the records reshuffle).
+  const gate: { resolve: (() => void) | null } = { resolve: null };
+  const secondTurnReleased = new Promise<void>((resolve) => {
+    gate.resolve = resolve;
+  });
+  await page.route("**/api/chat/turn", async (route) => {
+    const body = route.request().postDataJSON() as { readonly text: string };
+    if (body.text === "Second message") {
+      await secondTurnReleased;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        reply: `Reply to ${body.text}`,
+        userMessageId: `user-${body.text}`,
+        assistantMessageId: `assistant-${body.text}`
+      })
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const composerInput = drawer.getByLabel("Message Jarvis");
+
+  // Send #1 — POST resolves, fallbackRecords becomes [user1, reply1]. SSE delivers nothing.
+  await composerInput.fill("First message");
+  await composerInput.press("Enter");
+  await expect(drawer.getByText("Reply to First message")).toBeVisible();
+
+  // Send #2 — held pending, so the optimistic "Second message" bubble is on screen.
+  await composerInput.fill("Second message");
+  await composerInput.press("Enter");
+
+  // The just-sent "Second message" must render AFTER the prior turn, not at the top.
+  // Today this FAILS: effectiveRecords = [pendingUser2, user1, reply1] (user2 on top, #664).
+  const userBubbles = drawer.locator(".chatd-msg--me .chatd-bubble");
+  await expect
+    .poll(async () => (await userBubbles.allTextContents()).map((t) => t.trim()))
+    .toEqual(["First message", "Second message"]);
+
+  gate.resolve?.();
+});
+
 test("renders a large markdown reply without error", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,

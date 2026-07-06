@@ -63,6 +63,7 @@ export interface ListTasksCriteria {
   readonly priority?: number;
   readonly dueBefore?: Date;
   readonly dueAfter?: Date;
+  readonly completedAfter?: Date;
   readonly quadrant?: TaskQuadrant;
   readonly now?: Date;
 }
@@ -112,6 +113,11 @@ export class TasksRepository {
     if (criteria.dueAfter !== undefined) {
       query = query.where("t.due_at", "is not", null).where("t.due_at", ">", criteria.dueAfter);
     }
+    if (criteria.completedAfter !== undefined) {
+      query = query
+        .where("t.completed_at", "is not", null)
+        .where("t.completed_at", ">", criteria.completedAfter);
+    }
     if (criteria.tagId !== undefined) {
       const tagId = criteria.tagId;
       query = query.where((eb) =>
@@ -128,8 +134,11 @@ export class TasksRepository {
       const urgentBefore = new Date(
         (criteria.now ?? new Date()).getTime() + TASK_URGENCY_WINDOW_MS
       );
-      // Derive the predicate from the one quadrant matrix + shared threshold, so the SQL
-      // filter cannot diverge from classifyTaskQuadrant. Each axis is expressed once.
+      // Derive the predicate from the single shared quadrant matrix + threshold, so
+      // the SQL filter cannot drift from the in-memory mirror. Each axis is expressed
+      // once here (TASK_QUADRANT_AXES / TASK_IMPORTANT_PRIORITY_MIN /
+      // TASK_URGENCY_WINDOW_MS, re-exported via ./classification.js from @jarv1s/shared);
+      // the frontend's equivalent classifier is `quadrantOf` in @jarv1s/shared.
       const axes = TASK_QUADRANT_AXES[criteria.quadrant];
       const importantExpr = axes.important
         ? sql<boolean>`t.priority is not null and t.priority >= ${TASK_IMPORTANT_PRIORITY_MIN}`
@@ -386,6 +395,9 @@ export class TasksRepository {
       .select("id")
       .where("parent_task_id", "=", parentId)
       .where("status", "!=", parentStatus)
+      // A `suggested` child is a staged email-derived task nobody reviewed (#729 §5);
+      // closing the parent must not silently mark it done/archived.
+      .where("status", "!=", "suggested")
       .execute();
 
     if (openChildren.length === 0) return;

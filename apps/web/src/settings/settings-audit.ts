@@ -1,6 +1,6 @@
-import type { AdminAuditEventDto, LocaleSettingsDto } from "@jarv1s/shared";
+import { localDay, type AdminAuditEventDto, type LocaleSettingsDto } from "@jarv1s/shared";
 
-import { formatDate, formatTime, zonedDateKey } from "../locale/locale-format.js";
+import { formatDate, formatTime } from "../locale/locale-format.js";
 
 /* Audit phrasing + categorisation, built on the AdminAuditEventDto shape
    (actor / action / targetType / targetId / metadata / timestamp). The action →
@@ -89,9 +89,9 @@ export function auditWhen(ts: string, now: Date, locale: LocaleSettingsDto): str
   // Compare calendar days *in the user's timezone* so Today/Yesterday are correct
   // regardless of the runtime zone.
   const tz = locale.timezone;
-  const tsKey = zonedDateKey(d, tz);
-  if (tsKey === zonedDateKey(now, tz)) return `Today · ${time}`;
-  if (tsKey === zonedDateKey(new Date(now.getTime() - 86_400_000), tz)) {
+  const tsKey = localDay(d, tz);
+  if (tsKey === localDay(now, tz)) return `Today · ${time}`;
+  if (tsKey === localDay(new Date(now.getTime() - 86_400_000), tz)) {
     return `Yesterday · ${time}`;
   }
   return `${formatDate(ts, locale, { month: "short", day: "numeric" })} · ${time}`;

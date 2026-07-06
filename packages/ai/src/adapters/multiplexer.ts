@@ -31,6 +31,8 @@ export interface Multiplexer {
   open(opts: MuxOpenOpts): Promise<MuxHandle>;
   /** Paste `text` into the session and submit it (Enter). */
   submit(handle: MuxHandle, text: string): Promise<void>;
+  /** Send Escape without terminating the session. */
+  interrupt(handle: MuxHandle): Promise<void>;
   /** Is the session still running? */
   isAlive(handle: MuxHandle): Promise<boolean>;
   /** Terminate the session. Idempotent — killing an absent session is not an error. */

@@ -35,7 +35,6 @@ export function TaskMatrixView(props: {
                   {QUAD_TAG[quadrant.key]}
                 </span>
                 <div className="tk-quad__verb">{quadrant.title}</div>
-                <div className="tk-quad__desc">{quadrant.subtitle}</div>
               </div>
               <div className="tk-quad__body">
                 {tasks.length === 0 ? (

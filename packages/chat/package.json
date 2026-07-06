@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./live": "./src/live/public.ts",
     "./priority-consumer": "./src/priority-consumer.ts"
   },
   "scripts": {
@@ -15,13 +16,18 @@
     "@jarv1s/calendar": "workspace:*",
     "@jarv1s/connectors": "workspace:*",
     "@jarv1s/db": "workspace:*",
+    "@jarv1s/email": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
+    "@jarv1s/memory": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/notes": "workspace:*",
     "@jarv1s/priority": "workspace:*",
     "@jarv1s/shared": "workspace:*",
+    "@jarv1s/structured-state": "workspace:*",
     "@jarv1s/tasks": "workspace:*",
     "@jarv1s/usefulness-feedback": "workspace:*",
     "fastify": "^5.6.2",
-    "kysely": "^0.29.2"
+    "kysely": "^0.29.2",
+    "pg-boss": "^12.18.2"
   }
 }

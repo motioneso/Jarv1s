@@ -13,6 +13,9 @@ import {
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
+  GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
+  IMAP_SYNC_QUEUE_DEFINITIONS,
+  MONITOR_QUEUE_DEFINITIONS,
   connectorsModuleManifest,
   createConnectorSecretCipher,
   type EncryptedConnectorSecret
@@ -155,7 +158,7 @@ describe("Connectors encrypted foundation", () => {
     }
   });
 
-  it("loads the built-in Connectors module manifest with the google-sync queue", () => {
+  it("loads the built-in Connectors module manifest with the google-sync and imap-sync queues", () => {
     const manifests = getBuiltInModuleManifests();
     const registrations = getBuiltInModuleRegistrations();
     const registration = registrations.find(
@@ -180,6 +183,7 @@ describe("Connectors encrypted foundation", () => {
       "structured-state",
       "wellness",
       "weather",
+      "sports",
       "notes",
       "proactive-monitoring",
       "jarvis.commitments",
@@ -202,6 +206,7 @@ describe("Connectors encrypted foundation", () => {
       "structured-state",
       "wellness",
       "weather",
+      "sports",
       "notes",
       "proactive-monitoring",
       "jarvis.commitments",
@@ -220,33 +225,42 @@ describe("Connectors encrypted foundation", () => {
       "sql/0044_google_unified_connection.sql",
       "sql/0069_connector_worker_runtime_grants.sql",
       "sql/0099_connector_health_metadata.sql",
-      "sql/0100_connector_admin_safe_metadata_health.sql"
+      "sql/0100_connector_admin_safe_metadata_health.sql",
+      "sql/0130_connector_imap_enum.sql",
+      "sql/0131_connector_imap_definitions.sql",
+      "sql/0144_google_sync_sweep_accounts.sql"
     ]);
     expect(manifest?.settings?.map((surface) => surface.path)).toEqual([
       "/settings/connectors",
       "/settings/admin/connectors"
     ]);
-    expect(registration?.queueDefinitions).toEqual(GOOGLE_SYNC_QUEUE_DEFINITIONS);
+    expect(registration?.queueDefinitions).toEqual([
+      ...GOOGLE_SYNC_QUEUE_DEFINITIONS,
+      ...GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
+      ...IMAP_SYNC_QUEUE_DEFINITIONS,
+      ...MONITOR_QUEUE_DEFINITIONS
+    ]);
     expect(getBuiltInSqlMigrationDirectories().at(-1)).toContain("packages/people/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-2)).toContain("packages/commitments/sql");
     expect(getBuiltInSqlMigrationDirectories().at(-3)).toContain("packages/proactive-monitoring");
     expect(getBuiltInSqlMigrationDirectories().at(-4)).toContain("packages/notes/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/wellness/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/structured-state/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain(
+    expect(getBuiltInSqlMigrationDirectories().at(-5)).toContain("packages/sports/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-6)).toContain("packages/wellness/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-7)).toContain("packages/structured-state/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain(
       "packages/usefulness-feedback/sql"
     );
-    expect(getBuiltInSqlMigrationDirectories().at(-8)).toContain("packages/memory/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-9)).toContain("packages/briefings/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-10)).toContain("packages/chat/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-11)).toContain("packages/ai/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-12)).toContain("packages/email/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-13)).toContain("packages/calendar/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-14)).toContain("packages/notifications/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-15)).toContain("packages/goals/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-16)).toContain("packages/tasks/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-17)).toContain("packages/connectors/sql");
-    expect(getBuiltInSqlMigrationDirectories().at(-18)).toContain("packages/settings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-9)).toContain("packages/memory/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-10)).toContain("packages/briefings/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-11)).toContain("packages/chat/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-12)).toContain("packages/ai/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-13)).toContain("packages/email/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-14)).toContain("packages/calendar/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-15)).toContain("packages/notifications/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-16)).toContain("packages/goals/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-17)).toContain("packages/tasks/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-18)).toContain("packages/connectors/sql");
+    expect(getBuiltInSqlMigrationDirectories().at(-19)).toContain("packages/settings/sql");
   });
 
   it("requires an explicit connector secret key in production", () => {
@@ -313,7 +327,11 @@ describe("Connectors encrypted foundation", () => {
       "microsoft-calendar",
       "google-email",
       "microsoft-email",
-      "google"
+      "google",
+      "imap-fastmail",
+      "imap-icloud",
+      "imap-proton",
+      "imap-yahoo"
     ]);
     expect(response.body).not.toContain("secret");
     expect(body.providers[0]?.defaultScopes).toContain(

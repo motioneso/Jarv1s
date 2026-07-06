@@ -348,7 +348,7 @@ describe("priority scoring", () => {
     ).toThrow();
   });
 
-  it("muted source caps score at low", () => {
+  it("muted source is excluded from results entirely", () => {
     const mutedModel: PriorityModelPreferenceV1 = {
       ...DEFAULT_MODEL,
       mutedSources: ["email"]
@@ -376,9 +376,9 @@ describe("priority scoring", () => {
       focusReadiness: []
     });
 
-    const email = results.find((r) => r.source === "email");
-    expect(email?.band).toBe("low");
-    expect(email?.score).toBeLessThanOrEqual(34);
+    expect(results.find((r) => r.source === "email")).toBeUndefined();
+    expect(results).toHaveLength(1);
+    expect(results[0]!.source).toBe("tasks");
   });
 
   it("malformed preference falls back to defaults", () => {

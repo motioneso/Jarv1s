@@ -69,7 +69,7 @@
   padding: var(--space-5) var(--space-6) var(--space-3);
 }
 .jds-dialog__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-snug);
@@ -181,7 +181,7 @@
 }
 .jds-bucket__name {
   flex: none;
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-snug);
@@ -255,7 +255,7 @@
 }
 .jds-governor.is-confirmed {
   border-style: solid;
-  border-color: var(--pine-soft-2);
+  border-color: var(--forest-soft-2);
   background: transparent;
   background-image: none;
 }
@@ -292,8 +292,8 @@
   color: var(--steel-ink);
 }
 .jds-drift--today {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .jds-drift--atrisk {
   background: var(--amber-soft);
@@ -411,7 +411,7 @@
   margin-bottom: var(--space-3);
 }
 .jds-brief__kicker {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-caps);
@@ -419,14 +419,14 @@
   color: var(--text-subtle);
 }
 .jds-brief__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-2xl);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-snug);
   line-height: var(--leading-tight);
 }
 .jds-brief__body {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--text-lg);
   line-height: var(--leading-relaxed);
   color: var(--text-muted);
@@ -484,8 +484,8 @@
   flex: none;
 }
 .jds-fact--confirmed .jds-fact__icon {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
 }
 .jds-fact--inferred .jds-fact__icon {
   background: var(--surface-2);
@@ -576,8 +576,8 @@
   transition: var(--transition-control);
 }
 .jds-perm__crud-cell.is-on {
-  background: var(--pine-soft);
-  color: var(--pine-ink);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
   border-color: transparent;
 }
 
@@ -637,12 +637,14 @@
   border-radius: var(--radius-lg);
   cursor: pointer;
   text-align: left;
-  color: var(--text);
+  /* The usermenu sits on the forest rail — surface text tokens would render
+     ink-on-forest and disappear until hover. */
+  color: var(--rail-fg);
   transition: var(--transition-control);
 }
 .jds-usermenu__trigger:hover,
 .jds-usermenu__trigger.is-open {
-  background: var(--surface-2);
+  background: var(--rail-hover-bg);
 }
 .jds-usermenu__av {
   flex: none;
@@ -664,14 +666,14 @@
 }
 .jds-usermenu__sub {
   font-size: var(--text-xs);
-  color: var(--text-subtle);
+  color: var(--rail-fg-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .jds-usermenu__chev {
   flex: none;
-  color: var(--text-faint);
+  color: var(--rail-fg-muted);
   display: inline-flex;
 }
 .jds-usermenu__pop {

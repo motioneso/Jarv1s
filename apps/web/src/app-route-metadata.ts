@@ -1,18 +1,26 @@
 import type { LocaleSettingsDto, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
-import { DEFAULT_LOCALE, formatDate, formatTime } from "./locale/locale-format.js";
+import { DEFAULT_LOCALE, formatDate } from "./locale/locale-format.js";
 
 const TOP_SECTION = "__top";
 const SECTION_ORDER: readonly string[] = [TOP_SECTION, "Plan", "You"];
 const SECTION_OF: Record<string, string> = {
   tasks: "Plan",
   calendar: "Plan",
-  wellness: "You"
+  wellness: "You",
+  sports: "You"
 };
 const HIDDEN_NAV_IDS = new Set(["chat", "briefings", "settings", "notifications"]);
 
 export interface WebRouteMeta {
-  readonly id: "today" | "tasks" | "notifications" | "calendar" | "wellness" | "settings";
+  readonly id:
+    | "today"
+    | "tasks"
+    | "notifications"
+    | "calendar"
+    | "wellness"
+    | "sports"
+    | "settings";
   readonly path: string;
   readonly title: string;
   readonly subtitle: (now: Date, locale: LocaleSettingsDto) => string;
@@ -38,7 +46,8 @@ export const webRoutes: readonly WebRouteMeta[] = [
     id: "today",
     path: "/today",
     title: "Today",
-    subtitle: (now, locale) => `${dateEyebrow(now, locale)} · ${timeEyebrow(now, locale)}`,
+    // Date + time live in the Today masthead (dateline + clock) — keep them out of the topbar.
+    subtitle: () => "",
     match: (pathname) => pathname === "/" || pathname.startsWith("/today")
   },
   {
@@ -66,8 +75,15 @@ export const webRoutes: readonly WebRouteMeta[] = [
     id: "wellness",
     path: "/wellness",
     title: "Wellness",
-    subtitle: () => "PRIVATE",
+    subtitle: dateEyebrow,
     match: (pathname) => pathname.startsWith("/wellness")
+  },
+  {
+    id: "sports",
+    path: "/sports",
+    title: "Sports",
+    subtitle: () => "FOLLOWED",
+    match: (pathname) => pathname.startsWith("/sports")
   },
   {
     id: "settings",
@@ -135,10 +151,6 @@ function dateEyebrow(now: Date, locale: LocaleSettingsDto): string {
   const month = formatDate(now, locale, { month: "short" });
   const day = formatDate(now, locale, { day: "numeric" });
   return `${weekday} · ${month} ${day}`.toUpperCase();
-}
-
-function timeEyebrow(now: Date, locale: LocaleSettingsDto): string {
-  return formatTime(now, locale).replace(/\s?[AP]M$/i, "");
 }
 
 function monthEyebrow(now: Date, locale: LocaleSettingsDto): string {

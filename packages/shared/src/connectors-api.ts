@@ -1,6 +1,6 @@
 import { errorResponseSchema, jsonObjectSchema } from "./schema-fragments.js";
 
-export type ConnectorProviderType = "calendar" | "email" | "google";
+export type ConnectorProviderType = "calendar" | "email" | "google" | "imap";
 export type ConnectorProviderStatus = "available" | "disabled";
 export type ConnectorAccountStatus = "active" | "error" | "revoked";
 export type ConnectorSyncStatus = "success" | "partial" | "failed";
@@ -109,7 +109,7 @@ const connectorProviderSchema = {
   ],
   properties: {
     id: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email", "google"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google", "imap"] },
     displayName: { type: "string" },
     status: { type: "string", enum: ["available", "disabled"] },
     defaultScopes: { type: "array", items: { type: "string" } },
@@ -159,7 +159,7 @@ const connectorAccountSchema = {
   properties: {
     id: { type: "string" },
     providerId: { type: "string" },
-    providerType: { type: "string", enum: ["calendar", "email", "google"] },
+    providerType: { type: "string", enum: ["calendar", "email", "google", "imap"] },
     providerDisplayName: { type: "string" },
     providerStatus: { type: "string", enum: ["available", "disabled"] },
     ownerUserId: { type: "string" },
@@ -369,6 +369,57 @@ export const googleAuthorizeRouteSchema = {
 export const googleCompleteRouteSchema = {
   body: googleCompleteRequestSchema,
   response: { 201: createConnectorAccountResponseSchema }
+} as const;
+
+export interface ImapConnectRequest {
+  readonly providerId: string;
+  readonly username: string;
+  readonly password: string;
+}
+
+export interface ImapTestResult {
+  readonly result: "ok" | "auth_failed" | "tls_failed" | "unreachable";
+}
+
+export const imapConnectRequestSchema = {
+  type: "object",
+  required: ["providerId", "username", "password"],
+  additionalProperties: false,
+  properties: {
+    providerId: {
+      type: "string",
+      enum: ["imap-yahoo", "imap-proton", "imap-icloud", "imap-fastmail"]
+    },
+    username: { type: "string", minLength: 1 },
+    password: { type: "string", minLength: 1 }
+  }
+} as const;
+
+export const imapTestResultSchema = {
+  type: "object",
+  required: ["result"],
+  additionalProperties: false,
+  properties: {
+    result: { type: "string", enum: ["ok", "auth_failed", "tls_failed", "unreachable"] }
+  }
+} as const;
+
+export const imapTestRouteSchema = {
+  body: imapConnectRequestSchema,
+  response: {
+    200: imapTestResultSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const imapConnectRouteSchema = {
+  body: imapConnectRequestSchema,
+  response: {
+    201: createConnectorAccountResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
 } as const;
 
 export interface GoogleSyncResponse {

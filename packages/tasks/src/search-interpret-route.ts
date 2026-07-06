@@ -10,6 +10,7 @@ import {
   type ProviderKind
 } from "@jarv1s/ai";
 import type { AccessContext, DataContextRunner, PreferencesPort } from "@jarv1s/db";
+import { localDay } from "@jarv1s/shared";
 
 import { HttpError } from "./errors.js";
 import { TaskListsRepository } from "./lists.js";
@@ -94,7 +95,7 @@ export async function interpretTaskSearchForRequest(
             role: "user",
             content: buildTaskSearchPrompt({
               query,
-              today: todayDateKey(timeZone),
+              today: localDay(new Date(), timeZone),
               vocabulary
             })
           }
@@ -129,14 +130,6 @@ async function getLocaleTimeZone(
   if (!locale || typeof locale !== "object" || Array.isArray(locale)) return undefined;
   const timeZone = (locale as Record<string, unknown>)["timezone"];
   return typeof timeZone === "string" && timeZone.length > 0 ? timeZone : undefined;
-}
-
-function todayDateKey(timeZone?: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
-  } catch {
-    return new Intl.DateTimeFormat("en-CA").format(new Date());
-  }
 }
 
 function unavailable(): HttpError {

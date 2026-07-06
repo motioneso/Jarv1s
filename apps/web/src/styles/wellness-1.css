@@ -41,7 +41,7 @@
   display: inline-flex;
 }
 .wl-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 34px;
   font-weight: 600;
   letter-spacing: -0.014em;
@@ -49,7 +49,7 @@
   margin: 10px 0 0;
 }
 .wl-lede {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   line-height: 1.55;
   color: var(--text-muted);
@@ -120,7 +120,7 @@
   margin-bottom: 13px;
 }
 .wl-sec__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.008em;
@@ -168,7 +168,7 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
   display: inline-flex;
   align-items: center;
@@ -176,7 +176,7 @@
   flex: none;
 }
 .wl-card__hd .t {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 17px;
   font-weight: 600;
   color: var(--text);
@@ -363,7 +363,7 @@
   flex-direction: column;
 }
 .wl-checkin__q {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 18px;
   line-height: 1.4;
   color: var(--text);
@@ -442,7 +442,7 @@
   border-radius: 50%;
 }
 .wl-done__feeling {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   color: var(--text-muted);
 }
@@ -518,14 +518,14 @@
   gap: 10px;
   padding: 15px 20px 14px;
   border-bottom: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, var(--pine-soft) 0%, transparent 160%);
+  background: linear-gradient(180deg, var(--forest-soft) 0%, transparent 160%);
 }
 .wl-insights__hd .ic {
   color: var(--accent-fg);
   display: inline-flex;
 }
 .wl-insights__hd .t {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
@@ -561,8 +561,8 @@
   justify-content: center;
   margin-top: 1px;
 }
-.wl-insight__ic--pine {
-  background: var(--pine-soft);
+.wl-insight__ic--forest {
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .wl-insight__ic--amber {
@@ -578,7 +578,7 @@
   min-width: 0;
 }
 .wl-insight__tx {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15.5px;
   line-height: 1.5;
   color: var(--text-muted);
@@ -679,7 +679,7 @@
 .wl-help__btn.is-on {
   border-color: var(--accent);
   color: var(--accent-fg);
-  background: var(--pine-soft);
+  background: var(--forest-soft);
 }
 .wl-help__scrim {
   position: fixed;

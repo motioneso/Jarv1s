@@ -526,7 +526,7 @@ function optionalBriefingType(value: unknown): BriefingType | undefined {
   throw new HttpError(400, "briefingType must be morning, evening, or weekly_review");
 }
 
-function defaultToolNamesFor(type: BriefingType): string[] {
+export function defaultToolNamesFor(type: BriefingType): string[] {
   switch (type) {
     case "morning":
       return [
@@ -534,16 +534,17 @@ function defaultToolNamesFor(type: BriefingType): string[] {
         "calendar.listVisibleEvents",
         "email.listVisibleMessages",
         "vault",
-        "goals.list"
+        "goals.list",
+        "sports.followedFactsToday"
       ];
     case "evening":
       return [
         "tasks.list",
         "calendar.listVisibleEvents",
         "email.listVisibleMessages",
-        "vault",
         "chat.listTodaysTurns",
-        "goals.list"
+        "goals.list",
+        "sports.followedFactsToday"
       ];
     case "weekly_review":
       return [

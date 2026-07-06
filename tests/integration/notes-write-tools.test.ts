@@ -76,6 +76,22 @@ describe("notes write assistant tools", () => {
     ).toContain("x.md");
   });
 
+  it("discloses overwrite in notes.create summary and flags it as always-confirm", () => {
+    const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
+      (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
+    );
+    const create = tools.get("notes.create");
+    const ctx = { actorUserId: ids.userA, requestId: "r", chatSessionId: "c" };
+
+    expect(create?.summarize?.({ path: "x.md" }, ctx)).toBe("Create note x.md.");
+    expect(create?.summarize?.({ path: "x.md", overwrite: true }, ctx)).toBe(
+      "Overwrite note x.md (replaces existing content)."
+    );
+
+    expect(create?.requiresConfirmation?.({ path: "x.md" })).toBe(false);
+    expect(create?.requiresConfirmation?.({ path: "x.md", overwrite: true })).toBe(true);
+  });
+
   it("chat tool services include notesSync when boss is provided", async () => {
     const sent: unknown[] = [];
     const boss = {
@@ -151,6 +167,75 @@ describe("notes write assistant tools", () => {
     expect(deleted.ok).toBe(true);
   });
 
+  it("gateway forces confirmation for a notes.create overwrite even under trusted_auto", async () => {
+    await writeFile(join(root, "existing.md"), "original content");
+
+    const emitted: unknown[] = [];
+    const { AiRepository, AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } =
+      await import("@jarv1s/ai");
+    const repository = new AiRepository();
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [notesModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 30_000,
+
+      actionPolicy: () => ({
+        getFamilyTier: async (moduleId, familyId) => "trusted_auto",
+        getFamilyManifest: async () => ({
+          id: "note_changes",
+          label: "Note Changes",
+          description: "Modify notes.",
+          defaultTier: "ask_each_time",
+          allowedTiers: ["ask_each_time", "trusted_auto"]
+        })
+      }),
+      toolServices: { notesSync: service }
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "notes-chat-overwrite",
+      allowedToolNames: null
+    });
+
+    // Ordinary create of a new file still auto-runs under trusted_auto (no regression).
+    const created = await gateway.callTool(token, "notes.create", {
+      path: "brand-new.md",
+      content: "hello"
+    });
+    expect(created.ok).toBe(true);
+
+    // overwrite:true on an existing note must NOT auto-run, even though the family is
+    // trusted_auto and executionPolicy is "auto" — this is the data-loss disclosure fix.
+    const overwritePromise = gateway.callTool(token, "notes.create", {
+      path: "existing.md",
+      content: "replaced content",
+      overwrite: true
+    });
+    await vi.waitFor(() => {
+      expect(emitted.some((r) => (r as { kind?: string }).kind === "action_request")).toBe(true);
+    });
+    const request = emitted.find((r) => (r as { kind?: string }).kind === "action_request") as {
+      actionRequestId: string;
+      summary: string;
+    };
+    expect(request.summary).toContain("Overwrite note existing.md");
+    expect(request.summary).toContain("replaces existing content");
+
+    // Must remain untouched while pending confirmation.
+    await expect(readFile(join(root, "existing.md"), "utf-8")).resolves.toBe("original content");
+
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+    const overwritten = await overwritePromise;
+    expect(overwritten.ok).toBe(true);
+    await expect(readFile(join(root, "existing.md"), "utf-8")).resolves.toBe("replaced content");
+  });
+
   it("creates a new markdown note and enqueues sync", async () => {
     await runner.withDataContext({ actorUserId: ids.userA, requestId: "create" }, async (db) => {
       const result = await notesCreateExecute(
@@ -210,6 +295,45 @@ describe("notes write assistant tools", () => {
         )
       ).rejects.toThrow("appears 2 times");
     });
+  });
+
+  it("rejects empty oldText on a short file where count-based check would slip through", async () => {
+    // With the old `content.split(oldText).length - 1 !== 1` guard, a 2-character file made
+    // `count` equal exactly 1 for oldText === "" ("ab".split("") has 2 elements, count = 1), so
+    // the "appears once" check passed and replace("", newText) silently prepended newText. This
+    // must now be rejected outright, before that check ever runs.
+    await writeFile(join(root, "short.md"), "ab");
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "edit-empty" },
+      async (db) => {
+        await expect(
+          notesEditExecute(
+            db,
+            { path: "short.md", oldText: "", newText: "PREPENDED" },
+            { actorUserId: ids.userA, requestId: "edit-empty", chatSessionId: "chat" },
+            { notesSync: service }
+          )
+        ).rejects.toThrow("oldText must be non-empty");
+      }
+    );
+    await expect(readFile(join(root, "short.md"), "utf-8")).resolves.toBe("ab");
+  });
+
+  it("rejects empty oldText regardless of file length", async () => {
+    await writeFile(join(root, "long.md"), "alpha beta gamma delta".repeat(10));
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "edit-empty-2" },
+      async (db) => {
+        await expect(
+          notesEditExecute(
+            db,
+            { path: "long.md", oldText: "", newText: "PREPENDED" },
+            { actorUserId: ids.userA, requestId: "edit-empty-2", chatSessionId: "chat" },
+            { notesSync: service }
+          )
+        ).rejects.toThrow("oldText must be non-empty");
+      }
+    );
   });
 
   it("deletes a markdown note and enqueues sync", async () => {

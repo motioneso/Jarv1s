@@ -14,6 +14,7 @@ import {
   writeVaultFile
 } from "@jarv1s/vault";
 import { createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { sql, type Kysely } from "kysely";
 
 import { exportUserData } from "./data-export.js";
@@ -68,7 +69,8 @@ export async function enqueueExportBuildJob(
 
 export async function handleExportBuildJob(
   job: Job<ExportBuildJobPayload>,
-  scopedDb: DataContextDb
+  scopedDb: DataContextDb,
+  listModuleManifests: () => readonly JarvisModuleManifest[]
 ): Promise<void> {
   const { actorUserId, jobId } = job.data;
   const repository = new DataExportRepository();
@@ -79,12 +81,14 @@ export async function handleExportBuildJob(
   });
 
   try {
-    await repository.updateJobStatus(scopedDb, jobId, "building");
+    await repository.workerUpdateJobStatus(scopedDb, jobId, "building");
 
     const userExport = await exportUserData({
       scopedDb,
       authDb,
-      userId: actorUserId
+      userId: actorUserId,
+      listModuleManifests,
+      requestId: `export:${jobId}`
     });
 
     const archive = {
@@ -141,10 +145,10 @@ export async function handleExportBuildJob(
 
     const completedAt = new Date();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await repository.completeJob(scopedDb, jobId, completedAt, expiresAt);
+    await repository.workerCompleteJob(scopedDb, jobId, completedAt, expiresAt);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await repository.failJob(scopedDb, jobId, message.slice(0, 500));
+    await repository.workerFailJob(scopedDb, jobId, message.slice(0, 500));
   } finally {
     await authDb.destroy();
   }
@@ -207,7 +211,7 @@ export async function handleExportCleanupJob(
         requestId: `export-cleanup:${expiredJob.id}`
       },
       async (scopedDb) => {
-        await repository.updateJobStatus(scopedDb, expiredJob.id, "expired");
+        await repository.workerUpdateJobStatus(scopedDb, expiredJob.id, "expired");
       }
     );
   }
@@ -216,14 +220,15 @@ export async function handleExportCleanupJob(
 export async function registerSettingsJobWorkers(
   boss: PgBoss,
   dataContext: DataContextRunner,
-  workerDb: Kysely<JarvisDatabase>
+  workerDb: Kysely<JarvisDatabase>,
+  listModuleManifests: () => readonly JarvisModuleManifest[]
 ): Promise<readonly string[]> {
   await reconcileDataExportCleanupSchedule(boss);
   const workId = await registerDataContextWorker<ExportBuildJobPayload, void>(
     boss,
     EXPORT_BUILD_QUEUE,
     dataContext,
-    (job, scopedDb) => handleExportBuildJob(job, scopedDb)
+    (job, scopedDb) => handleExportBuildJob(job, scopedDb, listModuleManifests)
   );
   const cleanupWorkId = await boss.work<ExportCleanupJobPayload, void>(
     EXPORT_CLEANUP_QUEUE,

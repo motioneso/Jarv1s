@@ -28,6 +28,12 @@ export interface UpsertPersonParams {
   readonly confidence?: number;
 }
 
+export interface UpsertPersonProjectionParams extends UpsertPersonParams {
+  readonly personId: string;
+  readonly relationshipSummary?: string | null;
+  readonly contextSummary?: string | null;
+}
+
 export interface UpsertIdentityParams {
   readonly ownerUserId: string;
   readonly personId: string | null;
@@ -252,6 +258,52 @@ export class PeopleRepository {
     return rowToPerson(row as Record<string, unknown>);
   }
 
+  async upsertPersonProjection(
+    scopedDb: unknown,
+    params: UpsertPersonProjectionParams
+  ): Promise<Person> {
+    assertDataContextDb(scopedDb);
+    const now = new Date();
+    const status = params.status ?? "active";
+
+    const row = await scopedDb.db
+      .insertInto("app.person_context_people")
+      .values({
+        id: params.personId,
+        owner_user_id: params.ownerUserId,
+        display_name: params.displayName,
+        relationship_summary: params.relationshipSummary ?? null,
+        context_summary: params.contextSummary ?? null,
+        status,
+        confidence: params.confidence ?? 1,
+        archived_at: status === "archived" ? now : null,
+        created_at: now,
+        updated_at: now
+      })
+      .onConflict((oc) =>
+        // `id` is user/caller-controlled (e.g. an inbound identity-linking flow), so the update
+        // half of this upsert is scoped to the same owner as a defense-in-depth belt-and-suspenders
+        // check, even though RLS (USING/WITH CHECK owner_user_id = current_actor_user_id()) already
+        // blocks a cross-owner row from being touched here today.
+        oc
+          .column("id")
+          .doUpdateSet({
+            display_name: params.displayName,
+            relationship_summary: params.relationshipSummary ?? null,
+            context_summary: params.contextSummary ?? null,
+            status,
+            confidence: params.confidence ?? 1,
+            archived_at: status === "archived" ? now : null,
+            updated_at: now
+          })
+          .where("app.person_context_people.owner_user_id", "=", params.ownerUserId)
+      )
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return rowToPerson(row as Record<string, unknown>);
+  }
+
   async findOrCreatePerson(
     scopedDb: unknown,
     ownerUserId: string,
@@ -415,6 +467,20 @@ export class PeopleRepository {
       .execute();
 
     return rows.map((r) => rowToIdentity(r as Record<string, unknown>));
+  }
+
+  async deleteNoteIdentities(
+    scopedDb: unknown,
+    ownerUserId: string,
+    personId: string
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .deleteFrom("app.person_context_identities")
+      .where("owner_user_id", "=", ownerUserId)
+      .where("person_id", "=", personId)
+      .where("source_kind", "=", "note")
+      .execute();
   }
 
   async upsertLink(scopedDb: unknown, params: UpsertLinkParams): Promise<PersonLink> {

@@ -138,10 +138,39 @@ export interface EmailDeadline {
   readonly text: string;
   readonly date?: string;
 }
+
+/** Spec #729 §3 triage taxonomy. */
+export type EmailActionabilityCategory =
+  | "needs_reply"
+  | "needs_action"
+  | "time_sensitive_info"
+  | "waiting_on_someone"
+  | "fyi"
+  | "noise"
+  | "unknown";
+
+const ACTIONABILITY_CATEGORIES: readonly EmailActionabilityCategory[] = [
+  "needs_reply",
+  "needs_action",
+  "time_sensitive_info",
+  "waiting_on_someone",
+  "fyi",
+  "noise",
+  "unknown"
+];
+
+export interface EmailActionabilitySignal {
+  readonly category: EmailActionabilityCategory;
+  readonly reason?: string;
+  readonly dueDate?: string;
+  readonly suggestedTasks?: EmailActionItem[];
+}
+
 export interface EmailSignals {
   readonly billsDue?: EmailBill[];
   readonly actionItems?: EmailActionItem[];
   readonly deadlines?: EmailDeadline[];
+  readonly actionability?: EmailActionabilitySignal;
   readonly mayGetLostInShuffle?: boolean;
   readonly importance?: "low" | "normal" | "high";
   readonly confidence?: number;
@@ -196,8 +225,21 @@ function buildPrompt(parsed: ParsedEmail): string {
     "no prose, matching this TypeScript type:",
     "{ summary: string, billsDue: {description:string, amount?:number, currency?:string, dueDate?:string}[],",
     " actionItems: {text:string, dueDate?:string}[], deadlines: {text:string, date?:string}[],",
+    ' actionability: { category: "needs_reply"|"needs_action"|"time_sensitive_info"|"waiting_on_someone"|"fyi"|"noise"|"unknown",',
+    "   reason?: string, dueDate?: string, suggestedTasks?: {text:string, dueDate?:string}[] },",
     ' mayGetLostInShuffle: boolean, importance: "low"|"normal"|"high", confidence: number }',
     "Use ISO dates. confidence is 0..1.",
+    "Actionability rules:",
+    "- needs_reply: a real person is waiting on the user's answer. NEVER use it for marketing,",
+    "  newsletters, receipts, or automated notifications, whatever the subject line claims.",
+    "- needs_action: the user must do something (pay a bill, submit, book, review) — include the",
+    "  due date and a short suggestedTasks entry when the action is concrete.",
+    "- time_sensitive_info: no action required but it expires (flight change, outage window).",
+    "- waiting_on_someone: the user is owed a response or delivery by someone else.",
+    "- fyi: informational, no urgency (receipts, confirmations, status updates).",
+    "- noise: marketing, promotions, newsletters, social notifications. No suggestedTasks.",
+    "- unknown: only when genuinely unclassifiable.",
+    "reason must be one short sentence.",
     "",
     `Subject: ${parsed.subject}`,
     `From: ${parsed.from}`,
@@ -275,6 +317,21 @@ function safeDeadlines(value: unknown, body: string): EmailDeadline[] {
     .filter((d): d is EmailDeadline => d !== undefined);
 }
 
+function safeActionability(value: unknown, body: string): EmailActionabilitySignal | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const o = value as Record<string, unknown>;
+  const category = ACTIONABILITY_CATEGORIES.includes(o.category as EmailActionabilityCategory)
+    ? (o.category as EmailActionabilityCategory)
+    : "unknown";
+  const suggestedTasks = category === "noise" ? [] : safeActionItems(o.suggestedTasks, body);
+  return {
+    category,
+    reason: safeSignalStr(o.reason, body),
+    dueDate: safeSignalStr(o.dueDate, body),
+    ...(suggestedTasks.length > 0 ? { suggestedTasks } : {})
+  };
+}
+
 /**
  * Parse a model reply into a SANITIZED summary + signals. We never trust the model's JSON shape:
  * we pick ONLY the known fields (no unknown keys are ever carried through to the persisted jsonb),
@@ -305,6 +362,7 @@ function safeParseSignals(text: string, parsedBody: string): EmailExtractResult 
         billsDue: safeBills(obj.billsDue, normalizedBody),
         actionItems: safeActionItems(obj.actionItems, normalizedBody),
         deadlines: safeDeadlines(obj.deadlines, normalizedBody),
+        actionability: safeActionability(obj.actionability, normalizedBody),
         mayGetLostInShuffle: obj.mayGetLostInShuffle === true,
         importance,
         confidence
@@ -339,6 +397,15 @@ function signalStrings(signals: EmailSignals): string[] {
     if (d.text) out.push(d.text);
     if (d.date) out.push(d.date);
   }
+  if (signals.actionability) {
+    const a = signals.actionability;
+    if (a.reason) out.push(a.reason);
+    if (a.dueDate) out.push(a.dueDate);
+    for (const t of a.suggestedTasks ?? []) {
+      if (t.text) out.push(t.text);
+      if (t.dueDate) out.push(t.dueDate);
+    }
+  }
   return out;
 }
 
@@ -366,7 +433,11 @@ function stripIfBodyReconstructed(signals: EmailSignals, normalizedBody: string)
       truncated: signals.truncated,
       billsDue: [],
       actionItems: [],
-      deadlines: []
+      deadlines: [],
+      // Keep the enum-only classification: the category itself carries no body text.
+      ...(signals.actionability
+        ? { actionability: { category: signals.actionability.category } }
+        : {})
     };
   }
   return signals;

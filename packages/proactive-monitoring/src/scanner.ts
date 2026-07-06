@@ -8,7 +8,7 @@ import {
 } from "@jarv1s/priority";
 import type { ProactiveSource } from "@jarv1s/shared";
 
-import { AntiSpamPolicy } from "./anti-spam.js";
+import type { AntiSpamPolicy } from "./anti-spam.js";
 import type { CardRepository } from "./card-repository.js";
 import type { MonitorStateRepository } from "./monitor-state-repository.js";
 import type { ProactiveMonitoringPreferencesRepository } from "./preferences-repository.js";
@@ -247,16 +247,6 @@ function skip(source: ProactiveSource, reason: string): ScanResult {
     cardsSuppressed: 0,
     skipped: true,
     skipReason: reason
-  };
-}
-
-export function buildScannerDependencies(cardRepository: CardRepository): {
-  antiSpamPolicy: AntiSpamPolicy;
-  cardRepository: CardRepository;
-} {
-  return {
-    antiSpamPolicy: new AntiSpamPolicy(cardRepository),
-    cardRepository
   };
 }
 

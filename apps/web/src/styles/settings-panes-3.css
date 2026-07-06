@@ -51,7 +51,7 @@
   min-width: 0;
 }
 .gflow__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -175,7 +175,7 @@
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
-  background: var(--pine-soft);
+  background: var(--forest-soft);
   color: var(--accent-fg);
 }
 .onb-guide__body {
@@ -777,7 +777,7 @@ button.theme-swatch {
 .theme-preview h3 {
   margin: 0;
   color: var(--ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--text-2xl);
 }
 .theme-preview p {
@@ -818,10 +818,10 @@ button.theme-swatch {
 .mdl__edit-btn:hover,
 .mdl__toggle-btn:hover {
   background: var(--surface-2);
-  color: var(--ink-1);
+  color: var(--text-muted);
 }
 .mdl__edit-btn.is-active {
-  background: var(--accent-subtle);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .mdl--disabled .mdl__id {

@@ -4,14 +4,7 @@ import { sql } from "kysely";
 import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
 import type { ConnectorSyncStatus, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { registerDataContextWorker } from "@jarv1s/jobs";
-import {
-  AiRepository,
-  HttpApiAdapter,
-  createAiSecretCipher,
-  parseAiApiKeyCredential,
-  type AiConfiguredModelSafeRow,
-  type ProviderKind
-} from "@jarv1s/ai";
+import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 import { PreferencesRepository } from "@jarv1s/structured-state";
@@ -26,7 +19,9 @@ import {
 import { decryptGoogleConnectionSecret, GoogleConnectionService } from "./google-connection.js";
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
-import { extractEmailSignals, parseEmail, type EmailExtractDeps } from "./email-extract.js";
+import { extractEmailSignals, type EmailExtractDeps } from "./email-extract.js";
+import { buildEmailExtractDeps } from "./extract-deps.js";
+import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provider.js";
 
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
 
@@ -198,7 +193,7 @@ async function withTokenRetry<T>(
  */
 let savepointCounter = 0;
 
-async function withSavepoint<T>(
+export async function withSavepoint<T>(
   scopedDb: DataContextDb,
   work: (savepointDb: DataContextDb) => Promise<T>
 ): Promise<T> {
@@ -411,11 +406,12 @@ export async function runGoogleSync(
     isFeatureGranted(featureGrants, "email")
   ) {
     try {
-      const stubs = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-        deps.googleClient.listMessageIds({ accessToken: token, query: EMAIL_QUERY })
+      const emailReadProvider = new GoogleEmailReadProvider(deps.googleClient, EMAIL_QUERY);
+      const keys = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+        emailReadProvider.listMessageKeys(token, GMAIL_READ_FOLDER)
       );
-      const capped = stubs.slice(0, EMAIL_MESSAGE_CAP);
-      if (stubs.length > capped.length) truncated = true;
+      const capped = keys.slice(0, EMAIL_MESSAGE_CAP);
+      if (keys.length > capped.length) truncated = true;
 
       // Skip-unchanged: external_metadata.historyId (Gmail per-message revision marker)
       // lets us avoid re-summarizing messages whose content hasn't changed since the last
@@ -427,12 +423,11 @@ export async function runGoogleSync(
         existing.map((r) => [r.externalId, { historyId: r.historyId, hasSummary: r.hasSummary }])
       );
 
-      for (const stub of capped) {
+      for (const key of capped) {
         try {
-          const full = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-            deps.googleClient.getMessage({ accessToken: token, id: stub.id })
+          const parsed = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+            emailReadProvider.getMessage(token, key)
           );
-          const parsed = parseEmail(full);
           // Skip the (costly) LLM pass + re-upsert ONLY when this message's historyId is
           // unchanged AND a usable summary is already stored. A null-summary prior row (no model
           // at first sync, or a failed extraction) is intentionally NOT skipped, so it gets a
@@ -565,39 +560,7 @@ export async function registerConnectorsJobWorkers(
     GOOGLE_SYNC_QUEUE,
     deps.dataContext,
     async (job, scopedDb) => {
-      const emailExtractDeps: EmailExtractDeps = {
-        selectModel: (tier) => aiRepo.selectModelForCapability(scopedDb, "summarization", tier),
-        runChat: async (model, prompt) => {
-          // `model` is the AiConfiguredModelSafeRow returned by selectModelForCapability:
-          // it carries provider_config_id, provider_kind, and provider_model_id directly.
-          // Load + decrypt the provider credential in-process (never logged/forwarded), then
-          // call the adapter.
-          const row = model as AiConfiguredModelSafeRow;
-          const provider = await aiRepo.selectProviderWithCredential(
-            scopedDb,
-            row.provider_config_id
-          );
-          if (!provider) return { text: "" };
-          const credential = parseAiApiKeyCredential(
-            aiCipher.decryptJson(provider.encrypted_credential)
-          );
-          if (!credential) return { text: "" };
-          // HttpApiAdapter supports anthropic/openai-compatible/google (ProviderKind); narrow
-          // the wider AiProviderKind at this boundary — the router already selected the model.
-          const adapter = new HttpApiAdapter(
-            row.provider_kind as ProviderKind,
-            credential.apiKey,
-            provider.base_url ? { baseUrl: provider.base_url } : {}
-          );
-          return adapter.generateChat({
-            model: {
-              provider_kind: row.provider_kind,
-              provider_model_id: row.provider_model_id
-            },
-            messages: [{ role: "user", content: prompt }]
-          });
-        }
-      };
+      const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher);
 
       const result = await runGoogleSync(scopedDb, {
         getActiveAccount: async (db) => {
