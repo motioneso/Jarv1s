@@ -12,29 +12,25 @@
 
 import {
   CliChatEngineImpl,
+  CliChatUnavailableError,
   deriveNeutralDir,
   killMuxSessionByName,
   listLiveMuxSessions,
   probeProvider,
   removeNeutralDir,
   sanitizeSessionKey,
-  type ProbeProviderResult
-} from "../../chat/src/live/cli-chat-engine.js";
-import { CliChatUnavailableError } from "../../chat/src/live/errors.js";
-import type {
-  RpcLaunchParams,
-  RpcLaunchResult,
-  RpcProbeProviderResult,
-  RpcReadNewResult,
-  RpcProviderKind
-} from "../../chat/src/live/rpc-contract.js";
-import type { RpcInstallProviderResult } from "../../chat/src/live/install-contract.js";
-import type {
-  RpcBeginLoginResult,
-  RpcCancelLoginResult,
-  RpcPollLoginResult,
-  RpcSubmitLoginTokenResult
-} from "../../chat/src/live/login-contract.js";
+  type ProbeProviderResult,
+  type RpcBeginLoginResult,
+  type RpcCancelLoginResult,
+  type RpcInstallProviderResult,
+  type RpcLaunchParams,
+  type RpcLaunchResult,
+  type RpcPollLoginResult,
+  type RpcProbeProviderResult,
+  type RpcProviderKind,
+  type RpcReadNewResult,
+  type RpcSubmitLoginTokenResult
+} from "@jarv1s/chat/live";
 import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
 
 import { Mutex } from "./mutex.js";

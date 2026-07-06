@@ -52,6 +52,11 @@ export default defineConfig({
         )
       },
       {
+        // Subpath export (#802); must precede the bare "@jarv1s/chat" alias below.
+        find: "@jarv1s/chat/live",
+        replacement: fileURLToPath(new URL("./packages/chat/src/live/public.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/chat",
         replacement: fileURLToPath(new URL("./packages/chat/src/index.ts", import.meta.url))
       },

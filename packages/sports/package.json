@@ -15,9 +15,9 @@
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/settings-ui": "workspace:*",
     "@jarv1s/shared": "workspace:*",
-    "@jarv1s/structured-state": "workspace:*",
     "@tanstack/react-query": "^5.0.0",
     "fastify": "^5.6.2",
+    "kysely": "^0.29.2",
     "react": "^19.0.0"
   }
 }
