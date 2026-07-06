@@ -12,7 +12,7 @@ a coordinator, **that bookkeeping is the coordinator's, not yours.** Your finish
 pushed branch with an open PR and a truthful report to the coordinator. It then runs QA, merges,
 and updates GitHub.
 
-**Announce:** "Using coordinated-wrap-up to close out my slice." TodoWrite one item per step.
+**Announce:** "Using coordinated-wrap-up to close out my slice." TaskCreate one item per step.
 
 ## Procedure
 

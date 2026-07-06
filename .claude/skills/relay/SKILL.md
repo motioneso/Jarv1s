@@ -21,8 +21,10 @@ This is a self-handoff of YOUR work. Distinct from:
 
 Self-perceived context % is known-unreliable, so trigger on things you can **count or see**:
 
-- **Build agent:** ~**80–100k tokens** consumed.
-- **Coordinator:** ~**80–100k tokens** consumed **OR every 2–3 merges**, whichever comes first.
+- **Anyone — context-meter warning (primary):** the user-level PostToolUse meter warns at **70%**
+  (self-calibrating, fires in every session on this box). First warning = relay now.
+- **Coordinator — merge counter:** additionally relay after **every security-tier merge** and
+  after **every 2 routine/sensitive merges**, whichever fires first.
 - **Either — compaction tripwire:** the instant you see a **compaction summary** in your own
   context (the harness compacted your prior messages), you are already past safe. Relay
   **immediately**. **Coordinator: merge nothing first** — flush the manifest and hand off before
@@ -46,8 +48,10 @@ disk, not in your context:
 **2. Spawn your successor with `herdr-handoff`.** A fresh session in the appropriate place. The
 successor **skips `pnpm install`** — `node_modules` already exists in the reused worktree (shared
 pnpm store); re-installing is wasted time/tokens. Bootstrap should say `[ -d node_modules ] || pnpm install`.
-Use unattended full-access launch permissions for coordinator relays:
-- Claude coordinator: `claude --permission-mode bypassPermissions`
+Use unattended full-access launch permissions for coordinator relays — and **always pass the
+model explicitly**: `herdr … -- claude` boots **Opus** by default (cost policy is Sonnet for
+build agents and coordinator loops; confirm the new pane says "Sonnet", respawn if not):
+- Claude coordinator: `claude --model sonnet --permission-mode bypassPermissions`
 - Codex coordinator: `codex -s danger-full-access -a never`
 
 Do **not** spawn a Codex coordinator with the default, `read-only`, or `workspace-write` sandbox.
@@ -87,7 +91,7 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 | ---- | --------------- |
 | Flush build state | commit work + write `docs/superpowers/handoffs/<date>-<slug>-relay.md` |
 | Flush coordinator state | update + commit `docs/coordination/<run-id>.md` |
-| Spawn successor | `herdr-handoff` skill; coordinator relays use `claude --permission-mode bypassPermissions` or `codex -s danger-full-access -a never` |
+| Spawn successor | `herdr-handoff` skill; always `--model sonnet` for claude spawns; coordinator relays use `claude --model sonnet --permission-mode bypassPermissions` or `codex -s danger-full-access -a never` |
 | Confirm it's driving | `herdr pane read <pane> --source recent --lines 12` |
 | Reap a spent pane | resolve target fresh by label + session id, verify session id, then close (never a baked `…-N` number) |
 
@@ -96,7 +100,7 @@ should be reading the doc / re-adopting, not stuck on a trust prompt). Answer an
 - **Relaying with state still in your head.** If it isn't committed/written, the successor can't
   see it. Durable doc FIRST, spawn SECOND.
 - **Relaying too late.** If you wait for felt degradation you can't write a clean continuation.
-  Relay on the countable trigger (~80–100k / 2–3 merges / compaction summary seen).
+  Relay on the countable trigger (meter 70% warning / merge counter / compaction summary seen).
 - **Re-running `pnpm install` in the successor.** The worktree already has `node_modules` — guard it.
 - **Walking away before the successor is confirmed driving.** Always `herdr pane read <pane> --source recent --lines 12` it first.
 - **Two sessions live on the same work.** The reap must happen — don't leave the spent session

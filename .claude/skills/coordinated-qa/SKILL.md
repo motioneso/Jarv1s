@@ -15,7 +15,7 @@ throwaway agent — do the expensive verification on a branch you did not write,
 **Spend tokens on review, not on re-running the gate.** CI already executes the mechanical gate;
 duplicating it is the single biggest QA waste. You **trust `gh pr checks`** for gate pass/fail and
 spend your budget on what CI can't do: judgment review, invariant checking, and — for security
-tier — an adversarial cross-model hunt for what's NOT tested.
+tier — an adversarial stronger-model hunt for what's NOT tested.
 
 Your output to the coordinator is the compact verdict in step 5, **and** (always) a `gh pr comment`
 posting it durably to the PR. Do not paste raw logs. **Communicate in caveman mode** (terse — drop
@@ -64,7 +64,7 @@ git fetch origin main && git diff --stat origin/main...HEAD
 - `sensitive`: add an explicit invariant walk-through (DataContextDb/VaultContext, metadata-only
   payloads, module isolation) naming each as ok/at-risk.
 - `security`: run **`/security-review`** AND an **adversarial "what's NOT tested" pass** — you are
-  spawned cross-model (Opus) precisely because same-lens review missed CRITICALs. Don't ask "does
+  spawned on a stronger model (Opus) precisely because same-lens review missed CRITICALs. Don't ask "does
   the gate pass"; ask **"which trust boundary is unproven, what attack path has no test, what does
   the happy-path test silently skip"** — auth bypass, RLS gaps, secret leakage, missing rate-limit,
   token/session handling, negative/authz tests absent. List concrete omissions, not vibes.
