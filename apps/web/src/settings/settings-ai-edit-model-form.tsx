@@ -7,22 +7,22 @@ import { queryKeys } from "../api/query-keys";
 import { readError } from "./settings-types";
 import { useFeedback } from "./settings-feedback";
 import { Field, Segmented } from "./settings-ui";
-import type { AiConfiguredModelDto, AiModelCapability, AiModelTier } from "@jarv1s/shared";
+import {
+  AI_MODEL_CAPABILITIES,
+  type AiConfiguredModelDto,
+  type AiModelCapability,
+  type AiModelTier
+} from "@jarv1s/shared";
 
-const ALL_CAPABILITIES: readonly AiModelCapability[] = [
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-];
+const ALL_CAPABILITIES: readonly AiModelCapability[] = AI_MODEL_CAPABILITIES;
 
 const CAP_SHORT: Record<AiModelCapability, string> = {
   chat: "Chat",
   "tool-use": "Tools",
   json: "JSON",
   vision: "Vision",
-  summarization: "Summary"
+  summarization: "Summary",
+  transcription: "Voice"
 };
 
 const MODEL_TIERS: readonly AiModelTier[] = ["reasoning", "interactive", "economy"];

@@ -1,21 +1,15 @@
-import type { AiModelCapability } from "@jarv1s/shared";
+import { AI_MODEL_CAPABILITIES, type AiModelCapability } from "@jarv1s/shared";
 
 import type { AiCapabilityRouteMap } from "./repository.js";
 
-const AI_MODEL_CAPABILITIES = new Set<AiModelCapability>([
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-]);
+const RECOGNIZED_CAPABILITIES = new Set<AiModelCapability>(AI_MODEL_CAPABILITIES);
 
 export function parseCapabilityRouteMap(value: unknown): AiCapabilityRouteMap {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 
   const routes: AiCapabilityRouteMap = {};
   for (const [capability, modelId] of Object.entries(value)) {
-    if (!AI_MODEL_CAPABILITIES.has(capability as AiModelCapability)) continue;
+    if (!RECOGNIZED_CAPABILITIES.has(capability as AiModelCapability)) continue;
     if (modelId === null || typeof modelId === "string") {
       routes[capability as AiModelCapability] = modelId;
     }

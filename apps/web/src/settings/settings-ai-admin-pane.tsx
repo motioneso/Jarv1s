@@ -39,16 +39,17 @@ import { EditModelForm } from "./settings-ai-edit-model-form";
 import { ChatLockGroup } from "./settings-ai-chat-lock-group";
 import { YoloAdminGroup } from "./settings-yolo-admin-group";
 import { WebSearchKeyGroup } from "./settings-web-search-key-group";
-import type {
-  AiAuthMethod,
-  AiConfiguredModelDto,
-  AiDiscoverModelsItemDto,
-  AiDiscoverModelsResponse,
-  AiModelCapability,
-  AiModelTier,
-  AiProviderConfigDto,
-  AiProviderExecutionMode,
-  AiProviderKind
+import {
+  AI_MODEL_CAPABILITIES,
+  type AiAuthMethod,
+  type AiConfiguredModelDto,
+  type AiDiscoverModelsItemDto,
+  type AiDiscoverModelsResponse,
+  type AiModelCapability,
+  type AiModelTier,
+  type AiProviderConfigDto,
+  type AiProviderExecutionMode,
+  type AiProviderKind
 } from "@jarv1s/shared";
 
 const PROVIDER_CATALOG: readonly { readonly label: string; readonly kind: AiProviderKind }[] = [
@@ -65,16 +66,11 @@ const CAP_SHORT: Record<AiModelCapability, string> = {
   "tool-use": "Tools",
   json: "JSON",
   vision: "Vision",
-  summarization: "Summary"
+  summarization: "Summary",
+  transcription: "Voice"
 };
 
-const ALL_CAPABILITIES: readonly AiModelCapability[] = [
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization"
-];
+const ALL_CAPABILITIES: readonly AiModelCapability[] = AI_MODEL_CAPABILITIES;
 
 const TIERS: Record<AiModelTier, { label: string; hint: string }> = {
   reasoning: { label: "Reasoning", hint: "Deepest and slowest. Hard planning and judgment." },

@@ -34,7 +34,7 @@ export const aiModelTierSchema = {
 
 export const aiModelCapabilitySchema = {
   type: "string",
-  enum: ["chat", "tool-use", "json", "vision", "summarization"]
+  enum: ["chat", "tool-use", "json", "vision", "summarization", "transcription"]
 } as const;
 
 const aiCapabilityParamsSchema = {
@@ -166,7 +166,8 @@ const aiCapabilityRouteMapSchema = {
     "tool-use": { type: ["string", "null"] },
     json: { type: ["string", "null"] },
     vision: { type: ["string", "null"] },
-    summarization: { type: ["string", "null"] }
+    summarization: { type: ["string", "null"] },
+    transcription: { type: ["string", "null"] }
   }
 } as const;
 
@@ -510,6 +511,17 @@ export const listAiCapabilityRoutesResponseSchema = {
   }
 } as const;
 
+// Transcript text only in the response — the audio body that produced it is a raw upload
+// (not JSON, see transcribeAudioRouteSchema below) and is never echoed back or persisted.
+export const transcribeAudioResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["text"],
+  properties: {
+    text: { type: "string" }
+  }
+} as const;
+
 export const putAiCapabilityRouteRequestSchema = {
   type: "object",
   additionalProperties: false,
@@ -763,6 +775,20 @@ export const listAiCapabilityRoutesRouteSchema = {
   response: {
     200: listAiCapabilityRoutesResponseSchema,
     401: errorResponseSchema
+  }
+} as const;
+
+// No `body` schema: the request body is a raw audio upload (content-type audio/*), not JSON —
+// validated by the route handler itself, not ajv.
+export const transcribeAudioRouteSchema = {
+  response: {
+    200: transcribeAudioResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    413: errorResponseSchema,
+    422: errorResponseSchema,
+    502: errorResponseSchema,
+    504: errorResponseSchema
   }
 } as const;
 

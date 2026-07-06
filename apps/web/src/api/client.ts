@@ -104,6 +104,7 @@ import type {
   RevokeConnectorAccountResponse,
   TestAiProviderConfigResponse,
   LookupAiCapabilityRouteResponse,
+  TranscribeAudioResponse,
   UpdateBriefingDefinitionRequest,
   UpdateBriefingDefinitionResponse,
   UpdateAiConfiguredModelRequest,
@@ -772,6 +773,27 @@ export async function lookupAiCapabilityRoute(
   return requestJson<LookupAiCapabilityRouteResponse>(
     `/api/ai/capability-route/${encodeURIComponent(capability)}`
   );
+}
+
+/**
+ * Uploads a recorded audio clip for transcription and returns the transcript text only.
+ * Goes around `requestJson` (which always JSON-encodes) because the body here is the raw
+ * audio blob itself, sent with its own mime type as the content-type.
+ */
+export async function transcribeAudio(audio: Blob): Promise<TranscribeAudioResponse> {
+  const response = await fetch("/api/ai/transcriptions", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": audio.type || "audio/webm" },
+    body: audio
+  });
+
+  if (!response.ok) {
+    const { message, code } = await readErrorBody(response);
+    throw new ApiError(response.status, message, code);
+  }
+
+  return response.json() as Promise<TranscribeAudioResponse>;
 }
 
 export async function getCapabilityTierPreferences(): Promise<AiCapabilityTierPreferencesResponse> {
