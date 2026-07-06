@@ -15,7 +15,7 @@ import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";
 import { CalendarIcon, Crest, FormPips, LiveDot, TrophyIcon } from "./sports-parts.js";
-import { LatestColumn, LeagueNewsSection, NewsIcon, StoryHero } from "./sports-news.js";
+import { LatestColumn, NewsBand, NewsIcon, StoryHero } from "./sports-news.js";
 import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
 import { AroundLeaguesTicker } from "./sports-around-ticker.js";
 import { StandingsRail } from "./sports-standings.js";
@@ -90,7 +90,7 @@ export function SportsPage() {
           <AroundLeaguesTicker groups={data.scoreboard} />
           <Hero hero={data.hero} />
           <BroadsheetGrid overview={data} followedPairs={followedPairs} />
-          <LeagueNewsSection groups={data.leagueNews} />
+          <NewsBand groups={data.leagueNews} />
         </>
       ) : (
         <EmptyState data={data} followedPairs={followedPairs} />
@@ -303,7 +303,7 @@ function EmptyState(props: { data: SportsOverviewResponse; followedPairs: Readon
       {hasSlate ? (
         <div className="sp-emptyboard">
           <BroadsheetGrid overview={props.data} followedPairs={props.followedPairs} />
-          <LeagueNewsSection groups={props.data.leagueNews} />
+          <NewsBand groups={props.data.leagueNews} />
         </div>
       ) : null}
     </>

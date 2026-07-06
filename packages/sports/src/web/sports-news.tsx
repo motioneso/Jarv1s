@@ -1,7 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
-
-import { formatDate, useUserLocale } from "./locale.js";
 
 export function isFollowed(
   pairs: ReadonlySet<string>,
@@ -101,40 +99,48 @@ export function LatestColumn(props: {
   );
 }
 
-/* -------------------------------------------------------- League news grid */
+/* ----------------------------------------------------------------- News band */
 
-export function LeagueNewsSection(props: { groups: readonly LeagueNewsGroup[] }) {
-  const locale = useUserLocale();
-  if (props.groups.length === 0) return null;
+export function NewsBand({ groups }: { readonly groups: readonly LeagueNewsGroup[] }) {
+  const [filterKey, setFilterKey] = useState<string>("all");
+  if (groups.length === 0) return null;
+  const shown = filterKey === "all" ? groups : groups.filter((g) => g.competitionKey === filterKey);
+
   return (
-    <section className="sp-sec" aria-label="League news">
-      <div className="sp-sec__head">
-        <h2 className="sp-sec__title">League news</h2>
+    <section className="sp-newsband" aria-label="League news">
+      <div className="sp-newsband__head">
+        <p className="sp-col__kicker">News</p>
+        <select
+          className="sp-newsband__filter"
+          aria-label="Filter news by league"
+          value={filterKey}
+          onChange={(event) => setFilterKey(event.currentTarget.value)}
+        >
+          <option value="all">All leagues</option>
+          {groups.map((group) => (
+            <option key={group.competitionKey} value={group.competitionKey}>
+              {group.competitionLabel}
+            </option>
+          ))}
+        </select>
       </div>
-      {props.groups.map((group) => (
-        <div key={group.competitionKey} className="sp-news__grp">
-          <span className="sp-news__comp">{group.competitionLabel}</span>
-          <div className="sp-news__grid">
-            {group.headlines.map((headline) => (
-              <a
-                key={headline.id}
-                className="sp-news__card"
-                href={headline.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {headline.imageUrl ? (
-                  <img className="sp-news__img" src={headline.imageUrl} alt="" loading="lazy" />
-                ) : null}
-                <span className="sp-news__title">{headline.title}</span>
-                <span className="sp-news__date">
-                  {formatDate(headline.publishedAt, locale, { month: "short", day: "numeric" })}
-                </span>
+      <div className="sp-newsband__grid">
+        {shown.flatMap((group) =>
+          group.headlines.map((headline) => (
+            <article className="sp-newsband__card" key={headline.id}>
+              {headline.imageUrl ? (
+                <img className="sp-newsband__img" src={headline.imageUrl} alt="" loading="lazy" />
+              ) : null}
+              <span className="sp-hl__comp">{group.competitionLabel}</span>
+              <h3 className="sp-newsband__title">{headline.title}</h3>
+              {headline.summary ? <p className="sp-newsband__blurb">{headline.summary}</p> : null}
+              <a className="sp-newsband__more" href={headline.url} target="_blank" rel="noreferrer">
+                Continue reading →
               </a>
-            ))}
-          </div>
-        </div>
-      ))}
+            </article>
+          ))
+        )}
+      </div>
     </section>
   );
 }

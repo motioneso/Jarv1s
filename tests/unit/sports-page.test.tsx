@@ -534,6 +534,30 @@ describe("SportsPage", () => {
     expect(html).toContain("Cowboys sign veteran lineman");
   });
 
+  it("renders the news band with a blurb, continue-reading link, and league filter", () => {
+    const html = render(
+      makeOverview({
+        leagueNews: [
+          {
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            headlines: [
+              headline("nb1", "nfl", "Cowboys sign veteran lineman", {
+                summary: "The move shores up a thin offensive line ahead of the playoffs.",
+                url: "https://example.test/nb1"
+              })
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("sp-newsband");
+    expect(html).toContain("The move shores up a thin offensive line ahead of the playoffs.");
+    expect(html).toContain("Continue reading");
+    expect(html).toContain('href="https://example.test/nb1"');
+    expect(html).toContain("sp-newsband__filter");
+  });
+
   it("renders a ticker-shaped skeleton row while loading", () => {
     const client = new QueryClient(); // nothing primed → loading branch
     const html = renderToString(

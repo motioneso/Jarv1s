@@ -227,3 +227,60 @@
     columns: 1;
   }
 }
+
+/* News band: blurbed league headlines with a league filter (#839 task 9). */
+.sp-newsband {
+  border-top: 2px solid var(--border-strong);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+}
+.sp-newsband__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.sp-newsband__filter {
+  max-width: 160px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+.sp-newsband__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-5);
+}
+.sp-newsband__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.sp-newsband__img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.sp-newsband__title {
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  margin: 0;
+}
+.sp-newsband__blurb {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+.sp-newsband__more {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
