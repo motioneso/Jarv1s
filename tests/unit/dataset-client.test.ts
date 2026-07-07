@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { createDatasetClient } from "@jarv1s/datasets";
+import { createDatasetClient, HostPinningViolationError } from "@jarv1s/datasets";
+import type { DatasetLogger } from "@jarv1s/datasets";
 import type {
   ExternalSourceAdapter,
   ExternalSourceAdapterContext,
   ModuleExternalSourceManifest
 } from "@jarv1s/module-sdk";
+
+function fakeLogger(): {
+  logger: DatasetLogger;
+  warnings: Array<[Record<string, unknown>, string]>;
+} {
+  const warnings: Array<[Record<string, unknown>, string]> = [];
+  return { logger: { warn: (data, message) => warnings.push([data, message]) }, warnings };
+}
 
 function source(
   overrides: Partial<ModuleExternalSourceManifest> = {}
@@ -209,5 +218,41 @@ describe("createDatasetClient", () => {
     await client.getDataset("b", {}, { fallback: null });
     const elapsed = performance.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(35);
+  });
+
+  it("logs a host-pinning violation with source id + blocked host, still returns degraded", async () => {
+    const { logger, warnings } = fakeLogger();
+    const client = createDatasetClient(
+      source({ fetchHosts: ["site.api.espn.com"] }),
+      adapterFrom(async (_key, _params) => {
+        throw new HostPinningViolationError(
+          "evil.example.com",
+          'Dataset runtime host pinning: host "evil.example.com" is not in the allowed list'
+        );
+      }),
+      { logger }
+    );
+    const envelope = await client.getDataset("widgets", {}, { fallback: { empty: true } });
+    expect(envelope).toEqual({
+      data: { empty: true },
+      degraded: true,
+      fetchedAt: expect.any(String)
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.[0]).toMatchObject({ sourceId: "fixture", host: "evil.example.com" });
+  });
+
+  it("does not log ordinary (non-pinning) fetch errors — stays silent-degrade", async () => {
+    const { logger, warnings } = fakeLogger();
+    const client = createDatasetClient(
+      source(),
+      adapterFrom(async () => {
+        throw new Error("upstream down");
+      }),
+      { logger }
+    );
+    const envelope = await client.getDataset("widgets", {}, { fallback: { empty: true } });
+    expect(envelope).toMatchObject({ data: { empty: true }, degraded: true });
+    expect(warnings).toHaveLength(0);
   });
 });

@@ -3,6 +3,7 @@ export {
   type DatasetClient,
   type DatasetClientDeps,
   type DatasetEnvelope,
+  type DatasetLogger,
   type GetDatasetOptions
 } from "./client.js";
 export {
