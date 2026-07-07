@@ -523,7 +523,11 @@ describe("SportsPage", () => {
     expect(html).toContain("#c1272d");
   });
 
-  it("shows an image for only the first headline in a news-band league group (#841)", () => {
+  it("tiers a news-band league group: lead + shorts with art, tail as headline-only briefs", () => {
+    // Supersedes the #841 "one thumbnail per group" rule: Ben asked for MORE photos plus
+    // bigger lead stories and headline-only clusters (live feedback mrb0wd68 + mrb0xwwg).
+    // Lead (nb1) and the two shorts (nb2, nb3) show their art; nb4 lands in "In brief" with
+    // no image and no blurb.
     const html = render(
       makeOverview({
         leagueNews: [
@@ -536,17 +540,27 @@ describe("SportsPage", () => {
               }),
               headline("nb2", "nfl", "Giants extend head coach", {
                 imageUrl: "https://a.espncdn.com/photo/nb2.jpg"
+              }),
+              headline("nb3", "nfl", "Bears trade up in the draft", {
+                imageUrl: "https://a.espncdn.com/photo/nb3.jpg"
+              }),
+              headline("nb4", "nfl", "Injury report roundup", {
+                imageUrl: "https://a.espncdn.com/photo/nb4.jpg",
+                summary: "Who sits and who plays this week."
               })
             ]
           }
         ]
       })
     );
-    // both headlines carry an imageUrl from the source, but only the group's lead story gets
-    // a thumbnail in the band (spec: "at most one lead thumbnail per group").
+    expect(html).toContain("sp-newsband__art--lead");
     expect(html).toContain('src="https://a.espncdn.com/photo/nb1.jpg"');
-    expect(html).not.toContain('src="https://a.espncdn.com/photo/nb2.jpg"');
-    expect(html.match(/sp-newsband__img/g)).toHaveLength(1);
+    expect(html).toContain('src="https://a.espncdn.com/photo/nb2.jpg"');
+    expect(html).toContain('src="https://a.espncdn.com/photo/nb3.jpg"');
+    expect(html).toContain("In brief");
+    expect(html).toContain("Injury report roundup");
+    expect(html).not.toContain('src="https://a.espncdn.com/photo/nb4.jpg"');
+    expect(html).not.toContain("Who sits and who plays this week.");
   });
 
   it("renders the empty state with a follow CTA when nothing is followed", () => {

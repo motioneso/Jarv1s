@@ -93,6 +93,60 @@ export function LatestColumn(props: { headlines: readonly Headline[] }) {
 
 /* ----------------------------------------------------------------- News band */
 
+// One league's slice of the band, tiered like a newspaper section (live feedback mrb0wd68 +
+// mrb0xwwg): a lead story with art, a couple of short articles (with art when the source has
+// it — "more photos"), then the rest grouped as headline-only briefs. Caps keep a busy feed
+// from running the section forever; the briefs' links carry the tail.
+const SHORTS_PER_SECTION = 2;
+const BRIEFS_PER_SECTION = 4;
+
+function NewsSection({ group }: { readonly group: LeagueNewsGroup }) {
+  const [leadStory, ...rest] = group.headlines;
+  if (!leadStory) return null;
+  const shorts = rest.slice(0, SHORTS_PER_SECTION);
+  const briefs = rest.slice(SHORTS_PER_SECTION, SHORTS_PER_SECTION + BRIEFS_PER_SECTION);
+  return (
+    <section className="sp-newsband__col" aria-label={`${group.competitionLabel} news`}>
+      <h3 className="sp-newsband__section">{group.competitionLabel}</h3>
+      <NewsArticle headline={leadStory} lead />
+      {shorts.map((h) => (
+        <NewsArticle key={h.id} headline={h} />
+      ))}
+      {briefs.length > 0 ? (
+        <div className="sp-newsband__briefs">
+          <p className="sp-newsband__briefslabel">In brief</p>
+          <ul className="sp-newsband__brieflist">
+            {briefs.map((h) => (
+              <li className="sp-newsband__brief" key={h.id}>
+                <a className="sp-newsband__brieflink" href={h.url} target="_blank" rel="noreferrer">
+                  {h.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+// Short articles keep their continue-reading link — the newspaper FEEL comes from the tiering
+// and column rules, not from cutting the way out to the full story (mrb0wd68).
+function NewsArticle({ headline, lead = false }: { readonly headline: Headline; lead?: boolean }) {
+  return (
+    <article className={lead ? "sp-newsband__art sp-newsband__art--lead" : "sp-newsband__art"}>
+      {headline.imageUrl ? (
+        <img className="sp-newsband__img" src={headline.imageUrl} alt="" loading="lazy" />
+      ) : null}
+      <h4 className="sp-newsband__title">{headline.title}</h4>
+      {headline.summary ? <p className="sp-newsband__blurb">{headline.summary}</p> : null}
+      <a className="sp-newsband__more" href={headline.url} target="_blank" rel="noreferrer">
+        Continue reading →
+      </a>
+    </article>
+  );
+}
+
 export function NewsBand({ groups }: { readonly groups: readonly LeagueNewsGroup[] }) {
   const [filterKey, setFilterKey] = useState<string>("all");
   if (groups.length === 0) return null;
@@ -116,22 +170,12 @@ export function NewsBand({ groups }: { readonly groups: readonly LeagueNewsGroup
           ))}
         </select>
       </div>
-      <div className="sp-newsband__grid">
-        {shown.flatMap((group) =>
-          group.headlines.map((headline, index) => (
-            <article className="sp-newsband__card" key={`${group.competitionKey}:${headline.id}`}>
-              {index === 0 && headline.imageUrl ? (
-                <img className="sp-newsband__img" src={headline.imageUrl} alt="" loading="lazy" />
-              ) : null}
-              <span className="sp-hl__comp">{group.competitionLabel}</span>
-              <h3 className="sp-newsband__title">{headline.title}</h3>
-              {headline.summary ? <p className="sp-newsband__blurb">{headline.summary}</p> : null}
-              <a className="sp-newsband__more" href={headline.url} target="_blank" rel="noreferrer">
-                Continue reading →
-              </a>
-            </article>
-          ))
-        )}
+      {/* One column per league, separated by newspaper column rules (mrb0wd68); the flat
+          all-equal card grid this replaces read as a widget wall, not a news section. */}
+      <div className="sp-newsband__cols">
+        {shown.map((group) => (
+          <NewsSection key={group.competitionKey} group={group} />
+        ))}
       </div>
     </section>
   );
