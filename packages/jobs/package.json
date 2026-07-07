@@ -13,7 +13,6 @@
     "@jarv1s/db": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/notifications": "workspace:*",
-    "@jarv1s/settings": "workspace:*",
     "kysely": "^0.29.2",
     "pg-boss": "^12.18.2"
   }

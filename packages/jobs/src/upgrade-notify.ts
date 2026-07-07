@@ -1,10 +1,17 @@
 import type { DataContextDb } from "@jarv1s/db";
 import { NotificationsRepository } from "@jarv1s/notifications";
-import { SETTINGS_MODULE_ID } from "@jarv1s/settings";
 import type { Job, PgBoss } from "./pg-boss.js";
 import { UPGRADE_NOTIFY_QUEUE, registerDataContextWorker } from "./pg-boss.js";
 import type { DataContextRunner } from "@jarv1s/db";
 import type { UpgradeNotifyPayload } from "./upgrade-check.js";
+
+// Local literal, not an import of @jarv1s/settings's own SETTINGS_MODULE_ID (#834): jobs is
+// generic job infrastructure and must not depend on any specific module — that edge is what
+// closed the jobs -> settings -> proactive-monitoring -> jobs cycle. Every other module in the
+// repo that tags a notification/record with another module's id does the same (see
+// packages/calendar/src/routes.ts's local CALENDAR_WRITEBACK_MODULE_ID). Must stay in sync with
+// packages/settings/src/manifest.ts's SETTINGS_MODULE_ID ("settings").
+const SETTINGS_MODULE_ID = "settings";
 
 export interface UpgradeNotifyOptions {
   readonly repository?: NotificationsRepository;
