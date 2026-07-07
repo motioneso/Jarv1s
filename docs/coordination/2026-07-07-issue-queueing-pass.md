@@ -57,13 +57,75 @@ supplying licensed `.otf` files — not a coordinator action item, just a standi
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | building | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
-| (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
-| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building | Build-854 | w1:p9X | 854-integration-test-db-isolation | — |
+| docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | **HOLD — likely duplicate** | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
+| (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building (plan approved, Task 1 TDD in progress) | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
+| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building (relayed once, root cause confirmed, no plan/code yet) | Build-854 | w1:p9X | 854-integration-test-db-isolation | — |
 
 All three spawned into agents tab `w1:t1C` (created this run), confirmed running Sonnet, worktrees
 cut off `origin/main` @ `babe07aa`. Handoff docs committed in each worktree at
-`docs/coordination/handoff-<slug>.md`.
+`docs/coordination/handoff-<slug>.md`. **merges_since_relay: 0** (nothing merged yet).
+
+### ⚠️ #663 — HOLD, likely duplicate (found this tenure, unresolved)
+
+Build-663 found that `docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md` is **already
+fully implemented and merged** as commit `bcbbdf60` / PR #719 (closes #695), merged 2026-07-03 —
+**three days before** the #663 spec was approved 2026-07-06. Verified independently by this
+coordinator (not just agent self-report): `git merge-base --is-ancestor bcbbdf60 HEAD` on the
+`663-evening-briefing-redesign` worktree returns true; `#695` is `closed` via
+`gh api repos/motioneso/Jarv1s/issues/695`; file/test structure on current `main` matches the
+spec's section 2 exactly, `tests/integration/briefings-evening.test.ts` is 9/9 green as-is.
+**#663 itself is still open.** Build-663 is told to **hold, do nothing further** (no close, no
+merge, no delete) pending Ben's call. I surfaced this to Ben via AskUserQuestion; his first
+response was a clarifying question ("how do I view the evening briefing now?") — answered (Today
+page auto-switches to evening mode by local time; `apps/web/src/today/evening-mode.tsx`; a manual
+"run now" API exists via `runBriefingDefinitionRouteSchema` in `packages/briefings/src/routes.ts`;
+his existing dev preview from `/home/ben/Jarv1s` already has this feature since it's an ancestor of
+`main`). **Ben has NOT yet made the close-vs-rescope call.** Successor: when Ben responds, act on
+one of:
+- **Close #663 as duplicate** → `gh issue close 663` referencing #719/#695, message Build-663 to
+  stand down permanently, `git worktree remove .claude/worktrees/663-evening-briefing-redesign`,
+  delete the `663-evening-briefing-redesign` branch (local + none pushed), drop the queue row.
+- **#663 wants a real delta beyond #719** → have Build-663 re-scope its plan against exactly that
+  delta (do not resurrect the full original spec — #719 already covers it).
+
+### #853 — plan approved this tenure
+
+Read the plan directly (`docs/superpowers/plans/2026-07-07-853-auth-signup-atomicity.md` in the
+`853-auth-signup-atomicity` worktree) — no design fork, no migration, correctly respects the 0055
+`users_guard_admin_flag` trigger (broadens the failure-path compensating delete to run on ANY
+after-hook failure, not just `registrationRejected`; FK cascade on `app.auth_accounts`/
+`app.better_auth_sessions` means deleting `app.users` alone fully cleans up). Approved via
+`herdr-pane-message`; Build-853 resumed and is on Task 1 (failing-test repro) as of this write.
+**Still needs, when it reports done:** Opus adversarial QA (security tier) → mandatory
+`gh pr comment` verdict → Ben's explicit merge sign-off. Do not auto-merge on green CI alone.
+
+### #854 — relayed once, no plan yet
+
+Build-854 hit its own 70% checkpoint with root cause confirmed and a bug-type memory already saved,
+but **no plan written and no code changed yet**. It reported it was spawning its own successor via
+the `relay` skill in the same pane/worktree/branch (`w1:p9X`,
+`854-integration-test-db-isolation`). At last check (`herdr pane list`) `w1:p9X` still shows label
+`Build-854`, `agent_status: working`, session `c513c561-1b4b-4eda-9b48-4c58c9bbc1b7` — **successor
+confirmation was NOT yet verified by this coordinator before this relay fired.** Successor: read
+`w1:p9X` (`--source recent --lines 12`) to confirm which session is live and that it's actually
+progressing (plan → TDD), not stuck mid-handoff.
+
+### #817 — design interview in progress (not a build item)
+
+Started the `brief` skill with Ben for #817 (Jarvis should explain user-visible errors —
+cross-cutting diagnostic surface, no spec exists). **Only Q1 ("what is the core problem this
+solves?") was asked; Ben has not yet answered it** — the #663-duplicate escalation and his
+clarifying question interrupted the interview before Q1's answer landed. Successor: re-invoke
+`brief` (or just re-ask Q1 in-conversation) to resume — do not assume any answers were given, none
+were. This is NOT part of the build queue; it produces a draft spec for Ben's future approval, not
+an immediate spawn.
+
+### Liveness monitor
+
+A persistent `Monitor` (task id `bklyndmg7`) is running, diffing `herdr pane list` for panes
+`w1:p9V`/`w1:p9W`/`w1:p9X` every 30s, emitting only on `agent_status` change. **This monitor dies
+with this session on relay — the successor must start its own**, or it has zero passive liveness
+signal on the fleet.
 
 **Tier rationale:**
 - **#663 → sensitive:** touches scheduled-job-adjacent notification content and reads across
