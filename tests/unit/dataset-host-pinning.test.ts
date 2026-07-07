@@ -66,9 +66,7 @@ function fakeFetch(responses: readonly { status: number; location?: string }[]):
   return { fetchFn, calls };
 }
 
-function fakeFetchCapturingHeaders(
-  responses: readonly { status: number; location?: string }[]
-): {
+function fakeFetchCapturingHeaders(responses: readonly { status: number; location?: string }[]): {
   fetchFn: typeof fetch;
   calls: Array<{ url: string; headers: Record<string, string> }>;
 } {

@@ -98,15 +98,13 @@ export function createHostPinnedFetch(
 ```
 
 - [ ] **Step 1 (test first): add a header-capturing fetch fixture + failing assertions to
-  `tests/unit/dataset-host-pinning.test.ts`**
+      `tests/unit/dataset-host-pinning.test.ts`**
 
   Add a second fixture alongside the existing `fakeFetch` (keep `fakeFetch` as-is — other tests
   depend on its `calls: string[]` shape). Place it directly below `fakeFetch`:
 
   ```ts
-  function fakeFetchCapturingHeaders(
-    responses: readonly { status: number; location?: string }[]
-  ): {
+  function fakeFetchCapturingHeaders(responses: readonly { status: number; location?: string }[]): {
     fetchFn: typeof fetch;
     calls: Array<{ url: string; headers: Record<string, string> }>;
   } {
@@ -279,14 +277,14 @@ export function createHostPinnedFetch(
 ## Verification (Exit Criteria)
 
 - [ ] `npx vitest run tests/unit/dataset-host-pinning.test.ts` — all tests green (pre-existing +
-  new).
+      new).
 - [ ] `pnpm format:check && pnpm lint && pnpm typecheck` — clean.
 - [ ] `git fetch origin main && git rebase origin/main` — clean or trivial fast-forward.
 - [ ] `JARVIS_PGDATABASE=jarv1s_832_datasets pnpm verify:foundation` — full gate green (isolated
-  DB; the shared default DB may be under concurrent-agent contention per Fleet-Ops convention).
+      DB; the shared default DB may be under concurrent-agent contention per Fleet-Ops convention).
 - [ ] Both issue acceptance criteria met: cross-host redirect drops sensitive headers; same-host
-  redirect keeps them; unit test asserts header sets per hop (all four new tests above cover
-  this).
+      redirect keeps them; unit test asserts header sets per hop (all four new tests above cover
+      this).
 - [ ] PR body notes this is 2/3 of the datasets chain (#832 done/merged, #836 to follow) and that
-  the future api-key credential spec must reference #833 as a satisfied prerequisite (issue's own
-  acceptance bullet — no code action needed here, just PR-body traceability).
+      the future api-key credential spec must reference #833 as a satisfied prerequisite (issue's own
+      acceptance bullet — no code action needed here, just PR-body traceability).
