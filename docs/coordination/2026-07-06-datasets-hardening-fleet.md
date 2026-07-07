@@ -17,8 +17,8 @@
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | building | datasets-chain-2 | w1:p9C | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-2 | w1:p9C | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | building | dep-cycle-2 | w1:p98 | 834-jobs-settings-cycle | — |
-| docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | building | settings-ui-scanner-relay | w1:p99 | 835-scanner-reserved-paths | — |
-| docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | building | sports-cleanup-2 | w1:p9A | 837-sports-postmerge-cleanup | — |
+| docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | qa | settings-ui-scanner-relay | w1:p99 | 835-scanner-reserved-paths | #846 |
+| docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | qa | sports-cleanup-2 | w1:p9A | 837-sports-postmerge-cleanup | #847 |
 
 Risk tier basis: #833 and #834 touch a security-adjacent guard path (redirect header handling)
 and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensitive` not
