@@ -16,7 +16,7 @@
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-4 (continuing on #833/#836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | qa | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #850 |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
-| docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | qa | dep-cycle-3 | w1:p9F | 834-jobs-settings-cycle | #849 |
+| docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | **merged** | dep-cycle-3 (pending reap) | w1:p9F | 834-jobs-settings-cycle | #849 (squash e6911c45) |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
 | docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | **merged** | sports-cleanup-2 (reaped) | — | 837-sports-postmerge-cleanup (deleted) | #847 (squash) |
 
