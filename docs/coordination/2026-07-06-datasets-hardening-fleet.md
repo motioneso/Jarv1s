@@ -17,7 +17,7 @@ further (PR #850/#833 QA in flight, do NOT merge on this session even if verdict
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-4 (continuing on #833/#836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | qa | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #850 |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | **merged** | datasets-chain-4 (continuing on #836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #850 (squash a9fe44f8) |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | **merged** | dep-cycle-3 (reaped) | — | 834-jobs-settings-cycle (deleted) | #849 (squash e6911c45) |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
@@ -254,7 +254,20 @@ https://github.com/motioneso/Jarv1s/pull/849#issuecomment-4900900816), merged sq
 by the predecessor itself, issue #834 closed. Predecessor pane `w1:p9G` and `dep-cycle-3`
 (`w1:p9F`, idle/done) both reaped this tenure; `834-jobs-settings-cycle` worktree + local branch
 removed. **This second merge (#849) put `merges_since_relay` at 2 → relay threshold fired,
-compounded by a 70% context-meter warning on the same turn — relaying now per "no deferral."**
+compounded by a 70% context-meter warning on the same turn.**
+
+**Amendment (successor `22037838…`, pane `w1:p9K`, instructed on relay):** rather than hand off
+an in-flight QA agent a second time (risk of losing work mid-flight, as nearly happened with
+`af01b499cf9d1ff1c`), the successor asked this session to hold and finish PR #850 out fully
+before relaying. Done: QA agent `a0db8c2ca4b396aef` returned **GREEN** (posted
+https://github.com/motioneso/Jarv1s/pull/850#issuecomment-4901005718 — 0 blocking/non-blocking,
+module isolation honored, security-adjacent header-stripping check passed, no live exposure).
+Merged squash `a9fe44f8` (local branch NOT deleted — still checked out in `datasets-chain-4`'s
+worktree for #836, this is expected/correct). Issue #833 closed. Told `datasets-chain-4`
+(`w1:p9H`) to rebase on `origin/main` and start #836, reporting to the successor (`w1:p9K`) going
+forward, not this pane. **`merges_since_relay` is now 3 for the pre-relay lineage** (#848, #849,
+#850) — all landed and accounted for; successor should reset to 0 for its own fresh tenure as
+already noted below. Relaying now, nothing further in flight from this session.
 
 ## Continuation note (relay @ 2026-07-07, merge-counter threshold (2) + 70% context-meter, mid-Phase-3)
 
@@ -265,23 +278,13 @@ confirmed driving. **Reset `merges_since_relay` to 0 for the new tenure** (both 
 now fully landed and accounted for above).
 
 **In flight, needs the successor to pick up:**
-- **PR #850 (#833, sensitive tier, datasets-chain-4/`w1:p9H`)** — build done (VF_EXIT=0,
-  AUDIT_EXIT=0, full suite 1854 unit + 1353 integration pass, isolated DB `jarv1s_832_datasets`,
-  rebased/up-to-date on `origin/main`@`a66e9a20`, no conflicts). QA agent already spawned:
-  `coordinated-qa`, agentId `a0db8c2ca4b396aef` (Sonnet, sensitive-tier invariant checklist +
-  explicit check that the redirect header-stripping logic can't leak auth headers across hosts)
-  — **verdict not yet returned when this relay fired**. Successor: check for its completion
-  notification first; if missed, `SendMessage(to: "a0db8c2ca4b396aef", ...)` to resume, or
-  re-spawn QA fresh on PR #850 if that fails. **Before re-spawning, always check whether the
-  original agent is still alive under a different (not-yet-reaped) session pane first** — this
-  tenure nearly duplicated QA spend by assuming a differently-scoped agent ID was dead when it was
-  actually alive under the predecessor's pane; confirm via `herdr pane list`/pane read before
-  assuming a missing transcript means the agent died. If GREEN → merge #850 (squash), close #833,
-  **auto-merge + Ben digest — no pre-merge sign-off gate** (sensitive ≠ security tier). Then tell
-  `datasets-chain-4` (session `0d72e407…`, pane `w1:p9H`, idle, waiting on this) to rebase on the
-  merge and start #836 (routine, next/last in the chain — do not start it before #833 lands).
+- **#833 fully resolved** (see Amendment above) — PR #850 merged squash `a9fe44f8`, issue closed,
+  `datasets-chain-4` (session `0d72e407…`, pane `w1:p9H`) told to rebase and start **#836**
+  (routine, last in the chain 832→833→836). Successor: supervise #836 through to its PR → QA
+  (routine tier this time, standard checklist, no extra invariant walk needed) → auto-merge on
+  green.
 - **Monitors do not survive relay — re-establish both fresh:** (1) fleet liveness diffing
-  `herdr pane list` over tab `w1:t1B` (now just `datasets-chain-4`, idle), emit on
+  `herdr pane list` over tab `w1:t1B` (now just `datasets-chain-4`, building #836), emit on
   `agent_status`/label change only; (2) sports-broadsheet watch on pane `w1:p8Y`, emit on
   `agent_status` change — Ben's explicit standing ask, not a fleet item, keep running regardless
   of fleet state. (This tenure's monitors: fleet liveness task `bc2ianpfs`, sports watch task
