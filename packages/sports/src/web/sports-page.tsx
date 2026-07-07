@@ -117,7 +117,7 @@ export function SportsPage() {
           <AroundLeaguesTicker groups={data.scoreboard} />
           {hero.mode === "story" ? <StoryHero headline={hero.headline} /> : null}
           <BroadsheetGrid overview={gridData} followedPairs={followedPairs} />
-          <NewsBand groups={data.leagueNews} />
+          <NewsBand groups={data.leagueNews} followedPairs={followedPairs} />
         </>
       ) : (
         <EmptyState data={data} followedPairs={followedPairs} />
@@ -344,7 +344,7 @@ function EmptyState(props: { data: SportsOverviewResponse; followedPairs: Readon
       {hasSlate ? (
         <div className="sp-emptyboard">
           <BroadsheetGrid overview={props.data} followedPairs={props.followedPairs} />
-          <NewsBand groups={props.data.leagueNews} />
+          <NewsBand groups={props.data.leagueNews} followedPairs={props.followedPairs} />
         </div>
       ) : null}
     </>

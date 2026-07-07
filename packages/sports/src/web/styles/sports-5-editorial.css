@@ -393,6 +393,11 @@
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: var(--space-6);
   align-items: start;
+  /* Section rule moved here from the hero's border-bottom: the hero now floats between the
+     around-the-leagues strip's bottom rule and this top rule, mirroring the gap above it
+     (live feedback mrb422s4). Same 1px weight as the around strip's rules. */
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
 }
 
 .sp-grid__main {
@@ -537,6 +542,42 @@
   font-size: var(--text-2xs);
   font-weight: 600;
 }
+/* Feature story (live feedback mrb47x3h): the band's single biggest story breaks the column
+   grid — full-width split of art beside a display-size headline, closed by a rule before the
+   league columns. Earned only by a heavy story (followed team + art), so quiet days open
+   straight with the columns and the slot stays meaningful. */
+.sp-newsband__feature {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: center;
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.sp-newsband__featurebody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.sp-newsband__featurekicker {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.sp-newsband__title--feature {
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+  font-weight: var(--weight-black);
+}
+.sp-newsband__blurb--feature {
+  font-size: var(--text-md);
+  -webkit-line-clamp: 3;
+}
 /* Tiered newspaper sections (live feedback mrb0wd68 + mrb0xwwg): one column per league with
    vertical column rules between them; inside, a lead story with art, short articles (art when
    the source has it), and a headline-only "In brief" cluster replace the old all-equal card
@@ -604,6 +645,12 @@
 .sp-newsband__art--lead .sp-newsband__blurb {
   -webkit-line-clamp: 3;
 }
+/* Heavy column lead (weight ≥ big threshold, mrb47x3h): same slot as a lead, a size up again —
+   sits between the ordinary lead and the full-width feature so column heights vary. */
+.sp-newsband__art--big .sp-newsband__title {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+}
 .sp-newsband__more {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -646,6 +693,10 @@
    once each section owns a full row, so it flips to a horizontal one between sections. */
 @media (max-width: 720px) {
   .sp-newsband__cols {
+    grid-template-columns: 1fr;
+  }
+  /* Feature stacks art-over-text on narrow screens (mrb47x3h). */
+  .sp-newsband__feature {
     grid-template-columns: 1fr;
   }
   .sp-newsband__col {

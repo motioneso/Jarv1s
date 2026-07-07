@@ -526,8 +526,9 @@ describe("SportsPage", () => {
   it("tiers a news-band league group: lead + shorts with art, tail as headline-only briefs", () => {
     // Supersedes the #841 "one thumbnail per group" rule: Ben asked for MORE photos plus
     // bigger lead stories and headline-only clusters (live feedback mrb0wd68 + mrb0xwwg).
-    // Lead (nb1) and the two shorts (nb2, nb3) show their art; nb4 lands in "In brief" with
-    // no image and no blurb.
+    // Sections now tier by story weight (art +2, dek +1, followed team +2 — mrb47x3h), ties
+    // keeping feed order: nb1 (art+dek) leads, nb2/nb3 (art) are shorts, nb4 (art, tied but
+    // last) lands in "In brief" where even its art is suppressed.
     const html = render(
       makeOverview({
         leagueNews: [
@@ -536,7 +537,8 @@ describe("SportsPage", () => {
             competitionLabel: "NFL",
             headlines: [
               headline("nb1", "nfl", "Cowboys sign veteran lineman", {
-                imageUrl: "https://a.espncdn.com/photo/nb1.jpg"
+                imageUrl: "https://a.espncdn.com/photo/nb1.jpg",
+                summary: "A five-year deal shores up the right side."
               }),
               headline("nb2", "nfl", "Giants extend head coach", {
                 imageUrl: "https://a.espncdn.com/photo/nb2.jpg"
@@ -545,8 +547,7 @@ describe("SportsPage", () => {
                 imageUrl: "https://a.espncdn.com/photo/nb3.jpg"
               }),
               headline("nb4", "nfl", "Injury report roundup", {
-                imageUrl: "https://a.espncdn.com/photo/nb4.jpg",
-                summary: "Who sits and who plays this week."
+                imageUrl: "https://a.espncdn.com/photo/nb4.jpg"
               })
             ]
           }
@@ -560,7 +561,40 @@ describe("SportsPage", () => {
     expect(html).toContain("In brief");
     expect(html).toContain("Injury report roundup");
     expect(html).not.toContain('src="https://a.espncdn.com/photo/nb4.jpg"');
-    expect(html).not.toContain("Who sits and who plays this week.");
+  });
+
+  it("promotes the heaviest story to the feature slot and sizes up heavy leads (mrb47x3h)", () => {
+    // Weight = art (+2) + dek (+1) + followed team (+2); the fixture follows nfl/min.
+    // nbf2 (5) wins the full-width feature even though the feed buried it last; it leaves its
+    // column so it renders exactly once. nbf3 (4, followed + art) clears the big threshold and
+    // leads the column a size up; plain nbf1 (0) trails it despite arriving first.
+    const html = render(
+      makeOverview({
+        leagueNews: [
+          {
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            headlines: [
+              headline("nbf1", "nfl", "League schedule notes"),
+              headline("nbf3", "nfl", "Vikings lock up their left tackle", {
+                imageUrl: "https://a.espncdn.com/photo/nbf3.jpg",
+                teamKeys: ["min"]
+              }),
+              headline("nbf2", "nfl", "Vikings stun Cowboys at the horn", {
+                imageUrl: "https://a.espncdn.com/photo/nbf2.jpg",
+                summary: "A 60-yard walk-off field goal flips the division race.",
+                teamKeys: ["min"]
+              })
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("sp-newsband__feature");
+    expect(html).toContain("sp-newsband__title--feature");
+    expect(html.split("Vikings stun Cowboys at the horn").length - 1).toBe(1);
+    expect(html).toContain("sp-newsband__art--big");
+    expect(html).toContain("Vikings lock up their left tackle");
   });
 
   it("renders the empty state with a follow CTA when nothing is followed", () => {

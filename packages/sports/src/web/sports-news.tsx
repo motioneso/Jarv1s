@@ -100,26 +100,62 @@ export function LatestColumn(props: { headlines: readonly Headline[] }) {
 const SHORTS_PER_SECTION = 2;
 const BRIEFS_PER_SECTION = 4;
 
-function NewsSection({ group }: { readonly group: LeagueNewsGroup }) {
-  const [leadStory, ...rest] = group.headlines;
-  if (!leadStory) return null;
+// "Big story" heuristic (live feedback mrb47x3h): we have no editorial prominence signal from
+// the source, so weight what we do have — art (+2) and a dek (+1) mean the source invested in
+// the story; a followed-team tag (+2) means this reader cares. Deliberately clock-free so SSR
+// and tests stay deterministic; ties fall back to feed order (roughly editorial).
+function storyWeight(headline: Headline, followedPairs: ReadonlySet<string>): number {
+  let weight = 0;
+  if (headline.imageUrl) weight += 2;
+  if (headline.summary) weight += 1;
+  if (headline.teamKeys.some((key) => isFollowed(followedPairs, headline.competitionKey, key))) {
+    weight += 2;
+  }
+  return weight;
+}
+// Feature/big threshold: art alone (2) or art+dek (3) is ordinary; it takes a followed-team
+// story with art (4+) to break the column grid. Keeps the feature slot personal, not just loud.
+const BIG_STORY_WEIGHT = 4;
+
+function NewsSection({
+  group,
+  followedPairs,
+  excludeId
+}: {
+  readonly group: LeagueNewsGroup;
+  readonly followedPairs: ReadonlySet<string>;
+  readonly excludeId: string | null;
+}) {
+  // Tier by weight, not feed order, so a big story leads its section even when the feed
+  // buried it (mrb47x3h). Array.prototype.sort is spec-stable — equal weights keep feed order.
+  const ranked = group.headlines
+    .filter((headline) => headline.id !== excludeId)
+    .map((headline) => ({ headline, weight: storyWeight(headline, followedPairs) }))
+    .sort((a, b) => b.weight - a.weight);
+  const [lead, ...rest] = ranked;
+  if (!lead) return null;
   const shorts = rest.slice(0, SHORTS_PER_SECTION);
   const briefs = rest.slice(SHORTS_PER_SECTION, SHORTS_PER_SECTION + BRIEFS_PER_SECTION);
   return (
     <section className="sp-newsband__col" aria-label={`${group.competitionLabel} news`}>
       <h3 className="sp-newsband__section">{group.competitionLabel}</h3>
-      <NewsArticle headline={leadStory} lead />
-      {shorts.map((h) => (
-        <NewsArticle key={h.id} headline={h} />
+      <NewsArticle headline={lead.headline} lead big={lead.weight >= BIG_STORY_WEIGHT} />
+      {shorts.map(({ headline }) => (
+        <NewsArticle key={headline.id} headline={headline} />
       ))}
       {briefs.length > 0 ? (
         <div className="sp-newsband__briefs">
           <p className="sp-newsband__briefslabel">In brief</p>
           <ul className="sp-newsband__brieflist">
-            {briefs.map((h) => (
-              <li className="sp-newsband__brief" key={h.id}>
-                <a className="sp-newsband__brieflink" href={h.url} target="_blank" rel="noreferrer">
-                  {h.title}
+            {briefs.map(({ headline }) => (
+              <li className="sp-newsband__brief" key={headline.id}>
+                <a
+                  className="sp-newsband__brieflink"
+                  href={headline.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {headline.title}
                 </a>
               </li>
             ))}
@@ -132,9 +168,25 @@ function NewsSection({ group }: { readonly group: LeagueNewsGroup }) {
 
 // Short articles keep their continue-reading link — the newspaper FEEL comes from the tiering
 // and column rules, not from cutting the way out to the full story (mrb0wd68).
-function NewsArticle({ headline, lead = false }: { readonly headline: Headline; lead?: boolean }) {
+// `big` marks a heavy lead (weight ≥ BIG_STORY_WEIGHT) — same slot, a size up (mrb47x3h).
+function NewsArticle({
+  headline,
+  lead = false,
+  big = false
+}: {
+  readonly headline: Headline;
+  lead?: boolean;
+  big?: boolean;
+}) {
+  const className = [
+    "sp-newsband__art",
+    lead ? "sp-newsband__art--lead" : null,
+    big ? "sp-newsband__art--big" : null
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <article className={lead ? "sp-newsband__art sp-newsband__art--lead" : "sp-newsband__art"}>
+    <article className={className}>
       {headline.imageUrl ? (
         <img className="sp-newsband__img" src={headline.imageUrl} alt="" loading="lazy" />
       ) : null}
@@ -147,10 +199,60 @@ function NewsArticle({ headline, lead = false }: { readonly headline: Headline; 
   );
 }
 
-export function NewsBand({ groups }: { readonly groups: readonly LeagueNewsGroup[] }) {
+// The band's single biggest story breaks out of the column grid entirely: full-width split
+// layout above the sections, art beside a display-size headline (mrb47x3h "give them some
+// more space"). Only a story that clears BIG_STORY_WEIGHT earns the slot — on a quiet day
+// the band opens straight with the columns.
+function FeatureArticle({ headline }: { readonly headline: Headline }) {
+  return (
+    <article className="sp-newsband__feature">
+      {headline.imageUrl ? (
+        <img
+          className="sp-newsband__img sp-newsband__img--feature"
+          src={headline.imageUrl}
+          alt=""
+          loading="lazy"
+        />
+      ) : null}
+      <div className="sp-newsband__featurebody">
+        <p className="sp-newsband__featurekicker">{headline.competitionLabel}</p>
+        <h3 className="sp-newsband__title sp-newsband__title--feature">{headline.title}</h3>
+        {headline.summary ? (
+          <p className="sp-newsband__blurb sp-newsband__blurb--feature">{headline.summary}</p>
+        ) : null}
+        <a className="sp-newsband__more" href={headline.url} target="_blank" rel="noreferrer">
+          Continue reading →
+        </a>
+      </div>
+    </article>
+  );
+}
+
+export function NewsBand({
+  groups,
+  followedPairs
+}: {
+  readonly groups: readonly LeagueNewsGroup[];
+  readonly followedPairs: ReadonlySet<string>;
+}) {
   const [filterKey, setFilterKey] = useState<string>("all");
   if (groups.length === 0) return null;
   const shown = filterKey === "all" ? groups : groups.filter((g) => g.competitionKey === filterKey);
+
+  // Feature pick: heaviest story across every shown league, first-found on ties (feed order
+  // within a league, league order across them — both deterministic). It leaves its column so
+  // the same story never renders twice (mrb47x3h).
+  let feature: Headline | null = null;
+  let featureWeight = BIG_STORY_WEIGHT - 1;
+  for (const group of shown) {
+    for (const headline of group.headlines) {
+      const weight = storyWeight(headline, followedPairs);
+      if (weight > featureWeight) {
+        feature = headline;
+        featureWeight = weight;
+      }
+    }
+  }
 
   return (
     <section className="sp-newsband" aria-label="League news">
@@ -170,11 +272,17 @@ export function NewsBand({ groups }: { readonly groups: readonly LeagueNewsGroup
           ))}
         </select>
       </div>
+      {feature ? <FeatureArticle headline={feature} /> : null}
       {/* One column per league, separated by newspaper column rules (mrb0wd68); the flat
           all-equal card grid this replaces read as a widget wall, not a news section. */}
       <div className="sp-newsband__cols">
         {shown.map((group) => (
-          <NewsSection key={group.competitionKey} group={group} />
+          <NewsSection
+            key={group.competitionKey}
+            group={group}
+            followedPairs={followedPairs}
+            excludeId={feature?.id ?? null}
+          />
         ))}
       </div>
     </section>
