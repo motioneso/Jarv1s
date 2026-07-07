@@ -11,7 +11,9 @@ describe("assertIsolatedTestDatabase", () => {
 
   it("does not throw for an isolated database name", () => {
     expect(() =>
-      assertIsolatedTestDatabase("postgres://postgres:postgres@localhost:55433/jarvis_test_12345_ab12")
+      assertIsolatedTestDatabase(
+        "postgres://postgres:postgres@localhost:55433/jarvis_test_12345_ab12"
+      )
     ).not.toThrow();
   });
 });
