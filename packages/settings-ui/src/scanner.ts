@@ -134,6 +134,7 @@ export function scanModuleWeb(options: ScanOptions): WebScanResult {
   const contributions: Record<string, string> = {};
   const manifestFiles: string[] = [];
   const seenPaths = new Map<string, string>();
+  const reservedPaths = new Set(SHELL_RESERVED_WEB_PATHS);
 
   for (const pkg of listModulePackages(options.rootDir)) {
     if (!pkg.exports || !("./web" in pkg.exports)) continue;
@@ -152,6 +153,11 @@ export function scanModuleWeb(options: ScanOptions): WebScanResult {
     }
 
     for (const entry of manifest.navigation) {
+      if (reservedPaths.has(entry.path)) {
+        throw new Error(
+          `module web route path "${entry.path}" is reserved by the app shell and cannot be claimed by "${manifest.id}"`
+        );
+      }
       const owner = seenPaths.get(entry.path);
       if (owner) {
         throw new Error(
