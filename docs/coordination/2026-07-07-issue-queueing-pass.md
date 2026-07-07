@@ -591,3 +591,34 @@ predecessor reaps itself), not treated as an incident. Verified exactly one `Coo
 
 Started a fresh liveness `Monitor` (task `bynbw4vgp`) for `w1:p9V`/`w1:p9W` only (no #854 pane to
 watch anymore).
+
+### #817 spec — independently verified this tenure (not trusted from the fork's self-report)
+
+Read `docs/superpowers/specs/2026-07-07-error-explainability.md` in full, cross-checked against
+`docs/superpowers/specs/2026-06-22-observability.md` (#413 precedent) and CLAUDE.md Hard
+Invariants. Ground-truthed the spec's file claims directly (not taken on faith):
+`apps/api/src/error-handling.ts` read in full, `packages/ai/sql/0127_jarvis_action_audit_log.sql`
+confirmed to exist with the RLS/`SECURITY DEFINER` pattern D3 claims, `tests/unit/
+api-error-handling.test.ts` confirmed to exist (though it tests response-body leakage, not
+log-persistence leakage — see finding below).
+
+**Two findings surfaced to Ben, spec still PAUSED — not proceeding to `/plan`/`/build`:**
+
+1. **Tier should be `security`, not the spec's self-proposed `sensitive`.** The coordinate skill's
+   tiering table lists "policy-touching schema migrations" as a security-tier trigger. D3's
+   migration adds `FORCE ROW LEVEL SECURITY` + `CREATE POLICY` on a brand-new table — mechanically
+   a security-tier trigger, no downgrade allowed by the tiering rule ("in doubt, take the higher").
+2. **D4's stack-trace field mapping is ambiguous and risks a secrets-never-escape violation.**
+   Ground-truthed `error-handling.ts`: `registerClientErrorsRoute`'s logged `clientError` object
+   **does include a truncated `stack`** (`MAX_CLIENT_STACK_CHARS`, by design — today it only ever
+   reaches the host-only `docker compose logs api`, a trusted-operator surface). D4 says the new
+   write path "reuses those same allowlisted objects," but D3's table schema has no `stack` column
+   and D5's chat tool would make this table queryable **by the end user themselves** — a
+   fundamentally different trust boundary than host-only docker logs. The spec's own Non-Goals and
+   an Exit Criteria bullet both promise "no raw stack trace... reaches the chat tool's output," but
+   there is no explicit field-level mapping stating `stack` is dropped before persistence, and the
+   Exit Criteria's claim of reusing "the same kind of structural test #413 used" is not accurate as
+   evidence — that existing test (`api-error-handling.test.ts`) checks response-body leakage only,
+   never log/DB-persistence leakage, so it does not already cover this new invariant. Needs an
+   explicit fix before approval: either drop `stack` at the write boundary (state this plainly in
+   D4) or explain why persisting it into a user-queryable table is safe.
