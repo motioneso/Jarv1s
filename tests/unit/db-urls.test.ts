@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getJarvisDatabaseUrls } from "@jarv1s/db";
+import { DEFAULT_JARVIS_DATABASE_NAME, getJarvisDatabaseUrls } from "@jarv1s/db";
 
 describe("getJarvisDatabaseUrls", () => {
   it("keeps local development fallbacks parameterized by host, port, and database", () => {
@@ -43,5 +43,14 @@ describe("getJarvisDatabaseUrls", () => {
       auth: "postgres://auth.example/prod",
       worker: "postgres://worker.example/prod"
     });
+  });
+
+  it("falls back to DEFAULT_JARVIS_DATABASE_NAME when JARVIS_PGDATABASE is unset", () => {
+    const urls = getJarvisDatabaseUrls({} as NodeJS.ProcessEnv);
+
+    expect(urls.app).toBe(
+      `postgres://jarvis_app_runtime:app_password@localhost:55433/${DEFAULT_JARVIS_DATABASE_NAME}`
+    );
+    expect(DEFAULT_JARVIS_DATABASE_NAME).toBe("jarv1s");
   });
 });
