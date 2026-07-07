@@ -13,9 +13,9 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-3 (continuing on #833/#836) | w1:p9D | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | building | datasets-chain-3 | w1:p9D | 832-datasets-host-pinning (chain: 832→833→836) | — |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-3 | w1:p9D | 832-datasets-host-pinning (chain: 832→833→836) | — |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-4 (continuing on #833/#836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | qa | dep-cycle-3 | w1:p9F | 834-jobs-settings-cycle | #849 |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
 | docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | **merged** | sports-cleanup-2 (reaped) | — | 837-sports-postmerge-cleanup (deleted) | #847 (squash) |
@@ -80,6 +80,10 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
   after #834 tasks 1-3 green + task 4 (verify:foundation) in progress, isolated db
   `jarv1s_fix834`, pre-existing unrelated single-file flakes only; successor `dep-cycle-3` (pane
   `w1:p9F`, session `f1545a6c…`) confirmed driving same worktree; reaped 2026-07-06.
+- `0c8cc3f2-1266-40a3-9fe3-eb452c53cafe` (datasets-chain-3, pane `w1:p9D`) — relayed at ctx 77%
+  right after #833 plan approved (redirect header stripping, sensitive tier, tier-process
+  correction relayed too); successor `datasets-chain-4` (session `0d72e407…`, pane `w1:p9H`)
+  confirmed driving same worktree/branch, proceeding to Task 1 build; reaped 2026-07-07.
 
 ## Continuation note (relay @ 2026-07-07, merge-counter threshold: 2 routine merges)
 
@@ -107,7 +111,7 @@ for the successor rather than finished out).
 
 | Agent (current label) | Pane | Worktree | Issue | Status |
 | --- | --- | --- | --- | --- |
-| `datasets-chain-3` | `w1:p9D` | `832-datasets-host-pinning` | #832→#833→#836 | #832 PR #848 open, QA in flight (see above); agent continuing on #833/#836 in same worktree |
+| `datasets-chain-4` | `w1:p9H` | `832-datasets-host-pinning` | #832→#833→#836 | #832 PR #848 open, QA in flight (see above); agent continuing on #833/#836 in same worktree |
 | `dep-cycle-3` | `w1:p9F` | `834-jobs-settings-cycle` | #834 | building, task 4 (verify:foundation) in progress at last observation |
 
 **No escalations outstanding.** No `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags seen this run.
@@ -146,7 +150,7 @@ merged immediately (squash `ab79cdc7`), issue #832 closed manually (no auto-clos
 
 | Agent | Pane | Status at check | Notes |
 | --- | --- | --- | --- |
-| `datasets-chain-3` | `w1:p9D` | working, "Mustering…", ctx 48% | continuing on #833/#836, PR #848 already merged |
+| `datasets-chain-4` | `w1:p9H` | working, "Mustering…", ctx 48% | continuing on #833/#836, PR #848 already merged |
 | `dep-cycle-3` | `w1:p9F` | working, running verify:foundation + audit:release-hardening pre-push, ctx 47% | on #834, next steps: rebase, push, PR, report |
 
 Both persistent Monitors re-established fresh this session (prior session's Monitors did not
@@ -157,5 +161,39 @@ survive relay):
    last observed idle. Ben's explicit ask, non-fleet item.
 
 **No escalations outstanding.** No `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags seen. Next
-coordinator action: keep supervising `datasets-chain-3` and `dep-cycle-3` toward their PRs;
+coordinator action: keep supervising `datasets-chain-4` and `dep-cycle-3` toward their PRs;
 QA + merge each per tier when they report done.
+
+## Continuation note (relay @ 2026-07-07, 72% context-meter warning, mid-Phase-3)
+
+**Coordinator lock:** this relay's anchor is session `25847737-d212-4e3b-90e4-bd27e120361e`
+(pane `w1:p9G`, label `Coordinator`, tab `w1:t15`) — about to spawn successor in the SAME
+pane/tab. Update the lock line at the top of this file to the successor's session id once
+confirmed driving. `merges_since_relay` stays at **1** (only PR #848 merged this tenure).
+
+**In flight, needs the successor to pick up:**
+- **PR #849 (#834, sensitive tier, dep-cycle-3/`w1:p9F`)** — build done (VF_EXIT=0, AUDIT_EXIT=0,
+  full suite, isolated DB `jarv1s_fix834`, rebased on `origin/main`@`ab79cdc7`). QA agent already
+  spawned: `Agent(subagent_type: "coordinated-qa", isolation: "worktree")`, agentId
+  `af01b499cf9d1ff1c`, prompted for sensitive-tier invariant check (DataContextDb/VaultContext,
+  metadata-only pg-boss payloads, module isolation) — **verdict not yet returned when this relay
+  fired**. Successor: check for its completion notification first; if missed, `SendMessage(to:
+  "af01b499cf9d1ff1c", ...)` to resume, or re-spawn QA fresh on PR #849 if that fails (mirrors how
+  `a72f373262ccd7b83` was recovered last relay). If GREEN → merge #849 (squash), close #834,
+  **auto-merge + Ben digest — no pre-merge sign-off gate** (sensitive ≠ security tier). `dep-cycle-3`
+  (`w1:p9F`) is idle, waiting on this — reap it once merged, its worktree/branch done.
+- **#833 (datasets chain, `docs/superpowers/plans/2026-07-07-833-redirect-header-stripping.md`,
+  sensitive tier)** — plan reviewed and approved this tenure (single task, scoped to
+  `packages/datasets/src/host-pinning.ts` + its test file, stays inside spec Architecture §2/§4,
+  no fork). `datasets-chain-4` (session `0d72e407…`, pane `w1:p9H`) confirmed driving same
+  worktree/branch, now building Task 1. No action needed until it reports done → then QA
+  (sensitive tier, same invariant checklist as #834) → auto-merge + digest. #836 (routine) is
+  next in the chain after #833 merges — do not start it early, must rebase on #833's merge first
+  per the serialized-chain rule.
+- **Monitors do not survive relay — re-establish both fresh:** (1) fleet liveness diffing
+  `herdr pane list` over tab `w1:t1B` (datasets chain + dep-cycle panes), emit on `agent_status`/
+  label change only; (2) sports-broadsheet watch on pane `w1:p8Y`, emit on `agent_status` change
+  — this one is Ben's explicit standing ask, not a fleet item, keep it running regardless of
+  fleet state.
+
+**No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
