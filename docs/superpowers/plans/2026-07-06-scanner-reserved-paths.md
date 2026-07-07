@@ -35,6 +35,7 @@ literal list matches the shell's own non-module route paths, so it cannot go sta
 ### Task 1: Add the reserved-path denylist constant + drift-guard test
 
 **Files:**
+
 - Modify: `packages/settings-ui/src/scanner.ts` (add `SHELL_RESERVED_WEB_PATHS` export, no
   enforcement yet)
 - Modify: `packages/settings-ui/src/vite.ts` (re-export `SHELL_RESERVED_WEB_PATHS`, matching the
@@ -42,6 +43,7 @@ literal list matches the shell's own non-module route paths, so it cannot go sta
 - Create: `tests/unit/module-web-reserved-paths.test.ts`
 
 **Interfaces:**
+
 - Consumes: `webRoutes` (`apps/web/src/app-route-metadata.ts`, existing export, array of
   `{ id: string; path: string; ... }`), `MODULE_WEB_ROUTES` (`virtual:jarvis-module-web`, aliased in
   `vitest.config.ts` to `tests/fixtures/virtual-jarvis-module-web.ts`, array of
@@ -153,11 +155,13 @@ git commit -m "feat(settings-ui): add shell-reserved web path denylist with drif
 ### Task 2: Enforce the denylist in `scanModuleWeb` + fixture test
 
 **Files:**
+
 - Modify: `packages/settings-ui/src/scanner.ts` (throw in `scanModuleWeb` when a manifest navigation
   entry's path is reserved)
 - Modify: `tests/unit/module-web-reserved-paths.test.ts` (add the fixture test)
 
 **Interfaces:**
+
 - Consumes: `scanModuleWeb(options: { rootDir: string }): WebScanResult` (existing, from
   `packages/settings-ui/src/vite.ts`), `SHELL_RESERVED_WEB_PATHS` (from Task 1).
 - Produces: `scanModuleWeb` throws `Error` with message
@@ -212,11 +216,11 @@ Add inside the existing `describe("module web scanner reserved paths", ...)` blo
 drift-guard test:
 
 ```ts
-  it("throws when a module's web route path collides with a shell-reserved path", async () => {
-    const rootDir = await makeRoot();
-    await makeFixturePackage(
-      rootDir,
-      `export const fixtureModuleManifest = {
+it("throws when a module's web route path collides with a shell-reserved path", async () => {
+  const rootDir = await makeRoot();
+  await makeFixturePackage(
+    rootDir,
+    `export const fixtureModuleManifest = {
         id: "fixture",
         name: "Fixture",
         lifecycle: "user-toggleable",
@@ -230,12 +234,12 @@ drift-guard test:
           }
         ]
       };`
-    );
+  );
 
-    expect(() => scanModuleWeb({ rootDir })).toThrow(
-      /module web route path "\/settings" is reserved by the app shell/i
-    );
-  });
+  expect(() => scanModuleWeb({ rootDir })).toThrow(
+    /module web route path "\/settings" is reserved by the app shell/i
+  );
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -321,7 +325,7 @@ git commit -m "feat(settings-ui): reject module web routes colliding with shell-
 
 - [x] Task 1 covers: drift guard tying the denylist to the shell entries in `app-route-metadata.ts`.
 - [x] Task 2 covers: fixture test — a module declaring a shell-reserved path fails `scanModuleWeb`
-  with a clear error.
+      with a clear error.
 
 ## Verification (before wrap-up)
 
