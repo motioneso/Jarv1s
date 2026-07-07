@@ -11,4 +11,9 @@ export {
   DEFAULT_STALE_RETENTION_MS
 } from "./cache.js";
 export type { DatasetCacheHit, DatasetCacheOptions } from "./cache.js";
-export { assertValidFetchHosts, createHostPinnedFetch, isPinnableHost } from "./host-pinning.js";
+export {
+  assertValidFetchHosts,
+  createHostPinnedFetch,
+  HostPinningViolationError,
+  isPinnableHost
+} from "./host-pinning.js";
