@@ -212,3 +212,90 @@ describe("createHostPinnedFetch — sensitive header stripping across redirects 
     expect(calls[1]?.headers.authorization).toBeUndefined();
   });
 });
+
+function fakeFetchCapturingRequestInit(
+  responses: readonly { status: number; location?: string }[]
+): {
+  fetchFn: typeof fetch;
+  calls: Array<{ url: string; method: string; body: unknown }>;
+} {
+  const calls: Array<{ url: string; method: string; body: unknown }> = [];
+  let i = 0;
+  const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), method: init?.method ?? "GET", body: init?.body });
+    const r = responses[Math.min(i, responses.length - 1)];
+    i += 1;
+    const headers = new Headers();
+    if (r?.location) headers.set("location", r.location);
+    return new Response(null, { status: r?.status ?? 200, headers });
+  }) as unknown as typeof fetch;
+  return { fetchFn, calls };
+}
+
+describe("createHostPinnedFetch — 303/301/302 method downgrade, 307/308 preserved (#836)", () => {
+  it("downgrades a 303 hop to GET with no body, regardless of original method", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingRequestInit([
+      { status: 303, location: "https://site.api.espn.com/other" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", { method: "POST", body: "payload" });
+    expect(calls[0]).toMatchObject({ method: "POST", body: "payload" });
+    expect(calls[1]?.method).toBe("GET");
+    expect(calls[1]?.body).toBeUndefined();
+  });
+
+  it("downgrades a non-GET 302 hop to GET with no body", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingRequestInit([
+      { status: 302, location: "https://site.api.espn.com/other" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", { method: "POST", body: "payload" });
+    expect(calls[1]?.method).toBe("GET");
+    expect(calls[1]?.body).toBeUndefined();
+  });
+
+  it("downgrades a non-GET 301 hop to GET with no body", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingRequestInit([
+      { status: 301, location: "https://site.api.espn.com/other" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", { method: "PUT", body: "payload" });
+    expect(calls[1]?.method).toBe("GET");
+    expect(calls[1]?.body).toBeUndefined();
+  });
+
+  it("preserves method and body across a 307 hop", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingRequestInit([
+      { status: 307, location: "https://site.api.espn.com/other" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", { method: "POST", body: "payload" });
+    expect(calls[1]).toMatchObject({ method: "POST", body: "payload" });
+  });
+
+  it("preserves method and body across a 308 hop", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingRequestInit([
+      { status: 308, location: "https://site.api.espn.com/other" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", { method: "POST", body: "payload" });
+    expect(calls[1]).toMatchObject({ method: "POST", body: "payload" });
+  });
+
+  it("leaves a same-method (GET) hop through 301/302 unchanged", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingRequestInit([
+      { status: 302, location: "https://site.api.espn.com/other" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first");
+    expect(calls[0]?.method).toBe("GET");
+    expect(calls[1]?.method).toBe("GET");
+    expect(calls[1]?.body).toBeUndefined();
+  });
+});
