@@ -568,6 +568,15 @@ session directly (only sub-fork chat text so far):**
 2 routine/sensitive merges, not yet reached; relaying now solely because of the 70% context-meter
 trigger).
 
-**Coordinator lock:** now `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be` / label `Coordinator` / pane
-`w1:pA6` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
-Phase 0a and updates this line itself.
+**Coordinator lock:** now `c716ccac-7af8-49d8-96b6-81ed0ae6cc31` / label `Coordinator` / pane
+`w1:pA7` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure.
+Predecessor `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be` (pane `w1:pA6`) had already self-reaped —
+confirmed gone from `herdr pane list` on this successor's first read, before any explicit
+confirm-then-reap step was needed. Consistent with the relay protocol (successor confirms driving,
+predecessor reaps itself), not treated as an incident. Verified exactly one `Coordinator` pane via
+`herdr pane list` immediately after claiming the label.
+
+### Reaped this tenure
+
+- `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be` (pane `w1:pA6`) — self-reaped before this successor's
+  first `herdr pane list`; no explicit reap action was needed or taken.
