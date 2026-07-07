@@ -13,9 +13,9 @@
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | building (relaying, ctx 71%) | datasets-chain-2 | w1:p9C | 832-datasets-host-pinning (chain: 832→833→836) | — (pushing next) |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | building | datasets-chain-2 | w1:p9C | 832-datasets-host-pinning (chain: 832→833→836) | — |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-2 | w1:p9C | 832-datasets-host-pinning (chain: 832→833→836) | — |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | building/qa-pending | datasets-chain-3 | w1:p9D | 832-datasets-host-pinning (chain: 832→833→836) | — (PR pending, confirm number) |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | building | datasets-chain-3 | w1:p9D | 832-datasets-host-pinning (chain: 832→833→836) | — |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-3 | w1:p9D | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | building | dep-cycle-2 | w1:p98 | 834-jobs-settings-cycle | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | qa | settings-ui-scanner-relay | w1:p99 | 835-scanner-reserved-paths | #846 |
 | docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | qa | sports-cleanup-2 | w1:p9A | 837-sports-postmerge-cleanup | #847 |
@@ -65,6 +65,11 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
 - `0d5ad1d5-c963-4142-b422-73741d2c2cdd` (datasets-chain, pane `w1:p94`) — relayed at 70%+ meter
   warning mid Task 1/2 of TDD on #832; successor `datasets-chain-2` (session `c99a6e28…`, pane
   `w1:p9C`) confirmed driving same worktree/branch, Sonnet; reaped 2026-07-06.
+- `c99a6e28-ee78-4d58-a600-747aaaaa7e1b` (datasets-chain-2, pane `w1:p9C`) — relayed at ctx 71%
+  right after #832 build done (tasks 2-4 green, isolated db `jarv1s_832_datasets`, unit
+  1848/1848, integration 1352/1352 after 1 flaky re-run), before/while pushing PR; successor
+  `datasets-chain-3` (pane `w1:p9D`, session `0c8cc3f2…`) confirmed driving same worktree; reaped
+  2026-07-06.
 
 ## Current state (as of this relay-ack, 2026-07-06)
 
