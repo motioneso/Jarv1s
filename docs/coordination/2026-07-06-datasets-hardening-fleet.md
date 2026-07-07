@@ -1,7 +1,7 @@
 # Coordination Run — 2026-07-06-datasets-hardening-fleet
 
 **Date:** 2026-07-06
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `5a5d9633-f058-44a3-b379-684461cc8079`** (pane `w1:p9N` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `22037838-bb11-4e04-b12f-71519a9f7834` (pane `w1:p9K`, tab `w1:t15`), reaped 2026-07-07 after confirming #836 plan approval delivered and manifest flushed.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `4ab3a1f5-1b26-48f5-b899-cb36068a5c77`** (pane `w1:p9Q` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `5a5d9633-f058-44a3-b379-684461cc8079` (pane `w1:p9N`, tab `w1:t15`), reaped 2026-07-07 after confirming handoff ack (predecessor stopped its own transient handoff-watch monitor before reap; no monitors of this run's carried over — Ben's stop-Monitors instruction stands).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; no `security`-tier items in this run.
 **Relay threshold:** routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 1 (this tenure, session `5a5d9633…`: PR #851 merged 2026-07-07, closing
@@ -9,9 +9,9 @@
 no relay fired yet, but no further queued work remains either; see continuation note).
 
 **Run status: COMPLETE.** All 6 queued items merged (2026-07-07). Both persistent Monitors
-(fleet liveness, sports-broadsheet watch) stopped on Ben's explicit instruction. Coordinator
-session `5a5d9633…` (pane `w1:p9N`, label `Coordinator`) idle, awaiting either new queue items
-or stand-down instruction.
+(fleet liveness, sports-broadsheet watch) stopped on Ben's explicit instruction — **do not
+restart them.** Coordinator session `4ab3a1f5…` (pane `w1:p9Q`, label `Coordinator`) idle,
+awaiting either new queue items or stand-down instruction.
 
 > Externalized coordinator memory. GitHub is the source of truth for spec/issue/board status;
 > this file holds only in-flight operational state.
@@ -354,6 +354,12 @@ survive relay):
 Next action: supervise `datasets-chain-5` to PR → routine QA → auto-merge → close #836 (chain
 complete, no successor issue after).
 
+- `5a5d9633-f058-44a3-b379-684461cc8079` (old Coordinator, pane `w1:p9N`) — run already COMPLETE
+  (all 6 queue items merged) when this relay fired; no in-flight work handed off. Predecessor
+  confirmed its one remaining monitor was its own transient handoff-watch Monitor (not one of the
+  two run Monitors, already stopped per Ben's instruction), stopped it, and acked; reaped
+  2026-07-07 by successor (session `4ab3a1f5…`, pane `w1:p9Q`).
+
 ## Continuation note (relay @ 2026-07-07, 70% context-meter checkpoint, mid plan-approval)
 
 **Coordinator lock:** this relay's anchor is session `22037838-bb11-4e04-b12f-71519a9f7834`
@@ -391,3 +397,24 @@ confirmed driving. `merges_since_relay` stays **0** (no merges landed this tenur
   session, not inherited.)
 
 **No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
+
+## Continuation note (relay @ 2026-07-07, run COMPLETE, successor adopted post-completion)
+
+**Coordinator lock:** now anchored on session `4ab3a1f5-1b26-48f5-b899-cb36068a5c77` (pane
+`w1:p9Q`, relabeled `Coordinator`, tab `w1:t15`). Predecessor `5a5d9633-f058-44a3-b379-684461cc8079`
+(pane `w1:p9N`) messaged directly to confirm handoff; it reported one monitor still running,
+identified it as its own transient handoff-watch Monitor (not either of the two run Monitors,
+which it confirmed were already stopped per Ben's instruction), stopped it, acked, and was
+reaped (`herdr pane close w1:p9N`). Uniqueness re-verified via `herdr pane list` — exactly one
+`Coordinator` pane (this one).
+
+**Run state on adoption:** unchanged from predecessor — **COMPLETE**, all 6 queue items merged
+(#832/#848, #833/#850, #834/#849, #835/#846, #836/#851, #837/#847), queue empty, no successor
+issues in the datasets chain. Both persistent run Monitors (fleet liveness, sports-broadsheet
+watch) remain stopped per Ben's explicit instruction — **not restarted this tenure, per
+standing instruction**. No active build agents in `w1:t1B` (fleet tab empty of build work).
+`merges_since_relay` — not applicable, no merges this tenure.
+
+**No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
+Coordinator now idle, awaiting either new queued work from Ben or a stand-down instruction. No
+busy-polling — will respond to pushed messages only.
