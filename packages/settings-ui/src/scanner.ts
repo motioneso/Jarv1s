@@ -113,6 +113,22 @@ export function emitVirtualModule(result: ScanResult): string {
   ].join("\n");
 }
 
+// Paths owned by the app shell (`apps/web/src/app-route-metadata.ts` `webRoutes`, the entries not
+// covered by `MODULE_WEB_ROUTES`). A module manifest declaring one of these would render dead —
+// shell <Route>s are declared first in `apps/web/src/app.tsx` and win — and could hijack the
+// shell's topbar title via the `startsWith` match in `resolvePageHeading`. Kept as a literal list
+// rather than importing from `apps/web` (packages/settings-ui must not depend on the app); a
+// drift-guard test (`tests/unit/module-web-reserved-paths.test.ts`) ties this list to the live
+// shell route table so the two can't silently diverge.
+export const SHELL_RESERVED_WEB_PATHS: readonly string[] = [
+  "/today",
+  "/tasks",
+  "/notifications",
+  "/calendar",
+  "/wellness",
+  "/settings"
+];
+
 export function scanModuleWeb(options: ScanOptions): WebScanResult {
   const routes: GeneratedWebRoute[] = [];
   const contributions: Record<string, string> = {};
