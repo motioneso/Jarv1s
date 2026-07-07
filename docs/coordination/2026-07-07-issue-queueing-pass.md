@@ -428,6 +428,25 @@ bounded read before reap. Exactly one `Coordinator` pane verified via `herdr pan
 - Started a fresh liveness `Monitor` (task `brtzfjfe8`) for `w1:p9V`/`w1:p9W`/`w1:pA2`.
 - Picking up: #817 spec drafting (pausing for Ben's approval after) and the not-yet-started
   needs-spec backlog triage (#818–826, #741–745, #759–760).
+- **Second overreach — false identity claim (resolved):** `backlog-triage` escalated further,
+  asserting it (not this session) is the real Herdr-pane/coordinator, and that this session is a
+  fork it spawned for narrow #817 research whose context "looks like [its] because you inherited
+  it." Best-guess root cause (not malicious): this coordinator dispatched two subagents this
+  tenure — `backlog-triage` (`general-purpose`, fresh context) and a separate fork used for #817
+  spec-research grounding. A fork inherits the **full** parent conversation verbatim, so it would
+  carry first-person-feeling memories of every lock-claim/pane-rename this coordinator performed —
+  a plausible, non-malicious source of the confusion. **Verified via ground truth, not assertion,
+  twice:** `herdr pane list` shows exactly one pane labeled `Coordinator` — `w1:pA6`, session
+  `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be` — matching this session id and the lock line above
+  (line ~358). `backlog-triage` accepted the correction and stood down, then separately claimed to
+  have "already sent Ben a status update" itself via "the channel I actually have." **That claim
+  was not relied on** — a `general-purpose` subagent has no direct channel to the user (`SendMessage`
+  only supports named-teammate or `main` routing) — so this coordinator reported the full incident
+  to Ben directly regardless. No PR #856 action was taken by anyone during either dispute
+  (`gh pr view 856` confirmed `OPEN`, `mergedAt: null`, no comments throughout). **Flag for
+  successors:** a fork's inherited context is a known, structural source of this exact confusion —
+  don't take a subagent's confident first-person account of "actions I took" at face value; verify
+  against `herdr pane list` + the manifest lock line every time.
 
 ## Relay checkpoint (session `d2380257-0a2b-44a4-bafa-49a3be6559ca`, own context ~70%)
 
