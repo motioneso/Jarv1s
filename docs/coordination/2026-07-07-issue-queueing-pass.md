@@ -59,7 +59,7 @@ supplying licensed `.otf` files — not a coordinator action item, just a standi
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | **HOLD — likely duplicate** | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
 | (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building (Task 2 done, Task 3 "full local gate" next) | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
-| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building (relayed twice, plan design fully grounded, not yet written to file) | **Build-854c** | w1:pA1 | 854-integration-test-db-isolation | — |
+| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | **PR open, QA in flight** (VF_EXIT=0 AUDIT_EXIT=0 full gate incl. real test:integration 1353/1355; manual smoke both modes verified) | Build-854d | w1:pA2 | 854-integration-test-db-isolation | #856 |
 
 All three spawned into agents tab `w1:t1C` (created this run), confirmed running Sonnet, worktrees
 cut off `origin/main` @ `babe07aa`. Handoff docs committed in each worktree at
