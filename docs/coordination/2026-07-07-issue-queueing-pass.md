@@ -249,3 +249,17 @@ Escalated to Ben via AskUserQuestion (not decided unilaterally); Ben chose "shut
 **Coordinator lock:** unchanged — still `9fb2dc84-f605-4580-8ba3-510bbdef6f59` / label
 `Coordinator` / pane `w1:p9Z` (resolve fresh, don't trust the pane number) until the successor
 claims Phase 0a and updates this line itself.
+
+## Late-breaking events (arrived during this coordinator's own relay flush — hand to successor)
+
+- **#854 relayed again:** Build-854c (`w1:pA1`) → successor label **Build-854d**, currently
+  resolving to `w1:pA2` (re-resolve fresh by label+session, don't trust this pane number). Plan
+  still approved, zero code written at handoff (Build-854c relayed before starting Task 1 too).
+  Ben confirmed it's safe to reap Build-854c. **Successor coordinator: confirm Build-854d is
+  actually driving (bounded pane read, confirm Sonnet), reap `w1:pA1`, update the fleet table
+  above, restart the Monitor with the new pane set.**
+- **Ben, standing instruction:** lay out the agents tab in **quadrants** (2×2 grid) — matches the
+  coordinate skill's existing "Grid: 2×2 for 4-agent waves" convention, now explicitly requested.
+  Apply via `herdr pane split <pane> --direction down|right --cwd <path> --no-focus` so the
+  agents tab panes sit in a 2×2 grid rather than however they currently stack. Do this next time
+  the fleet is touched (relay, new spawn) if it isn't already quadranted.
