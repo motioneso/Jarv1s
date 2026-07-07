@@ -2,11 +2,11 @@
 
 **Date:** 2026-07-07
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id
-`9ba963a2-ae22-47b2-a8f2-2871b37a2f46`** (pane `w1:p9Q`, tab `w1:t15` at time of writing — resolve
-fresh by label+session, never trust the pane number). Exactly one `Coordinator` pane confirmed via
-`herdr pane list` at run start (previous datasets-hardening-fleet run was COMPLETE, this session
-picked up the same pane after a `/clear`, which is why the session id changed from the prior
-manifest's `4ab3a1f5…`).
+`e56b7c36-6f1b-4438-85ef-bb5cad9eed74`** (pane `w1:p9S`, tab `w1:t15` at time of writing — resolve
+fresh by label+session, never trust the pane number). Relayed from predecessor session
+`9ba963a2-ae22-47b2-a8f2-2871b37a2f46` (pane `w1:p9Q`) at its 70% context checkpoint; predecessor
+confirmed handoff, went `done`, and was reaped (pane closed) at run continuation. Exactly one
+`Coordinator` pane confirmed via `herdr pane list` post-reap.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -101,4 +101,5 @@ approval, it's a straightforward bug fix).
 
 ## Reaped sessions
 
-- (none yet this run)
+- `9ba963a2-ae22-47b2-a8f2-2871b37a2f46` (pane `w1:p9Q`) — relayed at 70% context checkpoint,
+  confirmed handoff, reaped by successor `e56b7c36-6f1b-4438-85ef-bb5cad9eed74` (pane `w1:p9S`).
