@@ -500,6 +500,55 @@ build queue item; no further coordinator action until Ben runs `/start` on slug
 `w1:pA3` (resolve fresh, don't trust the pane number) until the successor claims Phase 0a and
 updates this line itself.
 
+## Relay checkpoint (session `c716ccac-7af8-49d8-96b6-81ed0ae6cc31`, own context 70%)
+
+Coordinator context hit the 70% trigger — no-deferral relay in progress, spawning successor now in
+same tab (`w1:t15`). No merges this tenure (`merges_since_relay` unchanged at 1 from predecessor —
+carry forward). Full state at handoff:
+
+**Fleet (all re-confirmed via bounded reads this tenure, unchanged from predecessor):**
+- **#663** — `w1:p9V`, Build-663, idle, Sonnet, 53% ctx. Still HOLD — awaiting Ben's explicit
+  close-vs-rescope call (duplicate of PR #719/#695). Untouched.
+- **#853** — `w1:p9W`, Build-853, idle, Sonnet, 53% ctx. Task 1+2 done, Task 3 ("full local
+  gate") not yet started. No PR yet. When done: Opus adversarial QA → mandatory `gh pr comment`
+  verdict → Ben's explicit sign-off. Never auto-merge.
+- **#854** — already merged/reaped by predecessor tenure; no pane, nothing further.
+
+**Housekeeping done this tenure:** claimed lock (predecessor `b7a14b99`/`w1:pA6` had already
+self-reaped, confirmed via two `herdr pane list` reads — not an incident), closed leftover
+`reserved-slot` pane `w1:pA4`, started fresh liveness `Monitor` (task `bynbw4vgp`) for
+`w1:p9V`/`w1:p9W`.
+
+**#817 spec review — DONE this tenure, still PAUSED for Ben, do NOT proceed to `/plan`/`/build`:**
+Read `docs/superpowers/specs/2026-07-07-error-explainability.md` in full (not trusted from the
+drafting fork's self-report), cross-checked against the #413 precedent spec and CLAUDE.md Hard
+Invariants, ground-truthed referenced files directly. Two findings surfaced to Ben this turn (full
+detail in the "#817 spec — independently verified" section above, few paragraphs up):
+1. Tier should be **`security`**, not the spec's self-proposed `sensitive` — new RLS/policy-touching
+   migration is a mechanical security-tier trigger per the coordinate skill's tiering table.
+2. D4's stack-trace field mapping is ambiguous — `registerClientErrorsRoute`'s logged object
+   includes a truncated client stack trace (ground-truthed in `error-handling.ts`); the spec doesn't
+   explicitly state `stack` is dropped before persisting into the new user-queryable
+   `app.jarvis_error_log` table, which risks violating its own Non-Goals/Exit-Criteria promise and
+   the secrets-never-escape invariant (stack data reaching an AI-prompt-readable surface). Needs an
+   explicit fix in D4 before approval.
+
+**Successor: these findings were relayed to Ben in this tenure's final chat message (not yet
+re-confirmed as read/acted on by Ben as of this checkpoint) — do not re-relay from scratch, just
+pick up his response when it arrives. Spec approval/rejection is his call, not a re-review.**
+
+**Backlog triage relay (Step 5) — also delivered to Ben in this tenure's final chat message,**
+using the already-recorded split from the `b7a14b99` tenure's "Backlog triage" section above
+(ready-for-brief: #820/#821/#823/#824; needs Ben's scope call: #818/#819/#822/#825/#826; existing
+unapproved 2026-07-05 draft specs awaiting his read-through: #742/#743/#744/#759/#760; #745 parked;
+#741 awaiting his close decision). **No new triage work was done this tenure** — this was a
+straight relay of already-complete findings, not a re-triage. Successor: nothing to do here unless
+Ben has follow-up questions.
+
+**Coordinator lock:** now `c716ccac-7af8-49d8-96b6-81ed0ae6cc31` / label `Coordinator` / pane
+`w1:pA7` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
+Phase 0a and updates this line itself.
+
 ## Relay checkpoint (session `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be`, own context 70%)
 
 **⚠️ Flag for Ben + successor — unauthorized merge action by a subagent.** This tenure dispatched
