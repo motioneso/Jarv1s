@@ -58,7 +58,7 @@ supplying licensed `.otf` files — not a coordinator action item, just a standi
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | **HOLD — likely duplicate** | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
-| (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building (plan approved, Task 1 TDD in progress) | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
+| (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building (Task 2 done, Task 3 "full local gate" next) | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
 | (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building (relayed twice, plan design fully grounded, not yet written to file) | **Build-854c** | w1:pA1 | 854-integration-test-db-isolation | — |
 
 All three spawned into agents tab `w1:t1C` (created this run), confirmed running Sonnet, worktrees
@@ -203,3 +203,49 @@ approval, it's a straightforward bug fix).
   Origin unknown (not spawned by this coordinator tenure). Confirmed with Ben via AskUserQuestion →
   closed 2026-07-07. Build-853 (`w1:p9W`, session `2e85563b-b1e6-4828-9e21-48fa4cfccff8`) is the
   sole agent on that worktree/branch going forward.
+
+## Relay checkpoint (session `9fb2dc84-f605-4580-8ba3-510bbdef6f59`, own context 71%)
+
+Coordinator context hit the 70% trigger — no-deferral relay in progress. Spawning successor now
+in same tab (`w1:t15`). Full fleet + open-item state at handoff:
+
+**Fleet:**
+- **#663** — HOLD, `w1:p9V`, label Build-663. Awaiting Ben's explicit close-vs-rescope call
+  (duplicate of PR #719/#695). Not resolved this tenure — do not act without Ben.
+- **#853** — security tier, `w1:p9W`, label Build-853. TDD in progress, last observed at Task 2
+  done / Task 3 ("full local gate") next. No PR yet — no QA needed until it reports done. When it
+  does: spawn Opus adversarial QA, mandatory `gh pr comment` verdict, Ben's explicit sign-off
+  before merge. Never auto-merge.
+- **#854** — routine tier, branch `854-integration-test-db-isolation`. Plan (6 TDD tasks, reuse
+  `JARVIS_PGDATABASE`, no spec/migration needed) was approved this tenure against Build-854c
+  (`w1:pA1`). **Build-854c then relayed at its own 70% checkpoint before writing any code** —
+  zero code written, successor picks up Task 1 in the SAME worktree/branch. Successor
+  label/pane not yet confirmed as of this note. **Next coordinator action:** find the new
+  successor via `herdr pane list` (look for a new pane in the agents tab `w1:t1C` on this
+  worktree), confirm it's actually driving (bounded pane read, confirm Sonnet), reap Build-854c,
+  update this table, restart the liveness Monitor.
+
+**#817 `/brief` interview (with Ben, not a build agent):**
+- Q1 (problem) answered: sports "not all leagues could be loaded" prompted it; broader idea is
+  any user-visible error should be explainable by Jarvis on request.
+- Q2 (user) answered, after probe on "everyone": any user who asks "what does X mean" should get
+  told why that message appeared — confirmed as "everyone" is the real answer here, not a
+  cop-out.
+- **Q3 (success) was asked but NOT yet answered** — Ben's last several messages were about the
+  #854 relay chain, not the interview. **Successor: re-ask Q3 verbatim** ("What does success look
+  like?") — do not assume an answer, do not skip to Q4.
+
+**Tab discipline (Ben, standing):** agents tab only (`w1:t1C` this run), overflow past 4 panes to
+agents2/agents3. Twice this tenure a relayed/spawned agent landed in the wrong tab (Build-854b in
+Ben's personal tab, Build-854c briefly in the coordinator's own tab) — check tab placement on
+EVERY relay, not just initial spawn.
+
+**Incident this tenure:** stray duplicate-worktree pane `w1:p90` ("Build-853-next") found running
+against Build-853's same worktree — unknown origin, hard-stop two-agents-one-worktree hazard.
+Escalated to Ben via AskUserQuestion (not decided unilaterally); Ben chose "shut it down"; closed.
+
+**merges_since_relay:** 0 (nothing merged this tenure).
+
+**Coordinator lock:** unchanged — still `9fb2dc84-f605-4580-8ba3-510bbdef6f59` / label
+`Coordinator` / pane `w1:p9Z` (resolve fresh, don't trust the pane number) until the successor
+claims Phase 0a and updates this line itself.
