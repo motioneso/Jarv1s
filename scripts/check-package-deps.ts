@@ -55,7 +55,7 @@ interface PackageDescriptor {
 
 interface Violation {
   readonly package: string;
-  readonly kind: "undeclared" | "unused";
+  readonly kind: "undeclared" | "unused" | "cycle";
   readonly detail: string;
 }
 
@@ -96,6 +96,24 @@ async function main(): Promise<void> {
         });
       }
     }
+  }
+
+  const dependencyGraph = new Map<string, Set<string>>();
+  for (const packageDirectory of packageDirectories) {
+    const descriptor = await loadPackageDescriptor(packageDirectory);
+    if (!descriptor) continue;
+    const workspaceDeps = new Set(
+      [...descriptor.declaredDependencyNames].filter((name) => name.startsWith("@jarv1s/"))
+    );
+    dependencyGraph.set(descriptor.name, workspaceDeps);
+  }
+
+  for (const cyclePath of detectDependencyCycles(dependencyGraph)) {
+    violations.push({
+      package: cyclePath[0]!,
+      kind: "cycle",
+      detail: cyclePath.join(" -> ")
+    });
   }
 
   if (violations.length > 0) {
