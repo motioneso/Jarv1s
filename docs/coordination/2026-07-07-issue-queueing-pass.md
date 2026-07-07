@@ -182,3 +182,9 @@ approval, it's a straightforward bug fix).
 - Restarted a fresh liveness `Monitor` for `w1:p9V`/`w1:p9W`/`w1:p9Y` (predecessor's monitor died
   with its session at relay, per protocol).
 - Resuming the paused `#817` `/brief` interview — re-asking Q1 since no answer was ever recorded.
+- **Stray duplicate agent closed:** pane `w1:p90` ("Build-853-next", session
+  `b23cca4f-02ec-4c95-8d28-9940f3c09bc3`) appeared in `w1:t17` (Ben's personal tab) pointed at the
+  **same worktree** as Build-853 (`853-auth-signup-atomicity`) — a two-agents-one-worktree hazard.
+  Origin unknown (not spawned by this coordinator tenure). Confirmed with Ben via AskUserQuestion →
+  closed 2026-07-07. Build-853 (`w1:p9W`, session `2e85563b-b1e6-4828-9e21-48fa4cfccff8`) is the
+  sole agent on that worktree/branch going forward.
