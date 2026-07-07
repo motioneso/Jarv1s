@@ -204,12 +204,13 @@ confirmed driving. `merges_since_relay` stays at **1** (only PR #848 merged this
 `w1:p9J`, tab `w1:t15`, relabeling to `Coordinator`). Predecessor
 `25847737-d212-4e3b-90e4-bd27e120361e` (pane `w1:p9G`) messaged to confirm and reap.
 
-**Resolved on adoption:** the prior QA agent for PR #849 (`af01b499cf9d1ff1c`) had no resumable
-transcript in this session (session-boundary loss, not a verdict) — CI's "Verify foundation and
-app" check was still `pending` on re-check anyway, so nothing was lost. Re-spawned QA fresh:
-`coordinated-qa` agent `a17376673fa4fe43f` (Sonnet, sensitive-tier invariant checklist), running
-in background against PR #849 / branch `834-jobs-settings-cycle`. Awaiting its verdict before
-merge.
+**Correction:** `af01b499cf9d1ff1c` was NOT dead — it's still alive and running under the
+*predecessor's* pane (`w1:p9G`), just unreachable from this session (agent transcripts are
+session-scoped, not global). Predecessor pane still shows it in progress (~11min,
+"reading acceptance criteria", 44.9k tokens). Stopped the duplicate QA agent
+(`a17376673fa4fe43f`) I'd spawned in error and removed its worktree — avoid double QA spend.
+Messaged predecessor (`w1:p9G`) to hold off standing down until its QA agent posts a verdict;
+will reap only after that verdict is in hand.
 
 **Fleet state, re-verified via bounded pane read:**
 
