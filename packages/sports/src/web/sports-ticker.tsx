@@ -19,7 +19,11 @@ function standingIsSane(card: FollowedTeamCard): boolean {
   if (!card.standing) return false;
   if (TOURNAMENT_COMPETITIONS.has(card.competitionKey)) return false;
   if (/·\s*(0 pts|0-0)$/.test(card.standing)) return false;
-  return !card.standing.startsWith("#0") && !/-\d/.test(card.standing);
+  // Negative-points guard is anchored after the separator: the old bare /-\d/ also matched
+  // every W-L record ("#3 · 10-2") and silently hid ALL US-league standings on live data
+  // (live feedback mraxrdxr, mraz6m43) — fixtures never caught it because they used the
+  // already-fixed "2nd · NFC North" form.
+  return !card.standing.startsWith("#0") && !/·\s*-\d/.test(card.standing);
 }
 
 // Reader priority (live feedback mra54n4h): live game first, then any team whose season is
@@ -107,8 +111,8 @@ export function SportsTicker(props: {
     setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
   }
 
-  // Same edge accounting as AroundLeaguesTicker: re-measure when content or viewport changes,
-  // so the arrows only render when there is actually somewhere to scroll.
+  // Re-measure the scroll edges when content or viewport changes, so the arrows only render
+  // when there is actually somewhere to scroll.
   useEffect(() => {
     updateEdges();
     window.addEventListener("resize", updateEdges);
@@ -177,40 +181,66 @@ export function SportsTicker(props: {
 
 function TickerTeam(props: { card: FollowedTeamCard; headlines: readonly Headline[] }) {
   const { card } = props;
-  const stories = teamStories(card, props.headlines);
+  const allStories = teamStories(card, props.headlines);
+  // Pre-game today cards drop the matchup line (the Next footer already names the fixture,
+  // mrawrk0e) — but blanking the whole primary slot left those cards a hollow void next to
+  // their news-status neighbors (top-area feedback 2026-07-07). Only the matchup text was
+  // redundant; fill the slot with news instead so every non-score card shares one anatomy.
+  const showNews =
+    card.status === "news" || (card.status === "today" && card.todayGameState !== "final");
+  // A news-filled card with no dedicated story used to render "No recent news" with matched
+  // headlines linked right below it — a plain contradiction (live feedback mrathm2y). When the
+  // card itself is storyless, promote the first matched headline into the primary slot and keep
+  // only the remainder as the small links; "No recent news" now only shows when there is truly
+  // nothing to link.
+  const promoted = showNews && !card.news ? (allStories[0] ?? null) : null;
+  const stories = promoted ? allStories.slice(1) : allStories;
+  const lead = card.news ?? promoted;
+  // The card used to open with a competition/status eyebrow row ("MLB · today") — cut per
+  // live feedback mratgoq4; it repeated info the content below already carries. Only the
+  // live signal survives, folded into the header row so a game in progress still reads.
   return (
     <article className="sp-tk">
-      <div className="sp-tk__eyebrow">
-        <span className="sp-tk__comp">{card.competitionLabel}</span>
-        {card.status === "live" ? (
-          <span className="sp-tk__live">
-            <LiveDot />
-            Live
-          </span>
-        ) : (
-          <span className="sp-tk__status">{card.status}</span>
-        )}
-      </div>
-      <div className="sp-tk__hd">
-        <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
-        <span className="sp-tk__name">{card.name}</span>
-      </div>
+      <header className="sp-tk__head">
+        <div className="sp-tk__hd">
+          <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
+          <span className="sp-tk__name">{card.name}</span>
+          {card.status === "live" ? (
+            <span className="sp-tk__live">
+              <LiveDot />
+              Live
+            </span>
+          ) : null}
+        </div>
+        {/* Standing + form live directly under the team name, above the header rule — they
+            identify the team's season, so they belong with the identity block, not docked at
+            the card base (live feedback mrawlzb7, supersedes the mrawcw2y bottom-docking) */}
+        {standingIsSane(card) || card.form.length > 0 ? (
+          <div className="sp-tk__sub">
+            {standingIsSane(card) ? <span className="sp-tk__standing">{card.standing}</span> : null}
+            <FormPips form={card.form} />
+          </div>
+        ) : null}
+      </header>
+      {/* Pre-game today matchups don't repeat the fixture here (the Next footer carries it,
+          mrawrk0e) — the slot shows news instead of going blank (top-area feedback
+          2026-07-07); a finished or in-progress game's score still owns it. */}
       <div className="sp-tk__primary">
-        {card.status === "news" ? (
+        {showNews ? (
           <>
             {/* Headline art as a small thumb when ESPN provides it (live feedback mra5xnt2);
                 the generic news glyph is the artless fallback. alt="" — the linked title
                 right next to it already names the story. */}
-            {card.news?.imageUrl ? (
-              <img className="sp-tk__thumb" src={card.news.imageUrl} alt="" loading="lazy" />
+            {lead?.imageUrl ? (
+              <img className="sp-tk__thumb" src={lead.imageUrl} alt="" loading="lazy" />
             ) : (
               <span className="sp-tk__newsic">
                 <NewsIcon />
               </span>
             )}
-            {card.news ? (
-              <a className="sp-tk__newstx" href={card.news.url} target="_blank" rel="noreferrer">
-                {card.news.title}
+            {lead ? (
+              <a className="sp-tk__newstx" href={lead.url} target="_blank" rel="noreferrer">
+                {lead.title}
               </a>
             ) : (
               <span className="sp-tk__newstx">No recent news</span>
@@ -218,15 +248,12 @@ function TickerTeam(props: { card: FollowedTeamCard; headlines: readonly Headlin
           </>
         ) : (
           // Matchup lines ("Blue Jays @ Giants") get body type and wrap; score lines stay mono.
-          // "· Scheduled" is server noise — the next-match row below already carries the time.
+          // "· Scheduled" is server noise; the kickoff time lives in the Next footer below
+          // (live feedback mrawhf6q), not appended here.
           <span className={/\d/.test(card.primary) ? "sp-tk__score" : "sp-tk__matchup"}>
             {card.primary.replace(/\s*·\s*Scheduled$/i, "")}
           </span>
         )}
-      </div>
-      <div className="sp-tk__meta">
-        {standingIsSane(card) ? <span className="sp-tk__standing">{card.standing}</span> : null}
-        <FormPips form={card.form} />
       </div>
       {stories.length > 0 ? (
         <ul className="sp-tk__stories">
@@ -239,25 +266,39 @@ function TickerTeam(props: { card: FollowedTeamCard; headlines: readonly Headlin
           ))}
         </ul>
       ) : null}
-      {card.nextMatch ? (
+      {/* Next-game footer: opponent crest stands in for the "Next" label + name text
+          (live feedback mrawvc48) — the logo identifies the opponent at a glance; the
+          full name stays for screen readers inside NextMatchLines. Hidden while the team
+          is live: the in-progress score owns the card until the game ends (mrawrk0e).
+          Today games use this same slot with "Today" standing in for the date (mrawhf6q). */}
+      {card.nextMatch && card.status !== "live" ? (
         <div className="sp-tk__next">
-          <span className="sp-tk__nextlbl">Next</span>
-          <NextMatchLines next={card.nextMatch} />
+          <Crest
+            name={card.nextMatch.opponentName}
+            crestUrl={card.nextMatch.opponentCrestUrl ?? null}
+            size="sm"
+          />
+          <NextMatchLines next={card.nextMatch} today={card.status === "today"} />
         </div>
       ) : null}
     </article>
   );
 }
 
-// Opponent on the first line, kickoff date · time on its own line below it (live feedback
-// mra387k7) — one long string used to wrap mid-date.
-function NextMatchLines(props: { next: FollowedNextMatch }) {
+// The opponent crest next door carries the identity visually (live feedback mrawvc48 —
+// supersedes the visible "vs Green Bay Packers" line from mra387k7), so the name text is
+// sr-only: sighted users see logo + kickoff, screen readers still hear "vs Green Bay
+// Packers". For a game later today the date is dead weight — "Today" reads faster than
+// "Tue, Jul 7" (live feedback mrawhf6q).
+function NextMatchLines(props: { next: FollowedNextMatch; today?: boolean }) {
   const locale = useUserLocale();
   const { opponent, when } = nextMatchParts(props.next, locale);
   return (
     <span className="sp-tk__nextline">
-      <span className="sp-tk__nextopp">{opponent}</span>
-      <span className="sp-tk__nextwhen">{when}</span>
+      <span className="sp-sronly">{opponent}</span>
+      <span className="sp-tk__nextwhen">
+        {props.today ? `Today · ${formatTime(props.next.startsAt, locale)}` : when}
+      </span>
     </span>
   );
 }

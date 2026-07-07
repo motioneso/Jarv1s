@@ -153,7 +153,9 @@ export function AroundLeaguesTicker({ groups }: { readonly groups: readonly Scor
         role="region"
         aria-label="All scores, scrollable"
       >
-        <span className="sp-around__label">Around the leagues</span>
+        {/* The "Around the leagues" nameplate that opened the scroll was cut — it spent a
+            card's worth of width on words the league plates already imply (live feedback
+            mrav84vx); the section keeps its aria-label for non-visual readers. */}
         {groups.map((group) => (
           <div className="sp-around__group" key={group.competitionKey}>
             <span className="sp-around__league">

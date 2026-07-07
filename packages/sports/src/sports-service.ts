@@ -16,8 +16,7 @@ import {
   type SportsCatalogResponse,
   type SportsFollowDto,
   type SportsOverviewResponse,
-  type StandingsGroup,
-  type StandingsRow
+  type StandingsGroup
 } from "@jarv1s/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
@@ -193,19 +192,50 @@ export class SportsService {
     // input order so `cards` still lines up with `followedTeams` (#765 M2).
     const cards: FollowedTeamCard[] = await Promise.all(
       followedTeams.map(async (follow) => {
-        const schedule = await this.cached<GameSummary[]>(
-          "schedule",
-          { teamKey: follow.teamKey, competitionKey: follow.competitionKey },
-          [],
-          state
-        );
+        // Resolve the provider's numeric team id from the catalog: ESPN's soccer schedule
+        // endpoint returns an empty payload for abbreviation slugs, which silently zeroed
+        // form/next-match on every soccer card (live feedback mrawhx9c). Null falls back to
+        // the abbreviation inside the source, which the US leagues accept.
+        const sourceTeamId =
+          (teamsByComp.get(follow.competitionKey) ?? []).find(
+            (team) => team.teamKey === follow.teamKey
+          )?.sourceTeamId ?? null;
+        // The league-wide feed rarely files a story under a specific team, so most followed
+        // cards showed "No recent news" while ESPN's per-team feed had plenty (live feedback
+        // mraxssnf). Pull each followed team's own feed — same pattern as the gameday hero
+        // block below — and merge it in for this card only; leagueNews stays league-scoped.
+        const [schedule, teamFeed] = await Promise.all([
+          this.cached<GameSummary[]>(
+            "schedule",
+            { teamKey: follow.teamKey, competitionKey: follow.competitionKey, sourceTeamId },
+            [],
+            state
+          ),
+          this.cached<SourceHeadline[]>(
+            "headlines",
+            { competitionKey: follow.competitionKey, teamKey: follow.teamKey },
+            [],
+            state
+          )
+        ]);
+        const compTeams = teamsByComp.get(follow.competitionKey) ?? [];
+        const leagueHeadlines = headlinesByComp.get(follow.competitionKey) ?? [];
+        const seen = new Set(leagueHeadlines.map((h) => h.id));
+        const headlines = [...leagueHeadlines];
+        for (const headline of resolveHeadlineTeamKeys(teamFeed, compTeams)) {
+          if (seen.has(headline.id)) continue;
+          seen.add(headline.id);
+          headlines.push(headline);
+        }
         return this.buildCard(
           follow,
           scoreboardByComp.get(follow.competitionKey) ?? [],
-          (standingsByComp.get(follow.competitionKey)?.sections ?? []).flatMap((s) => s.rows),
-          headlinesByComp.get(follow.competitionKey) ?? [],
+          // Sections travel whole (not flatMapped) so standingLine can tell a division/group
+          // placing from an overall table position (live feedback mraxrdxr, mraz6m43).
+          standingsByComp.get(follow.competitionKey)?.sections ?? [],
+          headlines,
           schedule,
-          teamsByComp.get(follow.competitionKey) ?? []
+          compTeams
         );
       })
     );
@@ -457,7 +487,7 @@ export class SportsService {
   private buildCard(
     follow: SportsFollowDto & { teamKey: string },
     games: readonly GameSummary[],
-    standings: readonly StandingsRow[],
+    standings: StandingsTable["sections"],
     headlines: readonly SourceHeadline[],
     schedule: readonly GameSummary[],
     teams: readonly SourceTeamRef[]
@@ -477,11 +507,16 @@ export class SportsService {
 
     let status: FollowedTeamCard["status"];
     let primary: string;
+    // Distinguishes a finished today game (score worth keeping in the primary slot) from a
+    // pre-game one (the ticker's Next footer already carries the fixture, so the matchup line
+    // is duplication — live feedback mrawrk0e). Today-widget consumers still get primary as-is.
+    let todayGameState: FollowedTeamCard["todayGameState"];
     if (todayGame && todayGame.state === "live") {
       status = "live";
       primary = scoreLine(todayGame);
     } else if (todayGame) {
       status = "today";
+      todayGameState = todayGame.state === "final" ? "final" : "pre";
       primary =
         todayGame.state === "final" ? resultLine(todayGame, teamKey) : matchupLine(todayGame);
     } else {
@@ -497,6 +532,7 @@ export class SportsService {
       crestUrl,
       status,
       primary,
+      todayGameState,
       news: newestTeamHeadline(headlines, teamKey),
       form: computeForm(schedule, teamKey),
       standing: standingLine(standings, teamKey),
@@ -737,14 +773,46 @@ function inGamedayWindow(game: GameSummary, now: Date): boolean {
   return new Date(game.startsAt).getTime() - now.getTime() <= GAMEDAY_HERO_LEAD_MS;
 }
 
-function standingLine(standings: readonly StandingsRow[], teamKey: string): string | null {
-  const row = standings.find((r) => r.teamKey === teamKey);
-  if (!row) return null;
-  // Zero games played = the league isn't in progress; its "rank" is carry-over noise like
-  // "#14 · 0 pts" and the card is better off without the line (live feedback mra39rlv).
-  if (row.wins + row.losses + (row.draws ?? 0) === 0) return null;
-  if (row.points !== null) return `#${row.rank} · ${row.points} pts`;
-  return `#${row.rank} · ${row.wins}-${row.losses}`;
+// The sub-row standing is sport-aware (live feedback mraxrdxr, mraz6m43): leagues whose
+// standings arrive in labelled sections (NFL/NBA divisions, tournament groups) show the
+// place WITHIN that section ("2nd · NFC East") because that's how those sports are read;
+// flat single-table leagues (soccer) keep the overall line ("#4 · 40 pts").
+function standingLine(sections: StandingsTable["sections"], teamKey: string): string | null {
+  for (const section of sections) {
+    const index = section.rows.findIndex((r) => r.teamKey === teamKey);
+    if (index === -1) continue;
+    const row = section.rows[index]!;
+    // Zero games played = the league isn't in progress; its "rank" is carry-over noise like
+    // "#14 · 0 pts" and the card is better off without the line (live feedback mra39rlv).
+    if (row.wins + row.losses + (row.draws ?? 0) === 0) return null;
+    // rank ≤ 0 = the provider omitted the stat and the source's positional fallback didn't
+    // apply (hand-built fixtures, older cache entries) — the section order is still the rank.
+    const place = row.rank > 0 ? row.rank : index + 1;
+    if (section.label) return `${ordinal(place)} · ${shortSectionLabel(section.label)}`;
+    if (row.points !== null) return `#${place} · ${row.points} pts`;
+    return `#${place} · ${row.wins}-${row.losses}`;
+  }
+  return null;
+}
+
+// Display-only compression for the card sub-row: ESPN division labels like "National League
+// West" / "Pacific Division" crowd the pips out of the narrow ticker sub-row (mraxrdxr).
+// Kept server-side but OUT of the standings payload — the standings rail wants the full label,
+// and adding a field to StandingsSection means response-schema churn (see the fast-json-
+// stringify oneOf trap that 500'd the overview this morning). NFL needs no entry: ESPN already
+// names its divisions short ("NFC East").
+function shortSectionLabel(label: string): string {
+  return label
+    .replace(/^American League /, "AL ")
+    .replace(/^National League /, "NL ")
+    .replace(/ Division$/, "");
+}
+
+function ordinal(n: number): string {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  const suffix = ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix}`;
 }
 
 function nextMatchFor(
@@ -763,7 +831,9 @@ function nextMatchFor(
   return {
     opponentName: opponent.name,
     homeAway: next.home.teamKey === teamKey ? "home" : "away",
-    startsAt: next.startsAt
+    startsAt: next.startsAt,
+    // Footer identifies the opponent by crest, not name (live feedback mrawvc48)
+    opponentCrestUrl: opponent.crestUrl
   };
 }
 

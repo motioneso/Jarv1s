@@ -230,12 +230,14 @@ describe("SportsPage", () => {
     expect(html).toContain('<span class="sp-scorebar__clock">16:20</span>');
   });
 
-  it("renders the followed-team ticker block with form pips and next match", () => {
+  it("renders the followed-team ticker block with form pips in the header sub-row", () => {
     const html = render(makeOverview());
     expect(html).toContain("sp-ticker");
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
-    expect(html).toContain("vs Green Bay Packers");
+    // the fixture card is live — the next-game footer stays hidden until full time
+    // (live feedback mrawrk0e); the ticker's own suite covers the non-live footer
+    expect(html).not.toContain("sp-tk__next");
   });
 
   it("renders the 2-up Latest column without the RANKED eyebrow or explainer dek", () => {
@@ -285,6 +287,8 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("sp-around");
     expect(html).toContain("sp-around__league"); // league label rendered once per group
+    // the "Around the leagues" nameplate was cut (live feedback mrav84vx) — league plates only
+    expect(html).not.toContain("sp-around__label");
     expect(html).toContain("Scroll left");
     expect(html).toContain("Scroll right");
     // #841 fix: live and final games surface the source statusDetail (clock/period, "Final"),

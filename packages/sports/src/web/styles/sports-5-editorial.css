@@ -36,6 +36,25 @@
   margin-right: -0.18em;
 }
 
+/* Phone masthead: the three-column folio has no room to keep the date on the brand's
+   baseline, so the nameplate leads and the date sits on a single centered line just below
+   it (live feedback mrav9w72) */
+@media (max-width: 720px) {
+  .sp-mast__folio {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    row-gap: var(--space-1);
+  }
+  .sp-mast__brand {
+    grid-row: 1;
+  }
+  .sp-mast__date {
+    grid-row: 2;
+    justify-self: center;
+    white-space: nowrap;
+  }
+}
+
 .sp-mast__event {
   margin: var(--space-5) 0 var(--space-2);
   text-align: center;
@@ -262,32 +281,15 @@
   margin: var(--space-3) 0;
 }
 
-/* Around-the-leagues ticker: a denser, all-leagues scores strip under .sp-ticker (#839 task 5). */
+/* Around-the-leagues ticker: a denser, all-leagues scores strip under .sp-ticker (#839 task 5).
+   Its "Around the leagues" nameplate was cut (live feedback mrav84vx) — the league plates
+   below carry the strip's identity now. */
 .sp-around {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   border-bottom: 1px solid var(--border);
   padding: var(--space-3) 0;
-}
-/* Strip nameplate — first item inside the scroll, ink block. It scrolls away and the current
-   league's nameplate (sticky, below) pins in its place at the left edge. Text is --surface
-   (not --white): dark mode flips --ink to a light cream, so the pairing inverts cleanly in
-   both themes. */
-.sp-around__label {
-  flex: none;
-  align-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--space-3);
-  background: var(--ink);
-  color: var(--surface);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
 }
 .sp-around__scroll {
   display: flex;
@@ -310,9 +312,11 @@
   gap: var(--space-3);
   flex: none;
 }
-/* League nameplate doubles as the section separator: same ink block as the strip label, and
-   sticky within its group — the active league pins at the left edge while its games scroll,
-   then the next league's plate pushes it out. Opaque bg + z-index so games pass beneath. */
+/* League nameplate doubles as the section separator: an ink block, sticky within its group —
+   the active league pins at the left edge while its games scroll, then the next league's
+   plate pushes it out. Opaque bg + z-index so games pass beneath. Text is --surface (not
+   --white): dark mode flips --ink to a light cream, so the pairing inverts cleanly in both
+   themes. */
 .sp-around__league {
   position: sticky;
   left: 0;

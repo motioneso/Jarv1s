@@ -117,6 +117,9 @@ export interface FollowedNextMatch {
   readonly opponentName: string; // full name, resolved per D1
   readonly homeAway: "home" | "away";
   readonly startsAt: string; // ISO instant; formatted client-side in the viewer's locale
+  // Opponent crest for the ticker's Next footer, which identifies the opponent by logo
+  // instead of name (live feedback mrawvc48). Optional: pre-#845 payloads predate it.
+  readonly opponentCrestUrl?: string | null;
 }
 
 export interface FollowedTeamCard {
@@ -127,6 +130,10 @@ export interface FollowedTeamCard {
   readonly crestUrl: string | null;
   readonly status: "live" | "today" | "news";
   readonly primary: string; // "MIN 21 – 14 DAL", "W 4–2 vs NYR", or a headline title
+  // For status "today": whether today's game has finished. The ticker keeps a final score in
+  // the primary slot but drops the pre-game matchup line — the Next footer already carries the
+  // fixture (live feedback mrawrk0e). Optional: older payloads predate it.
+  readonly todayGameState?: "pre" | "final";
   readonly news: FollowedTeamNews | null;
   readonly form: readonly ("W" | "D" | "L")[];
   readonly standing: string | null;
@@ -386,15 +393,20 @@ const followedTeamCardSchema = {
         {
           type: "object",
           additionalProperties: false,
+          // Same oneOf trap as `news` above: a field the service emits but this schema omits
+          // makes fast-json-stringify reject the whole object → 500 on /overview (bit us live
+          // when opponentCrestUrl shipped in the payload without a schema row, mrawvc48).
           required: ["opponentName", "homeAway", "startsAt"],
           properties: {
             opponentName: { type: "string" },
             homeAway: { type: "string", enum: ["home", "away"] },
-            startsAt: { type: "string" }
+            startsAt: { type: "string" },
+            opponentCrestUrl: { type: ["string", "null"] }
           }
         }
       ]
     },
+    todayGameState: { type: "string", enum: ["pre", "final"] },
     lastMatchAt: { type: ["string", "null"] },
     rationale: { type: "string" }
   }

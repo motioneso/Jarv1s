@@ -377,9 +377,15 @@ function StandingsTable(props: {
   const { group, section, label } = props;
   // ESPN sometimes returns soccer tables in stale or fetch order — re-sort so the table
   // always reads best-first, while still displaying ESPN's own rank number as-is.
+  // Record-shape leagues that carry points (NHL: W-L + Pts) rank by points, not win% —
+  // sorting an NHL table by win% put teams out of standings order (live feedback mrawe0w4);
+  // for NFL/MLB/NBA points is null on every row, so the comparator falls through to win%.
   const rows = [...section.rows].sort(
     group.standingsShape === "record"
-      ? (a, b) => (b.winPercent ?? -1) - (a.winPercent ?? -1) || b.wins - a.wins
+      ? (a, b) =>
+          (b.points ?? -1) - (a.points ?? -1) ||
+          (b.winPercent ?? -1) - (a.winPercent ?? -1) ||
+          b.wins - a.wins
       : (a, b) => (b.points ?? -1) - (a.points ?? -1) || a.rank - b.rank
   );
   return (

@@ -44,7 +44,6 @@ export function StoryHero(props: { headline: Headline | null }) {
         <div className="sp-photo sp-photo--herostory" aria-hidden="true" />
       )}
       <div className="sp-hero__storybody">
-        <span className="sp-hero__comp">{headline ? headline.competitionLabel : "Sports"}</span>
         <h2 className="sp-hero__headline">
           {headline ? (
             <a className="sp-hero__link" href={headline.url} target="_blank" rel="noreferrer">
@@ -54,6 +53,12 @@ export function StoryHero(props: { headline: Headline | null }) {
             "No followed game today"
           )}
         </h2>
+        {/* Standfirst: the article's summary as a dek under the headline, so the hero reads
+            like a front page and not a bare link (live feedback mrawc8ww) */}
+        {headline?.summary ? <p className="sp-hero__dek">{headline.summary}</p> : null}
+        {/* Competition slug reads as a credit line under the headline, newspaper-style — as a
+            lone eyebrow it floated in the centered story body (live feedback mratrvvg) */}
+        <span className="sp-hero__credit">{headline ? headline.competitionLabel : "Sports"}</span>
       </div>
     </section>
   );

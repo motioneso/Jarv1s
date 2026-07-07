@@ -75,16 +75,29 @@
      ellipsizes or line-clamps, and this is the backstop */
   overflow: hidden;
 }
-/* Eyebrow row: competition left, status/live right — one mono caps line, both ends shrink-safe */
-.sp-tk__eyebrow {
+/* Header opens the card since the eyebrow row was cut (live feedback mratgoq4); the rule
+   below it separates identity from content (live feedback mrath2lh). The identity block now
+   also holds the standing + form sub-row (live feedback mrawlzb7), so the hairline moved
+   from the name row to the block's outer edge. */
+.sp-tk__head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .sp-tk__hd {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* Standing left, form pips right — directly under the team name, above the header rule
+   (live feedback mrawlzb7; supersedes the mrawcw2y bottom-docked .sp-tk__meta row) */
+.sp-tk__sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
   min-width: 0;
 }
@@ -99,14 +112,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sp-tk__comp {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
 .sp-tk__live {
   display: inline-flex;
   align-items: center;
@@ -117,13 +122,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent-fg);
-}
-.sp-tk__status {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
 }
 .sp-tk__primary {
   display: flex;
@@ -172,12 +170,6 @@
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
-.sp-tk__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
 .sp-tk__standing {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -188,26 +180,23 @@
   text-overflow: ellipsis;
 }
 /* Next-match footer: pinned to the card's bottom edge behind its own hairline so every card's
-   fixture line sits on the same baseline. Wraps in full — never ellipsized. */
+   fixture line sits on the same baseline. Opens with the opponent's crest instead of a "Next"
+   label + name text (live feedback mrawvc48) — center alignment fits the crest block. */
 .sp-tk__next {
-  /* auto top margin pins the band; negative sides/bottom bleed it to the card edges so the
-     tinted footer reads as part of the card frame, not a floating box */
+  /* auto top margin absorbs the flexible space to pin the band at the base (this docking
+     used to live on the removed .sp-tk__meta row, mrawcw2y — the sub-row under the team
+     name holds standing + form now, mrawlzb7); negative sides/bottom bleed the band to
+     the card edges so the tinted footer reads as part of the card frame */
   margin: auto calc(-1 * var(--space-4)) calc(-1 * var(--space-3));
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
   background: var(--surface-2);
   border-top: 1px solid var(--border-subtle);
-  padding: var(--space-2) var(--space-4) var(--space-3);
-}
-.sp-tk__nextlbl {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  /* horizontal padding must stay --space-4 to re-align the bled band's content with the
+     card body; vertical trimmed to --space-2 — the tinted band was reading too tall
+     (live feedback mraxrlxx) */
+  padding: var(--space-2) var(--space-4);
 }
 .sp-tk__nextline {
   min-width: 0;
@@ -217,14 +206,23 @@
   color: var(--text-muted);
   line-height: 1.35;
 }
-/* Opponent and kickoff stack on their own lines — the one-string form wrapped mid-date */
-.sp-tk__nextopp,
 .sp-tk__nextwhen {
   display: block;
-}
-.sp-tk__nextwhen {
   font-weight: 400;
   color: var(--text-subtle);
+}
+/* Visually hidden, screen-reader reachable — carries the opponent name the crest replaced
+   (mrawvc48). Scoped sp- utility; the app shell has no global sr-only class. */
+.sp-sronly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 /* Text links to club stories under the form row */
 .sp-tk__stories {
@@ -269,6 +267,9 @@
   color: var(--accent-fg);
   text-decoration: none;
   padding: var(--space-1) var(--space-2);
+  /* the hover-pill padding inset the label from the page's right rule — pull it back out so
+     the text edge sits flush with the column edge (live feedback mravbbku) */
+  margin-right: calc(-1 * var(--space-2));
 }
 .sp-ticker__manage:hover {
   background: var(--forest-soft);

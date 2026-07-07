@@ -128,7 +128,11 @@ export function AppShell(props: AppShellProps) {
   });
 
   const locale = useUserLocale();
-  const { title, subtitle } = resolvePageHeading(location.pathname, new Date(), locale);
+  const { title, subtitle, ownMasthead } = resolvePageHeading(
+    location.pathname,
+    new Date(),
+    locale
+  );
   const closeMobileNav = () => setMobileNavOpen(false);
 
   return (
@@ -188,8 +192,11 @@ export function AppShell(props: AppShellProps) {
             <Menu size={20} aria-hidden="true" />
           </button>
 
+          {/* Pages with their own nameplate (the sports broadsheet masthead) skip the topbar
+              title — "Sports" over "THE SPORTS DESK" doubled the page name (live feedback
+              2026-07-07); the empty div keeps the topbar's flex layout intact. */}
           <div className="topbar-titles">
-            <span className="topbar-title">{title}</span>
+            {ownMasthead ? null : <span className="topbar-title">{title}</span>}
             {subtitle ? <span className="topbar-subtitle">{subtitle}</span> : null}
           </div>
 

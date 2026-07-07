@@ -22,13 +22,18 @@ export const ESPN_FETCH_HOSTS: readonly string[] = ["site.api.espn.com"];
 interface EspnCompetitor {
   readonly homeAway?: string;
   readonly winner?: boolean;
-  readonly score?: string;
+  // Scoreboard events carry score as a plain string; the team /schedule endpoint wraps it in
+  // an object ({ value, displayValue }) — both shapes are live (verified 2026-07-07).
+  readonly score?: string | { readonly value?: number; readonly displayValue?: string };
   readonly team?: {
     readonly id?: string;
     readonly abbreviation?: string;
     readonly displayName?: string;
     readonly shortDisplayName?: string;
+    // Scoreboard competitors carry a flat `logo`; the team /schedule endpoint sends a
+    // `logos` array instead (verified live 2026-07-07) — both are read in toSide.
     readonly logo?: string;
+    readonly logos?: readonly { readonly href?: string }[];
   };
   readonly records?: readonly { readonly summary?: string }[];
 }
@@ -77,13 +82,20 @@ function mapState(state: string | undefined): GameSummary["state"] {
 function toSide(competitor: EspnCompetitor | undefined): GameSide {
   const team = competitor?.team;
   const teamKey = (team?.abbreviation ?? team?.id ?? "").toLowerCase();
+  // Object-shaped scores come from the /schedule endpoint; Number({...}) is NaN, which used to
+  // null every schedule score — soccer draws then fell through resultOf()'s winner check and
+  // rendered as losses in the form pips (live feedback mrawhx9c).
   const scoreRaw = competitor?.score;
-  const score = scoreRaw === undefined || scoreRaw === "" ? null : Number(scoreRaw);
+  const scoreValue = typeof scoreRaw === "object" ? scoreRaw.value : scoreRaw;
+  const score = scoreValue === undefined || scoreValue === "" ? null : Number(scoreValue);
   return {
     teamKey,
     name: team?.displayName ?? teamKey,
     shortName: team?.shortDisplayName ?? team?.displayName ?? teamKey,
-    crestUrl: team?.logo ?? null,
+    // `logo` on scoreboard payloads, `logos[0].href` on schedule payloads — without the
+    // fallback every schedule-derived side had a null crest, so the ticker footer's opponent
+    // logo (mrawvc48) silently degraded to the initials swatch.
+    crestUrl: team?.logo ?? team?.logos?.[0]?.href ?? null,
     score: score === null || Number.isNaN(score) ? null : score,
     record: competitor?.records?.[0]?.summary ?? null,
     winner: competitor?.winner === true
@@ -114,12 +126,16 @@ function statValue(
   return stats?.find((s) => s.name === name)?.value;
 }
 
-function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
+function toStandingsRow(entry: EspnStandingsEntry, index: number): StandingsRow {
   const teamKey = (entry.team?.abbreviation ?? entry.team?.id ?? "").toLowerCase();
   return {
     teamKey,
     name: entry.team?.displayName ?? teamKey,
-    rank: statValue(entry.stats, "rank") ?? 0,
+    // US record leagues at ?level=3 carry NO "rank" stat on division entries (verified live
+    // 2026-07-07) but arrive standings-sorted, so the position in the section IS the rank.
+    // The old `?? 0` fallback produced "#0 · 10-2" lines the web sanity guard then hid on
+    // every card (live feedback mraxrdxr, mraz6m43).
+    rank: statValue(entry.stats, "rank") ?? index + 1,
     points: statValue(entry.stats, "points") ?? null,
     wins: statValue(entry.stats, "wins") ?? 0,
     losses: statValue(entry.stats, "losses") ?? 0,
@@ -152,6 +168,11 @@ export interface EspnScoreboardParams {
 export interface EspnScheduleParams {
   readonly teamKey: string;
   readonly competitionKey: string;
+  // ESPN numeric team id from the teams catalog. Soccer leagues do NOT resolve abbreviation
+  // slugs on the schedule endpoint (/soccer/usa.1/teams/sd/schedule → empty payload, verified
+  // live 2026-07-07) while the numeric id works for every sport — so this is preferred over
+  // teamKey whenever the catalog has it (live feedback mrawhx9c: soccer cards had no form).
+  readonly sourceTeamId?: string | null;
 }
 
 export interface EspnStandingsParams {
@@ -222,9 +243,13 @@ async function getSchedule(
 ): Promise<GameSummary[]> {
   const { teamKey, competitionKey } = params;
   const { sport, league } = resolve(competitionKey);
+  // Numeric id first — the abbreviation slug 404s-to-empty on soccer schedule URLs (see
+  // EspnScheduleParams.sourceTeamId); teamKey stays as the fallback for callers without a
+  // catalog in hand.
+  const pathKey = params.sourceTeamId ?? teamKey;
   const data = (await fetchJson(
     fetchFn,
-    `${SITE_BASE}/${sport}/${league}/teams/${teamKey}/schedule`,
+    `${SITE_BASE}/${sport}/${league}/teams/${pathKey}/schedule`,
     `${league} schedule`
   )) as { events?: readonly EspnEvent[] };
   return (data.events ?? []).map((event) => toGame(event, competitionKey));

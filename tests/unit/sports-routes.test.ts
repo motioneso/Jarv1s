@@ -108,6 +108,24 @@ const dalLiveGame: GameSummary = {
   away: side({ teamKey: "min", shortName: "MIN", name: "Minnesota Vikings", score: 14 })
 };
 
+// An upcoming fixture in the default schedule so the composed overview carries a non-null
+// nextMatch — the empty-schedule default let a serialization bug in the nextMatch schema
+// (missing opponentCrestUrl row → fast-json-stringify 500) slip past this suite (mrawvc48).
+const dalUpcomingGame: GameSummary = {
+  id: "g2",
+  competitionKey: "nfl",
+  startsAt: "2026-07-05T20:00:00.000Z",
+  state: "pre",
+  statusDetail: "4:00 PM",
+  home: side({ teamKey: "dal", shortName: "DAL", name: "Dallas Cowboys" }),
+  away: side({
+    teamKey: "gb",
+    shortName: "GB",
+    name: "Green Bay Packers",
+    crestUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/gb.png"
+  })
+};
+
 function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
   return makeDatasetClient({
     listTeams: async (competitionKey) => [
@@ -121,7 +139,7 @@ function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
       }
     ],
     getScoreboard: async () => [dalLiveGame],
-    getSchedule: async () => [],
+    getSchedule: async () => [dalUpcomingGame],
     getStandings: async () => ({ sections: [] }),
     getHeadlines: async () => [],
     ...overrides
@@ -197,6 +215,15 @@ describe("sports routes", () => {
       body.followedTeams.map((f: { competitionKey: string; teamKey: string }) => f.teamKey)
     ).toContain("dal");
     expect(body.degraded).toBe(false);
+    // Serialization regression guard: every field the service emits must appear in the
+    // response schema — fast-json-stringify REJECTS unknown keys inside the nextMatch oneOf
+    // (it doesn't drop them), which 500'd the whole overview when opponentCrestUrl shipped
+    // without a schema row (live feedback mrawvc48). Assert the field survives to the wire.
+    const withNext = body.followed.find(
+      (c: { nextMatch: unknown }) => c.nextMatch !== null && c.nextMatch !== undefined
+    );
+    expect(withNext).toBeDefined();
+    expect(withNext.nextMatch).toHaveProperty("opponentCrestUrl");
     expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
     expect(JSON.stringify(body)).not.toContain("sourceTeamId");
     await app.close();

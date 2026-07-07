@@ -26,7 +26,7 @@ interface FakeSourceHandlers {
   getScoreboard?: (competitionKey: string, day: string, endDay?: string) => Promise<GameSummary[]>;
   getSchedule?: (teamKey: string, competitionKey: string) => Promise<GameSummary[]>;
   getStandings?: (competitionKey: string) => Promise<StandingsTable>;
-  getHeadlines?: (competitionKey: string) => Promise<SourceHeadline[]>;
+  getHeadlines?: (competitionKey: string, teamKey?: string) => Promise<SourceHeadline[]>;
 }
 
 function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
@@ -61,8 +61,11 @@ function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
             );
             break;
           case "headlines":
+            // teamKey travels through so tests can tell the league feed from a followed
+            // team's own feed (the service fetches both — live feedback mraxssnf).
             data = await (handlers.getHeadlines ?? (async () => []))(
-              params.competitionKey as string
+              params.competitionKey as string,
+              params.teamKey as string | undefined
             );
             break;
           default:
@@ -278,9 +281,36 @@ describe("SportsService.getOverview", () => {
     expect(card?.competitionLabel).toBe("NFL");
     // W (beat NYG), L (lost at PHI), D (tied WAS)
     expect(card?.form).toEqual(["W", "L", "D"]);
-    expect(card?.standing).toContain("#1");
+    // Labelled section → place-within-section form, not the overall "#1 · 10-2" line
+    // (live feedback mraxrdxr, mraz6m43)
+    expect(card?.standing).toBe("1st · National Football Conference");
     expect(overview.standings[0]?.standingsShape).toBe("record");
     expect(overview.standings[0]?.sections[0]?.label).toBe("National Football Conference");
+  });
+
+  // ESPN's MLB/NHL division labels ("National League West", "Pacific Division") crowd the
+  // narrow ticker sub-row; the card line compresses them while the standings rail keeps the
+  // full label (live feedback mraxrdxr).
+  it("compresses long division labels in the card standing", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getStandings: async () => ({
+            sections: [
+              {
+                label: "National League West",
+                rows: nflStandings.sections[0]!.rows
+              }
+            ]
+          })
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.standing).toBe("1st · NL West");
+    // rail keeps the uncompressed label
+    expect(overview.standings[0]?.sections[0]?.label).toBe("National League West");
   });
 
   it("returns a structured next match with the full opponent name", async () => {
@@ -290,7 +320,10 @@ describe("SportsService.getOverview", () => {
     expect(card?.nextMatch).toEqual({
       opponentName: "Green Bay Packers",
       homeAway: "home",
-      startsAt: "2026-07-05T20:00:00.000Z"
+      startsAt: "2026-07-05T20:00:00.000Z",
+      // crest travels with the fixture so the ticker footer can show the opponent's
+      // logo in place of the name text (live feedback mrawvc48)
+      opponentCrestUrl: null
     });
   });
 
@@ -338,6 +371,57 @@ describe("SportsService.getOverview", () => {
     const card = overview.followed.find((c) => c.teamKey === "dal");
     expect(card?.status).toBe("news");
     expect(card?.news).toBeNull();
+  });
+
+  // The league-wide feed rarely tags stories to a specific club, so followed cards sat on
+  // "No recent news" even when ESPN's per-team feed was full (live feedback mraxssnf). The
+  // service now pulls each followed team's own feed and merges it in for that card only.
+  it("fills card news from the followed team's own feed when the league feed has none", async () => {
+    const teamStory: SourceHeadline = {
+      id: "t1",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "Cowboys sign a new kicker",
+      url: "https://example.com/t1",
+      publishedAt: `${TODAY}T10:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: ["6"]
+    };
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getScoreboard: async () => [],
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: null,
+              sourceTeamId: "6"
+            }
+          ],
+          // league feed carries only an untagged story; the dal feed has the real one
+          getHeadlines: async (_competitionKey, teamKey) =>
+            teamKey === "dal"
+              ? [teamStory]
+              : [{ ...nflHeadlines[0]!, sourceTeamIds: [], title: "League-wide roundup" }]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("news");
+    expect(card?.news?.title).toBe("Cowboys sign a new kicker");
+    // the merge is card-local: the team-feed story must not leak into the league news column
+    const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
+    const leagueTitles = [
+      ...overview.topStories.map((h) => h.title),
+      ...(nflGroup?.headlines.map((h) => h.title) ?? [])
+    ];
+    expect(leagueTitles).not.toContain("Cowboys sign a new kicker");
   });
 
   it("falls back to a story hero on a quiet day", async () => {
