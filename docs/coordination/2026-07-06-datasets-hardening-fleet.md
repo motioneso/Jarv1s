@@ -8,6 +8,11 @@
 #836 — the last item in the datasets chain and in this run's original queue. Threshold is 2 —
 no relay fired yet, but no further queued work remains either; see continuation note).
 
+**Run status: COMPLETE.** All 6 queued items merged (2026-07-07). Both persistent Monitors
+(fleet liveness, sports-broadsheet watch) stopped on Ben's explicit instruction. Coordinator
+session `5a5d9633…` (pane `w1:p9N`, label `Coordinator`) idle, awaiting either new queue items
+or stand-down instruction.
+
 > Externalized coordinator memory. GitHub is the source of truth for spec/issue/board status;
 > this file holds only in-flight operational state.
 
