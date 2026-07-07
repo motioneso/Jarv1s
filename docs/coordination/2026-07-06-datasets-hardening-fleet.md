@@ -109,6 +109,11 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
   written/approved; committed `docs/superpowers/handoffs/2026-07-07-836-redirect-downgrade-relay.md`
   (`11a88d58`). Successor `datasets-chain-5` (session `b640eb8a…`, pane `w1:p9M`) confirmed driving
   same worktree/branch (`832-datasets-host-pinning`, Sonnet); reaped 2026-07-07.
+- `22037838-bb11-4e04-b12f-71519a9f7834` (old Coordinator, pane `w1:p9K`) — relayed at 70%
+  context-meter checkpoint mid #836 plan-approval (reviewed and approved the plan before relaying,
+  approval not yet delivered to the agent); successor (session `5a5d9633…`, pane `w1:p9N`)
+  confirmed driving, delivered the approval to `datasets-chain-5`, updated the manifest lock;
+  predecessor acked stand-down and was reaped 2026-07-07.
 
 ## Continuation note (relay @ 2026-07-07, merge-counter threshold: 2 routine merges)
 
