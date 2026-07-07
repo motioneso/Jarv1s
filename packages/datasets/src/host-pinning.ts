@@ -14,6 +14,22 @@ const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /**
+ * Thrown when a dataset-runtime fetch (initial request or any redirect hop) targets a host
+ * outside the source's declared `fetchHosts`, or downgrades off https. Distinct from ordinary
+ * fetch/network failures so `client.ts` can log the SSRF-allowlist rejection distinctly instead
+ * of folding it into silent degrade (#832).
+ */
+export class HostPinningViolationError extends Error {
+  readonly host: string;
+
+  constructor(host: string, message: string) {
+    super(message);
+    this.name = "HostPinningViolationError";
+    this.host = host;
+  }
+}
+
+/**
  * True when `host` is safe to add to a source's `fetchHosts`/`imageHosts`: lowercase, non-empty,
  * no port, and not a bare IPv4/IPv6 literal (host pinning is meaningless against a literal IP —
  * the whole point is naming a specific external service by hostname).
@@ -53,12 +69,14 @@ function resolveUrl(input: RequestInfo | URL, base?: URL): URL {
 
 function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
   if (url.protocol !== "https:") {
-    throw new Error(
+    throw new HostPinningViolationError(
+      url.hostname,
       `Dataset runtime host pinning: only https is allowed, got "${url.protocol}" for ${url.hostname}`
     );
   }
   if (!allowed.has(url.hostname.toLowerCase())) {
-    throw new Error(
+    throw new HostPinningViolationError(
+      url.hostname,
       `Dataset runtime host pinning: host "${url.hostname}" is not in the allowed list`
     );
   }

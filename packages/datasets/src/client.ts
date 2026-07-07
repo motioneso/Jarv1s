@@ -1,7 +1,19 @@
 import type { ExternalSourceAdapter, ModuleExternalSourceManifest } from "@jarv1s/module-sdk";
 
 import { DatasetCache, DEFAULT_STALE_RETENTION_MS } from "./cache.js";
-import { createHostPinnedFetch } from "./host-pinning.js";
+import { createHostPinnedFetch, HostPinningViolationError } from "./host-pinning.js";
+
+/** Sanitized structured logging for dataset-runtime observability (never secrets/body). */
+export interface DatasetLogger {
+  warn(data: Record<string, unknown>, message: string): void;
+}
+
+const NOOP_DATASET_LOGGER: DatasetLogger = {
+  // Silent — production composition roots inject a real logger (server.log adapter). Noop
+  // (not console) so a forgotten injection degrades quietly instead of spamming unstructured
+  // console output (observability spec).
+  warn: () => undefined
+};
 
 export interface DatasetEnvelope<T> {
   readonly data: T;
@@ -26,6 +38,7 @@ export interface DatasetClientDeps {
   readonly fetchFn?: typeof fetch;
   readonly now?: () => Date;
   readonly maxEntriesPerSource?: number;
+  readonly logger?: DatasetLogger;
 }
 
 function buildCacheKey(
@@ -62,6 +75,7 @@ export function createDatasetClient(
   }
 
   const now = deps.now ?? (() => new Date());
+  const logger = deps.logger ?? NOOP_DATASET_LOGGER;
   const cache = new DatasetCache({ maxEntries: deps.maxEntriesPerSource });
   const pinnedFetch = createHostPinnedFetch(source.fetchHosts, deps.fetchFn ?? fetch);
   const datasetsByKey = new Map(source.datasets.map((dataset) => [dataset.key, dataset]));
@@ -108,7 +122,13 @@ export function createDatasetClient(
             : expiresAt;
         cache.set(cacheKey, value, expiresAt, evictAt);
         return { data: value, degraded: false, fetchedAt: new Date().toISOString() };
-      } catch {
+      } catch (error) {
+        if (error instanceof HostPinningViolationError) {
+          logger.warn(
+            { sourceId: source.id, datasetKey, host: error.host },
+            "dataset host-pinning violation: blocked fetch outside allowed hosts"
+          );
+        }
         if (hit) {
           // Only reachable for serve-stale-on-error datasets: degrade-empty entries are deleted
           // by DatasetCache.get once past evictAt (which equals expiresAt for that policy), so

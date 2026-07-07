@@ -1171,7 +1171,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         throw new Error("sports module manifest is missing its `espn` externalSources entry");
       }
       const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
-        fetchFn: deps.fetchFn
+        fetchFn: deps.fetchFn,
+        logger: createModuleLogger(server.log, "sports")
       });
       // LOADER-SEAM(sports) 3: the briefing tool (`briefing-tool.ts`) is constructed from
       // static manifest data at import time, before this wiring runs, so it adopts the client

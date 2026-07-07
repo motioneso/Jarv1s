@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { assertValidFetchHosts, createHostPinnedFetch, isPinnableHost } from "@jarv1s/datasets";
+import {
+  assertValidFetchHosts,
+  createHostPinnedFetch,
+  HostPinningViolationError,
+  isPinnableHost
+} from "@jarv1s/datasets";
 
 describe("isPinnableHost", () => {
   it("accepts a plain lowercase hostname", () => {
@@ -72,13 +77,27 @@ describe("createHostPinnedFetch", () => {
   it("rejects a request to a host not in the allow list", async () => {
     const { fetchFn } = fakeFetch([{ status: 200 }]);
     const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
-    await expect(pinned("https://evil.example.com/")).rejects.toThrow(/not in the allowed list/);
+    await expect(pinned("https://evil.example.com/")).rejects.toMatchObject({
+      name: "HostPinningViolationError",
+      host: "evil.example.com"
+    });
+  });
+
+  it("throws a HostPinningViolationError instance (not a plain Error) on rejection", async () => {
+    const { fetchFn } = fakeFetch([{ status: 200 }]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await expect(pinned("https://evil.example.com/")).rejects.toBeInstanceOf(
+      HostPinningViolationError
+    );
   });
 
   it("rejects a plain-http request even to an allowed host", async () => {
     const { fetchFn } = fakeFetch([{ status: 200 }]);
     const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
-    await expect(pinned("http://site.api.espn.com/")).rejects.toThrow(/only https is allowed/);
+    await expect(pinned("http://site.api.espn.com/")).rejects.toMatchObject({
+      name: "HostPinningViolationError",
+      host: "site.api.espn.com"
+    });
   });
 
   it("follows a same-host redirect", async () => {
@@ -97,9 +116,10 @@ describe("createHostPinnedFetch", () => {
       { status: 302, location: "https://internal.metadata.example/secret" }
     ]);
     const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
-    await expect(pinned("https://site.api.espn.com/first")).rejects.toThrow(
-      /not in the allowed list/
-    );
+    await expect(pinned("https://site.api.espn.com/first")).rejects.toMatchObject({
+      name: "HostPinningViolationError",
+      host: "internal.metadata.example"
+    });
   });
 
   it("bounds redirect following to MAX_REDIRECTS hops", async () => {
