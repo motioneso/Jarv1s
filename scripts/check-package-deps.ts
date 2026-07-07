@@ -172,7 +172,9 @@ async function loadPackageDescriptor(packageDirectory: string): Promise<PackageD
  * show up any other way; `check:package-deps`'s existing undeclared/unused checks don't catch
  * cycles, so this is a separate pass over the same descriptors).
  */
-export function detectDependencyCycles(graph: ReadonlyMap<string, ReadonlySet<string>>): string[][] {
+export function detectDependencyCycles(
+  graph: ReadonlyMap<string, ReadonlySet<string>>
+): string[][] {
   const cycles: string[][] = [];
   const seenCycleKeys = new Set<string>();
   const visited = new Set<string>();
@@ -219,10 +221,7 @@ function canonicalCycleKey(cyclePath: string[]): string {
     (best, _, index) => (withoutRepeat[index]! < withoutRepeat[best]! ? index : best),
     0
   );
-  const rotated = [
-    ...withoutRepeat.slice(minIndex),
-    ...withoutRepeat.slice(0, minIndex)
-  ];
+  const rotated = [...withoutRepeat.slice(minIndex), ...withoutRepeat.slice(0, minIndex)];
   return rotated.join(">");
 }
 

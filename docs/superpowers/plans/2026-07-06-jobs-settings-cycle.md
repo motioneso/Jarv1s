@@ -48,11 +48,13 @@ detection, so this exact regression could reappear silently. This plan adds a pu
 ### Task 1: Pure cycle-detection function + unit tests
 
 **Files:**
+
 - Modify: `scripts/check-package-deps.ts` — add and `export` a pure function (no I/O), used by
   `main()` in Task 2.
 - Create: `tests/unit/check-package-deps-cycles.test.ts`
 
 **Interfaces:**
+
 - Produces: `export function detectDependencyCycles(graph: ReadonlyMap<string, ReadonlySet<string>>): string[][]`
   — `graph` maps a package name to the set of package names it directly depends on (only edges
   relevant to cycle detection need to be present, e.g. `@jarv1s/*` packages). Returns one array per
@@ -148,7 +150,9 @@ before `scanReferencedPackages` — pure graph logic grouped together):
  * show up any other way; `check:package-deps`'s existing undeclared/unused checks don't catch
  * cycles, so this is a separate pass over the same descriptors).
  */
-export function detectDependencyCycles(graph: ReadonlyMap<string, ReadonlySet<string>>): string[][] {
+export function detectDependencyCycles(
+  graph: ReadonlyMap<string, ReadonlySet<string>>
+): string[][] {
   const cycles: string[][] = [];
   const seenCycleKeys = new Set<string>();
   const visited = new Set<string>();
@@ -195,10 +199,7 @@ function canonicalCycleKey(cyclePath: string[]): string {
     (best, _, index) => (withoutRepeat[index]! < withoutRepeat[best]! ? index : best),
     0
   );
-  const rotated = [
-    ...withoutRepeat.slice(minIndex),
-    ...withoutRepeat.slice(0, minIndex)
-  ];
+  const rotated = [...withoutRepeat.slice(minIndex), ...withoutRepeat.slice(0, minIndex)];
   return rotated.join(">");
 }
 ```
@@ -220,9 +221,11 @@ git commit -m "test(check-package-deps): add pure cycle-detection function for #
 ### Task 2: Wire cycle detection into the `check:package-deps` gate
 
 **Files:**
+
 - Modify: `scripts/check-package-deps.ts:56-111` (`Violation` interface and `main()`)
 
 **Interfaces:**
+
 - Consumes: `detectDependencyCycles` from Task 1; `PackageDescriptor` (existing, unchanged) from
   `loadPackageDescriptor`.
 - Produces: `main()` now also fails (`process.exitCode = 1`) when a cycle exists among any
@@ -254,23 +257,23 @@ In `main()`, after the existing per-package `for` loop (right before the
 `if (violations.length > 0)` block, `scripts/check-package-deps.ts:99-101`), add:
 
 ```ts
-  const dependencyGraph = new Map<string, Set<string>>();
-  for (const packageDirectory of packageDirectories) {
-    const descriptor = await loadPackageDescriptor(packageDirectory);
-    if (!descriptor) continue;
-    const workspaceDeps = new Set(
-      [...descriptor.declaredDependencyNames].filter((name) => name.startsWith("@jarv1s/"))
-    );
-    dependencyGraph.set(descriptor.name, workspaceDeps);
-  }
+const dependencyGraph = new Map<string, Set<string>>();
+for (const packageDirectory of packageDirectories) {
+  const descriptor = await loadPackageDescriptor(packageDirectory);
+  if (!descriptor) continue;
+  const workspaceDeps = new Set(
+    [...descriptor.declaredDependencyNames].filter((name) => name.startsWith("@jarv1s/"))
+  );
+  dependencyGraph.set(descriptor.name, workspaceDeps);
+}
 
-  for (const cyclePath of detectDependencyCycles(dependencyGraph)) {
-    violations.push({
-      package: cyclePath[0]!,
-      kind: "cycle",
-      detail: cyclePath.join(" -> ")
-    });
-  }
+for (const cyclePath of detectDependencyCycles(dependencyGraph)) {
+  violations.push({
+    package: cyclePath[0]!,
+    kind: "cycle",
+    detail: cyclePath.join(" -> ")
+  });
+}
 ```
 
 (This re-loads descriptors rather than threading them out of the earlier loop — `loadPackageDescriptor`
@@ -303,10 +306,12 @@ the new check catches the real, still-present bug.)
 ### Task 3: Break the cycle — inline the module-id literal in `jobs`, drop the dependency
 
 **Files:**
+
 - Modify: `packages/jobs/src/upgrade-notify.ts:1-3`
 - Modify: `packages/jobs/package.json` (remove `"@jarv1s/settings": "workspace:*"`)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `packages/jobs` no longer has any import of, or declared dependency on,
   `@jarv1s/settings`.
