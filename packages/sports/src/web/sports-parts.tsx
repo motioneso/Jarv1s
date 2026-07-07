@@ -65,21 +65,3 @@ export function TrophyIcon(): ReactNode {
     </svg>
   );
 }
-
-export function CalendarIcon(): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="12"
-      height="12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 5h14v15H5zM5 9h14M9 3v4M15 3v4" />
-    </svg>
-  );
-}

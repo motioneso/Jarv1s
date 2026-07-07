@@ -53,9 +53,19 @@ function newsRecency(card: FollowedTeamCard): number {
   return newest ? new Date(newest.publishedAt).getTime() : Number.NEGATIVE_INFINITY;
 }
 
+// Reader-priority ordering, shared with the Today widget so both surfaces agree on which
+// teams matter right now (live feedback mrb4mhxt — the widget used to show raw server order).
+export function orderFollowedCards(
+  cards: readonly FollowedTeamCard[],
+  now: number
+): FollowedTeamCard[] {
+  return [...cards].sort(
+    (a, b) => tickerPriority(a, now) - tickerPriority(b, now) || newsRecency(b) - newsRecency(a)
+  );
+}
+
 // "vs Green Bay Packers" + "Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2).
-// Split so the ticker can stack opponent and kickoff on their own lines (live feedback mra387k7);
-// formatNextMatch keeps the one-line form for the Today widget's FollowedCard.
+// Split so the ticker can stack opponent and kickoff on their own lines (live feedback mra387k7).
 export function nextMatchParts(
   next: FollowedNextMatch,
   locale: LocaleSettingsDto
@@ -67,11 +77,6 @@ export function nextMatchParts(
     opponent: `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName}`,
     when: `${date} · ${time}`
   };
-}
-
-export function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
-  const parts = nextMatchParts(next, locale);
-  return `${parts.opponent} · ${parts.when}`;
 }
 
 // Newspaper-style scoreboard strip: one dense block per followed team. Horizontal scroll;
@@ -101,10 +106,7 @@ export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
   }, [props.followed]);
 
   if (props.followed.length === 0) return null;
-  const now = Date.now();
-  const ordered = [...props.followed].sort(
-    (a, b) => tickerPriority(a, now) - tickerPriority(b, now) || newsRecency(b) - newsRecency(a)
-  );
+  const ordered = orderFollowedCards(props.followed, Date.now());
 
   function nudge(direction: -1 | 1): void {
     const el = scrollRef.current;
@@ -156,7 +158,10 @@ export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
   );
 }
 
-function TickerTeam(props: { card: FollowedTeamCard }) {
+// Exported for the Today widget (mrb4mhxt): one card component for both surfaces, so every
+// desk-page refinement (thumbnails, cut status pills, standing+form in the identity block)
+// shows up on /today for free instead of drifting in a parallel FollowedCard copy.
+export function TickerTeam(props: { card: FollowedTeamCard }) {
   const { card } = props;
   // Pre-game today cards drop the matchup line (the Next footer already names the fixture,
   // mrawrk0e) — but blanking the whole primary slot left those cards a hollow void next to

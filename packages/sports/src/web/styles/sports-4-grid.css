@@ -279,3 +279,21 @@
     width: 200px;
   }
 }
+
+/* ---- Today widget grid (live feedback mrb4mhxt) ----
+   The Sports desk widget on /today renders the same TickerTeam cards as the desk ticker
+   (replacing the drifted FollowedCard copy), but in a wrapping grid instead of a scroll
+   strip: fixed strip width comes off, and each card gets /today's bordered-card idiom in
+   place of the strip's right-hand divider. */
+.sp-tkgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+.sp-tkgrid .sp-tk {
+  width: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: var(--space-4);
+}
