@@ -59,7 +59,7 @@ supplying licensed `.otf` files — not a coordinator action item, just a standi
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | **HOLD — likely duplicate** | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
 | (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building (plan approved, Task 1 TDD in progress) | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
-| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building (relayed once, root cause confirmed, no plan/code yet) | Build-854 | w1:p9X | 854-integration-test-db-isolation | — |
+| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building (relayed once, root cause confirmed, no plan/code yet) | **Build-854b** | w1:p9Y | 854-integration-test-db-isolation | — |
 
 All three spawned into agents tab `w1:t1C` (created this run), confirmed running Sonnet, worktrees
 cut off `origin/main` @ `babe07aa`. Handoff docs committed in each worktree at
@@ -101,14 +101,13 @@ after-hook failure, not just `registrationRejected`; FK cascade on `app.auth_acc
 
 ### #854 — relayed once, no plan yet
 
-Build-854 hit its own 70% checkpoint with root cause confirmed and a bug-type memory already saved,
-but **no plan written and no code changed yet**. It reported it was spawning its own successor via
-the `relay` skill in the same pane/worktree/branch (`w1:p9X`,
-`854-integration-test-db-isolation`). At last check (`herdr pane list`) `w1:p9X` still shows label
-`Build-854`, `agent_status: working`, session `c513c561-1b4b-4eda-9b48-4c58c9bbc1b7` — **successor
-confirmation was NOT yet verified by this coordinator before this relay fired.** Successor: read
-`w1:p9X` (`--source recent --lines 12`) to confirm which session is live and that it's actually
-progressing (plan → TDD), not stuck mid-handoff.
+Build-854 relayed and was confirmed + reaped this tenure. Successor **Build-854b** is live at pane
+`w1:p9Y`, session `4a271eb9-8a17-4317-b5bc-6e3d484b9515`, confirmed running Sonnet, same worktree/
+branch (`854-integration-test-db-isolation`). Continuation doc committed at
+`docs/superpowers/handoffs/2026-07-07-854-integration-test-db-isolation-relay.md` (commit
+`4e371fa0`) in that worktree. Predecessor pane `w1:p9X` (session `c513c561-1b4b-4eda-9b48-4c58c9bbc1b7`)
+was verified and closed. **Still no plan/code written** — successor coordinator: expect a plan-ready
+escalation from Build-854b next.
 
 ### #817 — design interview in progress (not a build item)
 
