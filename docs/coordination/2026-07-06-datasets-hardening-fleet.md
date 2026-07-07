@@ -114,6 +114,13 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
   approval not yet delivered to the agent); successor (session `5a5d9633…`, pane `w1:p9N`)
   confirmed driving, delivered the approval to `datasets-chain-5`, updated the manifest lock;
   predecessor acked stand-down and was reaped 2026-07-07.
+- `b640eb8a-decd-4327-bafc-57b18402b10f` (datasets-chain-5, pane `w1:p9M`) — completed both #836
+  build tasks (host-pinning redirect no-method-downgrade fix, cache-key scoping doc/spec note),
+  committed, pre-push trio green, rebased on `origin/main`; relayed at 70% ctx before running the
+  full gate. Successor `datasets-chain-6` (session `86e4b742-14a8-45ca-ad6f-7a59c544c307`, pane
+  `w1:p9P`) confirmed driving same worktree/branch (`832-datasets-host-pinning`, Sonnet); reaped
+  2026-07-07. `datasets-chain-6` directed to run full gate + `coordinated-wrap-up` (open PR) and
+  report to `w1:p9N`.
 
 ## Continuation note (relay @ 2026-07-07, merge-counter threshold: 2 routine merges)
 
