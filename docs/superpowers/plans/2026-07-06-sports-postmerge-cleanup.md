@@ -61,6 +61,7 @@ next begins.
 ### Task 1: Move `FollowedCard` from `sports-page.tsx` to `today-widget.tsx`
 
 **Files:**
+
 - Modify: `packages/sports/src/web/sports-page.tsx` (remove lines 202–257: the
   `/* ---- Followed card (Today widget) ---- */` comment + `FollowedCard` function, and prune
   imports that become unused)
@@ -68,6 +69,7 @@ next begins.
   `FollowedCard` re-export from `sports-page.js`)
 
 **Interfaces:**
+
 - Consumes: nothing new — `FollowedCard(props: { card: FollowedTeamCard })` keeps its exact
   signature and JSX body, just changes file.
 - Produces: `today-widget.tsx` becomes self-contained for `FollowedCard`; no other file imports it
@@ -201,6 +203,7 @@ closing `}` of `FollowedCard`), leaving `HeroSide`'s closing brace directly foll
 - [ ] **Step 4: Edit `sports-page.tsx` — prune now-unused imports**
 
 Change:
+
 ```tsx
 import type {
   FollowedTeamCard,
@@ -216,7 +219,9 @@ import { CalendarIcon, Crest, FormPips, LiveDot, TrophyIcon } from "./sports-par
 import { LatestColumn, NewsBand, NewsIcon, StoryHero } from "./sports-news.js";
 import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
 ```
+
 to:
+
 ```tsx
 import type { GameSide, OverviewHero, SportsOverviewResponse } from "@jarv1s/shared";
 
@@ -227,6 +232,7 @@ import { CalendarIcon, Crest, LiveDot, TrophyIcon } from "./sports-parts.js";
 import { LatestColumn, NewsBand, StoryHero } from "./sports-news.js";
 import { SportsTicker } from "./sports-ticker.js";
 ```
+
 (Drops `FollowedTeamCard`, `FormPips`, `NewsIcon`, `formatNextMatch` — each verified above as used
 only inside the removed `FollowedCard`. `CalendarIcon`, `Crest`, `TrophyIcon`, `useUserLocale`,
 `LiveDot`, `LatestColumn`, `NewsBand`, `StoryHero`, `SportsTicker` all have other call sites left in
@@ -262,6 +268,7 @@ Part of #837."
 ### Task 2: Tokenize the `sp-fc` CSS block
 
 **Files:**
+
 - Modify: `packages/sports/src/web/styles/sports-1.css:340-476`
 
 **Interfaces:** none — pure CSS value substitution, class names and selectors unchanged.
@@ -275,6 +282,7 @@ selector name (`.sp-fcgrid` / `.sp-fc`) instead of line number before editing.
 - [ ] **Step 2: Replace the block**
 
 Before (lines 340–476):
+
 ```css
 .sp-fcgrid {
   display: grid;
@@ -420,6 +428,7 @@ Before (lines 340–476):
 ```
 
 After:
+
 ```css
 .sp-fcgrid {
   display: grid;
@@ -568,6 +577,7 @@ Nearest-token mapping used (documented for the PR description — several source
 equidistant between two tokens; ties resolved toward the token that keeps padding/gaps uniform
 within the same rule rather than toward a fixed up/down rule, since #829's own conversions weren't
 consistent either way):
+
 - `gap: 12px` → `--space-3` (exact)
 - `padding: 15px 16px 14px` → `--space-4` uniform (15→16 nearest, 16 exact, 14 tie 12/16 resolved
   up to keep all three sides equal — cleaner than three different token values for a 1-2px source
@@ -582,7 +592,7 @@ consistent either way):
 - `gap: 8px` → `--space-2` (exact)
 - `margin-top: 13px` → `--space-3` (12, nearest)
 - `font-size: 15px` → `--text-md` (exact)
-- `margin-top: 1px` → `--space-0` (0, nearest — this one *does* round down since 0 is closer than 4)
+- `margin-top: 1px` → `--space-0` (0, nearest — this one _does_ round down since 0 is closer than 4)
 - `font-size: 14px` → `--text-md` (15, tie 13/15 resolved up for consistency with the other
   `.sp-fc` body text already at `--text-md`)
 - `gap: 10px` → `--space-3` (12, tie 8/12 resolved up)
@@ -630,6 +640,7 @@ Part of #837."
 ### Task 3: Delete the dead `.sp-emptyboard` media query
 
 **Files:**
+
 - Modify: `packages/sports/src/web/styles/sports-1.css:723-736`
 
 **Interfaces:** none.
@@ -638,6 +649,7 @@ Part of #837."
 
 Run: `sed -n '723,736p' packages/sports/src/web/styles/sports-1.css`
 Expected:
+
 ```css
 .sp-emptyboard {
   display: grid;
@@ -654,6 +666,7 @@ Expected:
   }
 }
 ```
+
 Confirm the base rule's `grid-template-columns: 1fr` (already single-column) makes the media query
 block a no-op at every viewport width.
 
@@ -695,18 +708,22 @@ Part of #837."
 - [ ] **Step 1: Full frontend gate**
 
 Run:
+
 ```bash
 pnpm lint && pnpm format:check && pnpm check:file-size && pnpm check:design-tokens && pnpm typecheck && pnpm test:unit
 ```
+
 Expected: all green, real exit code 0 (do not pipe through `tail`).
 
 - [ ] **Step 2: Visual check — sp-fc has no existing golden screenshot**
 
 Before relying on `capture:screens` alone: confirm neither existing capture actually exercises the
 `sp-fc` card. Run:
+
 ```bash
 grep -n "registerMockSportsRoutes\|sportsOverviewFixture" tests/e2e/capture-screens.spec.ts | grep -i today
 ```
+
 Expected: no output — the `"capture: today + chat drawer"` test does not mock sports follows, so
 `SportsTodayWidget` renders `null` there today (`data.followed.length === 0` — no mock registered
 means the query never resolves truthy data in that test). This means `pnpm capture:screens` alone
@@ -725,6 +742,7 @@ import { registerMockSportsRoutes } from "../../tests/e2e/mock-sports-api.js"; /
 // (or: copy the relevant mockApi/baseState + registerMockSportsRoutes calls from
 // tests/e2e/capture-screens.spec.ts's "capture: sports" test, but page.goto("/today") instead)
 ```
+
 In practice: temporarily copy the `"capture: today + chat drawer"` test body, insert
 `await registerMockSportsRoutes(page);` before `await page.goto("/today")`, and run just that one
 test with `CAPTURE=1 playwright test capture-screens --workers=1 -g "today"`. Diff the resulting
@@ -742,10 +760,12 @@ covers that gap).
 - [ ] **Step 5: Rebase and pre-push trio**
 
 Run:
+
 ```bash
 pnpm format:check && pnpm lint && pnpm typecheck
 git fetch origin main && git rebase origin/main
 ```
+
 Expected: clean rebase (no conflicts expected — this branch only touches files no other merged PR
 has touched since `616b9ed1`).
 
