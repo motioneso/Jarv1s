@@ -67,6 +67,24 @@ function resolveUrl(input: RequestInfo | URL, base?: URL): URL {
   return new URL(input.url);
 }
 
+/**
+ * Headers stripped the moment a redirect hop changes hostname (#833) — a value set for host A
+ * (e.g. an auth token) must never reach allowlisted host B just because both are pinned.
+ * Extend this list when the deferred api-key credential slice (connector-SDK spec Architecture
+ * §4) lands and defines its header name. `Headers` matching is case-insensitive by spec, so
+ * casing here doesn't matter.
+ */
+const SENSITIVE_REDIRECT_HEADER_NAMES = ["authorization"];
+
+function stripSensitiveHeaders(init: RequestInit | undefined): RequestInit | undefined {
+  if (!init?.headers) return init;
+  const headers = new Headers(init.headers);
+  for (const name of SENSITIVE_REDIRECT_HEADER_NAMES) {
+    headers.delete(name);
+  }
+  return { ...init, headers };
+}
+
 function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
   if (url.protocol !== "https:") {
     throw new HostPinningViolationError(
@@ -98,15 +116,20 @@ export function createHostPinnedFetch(
     let currentUrl = resolveUrl(input);
     assertHttpsAndAllowed(currentUrl, allowed);
 
-    let response = await fetchFn(currentUrl.toString(), { ...init, redirect: "manual" });
+    let currentInit = init;
+    let response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
     let hops = 0;
 
     while (REDIRECT_STATUSES.has(response.status) && hops < MAX_REDIRECTS) {
       const location = response.headers.get("location");
       if (!location) break;
+      const previousHost = currentUrl.hostname.toLowerCase();
       currentUrl = resolveUrl(location, currentUrl);
       assertHttpsAndAllowed(currentUrl, allowed);
-      response = await fetchFn(currentUrl.toString(), { ...init, redirect: "manual" });
+      if (currentUrl.hostname.toLowerCase() !== previousHost) {
+        currentInit = stripSensitiveHeaders(currentInit);
+      }
+      response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
       hops += 1;
     }
 

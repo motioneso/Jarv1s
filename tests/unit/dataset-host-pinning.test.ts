@@ -66,6 +66,27 @@ function fakeFetch(responses: readonly { status: number; location?: string }[]):
   return { fetchFn, calls };
 }
 
+function fakeFetchCapturingHeaders(responses: readonly { status: number; location?: string }[]): {
+  fetchFn: typeof fetch;
+  calls: Array<{ url: string; headers: Record<string, string> }>;
+} {
+  const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+  let i = 0;
+  const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers: Record<string, string> = {};
+    new Headers(init?.headers).forEach((value, key) => {
+      headers[key] = value;
+    });
+    calls.push({ url: String(input), headers });
+    const r = responses[Math.min(i, responses.length - 1)];
+    i += 1;
+    const responseHeaders = new Headers();
+    if (r?.location) responseHeaders.set("location", r.location);
+    return new Response(null, { status: r?.status ?? 200, headers: responseHeaders });
+  }) as unknown as typeof fetch;
+  return { fetchFn, calls };
+}
+
 describe("createHostPinnedFetch", () => {
   it("allows a request to an allowed https host", async () => {
     const { fetchFn } = fakeFetch([{ status: 200 }]);
@@ -131,5 +152,63 @@ describe("createHostPinnedFetch", () => {
     );
     const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
     await expect(pinned("https://site.api.espn.com/first")).rejects.toThrow(/exceeded/);
+  });
+});
+
+describe("createHostPinnedFetch — sensitive header stripping across redirects (#833)", () => {
+  it("keeps sensitive headers on a same-host redirect hop", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingHeaders([
+      { status: 302, location: "https://site.api.espn.com/other" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", {
+      headers: { authorization: "Bearer secret" }
+    });
+    expect(calls[0]?.headers.authorization).toBe("Bearer secret");
+    expect(calls[1]?.headers.authorization).toBe("Bearer secret");
+  });
+
+  it("drops sensitive headers the moment a redirect hop changes hostname", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingHeaders([
+      { status: 302, location: "https://cdn.espn.com/asset" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com", "cdn.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", {
+      headers: { authorization: "Bearer secret" }
+    });
+    expect(calls[0]?.headers.authorization).toBe("Bearer secret");
+    expect(calls[1]?.headers.authorization).toBeUndefined();
+  });
+
+  it("keeps headers same-host then drops them cross-host, and does not restore them if a later hop returns to the original host", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingHeaders([
+      { status: 302, location: "https://site.api.espn.com/second" },
+      { status: 302, location: "https://cdn.espn.com/asset" },
+      { status: 302, location: "https://site.api.espn.com/third" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com", "cdn.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", {
+      headers: { authorization: "Bearer secret" }
+    });
+    expect(calls[0]?.headers.authorization).toBe("Bearer secret"); // initial
+    expect(calls[1]?.headers.authorization).toBe("Bearer secret"); // same-host hop
+    expect(calls[2]?.headers.authorization).toBeUndefined(); // cross-host hop
+    expect(calls[3]?.headers.authorization).toBeUndefined(); // back to original host, stays stripped
+  });
+
+  it("leaves non-sensitive headers untouched across a cross-host redirect", async () => {
+    const { fetchFn, calls } = fakeFetchCapturingHeaders([
+      { status: 302, location: "https://cdn.espn.com/asset" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com", "cdn.espn.com"], fetchFn);
+    await pinned("https://site.api.espn.com/first", {
+      headers: { "x-request-id": "abc123", authorization: "Bearer secret" }
+    });
+    expect(calls[1]?.headers["x-request-id"]).toBe("abc123");
+    expect(calls[1]?.headers.authorization).toBeUndefined();
   });
 });
