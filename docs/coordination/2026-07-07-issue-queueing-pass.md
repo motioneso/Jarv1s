@@ -2,11 +2,11 @@
 
 **Date:** 2026-07-07
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id
-`9fb2dc84-f605-4580-8ba3-510bbdef6f59`** (pane `w1:p9Z`, tab `w1:t15` at time of writing — resolve
+`d2380257-0a2b-44a4-bafa-49a3be6559ca`** (pane `w1:pA3`, tab `w1:t15` at time of writing — resolve
 fresh by label+session, never trust the pane number). Relayed from predecessor session
-`e56b7c36-6f1b-4438-85ef-bb5cad9eed74` (pane `w1:p9S`) at its 70% context checkpoint; predecessor
-confirmed handoff, went idle, and was reaped (pane closed) at run continuation. Exactly one
-`Coordinator` pane confirmed via `herdr pane list` post-reap.
+`9fb2dc84-f605-4580-8ba3-510bbdef6f59` (pane `w1:p9Z`) at its 70/71% context checkpoint;
+predecessor confirmed handoff, went idle, and was reaped (pane closed) at run continuation.
+Exactly one `Coordinator` pane confirmed via `herdr pane list` post-reap.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -124,22 +124,37 @@ Build-854c next (it should write the plan to
 `docs/superpowers/plans/2026-07-07-854-integration-test-db-isolation.md` before requesting
 approval).
 
-### #817 — design interview in progress (not a build item)
+### #817 — `/brief` interview COMPLETE (not a build item)
 
-Started the `brief` skill with Ben for #817 (Jarvis should explain user-visible errors —
-cross-cutting diagnostic surface, no spec exists). **Only Q1 ("what is the core problem this
-solves?") was asked; Ben has not yet answered it** — the #663-duplicate escalation and his
-clarifying question interrupted the interview before Q1's answer landed. Successor: re-invoke
-`brief` (or just re-ask Q1 in-conversation) to resume — do not assume any answers were given, none
-were. This is NOT part of the build queue; it produces a draft spec for Ben's future approval, not
-an immediate spawn.
+All six `brief` questions answered by Ben and Feature Brief synthesized + confirmed
+2026-07-07 (session `d2380257-...`). Slug: **`error-explainability`**.
+
+- **Problem:** silent breakage (e.g. "not all leagues could be loaded") gives no path to the
+  underlying cause.
+- **User:** everyone — anyone asking "what does X mean" should learn why.
+- **Success:** Jarvis can identify the source of any error message and read/surface the relevant
+  logs.
+- **Non-goal:** no auto-fix — explain only.
+- **MVP:** user asks a natural-language question about a symptom (e.g. "what leagues aren't
+  current right now?"); Jarvis reads logs to answer. **Load-bearing precondition:** errors must
+  actually be written to a log Jarvis can read — comprehensive logging coverage, not just an
+  implementation detail.
+- **Verification:** when an error occurs, ask Jarvis about it; confirm it explains the actual
+  cause, not just the raw message.
+
+Ben confirmed the brief as-is, no corrections. **Successor: hand off is "ready to run `/start`
+whenever you are, slug `error-explainability`"** — per the `brief` skill's own protocol, do not
+write a `docs/superpowers/specs/` file yourself; that's `/start`'s job downstream. This is NOT
+part of the build queue until Ben invokes `/start` (still needs an approved spec per Hard
+Invariants — brief ≠ spec).
 
 ### Liveness monitor
 
-A persistent `Monitor` (task id `bklyndmg7`) is running, diffing `herdr pane list` for panes
-`w1:p9V`/`w1:p9W`/`w1:p9X` every 30s, emitting only on `agent_status` change. **This monitor dies
-with this session on relay — the successor must start its own**, or it has zero passive liveness
-signal on the fleet.
+A persistent `Monitor` (task id `bcy2lgvqj`, started by session `d2380257-...`) is running,
+diffing `herdr pane list` for panes `w1:p9V` (Build-663) / `w1:p9W` (Build-853) / `w1:pA2`
+(Build-854d) every 30s, emitting only on `agent_status` change. **This monitor dies with this
+session on relay — the successor must start its own**, or it has zero passive liveness signal on
+the fleet.
 
 **Tier rationale:**
 - **#663 → sensitive:** touches scheduled-job-adjacent notification content and reads across
@@ -172,10 +187,9 @@ approval, it's a straightforward bug fix).
 
 ## Outstanding escalations
 
-- [ ] **#817 spec scoping** — not a build blocker, but the next real piece of work: run a
-  one-question-at-a-time design interview with Ben (or delegate to `/brief` /
-  `superpowers:brainstorming`) to produce a draft spec, then bring it back for approval before
-  queueing. Owner: coordinator (this run), not yet started.
+- [x] **#817 spec scoping** — `/brief` interview complete, brief confirmed by Ben 2026-07-07.
+  Slug `error-explainability`. Awaiting Ben to invoke `/start` (produces the actual spec doc;
+  still gated by Hard Invariants — no build until spec approved).
 - [ ] **#780** — reminder only, not actionable by the coordinator: Ben needs to supply licensed
   Neue Haas Grotesk `.otf` files before this can build.
 
@@ -186,6 +200,26 @@ approval, it's a straightforward bug fix).
 - `e56b7c36-6f1b-4438-85ef-bb5cad9eed74` (pane `w1:p9S`) — relayed at 70% context checkpoint,
   confirmed handoff, reaped by successor `9fb2dc84-f605-4580-8ba3-510bbdef6f59` (pane `w1:p9Z`),
   2026-07-07.
+- `9fb2dc84-f605-4580-8ba3-510bbdef6f59` (pane `w1:p9Z`) — relayed at 71% context checkpoint,
+  confirmed handoff, reaped by successor `d2380257-0a2b-44a4-bafa-49a3be6559ca` (pane `w1:pA3`),
+  2026-07-07.
+
+## Successor tenure notes (session `d2380257-0a2b-44a4-bafa-49a3be6559ca`)
+
+- Reaped predecessor `9fb2dc84-f605-4580-8ba3-510bbdef6f59` (pane `w1:p9Z`) per its confirmed
+  handoff; claimed lock, renamed own pane `Coordinator-next` → `Coordinator` (now `w1:pA3`).
+  Verified exactly one `Coordinator` pane via `herdr pane list`.
+- Applied the quadrant layout to `w1:t1C` (see note under "Ben, standing instruction" below) —
+  done, with the caveat about Herdr's binary split-tree noted there.
+- Started a fresh liveness `Monitor` (task `bcy2lgvqj`) for `w1:p9V`/`w1:p9W`/`w1:pA2`.
+- Completed the `#817` `/brief` interview (Q3–Q6; Q1/Q2 were already answered) — see the `#817`
+  section above. Brief confirmed by Ben, slug `error-explainability`.
+- **Build-854d observed flickering `idle`/`working`/`done` in `agent_status` several times this
+  tenure while genuinely still mid-Task-6 (manual smoke test) — pane content unchanged across all
+  three "done" readings (Task 6 ◼ in progress, Wrap-up ◻ not started, no PR). Treat `done` from
+  the liveness Monitor as unreliable for Build-854d specifically until it actually opens a PR —
+  confirm with a bounded pane read every time, don't act on the status string alone.** Build-854d
+  own context was climbing (52–62%+) as of last read — may relay again soon; watch for it.
 
 ## Successor tenure notes (session `9fb2dc84-f605-4580-8ba3-510bbdef6f59`)
 
@@ -250,16 +284,41 @@ Escalated to Ben via AskUserQuestion (not decided unilaterally); Ben chose "shut
 `Coordinator` / pane `w1:p9Z` (resolve fresh, don't trust the pane number) until the successor
 claims Phase 0a and updates this line itself.
 
-## Late-breaking events (arrived during this coordinator's own relay flush — hand to successor)
+## Prior late-breaking events (resolved this tenure, session `d2380257-...`)
 
-- **#854 relayed again:** Build-854c (`w1:pA1`) → successor label **Build-854d**, currently
-  resolving to `w1:pA2` (re-resolve fresh by label+session, don't trust this pane number). Plan
-  still approved, zero code written at handoff (Build-854c relayed before starting Task 1 too).
-  Ben confirmed it's safe to reap Build-854c. **Successor coordinator: confirm Build-854d is
-  actually driving (bounded pane read, confirm Sonnet), reap `w1:pA1`, update the fleet table
-  above, restart the Monitor with the new pane set.**
-- **Ben, standing instruction:** lay out the agents tab in **quadrants** (2×2 grid) — matches the
-  coordinate skill's existing "Grid: 2×2 for 4-agent waves" convention, now explicitly requested.
-  Apply via `herdr pane split <pane> --direction down|right --cwd <path> --no-focus` so the
-  agents tab panes sit in a 2×2 grid rather than however they currently stack. Do this next time
-  the fleet is touched (relay, new spawn) if it isn't already quadranted.
+- **#854 relay chain:** Build-854c → Build-854d resolved and confirmed driving at `w1:pA2`,
+  reaped `w1:pA1`. Done, see fleet table.
+- **Quadrant layout:** done, see "Ben, standing instruction" note under Successor tenure notes
+  above — reuse `w1:pA4` (`reserved-slot`) for the next agent spawn.
+
+## Relay checkpoint (session `d2380257-0a2b-44a4-bafa-49a3be6559ca`, own context ~70%)
+
+Coordinator context hit the 70% trigger — no-deferral relay in progress. Spawning successor now
+in same tab (`w1:t15`). Full fleet + open-item state at handoff:
+
+**Fleet:**
+- **#663** — still HOLD, `w1:p9V`, label Build-663, idle. Still awaiting Ben's explicit
+  close-vs-rescope call (duplicate of PR #719/#695). **Untouched this tenure — do not act
+  without Ben.**
+- **#853** — security tier, `w1:p9W`, label Build-853, idle (last observed). No PR yet this
+  tenure — status not actively re-checked this tenure beyond the liveness monitor's
+  `agent_status` field. Successor: bounded pane read to get current task position before
+  assuming anything. When it reports done: Opus adversarial QA → mandatory `gh pr comment`
+  verdict → Ben's explicit sign-off before merge. Never auto-merge.
+- **#854** — routine tier, Build-854d, `w1:pA2`, branch `854-integration-test-db-isolation`.
+  **On Task 6 (manual smoke test) as of last bounded read this tenure** (Tasks 1–5 done,
+  wrap-up not started, no PR yet). `agent_status` flickered `idle`/`working`/`done` repeatedly
+  without real progress in the pane content — **treat `done` as unreliable for this agent until
+  a PR actually appears; always confirm with a bounded pane read.** Own context was ~52–62%+ at
+  last read — may relay again soon; if a new pane appears in `w1:t1C` on the same
+  worktree/branch, that's its successor — confirm driving, reap Build-854d, update this table.
+
+**#817** — CLOSED OUT this tenure (see `#817` section above and Outstanding escalations). Not a
+build queue item; no further coordinator action until Ben runs `/start` on slug
+`error-explainability`.
+
+**merges_since_relay:** 0 (nothing merged this tenure either).
+
+**Coordinator lock:** now `d2380257-0a2b-44a4-bafa-49a3be6559ca` / label `Coordinator` / pane
+`w1:pA3` (resolve fresh, don't trust the pane number) until the successor claims Phase 0a and
+updates this line itself.
