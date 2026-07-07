@@ -14,7 +14,7 @@
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-4 (continuing on #833/#836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | qa | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #850 |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | qa | dep-cycle-3 | w1:p9F | 834-jobs-settings-cycle | #849 |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
@@ -226,8 +226,18 @@ survive relay):
 2. Sports-broadsheet watch on `w1:p8Y` (task `bww6hj7s4`) — emits on `agent_status` change;
    last observed idle. Ben's explicit ask, non-fleet item.
 
-**No escalations outstanding.** No `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags seen. Next
-coordinator action: consume PR #849 QA verdict → merge if green (sensitive tier, auto-merge +
-digest) → reap `dep-cycle-3`; keep supervising `datasets-chain-4` toward #833's PR → QA (sensitive,
-same invariant checklist) → auto-merge + digest; #836 (routine) queued next in chain, must rebase
-on #833's merge first.
+**No escalations outstanding.** No `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags seen.
+
+**Update:** #833 done — PR #850 opened (header-stripping fix for cross-host redirects in
+`packages/datasets/src/host-pinning.ts`, 4 new TDD tests, VF_EXIT=0 AUDIT_EXIT=0, full suite
+1854 unit + 1353 integration pass, isolated DB `jarv1s_832_datasets`, rebased/up-to-date on
+`origin/main`@`a66e9a20`, no conflicts). QA spawned: `coordinated-qa` agent `a0db8c2ca4b396aef`
+(Sonnet, sensitive-tier invariant checklist + explicit check that redirect header-stripping can't
+leak auth headers across hosts). `datasets-chain-4` told to hold on #836 until #833 actually
+merges (chain rebase rule), and to route future reports to this pane (`w1:p9J`) not the
+predecessor's.
+
+Next coordinator action: consume PR #850 QA verdict → merge if green (sensitive, auto-merge +
+digest) → close #833 → tell `datasets-chain-4` to rebase and start #836; consume PR #849 QA
+verdict (predecessor's agent `af01b499cf9d1ff1c`, still finishing) → merge if green → reap
+`dep-cycle-3` → reap predecessor pane `w1:p9G` once it signals safe.
