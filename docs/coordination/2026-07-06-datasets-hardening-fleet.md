@@ -43,8 +43,60 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
 
 ## Outstanding escalations
 
-- [ ] none yet
+- [ ] none yet — no blockers, just mid-spawn when relay fired.
 
 ## Reaped sessions
 
 - none yet
+
+## Continuation note (relay @ 2026-07-06, context hit 70%)
+
+**Ben approved this manifest and the plan.** Phase 0 fully done (specs confirmed, main CI green,
+Opus collision map done — see Dependency/merge order above). Phase 1 (spawn) is IN PROGRESS, NOT
+DONE:
+
+**Done:**
+- 4 git worktrees created off `origin/main` @ `616b9ed1` (already exist, do NOT recreate):
+  - `.claude/worktrees/832-datasets-host-pinning` (branch `832-datasets-host-pinning`) — chain
+    worktree, agent will do #832→#833→#836 sequentially per its handoff doc.
+  - `.claude/worktrees/834-jobs-settings-cycle` (branch `834-jobs-settings-cycle`)
+  - `.claude/worktrees/835-scanner-reserved-paths` (branch `835-scanner-reserved-paths`)
+  - `.claude/worktrees/837-sports-postmerge-cleanup` (branch `837-sports-postmerge-cleanup`)
+- Handoff docs committed for all 4, at
+  `docs/coordination/handoffs/2026-07-06-{832-833-836-datasets-chain,834-jobs-settings-cycle,835-scanner-reserved-paths,837-sports-postmerge-cleanup}.md`.
+  Each has spec, tier, coordinator session id, collision notes. Read-only for build agents.
+
+**NOT done yet — successor's first job:**
+1. Create the shared agents tab in workspace `w1` (none exists yet — current w1 tabs are
+   `Coordinator`/`Claude`/`Terminal`/`GLM`/`agy`, no `agents` tab). Skill: `herdr pane move
+   <first-pane> --new-tab --workspace w1 --label "agents"`, or split within it once made.
+2. Spawn 4 build agents, one per worktree above, each via `herdr agent start` with
+   `--tab w1:<agents-tab> --cwd <worktree-path> --no-focus -- claude --model sonnet
+   --permission-mode bypassPermissions "<boot pointing at its handoff doc>"`.
+3. Verify each pane started AND says "Sonnet" (bounded read, `--source recent --lines 12`);
+   respawn with `--model sonnet` if it booted Opus.
+4. Update the Queue table above with each agent's label/pane/branch, status → `building`.
+
+**Separate, non-fleet item to watch (Ben asked explicitly):** pane `w1:p8Y` (label none, worktree
+`829-sports-broadsheet`, branch `worktree-829-sports-broadsheet`, model "Fable 5") is an
+**already-running, independent** build agent NOT part of this manifest — it was mid gate-fix
+("Fixing stale tests… run full gate" → next: "Commit, push, PR, merge to main") with its own
+context meter at 79% when last observed. Ben wants status changes surfaced to him. A background
+`Monitor` (task `b4dtih4ru`) was polling `herdr pane list` for this pane's `agent_status` — it does
+**NOT survive this relay**; re-establish it:
+```bash
+prev=""; while true; do
+  cur=$(herdr pane list 2>/dev/null | python3 -c "import json,sys
+d=json.load(sys.stdin)
+p=[x for x in d['result']['panes'] if x['pane_id']=='w1:p8Y']
+print(p[0]['agent_status'] if p else 'GONE')")
+  [ "$cur" != "$prev" ] && echo "sports-broadsheet (w1:p8Y) status: $cur" && prev="$cur"
+  sleep 30
+done
+```
+`837-sports-postmerge-cleanup`'s handoff doc already warns that build agent about this other one
+running concurrently (both touch sports files, but different scopes) — no action needed there
+beyond the watch.
+
+**Explicitly excluded from this run (Ben's call):** sports issues #840/#841/#842/#845 (standings/
+headline follow-ups) — do NOT queue these tonight.
