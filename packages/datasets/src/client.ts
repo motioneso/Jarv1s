@@ -41,6 +41,14 @@ export interface DatasetClientDeps {
   readonly logger?: DatasetLogger;
 }
 
+/**
+ * Builds the instance-level cache key for one dataset call: `sourceId:datasetKey:params`. There
+ * is no separate user dimension — safe today because every source is `credential: "none"`
+ * (public, non-personalized data). **Constraint for future per-user sources:** the deferred
+ * keyed-credential slice (connector-SDK spec Architecture §4) MUST ensure any per-user dataset's
+ * `params` carries the user's identity (e.g. a `userId` field), or this instance-level cache will
+ * serve one user's cached response to another purely by key collision (#836).
+ */
 function buildCacheKey(
   sourceId: string,
   datasetKey: string,
