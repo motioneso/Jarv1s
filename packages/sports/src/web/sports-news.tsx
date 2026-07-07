@@ -61,19 +61,15 @@ export function StoryHero(props: { headline: Headline | null }) {
 
 /* ------------------------------------------------------------- Latest column */
 
-export function LatestColumn(props: {
-  headlines: readonly Headline[];
-  followedPairs: ReadonlySet<string>;
-}) {
+export function LatestColumn(props: { headlines: readonly Headline[] }) {
   if (props.headlines.length === 0) return null;
   return (
     <section className="sp-latest" aria-label="Latest">
       <p className="sp-col__kicker">Latest</p>
       <ol className="sp-latest__list">
-        {props.headlines.slice(0, 6).map((headline, index) => (
+        {props.headlines.slice(0, 6).map((headline) => (
           <li className="sp-latest__item" key={headline.id}>
             <a className="sp-hl" href={headline.url} target="_blank" rel="noreferrer">
-              <span className="sp-hl__num">{index + 1}</span>
               {headline.imageUrl ? (
                 <img className="sp-hl__thumb" src={headline.imageUrl} alt="" loading="lazy" />
               ) : (
@@ -81,14 +77,6 @@ export function LatestColumn(props: {
               )}
               <span className="sp-hl__body">
                 <span className="sp-hl__comp">{headline.competitionLabel}</span>
-                {headline.teamKeys.some((k) =>
-                  isFollowed(props.followedPairs, headline.competitionKey, k)
-                ) ? (
-                  <span className="sp-hl__you">
-                    <span className="d" />
-                    You
-                  </span>
-                ) : null}
                 <span className="sp-hl__title">{headline.title}</span>
               </span>
             </a>

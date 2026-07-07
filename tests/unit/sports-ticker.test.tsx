@@ -65,19 +65,18 @@ describe("SportsTicker", () => {
     expect(html).toContain("Cowboys clinch the division");
   });
 
-  it("renders league follows as distinct leading blocks, never dropped", () => {
+  it("renders nothing for league-only follows (header redesign pass)", () => {
+    // Whole-league follows no longer get a ticker block — the league's content lives in the
+    // grouped news/standings sections below, so a league-only follower sees no Followed strip.
     const html = render([], [{ competitionKey: "eng.1", competitionLabel: "Premier League" }]);
-    expect(html).toContain("sp-tk--league");
-    expect(html).toContain("Premier League");
-    expect(html).toContain("Following");
-    expect(html).toContain("1 league");
+    expect(html).toBe("");
   });
 
   it("is a labeled, keyboard-focusable scroll region with a manage link", () => {
     const html = render([card()]);
     expect(html).toContain('tabindex="0"');
     expect(html).toContain('role="region"');
-    expect(html).toContain('aria-label="Followed teams and leagues"');
+    expect(html).toContain('aria-label="Followed teams"');
     expect(html).toContain("/settings?section=modules&amp;module=sports");
   });
 

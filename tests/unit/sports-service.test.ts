@@ -23,7 +23,7 @@ import {
  */
 interface FakeSourceHandlers {
   listTeams?: (competitionKey: string) => Promise<SourceTeamRef[]>;
-  getScoreboard?: (competitionKey: string, day: string) => Promise<GameSummary[]>;
+  getScoreboard?: (competitionKey: string, day: string, endDay?: string) => Promise<GameSummary[]>;
   getSchedule?: (teamKey: string, competitionKey: string) => Promise<GameSummary[]>;
   getStandings?: (competitionKey: string) => Promise<StandingsTable>;
   getHeadlines?: (competitionKey: string) => Promise<SourceHeadline[]>;
@@ -45,7 +45,8 @@ function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
           case "scoreboard":
             data = await (handlers.getScoreboard ?? (async () => []))(
               params.competitionKey as string,
-              params.day as string
+              params.day as string,
+              params.endDay as string | undefined
             );
             break;
           case "schedule":
@@ -316,7 +317,9 @@ describe("SportsService.getOverview", () => {
     expect(card?.status).toBe("news");
     expect(card?.news).toEqual({
       title: "Cowboys clinch the division",
-      url: "https://example.com/h1"
+      url: "https://example.com/h1",
+      publishedAt: `${TODAY}T12:00:00.000Z`,
+      imageUrl: null
     });
     expect(card?.name).toBe("Dallas Cowboys");
     expect(card?.crestUrl).toContain("dal.png");
@@ -553,18 +556,21 @@ describe("SportsService.today() timezone handling (#761)", () => {
   const ET_DATE = "2026-07-04";
   const UTC_DATE = "2026-07-05";
 
-  it("requests the Eastern calendar date (not the UTC date) from the scoreboard source", async () => {
-    const seenDates: string[] = [];
+  it("requests an Eastern yesterday..today window (never the UTC date) from the scoreboard source", async () => {
+    // The overview fetches a two-day range ending on the Eastern "today": tonight's games sit
+    // under the previous ESPN day once the clock passes Eastern midnight, so a single-day
+    // fetch would drop them (see NEAR_GAME_WINDOW_MS in sports-service.ts).
+    const seenRanges: { day: string; endDay?: string }[] = [];
     const source = makeSource({
-      getScoreboard: async (_competitionKey, day) => {
-        seenDates.push(day);
+      getScoreboard: async (_competitionKey, day, endDay) => {
+        seenRanges.push({ day, endDay });
         return [];
       }
     });
     const service = new SportsService({ ...makeDeps({ source }), now: () => LATE_EVENING_ET });
     await service.getOverview(userA);
-    expect(seenDates).toEqual([ET_DATE]);
-    expect(seenDates).not.toContain(UTC_DATE);
+    expect(seenRanges).toEqual([{ day: "2026-07-03", endDay: ET_DATE }]);
+    expect(seenRanges[0]?.endDay).not.toBe(UTC_DATE);
   });
 
   it("uses the Eastern calendar date for the briefing's followed-facts lookup too", async () => {
@@ -584,18 +590,87 @@ describe("SportsService.today() timezone handling (#761)", () => {
     expect(facts.length).toBeGreaterThan(0);
   });
 
-  it("still resolves the same-day Eastern date at a UTC instant that's also same-day (control)", async () => {
+  it("still ends the window on the same Eastern day at a UTC instant that's also same-day (control)", async () => {
     // 2026-07-01T18:00:00Z (the shared FIXED_NOW) is 2pm ET the same day — no rollover in play.
-    const seenDates: string[] = [];
+    const seenRanges: { day: string; endDay?: string }[] = [];
     const source = makeSource({
-      getScoreboard: async (_competitionKey, day) => {
-        seenDates.push(day);
+      getScoreboard: async (_competitionKey, day, endDay) => {
+        seenRanges.push({ day, endDay });
         return [];
       }
     });
     const service = new SportsService(makeDeps({ source }));
     await service.getOverview(userA);
-    expect(seenDates).toEqual([TODAY]);
+    expect(seenRanges).toEqual([{ day: "2026-06-30", endDay: TODAY }]);
+  });
+});
+
+describe("SportsService two-day scoreboard window (Eastern-midnight flip)", () => {
+  // 2026-07-07T04:18:00Z = 12:18am ET July 7 = 9:18pm PT July 6. ESPN's "today" is already
+  // July 7 (tomorrow's slate), while tonight's games live under July 6 — the two-day window
+  // brings both back, and currentTeamGame must pick tonight's game, not tomorrow's.
+  const PAST_ET_MIDNIGHT = new Date("2026-07-07T04:18:00.000Z");
+
+  // Tonight's final: first pitch 7:10pm PT (02:10Z), ~2h before `now` — inside the near window.
+  const tonightFinal: GameSummary = {
+    ...dalLiveGame,
+    id: "tonight",
+    startsAt: "2026-07-07T02:10:00.000Z",
+    state: "final",
+    statusDetail: "Final",
+    home: { ...dalLiveGame.home, score: 5, winner: true },
+    away: { ...dalLiveGame.away, score: 3 }
+  };
+
+  // Tomorrow's game: 6:40pm ET July 7, ~18h after `now` — outside the near window.
+  const tomorrowPre: GameSummary = {
+    ...dalLiveGame,
+    id: "tomorrow",
+    startsAt: "2026-07-07T22:40:00.000Z",
+    state: "pre",
+    statusDetail: "Scheduled",
+    home: { ...dalLiveGame.home, score: null },
+    away: { ...dalLiveGame.away, score: null }
+  };
+
+  it("cards show tonight's final, not tomorrow's matchup, past Eastern midnight", async () => {
+    const source = makeSource({
+      getScoreboard: async () => [tonightFinal, tomorrowPre]
+    });
+    const service = new SportsService({ ...makeDeps({ source }), now: () => PAST_ET_MIDNIGHT });
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("today");
+    // Result line, not a matchup line — the score proves it's tonight's game.
+    expect(card?.primary).toContain("5");
+  });
+
+  it("a team whose only window game is tomorrow falls back to the news card", async () => {
+    const source = makeSource({
+      getScoreboard: async () => [tomorrowPre]
+    });
+    const service = new SportsService({ ...makeDeps({ source }), now: () => PAST_ET_MIDNIGHT });
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    // Tomorrow's game must not read as "today"; the Next row (schedule dataset) carries it.
+    expect(card?.status).toBe("news");
+  });
+
+  it("a live game from the previous Eastern day still leads the card", async () => {
+    // West-coast night game spanning ET midnight: started 10:10pm ET July 6, live at 12:18am.
+    const spanningLive: GameSummary = {
+      ...dalLiveGame,
+      id: "spanning",
+      startsAt: "2026-07-07T02:10:00.000Z",
+      state: "live"
+    };
+    const source = makeSource({
+      getScoreboard: async () => [spanningLive, tomorrowPre]
+    });
+    const service = new SportsService({ ...makeDeps({ source }), now: () => PAST_ET_MIDNIGHT });
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("live");
   });
 });
 

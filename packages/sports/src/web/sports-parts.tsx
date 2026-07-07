@@ -34,16 +34,6 @@ export function LiveDot(): ReactNode {
   return <span className="sp-livedot" aria-hidden="true" />;
 }
 
-/** "Why you're seeing this" rationale chip — reuses the RationaleChip idiom. */
-export function RationaleChip(props: { children: ReactNode }): ReactNode {
-  return (
-    <span className="sp-rationale">
-      <JarvisMarkIcon />
-      {props.children}
-    </span>
-  );
-}
-
 /** W/D/L form pips — never-red semantics. */
 export function FormPips(props: { form: readonly ("W" | "D" | "L")[] }): ReactNode {
   if (props.form.length === 0) return null;
@@ -55,26 +45,6 @@ export function FormPips(props: { form: readonly ("W" | "D" | "L")[] }): ReactNo
         </span>
       ))}
     </span>
-  );
-}
-
-export function JarvisMarkIcon(): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="13"
-      height="13"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M3 12h6" />
-      <path d="M15 12h6" />
-    </svg>
   );
 }
 

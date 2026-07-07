@@ -165,8 +165,10 @@ function render(overview: SportsOverviewResponse): string {
 describe("SportsPage", () => {
   it("renders the broadsheet masthead", () => {
     const html = render(makeOverview());
-    expect(html).toContain("sp-masthead");
-    expect(html).toContain("sp-masthead__title");
+    // Header redesign pass: folio strip (date + nameplate) replaced the old sp-masthead block.
+    expect(html).toContain("sp-mast");
+    expect(html).toContain("sp-mast__brand");
+    expect(html).toContain("The Sports Desk");
   });
 
   it("renders the gameday hero without rationale text, with both teams and scores", () => {
@@ -180,9 +182,9 @@ describe("SportsPage", () => {
     // live score is a scoped aria-live region so screen readers hear updates
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('aria-atomic="true"');
-    // competitionLabel must render on every game surface, including the live hero
+    // competitionLabel must render on every game surface, including the featured score bar
     // (must-not-regress: live badge does not replace the competition label)
-    expect(html).toContain('<span class="sp-hero__comp">NFL</span>');
+    expect(html).toContain('<span class="sp-scorebar__comp">NFL</span>');
   });
 
   it("does not announce the hero score via aria-live when the game is not live", () => {
@@ -225,7 +227,7 @@ describe("SportsPage", () => {
     );
 
     expect(html).not.toContain("SOURCE_PREGAME_STRING");
-    expect(html).toContain('<span class="sp-hero__phase">16:20</span>');
+    expect(html).toContain('<span class="sp-scorebar__clock">16:20</span>');
   });
 
   it("renders the followed-team ticker block with form pips and next match", () => {
@@ -395,14 +397,20 @@ describe("SportsPage", () => {
         ]
       })
     );
-    expect(html).toContain("AL East");
+    // Non-tournament leagues open on "All": one merged league-wide table, best to worst,
+    // renumbered so per-section ranks can't collide (live feedback mra33whr + mra50mfr).
+    // The old one-section-at-a-time pager (sp-standings__count / Next standings) is gone;
+    // sections are reachable through the view <select> instead.
     expect(html).toContain("New York Yankees");
+    expect(html).toContain("Houston Astros");
     expect(html).toContain("Select standings league");
-    expect(html).toContain("<option");
-    expect(html).toContain("sp-standings__count");
-    expect(html).toContain("Next standings");
-    expect(html).not.toContain("AL West");
-    expect(html).not.toContain("Houston Astros");
+    expect(html).toContain("Select standings view");
+    expect(html).toContain('<option value="all" selected');
+    expect(html).toContain("AL East");
+    expect(html).toContain("AL West");
+    expect(html).toContain('<td class="pos">2</td>');
+    expect(html).not.toContain("sp-standings__count");
+    expect(html).not.toContain("Next standings");
   });
 
   it("offers all catalog leagues in the standings selector, not only ones with data", () => {
@@ -493,15 +501,15 @@ describe("SportsPage", () => {
         ]
       })
     );
-    // both notes get their own legend entry with a distinct numeral marker
+    // Both notes get their own legend entry; the marker is a miniature-row swatch painted
+    // with ESPN's per-note color (PL-site-style tint + edge bar — the color pass shipped in
+    // the broadsheet redesign, superseding the numeral markers).
     expect(html).toContain("UEFA Champions League");
     expect(html).toContain("Relegation");
-    const markerMatches = [...html.matchAll(/sp-legend__marker[^>]*>(\d+)</g)].map((m) => m[1]);
-    expect(markerMatches).toEqual(["1", "2"]);
-    // qualificationColor is carried by the API but the color treatment is a deferred design
-    // pass — the fix must not paint it, so the hex values must not leak into rendered markup.
-    expect(html).not.toContain("#2a66d1");
-    expect(html).not.toContain("#c1272d");
+    const markerCount = [...html.matchAll(/sp-legend__marker/g)].length;
+    expect(markerCount).toBe(2);
+    expect(html).toContain("#2a66d1");
+    expect(html).toContain("#c1272d");
   });
 
   it("shows an image for only the first headline in a news-band league group (#841)", () => {
@@ -561,9 +569,10 @@ describe("SportsPage", () => {
     );
     expect(html).not.toContain("Follow your teams");
     expect(html).not.toContain("Choose teams to follow");
-    expect(html).toContain("sp-tk--league");
-    expect(html).toContain("Following");
-    expect(html).toContain("1 league");
+    // Header redesign pass: whole-league follows no longer get a ticker block — the league's
+    // content lives in the grouped news/standings sections, so no Followed strip renders at all.
+    expect(html).not.toContain('aria-label="Followed"');
+    expect(html).not.toContain("sp-tk--league");
     expect(html).toContain("Premier League");
     // standings/headlines still render for league-only followers
     expect(html).toContain("Latest");

@@ -48,7 +48,10 @@ export interface StandingsRow {
 export type StandingsShape = "table" | "groups" | "record";
 
 export interface StandingsSection {
-  readonly label: string | null; // "Group A", "American Football Conference"; null = single table
+  readonly label: string | null; // "Group A", "AFC East"; null = single table
+  // Parent conference label, e.g. "American Football Conference"; absent/null for flat tables
+  // and soccer groups (#839 follow-up).
+  readonly conference?: string | null;
   readonly rows: readonly StandingsRow[];
 }
 
@@ -106,6 +109,8 @@ export type OverviewHero =
 export interface FollowedTeamNews {
   readonly title: string;
   readonly url: string;
+  readonly publishedAt: string; // ISO — the ticker ranks idle teams by news freshness (mra54n4h)
+  readonly imageUrl: string | null; // small thumbnail on non-live ticker cards (mra5xnt2)
 }
 
 export interface FollowedNextMatch {
@@ -126,6 +131,10 @@ export interface FollowedTeamCard {
   readonly form: readonly ("W" | "D" | "L")[];
   readonly standing: string | null;
   readonly nextMatch: FollowedNextMatch | null;
+  // Start time of the team's most recent completed game (ISO), null when the schedule holds no
+  // finals. The ticker uses it with nextMatch.startsAt to rank in-season teams (games within ten
+  // days) above idle ones (live feedback mra54n4h).
+  readonly lastMatchAt: string | null;
   readonly rationale: string;
 }
 
@@ -172,6 +181,9 @@ export interface SportsFollowsResponse {
 /** `GET /api/sports/standings?competitionKey=<key>` response (#842). */
 export interface SportsStandingsResponse {
   readonly group: StandingsGroup;
+  // Current-round matches for tournaments whose group stage is complete; empty otherwise
+  // (#839 follow-up).
+  readonly fixtures: readonly GameSummary[];
 }
 
 export interface CreateSportsFollowRequest {
@@ -261,9 +273,11 @@ const standingsRowSchema = {
 const standingsSectionSchema = {
   type: "object",
   additionalProperties: false,
+  // `conference` intentionally omitted from `required`: older cached standings tables lack it.
   required: ["label", "rows"],
   properties: {
     label: { type: ["string", "null"] },
+    conference: { type: ["string", "null"] },
     rows: { type: "array", items: standingsRowSchema }
   }
 } as const;
@@ -335,6 +349,7 @@ const followedTeamCardSchema = {
     "form",
     "standing",
     "nextMatch",
+    "lastMatchAt",
     "rationale"
   ],
   properties: {
@@ -351,10 +366,14 @@ const followedTeamCardSchema = {
         {
           type: "object",
           additionalProperties: false,
-          required: ["title", "url"],
+          // New fields must be listed here or fast-json-stringify's oneOf matching rejects the
+          // object (it doesn't just drop unknown keys inside oneOf) — see toPublicHeadline note.
+          required: ["title", "url", "publishedAt", "imageUrl"],
           properties: {
             title: { type: "string" },
-            url: { type: "string" }
+            url: { type: "string" },
+            publishedAt: { type: "string" },
+            imageUrl: { type: ["string", "null"] }
           }
         }
       ]
@@ -376,6 +395,7 @@ const followedTeamCardSchema = {
         }
       ]
     },
+    lastMatchAt: { type: ["string", "null"] },
     rationale: { type: "string" }
   }
 } as const;
@@ -546,9 +566,10 @@ export const sportsStandingsResponseSchema = {
     200: {
       type: "object",
       additionalProperties: false,
-      required: ["group"],
+      required: ["group", "fixtures"],
       properties: {
-        group: standingsGroupSchema
+        group: standingsGroupSchema,
+        fixtures: { type: "array", items: gameSummarySchema }
       }
     },
     400: errorResponseSchema,
