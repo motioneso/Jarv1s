@@ -1,16 +1,21 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id
-`432e7939-3e09-4bc2-83ae-18c11cc0ae29`** (pane `w1:pA5`, tab `w1:t15` at time of writing — resolve
+**Coordinator lock:** label `Coordinator`, **current session id
+`4456c532-a562-4048-82e3-e5eccec0a535`** (pane `w1:pA8`, tab `w1:t15` at time of writing — resolve
 fresh by label+session, never trust the pane number). Relayed from predecessor session
-`d2380257-0a2b-44a4-bafa-49a3be6559ca` (pane `w1:pA3`) at its 70% context checkpoint; predecessor
-confirmed handoff, went idle, and was reaped (pane closed) at run continuation. Exactly one
+`c716ccac-7af8-49d8-96b6-81ed0ae6cc31` (pane `w1:pA7`) — predecessor's relay text confirmed it had
+handed off and was standing by idle; this successor confirmed idle status via bounded pane read
+(5% until auto-compact, no further activity) before reaping (pane closed). Exactly one
 `Coordinator` pane confirmed via `herdr pane list` post-reap.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
-**merges_since_relay:** 0 (no builds spawned yet this tenure)
+**Provider policy (Ben, 2026-07-07 this tenure):** mix up agent providers — next 3 build agents
+spawned should run on **Codex (GPT-5.5)** instead of Claude, where Codex is viable for the task.
+See "Provider-mix directive" note below.
+**merges_since_relay:** 1 (carried forward — routine #854/PR #856, from `b7a14b99` tenure; relay
+threshold is 2 routine/sensitive merges, not yet reached)
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
@@ -57,7 +62,7 @@ supplying licensed `.otf` files — not a coordinator action item, just a standi
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | **HOLD — likely duplicate** | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
+| docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | **CLOSED as duplicate** (2026-07-07, this tenure — closed referencing #719/#695; Build-663 stood down, pane/worktree/branch reaped) | Build-663 (reaped) | w1:p9V (closed) | 663-evening-briefing-redesign (deleted) | — |
 | (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building (Task 2 done, Task 3 "full local gate" next) | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
 | (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | **MERGED** (squash `eafb6ae5`, 2026-07-07T23:06:32Z; fresh QA verdict MERGE-READY: YES, PR comment 4909823976; issue auto-closed; pane/worktree/branch reaped) | Build-854d (reaped) | w1:pA2 (closed) | 854-integration-test-db-isolation (deleted) | #856 (MERGED) |
 
@@ -65,7 +70,18 @@ All three spawned into agents tab `w1:t1C` (created this run), confirmed running
 cut off `origin/main` @ `babe07aa`. Handoff docs committed in each worktree at
 `docs/coordination/handoff-<slug>.md`. **merges_since_relay: 0** (nothing merged yet).
 
-### ⚠️ #663 — HOLD, likely duplicate (found this tenure, unresolved)
+### ✅ #663 — RESOLVED this tenure (session `4456c532-...`): closed as duplicate
+
+Ben's decision — found typed but **unsubmitted** in predecessor `c716ccac`'s pane (`w1:pA7`) input
+box during this tenure's re-adoption bounded read: `close #663 as duplicate`. Treated as his
+answer (unambiguous, matches the documented "Close #663 as duplicate" option below) and executed
+directly by this coordinator rather than resubmitting in the old (about-to-be-reaped) pane:
+`gh issue close 663` (referencing #719/#695), Build-663 messaged to stand down, worktree removed,
+branch deleted, queue row updated to CLOSED. See original findings below for full context.
+
+<details><summary>Original HOLD findings (historical, kept for context)</summary>
+
+
 
 Build-663 found that `docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md` is **already
 fully implemented and merged** as commit `bcbbdf60` / PR #719 (closes #695), merged 2026-07-03 —
@@ -87,6 +103,8 @@ one of:
   delete the `663-evening-briefing-redesign` branch (local + none pushed), drop the queue row.
 - **#663 wants a real delta beyond #719** → have Build-663 re-scope its plan against exactly that
   delta (do not resurrect the full original spec — #719 already covers it).
+
+</details>
 
 ### #853 — plan approved this tenure
 
@@ -150,11 +168,11 @@ Invariants — brief ≠ spec).
 
 ### Liveness monitor
 
-A persistent `Monitor` (task id `bcy2lgvqj`, started by session `d2380257-...`) is running,
-diffing `herdr pane list` for panes `w1:p9V` (Build-663) / `w1:p9W` (Build-853) / `w1:pA2`
-(Build-854d) every 30s, emitting only on `agent_status` change. **This monitor dies with this
-session on relay — the successor must start its own**, or it has zero passive liveness signal on
-the fleet.
+A persistent `Monitor` (task id `bb8pd1v45`, started by session `4456c532-...`, this tenure) is
+running, diffing `herdr pane list` for pane `w1:p9W` (Build-853) only every 30s, emitting only on
+`agent_status` change. #663's pane is gone (closed/reaped this tenure) and #854 is merged, so
+Build-853 is the only fleet member left to watch. **This monitor dies with this session on
+relay — the successor must start its own.**
 
 **Tier rationale:**
 - **#663 → sensitive:** touches scheduled-job-adjacent notification content and reads across
@@ -671,3 +689,40 @@ log-persistence leakage — see finding below).
    never log/DB-persistence leakage, so it does not already cover this new invariant. Needs an
    explicit fix before approval: either drop `stack` at the write boundary (state this plainly in
    D4) or explain why persisting it into a user-queryable table is safe.
+
+## Successor tenure notes (session `4456c532-a562-4048-82e3-e5eccec0a535`)
+
+- **Re-adopted the fleet.** Predecessor `c716ccac-7af8-49d8-96b6-81ed0ae6cc31` (pane `w1:pA7`) had
+  already relayed to this session (spawned as `Coordinator-relay4` at `w1:pA8` in the same tab);
+  confirmed predecessor idle via bounded pane read (5% until auto-compact, no further activity)
+  before reaping it. Claimed lock, renamed own pane `Coordinator-relay4` → `Coordinator`
+  (`w1:pA8`, tab `w1:t15`). Verified exactly one `Coordinator` pane via `herdr pane list`.
+- Re-confirmed Build-663 (`w1:p9V`, idle, HOLD) and Build-853 (`w1:p9W`, idle, Task 1+2 done,
+  Task 3 not started) via bounded pane reads — both matched the manifest exactly, no drift.
+- **#663 resolved.** Ben's decision — "close #663 as duplicate" — was sitting **typed but
+  unsubmitted** in predecessor `c716ccac`'s pane input box (visible in the bounded read taken
+  before reaping it), even though the predecessor had already told him to address the new pane
+  instead. Treated as his answer since it's unambiguous and matches the documented resolution
+  path; executed directly rather than resubmitting in the pane about to be closed: `gh issue close
+  663` (referencing #719/#695), Build-663 messaged to stand down permanently, pane closed, worktree
+  removed (`git worktree remove --force`, tree was clean — no uncommitted work), branch
+  `663-evening-briefing-redesign` deleted. Queue row updated to CLOSED.
+- Started a fresh liveness `Monitor` (task `bb8pd1v45`) for `w1:p9W` only (Build-853) — #663's pane
+  is gone and #854 is already merged/reaped, so it's the sole remaining fleet member.
+- **Did not re-relay #817 findings or the backlog triage** — per the `c716ccac` tenure's final
+  relay checkpoint, both were already delivered to Ben in that session's last chat message. No
+  reply from Ben on either yet as of this note (his only response received this tenure was the
+  #663 decision, found unsubmitted as above).
+- **New this tenure — provider-mix directive from Ben:** "mix up agent providers... for the next
+  three issues, let's put Codex GPT-5.5 on it." Interpreted as: the next 3 build agents this
+  coordinator spawns (across whichever queue items come next — currently #817 once Ben approves
+  its spec, plus whatever clears from the backlog triage) should run on **Codex** instead of
+  Claude, where the task doesn't require a Claude-specific tool/capability. Mechanics: `herdr agent
+  start "<Label>" --tab w1:<agents-tab> --cwd <worktree> --no-focus -- codex -s
+  danger-full-access -a never "<boot prompt>"` (per the coordinate skill's relay-spawn pattern,
+  applied to fresh build spawns too) — confirm the pane is actually running Codex via a bounded
+  read after spawn, same discipline as confirming "Sonnet" for Claude spawns. QA stays on the
+  existing Claude/Opus policy regardless of which provider built the PR (QA is an independent
+  verification role, not tied to build-agent provider). Tracking a running counter below.
+  **Codex-provider counter: 0 of next 3 spawned so far** (no new builds spawned this tenure —
+  #853/#854/#663 predate this directive).
