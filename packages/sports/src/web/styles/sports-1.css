@@ -340,21 +340,21 @@
 .sp-fcgrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(266px, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 .sp-fc {
   position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
-  padding: 15px 16px 14px;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
 }
 .sp-fc__hd {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: var(--space-3);
 }
 .sp-fc__id {
   flex: 1;
@@ -363,7 +363,7 @@
 .sp-fc__name {
   display: block;
   font-family: var(--font-sans);
-  font-size: 14.5px;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text);
   line-height: 1.2;
@@ -371,25 +371,25 @@
 .sp-fc__comp {
   display: block;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 .sp-tag {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-subtle);
   background: var(--surface-2);
-  padding: 3px 7px;
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-pill);
 }
 .sp-tag--live {
@@ -407,14 +407,14 @@
 .sp-fc__primary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
-  margin-top: 13px;
+  margin-top: var(--space-3);
 }
 .sp-fc__resscore {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -423,27 +423,27 @@
   flex: none;
   color: var(--steel);
   display: inline-flex;
-  margin-top: 1px;
+  margin-top: var(--space-0);
 }
 .sp-fc__newstx {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--text-md);
   line-height: 1.4;
   color: var(--text-muted);
 }
 .sp-fc__form {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   flex-wrap: wrap;
-  margin-top: 11px;
+  margin-top: var(--space-3);
 }
 .sp-fc__standing {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--text-2xs);
   letter-spacing: 0.02em;
   color: var(--text-subtle);
 }
@@ -453,18 +453,18 @@
 .sp-fc__next {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
-  margin-top: 12px;
-  padding-top: 11px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
 .sp-fc__nextlbl {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -474,7 +474,7 @@
   color: var(--text-faint);
 }
 .sp-fc__nextmatch {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text);
 }
@@ -728,9 +728,4 @@
   padding-top: var(--space-7);
   border-top: 2px solid var(--border);
   align-items: start;
-}
-@media (max-width: 900px) {
-  .sp-emptyboard {
-    grid-template-columns: 1fr;
-  }
 }
