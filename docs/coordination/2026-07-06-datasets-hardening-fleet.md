@@ -4,7 +4,7 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `9998c947-e826-4869-b21b-58d6b4c54825`** (pane `w1:p9E` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `20d80002-bd0f-409f-81cb-7aa441000ae2` (pane `w1:p9B`, confirmed driving, reaped 2026-07-06).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; no `security`-tier items in this run.
 **Relay threshold:** routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1 (PR #846 / #835, routine, squash-merged e16f99c4, 2026-07-07T05:56:21Z)
+**merges_since_relay:** 2 (PR #846 / #835, routine, squash-merged e16f99c4, 2026-07-07T05:56:21Z; PR #847 / #837, routine, squash-merged, 2026-07-07T06:04:36Z) → **relay threshold hit (2 routine merges) — relay after flushing this merge's bookkeeping, no further merges first.**
 
 > Externalized coordinator memory. GitHub is the source of truth for spec/issue/board status;
 > this file holds only in-flight operational state.
@@ -18,7 +18,7 @@
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-3 | w1:p9D | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | building | dep-cycle-3 | w1:p9F | 834-jobs-settings-cycle | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
-| docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | qa | sports-cleanup-2 | w1:p9A | 837-sports-postmerge-cleanup | #847 |
+| docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | **merged** | sports-cleanup-2 (reaped) | — | 837-sports-postmerge-cleanup (deleted) | #847 (squash) |
 
 Risk tier basis: #833 and #834 touch a security-adjacent guard path (redirect header handling)
 and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensitive` not
@@ -81,39 +81,38 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
   `jarv1s_fix834`, pre-existing unrelated single-file flakes only; successor `dep-cycle-3` (pane
   `w1:p9F`, session `f1545a6c…`) confirmed driving same worktree; reaped 2026-07-06.
 
-## Continuation note (relay @ 2026-07-07, this session ~confirming driving)
+## Continuation note (relay @ 2026-07-07, merge-counter threshold: 2 routine merges)
 
-**Coordinator lock:** anchor is session `9998c947-e826-4869-b21b-58d6b4c54825` (pane `w1:p9E`,
-label `Coordinator`, tab `w1:t15`).
+**Coordinator lock:** this relay's anchor is session `9998c947-e826-4869-b21b-58d6b4c54825`
+(pane `w1:p9E`, label `Coordinator`, tab `w1:t15`) — about to spawn successor in the SAME
+pane/tab. Update the lock line at the top of this file to the successor's session id once
+confirmed driving.
 
-**Just completed this relay:** re-established both persistent Monitors; discovered PR #848 for
-#832 (branch `832-datasets-host-pinning`) via `gh pr list` (build agent's pane was mid-task,
-queued reply never arrived in time); spawned fresh `coordinated-qa` for PR #848 (routine) and PR
-#847 (routine, old QA agentId `adf7f6a7da9ed24ef` had no live transcript — treated as lost, fresh
-QA spawned instead); absorbed dep-cycle-2→dep-cycle-3 relay and reaped `w1:p98`; reaped old
-Coordinator pane `w1:p9B` after explicit no-merge stand-down ack.
+**Just completed:** PR #847 (#837) QA GREEN (verdict posted on the PR), squash-merged, issue
+#837 closed manually (no auto-close keyword in PR body), worktree+branch removed, pane
+`sports-cleanup-2` (`w1:p9A`) reaped. `merges_since_relay` = 2 → **relay-on-2-merges threshold
+fired — no deferral, merge nothing further before relaying** (this is why PR #848 below is left
+for the successor rather than finished out).
 
-**In flight, needs a decision from whoever reads this next:**
-- **PR #847 (#837, routine)** — fresh `coordinated-qa` spawned this relay (background), polling
-  `gh pr checks 847` until "Verify foundation and app" resolves (was pending). Check for its
-  completion notification; if GREEN → merge (squash, close #837, remove worktree
-  `837-sports-postmerge-cleanup`, reap `sports-cleanup-2` pane `w1:p9A`).
-- **PR #848 (#832, routine, first of chain #832→#833→#836)** — fresh `coordinated-qa` spawned this
-  relay (background), same CI-poll pattern. If GREEN → merge #832 only (squash, close #832);
-  #833/#836 are still building on the same branch/worktree (`datasets-chain-3`, pane `w1:p9D`) —
-  do not touch that pane's work, and don't assume #833/#836 PR numbers until it reports them.
+**In flight, needs a decision from the successor:**
+- **PR #848 (#832, routine, first of chain #832→#833→#836)** — `coordinated-qa` agent already
+  spawned (agentId `a72f373262ccd7b83`, background), polling `gh pr checks 848` until "Verify
+  foundation and app" resolves; verdict not yet returned when this relay fired. Successor: check
+  for its completion notification; if missed, resume via `SendMessage(to:
+  "a72f373262ccd7b83", ...)` or re-spawn QA fresh on PR #848. If GREEN → merge #832 only (squash,
+  close #832); do NOT touch `datasets-chain-3`'s worktree/pane — it's continuing on #833/#836
+  independently, and their PR numbers aren't assigned yet.
 
 **Fleet state, all in `w1:t1B`:**
 
 | Agent (current label) | Pane | Worktree | Issue | Status |
 | --- | --- | --- | --- | --- |
-| `datasets-chain-3` | `w1:p9D` | `832-datasets-host-pinning` | #832→#833→#836 | #832 PR #848 open, QA in flight; agent continuing on #833/#836 in same worktree |
-| `dep-cycle-3` | `w1:p9F` | `834-jobs-settings-cycle` | #834 | building, task 4 (verify:foundation) in progress at handoff |
-| `sports-cleanup-2` | `w1:p9A` | `837-sports-postmerge-cleanup` | #837 | done, PR #847, QA in flight |
+| `datasets-chain-3` | `w1:p9D` | `832-datasets-host-pinning` | #832→#833→#836 | #832 PR #848 open, QA in flight (see above); agent continuing on #833/#836 in same worktree |
+| `dep-cycle-3` | `w1:p9F` | `834-jobs-settings-cycle` | #834 | building, task 4 (verify:foundation) in progress at last observation |
 
 **No escalations outstanding.** No `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags seen this run.
 
-**Persistent Monitors, live in this session** (do NOT survive relay — re-establish both):
+Persistent Monitors from this session do NOT survive relay — re-establish both:
 1. Fleet liveness: diff `herdr pane list` for `tab_id == 'w1:t1B'`, emit on `agent_status` change
    per pane.
 2. Sports-broadsheet watch (below) — Ben explicitly asked to be kept apprised; last observed
