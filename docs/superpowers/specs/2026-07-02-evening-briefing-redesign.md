@@ -1,6 +1,8 @@
 # Evening Briefing — Full Redesign (chief-of-staff day close)
 
-**Status:** draft — awaiting Ben approval
+**Status:** approved (2026-07-07, via coordinator queueing pass) — as-is, no revisions requested.
+Build agent MUST re-verify grounding against current `origin/main` before planning; this draft was
+grounded on `b1a1f672`, which predates significant sports/datasets work merged since.
 **Date:** 2026-07-02
 **Owner:** Ben + Claude
 **GitHub:** #663 (Evening Review Design — reopened; the "already implemented" close conflated
