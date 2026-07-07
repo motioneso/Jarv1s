@@ -16,7 +16,7 @@ prior lineage; next merge to count toward this tenure's threshold is #836).
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-4 (continuing on #833/#836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | **merged** | datasets-chain-4 (continuing on #836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #850 (squash a9fe44f8) |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building (plan not yet approved) | datasets-chain-5 | w1:p9M | 832-datasets-host-pinning (chain: 832→833→836) | — |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | **merged** | dep-cycle-3 (reaped) | — | 834-jobs-settings-cycle (deleted) | #849 (squash e6911c45) |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
 | docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | **merged** | sports-cleanup-2 (reaped) | — | 837-sports-postmerge-cleanup (deleted) | #847 (squash) |
@@ -103,6 +103,12 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
   `a9fe44f8`), closed #833, told `datasets-chain-4` to rebase and start #836, flushed the manifest
   (`bbea738b`), then signaled safe to reap; successor (session `22037838…`, pane `w1:p9K`)
   confirmed driving and reaped it 2026-07-07.
+- `0d72e407-e18d-4ae2-9137-fa441f4bc6a2` (datasets-chain-4, pane `w1:p9H`) — relayed at ctx 71%
+  on #836: wrote handoff doc + verified both issue premises (host-pinning.ts:303 redirect
+  no-method-downgrade, client.ts buildCacheKey missing scoping comment), plan not yet
+  written/approved; committed `docs/superpowers/handoffs/2026-07-07-836-redirect-downgrade-relay.md`
+  (`11a88d58`). Successor `datasets-chain-5` (session `b640eb8a…`, pane `w1:p9M`) confirmed driving
+  same worktree/branch (`832-datasets-host-pinning`, Sonnet); reaped 2026-07-07.
 
 ## Continuation note (relay @ 2026-07-07, merge-counter threshold: 2 routine merges)
 
