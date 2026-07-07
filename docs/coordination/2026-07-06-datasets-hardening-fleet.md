@@ -4,7 +4,10 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `c24b0bc4-207d-4c56-91e8-b0cfb89d1984`** (pane `w1:p9J` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `25847737-d212-4e3b-90e4-bd27e120361e` (pane `w1:p9G`, tab `w1:t15`), reap pending ack.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; no `security`-tier items in this run.
 **Relay threshold:** routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 1 (PR #848 / #832, routine, squash-merged ab79cdc7, 2026-07-07T06:07:14Z, verdict GREEN posted pre-relay by QA agent `a72f373262ccd7b83`; merge executed by this successor session immediately on adoption) → below threshold, continue supervising.
+**merges_since_relay:** 2 (PR #848/#832 routine, squash ab79cdc7; PR #849/#834 sensitive, squash
+e6911c45, merged by predecessor session finishing its own lane just after handoff) → **threshold
+fired (≥2), compounded by 70% context-meter warning. No deferral — relaying now, merging nothing
+further (PR #850/#833 QA in flight, do NOT merge on this session even if verdict lands green).**
 
 > Externalized coordinator memory. GitHub is the source of truth for spec/issue/board status;
 > this file holds only in-flight operational state.
@@ -16,7 +19,7 @@
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-4 (continuing on #833/#836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | qa | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #850 |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building | datasets-chain-4 | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | — |
-| docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | **merged** | dep-cycle-3 (pending reap) | w1:p9F | 834-jobs-settings-cycle | #849 (squash e6911c45) |
+| docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | **merged** | dep-cycle-3 (reaped) | — | 834-jobs-settings-cycle (deleted) | #849 (squash e6911c45) |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
 | docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | **merged** | sports-cleanup-2 (reaped) | — | 837-sports-postmerge-cleanup (deleted) | #847 (squash) |
 
@@ -84,6 +87,15 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
   right after #833 plan approved (redirect header stripping, sensitive tier, tier-process
   correction relayed too); successor `datasets-chain-4` (session `0d72e407…`, pane `w1:p9H`)
   confirmed driving same worktree/branch, proceeding to Task 1 build; reaped 2026-07-07.
+- `25847737-d212-4e3b-90e4-bd27e120361e` (old Coordinator, pane `w1:p9G`) — relayed at 72%
+  meter warning mid-Phase-3 (PR #849 QA in flight); successor `c24b0bc4…` (pane `w1:p9J`)
+  confirmed driving, respawned a duplicate QA it mistakenly thought was needed (stopped, worktree
+  cleaned up) once it learned the original QA agent `af01b499cf9d1ff1c` was still alive under the
+  predecessor's own session. Predecessor finished that QA (GREEN), merged PR #849 itself (squash
+  e6911c45), closed #834, then signaled safe to reap; closed 2026-07-07.
+- `f1545a6c-0658-4800-b811-87f77d552af4` (dep-cycle-3, pane `w1:p9F`) — build agent for #834,
+  idle after PR #849 merged; reaped alongside predecessor coordinator, worktree
+  `834-jobs-settings-cycle` removed, local branch deleted, 2026-07-07.
 
 ## Continuation note (relay @ 2026-07-07, merge-counter threshold: 2 routine merges)
 
@@ -237,7 +249,42 @@ leak auth headers across hosts). `datasets-chain-4` told to hold on #836 until #
 merges (chain rebase rule), and to route future reports to this pane (`w1:p9J`) not the
 predecessor's.
 
-Next coordinator action: consume PR #850 QA verdict → merge if green (sensitive, auto-merge +
-digest) → close #833 → tell `datasets-chain-4` to rebase and start #836; consume PR #849 QA
-verdict (predecessor's agent `af01b499cf9d1ff1c`, still finishing) → merge if green → reap
-`dep-cycle-3` → reap predecessor pane `w1:p9G` once it signals safe.
+**Resolved:** PR #849 GREEN (predecessor's own QA agent finished, verdict posted
+https://github.com/motioneso/Jarv1s/pull/849#issuecomment-4900900816), merged squash `e6911c45`
+by the predecessor itself, issue #834 closed. Predecessor pane `w1:p9G` and `dep-cycle-3`
+(`w1:p9F`, idle/done) both reaped this tenure; `834-jobs-settings-cycle` worktree + local branch
+removed. **This second merge (#849) put `merges_since_relay` at 2 → relay threshold fired,
+compounded by a 70% context-meter warning on the same turn — relaying now per "no deferral."**
+
+## Continuation note (relay @ 2026-07-07, merge-counter threshold (2) + 70% context-meter, mid-Phase-3)
+
+**Coordinator lock:** this relay's anchor is session `c24b0bc4-207d-4c56-91e8-b0cfb89d1984`
+(pane `w1:p9J`, label `Coordinator`, tab `w1:t15`) — about to spawn successor in the SAME
+pane/tab. Update the lock line at the top of this file to the successor's session id once
+confirmed driving. **Reset `merges_since_relay` to 0 for the new tenure** (both #848 and #849 are
+now fully landed and accounted for above).
+
+**In flight, needs the successor to pick up:**
+- **PR #850 (#833, sensitive tier, datasets-chain-4/`w1:p9H`)** — build done (VF_EXIT=0,
+  AUDIT_EXIT=0, full suite 1854 unit + 1353 integration pass, isolated DB `jarv1s_832_datasets`,
+  rebased/up-to-date on `origin/main`@`a66e9a20`, no conflicts). QA agent already spawned:
+  `coordinated-qa`, agentId `a0db8c2ca4b396aef` (Sonnet, sensitive-tier invariant checklist +
+  explicit check that the redirect header-stripping logic can't leak auth headers across hosts)
+  — **verdict not yet returned when this relay fired**. Successor: check for its completion
+  notification first; if missed, `SendMessage(to: "a0db8c2ca4b396aef", ...)` to resume, or
+  re-spawn QA fresh on PR #850 if that fails. **Before re-spawning, always check whether the
+  original agent is still alive under a different (not-yet-reaped) session pane first** — this
+  tenure nearly duplicated QA spend by assuming a differently-scoped agent ID was dead when it was
+  actually alive under the predecessor's pane; confirm via `herdr pane list`/pane read before
+  assuming a missing transcript means the agent died. If GREEN → merge #850 (squash), close #833,
+  **auto-merge + Ben digest — no pre-merge sign-off gate** (sensitive ≠ security tier). Then tell
+  `datasets-chain-4` (session `0d72e407…`, pane `w1:p9H`, idle, waiting on this) to rebase on the
+  merge and start #836 (routine, next/last in the chain — do not start it before #833 lands).
+- **Monitors do not survive relay — re-establish both fresh:** (1) fleet liveness diffing
+  `herdr pane list` over tab `w1:t1B` (now just `datasets-chain-4`, idle), emit on
+  `agent_status`/label change only; (2) sports-broadsheet watch on pane `w1:p8Y`, emit on
+  `agent_status` change — Ben's explicit standing ask, not a fleet item, keep running regardless
+  of fleet state. (This tenure's monitors: fleet liveness task `bc2ianpfs`, sports watch task
+  `bww6hj7s4` — both die with this session, not inherited.)
+
+**No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
