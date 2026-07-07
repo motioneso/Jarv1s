@@ -126,6 +126,18 @@ function statValue(
   return stats?.find((s) => s.name === name)?.value;
 }
 
+// ESPN ships malformed note colors — the Premier League Europa slot arrives as "##B5E7CE"
+// (double hash, verified live 2026-07-07). Injected raw into color-mix() that invalidates the
+// whole declaration, so Europa rows silently lost their zone tint while CL/relegation rows kept
+// theirs (live feedback mrb4sa8y). Normalize to one "#" and hard-validate the hex; anything
+// unparseable becomes null so the web layer's neutral fallback takes over. This is also the
+// safety valve for feeding a provider-supplied string into inline styles.
+function normalizeNoteColor(color: string | undefined): string | null {
+  if (!color) return null;
+  const hex = `#${color.replace(/^#+/, "")}`;
+  return /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex) ? hex : null;
+}
+
 function toStandingsRow(entry: EspnStandingsEntry, index: number): StandingsRow {
   const teamKey = (entry.team?.abbreviation ?? entry.team?.id ?? "").toLowerCase();
   return {
@@ -143,7 +155,7 @@ function toStandingsRow(entry: EspnStandingsEntry, index: number): StandingsRow 
     winPercent: statValue(entry.stats, "winPercent") ?? null,
     qualifies: entry.note != null,
     qualificationNote: entry.note?.description ?? null,
-    qualificationColor: entry.note?.color ?? null
+    qualificationColor: normalizeNoteColor(entry.note?.color)
   };
 }
 

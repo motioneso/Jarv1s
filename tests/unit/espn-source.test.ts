@@ -87,6 +87,27 @@ describe("EspnDatasetAdapter", () => {
     expect((table.sections[0]?.rows[1] as { qualifies: boolean }).qualifies).toBe(false);
   });
 
+  it("repairs ESPN's malformed note colors and nulls unparseable ones (mrb4sa8y)", async () => {
+    // ESPN's live Premier League feed ships the Europa League note color as "##B5E7CE"
+    // (double hash, seen 2026-07-07). Raw, it invalidates the row's color-mix() tint, so the
+    // Europa zone silently rendered with no highlight at all. The adapter must normalize the
+    // hash and reject anything that still isn't a hex color (inline-style safety too).
+    const base = fixture("eng1-standings.json") as {
+      children: { standings: { entries: { note?: unknown }[] } }[];
+    };
+    const doctored = structuredClone(base);
+    const entries = doctored.children[0]!.standings.entries;
+    entries[0]!.note = { description: "Europa League", color: "##B5E7CE" };
+    entries[1]!.note = { description: "Relegation", color: "url(javascript:alert(1))" };
+    const table = (await fetchDataset(
+      "standings",
+      { competitionKey: "eng.1" },
+      okFetch(doctored)
+    )) as { sections: { rows: { qualificationColor: string | null }[] }[] };
+    expect(table.sections[0]?.rows[0]?.qualificationColor).toBe("#B5E7CE");
+    expect(table.sections[0]?.rows[1]?.qualificationColor).toBeNull();
+  });
+
   it("keeps every tournament group as its own section", async () => {
     const table = (await fetchDataset(
       "standings",
