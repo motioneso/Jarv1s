@@ -304,3 +304,41 @@ now fully landed and accounted for above).
   `bww6hj7s4` — both die with this session, not inherited.)
 
 **No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
+
+## Continuation note (relay @ 2026-07-07, 70% context-meter checkpoint, mid plan-approval)
+
+**Coordinator lock:** this relay's anchor is session `22037838-bb11-4e04-b12f-71519a9f7834`
+(pane `w1:p9K`, label `Coordinator`, tab `w1:t15`) — about to spawn successor in the SAME
+pane/tab. Update the lock line at the top of this file to the successor's session id once
+confirmed driving. `merges_since_relay` stays **0** (no merges landed this tenure).
+
+**Just completed:** `datasets-chain-4` relayed itself on #836 to `datasets-chain-5` (session
+`b640eb8a…`, pane `w1:p9M`) after verifying both issue premises and writing a handoff doc
+(`11a88d58`); old pane `w1:p9H` reaped, manifest updated (`e7135766`).
+
+**In flight, needs the successor to act on immediately (no re-review needed):**
+- **#836 plan-ready escalation** — `datasets-chain-5` (`w1:p9M`, now idle, waiting) wrote
+  `docs/superpowers/plans/2026-07-07-836-redirect-downgrade-cache-scoping.md` (in its own
+  worktree `.claude/worktrees/832-datasets-host-pinning`) and requested build approval. **I
+  reviewed it in full before this relay fired — verdict: APPROVE, stays inside the spec's locked
+  decisions, no fork:**
+  - Task A: adds two module-private helpers (`shouldDowngradeToGet`, `downgradeToGet`) inside the
+    existing manual-redirect loop in `host-pinning.ts` (localized, no new public API, doesn't
+    touch #833's `stripSensitiveHeaders`, TDD with 6 new tests covering 303/301/302 downgrade +
+    307/308 preservation + same-method-unchanged).
+  - Task B: doc-only — a comment above `buildCacheKey` (`client.ts`) plus one new paragraph in
+    the connector-SDK spec's Architecture §4 documenting the cache-key user-scoping constraint
+    for the already-deferred keyed-credential slice. No behavior change, no test required per the
+    issue's own acceptance criteria.
+  - This is the **last** issue in the 832→833→836 chain — no further chain step follows.
+  **Successor: send the approval via `herdr-pane-message` to `datasets-chain-5` (`w1:p9M`) now,**
+  then supervise the build → PR → QA (routine tier, standard checklist) → auto-merge on green →
+  close #836 (chain complete, no rebase/successor needed after).
+- **Monitors do not survive relay — re-establish both fresh:** (1) fleet liveness diffing
+  `herdr pane list` over tab `w1:t1B` (now just `datasets-chain-5`), emit on `agent_status`/label
+  change only; (2) sports-broadsheet watch on pane `w1:p8Y`, emit on `agent_status` change — Ben's
+  explicit standing ask, not a fleet item, keep running regardless of fleet state. (This tenure's
+  monitors: fleet liveness task `bmg35tfl0`, sports watch task `bdil7ip9v` — both die with this
+  session, not inherited.)
+
+**No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
