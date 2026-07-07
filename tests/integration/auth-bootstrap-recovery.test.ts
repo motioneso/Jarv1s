@@ -380,14 +380,30 @@ describe("owner bootstrap recovery", () => {
       password: "password12345"
     });
 
-    expect(firstAttempt.statusCode).not.toBe(200);
+    // The trigger denial surfaces as an unhandled error from the after-hook, not
+    // an APIError — better-auth reports it as a 500, not the 422 USER_ALREADY_EXISTS
+    // the issue describes on every *subsequent* attempt against the bricked row.
+    expect(firstAttempt.statusCode).toBe(500);
 
     // The failed attempt's row must not survive — otherwise the email is
-    // permanently taken with no way to complete setup.
+    // permanently taken (422 USER_ALREADY_EXISTS) with no way to complete setup,
+    // exactly the brick described in the issue.
     const afterFailure = await readUsersByEmailPrefix("bricked-owner@");
     expect(afterFailure).toHaveLength(0);
 
-    // Retrying the exact same email must succeed now that the row was cleaned up.
+    // Once the actual conflict is remediated (an operator clearing the stale
+    // admin flag — a separate concern from this fix), retrying the exact same
+    // email must succeed, proving it was never permanently bricked.
+    const remediate = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await remediate.connect();
+    try {
+      await remediate.query(
+        "UPDATE app.users SET is_instance_admin = false WHERE email = 'stale-admin@example.com'"
+      );
+    } finally {
+      await remediate.end();
+    }
+
     const retry = await signUp({
       name: "Bricked Owner",
       email,
