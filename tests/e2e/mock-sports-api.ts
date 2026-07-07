@@ -101,6 +101,7 @@ function followedCard(overrides: Partial<FollowedTeamCard>): FollowedTeamCard {
     form: ["W", "W", "L"],
     standing: "1st · NFC North",
     nextMatch: null,
+    lastMatchAt: null,
     rationale: "Playing right now",
     ...overrides
   };
@@ -201,7 +202,12 @@ export const sportsOverviewFixture: SportsOverviewResponse = {
       primary: "",
       form: ["W", "W", "W"],
       standing: "1st · Atlantic",
-      news: { title: "Celtics extend win streak to eight", url: "https://example.test/celtics-8" },
+      news: {
+        title: "Celtics extend win streak to eight",
+        url: "https://example.test/celtics-8",
+        publishedAt: "2026-07-06T18:00:00Z",
+        imageUrl: null
+      },
       rationale: "Latest headline"
     }),
     followedCard({

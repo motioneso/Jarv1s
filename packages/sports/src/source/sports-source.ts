@@ -17,6 +17,9 @@ export interface SourceHeadline extends Headline {
 export interface StandingsTable {
   readonly sections: readonly {
     readonly label: string | null;
+    // Parent conference label (e.g. "American Football Conference"); absent/null for flat tables
+    // and soccer groups (#839 follow-up). Optional so older cached tables + fixtures omit it.
+    readonly conference?: string | null;
     readonly rows: readonly StandingsRow[];
   }[];
 }

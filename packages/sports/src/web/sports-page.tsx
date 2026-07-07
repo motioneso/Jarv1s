@@ -2,11 +2,12 @@ import "./styles/sports-1.css";
 import "./styles/sports-3.css";
 import "./styles/sports-4-grid.css";
 import "./styles/sports-5-editorial.css";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
   FollowedTeamCard,
   GameSide,
+  Headline,
   OverviewHero,
   SportsOverviewResponse
 } from "@jarv1s/shared";
@@ -14,10 +15,12 @@ import type {
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";
+import { teamBarColor } from "./team-colors.js";
 import { CalendarIcon, Crest, FormPips, LiveDot, TrophyIcon } from "./sports-parts.js";
 import { LatestColumn, NewsBand, NewsIcon, StoryHero } from "./sports-news.js";
 import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
 import { AroundLeaguesTicker } from "./sports-around-ticker.js";
+import { SOCCER_COMPETITIONS } from "./competitions.js";
 import { StandingsRail } from "./sports-standings.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
@@ -30,6 +33,27 @@ export const LIVE_REFETCH_INTERVAL_MS = 60_000;
 // A still-pulsing LiveDot next to a frozen score is worse than no live indicator at all — this
 // decides whether the overview query should keep polling (#762). Exported for direct unit testing
 // of the polling decision (see tests/unit/sports-page.test.tsx).
+// The old prod server (live preview proxies to it) sends a gameday hero all day; the new
+// server only does from T−15min through the final whistle (live feedback mra4kqpf). Mirror
+// that gate here so the preview behaves now and stale caches never regress it: outside the
+// window the hero demotes to a story hero led by the top story, exactly what the new server
+// would have sent.
+const GAMEDAY_HERO_LEAD_MS = 15 * 60 * 1000;
+
+function demoteEarlyGameday(data: SportsOverviewResponse): OverviewHero {
+  const hero = data.hero;
+  if (hero.mode !== "gameday") return hero;
+  const { game } = hero;
+  if (game.state === "live") return hero;
+  if (
+    game.state === "pre" &&
+    new Date(game.startsAt).getTime() - Date.now() <= GAMEDAY_HERO_LEAD_MS
+  ) {
+    return hero;
+  }
+  return { mode: "story", headline: data.topStories[0] ?? null };
+}
+
 export function hasLiveGame(data: SportsOverviewResponse | undefined): boolean {
   if (!data) return false;
   if (data.hero.mode === "gameday" && data.hero.game.state === "live") return true;
@@ -78,18 +102,30 @@ export function SportsPage() {
   const hasTeamFollows = data.followed.length > 0;
   const hasLeagueFollows = data.followedLeagues.length > 0;
   const hasFollows = hasTeamFollows || hasLeagueFollows;
+  const hero = demoteEarlyGameday(data);
+  // The story hero IS the top story — listing it again at the head of the Latest column reads
+  // as a dupe (live feedback mra4os7y).
+  const heroHeadlineId = hero.mode === "story" ? hero.headline?.id : undefined;
+  const gridData = heroHeadlineId
+    ? { ...data, topStories: data.topStories.filter((h) => h.id !== heroHeadlineId) }
+    : data;
 
   return (
     <div className="sp-wrap">
-      <PageHeader />
-      {data.degraded ? <DegradedBand /> : null}
+      <PageHeader hero={hero} />
 
       {hasFollows ? (
         <>
-          <SportsTicker followed={data.followed} leagues={data.followedLeagues} />
+          {hero.mode === "gameday" ? (
+            <FeaturedGameBar hero={hero} story={findFeaturedStory(hero, data)} />
+          ) : null}
+          <SportsTicker
+            followed={data.followed}
+            headlines={[...data.topStories, ...data.leagueNews.flatMap((g) => g.headlines)]}
+          />
           <AroundLeaguesTicker groups={data.scoreboard} />
-          <Hero hero={data.hero} />
-          <BroadsheetGrid overview={data} followedPairs={followedPairs} />
+          {hero.mode === "story" ? <StoryHero headline={hero.headline} /> : null}
+          <BroadsheetGrid overview={gridData} followedPairs={followedPairs} />
           <NewsBand groups={data.leagueNews} />
         </>
       ) : (
@@ -99,23 +135,36 @@ export function SportsPage() {
   );
 }
 
-function PageHeader() {
-  const locale = useUserLocale();
-  return (
-    <header className="sp-masthead">
-      <h1 className="sp-masthead__title">Sports</h1>
-      <span className="sp-masthead__meta">{formatDate(new Date(), locale)}</span>
-    </header>
-  );
+/* ---------------------------------------------------------------- Masthead */
+
+// Soccer reads home-first ("Liverpool v Chelsea", home half leads the score bar); the US
+// leagues read visitor-first ("Bills at Dolphins", away half leads). Data, not preference —
+// it's how each sport's scorelines are written everywhere else the user sees them.
+
+// "Live: Giants at Dodgers" — the event masthead line, rendered as broadsheet display type.
+// Everything in it is real: game state + the two teams from the featured game.
+function eventTitle(game: Extract<OverviewHero, { mode: "gameday" }>["game"]): string {
+  const lead = game.state === "live" ? "Live" : game.state === "final" ? "Final" : "Today";
+  const matchup = SOCCER_COMPETITIONS.has(game.competitionKey)
+    ? `${game.home.shortName} v ${game.away.shortName}`
+    : `${game.away.shortName} at ${game.home.shortName}`;
+  return `${lead}: ${matchup}`;
 }
 
-// Quiet, non-blocking notice for a partial provider outage — the page still renders with
-// whatever loaded, this just explains why something might be missing (#765 M1).
-function DegradedBand() {
+// Broadsheet masthead: a thin folio strip (date · SPORTS nameplate · manage), then — on a
+// gameday — the event headline at real display scale (header redesign pass, follows the
+// nyt_style_sports_mockup layout in sans).
+function PageHeader(props: { hero?: OverviewHero }) {
+  const locale = useUserLocale();
+  const gameday = props.hero?.mode === "gameday" ? props.hero : null;
   return (
-    <p className="sp-degraded" role="status">
-      Scores are temporarily unavailable for some leagues. Showing what we could load.
-    </p>
+    <header className="sp-mast">
+      <div className="sp-mast__folio">
+        <span className="sp-mast__date">{formatDate(new Date(), locale)}</span>
+        <h1 className="sp-mast__brand">The Sports Desk</h1>
+      </div>
+      {gameday ? <p className="sp-mast__event">{eventTitle(gameday.game)}</p> : null}
+    </header>
   );
 }
 
@@ -132,70 +181,126 @@ function SportsSkeleton() {
   );
 }
 
-/* ---------------------------------------------------------------- Hero */
+/* ---------------------------------------------------------------- Featured-game score bar */
 
-function Hero(props: { hero: OverviewHero }) {
-  if (props.hero.mode === "gameday") {
-    return <GamedayHero hero={props.hero} />;
-  }
-  return <StoryHero headline={props.hero.headline} />;
+// Full-width team-color score bar under the event masthead: leading team's color fills the
+// left half, trailing team's the right, scores pinned to the outer edges, game clock in the
+// paper-colored center chip. Colors come from the static map in team-colors.ts; unmapped
+// teams get the neutral ink treatment from CSS.
+// Photo + blurb band under the score bar (mockup's featured-game treatment): reuse a real
+// headline about this matchup from the overview payload. Honest data only — if no headline
+// mentions either team, no band renders. Prefers the service's teamKeys join; falls back to
+// scanning titles for a team name, since some sources emit empty teamKeys.
+function findFeaturedStory(
+  hero: Extract<OverviewHero, { mode: "gameday" }>,
+  overview: SportsOverviewResponse
+): Headline | null {
+  const { game } = hero;
+  const keys = new Set([game.home.teamKey, game.away.teamKey]);
+  const names = [game.home.shortName, game.away.shortName].map((name) => name.toLowerCase());
+  // A story about *this* game (preview, recap, highlights) tags or names both clubs.
+  // Single-team pieces and league-wide listicles — which ESPN tags with the whole league,
+  // hence the tag-count cap — never qualify: no band beats a band about the wrong thing.
+  const aboutThisGame = (h: Headline) => {
+    if (h.competitionKey !== game.competitionKey || h.teamKeys.length > 6) return false;
+    const tagged = h.teamKeys.filter((key) => keys.has(key)).length;
+    const named = names.filter((name) => h.title.toLowerCase().includes(name)).length;
+    return Math.max(tagged, named) >= 2;
+  };
+  const candidates = [
+    ...overview.topStories,
+    ...overview.leagueNews.flatMap((group) => group.headlines)
+  ].filter(aboutThisGame);
+  return (
+    candidates.find((h) => h.imageUrl && h.summary) ??
+    candidates.find((h) => h.imageUrl) ??
+    candidates[0] ??
+    null
+  );
 }
 
-function GamedayHero(props: { hero: Extract<OverviewHero, { mode: "gameday" }> }) {
-  const { game, competitionLabel, alsoToday } = props.hero;
-  const locale = useUserLocale();
+function FeaturedStoryBand(props: { story: Headline }) {
+  const { story } = props;
+  const [broken, setBroken] = useState(false);
   return (
-    <section className="sp-hero sp-hero--live" aria-label="Gameday">
-      <div className="sp-hero__eyebrow">
-        {game.state === "live" ? (
-          <span className="sp-live">
-            <LiveDot />
-            Live
-          </span>
-        ) : null}
-        <span className="sp-hero__comp">{competitionLabel}</span>
-        <span className="sp-hero__phase">
-          {game.state === "pre" ? formatTime(game.startsAt, locale) : game.statusDetail}
-        </span>
-      </div>
-      <div className="sp-hero__match">
-        <HeroSide side={game.away} />
-        <div
-          className="sp-hero__score"
-          aria-live={game.state === "live" ? "polite" : undefined}
-          aria-atomic={game.state === "live" ? "true" : undefined}
-        >
-          <span className="n">{game.away.score ?? "–"}</span>
-          <span className="dash">–</span>
-          <span className="n">{game.home.score ?? "–"}</span>
-        </div>
-        <HeroSide side={game.home} />
-      </div>
-      <div className="sp-hero__foot">
-        <span className="sp-hero__note">
-          {game.home.name} vs {game.away.name}
-        </span>
-      </div>
-      {alsoToday ? (
-        <div className="sp-hero__also">
-          <CalendarIcon />
-          <b>Also today:</b> {alsoToday}
-        </div>
+    <a className="sp-scorebar__story" href={story.url} target="_blank" rel="noreferrer">
+      {story.imageUrl && !broken ? (
+        <img
+          className="sp-scorebar__photo"
+          src={story.imageUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setBroken(true)}
+        />
       ) : null}
+      <span className="sp-scorebar__storycopy">
+        <span className="sp-scorebar__storytitle">{story.title}</span>
+        {story.summary ? <span className="sp-scorebar__storydek">{story.summary}</span> : null}
+      </span>
+    </a>
+  );
+}
+
+function FeaturedGameBar(props: {
+  hero: Extract<OverviewHero, { mode: "gameday" }>;
+  story: Headline | null;
+}) {
+  const { game, competitionLabel } = props.hero;
+  const locale = useUserLocale();
+  const soccer = SOCCER_COMPETITIONS.has(game.competitionKey);
+  const left = soccer ? game.home : game.away;
+  const right = soccer ? game.away : game.home;
+  const clock = game.state === "pre" ? formatTime(game.startsAt, locale) : game.statusDetail;
+  return (
+    <section
+      className="sp-scorebar"
+      aria-label="Featured game"
+      aria-live={game.state === "live" ? "polite" : undefined}
+      aria-atomic={game.state === "live" ? "true" : undefined}
+    >
+      <div className="sp-scorebar__bar">
+        <ScoreBarSide side={left} competitionKey={game.competitionKey} edge="l" />
+        <div className="sp-scorebar__mid">
+          {game.state === "live" ? <LiveDot /> : null}
+          <span className="sp-scorebar__clock">{clock}</span>
+        </div>
+        <ScoreBarSide side={right} competitionKey={game.competitionKey} edge="r" />
+      </div>
+      <div className="sp-scorebar__foot">
+        <span className="sp-scorebar__comp">{competitionLabel}</span>
+      </div>
+      {props.story ? <FeaturedStoryBand story={props.story} /> : null}
     </section>
   );
 }
 
-function HeroSide(props: { side: GameSide }) {
+function ScoreBarSide(props: { side: GameSide; competitionKey: string; edge: "l" | "r" }) {
+  const { side, edge } = props;
+  const color = teamBarColor(props.competitionKey, side.teamKey);
   return (
-    <div className={`sp-hero__side${props.side.winner ? " is-lead" : ""}`}>
-      <Crest
-        name={props.side.name}
-        shortName={props.side.shortName}
-        crestUrl={props.side.crestUrl}
-        size="lg"
-      />
-      <span className="sp-hero__team">{props.side.name}</span>
+    <div
+      className={`sp-scorebar__side sp-scorebar__side--${edge}`}
+      style={color ? { background: color.bg, color: color.fg } : undefined}
+    >
+      {side.crestUrl ? (
+        // Oversized ghost of the club crest bleeding off the color band — decorative only,
+        // deliberately cropped by the side's overflow (live feedback mra36r06).
+        <img
+          className="sp-scorebar__watermark"
+          src={side.crestUrl}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+        />
+      ) : null}
+      <span className="sp-scorebar__score">{side.score ?? ""}</span>
+      <span className="sp-scorebar__team" title={side.name}>
+        <span className="sp-scorebar__team-full">{side.name}</span>
+        <span className="sp-scorebar__team-abbr" aria-hidden="true">
+          {side.shortName}
+        </span>
+      </span>
+      <Crest name={side.name} shortName={side.shortName} crestUrl={side.crestUrl} size="md" />
     </div>
   );
 }
@@ -267,7 +372,7 @@ function BroadsheetGrid(props: {
   return (
     <div className="sp-grid">
       <div className="sp-grid__main">
-        <LatestColumn headlines={props.overview.topStories} followedPairs={props.followedPairs} />
+        <LatestColumn headlines={props.overview.topStories} />
       </div>
       <aside className="sp-grid__rail">
         <StandingsRail groups={props.overview.standings} followedPairs={props.followedPairs} />

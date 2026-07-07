@@ -16,20 +16,6 @@
   text-underline-offset: 0.2em;
 }
 
-/* Degraded-source notice (#765 M1) — hairline treatment, same copy and role="status". A straight
-   2px functional status rule (not the banned curved/rounded card accent) — same family as the
-   task-priority borders. */
-.sp-degraded {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  padding: var(--space-1) 0 var(--space-1) var(--space-2);
-  border-radius: 0;
-  background: none;
-  border: none;
-  border-left: 2px solid var(--warn);
-}
-
 /* Cold-load skeleton (#765 M2) — same block rhythm as the ticker + hero + followed rows it
    stands in for, so nothing jumps once real data replaces it. */
 .sp-skeleton {

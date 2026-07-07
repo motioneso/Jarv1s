@@ -1,73 +1,186 @@
-import type { FollowedLeagueRef, FollowedNextMatch, FollowedTeamCard } from "@jarv1s/shared";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { FollowedNextMatch, FollowedTeamCard, Headline } from "@jarv1s/shared";
 import type { LocaleSettingsDto } from "@jarv1s/shared";
 
+import { TOURNAMENT_COMPETITIONS } from "./competitions.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";
 import { Crest, FormPips, LiveDot } from "./sports-parts.js";
 import { NewsIcon } from "./sports-news.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
-// "vs Green Bay Packers · Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2).
-// Moved from sports-page.tsx with the ticker refactor (#829).
-export function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
+// Server sends "#0 · -7.5 pts" when ESPN has no real rank/points for a league (MLB GB leaks
+// into points) — a nonsense line is worse than none. Also hidden for knockout tournaments,
+// where a group-stage standing reads as a league position, and for leagues that aren't in
+// progress: "#14 · 0 pts" / "#3 · 0-0" is last season's rank next to a blank record (live
+// feedback mra39rlv; the server now nulls these too, this guards the older prod payload).
+function standingIsSane(card: FollowedTeamCard): boolean {
+  if (!card.standing) return false;
+  if (TOURNAMENT_COMPETITIONS.has(card.competitionKey)) return false;
+  if (/·\s*(0 pts|0-0)$/.test(card.standing)) return false;
+  return !card.standing.startsWith("#0") && !/-\d/.test(card.standing);
+}
+
+// Reader priority (live feedback mra54n4h): live game first, then any team whose season is
+// actually in motion — played within the last ten days or plays within the next ten — then the
+// idle/off-season rest. Within each tier the freshest news wins (newsRecency); teams with no
+// recent story sink to the tier's tail in server order.
+const IN_SEASON_WINDOW_MS = 10 * 24 * 60 * 60 * 1000;
+
+function inSeason(card: FollowedTeamCard, now: number): boolean {
+  if (card.status === "live" || card.status === "today") return true;
+  // Optional-chained reads: the prod API may still serve pre-#845 cards without these fields.
+  const last = card.lastMatchAt ? new Date(card.lastMatchAt).getTime() : null;
+  if (last !== null && now - last <= IN_SEASON_WINDOW_MS) return true;
+  const next = card.nextMatch ? new Date(card.nextMatch.startsAt).getTime() : null;
+  return next !== null && next - now <= IN_SEASON_WINDOW_MS;
+}
+
+function tickerPriority(card: FollowedTeamCard, now: number): number {
+  if (card.status === "live") return 0;
+  return inSeason(card, now) ? 1 : 2;
+}
+
+// Newest-first news timestamp; teams without a story rank behind any team that has one.
+function newsRecency(card: FollowedTeamCard): number {
+  return card.news?.publishedAt
+    ? new Date(card.news.publishedAt).getTime()
+    : Number.NEGATIVE_INFINITY;
+}
+
+// "vs Green Bay Packers" + "Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2).
+// Split so the ticker can stack opponent and kickoff on their own lines (live feedback mra387k7);
+// formatNextMatch keeps the one-line form for the Today widget's FollowedCard.
+export function nextMatchParts(
+  next: FollowedNextMatch,
+  locale: LocaleSettingsDto
+): { opponent: string; when: string } {
   const at = next.startsAt;
   const date = formatDate(at, locale, { weekday: "short", month: "short", day: "numeric" });
   const time = formatTime(at, locale);
-  return `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName} · ${date} · ${time}`;
+  return {
+    opponent: `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName}`,
+    when: `${date} · ${time}`
+  };
 }
 
-// Newspaper-style scoreboard strip: league follows lead (kept first-class per #763), then one
-// dense block per followed team. Horizontal scroll; tabIndex + role="region" make the overflow
-// keyboard-reachable (arrow keys scroll a focused scrollable region).
+export function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsDto): string {
+  const parts = nextMatchParts(next, locale);
+  return `${parts.opponent} · ${parts.when}`;
+}
+
+// Headlines about this club, for the text links under the form row (live feedback mra390ac).
+// Same honesty rules as the featured-game band: the service's teamKeys join first, title-name
+// fallback second, and the tag-count cap keeps league-wide listicles (tagged with everyone) out.
+function teamStories(card: FollowedTeamCard, headlines: readonly Headline[]): Headline[] {
+  const name = card.name.toLowerCase();
+  const seen = new Set<string>(card.news ? [card.news.url] : []);
+  const matches: Headline[] = [];
+  for (const h of headlines) {
+    if (h.competitionKey !== card.competitionKey || h.teamKeys.length > 6) continue;
+    if (!h.teamKeys.includes(card.teamKey) && !h.title.toLowerCase().includes(name)) continue;
+    if (seen.has(h.url)) continue;
+    seen.add(h.url);
+    matches.push(h);
+    if (matches.length === 2) break;
+  }
+  return matches;
+}
+
+// Newspaper-style scoreboard strip: one dense block per followed team. Horizontal scroll;
+// tabIndex + role="region" make the overflow keyboard-reachable (arrow keys scroll a focused
+// scrollable region). Whole-league follows no longer render a block here (header redesign
+// pass) — the league-grouped sections below already carry them.
 export function SportsTicker(props: {
   followed: readonly FollowedTeamCard[];
-  leagues: readonly FollowedLeagueRef[];
+  headlines?: readonly Headline[];
 }) {
-  if (props.followed.length === 0 && props.leagues.length === 0) return null;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(false);
+
+  function updateEdges(): void {
+    const el = scrollRef.current;
+    if (!el) return;
+    setAtStart(el.scrollLeft <= 1);
+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
+  }
+
+  // Same edge accounting as AroundLeaguesTicker: re-measure when content or viewport changes,
+  // so the arrows only render when there is actually somewhere to scroll.
+  useEffect(() => {
+    updateEdges();
+    window.addEventListener("resize", updateEdges);
+    return () => window.removeEventListener("resize", updateEdges);
+  }, [props.followed]);
+
+  if (props.followed.length === 0) return null;
+  const now = Date.now();
+  const ordered = [...props.followed].sort(
+    (a, b) => tickerPriority(a, now) - tickerPriority(b, now) || newsRecency(b) - newsRecency(a)
+  );
+
+  function nudge(direction: -1 | 1): void {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * Math.round(el.clientWidth * 0.8), behavior: "smooth" });
+  }
+
   return (
     <section className="sp-ticker" aria-label="Followed">
-      <div
-        className="sp-ticker__scroll"
-        tabIndex={0}
-        role="region"
-        aria-label="Followed teams and leagues"
-      >
-        {props.leagues.length > 0 ? <LeagueBlocks leagues={props.leagues} /> : null}
-        {props.followed.map((card) => (
-          <TickerTeam key={`${card.competitionKey}:${card.teamKey}`} card={card} />
-        ))}
+      <div className="sp-ticker__hd">
+        <span className="sp-ticker__kicker">Followed</span>
+        <a className="sp-ticker__manage" href={SETTINGS_HREF}>
+          Manage
+        </a>
       </div>
-      <a className="sp-ticker__manage" href={SETTINGS_HREF}>
-        Manage
-      </a>
+      <div className="sp-ticker__row">
+        <button
+          type="button"
+          className="sp-ticker__nav"
+          aria-label="Scroll left"
+          hidden={atStart}
+          onClick={() => nudge(-1)}
+        >
+          <ChevronLeft size={16} aria-hidden="true" />
+        </button>
+        <div
+          className="sp-ticker__scroll"
+          ref={scrollRef}
+          onScroll={updateEdges}
+          tabIndex={0}
+          role="region"
+          aria-label="Followed teams"
+        >
+          {ordered.map((card) => (
+            <TickerTeam
+              key={`${card.competitionKey}:${card.teamKey}`}
+              card={card}
+              headlines={props.headlines ?? []}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          className="sp-ticker__nav"
+          aria-label="Scroll right"
+          hidden={atEnd}
+          onClick={() => nudge(1)}
+        >
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
+      </div>
     </section>
   );
 }
 
-function LeagueBlocks(props: { leagues: readonly FollowedLeagueRef[] }) {
-  const count = props.leagues.length;
-  return (
-    <div className="sp-tk sp-tk--league">
-      <span className="sp-tk__eyebrow">{`Following ${count} league${count === 1 ? "" : "s"}`}</span>
-      <div className="sp-tk__leagues">
-        {props.leagues.map((league) => (
-          <span key={league.competitionKey} className="sp-tk__leaguename">
-            {league.competitionLabel}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TickerTeam(props: { card: FollowedTeamCard }) {
+function TickerTeam(props: { card: FollowedTeamCard; headlines: readonly Headline[] }) {
   const { card } = props;
-  const locale = useUserLocale();
+  const stories = teamStories(card, props.headlines);
   return (
     <article className="sp-tk">
-      <div className="sp-tk__hd">
-        <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
-        <span className="sp-tk__name">{card.name}</span>
+      <div className="sp-tk__eyebrow">
         <span className="sp-tk__comp">{card.competitionLabel}</span>
         {card.status === "live" ? (
           <span className="sp-tk__live">
@@ -78,12 +191,23 @@ function TickerTeam(props: { card: FollowedTeamCard }) {
           <span className="sp-tk__status">{card.status}</span>
         )}
       </div>
+      <div className="sp-tk__hd">
+        <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
+        <span className="sp-tk__name">{card.name}</span>
+      </div>
       <div className="sp-tk__primary">
         {card.status === "news" ? (
           <>
-            <span className="sp-tk__newsic">
-              <NewsIcon />
-            </span>
+            {/* Headline art as a small thumb when ESPN provides it (live feedback mra5xnt2);
+                the generic news glyph is the artless fallback. alt="" — the linked title
+                right next to it already names the story. */}
+            {card.news?.imageUrl ? (
+              <img className="sp-tk__thumb" src={card.news.imageUrl} alt="" loading="lazy" />
+            ) : (
+              <span className="sp-tk__newsic">
+                <NewsIcon />
+              </span>
+            )}
             {card.news ? (
               <a className="sp-tk__newstx" href={card.news.url} target="_blank" rel="noreferrer">
                 {card.news.title}
@@ -93,16 +217,47 @@ function TickerTeam(props: { card: FollowedTeamCard }) {
             )}
           </>
         ) : (
-          <span className="sp-tk__score">{card.primary}</span>
+          // Matchup lines ("Blue Jays @ Giants") get body type and wrap; score lines stay mono.
+          // "· Scheduled" is server noise — the next-match row below already carries the time.
+          <span className={/\d/.test(card.primary) ? "sp-tk__score" : "sp-tk__matchup"}>
+            {card.primary.replace(/\s*·\s*Scheduled$/i, "")}
+          </span>
         )}
       </div>
       <div className="sp-tk__meta">
-        {card.standing ? <span className="sp-tk__standing">{card.standing}</span> : null}
+        {standingIsSane(card) ? <span className="sp-tk__standing">{card.standing}</span> : null}
         <FormPips form={card.form} />
       </div>
+      {stories.length > 0 ? (
+        <ul className="sp-tk__stories">
+          {stories.map((story) => (
+            <li key={story.id}>
+              <a className="sp-tk__storylink" href={story.url} target="_blank" rel="noreferrer">
+                {story.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {card.nextMatch ? (
-        <div className="sp-tk__next">{formatNextMatch(card.nextMatch, locale)}</div>
+        <div className="sp-tk__next">
+          <span className="sp-tk__nextlbl">Next</span>
+          <NextMatchLines next={card.nextMatch} />
+        </div>
       ) : null}
     </article>
+  );
+}
+
+// Opponent on the first line, kickoff date · time on its own line below it (live feedback
+// mra387k7) — one long string used to wrap mid-date.
+function NextMatchLines(props: { next: FollowedNextMatch }) {
+  const locale = useUserLocale();
+  const { opponent, when } = nextMatchParts(props.next, locale);
+  return (
+    <span className="sp-tk__nextline">
+      <span className="sp-tk__nextopp">{opponent}</span>
+      <span className="sp-tk__nextwhen">{when}</span>
+    </span>
   );
 }

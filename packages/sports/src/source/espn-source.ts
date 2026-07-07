@@ -143,6 +143,10 @@ export interface EspnTeamsParams {
 export interface EspnScoreboardParams {
   readonly competitionKey: string;
   readonly day: IsoDate;
+  // When present, the scoreboard is fetched over the inclusive `day`..`endDay` range instead of
+  // the single `day` (ESPN accepts `dates=YYYYMMDD-YYYYMMDD`) — used for tournament fixtures
+  // that span several days (#839 follow-up).
+  readonly endDay?: IsoDate;
 }
 
 export interface EspnScheduleParams {
@@ -156,6 +160,8 @@ export interface EspnStandingsParams {
 
 export interface EspnHeadlinesParams {
   readonly competitionKey: string;
+  /** ESPN team slug — narrows the news feed to one team (`?team=sf`). */
+  readonly teamKey?: string;
 }
 
 async function listTeams(fetchFn: typeof fetch, params: EspnTeamsParams): Promise<SourceTeamRef[]> {
@@ -198,9 +204,10 @@ async function getScoreboard(
   fetchFn: typeof fetch,
   params: EspnScoreboardParams
 ): Promise<GameSummary[]> {
-  const { competitionKey, day } = params;
+  const { competitionKey, day, endDay } = params;
   const { sport, league } = resolve(competitionKey);
-  const dates = day.replace(/-/g, "");
+  const start = day.replace(/-/g, "");
+  const dates = endDay ? `${start}-${endDay.replace(/-/g, "")}` : start;
   const data = (await fetchJson(
     fetchFn,
     `${SITE_BASE}/${sport}/${league}/scoreboard?dates=${dates}`,
@@ -223,6 +230,50 @@ async function getSchedule(
   return (data.events ?? []).map((event) => toGame(event, competitionKey));
 }
 
+// `?level=3` nests conference nodes (which carry no entries of their own) above the division
+// nodes that do (verified live: NFL → American/National Football Conference → AFC East ×4 teams;
+// soccer stays flat with no children). We walk the tree collecting every node that has
+// `standings.entries` as one section, tagging it with the nearest ancestor that had children but
+// no entries (the conference); flat leagues fall through with `conference: null`.
+interface EspnStandingsNode {
+  readonly name?: string;
+  readonly abbreviation?: string;
+  readonly standings?: { entries?: readonly EspnStandingsEntry[] };
+  readonly children?: readonly EspnStandingsNode[];
+}
+
+type StandingsSectionRaw = {
+  label: string | null;
+  conference: string | null;
+  rows: StandingsRow[];
+};
+
+function collectStandingsSections(
+  node: EspnStandingsNode,
+  conference: string | null,
+  depth: number,
+  out: StandingsSectionRaw[]
+): void {
+  const entries = node.standings?.entries ?? [];
+  if (entries.length > 0) {
+    out.push({
+      label: node.name ?? node.abbreviation ?? null,
+      conference,
+      rows: entries.map(toStandingsRow)
+    });
+  }
+  const children = node.children ?? [];
+  // A non-root node with children but no entries of its own is a grouping level (a conference);
+  // its label becomes the `conference` tag for everything beneath it. The top-level root is never
+  // a conference ("null at top level"), so soccer group stages (Group A…H under the root) stay
+  // flat with no conference tag.
+  const childConference =
+    depth > 0 && entries.length === 0 ? (node.name ?? node.abbreviation ?? conference) : conference;
+  for (const child of children) {
+    collectStandingsSections(child, childConference, depth + 1, out);
+  }
+}
+
 async function getStandings(
   fetchFn: typeof fetch,
   params: EspnStandingsParams
@@ -231,24 +282,11 @@ async function getStandings(
   const { sport, league } = resolve(competitionKey);
   const data = (await fetchJson(
     fetchFn,
-    `${CORE_BASE}/${sport}/${league}/standings`,
+    `${CORE_BASE}/${sport}/${league}/standings?level=3`,
     `${league} standings`
-  )) as {
-    children?: readonly {
-      name?: string;
-      abbreviation?: string;
-      standings?: { entries?: readonly EspnStandingsEntry[] };
-    }[];
-    standings?: { entries?: readonly EspnStandingsEntry[] };
-  };
-  const children = data.children ?? [];
-  const sections =
-    children.length > 0
-      ? children.map((child) => ({
-          label: child.name ?? child.abbreviation ?? null,
-          rows: (child.standings?.entries ?? []).map(toStandingsRow)
-        }))
-      : [{ label: null, rows: (data.standings?.entries ?? []).map(toStandingsRow) }];
+  )) as EspnStandingsNode;
+  const sections: StandingsSectionRaw[] = [];
+  collectStandingsSections(data, null, 0, sections);
   return { sections: sections.filter((section) => section.rows.length > 0) };
 }
 
@@ -256,11 +294,12 @@ async function getHeadlines(
   fetchFn: typeof fetch,
   params: EspnHeadlinesParams
 ): Promise<SourceHeadline[]> {
-  const { competitionKey } = params;
+  const { competitionKey, teamKey } = params;
   const { sport, league } = resolve(competitionKey);
+  const teamFilter = teamKey ? `?team=${encodeURIComponent(teamKey)}` : "";
   const data = (await fetchJson(
     fetchFn,
-    `${SITE_BASE}/${sport}/${league}/news`,
+    `${SITE_BASE}/${sport}/${league}/news${teamFilter}`,
     `${league} news`
   )) as {
     articles?: readonly {

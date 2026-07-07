@@ -58,6 +58,16 @@ export interface SportsServiceDependencies {
 // games fall on the wrong side of the UTC/Eastern midnight gap (#761).
 const ESPN_TIMEZONE = "America/New_York";
 
+const DAY_MS = 86_400_000;
+
+// The overview scoreboard is fetched as yesterday..today (Eastern): a Pacific user's evening
+// crosses ESPN's midnight at 9 PM local, after which "today" alone returns tomorrow's slate
+// while tonight's live/final games sit under the previous ESPN day (#761's other edge). The
+// wider window then needs a "near now" cut so last night's finals and tomorrow's matchups
+// don't read as today's game — live always qualifies; anything else must start within this
+// distance of now.
+const NEAR_GAME_WINDOW_MS = 12 * 60 * 60 * 1000;
+
 const FORM_LENGTH = 5;
 const TOP_STORIES_CAP = 6; // Ben 2026-07-01
 const EMPTY_STANDINGS: StandingsTable = { sections: [] };
@@ -129,6 +139,10 @@ export class SportsService {
     const follows = rawFollows.filter((f) => catalogEntry(f.competitionKey) !== undefined);
     const state: DegradeState = { degraded: false };
     const today = this.today();
+    // Scoreboard window start — see NEAR_GAME_WINDOW_MS for why one Eastern day isn't enough.
+    // ESPN accepts `dates=YYYYMMDD-YYYYMMDD`, so yesterday..today is a single fetch (and a
+    // single cache entry) rather than two.
+    const dayBefore = localDay(new Date(this.now().getTime() - DAY_MS), ESPN_TIMEZONE);
     // Zero follows (team or whole-league) → fetch the default slate instead of nothing (#764).
     const competitionKeys =
       follows.length > 0
@@ -154,7 +168,12 @@ export class SportsService {
     const perComp = await Promise.all(
       competitionKeys.map(async (key) => {
         const [scoreboard, standingsTable, teams] = await Promise.all([
-          this.cached<GameSummary[]>("scoreboard", { competitionKey: key, day: today }, [], state),
+          this.cached<GameSummary[]>(
+            "scoreboard",
+            { competitionKey: key, day: dayBefore, endDay: today },
+            [],
+            state
+          ),
           this.cached<StandingsTable>("standings", { competitionKey: key }, EMPTY_STANDINGS, state),
           this.teamsFor(key, state)
         ]);
@@ -196,6 +215,37 @@ export class SportsService {
     // the story hero has nothing personalized to fall back to (#763).
     const topStories = rankTopStories(headlinesByComp, followedTeams, competitionKeys);
     const topStoryIds = new Set(topStories.map((h) => h.id));
+
+    const hero = this.buildHero(followedTeams, scoreboardByComp, topStories, this.now());
+
+    // On a gameday, the league-wide news feed rarely covers the featured matchup itself, so
+    // the scorebar's photo+blurb band (findFeaturedStory on the client) usually comes up
+    // empty. Pull each hero team's own ESPN feed into the pool so a real story about the
+    // matchup is available — still honest data, just fetched where ESPN actually files it.
+    if (hero.mode === "gameday") {
+      const { game } = hero;
+      const heroTeams = teamsByComp.get(game.competitionKey) ?? [];
+      const teamFeeds = await Promise.all(
+        [game.home.teamKey, game.away.teamKey].map((teamKey) =>
+          this.cached<SourceHeadline[]>(
+            "headlines",
+            { competitionKey: game.competitionKey, teamKey },
+            [],
+            state
+          )
+        )
+      );
+      const existing = headlinesByComp.get(game.competitionKey) ?? [];
+      const seen = new Set(existing.map((h) => h.id));
+      const merged = [...existing];
+      for (const headline of resolveHeadlineTeamKeys(teamFeeds.flat(), heroTeams)) {
+        if (seen.has(headline.id)) continue;
+        seen.add(headline.id);
+        merged.push(headline);
+      }
+      headlinesByComp.set(game.competitionKey, merged);
+    }
+
     const leagueNews: LeagueNewsGroup[] = competitionKeys
       .map((key) => ({
         competitionKey: key,
@@ -205,8 +255,6 @@ export class SportsService {
           .filter((h) => !topStoryIds.has(h.id))
       }))
       .filter((group) => group.headlines.length > 0);
-
-    const hero = this.buildHero(followedTeams, scoreboardByComp, topStories);
 
     const scoreboard: ScoreboardGroup[] = competitionKeys
       .map((key) => ({
@@ -244,8 +292,15 @@ export class SportsService {
     };
   }
 
-  /** One league's standings, fetched on demand (#842). Never throws; degrades to empty sections. */
-  async getStandings(competitionKey: string): Promise<StandingsGroup> {
+  /**
+   * One league's standings, fetched on demand (#842). Never throws; degrades to empty sections.
+   * For a tournament whose group stage is complete, also returns the current round's fixtures
+   * (a ±window of the scoreboard) so the client can show the bracket instead of a stale group
+   * table (#839 follow-up); `fixtures` is empty for every other case.
+   */
+  async getStandings(
+    competitionKey: string
+  ): Promise<{ group: StandingsGroup; fixtures: GameSummary[] }> {
     const state: DegradeState = { degraded: false };
     const table = await this.cached<StandingsTable>(
       "standings",
@@ -254,12 +309,34 @@ export class SportsService {
       state
     );
     const entry = catalogEntry(competitionKey);
-    return {
+    const group: StandingsGroup = {
       competitionKey,
       competitionLabel: entry?.label ?? competitionKey,
       standingsShape: entry?.standingsShape ?? "table",
       sections: table.sections
     };
+    const fixtures =
+      entry?.kind === "tournament" && groupStageComplete(table.sections)
+        ? await this.currentRoundFixtures(competitionKey, state)
+        : [];
+    return { group, fixtures };
+  }
+
+  /** Scoreboard over a ±window around today, flattened and sorted ascending. Never throws. */
+  private async currentRoundFixtures(
+    competitionKey: string,
+    state: DegradeState
+  ): Promise<GameSummary[]> {
+    const now = this.now();
+    const day = localDay(new Date(now.getTime() - 3 * DAY_MS), ESPN_TIMEZONE);
+    const endDay = localDay(new Date(now.getTime() + 4 * DAY_MS), ESPN_TIMEZONE);
+    const games = await this.cached<GameSummary[]>(
+      "scoreboard",
+      { competitionKey, day, endDay },
+      [],
+      state
+    );
+    return [...games].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   }
 
   /**
@@ -335,16 +412,28 @@ export class SportsService {
   private buildHero(
     followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
     scoreboardByComp: Map<string, GameSummary[]>,
-    topStories: readonly SourceHeadline[]
+    topStories: readonly SourceHeadline[],
+    now: Date
   ): OverviewHero {
     let hero: { game: GameSummary; side: GameSide; competitionKey: string } | undefined;
     let todayCount = 0;
     for (const follow of followedTeams) {
-      const game = findTeamGame(scoreboardByComp.get(follow.competitionKey) ?? [], follow.teamKey);
+      // currentTeamGame (not findTeamGame): the two-day scoreboard also holds last night's
+      // final and, past Eastern midnight, tomorrow's matchup — neither may count toward
+      // "N more followed games today" nor be offered to the gameday window below.
+      const game = currentTeamGame(
+        scoreboardByComp.get(follow.competitionKey) ?? [],
+        follow.teamKey,
+        now
+      );
       if (!game) continue;
       todayCount += 1;
       const teamSide = sideFor(game, follow.teamKey);
       if (!teamSide) continue;
+      // The gameday masthead+scorebar only leads the page from T−15min through the final
+      // whistle; a morning "Today: X at Y" all day pushes real news below the fold (live
+      // feedback mra4kqpf). Outside the window the top story leads instead.
+      if (!inGamedayWindow(game, now)) continue;
       if (!hero || (game.state === "live" && hero.game.state !== "live")) {
         hero = { game, side: teamSide, competitionKey: follow.competitionKey };
       }
@@ -376,7 +465,7 @@ export class SportsService {
     const { teamKey } = follow;
     const comp = follow.competitionKey;
     const competitionLabel = catalogEntry(comp)?.label ?? comp;
-    const todayGame = findTeamGame(games, teamKey);
+    const todayGame = currentTeamGame(games, teamKey, this.now());
     const todaySide = todayGame ? sideFor(todayGame, teamKey) : undefined;
     const catalogTeam = teams.find((t) => t.teamKey === teamKey);
     const scheduleSide = scheduleSideFor(schedule, teamKey);
@@ -412,6 +501,7 @@ export class SportsService {
       form: computeForm(schedule, teamKey),
       standing: standingLine(standings, teamKey),
       nextMatch: nextMatchFor(schedule, teamKey, this.now()),
+      lastMatchAt: lastMatchFor(schedule, teamKey),
       rationale: `You follow ${name}.`
     };
   }
@@ -421,6 +511,20 @@ export class SportsService {
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
+}
+
+// A tournament group stage is complete once every group is fully played — each section has rows
+// and every team in it has played at least (group size − 1) games (a round-robin). Used to switch
+// the standings response over to current-round fixtures (#839 follow-up).
+function groupStageComplete(sections: StandingsTable["sections"]): boolean {
+  if (sections.length === 0) return false;
+  return sections.every(
+    (section) =>
+      section.rows.length > 0 &&
+      section.rows.every(
+        (row) => row.wins + row.losses + (row.draws ?? 0) >= section.rows.length - 1
+      )
+  );
 }
 
 function resolveHeadlineTeamKeys(
@@ -511,6 +615,28 @@ function findTeamGame(games: readonly GameSummary[], teamKey: string): GameSumma
   return games.find((g) => g.home.teamKey === teamKey || g.away.teamKey === teamKey);
 }
 
+// "The team's game right now" over the two-day scoreboard window, which can hold two entries
+// for one team: last night's final plus today's (or, past Eastern midnight, tomorrow's) game,
+// or both ends of a doubleheader. A live game always wins — it is by definition now. Otherwise
+// take the game whose start is nearest to now, and only if that start is within
+// NEAR_GAME_WINDOW_MS: a 7 PM final at 10 PM qualifies (2h), tomorrow's 4 PM matchup at 10 PM
+// does not (18h) — the card then falls back to news status and the Next row (from the schedule
+// dataset) still carries the upcoming game. findTeamGame stays for the single-day briefing
+// path, where "any game on today's board" is the right question.
+function currentTeamGame(
+  games: readonly GameSummary[],
+  teamKey: string,
+  now: Date
+): GameSummary | undefined {
+  const mine = games.filter((g) => sideFor(g, teamKey) !== undefined);
+  const live = mine.find((g) => g.state === "live");
+  if (live) return live;
+  const distance = (g: GameSummary): number =>
+    Math.abs(new Date(g.startsAt).getTime() - now.getTime());
+  const nearest = [...mine].sort((a, b) => distance(a) - distance(b))[0];
+  return nearest && distance(nearest) <= NEAR_GAME_WINDOW_MS ? nearest : undefined;
+}
+
 function sideFor(game: GameSummary, teamKey: string): GameSide | undefined {
   if (game.home.teamKey === teamKey) return game.home;
   if (game.away.teamKey === teamKey) return game.away;
@@ -539,7 +665,28 @@ function newestTeamHeadline(
     .filter((h) => h.teamKeys.includes(teamKey))
     .slice()
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
-  return newest ? { title: newest.title, url: newest.url } : null;
+  return newest
+    ? // publishedAt rides along so the ticker can rank idle teams by news freshness (mra54n4h);
+      // imageUrl feeds the small thumbnail on non-live cards (mra5xnt2).
+      {
+        title: newest.title,
+        url: newest.url,
+        publishedAt: newest.publishedAt,
+        imageUrl: newest.imageUrl
+      }
+    : null;
+}
+
+// Start time of the team's most recent completed game, from the same season schedule that feeds
+// the form pips. The ticker treats "played within the last ten days" as in-season and ranks those
+// teams ahead of idle ones (live feedback mra54n4h). Null when the schedule holds no finals yet.
+function lastMatchFor(schedule: readonly GameSummary[], teamKey: string): string | null {
+  let latest: string | null = null;
+  for (const game of schedule) {
+    if (game.state !== "final" || !sideFor(game, teamKey)) continue;
+    if (latest === null || game.startsAt > latest) latest = game.startsAt;
+  }
+  return latest;
 }
 
 function scoreLine(game: GameSummary): string {
@@ -580,9 +727,22 @@ function computeForm(
     });
 }
 
+// Gameday hero window (live feedback mra4kqpf): live games always qualify; upcoming games only
+// inside the final 15 minutes before kickoff. Finished games don't — the recap is a story.
+const GAMEDAY_HERO_LEAD_MS = 15 * 60 * 1000;
+
+function inGamedayWindow(game: GameSummary, now: Date): boolean {
+  if (game.state === "live") return true;
+  if (game.state !== "pre") return false;
+  return new Date(game.startsAt).getTime() - now.getTime() <= GAMEDAY_HERO_LEAD_MS;
+}
+
 function standingLine(standings: readonly StandingsRow[], teamKey: string): string | null {
   const row = standings.find((r) => r.teamKey === teamKey);
   if (!row) return null;
+  // Zero games played = the league isn't in progress; its "rank" is carry-over noise like
+  // "#14 · 0 pts" and the card is better off without the line (live feedback mra39rlv).
+  if (row.wins + row.losses + (row.draws ?? 0) === 0) return null;
   if (row.points !== null) return `#${row.rank} · ${row.points} pts`;
   return `#${row.rank} · ${row.wins}-${row.losses}`;
 }

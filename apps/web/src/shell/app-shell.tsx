@@ -13,7 +13,6 @@ import {
   Menu,
   MessageSquare,
   Newspaper,
-  Search,
   Settings,
   Trophy
 } from "lucide-react";
@@ -28,13 +27,7 @@ import {
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
-import {
-  getYoloSettings,
-  listNotifications,
-  listThemes,
-  sendChatTurn,
-  signOut
-} from "../api/client";
+import { listNotifications, listThemes, sendChatTurn, signOut } from "../api/client";
 import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { useUserLocale } from "../locale/locale-format";
@@ -105,10 +98,6 @@ export function AppShell(props: AppShellProps) {
   const notificationsQuery = useQuery({
     queryKey: queryKeys.notifications.list,
     queryFn: () => listNotifications()
-  });
-  const yoloQuery = useQuery({
-    queryKey: queryKeys.settings.yolo,
-    queryFn: getYoloSettings
   });
   const themesQuery = useQuery({
     queryKey: queryKeys.settings.themes,
@@ -211,20 +200,6 @@ export function AppShell(props: AppShellProps) {
           ) : null}
 
           <div className="topbar-actions">
-            {yoloQuery.data?.self.active ? (
-              <span className="jds-btn jds-btn--quiet jds-btn--sm" aria-label="YOLO mode active">
-                YOLO
-              </span>
-            ) : null}
-            <button
-              aria-label="Open command palette"
-              className="icon-button"
-              title="Command palette"
-              type="button"
-              onClick={() => window.dispatchEvent(new Event("jarvis:open-command-palette"))}
-            >
-              <Search size={19} aria-hidden="true" />
-            </button>
             <button
               aria-label="Chat with Jarvis"
               aria-pressed={chatOpen}

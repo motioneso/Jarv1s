@@ -122,16 +122,6 @@
   background: none;
   padding: var(--space-6) 0;
 }
-.sp-hero--live {
-  background: none;
-  border-color: var(--border);
-}
-.sp-hero__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
 .sp-hero__comp {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -139,95 +129,6 @@
   text-transform: uppercase;
   color: var(--text-muted);
   white-space: nowrap;
-}
-.sp-hero__phase {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-.sp-hero__match {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: var(--space-5);
-  margin: var(--space-4) 0 var(--space-1);
-}
-.sp-hero__side {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  text-align: center;
-  opacity: 0.72;
-}
-.sp-hero__side.is-lead {
-  opacity: 1;
-}
-.sp-hero__team {
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.2;
-}
-.sp-hero__score {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-.sp-hero__score .n {
-  font-size: var(--text-5xl);
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-.sp-hero__score .dash {
-  font-size: var(--text-2xl);
-  color: var(--text-faint);
-}
-.sp-hero__foot {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-.sp-rationale {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--accent-fg);
-}
-.sp-rationale svg {
-  color: var(--accent-fg);
-}
-.sp-hero__note {
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  color: var(--text-muted);
-}
-.sp-hero__also {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-subtle);
-}
-.sp-hero__also svg {
-  color: var(--text-faint);
-}
-.sp-hero__also b {
-  color: var(--text);
-  font-weight: 600;
 }
 
 /* story hero (quiet day) */
@@ -263,16 +164,6 @@
   max-width: 30ch;
   text-wrap: pretty;
 }
-.sp-hero__dek {
-  font-family: var(--font-sans);
-  font-size: var(--text-lg);
-  line-height: 1.55;
-  color: var(--text-muted);
-  margin: var(--space-2) 0 0;
-  max-width: 60ch;
-  text-wrap: pretty;
-}
-
 /* editorial photo placeholders (striped swatch — a real image can drop in here) */
 .sp-photo {
   position: relative;
@@ -536,7 +427,6 @@
   gap: var(--space-1);
 }
 .sp-standings__select {
-  max-width: 96px;
   height: 24px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -635,19 +525,6 @@
   color: var(--accent-fg);
   font-weight: 700;
 }
-/* Numbered marker keyed to the legend below the table — a note index, not a color, so
-   distinct notes (e.g. Champions League vs. relegation) stay distinguishable (#841). */
-.sp-tbl__adv {
-  display: inline-block;
-  min-width: 12px;
-  margin-right: var(--space-1);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: var(--weight-bold);
-  color: var(--accent);
-  text-align: center;
-  vertical-align: middle;
-}
 /* Visually-hidden note text for screen readers — same clip-rect technique as
    apps/web/src/styles/onboarding-connectors.css's .onb-json-upload input. */
 .sp-tbl__advtext {
@@ -656,6 +533,77 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Knockout-round fixtures replace the standings table once a tournament's group stage is
+   complete (#839 follow-up): away · score-or-kickoff · home on a hairline-ruled list. */
+.sp-knock__kicker {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: var(--space-2) 0;
+}
+.sp-knock__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sp-knock__row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sp-knock__row:last-child {
+  border-bottom: none;
+}
+.sp-knock__team {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-knock__team--away {
+  text-align: right;
+}
+.sp-knock__team--home {
+  text-align: left;
+}
+/* Decided match: winner bold with a caret pointing at them, loser dimmed — score alone can't
+   say who advanced after penalties (live feedback mra2zo1o) */
+.sp-knock__team.is-winner {
+  font-weight: 700;
+}
+.sp-knock__team.is-loser {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+.sp-knock__won {
+  color: var(--accent-fg);
+}
+.sp-knock__score {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.sp-knock__status {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
   white-space: nowrap;
 }
 
