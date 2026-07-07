@@ -2,11 +2,11 @@
 
 **Date:** 2026-07-07
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id
-`d2380257-0a2b-44a4-bafa-49a3be6559ca`** (pane `w1:pA3`, tab `w1:t15` at time of writing — resolve
+`432e7939-3e09-4bc2-83ae-18c11cc0ae29`** (pane `w1:pA5`, tab `w1:t15` at time of writing — resolve
 fresh by label+session, never trust the pane number). Relayed from predecessor session
-`9fb2dc84-f605-4580-8ba3-510bbdef6f59` (pane `w1:p9Z`) at its 70/71% context checkpoint;
-predecessor confirmed handoff, went idle, and was reaped (pane closed) at run continuation.
-Exactly one `Coordinator` pane confirmed via `herdr pane list` post-reap.
+`d2380257-0a2b-44a4-bafa-49a3be6559ca` (pane `w1:pA3`) at its 70% context checkpoint; predecessor
+confirmed handoff, went idle, and was reaped (pane closed) at run continuation. Exactly one
+`Coordinator` pane confirmed via `herdr pane list` post-reap.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -290,6 +290,74 @@ claims Phase 0a and updates this line itself.
   reaped `w1:pA1`. Done, see fleet table.
 - **Quadrant layout:** done, see "Ben, standing instruction" note under Successor tenure notes
   above — reuse `w1:pA4` (`reserved-slot`) for the next agent spawn.
+
+## Relay checkpoint (session `432e7939-3e09-4bc2-83ae-18c11cc0ae29`, own context 70%)
+
+Coordinator context hit the 70% trigger — no-deferral relay in progress. Reaped predecessor
+`d2380257-0a2b-44a4-bafa-49a3be6559ca` (pane `w1:pA3`, confirmed relayed/idle via bounded read
+before closing), claimed lock, renamed own pane `Coordinator-relay2` → `Coordinator` (now
+`w1:pA5`, tab `w1:t15`). Verified exactly one `Coordinator` pane via `herdr pane list`. Started a
+fresh liveness `Monitor` (task `bvfodgqrk`) for `w1:p9V`/`w1:p9W`/`w1:pA2`.
+
+**Fleet, re-confirmed this tenure via bounded pane reads:**
+- **#663** — still HOLD, `w1:p9V`, label Build-663, idle, waiting on coordinator's decision.
+  **Untouched — do not act without Ben's explicit close-vs-rescope call** (duplicate of
+  PR #719/#695, see `#663` section above).
+- **#853** — security tier, `w1:p9W`, label Build-853, idle. Confirmed: Task 1 + Task 2 done,
+  Task 3 ("full local gate") not yet started. No PR yet. When it reports done: Opus adversarial
+  QA → mandatory `gh pr comment` verdict → Ben's explicit sign-off before merge. Never auto-merge.
+- **#854** — routine tier, Build-854d, `w1:pA2`, branch `854-integration-test-db-isolation`.
+  **Progressed since last checkpoint: all 6 build tasks done, now in Wrap-up** — running
+  `pnpm verify:foundation` (full gate) via its own background Monitor (~10-12 min), no PR yet.
+  `agent_status` again read `done` while it was actually still working (same known flicker) —
+  confirmed via bounded read both times this tenure. **Successor: keep confirming with a bounded
+  read, don't trust the status string, until a PR actually appears.**
+
+**merges_since_relay:** 0 (nothing merged this tenure).
+
+**New this tenure — Ben pushed back on the #817 hand-off ("not sure why I'd run /start, I want
+us to unblock issues and get agents on them").** Clarified the hard invariant (brief ≠ spec,
+`/start` is the actual unblock step) and asked what he wanted; he chose BOTH:
+1. **Run `/start` for #817 now** — in progress, see below.
+2. **Triage the needs-spec backlog** (#818–826, #741–745, #759–760) — not yet started, still
+   `pending` as task in this session's TaskList. Successor should pick this up: read each issue,
+   classify ready-for-`/brief`-interview vs. needs-Ben-decision-first, report back to Ben.
+
+### #817 `/start` — spec stage in progress, NOT complete
+
+Progress so far, this tenure:
+- Issue resolved (`gh issue view 817`), confirmed no existing spec/plan file.
+- **Added #817 to the GitHub project board** (was missing — item id
+  `PVTI_lAHOADqkaM4BZ_60zgyEID8`) and **moved it to In Progress**
+  (`PVTSSF_lAHOADqkaM4BZ_60zhU6jwQ` = `47fc9ee4`).
+- **Key finding before writing the spec — load-bearing gap, must inform the spec:** the confirmed
+  brief's MVP precondition is "errors must be written to a log Jarvis can read." Checked current
+  logging state: `docs/superpowers/specs/2026-06-22-observability.md` (#413, approved & built) —
+  its **Decision D2 is explicit: log persistence is ephemeral, `docker compose logs api` only, no
+  DB table** ("DB table deferred to admin diagnostics #255"). Checked **#255 — it's CLOSED**, but
+  its body is about wiring host-diagnostics UI placeholders (verbose logging toggle/restart/run
+  diagnostics buttons), **not** an error-event DB table — so the deferred DB persistence work
+  #413 pointed to was never actually done under #255. **Conclusion: no structured, queryable error
+  store exists anywhere in the codebase today.** Jarvis's chat/tool layer has no way to query past
+  errors — only `docker compose logs api` (host-only, not app-queryable) exists.
+- **This means the #817 spec cannot just be "wire chat to read existing error data" — it must
+  design the missing structured-error-persistence layer itself** (something like the issue's own
+  suggested shape: timestamp/feature/operation/error_category/retryable/user_message/
+  internal_summary), most likely a Postgres table + a write path from the centralized API error
+  handler (`apps/api/src/server.ts` `setErrorHandler`, per #413) and module logger call sites, plus
+  a read path/tool for chat. This is new scope beyond what #413/#255 cover — **flag this
+  explicitly to Ben when presenting the draft spec**, since it's bigger than "just expose logs."
+- **No spec file written yet.** Successor: draft
+  `docs/superpowers/specs/2026-07-07-error-explainability.md` (Context/Goals/Non-Goals/Resolved
+  Decisions/Architecture/Exit Criteria) directly from the confirmed brief (see `#817` section
+  above) + the issue body's suggested shape + this logging-gap finding, then **PAUSE for Ben's
+  approval** per the `start` skill (spec stage only — do not proceed to plan/build in the same
+  pass). Tier: likely `sensitive` (new cross-cutting data surface, not auth/RLS/secrets) — confirm
+  against the tiering table once the design surface is clearer.
+
+**Coordinator lock:** now `432e7939-3e09-4bc2-83ae-18c11cc0ae29` / label `Coordinator` / pane
+`w1:pA5` (resolve fresh, don't trust the pane number) until the successor claims Phase 0a and
+updates this line itself.
 
 ## Relay checkpoint (session `d2380257-0a2b-44a4-bafa-49a3be6559ca`, own context ~70%)
 
