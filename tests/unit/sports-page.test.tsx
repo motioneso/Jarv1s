@@ -56,7 +56,7 @@ function followedCard(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCa
     crestUrl: null,
     status: "live",
     primary: "MIN 21 – 14 DAL",
-    news: null,
+    stories: [],
     form: ["W", "W", "L"],
     standing: "1st · NFC North",
     nextMatch: {
@@ -255,7 +255,14 @@ describe("SportsPage", () => {
           followedCard({
             status: "news",
             primary: "",
-            news: { title: "Cowboys clinch the division", url: "https://example.com/h1" }
+            stories: [
+              {
+                title: "Cowboys clinch the division",
+                url: "https://example.com/h1",
+                publishedAt: "2026-07-01T12:00:00Z",
+                imageUrl: null
+              }
+            ]
           })
         ]
       })

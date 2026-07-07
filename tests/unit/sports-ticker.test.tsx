@@ -3,9 +3,20 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { FollowedLeagueRef, FollowedTeamCard } from "@jarv1s/shared";
+import type { FollowedTeamCard, FollowedTeamNews } from "@jarv1s/shared";
 
 import { SportsTicker } from "../../packages/sports/src/web/sports-ticker.js";
+
+// Stories arrive fully-formed on the card now (mrb0pk1n) — no client-side headline matching.
+function story(overrides: Partial<FollowedTeamNews> = {}): FollowedTeamNews {
+  return {
+    title: "Vikings extend their coach",
+    url: "https://example.com/n1",
+    publishedAt: "2026-07-07T12:00:00Z",
+    imageUrl: null,
+    ...overrides
+  };
+}
 
 function card(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCard {
   return {
@@ -16,7 +27,7 @@ function card(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCard {
     crestUrl: null,
     status: "live",
     primary: "MIN 21 – 14 DAL",
-    news: null,
+    stories: [],
     form: ["W", "W", "L"],
     standing: "2nd · NFC North",
     nextMatch: {
@@ -24,19 +35,16 @@ function card(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCard {
       homeAway: "home",
       startsAt: "2026-07-11T20:00:00Z"
     },
+    lastMatchAt: null,
     rationale: "You follow the Vikings",
     ...overrides
   };
 }
 
-function render(followed: FollowedTeamCard[], leagues: FollowedLeagueRef[] = []): string {
+function render(followed: FollowedTeamCard[]): string {
   const client = new QueryClient();
   return renderToString(
-    createElement(
-      QueryClientProvider,
-      { client },
-      createElement(SportsTicker, { followed, leagues })
-    )
+    createElement(QueryClientProvider, { client }, createElement(SportsTicker, { followed }))
   );
 }
 
@@ -67,13 +75,7 @@ describe("SportsTicker", () => {
   });
 
   it("shows the next-game footer with opponent crest, no visible name (non-live)", () => {
-    const html = render([
-      card({
-        status: "news",
-        primary: "",
-        news: { title: "Vikings extend their coach", url: "https://example.com/n1" }
-      })
-    ]);
+    const html = render([card({ status: "news", primary: "", stories: [story()] })]);
     expect(html).toContain("sp-tk__next");
     // opponent identity is the crest (initials swatch here — no crestUrl) plus an
     // sr-only name; the visible "vs Green Bay Packers" line is gone (mrawvc48)
@@ -90,7 +92,7 @@ describe("SportsTicker", () => {
         status: "today",
         primary: "Vikings @ Cowboys",
         todayGameState: "pre",
-        news: { title: "Vikings name their starter", url: "https://example.com/qb" }
+        stories: [story({ title: "Vikings name their starter", url: "https://example.com/qb" })]
       })
     ]);
     expect(html).not.toContain("Vikings @ Cowboys");
@@ -109,32 +111,25 @@ describe("SportsTicker", () => {
     expect(finalHtml).toContain("MIN 24 – 10 DAL");
   });
 
-  it("promotes a matched headline into the primary slot instead of 'No recent news'", () => {
-    // A storyless news card with matched headlines used to say "No recent news" while linking
-    // stories right below it (live feedback mrathm2y) — the first match now leads the card.
-    const html = renderToString(
-      createElement(
-        QueryClientProvider,
-        { client: new QueryClient() },
-        createElement(SportsTicker, {
-          followed: [card({ status: "news", primary: "", news: null })],
-          headlines: [
-            {
-              id: "h1",
-              title: "Vikings sign a new kicker",
-              url: "https://example.com/vikings",
-              competitionKey: "nfl",
-              competitionLabel: "NFL",
-              teamKeys: ["min"],
-              imageUrl: null,
-              publishedAt: "2026-07-07T12:00:00Z"
-            }
-          ]
-        })
-      )
-    );
+  it("leads with the first story and links the rest — up to three per club (mrb0pk1n)", () => {
+    // stories[0] takes the primary slot (thumb + title); the remainder render as the small
+    // text links. "No recent news" only appears when the club truly has no stories (mrathm2y).
+    const html = render([
+      card({
+        status: "news",
+        primary: "",
+        stories: [
+          story({ title: "Vikings sign a new kicker", url: "https://example.com/vikings" }),
+          story({ title: "Camp battle at corner", url: "https://example.com/corner" }),
+          story({ title: "Schedule quirks explained", url: "https://example.com/sched" })
+        ]
+      })
+    ]);
     expect(html).not.toContain("No recent news");
     expect(html).toContain("Vikings sign a new kicker");
+    expect(html).toContain("sp-tk__stories");
+    expect(html).toContain("Camp battle at corner");
+    expect(html).toContain("Schedule quirks explained");
   });
 
   it("renders a news-status team as a link to the story", () => {
@@ -142,18 +137,11 @@ describe("SportsTicker", () => {
       card({
         status: "news",
         primary: "",
-        news: { title: "Cowboys clinch the division", url: "https://example.com/h1" }
+        stories: [story({ title: "Cowboys clinch the division", url: "https://example.com/h1" })]
       })
     ]);
     expect(html).toContain('href="https://example.com/h1"');
     expect(html).toContain("Cowboys clinch the division");
-  });
-
-  it("renders nothing for league-only follows (header redesign pass)", () => {
-    // Whole-league follows no longer get a ticker block — the league's content lives in the
-    // grouped news/standings sections below, so a league-only follower sees no Followed strip.
-    const html = render([], [{ competitionKey: "eng.1", competitionLabel: "Premier League" }]);
-    expect(html).toBe("");
   });
 
   it("is a labeled, keyboard-focusable scroll region with a manage link", () => {
@@ -165,6 +153,8 @@ describe("SportsTicker", () => {
   });
 
   it("renders nothing when there are no follows", () => {
-    expect(render([], [])).toBe("");
+    // Whole-league follows also render no block here — the league-grouped sections below
+    // carry them, so a league-only follower sees no Followed strip (header redesign pass).
+    expect(render([])).toBe("");
   });
 });

@@ -113,10 +113,7 @@ export function SportsPage() {
           {hero.mode === "gameday" ? (
             <FeaturedGameBar hero={hero} story={findFeaturedStory(hero, data)} />
           ) : null}
-          <SportsTicker
-            followed={data.followed}
-            headlines={[...data.topStories, ...data.leagueNews.flatMap((g) => g.headlines)]}
-          />
+          <SportsTicker followed={data.followed} />
           <AroundLeaguesTicker groups={data.scoreboard} />
           {hero.mode === "story" ? <StoryHero headline={hero.headline} /> : null}
           <BroadsheetGrid overview={gridData} followedPairs={followedPairs} />

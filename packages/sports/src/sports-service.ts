@@ -533,7 +533,7 @@ export class SportsService {
       status,
       primary,
       todayGameState,
-      news: newestTeamHeadline(headlines, teamKey),
+      stories: teamStories(headlines, teamKey),
       form: computeForm(schedule, teamKey),
       standing: standingLine(standings, teamKey),
       nextMatch: nextMatchFor(schedule, teamKey, this.now()),
@@ -693,24 +693,30 @@ function scheduleSideFor(schedule: readonly GameSummary[], teamKey: string): Gam
   return undefined;
 }
 
-function newestTeamHeadline(
-  headlines: readonly SourceHeadline[],
-  teamKey: string
-): FollowedTeamNews | null {
-  const newest = headlines
+// Up to three of the club's stories, newest first, from the already-merged league + per-team
+// feeds (live feedback mrb0pk1n — "three stories per team… real news for their clubs"). Replaces
+// the single newest-headline pick AND the old client-side title-matching in the ticker: the
+// service's teamKeys tagging (per-team ESPN feed + resolveHeadlineTeamKeys) is the one source of
+// truth for "about this club". Dedup by url — the same story can arrive from both feeds under
+// different ids.
+const TEAM_STORY_LIMIT = 3;
+
+function teamStories(headlines: readonly SourceHeadline[], teamKey: string): FollowedTeamNews[] {
+  const seen = new Set<string>();
+  return headlines
     .filter((h) => h.teamKeys.includes(teamKey))
     .slice()
-    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
-  return newest
-    ? // publishedAt rides along so the ticker can rank idle teams by news freshness (mra54n4h);
-      // imageUrl feeds the small thumbnail on non-live cards (mra5xnt2).
-      {
-        title: newest.title,
-        url: newest.url,
-        publishedAt: newest.publishedAt,
-        imageUrl: newest.imageUrl
-      }
-    : null;
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .filter((h) => (seen.has(h.url) ? false : (seen.add(h.url), true)))
+    .slice(0, TEAM_STORY_LIMIT)
+    .map((h) => ({
+      // publishedAt rides along so the ticker can rank idle teams by news freshness (mra54n4h);
+      // imageUrl feeds the small thumbnail on the lead story (mra5xnt2).
+      title: h.title,
+      url: h.url,
+      publishedAt: h.publishedAt,
+      imageUrl: h.imageUrl
+    }));
 }
 
 // Start time of the team's most recent completed game, from the same season schedule that feeds

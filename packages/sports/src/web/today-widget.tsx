@@ -69,9 +69,16 @@ function FollowedCard(props: { card: FollowedTeamCard }) {
             <span className="sp-fc__newsic">
               <NewsIcon />
             </span>
-            {card.news ? (
-              <a className="sp-fc__newstx" href={card.news.url} target="_blank" rel="noreferrer">
-                {card.news.title}
+            {/* Lead story only — the widget card has one news line; the full three-story
+                list lives on the sports page ticker (mrb0pk1n). */}
+            {card.stories[0] ? (
+              <a
+                className="sp-fc__newstx"
+                href={card.stories[0].url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {card.stories[0].title}
               </a>
             ) : (
               <span className="sp-fc__newstx">No recent news</span>

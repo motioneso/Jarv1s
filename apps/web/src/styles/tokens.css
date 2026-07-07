@@ -133,6 +133,9 @@
   --font-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-sans: "Helvetica Neue", Helvetica, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Nameplate-only serif (Ben 2026-07-07, live feedback mrb0n3j3): the no-serif rule stands
+     everywhere except the sports masthead brand, where a serif carries the newspaper read. */
+  --font-serif: Georgia, "Times New Roman", Times, serif;
 
   --text-2xs: 11px;
   --text-xs: 12px;

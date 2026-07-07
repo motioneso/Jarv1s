@@ -55,10 +55,9 @@ export function StoryHero(props: { headline: Headline | null }) {
         </h2>
         {/* Standfirst: the article's summary as a dek under the headline, so the hero reads
             like a front page and not a bare link (live feedback mrawc8ww) */}
+        {/* The competition credit line ("NHL") under the dek was cut entirely — headline +
+            photo already say what the story is (live feedback mrb0opaa, ends mratrvvg). */}
         {headline?.summary ? <p className="sp-hero__dek">{headline.summary}</p> : null}
-        {/* Competition slug reads as a credit line under the headline, newspaper-style — as a
-            lone eyebrow it floated in the centered story body (live feedback mratrvvg) */}
-        <span className="sp-hero__credit">{headline ? headline.competitionLabel : "Sports"}</span>
       </div>
     </section>
   );

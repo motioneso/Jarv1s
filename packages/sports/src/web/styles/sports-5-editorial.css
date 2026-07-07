@@ -1,7 +1,8 @@
 /* Sports broadsheet editorial layer for issue 839. Tokens only - see tokens.css. */
 
 /* Broadsheet masthead (header redesign pass): folio strip + event headline at display scale.
-   All sans — the broadsheet look is carried by scale, rules, and caps, never a serif. */
+   Sans throughout except the nameplate itself — Ben overrode the no-serif rule for the brand
+   line only, to land the newspaper read (live feedback mrb0n3j3). */
 .sp-mast {
   border-bottom: 2px solid var(--border-strong);
   padding-bottom: var(--space-3);
@@ -27,13 +28,13 @@
 
 .sp-mast__brand {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-black);
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  /* optically recenter tracked caps (trailing letter-space) */
-  margin-right: -0.18em;
+  /* Serif nameplate (live feedback mrb0n3j3): title case at a bigger size, tight tracking —
+     wide-tracked caps read as brand-sans, not broadsheet. The topbar "Sports" is back on this
+     page, so the nameplate differentiates by voice instead of being the only page title. */
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.01em;
 }
 
 /* Phone masthead: the three-column folio has no room to keep the date on the brand's
@@ -288,8 +289,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  /* Rules on BOTH edges (the strip only had a bottom one), with breathing room on each side
+     of each line: margin outside the rules, padding between rule and content — the strip sat
+     flush between its neighbors (live feedback mrb0kc8j, incl. the "also add one to the top"
+     clarification). */
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   padding: var(--space-3) 0;
+  margin: var(--space-4) 0;
 }
 .sp-around__scroll {
   display: flex;

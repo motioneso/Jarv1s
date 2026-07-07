@@ -117,34 +117,15 @@
 /* ============================================================= HERO — edge-to-edge broadsheet block */
 .sp-hero {
   margin-top: 0;
+  /* Bottom margin gives the hero's closing rule the same breathing room the around-the-leagues
+     strip has against its rules (live feedback mrb11j9h). */
+  margin-bottom: var(--space-4);
   border: none;
   border-bottom: 2px solid var(--border);
   border-radius: 0;
   background: none;
   padding: var(--space-6) 0;
 }
-/* Competition label as a newspaper credit line under the headline — the lone eyebrow above
-   it floated in the centered story body (live feedback mratrvvg). Keyline dash anchors it
-   to the headline the way a byline rule does. */
-.sp-hero__credit {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.sp-hero__credit::before {
-  content: "";
-  width: 20px;
-  border-top: 1px solid var(--border);
-}
-
 /* story hero (quiet day) */
 .sp-hero--story {
   background: var(--surface);

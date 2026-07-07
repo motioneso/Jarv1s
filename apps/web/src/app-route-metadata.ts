@@ -21,10 +21,6 @@ export interface WebRouteMeta {
   readonly title: string;
   readonly subtitle: (now: Date, locale: LocaleSettingsDto) => string;
   readonly match: (pathname: string) => boolean;
-  // Pages that render their own full-width nameplate ("The Sports Desk") double the page
-  // name if the topbar repeats it (live feedback 2026-07-07) — the shell hides the topbar
-  // title for these. `title` itself stays truthful for non-topbar consumers (chat context).
-  readonly ownMasthead?: boolean;
 }
 
 export interface NavSection {
@@ -88,10 +84,7 @@ export const webRoutes: readonly WebRouteMeta[] = [
       path: route.path,
       title: route.label,
       subtitle: () => "",
-      match: (pathname) => pathname.startsWith(route.path),
-      // The broadsheet masthead owns the page name on /sports; a topbar "Sports" above
-      // "THE SPORTS DESK" read as a duplicate (live feedback 2026-07-07).
-      ownMasthead: route.moduleId === "sports"
+      match: (pathname) => pathname.startsWith(route.path)
     })
   ),
   {
@@ -149,14 +142,10 @@ export function resolvePageHeading(
   pathname: string,
   now = new Date(),
   locale: LocaleSettingsDto = DEFAULT_LOCALE
-): { title: string; subtitle: string; ownMasthead: boolean } {
+): { title: string; subtitle: string } {
   const route = webRoutes.find((item) => item.match(pathname)) ?? webRoutes[0];
   if (!route) throw new Error("At least one web route must be defined");
-  return {
-    title: route.title,
-    subtitle: route.subtitle(now, locale),
-    ownMasthead: route.ownMasthead ?? false
-  };
+  return { title: route.title, subtitle: route.subtitle(now, locale) };
 }
 
 function dateEyebrow(now: Date, locale: LocaleSettingsDto): string {

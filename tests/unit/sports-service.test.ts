@@ -348,7 +348,8 @@ describe("SportsService.getOverview", () => {
     const overview = await service.getOverview(userA);
     const card = overview.followed.find((c) => c.teamKey === "dal");
     expect(card?.status).toBe("news");
-    expect(card?.news).toEqual({
+    // stories are newest-first; the tagged headline leads (mrb0pk1n replaced single `news`)
+    expect(card?.stories[0]).toEqual({
       title: "Cowboys clinch the division",
       url: "https://example.com/h1",
       publishedAt: `${TODAY}T12:00:00.000Z`,
@@ -370,7 +371,7 @@ describe("SportsService.getOverview", () => {
     const overview = await service.getOverview(userA);
     const card = overview.followed.find((c) => c.teamKey === "dal");
     expect(card?.status).toBe("news");
-    expect(card?.news).toBeNull();
+    expect(card?.stories).toEqual([]);
   });
 
   // The league-wide feed rarely tags stories to a specific club, so followed cards sat on
@@ -414,7 +415,7 @@ describe("SportsService.getOverview", () => {
     const overview = await service.getOverview(userA);
     const card = overview.followed.find((c) => c.teamKey === "dal");
     expect(card?.status).toBe("news");
-    expect(card?.news?.title).toBe("Cowboys sign a new kicker");
+    expect(card?.stories[0]?.title).toBe("Cowboys sign a new kicker");
     // the merge is card-local: the team-feed story must not leak into the league news column
     const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
     const leagueTitles = [

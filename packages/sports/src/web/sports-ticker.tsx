@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { FollowedNextMatch, FollowedTeamCard, Headline } from "@jarv1s/shared";
+import type { FollowedNextMatch, FollowedTeamCard } from "@jarv1s/shared";
 import type { LocaleSettingsDto } from "@jarv1s/shared";
 
 import { TOURNAMENT_COMPETITIONS } from "./competitions.js";
@@ -47,10 +47,10 @@ function tickerPriority(card: FollowedTeamCard, now: number): number {
 }
 
 // Newest-first news timestamp; teams without a story rank behind any team that has one.
+// stories arrive newest-first from the service, so [0] is the freshest.
 function newsRecency(card: FollowedTeamCard): number {
-  return card.news?.publishedAt
-    ? new Date(card.news.publishedAt).getTime()
-    : Number.NEGATIVE_INFINITY;
+  const newest = card.stories[0];
+  return newest ? new Date(newest.publishedAt).getTime() : Number.NEGATIVE_INFINITY;
 }
 
 // "vs Green Bay Packers" + "Sat, Jul 4 · 3:00 PM" — user's persisted locale + timezone (spec D2).
@@ -74,32 +74,13 @@ export function formatNextMatch(next: FollowedNextMatch, locale: LocaleSettingsD
   return `${parts.opponent} · ${parts.when}`;
 }
 
-// Headlines about this club, for the text links under the form row (live feedback mra390ac).
-// Same honesty rules as the featured-game band: the service's teamKeys join first, title-name
-// fallback second, and the tag-count cap keeps league-wide listicles (tagged with everyone) out.
-function teamStories(card: FollowedTeamCard, headlines: readonly Headline[]): Headline[] {
-  const name = card.name.toLowerCase();
-  const seen = new Set<string>(card.news ? [card.news.url] : []);
-  const matches: Headline[] = [];
-  for (const h of headlines) {
-    if (h.competitionKey !== card.competitionKey || h.teamKeys.length > 6) continue;
-    if (!h.teamKeys.includes(card.teamKey) && !h.title.toLowerCase().includes(name)) continue;
-    if (seen.has(h.url)) continue;
-    seen.add(h.url);
-    matches.push(h);
-    if (matches.length === 2) break;
-  }
-  return matches;
-}
-
 // Newspaper-style scoreboard strip: one dense block per followed team. Horizontal scroll;
 // tabIndex + role="region" make the overflow keyboard-reachable (arrow keys scroll a focused
 // scrollable region). Whole-league follows no longer render a block here (header redesign
-// pass) — the league-grouped sections below already carry them.
-export function SportsTicker(props: {
-  followed: readonly FollowedTeamCard[];
-  headlines?: readonly Headline[];
-}) {
+// pass) — the league-grouped sections below already carry them. Team stories now arrive on
+// the card itself (card.stories, mrb0pk1n), so the old headlines prop + client-side
+// title-matching are gone: the service's teamKeys tagging is the one source of truth.
+export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
@@ -158,11 +139,7 @@ export function SportsTicker(props: {
           aria-label="Followed teams"
         >
           {ordered.map((card) => (
-            <TickerTeam
-              key={`${card.competitionKey}:${card.teamKey}`}
-              card={card}
-              headlines={props.headlines ?? []}
-            />
+            <TickerTeam key={`${card.competitionKey}:${card.teamKey}`} card={card} />
           ))}
         </div>
         <button
@@ -179,23 +156,19 @@ export function SportsTicker(props: {
   );
 }
 
-function TickerTeam(props: { card: FollowedTeamCard; headlines: readonly Headline[] }) {
+function TickerTeam(props: { card: FollowedTeamCard }) {
   const { card } = props;
-  const allStories = teamStories(card, props.headlines);
   // Pre-game today cards drop the matchup line (the Next footer already names the fixture,
   // mrawrk0e) — but blanking the whole primary slot left those cards a hollow void next to
   // their news-status neighbors (top-area feedback 2026-07-07). Only the matchup text was
   // redundant; fill the slot with news instead so every non-score card shares one anatomy.
   const showNews =
     card.status === "news" || (card.status === "today" && card.todayGameState !== "final");
-  // A news-filled card with no dedicated story used to render "No recent news" with matched
-  // headlines linked right below it — a plain contradiction (live feedback mrathm2y). When the
-  // card itself is storyless, promote the first matched headline into the primary slot and keep
-  // only the remainder as the small links; "No recent news" now only shows when there is truly
-  // nothing to link.
-  const promoted = showNews && !card.news ? (allStories[0] ?? null) : null;
-  const stories = promoted ? allStories.slice(1) : allStories;
-  const lead = card.news ?? promoted;
+  // Lead story owns the primary slot (thumbnail + title); the rest are the small text links
+  // below — up to three total per club (live feedback mrb0pk1n). "No recent news" only shows
+  // when the club truly has no stories (mrathm2y).
+  const lead = card.stories[0] ?? null;
+  const stories = card.stories.slice(1);
   // The card used to open with a competition/status eyebrow row ("MLB · today") — cut per
   // live feedback mratgoq4; it repeated info the content below already carries. Only the
   // live signal survives, folded into the header row so a game in progress still reads.
@@ -257,8 +230,9 @@ function TickerTeam(props: { card: FollowedTeamCard; headlines: readonly Headlin
       </div>
       {stories.length > 0 ? (
         <ul className="sp-tk__stories">
+          {/* FollowedTeamNews carries no id — the url is the stable identity (service dedups by it) */}
           {stories.map((story) => (
-            <li key={story.id}>
+            <li key={story.url}>
               <a className="sp-tk__storylink" href={story.url} target="_blank" rel="noreferrer">
                 {story.title}
               </a>

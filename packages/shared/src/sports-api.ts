@@ -134,7 +134,10 @@ export interface FollowedTeamCard {
   // the primary slot but drops the pre-game matchup line — the Next footer already carries the
   // fixture (live feedback mrawrk0e). Optional: older payloads predate it.
   readonly todayGameState?: "pre" | "final";
-  readonly news: FollowedTeamNews | null;
+  // Up to three of the club's own stories, newest first (live feedback mrb0pk1n — "three
+  // stories per team… real news for their clubs"). stories[0] is the lead (thumbnail slot);
+  // the rest render as text links. Replaces the old single `news` field.
+  readonly stories: readonly FollowedTeamNews[];
   readonly form: readonly ("W" | "D" | "L")[];
   readonly standing: string | null;
   readonly nextMatch: FollowedNextMatch | null;
@@ -352,7 +355,7 @@ const followedTeamCardSchema = {
     "crestUrl",
     "status",
     "primary",
-    "news",
+    "stories",
     "form",
     "standing",
     "nextMatch",
@@ -367,23 +370,22 @@ const followedTeamCardSchema = {
     crestUrl: { type: ["string", "null"] },
     status: { type: "string", enum: ["live", "today", "news"] },
     primary: { type: "string" },
-    news: {
-      oneOf: [
-        { type: "null" },
-        {
-          type: "object",
-          additionalProperties: false,
-          // New fields must be listed here or fast-json-stringify's oneOf matching rejects the
-          // object (it doesn't just drop unknown keys inside oneOf) — see toPublicHeadline note.
-          required: ["title", "url", "publishedAt", "imageUrl"],
-          properties: {
-            title: { type: "string" },
-            url: { type: "string" },
-            publishedAt: { type: "string" },
-            imageUrl: { type: ["string", "null"] }
-          }
+    stories: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        // Plain array items (no oneOf — an empty array replaces the old null), but keep every
+        // emitted field listed: fast-json-stringify silently DROPS unknown keys outside oneOf,
+        // and rejects the whole object inside one — see toPublicHeadline note.
+        required: ["title", "url", "publishedAt", "imageUrl"],
+        properties: {
+          title: { type: "string" },
+          url: { type: "string" },
+          publishedAt: { type: "string" },
+          imageUrl: { type: ["string", "null"] }
         }
-      ]
+      }
     },
     form: { type: "array", items: { type: "string", enum: ["W", "D", "L"] } },
     standing: { type: ["string", "null"] },
