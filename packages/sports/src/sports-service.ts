@@ -292,24 +292,6 @@ export class SportsService {
     };
   }
 
-  /** One league's standings, fetched on demand (#842). Never throws; degrades to empty sections. */
-  async getStandings(competitionKey: string): Promise<StandingsGroup> {
-    const state: DegradeState = { degraded: false };
-    const table = await this.cached<StandingsTable>(
-      "standings",
-      { competitionKey },
-      EMPTY_STANDINGS,
-      state
-    );
-    const entry = catalogEntry(competitionKey);
-    return {
-      competitionKey,
-      competitionLabel: entry?.label ?? competitionKey,
-      standingsShape: entry?.standingsShape ?? "table",
-      sections: table.sections
-    };
-  }
-
   /**
    * One league's standings, fetched on demand (#842). Never throws; degrades to empty sections.
    * For a tournament whose group stage is complete, also returns the current round's fixtures

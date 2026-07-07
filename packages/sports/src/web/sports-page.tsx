@@ -4,21 +4,15 @@ import "./styles/sports-4-grid.css";
 import "./styles/sports-5-editorial.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type {
-  FollowedTeamCard,
-  GameSide,
-  Headline,
-  OverviewHero,
-  SportsOverviewResponse
-} from "@jarv1s/shared";
+import type { GameSide, Headline, OverviewHero, SportsOverviewResponse } from "@jarv1s/shared";
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";
 import { teamBarColor } from "./team-colors.js";
-import { CalendarIcon, Crest, FormPips, LiveDot, TrophyIcon } from "./sports-parts.js";
-import { LatestColumn, NewsBand, NewsIcon, StoryHero } from "./sports-news.js";
-import { SportsTicker, formatNextMatch } from "./sports-ticker.js";
+import { Crest, LiveDot, TrophyIcon } from "./sports-parts.js";
+import { LatestColumn, NewsBand, StoryHero } from "./sports-news.js";
+import { SportsTicker } from "./sports-ticker.js";
 import { AroundLeaguesTicker } from "./sports-around-ticker.js";
 import { SOCCER_COMPETITIONS } from "./competitions.js";
 import { StandingsRail } from "./sports-standings.js";
@@ -305,63 +299,8 @@ function ScoreBarSide(props: { side: GameSide; competitionKey: string; edge: "l"
   );
 }
 
-/* ---------------------------------------------------------------- Followed card (Today widget) */
-
-export function FollowedCard(props: { card: FollowedTeamCard }) {
-  const { card } = props;
-  const locale = useUserLocale();
-  return (
-    <article className="sp-fc">
-      <div className="sp-fc__hd">
-        <Crest name={card.name} crestUrl={card.crestUrl} size="md" />
-        <div className="sp-fc__id">
-          <span className="sp-fc__name">{card.name}</span>
-          <span className="sp-fc__comp">{card.competitionLabel}</span>
-        </div>
-        <span className={`sp-tag sp-tag--${card.status}`}>{card.status}</span>
-      </div>
-
-      <div className="sp-fc__primary">
-        {card.status === "news" ? (
-          <>
-            <span className="sp-fc__newsic">
-              <NewsIcon />
-            </span>
-            {card.news ? (
-              <a className="sp-fc__newstx" href={card.news.url} target="_blank" rel="noreferrer">
-                {card.news.title}
-              </a>
-            ) : (
-              <span className="sp-fc__newstx">No recent news</span>
-            )}
-          </>
-        ) : (
-          <span className="sp-fc__resscore">{card.primary}</span>
-        )}
-      </div>
-
-      <div className="sp-fc__form">
-        {card.standing ? (
-          <span className="sp-fc__standing">
-            <TrophyIcon />
-            {card.standing}
-          </span>
-        ) : null}
-        <FormPips form={card.form} />
-      </div>
-
-      {card.nextMatch ? (
-        <div className="sp-fc__next">
-          <span className="sp-fc__nextlbl">
-            <CalendarIcon />
-            Next
-          </span>
-          <span className="sp-fc__nextmatch">{formatNextMatch(card.nextMatch, locale)}</span>
-        </div>
-      ) : null}
-    </article>
-  );
-}
+/* FollowedCard moved to its only consumer, today-widget.tsx (#837 cleanup on main) — /sports
+   itself renders the ticker strip instead since the #831 refactor. */
 
 /* ---------------------------------------------------------------- Broadsheet body */
 

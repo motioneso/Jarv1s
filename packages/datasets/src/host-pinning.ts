@@ -14,6 +14,22 @@ const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /**
+ * Thrown when a dataset-runtime fetch (initial request or any redirect hop) targets a host
+ * outside the source's declared `fetchHosts`, or downgrades off https. Distinct from ordinary
+ * fetch/network failures so `client.ts` can log the SSRF-allowlist rejection distinctly instead
+ * of folding it into silent degrade (#832).
+ */
+export class HostPinningViolationError extends Error {
+  readonly host: string;
+
+  constructor(host: string, message: string) {
+    super(message);
+    this.name = "HostPinningViolationError";
+    this.host = host;
+  }
+}
+
+/**
  * True when `host` is safe to add to a source's `fetchHosts`/`imageHosts`: lowercase, non-empty,
  * no port, and not a bare IPv4/IPv6 literal (host pinning is meaningless against a literal IP —
  * the whole point is naming a specific external service by hostname).
@@ -51,14 +67,54 @@ function resolveUrl(input: RequestInfo | URL, base?: URL): URL {
   return new URL(input.url);
 }
 
+/**
+ * Headers stripped the moment a redirect hop changes hostname (#833) — a value set for host A
+ * (e.g. an auth token) must never reach allowlisted host B just because both are pinned.
+ * Extend this list when the deferred api-key credential slice (connector-SDK spec Architecture
+ * §4) lands and defines its header name. `Headers` matching is case-insensitive by spec, so
+ * casing here doesn't matter.
+ */
+const SENSITIVE_REDIRECT_HEADER_NAMES = ["authorization"];
+
+function stripSensitiveHeaders(init: RequestInit | undefined): RequestInit | undefined {
+  if (!init?.headers) return init;
+  const headers = new Headers(init.headers);
+  for (const name of SENSITIVE_REDIRECT_HEADER_NAMES) {
+    headers.delete(name);
+  }
+  return { ...init, headers };
+}
+
+/**
+ * True when a redirect hop must downgrade to GET with no body: always for 303 (See Other, the
+ * canonical "redo as GET" status), and for 301/302 only when the current method isn't already
+ * GET/HEAD (legacy browser behavior downgrades those two; RFC 7231 leaves 301/302 method
+ * preservation to client discretion but the safe, expected behavior is to downgrade like a
+ * browser would). 307/308 must never downgrade — they exist specifically to guarantee
+ * method+body preservation across a redirect (#836).
+ */
+function shouldDowngradeToGet(status: number, method: string): boolean {
+  if (status === 303) return true;
+  if (status === 301 || status === 302) return method !== "GET" && method !== "HEAD";
+  return false;
+}
+
+/** Drops `method`/`body` from `init` and forces a bodyless GET for the next redirect hop. */
+function downgradeToGet(init: RequestInit | undefined): RequestInit {
+  const { body: _body, method: _method, ...rest } = init ?? {};
+  return { ...rest, method: "GET" };
+}
+
 function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
   if (url.protocol !== "https:") {
-    throw new Error(
+    throw new HostPinningViolationError(
+      url.hostname,
       `Dataset runtime host pinning: only https is allowed, got "${url.protocol}" for ${url.hostname}`
     );
   }
   if (!allowed.has(url.hostname.toLowerCase())) {
-    throw new Error(
+    throw new HostPinningViolationError(
+      url.hostname,
       `Dataset runtime host pinning: host "${url.hostname}" is not in the allowed list`
     );
   }
@@ -80,15 +136,25 @@ export function createHostPinnedFetch(
     let currentUrl = resolveUrl(input);
     assertHttpsAndAllowed(currentUrl, allowed);
 
-    let response = await fetchFn(currentUrl.toString(), { ...init, redirect: "manual" });
+    let currentInit = init;
+    let currentMethod = (init?.method ?? "GET").toUpperCase();
+    let response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
     let hops = 0;
 
     while (REDIRECT_STATUSES.has(response.status) && hops < MAX_REDIRECTS) {
       const location = response.headers.get("location");
       if (!location) break;
+      const previousHost = currentUrl.hostname.toLowerCase();
       currentUrl = resolveUrl(location, currentUrl);
       assertHttpsAndAllowed(currentUrl, allowed);
-      response = await fetchFn(currentUrl.toString(), { ...init, redirect: "manual" });
+      if (currentUrl.hostname.toLowerCase() !== previousHost) {
+        currentInit = stripSensitiveHeaders(currentInit);
+      }
+      if (shouldDowngradeToGet(response.status, currentMethod)) {
+        currentInit = downgradeToGet(currentInit);
+        currentMethod = "GET";
+      }
+      response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
       hops += 1;
     }
 
