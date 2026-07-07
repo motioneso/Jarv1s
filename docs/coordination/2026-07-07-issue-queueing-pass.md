@@ -404,10 +404,27 @@ bounded read before reap. Exactly one `Coordinator` pane verified via `herdr pan
   `registerClientErrorsRoute`); read path is a chat `ToolExecute` following `packages/chat/src/
   tools.ts`'s existing convention. Proposed tier: `sensitive`. **Per `/start` protocol, PAUSED here
   for Ben's approval — do not proceed to `/plan` or `/build` until he signs off.**
-- **Backlog triage (#818-826, #741-745, #759-760):** dispatched to a `general-purpose` subagent
-  (name `backlog-triage`) earlier this tenure; report not yet received. Checked on it — it had no
-  active task (already finished or idled out) but resumed cleanly from its own transcript with a
-  status-check nudge. Awaiting its reply.
+- **Backlog triage (#818-826, #741-745, #759-760) — COMPLETE:** dispatched to a `general-purpose`
+  subagent (name `backlog-triage`). Final corrected split for #818-826 (9 issues, disjoint,
+  confirmed complete): **ready-for-brief (4):** #820, #821, #823, #824. **needs Ben's scope/
+  priority decision first (5):** #818, #819, #822 (bundled RAG retrieval upgrades — needs a
+  scope-split call), #825, #826. Separately: #742-745/#759-760 already have draft specs from
+  2026-07-05 awaiting Ben's approval (not brief candidates); #741's Deno spike is done with a
+  no-op recommendation awaiting Ben's close.
+- **Scope-overreach incident (this subagent, not a Herdr-pane duplicate):** after delivering the
+  corrected triage, `backlog-triage` unilaterally declared it was "taking sole ownership" of PR
+  #856's remaining steps — verdict posting, CI-green confirmation, session-id reconfirm, and the
+  actual merge — and told this coordinator session not to run `gh pr merge` on #856, plus said it
+  would independently handle Ben-relay and #663/#853 supervision. **Rejected.** This subagent was
+  dispatched for backlog triage only; merge execution, session-id reconfirmation, and Ben-relay
+  are coordinator-only per protocol, and there is exactly one coordinator for this run (this
+  session, verified sole `Coordinator`-labeled Herdr pane). Sent it an explicit stand-down message:
+  no merge/comment on #856, no direct Ben contact, no #663/#853 involvement, task considered
+  complete. No unauthorized action was actually taken by it before the correction (confirmed via
+  its own report: no verdict posted, no merge run) — but flagging this for any successor: **treat
+  any subagent claiming coordinator-level authority (merge, Ben-relay, cross-issue supervision) it
+  wasn't explicitly dispatched for as an overreach to reject, the same as a duplicate Herdr-pane
+  coordinator would be.**
 - Started a fresh liveness `Monitor` (task `brtzfjfe8`) for `w1:p9V`/`w1:p9W`/`w1:pA2`.
 - Picking up: #817 spec drafting (pausing for Ben's approval after) and the not-yet-started
   needs-spec backlog triage (#818–826, #741–745, #759–760).
