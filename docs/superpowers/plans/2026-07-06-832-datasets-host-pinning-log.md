@@ -191,7 +191,10 @@ function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
   Add a tiny recording fake logger and two new tests in `describe("createDatasetClient", ...)`:
 
   ```ts
-  function fakeLogger(): { logger: DatasetLogger; warnings: Array<[Record<string, unknown>, string]> } {
+  function fakeLogger(): {
+    logger: DatasetLogger;
+    warnings: Array<[Record<string, unknown>, string]>;
+  } {
     const warnings: Array<[Record<string, unknown>, string]> = [];
     return { logger: { warn: (data, message) => warnings.push([data, message]) }, warnings };
   }
@@ -302,7 +305,7 @@ function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
 - Modify: `packages/datasets/src/index.ts`
 
 - [ ] **Step 1:** add `HostPinningViolationError` to the existing host-pinning export line, and
-  `type DatasetLogger` to the existing client export block:
+      `type DatasetLogger` to the existing client export block:
 
   ```ts
   export {
@@ -343,18 +346,18 @@ function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
 - [ ] **Step 1:** in the sports `registerRoutes` callback, change:
 
   ```ts
-      const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
-        fetchFn: deps.fetchFn
-      });
+  const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
+    fetchFn: deps.fetchFn
+  });
   ```
 
   to:
 
   ```ts
-      const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
-        fetchFn: deps.fetchFn,
-        logger: createModuleLogger(server.log, "sports")
-      });
+  const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
+    fetchFn: deps.fetchFn,
+    logger: createModuleLogger(server.log, "sports")
+  });
   ```
 
   `FastifyBaseLogger.warn(obj, msg)` structurally satisfies `DatasetLogger` — no adapter/wrapper
