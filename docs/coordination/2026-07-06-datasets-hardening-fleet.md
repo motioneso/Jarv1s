@@ -1,7 +1,7 @@
 # Coordination Run — 2026-07-06-datasets-hardening-fleet
 
 **Date:** 2026-07-06
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `22037838-bb11-4e04-b12f-71519a9f7834`** (pane `w1:p9K` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `c24b0bc4-207d-4c56-91e8-b0cfb89d1984` (pane `w1:p9J`, tab `w1:t15`), reaped 2026-07-07 after confirming PR #850 merged and manifest flushed.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `5a5d9633-f058-44a3-b379-684461cc8079`** (pane `w1:p9N` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `22037838-bb11-4e04-b12f-71519a9f7834` (pane `w1:p9K`, tab `w1:t15`), reaped 2026-07-07 after confirming #836 plan approval delivered and manifest flushed.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; no `security`-tier items in this run.
 **Relay threshold:** routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 0 (fresh tenure — PR #848/#849/#850 all landed and accounted for under the
@@ -304,6 +304,37 @@ now fully landed and accounted for above).
   `bww6hj7s4` — both die with this session, not inherited.)
 
 **No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
+
+## Continuation note (relay @ 2026-07-07, successor adopted, plan-approval delivered)
+
+**Coordinator lock:** now anchored on session `5a5d9633-f058-44a3-b379-684461cc8079` (pane
+`w1:p9N`, relabeling to `Coordinator`, tab `w1:t15`). Predecessor
+`22037838-bb11-4e04-b12f-71519a9f7834` (pane `w1:p9K`) confirmed done, being messaged to ack and
+reap.
+
+**Resolved on adoption:** `datasets-chain-5` (`w1:p9M`, session `b640eb8a…`) had already
+self-inferred the #836 plan approval from this manifest's prior continuation note and started
+building (Task A TDD in progress) before this successor could send an explicit message. Sent the
+formal approval confirmation anyway (queued — agent was busy) plus a reporting-target redirect to
+this pane (`w1:p9N`) instead of the reaped `w1:p9K`. No re-review of the plan performed (per
+predecessor's already-recorded APPROVE verdict). `merges_since_relay` stays **0**.
+
+**Fleet state, all in `w1:t1B`:**
+
+| Agent | Pane | Status at check | Notes |
+| --- | --- | --- | --- |
+| `datasets-chain-5` | `w1:p9M` | working, ctx 62% | building #836 Task A (host-pinning downgrade helpers + TDD) |
+
+Both persistent Monitors re-established fresh this session (prior session's Monitors did not
+survive relay):
+1. Fleet liveness over `w1:t1B` (task `b8vk3586v`) — diffs `herdr pane list`, emits on
+   `agent_status`/label change only.
+2. Sports-broadsheet watch on `w1:p8Y` (task `bj2d9lylt`) — emits on `agent_status` change; Ben's
+   explicit standing ask, non-fleet item.
+
+**No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
+Next action: supervise `datasets-chain-5` to PR → routine QA → auto-merge → close #836 (chain
+complete, no successor issue after).
 
 ## Continuation note (relay @ 2026-07-07, 70% context-meter checkpoint, mid plan-approval)
 
