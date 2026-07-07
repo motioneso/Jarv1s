@@ -59,7 +59,7 @@ supplying licensed `.otf` files — not a coordinator action item, just a standi
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | **HOLD — likely duplicate** | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
 | (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building (plan approved, Task 1 TDD in progress) | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
-| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building (relayed once, root cause confirmed, no plan/code yet) | **Build-854b** | w1:p9Y | 854-integration-test-db-isolation | — |
+| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building (relayed twice, plan design fully grounded, not yet written to file) | **Build-854c** | w1:pA1 | 854-integration-test-db-isolation | — |
 
 All three spawned into agents tab `w1:t1C` (created this run), confirmed running Sonnet, worktrees
 cut off `origin/main` @ `babe07aa`. Handoff docs committed in each worktree at
@@ -99,15 +99,30 @@ after-hook failure, not just `registrationRejected`; FK cascade on `app.auth_acc
 **Still needs, when it reports done:** Opus adversarial QA (security tier) → mandatory
 `gh pr comment` verdict → Ben's explicit merge sign-off. Do not auto-merge on green CI alone.
 
-### #854 — relayed once, no plan yet
+### #854 — relayed twice, plan design grounded but not yet written to file
 
-Build-854 relayed and was confirmed + reaped this tenure. Successor **Build-854b** is live at pane
-`w1:p9Y`, session `4a271eb9-8a17-4317-b5bc-6e3d484b9515`, confirmed running Sonnet, same worktree/
-branch (`854-integration-test-db-isolation`). Continuation doc committed at
-`docs/superpowers/handoffs/2026-07-07-854-integration-test-db-isolation-relay.md` (commit
-`4e371fa0`) in that worktree. Predecessor pane `w1:p9X` (session `c513c561-1b4b-4eda-9b48-4c58c9bbc1b7`)
-was verified and closed. **Still no plan/code written** — successor coordinator: expect a plan-ready
-escalation from Build-854b next.
+Build-854 relayed → Build-854b (reaped by predecessor coordinator tenure). Build-854b relayed again
+this tenure at ~70% ctx → successor **Build-854c** is live at pane `w1:pA1`, session
+`ee780331-4b5b-42cc-8d25-5be366d63b1a`, confirmed driving/working, same worktree/branch
+(`854-integration-test-db-isolation`). Predecessor `w1:p9Y` (session
+`4a271eb9-8a17-4317-b5bc-6e3d484b9515`) confirmed reaped 2026-07-07. Note: Build-854c initially
+landed in the coordinator's own tab (`w1:t15`) — moved to the shared agents tab `w1:t1C` on
+discovery.
+
+Root cause confirmed (per Build-854b's relay note): `packages/*/urls.ts` jarv1s default +
+`test-database.ts` `seedProbeData` share the default DB name across concurrent agent runs. Design
+grounded, not yet written to a plan file:
+- **(A)** `scripts/test-integration.ts` wrapper — pure `createDatabaseIsolationPlan()` fn,
+  auto-generates an isolated DB name when `JARVIS_PGDATABASE` is unset, ensures/drops it via the
+  postgres maintenance DB; no separate `db:migrate` step needed (reset fns self-bootstrap schema).
+- **(B)** `DEFAULT_JARVIS_DATABASE_NAME` const in `urls.ts` + `assertIsolatedTestDatabase()` guard
+  in `test-database.ts` refusing the shared default.
+- **(C)** reroute ~20 `package.json` `test:*` scripts through the wrapper.
+
+**Still no plan/code written** — successor coordinator: expect a plan-ready escalation from
+Build-854c next (it should write the plan to
+`docs/superpowers/plans/2026-07-07-854-integration-test-db-isolation.md` before requesting
+approval).
 
 ### #817 — design interview in progress (not a build item)
 
