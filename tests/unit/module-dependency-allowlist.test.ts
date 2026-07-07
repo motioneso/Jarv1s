@@ -41,11 +41,13 @@ const packagesRoot = join(process.cwd(), "packages");
 const PLATFORM_PACKAGES = new Set([
   "@jarv1s/ai", // provider-agnostic AI capability router (CLAUDE.md invariant), not a feature
   "@jarv1s/auth",
+  "@jarv1s/datasets", // dataset connector SDK runtime host (host pinning, cache, TTL) — infra, not a product domain
   "@jarv1s/db",
   "@jarv1s/jobs",
   "@jarv1s/memory",
   "@jarv1s/module-registry", // composition root; wires every module together
   "@jarv1s/module-sdk",
+  "@jarv1s/module-web-sdk", // browser-safe frontend contribution SDK (routes/widgets/palette), infra not a product domain
   "@jarv1s/priority", // ranking/ordering primitive; consumed by @jarv1s/shared itself
   "@jarv1s/settings", // generic settings/audit-log hub — "platform packages are expected hubs"
   "@jarv1s/settings-ui",

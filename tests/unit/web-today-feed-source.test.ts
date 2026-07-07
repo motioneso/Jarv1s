@@ -7,8 +7,6 @@ describe("Today feed source", () => {
     const feed = createEmptyTodayFeed();
 
     expect(feed.overnight).toEqual([]);
-    expect(feed.sports.items).toEqual([]);
-    expect(feed.sports.quietTeams).toEqual([]);
     expect(feed.news).toEqual([]);
     expect(feed.interests).toEqual([]);
     expect(isTodayFeedEmpty(feed)).toBe(true);

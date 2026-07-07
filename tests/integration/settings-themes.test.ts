@@ -4,7 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
 import { HttpError } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import type {
@@ -55,6 +55,7 @@ describe("settings theme preferences", () => {
         throw new HttpError(401, "Unauthorized");
       },
       listModuleManifests: () => getBuiltInModuleManifests(),
+      moduleDeletionTables: getModuleDeletionTables(),
       preferencesRepository: new PreferencesRepository()
     });
     await server.ready();

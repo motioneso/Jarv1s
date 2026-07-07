@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
+import type { DatasetClient } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
@@ -8,6 +9,7 @@ import {
   sportsCatalogResponseSchema,
   sportsFollowsResponseSchema,
   sportsOverviewResponseSchema,
+  sportsStandingsResponseSchema,
   type CreateSportsFollowRequest,
   type SportsFollowDto
 } from "@jarv1s/shared";
@@ -15,7 +17,6 @@ import {
 import { SportsFollowsRepository } from "./repository.js";
 import { SportsService, type SportsFollowsReader } from "./sports-service.js";
 import { catalogEntry } from "./source/catalog.js";
-import type { SportsSource } from "./source/sports-source.js";
 
 /**
  * The follows persistence surface the routes need. `SportsFollowsRepository`
@@ -30,13 +31,16 @@ export interface SportsFollowsWriter extends SportsFollowsReader {
 export interface SportsRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly source: SportsSource;
+  /**
+   * The dataset-connector-SDK runtime client bound to the sports module's `espn` external
+   * source (composition root: `packages/module-registry/src/index.ts`). Replaces the former
+   * directly-injected `SportsSource`.
+   */
+  readonly datasetClient: DatasetClient;
   /** Optional injection point for tests; defaults to a real `SportsFollowsRepository`. */
   readonly repository?: SportsFollowsWriter;
   /** Clock seam forwarded to the service (default `() => new Date()`). */
   readonly now?: () => Date;
-  /** Reserved for root wiring parity with other modules; unused when `source` is supplied. */
-  readonly fetchFn?: typeof fetch;
 }
 
 export function registerSportsRoutes(
@@ -45,7 +49,7 @@ export function registerSportsRoutes(
 ): void {
   const repository: SportsFollowsWriter = dependencies.repository ?? new SportsFollowsRepository();
   const service = new SportsService({
-    source: dependencies.source,
+    datasetClient: dependencies.datasetClient,
     dataContext: dependencies.dataContext,
     repository,
     now: dependencies.now
@@ -71,6 +75,24 @@ export function registerSportsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         return await service.getOverview(accessContext);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/sports/standings",
+    { schema: sportsStandingsResponseSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const { competitionKey } = request.query as { competitionKey: string };
+        if (!catalogEntry(competitionKey)) {
+          throw new HttpError(400, `Unknown competition: ${competitionKey}`);
+        }
+        const group = await service.getStandings(competitionKey);
+        return { group };
       } catch (error) {
         return handleRouteError(error, reply);
       }

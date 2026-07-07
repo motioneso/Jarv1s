@@ -21,3 +21,6 @@ docs/audits/
 # Coordinator handoff docs — authored by the coordinator agent; never format
 docs/coordination/
 docs/superpowers/handoffs/
+
+# Subagent-driven-development scratch — git-ignored briefs/reports/ledger/diffs
+.superpowers/sdd/

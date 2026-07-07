@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 
+import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import type {
@@ -14,7 +15,72 @@ import {
   registerSportsRoutes,
   type SportsRoutesDependencies
 } from "../../packages/sports/src/routes.js";
-import type { SportsSource } from "../../packages/sports/src/source/sports-source.js";
+import type {
+  SourceHeadline,
+  SourceTeamRef,
+  StandingsTable
+} from "../../packages/sports/src/source/sports-source.js";
+
+/**
+ * A fake `DatasetClient` dispatching by dataset key, mirroring the shape the retired
+ * directly-injected `SportsSource` fixture used (`listTeams`/`getScoreboard`/etc), so the
+ * per-test overrides below stay close to their pre-migration form. Errors thrown by a handler
+ * are caught here (as the real `createDatasetClient` does) and reported as `degraded: true`
+ * with the caller-supplied fallback.
+ */
+interface FakeSourceHandlers {
+  listTeams?: (competitionKey: string) => Promise<SourceTeamRef[]>;
+  getScoreboard?: (competitionKey: string, day: string) => Promise<GameSummary[]>;
+  getSchedule?: (teamKey: string, competitionKey: string) => Promise<GameSummary[]>;
+  getStandings?: (competitionKey: string) => Promise<StandingsTable>;
+  getHeadlines?: (competitionKey: string) => Promise<SourceHeadline[]>;
+}
+
+function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
+  return {
+    async getDataset<T>(
+      datasetKey: string,
+      params: Record<string, unknown>,
+      options: { fallback: T }
+    ): Promise<DatasetEnvelope<T>> {
+      try {
+        let data: unknown;
+        switch (datasetKey) {
+          case "teams":
+            data = await (handlers.listTeams ?? (async () => []))(params.competitionKey as string);
+            break;
+          case "scoreboard":
+            data = await (handlers.getScoreboard ?? (async () => []))(
+              params.competitionKey as string,
+              params.day as string
+            );
+            break;
+          case "schedule":
+            data = await (handlers.getSchedule ?? (async () => []))(
+              params.teamKey as string,
+              params.competitionKey as string
+            );
+            break;
+          case "standings":
+            data = await (handlers.getStandings ?? (async () => ({ sections: [] })))(
+              params.competitionKey as string
+            );
+            break;
+          case "headlines":
+            data = await (handlers.getHeadlines ?? (async () => []))(
+              params.competitionKey as string
+            );
+            break;
+          default:
+            throw new Error(`unknown dataset "${datasetKey}"`);
+        }
+        return { data: data as T, degraded: false, fetchedAt: new Date().toISOString() };
+      } catch {
+        return { data: options.fallback, degraded: true, fetchedAt: new Date().toISOString() };
+      }
+    }
+  };
+}
 
 const userA: AccessContext = {
   actorUserId: "00000000-0000-0000-0000-00000000000a",
@@ -42,9 +108,8 @@ const dalLiveGame: GameSummary = {
   away: side({ teamKey: "min", shortName: "MIN", name: "Minnesota Vikings", score: 14 })
 };
 
-function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
-  return {
-    imageHosts: [],
+function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
+  return makeDatasetClient({
     listTeams: async (competitionKey) => [
       {
         teamKey: "dal",
@@ -60,7 +125,7 @@ function makeSource(overrides: Partial<SportsSource> = {}): SportsSource {
     getStandings: async () => ({ sections: [] }),
     getHeadlines: async () => [],
     ...overrides
-  };
+  });
 }
 
 interface FakeRepo {
@@ -107,7 +172,7 @@ function buildApp(overrides: Partial<SportsRoutesDependencies> & { repo?: FakeRe
     ]);
   const app = Fastify();
   const deps: SportsRoutesDependencies = {
-    source: overrides.source ?? makeSource(),
+    datasetClient: overrides.datasetClient ?? makeSource(),
     dataContext: {
       withDataContext: async <T>(_ac: AccessContext, work: (db: DataContextDb) => Promise<T>) =>
         work({} as DataContextDb)
@@ -221,6 +286,126 @@ describe("sports routes", () => {
     await app.ready();
     const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
     expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it("carries Headline.summary through the overview response (#840)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeSource({
+        getHeadlines: async () => [
+          {
+            id: "n1",
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            title: "Vikings clinch division",
+            url: "https://example.test/n1",
+            publishedAt: "2026-07-01T18:00:00Z",
+            imageUrl: null,
+            summary: "A late field goal sealed the NFC North.",
+            teamKeys: [],
+            sourceTeamIds: []
+          }
+        ]
+      })
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("A late field goal sealed the NFC North.");
+    await app.close();
+  });
+
+  it("carries standings qualification note + color through the overview (#841)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        getStandings: async () => ({
+          sections: [
+            {
+              label: null,
+              rows: [
+                {
+                  teamKey: "ars",
+                  name: "Arsenal",
+                  rank: 1,
+                  points: 40,
+                  wins: 12,
+                  losses: 2,
+                  draws: 4,
+                  winPercent: null,
+                  qualifies: true,
+                  qualificationNote: "UEFA Champions League",
+                  qualificationColor: "#2a66d1"
+                }
+              ]
+            }
+          ]
+        })
+      }),
+      repo: makeRepo([
+        {
+          id: "f1",
+          competitionKey: "eng.1",
+          teamKey: null,
+          createdAt: "2026-06-01T00:00:00.000Z"
+        }
+      ])
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("UEFA Champions League");
+    expect(res.body).toContain("#2a66d1");
+    await app.close();
+  });
+
+  it("GET /api/sports/standings returns one league's group (#842)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        getStandings: async () => ({
+          sections: [
+            {
+              label: "AFC East",
+              rows: [
+                {
+                  teamKey: "buf",
+                  name: "Buffalo Bills",
+                  rank: 1,
+                  points: null,
+                  wins: 11,
+                  losses: 3,
+                  draws: null,
+                  winPercent: 0.786,
+                  qualifies: true,
+                  qualificationNote: null,
+                  qualificationColor: null
+                }
+              ]
+            }
+          ]
+        })
+      })
+    });
+    await app.ready();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sports/standings?competitionKey=nfl"
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.group.competitionKey).toBe("nfl");
+    expect(body.group.competitionLabel).toBe("NFL");
+    expect(body.group.sections[0].label).toBe("AFC East");
+    await app.close();
+  });
+
+  it("GET /api/sports/standings rejects an unknown competitionKey with 400 (#842)", async () => {
+    const { app } = buildApp();
+    await app.ready();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sports/standings?competitionKey=xyz.nope"
+    });
+    expect(res.statusCode).toBe(400);
     await app.close();
   });
 });

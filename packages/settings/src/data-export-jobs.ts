@@ -14,6 +14,7 @@ import {
   writeVaultFile
 } from "@jarv1s/vault";
 import { createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import { sql, type Kysely } from "kysely";
 
 import { exportUserData } from "./data-export.js";
@@ -68,7 +69,8 @@ export async function enqueueExportBuildJob(
 
 export async function handleExportBuildJob(
   job: Job<ExportBuildJobPayload>,
-  scopedDb: DataContextDb
+  scopedDb: DataContextDb,
+  listModuleManifests: () => readonly JarvisModuleManifest[]
 ): Promise<void> {
   const { actorUserId, jobId } = job.data;
   const repository = new DataExportRepository();
@@ -84,7 +86,9 @@ export async function handleExportBuildJob(
     const userExport = await exportUserData({
       scopedDb,
       authDb,
-      userId: actorUserId
+      userId: actorUserId,
+      listModuleManifests,
+      requestId: `export:${jobId}`
     });
 
     const archive = {
@@ -216,14 +220,15 @@ export async function handleExportCleanupJob(
 export async function registerSettingsJobWorkers(
   boss: PgBoss,
   dataContext: DataContextRunner,
-  workerDb: Kysely<JarvisDatabase>
+  workerDb: Kysely<JarvisDatabase>,
+  listModuleManifests: () => readonly JarvisModuleManifest[]
 ): Promise<readonly string[]> {
   await reconcileDataExportCleanupSchedule(boss);
   const workId = await registerDataContextWorker<ExportBuildJobPayload, void>(
     boss,
     EXPORT_BUILD_QUEUE,
     dataContext,
-    (job, scopedDb) => handleExportBuildJob(job, scopedDb)
+    (job, scopedDb) => handleExportBuildJob(job, scopedDb, listModuleManifests)
   );
   const cleanupWorkId = await boss.work<ExportCleanupJobPayload, void>(
     EXPORT_CLEANUP_QUEUE,

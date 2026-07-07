@@ -2,7 +2,6 @@ import "../styles/settings.css";
 import "../styles/settings-panes.css";
 import "../styles/settings-panes-2.css";
 import "../styles/settings-panes-3.css";
-import "../styles/sports-2.css";
 
 import {
   Activity,

@@ -1,6 +1,7 @@
 import { sql, type Kysely } from "kysely";
 
 import type { DataContextDb, JarvisDatabase } from "@jarv1s/db";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
@@ -11,6 +12,16 @@ export interface ExportUserDataOptions {
   readonly authDb: Kysely<JarvisDatabase>;
   readonly exportedAt?: Date;
   readonly userId: string;
+  /**
+   * Supplies the built-in + custom module manifests so this function can invoke a migrated
+   * module's `dataLifecycle.exportSections` collectors (#801 Phase A) instead of reading that
+   * module's tables directly. Required — every call site derives it from the same
+   * `listModuleManifests` DI seam already threaded through settings' composition root (avoids
+   * a package cycle: @jarv1s/settings cannot statically import @jarv1s/wellness).
+   */
+  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  /** Passed to a module's export-section collect() as ModuleLifecycleContext.requestId. */
+  readonly requestId?: string;
 }
 
 export interface UserDataExport {
@@ -68,15 +79,56 @@ export async function exportUserData(options: ExportUserDataOptions): Promise<Us
   return {
     exportedAt,
     userId: options.userId,
-    tables: await readExportTables(options.scopedDb, options.authDb, options.userId)
+    tables: await readExportTables(
+      options.scopedDb,
+      options.authDb,
+      options.userId,
+      options.listModuleManifests,
+      options.requestId ?? `export:${options.userId}`
+    )
   };
+}
+
+/**
+ * Looks up a migrated module's declared export section and runs its collect() under the
+ * caller's own DataContextDb (#801 Phase A). Throws if the module or section is missing —
+ * a manifest wiring bug, not a runtime/user condition — so it surfaces loudly rather than
+ * silently omitting data from an account export.
+ */
+async function collectModuleExportSection<T>(
+  listModuleManifests: () => readonly JarvisModuleManifest[],
+  moduleId: string,
+  sectionKey: string,
+  scopedDb: DataContextDb,
+  ctx: { readonly actorUserId: string; readonly requestId: string }
+): Promise<T> {
+  const manifest = listModuleManifests().find((candidate) => candidate.id === moduleId);
+  const section = manifest?.dataLifecycle?.exportSections?.find(
+    (candidate) => candidate.key === sectionKey
+  );
+  if (!section) {
+    throw new Error(
+      `No dataLifecycle export section "${sectionKey}" declared by module "${moduleId}"`
+    );
+  }
+  return (await section.collect(scopedDb, ctx)) as T;
 }
 
 async function readExportTables(
   scopedDb: DataContextDb,
   authDb: Kysely<JarvisDatabase>,
-  userId: string
+  userId: string,
+  listModuleManifests: () => readonly JarvisModuleManifest[],
+  requestId: string
 ): Promise<UserDataExportTables> {
+  const wellnessSection = await collectModuleExportSection<{
+    readonly checkins: readonly ExportRow[];
+    readonly therapy_notes: readonly ExportRow[];
+  }>(listModuleManifests, "wellness", "wellness", scopedDb, {
+    actorUserId: userId,
+    requestId
+  });
+
   return {
     users: await readRows(scopedDb.db, userQuery(userId)),
     authAccounts: await readRows(authDb, authAccountsQuery(userId)),
@@ -117,10 +169,10 @@ async function readExportTables(
     preferences: await readRows(scopedDb.db, preferencesQuery(userId)),
     usefulnessFeedbackSignals: await readRows(scopedDb.db, usefulnessFeedbackSignalsQuery(userId)),
     usefulnessFeedbackTargets: await readRows(scopedDb.db, usefulnessFeedbackTargetsQuery(userId)),
-    wellnessCheckins: await readRows(scopedDb.db, wellnessCheckinsQuery(userId)),
+    wellnessCheckins: wellnessSection.checkins,
     medications: await readRows(scopedDb.db, medicationsQuery(userId)),
     medicationLogs: await readRows(scopedDb.db, medicationLogsQuery(userId)),
-    wellnessTherapyNotes: await readRows(scopedDb.db, wellnessTherapyNotesQuery(userId))
+    wellnessTherapyNotes: wellnessSection.therapy_notes
   };
 }
 
@@ -765,29 +817,6 @@ function usefulnessFeedbackTargetsQuery(userId: string) {
   `;
 }
 
-function wellnessCheckinsQuery(userId: string) {
-  return sql<Record<string, unknown>>`
-    SELECT
-      id::text AS id,
-      owner_user_id::text AS "ownerUserId",
-      checked_in_at AS "checkedInAt",
-      feeling_core::text AS "feelingCore",
-      feeling_secondary::text AS "feelingSecondary",
-      feeling_tertiary::text AS "feelingTertiary",
-      wheel_version AS "wheelVersion",
-      sensations,
-      intensity,
-      energy,
-      note,
-      identified_via AS "identifiedVia",
-      created_at AS "createdAt",
-      updated_at AS "updatedAt"
-    FROM app.wellness_checkins
-    WHERE owner_user_id = ${userId}::uuid
-    ORDER BY checked_in_at DESC, id
-  `;
-}
-
 function medicationsQuery(userId: string) {
   return sql<Record<string, unknown>>`
     SELECT
@@ -829,22 +858,6 @@ function medicationLogsQuery(userId: string) {
     FROM app.medication_logs
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY logged_at DESC, id
-  `;
-}
-
-function wellnessTherapyNotesQuery(userId: string) {
-  return sql<Record<string, unknown>>`
-    SELECT
-      id::text AS id,
-      owner_user_id::text AS "ownerUserId",
-      body,
-      linked_checkin_id::text AS "linkedCheckinId",
-      linked_emotion::text AS "linkedEmotion",
-      created_at AS "createdAt",
-      updated_at AS "updatedAt"
-    FROM app.wellness_therapy_notes
-    WHERE owner_user_id = ${userId}::uuid
-    ORDER BY created_at DESC, id
   `;
 }
 

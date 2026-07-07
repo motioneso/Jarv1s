@@ -501,6 +501,122 @@ export interface JarvisModuleManifest {
   readonly focusSignal?: FocusSignalProvider;
   readonly proactiveMonitor?: ProactiveMonitorProvider;
   readonly personContextProvider?: PersonContextProvider;
+  readonly dataLifecycle?: ModuleDataLifecycleManifest;
+  readonly externalSources?: readonly ModuleExternalSourceManifest[];
+}
+
+/**
+ * Dataset connector SDK (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md).
+ * A module declares external HTTP data sources it needs here; the `@jarv1s/datasets` runtime
+ * host executes fetches under the declared constraints (host pinning, TTL caching, staleness
+ * policy). Adapters never call global `fetch` directly — they receive a pinned `fetchFn` via
+ * {@link ExternalSourceAdapterContext}.
+ */
+export type ModuleExternalSourceCredential = "none" | "api-key";
+
+/**
+ * Context an `ExternalSourceAdapter` receives per call. `fetchFn` is already host-pinned
+ * (exact-hostname allowlist, https-only, redirect-hop re-validated) to the declaring source's
+ * `fetchHosts` — adapters must use it instead of the global `fetch`. `apiKey` is present only
+ * when the source declares `credential: "api-key"`; this slice rejects that credential at
+ * registration, so it is always absent today (reserved for a future slice).
+ */
+export interface ExternalSourceAdapterContext {
+  readonly fetchFn: typeof fetch;
+  readonly apiKey?: string;
+}
+
+/**
+ * The swappable per-source fetch contract. `datasetKey` selects one of the source's declared
+ * `datasets`; `params` is the adapter-defined (and adapter-validated) request shape for that
+ * dataset. Return value is opaque to the runtime — the module's own service layer owns typing.
+ */
+export interface ExternalSourceAdapter {
+  fetchDataset(
+    datasetKey: string,
+    params: Record<string, unknown>,
+    ctx: ExternalSourceAdapterContext
+  ): Promise<unknown>;
+}
+
+export interface ModuleDatasetManifest {
+  /** Unique within the declaring source, e.g. "scoreboard". */
+  readonly key: string;
+  readonly ttlMs: number;
+  /**
+   * "serve-stale-on-error" keeps a stale cache entry available for `staleRetentionMs` after
+   * expiry so a fetch failure can still serve it (degraded); "degrade-empty" drops the entry at
+   * TTL expiry and falls back to the caller-supplied fallback value on fetch failure.
+   */
+  readonly staleness: "serve-stale-on-error" | "degrade-empty";
+  /** serve-stale-on-error only; defaults to 6 hours. */
+  readonly staleRetentionMs?: number;
+}
+
+export interface ModuleExternalSourceManifest {
+  /** Globally unique across every built-in module; asserted at registration. */
+  readonly id: string;
+  readonly displayName: string;
+  /** OAuth is deliberately excluded (non-goal). "api-key" is reserved; registration rejects it. */
+  readonly credential: ModuleExternalSourceCredential;
+  /** Exact hostnames the adapter may hit. Lowercase, no port, no IP literal. */
+  readonly fetchHosts: readonly string[];
+  /** Aggregated into the web CSP img-src allowlist. */
+  readonly imageHosts?: readonly string[];
+  readonly datasets: readonly ModuleDatasetManifest[];
+  /** Rate-courtesy minimum interval between fetches to this source, in ms. Defaults to none. */
+  readonly minIntervalMs?: number;
+}
+
+/** Context passed to a module's data-lifecycle hooks (export collect, etc.). */
+export interface ModuleLifecycleContext {
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
+/**
+ * A module's contribution to full-account export and account deletion. See
+ * docs/superpowers/specs/2026-07-04-module-data-lifecycle-ports.md for the design.
+ */
+export interface ModuleDataLifecycleManifest {
+  readonly exportSections?: readonly ModuleExportSection[];
+  readonly deletion: ModuleDeletionDecl;
+}
+
+export interface ModuleExportSection {
+  /**
+   * Top-level property name under the archive's `sections` object — e.g. "wellness".
+   * The archive is nested; a section's collect() returns that exact nested object, so
+   * the assembled archive stays deep-equal to today's hand-written output.
+   */
+  readonly key: string;
+  readonly displayName: string;
+  /**
+   * Runs under the actor's own DataContextDb (RLS-scoped). `scopedDb` stays `unknown`
+   * here — module-sdk has no @jarv1s/db dependency; modules narrow it via
+   * assertDataContextDb, the established pattern for assistant tools. Returns the
+   * JSON-serializable section object (nested sub-keys included).
+   */
+  readonly collect: (scopedDb: unknown, ctx: ModuleLifecycleContext) => Promise<unknown>;
+}
+
+export interface ModuleDeletionDecl {
+  /** This slice: cascade-only. A "purge" strategy with an executable hook is deferred. */
+  readonly strategy: "cascade";
+  /** FK cascade chain to app.users, verified by an integration test (not the boot assertion). */
+  readonly tables: readonly ModuleDeletionTable[];
+}
+
+export interface ModuleDeletionTable {
+  /** e.g. "app.wellness_checkins" */
+  readonly table: string;
+  /**
+   * SQL boolean predicate over $1::uuid (the target user id) for the deletion script's
+   * before/after count sweep. Defaults to "owner_user_id = $1::uuid" — the shape most of
+   * the script's current list uses. Tables scoped differently declare theirs explicitly,
+   * e.g. "user_id = $1::uuid" or a join predicate.
+   */
+  readonly countPredicate?: string;
 }
 
 /** Boundary of text from a source that may contain commitments. */

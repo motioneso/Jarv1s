@@ -23,6 +23,7 @@ import {
   wellnessInsightsRouteSchema
 } from "@jarv1s/shared";
 
+import { collectWellnessExportSection } from "./data-lifecycle.js";
 import { wellnessFocusSignal } from "./focus-signal.js";
 import { WELLNESS_EXPORT_QUEUE } from "./export-job.js";
 import { wellnessMedicationAdherenceExecute, wellnessRecentCheckInsExecute } from "./tools.js";
@@ -251,5 +252,28 @@ export const wellnessModuleManifest = {
       execute: wellnessMedicationAdherenceExecute
     }
   ],
-  focusSignal: wellnessFocusSignal
+  focusSignal: wellnessFocusSignal,
+  dataLifecycle: {
+    // Full-account export (#801 Phase A): reproduces today's sections.wellness = { checkins,
+    // therapy_notes } exactly (byte-compat golden test in tests/integration/data-export.test.ts).
+    // medications / medication_logs feed the archive's separate structured_state section and
+    // are read there in @jarv1s/settings — not required here (only deletion.tables must cover
+    // every ownedTables entry).
+    exportSections: [
+      {
+        key: "wellness",
+        displayName: "Wellness",
+        collect: collectWellnessExportSection
+      }
+    ],
+    deletion: {
+      strategy: "cascade",
+      tables: [
+        { table: "app.wellness_checkins" },
+        { table: "app.medications" },
+        { table: "app.medication_logs" },
+        { table: "app.wellness_therapy_notes" }
+      ]
+    }
+  }
 } satisfies JarvisModuleManifest;

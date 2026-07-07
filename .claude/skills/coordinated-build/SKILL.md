@@ -81,8 +81,9 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
   invariant, an ambiguous requirement, a missing dependency, a flaky gate you can't resolve.
   Message the coordinator with the specific question.
 
-**3. Self-monitor context on countable events.** Relay at **~80–100k tokens**, or **immediately**
-if you see a compaction summary in your own context (don't trust felt %). Message the coordinator
+**3. Self-monitor context on countable events.** Relay on the **context-meter 70% warning** (the
+user-level PostToolUse hook that fires in every session — don't trust felt %), or **immediately**
+if you see a compaction summary in your own context. Message the coordinator
 that you're relaying, then use the **`relay`** skill (commit work, write a continuation doc, spawn
 your successor in this same worktree, request reap). Relay early enough to write a clean handoff.
 
@@ -107,8 +108,8 @@ merge, board, and close.
 - About to **decide a product/architecture fork** yourself → that's the coordinator's (or Ben's)
   call. Escalate.
 - About to **move the board / close an issue / merge** → not yours. Report to the coordinator.
-- About to push past your relay threshold (~80–100k / compaction summary seen) without relaying →
-  you'll degrade and lose state. Relay now.
+- About to push past your relay trigger (meter 70% warning / compaction summary seen) without
+  relaying → you'll degrade and lose state. Relay now.
 - About to push **without the pre-push trio** (`format:check && lint && typecheck`) + fresh rebase →
   you'll burn a CI round-trip. Run them first.
 

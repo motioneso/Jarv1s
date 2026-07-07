@@ -45,6 +45,8 @@ export interface MeAccountRoutesDependencies {
   readonly bootstrapConnectionString?: string;
   readonly verifySelfPassword?: VerifySelfPasswordPort;
   readonly hasPasswordCredential?: HasPasswordCredentialPort;
+  /** See SettingsRoutesDependencies.moduleDeletionTables (#801 Phase A). */
+  readonly moduleDeletionTables: readonly { table: string; countPredicate: string }[];
 }
 
 /**
@@ -179,7 +181,8 @@ export function registerMeAccountRoutes(
             requestId: accessContext.requestId,
             bootstrapConnectionString: dependencies.bootstrapConnectionString,
             dryRun: false,
-            auditAction: "user.delete.self"
+            auditAction: "user.delete.self",
+            moduleDeletionTables: dependencies.moduleDeletionTables
           });
         } catch (error) {
           if (error instanceof LastActiveAdminError) {

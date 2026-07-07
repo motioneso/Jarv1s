@@ -1,8 +1,8 @@
+import type { DatasetClient } from "@jarv1s/datasets";
 import { assertDataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 
 import { SportsFollowsRepository } from "./repository.js";
-import { createEspnSportsSource } from "./source/espn-source.js";
 import { SportsService } from "./sports-service.js";
 
 /**
@@ -13,16 +13,28 @@ import { SportsService } from "./sports-service.js";
  * The service reads followed facts directly from the gateway-scoped db passed to `execute`; the
  * `dataContext` runner seam is unused on this path, so a throwing stub satisfies the type without
  * ever opening a second, unscoped connection.
+ *
+ * The service needs a `DatasetClient`, which the composition root only has once it has built the
+ * sports module's `espn` external source (`packages/module-registry/src/index.ts`, mirroring the
+ * `adoptChatRpcConnection` late-bound-ref pattern used for the chat RPC connection). This module's
+ * tool is registered as static manifest data (`./manifest.ts`) constructed at import time, before
+ * that wiring runs — so construction is deferred to `configureSportsBriefingService`, which the
+ * registry calls once, synchronously, during boot, strictly before any request can reach
+ * `sportsFollowedFactsTodayExecute`.
  */
-const service = new SportsService({
-  source: createEspnSportsSource(),
-  dataContext: {
-    withDataContext() {
-      throw new Error("sports briefing tool reads the gateway-scoped db directly");
-    }
-  },
-  repository: new SportsFollowsRepository()
-});
+let service: SportsService | undefined;
+
+export function configureSportsBriefingService(datasetClient: DatasetClient): void {
+  service = new SportsService({
+    datasetClient,
+    dataContext: {
+      withDataContext() {
+        throw new Error("sports briefing tool reads the gateway-scoped db directly");
+      }
+    },
+    repository: new SportsFollowsRepository()
+  });
+}
 
 export const sportsFollowedFactsTodayExecute: ToolExecute = async (
   scopedDb,
@@ -30,6 +42,11 @@ export const sportsFollowedFactsTodayExecute: ToolExecute = async (
   ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
+  if (!service) {
+    throw new Error(
+      "sports briefing tool used before configureSportsBriefingService ran (composition-root bug)"
+    );
+  }
   const { facts } = await service.getFollowedFactsForToday(scopedDb, ctx.actorUserId);
   return { data: { facts } };
 };

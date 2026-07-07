@@ -12,10 +12,8 @@ import {
   Flag,
   GitCommitHorizontal,
   HeartPulse,
-  Image as ImageIcon,
   Info,
   Leaf,
-  Megaphone,
   Newspaper,
   Pill,
   Target
@@ -57,6 +55,7 @@ import { ProactiveCards } from "./proactive-cards";
 import { SuggestedFromEmailSection } from "./today-suggested-email";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
+import { ModuleTodayWidgets } from "./module-today-widgets";
 import {
   ampm,
   buildHeadline,
@@ -88,12 +87,14 @@ export function TodayPage(props: {
   readonly me: MeResponse;
   readonly feed?: TodayFeed;
   readonly wellnessEnabled?: boolean;
+  readonly disabledModuleIds?: readonly string[];
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const chatControls = useChatControls();
   const locale = useUserLocale();
   const feed = props.feed ?? createEmptyTodayFeed();
+  const disabledModuleIds = props.disabledModuleIds ?? [];
   const wellnessEnabled = props.wellnessEnabled ?? false;
   const [dialog, setDialog] = useState<{ readonly id: string } | null>(null);
   const [, forceTodayModeRefresh] = useState(0);
@@ -374,9 +375,7 @@ export function TodayPage(props: {
             )}
           </section>
 
-          {feed.sports.items.length > 0 ? (
-            <SportsDesk items={feed.sports.items} quietTeams={feed.sports.quietTeams} />
-          ) : null}
+          <ModuleTodayWidgets disabledModuleIds={disabledModuleIds} />
           {feed.news.length > 0 || feed.interests.length > 0 ? (
             <NewsDesk news={feed.news} interests={feed.interests} />
           ) : null}
@@ -788,70 +787,6 @@ function OvernightSection(props: { readonly items: TodayFeed["overnight"] }) {
           </div>
         ))}
       </div>
-    </section>
-  );
-}
-
-function SportsDesk(props: {
-  readonly items: TodayFeed["sports"]["items"];
-  readonly quietTeams: TodayFeed["sports"]["quietTeams"];
-}) {
-  const hero = props.items[0];
-  const rest = props.items.slice(1);
-  if (!hero) return null;
-  const crest = (team: string) => team.slice(0, 2).toUpperCase();
-  const outClass = (s: TodayFeed["sports"]["items"][number]) =>
-    s.kind === "news" ? "news" : s.outcome === "W" ? "w" : s.outcome === "L" ? "l" : "d";
-  return (
-    <section className="jds-brief">
-      <div className="jds-brief__head">
-        <span className="jds-brief__kicker">Sports desk</span>
-      </div>
-      <div className="jds-brief__title">From your teams, last night</div>
-      <div className="np-hero">
-        <div className="np-photo">
-          <div className="np-photo__ph">
-            <ImageIcon size={22} aria-hidden="true" />
-            <span className="np-photo__cap">Match photo</span>
-          </div>
-          <div className="np-photo__crest" style={{ background: hero.color }}>
-            {crest(hero.team)}
-          </div>
-        </div>
-        <div className="np-hero__body">
-          <div className="np-kicker">
-            {hero.team} · {hero.league}{" "}
-            <span className="out">
-              {hero.outcome === "D" ? "DRAW" : hero.outcome === "W" ? "WIN" : ""}
-            </span>
-          </div>
-          <h3 className="np-headline">{hero.headline}</h3>
-          {hero.score ? <div className="np-score">{hero.score}</div> : null}
-          {hero.detail ? <p className="np-dek">{hero.detail}</p> : null}
-        </div>
-      </div>
-      <div className="np-list">
-        {rest.map((s) => (
-          <div className="np-row" key={s.headline}>
-            <div className="np-row__lead crest" style={{ background: s.color }}>
-              {crest(s.team)}
-            </div>
-            <div className="np-row__main">
-              <div className="np-row__title">{s.headline}</div>
-              <div className="np-row__sub">
-                {s.team} · {s.league}
-                {s.score ? ` — ${s.score}` : ""}
-              </div>
-            </div>
-            <div className={`np-row__out ${outClass(s)}`}>
-              {s.kind === "news" ? <Megaphone size={12} aria-hidden="true" /> : s.outcome}
-            </div>
-          </div>
-        ))}
-      </div>
-      {props.quietTeams.length > 0 ? (
-        <div className="np-quiet">Quiet night for {props.quietTeams.join(" and ")}.</div>
-      ) : null}
     </section>
   );
 }

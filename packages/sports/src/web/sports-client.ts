@@ -3,10 +3,12 @@ import type {
   SportsCatalogResponse,
   SportsFollowDto,
   SportsFollowsResponse,
-  SportsOverviewResponse
+  SportsOverviewResponse,
+  SportsStandingsResponse,
+  StandingsGroup
 } from "@jarv1s/shared";
 
-import { requestJson } from "./client.js";
+import { requestJson } from "@jarv1s/module-web-sdk";
 
 export async function getSportsOverview(): Promise<SportsOverviewResponse> {
   return requestJson<SportsOverviewResponse>("/api/sports/overview");
@@ -18,6 +20,13 @@ export async function getSportsCatalog(): Promise<SportsCatalogResponse> {
 
 export async function listSportsFollows(): Promise<SportsFollowsResponse> {
   return requestJson<SportsFollowsResponse>("/api/sports/follows");
+}
+
+export async function getStandingsByLeague(competitionKey: string): Promise<StandingsGroup> {
+  const res = await requestJson<SportsStandingsResponse>(
+    `/api/sports/standings?competitionKey=${encodeURIComponent(competitionKey)}`
+  );
+  return res.group;
 }
 
 export async function createSportsFollow(

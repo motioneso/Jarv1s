@@ -11,8 +11,8 @@ import type {
   StandingsGroup
 } from "@jarv1s/shared";
 
-import { hasLiveGame, SportsPage } from "../../apps/web/src/sports/sports-page.js";
-import { queryKeys } from "../../apps/web/src/api/query-keys.js";
+import { hasLiveGame, SportsPage } from "../../packages/sports/src/web/sports-page.js";
+import { sportsQueryKeys } from "../../packages/sports/src/web/query-keys.js";
 
 // Root suite renders @jarv1s/web components with react-dom/server (no jsdom /
 // @testing-library — deliberately avoided repo-wide; see settings-appearance-pane.test.tsx).
@@ -87,7 +87,9 @@ function standingsGroup(): StandingsGroup {
             losses: 2,
             draws: 4,
             winPercent: null,
-            qualifies: true
+            qualifies: true,
+            qualificationNote: null,
+            qualificationColor: null
           }
         ]
       }
@@ -115,6 +117,7 @@ function headline(
     url: "https://example.test/" + id,
     publishedAt: "2026-07-01T18:00:00Z",
     imageUrl: null,
+    summary: "",
     teamKeys: [],
     ...overrides
   };
@@ -155,29 +158,93 @@ function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOv
 
 function render(overview: SportsOverviewResponse): string {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(queryKeys.sports.overview, overview);
+  client.setQueryData(sportsQueryKeys.overview, overview);
   return renderToString(createElement(QueryClientProvider, { client }, createElement(SportsPage)));
 }
 
 describe("SportsPage", () => {
-  it("renders the gameday hero with the rationale, both teams, and scores", () => {
+  it("renders the broadsheet masthead", () => {
     const html = render(makeOverview());
-    expect(html).toContain("You follow the Vikings — they are on now");
+    expect(html).toContain("sp-masthead");
+    expect(html).toContain("sp-masthead__title");
+  });
+
+  it("renders the gameday hero without rationale text, with both teams and scores", () => {
+    const html = render(makeOverview());
+    expect(html).not.toContain("You follow the Vikings — they are on now");
     expect(html).toContain("Minnesota Vikings");
     expect(html).toContain("Dallas Cowboys");
     expect(html).toContain("21");
     // live pulse present for a live game
     expect(html).toContain("sp-livedot");
+    // live score is a scoped aria-live region so screen readers hear updates
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('aria-atomic="true"');
+    // competitionLabel must render on every game surface, including the live hero
+    // (must-not-regress: live badge does not replace the competition label)
+    expect(html).toContain('<span class="sp-hero__comp">NFL</span>');
   });
 
-  it("renders the followed-team card with form pips and next match", () => {
+  it("does not announce the hero score via aria-live when the game is not live", () => {
+    const html = render(
+      makeOverview({
+        hero: {
+          mode: "gameday",
+          game: { ...liveGame(), state: "final", statusDetail: "Final" },
+          competitionLabel: "NFL",
+          rationale: "You follow the Vikings — they are on now",
+          alsoToday: "2 other followed games today"
+        }
+      })
+    );
+    expect(html).not.toContain("aria-live");
+    expect(html).not.toContain("aria-atomic");
+  });
+
+  it("renders pre-game match times in a clock format, not the raw source status", () => {
+    const preGame: GameSummary = {
+      ...liveGame(),
+      id: "g-pre",
+      state: "pre",
+      statusDetail: "SOURCE_PREGAME_STRING",
+      startsAt: "2026-07-01T23:20:00Z",
+      home: { ...liveGame().home, score: null },
+      away: { ...liveGame().away, score: null }
+    };
+    const html = render(
+      makeOverview({
+        hero: {
+          mode: "gameday",
+          game: preGame,
+          competitionLabel: "NFL",
+          rationale: "You follow the Vikings — they play today",
+          alsoToday: null
+        },
+        scoreboard: [{ competitionKey: "nfl", competitionLabel: "NFL", games: [preGame] }]
+      })
+    );
+
+    expect(html).not.toContain("SOURCE_PREGAME_STRING");
+    expect(html).toContain('<span class="sp-hero__phase">16:20</span>');
+  });
+
+  it("renders the followed-team ticker block with form pips and next match", () => {
     const html = render(makeOverview());
+    expect(html).toContain("sp-ticker");
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
     expect(html).toContain("vs Green Bay Packers");
   });
 
-  it("renders a news-status card as a link to the story", () => {
+  it("renders the 2-up Latest column without the RANKED eyebrow or explainer dek", () => {
+    const html = render(makeOverview());
+    expect(html).toContain("sp-grid");
+    expect(html).toContain("sp-latest");
+    expect(html).toContain("Latest");
+    expect(html).not.toContain("RANKED");
+  });
+
+  it("renders a news-status ticker block as a link to the story", () => {
     const html = render(
       makeOverview({
         followed: [
@@ -191,6 +258,37 @@ describe("SportsPage", () => {
     );
     expect(html).toContain('href="https://example.com/h1"');
     expect(html).toContain("Cowboys clinch the division");
+  });
+
+  it("renders the around-the-leagues scores strip with one label per league group", () => {
+    const html = render(
+      makeOverview({
+        scoreboard: [
+          { competitionKey: "nfl", competitionLabel: "NFL", games: [liveGame()] },
+          {
+            competitionKey: "nba",
+            competitionLabel: "NBA",
+            games: [
+              {
+                ...liveGame(),
+                id: "g2",
+                competitionKey: "nba",
+                state: "final",
+                statusDetail: "Final"
+              }
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("sp-around");
+    expect(html).toContain("sp-around__league"); // league label rendered once per group
+    expect(html).toContain("Scroll left");
+    expect(html).toContain("Scroll right");
+    // #841 fix: live and final games surface the source statusDetail (clock/period, "Final"),
+    // not just the raw score — a bare score alone can't tell a live game from a final one.
+    expect(html).toContain("Q3 4:12");
+    expect(html).toContain("Final");
   });
 
   it("marks a followed team in the standings and scoreboard (is-you / is-mine)", () => {
@@ -212,7 +310,6 @@ describe("SportsPage", () => {
     const html = render(
       makeOverview({
         standings: [
-          standingsGroup(),
           {
             competitionKey: "eng.1",
             competitionLabel: "Championship",
@@ -230,16 +327,18 @@ describe("SportsPage", () => {
                     losses: 6,
                     draws: 4,
                     winPercent: null,
-                    qualifies: false
+                    qualifies: false,
+                    qualificationNote: null,
+                    qualificationColor: null
                   }
                 ]
               }
             ]
-          }
+          },
+          standingsGroup()
         ]
       })
     );
-    expect(html).toContain("is-mine");
     const eng1RowStart = html.indexOf("Minnows FC");
     const eng1RowMarkup = html.slice(Math.max(0, eng1RowStart - 400), eng1RowStart);
     expect(eng1RowMarkup).not.toContain("is-you");
@@ -267,7 +366,9 @@ describe("SportsPage", () => {
                     losses: 31,
                     draws: null,
                     winPercent: null,
-                    qualifies: true
+                    qualifies: true,
+                    qualificationNote: null,
+                    qualificationColor: null
                   }
                 ]
               },
@@ -283,7 +384,9 @@ describe("SportsPage", () => {
                     losses: 34,
                     draws: null,
                     winPercent: null,
-                    qualifies: true
+                    qualifies: true,
+                    qualificationNote: null,
+                    qualificationColor: null
                   }
                 ]
               }
@@ -300,6 +403,131 @@ describe("SportsPage", () => {
     expect(html).toContain("Next standings");
     expect(html).not.toContain("AL West");
     expect(html).not.toContain("Houston Astros");
+  });
+
+  it("offers all catalog leagues in the standings selector, not only ones with data", () => {
+    const html = render(makeOverview()); // overview has only one standings group
+    expect(html).toContain(">NBA<");
+    expect(html).toContain(">Premier League<");
+  });
+
+  it("renders a qualification legend from the row note (#841)", () => {
+    const html = render(
+      makeOverview({
+        standings: [
+          {
+            competitionKey: "eng.1",
+            competitionLabel: "Premier League",
+            standingsShape: "table",
+            sections: [
+              {
+                label: null,
+                rows: [
+                  {
+                    teamKey: "ars",
+                    name: "Arsenal",
+                    rank: 1,
+                    points: 40,
+                    wins: 12,
+                    losses: 2,
+                    draws: 4,
+                    winPercent: null,
+                    qualifies: true,
+                    qualificationNote: "UEFA Champions League",
+                    qualificationColor: "#2a66d1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        followedTeams: [{ competitionKey: "eng.1", teamKey: "ars" }]
+      })
+    );
+    expect(html).toContain("sp-legend");
+    expect(html).toContain("UEFA Champions League");
+  });
+
+  it("differentiates relegation from qualification structurally, not by color (#841)", () => {
+    const html = render(
+      makeOverview({
+        standings: [
+          {
+            competitionKey: "eng.1",
+            competitionLabel: "Premier League",
+            standingsShape: "table",
+            sections: [
+              {
+                label: null,
+                rows: [
+                  {
+                    teamKey: "ars",
+                    name: "Arsenal",
+                    rank: 1,
+                    points: 40,
+                    wins: 12,
+                    losses: 2,
+                    draws: 4,
+                    winPercent: null,
+                    qualifies: true,
+                    qualificationNote: "UEFA Champions League",
+                    qualificationColor: "#2a66d1"
+                  },
+                  {
+                    teamKey: "shf",
+                    name: "Sheffield Town",
+                    rank: 20,
+                    points: 22,
+                    wins: 5,
+                    losses: 20,
+                    draws: 3,
+                    winPercent: null,
+                    qualifies: true,
+                    qualificationNote: "Relegation",
+                    qualificationColor: "#c1272d"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    );
+    // both notes get their own legend entry with a distinct numeral marker
+    expect(html).toContain("UEFA Champions League");
+    expect(html).toContain("Relegation");
+    const markerMatches = [...html.matchAll(/sp-legend__marker[^>]*>(\d+)</g)].map((m) => m[1]);
+    expect(markerMatches).toEqual(["1", "2"]);
+    // qualificationColor is carried by the API but the color treatment is a deferred design
+    // pass — the fix must not paint it, so the hex values must not leak into rendered markup.
+    expect(html).not.toContain("#2a66d1");
+    expect(html).not.toContain("#c1272d");
+  });
+
+  it("shows an image for only the first headline in a news-band league group (#841)", () => {
+    const html = render(
+      makeOverview({
+        leagueNews: [
+          {
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            headlines: [
+              headline("nb1", "nfl", "Cowboys sign veteran lineman", {
+                imageUrl: "https://a.espncdn.com/photo/nb1.jpg"
+              }),
+              headline("nb2", "nfl", "Giants extend head coach", {
+                imageUrl: "https://a.espncdn.com/photo/nb2.jpg"
+              })
+            ]
+          }
+        ]
+      })
+    );
+    // both headlines carry an imageUrl from the source, but only the group's lead story gets
+    // a thumbnail in the band (spec: "at most one lead thumbnail per group").
+    expect(html).toContain('src="https://a.espncdn.com/photo/nb1.jpg"');
+    expect(html).not.toContain('src="https://a.espncdn.com/photo/nb2.jpg"');
+    expect(html.match(/sp-newsband__img/g)).toHaveLength(1);
   });
 
   it("renders the empty state with a follow CTA when nothing is followed", () => {
@@ -333,11 +561,12 @@ describe("SportsPage", () => {
     );
     expect(html).not.toContain("Follow your teams");
     expect(html).not.toContain("Choose teams to follow");
+    expect(html).toContain("sp-tk--league");
     expect(html).toContain("Following");
     expect(html).toContain("1 league");
     expect(html).toContain("Premier League");
-    // scoreboard/standings/headlines still render for league-only followers
-    expect(html).toContain("Top stories");
+    // standings/headlines still render for league-only followers
+    expect(html).toContain("Latest");
   });
 
   // #764: a genuine zero-follow user (no teams, no leagues) previously saw a blank page because
@@ -358,14 +587,14 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("Follow your teams");
     expect(html).toContain("Choose teams to follow");
-    // the default slate (scoreboard/top stories/league news) renders alongside the CTA, not a
+    // the default slate (latest/standings/league news) renders alongside the CTA, not a
     // blank page (H4/#764)
-    expect(html).toContain("Top stories");
+    expect(html).toContain("Latest");
     expect(html).toContain("Vikings clinch division on late field goal");
     expect(html).toContain("Cowboys sign veteran lineman");
   });
 
-  it("still renders scores and headlines on a quiet day (story hero)", () => {
+  it("still renders the story hero and headlines on a quiet day", () => {
     const html = render(
       makeOverview({
         hero: {
@@ -381,13 +610,58 @@ describe("SportsPage", () => {
     expect(html).toContain("NFL");
     expect(html).toContain('src="https://a.espncdn.com/photo/2026/story.jpg"');
     expect(html).toContain('href="https://example.test/lead"'); // hero title links out
+    expect(html).not.toContain("No followed team is playing right now");
   });
 
-  it("renders the top stories rail and league news grid", () => {
+  it("renders the latest column and league news grid", () => {
     const html = render(makeOverview());
-    expect(html).toContain("Top stories");
+    expect(html).toContain("Latest");
     expect(html).toContain("League news");
     expect(html).toContain("Cowboys sign veteran lineman");
+  });
+
+  it("renders the news band with a blurb, continue-reading link, and league filter", () => {
+    const html = render(
+      makeOverview({
+        leagueNews: [
+          {
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            headlines: [
+              headline("nb1", "nfl", "Cowboys sign veteran lineman", {
+                summary: "The move shores up a thin offensive line ahead of the playoffs.",
+                url: "https://example.test/nb1"
+              })
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("sp-newsband");
+    expect(html).toContain("The move shores up a thin offensive line ahead of the playoffs.");
+    expect(html).toContain("Continue reading");
+    expect(html).toContain('href="https://example.test/nb1"');
+    expect(html).toContain("sp-newsband__filter");
+  });
+
+  it("renders a ticker-shaped skeleton row while loading", () => {
+    const client = new QueryClient(); // nothing primed → loading branch
+    const html = renderToString(
+      createElement(QueryClientProvider, { client }, createElement(SportsPage))
+    );
+    expect(html).toContain("sp-skel--ticker");
+    expect(html).toContain("sp-skel--hero");
+  });
+
+  it("renders a skeleton matching the new composition (two tickers + grid)", () => {
+    const client = new QueryClient(); // nothing primed → loading branch
+    const html = renderToString(
+      createElement(QueryClientProvider, { client }, createElement(SportsPage))
+    );
+    expect(html).toContain("sp-skel--ticker");
+    expect(html).toContain("sp-skel--around");
+    expect(html).toContain("sp-skel--hero");
+    expect(html).toContain("sp-skel--grid");
   });
 });
 

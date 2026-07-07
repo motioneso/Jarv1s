@@ -194,11 +194,13 @@ import {
 } from "@jarv1s/wellness";
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 import {
-  createEspnSportsSource,
+  configureSportsBriefingService,
+  createEspnDatasetAdapter,
   registerSportsRoutes,
   sportsModuleManifest,
   sportsModuleSqlMigrationDirectory
 } from "@jarv1s/sports";
+import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
 import {
   notesModuleManifest,
   notesCommitmentProvider,
@@ -241,6 +243,23 @@ import {
 } from "./chat-multiplexer.js";
 import { buildOnboardingInstall } from "./onboarding-install.js";
 import { buildOnboardingLogin } from "./onboarding-login.js";
+
+// Declared here (not `apps/api/src/server.ts`, which sets it via an onRequest hook)
+// because module-registry is the composition root every consumer of the field
+// already reaches: apps/api sets `request.timeZone` and imports this package
+// directly, and every built-in module that reads it (e.g. wellness's
+// `resolveRouteTimeZone` via `resolveRequestTimeZoneForRoute` below) is wired
+// through here. Ambient module augmentations only apply within the TS program
+// they're compiled into, so keeping the declaration next to the file everyone
+// already imports avoids "works in one tsc invocation, breaks in another" drift
+// (#801 Phase A — apps/web's isolated `tsc` once reached wellness routes through
+// a since-removed settings -> module-registry import edge and couldn't see the
+// augmentation while it lived in server.ts).
+declare module "fastify" {
+  interface FastifyRequest {
+    timeZone?: string;
+  }
+}
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -707,6 +726,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         listConfiguredAuthProviders: deps.listConfiguredAuthProviders,
         listModuleManifests: deps.listModuleManifests,
+        moduleDeletionTables: MODULE_DELETION_TABLES,
         revokeUserSessions: deps.revokeUserSessions,
         meSessions: deps.meSessions,
         verifySelfPassword: deps.verifySelfPassword,
@@ -762,7 +782,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         }
       );
     },
-    registerWorkers: (boss, deps) => registerSettingsJobWorkers(boss, deps.dataContext, deps.rootDb)
+    registerWorkers: (boss, deps) =>
+      registerSettingsJobWorkers(boss, deps.dataContext, deps.rootDb, getBuiltInModuleManifests)
   },
   {
     manifest: connectorsModuleManifest,
@@ -1138,14 +1159,30 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
     manifest: sportsModuleManifest,
     sqlMigrationDirectories: [sportsModuleSqlMigrationDirectory],
     queueDefinitions: [],
-    registerRoutes: (server, deps) =>
-      // LOADER-SEAM(sports) 2: DI wiring + construction of the SportsSource adapter in the
-      // composition root (which concrete source lives here, not in the manifest).
+    registerRoutes: (server, deps) => {
+      // LOADER-SEAM(sports) 2: DI wiring + construction of the dataset-connector-SDK runtime
+      // client (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md) bound to the
+      // module's manifest-declared `espn` external source, in the composition root (which
+      // concrete adapter/host-pinning config applies lives here, not in the manifest itself).
+      // Sports is the sole migration case this slice, so the client is wired inline rather than
+      // via a generic per-module map on `BuiltInModuleRegistration`.
+      const [espnSource] = sportsModuleManifest.externalSources ?? [];
+      if (!espnSource) {
+        throw new Error("sports module manifest is missing its `espn` externalSources entry");
+      }
+      const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
+        fetchFn: deps.fetchFn
+      });
+      // LOADER-SEAM(sports) 3: the briefing tool (`briefing-tool.ts`) is constructed from
+      // static manifest data at import time, before this wiring runs, so it adopts the client
+      // via a late-bound setter (mirrors `adoptChatRpcConnection` above for the chat RPC path).
+      configureSportsBriefingService(datasetClient);
       registerSportsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
-        source: createEspnSportsSource(deps.fetchFn)
-      })
+        datasetClient
+      });
+    }
   },
   {
     manifest: notesModuleManifest,
@@ -1250,15 +1287,55 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   }
 ];
 
+/**
+ * Modules with owned tables that have not yet declared a `dataLifecycle` manifest field
+ * (see docs/superpowers/specs/2026-07-04-module-data-lifecycle-ports.md, Phase B). Listed
+ * modules skip the mandatory-declaration check in `assertModuleRegistryConsistency` below;
+ * any module that HAS a `dataLifecycle` is fully checked regardless of this list. Each
+ * Phase B PR removes its module from this list; the final Phase B PR deletes it, making the
+ * assertion unconditional. This list only ever shrinks — pinned exactly by a unit test.
+ *
+ * Declared BEFORE the module-load-time `assertModuleRegistryConsistency(BUILT_IN_MODULES)`
+ * call below (rather than after, as originally drafted): that call runs synchronously at
+ * import time, and a `const` referenced before its own declaration line throws a
+ * temporal-dead-zone ReferenceError — this ordering is load-bearing, not stylistic.
+ */
+export const LIFECYCLE_MIGRATION_PENDING: readonly string[] = [
+  "ai",
+  "briefings",
+  "calendar",
+  "chat",
+  "connectors",
+  "email",
+  "jarvis.commitments",
+  "memory",
+  "notes",
+  "notifications",
+  "people",
+  "proactive-monitoring",
+  "structured-state",
+  "tasks",
+  "usefulness-feedback",
+  "weather"
+];
+
 // Compat gate (ADR 0009 §3): validate every built-in's compatibility.jarv1s against
 // CORE_VERSION at load time, before any registration path runs. Throws if a module is
 // incompatible or not defaultEnabled, naming the offender.
 assertModulesCompatible(BUILT_IN_MODULES.map((module) => module.manifest));
 assertModuleRegistryConsistency(BUILT_IN_MODULES);
 
-// LOADER-SEAM(sports) 7: the web CSP img-src allowlist follows the constructed source.
-// Built from the same factory as the route wiring below so the two can never diverge.
-export const MODULE_IMAGE_CSP_HOSTS: readonly string[] = createEspnSportsSource().imageHosts;
+// LOADER-SEAM(sports) 7: the web CSP img-src allowlist is derived from every built-in module's
+// manifest-declared `externalSources[].imageHosts` (dataset-connector SDK), not from a single
+// hardcoded source factory — so it can never diverge from what routing is actually allowed to
+// fetch/render, and automatically picks up any future module that declares image hosts.
+export const MODULE_IMAGE_CSP_HOSTS: readonly string[] = Array.from(
+  new Set(
+    BUILT_IN_MODULES.flatMap((module) =>
+      (module.manifest.externalSources ?? []).flatMap((source) => source.imageHosts ?? [])
+    )
+  )
+);
 
 export function assertModuleRegistryConsistency(
   registrations: readonly BuiltInModuleRegistration[] = BUILT_IN_MODULES
@@ -1269,6 +1346,7 @@ export function assertModuleRegistryConsistency(
   );
   const routeKeys = new Map<string, string>();
   const ownedTables = new Map<string, string>();
+  const externalSourceIds = new Map<string, string>();
 
   for (const registration of registrations) {
     const moduleId = registration.manifest.id;
@@ -1283,8 +1361,56 @@ export function assertModuleRegistryConsistency(
       assertUniqueRegistryKey(routeKeys, `${route.method} ${route.path}`, moduleId, "route");
     }
 
-    for (const table of registration.manifest.database?.ownedTables ?? []) {
+    const moduleOwnedTables = registration.manifest.database?.ownedTables ?? [];
+    for (const table of moduleOwnedTables) {
       assertUniqueRegistryKey(ownedTables, table, moduleId, "owned table");
+    }
+
+    // Dataset connector SDK (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md):
+    // registration-time validation of every module's declared external data sources. Purely
+    // manifest-driven (no adapter needed) so it applies uniformly regardless of whether a
+    // module's composition-root wiring has migrated to a `DatasetClient` yet.
+    for (const source of registration.manifest.externalSources ?? []) {
+      assertUniqueRegistryKey(externalSourceIds, source.id, moduleId, "external source id");
+      assertValidFetchHosts(source.id, source.fetchHosts);
+      if (source.credential === "api-key") {
+        throw new Error(
+          `External source "${source.id}" (module "${moduleId}") declares credential "api-key", ` +
+            "which is reserved but not yet supported — no secret storage exists for connector " +
+            "credentials in this slice (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md)"
+        );
+      }
+    }
+
+    const lifecycle = registration.manifest.dataLifecycle;
+
+    if (moduleOwnedTables.length > 0) {
+      if (!lifecycle) {
+        if (!LIFECYCLE_MIGRATION_PENDING.includes(moduleId)) {
+          throw new Error(
+            `Module "${moduleId}" has owned tables but declares no dataLifecycle, and is not on ` +
+              "the LIFECYCLE_MIGRATION_PENDING allowlist (packages/module-registry/src/index.ts)"
+          );
+        }
+      } else if (lifecycle.exportSections === undefined) {
+        throw new Error(
+          `Module "${moduleId}" declares dataLifecycle with owned tables but omits ` +
+            'exportSections; declare "exportSections: []" explicitly if there is nothing to export'
+        );
+      }
+    }
+
+    if (lifecycle) {
+      const declaredDeletionTables = new Set(lifecycle.deletion.tables.map((entry) => entry.table));
+      const missingFromDeletion = moduleOwnedTables.filter(
+        (table) => !declaredDeletionTables.has(table)
+      );
+      if (missingFromDeletion.length > 0) {
+        throw new Error(
+          `Module "${moduleId}" dataLifecycle.deletion.tables is missing owned table(s): ` +
+            missingFromDeletion.join(", ")
+        );
+      }
     }
   }
 }
@@ -1311,6 +1437,37 @@ export function getBuiltInModuleRegistrations(): readonly BuiltInModuleRegistrat
 export function getBuiltInModuleManifests(): readonly JarvisModuleManifest[] {
   return BUILT_IN_MODULES.map((module) => module.manifest);
 }
+
+/** Default predicate applied when a `ModuleDeletionTable` omits `countPredicate`. */
+export const DEFAULT_MODULE_DELETION_COUNT_PREDICATE = "owner_user_id = $1::uuid";
+
+export interface ResolvedModuleDeletionTable {
+  readonly table: string;
+  readonly countPredicate: string;
+}
+
+/**
+ * Flattens every built-in module's `dataLifecycle.deletion.tables` into the resolved
+ * (default-applied) list `scripts/delete-user-data.ts` sweeps for its before/after counts.
+ * Used both by the settings composition root below (API path) and by the deletion script's
+ * dynamic `import("@jarv1s/module-registry")` inside its `import.meta.url`-guarded `main()` —
+ * never call this from a statically-imported context in `@jarv1s/settings` (that would
+ * recreate the package cycle the dynamic import exists to avoid).
+ */
+export function getModuleDeletionTables(
+  manifests: readonly JarvisModuleManifest[] = getBuiltInModuleManifests()
+): readonly ResolvedModuleDeletionTable[] {
+  return manifests.flatMap((manifest) =>
+    (manifest.dataLifecycle?.deletion.tables ?? []).map((entry) => ({
+      table: entry.table,
+      countPredicate: entry.countPredicate ?? DEFAULT_MODULE_DELETION_COUNT_PREDICATE
+    }))
+  );
+}
+
+/** Module load time snapshot, mirrors the MODULE_IMAGE_CSP_HOSTS precedent above. */
+export const MODULE_DELETION_TABLES: readonly ResolvedModuleDeletionTable[] =
+  getModuleDeletionTables();
 
 /**
  * Build the focus-signal provider list from a manifest set. Pass the per-actor ACTIVE

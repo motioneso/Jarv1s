@@ -1,6 +1,12 @@
 # Proton Mail Connector — Spike Output (Provider Design Note)
 
-**Status:** Accepted — build (Ben 2026-06-30: Proton via Bridge IMAP, scheduled read, **§7a** read-cache persist)
+> **SUPERSEDED (2026-06-30) by `2026-06-30-generic-imap-email-connector-design.md`.** Proton is no
+> longer built bespoke — it becomes preset #1 (Bridge localhost) of the generic IMAP connector. The
+> accepted decisions here (§5 IMAP data-shape, §7a read-cache persist, §9 `EmailReadProvider` seam,
+> slices A/B) are carried forward as the _generic_ foundation. Read this for the Proton-specific
+> rationale; build from the generic spec. #641 folds into that spec's Slice B.
+
+**Status:** Superseded by generic IMAP spec (was: Accepted — Proton via Bridge IMAP, scheduled read, **§7a** read-cache persist)
 **Date:** 2026-06-30
 **Owner:** Ben
 **GitHub:** #270 (Part of connector roadmap)

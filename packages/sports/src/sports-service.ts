@@ -1,3 +1,4 @@
+import type { DatasetClient } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import {
   localDay,
@@ -20,13 +21,7 @@ import {
 } from "@jarv1s/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
-import { SportsCache } from "./sports-cache.js";
-import type {
-  SourceHeadline,
-  SourceTeamRef,
-  SportsSource,
-  StandingsTable
-} from "./source/sports-source.js";
+import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
 export type FollowedFact = { competitionKey: string; text: string };
@@ -45,7 +40,13 @@ export interface SportsFollowsReader {
 }
 
 export interface SportsServiceDependencies {
-  readonly source: SportsSource;
+  /**
+   * The dataset-connector-SDK runtime client bound to the sports module's `espn` external
+   * source (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md). Replaces the
+   * former directly-injected `SportsSource` + in-service `SportsCache` — TTL, staleness policy,
+   * and host pinning now live in the manifest declaration + `@jarv1s/datasets` runtime, not here.
+   */
+  readonly datasetClient: DatasetClient;
   readonly dataContext: SportsDataContext;
   readonly repository: SportsFollowsReader;
   /** Clock seam (default `() => new Date()`); tests inject a fixed instant. */
@@ -57,11 +58,6 @@ export interface SportsServiceDependencies {
 // games fall on the wrong side of the UTC/Eastern midnight gap (#761).
 const ESPN_TIMEZONE = "America/New_York";
 
-const SCOREBOARD_TTL_MS = 3 * 60 * 1000;
-const STANDINGS_TTL_MS = 10 * 60 * 1000;
-const HEADLINES_TTL_MS = 10 * 60 * 1000;
-const SCHEDULE_TTL_MS = 10 * 60 * 1000;
-const TEAMS_TTL_MS = 24 * 60 * 60 * 1000;
 const FORM_LENGTH = 5;
 const TOP_STORIES_CAP = 6; // Ben 2026-07-01
 const EMPTY_STANDINGS: StandingsTable = { sections: [] };
@@ -87,19 +83,13 @@ interface DegradeState {
  * degrades to authored empties (`degraded: true`) rather than propagating a 500.
  */
 export class SportsService {
-  private readonly source: SportsSource;
+  private readonly datasetClient: DatasetClient;
   private readonly dataContext: SportsDataContext;
   private readonly repository: SportsFollowsReader;
   private readonly now: () => Date;
 
-  private readonly scoreboards = new SportsCache<GameSummary[]>();
-  private readonly standings = new SportsCache<StandingsTable>();
-  private readonly headlines = new SportsCache<SourceHeadline[]>();
-  private readonly schedules = new SportsCache<GameSummary[]>();
-  private readonly teams = new SportsCache<SourceTeamRef[]>();
-
   constructor(deps: SportsServiceDependencies) {
-    this.source = deps.source;
+    this.datasetClient = deps.datasetClient;
     this.dataContext = deps.dataContext;
     this.repository = deps.repository;
     this.now = deps.now ?? (() => new Date());
@@ -164,33 +154,12 @@ export class SportsService {
     const perComp = await Promise.all(
       competitionKeys.map(async (key) => {
         const [scoreboard, standingsTable, teams] = await Promise.all([
-          this.cached(
-            this.scoreboards,
-            `${key}:${today}`,
-            SCOREBOARD_TTL_MS,
-            () => this.source.getScoreboard(key, today),
-            [],
-            state
-          ),
-          this.cached(
-            this.standings,
-            key,
-            STANDINGS_TTL_MS,
-            () => this.source.getStandings(key),
-            EMPTY_STANDINGS,
-            state
-          ),
+          this.cached<GameSummary[]>("scoreboard", { competitionKey: key, day: today }, [], state),
+          this.cached<StandingsTable>("standings", { competitionKey: key }, EMPTY_STANDINGS, state),
           this.teamsFor(key, state)
         ]);
         const headlines = resolveHeadlineTeamKeys(
-          await this.cached(
-            this.headlines,
-            key,
-            HEADLINES_TTL_MS,
-            () => this.source.getHeadlines(key),
-            [],
-            state
-          ),
+          await this.cached<SourceHeadline[]>("headlines", { competitionKey: key }, [], state),
           teams
         );
         return { key, scoreboard, standingsTable, teams, headlines };
@@ -205,11 +174,9 @@ export class SportsService {
     // input order so `cards` still lines up with `followedTeams` (#765 M2).
     const cards: FollowedTeamCard[] = await Promise.all(
       followedTeams.map(async (follow) => {
-        const schedule = await this.cached(
-          this.schedules,
-          `${follow.competitionKey}:${follow.teamKey}`,
-          SCHEDULE_TTL_MS,
-          () => this.source.getSchedule(follow.teamKey, follow.competitionKey),
+        const schedule = await this.cached<GameSummary[]>(
+          "schedule",
+          { teamKey: follow.teamKey, competitionKey: follow.competitionKey },
           [],
           state
         );
@@ -277,6 +244,24 @@ export class SportsService {
     };
   }
 
+  /** One league's standings, fetched on demand (#842). Never throws; degrades to empty sections. */
+  async getStandings(competitionKey: string): Promise<StandingsGroup> {
+    const state: DegradeState = { degraded: false };
+    const table = await this.cached<StandingsTable>(
+      "standings",
+      { competitionKey },
+      EMPTY_STANDINGS,
+      state
+    );
+    const entry = catalogEntry(competitionKey);
+    return {
+      competitionKey,
+      competitionLabel: entry?.label ?? competitionKey,
+      standingsShape: entry?.standingsShape ?? "table",
+      sections: table.sections
+    };
+  }
+
   /**
    * Compact today-facts for followed competitions/teams, for the daily briefing.
    * `scopedDb` is already opened under `withDataContext` by the caller. Never throws.
@@ -297,11 +282,9 @@ export class SportsService {
         if (!boards.has(comp)) {
           boards.set(
             comp,
-            await this.cached(
-              this.scoreboards,
-              `${comp}:${today}`,
-              SCOREBOARD_TTL_MS,
-              () => this.source.getScoreboard(comp, today),
+            await this.cached<GameSummary[]>(
+              "scoreboard",
+              { competitionKey: comp, day: today },
               [],
               state
             )
@@ -332,37 +315,21 @@ export class SportsService {
   }
 
   private async cached<T>(
-    cache: SportsCache<T>,
-    key: string,
-    ttlMs: number,
-    fetchValue: () => Promise<T>,
+    datasetKey: string,
+    params: Record<string, unknown>,
     fallback: T,
     state: DegradeState
   ): Promise<T> {
-    const hit = cache.get(key);
-    if (hit !== undefined) return hit;
-    try {
-      const value = await fetchValue();
-      cache.set(key, value, ttlMs);
-      return value;
-    } catch {
-      state.degraded = true;
-      return fallback;
-    }
+    const result = await this.datasetClient.getDataset<T>(datasetKey, params, { fallback });
+    if (result.degraded) state.degraded = true;
+    return result.data;
   }
 
   private async teamsFor(
     competitionKey: string,
     state: DegradeState
   ): Promise<readonly SourceTeamRef[]> {
-    return this.cached(
-      this.teams,
-      competitionKey,
-      TEAMS_TTL_MS,
-      () => this.source.listTeams(competitionKey),
-      [],
-      state
-    );
+    return this.cached<SourceTeamRef[]>("teams", { competitionKey }, [], state);
   }
 
   private buildHero(
@@ -481,9 +448,28 @@ function byNewest(a: SourceHeadline, b: SourceHeadline): number {
 // inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
 // objects with properties outside the matched branch instead of silently dropping them.
 function toPublicHeadline(headline: Headline): Headline {
-  const { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys } =
-    headline;
-  return { id, competitionKey, competitionLabel, title, url, publishedAt, imageUrl, teamKeys };
+  const {
+    id,
+    competitionKey,
+    competitionLabel,
+    title,
+    url,
+    publishedAt,
+    imageUrl,
+    summary,
+    teamKeys
+  } = headline;
+  return {
+    id,
+    competitionKey,
+    competitionLabel,
+    title,
+    url,
+    publishedAt,
+    imageUrl,
+    summary,
+    teamKeys
+  };
 }
 
 // Spec §E ranking: (1) headlines tagged with a followed team, newest first;

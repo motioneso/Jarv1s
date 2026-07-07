@@ -21,9 +21,27 @@ export interface ScanResult {
   readonly manifestFiles: readonly string[];
 }
 
+export interface GeneratedWebRoute {
+  readonly moduleId: string;
+  readonly moduleName: string;
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly icon: string | null;
+  readonly order: number | null;
+  readonly permissionId: string | null;
+}
+
+export interface WebScanResult {
+  readonly routes: readonly GeneratedWebRoute[];
+  readonly contributions: Readonly<Record<string, string>>;
+  readonly manifestFiles: readonly string[];
+}
+
 interface PackageInfo {
   readonly name: string;
   readonly dir: string;
+  readonly exports: Readonly<Record<string, unknown>> | undefined;
 }
 
 interface ScanOptions {
@@ -95,6 +113,74 @@ export function emitVirtualModule(result: ScanResult): string {
   ].join("\n");
 }
 
+export function scanModuleWeb(options: ScanOptions): WebScanResult {
+  const routes: GeneratedWebRoute[] = [];
+  const contributions: Record<string, string> = {};
+  const manifestFiles: string[] = [];
+  const seenPaths = new Map<string, string>();
+
+  for (const pkg of listModulePackages(options.rootDir)) {
+    if (!pkg.exports || !("./web" in pkg.exports)) continue;
+
+    const manifestFile = join(pkg.dir, "src", "manifest.ts");
+    if (!existsSync(manifestFile)) {
+      throw new Error(`package "${pkg.name}" declares a "./web" export but has no src/manifest.ts`);
+    }
+    manifestFiles.push(manifestFile);
+
+    const manifest = readWebManifest(manifestFile);
+    if (!manifest) {
+      throw new Error(
+        `package "${pkg.name}" declares a "./web" export but its manifest could not be parsed`
+      );
+    }
+
+    for (const entry of manifest.navigation) {
+      const owner = seenPaths.get(entry.path);
+      if (owner) {
+        throw new Error(
+          `duplicate web route path "${entry.path}" claimed by "${owner}" and "${manifest.id}"`
+        );
+      }
+      seenPaths.set(entry.path, manifest.id);
+
+      routes.push({
+        moduleId: manifest.id,
+        moduleName: manifest.name,
+        id: entry.id,
+        label: entry.label,
+        path: entry.path,
+        icon: entry.icon ?? null,
+        order: entry.order ?? null,
+        permissionId: entry.permissionId ?? null
+      });
+    }
+
+    contributions[manifest.id] = `() => import(${JSON.stringify(`${pkg.name}/web`)})`;
+  }
+
+  return {
+    routes: routes.sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
+    contributions,
+    manifestFiles
+  };
+}
+
+export function emitWebVirtualModule(result: WebScanResult): string {
+  const contributionEntries = Object.entries(result.contributions)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([moduleId, loader]) => `  { moduleId: ${JSON.stringify(moduleId)}, load: ${loader} }`)
+    .join(",\n");
+
+  return [
+    `export const MODULE_WEB_ROUTES = ${JSON.stringify(result.routes, null, 2)};`,
+    `export const MODULE_WEB_CONTRIBUTIONS = [`,
+    contributionEntries,
+    `];`,
+    ``
+  ].join("\n");
+}
+
 function listModulePackages(rootDir: string): PackageInfo[] {
   return [
     ...readPackageJsons(join(rootDir, "packages")),
@@ -122,8 +208,16 @@ function readScopedPackageJsons(parentDir: string): PackageInfo[] {
 function readPackageInfo(dir: string): PackageInfo[] {
   const packageJson = join(dir, "package.json");
   if (!existsSync(packageJson)) return [];
-  const parsed = JSON.parse(readFileSync(packageJson, "utf8")) as { readonly name?: unknown };
-  return typeof parsed.name === "string" ? [{ name: parsed.name, dir }] : [];
+  const parsed = JSON.parse(readFileSync(packageJson, "utf8")) as {
+    readonly name?: unknown;
+    readonly exports?: unknown;
+  };
+  if (typeof parsed.name !== "string") return [];
+  const exports =
+    parsed.exports && typeof parsed.exports === "object" && !Array.isArray(parsed.exports)
+      ? (parsed.exports as Record<string, unknown>)
+      : undefined;
+  return [{ name: parsed.name, dir, exports }];
 }
 
 interface ParsedManifest {
@@ -172,6 +266,80 @@ function readManifest(manifestFile: string): ParsedManifest | null {
   }
 
   return null;
+}
+
+interface ParsedWebManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly navigation: readonly ParsedNavigationEntry[];
+}
+
+interface ParsedNavigationEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly icon?: string;
+  readonly order?: number;
+  readonly permissionId?: string;
+}
+
+function readWebManifest(manifestFile: string): ParsedWebManifest | null {
+  const sourceFile = ts.createSourceFile(
+    manifestFile,
+    readFileSync(manifestFile, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const constants = readStringConstants(sourceFile);
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      const initializer = declaration.initializer ? unwrap(declaration.initializer) : undefined;
+      if (!initializer || !ts.isObjectLiteralExpression(initializer)) continue;
+      // Every JarvisModuleManifest declares a required `lifecycle` field, which disambiguates
+      // the manifest object literal from other top-level consts in the same file (e.g. TTL
+      // constants, module ids) without requiring `navigation` itself to be present — navigation
+      // is optional on the manifest type, unlike `settings` in the sibling settings scanner.
+      const lifecycle = readStringProperty(initializer, "lifecycle", constants);
+      if (!lifecycle) continue;
+      const id = readStringProperty(initializer, "id", constants);
+      const name = readStringProperty(initializer, "name", constants);
+      if (!id || !name) continue;
+      const navigation = readArrayProperty(initializer, "navigation") ?? [];
+      return {
+        id,
+        name,
+        navigation: navigation
+          .map((item) => readNavigationEntry(item, constants))
+          .filter((entry): entry is ParsedNavigationEntry => Boolean(entry))
+      };
+    }
+  }
+
+  return null;
+}
+
+function readNavigationEntry(
+  node: ts.Expression,
+  constants: ReadonlyMap<string, string>
+): ParsedNavigationEntry | null {
+  const item = unwrap(node);
+  if (!ts.isObjectLiteralExpression(item)) return null;
+  const id = readStringProperty(item, "id", constants);
+  const label = readStringProperty(item, "label", constants);
+  const path = readStringProperty(item, "path", constants);
+  if (!id || !label || !path) return null;
+
+  return {
+    id,
+    label,
+    path,
+    icon: readStringProperty(item, "icon", constants),
+    order: readNumberProperty(item, "order"),
+    permissionId: readStringProperty(item, "permissionId", constants)
+  };
 }
 
 function readStringConstants(sourceFile: ts.SourceFile): ReadonlyMap<string, string> {
