@@ -580,3 +580,14 @@ predecessor reaps itself), not treated as an incident. Verified exactly one `Coo
 
 - `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be` (pane `w1:pA6`) — self-reaped before this successor's
   first `herdr pane list`; no explicit reap action was needed or taken.
+- `w1:pA4` (`reserved-slot`, harmless leftover from the reaped #854 build) — closed.
+
+**Fleet re-confirmed this tenure via bounded pane reads:**
+- **#663** — `w1:p9V`, Build-663, idle, Sonnet, 53% ctx. Still HOLD, waiting on Ben's
+  close-vs-rescope call. Untouched.
+- **#853** — `w1:p9W`, Build-853, idle, Sonnet, 53% ctx. Confirmed: Task 1 + Task 2 done, Task 3
+  ("full local gate") not yet started. No PR yet.
+- **#854** — already merged/reaped by predecessor; no pane remains.
+
+Started a fresh liveness `Monitor` (task `bynbw4vgp`) for `w1:p9V`/`w1:p9W` only (no #854 pane to
+watch anymore).
