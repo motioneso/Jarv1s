@@ -2,10 +2,10 @@
 
 **Date:** 2026-07-07
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id
-`e56b7c36-6f1b-4438-85ef-bb5cad9eed74`** (pane `w1:p9S`, tab `w1:t15` at time of writing — resolve
+`9fb2dc84-f605-4580-8ba3-510bbdef6f59`** (pane `w1:p9Z`, tab `w1:t15` at time of writing — resolve
 fresh by label+session, never trust the pane number). Relayed from predecessor session
-`9ba963a2-ae22-47b2-a8f2-2871b37a2f46` (pane `w1:p9Q`) at its 70% context checkpoint; predecessor
-confirmed handoff, went `done`, and was reaped (pane closed) at run continuation. Exactly one
+`e56b7c36-6f1b-4438-85ef-bb5cad9eed74` (pane `w1:p9S`) at its 70% context checkpoint; predecessor
+confirmed handoff, went idle, and was reaped (pane closed) at run continuation. Exactly one
 `Coordinator` pane confirmed via `herdr pane list` post-reap.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
@@ -168,3 +168,17 @@ approval, it's a straightforward bug fix).
 
 - `9ba963a2-ae22-47b2-a8f2-2871b37a2f46` (pane `w1:p9Q`) — relayed at 70% context checkpoint,
   confirmed handoff, reaped by successor `e56b7c36-6f1b-4438-85ef-bb5cad9eed74` (pane `w1:p9S`).
+- `e56b7c36-6f1b-4438-85ef-bb5cad9eed74` (pane `w1:p9S`) — relayed at 70% context checkpoint,
+  confirmed handoff, reaped by successor `9fb2dc84-f605-4580-8ba3-510bbdef6f59` (pane `w1:p9Z`),
+  2026-07-07.
+
+## Successor tenure notes (session `9fb2dc84-f605-4580-8ba3-510bbdef6f59`)
+
+- **Tab hygiene fix:** found Build-854b (pane, session `4a271eb9-8a17-4317-b5bc-6e3d484b9515`)
+  parked in tab `w1:t17` — Ben's own personal-agent tab (`w1:p8Y`, working `#855` sports dedupe
+  directly), not the shared agents tab. Moved it to `w1:t1C` alongside Build-663/Build-853 per
+  Ben's explicit instruction (2026-07-07): keep all build/QA agents in the agents tab only, open
+  `agents2`/`agents3` overflow tabs past 4 panes, never spawn/park agents elsewhere.
+- Restarted a fresh liveness `Monitor` for `w1:p9V`/`w1:p9W`/`w1:p9Y` (predecessor's monitor died
+  with its session at relay, per protocol).
+- Resuming the paused `#817` `/brief` interview — re-asking Q1 since no answer was ever recorded.
