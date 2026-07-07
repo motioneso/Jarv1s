@@ -370,6 +370,44 @@ bounded read before reap. Exactly one `Coordinator` pane verified via `herdr pan
   Build-663 idle/HOLD (unchanged), Build-853 idle at Task 3 not started (unchanged), Build-854d
   still in Wrap-up running the full gate via its own background Monitor, no PR yet —
   `agent_status` again read `done` (same known flicker), confirmed unreliable via pane content.
+- **Build-854d finished and opened PR #856** (`854-integration-test-db-isolation`) sometime this
+  tenure. A `coordinated-qa` agent (`a16e53244d0bd1c9f`) was already dispatched against it — its
+  handoff doc `docs/coordination/handoff-854-integration-test-db-isolation.md` names an older
+  session id as "Coordinator session," which is just stale metadata from an earlier tenure, not a
+  live competing coordinator. **Investigated as a possible duplicate-coordinator red flag** (an
+  unexplained Task appeared in the shared TaskList referencing this agent) — confirmed via
+  `herdr pane list` there is still exactly one `Coordinator`-labeled pane (this one). Concluded
+  benign: this is the expected Phase-3 QA dispatch for a routine-tier PR, arrived via a channel
+  this tenure didn't initiate itself.
+  - QA agent's review so far (from its transcript): confirmed the `test:commitments` full-gate
+    exception is documented/intentional, confirmed `vitest.config.ts` `pool: "forks"` /
+    `fileParallelism: false` matches its stated claims, confirmed no secret-echoing in the new
+    `scripts/test-integration.ts` isolation wrapper, confirmed tier (`routine`) and scope match.
+  - **Not yet done: CI has not gone green** (`Verify foundation and app` still `pending` as of this
+    note) and **no verdict has been posted** as a PR comment. The QA agent twice ended its turn
+    passively waiting on its own background poll job rather than actively re-checking — resumed it
+    once with an explicit instruction to check now/post a comment/report back; if it stalls again,
+    re-dispatch a fresh `coordinated-qa` agent once CI is green rather than keep nudging this one.
+  - Started a `Monitor` (task `b2zxzs1ej`) polling `gh pr checks 856` until no longer pending, so
+    the successor gets a clean signal instead of re-polling manually.
+  - **No merge of PR #856 until an actual posted verdict + green CI are both confirmed.**
+- **#817 spec drafted:** `docs/superpowers/specs/2026-07-07-error-explainability.md` written from
+  the confirmed brief + issue #817 body + the logging-gap finding (no structured error store exists
+  anywhere; #413 deferred DB persistence to #255; #255 only wired diagnostics-UI placeholders,
+  confirmed by reading `packages/settings/src/host-diagnostics.ts` — no error table was ever
+  built). Key design decisions: new table `app.jarvis_error_log` (not a reuse of `jarvis_action_
+  audit_log`, which audits tool-call outcomes, a different concept) in a new `packages/
+  observability` module (errors are cross-cutting, don't fit any single feature module or in
+  `packages/settings`, which is admin/host-config not an event-data plane); RLS/retention pattern
+  mirrors `packages/ai/sql/0127_jarvis_action_audit_log.sql`; write path taps the two already-
+  secret-safe allowlisted objects in `apps/api/src/error-handling.ts` (`setJarvisErrorHandler`,
+  `registerClientErrorsRoute`); read path is a chat `ToolExecute` following `packages/chat/src/
+  tools.ts`'s existing convention. Proposed tier: `sensitive`. **Per `/start` protocol, PAUSED here
+  for Ben's approval — do not proceed to `/plan` or `/build` until he signs off.**
+- **Backlog triage (#818-826, #741-745, #759-760):** dispatched to a `general-purpose` subagent
+  (name `backlog-triage`) earlier this tenure; report not yet received. Checked on it — it had no
+  active task (already finished or idled out) but resumed cleanly from its own transcript with a
+  status-check nudge. Awaiting its reply.
 - Started a fresh liveness `Monitor` (task `brtzfjfe8`) for `w1:p9V`/`w1:p9W`/`w1:pA2`.
 - Picking up: #817 spec drafting (pausing for Ben's approval after) and the not-yet-started
   needs-spec backlog triage (#818–826, #741–745, #759–760).
