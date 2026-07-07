@@ -1,13 +1,11 @@
 # Coordination Run — 2026-07-06-datasets-hardening-fleet
 
 **Date:** 2026-07-06
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `c24b0bc4-207d-4c56-91e8-b0cfb89d1984`** (pane `w1:p9J` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `25847737-d212-4e3b-90e4-bd27e120361e` (pane `w1:p9G`, tab `w1:t15`), reap pending ack.
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `22037838-bb11-4e04-b12f-71519a9f7834`** (pane `w1:p9K` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `c24b0bc4-207d-4c56-91e8-b0cfb89d1984` (pane `w1:p9J`, tab `w1:t15`), reaped 2026-07-07 after confirming PR #850 merged and manifest flushed.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; no `security`-tier items in this run.
 **Relay threshold:** routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 2 (PR #848/#832 routine, squash ab79cdc7; PR #849/#834 sensitive, squash
-e6911c45, merged by predecessor session finishing its own lane just after handoff) → **threshold
-fired (≥2), compounded by 70% context-meter warning. No deferral — relaying now, merging nothing
-further (PR #850/#833 QA in flight, do NOT merge on this session even if verdict lands green).**
+**merges_since_relay:** 0 (fresh tenure — PR #848/#849/#850 all landed and accounted for under the
+prior lineage; next merge to count toward this tenure's threshold is #836).
 
 > Externalized coordinator memory. GitHub is the source of truth for spec/issue/board status;
 > this file holds only in-flight operational state.
@@ -96,6 +94,15 @@ and a module-isolation boundary respectively — no auth/RLS/secrets, so `sensit
 - `f1545a6c-0658-4800-b811-87f77d552af4` (dep-cycle-3, pane `w1:p9F`) — build agent for #834,
   idle after PR #849 merged; reaped alongside predecessor coordinator, worktree
   `834-jobs-settings-cycle` removed, local branch deleted, 2026-07-07.
+- `c24b0bc4-207d-4c56-91e8-b0cfb89d1984` (old Coordinator, pane `w1:p9J`) — relayed at
+  merge-counter threshold (3: #848/#849/#850) + 70% context-meter, mid-Phase-3 (PR #850 QA in
+  flight); successor asked it to hold and finish its own QA agent `a0db8c2ca4b396aef` to
+  completion rather than resume/duplicate it cross-session (mirrors the `af01b499cf9d1ff1c`
+  precedent above). Predecessor got GREEN
+  (https://github.com/motioneso/Jarv1s/pull/850#issuecomment-4901005718), merged PR #850 (squash
+  `a9fe44f8`), closed #833, told `datasets-chain-4` to rebase and start #836, flushed the manifest
+  (`bbea738b`), then signaled safe to reap; successor (session `22037838…`, pane `w1:p9K`)
+  confirmed driving and reaped it 2026-07-07.
 
 ## Continuation note (relay @ 2026-07-07, merge-counter threshold: 2 routine merges)
 
