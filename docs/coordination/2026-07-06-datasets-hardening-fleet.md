@@ -1,7 +1,7 @@
 # Coordination Run — 2026-07-06-datasets-hardening-fleet
 
 **Date:** 2026-07-06
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `25847737-d212-4e3b-90e4-bd27e120361e`** (pane `w1:p9G` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `9998c947-e826-4869-b21b-58d6b4c54825` (pane `w1:p9E`, confirmed driving, reaped 2026-07-07).
+**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `c24b0bc4-207d-4c56-91e8-b0cfb89d1984`** (pane `w1:p9J` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `25847737-d212-4e3b-90e4-bd27e120361e` (pane `w1:p9G`, tab `w1:t15`), reap pending ack.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; no `security`-tier items in this run.
 **Relay threshold:** routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
 **merges_since_relay:** 1 (PR #848 / #832, routine, squash-merged ab79cdc7, 2026-07-07T06:07:14Z, verdict GREEN posted pre-relay by QA agent `a72f373262ccd7b83`; merge executed by this successor session immediately on adoption) → below threshold, continue supervising.
@@ -197,3 +197,36 @@ confirmed driving. `merges_since_relay` stays at **1** (only PR #848 merged this
   fleet state.
 
 **No escalations, no CI waivers, no `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags outstanding.**
+
+## Continuation note (relay @ 2026-07-07, successor adopted mid-run)
+
+**Coordinator lock:** now anchored on session `c24b0bc4-207d-4c56-91e8-b0cfb89d1984` (pane
+`w1:p9J`, tab `w1:t15`, relabeling to `Coordinator`). Predecessor
+`25847737-d212-4e3b-90e4-bd27e120361e` (pane `w1:p9G`) messaged to confirm and reap.
+
+**Resolved on adoption:** the prior QA agent for PR #849 (`af01b499cf9d1ff1c`) had no resumable
+transcript in this session (session-boundary loss, not a verdict) — CI's "Verify foundation and
+app" check was still `pending` on re-check anyway, so nothing was lost. Re-spawned QA fresh:
+`coordinated-qa` agent `a17376673fa4fe43f` (Sonnet, sensitive-tier invariant checklist), running
+in background against PR #849 / branch `834-jobs-settings-cycle`. Awaiting its verdict before
+merge.
+
+**Fleet state, re-verified via bounded pane read:**
+
+| Agent | Pane | Status at check | Notes |
+| --- | --- | --- | --- |
+| `datasets-chain-4` | `w1:p9H` | working, "Topsy-turvying…", ctx 52% | continuing on #833 (Task 1 build) |
+| `dep-cycle-3` | `w1:p9F` | idle | waiting on PR #849 QA verdict; reap once #849 merges |
+
+Both persistent Monitors re-established fresh this session (prior session's Monitors did not
+survive relay):
+1. Fleet liveness over `w1:t1B` (task `bc2ianpfs`) — diffs `herdr pane list`, emits on
+   `agent_status`/label change only.
+2. Sports-broadsheet watch on `w1:p8Y` (task `bww6hj7s4`) — emits on `agent_status` change;
+   last observed idle. Ben's explicit ask, non-fleet item.
+
+**No escalations outstanding.** No `[SECURITY]`/`[AUTH]`/`[RLS]`/`[CRIT]` tags seen. Next
+coordinator action: consume PR #849 QA verdict → merge if green (sensitive tier, auto-merge +
+digest) → reap `dep-cycle-3`; keep supervising `datasets-chain-4` toward #833's PR → QA (sensitive,
+same invariant checklist) → auto-merge + digest; #836 (routine) queued next in chain, must rebase
+on #833's merge first.
