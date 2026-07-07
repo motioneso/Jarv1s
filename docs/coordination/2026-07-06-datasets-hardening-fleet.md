@@ -4,8 +4,9 @@
 **Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id `5a5d9633-f058-44a3-b379-684461cc8079`** (pane `w1:p9N` at time of writing — resolve fresh by label+session, not this pane number). Relayed from prior anchor `22037838-bb11-4e04-b12f-71519a9f7834` (pane `w1:p9K`, tab `w1:t15`), reaped 2026-07-07 after confirming #836 plan approval delivered and manifest flushed.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; no `security`-tier items in this run.
 **Relay threshold:** routine/sensitive `merges_since_relay` ≥ 2 → relay. No deferral. Compaction summary = already past safe → relay, merge nothing.
-**merges_since_relay:** 0 (fresh tenure — PR #848/#849/#850 all landed and accounted for under the
-prior lineage; next merge to count toward this tenure's threshold is #836).
+**merges_since_relay:** 1 (this tenure, session `5a5d9633…`: PR #851 merged 2026-07-07, closing
+#836 — the last item in the datasets chain and in this run's original queue. Threshold is 2 —
+no relay fired yet, but no further queued work remains either; see continuation note).
 
 > Externalized coordinator memory. GitHub is the source of truth for spec/issue/board status;
 > this file holds only in-flight operational state.
@@ -16,7 +17,7 @@ prior lineage; next merge to count toward this tenure's threshold is #836).
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #832 | routine | **merged** | datasets-chain-4 (continuing on #833/#836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #848 (squash ab79cdc7) |
 | docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #833 | sensitive | **merged** | datasets-chain-4 (continuing on #836) | w1:p9H | 832-datasets-host-pinning (chain: 832→833→836) | #850 (squash a9fe44f8) |
-| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | building (plan not yet approved) | datasets-chain-5 | w1:p9M | 832-datasets-host-pinning (chain: 832→833→836) | — |
+| docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md | #836 | routine | **merged** | datasets-chain-6 (was -4, -5) | reaped | 832-datasets-host-pinning (chain: 832→833→836, deleted) | #851 (squash 784d03ca) |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md (module-isolation follow-up, #798) | #834 | sensitive | **merged** | dep-cycle-3 (reaped) | — | 834-jobs-settings-cycle (deleted) | #849 (squash e6911c45) |
 | docs/superpowers/specs/2026-07-04-module-web-registry.md | #835 | routine | **merged** | settings-ui-scanner-relay (reaped) | — | 835-scanner-reserved-paths (deleted) | #846 (squash e16f99c4) |
 | docs/superpowers/specs/2026-07-05-sports-editorial-redesign.md | #837 | routine | **merged** | sports-cleanup-2 (reaped) | — | 837-sports-postmerge-cleanup (deleted) | #847 (squash) |
