@@ -726,3 +726,16 @@ log-persistence leakage — see finding below).
   verification role, not tied to build-agent provider). Tracking a running counter below.
   **Codex-provider counter: 0 of next 3 spawned so far** (no new builds spawned this tenure —
   #853/#854/#663 predate this directive).
+  - **Ben's follow-up decisions (via AskUserQuestion, this tenure):** (1) apply Codex to
+    "whatever comes next, in order" — do not wait for him to hand-pick 3 specific issues; the
+    next 3 build agents spawned (starting once #817's spec is approved or a backlog item clears
+    triage) go on Codex. (2) **Mix QA providers too**, not just build agents — a genuine
+    cross-model check, not same-provider QA on a Codex-built PR. This is a **run-specific
+    override of the coordinate skill's default QA-stays-Claude/Opus policy** — apply it for this
+    run only, don't treat it as a change to the skill itself. Mechanics not yet worked out:
+    routine/sensitive QA can plausibly go to Codex or Gemini CLI (`cli-adversarial-review`
+    memory has the Gemini headless recipe); **security-tier QA still needs the Opus adversarial
+    pass** at minimum (mandatory `gh pr comment` verdict + Ben sign-off) — cross-model mixing
+    for security tier means ADDING a second-model pass alongside Opus, not replacing it, unless
+    Ben says otherwise when the first security-tier PR under this policy comes up. Flag this
+    ambiguity to Ben when it becomes concrete rather than guessing.
