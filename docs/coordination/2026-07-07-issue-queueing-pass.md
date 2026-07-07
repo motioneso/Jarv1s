@@ -355,9 +355,24 @@ Progress so far, this tenure:
   pass). Tier: likely `sensitive` (new cross-cutting data surface, not auth/RLS/secrets) — confirm
   against the tiering table once the design surface is clearer.
 
-**Coordinator lock:** now `432e7939-3e09-4bc2-83ae-18c11cc0ae29` / label `Coordinator` / pane
-`w1:pA5` (resolve fresh, don't trust the pane number) until the successor claims Phase 0a and
-updates this line itself.
+**Coordinator lock:** now `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be` / label `Coordinator` / pane
+`w1:pA6` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure,
+predecessor `432e7939-3e09-4bc2-83ae-18c11cc0ae29` (pane `w1:pA5`) confirmed idle/relayed via
+bounded read before reap. Exactly one `Coordinator` pane verified via `herdr pane list`.
+
+## Successor tenure notes (session `b7a14b99-3dfd-4f0c-ae0b-1c5fa33b25be`)
+
+- Reaped predecessor `432e7939-3e09-4bc2-83ae-18c11cc0ae29` (pane `w1:pA5`) after confirming it
+  was idle at its prompt (its own TaskList showed lock-claim/re-adopt/monitor steps all
+  completed). Claimed lock, renamed own pane `Coordinator-relay3` → `Coordinator` (`w1:pA6`, tab
+  `w1:t15`). Verified exactly one `Coordinator` pane.
+- Re-confirmed fleet via bounded pane reads (not just `herdr pane list` status strings):
+  Build-663 idle/HOLD (unchanged), Build-853 idle at Task 3 not started (unchanged), Build-854d
+  still in Wrap-up running the full gate via its own background Monitor, no PR yet —
+  `agent_status` again read `done` (same known flicker), confirmed unreliable via pane content.
+- Started a fresh liveness `Monitor` (task `brtzfjfe8`) for `w1:p9V`/`w1:p9W`/`w1:pA2`.
+- Picking up: #817 spec drafting (pausing for Ben's approval after) and the not-yet-started
+  needs-spec backlog triage (#818–826, #741–745, #759–760).
 
 ## Relay checkpoint (session `d2380257-0a2b-44a4-bafa-49a3be6559ca`, own context ~70%)
 
