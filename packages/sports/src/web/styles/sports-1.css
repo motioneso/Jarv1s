@@ -540,11 +540,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sp-tbl tr.is-you td {
-  background: var(--forest-soft);
-}
+/* Followed team: highlight the NAME only. The old row-level tint (forest-soft across every td)
+   spoke the same visual language as the qualification-zone tints — it read as "qualified for
+   whatever" — and, because td backgrounds paint over the tr's inline zone tint, it also HID the
+   real zone color on the followed row (Ben couldn't see Arsenal's Europa League tint at all).
+   (live feedback mrb4imes) */
 .sp-tbl tr.is-you .nm {
-  color: var(--accent-fg);
+  color: var(--accent);
   font-weight: 700;
 }
 /* Visually-hidden note text for screen readers — same clip-rect technique as
