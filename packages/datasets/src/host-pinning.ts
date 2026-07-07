@@ -85,6 +85,26 @@ function stripSensitiveHeaders(init: RequestInit | undefined): RequestInit | und
   return { ...init, headers };
 }
 
+/**
+ * True when a redirect hop must downgrade to GET with no body: always for 303 (See Other, the
+ * canonical "redo as GET" status), and for 301/302 only when the current method isn't already
+ * GET/HEAD (legacy browser behavior downgrades those two; RFC 7231 leaves 301/302 method
+ * preservation to client discretion but the safe, expected behavior is to downgrade like a
+ * browser would). 307/308 must never downgrade — they exist specifically to guarantee
+ * method+body preservation across a redirect (#836).
+ */
+function shouldDowngradeToGet(status: number, method: string): boolean {
+  if (status === 303) return true;
+  if (status === 301 || status === 302) return method !== "GET" && method !== "HEAD";
+  return false;
+}
+
+/** Drops `method`/`body` from `init` and forces a bodyless GET for the next redirect hop. */
+function downgradeToGet(init: RequestInit | undefined): RequestInit {
+  const { body: _body, method: _method, ...rest } = init ?? {};
+  return { ...rest, method: "GET" };
+}
+
 function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
   if (url.protocol !== "https:") {
     throw new HostPinningViolationError(
@@ -117,6 +137,7 @@ export function createHostPinnedFetch(
     assertHttpsAndAllowed(currentUrl, allowed);
 
     let currentInit = init;
+    let currentMethod = (init?.method ?? "GET").toUpperCase();
     let response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
     let hops = 0;
 
@@ -128,6 +149,10 @@ export function createHostPinnedFetch(
       assertHttpsAndAllowed(currentUrl, allowed);
       if (currentUrl.hostname.toLowerCase() !== previousHost) {
         currentInit = stripSensitiveHeaders(currentInit);
+      }
+      if (shouldDowngradeToGet(response.status, currentMethod)) {
+        currentInit = downgradeToGet(currentInit);
+        currentMethod = "GET";
       }
       response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
       hops += 1;
