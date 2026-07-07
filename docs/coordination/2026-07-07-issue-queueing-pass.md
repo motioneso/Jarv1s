@@ -57,9 +57,13 @@ supplying licensed `.otf` files — not a coordinator action item, just a standi
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | queued | — | — | — | — |
-| (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | queued | — | — | — | — |
-| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | queued | — | — | — | — |
+| docs/superpowers/specs/2026-07-02-evening-briefing-redesign.md | #663 | sensitive | building | Build-663 | w1:p9V | 663-evening-briefing-redesign | — |
+| (bug fix, no spec doc — atomicity fix in existing auth flow) | #853 | security | building | Build-853 | w1:p9W | 853-auth-signup-atomicity | — |
+| (bug fix, no spec doc — enforce per-run isolated DB, existing JARVIS_PGDATABASE mechanism) | #854 | routine | building | Build-854 | w1:p9X | 854-integration-test-db-isolation | — |
+
+All three spawned into agents tab `w1:t1C` (created this run), confirmed running Sonnet, worktrees
+cut off `origin/main` @ `babe07aa`. Handoff docs committed in each worktree at
+`docs/coordination/handoff-<slug>.md`.
 
 **Tier rationale:**
 - **#663 → sensitive:** touches scheduled-job-adjacent notification content and reads across
