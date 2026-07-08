@@ -112,7 +112,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -190,7 +190,7 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -233,7 +233,7 @@
 .sp-hero__more {
   align-self: flex-start;
   margin-top: var(--space-3);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -276,7 +276,7 @@
   overflow: hidden;
 }
 .sp-photo__cap {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -323,7 +323,7 @@
   gap: var(--space-2);
 }
 .sp-sec__title .sub {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -348,7 +348,7 @@
   padding: 2px 3px;
   border: 1px solid transparent;
   border-radius: 2px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   line-height: 1;
@@ -404,7 +404,10 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-3) 0 var(--space-2);
+  /* Match the table's horizontal inset (.sp-tbl th/td carry var(--space-2) L/R padding) so the
+     sticky title + division selector align to the standings grid instead of hanging var(--space-2)
+     outside it on both edges — Ben 2026-07-08 "standings margin is off, particularly the header". */
+  padding: var(--space-3) var(--space-2) var(--space-2);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -471,7 +474,7 @@
   border-collapse: collapse;
 }
 .sp-tbl th {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -491,7 +494,7 @@
 }
 .sp-tbl td {
   padding: var(--space-2) var(--space-2);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xs);
   color: var(--text-muted);
@@ -543,7 +546,7 @@
 /* Knockout-round fixtures replace the standings table once a tournament's group stage is
    complete (#839 follow-up): away · score-or-kickoff · home on a hairline-ruled list. */
 .sp-knock__kicker {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -595,7 +598,7 @@
   color: var(--accent-fg);
 }
 .sp-knock__score {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xs);
   font-weight: 700;
@@ -603,7 +606,7 @@
   white-space: nowrap;
 }
 .sp-knock__status {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;

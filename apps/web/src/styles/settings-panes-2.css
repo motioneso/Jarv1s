@@ -128,7 +128,7 @@
   margin-top: 2px;
 }
 .dexp__pct {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -173,7 +173,7 @@
   min-width: 0;
 }
 .dexp__readyt {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13.5px;
   font-weight: 600;
 }
@@ -233,7 +233,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
   margin-top: 5px;
@@ -311,7 +311,7 @@
 }
 .provpick__on {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -367,7 +367,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--text-subtle);
   margin-top: 3px;
@@ -400,7 +400,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.09em;
@@ -416,7 +416,7 @@
   background: transparent;
   padding: 2px 4px;
   font: inherit;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -448,7 +448,7 @@
   border-top: none;
 }
 .mdl__id {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
@@ -460,7 +460,7 @@
   align-items: center;
   gap: 6px;
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -490,7 +490,7 @@
   justify-content: flex-end;
 }
 .cap {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -590,7 +590,7 @@
 .rt__resolved {
   font-size: 11.5px;
   color: var(--text-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -631,7 +631,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.09em;
@@ -654,7 +654,7 @@
   box-shadow: var(--shadow-xs);
 }
 .ppv__cap {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -798,7 +798,7 @@
   border-top: none;
 }
 .aud__when {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--text-faint);
 }
@@ -818,7 +818,7 @@
   margin-top: 4px;
 }
 .aud__cat {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -840,7 +840,7 @@
   flex: none;
 }
 .aud__count {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   letter-spacing: 0.04em;
   color: var(--text-faint);
@@ -880,7 +880,7 @@
   border-radius: var(--radius-sm);
   background: var(--red-soft, var(--surface-2));
   color: var(--danger);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;

@@ -378,7 +378,7 @@
   margin-top: 2px;
 }
 .chatd-sess__when {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
   flex: none;
@@ -561,7 +561,7 @@
   font-weight: 600;
 }
 .chatd-peek__count {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
 }
@@ -585,7 +585,7 @@
   color: var(--text-muted);
 }
 .chatd-peek__kind {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -758,7 +758,7 @@
   color: var(--text-subtle);
 }
 .chatd-freshness__age {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
 }
@@ -803,7 +803,7 @@
   flex: 0 0 auto;
   min-width: 52px;
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -911,7 +911,7 @@
 .source-tray__state,
 .source-tray__confidence,
 .source-tray__time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-wide);

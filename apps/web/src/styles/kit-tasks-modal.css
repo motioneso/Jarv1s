@@ -35,7 +35,7 @@
   min-width: 0;
 }
 .tk-modal__eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -209,7 +209,7 @@
   background: transparent;
   color: var(--text-subtle);
   border-radius: var(--radius-pill);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   padding: 3px 9px;
   cursor: pointer;
@@ -462,7 +462,7 @@
 }
 .tk-act__bot {
   margin-left: 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -477,7 +477,7 @@
 .tk-act__when {
   margin-left: auto;
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
   white-space: nowrap;

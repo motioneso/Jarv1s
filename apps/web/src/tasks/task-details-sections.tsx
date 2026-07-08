@@ -112,7 +112,7 @@ export function TaskTagsField(props: {
 function TagChip(props: { readonly label: string; readonly onRemove: () => void }) {
   return (
     <span className="jds-chip">
-      <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-faint)" }}>#</span>
+      <span style={{ fontFamily: "var(--font-sans)", color: "var(--text-faint)" }}>#</span>
       {props.label}
       <button
         type="button"

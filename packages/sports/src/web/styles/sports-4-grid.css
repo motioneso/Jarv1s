@@ -29,7 +29,7 @@
   color: var(--text);
 }
 .sp-ticker__manage {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -137,7 +137,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -151,7 +151,7 @@
   min-height: 20px;
 }
 .sp-tk__score {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-md);
   font-weight: 700;
@@ -192,7 +192,7 @@
   text-underline-offset: 0.15em;
 }
 .sp-tk__standing {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.02em;
   color: var(--text-subtle);
@@ -331,7 +331,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -383,7 +383,7 @@
   gap: var(--space-3);
 }
 .sp-feat__standing {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.02em;
   color: var(--text-subtle);
@@ -415,7 +415,7 @@
 }
 .sp-feat__score {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xl);
   font-weight: 700;
