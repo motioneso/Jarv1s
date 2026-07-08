@@ -41,6 +41,7 @@ import type { AiProviderExecutionMode } from "@jarv1s/shared";
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
 import { writeClaudePermissionHook } from "./claude-permission-hook.js";
+import { codexTranscriptMatchesCwd } from "./private-transcript-cleanup.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
@@ -916,23 +917,6 @@ async function probeWithTimeout<T extends { code: number; stdout: string; stderr
  */
 function sanitizeInput(text: string): string {
   return text.replace(/^(\s*)!+/, "$1");
-}
-
-function codexTranscriptMatchesCwd(jsonl: string, expectedCwd: string): boolean {
-  for (const line of jsonl.split("\n").slice(0, 50)) {
-    if (!line.trim()) continue;
-    let record: Record<string, unknown>;
-    try {
-      record = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    if (record["type"] !== "session_meta") continue;
-    const payload = record["payload"];
-    if (!isRecord(payload)) continue;
-    return payload["cwd"] === expectedCwd;
-  }
-  return false;
 }
 
 /**

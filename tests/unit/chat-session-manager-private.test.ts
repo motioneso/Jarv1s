@@ -39,6 +39,7 @@ function privateDeps(engine: FakeEngine, incognito: boolean, now = () => 0) {
       getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null }),
       touchExistingThread: vi.fn().mockResolvedValue(true),
       getCurrentThreadState: vi.fn().mockResolvedValue({ id: "thread-private", incognito }),
+      listIncognitoThreadStates: vi.fn().mockResolvedValue([]),
       deleteThread: vi.fn().mockResolvedValue(undefined)
     },
     personaFs: {
@@ -66,6 +67,42 @@ describe("ChatSessionManager private cleanup", () => {
     expect(engine.purged).toBe(true);
     expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
     expect(revoke).toHaveBeenCalledWith("u1");
+  });
+
+  it("reconcileLiveSessions purges stale private sessions before dropping them", async () => {
+    const engine = new FakeEngine();
+    const revoke = vi.fn();
+    const killSession = vi.fn().mockResolvedValue(undefined);
+    const deps = privateDeps(engine, true);
+    const manager = new ChatSessionManager({
+      ...deps,
+      killSession,
+      revokeMcpToken: revoke
+    });
+    await manager.ensureSession("u1", "Ben");
+
+    await manager.reconcileLiveSessions(new Set());
+
+    expect(killSession).toHaveBeenCalledWith("u1");
+    expect(engine.purged).toBe(true);
+    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(revoke).toHaveBeenCalledWith("u1");
+  });
+
+  it("reconcileLiveSessions sweeps orphaned private bookkeeping rows after api restart", async () => {
+    const engine = new FakeEngine();
+    const deps = privateDeps(engine, false);
+    deps.persistence.getCurrentThreadState.mockResolvedValue(undefined);
+    deps.persistence.listIncognitoThreadStates.mockResolvedValue([
+      { actorUserId: "u1", threadId: "thread-private" }
+    ]);
+    const purgePrivateTranscripts = vi.fn().mockResolvedValue(undefined);
+    const manager = new ChatSessionManager({ ...deps, purgePrivateTranscripts });
+
+    await manager.reconcileLiveSessions(new Set());
+
+    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1");
+    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
   });
 
   it("clear deletes an outgoing private bookkeeping thread before opening the next chat", async () => {

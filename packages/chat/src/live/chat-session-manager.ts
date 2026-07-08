@@ -69,6 +69,7 @@ export interface ChatPersistencePort {
   getCurrentThreadState?(
     actorUserId: string
   ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined>;
+  listIncognitoThreadStates?(): Promise<readonly PrivateThreadState[]>;
   deleteThread?(actorUserId: string, threadId: string): Promise<void>;
   /** Return the current thread title and the user's persisted timezone (null if unset). */
   getThreadContext(
@@ -151,6 +152,7 @@ export interface ChatSessionManagerDeps {
    * skipped (only Map-known sessions are killed via their engine).
    */
   readonly killSession?: (sessionKey: string) => Promise<void>;
+  readonly purgePrivateTranscripts?: (sessionKey: string) => Promise<void>;
   /** Phase 3: optional recall service — injects <memory> seed before replay. */
   readonly recall?: RecallPort;
   /** Optional per-turn hidden context retrieval. Empty/failed result submits the raw turn. */
@@ -191,6 +193,11 @@ interface UserSession {
   /** #679 — last attached page-context snapshot; volatile (deleted with this object on
    *  clear()/resumeThread()/switchProvider()/reapIdle()), reused within PAGE_CONTEXT_TTL_MS. */
   lastPageContext?: CachedPageContext;
+}
+
+interface PrivateThreadState {
+  readonly actorUserId: string;
+  readonly threadId: string;
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
@@ -656,24 +663,7 @@ export class ChatSessionManager {
     const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
     if (!currentThread?.incognito) return;
 
-    const session = this.sessions.get(actorUserId);
-    if (session) {
-      try {
-        await session.engine.kill();
-      } catch {
-        // best-effort: cleanup continues below.
-      }
-      try {
-        await session.engine.purgeTranscripts?.();
-      } catch {
-        // best-effort: cleanup continues below.
-      }
-      this.sessions.delete(actorUserId);
-      this.clearPrivateDetachTimer(actorUserId);
-      this.deps.revokeMcpToken?.(actorUserId);
-    }
-
-    await this.deps.persistence.deleteThread?.(actorUserId, currentThread.id);
+    await this.cleanupPrivateSession(actorUserId, currentThread.id, this.sessions.get(actorUserId));
   }
 
   /**
@@ -789,18 +779,8 @@ export class ChatSessionManager {
    * `listLiveSessions`, enumerated by mux — §4.6). After it returns, the api's token
    * registry and `sessions` map are consistent with the cli-runner's live set.
    *
-   * Steps (under the shared §5.4 mutex, mutually exclusive with reapIdle):
-   *   2. Orphan-token revoke — sourced from the TOKEN REGISTRY (works with an empty
-   *      `sessions` Map, e.g. after an api restart): revoke every token whose session ∉
-   *      liveKeys.
-   *   3. Drop stale api sessions — a `sessions` entry whose key ∉ liveKeys (cli-runner
-   *      restarted, losing it): drop it + revoke its token. The next submitTurn relaunches.
-   *   4. Kill orphaned mux sessions — a liveKey the `sessions` Map does NOT know about (api
-   *      restarted, cli-runner kept it): issue `kill` BY MUX NAME (§4.5).
-   *
-   * A `sessionKey` currently mid-launch (in `launching`) is treated as LIVE for the whole
-   * launch window (§5.4): it is unioned into the effective-live set so it is never killed,
-   * dropped, or its token revoked. Idempotent — running it twice once consistent is a no-op.
+   * In-flight launch keys are unioned into `liveKeys` so reconcile never kills
+   * a session the api is itself bringing up.
    */
   async reconcileLiveSessions(liveKeys: Set<string>): Promise<void> {
     await this.withMaintenanceLock(async () => {
@@ -808,47 +788,33 @@ export class ChatSessionManager {
       const effectiveLive = new Set(liveKeys);
       for (const key of this.launching.keys()) effectiveLive.add(key);
 
-      // Step 2: orphan-token revoke, sourced from the token registry (not `sessions`).
       this.deps.reconcileMcpTokens?.(effectiveLive);
 
-      // Step 3: drop stale api sessions (Map key ∉ effectiveLive).
-      //
-      // The kill MUST be guard-safe on the RPC path. This runs INSIDE the connection's
-      // `runReconciliation` (which sets `reconciling = true` for the whole pass), so a
-      // `session.engine.kill()` here would route through the PUBLIC `RpcConnection.kill`, which
-      // `call()` rejects with `CliChatUnavailableError("cli-runner reconciling after restart")`
-      // while `reconciling` is true — throwing BEFORE the `sessions.delete` + `revokeMcpToken` and
-      // aborting the rest of step 3 AND step 4 (the throw was not caught). So we route the kill
-      // through the SAME guard-bypassing path step 4 uses: `this.deps.killSession` (the reconcile
-      // driver's `kill`, idempotent/by-mux-name). The cli-runner already reports these keys dead,
-      // so a kill is belt-and-suspenders; the authoritative effect of step 3 is drop + revoke.
-      // On the in-process/host path `killSession` is absent, so we fall back to `engine.kill()` —
-      // which is safe there (no `reconciling` guard, no separate cli-runner). Either way the kill
-      // is wrapped in try/catch so the drop + revoke (and the rest of the loop + step 4) always
-      // execute even if the kill rejects.
       for (const [sessionKey, session] of this.sessions) {
         if (!effectiveLive.has(sessionKey)) {
-          try {
-            if (this.deps.killSession) {
-              await this.deps.killSession(sessionKey);
-            } else {
-              await session.engine.kill();
+          if (session.incognito) {
+            const thread = await this.deps.persistence.getCurrentThreadState?.(sessionKey);
+            await this.cleanupPrivateSession(
+              sessionKey,
+              thread?.incognito ? thread.id : undefined,
+              session
+            );
+          } else {
+            try {
+              if (this.deps.killSession) {
+                await this.deps.killSession(sessionKey);
+              } else {
+                await session.engine.kill();
+              }
+            } catch {
+              /* best-effort stale kill */
             }
-          } catch {
-            // best-effort: a stale-session kill failure must not abort the reconcile pass — the
-            // drop + revoke below still run, and the cli-runner already considers the key dead.
+            this.sessions.delete(sessionKey);
+            this.deps.revokeMcpToken?.(sessionKey);
           }
-          this.sessions.delete(sessionKey);
-          this.deps.revokeMcpToken?.(sessionKey);
         }
       }
 
-      // Step 4: kill orphaned mux sessions — a live key the Map does NOT know about. The
-      // token registry's session ids are the broader source for "sessions the api once had
-      // but whose Map entry is gone" (api restart); union them with current Map keys so an
-      // api-unknown live key is reaped by mux name even with an empty `sessions` Map.
-      // In-flight launch keys are explicitly EXCLUDED from reaping (§5.4): the api is itself
-      // bringing that session up, so it is not an orphan — never kill a launching key.
       const known = new Set<string>(this.sessions.keys());
       for (const key of this.launching.keys()) known.add(key);
       for (const id of this.deps.listMcpTokenSessionIds?.() ?? []) known.add(id);
@@ -857,24 +823,11 @@ export class ChatSessionManager {
           await this.deps.killSession?.(liveKey);
         }
       }
+      await this.sweepOrphanedPrivateThreads(effectiveLive);
     });
   }
 
-  /**
-   * Wire a production idle-reaper (#342, §5.5 option (a) — the PREFERRED outcome). Returns a
-   * stop handle that clears the interval. The reaper calls {@link reapIdle}, which takes the
-   * shared §5.4 maintenance mutex, so it can never race {@link reconcileLiveSessions}.
-   *
-   * This is the seam the api boot wiring (the composition root — NOT this package) calls once
-   * after constructing the manager; e.g. `const stop = manager.startIdleReaper()` and `stop()`
-   * on shutdown. It is OPT-IN so unit/integration tests that drive reapIdle manually are not
-   * disturbed by a background timer. Reconciliation does not DEPEND on this running — the
-   * bootId/reconnect-driven reconciliation plus the 60-min token TTL backstop are sufficient
-   * on their own (§5.5) — but wiring it is the preferred Phase-1 outcome and is provided here.
-   *
-   * INTEGRATE NOTE: the composition root must call this once at boot (see §5.5); it is not
-   * self-starting because the manager has no lifecycle/shutdown hook of its own.
-   */
+  /** Wire the production idle reaper. Returns a stop handle that clears the interval. */
   startIdleReaper(intervalMs: number = this.deps.idleMs): () => void {
     const handle = setInterval(() => {
       // Swallow errors so a transient reap failure (e.g. a kill RPC blip) does not crash the
@@ -924,6 +877,45 @@ export class ChatSessionManager {
     if (!timer) return;
     clearTimeout(timer);
     this.privateDetachTimers.delete(actorUserId);
+  }
+
+  private async cleanupPrivateSession(
+    actorUserId: string,
+    threadId: string | undefined,
+    session: UserSession | undefined
+  ): Promise<void> {
+    if (session) {
+      try {
+        await (this.deps.killSession ? this.deps.killSession(actorUserId) : session.engine.kill());
+      } catch {
+        /* best-effort private kill */
+      }
+      try {
+        await session.engine.purgeTranscripts?.();
+      } catch {
+        /* best-effort transcript purge */
+      }
+      this.sessions.delete(actorUserId);
+      this.clearPrivateDetachTimer(actorUserId);
+      this.deps.revokeMcpToken?.(actorUserId);
+    } else {
+      try {
+        await this.deps.purgePrivateTranscripts?.(actorUserId);
+      } catch {
+        /* best-effort restart purge */
+      }
+    }
+    if (threadId) {
+      await this.deps.persistence.deleteThread?.(actorUserId, threadId);
+    }
+  }
+
+  private async sweepOrphanedPrivateThreads(effectiveLive: ReadonlySet<string>): Promise<void> {
+    const rows = (await this.deps.persistence.listIncognitoThreadStates?.()) ?? [];
+    for (const row of rows) {
+      if (effectiveLive.has(row.actorUserId) || this.sessions.has(row.actorUserId)) continue;
+      await this.cleanupPrivateSession(row.actorUserId, row.threadId, undefined);
+    }
   }
 
   /** Poll readNew until complete, discarding records; returns the new offset. */

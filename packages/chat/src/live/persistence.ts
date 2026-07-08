@@ -10,10 +10,12 @@
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
 import { extractTimezone } from "../locale-utils.js";
+import { sql, type Kysely } from "kysely";
 import {
   assertDataContextDb,
   type DataContextDb,
   type DataContextRunner,
+  type JarvisDatabase,
   type PreferencesPort
 } from "@jarv1s/db";
 import type {
@@ -43,6 +45,7 @@ const LIVE_PROVIDER_KINDS: readonly ProviderKind[] = ["anthropic", "openai-compa
 const DEFAULT_CONVERSATION_TITLE = "Conversation";
 
 export interface DataContextChatPersistenceDeps {
+  readonly rootDb?: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
   readonly chatRepository: ChatRepository;
   readonly aiRepository: AiRepository;
@@ -111,6 +114,7 @@ export async function resolveChatFreshness(
 
 export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly dataContext: DataContextRunner;
+  private readonly rootDb: Kysely<JarvisDatabase> | undefined;
   private readonly chat: ChatRepository;
   private readonly ai: AiRepository;
   private readonly boss: PgBoss | undefined;
@@ -118,6 +122,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly localePreferences: PreferencesPort | undefined;
 
   constructor(deps: DataContextChatPersistenceDeps) {
+    this.rootDb = deps.rootDb;
     this.dataContext = deps.dataContext;
     this.chat = deps.chatRepository;
     this.ai = deps.aiRepository;
@@ -285,8 +290,21 @@ export class DataContextChatPersistence implements ChatPersistencePort {
 
   async deleteThread(actorUserId: string, threadId: string): Promise<void> {
     await this.run(actorUserId, "delete-thread", (scopedDb) =>
-      this.chat.deleteThread(scopedDb, threadId)
+      sql`SELECT app.delete_incognito_chat_thread_for_cleanup(${threadId}::uuid)`.execute(
+        scopedDb.db
+      )
     );
+  }
+
+  async listIncognitoThreadStates(): Promise<
+    readonly { readonly actorUserId: string; readonly threadId: string }[]
+  > {
+    if (!this.rootDb) return [];
+    const result = await sql<{ actorUserId: string; threadId: string }>`
+      SELECT actor_user_id AS "actorUserId", thread_id AS "threadId"
+      FROM app.list_incognito_chat_threads_for_cleanup()
+    `.execute(this.rootDb);
+    return result.rows;
   }
 
   async getThreadContext(
