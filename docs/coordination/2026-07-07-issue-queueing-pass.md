@@ -1862,3 +1862,9 @@ selection). Asked to re-scope Task 4 to verify/close-gaps-only instead of rebuil
 directly — no security/data-loss stakes, and it matches the spec's own framing (admin
 discovery/pin infra pre-existing; Task 4's job was UI/workflow glue, which is already there).
 Continuing Tasks 1/2/3/5. Weekly Codex quota 14% left, 209K used.
+
+**Build-759 DONE.** PR #873, branch `759-chat-model-selector` rebased on `origin/main` @
+`615f1b40`. Self-reported `VF_EXIT=0 AUDIT_EXIT=0` full suite, no deferrals. Session-id authority
+re-confirmed (`4727de9a` matches lock line) before acting. Spawned independent QA:
+`coordinated-qa` subagent (routine tier, Sonnet, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_759`).
+Awaiting verdict (async — will resume via its background task on completion).
