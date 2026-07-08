@@ -38,15 +38,20 @@ export function blankTaskDetailsForm(defaultListId = "", defaultTitle = ""): Tas
   };
 }
 
-export function formFromTask(task: TaskDto): TaskDetailsFormState {
+// #877 finding 3: `timeZone` must be the caller's persisted locale (from
+// `useUserLocale()`), threaded through explicitly rather than left to
+// toDateInputValue's ambient fallback — see task-format.ts for why bucketing
+// by UTC could disagree with the list-view day label for a dueAt/doAt instant
+// near local midnight.
+export function formFromTask(task: TaskDto, timeZone: string): TaskDetailsFormState {
   return {
     title: task.title,
     description: task.description ?? "",
     status: task.status,
     listId: task.listId,
     priority: task.priority === null ? "" : String(task.priority),
-    dueAt: toDateInputValue(task.dueAt),
-    doAt: toDateInputValue(task.doAt),
+    dueAt: toDateInputValue(task.dueAt, timeZone),
+    doAt: toDateInputValue(task.doAt, timeZone),
     effort: task.effort ?? "",
     repeat: "never",
     repeatEnd: ""
