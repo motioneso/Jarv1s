@@ -1,24 +1,43 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07 (session continuing 2026-07-08)
-**Coordinator lock:** `7dbdd81d-fe53-43ba-aac2-1a9bb989efc1` / label `Coordinator` / pane `w1:pBB`
-/ tab `w1:t15`. Claimed from predecessor `da0dca71-c202-43c2-b6c4-60a05a626a70` (pane `w1:pB6`,
-reaped). Resolve fresh by label+session, never trust a pane number.
+**Coordinator lock:** STALE — was `7dbdd81d-fe53-43ba-aac2-1a9bb989efc1` / pane `w1:pBB` / tab
+`w1:t15`, relaying now at context 70%. Successor claims the lock in `w1:t15`; resolve fresh by
+label+session, never trust a pane number.
+
+**CONTINUATION — do this FIRST:** `Build-760i` (session unknown, spawned this tenure, pane was
+`w1:pBH`) landed in the **wrong tab** — `w1:t15`, which is this coordinator's OWN tab (forbidden;
+only a relay successor may spawn there). The agents tab `w1:t1C` was auto-removed when its last
+two panes (`Build-760g`, `Build-760h`) were closed simultaneously — closing the last pane in a
+tab removes the tab. Successor: (1) `herdr pane list`, resolve `Build-760i` fresh by label; (2)
+`herdr pane move <pane> --new-tab --workspace w1` then rename that tab appropriately (or move
+into an existing agents tab if one still exists — check first); (3) bounded pane read to confirm
+it says **Sonnet** (spawned with `--model sonnet` explicitly, should be correct, but verify — a
+sibling attempt this tenure, Build-760h, leaked Opus via herdr's self-relay default despite the
+build-agent-is-always-Sonnet policy); (4) confirm it's actually reading
+`docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-10.md` and resuming Task 5 TDD;
+(5) once confirmed healthy, update this manifest's fleet block with the new pane/tab and drop this
+CONTINUATION block.
 
 **Fleet:**
 - **#853 auth-signup-atomicity: MERGED.** PR #875 squash-merged `a519bc88`. Opus adversarial QA
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760g** (`w1:pBF`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760f
-  (which was successor of Build-760e; wrong-tab self-relay caught+fixed at that hop, see history
-  below), verified driving, old pane (`w1:pBE`) reaped. Tasks 1–4 done, rebased+pushed onto
-  current `origin/main` (`c53f7ab4`→`d7a016a8`). Migration renumbered 0147→0149 (collision with
-  merged #870, verified against `origin/main`, see below). **Coordinator confirmed: Task5 (slash
-  autocomplete+invocation) and Task6 (gateway boundary regression tests) are NOT descoped** — core
-  scope per the plan's Goal line; build them, then Task7. Handoff doc
-  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-9.md`. Still **security
-  tier** (owner-scoped RLS + user-authored-content-as-instructions surface). No PR yet.
+- **Build-760i** (pane TBD after successor fixes tab placement — see CONTINUATION above) — chain:
+  760c→d→e→f→g→h→i. Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
+  grounding/design phase), handoff `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-
+  relay-10.md` commit `c50891b0` has full Task5 pure-fn design + confirmed evening-mode.tsx file-
+  map correction (no separate input, shared Composer/ChatDrawer covers it). Its successor
+  Build-760h booted on **Opus 4.8** (model-policy violation — build agents are always Sonnet,
+  only security-tier QA gets Opus); killed before it wrote any code (still reading test-convention
+  exemplar), no work lost. Respawned as Build-760i with `--model sonnet` explicit — verify this
+  landed correctly (see CONTINUATION). Tasks 1–4 done, rebased+pushed onto `origin/main`
+  (`c53f7ab4`→`d7a016a8`). Migration renumbered 0147→0149 (collision with merged #870, verified
+  against `origin/main` directly). **Coordinator confirmed: Task5 (slash autocomplete+invocation)
+  and Task6 (gateway boundary regression tests) are NOT descoped** — core scope per the plan's
+  Goal line; build them, then Task7. Still **security tier** (owner-scoped RLS + user-authored-
+  content-as-instructions surface). No PR yet.
   Coordinator call (routine, no escalation needed): `packages/db/src/types.ts` grew to 1011 lines
   (Task 1 commit `c7262aff`, predates this relay) tripping `check:file-size`; directed to add it
   to `exemptFiles` in `scripts/check-file-size.ts` — matches existing precedent
