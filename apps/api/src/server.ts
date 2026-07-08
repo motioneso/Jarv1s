@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
+import { AiRepository } from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import {
   ConnectorsRepository,
@@ -91,6 +92,15 @@ export interface ApiServerConfig {
   readonly mcpServerUrl: string;
 }
 
+export function hasAuthMaterial(request: FastifyRequest): boolean {
+  const authorization = request.headers.authorization;
+  const cookie = request.headers.cookie;
+  return (
+    (typeof authorization === "string" && authorization.trim().length > 0) ||
+    (typeof cookie === "string" && cookie.trim().length > 0)
+  );
+}
+
 export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): ApiServerConfig {
   const port = Number(env.PORT ?? 3000);
   const host = env.HOST ?? "0.0.0.0";
@@ -119,6 +129,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   const ownsAppDb = options.appDb === undefined;
   const ownsBoss = options.boss === undefined;
   const dataContext = new DataContextRunner(appDb);
+  const aiRepository = new AiRepository();
   const server = Fastify({
     logger: options.logger ?? true,
     // Honor XFF only when an explicit opt-in confirms a trusted reverse proxy is in
@@ -255,7 +266,27 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
     // does not 404 it. Registered before the guard + static web so it lands in
     // the final route tree. Safe by construction (see error-handling.ts).
-    registerClientErrorsRoute(server);
+    registerClientErrorsRoute(server, {
+      recordClientError: async (event, request) => {
+        const input = { id: randomUUID(), ...event };
+        if (!hasAuthMaterial(request)) {
+          await aiRepository.recordAnonymousError(appDb, input);
+          return;
+        }
+
+        try {
+          const accessContext = await authRuntime.resolveAccessContext(request);
+          await dataContext.withDataContext(accessContext, (scopedDb) =>
+            aiRepository.recordError(scopedDb, input)
+          );
+        } catch {
+          request.log.warn(
+            { reqId: request.id },
+            "skipped error persistence after auth resolution failed"
+          );
+        }
+      }
+    });
 
     const resolveActiveModules = createActiveModulesResolver({
       dataContext,
@@ -397,7 +428,20 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // here. Logs a structured allowlisted line and returns a safe body (fixed
   // "Internal Server Error" on 5xx — no stack/internal detail). See
   // error-handling.ts for the secrets-never-escape invariant.
-  setJarvisErrorHandler(server);
+  setJarvisErrorHandler(server, {
+    recordRequestError: async (event, request) => {
+      const input = { id: randomUUID(), ...event };
+      if (!hasAuthMaterial(request)) {
+        await aiRepository.recordAnonymousError(appDb, input);
+        return;
+      }
+
+      const accessContext = await authRuntime.resolveAccessContext(request);
+      await dataContext.withDataContext(accessContext, (scopedDb) =>
+        aiRepository.recordError(scopedDb, input)
+      );
+    }
+  });
 
   server.addHook("onReady", async () => {
     // Coverage assertion (ADR 0009 §4) runs once the route tree is final. Throws if any

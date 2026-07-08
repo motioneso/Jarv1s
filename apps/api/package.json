@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jarv1s/ai": "workspace:*",
     "@jarv1s/auth": "workspace:*",
     "@jarv1s/connectors": "workspace:*",
     "@jarv1s/db": "workspace:*",

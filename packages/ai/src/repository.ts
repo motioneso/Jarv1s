@@ -16,6 +16,7 @@ import {
   type AiProviderStatus,
   type DataContextDb,
   type JarvisActionAuditLog,
+  type JarvisErrorLog,
   type JarvisDatabase
 } from "@jarv1s/db";
 import type {
@@ -151,6 +152,23 @@ export interface InsertAuditLogInput {
 export interface ListAuditLogOptions {
   readonly since: Date;
   readonly familyFilter?: { moduleId: string; familyId: string } | null;
+  readonly limit: number;
+}
+
+export interface RecordErrorInput {
+  readonly id: string;
+  readonly feature: string;
+  readonly operation: string;
+  readonly errorCategory: string;
+  readonly retryable: boolean;
+  readonly userMessage: string;
+  readonly internalSummary: string;
+  readonly requestId: string | null;
+}
+
+export interface ListRecentErrorsOptions {
+  readonly query?: string;
+  readonly since?: Date;
   readonly limit: number;
 }
 
@@ -1105,6 +1123,77 @@ export class AiRepository {
   async purgeActionAuditLog(appDb: Kysely<JarvisDatabase>, olderThan: Date): Promise<number> {
     const result = await sql<{ count: number }>`
       SELECT app.purge_jarvis_action_audit_log(${olderThan}) AS count
+    `.execute(appDb);
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
+  async recordError(scopedDb: DataContextDb, input: RecordErrorInput): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.jarvis_error_log")
+      .values({
+        id: input.id,
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        feature: input.feature,
+        operation: input.operation,
+        error_category: input.errorCategory,
+        retryable: input.retryable,
+        user_message: input.userMessage,
+        internal_summary: input.internalSummary,
+        request_id: input.requestId
+      })
+      .execute();
+  }
+
+  async recordAnonymousError(
+    appDb: Kysely<JarvisDatabase>,
+    input: RecordErrorInput
+  ): Promise<void> {
+    await sql`
+      SELECT app.record_anonymous_error(
+        ${input.id}::uuid,
+        ${input.feature},
+        ${input.operation},
+        ${input.errorCategory},
+        ${input.retryable},
+        ${input.userMessage},
+        ${input.internalSummary},
+        ${input.requestId}
+      )
+    `.execute(appDb);
+  }
+
+  async listRecentErrors(
+    scopedDb: DataContextDb,
+    opts: ListRecentErrorsOptions
+  ): Promise<JarvisErrorLog[]> {
+    assertDataContextDb(scopedDb);
+    const since = opts.since ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const q = opts.query?.trim().toLowerCase();
+    let query = scopedDb.db
+      .selectFrom("app.jarvis_error_log")
+      .selectAll()
+      .where("occurred_at", ">=", since)
+      .orderBy("occurred_at", "desc")
+      .limit(Math.min(opts.limit, 50));
+
+    if (q) {
+      query = query.where((eb) =>
+        eb.or([
+          eb(sql<string>`lower(feature)`, "like", `%${q}%`),
+          eb(sql<string>`lower(operation)`, "like", `%${q}%`),
+          eb(sql<string>`lower(error_category)`, "like", `%${q}%`),
+          eb(sql<string>`lower(user_message)`, "like", `%${q}%`)
+        ])
+      );
+    }
+
+    return query.execute();
+  }
+
+  async purgeErrorLog(appDb: Kysely<JarvisDatabase>, olderThan: Date): Promise<number> {
+    const result = await sql<{ count: number }>`
+      SELECT app.purge_jarvis_error_log(${olderThan}) AS count
     `.execute(appDb);
     return Number(result.rows[0]?.count ?? 0);
   }

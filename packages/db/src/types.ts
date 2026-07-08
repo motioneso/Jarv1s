@@ -416,6 +416,19 @@ export interface JarvisActionAuditLogTable {
   occurred_at: TimestampColumn;
 }
 
+export interface JarvisErrorLogTable {
+  id: string;
+  owner_user_id: string | null;
+  occurred_at: TimestampColumn;
+  feature: string;
+  operation: string;
+  error_category: string;
+  retryable: boolean;
+  user_message: string;
+  internal_summary: string;
+  request_id: string | null;
+}
+
 export interface ChatThreadsTable {
   id: string;
   owner_user_id: string;
@@ -915,6 +928,7 @@ export interface JarvisDatabase {
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
   "app.jarvis_action_audit_log": JarvisActionAuditLogTable;
+  "app.jarvis_error_log": JarvisErrorLogTable;
   "app.chat_threads": ChatThreadsTable;
   "app.chat_messages": ChatMessagesTable;
   "app.briefing_definitions": BriefingDefinitionsTable;
@@ -965,6 +979,7 @@ export type CalendarEvent = Selectable<CalendarEventsTable>;
 export type EmailMessage = Selectable<EmailMessagesTable>;
 export type AiAssistantActionRequest = Selectable<AiAssistantActionRequestsTable>;
 export type JarvisActionAuditLog = Selectable<JarvisActionAuditLogTable>;
+export type JarvisErrorLog = Selectable<JarvisErrorLogTable>;
 export type ChatThread = Selectable<ChatThreadsTable>;
 export type ChatMessage = Selectable<ChatMessagesTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;

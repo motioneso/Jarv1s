@@ -41,6 +41,8 @@ import {
   listActionAuditLogRouteSchema
 } from "@jarv1s/shared";
 
+import { aiExplainRecentErrorsExecute } from "./error-tools.js";
+
 export const AI_MODULE_ID = "ai";
 export const aiModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
@@ -66,14 +68,16 @@ export const aiModuleManifest = {
       "sql/0048_ai_model_tier.sql",
       "sql/0091_chat_model_override.sql",
       "sql/0098_ai_cancel_stale_assistant_actions.sql",
-      "sql/0127_jarvis_action_audit_log.sql"
+      "sql/0127_jarvis_action_audit_log.sql",
+      "sql/0145_jarvis_error_log.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
       "app.ai_provider_configs",
       "app.ai_configured_models",
       "app.ai_assistant_action_requests",
-      "app.jarvis_action_audit_log"
+      "app.jarvis_action_audit_log",
+      "app.jarvis_error_log"
     ]
   },
   settings: [
@@ -311,6 +315,22 @@ export const aiModuleManifest = {
       path: "/api/ai/action-audit",
       responseSchema: listActionAuditLogRouteSchema.response[200],
       permissionId: "ai.assistant-actions"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "ai.explainRecentErrors",
+      description: "List recent structured error events visible to the active actor.",
+      permissionId: "ai.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number" }
+        }
+      },
+      execute: aiExplainRecentErrorsExecute
     }
   ]
 } satisfies JarvisModuleManifest;
