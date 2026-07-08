@@ -11,12 +11,16 @@ by label+session, never trust a pane number.
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760j** — pane `w1:pBN`, tab `w1:t1D` (label "agents"), confirmed **Sonnet 5**, driving,
-  47% context. Predecessor Build-760i relayed at its own 70% context checkpoint: Task 5 done +
-  committed + green (`a556c42e`, `0f251f6a`); relay-11 handoff doc committed `492fe3d5` with Task 6
-  grounding (gateway test file + `persona.ts` call sites located). Build-760j resuming
-  `coordinated-build` at Task 6 (gateway boundary regression tests), same worktree/branch. Chain:
-  760c→d→e→f→g→h→i→j. Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
+- **Build-760k** — pane `w1:pBP`, tab `w1:t1D` (label "agents"), confirmed **Sonnet 5**, driving,
+  42% context. Predecessor Build-760j: Task 6 (gateway boundary integration tests) done + committed
+  `209e14d4`, all green. Task 7 (acceptance sweep) mostly confirmed: no watched-dir loading,
+  migration 0149 asserted, `evening-mode.tsx` needs no edit (shared Composer already covers it).
+  **Open for Build-760k:** pg-boss metadata-only grep check + an isolated re-run of
+  `verify:foundation` (prior run showed 2 unrelated integration test files failing with
+  tuple-concurrently-updated — matches known PG-contention flakiness per
+  [[multi-agent-pg-contention]], not yet confirmed clean in isolation). Handoff doc:
+  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-12.md`. Chain:
+  760c→d→e→f→g→h→i→j→k. Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
   grounding/design phase), handoff `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-
   relay-10.md` commit `c50891b0` has full Task5 pure-fn design + confirmed evening-mode.tsx file-
   map correction (no separate input, shared Composer/ChatDrawer covers it). Its successor
