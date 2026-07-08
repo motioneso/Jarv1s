@@ -108,8 +108,6 @@ import type {
   RevokeConnectorAccountResponse,
   TestAiProviderConfigResponse,
   LookupAiCapabilityRouteResponse,
-  PutAiCapabilityRouteRequest,
-  PutAiCapabilityRouteResponse,
   TranscribeAudioResponse,
   UpdateBriefingDefinitionRequest,
   UpdateBriefingDefinitionResponse,
@@ -807,15 +805,12 @@ export async function lookupAiCapabilityRoute(
   );
 }
 
-export async function putAiCapabilityRoute(
-  capability: AiModelCapability,
-  input: PutAiCapabilityRouteRequest
-): Promise<PutAiCapabilityRouteResponse> {
-  return requestJson<PutAiCapabilityRouteResponse>(
-    `/api/ai/capability-routes/${encodeURIComponent(capability)}`,
-    { method: "PUT", body: input }
-  );
-}
+// Merge-up (#876): #759's `putAiCapabilityRoute` client wrapper is dropped here. #870 Slice-1
+// retired the manual capability-route knob (removed PutAiCapabilityRoute{Request,Response} from
+// @jarv1s/shared) in favour of per-service bindings (`putAiServiceBinding`), and #759's only
+// caller — the admin-pane RouterRow pin — is likewise superseded by Slice-1's ServiceRow
+// "Specific model" option. The in-chat model selector (#759's headline surface) is unaffected:
+// it routes through `putChatModelOverride`, which remains.
 
 /**
  * Uploads a recorded audio clip for transcription and returns the transcript text only.
