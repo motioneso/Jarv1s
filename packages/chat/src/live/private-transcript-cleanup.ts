@@ -11,7 +11,8 @@ export async function purgePrivateTranscripts(
 ): Promise<void> {
   const neutralDir = deriveNeutralDir(neutralBase, sessionKey);
   await io.run("rm", ["-rf", transcriptGlobDir("anthropic", neutralDir, homeBase)]);
-  await purgeMatchingJsonl(io, transcriptGlobDir("google", neutralDir, homeBase), neutralDir);
+  // Private transcript cleanup is intentionally scoped to Claude + interactive Codex.
+  // Gemini, agy-print, and codex-exec paths stay inert here until #868 lands.
   await purgeMatchingJsonl(io, codexSessionsRoot(homeBase), neutralDir);
 }
 

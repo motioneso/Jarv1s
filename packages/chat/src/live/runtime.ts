@@ -420,6 +420,12 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
       : undefined
   });
 
+  if (connection) {
+    // Boot-time connect kicks the reconcile hook once up front so orphaned incognito
+    // rows/transcripts are swept before the first live turn on the RPC path.
+    void connection.ensureConnected().catch(() => undefined);
+  }
+
   // §5.5 — start the idle reaper at boot (the PREFERRED outcome) for the RPC path. It shares the §5.4
   // maintenance mutex with reconciliation, so it can never race it. Opt-out via
   // engineSelection.startIdleReaper === false; default ON whenever engineSelection is used.

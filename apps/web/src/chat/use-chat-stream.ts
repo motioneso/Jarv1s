@@ -118,15 +118,9 @@ export function useChatStream(): {
 export function shouldEndPrivateChatOnStreamDisconnect(input: {
   readonly privateMode: boolean;
   readonly privateEnded: boolean;
-  readonly visibleRecordCount: number;
   readonly streamErrorCount: number;
 }): boolean {
-  return (
-    input.privateMode &&
-    !input.privateEnded &&
-    input.visibleRecordCount > 0 &&
-    input.streamErrorCount > 0
-  );
+  return input.privateMode && !input.privateEnded && input.streamErrorCount > 0;
 }
 
 export function parseRecord(data: unknown): TranscriptRecord | null {

@@ -11,12 +11,14 @@
  * These are pure selection tests; no socket is opened (the factory does not connect until first
  * engine use, and the fail-fast throws before construction), so they need no real cli-runner.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   ChatEngineRpcClient,
   CliChatUnavailableError,
   createRealEngineFactory,
+  createChatSessionRuntime,
+  RpcConnection,
   selectEngineFactory
 } from "../../packages/chat/src/live/runtime.js";
 import { ClaudePrintChatEngine } from "../../packages/chat/src/live/claude-print-chat-engine.js";
@@ -132,5 +134,36 @@ describe("selectEngineFactory — SECURITY FAIL-FAST on a missing RPC secret (§
 
   it("does NOT throw on the in-process path even with no secret set", () => {
     expect(() => selectEngineFactory({ env: {} as NodeJS.ProcessEnv })).not.toThrow();
+  });
+});
+
+describe("createChatSessionRuntime — boot reconciliation", () => {
+  it("connects the RPC client on boot so reconciliation runs before first turn", async () => {
+    const ensureConnected = vi
+      .spyOn(RpcConnection.prototype, "ensureConnected")
+      .mockResolvedValue(undefined);
+
+    const runtime = await createChatSessionRuntime({
+      dataContext: {
+        withDataContext: async (
+          _access: { readonly actorUserId: string; readonly requestId: string },
+          fn: (db: never) => unknown
+        ) => fn({} as never)
+      } as never,
+      engineSelection: {
+        env: {
+          JARVIS_CLI_RUNNER_SOCKET: SOCKET,
+          JARVIS_CLI_RUNNER_RPC_SECRET: "boot-secret"
+        } as NodeJS.ProcessEnv
+      }
+    });
+
+    try {
+      expect(ensureConnected).toHaveBeenCalledTimes(1);
+      expect(runtime.connection).toBeDefined();
+    } finally {
+      runtime.shutdown();
+      ensureConnected.mockRestore();
+    }
   });
 });

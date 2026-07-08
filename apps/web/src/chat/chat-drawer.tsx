@@ -271,7 +271,6 @@ export function ChatDrawer(props: {
       shouldEndPrivateChatOnStreamDisconnect({
         privateMode,
         privateEnded,
-        visibleRecordCount: effectiveRecords.length,
         streamErrorCount: props.streamErrorCount
       })
     ) {
@@ -280,7 +279,7 @@ export function ChatDrawer(props: {
       setPendingUserText(null);
       setDrainAfterStopText(null);
     }
-  }, [effectiveRecords.length, privateEnded, privateMode, props.streamErrorCount]);
+  }, [privateEnded, privateMode, props.streamErrorCount]);
 
   // #633: switching what's displayed (new chat, opening a history row, toggling the history
   // list, or the drawer itself (re)opening — #638) always re-pins to the bottom of the

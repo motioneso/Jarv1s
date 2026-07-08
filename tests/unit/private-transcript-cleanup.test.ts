@@ -48,5 +48,6 @@ describe("purgePrivateTranscripts", () => {
     const rmCalls = io.run.mock.calls.filter((call: unknown[]) => call[0] === "rm");
     expect(rmCalls).toContainEqual(["rm", ["-f", expect.stringContaining("rollout-mine.jsonl")]]);
     expect(JSON.stringify(rmCalls)).not.toContain("rollout-other.jsonl");
+    expect(JSON.stringify(io.run.mock.calls)).not.toContain(".gemini");
   });
 });

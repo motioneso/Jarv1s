@@ -60,28 +60,28 @@ describe("shouldEndPrivateChatOnStreamDisconnect", () => {
       shouldEndPrivateChatOnStreamDisconnect({
         privateMode: true,
         privateEnded: false,
-        visibleRecordCount: 2,
         streamErrorCount: 1
       })
     ).toBe(true);
   });
 
-  it("does not mark ordinary chats or empty private starts ended", () => {
+  it("does not mark ordinary chats ended", () => {
     expect(
       shouldEndPrivateChatOnStreamDisconnect({
         privateMode: false,
         privateEnded: false,
-        visibleRecordCount: 2,
         streamErrorCount: 1
       })
     ).toBe(false);
+  });
+
+  it("marks an empty private transcript ended after stream failure", () => {
     expect(
       shouldEndPrivateChatOnStreamDisconnect({
         privateMode: true,
         privateEnded: false,
-        visibleRecordCount: 0,
         streamErrorCount: 1
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 });

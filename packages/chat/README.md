@@ -57,3 +57,8 @@ This is **deferred from v1** because:
 - Fail-closed semantics + cross-engine scope need their own design.
 
 Tracked as a follow-up issue under epic #47.
+
+## Private chat support scope
+
+Private chat mode currently supports Claude and interactive Codex only. Gemini and the
+non-interactive Codex/Codex-exec cleanup gap are tracked separately in #868 (Part of #744).
