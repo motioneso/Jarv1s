@@ -1,9 +1,9 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** label `Coordinator`, session `2d06024b-ecbf-49a6-9f55-5818b130db40` (pane
-`w1:pAB`) is **relaying now at 71% context** — successor claims the lock, resolve fresh by
-label+session, never trust the pane number.
+**Coordinator lock:** now `743e10e9-147f-4fb9-88b4-38c72a9755d9` / label `Coordinator` / pane
+`w1:pAC` — claimed 2026-07-07 from predecessor `2d06024b-ecbf-49a6-9f55-5818b130db40` (reaped,
+its pane `w1:pAB` closed). Resolve fresh by label+session, never trust the pane number.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
