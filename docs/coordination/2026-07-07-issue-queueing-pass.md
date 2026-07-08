@@ -1,10 +1,13 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `63c5023b-8368-49da-9f60-e875e7d60d7f` / label `Coordinator` / pane
-`w1:pAE` / tab `w1:t15` — claimed 2026-07-07 from predecessor `743e10e9-147f-4fb9-88b4-38c72a9755d9`
-(confirmed idle/relayed via bounded read — self-handoff task done — before reap; its pane `w1:pAC`
-closed). Resolve fresh by label+session, never trust the pane number.
+**Coordinator lock:** now `50dc5074-9b84-4f44-b47c-22dc74df73cd` / label `Coordinator` / pane
+`w1:pAH` / tab `w1:t15` — claimed 2026-07-07 from predecessor `63c5023b-8368-49da-9f60-e875e7d60d7f`
+(confirmed idle/relayed via bounded read — "My relay is complete — standing down" — before reap;
+its pane `w1:pAE` closed). Resolve fresh by label+session, never trust the pane number.
+**⚠️ This session relayed again almost immediately — own context arrived at 79% already at
+re-adoption (before any merge action), see final relay checkpoint at bottom of file. Successor
+action item #0 (merge PR #864) was NOT executed by this tenure — still open, do it first.**
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -1275,3 +1278,40 @@ standing digest table at the top of this file, reap `Build-742` (`w1:pAF`, resol
 label+session), remove its worktree. This is `merges_since_relay: 1` for your tenure once done —
 routine tier, so no unconditional relay is triggered by this merge alone (threshold is 2
 routine/sensitive, or any security-tier merge).
+
+## Relay checkpoint (session `50dc5074-9b84-4f44-b47c-22dc74df73cd`, own context 79% on re-adoption)
+
+Spawned to pick up from `63c5023b`'s handoff. On completing Phase 0a re-adoption alone (reading
+this manifest in full via two large Read calls + herdr pane list + one bounded pane read), own
+context was already at **79%** before taking any merge action — the 70% trigger had effectively
+already fired by the time re-adoption finished. Per the no-deferral relay rule ("continuing past a
+fired relay trigger" is a red flag — no "just one more merge"), this tenure did the minimum
+Phase 0a bookkeeping only and is relaying immediately without touching PR #864.
+
+**Completed this (very short) tenure:**
+- Re-confirmed own session id (`50dc5074-9b84-4f44-b47c-22dc74df73cd`) against the manifest lock
+  line and `herdr pane list` — authoritative.
+- Re-adopted fleet via `herdr pane list` + one bounded read: `Build-853` (`w1:p9W`, idle, security
+  tier, unchanged — Task 1+2 done, Task 3 not yet started per last known state, not re-verified by
+  bounded read this tenure); `Build-744` (`w1:pAG`, Codex, `working` — QA-RED fix in progress per
+  predecessor note, not re-verified this tenure); `Build-742` (`w1:pAF`, Codex, `done` — PR #864
+  MERGE-READY: YES verdict already posted, awaiting merge, see action item #0 above).
+- Confirmed predecessor `63c5023b-8368-49da-9f60-e875e7d60d7f` (pane `w1:pAE`) was idle/relayed
+  ("My relay is complete — standing down") via bounded read, then closed it. Verified exactly one
+  `Coordinator`-labeled pane remains (`w1:pAH`, this session).
+- Updated the manifest lock line (top of file) to this session.
+
+**NOT done this tenure — successor inherits exactly the predecessor's open items, unchanged:**
+1. **PR #864 merge** — still open, action item #0 above, un-executed. Do this first.
+2. **Build-744 QA-RED fix** — no fresh status check performed; bounded-read it before assuming
+   anything beyond "working" from the pane-list status string alone.
+3. **Build-853** — still no PR, tier `security`; status not re-verified this tenure beyond the
+   pane-list summary above.
+4. No new liveness `Monitor` was started this tenure (none survived from predecessor either —
+   start one for `w1:p9W`/`w1:pAG` covering Build-853/Build-744 once adopted).
+
+**merges_since_relay:** 0 (carried unchanged — no merge action taken this tenure).
+
+**Coordinator lock:** now `50dc5074-9b84-4f44-b47c-22dc74df73cd` / label `Coordinator` / pane
+`w1:pAH` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
+Phase 0a and updates this line itself.
