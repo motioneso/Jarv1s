@@ -1167,3 +1167,11 @@ rebased on `origin/main`. Self-reported `VF_EXIT=0 AUDIT_EXIT=0`. No deferrals. 
 authoritative to merge. **Not trusting the self-report** — spawned an independent QA agent
 (`coordinated-qa`, routine tier → Sonnet, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_742`)
 against PR #864. Awaiting verdict.
+
+**QA verdict #1 on PR #864: RED.** CI red — `pnpm install --frozen-lockfile` fails with
+`ERR_PNPM_OUTDATED_LOCKFILE`: `packages/settings/package.json` adds `@jarv1s/notifications` dep
+but `pnpm-lock.yaml` wasn't regenerated (cascades to both compose smokes + image publish, all
+skipped). Review/invariants/exit-criteria not assessed — blocked before code-review pass. Posted
+durably: PR #864 comment `4911784072`. **Failure budget: 1/2** — relayed the fix (regenerate
+lockfile with plain `pnpm install`, commit, push, re-request QA) to Build-742 via
+`herdr-pane-message`, confirmed delivered + agent back to `working`. Re-QA once it reports fixed.
