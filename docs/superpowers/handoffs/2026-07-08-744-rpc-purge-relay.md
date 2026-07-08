@@ -82,3 +82,51 @@ suggested a comment on migration `0146`'s SECURITY DEFINER noting system-wide-re
 - Reap request: after you confirm you're driving, ask the coordinator to reap the predecessor
   pane (label `Fable-865`, session `f6b2a4ca-5a9d-4e73-8077-544a6b2a318e`) — resolve fresh, never
   by pane number.
+
+## Successor #2 delta (2026-07-08) — grounding COMPLETE, design settled, no code yet
+
+Successor #2 (session `bf11eeff…`) finished all grounding, resolved the §"Open decision", then
+hit the 70% meter (compaction inflated its start) before writing code. Successor #3: skip all
+re-reading except what you edit; implement directly from this settled design. Branch tip
+`33f24b56` (docs-only).
+
+**Key finding — engine-less is the NORMAL path, not an edge:** `host.kill()` DELETES the engine
+from the server map (`engine-host.ts:316-331`, delete at :323) and the manager kills BEFORE
+purging (`chat-session-manager.ts:882-911`). So over RPC, purge always arrives engine-less.
+
+**Settled design:**
+
+1. `rpc-contract.ts`: add `"purgeTranscripts"` to `RpcMethod` (union at :145-158, group with
+   kill); `RpcPurgeTranscriptsParams = Record<string, never>`; `RpcPurgeTranscriptsResult
+   { ok: true }` (kill shapes at :298-303).
+2. `chat-engine-rpc-client.ts`: `RpcConnection.purgeTranscripts(sessionKey)` (verb methods
+   :260-282); add to BOTH the `callTimeoutMs` turn-verb case (:236-256) AND
+   `resetActivityDeadline` turnVerbs set (:292-305) — kill is in both;
+   `ChatEngineRpcClient.purgeTranscripts()` → `this.conn.purgeTranscripts(this.sessionKey)`
+   (class :773-828).
+3. cli-runner `connection.ts`: `case "purgeTranscripts"` in `invoke()` (:187-290) mirroring kill
+   (:218-222): `requireSessionKey` → `await host.purgeTranscripts(key)` → `{ ok: true }`.
+4. `engine-host.ts`: `purgeTranscripts(sessionKey)` — sanitize key, per-key `enqueue`
+   (:111-123); engine present → `engine.purgeTranscripts()`; engine ABSENT (normal case) →
+   `purgePrivateTranscripts(this.deps.io, this.deps.neutralBase, key, this.deps.homeBase)`
+   (deps already carry all three). Do NOT throw NotLaunchedError — engine-less purge must work.
+5. **Export gap:** `purgePrivateTranscripts` is NOT exported from `packages/chat/src/live/index.ts`
+   (grep-verified) — add the export so cli-runner can import from `@jarv1s/chat/live`.
+6. **Manager ordering fix (REQUIRED, both branches of `cleanupPrivateSession` :882-911):** gate
+   `deleteThread` (:908-910) on purge SUCCESS. On purge failure: still `sessions.delete` + clear
+   detach timer + revoke MCP token (else `sweepOrphanedPrivateThreads` :913-919 skips rows where
+   `sessions.has(key)` — row stuck forever), but do NOT deleteThread — boot sweep retries.
+   Currently purge errors are swallowed (:894 `?.()` + catch) — that swallow is part of the bug.
+   Also treat `purgeTranscripts` being undefined on the engine as failure, not success —
+   optional-chain silent no-op is the exact defect class.
+7. Rejected QA's alternative (call api-side purge in the live branch): on split topology,
+   `rm -rf` of nonexistent paths falsely succeeds → row deleted, transcripts survive. RPC verb
+   result is the authoritative signal. Leave `runtime.ts:397` unconditional api-side dep wiring
+   as-is (serves the manager's engine-less branch; defense in depth).
+
+**Cleanup call sites** (for the ordering fix + tests): endPrivateSession :662 (callers :648,
+:764), reconcile :797, detach timer :869, boot sweep :917. Manager dep sig :155.
+
+**Not yet done:** locate RPC round-trip test models
+(`grep -rln "serveConnection\|RpcConnection" tests/ packages/*/tests`) → TDD per §Regression
+test; then optional task 3; then gate/wrap-up per §Bans.
