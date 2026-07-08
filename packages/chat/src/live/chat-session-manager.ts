@@ -36,10 +36,6 @@ export interface Clock {
   now(): number;
 }
 
-/**
- * Persistence + provider-routing port. The real impl (Task 8) wraps
- * ChatRepository + DataContextRunner + the capability router.
- */
 export interface ChatPersistencePort {
   /** The active "chat" provider+model for this user (router-selected). */
   resolveActiveProvider(
@@ -191,7 +187,6 @@ interface UserSession {
   model: string;
   lastActivity: number;
   transcriptOffset: number;
-  threadId?: string;
   incognito: boolean;
   /** #679 — last attached page-context snapshot; volatile (deleted with this object on
    *  clear()/resumeThread()/switchProvider()/reapIdle()), reused within PAGE_CONTEXT_TTL_MS. */
@@ -199,6 +194,7 @@ interface UserSession {
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
+const PRIVATE_DETACH_GRACE_MS = 30_000;
 /** #679 — a session-held page-context snapshot is reusable for a follow-up turn only
  *  within this window; past it, resolvePageContext treats it as stale and drops it. */
 const PAGE_CONTEXT_TTL_MS = 5 * 60_000;
@@ -233,6 +229,7 @@ export class ChatThreadNotFoundError extends Error {
 export class ChatSessionManager {
   private readonly sessions = new Map<string, UserSession>();
   private readonly subscribers = new Map<string, Set<Subscriber>>();
+  private readonly privateDetachTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** In-flight ensureSession promises, keyed by user, to serialize launches. */
   private readonly launching = new Map<string, Promise<UserSession>>();
   /**
@@ -368,7 +365,6 @@ export class ChatSessionManager {
       // Seed from the launch return so the FIRST real readNew does not re-read the
       // server-drained replay block as the assistant reply (§4.1.2).
       transcriptOffset: offset,
-      threadId: threadState?.id,
       incognito: threadState?.incognito ?? false
     };
     this.sessions.set(actorUserId, session);
@@ -673,6 +669,7 @@ export class ChatSessionManager {
         // best-effort: cleanup continues below.
       }
       this.sessions.delete(actorUserId);
+      this.clearPrivateDetachTimer(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
     }
 
@@ -729,6 +726,7 @@ export class ChatSessionManager {
    * unsubscribe handle. Multiple subscribers (multi-tab) all receive records.
    */
   subscribe(actorUserId: string, fn: Subscriber): () => void {
+    this.clearPrivateDetachTimer(actorUserId);
     let set = this.subscribers.get(actorUserId);
     if (!set) {
       set = new Set();
@@ -741,7 +739,10 @@ export class ChatSessionManager {
     return () => {
       const current = this.subscribers.get(actorUserId);
       current?.delete(fn);
-      if (current && current.size === 0) this.subscribers.delete(actorUserId);
+      if (current && current.size === 0) {
+        this.subscribers.delete(actorUserId);
+        if (this.sessions.get(actorUserId)?.incognito) this.schedulePrivateEnd(actorUserId);
+      }
     };
   }
 
@@ -907,6 +908,22 @@ export class ChatSessionManager {
     const set = this.subscribers.get(actorUserId);
     if (!set) return;
     for (const fn of set) fn(record);
+  }
+
+  private schedulePrivateEnd(actorUserId: string): void {
+    const timer = setTimeout(() => {
+      this.privateDetachTimers.delete(actorUserId);
+      void this.endPrivateSession(actorUserId).catch(() => {});
+    }, PRIVATE_DETACH_GRACE_MS);
+    timer.unref?.();
+    this.privateDetachTimers.set(actorUserId, timer);
+  }
+
+  private clearPrivateDetachTimer(actorUserId: string): void {
+    const timer = this.privateDetachTimers.get(actorUserId);
+    if (!timer) return;
+    clearTimeout(timer);
+    this.privateDetachTimers.delete(actorUserId);
   }
 
   /** Poll readNew until complete, discarding records; returns the new offset. */

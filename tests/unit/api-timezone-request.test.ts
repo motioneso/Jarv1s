@@ -2,7 +2,11 @@ import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { registerRequestTimeZoneHook } from "../../apps/api/src/server.js";
-import { requestJson } from "../../apps/web/src/api/client.js";
+import {
+  beaconEndPrivateChat,
+  endPrivateChat,
+  requestJson
+} from "../../apps/web/src/api/client.js";
 import { resolveRequestTimeZoneForRoute } from "../../packages/module-registry/src/index.js";
 
 describe("web API timezone header", () => {
@@ -41,6 +45,27 @@ describe("web API timezone header", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Headers;
     expect(headers.get("X-Timezone")).toBe("Europe/London");
+  });
+
+  it("posts the private chat end endpoint", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await endPrivateChat();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/chat/private/end",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("uses sendBeacon for best-effort private chat unload cleanup", () => {
+    const sendBeacon = vi.fn();
+    vi.stubGlobal("navigator", { sendBeacon });
+
+    beaconEndPrivateChat();
+
+    expect(sendBeacon).toHaveBeenCalledWith("/api/chat/private/end", "");
   });
 });
 

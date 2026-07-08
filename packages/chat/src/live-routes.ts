@@ -12,10 +12,10 @@
  * are never returned to the client.
  *
  *   POST /api/chat/turn    { text }  → { reply }   submit one user turn
-   *   POST /api/chat/turn/cancel      → 200          stop the in-flight turn (#456)
-   *   POST /api/chat/clear             → 204         reset history + new conversation
-   *   POST /api/chat/private/end       → 204         end private session bookkeeping
-   *   POST /api/chat/switch            → 200         re-launch on the now-active provider
+ *   POST /api/chat/turn/cancel      → 200          stop the in-flight turn (#456)
+ *   POST /api/chat/clear             → 204         reset history + new conversation
+ *   POST /api/chat/private/end       → 204         end private session bookkeeping
+ *   POST /api/chat/switch            → 200         re-launch on the now-active provider
  *   GET  /api/chat/stream            → SSE         live transcript records for the actor
  *
  * Rate limiting: POST /api/chat/turn is throttled per session principal (per user on a

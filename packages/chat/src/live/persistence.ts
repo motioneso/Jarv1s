@@ -284,7 +284,9 @@ export class DataContextChatPersistence implements ChatPersistencePort {
   }
 
   async deleteThread(actorUserId: string, threadId: string): Promise<void> {
-    await this.run(actorUserId, "delete-thread", (scopedDb) => this.chat.deleteThread(scopedDb, threadId));
+    await this.run(actorUserId, "delete-thread", (scopedDb) =>
+      this.chat.deleteThread(scopedDb, threadId)
+    );
   }
 
   async getThreadContext(

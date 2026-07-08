@@ -44,8 +44,6 @@ import { writeClaudePermissionHook } from "./claude-permission-hook.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
-// Re-export the login MUX-session helpers (extracted to ./login-mux-sessions.ts to keep this file
-// under the 1000-line cap) so existing `from "./cli-chat-engine.js"` import sites are unchanged.
 export {
   LOGIN_SESSION_PREFIX,
   killLoginMuxSession,
@@ -102,21 +100,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   /** The opaque session handle returned by mux.open() at launch. */
   private handle: MuxHandle | null = null;
 
-  /**
-   * The resolved JSONL transcript path. For `anthropic` this is pinned at launch
-   * (`--session-id` makes the filename deterministic and known before the CLI
-   * boots). For `openai-compatible`/`google` the CLI chooses its own filename
-   * (`rollout-…`/`session-…`), so this stays null until `readNew()` resolves the
-   * newest `.jsonl` under the glob dir lazily (the file does not exist until the
-   * CLI writes its first turn).
-   */
   private storedTranscriptPath: string | null = null;
-
-  /**
-   * Set at launch: the directory the active provider writes its transcript into.
-   * Used to lazily resolve the newest transcript file for providers that do NOT
-   * accept a session-id (Codex/Gemini).
-   */
   private transcriptDir: string | null = null;
 
   /** The cwd used to launch the CLI; Codex records it in session_meta.cwd. */

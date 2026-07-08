@@ -122,7 +122,8 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     });
 
     io.run.mockImplementation(async (cmd: string) => {
-      if (cmd === "ls") return { code: 0, stdout: "rollout-mine.jsonl\nrollout-other.jsonl\n", stderr: "" };
+      if (cmd === "ls")
+        return { code: 0, stdout: "rollout-mine.jsonl\nrollout-other.jsonl\n", stderr: "" };
       return { code: 0, stdout: "", stderr: "" };
     });
     io.readFile.mockImplementation(async (path: string) => {
@@ -142,10 +143,7 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     await engine.purgeTranscripts();
 
     const rmCalls = io.run.mock.calls.filter((call: unknown[]) => call[0] === "rm");
-    expect(rmCalls).toContainEqual([
-      "rm",
-      ["-f", expect.stringContaining("rollout-mine.jsonl")]
-    ]);
+    expect(rmCalls).toContainEqual(["rm", ["-f", expect.stringContaining("rollout-mine.jsonl")]]);
     expect(JSON.stringify(rmCalls)).not.toContain("rollout-other.jsonl");
   });
 

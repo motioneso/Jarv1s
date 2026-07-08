@@ -7,6 +7,7 @@ import {
   MessageSquareText,
   MoreHorizontal,
   Play,
+  ShieldOff,
   SquarePen,
   ThumbsDown,
   ThumbsUp,
@@ -20,7 +21,9 @@ import { BrandMark } from "../shell/brand-mark";
 import { maybeCapturePageContext } from "./page-context";
 import {
   cancelChatTurn,
+  beaconEndPrivateChat,
   clearChat,
+  endPrivateChat,
   getOnboardingStatus,
   listCalendarEvents,
   listChatThreadMessages,
@@ -78,6 +81,7 @@ export function ChatDrawer(props: {
   const queryClient = useQueryClient();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [privateMode, setPrivateMode] = useState(false);
 
   // #633: autoscroll to the newest message by default; pause it the moment the user scrolls
   // away from the bottom, and resume (jumping straight to the latest record) on demand.
@@ -121,6 +125,13 @@ export function ChatDrawer(props: {
   // Optimistic user record — shown immediately on send until the SSE stream confirms (#399).
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
   const [fallbackRecords, setFallbackRecords] = useState<readonly TranscriptRecord[]>([]);
+
+  useEffect(() => {
+    if (!privateMode) return;
+    const endPrivate = () => beaconEndPrivateChat();
+    window.addEventListener("beforeunload", endPrivate);
+    return () => window.removeEventListener("beforeunload", endPrivate);
+  }, [privateMode]);
 
   // #399: clear the optimistic record once the SSE stream delivers the matching user record.
   // Text-based check handles the case where SSE events pre-arrive before send (count stays equal).
@@ -283,9 +294,32 @@ export function ChatDrawer(props: {
     setDrainAfterStopText(null);
     setPendingUserText(null);
     setFallbackRecords([]);
+    setPrivateMode(false);
     void clearChat();
     props.clearRecords();
     void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+  };
+
+  const startPrivateChat = () => {
+    setReviewThreadId(null);
+    setShowHistory(false);
+    setIsSending(false);
+    setSendError(null);
+    setNeedsProvider(false);
+    setDrainAfterStopText(null);
+    setPendingUserText(null);
+    setFallbackRecords([]);
+    setPrivateMode(true);
+    void clearChat({ incognito: true });
+    props.clearRecords();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+  };
+
+  const closePrivateChat = () => {
+    setPrivateMode(false);
+    props.clearRecords();
+    setFallbackRecords([]);
+    void endPrivateChat();
   };
 
   /** #456 — stop the in-flight turn. The backend kills the engine + emits 'Stopped by user.' over
@@ -321,6 +355,16 @@ export function ChatDrawer(props: {
           onClick={startNewChat}
         >
           <SquarePen size={16} aria-hidden="true" />
+        </button>
+        <button
+          aria-label="Start private chat"
+          aria-pressed={privateMode}
+          className={`chatd__hbtn${privateMode ? " is-on" : ""}`}
+          title="Private chat"
+          type="button"
+          onClick={startPrivateChat}
+        >
+          <ShieldOff size={16} aria-hidden="true" />
         </button>
         <button
           aria-label={showHistory ? "Hide chat history" : "Show chat history"}
@@ -365,6 +409,14 @@ export function ChatDrawer(props: {
               >
                 <Play size={13} aria-hidden="true" />
                 Resume this conversation
+              </button>
+            </div>
+          ) : null}
+          {privateMode && !reviewing ? (
+            <div className="chatd-private">
+              <span>Private chat: not saved to history. Approved actions still keep records.</span>
+              <button type="button" onClick={closePrivateChat}>
+                End
               </button>
             </div>
           ) : null}
