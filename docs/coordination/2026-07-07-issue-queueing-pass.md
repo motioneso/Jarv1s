@@ -1,42 +1,41 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
-**Date:** 2026-07-07
-**Coordinator lock:** now `dfbd2dc6-2b6d-4b3b-b935-141d8e627a08` / label `Coordinator` / pane
-`w1:pB4` / tab `w1:t15` — claimed 2026-07-08 from predecessor `58cd692d-ac30-4f76-9e47-a810041e358d`
-(pane `w1:pA0`, `agent_status: done`, self-handed-off at compaction tripwire; immediate Build-760
-tab fix done + 1 of 3 owed root-cause doc fixes done (`relay` SKILL.md); 3 remaining doc fixes
-(herdr-handoff SKILL.md, coordinate SKILL.md Phase 2, incidents.md) picked up first thing this
-tenure — see relay checkpoint below). Resolve the CURRENT lock fresh by label+session — this line
-is stale the instant a new session claims it; never trust a pane number.
-**This tenure (`dfbd2dc6`) — IN PROGRESS:**
-1. Phase 0a: verified predecessor `58cd692d` (pane `w1:pA0`) was sole `Coordinator` pane and
-   idle/relayed via bounded read, reaped it, renamed own pane (`w1:pB4`) to `Coordinator`,
-   confirmed exactly one `Coordinator` pane, recorded new lock line, committed (`e044ed51`).
-2. Finished the 3 doc fixes owed from the `58cd692d` relay checkpoint: `~/.claude/skills/herdr-
-   handoff/SKILL.md` now shows `--tab <target-tab_id>` on every example spawn + a "Common
-   mistakes" bullet (global file, outside this repo, not committed here);
-   `.claude/skills/coordinate/SKILL.md` Phase 2 "On an agent relay" bullet now requires verifying
-   tab placement on every relay, including self-relays the coordinator didn't spawn;
-   `.claude/skills/coordinate/references/incidents.md` got a new 2026-07-08 dated entry for the
-   Build-760 stray-tab case. Both repo files committed (`3435a030`).
-3. Resumed supervision: bounded reads confirmed Build-853 (`w1:p9W`, Task 3 full local gate,
-   `pnpm exec vitest run tests/integration/chat-live-api.test.ts`) and Build-760 (`w1:pB2`, Task 1
-   `chat_skills` migration + RLS test) both `working`, Sonnet, correct worktrees, tab `w1:t1C`.
-   Started a fresh persistent liveness `Monitor` (task `b2uf3p437`) for `w1:p9W` + `w1:pB2` —
-   predecessor's `b709amjaj` was session-scoped and did not survive the relay, consistent with
-   every prior tenure in this run.
+**Date:** 2026-07-07 (session continuing 2026-07-08)
+**Coordinator lock:** `da0dca71-c202-43c2-b6c4-60a05a626a70` / label `Coordinator` / pane `w1:pB6`
+/ tab `w1:t15` — claimed from predecessor `d4f0fb94-a62f-4b4b-8d38-5598ddd28f37` (pane `w1:pB5`,
+confirmed sole `Coordinator` pane + idle/relayed, reaped). Resolve fresh by label+session — never
+trust a pane number.
+
+**Fleet (confirmed via bounded reads this tenure):**
+- **Build-853** (`w1:p9W`, tab `w1:t1C`, Sonnet, working) — security tier, #853
+  auth-signup-atomicity. Task 3 (full local gate) in progress. No PR yet. When done: Opus
+  adversarial QA → `gh pr comment` verdict → merge immediately on GREEN (Ben's standing override
+  waives the separate sign-off pause, including security tier).
+- **Build-760** (`w1:pB2`, tab `w1:t1C`, Sonnet, working) — **security tier** (a prior checkpoint
+  mid-file mislabeled this "routine/sensitive"; the original spawn-time tiering note and every
+  other reference say `security` — new user-authored-content-as-instructions surface + new
+  owner-scoped RLS table on `app.chat_skills`). Task 1 (migration + RLS test) in progress. No PR
+  yet. Same QA/merge path as #853.
+
+**Liveness Monitor:** fresh persistent Monitor (task `bmr4q9c48`) on `w1:p9W` + `w1:pB2`,
+emit-on-change only. Dies with this session at relay — successor starts its own.
+
 **Merge policy (Ben's standing override, still in force):** any GREEN QA verdict merges
 immediately without a pause-and-ask round trip, including `security` tier.
-**Provider-mix directive:** COMPLETE — 3/3 Codex slots used (Build-742, Build-744, Build-759);
-Build-760 (Sonnet) is the reversion, as expected.
-**merges_since_relay:** 0 this tenure so far (carried forward — nothing merged since the last
-relay).
-**Open:** Build-853 Task 3 (full local gate) in progress. Build-760 on Task 1 (migration + RLS
-test) in progress. No PR yet on either. Build-759/PR #873 already merged by predecessor `4727de9a`
-(per lock-line history above) — nothing outstanding there.
+
+**merges_since_relay:** 0.
+
+**Outstanding escalations — verified clear this tenure, not trusted blind:** #817 is now
+**CLOSED** (`gh issue view 817`) — no longer an open escalation. #780 remains open, Ben-side
+reminder only (needs licensed font files), not a coordinator action item. `gh pr list --state
+open` → empty, nothing awaiting QA/merge. Nothing blocking, nothing awaiting Ben.
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
-> holds only in-flight operational state.
+> holds only in-flight operational state. **Note for future tenures: this file has grown to ~2000
+> lines of full tenure-by-tenure narrative — new updates should be a terse pointer-style edit to
+> THIS top block (fleet + lock + escalations), not another full "Relay checkpoint" section
+> appended below. Everything below this point is historical reference only — don't read it unless
+> investigating a specific past incident by name/PR number.**
 
 ## Ben's standing per-merge digest
 
