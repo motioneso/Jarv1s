@@ -1154,3 +1154,9 @@ assumed `0144`→`0145` as of this tenure, could drift if another lane lands a m
 (`docs/superpowers/plans/2026-07-06-private-chat-mode-plan.md`) against the spec and current
 branch `ec0fbe4a` independently — no drift, no fork. Approved via `herdr-pane-message`, confirmed
 delivered + agent back to `working`. Proceeding to TDD build.
+
+**Build-742 plan-ready escalation (approved).** No pre-written plan existed for #742, so the
+agent authored one: `docs/superpowers/plans/2026-07-08-email-digest-delivery.md`. Scope: no
+migration (matches spec's preferred `PreferencesRepository` row over a new table), provider
+`sendNew`, digest worker + settings UI. Matches spec's locked decisions. Approved via
+`herdr-pane-message`, confirmed delivered + agent back to `working`. Proceeding to TDD build.
