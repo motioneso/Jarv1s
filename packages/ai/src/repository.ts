@@ -455,8 +455,11 @@ export class AiRepository {
           capabilities: [...model.capabilities],
           status: model.status,
           tier: model.tier,
-          // Discovered models are not user-overridable defaults; the admin binds them explicitly.
-          allow_user_override: false,
+          // #870/MED-4 (owner decision) + D8: default discovered models to user-overridable so the
+          // kept per-user chat override works out of the box — a user can pick a discovered model as
+          // their personal chat model without an admin first flipping the flag. Admin can still lock
+          // a specific model non-overridable via updateModel.
+          allow_user_override: true,
           created_at: now,
           updated_at: now
         })
@@ -749,8 +752,14 @@ export class AiRepository {
         tier
       );
       if (inProvider) return { model: inProvider, reason: "admin-pin" };
-      // Unavailable/revoked pinned provider is a hard-lock too — no cross-provider escape.
-      if (!isUserFacing) await this.logNeedsConfig(scopedDb, capability);
+      // #870/MED-4b (Fable MED-1): a wedged/revoked pinned provider is a SYMMETRIC hard-lock —
+      // mirror the model-pin miss above, no cross-provider escape. User-facing (chat/voice) returns
+      // "admin-pin-unavailable" — the exact reason chat-drawer.tsx:163 + settings-ai-chat-lock-group
+      // match to render the lock-unavailable state (bare "needs-config" was invisible to them). Not
+      // logged on the user-facing path: it's visible in the UI and readPin resolves chat on every
+      // settings/pin read, so logging here would spam jarvis_error_log. Workers stay observable.
+      if (isUserFacing) return { model: null, reason: "admin-pin-unavailable" };
+      await this.logNeedsConfig(scopedDb, capability);
       return { model: null, reason: "needs-config" };
     }
 

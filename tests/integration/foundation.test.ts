@@ -318,7 +318,9 @@ describe("MVP foundation scaffold", () => {
         { version: "0145", name: "0145_jarvis_error_log.sql" },
         // #870/H1 — instance-default provider flag. NOTE: #744 lands 0146; when
         // both merge, the owner reconciles this toEqual list (expected collision).
-        { version: "0147", name: "0147_ai_provider_instance_default.sql" }
+        { version: "0147", name: "0147_ai_provider_instance_default.sql" },
+        // #870 Fable HIGH-1 — worker INSERT grant/policy for jarvis_error_log (H3 observability).
+        { version: "0148", name: "0148_jarvis_error_log_worker_insert.sql" }
       ]);
     } finally {
       await client.end();

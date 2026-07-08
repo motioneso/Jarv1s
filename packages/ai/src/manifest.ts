@@ -69,7 +69,10 @@ export const aiModuleManifest = {
       "sql/0127_jarvis_action_audit_log.sql",
       "sql/0145_jarvis_error_log.sql",
       // #870/H1 — instance-default provider flag + global single-default index.
-      "sql/0147_ai_provider_instance_default.sql"
+      "sql/0147_ai_provider_instance_default.sql",
+      // #870 Fable HIGH-1 — grant jarvis_worker_runtime INSERT on jarvis_error_log so the H3
+      // worker needs-config observability log actually records (0145 granted app-runtime only).
+      "sql/0148_jarvis_error_log_worker_insert.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
