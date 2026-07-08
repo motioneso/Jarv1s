@@ -859,6 +859,16 @@ security) directly into the `817-error-explainability` worktree and committed it
 (`w1:pAA`) with the explanation; confirmed via bounded pane read it resumed working
 (`gpt-5.5 medium`).
 
+### ✅ QA-provider-mixing question — RESOLVED by Ben (this tenure)
+
+Ben's answer: **Opus does security-tier QA/code-review, full stop — no cross-model replacement
+for security tier.** The provider-mix directive applies to *build* agents (next 3 → Codex) and
+to *routine/sensitive*-tier QA (fair game to mix providers there); security tier keeps the
+mandatory Opus adversarial pass exactly as the coordinate skill already specifies — this
+directive does not add or substitute anything for security tier. #817 (security tier, building
+on Codex) gets standard Opus adversarial QA + mandatory `gh pr comment` verdict + Ben's sign-off
+when it reports done — no second cross-model pass required unless Ben says otherwise later.
+
 **Flag for successors / Ben:** this is a structural gap, not a one-off — *any* doc this
 coordinator authors (specs, handoffs, manifest) lives only on this unpushed branch until
 someone merges it. Every future build-agent worktree cut from `origin/main` will be missing
