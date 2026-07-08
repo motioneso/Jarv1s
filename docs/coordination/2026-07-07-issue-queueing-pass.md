@@ -1,13 +1,13 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `50dc5074-9b84-4f44-b47c-22dc74df73cd` / label `Coordinator` / pane
-`w1:pAH` / tab `w1:t15` — claimed 2026-07-07 from predecessor `63c5023b-8368-49da-9f60-e875e7d60d7f`
-(confirmed idle/relayed via bounded read — "My relay is complete — standing down" — before reap;
-its pane `w1:pAE` closed). Resolve fresh by label+session, never trust the pane number.
-**⚠️ This session relayed again almost immediately — own context arrived at 79% already at
-re-adoption (before any merge action), see final relay checkpoint at bottom of file. Successor
-action item #0 (merge PR #864) was NOT executed by this tenure — still open, do it first.**
+**Coordinator lock:** now `b4c88569-498f-4d81-974f-e528977c4848` / label `Coordinator` / pane
+`w1:pAM` / tab `w1:t15` — claimed 2026-07-08 from predecessor `197683fe-7804-4e9c-a26a-a7593255a913`
+(confirmed idle/relayed via bounded read — "My tenure's handoff is complete" — before reap; its
+pane `w1:pAK` closed). Resolve fresh by label+session, never trust the pane number.
+**⚠️ Action item #0 (spawn Fable 5 build agent for PR #865's RPC-purge-verb fix) is STILL NOT
+DONE across multiple prior tenures — this tenure's first priority, see
+`docs/coordination/handoffs/2026-07-08-744-fable-rpc-purge-fix.md`.**
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -1500,3 +1500,51 @@ failure budget as a fresh 1/2 (Ben authorized this new attempt via a model chang
   `w1:pAG` (Build-744).
 - **No relay trigger fired this tenure** (no 70% context-meter warning received, merge count at 1
   of 2, no compaction summary). Continuing to supervise.
+
+## Tenure notes (session `b4c88569-498f-4d81-974f-e528977c4848`)
+
+- **Phase 0a:** confirmed predecessor `197683fe-7804-4e9c-a26a-a7593255a913` (pane `w1:pAK`) idle
+  via bounded read ("My tenure's handoff is complete — I'll leave my own pane in place for it to
+  reap ... and stop here"), closed it, renamed own pane `Coordinator-succ` → `Coordinator`
+  (`w1:pAM`, tab `w1:t15`). Verified exactly one `Coordinator` pane via `herdr pane list`. Updated
+  the manifest lock line (top of file) to this session.
+- **Build-853 re-adopted:** bounded read of `w1:p9W` — unchanged from every prior tenure: idle,
+  Task 1+2 done, Task 3 ("full local gate") not started, no PR.
+- **Action item #0 EXECUTED — finally.** Read the addendum handoff
+  (`docs/coordination/handoffs/2026-07-08-744-fable-rpc-purge-fix.md`) and the base doc
+  (`docs/coordination/handoffs/2026-07-08-744-private-chat-mode.md`) in full. Verified worktree
+  `~/Jarv1s/.claude/worktrees/744-private-chat-mode` head (`8210ad7d`) matches PR #865's
+  `headRefOid`, PR state OPEN/MERGEABLE, all 4 CI checks SUCCESS — safe to spawn into. No stray
+  pane was already pointed at this worktree (old Codex Build-744 confirmed gone by two tenures
+  back). Spawned:
+  ```
+  herdr agent start "Fable-865" --tab w1:t1C --cwd ~/Jarv1s/.claude/worktrees/744-private-chat-mode --no-focus \
+    -- claude --model claude-fable-5 --permission-mode bypassPermissions "<task prompt covering the
+    addendum's 4-step task list, purgeTranscripts RPC verb + real-RPC-path regression test,
+    #868-scope exclusion, full gate + rebase + push + report to coordinator for QA cycle #4>"
+  ```
+  Landed at pane `w1:pAN`, tab `w1:t1C` (correct shared agents tab). **Confirmed via bounded
+  read: model line reads `Fable 5`** (not a leaked Opus/Sonnet default), status `working`
+  ("Symbioting…"), branch `744-private-chat-mode`, bypass permissions on. Fleet table below
+  updated; old `Build-744` label retired in favor of `Fable-865` to make the model handoff
+  unambiguous in future reads.
+- **Started a fresh liveness `Monitor`** covering `w1:p9W` (Build-853) and `w1:pAN` (Fable-865) —
+  see task list; monitor emits only on `agent_status` change, diffing `herdr pane list` every 60s.
+- **merges_since_relay:** 1 (carried forward unchanged from predecessor — no merge action taken
+  this tenure).
+
+**Fleet at this checkpoint:**
+- **#853** — security tier, `w1:p9W`, label `Build-853`, idle. Task 1+2 done, Task 3 next, no PR.
+  When done: Opus adversarial QA → mandatory `gh pr comment` verdict → Ben's explicit sign-off.
+  Never auto-merge.
+- **#744 / PR #865** — security tier, `w1:pAN`, label `Fable-865` (Fable 5, replaces the retired
+  Codex `Build-744`), working on the cycle-4 RPC-purge-verb fix. This will be **QA cycle #4** when
+  it reports done — spawn Opus `coordinated-qa`, verify the RPC verb is exercised by a real
+  non-fake-engine test and purge actually happens end-to-end over RPC, mandatory `gh pr comment`
+  verdict, Ben's explicit sign-off before merge (treat failure budget as a fresh 1/2 — Ben
+  authorized this new attempt via the model change).
+
+**Coordinator lock:** now `b4c88569-498f-4d81-974f-e528977c4848` / label `Coordinator` / pane
+`w1:pAM` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure from
+predecessor `197683fe-7804-4e9c-a26a-a7593255a913` (pane `w1:pAK`), confirmed idle before reap.
+Verified exactly one `Coordinator` pane via `herdr pane list`.
