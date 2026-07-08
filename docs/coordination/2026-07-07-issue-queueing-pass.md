@@ -1843,4 +1843,7 @@ collision notes for the 3-way #744/#759/#760 cluster, provider-mix note that #75
 Confirmed via bounded read: running `gpt-5.5`, already invoking `coordinated-build` and reading
 its `SKILL.md`. **Watch item:** its weekly Codex usage limit showed **15% left** at spawn time —
 flag for Ben if it runs out mid-build (2/2 usage-limit resets still available per its own banner).
-Status: `building`.
+Status: `building`. Liveness `Monitor` (task `b5ieqzic4`, persistent) added for `w1:pAZ`.
+
+**Fleet now:** Build-853 (`w1:p9W`, idle, Task 3 next) + Build-759 (`w1:pAZ`, building). Two
+persistent liveness monitors running (`btj9yrr0j` for p9W, `b5ieqzic4` for pAZ).
