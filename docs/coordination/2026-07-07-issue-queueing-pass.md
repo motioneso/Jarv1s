@@ -1272,6 +1272,40 @@ QA. This will be **QA cycle #3** on PR #865 but against a reduced/clarified scop
 fresh failure-budget count (2 new chances) since the scope itself changed, not a straight retry of
 the same fix.
 
+**QA verdict #3 on PR #865: RED (Opus, rescoped-budget cycle 1/2).** Build-744 pushed `8210ad7d`:
+fixed dead-engine private state on SSE failure, added boot-time RPC reconnect so reconciliation
+runs on boot, added README scope note. CI green (`gh pr checks`: all 4 pass). Spawned fresh Opus
+QA prompted to independently verify all 3 rescoping items against the diff (not the self-report,
+which didn't clearly claim items 1/2). Verdict posted durably:
+https://github.com/motioneso/Jarv1s/pull/865 (comment @ 2026-07-08T17:00:50Z).
+**RED — 1 blocking, more severe than cycles #1/#2:** `chat-session-manager.ts:894` +
+`chat-engine-rpc-client.ts:773-828` — `ChatEngineRpcClient` has **no `purgeTranscripts` RPC verb
+at all**. On the production RPC deploy (`docker-compose.prod.yml:66` selects RPC), ending/reaping
+a private session through the **normal live-engine flow** — not just the crash/boot-sweep edge
+case cycles #1/#2 were about — purges nothing on disk. `deleteThread` then removes the incognito
+DB row, so the boot-sweep can never reclaim it afterward either → **private conversation content
+is retained permanently** in `~/.claude/projects` / `~/.codex/sessions` inside the container. Unit
+tests are green only because they exercise an in-process `FakeEngine` that *does* implement
+`purgeTranscripts` — the RPC path was never exercised, masking the gap entirely. Same defect
+class as #1/#2 (transcript purge doesn't actually happen) but now confirmed on the primary path,
+not an edge case. 2 non-blocking: rescope item #2 (Codex per-session tightening) was **not
+done** — still per-user cwd matching, low-impact since userId is part of the match (no
+cross-user leak, only over-deletes the same user's non-surfaced transcripts) and moot on the
+broken RPC path anyway; migration `0146 list_incognito_chat_threads_for_cleanup` is
+SECURITY DEFINER global-read across all users (metadata-only — thread+owner IDs — acceptable for
+a system sweep, but widest-scope grant, worth a code comment). Confirmed working: DB-side privacy
+(zero `chat_messages`, no memory jobs, no auto-title/summary), Gemini/agy-print/codex-exec
+correctly inert per #868 deferral, README scope note accurate. **exit-criteria: PARTIAL** — DB
+half holds, on-disk purge fails on the actual deploy topology.
+
+**Escalating to Ben again rather than auto-relaying** (rescoped-budget cycle 1/2 would technically
+allow one more relay, but the finding is qualitatively worse than a fixable point-bug: it needs a
+new RPC verb added across the client/server boundary — real design surface, not a patch — and
+this is the third consecutive cycle where the same underlying guarantee, "a purged private session
+leaves nothing on disk," fails via a *different* path each time, which reads as the purge
+mechanism being incompletely wired into the engine lifecycle rather than one bug away from
+correct). Build-744 (`w1:pAG`) parked idle pending Ben's direction.
+
 **Merge policy note:** Ben's standing instruction above (`db95c4a1`) means once re-QA on #865
 comes back GREEN, merge directly — no separate pause-and-ask needed, still log to digest.
 
