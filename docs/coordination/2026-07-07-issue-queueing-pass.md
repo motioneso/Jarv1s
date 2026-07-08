@@ -1,16 +1,16 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `5e316669-4c29-4e51-8972-b4f070c6a9a3` / label `Coordinator` / pane
-`w1:pAT` / tab `w1:t15` — claimed 2026-07-08 from predecessor `b3b8d840-0a4d-444a-9120-a4bf9797325f`
-(confirmed idle/relayed via bounded read before reap; its pane `w1:pAS` closed). Resolve
-fresh by label+session, never trust the pane number. **This tenure hit its own 75%+ context-meter
-warning on Phase 0a's very first PostToolUse (TaskCreate) — before any fleet action.** Did minimum
-Phase 0a + the two in-flight action items below, then relayed with no further action. See the
-bottom-of-file checkpoint (session `5e316669`) for full state and the successor's first actions.
-**✅ Action item #0 DONE — Fable-865 lane now on its 4th agent (r4), actively writing code** (see
-bottom checkpoint). Escalation to Ben about the 3x-zero-code-relay + Opus-not-Fable substitution
-was sent this tenure (chat, not yet acknowledged as of this write).
+**Coordinator lock:** now `3b6cd485-5f89-4ecf-bb5c-3137dc409e85` / label `Coordinator` / pane
+`w1:pAV` / tab `w1:t15` — claimed 2026-07-08 from predecessor `5e316669-4c29-4e51-8972-b4f070c6a9a3`
+(confirmed idle/relayed via bounded read before reap; its pane `w1:pAT` closed). Resolve
+fresh by label+session, never trust the pane number. Predecessor's tenure hit its own 75%+
+context-meter warning on Phase 0a's very first PostToolUse (TaskCreate) — did minimum Phase 0a +
+its two in-flight action items, then relayed. See the bottom-of-file checkpoint (session
+`5e316669`) for that tenure's full state.
+**This tenure:** (1) Build-853-next contradiction — RESOLVED, no real second agent, no action.
+(2) Fable-865-r4 (`w1:pAR`, PR #865, Opus 4.8) — unchanged, actively writing code, watching only.
+Restarted liveness Monitor for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l` died at relay).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -1760,6 +1760,14 @@ start its own** per protocol.
 `c716ccac` tenure — routine-tier #854/PR #856. Threshold is 2 routine/sensitive merges, not
 reached; relaying solely on the context-meter trigger, which fired immediately this tenure).
 
-**Coordinator lock:** now `5e316669-4c29-4e51-8972-b4f070c6a9a3` / label `Coordinator` / pane
-`w1:pAT` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
-Phase 0a and updates this line itself.
+**Coordinator lock:** now `3b6cd485-5f89-4ecf-bb5c-3137dc409e85` / label `Coordinator` / pane
+`w1:pAV` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure from
+predecessor `5e316669-4c29-4e51-8972-b4f070c6a9a3` (pane `w1:pAT`), confirmed idle/relayed via
+bounded read ("It will reap this pane and restart the liveness Monitor") before reap. Verified
+exactly one `Coordinator` pane via `herdr pane list`.
+
+**This tenure — action item (1) Build-853-next contradiction: already RESOLVED by predecessor,
+no action needed** (stale recap text, no real second agent — see prior checkpoint). **Action item
+(2) Fable-865-r4: unchanged, actively writing code, no action needed unless it stalls/relays.**
+Liveness Monitor `b11ckas5l` died with predecessor's session at relay per protocol — restarting a
+fresh one this tenure for `w1:p9W` (Build-853) and `w1:pAR` (Fable-865-r4).
