@@ -192,6 +192,11 @@ catches silent failures between pushes.
   in the same worktree and asks to be reaped — confirm the successor is driving (bounded pane
   read), reap the old pane, update the manifest. If YOU spawn the successor, always pass
   `--tab w1:<agents-tab>` and `--model sonnet` — never let it land in your coordinator tab.
+  **Verify tab placement every time, even on a self-relay you didn't spawn:** a build agent
+  relaying itself can omit `--tab` and land its successor in an unrelated tab (a real incident —
+  see `references/incidents.md`). Check the new pane's `tab_id` in `herdr pane list` against the
+  shared agents tab; if it's wrong, `herdr pane move <pane> --tab <agents-tab> --split right|down`
+  before resuming supervision.
 - Keep the manifest current after every state change — it is your memory.
 
 ## Phase 3 — verify & merge (you own it all)

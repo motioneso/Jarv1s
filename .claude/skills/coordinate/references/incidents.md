@@ -44,6 +44,20 @@ intermediate commits. The build agent caught it by grounding every spec premise 
 before planning. → **Spec-vs-branch verification is step ½ of `coordinated-build`**, and drift is
 escalated, never silently absorbed.
 
+## 2026-07-08 — self-relay landed a build agent in a stray tab
+
+Build-760's relay successor (`w1:pB2`) landed in tab `w1:t17` — an unrelated Codex/review tab
+containing `w1:p8Y`/`w1:pAX`/`w1:pB3` ("Fable review #819") — instead of the shared agents tab
+(`w1:t1C`), because the `herdr-handoff`-driven spawn omitted `--tab`/`--split`, and
+`herdr agent start` auto-places into *any* free pane when neither is given. Ben caught it visually
+and asked for both a manual fix and a doc fix so it wouldn't recur. Fixed live via
+`herdr pane move w1:pB2 --tab w1:t1C --split down --target-pane w1:p9W --no-focus`. → **Every
+spawn command (fresh agent or self-relay successor) must pass `--tab <target-tab_id>` explicitly**
+(`relay/SKILL.md`, `herdr-handoff/SKILL.md`); the coordinator also **verifies tab placement on
+every relay it observes**, even a self-relay it didn't spawn itself (`coordinate/SKILL.md` Phase 2,
+"On an agent relay"), since a build agent can self-relay with no coordinator step in between to
+catch a bad spawn.
+
 ## 2026-06-27 — unbounded pane reads were the dominant coordinator context leak
 
 Measured on a live coordinator: bare `herdr pane read` ≈ 960 tokens vs `--source recent
