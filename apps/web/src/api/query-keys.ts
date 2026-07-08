@@ -43,10 +43,10 @@ export const queryKeys = {
     models: ["ai", "models"] as const,
     chatModelOverride: ["ai", "chat-model-override"] as const,
     adminUserAiPin: (userId: string) => ["ai", "admin", "users", userId, "pin"] as const,
-    capabilityRoutes: ["ai", "capability-routes"] as const,
+    // #870 Slice 1: per-service bindings (Chat + Voice) replace the old capability routes / tier prefs.
+    serviceBindings: ["ai", "service-bindings"] as const,
     capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
-    tierPreferences: ["ai", "tier-preferences"] as const,
     assistantTools: ["ai", "assistant-tools"] as const,
     webSearchKey: ["ai", "web-search-key"] as const,
     runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const,

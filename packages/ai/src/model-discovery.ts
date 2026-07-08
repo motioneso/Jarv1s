@@ -31,6 +31,20 @@ const ANTHROPIC_STATIC_MODELS: readonly AiProviderDiscoveredModelDto[] = [
   }
 ];
 
+// #870/H5 Slice 1: curated static model lists for installable + loginable CLI providers. A CLI
+// provider has no HTTP `/models` endpoint to query, so discovery returns this list (marked
+// fromFallback — it's not from a live API). These concrete ids are inserted INACTIVE / pin-only by
+// the caller: the auto-registered `"default"` sentinel (#367, auto-register.ts) stays the active
+// happy-path chat model, and these statics exist only for an admin to explicitly enable + pin.
+//   - anthropic (claude CLI): the same concrete ids as the API fallback.
+//   - openai-compatible (codex CLI): NO concrete shipped model id exists — codex rides its own
+//     server-resolved default (see auto-register.ts), so there is nothing to statically list.
+//   - google/gemini: intentionally absent — blocked + not loginable (auto-register.ts:75).
+const CLI_STATIC_MODELS: Partial<Record<AiProviderKind, readonly AiProviderDiscoveredModelDto[]>> =
+  {
+    anthropic: ANTHROPIC_STATIC_MODELS
+  };
+
 export interface ModelDiscoveryInput {
   readonly providerKind: AiProviderKind;
   readonly authMethod: AiAuthMethod;
@@ -84,7 +98,13 @@ export class ModelDiscoveryService {
 async function fetchModels(
   input: ModelDiscoveryInput
 ): Promise<{ models: AiProviderDiscoveredModelDto[]; fromFallback: boolean }> {
-  if (input.authMethod === "cli") return { models: [], fromFallback: false };
+  if (input.authMethod === "cli") {
+    // #870/H5: no live endpoint — return the curated static list for this CLI kind (or none).
+    const statics = CLI_STATIC_MODELS[input.providerKind];
+    return statics
+      ? { models: statics.slice(), fromFallback: true }
+      : { models: [], fromFallback: false };
+  }
 
   const apiKey = readApiKey(input.credential);
   if (!apiKey) {
@@ -190,9 +210,28 @@ function inferModel(
   providerKind: AiProviderKind
 ): AiProviderDiscoveredModelDto {
   const lower = providerModelId.toLowerCase();
+
+  // #870/H4: Voice is a real user-facing service (transcription runs over direct HTTP). Discovery
+  // must emit the `transcription` capability or the admin can never bind Voice to a discovered model.
+  // A dedicated speech-to-text model (whisper / *-transcribe) is transcription-ONLY — it is not a
+  // chat/tool model, so tagging it with the chat set would wrongly surface it as a Chat option.
+  const isPureTranscription = lower.includes("whisper") || lower.includes("transcribe");
+  if (isPureTranscription) {
+    return {
+      providerModelId,
+      displayName: providerModelId,
+      capabilities: ["transcription"],
+      tier: inferTierFromModelId(providerKind, providerModelId)
+    };
+  }
+
   const capabilities: AiModelCapability[] = ["chat", "tool-use", "json", "summarization"];
   if (lower.includes("vision") || lower.includes("image") || lower.includes("gemini")) {
     capabilities.push("vision");
+  }
+  // Multimodal audio chat models (e.g. gpt-4o-audio) can both chat AND transcribe.
+  if (lower.includes("audio")) {
+    capabilities.push("transcription");
   }
   const tier = inferTierFromModelId(providerKind, providerModelId);
   return { providerModelId, displayName: providerModelId, capabilities, tier };

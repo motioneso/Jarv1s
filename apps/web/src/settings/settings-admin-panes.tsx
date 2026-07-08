@@ -61,6 +61,7 @@ import {
 import type {
   ChatMultiplexerChoice,
   HostDiagnosticStatus,
+  PutAiAdminUserPinRequest,
   RegistrationSettingsDto,
   UserDto
 } from "@jarv1s/shared";
@@ -219,47 +220,82 @@ function AiPinRow(props: { readonly user: UserDto }) {
     queryFn: () => getAdminUserAiPin(props.user.id),
     retry: false
   });
+  // #870/M4a Slice 1: an admin can pin this user to either a PROVIDER (hard-locks ALL their
+  // traffic — chat, voice, workers — to that provider; no capable model => visible needs-config,
+  // no cross-provider escape) OR a specific MODEL (exact model for chat/voice, workers routed
+  // inside that model's provider). The two are mutually exclusive; the backend clears the sibling
+  // pin, so the UI just sends whichever was chosen (or clears both).
   const mutation = useMutation({
-    mutationFn: (modelId: string | null) => putAdminUserAiPin(props.user.id, { modelId }),
+    mutationFn: (input: PutAiAdminUserPinRequest) => putAdminUserAiPin(props.user.id, input),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data);
-      toast(data.pin.pinnedModelId ? "AI provider pinned" : "AI provider pin cleared", {
-        icon: <ServerCog size={17} />
-      });
+      const label =
+        data.pin.pinnedModelId || data.pin.pinnedProviderId ? "AI pin updated" : "AI pin cleared";
+      toast(label, { icon: <ServerCog size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
   const pin = pinQuery.data?.pin;
   const models = pin?.availableModels ?? [];
-  const value = pin?.pinnedModelId ?? "";
+  const providers = pin?.availableProviders ?? [];
+  // Encode the current pin into the single <select> value: `provider:<id>`, `model:<id>`, or "".
+  const value = pin?.pinnedProviderId
+    ? `provider:${pin.pinnedProviderId}`
+    : pin?.pinnedModelId
+      ? `model:${pin.pinnedModelId}`
+      : "";
   const busy = pinQuery.isLoading || mutation.isPending;
-  const disabled = busy || models.length === 0;
+  const disabled = busy || (models.length === 0 && providers.length === 0);
   const effective = pin?.effectiveChatModel
     ? `${pin.effectiveChatModel.displayName} (${pin.effectiveChatReason})`
     : "No active model";
 
+  const onChange = (raw: string) => {
+    if (raw.startsWith("provider:")) {
+      mutation.mutate({ providerId: raw.slice("provider:".length) });
+    } else if (raw.startsWith("model:")) {
+      mutation.mutate({ modelId: raw.slice("model:".length) });
+    } else {
+      // Clear both pins — send an empty request; the backend treats absent ids as "clear".
+      mutation.mutate({});
+    }
+  };
+
   return (
     <div className="ppl__ai">
       <Row
-        name="AI provider"
+        name="AI pin"
         desc={
-          models.length
-            ? `Effective chat model: ${effective}. Pinning forces this model for all AI features.`
-            : "No active models configured by this user."
+          models.length || providers.length
+            ? `Effective chat model: ${effective}. A provider pin locks all of this user's AI to that provider; a model pin forces the exact model.`
+            : "No active providers or models available to pin for this user."
         }
         control={
           <Select
-            aria-label={`Pinned AI provider for ${props.user.name || props.user.email}`}
+            aria-label={`AI pin for ${props.user.name || props.user.email}`}
             value={value}
             disabled={disabled}
-            onChange={(event) => mutation.mutate(event.currentTarget.value || null)}
+            onChange={(event) => onChange(event.currentTarget.value)}
           >
-            <option value="">Clear pin</option>
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.displayName}
-              </option>
-            ))}
+            <option value="">No pin (follow instance routing)</option>
+            {providers.length ? (
+              <optgroup label="Pin a provider (locks all AI to it)">
+                {providers.map((provider) => (
+                  <option key={provider.id} value={`provider:${provider.id}`}>
+                    {provider.displayName}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {models.length ? (
+              <optgroup label="Pin a specific model">
+                {models.map((model) => (
+                  <option key={model.id} value={`model:${model.id}`}>
+                    {model.displayName}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </Select>
         }
       />

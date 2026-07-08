@@ -260,11 +260,13 @@ test("configures AI providers and capability routing through settings REST calls
   await page.getByRole("button", { name: "Add model" }).click();
   await expect(page.getByText("claude-smoke", { exact: true })).toBeVisible();
 
-  // Capability routing now lists the registered model.
-  await expect(page.getByText("Capability routing")).toBeVisible();
+  // #870 Slice 1: services (Chat / Voice) replace the old capability-routing rows.
+  // exact:true — the default substring match also hits the footer Note ("…follows the
+  // services above"), so scope to the section heading div (strict-mode 2-element violation).
+  await expect(page.getByText("Services", { exact: true })).toBeVisible();
   await expect(page.getByText(/Routing override .*not wired/)).toHaveCount(0);
-  await page.getByLabel("Tier for Chat & briefing").selectOption("reasoning");
-  await expect(page.getByText("Tier updated")).toBeVisible();
+  await page.getByLabel("Binding for Chat & briefing").selectOption("mode:reasoning");
+  await expect(page.getByText("Service updated")).toBeVisible();
 
   await page.getByRole("button", { name: "Remove Anthropic" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();

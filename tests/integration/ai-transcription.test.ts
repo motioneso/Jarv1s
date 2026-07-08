@@ -135,6 +135,16 @@ describe("AI voice transcription route (#738)", () => {
       "voice-secret-key-2"
     );
     await createModel(providerId, "self-hosted-parakeet-2", ["transcription"]);
+    // #870 D2/D3: Voice (transcription) is a user-facing service — it resolves INSIDE the
+    // instance-default provider. The earlier "Voice provider" is still active, so auto-default is
+    // ambiguous (>1 admin-owned, none flagged); flag THIS provider so voice resolves to its model
+    // and the request actually reaches the (mocked) upstream that this test drives to a 500.
+    const setDefault = await server.inject({
+      method: "PUT",
+      url: `/api/ai/providers/${providerId}/default`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(setDefault.statusCode).toBe(200);
 
     originalFetch = globalThis.fetch;
     globalThis.fetch = (async () =>

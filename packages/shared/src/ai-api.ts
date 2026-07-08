@@ -78,6 +78,7 @@ const aiProviderConfigSchema = {
     "executionMode",
     "hasCredential",
     "cliAvailable",
+    "isInstanceDefault",
     "revokedAt",
     "createdAt",
     "updatedAt"
@@ -92,6 +93,8 @@ const aiProviderConfigSchema = {
     executionMode: aiProviderExecutionModeSchema,
     hasCredential: { type: "boolean" },
     cliAvailable: { type: "boolean" },
+    // #870/H1: single instance-default provider flag (migration 0147).
+    isInstanceDefault: { type: "boolean" },
     revokedAt: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
@@ -149,7 +152,8 @@ const aiCapabilityRouteSchema = {
         "manual-route",
         "manual-route-unavailable-fallback",
         "matched-active-model",
-        "no-active-model"
+        "no-active-model",
+        "needs-config"
       ]
     },
     model: {
@@ -158,26 +162,47 @@ const aiCapabilityRouteSchema = {
   }
 } as const;
 
-const aiCapabilityRouteMapSchema = {
+// #870 Slice 1: a per-service binding is a discriminated union — a tier "mode" OR a specific model.
+const aiServiceBindingSchema = {
+  oneOf: [
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["kind", "tier"],
+      properties: {
+        kind: { type: "string", enum: ["mode"] },
+        tier: aiModelTierSchema
+      }
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["kind", "modelId"],
+      properties: {
+        kind: { type: "string", enum: ["model"] },
+        modelId: { type: "string", format: "uuid" }
+      }
+    }
+  ]
+} as const;
+
+// Only user-facing services are bindable in Slice 1 (Chat + Voice). Worker capabilities stay
+// cross-provider automatic and are not exposed as a service knob.
+const aiServiceParamsSchema = {
   type: "object",
   additionalProperties: false,
+  required: ["service"],
   properties: {
-    chat: { type: ["string", "null"] },
-    "tool-use": { type: ["string", "null"] },
-    json: { type: ["string", "null"] },
-    vision: { type: ["string", "null"] },
-    summarization: { type: ["string", "null"] },
-    transcription: { type: ["string", "null"] }
+    service: { type: "string", enum: ["chat", "transcription"] }
   }
 } as const;
 
-const aiCapabilityRouteSettingSchema = {
+const aiServiceBindingMapSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["capability", "modelId"],
   properties: {
-    capability: aiModelCapabilitySchema,
-    modelId: { type: ["string", "null"] }
+    chat: aiServiceBindingSchema,
+    transcription: aiServiceBindingSchema
   }
 } as const;
 
@@ -502,12 +527,12 @@ export const lookupAiCapabilityRouteResponseSchema = {
   }
 } as const;
 
-export const listAiCapabilityRoutesResponseSchema = {
+export const listAiServiceBindingsResponseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["routes"],
+  required: ["bindings"],
   properties: {
-    routes: aiCapabilityRouteMapSchema
+    bindings: aiServiceBindingMapSchema
   }
 } as const;
 
@@ -522,21 +547,22 @@ export const transcribeAudioResponseSchema = {
   }
 } as const;
 
-export const putAiCapabilityRouteRequestSchema = {
+export const putAiServiceBindingRequestSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["modelId"],
+  required: ["binding"],
   properties: {
-    modelId: { type: ["string", "null"] }
+    binding: aiServiceBindingSchema
   }
 } as const;
 
-export const putAiCapabilityRouteResponseSchema = {
+export const putAiServiceBindingResponseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["route"],
+  required: ["service", "binding"],
   properties: {
-    route: aiCapabilityRouteSettingSchema
+    service: aiModelCapabilitySchema,
+    binding: aiServiceBindingSchema
   }
 } as const;
 
@@ -591,9 +617,11 @@ export const putAdminChatModelOverrideRequestSchema = {
 export const putAiAdminUserPinRequestSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["modelId"],
+  // #870 (M4a): modelId and providerId are mutually exclusive; both omitted/null clears the pin.
+  // The handler enforces the at-most-one rule (ajv can't express it cleanly across two nullables).
   properties: {
-    modelId: { type: ["string", "null"] }
+    modelId: { type: ["string", "null"] },
+    providerId: { type: ["string", "null"] }
   }
 } as const;
 
@@ -603,16 +631,22 @@ const aiAdminUserPinSchema = {
   required: [
     "pinnedModelId",
     "pinnedModel",
+    "pinnedProviderId",
+    "pinnedProvider",
     "effectiveChatModel",
     "effectiveChatReason",
-    "availableModels"
+    "availableModels",
+    "availableProviders"
   ],
   properties: {
     pinnedModelId: { type: ["string", "null"] },
     pinnedModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    pinnedProviderId: { type: ["string", "null"] },
+    pinnedProvider: { anyOf: [aiProviderConfigSchema, { type: "null" }] },
     effectiveChatModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
     effectiveChatReason: aiCapabilityRouteSchema.properties.reason,
-    availableModels: { type: "array", items: aiConfiguredModelSchema }
+    availableModels: { type: "array", items: aiConfiguredModelSchema },
+    availableProviders: { type: "array", items: aiProviderConfigSchema }
   }
 } as const;
 
@@ -771,9 +805,9 @@ export const lookupAiCapabilityRouteRouteSchema = {
   }
 } as const;
 
-export const listAiCapabilityRoutesRouteSchema = {
+export const listAiServiceBindingsRouteSchema = {
   response: {
-    200: listAiCapabilityRoutesResponseSchema,
+    200: listAiServiceBindingsResponseSchema,
     401: errorResponseSchema
   }
 } as const;
@@ -792,14 +826,27 @@ export const transcribeAudioRouteSchema = {
   }
 } as const;
 
-export const putAiCapabilityRouteRouteSchema = {
-  params: aiCapabilityParamsSchema,
-  body: putAiCapabilityRouteRequestSchema,
+export const putAiServiceBindingRouteSchema = {
+  params: aiServiceParamsSchema,
+  body: putAiServiceBindingRequestSchema,
   response: {
-    200: putAiCapabilityRouteResponseSchema,
+    200: putAiServiceBindingResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema
+  }
+} as const;
+
+// #870/H1: promote a provider to instance-default (mutually exclusive radio). Reuses the standard
+// single-provider response envelope.
+export const setInstanceDefaultProviderRouteSchema = {
+  params: idParamsSchema,
+  response: {
+    200: createAiProviderConfigResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
   }
 } as const;
 
@@ -886,42 +933,6 @@ export const resolveAiAssistantActionRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     404: errorResponseSchema
-  }
-} as const;
-
-export const aiCapabilityTierPreferencesResponseSchema = {
-  type: "object",
-  properties: {
-    preferences: {
-      type: "object",
-      additionalProperties: aiModelTierSchema
-    }
-  },
-  required: ["preferences"]
-} as const;
-
-export const patchAiCapabilityTierPreferenceRequestSchema = {
-  type: "object",
-  properties: {
-    capability: aiModelCapabilitySchema,
-    tier: aiModelTierSchema
-  },
-  required: ["capability", "tier"]
-} as const;
-
-export const listAiCapabilityTierPreferencesRouteSchema = {
-  response: {
-    200: aiCapabilityTierPreferencesResponseSchema,
-    401: errorResponseSchema
-  }
-} as const;
-
-export const patchAiCapabilityTierPreferenceRouteSchema = {
-  body: patchAiCapabilityTierPreferenceRequestSchema,
-  response: {
-    204: { type: "null" },
-    400: errorResponseSchema,
-    401: errorResponseSchema
   }
 } as const;
 

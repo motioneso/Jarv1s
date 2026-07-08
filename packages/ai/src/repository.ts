@@ -22,12 +22,14 @@ import {
 import type {
   AiCapabilityRouteReason,
   AiModelCapability,
-  AiProviderExecutionMode
+  AiProviderExecutionMode,
+  AiServiceBinding
 } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
 import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
 import { parseCapabilityRouteMap } from "./capability-route-map.js";
+import { parseServiceBindingMap } from "./service-binding-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
   CHAT_MODEL_OVERRIDE_SETTING_KEY,
@@ -48,6 +50,8 @@ export interface AiProviderConfigSafeRow {
   readonly auth_method: AiAuthMethod;
   readonly execution_mode: AiProviderExecutionMode;
   readonly has_credential: boolean;
+  // #870/H1: the single instance-default provider flag (migration 0147).
+  readonly is_instance_default: boolean;
   readonly revoked_at: Date | null;
   readonly created_at: Date;
   readonly updated_at: Date;
@@ -188,16 +192,21 @@ export interface ChatModelOverrideSettings {
   readonly selectableOverrideModels: readonly AiConfiguredModelSafeRow[];
 }
 
+// Legacy key — read-only now (H2 read-through). Never written again after Slice 1 (M2).
 export const AI_CAPABILITY_ROUTES_SETTING_KEY = "ai.capability_routes";
+// #870 Slice 1: the unified per-service binding blob (Chat/Voice → mode|model).
+export const AI_SERVICE_BINDINGS_SETTING_KEY = "ai.service_bindings";
 export const AI_ADMIN_PINNED_MODEL_PREFERENCE_KEY = "ai.admin_pinned_model_id";
+// #870 (D8): an admin may hard-lock a user to a whole provider instead of a single model.
+export const AI_ADMIN_PINNED_PROVIDER_PREFERENCE_KEY = "ai.admin_pinned_provider_id";
 
+// #870 Slice 1: services the admin can bind. Worker capabilities stay cross-provider automatic and
+// are never bound — see the resolver's USER_FACING gate.
+const USER_FACING_SERVICES = new Set<AiModelCapability>(["chat", "transcription"]);
+
+// #870/H2: retained only for the legacy `ai.capability_routes` read-through (parseCapabilityRouteMap).
+// Never written to again — the write path is now service bindings (AiServiceBindingMapDto).
 export type AiCapabilityRouteMap = Partial<Record<AiModelCapability, string | null>>;
-
-export interface SetAiCapabilityRouteInput {
-  readonly capability: AiModelCapability;
-  readonly modelId: string | null;
-  readonly actorUserId: string;
-}
 
 export interface AiCapabilityRouteResolution {
   readonly model: AiConfiguredModelSafeRow | null;
@@ -411,6 +420,59 @@ export class AiRepository {
     return this.requireVisibleModel(scopedDb, inserted.id);
   }
 
+  /**
+   * #870 Slice 1 (Step 4, L1): idempotently insert discovered models. INSERT-only with
+   * do-nothing on the `UNIQUE(owner_user_id, provider_config_id, provider_model_id)` constraint —
+   * an existing row (ANY status) is left untouched, so re-discovery never (a) duplicates, (b)
+   * resurrects a model the admin disabled, or (c) clobbers a customized row. Returns the count of
+   * newly-inserted rows. Best-effort caller: discovery failure must never block provider creation.
+   */
+  async upsertDiscoveredModels(
+    scopedDb: DataContextDb,
+    providerConfigId: string,
+    models: readonly {
+      readonly providerModelId: string;
+      readonly displayName: string;
+      readonly capabilities: readonly AiModelCapability[];
+      readonly tier: AiModelTier;
+      readonly status: AiModelStatus;
+    }[]
+  ): Promise<number> {
+    assertDataContextDb(scopedDb);
+    if (models.length === 0) return 0;
+
+    const now = new Date();
+    let inserted = 0;
+    for (const model of models) {
+      const result = await scopedDb.db
+        .insertInto("app.ai_configured_models")
+        .values({
+          id: randomUUID(),
+          provider_config_id: providerConfigId,
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          provider_model_id: model.providerModelId,
+          display_name: model.displayName,
+          capabilities: [...model.capabilities],
+          status: model.status,
+          tier: model.tier,
+          // #870/MED-4 (owner decision) + D8: default discovered models to user-overridable so the
+          // kept per-user chat override works out of the box — a user can pick a discovered model as
+          // their personal chat model without an admin first flipping the flag. Admin can still lock
+          // a specific model non-overridable via updateModel.
+          allow_user_override: true,
+          created_at: now,
+          updated_at: now
+        })
+        .onConflict((oc) =>
+          oc.columns(["owner_user_id", "provider_config_id", "provider_model_id"]).doNothing()
+        )
+        .executeTakeFirst();
+      // numInsertedOrUpdatedRows is 0n when the conflict skipped the row.
+      if ((result.numInsertedOrUpdatedRows ?? 0n) > 0n) inserted += 1;
+    }
+    return inserted;
+  }
+
   async updateModel(
     scopedDb: DataContextDb,
     modelId: string,
@@ -457,111 +519,186 @@ export class AiRepository {
     tier: AiModelTier = "interactive"
   ): Promise<AiConfiguredModelSafeRow | undefined> {
     assertDataContextDb(scopedDb);
-    const userTier = await this.readCapabilityTierPreference(scopedDb, capability);
-    const resolved = await this.resolveModelForCapability(scopedDb, capability, userTier ?? tier);
+    // #870/D7/M2: the per-user tier PREFERENCE is retired. `tier` is now just the caller's default
+    // (workers still pass explicit tiers like "economy"); the effective tier for a user-facing
+    // service comes from its service binding, resolved inside `resolveModelForCapability`.
+    const resolved = await this.resolveModelForCapability(scopedDb, capability, tier);
     return resolved.model ?? undefined;
   }
 
-  private async readCapabilityTierPreference(
-    scopedDb: DataContextDb,
-    capability: AiModelCapability
-  ): Promise<AiModelTier | null> {
-    const row = await scopedDb.db
-      .selectFrom("app.preferences")
-      .select("value_json")
-      .where("key", "=", `ai.capability_tier.${capability}`)
-      .executeTakeFirst();
-    const v = row?.value_json as unknown;
-    if (v === "reasoning" || v === "interactive" || v === "economy") return v;
-    return null;
-  }
-
-  async listCapabilityTierPreferences(
-    scopedDb: DataContextDb
-  ): Promise<Partial<Record<AiModelCapability, AiModelTier>>> {
-    assertDataContextDb(scopedDb);
-    const rows = await scopedDb.db
-      .selectFrom("app.preferences")
-      .select(["key", "value_json"])
-      .where("key", "like", "ai.capability_tier.%")
-      .execute();
-    const result: Partial<Record<AiModelCapability, AiModelTier>> = {};
-    for (const row of rows) {
-      const capability = row.key.replace("ai.capability_tier.", "") as AiModelCapability;
-      const v = row.value_json as unknown;
-      if (v === "reasoning" || v === "interactive" || v === "economy") {
-        result[capability] = v;
-      }
-    }
-    return result;
-  }
-
-  async setCapabilityTierPreference(
-    scopedDb: DataContextDb,
-    capability: AiModelCapability,
-    tier: AiModelTier
-  ): Promise<void> {
-    assertDataContextDb(scopedDb);
-    await scopedDb.db
-      .insertInto("app.preferences")
-      .values({
-        owner_user_id: sql<string>`app.current_actor_user_id()`,
-        key: `ai.capability_tier.${capability}`,
-        value_json: jsonb(tier),
-        updated_at: new Date()
-      })
-      .onConflict((oc) =>
-        oc.columns(["owner_user_id", "key"]).doUpdateSet({
-          value_json: jsonb(tier),
-          updated_at: new Date()
-        })
-      )
-      .execute();
-  }
-
-  async listCapabilityRoutes(scopedDb: DataContextDb): Promise<AiCapabilityRouteMap> {
-    assertDataContextDb(scopedDb);
-
+  /**
+   * #870/H2: legacy read-through. The retired `ai.capability_routes` key is never written again, but
+   * an instance upgraded from a prior release may still carry entries. We surface a legacy route as a
+   * `{ kind: "model" }` binding ONLY when its model is currently active under an active provider —
+   * a stale/disabled/null legacy route is dropped (logged once), never converted, so an upgrade can
+   * never manufacture a needs-config chat outage (the no-outage guarantee).
+   */
+  private async readLegacyCapabilityRoutes(scopedDb: DataContextDb): Promise<AiCapabilityRouteMap> {
     const row = await scopedDb.db
       .selectFrom("app.instance_settings")
       .select("value")
       .where("key", "=", AI_CAPABILITY_ROUTES_SETTING_KEY)
       .executeTakeFirst();
-
     return parseCapabilityRouteMap(row?.value);
   }
 
-  async setCapabilityRoute(
+  private loggedStaleLegacyRoutes = new Set<string>();
+
+  /**
+   * #870 Slice 1: resolve the effective binding for a user-facing service (Chat/Voice). Order:
+   *   1. the stored `ai.service_bindings[service]` (unified knob);
+   *   2. else the legacy `ai.capability_routes[service]` read-through (H2, only if still valid);
+   *   3. else unbound (the resolver falls back to default-provider auto / needs-config).
+   */
+  async getServiceBinding(
     scopedDb: DataContextDb,
-    input: SetAiCapabilityRouteInput
-  ): Promise<AiCapabilityRouteMap> {
+    service: AiModelCapability
+  ): Promise<AiServiceBinding | null> {
     assertDataContextDb(scopedDb);
 
-    const current = await this.listCapabilityRoutes(scopedDb);
-    const next = { ...current, [input.capability]: input.modelId };
-    const now = new Date();
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", AI_SERVICE_BINDINGS_SETTING_KEY)
+      .executeTakeFirst();
+    const bindings = parseServiceBindingMap(row?.value);
+    const bound = bindings[service];
+    if (bound) return bound;
 
+    // Legacy read-through (H2).
+    const legacy = await this.readLegacyCapabilityRoutes(scopedDb);
+    const legacyModelId = legacy[service] ?? null;
+    if (!legacyModelId) return null;
+
+    const stillValid = await this.safeModelQuery(scopedDb)
+      .where("models.id", "=", legacyModelId)
+      .where("models.status", "=", "active")
+      .where("providers.status", "=", "active")
+      .where(sql<boolean>`${service} = any(${sql.ref("models.capabilities")})`)
+      .executeTakeFirst();
+
+    if (stillValid) return { kind: "model", modelId: legacyModelId };
+
+    // Stale legacy route: ignore + log once (per model id) so an upgrade artifact is observable
+    // without spamming — do NOT convert it (would resurrect a needs-config outage).
+    if (!this.loggedStaleLegacyRoutes.has(legacyModelId)) {
+      this.loggedStaleLegacyRoutes.add(legacyModelId);
+      console.warn(
+        `[ai] ignoring stale legacy capability route for "${service}" (model ${legacyModelId} not active) — falling back to service binding / default provider`
+      );
+    }
+    return null;
+  }
+
+  /**
+   * #870/M1: write a single service binding. Single-statement JSON merge
+   * (`value || excluded.value`) so two admins saving DIFFERENT services concurrently can't lose each
+   * other's write (no read-modify-write). `scopedDb.db` is already the withDataContext transaction,
+   * so the read paths above stay consistent within a request.
+   */
+  async setServiceBinding(
+    scopedDb: DataContextDb,
+    service: AiModelCapability,
+    binding: AiServiceBinding,
+    actorUserId: string
+  ): Promise<AiServiceBinding> {
+    assertDataContextDb(scopedDb);
+    if (!USER_FACING_SERVICES.has(service)) {
+      throw new Error(`Service "${service}" is not bindable (worker capabilities stay automatic).`);
+    }
+
+    const now = new Date();
     await scopedDb.db
       .insertInto("app.instance_settings")
       .values({
-        key: AI_CAPABILITY_ROUTES_SETTING_KEY,
-        value: next,
-        updated_by_user_id: input.actorUserId,
+        key: AI_SERVICE_BINDINGS_SETTING_KEY,
+        value: { [service]: binding },
+        updated_by_user_id: actorUserId,
         created_at: now,
         updated_at: now
       })
       .onConflict((oc) =>
         oc.column("key").doUpdateSet({
-          value: next,
-          updated_by_user_id: input.actorUserId,
+          // M1: merge — keep every other service's binding, overwrite only this one key.
+          value: sql<Record<string, unknown>>`instance_settings.value || excluded.value`,
+          updated_by_user_id: actorUserId,
           updated_at: now
         })
       )
       .execute();
 
-    return next;
+    return binding;
   }
 
+  /**
+   * #870/H1/D2: the effective instance-default provider id, or null (needs-config). A flagged
+   * provider wins; a flagged-but-inactive provider is respected as an explicit admin choice and
+   * returns null rather than silently auto-picking another. With no flag, exactly one active
+   * admin-owned provider is the implicit default; zero or many ⇒ null.
+   */
+  async resolveDefaultProviderId(scopedDb: DataContextDb): Promise<string | null> {
+    assertDataContextDb(scopedDb);
+
+    const flagged = await scopedDb.db
+      .selectFrom("app.ai_provider_configs")
+      .select(["id", "status"])
+      .where("is_instance_default", "=", true)
+      .executeTakeFirst();
+    if (flagged) return flagged.status === "active" ? flagged.id : null;
+
+    const adminOwned = await scopedDb.db
+      .selectFrom("app.ai_provider_configs")
+      .select("id")
+      .where("status", "=", "active")
+      .where(sql<boolean>`app.owner_is_active_admin(owner_user_id)`)
+      .execute();
+    return adminOwned.length === 1 ? adminOwned[0]!.id : null;
+  }
+
+  /**
+   * #870/H1: promote a provider to instance-default. Clear-then-set. `scopedDb.db` is the
+   * withDataContext transaction, so the two statements are atomic (no transient double-default that
+   * would violate the 0147 partial unique index). The 0091 admin UPDATE policy is bare
+   * `current_actor_is_admin()` (no owner filter), so the blind clear reaches rows this admin can't
+   * otherwise SELECT — preventing a unique slot wedged by an invisible row.
+   */
+  async setInstanceDefaultProvider(
+    scopedDb: DataContextDb,
+    providerId: string
+  ): Promise<AiProviderConfigSafeRow | undefined> {
+    assertDataContextDb(scopedDb);
+
+    const target = await this.safeProviderQuery(scopedDb)
+      .where("id", "=", providerId)
+      .executeTakeFirst();
+    if (!target) return undefined;
+
+    await scopedDb.db
+      .updateTable("app.ai_provider_configs")
+      .set({ is_instance_default: false, updated_at: new Date() })
+      .where("is_instance_default", "=", true)
+      .execute();
+    await scopedDb.db
+      .updateTable("app.ai_provider_configs")
+      .set({ is_instance_default: true, updated_at: new Date() })
+      .where("id", "=", providerId)
+      .execute();
+
+    return this.requireVisibleProvider(scopedDb, providerId);
+  }
+
+  /**
+   * #870 Slice 1 resolver. Splits by capability class:
+   *
+   * (1) Admin per-user pin applies to EVERY capability (OWNER decision, #870 locked decision #2 —
+   *     overrides the spec-H3 default which scoped the pin to chat): a pin is a HARD routing
+   *     constraint on ALL of the actor's traffic (chat + voice + workers), because private data must
+   *     stay on the mandated backend. Model pin wins over provider pin (M4a). No cross-provider
+   *     escape from a pin.
+   * (2) Un-pinned user-facing services (chat/voice) follow their service binding, resolved INSIDE the
+   *     instance-default provider for a "mode" binding.
+   * (3) Un-pinned worker capabilities keep H3: cross-provider `selectAutomaticModelForCapability`.
+   */
   async resolveModelForCapability(
     scopedDb: DataContextDb,
     capability: AiModelCapability,
@@ -569,54 +706,172 @@ export class AiRepository {
   ): Promise<AiCapabilityRouteResolution> {
     assertDataContextDb(scopedDb);
 
-    const adminPinnedModelId = await this.getAdminPinnedModelId(scopedDb);
-    if (adminPinnedModelId) {
-      const adminPinnedModel = await this.safeModelQuery(scopedDb)
-        .where("models.id", "=", adminPinnedModelId)
+    const isUserFacing = USER_FACING_SERVICES.has(capability);
+    const [pinnedModelId, pinnedProviderId] = await Promise.all([
+      this.getAdminPinnedModelId(scopedDb),
+      this.getAdminPinnedProviderId(scopedDb)
+    ]);
+
+    // (1a) Model pin (wins over provider pin, M4a).
+    if (pinnedModelId) {
+      const pinnedModel = await this.safeModelQuery(scopedDb)
+        .where("models.id", "=", pinnedModelId)
         .where("models.status", "=", "active")
         .where("providers.status", "=", "active")
         .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
         .executeTakeFirst();
+      if (pinnedModel) return { model: pinnedModel, reason: "admin-pin" };
 
-      if (adminPinnedModel) {
-        return { model: adminPinnedModel, reason: "admin-pin" };
-      }
-      // Hard-lock: for chat, a set but unavailable pin does not fall through silently.
-      if (capability === "chat") {
+      // Pinned model can't serve THIS capability.
+      if (isUserFacing) {
+        // Chat/Voice hard-lock — preserve the existing reason string, no fallthrough.
         return { model: null, reason: "admin-pin-unavailable" };
       }
+      // Worker: the user's traffic must stay on the pinned model's PROVIDER. Resolve the worker
+      // capability inside that provider (never cross-provider). needs-config + log if none capable.
+      const providerId = await this.providerIdForModel(scopedDb, pinnedModelId);
+      if (providerId) {
+        const inProvider = await this.selectModelInProviderForCapability(
+          scopedDb,
+          providerId,
+          capability,
+          tier
+        );
+        if (inProvider) return { model: inProvider, reason: "admin-pin" };
+      }
+      await this.logNeedsConfig(scopedDb, capability);
+      return { model: null, reason: "needs-config" };
     }
 
-    const routes = await this.listCapabilityRoutes(scopedDb);
-    const manualModelId = routes[capability] ?? null;
+    // (1b) Provider pin — hard-lock ALL traffic to that provider (chat + voice + workers), M4b.
+    if (pinnedProviderId) {
+      const inProvider = await this.selectModelInProviderForCapability(
+        scopedDb,
+        pinnedProviderId,
+        capability,
+        tier
+      );
+      if (inProvider) return { model: inProvider, reason: "admin-pin" };
+      // #870/MED-4b (Fable MED-1): a wedged/revoked pinned provider is a SYMMETRIC hard-lock —
+      // mirror the model-pin miss above, no cross-provider escape. User-facing (chat/voice) returns
+      // "admin-pin-unavailable" — the exact reason chat-drawer.tsx:163 + settings-ai-chat-lock-group
+      // match to render the lock-unavailable state (bare "needs-config" was invisible to them). Not
+      // logged on the user-facing path: it's visible in the UI and readPin resolves chat on every
+      // settings/pin read, so logging here would spam jarvis_error_log. Workers stay observable.
+      if (isUserFacing) return { model: null, reason: "admin-pin-unavailable" };
+      await this.logNeedsConfig(scopedDb, capability);
+      return { model: null, reason: "needs-config" };
+    }
 
-    if (manualModelId) {
-      const manualModel = await this.safeModelQuery(scopedDb)
-        .where("models.id", "=", manualModelId)
+    // (3) Un-pinned worker capability: cross-provider automatic (H3, unchanged). Observable on miss.
+    if (!isUserFacing) {
+      const automatic = await this.selectAutomaticModelForCapability(scopedDb, capability, tier);
+      if (automatic) return { model: automatic, reason: "matched-active-model" };
+      await this.logNeedsConfig(scopedDb, capability);
+      return { model: null, reason: "no-active-model" };
+    }
+
+    // (2) Un-pinned user-facing service: follow the service binding (incl. legacy read-through).
+    const binding = await this.getServiceBinding(scopedDb, capability);
+    if (binding?.kind === "model") {
+      const model = await this.safeModelQuery(scopedDb)
+        .where("models.id", "=", binding.modelId)
         .where("models.status", "=", "active")
         .where("providers.status", "=", "active")
         .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
         .executeTakeFirst();
-
-      if (manualModel) {
-        return {
-          model: manualModel,
-          reason: adminPinnedModelId ? "admin-pin-unavailable-fallback" : "manual-route"
-        };
-      }
+      return model ? { model, reason: "manual-route" } : { model: null, reason: "needs-config" };
     }
 
-    const automatic = await this.selectAutomaticModelForCapability(scopedDb, capability, tier);
-    return {
-      model: automatic ?? null,
-      reason: adminPinnedModelId
-        ? "admin-pin-unavailable-fallback"
-        : manualModelId
-          ? "manual-route-unavailable-fallback"
-          : automatic
-            ? "matched-active-model"
-            : "no-active-model"
-    };
+    // "mode" binding OR unbound → resolve inside the instance-default provider.
+    const defaultProviderId = await this.resolveDefaultProviderId(scopedDb);
+    if (!defaultProviderId) return { model: null, reason: "needs-config" };
+
+    const effectiveTier = binding?.kind === "mode" ? binding.tier : tier;
+    const model = await this.selectModelInProviderForCapability(
+      scopedDb,
+      defaultProviderId,
+      capability,
+      effectiveTier
+    );
+    return model
+      ? { model, reason: "matched-active-model" }
+      : { model: null, reason: "needs-config" };
+  }
+
+  /**
+   * #870/H5: provider-scoped tier ladder. Only searches models under `providerId`. Sentinel-aware:
+   * the CLI `"default"` sentinel is inserted `active` so it wins; statically-discovered concrete ids
+   * are inserted `inactive` and can never out-rank it in the `created_at desc` scan.
+   */
+  private async selectModelInProviderForCapability(
+    scopedDb: DataContextDb,
+    providerId: string,
+    capability: AiModelCapability,
+    tier: AiModelTier
+  ): Promise<AiConfiguredModelSafeRow | undefined> {
+    const TIER_LADDER: AiModelTier[] = ["economy", "interactive", "reasoning"];
+    const startIndex = TIER_LADDER.indexOf(tier);
+    const tiersToTry = startIndex >= 0 ? TIER_LADDER.slice(startIndex) : TIER_LADDER;
+
+    for (const t of tiersToTry) {
+      const model = await this.safeModelQuery(scopedDb)
+        .where("providers.id", "=", providerId)
+        .where("models.status", "=", "active")
+        .where("providers.status", "=", "active")
+        .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
+        .where("models.tier", "=", t)
+        .orderBy("models.created_at", "desc")
+        .orderBy("models.id", "desc")
+        .executeTakeFirst();
+      if (model) return model;
+    }
+
+    // Final fallback: any active capable model in this provider (single-model provider setups).
+    return this.safeModelQuery(scopedDb)
+      .where("providers.id", "=", providerId)
+      .where("models.status", "=", "active")
+      .where("providers.status", "=", "active")
+      .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
+      .orderBy("models.created_at", "desc")
+      .orderBy("models.id", "desc")
+      .executeTakeFirst();
+  }
+
+  private async providerIdForModel(
+    scopedDb: DataContextDb,
+    modelId: string
+  ): Promise<string | null> {
+    const row = await this.safeModelQuery(scopedDb)
+      .where("models.id", "=", modelId)
+      .executeTakeFirst();
+    return row?.provider_config_id ?? null;
+  }
+
+  /**
+   * #870/H3: record a needs-config miss for a WORKER capability to jarvis_error_log (0145) so a
+   * mis-provisioned instance's silently-skipped distillation/briefings are observable. Only called
+   * on worker paths — user-facing needs-config is already visible in the admin UI, so logging there
+   * (on every settings/pin read) would spam the log. Best-effort; never breaks resolution.
+   */
+  private async logNeedsConfig(
+    scopedDb: DataContextDb,
+    capability: AiModelCapability
+  ): Promise<void> {
+    try {
+      await this.recordError(scopedDb, {
+        id: randomUUID(),
+        feature: "ai.routing",
+        operation: `resolve:${capability}`,
+        errorCategory: "needs-config",
+        retryable: false,
+        userMessage: "No AI model is configured for this capability.",
+        internalSummary: `No active capable model resolved for capability=${capability} (needs-config).`,
+        requestId: null
+      });
+    } catch {
+      // Observability is best-effort — a logging failure must not fail the caller's work.
+    }
   }
 
   private async selectAutomaticModelForCapability(
@@ -666,16 +921,25 @@ export class AiRepository {
   async getChatModelOverrideSettings(scopedDb: DataContextDb): Promise<ChatModelOverrideSettings> {
     assertDataContextDb(scopedDb);
 
-    const [defaultModel, models, overrideEnabled, requestedModelId, adminPinnedModelId] =
-      await Promise.all([
-        this.selectModelForCapability(scopedDb, "chat"),
-        this.listModels(scopedDb),
-        this.getChatModelOverrideEnabled(scopedDb),
-        this.getChatModelOverridePreference(scopedDb),
-        this.getAdminPinnedModelId(scopedDb)
-      ]);
+    const [
+      defaultModel,
+      models,
+      overrideEnabled,
+      requestedModelId,
+      adminPinnedModelId,
+      adminPinnedProviderId
+    ] = await Promise.all([
+      this.selectModelForCapability(scopedDb, "chat"),
+      this.listModels(scopedDb),
+      this.getChatModelOverrideEnabled(scopedDb),
+      this.getChatModelOverridePreference(scopedDb),
+      this.getAdminPinnedModelId(scopedDb),
+      this.getAdminPinnedProviderId(scopedDb)
+    ]);
 
-    if (adminPinnedModelId) {
+    // #870/M4: a per-user pin of EITHER kind (model or provider) is a hard routing constraint, so the
+    // per-user chat override is inert — surface the pinned/effective model with no selectable choices.
+    if (adminPinnedModelId || adminPinnedProviderId) {
       return {
         overrideEnabled,
         currentOverrideModelId: requestedModelId,
@@ -806,6 +1070,13 @@ export class AiRepository {
 
     if (!model) return null;
 
+    // #870/M4a: model pin and provider pin are mutually exclusive. Setting a model pin clears any
+    // provider pin so the two keys can never both be present for one user.
+    await scopedDb.db
+      .deleteFrom("app.preferences")
+      .where("key", "=", AI_ADMIN_PINNED_PROVIDER_PREFERENCE_KEY)
+      .execute();
+
     await scopedDb.db
       .insertInto("app.preferences")
       .values({
@@ -823,6 +1094,77 @@ export class AiRepository {
       .execute();
 
     return model;
+  }
+
+  /**
+   * #870/D8 Slice 1: the admin's per-user PROVIDER pin (id), or null. A provider pin hard-locks ALL
+   * of the user's traffic (chat + voice + workers) to that provider — see resolveModelForCapability.
+   */
+  async getAdminPinnedProviderId(scopedDb: DataContextDb): Promise<string | null> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select("value_json")
+      .where("key", "=", AI_ADMIN_PINNED_PROVIDER_PREFERENCE_KEY)
+      .executeTakeFirst();
+    return typeof row?.value_json === "string" ? row.value_json : null;
+  }
+
+  async getAdminPinnedProvider(scopedDb: DataContextDb): Promise<AiProviderConfigSafeRow | null> {
+    assertDataContextDb(scopedDb);
+    const providerId = await this.getAdminPinnedProviderId(scopedDb);
+    if (!providerId) return null;
+    return (
+      (await this.safeProviderQuery(scopedDb).where("id", "=", providerId).executeTakeFirst()) ??
+      null
+    );
+  }
+
+  async setAdminPinnedProvider(
+    scopedDb: DataContextDb,
+    providerId: string | null
+  ): Promise<AiProviderConfigSafeRow | null> {
+    assertDataContextDb(scopedDb);
+
+    if (providerId === null) {
+      await scopedDb.db
+        .deleteFrom("app.preferences")
+        .where("key", "=", AI_ADMIN_PINNED_PROVIDER_PREFERENCE_KEY)
+        .execute();
+      return null;
+    }
+
+    // Only an active, visible provider can be pinned (a hard-lock to a dead provider would strand
+    // the user with a permanent needs-config for every capability).
+    const provider = await this.safeProviderQuery(scopedDb)
+      .where("id", "=", providerId)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    if (!provider) return null;
+
+    // #870/M4a: clear any model pin — the two pin kinds are mutually exclusive.
+    await scopedDb.db
+      .deleteFrom("app.preferences")
+      .where("key", "=", AI_ADMIN_PINNED_MODEL_PREFERENCE_KEY)
+      .execute();
+
+    await scopedDb.db
+      .insertInto("app.preferences")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        key: AI_ADMIN_PINNED_PROVIDER_PREFERENCE_KEY,
+        value_json: jsonb(providerId),
+        updated_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc.columns(["owner_user_id", "key"]).doUpdateSet({
+          value_json: jsonb(providerId),
+          updated_at: new Date()
+        })
+      )
+      .execute();
+
+    return provider;
   }
 
   /**
@@ -847,6 +1189,8 @@ export class AiRepository {
         "auth_method",
         "execution_mode",
         sql<boolean>`encrypted_credential IS NOT NULL`.as("has_credential"),
+        // #870/H1: keep the sealed-credential row shape in sync with AiProviderConfigSafeRow.
+        "is_instance_default",
         "revoked_at",
         "created_at",
         "updated_at",
@@ -966,6 +1310,8 @@ export class AiRepository {
         "auth_method",
         "execution_mode",
         sql<boolean>`encrypted_credential IS NOT NULL`.as("has_credential"),
+        // #870/H1: the single instance-default flag (0147). Serialized into AiProviderConfigDto.
+        "is_instance_default",
         "revoked_at",
         "created_at",
         "updated_at"
