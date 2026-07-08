@@ -48,6 +48,20 @@ disk, not in your context:
 **2. Spawn your successor with `herdr-handoff`.** A fresh session in the appropriate place. The
 successor **skips `pnpm install`** — `node_modules` already exists in the reused worktree (shared
 pnpm store); re-installing is wasted time/tokens. Bootstrap should say `[ -d node_modules ] || pnpm install`.
+
+**⚠️ Always pass `--tab <your-own-tab_id>` on the spawn command.** `herdr agent start` without
+`--tab`/`--split` **auto-places into any free pane** — which can land the successor in a totally
+unrelated tab (someone's Codex/review tab, a scratch tab) instead of the tab it belongs in.
+Resolve your own `tab_id` from `herdr pane list` (find your own `pane_id`'s entry) and pass it
+explicitly, e.g. `herdr agent start "<Label>" --tab <your-own-tab_id> --cwd <path> --no-focus -- claude --model sonnet ...`.
+- **Build agent:** your successor must land in the **same agents tab you're in** — pass your own
+  current `tab_id`.
+- **Coordinator:** your successor must land in the **same tab as your own coordinator pane, never
+  the agents tab** — pass your own current `tab_id`.
+
+See incidents.md for a real case where a build agent's relay successor landed in a stray tab
+because `--tab` was omitted; the coordinator had to `herdr pane move` it back afterward.
+
 Use unattended full-access launch permissions for coordinator relays — and **always pass the
 model explicitly**: `herdr … -- claude` boots **Opus** by default (cost policy is Sonnet for
 build agents and coordinator loops; confirm the new pane says "Sonnet", respawn if not):
