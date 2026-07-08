@@ -32,12 +32,12 @@ immediately without a pause-and-ask round trip, including `security` tier.
 Build-760 (Sonnet) is the reversion, as expected.
 **merges_since_relay:** 0 this tenure so far.
 **Open:** Build-853 Task 3 (full local gate) in progress. Build-760's plan was approved (no drift,
-no fork) and it began TDD Task 1 (migration + `chat_skills` table); it self-relayed at 70% context
-before writing any code (still in migration research) — successor confirmed driving in the same
-pane/worktree, new session `dcc59fef-ed79-4afb-a441-9ffb89b36e02`, label `Build-760-relayed`, old
-process self-reaped (only one pane in the tab post-relay, nothing left for the coordinator to
-close). Task 1 now ~48% per its own todo list. Watching both via Monitor `bmt2e7gqq` (still keyed
-on pane `w1:pB1` — unaffected by the in-place relay since the pane id didn't change).
+no fork); it self-relayed once in-place (`w1:pB1`, session `dcc59fef…`, self-reaped, no coordinator
+action needed — correction to the note below), then relayed again with a genuine **new pane**:
+`w1:pB2` (successor confirmed driving on Sonnet, reading handoff/re-orienting via `git status` +
+`ls packages/*/sql/*.sql`). Old pane `w1:pB1` reaped by this coordinator
+(`herdr pane close w1:pB1`). Still pre-code as of last check (Task 1 migration research). Liveness
+Monitor re-pointed: stopped `bmt2e7gqq`, started `b709amjaj` for `w1:p9W` + `w1:pB2`.
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
