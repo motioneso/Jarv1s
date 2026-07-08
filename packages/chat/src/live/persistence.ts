@@ -149,7 +149,10 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     };
   }
 
-  async listPriorTurns(actorUserId: string): Promise<{
+  async listPriorTurns(
+    actorUserId: string,
+    opts?: { readonly forceReplay?: boolean }
+  ): Promise<{
     recent: readonly { role: "user" | "assistant"; content: string }[];
     oldSummary: string | null;
   }> {
@@ -162,7 +165,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         .filter((m) => m.status === "stored" && (m.role === "user" || m.role === "assistant"))
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.body }));
 
-      const k = getReplayK();
+      const k = opts?.forceReplay ? getSwitchReplayK() : getReplayK();
       if (k <= 0) {
         return { recent: [], oldSummary: null };
       }
@@ -375,6 +378,11 @@ function getReplayK(): number {
   if (!val) return 0;
   const parsed = parseInt(val, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function getSwitchReplayK(): number {
+  const configured = getReplayK();
+  return configured > 0 ? configured : 10;
 }
 
 function deriveChatTitle(userText: string): string {
