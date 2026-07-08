@@ -11,14 +11,19 @@ trust a pane number.
   auth-signup-atomicity. Task 3 (full local gate) in progress. No PR yet. When done: Opus
   adversarial QA → `gh pr comment` verdict → merge immediately on GREEN (Ben's standing override
   waives the separate sign-off pause, including security tier).
-- **Build-760** (`w1:pB2`, tab `w1:t1C`, Sonnet, working) — **security tier** (a prior checkpoint
-  mid-file mislabeled this "routine/sensitive"; the original spawn-time tiering note and every
-  other reference say `security` — new user-authored-content-as-instructions surface + new
-  owner-scoped RLS table on `app.chat_skills`). Task 1 (migration + RLS test) in progress. No PR
-  yet. Same QA/merge path as #853.
+- **Build-760b** (`w1:pB7`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760
+  (`w1:pB2`, session `879ca5bb…`, verified driving then reaped; continuation doc
+  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-2.md` commit `a468dcf2`).
+  **security tier** (a prior checkpoint mid-file mislabeled this "routine/sensitive"; the original
+  spawn-time tiering note and every other reference say `security` — new
+  user-authored-content-as-instructions surface + new owner-scoped RLS table on
+  `app.chat_skills`). Task 1 done+green (`0147` chat_skills migration + RLS test, commit
+  `1b521023`). Task 2 (skills repo + shared DTOs) in progress, research-only so far. No PR yet.
+  Same QA/merge path as #853.
 
-**Liveness Monitor:** fresh persistent Monitor (task `bmr4q9c48`) on `w1:p9W` + `w1:pB2`,
-emit-on-change only. Dies with this session at relay — successor starts its own.
+**Liveness Monitor:** persistent Monitor (task `bmr4q9c48`) retargeted to `w1:p9W` + `w1:pB7`
+(old `w1:pB2` reaped), emit-on-change only. Dies with this session at relay — successor starts its
+own.
 
 **Merge policy (Ben's standing override, still in force):** any GREEN QA verdict merges
 immediately without a pause-and-ask round trip, including `security` tier.
