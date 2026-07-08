@@ -798,3 +798,27 @@ First candidate for the Codex provider-mix directive once he approves.
   not started) remains besides this coordinator. No new panes in the agents tab.
 - Per instruction, checking with Ben directly for any reply on #817 spec approval / backlog triage
   before taking any further action — not spawning anything on #817 without his explicit go-ahead.
+- **Ben approved #817: "approve #817 spec, security tier, go ahead."** Spec status line updated to
+  APPROVED (commit `fb694973`). Cut worktree `.claude/worktrees/817-error-explainability` off
+  `origin/main` @ `eafb6ae5` (main CI confirmed green first, 3/3 success). Wrote + committed
+  handoff doc (`3e826d49`) at `docs/coordination/handoff-817-error-explainability.md` in that
+  worktree — tier `security`, coordinator session id `2504c431-...` recorded in it.
+- **Spawned Build-817 on Codex** (first candidate for Ben's provider-mix directive — see
+  `4456c532` tenure notes above): `herdr agent start "Build-817" --tab w1:t1C --cwd
+  .../817-error-explainability --no-focus -- codex -s danger-full-access -a never "<boot>"`, pane
+  `w1:pAA`. **Confirmed running `gpt-5.5 medium` via bounded pane read** (not Claude/Sonnet —
+  correct for this directive). **Codex-provider counter: 1 of next 3 spawned.**
+- **Backlog triage** — still not re-relayed or re-asked this tenure; Ben's message only addressed
+  #817. Unchanged from prior tenure's note: ready-for-brief #820/#821/#823/#824; needs Ben's scope
+  call #818/#819/#822/#825/#826; unapproved 2026-07-05 draft specs awaiting his read-through
+  #742/#743/#744/#759/#760; #745 parked; #741 awaiting his close call.
+- **Still open / flag for successor:** the QA-provider-mixing ambiguity from the provider-mix
+  directive is now LIVE — #817 is the first security-tier PR under this policy. When Build-817
+  reports done: mandatory Opus adversarial QA + `gh pr comment` verdict + Ben sign-off stays
+  non-negotiable; Ben also wants a genuine cross-model second pass (Codex or Gemini CLI, per
+  `cli-adversarial-review` memory) ADDED alongside Opus, not replacing it — confirm exact mechanics
+  with Ben when Build-817 is actually ready for QA, don't guess.
+- Liveness Monitor (`bb8pd1v45`, watching only `w1:p9W`) is now stale — it does not cover
+  Build-817 (`w1:pAA`). **Successor: start a fresh Monitor for `w1:p9W` + `w1:pAA`.**
+- Relaying now: context meter hit 70% (fired trigger immediately after confirming Build-817's
+  pane, no further action taken first per no-deferral rule).
