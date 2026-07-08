@@ -1809,6 +1809,11 @@ merged squash `791ce5e4`, security-tier merge triggered the unconditional relay)
 - Lock line above updated to this session / `w1:pAW`.
 - Will re-verify exactly one `Coordinator` pane after the predecessor closes.
 
-**Next:** confirm predecessor stood down and reap it, then resume Wave 2 (#759, Codex) per the
-provider-mix directive and the "RFA wave" section, and resume watching Build-853 (`w1:p9W`,
-idle, Task 3 next).
+**Predecessor confirmed and reaped:** `w1:pAV` showed `agent_status: done` on the next check, then
+a bounded read showed "Handoff complete. Closing this pane now." — closed via `herdr pane close
+w1:pAV`. Re-verified via `herdr pane list`: exactly one `Coordinator`-labeled pane remains
+(`w1:pAW`, session `4727de9a-8e93-4bd6-a684-7320d6a54a5a`). Phase 0a complete.
+
+**Next:** spawn Wave 2 (#759, Codex) per the provider-mix directive and the "RFA wave" section,
+and resume watching Build-853 (`w1:p9W`, idle, Task 3 "full local gate" next — confirmed via
+bounded read, unchanged from predecessor's last observation).
