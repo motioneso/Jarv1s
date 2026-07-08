@@ -8,38 +8,32 @@ tab fix done + 1 of 3 owed root-cause doc fixes done (`relay` SKILL.md); 3 remai
 (herdr-handoff SKILL.md, coordinate SKILL.md Phase 2, incidents.md) picked up first thing this
 tenure — see relay checkpoint below). Resolve the CURRENT lock fresh by label+session — this line
 is stale the instant a new session claims it; never trust a pane number.
-**This tenure (`58cd692d`) — IN PROGRESS:**
-1. Phase 0a: renamed pane, confirmed sole ACTIVE `Coordinator` pane (predecessor `4727de9a`,
-   pane `w1:pAW`, was `agent_status: done` — expected pre-reap state, not a duplicate-loop
-   incident); messaged it to self-close (confirmed "Handoff complete" in its transcript).
-2. Re-verified `#760` spec: still **Approved (2026-07-07, Ben)** on `origin/main` @ `263716af`
-   (post-#873). Pre-written build-ready plan exists (`docs/superpowers/plans/2026-07-06-skill-
-   integration-chat-plan.md`, from PR #861). Re-checked highest module migration on `origin/main`:
-   **`0146`** (was `0144` at last check) — next free `0147`, no renumber race (only #760 adds one
-   this wave).
-3. **Spawned Wave 3** — Build-760 (#760 skill-integration-chat, `security` tier, **Claude Sonnet**
-   per provider-mix reversion) off `origin/main` `263716af` into worktree
-   `.claude/worktrees/760-skill-integration-chat`, pane `w1:pB1`, confirmed running Sonnet 5.
-   Handoff doc committed at `760-skill-integration-chat:docs/coordination/handoff-760-skill-
-   integration-chat.md` (not in this manifest's history — lives in the build worktree/branch).
-4. Build-853 (`w1:p9W`): predecessor's liveness Monitor `btj9yrr0j` did **not** survive the relay
-   (confirmed dead via `TaskOutput` — "No task found"), consistent with every prior tenure in this
-   run's history despite each successor note saying "adopt, don't restart." Started a fresh
-   persistent `Monitor` (task `bmt2e7gqq`) covering both `w1:p9W` and `w1:pB1`, emit-on-change only.
-   Found Build-853 idle at Task 3 "full local gate" — nudged it via `herdr pane run`; confirmed it
-   picked the nudge up (transitioned to "Computing…").
+**This tenure (`dfbd2dc6`) — IN PROGRESS:**
+1. Phase 0a: verified predecessor `58cd692d` (pane `w1:pA0`) was sole `Coordinator` pane and
+   idle/relayed via bounded read, reaped it, renamed own pane (`w1:pB4`) to `Coordinator`,
+   confirmed exactly one `Coordinator` pane, recorded new lock line, committed (`e044ed51`).
+2. Finished the 3 doc fixes owed from the `58cd692d` relay checkpoint: `~/.claude/skills/herdr-
+   handoff/SKILL.md` now shows `--tab <target-tab_id>` on every example spawn + a "Common
+   mistakes" bullet (global file, outside this repo, not committed here);
+   `.claude/skills/coordinate/SKILL.md` Phase 2 "On an agent relay" bullet now requires verifying
+   tab placement on every relay, including self-relays the coordinator didn't spawn;
+   `.claude/skills/coordinate/references/incidents.md` got a new 2026-07-08 dated entry for the
+   Build-760 stray-tab case. Both repo files committed (`3435a030`).
+3. Resumed supervision: bounded reads confirmed Build-853 (`w1:p9W`, Task 3 full local gate,
+   `pnpm exec vitest run tests/integration/chat-live-api.test.ts`) and Build-760 (`w1:pB2`, Task 1
+   `chat_skills` migration + RLS test) both `working`, Sonnet, correct worktrees, tab `w1:t1C`.
+   Started a fresh persistent liveness `Monitor` (task `b2uf3p437`) for `w1:p9W` + `w1:pB2` —
+   predecessor's `b709amjaj` was session-scoped and did not survive the relay, consistent with
+   every prior tenure in this run.
 **Merge policy (Ben's standing override, still in force):** any GREEN QA verdict merges
 immediately without a pause-and-ask round trip, including `security` tier.
 **Provider-mix directive:** COMPLETE — 3/3 Codex slots used (Build-742, Build-744, Build-759);
 Build-760 (Sonnet) is the reversion, as expected.
-**merges_since_relay:** 0 this tenure so far.
-**Open:** Build-853 Task 3 (full local gate) in progress. Build-760's plan was approved (no drift,
-no fork); it self-relayed once in-place (`w1:pB1`, session `dcc59fef…`, self-reaped, no coordinator
-action needed — correction to the note below), then relayed again with a genuine **new pane**:
-`w1:pB2` (successor confirmed driving on Sonnet, reading handoff/re-orienting via `git status` +
-`ls packages/*/sql/*.sql`). Old pane `w1:pB1` reaped by this coordinator
-(`herdr pane close w1:pB1`). Still pre-code as of last check (Task 1 migration research). Liveness
-Monitor re-pointed: stopped `bmt2e7gqq`, started `b709amjaj` for `w1:p9W` + `w1:pB2`.
+**merges_since_relay:** 0 this tenure so far (carried forward — nothing merged since the last
+relay).
+**Open:** Build-853 Task 3 (full local gate) in progress. Build-760 on Task 1 (migration + RLS
+test) in progress. No PR yet on either. Build-759/PR #873 already merged by predecessor `4727de9a`
+(per lock-line history above) — nothing outstanding there.
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
@@ -1867,6 +1861,36 @@ Continuing Tasks 1/2/3/5. Weekly Codex quota 14% left, 209K used.
 re-confirmed (`4727de9a` matches lock line) before acting. Spawned independent QA:
 `coordinated-qa` subagent (routine tier, Sonnet, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_759`).
 Awaiting verdict (async — will resume via its background task on completion).
+
+## Relay checkpoint (session `dfbd2dc6-2b6d-4b3b-b935-141d8e627a08`, context-meter 70% — flush + relay per protocol, no further action first)
+
+Phase 0a complete (claimed lock from `58cd692d`, reaped `w1:pA0`, own pane `w1:pB4` renamed
+`Coordinator`, lock line updated, commit `e044ed51`). All 3 owed doc fixes from the prior
+checkpoint are DONE (herdr-handoff SKILL.md global file edited directly; coordinate SKILL.md +
+incidents.md committed `3435a030`) — nothing outstanding from that incident anymore.
+
+**Fleet, confirmed via bounded reads this tenure, both `working`/Sonnet/tab `w1:t1C`:**
+- **Build-853** (`w1:p9W`, session `2e85563b-b1e6-4828-9e21-48fa4cfccff8`) — Task 3, full local
+  gate running (`pnpm exec vitest run tests/integration/chat-live-api.test.ts`). No PR yet. When
+  done: Opus adversarial QA (security tier) → mandatory `gh pr comment` verdict → Ben's explicit
+  sign-off. Never auto-merge.
+- **Build-760** (`w1:pB2`, session `879ca5bb-4022-4f64-9755-730a91a6b771`) — Task 1, `chat_skills`
+  migration + RLS test. No PR yet. Security tier — same QA/sign-off requirement as #853.
+
+**Liveness Monitor:** fresh persistent `Monitor` started this tenure, task `b2uf3p437`, covering
+`w1:p9W` + `w1:pB2`, emit-on-change only. **This monitor is session-process-scoped and will NOT
+survive this relay** (same as every prior tenure in this run) — successor must start its own, do
+not try to adopt it.
+
+**merges_since_relay:** 0 (nothing merged this tenure; carried forward unchanged).
+
+**Nothing else outstanding.** No blockers, no escalations pending, no design forks. Successor:
+Phase 0a (claim lock from this session), confirm fleet via bounded reads, start a fresh Monitor,
+resume normal Phase 2 supervision.
+
+**Coordinator lock:** now `dfbd2dc6-2b6d-4b3b-b935-141d8e627a08` / label `Coordinator` / pane
+`w1:pB4` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
+Phase 0a and updates this line itself.
 
 ## Relay checkpoint (session `58cd692d-ac30-4f76-9e47-a810041e358d`, compaction tripwire — flush + relay per protocol, no further action first)
 
