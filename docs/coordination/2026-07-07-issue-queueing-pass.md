@@ -759,3 +759,30 @@ First candidate for the Codex provider-mix directive once he approves.
     for security tier means ADDING a second-model pass alongside Opus, not replacing it, unless
     Ben says otherwise when the first security-tier PR under this policy comes up. Flag this
     ambiguity to Ben when it becomes concrete rather than guessing.
+
+## Successor tenure notes (session `4456c532-a562-4048-82e3-e5eccec0a535`) — continuation, relay at 71%
+
+- **fable-spec-817 idle_notification resolved, no action needed.** That subagent had already
+  authored the #817 spec fix; the fix is committed (`c501f1b0`, "record #817 spec fix"). The
+  "interrupted" idle notification just meant the subagent finished its edit and went idle — not a
+  stuck/incomplete task. Confirmed by reading the spec file: D1-D5 resolved, tier corrected to
+  `security`, exit criteria updated with the new persistence-level stack-drop test requirement.
+  Spec content looks internally coherent and complete.
+- **Current fleet (confirmed via `herdr pane list` this tenure):** only `Coordinator` (`w1:pA8`,
+  this session) and `Build-853` (`w1:p9W`, idle, Task 1+2 done, Task 3 not started) remain. #663
+  is closed/reaped. No other build/QA panes active. Liveness `Monitor` (task `bb8pd1v45`) still
+  running for Build-853.
+- **Still blocked on Ben:** #817 spec awaits his explicit approval before `/plan`/`/build` —
+  do NOT spawn a build agent on it until he says go. Also still no reply on the backlog triage
+  relayed in the `c716ccac` tenure's final checkpoint.
+- **Provider-mix directive unchanged:** next 3 build agents → Codex (0/3 spawned so far, since
+  no new builds have spawned this tenure). QA-provider mixing also requested by Ben but mechanics
+  unresolved for security tier (Opus adversarial pass stays mandatory; a second-model pass adds
+  alongside it, doesn't replace it) — flag to Ben when the first security-tier PR under this
+  policy actually comes up (#817 will likely be it, once approved).
+- **Immediate next action for successor:** check whether Ben has replied (spec approval,
+  backlog triage, or anything else) before doing anything else. If #817 is approved, it is the
+  first candidate for the Codex-provider directive AND is security-tier (Opus adversarial QA +
+  Ben sign-off required, no auto-merge). If no reply yet, just resume the liveness watch on
+  Build-853 and wait — nothing else to spawn until Ben unblocks the queue.
+- Relaying now: context meter hit 71% (fired trigger, no deferral per coordinate skill).
