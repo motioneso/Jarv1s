@@ -198,7 +198,8 @@ describe("AI provider foundation", () => {
       "app.ai_provider_configs",
       "app.ai_configured_models",
       "app.ai_assistant_action_requests",
-      "app.jarvis_action_audit_log"
+      "app.jarvis_action_audit_log",
+      "app.jarvis_error_log"
     ]);
     expect(manifest?.settings?.[0]).toMatchObject({
       id: "ai.user-settings",
