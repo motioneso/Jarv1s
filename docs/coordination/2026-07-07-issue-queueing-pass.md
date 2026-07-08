@@ -1161,6 +1161,17 @@ migration (matches spec's preferred `PreferencesRepository` row over a new table
 `sendNew`, digest worker + settings UI. Matches spec's locked decisions. Approved via
 `herdr-pane-message`, confirmed delivered + agent back to `working`. Proceeding to TDD build.
 
+**Build-744 wrap-up reported: DONE.** PR #865, branch `744-private-chat-mode` pushed + rebased on
+`origin/main` @ `f824e743`. Self-reported `VF_EXIT=0` full suite (unit 278 files/1906 passed/2
+skipped; integration 118 files/1364 passed/2 skipped), `AUDIT_EXIT=0` release-hardening. No
+deferrals. Session-id re-confirmed against lock line. **Security tier — not trusting the
+self-report and not auto-merging under any circumstance.** Spawned **Opus** adversarial QA
+(`coordinated-qa`, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_744`), explicitly prompted to
+hunt partial-cleanup paths, crash/kill mid-session residue, and reaper/explicit-end races against
+the spec's zero-residual-trace invariant; must post its verdict durably via `gh pr comment` before
+returning. Awaiting verdict — will surface to Ben for merge sign-off regardless of outcome
+(security tier never auto-merges).
+
 **Build-742 wrap-up reported: DONE.** PR #864, branch `742-email-digest-delivery` pushed +
 rebased on `origin/main`. Self-reported `VF_EXIT=0 AUDIT_EXIT=0`. No deferrals. Per Phase 3 step
 0, re-confirmed own session id (`63c5023b-8368-49da-9f60-e875e7d60d7f`) matches the lock line —
