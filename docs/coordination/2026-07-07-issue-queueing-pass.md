@@ -866,6 +866,39 @@ him. QA-provider-mixing question is now RESOLVED (see section below) — no long
 **Coordinator lock:** claimed this tenure by `2d06024b-ecbf-49a6-9f55-5818b130db40` (pane
 `w1:pAB`) — resolve fresh by label+session for the successor, don't trust the pane number.
 
+## Successor tenure notes (session `743e10e9-147f-4fb9-88b4-38c72a9755d9`)
+
+- Read manifest in full, invoked `coordinate`, re-adopted fleet via `herdr pane list`:
+  **Build-853** (`w1:p9W`, idle, Sonnet) and **Build-817** (`w1:pAA`, working, Codex `gpt-5.5
+  medium`) both present as expected, no drift.
+- **FIRST ACTION per handoff: bounded pane read on `w1:pAA` before anything else.** Confirmed
+  Build-817 is NOT stalled — actively writing
+  `CREATE OR REPLACE FUNCTION app.purge_jarvis_error_log(...)` in the migration file, consistent
+  with applying the Opus-mandated `SECURITY DEFINER` fix (`app.record_anonymous_error` pattern) +
+  the secondary anonymous-fallback bug fix relayed last tenure. Delivery confirmed by content, not
+  assumed from the manifest note.
+- Bounded-read predecessor `2d06024b-ecbf-49a6-9f55-5818b130db40` (pane `w1:pAB`) before reaping:
+  idle at prompt, unsubmitted text "check on Build-817's revision", "1 monitor still running" (its
+  liveness Monitor, expected to die with its process). Confirmed idle/relayed, not mid-task.
+- Claimed lock: renamed own pane `Coordinator-relay7` → `Coordinator` (`w1:pAC`, tab `w1:t15`),
+  closed predecessor's pane `w1:pAB`. Verified exactly one `Coordinator` pane via `herdr pane
+  list` (this session only).
+- Started a fresh liveness `Monitor` (task `b62rqfwu1`) diffing `herdr pane list` for `w1:p9W` and
+  `w1:pAA`, emitting only on `agent_status` change. Predecessor's monitor died with its pane.
+- **No reply from Ben yet** on the backlog triage (#818–826, #741–745, #759–760) — **not acting on
+  it without him.** QA-provider-mixing question is already resolved (see section above); no open
+  question there.
+- **Still open, unchanged from predecessor:** Build-817 (#817, security tier) is mid-revision
+  applying the Opus fix — no PR yet. When it reports plan-ready/done: confirm the SECURITY
+  DEFINER fix and anonymous-fallback fix actually landed in the plan/code (don't just trust its
+  self-report), then standard security-tier flow (Opus adversarial QA → mandatory `gh pr comment`
+  verdict → Ben's explicit sign-off, no cross-model QA substitution per Ben's resolved answer).
+  Build-853 (#853, security tier) still idle at Task 3 ("full local gate") not yet started as of
+  last check — re-verify with a bounded read before assuming no progress.
+- **Structural gap flagged by predecessor** (docs authored on this unpushed
+  `coord/settings-host-cleanup` branch never reach `origin/main`-cut worktrees) — still open, no
+  new instance hit this tenure. Worth raising with Ben when there's a natural opening, not urgent.
+
 ### Incident — Build-817 blocked, spec missing from its worktree (resolved this tenure)
 
 **Root cause:** this coordinator's own worktree runs on branch `coord/settings-host-cleanup`
