@@ -29,6 +29,7 @@ export class ChatRepository {
     return scopedDb.db
       .selectFrom("app.chat_threads")
       .selectAll()
+      .where("incognito", "=", false)
       .orderBy("last_active_at", "desc")
       .orderBy("id")
       .execute();
@@ -186,6 +187,9 @@ export class ChatRepository {
     const thread = await this.getThreadById(scopedDb, threadId);
 
     if (!thread) {
+      return undefined;
+    }
+    if (thread.incognito) {
       return undefined;
     }
 

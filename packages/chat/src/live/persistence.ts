@@ -193,15 +193,21 @@ export class DataContextChatPersistence implements ChatPersistencePort {
           })
         : null;
 
-      const result = await this.chat.recordCompletedTurn(
-        scopedDb,
-        thread.id,
-        userText,
-        assistantReply,
-        executed,
-        { sourceFreshness, answerProvenance: opts?.answerProvenance }
-      );
+      const result = thread.incognito
+        ? undefined
+        : await this.chat.recordCompletedTurn(
+            scopedDb,
+            thread.id,
+            userText,
+            assistantReply,
+            executed,
+            { sourceFreshness, answerProvenance: opts?.answerProvenance }
+          );
       await this.chat.touchThread(scopedDb, thread.id);
+
+      if (thread.incognito) {
+        return undefined;
+      }
 
       // Update rolling summary when stored turns exceed the replay window.
       const k = getReplayK();

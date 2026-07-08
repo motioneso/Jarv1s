@@ -155,6 +155,43 @@ describe("chat live runtime repository (recency + executed-model stamp)", () => 
     const afterIds = after.map((t) => t.id);
     expect(afterIds.indexOf(threadA.id)).toBeLessThan(afterIds.indexOf(threadB.id));
   });
+
+  it("listThreads excludes incognito bookkeeping threads", async () => {
+    const normal = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.openNewThread(scopedDb, { title: "Visible thread" })
+    );
+    const incognito = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.openNewThread(scopedDb, { title: "Private bookkeeping", incognito: true })
+    );
+
+    const threads = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.listThreads(scopedDb)
+    );
+
+    expect(threads.some((thread) => thread.id === normal.id)).toBe(true);
+    expect(threads.some((thread) => thread.id === incognito.id)).toBe(false);
+  });
+
+  it("recordCompletedTurn is a no-op for incognito threads", async () => {
+    const result = await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.openNewThread(scopedDb, {
+        title: "Private bookkeeping",
+        incognito: true
+      });
+      const recorded = await repository.recordCompletedTurn(
+        scopedDb,
+        thread.id,
+        "private user text",
+        "private assistant text",
+        { provider: "anthropic", model: "claude-economy" }
+      );
+      const messages = await repository.listMessages(scopedDb, thread.id);
+      return { recorded, messages };
+    });
+
+    expect(result.recorded).toBeUndefined();
+    expect(result.messages).toHaveLength(0);
+  });
 });
 
 describe("passive context retrieval integration", () => {
@@ -951,6 +988,16 @@ describe("handleExtractFactsJob — memory distillation candidates + no-op degra
       model: "claude-economy"
     });
     expect(sent).toEqual([]);
+
+    await dataContext.withDataContext(userAContext(), async (scopedDb) => {
+      const thread = await repository.getCurrentThread(scopedDb, ids.userA);
+      expect(thread?.incognito).toBe(true);
+      expect(thread?.title).toBe("Conversation");
+      expect(thread?.conversation_summary).toBeNull();
+      expect(thread).toBeDefined();
+      const messages = await repository.listMessages(scopedDb, thread!.id);
+      expect(messages).toHaveLength(0);
+    });
   });
 
   it("does not derive a stored thread title from a secret-like first turn", async () => {
