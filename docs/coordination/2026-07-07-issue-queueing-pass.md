@@ -1253,3 +1253,25 @@ lockfile with plain `pnpm install`, commit, push, re-request QA) to Build-742 vi
 `pnpm install --frozen-lockfile` + `format:check`/`lint`/`typecheck` all exit 0. Spawned re-QA
 (`coordinated-qa`, routine, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_742b`) against the
 fixed head. Awaiting verdict #2.
+
+**QA verdict #2 on PR #864: GREEN.** Arrived just as this tenure hit its own relay trigger — NOT
+acted on (merged) by this session per the "no deferral / continuing past a fired relay trigger" red
+flag; logged here for the successor to execute. CI green (`gh pr checks` @ `918d708a`: Verify
+foundation and app / Compose deployment smoke / Prod compose deployment smoke / Build and publish
+images all pass). 0 blocking / 4 non-blocking (local `assertDigestPayload` reimplementation instead
+of reusing `@jarv1s/jobs`'s shared allowlist enforcer — equivalent effect, drifts from
+single-source-of-truth pattern; stale docblock in `packages/notifications/src/index.ts:1-4`;
+watermark set to compose-time `now()` instead of max included notification's `created_at` — narrow
+untested edge case; spec's named "digest delivery unaffected by quiet-hours" test doesn't exist as
+a distinct test though behavior is correct by construction). Invariants OK (DataContextDb/scopedDb,
+metadata-only pg-boss payload matching `retryLimit:0`, secrets never escape — tested, module
+isolation preserved). Exit criteria met. Verdict posted:
+https://github.com/motioneso/Jarv1s/pull/864#issuecomment-4911949068. **MERGE-READY: YES.**
+
+**➡️ Successor action item #0 (do this first):** per Ben's standing merge-sign-off instruction
+(`db95c4a1`), merge PR #864 directly — re-confirm your own session id against the lock line
+(Phase 3 step 0) first, then `gh pr merge 864 --squash --delete-branch`, close #742, add to the
+standing digest table at the top of this file, reap `Build-742` (`w1:pAF`, resolve fresh by
+label+session), remove its worktree. This is `merges_since_relay: 1` for your tenure once done —
+routine tier, so no unconditional relay is triggered by this merge alone (threshold is 2
+routine/sensitive, or any security-tier merge).
