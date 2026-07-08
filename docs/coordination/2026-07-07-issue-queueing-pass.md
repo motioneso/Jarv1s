@@ -10,7 +10,8 @@ its two in-flight action items, then relayed. See the bottom-of-file checkpoint 
 `5e316669`) for that tenure's full state.
 **This tenure:** (1) Build-853-next contradiction — RESOLVED, no real second agent, no action.
 (2) Fable-865-r4 (`w1:pAR`, PR #865, Opus 4.8) — unchanged, actively writing code, watching only.
-Restarted liveness Monitor for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l` died at relay).
+Restarted liveness Monitor (task `b0b63ubkm`) for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l`
+died at relay per protocol).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
