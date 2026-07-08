@@ -6,41 +6,33 @@
 (pane `w1:pAW`, `agent_status: done`, self-handed-off after merging PR #873/#759). Resolve the
 CURRENT lock fresh by label+session — this line is stale the instant a new session claims it; never
 trust a pane number.
-**This tenure (`4727de9a`) — DONE, self-handing-off at 70% context:**
-1. Phase 0a: confirmed sole `Coordinator` pane, reaped predecessor `3b6cd485` (pane `w1:pAV`,
-   confirmed "Handoff complete" before close).
-2. **Spawned Wave 2** — Build-759 (#759 chat-model-selector, `routine`, Codex/gpt-5.5, 3rd/3rd
-   Codex slot per provider-mix directive) off CI-verified `origin/main` `791ce5e4`. Approved its
-   plan (drift-checked clean against #744) and one minor `[DESIGN-FORK]` (Task 4 admin-import
-   already shipped in `settings-ai-admin-pane.tsx` — approved re-scope to verify-only, no
-   security/data-loss stakes, resolved without Opus).
-3. Build-759 reported done: PR #873, rebased on main, `VF_EXIT=0 AUDIT_EXIT=0`. QA (`coordinated-qa`,
-   Sonnet, routine tier) returned **GREEN, MERGE-READY: YES** — 0 blocking / 1 non-blocking
-   (`chat-session-manager.ts` lost its file-header doc comment while staying under the 1000-line
-   cap — flag as a follow-up, not a blocker; verdict posted at
-   https://github.com/motioneso/Jarv1s/pull/873#issuecomment-4918699660). PR #873 confirmed
-   `MERGEABLE`/`CLEAN` against current main (no drift since QA) — **merged squash `263716af`**
-   (2026-07-08T19:58:30Z). Worktree/branch `759-chat-model-selector` removed locally+remote; pane
-   `w1:pAZ` reaped; its liveness Monitor (`b5ieqzic4`) stopped. **Issue #759 closed** with merge
-   summary. No milestone/epic on #759 (labels: enhancement, RFA) — no board/milestone action taken
-   beyond issue close (no established board-move command found in this run's prior history either).
-4. Build-853 (`w1:p9W`) unchanged all tenure: idle, Task 3 "full local gate" next. Its liveness
-   Monitor (`btj9yrr0j`, persistent) is still running — **successor should adopt it, not
-   restart**, before checking it's still alive.
+**This tenure (`58cd692d`) — IN PROGRESS:**
+1. Phase 0a: renamed pane, confirmed sole ACTIVE `Coordinator` pane (predecessor `4727de9a`,
+   pane `w1:pAW`, was `agent_status: done` — expected pre-reap state, not a duplicate-loop
+   incident); messaged it to self-close (confirmed "Handoff complete" in its transcript).
+2. Re-verified `#760` spec: still **Approved (2026-07-07, Ben)** on `origin/main` @ `263716af`
+   (post-#873). Pre-written build-ready plan exists (`docs/superpowers/plans/2026-07-06-skill-
+   integration-chat-plan.md`, from PR #861). Re-checked highest module migration on `origin/main`:
+   **`0146`** (was `0144` at last check) — next free `0147`, no renumber race (only #760 adds one
+   this wave).
+3. **Spawned Wave 3** — Build-760 (#760 skill-integration-chat, `security` tier, **Claude Sonnet**
+   per provider-mix reversion) off `origin/main` `263716af` into worktree
+   `.claude/worktrees/760-skill-integration-chat`, pane `w1:pB1`, confirmed running Sonnet 5.
+   Handoff doc committed at `760-skill-integration-chat:docs/coordination/handoff-760-skill-
+   integration-chat.md` (not in this manifest's history — lives in the build worktree/branch).
+4. Build-853 (`w1:p9W`): predecessor's liveness Monitor `btj9yrr0j` did **not** survive the relay
+   (confirmed dead via `TaskOutput` — "No task found"), consistent with every prior tenure in this
+   run's history despite each successor note saying "adopt, don't restart." Started a fresh
+   persistent `Monitor` (task `bmt2e7gqq`) covering both `w1:p9W` and `w1:pB1`, emit-on-change only.
+   Found Build-853 idle at Task 3 "full local gate" — nudged it via `herdr pane run`; confirmed it
+   picked the nudge up (transitioned to "Computing…").
 **Merge policy (Ben's standing override, still in force):** any GREEN QA verdict merges
 immediately without a pause-and-ask round trip, including `security` tier.
-**Provider-mix directive:** COMPLETE — 3/3 Codex slots used (Build-742, Build-744, Build-759).
-**Wave 3 (`#760`, skill-integration-chat, `security` tier)** is next in the "RFA wave" collision
-cluster — it was waiting on #759's merge (now done) to rebase its chat-drawer/composer touches.
-Per provider policy it reverts to **Claude Sonnet**. `#760` needs a spec-approval check (see "RFA
-wave" section below for its collision notes) before spawning — verify it's still `Approved` on
-current `origin/main` first.
-**merges_since_relay:** 1 (routine, PR #873) this tenure — below the routine/sensitive threshold
-of 2, but the **context-meter 70% warning fired independently**, which is non-deferrable per the
-coordinate skill (no "just one more merge"). Relaying now.
-**Successor's first action:** spawn Wave 3 (#760, Sonnet) if its spec is still approved and no new
-collision surfaced from #759's actual merged diff, then resume watching Build-853 (adopt existing
-Monitor `btj9yrr0j`, don't duplicate).
+**Provider-mix directive:** COMPLETE — 3/3 Codex slots used (Build-742, Build-744, Build-759);
+Build-760 (Sonnet) is the reversion, as expected.
+**merges_since_relay:** 0 this tenure so far.
+**Open:** Build-853 Task 3 (full local gate) in progress; Build-760 just started (plan-approval
+gate next). Watching both via Monitor `bmt2e7gqq`.
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
