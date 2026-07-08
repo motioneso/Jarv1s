@@ -120,6 +120,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/me/notification-digest-preference",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/notification-digest-preference",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
       path: "/api/me/weather-location",
       permissionId: "settings.view"
     },
