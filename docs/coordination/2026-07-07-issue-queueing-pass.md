@@ -1854,3 +1854,11 @@ persistent liveness monitors running (`btj9yrr0j` for p9W, `b5ieqzic4` for pAZ).
 the greenfield state the plan assumes, no conflicting work landed. Plan matches spec's locked
 decisions, no fork. Approved via `herdr pane run w1:pAZ`; confirmed delivered, agent proceeding
 into TDD build. Weekly Codex quota now 14% left (111K used) — still watching.
+
+**`[DESIGN-FORK]` (minor, resolved without Opus escalation):** Build-759 found Task 4's
+discovered-model admin import already shipped (`settings-ai-admin-pane.tsx` `ProviderCard`:
+`discoverAiModels`, multi-select, dedup by `providerModelId`, one `POST /api/ai/models` per
+selection). Asked to re-scope Task 4 to verify/close-gaps-only instead of rebuilding. Approved
+directly — no security/data-loss stakes, and it matches the spec's own framing (admin
+discovery/pin infra pre-existing; Task 4's job was UI/workflow glue, which is already there).
+Continuing Tasks 1/2/3/5. Weekly Codex quota 14% left, 209K used.
