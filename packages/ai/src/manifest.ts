@@ -41,6 +41,8 @@ import {
   listActionAuditLogRouteSchema
 } from "@jarv1s/shared";
 
+import { aiExplainRecentErrorsExecute } from "./error-tools.js";
+
 export const AI_MODULE_ID = "ai";
 export const aiModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
@@ -313,6 +315,22 @@ export const aiModuleManifest = {
       path: "/api/ai/action-audit",
       responseSchema: listActionAuditLogRouteSchema.response[200],
       permissionId: "ai.assistant-actions"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "ai.explainRecentErrors",
+      description: "List recent structured error events visible to the active actor.",
+      permissionId: "ai.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number" }
+        }
+      },
+      execute: aiExplainRecentErrorsExecute
     }
   ]
 } satisfies JarvisModuleManifest;

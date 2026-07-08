@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { AiRepository } from "@jarv1s/ai";
+import { AiRepository, aiExplainRecentErrorsExecute } from "@jarv1s/ai";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -141,5 +141,62 @@ describe("jarvis error log", () => {
         })
         .execute()
     ).rejects.toThrow();
+  });
+
+  it("assistant tool returns bounded recent matching errors", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-tool-seed" },
+      (scopedDb) =>
+        repo.recordError(scopedDb, {
+          id: randomUUID(),
+          feature: "sports",
+          operation: "GET /api/sports/scores",
+          errorCategory: "upstream_provider_unavailable",
+          retryable: true,
+          userMessage: "Scores are temporarily unavailable for some leagues",
+          internalSummary: "Provider returned partial league data",
+          requestId: "req-tool-seed"
+        })
+    );
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-tool" },
+      (scopedDb) =>
+        aiExplainRecentErrorsExecute(
+          scopedDb,
+          { query: "sports scores", limit: 5 },
+          { actorUserId: ids.userA, requestId: "req-tool", chatSessionId: "" }
+        )
+    );
+
+    expect(result.data.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          feature: "sports",
+          operation: "GET /api/sports/scores",
+          errorCategory: "upstream_provider_unavailable",
+          retryable: true
+        })
+      ])
+    );
+    expect(JSON.stringify(result.data)).not.toContain("stack");
+  });
+
+  it("assistant tool says when no diagnostic data exists", async () => {
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-tool-empty" },
+      (scopedDb) =>
+        aiExplainRecentErrorsExecute(
+          scopedDb,
+          { query: "not-real-feature", limit: 5 },
+          { actorUserId: ids.userA, requestId: "req-tool-empty", chatSessionId: "" }
+        )
+    );
+
+    expect(result.data).toEqual({
+      errors: [],
+      message:
+        "No matching structured error data was found. The feature may not have emitted instrumentation for this error yet."
+    });
   });
 });

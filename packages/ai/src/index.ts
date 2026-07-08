@@ -1,4 +1,5 @@
 export * from "./assistant-tools.js";
+export * from "./error-tools.js";
 export {
   AI_PURGE_AUDIT_LOG_QUEUE,
   AI_QUEUE_DEFINITIONS,
