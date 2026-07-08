@@ -2,7 +2,7 @@
 
 - **Issue:** #817 (Jarvis should be able to explain user-visible errors)
 - **Brief:** confirmed by Ben 2026-07-07, slug `error-explainability`
-- **Status:** DRAFT — awaiting Ben's approval before `/plan`/`/build`
+- **Status:** APPROVED (Ben, 2026-07-07) — cleared for `/plan`/`/build`
 - **Tier:** `security` (corrected 2026-07-07 during coordinator review — the spec's original
   self-proposed `sensitive` undersold it: D3 adds a brand-new `FORCE ROW LEVEL SECURITY` table with
   new policies, which is a mechanical security-tier trigger per the coordinator's tiering table, no
@@ -80,19 +80,43 @@ the codebase.
   a different concept from *unhandled request/client errors*. Reusing it would conflate action
   auditing with error diagnostics and violate its existing CHECK constraints (`outcome`,
   `approval_mode` don't fit an arbitrary API error). New table: `app.jarvis_error_log`.
-- **D2 — Ownership: new minimal module, not an existing feature module.** Errors originate from
-  every module plus `apps/api`'s own composition root, so this doesn't fit inside any single
-  feature module (module-isolation invariant: modules collaborate only via declared public
-  APIs/events, no module should own another's failures). `packages/settings` (home of #255's
-  diagnostics) is admin/host config, not an event-data plane, and isn't the right home either.
-  Proposal: a new `packages/observability` module owning the table, the write API, and the chat
-  tool; `apps/api/src/error-handling.ts` (the central `setErrorHandler` + `/api/errors` client sink)
-  and `createModuleLogger` call sites become its callers, which is consistent with how `apps/api`
-  already wires every module's public API today.
-- **D3 — Schema mirrors the `jarvis_action_audit_log` RLS/retention pattern.** Owner-scoped
-  `FORCE ROW LEVEL SECURITY`, `SELECT`+`INSERT` only granted to the app runtime role, a
-  `SECURITY DEFINER` purge function for retention (mirrors `packages/ai/sql/
-  0127_jarvis_action_audit_log.sql`). Fields adapted from #817's suggested shape:
+- **D2 — Ownership: the existing `packages/ai` module, not a new module.** (Revised 2026-07-07 per
+  Ben's direct instruction — the original draft proposed a new `packages/observability` module;
+  Ben rejected the new module.) `packages/ai` is the right existing home:
+  - It already owns the closest precedent this spec explicitly mirrors:
+    `packages/ai/sql/0127_jarvis_action_audit_log.sql`, an owner-scoped, RLS-protected,
+    append-only diagnostics log with a `SECURITY DEFINER` purge function — exactly the shape D3
+    reuses.
+  - It already owns the assistant-tool surface that is this data's only consumer
+    (`packages/ai/src/assistant-tools.ts` aggregates every manifest's `assistantTools`; the tool
+    invocation route lives in `packages/ai/src/routes.ts`). The error-explanation feature *is* an
+    AI/chat capability, so the consumer module owning the store is coherent.
+  - It is `lifecycle: "required"` / always-enabled, so `apps/api`'s central error handler can
+    depend on its public API unconditionally.
+  - The "errors originate from every module" concern that motivated a standalone module is
+    already answered by the existing wiring pattern: only `apps/api/src/error-handling.ts` (the
+    central `setErrorHandler` + `/api/errors` client sink) calls the write API — individual
+    feature modules never do — and `apps/api`'s composition root calling a module's declared
+    public API is exactly how every module is wired today. No module-isolation boundary is
+    crossed anywhere in this design.
+  - Security consequence (an improvement over the original draft): with the table, write path,
+    and chat tool all inside `packages/ai`, there is **no new module, no new module-registry
+    entry, no new cross-module API surface, and no new trust boundary** — the only new attack
+    surface is one table (RLS-forced) and one tool (owner-scoped). Fewer new boundaries means
+    less for the security-tier QA to get wrong.
+  `packages/settings` (home of #255's diagnostics) remains wrong for the same reason as before:
+  admin/host config, not an event-data plane.
+- **D3 — Schema mirrors the `jarvis_action_audit_log` RLS/retention pattern, in the same module.**
+  Owner-scoped `FORCE ROW LEVEL SECURITY`, `SELECT`+`INSERT` only granted to the app runtime role,
+  a `SECURITY DEFINER` purge function for retention (mirrors `packages/ai/sql/
+  0127_jarvis_action_audit_log.sql`, now a sibling file). Migration lands at
+  `packages/ai/sql/0145_jarvis_error_log.sql` — 0145 verified free at spec time (highest landed
+  migration across `infra/postgres/migrations/` and all `packages/*/sql/` is 0144; no other open
+  spec claims 0145), but **the build agent must reconfirm the number at build time** since
+  migration numbers are global by landing order and another spec may land first. The migration
+  must also be added to `aiModuleManifest.database.migrations` and the table to
+  `database.ownedTables` in `packages/ai/src/manifest.ts`. Fields adapted from #817's suggested
+  shape:
   `id, owner_user_id, occurred_at, feature, operation, error_category, retryable, user_message,
   internal_summary, request_id`. `owner_user_id` is nullable for errors that occur before auth is
   established (matches the existing unauthenticated `/api/errors` sink) — unauthenticated errors
@@ -105,7 +129,7 @@ the codebase.
   designed for the existing `docker compose logs api` trust boundary (host-only, trusted-operator
   access), and `clientError.stack` is part of it. The new write path is a materially different
   trust boundary: rows land in a table a chat tool the *end user themselves* can invoke reads from.
-  **`recordError(scopedDb, {...})` (packages/observability/src/write.ts) therefore accepts only
+  **`recordError(scopedDb, {...})` (`packages/ai/src/error-log-repository.ts`) therefore accepts only
   `{message, code/type, statusCode, feature, operation, error_category, retryable, user_message,
   internal_summary, request_id}` — `stack` is dropped at this call boundary and is never a
   parameter `recordError` accepts, let alone a column `0145_jarvis_error_log.sql` defines.** The
