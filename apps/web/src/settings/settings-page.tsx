@@ -7,6 +7,7 @@ import {
   Activity,
   Boxes,
   Brain,
+  Command,
   Database,
   Fingerprint,
   Link2,
@@ -18,7 +19,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   GitCommitHorizontal,
-  Sparkles,
   UserRound,
   Users,
   type LucideIcon
@@ -135,7 +135,7 @@ const PERSONAL_SECTIONS = [
   { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
   { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },
   { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
-  { id: "skills", icon: Sparkles, label: "Skills", Pane: SkillsPane },
+  { id: "skills", icon: Command, label: "Skills", Pane: SkillsPane },
   { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane },
   { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane },
   { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
