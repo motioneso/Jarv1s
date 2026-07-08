@@ -1234,6 +1234,31 @@ process-restart/crash residue path (untested + unimplemented). **Failure budget:
 full findings to Build-744 via `herdr-pane-message`, confirmed delivered + agent back to
 `working`. Re-QA (Opus again, security tier) once it reports the fix.
 
+**QA verdict #2 on PR #865: RED (Opus, this tenure, session `dd633e5d-...`).** Build-744 reported
+fix done (head `1209a437`): reconcile now purges transcripts + deletes bookkeeping for stale
+private sessions; boot/reconcile sweeps orphan incognito rows via security-definer list/delete
+functions; engine-less transcript purge added for Claude/Gemini/Codex; client ends transcript +
+blocks sends on SSE disconnect. VF_EXIT=0 (279 unit/1911 passed, 118 integration/1364 passed),
+AUDIT_EXIT=0. Spawned Opus re-QA (`coordinated-qa`, isolated worktree,
+`JARVIS_PGDATABASE=jarvis_qa_865`) prompted to hunt engine-coverage gaps, security-definer scoping,
+and disconnect/sweep races. Verdict posted durably:
+https://github.com/motioneso/Jarv1s/pull/865#issuecomment-<see PR, comment at 2026-07-08T07:17:40Z>.
+**RED — 1 blocking:** `packages/chat/src/live/private-transcript-cleanup.ts:13-16,58-77` — the
+engine-less purge (the exact cycle-#2 target) never deletes private **Gemini** transcripts (it
+runs the Codex `session_meta`/`cwd` matcher against Gemini's `type:"gemini"|"user"` JSONL shape, so
+the matcher never fires → zero deletions) and never `rm`s neutralDir-resident transcripts for
+non-interactive engines (agy-print, codex-exec) — only interactive Claude + interactive Codex
+actually purge. **This directly violates the CLAUDE.md hard invariant "Private by default"** (data
+persists on disk after the user believed it purged). 2 non-blocking: engine-less Codex branch
+matches cwd at neutralDir granularity (per-user, not per-session) → can over-delete a user's
+*non-private* Codex transcripts (no PG data loss, but wrong scope); 30s SSE-disconnect timer runs
+outside the maintenance mutex (idempotent, no leak, but unverified against the sweep). SQL
+security-definer scoping confirmed correct (owner-scoped, no cross-user purge) — invariant holds
+there. **Failure budget: 2/2 — STOP-THE-LINE per the coordinate skill.** Not relaying to Build-744
+for a third cycle; escalating to Ben instead (finding is a hard-invariant violation, not a routine
+bug). Build-744 (`w1:pAG`) left idle/parked pending Ben's direction — do not resume work on it
+without his input on whether to continue the same lane or reset scope.
+
 **Merge policy note:** Ben's standing instruction above (`db95c4a1`) means once re-QA on #865
 comes back GREEN, merge directly — no separate pause-and-ask needed, still log to digest.
 
