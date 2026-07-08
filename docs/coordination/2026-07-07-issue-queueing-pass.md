@@ -1865,3 +1865,57 @@ Continuing Tasks 1/2/3/5. Weekly Codex quota 14% left, 209K used.
 re-confirmed (`4727de9a` matches lock line) before acting. Spawned independent QA:
 `coordinated-qa` subagent (routine tier, Sonnet, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_759`).
 Awaiting verdict (async — will resume via its background task on completion).
+
+## Relay checkpoint (session `58cd692d-ac30-4f76-9e47-a810041e358d`, compaction tripwire — flush + relay per protocol, no further action first)
+
+Ben flagged a real bug this tenure: Build-760's relay successor (`w1:pB2`, see note above) landed
+in stray tab `w1:t17` (unrelated Codex/review tab) instead of the shared agents tab `w1:t1C`,
+because `herdr agent start` without `--tab`/`--split` auto-places into *any* free pane. Ben's ask,
+verbatim: *"can you mov build 760. Can you also PLEASE update any skills or docs so coordinators
+only use agents tabs"*.
+
+**Done this tenure:**
+1. **Immediate fix:** `herdr pane move w1:pB2 --tab w1:t1C --split down --target-pane w1:p9W
+   --no-focus` — confirmed `tab_id: "w1:t1C"` in the result. Build-760 now correctly alongside
+   Build-853 in the shared agents tab. Re-verified via fresh `herdr pane list` this checkpoint:
+   `w1:pB2` (Build-760, session `879ca5bb-4022-4f64-9755-730a91a6b771`, `working`) and `w1:p9W`
+   (Build-853, session `2e85563b-b1e6-4828-9e21-48fa4cfccff8`, `working`) both show `tab_id:
+   "w1:t1C"`. Confirmed still correct — no regression.
+2. **Root-cause doc fix #1 of 3 — DONE:** `.claude/skills/relay/SKILL.md` edited to require
+   `--tab <your-own-tab_id>` on every self-relay successor spawn (both build-agent and coordinator
+   cases), with a pointer to `incidents.md`. Committed `88037e01` — "docs(skills): relay skill now
+   requires explicit --tab on successor spawn (build-agent + coordinator)".
+
+**NOT done — owed to Ben's request, pick up next:**
+3. **`~/.claude/skills/herdr-handoff/SKILL.md`** (global, `/home/ben/.claude/skills/herdr-handoff/
+   SKILL.md`) — this is the true root: its step-3 example `herdr agent start` commands never show
+   `--tab`, and its own parenthetical says "(auto-places into a free pane; add `--split right|down`
+   to force a new one if none is free)" with no tab-targeting mentioned at all. Add `--tab <tab_id>`
+   to every example spawn command + an explicit warning that omitting `--tab`/`--split` can land the
+   new agent in ANY free pane, not necessarily the caller's intended tab.
+4. **`.claude/skills/coordinate/SKILL.md`** Phase 2, "On an agent relay" bullet — currently just
+   says confirm the successor is driving + reap the old pane. Add an explicit **tab-placement
+   verification step**: after a build agent self-relays (spawn happens without coordinator
+   involvement), check the successor's `tab_id` via `herdr pane list` matches the shared agents tab,
+   and `herdr pane move` it back if misplaced. This is exactly the manual fix performed in step 1
+   above — codify it as a standing coordinator check, since a build agent can self-relay with no
+   coordinator step in between to catch a bad spawn.
+5. **`.claude/skills/coordinate/references/incidents.md`** — add a new dated entry for this case
+   (Build-760's relay successor landed in stray tab `w1:t17`, containing unrelated panes
+   `w1:p8Y`/`w1:pAX`/`w1:pB3` "Fable review #819", because the `herdr-handoff`-driven spawn omitted
+   `--tab`; fixed via `herdr pane move w1:pB2 --tab w1:t1C --split down --target-pane w1:p9W
+   --no-focus`), following the file's existing date/description/"→ rule name" pattern, pointing at
+   the `relay` skill's new `--tab` requirement (item 2 above) as the resolution.
+
+**Why relaying now instead of finishing 3–5 first:** context-meter 70% warning fired right after
+committing `88037e01`; `relay` skill's compaction/meter tripwire is non-deferrable ("no just one
+more thing" — remaining bookkeeping goes in this continuation note for the successor to pick up
+immediately after Phase 0a).
+
+**Fleet unchanged, no merge activity this tenure segment:** Build-853 (`w1:p9W`, tab `w1:t1C`,
+working — Task 3 full local gate) + Build-760 (`w1:pB2`, tab `w1:t1C`, working — Task 1 migration
+research). Liveness Monitor `b709amjaj` (persistent, this session-process-scoped — will NOT survive
+this relay; successor must start a fresh one per the now-standard lesson, do not waste time trying
+to adopt it). Build-759/PR #873 QA verdict still outstanding (async coordinated-qa subagent from
+predecessor tenure — check for a delivered background message on arrival).
+**merges_since_relay:** 0 (unchanged).
