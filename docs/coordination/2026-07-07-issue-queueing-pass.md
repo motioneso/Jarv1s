@@ -1415,11 +1415,57 @@ Phase 0a bookkeeping only and is relaying immediately without touching PR #864.
 
 **merges_since_relay:** 0 (carried unchanged — no merge action taken this tenure).
 
-**Coordinator lock:** now `dd633e5d-f3b5-4643-8108-5f173028c26d` / label `Coordinator` / pane
-`w1:pAJ` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure from
-predecessor `50dc5074-9b84-4f44-b47c-22dc74df73cd` (pane `w1:pAH`), confirmed idle/relayed
-("standing down now") via bounded read before reap, then closed. Verified exactly one
+**Coordinator lock:** now `197683fe-7804-4e9c-a26a-a7593255a913` / label `Coordinator` / pane
+`w1:pAK` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure from
+predecessor `dd633e5d-f3b5-4643-8108-5f173028c26d` (pane `w1:pAJ`), confirmed idle at prompt via
+bounded read (TaskList showed relay bookkeeping items done, one item "Awaiting Ben: PR #865
+RPC-purge-verb decision" still open/unstarted) before reap, then closed. Verified exactly one
 `Coordinator` pane via `herdr pane list`.
+
+## Relay checkpoint (session `197683fe-7804-4e9c-a26a-a7593255a913`, own context 86% on re-adoption)
+
+Reading this manifest in full (two large Read calls) plus the fable handoff addendum pushed own
+context to 86% before any fleet/merge action was taken — the 70% trigger had already fired by the
+time re-adoption finished. Per no-deferral: did the minimum Phase 0a bookkeeping (reaped confirmed-
+idle predecessor `dd633e5d`, pane `w1:pAJ`) and is relaying immediately without touching Build-853,
+Build-744, or spawning the Fable agent.
+
+**⚠️ Action item #0 is STILL NOT DONE — this is the successor's first action, unchanged from the
+predecessor's note two tenures back:** spawn a Fable 5 build agent for PR #865's RPC-purge-verb fix.
+Full task context: `docs/coordination/handoffs/2026-07-08-744-fable-rpc-purge-fix.md` (read this
+first) + the doc it points back to
+(`docs/coordination/handoffs/2026-07-08-744-private-chat-mode.md`). Old Codex Build-744 pane was
+already stood down and closed by an earlier tenure (`63c5023b`) — do not look for it, it's gone.
+Spawn pattern (adapt coordinate skill's Phase 1, `--model fable` not `--model sonnet`):
+```
+herdr agent start "Build-744" --tab w1:t1C --cwd ~/Jarv1s/.claude/worktrees/744-private-chat-mode --no-focus \
+  -- claude --model fable --permission-mode bypassPermissions \
+  "Read docs/coordination/handoffs/2026-07-08-744-fable-rpc-purge-fix.md IN FULL, then the doc it
+  points back to, then follow it via the coordinated-build skill's build-only portion (plan already
+  approved historically — this is a fix on an already-open PR, not a fresh feature — skip straight to
+  implementing the task list, TDD as usual, then coordinated-wrap-up). Begin now."
+```
+**Confirm the pane says Fable 5 / `claude-fable-5` after spawn** (bounded read) — herdr's Claude
+default is Opus and this run's model-policy default is Sonnet, so an unspecified `--model` boots the
+wrong model either way; `--model fable` must be explicit and verified, not assumed. Record the new
+pane id in the fleet table. When it reports done: this is QA cycle #4 on PR #865 — spawn Opus
+`coordinated-qa` (security tier), prompt it to verify (a) the RPC verb is exercised by a real non-
+fake-engine test, (b) purge actually happens end-to-end via RPC, (c) nothing else regressed. Treat
+failure budget as a fresh 1/2 (Ben authorized this new attempt via a model change).
+
+**Also unverified this tenure, re-check before acting on anything else:**
+- **Build-853** (`w1:p9W`, security tier, #853 auth-signup-atomicity) — not bounded-read this
+  tenure. Per all prior notes: idle, Task 1+2 done, Task 3 ("full local gate") not yet started, no
+  PR. Confirm with a bounded read before assuming unchanged.
+- **No liveness Monitor is currently running** — start a fresh one for `w1:p9W` (and the new Fable
+  pane once spawned) immediately after adopting.
+- Backlog triage (#818–826 minus #742/#744/#759/#760, #741/#743/#745) — still no reply from Ben,
+  still don't act on it without him, per every prior tenure.
+
+**merges_since_relay:** 0 this tenure (no merge action taken).
+
+**Coordinator lock:** claimed this tenure by `197683fe-7804-4e9c-a26a-a7593255a913` (pane
+`w1:pAK`) — resolve fresh by label+session for the successor, don't trust the pane number.
 
 ## Tenure notes (session `dd633e5d-f3b5-4643-8108-5f173028c26d`)
 
