@@ -1149,3 +1149,8 @@ Liveness `Monitor` replaced (old task `bqj9i5bcm` stopped, covered only `w1:p9W`
 **Still pending:** Wave 2 (`#759`) spawns after `#744` merges; Wave 3 (`#760`) spawns after `#759`
 merges (re-verify highest migration on `origin/main` immediately before that spawn — collision map
 assumed `0144`→`0145` as of this tenure, could drift if another lane lands a migration first).
+
+**Build-744 plan-ready escalation (approved).** Agent verified the pre-written plan
+(`docs/superpowers/plans/2026-07-06-private-chat-mode-plan.md`) against the spec and current
+branch `ec0fbe4a` independently — no drift, no fork. Approved via `herdr-pane-message`, confirmed
+delivered + agent back to `working`. Proceeding to TDD build.
