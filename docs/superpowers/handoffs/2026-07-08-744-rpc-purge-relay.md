@@ -130,3 +130,48 @@ purging (`chat-session-manager.ts:882-911`). So over RPC, purge always arrives e
 **Not yet done:** locate RPC round-trip test models
 (`grep -rln "serveConnection\|RpcConnection" tests/ packages/*/tests`) → TDD per §Regression
 test; then optional task 3; then gate/wrap-up per §Bans.
+
+## Successor #3 delta (2026-07-08) — test models located, still no code
+
+Successor #3 (session `4e095edd…`, pane `Fable-865-r3`) resumed from a COMPACTED transcript and
+hit the 70% meter immediately (compaction summary alone ≈70% of context — same trap as #2).
+**Successor #4: you MUST be a FRESH spawn, and you must write code FIRST, reads only for files
+you are editing.** Everything below is verified — do not re-verify.
+
+**Test models (both grounded in full):**
+
+- `tests/unit/cli-runner-server.test.ts` — `makeFakeIo()` (fake TmuxIo; live-mux Set;
+  `removedDirs` array records every `rm` target — this is your purge assertion), `makeHost(io)`,
+  `FakeChannel implements ByteChannel` with `feed()`/`decodeAll()`, `authenticate(channel)`
+  drives the §3.6 hello (`hmacClient(nonce) = HMAC(secret, HELLO_PROOF_TAG_CLIENT + nonce)`),
+  `serveConnection(channel, { host, bootId, secret })`.
+- `tests/unit/chat-rpc-client.test.ts` — `startFakeServer(socketPath, secret, opts)` real
+  `net.createServer` Unix socket; `tmpSocket()` = mkdtemp + `cli-runner.sock`;
+  `class TestConn extends RpcConnection { protected async assertSocketUnderRunDir() {} }` to
+  relax the /run/jarv1s guard for temp sockets.
+- **Regression-test shape:** combine them — `net.createServer((sock) =>
+  serveConnection(sock, { host: makeHost(fakeIo), bootId, secret }))` on a `tmpSocket()`, client
+  = `TestConn` + `ChatEngineRpcClient`; call `kill` then `purgeTranscripts` (engine-less normal
+  path) and assert `fakeIo.removedDirs` contains the anthropic transcript-glob dir.
+
+**Manager test grounding (task: ordering fix):** `tests/unit/chat-session-manager-private.test.ts`
+— `FakeEngine` :6-29 (has `purged` flag — the CI mask), `privateDeps()` :31-54. Add cases:
+(a) `purgeTranscripts` REJECTS → `deleteThread` NOT called, but `sessions` map cleared + detach
+timer cleared + `revokeMcpToken` still called; (b) engine WITHOUT `purgeTranscripts` (delete the
+method off a FakeEngine instance) → treated as FAILURE → no `deleteThread`; (c) engine-less
+branch: `deps.purgePrivateTranscripts` rejects → no `deleteThread`; (d) existing happy paths stay
+green. Manager dep sig confirmed at `chat-session-manager.ts:155`
+(`purgePrivateTranscripts?: (sessionKey: string) => Promise<void>`).
+
+**Contract/client shapes confirmed** exactly as §Settled design describes (kill shapes
+rpc-contract.ts:298-303; timeout switch + `resetActivityDeadline` turnVerbs + verb methods +
+`ChatEngineRpcClient` all match the cited lines). `purgePrivateTranscripts`
+(private-transcript-cleanup.ts) keeps its local non-exported `sanitizeSessionKey`/
+`deriveNeutralDir` → `export * from "./private-transcript-cleanup.js"` in
+`packages/chat/src/live/public.ts` is collision-safe (verified). The `./live` subpath maps to
+`src/live/public.ts`, NOT index.ts — the export goes in **public.ts**.
+
+**Task list to recreate:** (1) purge RPC verb across the 4 files + public.ts export; (2) manager
+ordering fix; (3) real-RPC regression test (TDD: write it first). Then pre-push trio + rebase +
+`pnpm verify:foundation` + `pnpm audit:release-hardening` → coordinated-wrap-up → report for QA
+cycle #4.
