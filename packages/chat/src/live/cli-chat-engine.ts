@@ -41,11 +41,10 @@ import type { AiProviderExecutionMode } from "@jarv1s/shared";
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
 import { writeClaudePermissionHook } from "./claude-permission-hook.js";
+import { codexTranscriptMatchesCwd } from "./private-transcript-cleanup.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
-// Re-export the login MUX-session helpers (extracted to ./login-mux-sessions.ts to keep this file
-// under the 1000-line cap) so existing `from "./cli-chat-engine.js"` import sites are unchanged.
 export {
   LOGIN_SESSION_PREFIX,
   killLoginMuxSession,
@@ -102,21 +101,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   /** The opaque session handle returned by mux.open() at launch. */
   private handle: MuxHandle | null = null;
 
-  /**
-   * The resolved JSONL transcript path. For `anthropic` this is pinned at launch
-   * (`--session-id` makes the filename deterministic and known before the CLI
-   * boots). For `openai-compatible`/`google` the CLI chooses its own filename
-   * (`rollout-…`/`session-…`), so this stays null until `readNew()` resolves the
-   * newest `.jsonl` under the glob dir lazily (the file does not exist until the
-   * CLI writes its first turn).
-   */
   private storedTranscriptPath: string | null = null;
-
-  /**
-   * Set at launch: the directory the active provider writes its transcript into.
-   * Used to lazily resolve the newest transcript file for providers that do NOT
-   * accept a session-id (Codex/Gemini).
-   */
   private transcriptDir: string | null = null;
 
   /** The cwd used to launch the CLI; Codex records it in session_meta.cwd. */
@@ -350,6 +335,20 @@ export class CliChatEngineImpl implements CliChatEngine {
       this.codexExec = null;
       this.codexExecLogicalAlive = false;
       await this.removeNeutralDirQuietly();
+    }
+  }
+
+  async purgeTranscripts(): Promise<void> {
+    if (this.provider === "anthropic") {
+      if (this.transcriptDir !== null) {
+        await this.io.run("rm", ["-rf", this.transcriptDir]);
+      }
+      return;
+    }
+
+    const path = await this.resolveTranscriptPath();
+    if (path !== null) {
+      await this.io.run("rm", ["-f", path]);
     }
   }
 
@@ -918,23 +917,6 @@ async function probeWithTimeout<T extends { code: number; stdout: string; stderr
  */
 function sanitizeInput(text: string): string {
   return text.replace(/^(\s*)!+/, "$1");
-}
-
-function codexTranscriptMatchesCwd(jsonl: string, expectedCwd: string): boolean {
-  for (const line of jsonl.split("\n").slice(0, 50)) {
-    if (!line.trim()) continue;
-    let record: Record<string, unknown>;
-    try {
-      record = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    if (record["type"] !== "session_meta") continue;
-    const payload = record["payload"];
-    if (!isRecord(payload)) continue;
-    return payload["cwd"] === expectedCwd;
-  }
-  return false;
 }
 
 /**

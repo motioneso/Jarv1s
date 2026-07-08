@@ -108,6 +108,8 @@ import type {
   RevokeConnectorAccountResponse,
   TestAiProviderConfigResponse,
   LookupAiCapabilityRouteResponse,
+  PutAiCapabilityRouteRequest,
+  PutAiCapabilityRouteResponse,
   TranscribeAudioResponse,
   UpdateBriefingDefinitionRequest,
   UpdateBriefingDefinitionResponse,
@@ -690,6 +692,14 @@ export async function clearChat(options?: { incognito?: boolean }): Promise<void
   await requestJson<unknown>(url, { method: "POST" });
 }
 
+export async function endPrivateChat(): Promise<void> {
+  await requestJson<unknown>("/api/chat/private/end", { method: "POST" });
+}
+
+export function beaconEndPrivateChat(): void {
+  navigator.sendBeacon?.("/api/chat/private/end", "");
+}
+
 export async function resumeChat(threadId: string): Promise<void> {
   await requestJson<unknown>(`/api/chat/threads/${encodeURIComponent(threadId)}/resume`, {
     method: "POST"
@@ -797,6 +807,16 @@ export async function lookupAiCapabilityRoute(
   );
 }
 
+export async function putAiCapabilityRoute(
+  capability: AiModelCapability,
+  input: PutAiCapabilityRouteRequest
+): Promise<PutAiCapabilityRouteResponse> {
+  return requestJson<PutAiCapabilityRouteResponse>(
+    `/api/ai/capability-routes/${encodeURIComponent(capability)}`,
+    { method: "PUT", body: input }
+  );
+}
+
 /**
  * Uploads a recorded audio clip for transcription and returns the transcript text only.
  * Goes around `requestJson` (which always JSON-encodes) because the body here is the raw
@@ -854,6 +874,10 @@ export async function putChatModelOverride(
     method: "PUT",
     body: input
   });
+}
+
+export async function switchChatProvider(): Promise<void> {
+  await requestJson<{ ok: true }>("/api/chat/switch", { method: "POST" });
 }
 
 export async function putAdminChatModelOverrideEnabled(

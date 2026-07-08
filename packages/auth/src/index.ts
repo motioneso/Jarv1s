@@ -537,6 +537,13 @@ async function bootstrapFirstJarvisUser(
       }
     );
   } catch (err) {
+    // better-auth commits the app.users row (and any auth_accounts/session rows)
+    // on its OWN connection before this after-hook runs, so this transaction
+    // rolling back does NOT undo that insert. ANY hook failure — registration
+    // disabled, the 0055 admin-flag guard denying a stale-admin race, a
+    // transient audit-write error, anything — must compensate by deleting the
+    // row here, or the email is permanently bricked: USER_ALREADY_EXISTS on
+    // every retry with no way to complete setup (#853).
     if (registrationRejected) {
       try {
         await recordRegistrationRejectedAudit(runner, settings, user.id);
@@ -546,9 +553,17 @@ async function bootstrapFirstJarvisUser(
           { userId: user.id, requestId: `bootstrap-reject:${user.id}` },
           "[auth] registration-rejected audit write failed"
         );
-      } finally {
-        await deleteRejectedBootstrapRaceLoser(authPool, user.id);
       }
+    }
+    try {
+      await deleteOrphanedBootstrapUser(authPool, user.id);
+    } catch {
+      // Best-effort compensation — do not mask the original error with a
+      // cleanup failure; the original `err` below is what the caller sees.
+      logger?.warn?.(
+        { userId: user.id, requestId: `bootstrap:${user.id}` },
+        "[auth] failed to delete orphaned better-auth user after bootstrap hook failure"
+      );
     }
     throw err;
   }
@@ -572,7 +587,12 @@ async function recordRegistrationRejectedAudit(
   });
 }
 
-async function deleteRejectedBootstrapRaceLoser(authPool: pg.Pool, userId: string): Promise<void> {
+// Compensating delete for any bootstrap after-hook failure (#853). app.auth_accounts
+// and app.better_auth_sessions both FK user_id ON DELETE CASCADE
+// (0004_auth_workspaces_settings.sql), so deleting the app.users row alone fully
+// removes the credential + session rows better-auth committed for this signup —
+// no separate auth_accounts delete is needed.
+async function deleteOrphanedBootstrapUser(authPool: pg.Pool, userId: string): Promise<void> {
   await authPool.query("DELETE FROM app.users WHERE id = $1", [userId]);
 }
 

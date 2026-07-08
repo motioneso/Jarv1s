@@ -10,10 +10,12 @@
  */
 import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
 import { extractTimezone } from "../locale-utils.js";
+import { sql, type Kysely } from "kysely";
 import {
   assertDataContextDb,
   type DataContextDb,
   type DataContextRunner,
+  type JarvisDatabase,
   type PreferencesPort
 } from "@jarv1s/db";
 import type {
@@ -43,6 +45,7 @@ const LIVE_PROVIDER_KINDS: readonly ProviderKind[] = ["anthropic", "openai-compa
 const DEFAULT_CONVERSATION_TITLE = "Conversation";
 
 export interface DataContextChatPersistenceDeps {
+  readonly rootDb?: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
   readonly chatRepository: ChatRepository;
   readonly aiRepository: AiRepository;
@@ -111,6 +114,7 @@ export async function resolveChatFreshness(
 
 export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly dataContext: DataContextRunner;
+  private readonly rootDb: Kysely<JarvisDatabase> | undefined;
   private readonly chat: ChatRepository;
   private readonly ai: AiRepository;
   private readonly boss: PgBoss | undefined;
@@ -118,6 +122,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly localePreferences: PreferencesPort | undefined;
 
   constructor(deps: DataContextChatPersistenceDeps) {
+    this.rootDb = deps.rootDb;
     this.dataContext = deps.dataContext;
     this.chat = deps.chatRepository;
     this.ai = deps.aiRepository;
@@ -144,7 +149,10 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     };
   }
 
-  async listPriorTurns(actorUserId: string): Promise<{
+  async listPriorTurns(
+    actorUserId: string,
+    opts?: { readonly forceReplay?: boolean }
+  ): Promise<{
     recent: readonly { role: "user" | "assistant"; content: string }[];
     oldSummary: string | null;
   }> {
@@ -157,7 +165,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
         .filter((m) => m.status === "stored" && (m.role === "user" || m.role === "assistant"))
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.body }));
 
-      const k = getReplayK();
+      const k = opts?.forceReplay ? getSwitchReplayK() : getReplayK();
       if (k <= 0) {
         return { recent: [], oldSummary: null };
       }
@@ -193,15 +201,21 @@ export class DataContextChatPersistence implements ChatPersistencePort {
           })
         : null;
 
-      const result = await this.chat.recordCompletedTurn(
-        scopedDb,
-        thread.id,
-        userText,
-        assistantReply,
-        executed,
-        { sourceFreshness, answerProvenance: opts?.answerProvenance }
-      );
+      const result = thread.incognito
+        ? undefined
+        : await this.chat.recordCompletedTurn(
+            scopedDb,
+            thread.id,
+            userText,
+            assistantReply,
+            executed,
+            { sourceFreshness, answerProvenance: opts?.answerProvenance }
+          );
       await this.chat.touchThread(scopedDb, thread.id);
+
+      if (thread.incognito) {
+        return undefined;
+      }
 
       // Update rolling summary when stored turns exceed the replay window.
       const k = getReplayK();
@@ -266,6 +280,34 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       this.chat.touchThread(scopedDb, threadId)
     );
     return found !== undefined;
+  }
+
+  async getCurrentThreadState(
+    actorUserId: string
+  ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined> {
+    return this.run(actorUserId, "get-current-thread-state", async (scopedDb) => {
+      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      return thread ? { id: thread.id, incognito: thread.incognito } : undefined;
+    });
+  }
+
+  async deleteThread(actorUserId: string, threadId: string): Promise<void> {
+    await this.run(actorUserId, "delete-thread", (scopedDb) =>
+      sql`SELECT app.delete_incognito_chat_thread_for_cleanup(${threadId}::uuid)`.execute(
+        scopedDb.db
+      )
+    );
+  }
+
+  async listIncognitoThreadStates(): Promise<
+    readonly { readonly actorUserId: string; readonly threadId: string }[]
+  > {
+    if (!this.rootDb) return [];
+    const result = await sql<{ actorUserId: string; threadId: string }>`
+      SELECT actor_user_id AS "actorUserId", thread_id AS "threadId"
+      FROM app.list_incognito_chat_threads_for_cleanup()
+    `.execute(this.rootDb);
+    return result.rows;
   }
 
   async getThreadContext(
@@ -336,6 +378,11 @@ function getReplayK(): number {
   if (!val) return 0;
   const parsed = parseInt(val, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function getSwitchReplayK(): number {
+  const configured = getReplayK();
+  return configured > 0 ? configured : 10;
 }
 
 function deriveChatTitle(userText: string): string {

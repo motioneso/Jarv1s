@@ -61,6 +61,7 @@ import {
   type RpcOk,
   type RpcProbeProviderParams,
   type RpcProbeProviderResult,
+  type RpcPurgeTranscriptsResult,
   type RpcReadNewParams,
   type RpcReadNewResult,
   type RpcSubmitParams,
@@ -241,6 +242,7 @@ export class RpcConnection {
       case "isAlive":
       case "interrupt":
       case "kill":
+      case "purgeTranscripts": // #744 — bounded per-session verb, same class as kill
         return this.turnTimeoutMs;
       case "launch":
         // NOTE: JARVIS_CLI_RUNNER_RPC_TIMEOUT_MS raises turnTimeoutMs for ALL turn verbs, not just
@@ -277,6 +279,13 @@ export class RpcConnection {
     return this.call<RpcKillResult>("kill", sessionKey, {});
   }
 
+  // #744 — private-chat transcript purge over RPC. Runs server-side (the api can't reach the
+  // cli-runner's home dir on the split topology); the manager gates its bookkeeping-row delete
+  // on this resolving, so a rejection here keeps the row for the boot sweep to retry.
+  purgeTranscripts(sessionKey: string): Promise<RpcPurgeTranscriptsResult> {
+    return this.call<RpcPurgeTranscriptsResult>("purgeTranscripts", sessionKey, {});
+  }
+
   interrupt(sessionKey: string): Promise<RpcInterruptResult> {
     return this.call<RpcInterruptResult>("interrupt", sessionKey, {});
   }
@@ -295,7 +304,8 @@ export class RpcConnection {
       "readNew",
       "isAlive",
       "interrupt",
-      "kill"
+      "kill",
+      "purgeTranscripts"
     ]);
     for (const call of this.pending.values()) {
       if (call.sessionKey === sessionKey && turnVerbs.has(call.method)) {
@@ -815,6 +825,15 @@ export class ChatEngineRpcClient implements CliChatEngine {
 
   async kill(): Promise<void> {
     await this.conn.kill(this.sessionKey);
+  }
+
+  /**
+   * #744 — purge this private session's transcripts server-side. The engine has already been
+   * killed by the manager (kill deletes the server-side engine), so the cli-runner host purges
+   * by directory. Rejects if the RPC fails, so the manager keeps the bookkeeping row.
+   */
+  async purgeTranscripts(): Promise<void> {
+    await this.conn.purgeTranscripts(this.sessionKey);
   }
 
   async interrupt(): Promise<void> {

@@ -14,6 +14,7 @@ export interface ChatThreadDto {
   readonly id: string;
   readonly ownerUserId: string;
   readonly title: string;
+  readonly incognito: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -204,11 +205,12 @@ export interface AnswerProvenanceDereference {
 const chatThreadSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "ownerUserId", "title", "createdAt", "updatedAt"],
+  required: ["id", "ownerUserId", "title", "incognito", "createdAt", "updatedAt"],
   properties: {
     id: { type: "string" },
     ownerUserId: { type: "string" },
     title: { type: "string" },
+    incognito: { type: "boolean" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
   }
