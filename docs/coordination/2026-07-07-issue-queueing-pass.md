@@ -1,13 +1,13 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `b3b8d840-0a4d-444a-9120-a4bf9797325f` / label `Coordinator` / pane
-`w1:pAS` / tab `w1:t15` — claimed 2026-07-08 from predecessor `b4c88569-498f-4d81-974f-e528977c4848`
-(confirmed idle at its prompt via bounded read before reap; its pane `w1:pAM` closed). Resolve
-fresh by label+session, never trust the pane number. **This tenure hit its own 70%+ context-meter
-warning immediately on re-adoption (72% before any fleet action) — did minimum Phase 0a + the
-in-flight action items below, then relayed with no further action.** See the bottom-of-file
-checkpoint (session `b3b8d840`) for full state and the successor's first actions.
+**Coordinator lock:** now `5e316669-4c29-4e51-8972-b4f070c6a9a3` / label `Coordinator` / pane
+`w1:pAT` / tab `w1:t15` — claimed 2026-07-08 from predecessor `b3b8d840-0a4d-444a-9120-a4bf9797325f`
+(confirmed idle/relayed via bounded read before reap; its pane `w1:pAS` closed). Resolve
+fresh by label+session, never trust the pane number. **This tenure hit its own 75%+ context-meter
+warning on Phase 0a's very first PostToolUse (TaskCreate) — before any fleet action.** Did minimum
+Phase 0a + the two in-flight action items below, then relayed with no further action. See the
+bottom-of-file checkpoint (session `5e316669`) for full state and the successor's first actions.
 **✅ Action item #0 DONE — Fable-865 lane now on its 4th agent (r4), actively writing code** (see
 bottom checkpoint). Escalation to Ben about the 3x-zero-code-relay + Opus-not-Fable substitution
 was sent this tenure (chat, not yet acknowledged as of this write).
@@ -1708,3 +1708,58 @@ relaying solely on the context-meter trigger).
 `w1:pAS` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
 Phase 0a and updates this line itself.
 - **merges_since_relay:** unchanged at 1 (no merge action this event).
+
+## Relay checkpoint (session `5e316669-4c29-4e51-8972-b4f070c6a9a3`, own context 75%)
+
+Context-meter fired **on the very first PostToolUse of this tenure** (a `TaskCreate` call during
+Phase 0a) — 75% before any fleet action was taken. No-deferral: did only minimum Phase 0a + the
+two in-flight action items already resolvable from ground truth, then relaying immediately.
+
+**Phase 0a — done:**
+- Bounded-read predecessor `b3b8d840` (`w1:pAS`) — confirmed idle/relayed (its final message: "No
+  merges happened this tenure. The run continues under the new coordinator session." plus a
+  harmless unsubmitted stray line in its input box, "check on Build-853-next contradiction
+  yourself" — not acted on as a live instruction, just leftover text from its own relay prompt).
+  Closed `w1:pAS`.
+- Renamed own pane `Coordinator-r3` → `Coordinator` (`w1:pAT`, tab `w1:t15`). Verified via
+  `herdr pane list` — **exactly one** `Coordinator`-labeled pane, this one.
+- Lock line above updated to `5e316669-4c29-4e51-8972-b4f070c6a9a3` / `w1:pAT`.
+
+**Action item (1) — Build-853-next contradiction: RESOLVED, reading (a).**
+`herdr pane list` (full fleet snapshot, this tenure) shows **no pane named or labeled
+`Build-853-next` anywhere** — only `Build-853` (`w1:p9W`, session `2e85563b-b1e6-4828-9e21-48fa4cfccff8`,
+unchanged since every prior tenure). Direct bounded read of `w1:p9W` confirms its real task
+position, matching the last independently-confirmed state exactly: `✔ Task 1` (failing-test
+repro), `✔ Task 2` (broaden cleanup), `◻ Task 3` (full local gate, not started). **Conclusion: the
+"Build-853-next" contradiction was stale/hypothetical recap text from an earlier tenure's note, not
+an actual second agent.** No duplicate-worktree hazard exists. Nothing further to do here — next
+coordinator should just keep treating `w1:p9W` as the sole Build-853 agent, per the established
+"When it reports done: Opus adversarial QA → mandatory `gh pr comment` verdict → Ben's explicit
+sign-off. Never auto-merge" security-tier plan.
+
+**Action item (2) — Fable-865-r4: unchanged, no action needed.** Still `w1:pAR`, label
+Fable-865-r4, session `a58d1640-875e-4791-8183-3899c1dfd060`, tab `w1:t1C`, branch
+`744-private-chat-mode` (PR #865, security tier), `agent_status: working`. Not re-read beyond the
+pane-list status field this tenure (no signal it needs anything) — successor should still do a
+bounded content read before assuming progress, per standing practice, rather than trust
+`agent_status` alone.
+
+**Action item (3) — liveness Monitor: restarted.** Fresh persistent `Monitor` (task `b11ckas5l`,
+this tenure) diffing `herdr pane list` for `w1:p9W` (Build-853) and `w1:pAR` (Fable-865-r4) every
+60s, emitting only on `agent_status` change. **Dies with this session at relay — successor must
+start its own** per protocol.
+
+**Fleet at handoff (unchanged from predecessor's checkpoint, just re-confirmed):**
+- **#853** — security tier, `w1:p9W`, Build-853, session `2e85563b-...`, idle, Task 3 next, no PR
+  yet. Sole agent on this worktree — Build-853-next question closed, see above.
+- **PR #865** (Fable-865-r4 lane, `744-private-chat-mode`, security tier) — `w1:pAR`, session
+  `a58d1640-...`, tab `w1:t1C`, Opus 4.8, `working`. No action needed unless it stalls/relays.
+- **#663, #854** — no change, already resolved in prior tenures (closed-as-duplicate / merged).
+
+**merges_since_relay:** unchanged at 1 (nothing merged this tenure; carried forward from
+`c716ccac` tenure — routine-tier #854/PR #856. Threshold is 2 routine/sensitive merges, not
+reached; relaying solely on the context-meter trigger, which fired immediately this tenure).
+
+**Coordinator lock:** now `5e316669-4c29-4e51-8972-b4f070c6a9a3` / label `Coordinator` / pane
+`w1:pAT` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
+Phase 0a and updates this line itself.
