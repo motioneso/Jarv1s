@@ -1061,3 +1061,69 @@ this relay was the predecessor's, already reflected in the digest above).
 **Coordinator lock:** unchanged from the line at the top of this file — `63c5023b-8368-49da-9f60-
 e875e7d60d7f` / label `Coordinator` / pane `w1:pAE` / tab `w1:t15` (resolve fresh, don't trust the
 pane number) until a successor claims Phase 0a and updates that line itself.
+
+## RFA wave — #742, #744, #759, #760 (this tenure, `63c5023b`)
+
+Ben flagged mid-tenure: "there are new rfa items from a different session." `gh issue list --label
+RFA` surfaced #742 (email-digest-delivery), #744 (private-chat-mode), #759 (chat-model-selector),
+#760 (skill-integration-chat). My local worktree copy of the 4 specs still read `Proposed —
+pending final read-through`, which looked like a label/doc mismatch — I raised it to Ben via
+AskUserQuestion rather than assume. **Ben: "Label = approval, proceed on all 4 (Recommended)."**
+
+Root-caused the apparent mismatch afterward (not a real problem): `git fetch origin main` +
+`git rev-list --left-right --count HEAD...origin/main` showed this worktree 233 commits behind
+`origin/main`. `gh pr view 861` — **PR #861 "docs(specs): approve 4 needs-spec backlog specs for
+RFA (#742, #744, #759, #760)"**, authored/merged by Ben (`motioneso`) at `3476e66e`, already
+carries `**Status:** Approved (2026-07-07, Ben)` on all 4 specs on `origin/main`, plus 3
+pre-written build-ready plans (`docs/superpowers/plans/2026-07-06-{chat-model-selector,
+private-chat-mode, skill-integration-chat}-plan.md` — **no pre-written plan for #742**, its build
+agent writes one per normal `coordinated-build` flow). PR #861 body notes #743/#745 were
+deliberately excluded/deferred (untouched — still part of the unanswered backlog) and that Fable
+flagged #760's storage model for build-time scrutiny (worth the build agent re-checking against
+current `main`, not a blocker).
+
+**Tiers — read mechanically off each spec's own `**Tier:**` line on `origin/main`:**
+
+| Issue | Spec | Tier | Trigger |
+| ----- | ---- | ---- | ------- |
+| #742 | email-digest-delivery | `routine` | delivery mechanism; reuses existing connector creds, no new secret type, redaction-tested |
+| #744 | private-chat-mode | `security` | spec self-labels `security-sensitive` — session kill/reaper + data-retention surface |
+| #759 | chat-model-selector | `routine` | spec self-labels `routine`; no secret/auth surface |
+| #760 | skill-integration-chat | `security` | spec self-labels `security-sensitive` — first user-authored content made executable/interpretable + new owner-scoped RLS table |
+
+**Collision map — one-shot Opus subagent (async, ~92s, 72.5k tokens):**
+
+- Current highest migration on `origin/main`: **`0144`**. Next free = `0145`.
+- Migration adds: **#760 only** (new `app.chat_skills` table). #742 probably none (prefers a
+  generic `PreferencesRepository` row; a table only if fields don't fit JSON). #744/#759: none
+  (reuse existing `chat_threads.incognito` column / no schema change). `foundation.test.ts`
+  asserts the full migration list via `toEqual` — whoever lands second among migration-adders must
+  renumber to `current+1` and update that test (only #760 adds one this wave, so no renumber race
+  expected — but re-check `origin/main`'s highest migration again immediately before #760 spawns).
+- **#742 is isolated** — notifications/email/connectors/briefings/settings, no `packages/chat`
+  overlap. Only faint contact: additive pane registration in `settings-navigation.ts`/
+  `settings-page.tsx`, also touched by #760 — trivial, not worth serializing over.
+- **#744 ∩ #759 ∩ #760 is a real collision cluster** — all three edit
+  `apps/web/src/chat/chat-drawer.tsx` + `composer.tsx`; backend overlaps in
+  `live/chat-session-manager.ts` (#744 subscribe/reaper/kill vs #759 `switchProvider`
+  relaunch-replay), `live/cli-chat-engine.ts` (#744 kill/transcript-purge vs #760 submit-path
+  injection), and `routes.ts` (#744 serializeThread/kill-route vs #760 skill CRUD). Different
+  methods, same files → guaranteed conflicts if run in parallel.
+
+**Spawn plan:**
+
+- **Wave 1 (parallel now):** `#742` (routine, isolated) + `#744` (security, deepest chat-lifecycle
+  change — #759/#760 both build on its incognito/ephemerality semantics, so it goes first in the
+  chat cluster).
+- **Wave 2:** `#759` (routine) after `#744` merges — rebases the shared `chat-drawer.tsx`/
+  `switchProvider` touches.
+- **Wave 3:** `#760` (security) after `#759` merges — owns the wave's one migration, lands last so
+  it grabs `0145` cleanly (re-verify highest-migration-on-main immediately before spawn); must
+  update `foundation.test.ts`'s `toEqual` list.
+- Provider-mix directive (Ben, 2026-07-07): next 3 build agents → **Codex**, 0/3 used before this
+  wave. Applying to `#742`, `#744`, `#759` (spawn order) — `#760` (4th) reverts to Claude Sonnet
+  per the directive's "next 3" scope, unless Ben says otherwise.
+- Plans: #744/#759/#760 have pre-written build-ready plans from PR #861 (each opens with "do not
+  start code until Coordinator approves this plan" — normal `coordinated-build` plan-ready gate
+  still applies, I approve via the usual escalation read, not a blanket pre-approval). #742 has no
+  pre-written plan — its agent authors one per the normal flow.
