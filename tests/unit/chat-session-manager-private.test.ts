@@ -69,6 +69,71 @@ describe("ChatSessionManager private cleanup", () => {
     expect(revoke).toHaveBeenCalledWith("u1");
   });
 
+  // #744 — the bookkeeping-row delete is GATED on purge success. If purge fails (throws) or
+  // the engine has no purge method, the row MUST survive so the boot sweep can reclaim the
+  // transcript; the live engine and token are still torn down.
+  it("keeps the private bookkeeping row when the engine purge throws", async () => {
+    const engine = new FakeEngine();
+    engine.purgeTranscripts = vi.fn().mockRejectedValue(new Error("rpc down"));
+    const revoke = vi.fn();
+    const deps = privateDeps(engine, true);
+    const manager = new ChatSessionManager({ ...deps, revokeMcpToken: revoke });
+    await manager.ensureSession("u1", "Ben");
+
+    await manager.endPrivateSession("u1");
+
+    expect(engine.killed).toBe(true);
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
+    // teardown still happens — a failed purge must not leave a dead engine live.
+    expect(revoke).toHaveBeenCalledWith("u1");
+  });
+
+  it("keeps the private bookkeeping row when the engine has no purge method", async () => {
+    const engine = new FakeEngine();
+    // Simulate an older RPC client that never implemented purgeTranscripts: the optional-chain
+    // no-op that stranded transcripts on the split topology must now count as a FAILED purge.
+    (engine as unknown as { purgeTranscripts?: () => Promise<void> }).purgeTranscripts = undefined;
+    const deps = privateDeps(engine, true);
+    const manager = new ChatSessionManager(deps);
+    await manager.ensureSession("u1", "Ben");
+
+    await manager.endPrivateSession("u1");
+
+    expect(engine.killed).toBe(true);
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
+  });
+
+  it("keeps the orphaned private row when the engine-less restart purge throws", async () => {
+    const engine = new FakeEngine();
+    const deps = privateDeps(engine, false);
+    deps.persistence.getCurrentThreadState.mockResolvedValue(undefined);
+    deps.persistence.listIncognitoThreadStates.mockResolvedValue([
+      { actorUserId: "u1", threadId: "thread-private" }
+    ]);
+    const purgePrivateTranscripts = vi.fn().mockRejectedValue(new Error("fs down"));
+    const manager = new ChatSessionManager({ ...deps, purgePrivateTranscripts });
+
+    await manager.reconcileLiveSessions(new Set());
+
+    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1");
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
+  });
+
+  it("keeps the orphaned private row when no engine-less purge path is wired", async () => {
+    const engine = new FakeEngine();
+    const deps = privateDeps(engine, false);
+    deps.persistence.getCurrentThreadState.mockResolvedValue(undefined);
+    deps.persistence.listIncognitoThreadStates.mockResolvedValue([
+      { actorUserId: "u1", threadId: "thread-private" }
+    ]);
+    // No purgePrivateTranscripts dep → the sweep cannot confirm a purge → row survives.
+    const manager = new ChatSessionManager(deps);
+
+    await manager.reconcileLiveSessions(new Set());
+
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
+  });
+
   it("reconcileLiveSessions purges stale private sessions before dropping them", async () => {
     const engine = new FakeEngine();
     const revoke = vi.fn();

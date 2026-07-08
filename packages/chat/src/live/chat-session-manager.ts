@@ -884,6 +884,9 @@ export class ChatSessionManager {
     threadId: string | undefined,
     session: UserSession | undefined
   ): Promise<void> {
+    // #744 — the incognito row is the boot sweep's ONLY reclaim handle, so `deleteThread` waits
+    // for a CONFIRMED purge. Missing/failed purge = FAILURE (no silent-no-op-then-delete strand).
+    let purged = false;
     if (session) {
       try {
         await (this.deps.killSession ? this.deps.killSession(actorUserId) : session.engine.kill());
@@ -891,21 +894,28 @@ export class ChatSessionManager {
         /* best-effort private kill */
       }
       try {
-        await session.engine.purgeTranscripts?.();
+        if (session.engine.purgeTranscripts) {
+          await session.engine.purgeTranscripts();
+          purged = true;
+        }
       } catch {
-        /* best-effort transcript purge */
+        /* best-effort purge; purged stays false so we keep the row for the sweep */
       }
+      // Teardown is unconditional; only the row-delete below is gated on purge success.
       this.sessions.delete(actorUserId);
       this.clearPrivateDetachTimer(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
     } else {
       try {
-        await this.deps.purgePrivateTranscripts?.(actorUserId);
+        if (this.deps.purgePrivateTranscripts) {
+          await this.deps.purgePrivateTranscripts(actorUserId);
+          purged = true;
+        }
       } catch {
-        /* best-effort restart purge */
+        /* best-effort restart purge; keep the row for the next reconcile/boot sweep */
       }
     }
-    if (threadId) {
+    if (purged && threadId) {
       await this.deps.persistence.deleteThread?.(actorUserId, threadId);
     }
   }
