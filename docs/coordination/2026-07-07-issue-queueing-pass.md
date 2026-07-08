@@ -967,3 +967,17 @@ branch gets merged/pushed. Worth raising with Ben: should `docs/superpowers/spec
 `docs/coordination/` be pushed to `origin/main` (or a shared branch all worktrees fetch) on a
 tighter cadence, instead of staying local-only to whichever worktree the coordinator happens to
 be running in?
+
+### #817 / PR #862 — Opus adversarial QA — GREEN, MERGE-READY, awaiting Ben's sign-off
+
+Security tier. Verdict posted durably via `gh pr comment` on PR #862. Compact summary: CI green
+(verify:foundation + both compose smokes); 0 blocking findings; 2 non-blocking (no HTTP-level
+regression test for the server.ts anonymous/transient-auth wiring branches — correct by
+inspection only; `hasAuthMaterial` treats any cookie as auth material, a safe-direction
+completeness gap). Invariants OK (DataContextDb respected, `appDb` root handle only on the
+sanctioned SECURITY DEFINER path mirroring `purgeActionAuditLog`, module isolation intact,
+migration 0145 + foundation.test.ts row present). Exit-criteria met: SECURITY DEFINER
+`record_anonymous_error` forces NULL owner + REVOKE PUBLIC/GRANT app_runtime; RLS INSERT
+NULL-owner branch dropped and tested; anonymous-fallback bug fix gated on genuine no-session.
+
+**PAUSED — per security-tier protocol, merge requires Ben's explicit sign-off. Not auto-merging.**
