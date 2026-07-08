@@ -5,9 +5,11 @@
 `w1:pAM` / tab `w1:t15` — claimed 2026-07-08 from predecessor `197683fe-7804-4e9c-a26a-a7593255a913`
 (confirmed idle/relayed via bounded read — "My tenure's handoff is complete" — before reap; its
 pane `w1:pAK` closed). Resolve fresh by label+session, never trust the pane number.
-**⚠️ Action item #0 (spawn Fable 5 build agent for PR #865's RPC-purge-verb fix) is STILL NOT
-DONE across multiple prior tenures — this tenure's first priority, see
-`docs/coordination/handoffs/2026-07-08-744-fable-rpc-purge-fix.md`.**
+**✅ Action item #0 DONE — Fable 5 build agent spawned for PR #865's RPC-purge-verb fix.** It has
+since relayed THREE times before writing any code (Fable-865 → r2 → r3, see checkpoint sections
+below). **⚠️ Successor's #0 action item now: find/confirm Fable-865-r3's successor (#4), reap r3,
+THEN escalate the 3x-zero-code-relay pattern to Ben** — not yet done as of this relay, see the
+"SUPERSEDED" note under the `b4c88569` tenure section.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -1574,6 +1576,41 @@ successor in the same worktree/branch, confirmed it driving, and requested reap.
 **Watch item resolved:** Fable-865-r3 self-reported past grounding and actively building — RPC
 `purgeTranscripts` verb + session-manager ordering fix + real-RPC regression test. No third
 zero-code relay; no Ben escalation needed.
+
+**⚠️ SUPERSEDED — the above was premature.** Fable-865-r3 relayed too, at its own 70% meter, again
+BEFORE writing code (its words: "compacted-transcript inflation, same trap as successor #2; saved
+to agentmemory"). **This is the third consecutive zero-code relay on this one fix** — the exact
+condition this manifest flagged for Ben escalation two sections up. **NOT YET ESCALATED to Ben as
+of this checkpoint** — this coordinator's own context hit 70% mid-verification of successor #4 and
+is relaying immediately per no-deferral policy. **Successor's first action: escalate this pattern
+to Ben before anything else** — 3 relays / 0 product code on a security-tier PR that predates this
+coordinator's own tenure across several handoffs. Frame it as: is the addendum task genuinely
+too large for one agent's context budget (needs splitting), or is something else eating context
+before real work starts (compaction-on-resume inflation, per r3's own diagnosis — worth checking
+r2's/r3's saved agentmemory note on this trap)?
+
+**State exactly as this checkpoint left it — NOT YET DONE, do this first:**
+1. Fable-865-r3's relay doc is committed: `docs/superpowers/handoffs/2026-07-08-744-rpc-purge-relay.md`
+   at commit `601e025b` (successor-#3 delta section) — per r3, this now carries the FULL settled
+   design + grounded test models so successor #4 can code immediately with zero grounding reads.
+   Verify this claim is actually true (read the file) before trusting it — three cycles of "fully
+   grounded, ready to code" claims that then relayed anyway warrants a healthy skepticism, not
+   blind faith in the fourth agent's context budget either.
+2. **Successor #4 pane was NOT YET FOUND** as of this checkpoint — two `herdr pane list` checks
+   (8s apart) on `cwd == /home/ben/Jarv1s/.claude/worktrees/744-private-chat-mode` still only
+   showed `w1:pAQ` (Fable-865-r3, the relaying predecessor, session
+   `4e095edd-7cc2-47d2-b8f6-30bbed8d9764`). It may simply not have finished spawning yet — re-check
+   `herdr pane list` first before assuming anything went wrong.
+3. Once found: verify it's actually driving (bounded pane read, confirm Fable 5, confirm branch
+   `744-private-chat-mode`), **check/fix tab placement** — both prior successors (r2, r3) landed in
+   `w1:t17` (Ben's personal tab) instead of `w1:t1C`; expect a third instance and fix it the same
+   way (`herdr pane move <pane> --tab w1:t1C --split down --target-pane w1:p9W --no-focus`).
+4. Reap `w1:pAQ` (Fable-865-r3) only after successor #4 confirmed driving.
+5. Restart the liveness Monitor (task `byrfxjjx6` dies with this session) for `w1:p9W` +
+   successor #4's pane.
+
+**Fleet unchanged otherwise:** Build-853 (`w1:p9W`) idle, Task 3 ("full local gate") not started,
+no PR. **merges_since_relay:** unchanged at 1.
 
 ### Fable-865-r2 relayed too — second consecutive zero-code relay, watch item
 
