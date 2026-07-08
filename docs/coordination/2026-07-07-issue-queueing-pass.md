@@ -10,11 +10,13 @@ reaped). Resolve fresh by label+session, never trust a pane number.
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760d** (`w1:pBC`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760c,
-  verified driving, old pane (`w1:pBA`) reaped. Task 1 + Task 2 + Task 3 (routes + upload import)
-  now done+committed (`f0f649e4` on `760-skill-integration-chat`). Currently running
-  format:check/lint/typecheck. Still **security tier** (owner-scoped RLS + user-authored-content-
-  as-instructions surface). No PR yet — watch for PR-ready escalation next.
+- **Build-760e** (`w1:pBD`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760d,
+  verified driving, old pane (`w1:pBC`) reaped. Tasks 1–3 done+committed, Task 3 pushed clean,
+  rebase+trio green, no conflicts (`760-skill-integration-chat`). Task 4 (settings skills pane)
+  research done, no code yet — next thing this lane does. Continuation doc
+  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-7.md` commit `1ddc5880`.
+  Still **security tier** (owner-scoped RLS + user-authored-content-as-instructions surface). No
+  PR yet.
 
 **Liveness Monitor:** none currently running — old task `bmr4q9c48` died at this relay. Successor
 must start a fresh one on `w1:pBA` immediately after adopting.
