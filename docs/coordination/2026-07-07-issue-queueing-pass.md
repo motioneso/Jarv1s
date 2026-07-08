@@ -1,12 +1,9 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** label `Coordinator`, **current session id
-`2d06024b-ecbf-49a6-9f55-5818b130db40`** (pane `w1:pAB`, tab `w1:t15` at time of writing — resolve
-fresh by label+session, never trust the pane number). Relayed from predecessor session
-`2504c431-ecdc-4969-ba0e-fe0d5066af0a` (pane `w1:pA9`) — predecessor confirmed idle via bounded
-pane read (51% ctx, empty prompt, no further activity) before reaping (pane closed). Exactly one
-`Coordinator` pane confirmed via `herdr pane list` post-reap.
+**Coordinator lock:** label `Coordinator`, session `2d06024b-ecbf-49a6-9f55-5818b130db40` (pane
+`w1:pAB`) is **relaying now at 71% context** — successor claims the lock, resolve fresh by
+label+session, never trust the pane number.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -843,6 +840,32 @@ First candidate for the Codex provider-mix directive once he approves.
   per `pane list`, but per prior tenure's caveat, `agent_status` alone shouldn't be trusted for
   precise task progress — confirm with content when it matters, e.g. before assuming done).
 
+## Relay checkpoint (session `2d06024b-ecbf-49a6-9f55-5818b130db40`, own context 71%)
+
+Coordinator context hit the 70% trigger — no-deferral relay in progress, spawning successor now
+in same tab (`w1:t15`). **merges_since_relay: 1** (unchanged, carried forward from `b7a14b99`
+tenure — nothing merged this tenure).
+
+**Fleet at handoff:**
+- **Build-853** (`w1:p9W`, security tier, idle last observed) — Task 1+2 done, Task 3 ("full
+  local gate") not yet started as of last check this tenure (not re-verified this tenure beyond
+  the liveness monitor). No PR yet. When done: Opus adversarial QA → mandatory `gh pr comment`
+  verdict → Ben's explicit sign-off. Never auto-merge.
+- **Build-817** (`w1:pAA`, Codex `gpt-5.5`, security tier) — plan-ready escalation resolved this
+  tenure (see design-fork section below): Opus adjudicated APPROVE WITH MODIFICATION. Fix +
+  secondary bug relayed via `herdr pane run`; **message was still queued/mid-submit when this
+  relay fired — successor's first action must be a bounded pane read on `w1:pAA` to confirm
+  Build-817 actually received the modification instructions and is revising its plan**, not
+  assume delivery. No PR yet.
+- Fresh liveness `Monitor` (task `bj7qt3nis`, started this tenure) watches both `w1:p9W` and
+  `w1:pAA` — dies with this session per protocol; successor starts its own.
+
+**Still awaiting Ben:** backlog triage (#818-826, #741-745, #759-760) reply — do not act without
+him. QA-provider-mixing question is now RESOLVED (see section below) — no longer open.
+
+**Coordinator lock:** claimed this tenure by `2d06024b-ecbf-49a6-9f55-5818b130db40` (pane
+`w1:pAB`) — resolve fresh by label+session for the successor, don't trust the pane number.
+
 ### Incident — Build-817 blocked, spec missing from its worktree (resolved this tenure)
 
 **Root cause:** this coordinator's own worktree runs on branch `coord/settings-host-cleanup`
@@ -858,6 +881,40 @@ security) directly into the `817-error-explainability` worktree and committed it
 (`c964132d`, on top of the existing handoff commit `3e826d49`). Messaged Build-817's pane
 (`w1:pAA`) with the explanation; confirmed via bounded pane read it resumed working
 (`gpt-5.5 medium`).
+
+### #817 design fork — anonymous-error write path — RESOLVED this tenure (Opus adjudication)
+
+Build-817 reported plan-ready (`docs/superpowers/plans/2026-07-07-error-explainability.md`,
+committed in its worktree) and flagged a fork: anonymous `/api/errors` writes use
+`owner_user_id NULL` via `recordAnonymousError(appDb)` taking a **raw Kysely handle** (bare
+`.insertInto(...).execute(appDb)`), because `AccessContext` can't represent an anonymous actor.
+Security tier + touches the `DataContextDb only` Hard Invariant → escalated to a one-shot Opus
+subagent per model policy rather than adjudicated inline.
+
+**Opus verdict: APPROVE WITH MODIFICATION.**
+1. **Private-by-default: fine as designed.** `current_actor_user_id()` returns NULL when unset;
+   RLS SELECT policy requires actor match (`NULL` never equals a real UUID) so anonymous rows
+   are invisible to every user — verified against `infra/postgres/migrations/0002_app_rls.sql`
+   and the plan's own invisibility test.
+2. **`DataContextDb only`: literally violated.** A bare raw-Kysely CRUD insert is exactly what
+   the invariant forbids, regardless of the anonymous-actor justification.
+3. **Fix (relayed to Build-817):** replace the bare insert with a `SECURITY DEFINER` Postgres
+   function `app.record_anonymous_error(...)` (forces NULL owner inside its own body), `GRANT
+   EXECUTE` to `jarvis_app_runtime`, call via `sql`SELECT app.record_anonymous_error(...)`
+   .execute(appDb)` — same pattern as `purgeActionAuditLog` (`packages/ai/src/
+   repository.ts:1105`). Then **drop the `owner_user_id IS NULL` branch from the INSERT policy**
+   so anonymous rows are writable only through that one audited function. Explicitly rejected:
+   a sentinel-actor `AccessContext` (fake UUID) — would make the row non-NULL-owner and visible
+   to the sentinel, worse than the original problem.
+4. **Secondary bug caught:** `server.ts`'s fallback to anonymous triggers on **any**
+   `resolveAccessContext` throw, not just genuine no-session — a transient auth error would
+   misfile a logged-in user's error as anonymous and hide it from them. Told Build-817 to
+   downgrade only on genuine no-session.
+
+**Relayed to Build-817 (`w1:pAA`) via `herdr pane run`; message was mid-submit (queued behind its
+current tool call, normal Codex behavior) when this tenure hit its own relay trigger — successor
+must confirm via bounded pane read that Build-817 actually received it and is revising, not
+assume delivery from this note alone.**
 
 ### ✅ QA-provider-mixing question — RESOLVED by Ben (this tenure)
 
