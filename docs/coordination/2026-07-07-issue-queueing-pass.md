@@ -1829,3 +1829,18 @@ worktree off it (never spawn onto an unverified main). Confirmed spec approved o
 (`docs/superpowers/specs/2026-07-05-chat-model-selector.md`, Status: Approved 2026-07-07 Ben, tier
 `routine`) and pre-written plan exists at
 `docs/superpowers/plans/2026-07-06-chat-model-selector-plan.md`.
+
+**CI went green** (`gh run list --branch main` for `791ce5e4` → `completed`/`success`) at
+`bo9fnqfpi` monitor fire. Cut worktree `git worktree add .claude/worktrees/759-chat-model-selector
+-b 759-chat-model-selector origin/main` (HEAD `791ce5e4`). Wrote+committed
+`docs/coordination/handoffs/2026-07-08-759-chat-model-selector.md` (modeled on the #744 handoff;
+collision notes for the 3-way #744/#759/#760 cluster, provider-mix note that #759 is Codex slot
+3/3, #760 reverts to Sonnet).
+
+**Spawned Build-759** (Wave 2, Codex/gpt-5.5) into the shared agents tab: `herdr agent start
+"Build-759" --tab w1:t1C --split down --cwd ~/Jarv1s/.claude/worktrees/759-chat-model-selector
+--no-focus -- codex -s danger-full-access -a never "<boot prompt>"`. Landed at pane `w1:pAZ`.
+Confirmed via bounded read: running `gpt-5.5`, already invoking `coordinated-build` and reading
+its `SKILL.md`. **Watch item:** its weekly Codex usage limit showed **15% left** at spawn time —
+flag for Ben if it runs out mid-build (2/2 usage-limit resets still available per its own banner).
+Status: `building`.
