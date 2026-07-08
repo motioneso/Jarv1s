@@ -1,13 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
-
-export function isFollowed(
-  pairs: ReadonlySet<string>,
-  competitionKey: string,
-  teamKey: string
-): boolean {
-  return pairs.has(`${competitionKey}:${teamKey}`);
-}
+// Ranking now lives in a shared pure module (#857) so the server computes the SAME featured pick
+// it needs to fetch the article body for. Re-export `isFollowed` because sports-around-ticker /
+// sports-standings still import it from here.
+import { isWrittenArticle, rankStories, BIG_STORY_WEIGHT } from "../news-ranking.js";
+export { isFollowed } from "../news-ranking.js";
 
 export function NewsIcon(): ReactNode {
   return (
@@ -27,38 +25,172 @@ export function NewsIcon(): ReactNode {
   );
 }
 
-/* ------------------------------------------------------------- Story hero */
+/* ------------------------------------------------------------- Hero carousel */
 
-export function StoryHero(props: { headline: Headline | null }) {
-  const { headline } = props;
+// Carousel sizing (live feedback mrb4w77y, "the hero could be a carousel of the top
+// stories"): the old single StoryHero becomes a rotation over the topStories pool. Five
+// slides is the cap — past that the dots stop being scannable and the tail stories are
+// better served by the news band below. Auto-advance is slow enough to read a dek.
+const CAROUSEL_CAP = 5;
+const CAROUSEL_ADVANCE_MS = 7000;
+
+// One slide = the exact split-hero layout StoryHero used to render (art beside display
+// headline + dek), so the carousel is a rotation of front pages, not a new component idiom.
+function HeroSlide({ headline, active }: { readonly headline: Headline; active: boolean }) {
   return (
-    <section className="sp-hero sp-hero--story sp-hero--split" aria-label="Top story">
-      {headline?.imageUrl ? (
-        <img
-          className="sp-photo sp-photo--herostory sp-photo--img"
-          src={headline.imageUrl}
-          alt=""
-          loading="lazy"
-        />
-      ) : (
-        <div className="sp-photo sp-photo--herostory" aria-hidden="true" />
-      )}
-      <div className="sp-hero__storybody">
-        <h2 className="sp-hero__headline">
-          {headline ? (
-            <a className="sp-hero__link" href={headline.url} target="_blank" rel="noreferrer">
+    <article
+      className={active ? "sp-carousel__slide sp-carousel__slide--active" : "sp-carousel__slide"}
+      role="group"
+      aria-roledescription="slide"
+      aria-hidden={!active}
+    >
+      <div className="sp-hero sp-hero--story sp-hero--split">
+        {headline.imageUrl ? (
+          <img
+            className="sp-photo sp-photo--herostory sp-photo--img"
+            src={headline.imageUrl}
+            alt=""
+            loading="lazy"
+          />
+        ) : (
+          <div className="sp-photo sp-photo--herostory" aria-hidden="true" />
+        )}
+        <div className="sp-hero__storybody">
+          {/* Front-page furniture (mrbalm9x): a lead carries a desk kicker so it reads as the
+              top story, not a promo — a "TOP STORY" desk tag beside the league section. This is
+              exactly what a display ad never has, and it's what made the boxed hero read like
+              one. Deliberately REVERSES the bare-eyebrow cut (mrb0opaa) under the new front-page
+              model: that eyebrow was a lone floating mono word; this is anchored furniture at
+              the head of the lead with an accent desk tag + hairline, not an orphaned label. */}
+          <p className="sp-hero__kicker">
+            <span className="sp-hero__kicker-desk">Top story</span>
+            <span className="sp-hero__kicker-comp">{headline.competitionLabel}</span>
+          </p>
+          <h2 className="sp-hero__headline">
+            {/* Inactive slides stay in the DOM for the crossfade but must not be tab stops */}
+            <a
+              className="sp-hero__link"
+              href={headline.url}
+              target="_blank"
+              rel="noreferrer"
+              tabIndex={active ? undefined : -1}
+            >
               {headline.title}
             </a>
-          ) : (
-            "No followed game today"
-          )}
-        </h2>
-        {/* Standfirst: the article's summary as a dek under the headline, so the hero reads
-            like a front page and not a bare link (live feedback mrawc8ww) */}
-        {/* The competition credit line ("NHL") under the dek was cut entirely — headline +
-            photo already say what the story is (live feedback mrb0opaa, ends mratrvvg). */}
-        {headline?.summary ? <p className="sp-hero__dek">{headline.summary}</p> : null}
+          </h2>
+          {/* Standfirst: the article's summary as a dek under the headline, so the hero reads
+              like a front page and not a bare link (live feedback mrawc8ww) */}
+          {/* The competition credit line ("NHL") under the dek was cut entirely — headline +
+              photo already say what the story is (live feedback mrb0opaa, ends mratrvvg). */}
+          {headline.summary ? <p className="sp-hero__dek">{headline.summary}</p> : null}
+          {/* Newspaper jump line (mrbalm9x round 2): the summary is the lead paragraph; this is
+              the "continued on page A12" affordance that carries the reader into the full story.
+              Same target as the headline, but the explicit link is the front-page idiom Ben
+              wants on every lead. ESPN's feed gives only this one-paragraph description as body
+              text — a deeper excerpt would need per-article fetching (own task+spec). Kept out
+              of the tab order on inactive slides like the headline link. */}
+          <a
+            className="sp-hero__more"
+            href={headline.url}
+            target="_blank"
+            rel="noreferrer"
+            tabIndex={active ? undefined : -1}
+          >
+            Continue reading<span aria-hidden="true"> →</span>
+          </a>
+        </div>
       </div>
+    </article>
+  );
+}
+
+// Quiet-day hero carousel (mrb4w77y): rotates the topStories pool where a single story hero
+// stood. Slides crossfade on a timer; hover/focus pauses (reading beats rotation), reduced
+// motion disables auto-advance entirely and leaves the arrows/dots as the only navigation.
+// On a gameday this never mounts — the featured-game bar owns the hero slot and the same
+// topStories collapse into the combined list in the grid instead.
+export function HeroCarousel({ headlines }: { readonly headlines: readonly Headline[] }) {
+  const slides = headlines.slice(0, CAROUSEL_CAP);
+  const count = slides.length;
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  // A refetch can shrink the pool while we're pointing past its end — clamp, don't crash.
+  const active = Math.min(index, Math.max(count - 1, 0));
+
+  useEffect(() => {
+    if (paused || count < 2) return;
+    // matchMedia in an effect, not render: SSR has no window, and this respects a user
+    // flipping the OS setting mid-session on the next slide change.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(
+      () => setIndex((current) => (current + 1) % count),
+      CAROUSEL_ADVANCE_MS
+    );
+    return () => window.clearInterval(timer);
+  }, [paused, count]);
+
+  if (count === 0) {
+    // Same placeholder the null-headline StoryHero rendered — a quiet day with no stories
+    // still shows the hero slot's shape instead of collapsing the page.
+    return (
+      <section className="sp-hero sp-hero--story sp-hero--split" aria-label="Top story">
+        <div className="sp-photo sp-photo--herostory" aria-hidden="true" />
+        <div className="sp-hero__storybody">
+          <h2 className="sp-hero__headline">No followed game today</h2>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className="sp-carousel"
+      aria-label="Top stories"
+      aria-roledescription="carousel"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      {/* All slides render stacked in one grid cell (CSS) so the stage holds the tallest
+          slide's height — no reflow jump between a dek-heavy story and a bare headline. */}
+      <div className="sp-carousel__stage">
+        {slides.map((headline, i) => (
+          <HeroSlide key={headline.id} headline={headline} active={i === active} />
+        ))}
+      </div>
+      {count > 1 ? (
+        <div className="sp-carousel__ctl">
+          <button
+            type="button"
+            className="sp-carousel__nav"
+            aria-label="Previous story"
+            onClick={() => setIndex((active - 1 + count) % count)}
+          >
+            <ChevronLeft size={16} aria-hidden="true" />
+          </button>
+          <div className="sp-carousel__dots">
+            {slides.map((headline, i) => (
+              <button
+                key={headline.id}
+                type="button"
+                className="sp-carousel__dot"
+                aria-label={`Story ${i + 1} of ${count}`}
+                aria-current={i === active || undefined}
+                onClick={() => setIndex(i)}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            className="sp-carousel__nav"
+            aria-label="Next story"
+            onClick={() => setIndex((active + 1) % count)}
+          >
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -66,10 +198,12 @@ export function StoryHero(props: { headline: Headline | null }) {
 /* ------------------------------------------------------------- Latest column */
 
 export function LatestColumn(props: { headlines: readonly Headline[] }) {
+  // Kicker renamed "Latest" → "Top stories": the pool is ranked by ESPN's editorial feed
+  // position with recency only as tiebreak (mrb51pnq), so "Latest" would now lie.
   if (props.headlines.length === 0) return null;
   return (
-    <section className="sp-latest" aria-label="Latest">
-      <p className="sp-col__kicker">Latest</p>
+    <section className="sp-latest" aria-label="Top stories">
+      <p className="sp-col__kicker">Top stories</p>
       <ol className="sp-latest__list">
         {props.headlines.slice(0, 6).map((headline) => (
           <li className="sp-latest__item" key={headline.id}>
@@ -93,95 +227,32 @@ export function LatestColumn(props: { headlines: readonly Headline[] }) {
 
 /* ----------------------------------------------------------------- News band */
 
-// One league's slice of the band, tiered like a newspaper section (live feedback mrb0wd68 +
-// mrb0xwwg): a lead story with art, a couple of short articles (with art when the source has
-// it — "more photos"), then the rest grouped as headline-only briefs. Caps keep a busy feed
-// from running the section forever; the briefs' links carry the tail.
-const SHORTS_PER_SECTION = 2;
-const BRIEFS_PER_SECTION = 4;
+// Mosaic caps (live feedback mrb5reqq): the one-column-per-league grid read as "too many same
+// sized stories", so the band below the feature is now a single weight-ranked mosaic across
+// every shown league. Two stories earn a double-column slot with more visible text, a handful
+// run as single-column standards, and the tail collapses into one combined "In brief" rail.
+const MAJORS_CAP = 2;
+const STANDARDS_CAP = 6;
+const BRIEFS_CAP = 10;
 
-// "Big story" heuristic (live feedback mrb47x3h): we have no editorial prominence signal from
-// the source, so weight what we do have — art (+2) and a dek (+1) mean the source invested in
-// the story; a followed-team tag (+2) means this reader cares. Deliberately clock-free so SSR
-// and tests stay deterministic; ties fall back to feed order (roughly editorial).
-function storyWeight(headline: Headline, followedPairs: ReadonlySet<string>): number {
-  let weight = 0;
-  if (headline.imageUrl) weight += 2;
-  if (headline.summary) weight += 1;
-  if (headline.teamKeys.some((key) => isFollowed(followedPairs, headline.competitionKey, key))) {
-    weight += 2;
-  }
-  return weight;
-}
-// Feature/big threshold: art alone (2) or art+dek (3) is ordinary; it takes a followed-team
-// story with art (4+) to break the column grid. Keeps the feature slot personal, not just loud.
-const BIG_STORY_WEIGHT = 4;
+// `isWrittenArticle`, `storyWeight`, `rankStories`, and `BIG_STORY_WEIGHT` moved to
+// ../news-ranking.js (#857) so the server can compute the identical feature pick. Written majors
+// still get a longform blurb clamp via isWrittenArticle below.
 
-function NewsSection({
-  group,
-  followedPairs,
-  excludeId
-}: {
-  readonly group: LeagueNewsGroup;
-  readonly followedPairs: ReadonlySet<string>;
-  readonly excludeId: string | null;
-}) {
-  // Tier by weight, not feed order, so a big story leads its section even when the feed
-  // buried it (mrb47x3h). Array.prototype.sort is spec-stable — equal weights keep feed order.
-  const ranked = group.headlines
-    .filter((headline) => headline.id !== excludeId)
-    .map((headline) => ({ headline, weight: storyWeight(headline, followedPairs) }))
-    .sort((a, b) => b.weight - a.weight);
-  const [lead, ...rest] = ranked;
-  if (!lead) return null;
-  const shorts = rest.slice(0, SHORTS_PER_SECTION);
-  const briefs = rest.slice(SHORTS_PER_SECTION, SHORTS_PER_SECTION + BRIEFS_PER_SECTION);
-  return (
-    <section className="sp-newsband__col" aria-label={`${group.competitionLabel} news`}>
-      <h3 className="sp-newsband__section">{group.competitionLabel}</h3>
-      <NewsArticle headline={lead.headline} lead big={lead.weight >= BIG_STORY_WEIGHT} />
-      {shorts.map(({ headline }) => (
-        <NewsArticle key={headline.id} headline={headline} />
-      ))}
-      {briefs.length > 0 ? (
-        <div className="sp-newsband__briefs">
-          <p className="sp-newsband__briefslabel">In brief</p>
-          <ul className="sp-newsband__brieflist">
-            {briefs.map(({ headline }) => (
-              <li className="sp-newsband__brief" key={headline.id}>
-                <a
-                  className="sp-newsband__brieflink"
-                  href={headline.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {headline.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-// Short articles keep their continue-reading link — the newspaper FEEL comes from the tiering
-// and column rules, not from cutting the way out to the full story (mrb0wd68).
-// `big` marks a heavy lead (weight ≥ BIG_STORY_WEIGHT) — same slot, a size up (mrb47x3h).
+// Mosaic cell: every story now carries its own league kicker because the per-league section
+// headers went with the per-league columns (mrb5reqq). `major` is the double-column tier;
+// `longform` (written major, isWrittenArticle) trades the tight clamp for a real paragraph.
 function NewsArticle({
   headline,
-  lead = false,
-  big = false
+  major = false
 }: {
   readonly headline: Headline;
-  lead?: boolean;
-  big?: boolean;
+  major?: boolean;
 }) {
   const className = [
     "sp-newsband__art",
-    lead ? "sp-newsband__art--lead" : null,
-    big ? "sp-newsband__art--big" : null
+    major ? "sp-newsband__art--major" : null,
+    major && isWrittenArticle(headline) ? "sp-newsband__art--longform" : null
   ]
     .filter(Boolean)
     .join(" ");
@@ -190,6 +261,7 @@ function NewsArticle({
       {headline.imageUrl ? (
         <img className="sp-newsband__img" src={headline.imageUrl} alt="" loading="lazy" />
       ) : null}
+      <p className="sp-newsband__artkicker">{headline.competitionLabel}</p>
       <h4 className="sp-newsband__title">{headline.title}</h4>
       {headline.summary ? <p className="sp-newsband__blurb">{headline.summary}</p> : null}
       <a className="sp-newsband__more" href={headline.url} target="_blank" rel="noreferrer">
@@ -199,10 +271,10 @@ function NewsArticle({
   );
 }
 
-// The band's single biggest story breaks out of the column grid entirely: full-width split
+// The band's single biggest story breaks out of the mosaic entirely: full-width split
 // layout above the sections, art beside a display-size headline (mrb47x3h "give them some
 // more space"). Only a story that clears BIG_STORY_WEIGHT earns the slot — on a quiet day
-// the band opens straight with the columns.
+// the band opens straight with the mosaic.
 function FeatureArticle({ headline }: { readonly headline: Headline }) {
   return (
     <article className="sp-newsband__feature">
@@ -217,7 +289,22 @@ function FeatureArticle({ headline }: { readonly headline: Headline }) {
       <div className="sp-newsband__featurebody">
         <p className="sp-newsband__featurekicker">{headline.competitionLabel}</p>
         <h3 className="sp-newsband__title sp-newsband__title--feature">{headline.title}</h3>
-        {headline.summary ? (
+        {/* Fill the hero with real article body (#857, Ben's "fill the height with more article
+            body"). The service fetches + SANITIZES-to-plaintext the featured story's ESPN body and
+            hands it here already stripped of all HTML/tokens and length-capped. We render it as
+            React text ({paragraph}) split on the blank lines the sanitizer inserts — text nodes,
+            never dangerouslySetInnerHTML, so no ESPN markup can ever enter the DOM. Falls back to
+            the one-paragraph dek when no body came through (fetch failed, or not the featured pick). */}
+        {headline.body ? (
+          headline.body.split("\n\n").map((paragraph, index) => (
+            <p
+              className="sp-newsband__blurb sp-newsband__blurb--feature"
+              key={`${headline.id}-p${index}`}
+            >
+              {paragraph}
+            </p>
+          ))
+        ) : headline.summary ? (
           <p className="sp-newsband__blurb sp-newsband__blurb--feature">{headline.summary}</p>
         ) : null}
         <a className="sp-newsband__more" href={headline.url} target="_blank" rel="noreferrer">
@@ -239,20 +326,33 @@ export function NewsBand({
   if (groups.length === 0) return null;
   const shown = filterKey === "all" ? groups : groups.filter((g) => g.competitionKey === filterKey);
 
-  // Feature pick: heaviest story across every shown league, first-found on ties (feed order
-  // within a league, league order across them — both deterministic). It leaves its column so
-  // the same story never renders twice (mrb47x3h).
-  let feature: Headline | null = null;
-  let featureWeight = BIG_STORY_WEIGHT - 1;
-  for (const group of shown) {
-    for (const headline of group.headlines) {
-      const weight = storyWeight(headline, followedPairs);
-      if (weight > featureWeight) {
-        feature = headline;
-        featureWeight = weight;
-      }
-    }
-  }
+  // Flatten every shown league into one weight-ranked pool (mrb5reqq: "we don't really need it
+  // to be one column per sport"). Ranking lives in ../news-ranking.js so the server picks the
+  // identical feature to attach the article body to (#857) — see there for the +2 first-of-league
+  // editorial bonus and the deterministic tie-break.
+  const ranked = rankStories(shown, followedPairs);
+
+  // Feature pick: heaviest story overall, first-found on ties (stable sort). It leaves the
+  // mosaic so the same story never renders twice (mrb47x3h). MUST match the server's selectFeature
+  // over the unfiltered groups so the body it fetched lands on this exact headline.
+  const feature = ranked[0] && ranked[0].weight >= BIG_STORY_WEIGHT ? ranked[0].headline : null;
+  const rest = feature ? ranked.slice(1) : ranked;
+
+  // Majors need art — a double-column slot with no image is just a wide gap. Standards take
+  // the next slice of the pool; everything past the caps collapses into the brief rail so a
+  // busy day widens the tail instead of running the mosaic forever (mrb5reqq).
+  const majorIds = new Set(
+    rest
+      .filter((s) => s.headline.imageUrl)
+      .slice(0, MAJORS_CAP)
+      .map((s) => s.headline.id)
+  );
+  const flow = rest.filter((s) => !majorIds.has(s.headline.id));
+  const standards = flow.slice(0, STANDARDS_CAP);
+  const mosaicIds = new Set([...majorIds, ...standards.map((s) => s.headline.id)]);
+  // Weight order preserved across both tiers so the page reads big → small.
+  const mosaic = rest.filter((s) => mosaicIds.has(s.headline.id));
+  const briefs = flow.slice(STANDARDS_CAP, STANDARDS_CAP + BRIEFS_CAP);
 
   return (
     <section className="sp-newsband" aria-label="League news">
@@ -273,18 +373,35 @@ export function NewsBand({
         </select>
       </div>
       {feature ? <FeatureArticle headline={feature} /> : null}
-      {/* One column per league, separated by newspaper column rules (mrb0wd68); the flat
-          all-equal card grid this replaces read as a widget wall, not a news section. */}
-      <div className="sp-newsband__cols">
-        {shown.map((group) => (
-          <NewsSection
-            key={group.competitionKey}
-            group={group}
-            followedPairs={followedPairs}
-            excludeId={feature?.id ?? null}
-          />
+      {/* Cross-league mosaic (mrb5reqq): replaces the one-column-per-league sections — spans
+          and text length now vary by story weight instead of every league getting the same
+          lead/short/brief ration regardless of how big its day was. */}
+      <div className="sp-newsband__mosaic">
+        {mosaic.map(({ headline }) => (
+          <NewsArticle key={headline.id} headline={headline} major={majorIds.has(headline.id)} />
         ))}
       </div>
+      {briefs.length > 0 ? (
+        <div className="sp-newsband__briefs">
+          <p className="sp-newsband__briefslabel">In brief</p>
+          <ul className="sp-newsband__brieflist">
+            {briefs.map(({ headline }) => (
+              <li className="sp-newsband__brief" key={headline.id}>
+                <a
+                  className="sp-newsband__brieflink"
+                  href={headline.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {/* League tag replaces the section header the briefs used to sit under */}
+                  <span className="sp-newsband__brieftag">{headline.competitionLabel}</span>
+                  {headline.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

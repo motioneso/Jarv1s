@@ -55,13 +55,14 @@ describe("SportsTicker", () => {
     expect(html).toContain("Minnesota Vikings");
     expect(html).toContain("MIN 21 – 14 DAL");
     // standing + form moved into the header sub-row under the team name (mrawlzb7)
-    expect(html).toContain("sp-tk__sub");
+    expect(html).toContain("sp-feat__sub");
     expect(html).toContain("sp-formpip");
     expect(html).toContain("2nd · NFC North");
-    // the live score owns the card — the next-game footer waits until full time (mrawrk0e)
-    expect(html).not.toContain("sp-tk__next");
+    // the live score owns the card — the next-game footer waits until full time (mrawrk0e).
+    // FeaturedTeamCard uses the sp-feat prefix (this strip renders it, not TickerTeam).
+    expect(html).not.toContain("sp-feat__next");
     // the competition/status eyebrow row was removed (live feedback mratgoq4)
-    expect(html).not.toContain("sp-tk__comp");
+    expect(html).not.toContain("sp-feat__comp");
   });
 
   // Regression for the standingIsSane guard: the old bare /-\d/ negative-points check also
@@ -76,12 +77,12 @@ describe("SportsTicker", () => {
 
   it("shows the next-game footer with opponent crest, no visible name (non-live)", () => {
     const html = render([card({ status: "news", primary: "", stories: [story()] })]);
-    expect(html).toContain("sp-tk__next");
+    expect(html).toContain("sp-feat__next");
     // opponent identity is the crest (initials swatch here — no crestUrl) plus an
     // sr-only name; the visible "vs Green Bay Packers" line is gone (mrawvc48)
     expect(html).toContain("sp-sronly");
     expect(html).toContain("vs Green Bay Packers");
-    expect(html).not.toContain("sp-tk__nextlbl");
+    expect(html).not.toContain("sp-feat__nextlbl");
   });
 
   it("fills the pre-game today primary with news — footer carries the fixture", () => {
@@ -97,7 +98,7 @@ describe("SportsTicker", () => {
     ]);
     expect(html).not.toContain("Vikings @ Cowboys");
     expect(html).toContain("Vikings name their starter");
-    expect(html).toContain("sp-tk__next");
+    expect(html).toContain("sp-feat__next");
     // no story at all → honest placeholder, still no fixture duplication
     const bare = render([
       card({ status: "today", primary: "Vikings @ Cowboys", todayGameState: "pre" })
@@ -127,7 +128,7 @@ describe("SportsTicker", () => {
     ]);
     expect(html).not.toContain("No recent news");
     expect(html).toContain("Vikings sign a new kicker");
-    expect(html).toContain("sp-tk__stories");
+    expect(html).toContain("sp-feat__stories");
     expect(html).toContain("Camp battle at corner");
     expect(html).toContain("Schedule quirks explained");
   });

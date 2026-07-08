@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { FollowedNextMatch, FollowedTeamCard } from "@jarv1s/shared";
 import type { LocaleSettingsDto } from "@jarv1s/shared";
@@ -7,8 +13,6 @@ import { TOURNAMENT_COMPETITIONS } from "./competitions.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";
 import { Crest, FormPips, LiveDot } from "./sports-parts.js";
 import { NewsIcon } from "./sports-news.js";
-
-const SETTINGS_HREF = "/settings?section=modules&module=sports";
 
 // Server sends "#0 · -7.5 pts" when ESPN has no real rank/points for a league (MLB GB leaks
 // into points) — a nonsense line is worse than none. Also hidden for knockout tournaments,
@@ -85,6 +89,12 @@ export function nextMatchParts(
 // pass) — the league-grouped sections below already carry them. Team stories now arrive on
 // the card itself (card.stories, mrb0pk1n), so the old headlines prop + client-side
 // title-matching are gone: the service's teamKeys tagging is the one source of truth.
+// Settings deep-link for the followed-teams Manage control (Task B / ticker note). Kept as a
+// local copy rather than imported from sports-page.tsx to avoid a circular import — sports-page
+// imports this module for SportsTicker. Mirror of SETTINGS_HREF there; both target the sports
+// module's settings section.
+const SETTINGS_HREF = "/settings?section=modules&module=sports";
+
 export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
@@ -114,10 +124,52 @@ export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
     el.scrollBy({ left: direction * Math.round(el.clientWidth * 0.8), behavior: "smooth" });
   }
 
+  // Pointer drag-to-scroll (mrb7mwhv): the strip is wide editorial cards now, so click-and-drag
+  // is the natural gesture across the row. The arrows STAY (Ben's ask) as the discoverable
+  // affordance for anyone who doesn't think to drag. A 4px movement threshold latches `moved`
+  // so a drag that ends over a story link doesn't also fire that link's click (onClickCapture
+  // swallows it) — dragging never accidentally opens a story. Touch is left to native scroll.
+  const dragRef = useRef<{ startX: number; startLeft: number; moved: boolean } | null>(null);
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    const el = scrollRef.current;
+    if (!el || event.pointerType === "touch") return;
+    dragRef.current = { startX: event.clientX, startLeft: el.scrollLeft, moved: false };
+  }
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
+    const el = scrollRef.current;
+    const drag = dragRef.current;
+    if (!el || !drag) return;
+    const dx = event.clientX - drag.startX;
+    if (!drag.moved && Math.abs(dx) < 4) return;
+    drag.moved = true;
+    el.setPointerCapture(event.pointerId);
+    el.scrollLeft = drag.startLeft - dx;
+  }
+  function onPointerEnd(event: ReactPointerEvent<HTMLDivElement>): void {
+    const el = scrollRef.current;
+    if (el?.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
+    // Clear on the next tick so the click that fires right after pointerup can still read
+    // `moved` and be suppressed; a plain click (moved === false) passes through untouched.
+    window.setTimeout(() => {
+      dragRef.current = null;
+    }, 0);
+  }
+  function onClickCapture(event: ReactMouseEvent<HTMLDivElement>): void {
+    if (dragRef.current?.moved) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
   return (
     <section className="sp-ticker" aria-label="Followed">
-      <div className="sp-ticker__hd">
-        <span className="sp-ticker__kicker">Followed</span>
+      {/* Section head (Task B / ticker note, Ben 2026-07-07): labels the band as the followed set
+          and carries Manage, both relocated down here from the masthead folio Ben cleared.
+          Reverses mrb8sxx6 (head removed) + mrb8p4e2 (Manage lifted up to the folio) — the "my
+          teams" strip now owns its own titled head instead of borrowing the masthead's. */}
+      <div className="sp-ticker__head">
+        <h2 className="sp-ticker__label">Followed teams &amp; leagues</h2>
         <a className="sp-ticker__manage" href={SETTINGS_HREF}>
           Manage
         </a>
@@ -136,12 +188,17 @@ export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
           className="sp-ticker__scroll"
           ref={scrollRef}
           onScroll={updateEdges}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerEnd}
+          onPointerLeave={onPointerEnd}
+          onClickCapture={onClickCapture}
           tabIndex={0}
           role="region"
           aria-label="Followed teams"
         >
           {ordered.map((card) => (
-            <TickerTeam key={`${card.competitionKey}:${card.teamKey}`} card={card} />
+            <FeaturedTeamCard key={`${card.competitionKey}:${card.teamKey}`} card={card} />
           ))}
         </div>
         <button
@@ -155,6 +212,113 @@ export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
         </button>
       </div>
     </section>
+  );
+}
+
+// Desk-strip card (mrb7mwhv): the /sports followed strip deliberately diverges from the
+// compact /today widget. Ben wanted far more room per team — "not so compact and busy" — and
+// the strip to lead the page, so this is the roomy, image-forward variant: a wide lead-story
+// banner, a serif team name at display size, and generous spacing. /today keeps the dense
+// TickerTeam below. The team-semantics helpers (standingIsSane, NextMatchLines, Crest/FormPips)
+// are shared so the two layouts can't drift on what a team's status/standing means.
+function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
+  const { card } = props;
+  // Same primary-slot rule as TickerTeam: a pre-game/idle card leads with news, a live or
+  // finished game leads with its score (the Next footer, not this slot, carries the fixture).
+  const showNews =
+    card.status === "news" || (card.status === "today" && card.todayGameState !== "final");
+  const lead = card.stories[0] ?? null;
+  // A score card never spent stories[0] on its headline, so its link list starts at 0; a news
+  // card already showed stories[0] as the headline, so its list starts at 1. Cap at two links
+  // below the lead — the point of this card is air, not a wall of headlines (mrb7mwhv).
+  const secondary = showNews ? card.stories.slice(1, 3) : card.stories.slice(0, 2);
+  const isScore = !showNews && /\d/.test(card.primary);
+
+  return (
+    <article className="sp-feat">
+      {/* Lead-story art is the banner even on score cards — it fills the new width and gives the
+          strip the image-forward, editorial feel Ben referenced. Crest plate is the artless
+          fallback. alt="" — the headline/name beside it already names the content. The status
+          flag overlays the banner's top-left the way a broadcast bug sits on a video frame. */}
+      <div className="sp-feat__banner">
+        {lead?.imageUrl ? (
+          <img className="sp-feat__img" src={lead.imageUrl} alt="" loading="lazy" />
+        ) : (
+          <span className="sp-feat__plate">
+            <Crest name={card.name} crestUrl={card.crestUrl} size="lg" />
+          </span>
+        )}
+        {card.status === "live" ? (
+          <span className="sp-feat__flag sp-feat__flag--live">
+            <LiveDot />
+            Live
+          </span>
+        ) : card.status === "today" ? (
+          <span className="sp-feat__flag sp-feat__flag--today">Today</span>
+        ) : null}
+      </div>
+      <div className="sp-feat__body">
+        <div className="sp-feat__idn">
+          <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
+          <h3 className="sp-feat__name">{card.name}</h3>
+        </div>
+        {standingIsSane(card) || card.form.length > 0 ? (
+          <div className="sp-feat__sub">
+            {standingIsSane(card) ? (
+              <span className="sp-feat__standing">{card.standing}</span>
+            ) : null}
+            <FormPips form={card.form} />
+          </div>
+        ) : null}
+        {/* Headline slot: a live/final score reads as the lede in mono tabular; otherwise the
+            lead story headline carries it, set in the desk serif at display size. */}
+        {showNews ? (
+          lead ? (
+            <a className="sp-feat__lead" href={lead.url} target="_blank" rel="noreferrer">
+              {lead.title}
+            </a>
+          ) : (
+            // Storyless pre-game/idle card: an honest placeholder, NEVER the matchup — the Next
+            // footer already carries the fixture, so echoing card.primary here is the duplication
+            // mrawrk0e forbids (the else-branch used to leak it, contradicting this card's own
+            // "news-or-score, never matchup" rule). Mirrors TickerTeam's "No recent news" so the
+            // /sports strip and the /today widget stay in lockstep (top-area feedback 2026-07-07).
+            <span className="sp-feat__lead sp-feat__lead--empty">No recent news</span>
+          )
+        ) : (
+          <p className={isScore ? "sp-feat__score" : "sp-feat__matchup"}>
+            {card.primary.replace(/\s*·\s*Scheduled$/i, "")}
+          </p>
+        )}
+        {secondary.length > 0 ? (
+          <ul className="sp-feat__stories">
+            {secondary.map((story) => (
+              <li key={story.url}>
+                <a className="sp-feat__storylink" href={story.url} target="_blank" rel="noreferrer">
+                  {story.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {/* Next-game footer stays hidden while a team is live — the in-progress score owns the
+            card until full time (mrawrk0e). Today games reuse the slot with "Today" for the
+            date (mrawhf6q). */}
+        {card.nextMatch && card.status !== "live" ? (
+          // Fixture line is a tinted section, colored by venue (mrbaaq24) — green for a home
+          // game, blue for away — so a glance down the strip reads which upcoming games are at
+          // home. homeAway is "home"|"away", so the modifier resolves to --home/--away.
+          <div className={`sp-feat__next sp-feat__next--${card.nextMatch.homeAway}`}>
+            <Crest
+              name={card.nextMatch.opponentName}
+              crestUrl={card.nextMatch.opponentCrestUrl ?? null}
+              size="sm"
+            />
+            <NextMatchLines next={card.nextMatch} today={card.status === "today"} />
+          </div>
+        ) : null}
+      </div>
+    </article>
   );
 }
 

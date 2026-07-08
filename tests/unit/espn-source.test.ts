@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createEspnDatasetAdapter } from "../../packages/sports/src/source/espn-source.js";
+import {
+  createEspnDatasetAdapter,
+  sanitizeArticleBody
+} from "../../packages/sports/src/source/espn-source.js";
 
 function fixture(name: string): unknown {
   return JSON.parse(
@@ -319,5 +322,71 @@ describe("EspnDatasetAdapter", () => {
     expect(games[0]?.home.score).toBe(2);
     expect(games[0]?.away.score).toBe(2);
     expect(games[0]?.away.crestUrl).toBe("https://a.espncdn.com/i/teamlogos/soccer/500/lafc.png");
+  });
+
+  // --- Featured-article body (#857) --------------------------------------------------------
+
+  it("sanitizes ESPN story HTML down to plaintext with zero surviving markup", () => {
+    // The core injection mitigation: after sanitize there must be NO tags and NO `<photoN>`
+    // tokens left, and entities must be decoded — because the web tier renders this as text.
+    const body = sanitizeArticleBody(
+      (fixture("nfl-article.json") as { headlines: { story: string }[] }).headlines[0]!.story
+    );
+    expect(body).not.toMatch(/[<>]/); // no tags, no <photo1> token survives
+    expect(body).not.toContain("photo1");
+    expect(body).toContain("Cowboys");
+    expect(body).toContain("27–17 win"); // &ndash; decoded
+    expect(body).toContain("“We earned this,”"); // &ldquo;/&rdquo; decoded
+    expect(body).toContain("ESPN’s"); // &#39; decoded
+    // First few <p> blocks joined on blank lines — the client splits on these.
+    expect(body.split("\n\n").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("caps an over-long body at a word boundary with an ellipsis", () => {
+    const longStory = `<p>${"word ".repeat(400).trim()}</p>`;
+    const body = sanitizeArticleBody(longStory);
+    expect(body.length).toBeLessThanOrEqual(901); // ~900 cap + the ellipsis char
+    expect(body.endsWith("…")).toBe(true);
+    // Clipped on a word boundary: the token before the ellipsis is a whole "word", never a
+    // fragment like "wor…" — so dropping the ellipsis leaves complete words.
+    expect(body.slice(0, -1).trimEnd().endsWith("word")).toBe(true);
+  });
+
+  it("returns empty string for absent/empty story", () => {
+    expect(sanitizeArticleBody(undefined)).toBe("");
+    expect(sanitizeArticleBody("")).toBe("");
+    expect(sanitizeArticleBody("<photo1>")).toBe(""); // token-only body → nothing to show
+  });
+
+  it("fetches the featured article body from a URL derived from the numeric id", async () => {
+    const urls: string[] = [];
+    const spyFetch = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify(fixture("nfl-article.json")), { status: 200 });
+    }) as unknown as typeof fetch;
+    const body = (await fetchDataset("articleBody", { articleId: "4567" }, spyFetch)) as string;
+    // URL is built from the id on the content host — never from a response-supplied href (SSRF).
+    expect(urls[0]).toBe("https://content.core.api.espn.com/v1/sports/news/4567");
+    expect(body).toContain("Cowboys");
+  });
+
+  it("rejects a non-numeric or too-short article id without fetching (SSRF/index-fallback guard)", async () => {
+    for (const badId of ["", "3", "12", "abc", "45x", "../secrets", "4567?x=1"]) {
+      let called = false;
+      const spyFetch = (async () => {
+        called = true;
+        return new Response("{}", { status: 200 });
+      }) as unknown as typeof fetch;
+      const body = (await fetchDataset("articleBody", { articleId: badId }, spyFetch)) as string;
+      expect(body).toBe("");
+      expect(called).toBe(false);
+    }
+  });
+
+  it("degrades to empty string when the body fetch fails (never blocks the overview)", async () => {
+    const failFetch = (async () =>
+      new Response("nope", { status: 404 })) as unknown as typeof fetch;
+    const body = (await fetchDataset("articleBody", { articleId: "9999999" }, failFetch)) as string;
+    expect(body).toBe("");
   });
 });

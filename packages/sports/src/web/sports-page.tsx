@@ -8,16 +8,23 @@ import type { GameSide, Headline, OverviewHero, SportsOverviewResponse } from "@
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
-import { formatDate, formatTime, useUserLocale } from "./locale.js";
+import { formatTime, useUserLocale } from "./locale.js";
 import { teamBarColor } from "./team-colors.js";
 import { Crest, LiveDot, TrophyIcon } from "./sports-parts.js";
-import { LatestColumn, NewsBand, StoryHero } from "./sports-news.js";
+import { HeroCarousel, LatestColumn, NewsBand } from "./sports-news.js";
 import { SportsTicker } from "./sports-ticker.js";
-import { AroundLeaguesTicker } from "./sports-around-ticker.js";
+import { AroundLeaguesBoard, AroundLeaguesTicker } from "./sports-around-ticker.js";
 import { SOCCER_COMPETITIONS } from "./competitions.js";
 import { StandingsRail } from "./sports-standings.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
+
+// The around-the-leagues strip's slate moved into the broadsheet main column as
+// AroundLeaguesBoard (live feedback mrb4w77y) — Ben: "this would kill the top strip
+// entirely. But let's just hide it at first in case we want to bring it back", so the strip
+// stays mounted behind this flag instead of being deleted. Typed `boolean` so TS doesn't
+// narrow the render arm to unreachable.
+const SHOW_AROUND_STRIP: boolean = false;
 
 // Matches the server's SCOREBOARD_TTL_MS cadence (packages/sports/src/sports-service.ts) without
 // over-polling once nothing is actually live (#762). Exported for reuse by the Today "Sports
@@ -97,12 +104,10 @@ export function SportsPage() {
   const hasLeagueFollows = data.followedLeagues.length > 0;
   const hasFollows = hasTeamFollows || hasLeagueFollows;
   const hero = demoteEarlyGameday(data);
-  // The story hero IS the top story — listing it again at the head of the Latest column reads
-  // as a dupe (live feedback mra4os7y).
-  const heroHeadlineId = hero.mode === "story" ? hero.headline?.id : undefined;
-  const gridData = heroHeadlineId
-    ? { ...data, topStories: data.topStories.filter((h) => h.id !== heroHeadlineId) }
-    : data;
+  // The old hero-vs-Latest dedupe (mra4os7y) is gone with the rebuild: on a quiet day the
+  // carousel consumes the whole topStories pool and no list renders; on a gameday the
+  // featured-game bar owns the hero and the full pool renders once as the combined list
+  // (mrb4w77y) — either way each story appears exactly once.
 
   return (
     <div className="sp-wrap">
@@ -110,13 +115,25 @@ export function SportsPage() {
 
       {hasFollows ? (
         <>
+          {/* Front-page lead (mrbalm9x, Ben 2026-07-07): the biggest thing on the page leads,
+              ABOVE the followed ticker — /sports is a front page, not a personalized dashboard.
+              The two hero modes are mutually exclusive, so exactly one lead renders here:
+              gameday → the featured game is the lead; quiet day → the top-stories carousel is.
+              The ticker ("my teams") drops to the second beat below. */}
           {hero.mode === "gameday" ? (
             <FeaturedGameBar hero={hero} story={findFeaturedStory(hero, data)} />
-          ) : null}
+          ) : (
+            <HeroCarousel headlines={data.topStories} />
+          )}
           <SportsTicker followed={data.followed} />
-          <AroundLeaguesTicker groups={data.scoreboard} />
-          {hero.mode === "story" ? <StoryHero headline={hero.headline} /> : null}
-          <BroadsheetGrid overview={gridData} followedPairs={followedPairs} />
+          {SHOW_AROUND_STRIP ? <AroundLeaguesTicker groups={data.scoreboard} /> : null}
+          <BroadsheetGrid
+            overview={data}
+            followedPairs={followedPairs}
+            // Gameday: the carousel is replaced by the game bar, so the top stories collapse
+            // into a combined list at the head of the main column (mrb4w77y).
+            withTopStories={hero.mode === "gameday"}
+          />
           <NewsBand groups={data.leagueNews} followedPairs={followedPairs} />
         </>
       ) : (
@@ -146,14 +163,28 @@ function eventTitle(game: Extract<OverviewHero, { mode: "gameday" }>["game"]): s
 // gameday — the event headline at real display scale (header redesign pass, follows the
 // nyt_style_sports_mockup layout in sans).
 function PageHeader(props: { hero?: OverviewHero }) {
-  const locale = useUserLocale();
   const gameday = props.hero?.mode === "gameday" ? props.hero : null;
   return (
     <header className="sp-mast">
-      <div className="sp-mast__folio">
-        <span className="sp-mast__date">{formatDate(new Date(), locale)}</span>
-        <h1 className="sp-mast__brand">The Sports Desk</h1>
-      </div>
+      {/* Folio cleared (Ben 2026-07-07, /sports masthead note): the date line, the "The Sports
+          Desk" nameplate, and the Manage link are all removed from the masthead. The app topbar
+          already titles the page "Sports", so the page isn't left untitled; the followed-teams
+          label + Manage now live on the ticker head below (see SportsTicker). The section-nav bar
+          becomes the masthead's leading element. Reverses the folio build (mrb8p4e2/mrba9d2y). */}
+      {/* PREVIEW ONLY (mrbafoxu) — sport-section nav in the band between the folio rule and the
+          masthead's base rule. Ben asked to see the look now; the real links to sport-specific
+          pages are a future story that needs its own task issue + spec before routing/wiring, so
+          these are inert spans (not anchors) — appearance only, nothing navigates yet. */}
+      <nav className="sp-mast__nav" aria-label="Sports sections (preview)">
+        {["Soccer", "Hockey", "Football", "Baseball", "Basketball"].map((sport) => (
+          <span className="sp-mast__navlink" key={sport}>
+            {sport}
+          </span>
+        ))}
+        {/* "More" catch-all (mrbakozc) — the way into sports outside the followed set, so a user
+            can reach whatever sports news they want. Still inert preview; destination TBD. */}
+        <span className="sp-mast__navlink sp-mast__navlink--more">More</span>
+      </nav>
       {gameday ? <p className="sp-mast__event">{eventTitle(gameday.game)}</p> : null}
     </header>
   );
@@ -164,8 +195,9 @@ function PageHeader(props: { hero?: OverviewHero }) {
 function SportsSkeleton() {
   return (
     <div className="sp-skeleton" role="status" aria-label="Loading your teams">
+      {/* The around-strip skeleton row left with the strip itself (mrb4w77y — strip hidden,
+          its slate now loads inside the grid block below). */}
       <div className="sp-skel sp-skel--ticker" aria-hidden="true" />
-      <div className="sp-skel sp-skel--around" aria-hidden="true" />
       <div className="sp-skel sp-skel--hero" aria-hidden="true" />
       <div className="sp-skel sp-skel--grid" aria-hidden="true" />
     </div>
@@ -301,14 +333,22 @@ function ScoreBarSide(props: { side: GameSide; competitionKey: string; edge: "l"
 
 /* ---------------------------------------------------------------- Broadsheet body */
 
+// Main column is the around-the-leagues board now (mrb4w77y) — the Top-stories list that
+// held this slot only returns above the board when the carousel isn't showing those same
+// stories (gameday, and the no-follow slate where no hero renders at all).
 function BroadsheetGrid(props: {
   overview: SportsOverviewResponse;
   followedPairs: ReadonlySet<string>;
+  withTopStories?: boolean;
 }) {
   return (
     <div className="sp-grid">
       <div className="sp-grid__main">
-        <LatestColumn headlines={props.overview.topStories} />
+        {props.withTopStories ? <LatestColumn headlines={props.overview.topStories} /> : null}
+        <AroundLeaguesBoard
+          groups={props.overview.scoreboard}
+          followedPairs={props.followedPairs}
+        />
       </div>
       <aside className="sp-grid__rail">
         <StandingsRail groups={props.overview.standings} followedPairs={props.followedPairs} />
@@ -343,7 +383,13 @@ function EmptyState(props: { data: SportsOverviewResponse; followedPairs: Readon
       </section>
       {hasSlate ? (
         <div className="sp-emptyboard">
-          <BroadsheetGrid overview={props.data} followedPairs={props.followedPairs} />
+          {/* No hero renders on the zero-follow slate, so the combined Top-stories list is
+              this user's only route to the topStories pool (mrb4w77y). */}
+          <BroadsheetGrid
+            overview={props.data}
+            followedPairs={props.followedPairs}
+            withTopStories
+          />
           <NewsBand groups={props.data.leagueNews} followedPairs={props.followedPairs} />
         </div>
       ) : null}

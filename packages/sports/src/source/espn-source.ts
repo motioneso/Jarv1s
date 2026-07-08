@@ -11,11 +11,20 @@ import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./sports-sou
 // through this adapter (LOADER-SEAM(sports)), and only through the runtime's pinned `fetchFn`.
 const SITE_BASE = "https://site.api.espn.com/apis/site/v2/sports";
 const CORE_BASE = "https://site.api.espn.com/apis/v2/sports";
+// Per-article content host (#857). The list `/news` feed omits the article body; the full `story`
+// HTML lives only under this host's per-id endpoint. URLs are built from the numeric article id
+// (never the provider-supplied `links.api.self.href`) so the fetch target can't be steered — see
+// getArticleBody. A THIRD fetchHost, so it must join ESPN_FETCH_HOSTS below (which manifest.ts
+// feeds straight into the module's externalSources allowlist) or the runtime blocks the request.
+const CONTENT_BASE = "https://content.core.api.espn.com/v1/sports/news";
 
 // Hosts ESPN crest/photo URLs resolve to (team.logos + article images).
 export const ESPN_IMAGE_HOSTS: readonly string[] = ["a.espncdn.com", "s.secure.espncdn.com"];
 
-export const ESPN_FETCH_HOSTS: readonly string[] = ["site.api.espn.com"];
+export const ESPN_FETCH_HOSTS: readonly string[] = [
+  "site.api.espn.com",
+  "content.core.api.espn.com" // per-article body fetch (#857)
+];
 
 // --- Minimal shapes for the fields we read (ESPN payloads carry far more) ------------------
 
@@ -370,9 +379,116 @@ async function getHeadlines(
   });
 }
 
+// --- Per-article body (#857) ---------------------------------------------------------------
+// The NewsBand featured hero underfills with only the one-paragraph dek. The full body lives on
+// the per-article content host; we fetch it for the SINGLE featured story and sanitize the HTML
+// down to plaintext BEFORE it leaves this layer, so the web tier renders inert text and never
+// ESPN markup. See spec on issue #857.
+
+export interface EspnArticleBodyParams {
+  // ESPN numeric article id (the `id` set on each SourceHeadline in getHeadlines). The fetch URL
+  // is built from this — never from a provider-supplied href — so a poisoned payload can't steer
+  // the request to another host/path (SSRF hardening, #857).
+  readonly articleId: string;
+}
+
+// Decode the small set of HTML entities ESPN actually emits in story bodies (named + numeric).
+// Deliberately narrow: we're producing plaintext for text rendering, not a general HTML decoder.
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;|&apos;|&rsquo;/g, "’")
+    .replace(/&lsquo;/g, "‘")
+    .replace(/&ldquo;/g, "“")
+    .replace(/&rdquo;/g, "”")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&hellip;/g, "…")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code: string) => String.fromCodePoint(parseInt(code, 16)));
+}
+
+// Cap length AND turn ESPN story HTML into safe plaintext (#857). This is the core injection
+// mitigation: after this runs there are zero tags/tokens left, so the web layer rendering it as
+// React text ({string}) can't emit any ESPN-controlled markup or `<photoN>` embed. Exported so
+// the unit suite can assert "zero surviving tags" directly against real fixtures.
+const BODY_CHAR_CAP = 900; // ~3 short paragraphs; keeps the hero filled without over-fetching text
+const MAX_BODY_PARAGRAPHS = 3;
+
+export function sanitizeArticleBody(story: string | undefined | null): string {
+  if (!story) return "";
+  // Pull the first few <p> blocks — ESPN wraps every body paragraph in <p>; anything outside them
+  // (photo embeds, promo rails) is chrome we don't want in the hero.
+  const paragraphs: string[] = [];
+  const paragraphRe = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = paragraphRe.exec(story)) !== null && paragraphs.length < MAX_BODY_PARAGRAPHS) {
+    const plain = decodeEntities(
+      (match[1] ?? "") // capture group always present on a match; ?? satisfies noUncheckedIndexedAccess
+        .replace(/<[^>]+>/g, "") // strip inline tags (<a> <i> <b> …) inside the paragraph
+        .replace(/\s+/g, " ")
+    ).trim();
+    // Drop `<photoN>` placeholder tokens and any residual angle-bracket debris, then re-check empty.
+    const cleaned = plain
+      .replace(/<\s*photo\d+\s*>/gi, "")
+      .replace(/[<>]/g, "")
+      .trim();
+    if (cleaned) paragraphs.push(cleaned);
+  }
+  // Fallback: some stories carry no <p> wrappers — flatten the whole thing so we still get text.
+  if (paragraphs.length === 0) {
+    const flat = decodeEntities(story.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "))
+      .replace(/<\s*photo\d+\s*>/gi, "")
+      .replace(/[<>]/g, "")
+      .trim();
+    if (flat) paragraphs.push(flat);
+  }
+  const joined = paragraphs.join("\n\n");
+  if (joined.length <= BODY_CHAR_CAP) return joined;
+  // Cap at a word boundary so we don't slice mid-word, then append an ellipsis.
+  const clipped = joined.slice(0, BODY_CHAR_CAP);
+  const lastSpace = clipped.lastIndexOf(" ");
+  return `${(lastSpace > BODY_CHAR_CAP * 0.6 ? clipped.slice(0, lastSpace) : clipped).trimEnd()}…`;
+}
+
+async function getArticleBody(
+  fetchFn: typeof fetch,
+  params: EspnArticleBodyParams
+): Promise<string> {
+  // Validate BEFORE building the URL: real ESPN article ids are multi-digit numerics. `^\d{4,}$`
+  // both hardens the fetch target (only a bare number can reach the URL — no host/path/query
+  // injection) AND excludes the index-fallback ids getHeadlines assigns when an article has no id
+  // (`String(index)`, 1–3 digits for overview-sized lists) — those aren't real articles, so
+  // there's nothing to fetch.
+  if (!/^\d{4,}$/.test(params.articleId)) return "";
+  try {
+    const data = (await fetchJson(
+      fetchFn,
+      `${CONTENT_BASE}/${params.articleId}`,
+      "article body"
+    )) as { headlines?: readonly { story?: string }[] };
+    return sanitizeArticleBody(data.headlines?.[0]?.story);
+  } catch {
+    // Graceful degrade (#857): any failure (404 on a stale id, timeout, malformed JSON) → no body,
+    // and the UI falls back to the dek. The body must NEVER block or fail the overview render.
+    return "";
+  }
+}
+
 // --- Adapter (the `ExternalSourceAdapter` implementation the dataset runtime dispatches to) --
 
-const ESPN_DATASET_KEYS = ["teams", "scoreboard", "schedule", "standings", "headlines"] as const;
+const ESPN_DATASET_KEYS = [
+  "teams",
+  "scoreboard",
+  "schedule",
+  "standings",
+  "headlines",
+  "articleBody" // per-article body for the featured hero only (#857)
+] as const;
 type EspnDatasetKey = (typeof ESPN_DATASET_KEYS)[number];
 
 function isEspnDatasetKey(value: string): value is EspnDatasetKey {
@@ -400,6 +516,10 @@ export function createEspnDatasetAdapter(): ExternalSourceAdapter {
           return getStandings(ctx.fetchFn, params as unknown as EspnStandingsParams);
         case "headlines":
           return getHeadlines(ctx.fetchFn, params as unknown as EspnHeadlinesParams);
+        case "articleBody":
+          // Featured-hero body only (#857). Returns "" on any failure so the caller falls back
+          // to the dek — never throws, never blocks the overview.
+          return getArticleBody(ctx.fetchFn, params as unknown as EspnArticleBodyParams);
       }
     }
   };

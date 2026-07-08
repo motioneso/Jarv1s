@@ -65,6 +65,11 @@ export interface Headline {
   readonly imageUrl: string | null; // first "header" image, else first image, else null
   readonly summary: string; // short article blurb from the source; "" when absent (#840)
   readonly teamKeys: readonly string[]; // filled by the service join (Task 4); source emits []
+  // Sanitized plaintext excerpt of the full article body (#857). Populated ONLY for the single
+  // NewsBand featured story (the service fetches its per-article ESPN body); every other headline
+  // omits it and the UI falls back to `summary`. Already stripped of all HTML/tokens and length-
+  // capped in the source layer — the client renders it as text, never as HTML.
+  readonly body?: string;
 }
 
 export interface CompetitionRef {
@@ -315,7 +320,12 @@ const headlineSchema = {
     publishedAt: { type: "string" },
     imageUrl: { type: ["string", "null"] },
     summary: { type: "string" },
-    teamKeys: { type: "array", items: { type: "string" } }
+    teamKeys: { type: "array", items: { type: "string" } },
+    // Optional (not in `required`) — only the featured story carries it (#857). MUST be listed
+    // here even though it's optional: this schema is used inside a oneOf (hero.headline), where
+    // fast-json-stringify REJECTS the whole object for any emitted key it doesn't know — the same
+    // trap documented on `nextMatch`/`stories` below that has 500'd /overview before.
+    body: { type: "string" }
   }
 } as const;
 

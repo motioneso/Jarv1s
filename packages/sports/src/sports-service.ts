@@ -20,6 +20,7 @@ import {
 } from "@jarv1s/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
+import { selectFeature } from "./news-ranking.js";
 import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
@@ -243,8 +244,22 @@ export class SportsService {
     // Rank across every followed competition (team or whole-league), not just team-followed
     // ones — otherwise a league-only follower's competition never contributes a top story and
     // the story hero has nothing personalized to fall back to (#763).
-    const topStories = rankTopStories(headlinesByComp, followedTeams, competitionKeys);
-    const topStoryIds = new Set(topStories.map((h) => h.id));
+    const rankedTopStories = rankTopStories(headlinesByComp, followedTeams, competitionKeys);
+
+    // The hero must not echo what the followed strip already shows (mrb8ahf7). rankTopStories'
+    // first tier IS followed-team stories — the same pool teamStories draws each card's ≤3
+    // stories from — so the hero's lead routinely duplicated a card's lead. Drop any top story
+    // whose url is already on a followed card: the strip owns a followed team's news, and the
+    // hero then surfaces that team's deeper stories plus each league's editorial lead instead.
+    // Match on url, not id — the same story arrives from the league and per-team feeds under
+    // different ids (the same reason teamStories dedups by url).
+    const followedStoryUrls = new Set(cards.flatMap((card) => card.stories.map((s) => s.url)));
+    const topStories = rankedTopStories.filter((h) => !followedStoryUrls.has(h.url));
+
+    // Band exclusion keys off the FULL ranked set, not the deduped one: a story we pulled from
+    // the hero for already being on a card must not resurface in the league news band either, so
+    // a followed-team story stays shown exactly once — in its card.
+    const topStoryIds = new Set(rankedTopStories.map((h) => h.id));
 
     const hero = this.buildHero(followedTeams, scoreboardByComp, topStories, this.now());
 
@@ -280,9 +295,9 @@ export class SportsService {
       .map((key) => ({
         competitionKey: key,
         competitionLabel: catalogEntry(key)?.label ?? key,
-        headlines: [...(headlinesByComp.get(key) ?? [])]
-          .sort(byNewest)
-          .filter((h) => !topStoryIds.has(h.id))
+        // Feed order preserved deliberately — it's ESPN's editorial prominence ranking, which
+        // the news band's tiering leans on (mrb51pnq; see rankTopStories). No byNewest here.
+        headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryIds.has(h.id))
       }))
       .filter((group) => group.headlines.length > 0);
 
@@ -303,15 +318,38 @@ export class SportsService {
       }))
       .filter((group) => group.sections.some((section) => section.rows.length > 0));
 
+    // Fill the NewsBand hero with real article body (#857). The featured story is picked
+    // CLIENT-side by NewsBand; we recompute the IDENTICAL pick here with the shared ranking
+    // (selectFeature over all groups = the client's default "all" filter), fetch just that one
+    // article's ESPN body (sanitized to plaintext in the source layer), and splice it onto the
+    // matching headline. Body isn't a ranking input, so the pick is stable. Any failure returns
+    // "" → we leave `body` off → the client falls back to the one-paragraph dek. Only ONE extra
+    // request per overview, cached by article id (immutable post-publish).
+    const publicLeagueNews: LeagueNewsGroup[] = leagueNews.map((group) => ({
+      ...group,
+      headlines: group.headlines.map(toPublicHeadline)
+    }));
+    const followedPairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
+    const feature = selectFeature(publicLeagueNews, followedPairs);
+    const featureBody = feature
+      ? await this.cached<string>("articleBody", { articleId: feature.id }, "", state)
+      : "";
+    const leagueNewsWithBody =
+      feature && featureBody
+        ? publicLeagueNews.map((group) => ({
+            ...group,
+            headlines: group.headlines.map((h) =>
+              h.id === feature.id ? { ...h, body: featureBody } : h
+            )
+          }))
+        : publicLeagueNews;
+
     return {
       hero,
       followed: cards,
       scoreboard,
       topStories: topStories.map(toPublicHeadline),
-      leagueNews: leagueNews.map((group) => ({
-        ...group,
-        headlines: group.headlines.map(toPublicHeadline)
-      })),
+      leagueNews: leagueNewsWithBody,
       standings,
       followedTeams: followedTeams.map((f) => ({
         competitionKey: f.competitionKey,
@@ -597,7 +635,8 @@ function toPublicHeadline(headline: Headline): Headline {
     publishedAt,
     imageUrl,
     summary,
-    teamKeys
+    teamKeys,
+    body
   } = headline;
   return {
     id,
@@ -608,7 +647,12 @@ function toPublicHeadline(headline: Headline): Headline {
     publishedAt,
     imageUrl,
     summary,
-    teamKeys
+    teamKeys,
+    // Pass through the sanitized featured-article body (#857) when present. Usually undefined —
+    // the service attaches it to the one featured headline AFTER this call — but honoring it here
+    // keeps the boundary correct if a source ever supplies it directly. Optional in headlineSchema,
+    // so an undefined value is simply omitted from the serialized payload.
+    ...(body === undefined ? {} : { body })
   };
 }
 
@@ -617,6 +661,13 @@ function toPublicHeadline(headline: Headline): Headline {
 // `followedCompetitionKeys` covers every followed competition — team-followed or
 // whole-league-followed — so a league-only follower's competition still contributes a
 // top story and the story hero has something personalized to fall back to (#763).
+// ESPN's league news feed is EDITORIALLY ordered, not chronological (verified live
+// 2026-07-07: published timestamps are non-monotonic — the feed is their front-page
+// headline block). Feed position is therefore the only real "how big is this story"
+// signal we have, and the old byNewest re-sort was destroying it: the hero slot showed
+// whichever followed story was filed most recently, not the one ESPN led with (live
+// feedback mrb51pnq). Rank by feed position first — recency only breaks ties between
+// different leagues' equally-placed stories.
 function rankTopStories(
   headlinesByComp: ReadonlyMap<string, readonly SourceHeadline[]>,
   followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
@@ -625,23 +676,34 @@ function rankTopStories(
   const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
   const picked: SourceHeadline[] = [];
   const pickedIds = new Set<string>();
-  const all = [...headlinesByComp.values()].flat().sort(byNewest);
-  for (const headline of all) {
+
+  // Tier 1 — the BIG story. Each followed competition's EDITORIAL lead (front of feed = what the
+  // source itself led with), whether or not one of the user's teams is in it. Ben's steer
+  // (2026-07-07): "the hero doesn't HAVE to be followed teams — if there's a BIG story we should
+  // be showing that." So the league's headline story leads the hero pool ahead of followed-team
+  // minutiae; the strip (teamStories) is where a followed team's own news lives. Front-of-feed,
+  // not newest, is the editorial lead — same mrb51pnq reasoning as the news band.
+  for (const comp of followedCompetitionKeys) {
+    const lead = (headlinesByComp.get(comp) ?? [])[0];
+    if (lead && !pickedIds.has(lead.id)) {
+      picked.push(lead);
+      pickedIds.add(lead.id);
+    }
+  }
+
+  // Tier 2 — personalization. Remaining followed-team stories, feed-rank ordered, fill the pool
+  // behind the big leads. The caller then drops any of these already shown on a followed card
+  // (mrb8ahf7), so between the two the hero surfaces big + non-duplicated stories.
+  const all = [...headlinesByComp.values()]
+    .flatMap((list) => list.map((headline, feedRank) => ({ headline, feedRank })))
+    .sort((a, b) => a.feedRank - b.feedRank || byNewest(a.headline, b.headline));
+  for (const { headline } of all) {
     if (
       headline.teamKeys.some((k) => pairs.has(`${headline.competitionKey}:${k}`)) &&
       !pickedIds.has(headline.id)
     ) {
       picked.push(headline);
       pickedIds.add(headline.id);
-    }
-  }
-  for (const comp of followedCompetitionKeys) {
-    const newest = [...(headlinesByComp.get(comp) ?? [])]
-      .sort(byNewest)
-      .find((h) => !pickedIds.has(h.id));
-    if (newest) {
-      picked.push(newest);
-      pickedIds.add(newest.id);
     }
   }
   return picked.slice(0, TOP_STORIES_CAP);
