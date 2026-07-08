@@ -30,6 +30,7 @@ Continuous record of everything merged this run, so Ben has a picture without ga
 | - | -- | ---- | -------------------- | ---------- | ------------- |
 | #854 (integration test DB isolation) | #856 | routine | CI green (`gh pr checks`) | `coordinated-qa` MERGE-READY: YES (PR comment `4909823976`) | `eafb6ae5`, 2026-07-07T23:06:32Z |
 | #817 (anonymous error-log write path) | #862 | security | VF=0, AUDIT=0 (`gh pr checks`: Verify foundation pass, both compose smokes pass) | Opus adversarial QA GREEN, 0 blocking / 2 non-blocking findings (PR comment) | `ec0fbe4a`, 2026-07-07 |
+| #742 (email digest delivery) | #864 | routine | CI green (`gh pr checks` @ `918d708a`: Verify foundation and app / both compose smokes / build+publish images all pass) | `coordinated-qa` MERGE-READY: YES (PR comment `4911949068`), 0 blocking / 4 non-blocking findings | `65096ad1`, 2026-07-08T06:27:58Z |
 
 ## How this run started
 
@@ -1312,6 +1313,42 @@ Phase 0a bookkeeping only and is relaying immediately without touching PR #864.
 
 **merges_since_relay:** 0 (carried unchanged — no merge action taken this tenure).
 
-**Coordinator lock:** now `50dc5074-9b84-4f44-b47c-22dc74df73cd` / label `Coordinator` / pane
-`w1:pAH` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
-Phase 0a and updates this line itself.
+**Coordinator lock:** now `dd633e5d-f3b5-4643-8108-5f173028c26d` / label `Coordinator` / pane
+`w1:pAJ` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure from
+predecessor `50dc5074-9b84-4f44-b47c-22dc74df73cd` (pane `w1:pAH`), confirmed idle/relayed
+("standing down now") via bounded read before reap, then closed. Verified exactly one
+`Coordinator` pane via `herdr pane list`.
+
+## Tenure notes (session `dd633e5d-f3b5-4643-8108-5f173028c26d`)
+
+- **Action item #0 EXECUTED.** Re-confirmed session-id authority against the lock line above
+  before acting. `gh pr view 864`: `mergeStateStatus: CLEAN`, `mergeable: MERGEABLE`, head commit
+  `918d708a` matched the posted MERGE-READY verdict SHA. `gh pr checks 864`: all 4 checks pass
+  (Build and publish images, Compose deployment smoke, Prod compose deployment smoke, Verify
+  foundation and app). Merged: `gh pr merge 864 --squash --delete-branch` →
+  **`65096ad14468c7dbaa9b9630111619d7292b6252`**, `2026-07-08T06:27:58Z`. Remote branch delete
+  succeeded via the same command; local branch delete failed initially (worktree still checked out
+  on it) — resolved by `git worktree remove --force` (only untracked content was a leftover
+  handoff doc) then `git branch -d 742-email-digest-delivery` + explicit
+  `git push origin --delete 742-email-digest-delivery` (already gone, confirms clean). Issue #742
+  explicitly closed via `gh issue close 742` referencing the merge commit. Build-742 pane (`w1:pAF`)
+  confirmed idle at its default prompt via bounded read, then closed. Standing digest table above
+  updated. **merges_since_relay: 1** (routine tier; threshold for merge-count relay is 2
+  routine/sensitive — not yet reached).
+- **Fleet re-confirmed via bounded reads / `herdr pane list` this tenure:**
+  - **Build-853** (`w1:p9W`, security tier, #853 auth-signup-atomicity) — `agent_status: idle`.
+    Not re-read in depth this tenure beyond the status field (unchanged from predecessor's last
+    note: Task 3 "full local gate" was next). No PR yet — no QA action needed until it reports
+    done.
+  - **Build-744** (`w1:pAG`, Codex, security tier, #744 private-chat-mode, PR #865) —
+    `agent_status: working`. Per predecessor note, mid-fix for QA verdict #1 RED (2 blocking
+    findings) on PR #865. Not bounded-read in depth this tenure — successor/next action: read it
+    before assuming progress; when it reports fix-done, spawn **Opus** re-QA per security tier,
+    mandatory `gh pr comment` verdict, then Ben's explicit merge sign-off (never auto-merge
+    security tier regardless of the standing routine/sensitive auto-merge instruction).
+  - **Build-742** — reaped this tenure (see action item #0 above).
+- **No liveness Monitor restarted yet this tenure** — predecessor's died with its session at
+  relay. Next action before further idle time: start one covering `w1:p9W` (Build-853) and
+  `w1:pAG` (Build-744).
+- **No relay trigger fired this tenure** (no 70% context-meter warning received, merge count at 1
+  of 2, no compaction summary). Continuing to supervise.
