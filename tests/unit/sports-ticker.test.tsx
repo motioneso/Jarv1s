@@ -105,11 +105,35 @@ describe("SportsTicker", () => {
     ]);
     expect(bare).not.toContain("Vikings @ Cowboys");
     expect(bare).toContain("No recent news");
-    // a finished game's score stays in the primary slot
+    // a finished game's score stays in the primary slot when no structured resultMatch is present
     const finalHtml = render([
       card({ status: "today", primary: "MIN 24 – 10 DAL", todayGameState: "final" })
     ]);
     expect(finalHtml).toContain("MIN 24 – 10 DAL");
+  });
+
+  it("renders a finished game as opponent crest + result, dropping the 'vs' text (annotation #2)", () => {
+    // Ben 2026-07-08 /sports #2: when resultMatch is present the score slot leads with the
+    // opponent crest and shows just "L 3–9" — the crest carries the identity, so the cheap
+    // "L 3–9 vs Blue Jays" text no longer appears. sr-only keeps the opponent name reachable.
+    const html = render([
+      card({
+        status: "today",
+        todayGameState: "final",
+        primary: "L 3–9 vs Blue Jays",
+        resultMatch: {
+          opponentName: "Toronto Blue Jays",
+          opponentCrestUrl: null,
+          scoreText: "L 3–9"
+        }
+      })
+    ]);
+    expect(html).toContain("sp-feat__result");
+    expect(html).toContain("L 3–9");
+    expect(html).toContain("sp-sronly");
+    expect(html).toContain("Toronto Blue Jays"); // sr-only opponent name (SSR splits the "vs " prefix)
+    // the cheap combined text tail is gone
+    expect(html).not.toContain("L 3–9 vs Blue Jays");
   });
 
   it("leads with the first story and links the rest — up to three per club (mrb0pk1n)", () => {

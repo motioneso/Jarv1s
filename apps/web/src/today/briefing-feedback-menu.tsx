@@ -15,7 +15,10 @@ type BriefingRunFeedbackKind = Extract<
   "more_like_this" | "too_much" | "not_useful" | "dismiss"
 >;
 
-export function BriefingFeedbackMenu(props: {
+// Shared create/undo mutations for both the compact "…" menu and the inline
+// Useful / Not useful control on the primary evening card (issue: broken evening
+// review — the "…" disclosure was undiscoverable and read as an orphaned chip).
+function useBriefingFeedback(props: {
   readonly targetRef: string;
   readonly onChanged: () => void;
 }) {
@@ -43,6 +46,14 @@ export function BriefingFeedbackMenu(props: {
       void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
     }
   });
+  return { last, createMutation, undoMutation };
+}
+
+export function BriefingFeedbackMenu(props: {
+  readonly targetRef: string;
+  readonly onChanged: () => void;
+}) {
+  const { last, createMutation, undoMutation } = useBriefingFeedback(props);
 
   return (
     <div className="today-feedback">

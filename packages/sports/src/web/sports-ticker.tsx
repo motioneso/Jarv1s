@@ -262,16 +262,17 @@ function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
           <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
           <h3 className="sp-feat__name">{card.name}</h3>
         </div>
-        {standingIsSane(card) || card.form.length > 0 ? (
-          <div className="sp-feat__sub">
-            {standingIsSane(card) ? (
-              <span className="sp-feat__standing">{card.standing}</span>
-            ) : null}
-            <FormPips form={card.form} />
-          </div>
-        ) : null}
-        {/* Headline slot: a live/final score reads as the lede in mono tabular; otherwise the
-            lead story headline carries it, set in the desk serif at display size. */}
+        {/* Always render the sub row — even when a team has no standing OR form — so its fixed
+            height is reserved on every card and the news/lead below lines up across the four-up
+            strip regardless of league (Ben 2026-07-08 /sports annotation #2: "reserve this space
+            for all teams/leagues so the news sections line up, even if there's nothing to draw
+            from"). The standing chip and form pips stay conditional INSIDE the reserved row. */}
+        <div className="sp-feat__sub">
+          {standingIsSane(card) ? <span className="sp-feat__standing">{card.standing}</span> : null}
+          <FormPips form={card.form} />
+        </div>
+        {/* Headline slot: a live/final score reads as the lede in tabular figures; otherwise the
+            lead story headline carries it, set in the display face. */}
         {showNews ? (
           lead ? (
             <a className="sp-feat__lead" href={lead.url} target="_blank" rel="noreferrer">
@@ -285,6 +286,20 @@ function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
             // /sports strip and the /today widget stay in lockstep (top-area feedback 2026-07-07).
             <span className="sp-feat__lead sp-feat__lead--empty">No recent news</span>
           )
+        ) : card.resultMatch ? (
+          // Finished game: lead with the opponent crest and show just "L 3–9" — the crest carries
+          // the opponent's identity so the "vs Blue Jays" text tail (which read as cheap, Ben
+          // 2026-07-08 /sports annotation #2) is gone. Same crest-leads treatment as the Next
+          // footer below. The sr-only name keeps the opponent reachable for screen readers.
+          <div className="sp-feat__result">
+            <Crest
+              name={card.resultMatch.opponentName}
+              crestUrl={card.resultMatch.opponentCrestUrl}
+              size="sm"
+            />
+            <p className="sp-feat__score">{card.resultMatch.scoreText}</p>
+            <span className="sp-sronly">vs {card.resultMatch.opponentName}</span>
+          </div>
         ) : (
           <p className={isScore ? "sp-feat__score" : "sp-feat__matchup"}>
             {card.primary.replace(/\s*·\s*Scheduled$/i, "")}

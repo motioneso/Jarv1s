@@ -276,15 +276,29 @@ function NewsArticle({
 // more space"). Only a story that clears BIG_STORY_WEIGHT earns the slot — on a quiet day
 // the band opens straight with the mosaic.
 function FeatureArticle({ headline }: { readonly headline: Headline }) {
+  // ESPN sometimes hands back a small square team logo/crest instead of story art. Stretched to
+  // fill the feature column (object-fit: cover on width:100%) it upscales and pixelates badly
+  // (Ben 2026-07-08 /sports annotation #6). Measure the image's INTRINSIC width once it loads and,
+  // when it's logo-sized rather than a real 16:9 photo, flip the frame to a "logo" treatment that
+  // shows it centered at its natural size on a plate — never enlarged past its own pixels.
+  const [isLogo, setIsLogo] = useState(false);
   return (
     <article className="sp-newsband__feature">
       {headline.imageUrl ? (
-        <img
-          className="sp-newsband__img sp-newsband__img--feature"
-          src={headline.imageUrl}
-          alt=""
-          loading="lazy"
-        />
+        <div className={`sp-newsband__imgframe${isLogo ? " sp-newsband__imgframe--logo" : ""}`}>
+          <img
+            className="sp-newsband__img sp-newsband__img--feature"
+            src={headline.imageUrl}
+            alt=""
+            loading="lazy"
+            onLoad={(event) => {
+              // < 400px natural width ⇒ a logo/crest, well under the rendered column, so it would
+              // only ever be blown up. Real story photos come through far wider and stay on cover.
+              const img = event.currentTarget;
+              if (img.naturalWidth > 0 && img.naturalWidth < 400) setIsLogo(true);
+            }}
+          />
+        </div>
       ) : null}
       <div className="sp-newsband__featurebody">
         <p className="sp-newsband__featurekicker">{headline.competitionLabel}</p>

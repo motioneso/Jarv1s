@@ -127,6 +127,17 @@ export interface FollowedNextMatch {
   readonly opponentCrestUrl?: string | null;
 }
 
+// A finished game rendered on the featured strip's score slot. The opponent crest carries the
+// identity (mirroring FollowedNextMatch's crest-leads convention), so `scoreText` is just the
+// result + scores with NO "vs <team>" tail — that trailing text read as cheap next to the rest
+// of the card (Ben 2026-07-08 /sports annotation #2). Set only for a today game that has gone
+// final; live/pre/idle cards leave it null and keep the `primary` string slot.
+export interface FollowedResultMatch {
+  readonly opponentName: string; // full name; the crest is the primary identifier, this backs a11y
+  readonly opponentCrestUrl: string | null;
+  readonly scoreText: string; // "L 3–9" — result letter + your–their score, opponent via the crest
+}
+
 export interface FollowedTeamCard {
   readonly teamKey: string;
   readonly competitionKey: string;
@@ -146,6 +157,11 @@ export interface FollowedTeamCard {
   readonly form: readonly ("W" | "D" | "L")[];
   readonly standing: string | null;
   readonly nextMatch: FollowedNextMatch | null;
+  // A finished today-game's result, rendered as opponent crest + "L 3–9" on the featured strip
+  // (Ben 2026-07-08 /sports annotation #2) instead of the cheap-looking "L 3–9 vs Blue Jays"
+  // text. Null unless today's game is final. Optional: pre-#864 payloads predate the field, so
+  // the client falls back to the `primary` text slot when it's absent.
+  readonly resultMatch?: FollowedResultMatch | null;
   // Start time of the team's most recent completed game (ISO), null when the schedule holds no
   // finals. The ticker uses it with nextMatch.startsAt to rank in-season teams (games within ten
   // days) above idle ones (live feedback mra54n4h).

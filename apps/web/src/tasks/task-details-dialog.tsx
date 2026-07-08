@@ -40,6 +40,14 @@ import {
   TaskSubtasksField,
   TaskTagsField
 } from "./task-details-sections";
+// The dialog is shared: it opens from Today as well as the Tasks page. Import the
+// stylesheets it depends on here — `.tk-statusctl` (tasks.css) and the `.tk-tagmenu`
+// base (kit-tasks.css) — so the status control and its dropdown are styled no matter
+// which page opened it. Previously these loaded only via tasks-page.tsx, so opening a
+// task straight from Today rendered the status split-button unstyled. Order mirrors
+// tasks-page.tsx (kit-tasks base first, tasks.css overrides second).
+import "../styles/kit-tasks.css";
+import "./tasks.css";
 
 const EFFORTS: readonly { readonly value: TaskEffort; readonly label: string }[] = [
   { value: "quick", label: "Small" },

@@ -714,6 +714,15 @@ export function HostPane() {
             </Badge>
           }
         />
+        {/* Terminal-attach footnote (Ben 2026-07-08). The shipped image forks its OWN tmux
+            server inside the `jarv1s` container (compose hardwires JARVIS_MULTIPLEXER=tmux), so
+            attaching is a two-step docker exec, not a bare `tmux attach` on the host. Session
+            handles are per-thread (`jarv1s-live-<thread>`), hence the `tmux ls` discovery step. */}
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
+          directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
+          with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+        </Note>
       </Group>
       <Group
         title="Diagnostics"

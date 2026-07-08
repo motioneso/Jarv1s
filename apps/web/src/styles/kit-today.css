@@ -192,6 +192,14 @@
   padding: 0;
 }
 
+/* Evening-only "Prep for tomorrow" rail CTA: full-width button under a short
+   one-liner so it reads as the card's primary action in the narrow rail. */
+.evening-prep__btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 10px;
+}
+
 /* Reading-column briefing surface */
 .brief-wrap {
   max-width: 760px;
@@ -408,8 +416,12 @@
 /* ===== Command-center Morning briefing ===== */
 .cmd-wrap {
   max-width: 1220px;
-  margin: 0 auto;
-  padding: 30px 40px 80px;
+  /* Own bottom padding dropped, AND the shared .content-surface's var(--space-7)=32px bottom
+     padding cancelled with a negative bottom margin — scoped to /today only (.cmd-wrap is
+     today-exclusive) so the grid + aside keyline run flush to the surface bottom without
+     changing any other route (Ben 2026-07-08: still a gap keeping it off the bottom). */
+  margin: 0 auto calc(-1 * var(--space-7));
+  padding: 30px 40px 0;
 }
 .cmd-masthead {
   border-bottom: 3px solid var(--ink);
@@ -456,19 +468,25 @@
   font-variant-numeric: tabular-nums;
 }
 .cmd-clock__time {
+  position: relative;
   font-family: var(--font-sans);
   font-size: 38px;
   font-weight: 400;
   line-height: 1;
   color: var(--text);
 }
-.cmd-clock__ap {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--text-subtle);
-  margin-top: 6px;
+/* PM marker: an accent dot floating in the left margin of the first digit — replaces the old
+   "am/pm" suffix (Ben 2026-07-08). Rendered only for data-pm="true" (times past 11:59am); AM
+   has no dot. Absolute so it sits left of the digits without shifting the right-aligned clock. */
+.cmd-clock__pm {
+  position: absolute;
+  /* Status-light placement: high and tight to the first digit's top-left corner (Ben 2026-07-08). */
+  top: 0.21em;
+  left: -0.28em;
+  width: 0.17em;
+  height: 0.17em;
+  border-radius: 50%;
+  background: var(--accent);
 }
 @media (max-width: 720px) {
   .cmd-clock {
@@ -599,7 +617,15 @@
   }
 }
 
+/* The rail stretches to the full grid-row height (overriding .cmd-grid's align-items:start)
+   so the column keyline it carries reaches the main column's bottom instead of stopping where
+   the cards end (Ben 2026-07-07: left border stopped mid-scroll). */
 .cmd-aside {
+  align-self: stretch;
+}
+/* Sticky content wrapper: cards stay pinned near the top and follow scroll, while the parent
+   rail grows below them — "content stays where it is, just grow the bottom" (Ben 2026-07-07). */
+.cmd-aside__inner {
   display: flex;
   flex-direction: column;
   gap: 14px;

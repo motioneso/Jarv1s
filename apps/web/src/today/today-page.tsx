@@ -46,6 +46,7 @@ import {
   buildEveningLede,
   deriveTodayMode,
   effectiveEveningTimeZone,
+  EveningPrepCard,
   EveningReviewSection,
   EveningSupportSections,
   latestEveningRunForToday,
@@ -265,9 +266,17 @@ export function TodayPage(props: {
             </h1>
             <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
           </div>
+          {/* PM is shown as a dot floating left of the first digit rather than an "am/pm"
+              suffix (Ben 2026-07-08). AM shows no dot; the dot marks anything past 11:59am. */}
           <div className="cmd-clock" aria-hidden="true">
-            <span className="cmd-clock__time">{timeLabel(now.toISOString(), locale)}</span>
-            <span className="cmd-clock__ap">{ampm(now.toISOString(), locale)}</span>
+            <span className="cmd-clock__time">
+              {ampm(now.toISOString(), locale) === "pm" ? (
+                // Real element (not a ::before) so it can carry a native "PM" hover tooltip
+                // (Ben 2026-07-08). title is discoverable on hover even under aria-hidden.
+                <span className="cmd-clock__pm" title="PM" />
+              ) : null}
+              {timeLabel(now.toISOString(), locale)}
+            </span>
           </div>
         </div>
       </header>
@@ -281,13 +290,11 @@ export function TodayPage(props: {
                 run={latestEveningRun}
                 locale={locale}
                 targetTime={targetTimeFor(eveningDefinition, "evening")}
-                interviewPending={eveningInterviewMutation.isPending}
                 onFeedbackChanged={() =>
                   void queryClient.invalidateQueries({
                     queryKey: queryKeys.briefings.runs(eveningDefinition.id)
                   })
                 }
-                onPrep={() => eveningInterviewMutation.mutate()}
               />
               <EveningSupportSections
                 completedToday={completedToday}
@@ -421,165 +428,175 @@ export function TodayPage(props: {
           <ProactiveCards />
         </div>
 
+        {/* .cmd-aside is the full-height rail carrying the column keyline; the sticky
+            content lives in __inner so the border grows to the main column's bottom while
+            the cards stay pinned at top (Ben 2026-07-07: border stopped mid-scroll). */}
         <aside className="cmd-aside">
-          {nextEvent ? (
-            <div className="cmd-next">
-              <div className="cmd-next__k">{nextStarted ? "Now · ends in" : "Next event in"}</div>
-              <div className="cmd-next__v">
-                {countdownLabel(nextStarted ? nextEvent.endsAt : nextEvent.startsAt, now)}
-              </div>
-              <div className="cmd-next__what">
-                {nextEvent.title} · {timeLabel(nextEvent.startsAt, locale)}
-                {ampm(nextEvent.startsAt, locale)}
-              </div>
-            </div>
-          ) : null}
-
-          {hasStatSignal ? (
-            <div className="cmd-glance">
-              <div className="cmd-glance__title">At a glance</div>
-              <div className="cmd-glance__grid">
-                <Stat
-                  k="Priorities"
-                  v={priorities.length}
-                  icon={<Target size={12} />}
-                  onClick={() => navigate("/tasks?focus=priorities")}
-                />
-                <Stat
-                  k="At risk"
-                  v={atRisk.length}
-                  warn={atRisk.length > 0}
-                  icon={<Clock size={12} />}
-                  onClick={() => navigate("/tasks?focus=atrisk")}
-                />
-                <Stat
-                  k="Events"
-                  v={todayEvents.length}
-                  icon={<CalendarDays size={12} />}
-                  onClick={() => navigate("/calendar")}
-                />
-                <Stat
-                  k="Done today"
-                  v={doneToday}
-                  icon={<CheckCircle2 size={12} />}
-                  onClick={() => navigate("/tasks?focus=donetoday")}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          <div className="inst">
-            <div className="inst__head">
-              <span className="inst__title">Today's agenda</span>
-              <span className="inst__meta">{upcoming.length} left</span>
-            </div>
-            {upcoming.length > 0 ? (
-              <div>
-                {upcoming.map((event, index) => (
-                  <div
-                    className={`sched-row ${index === 0 ? "sched-row--now" : ""}`}
-                    key={event.id}
-                  >
-                    <div className="sched-row__t">{timeLabel(event.startsAt, locale)}</div>
-                    <div className="sched-row__body">
-                      <div className="sched-row__title">{event.title}</div>
-                      {event.location ? (
-                        <div className="sched-row__sub">{event.location}</div>
-                      ) : null}
-                      {index === 0 ? (
-                        <span className="sched-now">
-                          <span
-                            style={{
-                              width: 5,
-                              height: 5,
-                              borderRadius: 9,
-                              background: "var(--accent)"
-                            }}
-                          />
-                          Next up
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="agenda-clear">
-                Nothing left on the calendar today. <b>Enjoy the evening.</b>
-              </div>
-            )}
-          </div>
-
-          {eveningDefinition?.enabled && todayMode === "day" ? (
-            <EveningReviewSection
-              kind="compact"
-              run={latestEveningRun}
-              locale={locale}
-              targetTime={targetTimeFor(eveningDefinition, "evening")}
-              interviewPending={eveningInterviewMutation.isPending}
-              onFeedbackChanged={() =>
-                void queryClient.invalidateQueries({
-                  queryKey: queryKeys.briefings.runs(eveningDefinition.id)
-                })
-              }
-              onPrep={() => eveningInterviewMutation.mutate()}
-            />
-          ) : null}
-
-          {wellnessEnabled ? (
-            <div className="well">
-              <div className="well__head">
-                <span className="ic">
-                  <HeartPulse size={15} aria-hidden="true" />
-                </span>
-                <span className="well__title">Wellness</span>
-              </div>
-              {medTotal > 0 ? (
-                <div className="well__line">
-                  {medsAllTaken ? (
-                    <>
-                      <Check size={14} aria-hidden="true" /> <b>All meds taken</b> today.
-                    </>
-                  ) : medsNoneLogged ? (
-                    <>
-                      No meds logged yet today — <b>{medTotal}</b> to go.
-                    </>
-                  ) : (
-                    <>
-                      <b>
-                        {medTaken} of {medTotal}
-                      </b>{" "}
-                      meds logged today.
-                    </>
-                  )}
+          <div className="cmd-aside__inner">
+            {nextEvent ? (
+              <div className="cmd-next">
+                <div className="cmd-next__k">{nextStarted ? "Now · ends in" : "Next event in"}</div>
+                <div className="cmd-next__v">
+                  {countdownLabel(nextStarted ? nextEvent.endsAt : nextEvent.startsAt, now)}
                 </div>
-              ) : null}
-              <div className="well__actions">
-                <button
-                  className="well__btn well__btn--meds"
-                  onClick={() => setMedsModalOpen(true)}
-                >
-                  <span className="lead">
-                    <span className="ic">
-                      <Pill size={15} aria-hidden="true" />
-                    </span>
-                    Meds
-                  </span>
-                  {medTotal > 0 ? (
-                    <span className={`well__ct${medsAllTaken ? " is-done" : ""}`}>
-                      {medTaken}/{medTotal}
-                    </span>
-                  ) : null}
-                </button>
-                <button className="well__btn" onClick={() => setCheckinModalOpen(true)}>
-                  <span className="ic">
-                    <ClipboardCheck size={15} aria-hidden="true" />
-                  </span>
-                  Check in
-                </button>
+                <div className="cmd-next__what">
+                  {nextEvent.title} · {timeLabel(nextEvent.startsAt, locale)}
+                  {ampm(nextEvent.startsAt, locale)}
+                </div>
               </div>
+            ) : null}
+
+            {hasStatSignal ? (
+              <div className="cmd-glance">
+                <div className="cmd-glance__title">At a glance</div>
+                <div className="cmd-glance__grid">
+                  <Stat
+                    k="Priorities"
+                    v={priorities.length}
+                    icon={<Target size={12} />}
+                    onClick={() => navigate("/tasks?focus=priorities")}
+                  />
+                  <Stat
+                    k="At risk"
+                    v={atRisk.length}
+                    warn={atRisk.length > 0}
+                    icon={<Clock size={12} />}
+                    onClick={() => navigate("/tasks?focus=atrisk")}
+                  />
+                  <Stat
+                    k="Events"
+                    v={todayEvents.length}
+                    icon={<CalendarDays size={12} />}
+                    onClick={() => navigate("/calendar")}
+                  />
+                  <Stat
+                    k="Done today"
+                    v={doneToday}
+                    icon={<CheckCircle2 size={12} />}
+                    onClick={() => navigate("/tasks?focus=donetoday")}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            <div className="inst">
+              <div className="inst__head">
+                <span className="inst__title">Today's agenda</span>
+                <span className="inst__meta">{upcoming.length} left</span>
+              </div>
+              {upcoming.length > 0 ? (
+                <div>
+                  {upcoming.map((event, index) => (
+                    <div
+                      className={`sched-row ${index === 0 ? "sched-row--now" : ""}`}
+                      key={event.id}
+                    >
+                      <div className="sched-row__t">{timeLabel(event.startsAt, locale)}</div>
+                      <div className="sched-row__body">
+                        <div className="sched-row__title">{event.title}</div>
+                        {event.location ? (
+                          <div className="sched-row__sub">{event.location}</div>
+                        ) : null}
+                        {index === 0 ? (
+                          <span className="sched-now">
+                            <span
+                              style={{
+                                width: 5,
+                                height: 5,
+                                borderRadius: 9,
+                                background: "var(--accent)"
+                              }}
+                            />
+                            Next up
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="agenda-clear">
+                  Nothing left on the calendar today. <b>Enjoy the evening.</b>
+                </div>
+              )}
             </div>
-          ) : null}
+
+            {eveningDefinition?.enabled && todayMode === "day" ? (
+              <EveningReviewSection
+                kind="compact"
+                run={latestEveningRun}
+                locale={locale}
+                targetTime={targetTimeFor(eveningDefinition, "evening")}
+                onFeedbackChanged={() =>
+                  void queryClient.invalidateQueries({
+                    queryKey: queryKeys.briefings.runs(eveningDefinition.id)
+                  })
+                }
+              />
+            ) : null}
+
+            {eveningDefinition?.enabled && todayMode === "evening" ? (
+              <EveningPrepCard
+                interviewPending={eveningInterviewMutation.isPending}
+                onPrep={() => eveningInterviewMutation.mutate()}
+              />
+            ) : null}
+
+            {wellnessEnabled ? (
+              <div className="well">
+                <div className="well__head">
+                  <span className="ic">
+                    <HeartPulse size={15} aria-hidden="true" />
+                  </span>
+                  <span className="well__title">Wellness</span>
+                </div>
+                {medTotal > 0 ? (
+                  <div className="well__line">
+                    {medsAllTaken ? (
+                      <>
+                        <Check size={14} aria-hidden="true" /> <b>All meds taken</b> today.
+                      </>
+                    ) : medsNoneLogged ? (
+                      <>
+                        No meds logged yet today — <b>{medTotal}</b> to go.
+                      </>
+                    ) : (
+                      <>
+                        <b>
+                          {medTaken} of {medTotal}
+                        </b>{" "}
+                        meds logged today.
+                      </>
+                    )}
+                  </div>
+                ) : null}
+                <div className="well__actions">
+                  <button
+                    className="well__btn well__btn--meds"
+                    onClick={() => setMedsModalOpen(true)}
+                  >
+                    <span className="lead">
+                      <span className="ic">
+                        <Pill size={15} aria-hidden="true" />
+                      </span>
+                      Meds
+                    </span>
+                    {medTotal > 0 ? (
+                      <span className={`well__ct${medsAllTaken ? " is-done" : ""}`}>
+                        {medTaken}/{medTotal}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button className="well__btn" onClick={() => setCheckinModalOpen(true)}>
+                    <span className="ic">
+                      <ClipboardCheck size={15} aria-hidden="true" />
+                    </span>
+                    Check in
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </aside>
       </div>
       {wellnessEnabled && medsModalOpen ? (
