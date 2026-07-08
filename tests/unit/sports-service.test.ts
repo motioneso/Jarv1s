@@ -27,7 +27,21 @@ interface FakeSourceHandlers {
   getSchedule?: (teamKey: string, competitionKey: string) => Promise<GameSummary[]>;
   getStandings?: (competitionKey: string) => Promise<StandingsTable>;
   getHeadlines?: (competitionKey: string, teamKey?: string) => Promise<SourceHeadline[]>;
+  getArticleBody?: (articleId: string) => Promise<string>;
 }
+
+// The dataset keys the real manifest declares. Kept next to the stub so the stub can reject an
+// undeclared key exactly like the production DatasetClient does (see below) — the divergence
+// where the stub swallowed unknown keys into the fallback is what let #857 ship a guaranteed
+// /sports 500 past a green gate (Fable C1). New service dataset → add it here AND to the manifest.
+const DECLARED_DATASET_KEYS = new Set([
+  "teams",
+  "scoreboard",
+  "schedule",
+  "standings",
+  "headlines",
+  "articleBody"
+]);
 
 function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
   return {
@@ -36,6 +50,12 @@ function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
       params: Record<string, unknown>,
       options: { fallback: T }
     ): Promise<DatasetEnvelope<T>> {
+      // Mirror the production DatasetClient: an undeclared dataset key is a wiring bug and throws
+      // OUTSIDE the fallback try, so it propagates instead of masquerading as a degraded fetch.
+      // Only genuine fetch failures within a *declared* dataset fall through to the fallback below.
+      if (!DECLARED_DATASET_KEYS.has(datasetKey)) {
+        throw new Error(`Unknown dataset "${datasetKey}" for external source "espn"`);
+      }
       try {
         let data: unknown;
         switch (datasetKey) {
@@ -68,8 +88,14 @@ function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
               params.teamKey as string | undefined
             );
             break;
+          case "articleBody":
+            // Per-article featured-hero body (#857); defaults to "" so overview tests that don't
+            // care about the body still exercise the real fetch/splice path without stubbing it.
+            data = await (handlers.getArticleBody ?? (async () => ""))(params.articleId as string);
+            break;
           default:
-            throw new Error(`unknown dataset "${datasetKey}"`);
+            // Unreachable: the DECLARED_DATASET_KEYS guard above already rejected unknown keys.
+            throw new Error(`unhandled dataset "${datasetKey}"`);
         }
         return { data: data as T, degraded: false, fetchedAt: new Date().toISOString() };
       } catch {

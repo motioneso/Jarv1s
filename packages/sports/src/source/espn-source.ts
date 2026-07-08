@@ -408,8 +408,20 @@ function decodeEntities(text: string): string {
     .replace(/&ndash;/g, "–")
     .replace(/&hellip;/g, "…")
     .replace(/&nbsp;/g, " ")
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, code: string) => String.fromCodePoint(parseInt(code, 16)));
+    .replace(/&#(\d+);/g, (m: string, code: string) => codePointOr(Number(code), m))
+    .replace(/&#x([0-9a-fA-F]+);/g, (m: string, code: string) =>
+      codePointOr(parseInt(code, 16), m)
+    );
+}
+
+// String.fromCodePoint throws RangeError on a value above U+10FFFF (or a lone surrogate), and the
+// caller's catch would then drop the ENTIRE article body over one malformed entity (Fable L2). An
+// out-of-range codepoint keeps its literal source text instead — lossless and never throwing.
+function codePointOr(n: number, original: string): string {
+  if (!Number.isInteger(n) || n < 0 || n > 0x10ffff || (n >= 0xd800 && n <= 0xdfff)) {
+    return original;
+  }
+  return String.fromCodePoint(n);
 }
 
 // Cap length AND turn ESPN story HTML into safe plaintext (#857). This is the core injection

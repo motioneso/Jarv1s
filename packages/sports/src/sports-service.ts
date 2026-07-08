@@ -281,11 +281,15 @@ export class SportsService {
         )
       );
       const existing = headlinesByComp.get(game.competitionKey) ?? [];
-      const seen = new Set(existing.map((h) => h.id));
+      // Dedup by url, not id: the same story arrives from the league feed and a hero team's own
+      // feed under DIFFERENT ids (ESPN ids are feed-scoped — see the teamStories/followedStoryUrls
+      // dedup, which key on url for the same reason). Keying on id here let a matchup story render
+      // twice in the NewsBand (Fable M1). url is the story's stable cross-feed identity.
+      const seen = new Set(existing.map((h) => h.url));
       const merged = [...existing];
       for (const headline of resolveHeadlineTeamKeys(teamFeeds.flat(), heroTeams)) {
-        if (seen.has(headline.id)) continue;
-        seen.add(headline.id);
+        if (seen.has(headline.url)) continue;
+        seen.add(headline.url);
         merged.push(headline);
       }
       headlinesByComp.set(game.competitionKey, merged);
@@ -625,6 +629,21 @@ function byNewest(a: SourceHeadline, b: SourceHeadline): number {
 // before a headline reaches a response boundary — required wherever a single headline sits
 // inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
 // objects with properties outside the matched branch instead of silently dropping them.
+// Defense-in-depth for #857's "don't trust the feed" threat model: a source href becomes an
+// <a href> the reader clicks. TLS + host-pinning protect the FETCH, but a poisoned or editorially
+// mangled ESPN payload could still carry a `javascript:`/`data:` href that executes on click (React
+// renders such a URL with only a console warning — Fable M2). Allow only http(s) navigations; any
+// other scheme, or an unparseable/relative value, collapses to "" (an inert same-page href) rather
+// than a script URL. Host is intentionally unrestricted — these are outbound links to the source.
+function safeHref(url: string): string {
+  try {
+    const protocol = new URL(url).protocol;
+    return protocol === "https:" || protocol === "http:" ? url : "";
+  } catch {
+    return "";
+  }
+}
+
 function toPublicHeadline(headline: Headline): Headline {
   const {
     id,
@@ -643,7 +662,7 @@ function toPublicHeadline(headline: Headline): Headline {
     competitionKey,
     competitionLabel,
     title,
-    url,
+    url: safeHref(url),
     publishedAt,
     imageUrl,
     summary,
@@ -775,7 +794,7 @@ function teamStories(headlines: readonly SourceHeadline[], teamKey: string): Fol
       // publishedAt rides along so the ticker can rank idle teams by news freshness (mra54n4h);
       // imageUrl feeds the small thumbnail on the lead story (mra5xnt2).
       title: h.title,
-      url: h.url,
+      url: safeHref(h.url), // same javascript:/data: href guard as toPublicHeadline (#857 M2)
       publishedAt: h.publishedAt,
       imageUrl: h.imageUrl
     }));
