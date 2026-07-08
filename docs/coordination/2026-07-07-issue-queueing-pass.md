@@ -10,12 +10,14 @@ reaped). Resolve fresh by label+session, never trust a pane number.
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760f** (`w1:pBE`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760e; self-
-  relay initially landed in wrong tab (`w1:t17`), caught and moved to shared agents tab `w1:t1C`
-  by this coordinator before reap. Verified driving post-move, old pane (`w1:pBD`) reaped. Tasks
-  1–3 done+committed. Task 4 (settings skills pane) in progress: `api/client.ts` + `query-keys.ts`
-  skill fns done, TDD test written red (`81696e10`), `settings-skills-pane.tsx` impl NOT yet
-  written — Task 4 steps 2-4 + Tasks 5-7 remain. Handoff doc commit `93873bfe`. Still **security
+- **Build-760g** (`w1:pBF`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760f
+  (which was successor of Build-760e; wrong-tab self-relay caught+fixed at that hop, see history
+  below), verified driving, old pane (`w1:pBE`) reaped. Tasks 1–4 done, rebased+pushed onto
+  current `origin/main` (`c53f7ab4`→`d7a016a8`). Migration renumbered 0147→0149 (collision with
+  merged #870, verified against `origin/main`, see below). **Coordinator confirmed: Task5 (slash
+  autocomplete+invocation) and Task6 (gateway boundary regression tests) are NOT descoped** — core
+  scope per the plan's Goal line; build them, then Task7. Handoff doc
+  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-9.md`. Still **security
   tier** (owner-scoped RLS + user-authored-content-as-instructions surface). No PR yet.
   Coordinator call (routine, no escalation needed): `packages/db/src/types.ts` grew to 1011 lines
   (Task 1 commit `c7262aff`, predates this relay) tripping `check:file-size`; directed to add it
