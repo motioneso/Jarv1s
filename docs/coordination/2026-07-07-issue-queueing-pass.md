@@ -1548,3 +1548,25 @@ failure budget as a fresh 1/2 (Ben authorized this new attempt via a model chang
 `w1:pAM` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure from
 predecessor `197683fe-7804-4e9c-a26a-a7593255a913` (pane `w1:pAK`), confirmed idle before reap.
 Verified exactly one `Coordinator` pane via `herdr pane list`.
+
+### Fable-865 relayed before writing any code — Fable-865-r2 now live
+
+**Fable-865** hit its own 70% context-meter trigger while still in the grounding phase (handoff
+addendum + base doc + QA cycle-3 verdict + RPC contract/client/server/engine-host reads) — no
+product code touched, branch tip unchanged at `8210ad7d` plus a docs-only relay commit
+(`33f24b56`, `docs/superpowers/handoffs/2026-07-08-744-rpc-purge-relay.md`). It spawned a
+successor in the same worktree/branch, confirmed it driving, and requested reap.
+
+- Verified successor **Fable-865-r2** (`w1:pAP`, session `bf11eeff-f9bb-4609-b0e4-03070a72975e`)
+  via bounded pane read: actively working ("Twisting…"), model **Fable 5**, TaskList matches the
+  addendum's plan (ground fix → implement `purgeTranscripts` RPC verb → real-RPC-path regression
+  test → optional per-session Codex purge scope → gate/push/wrap-up).
+  Reaped predecessor `w1:pAN` (label `Fable-865`, session `f6b2a4ca-5a9d-4e73-8077-544a6b2a318e`).
+- **Tab hygiene incident (repeat pattern):** Fable-865-r2 landed in `w1:t17` (Ben's own
+  personal-agent tab), not the shared agents tab `w1:t1C` — same class of drift flagged multiple
+  times earlier in this run for Build-854b/Build-854c. Moved it: `herdr pane move w1:pAP --tab
+  w1:t1C --split down --target-pane w1:p9W --no-focus` — now correctly split below Build-853 in
+  `w1:t1C`.
+- Restarted the liveness Monitor to track `w1:p9W` (Build-853) + `w1:pAP` (Fable-865-r2, replaces
+  `w1:pAN`).
+- **merges_since_relay:** unchanged at 1 (no merge action this event).
