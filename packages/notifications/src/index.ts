@@ -5,5 +5,6 @@
 // full model and the spec (docs/superpowers/specs/2026-06-19-notifications-actor-scoped-hardening.md).
 export * from "./manifest.js";
 export * from "./metadata.js";
+export * from "./digest.js";
 export * from "./repository.js";
 export * from "./routes.js";

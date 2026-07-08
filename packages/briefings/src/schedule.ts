@@ -3,16 +3,17 @@ import type { PgBoss } from "pg-boss";
 
 import type { BriefingDefinition, BriefingType, DataContextDb } from "@jarv1s/db";
 import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import { cronExprFor, timezoneFor } from "@jarv1s/shared";
 
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import type { BriefingsRepository } from "./repository.js";
+export { cronExprFor, timezoneFor } from "@jarv1s/shared";
 
 /** Logger fallback — silent when no logger is injected (observability spec). */
 const NOOP_LOGGER: Pick<FastifyBaseLogger, "error"> = {
   error: () => undefined
 };
 
-const DEFAULT_TARGET_TIME_CRON = "0 7 * * *";
 const DEFAULT_TIMEZONE = "UTC";
 
 export function defaultScheduleMetadataFor(type: BriefingType): Record<string, unknown> {
@@ -20,49 +21,6 @@ export function defaultScheduleMetadataFor(type: BriefingType): Record<string, u
   if (type === "weekly_review")
     return { targetTime: "09:00", timezone: DEFAULT_TIMEZONE, dayOfWeek: 0 };
   return { targetTime: "07:00", timezone: DEFAULT_TIMEZONE };
-}
-
-/**
- * Derive a cron expression from `schedule_metadata.targetTime` ("HH:MM").
- * Defaults to 07:00 local when absent or malformed.
- * For weekly cadence, emits a day-of-week cron using `dayOfWeek` (0=Sun … 6=Sat), defaulting to Monday.
- */
-export function cronExprFor(cadence: string, scheduleMetadata: Record<string, unknown>): string {
-  const raw = scheduleMetadata.targetTime;
-  if (typeof raw !== "string") {
-    return DEFAULT_TARGET_TIME_CRON;
-  }
-  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(raw.trim());
-  if (!match) {
-    return DEFAULT_TARGET_TIME_CRON;
-  }
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-
-  if (cadence === "weekly") {
-    const day = typeof scheduleMetadata.dayOfWeek === "number" ? scheduleMetadata.dayOfWeek : 1;
-    return `${minute} ${hour} * * ${day}`;
-  }
-
-  return `${minute} ${hour} * * *`;
-}
-
-/**
- * Read an IANA timezone from `schedule_metadata.timezone`, validated via
- * Intl.DateTimeFormat. Defaults to UTC when absent or invalid.
- */
-export function timezoneFor(scheduleMetadata: Record<string, unknown>): string {
-  const raw = scheduleMetadata.timezone;
-  if (typeof raw !== "string" || raw.trim() === "") {
-    return DEFAULT_TIMEZONE;
-  }
-  try {
-    // Throws RangeError for an unknown timezone — that is our validity check.
-    new Intl.DateTimeFormat("en-US", { timeZone: raw }).format(0);
-    return raw;
-  } catch {
-    return DEFAULT_TIMEZONE;
-  }
 }
 
 /**

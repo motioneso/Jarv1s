@@ -37,6 +37,37 @@ export interface PutNotificationPreferenceResponse {
   readonly unreadCount: number | null;
 }
 
+export type NotificationDigestCadenceDto = "daily" | "weekly";
+export type NotificationDigestUnavailableReason = "no_email_connector" | "no_enabled_modules";
+
+export interface NotificationDigestScheduleMetadataDto {
+  readonly targetTime: string;
+  readonly timezone: string;
+  readonly dayOfWeek?: number;
+}
+
+export interface NotificationDigestPreferenceDto {
+  readonly enabled: boolean;
+  readonly cadence: NotificationDigestCadenceDto;
+  readonly scheduleMetadata: NotificationDigestScheduleMetadataDto;
+  readonly available: boolean;
+  readonly unavailableReason: NotificationDigestUnavailableReason | null;
+}
+
+export interface GetNotificationDigestPreferenceResponse {
+  readonly digest: NotificationDigestPreferenceDto;
+}
+
+export interface PutNotificationDigestPreferenceRequest {
+  readonly digest: {
+    readonly enabled: boolean;
+    readonly cadence: NotificationDigestCadenceDto;
+    readonly scheduleMetadata: NotificationDigestScheduleMetadataDto;
+  };
+}
+
+export type PutNotificationDigestPreferenceResponse = GetNotificationDigestPreferenceResponse;
+
 const quietHoursSchema = {
   type: "object",
   additionalProperties: false,
@@ -139,6 +170,78 @@ export const putNotificationPreferenceRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     404: errorResponseSchema,
+    422: errorResponseSchema
+  }
+} as const;
+
+const notificationDigestScheduleMetadataSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["targetTime", "timezone"],
+  properties: {
+    targetTime: { type: "string", pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" },
+    timezone: { type: "string", minLength: 1, maxLength: 100 },
+    dayOfWeek: { type: "integer", minimum: 0, maximum: 6 }
+  }
+} as const;
+
+const notificationDigestPreferenceSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["enabled", "cadence", "scheduleMetadata", "available", "unavailableReason"],
+  properties: {
+    enabled: { type: "boolean" },
+    cadence: { type: "string", enum: ["daily", "weekly"] },
+    scheduleMetadata: notificationDigestScheduleMetadataSchema,
+    available: { type: "boolean" },
+    unavailableReason: {
+      anyOf: [
+        { type: "string", enum: ["no_email_connector", "no_enabled_modules"] },
+        { type: "null" }
+      ]
+    }
+  }
+} as const;
+
+export const getNotificationDigestPreferenceRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["digest"],
+      properties: { digest: notificationDigestPreferenceSchema }
+    },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const putNotificationDigestPreferenceRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["digest"],
+    properties: {
+      digest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["enabled", "cadence", "scheduleMetadata"],
+        properties: {
+          enabled: { type: "boolean" },
+          cadence: { type: "string", enum: ["daily", "weekly"] },
+          scheduleMetadata: notificationDigestScheduleMetadataSchema
+        }
+      }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["digest"],
+      properties: { digest: notificationDigestPreferenceSchema }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema,
     422: errorResponseSchema
   }
 } as const;

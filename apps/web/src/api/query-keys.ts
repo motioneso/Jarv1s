@@ -27,6 +27,7 @@ export const queryKeys = {
     notesSource: ["settings", "notes-source"] as const,
     quietHours: ["settings", "quiet-hours"] as const,
     notificationPreferences: ["settings", "notification-preferences"] as const,
+    notificationDigest: ["settings", "notification-digest"] as const,
     notesSourceDirectories: (path: string | null) =>
       ["settings", "notes-source", "directories", path] as const,
     notesLastSync: ["settings", "notes-last-sync"] as const

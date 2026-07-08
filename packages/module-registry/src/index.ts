@@ -90,7 +90,9 @@ import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
+  GoogleEmailWriteProvider,
   IMAP_SYNC_QUEUE_DEFINITIONS,
+  ImapEmailWriteProvider,
   MONITOR_QUEUE_DEFINITIONS,
   buildFeatureGrantService,
   buildRuntimeSourceContextService,
@@ -120,7 +122,12 @@ import {
   EmailRepository,
   registerEmailRoutes
 } from "@jarv1s/email";
-import { assertMetadataOnlyPayload, FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
+import {
+  assertMetadataOnlyPayload,
+  FOUNDATION_QUEUES,
+  registerDataContextWorker,
+  type QueueDefinition
+} from "@jarv1s/jobs";
 import { createModuleLogger } from "@jarv1s/module-sdk";
 import type {
   JarvisModuleManifest,
@@ -129,10 +136,13 @@ import type {
 } from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
+  DIGEST_COMPOSE_QUEUE,
   type NotificationPreferencePort,
+  runNotificationDigestCompose,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
-  registerNotificationsRoutes
+  registerNotificationsRoutes,
+  type NotificationDigestSender
 } from "@jarv1s/notifications";
 import {
   type AuthProviderStatusDto,
@@ -671,6 +681,46 @@ function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveSchedu
   };
 }
 
+function createNotificationDigestSender(): NotificationDigestSender {
+  const connectorsRepository = new ConnectorsRepository();
+  const cipher = createConnectorSecretCipher();
+  const googleProvider = new GoogleEmailWriteProvider(
+    new RuntimeGoogleConnectionService({
+      repository: connectorsRepository,
+      cipher,
+      oauthClient: new GoogleOAuthClient()
+    }),
+    new RuntimeGoogleApiClient()
+  );
+  const imapProvider = new ImapEmailWriteProvider(connectorsRepository, cipher);
+
+  return {
+    async sendDigest(scopedDb, input) {
+      const accounts = await connectorsRepository.listAccounts(scopedDb);
+      const google = accounts.find(
+        (account) => account.status === "active" && account.provider_type === "google"
+      );
+      if (google) {
+        return googleProvider.sendNew(scopedDb, {
+          to: input.to,
+          subject: input.subject,
+          body: input.text
+        });
+      }
+      const imap = accounts.find(
+        (account) => account.status === "active" && account.provider_type === "imap"
+      );
+      if (!imap) return { ok: false };
+      return imapProvider.sendNew(scopedDb, {
+        connectorAccountId: imap.id,
+        to: input.to,
+        subject: input.subject,
+        body: input.text
+      });
+    }
+  };
+}
+
 /**
  * Composes the tasks module's EmailTriageFeedbackPort over the email cache and the
  * connectors feedback store. Lives here because only the composition root may import
@@ -890,8 +940,23 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: notificationsModuleManifest,
     sqlMigrationDirectories: [notificationsModuleSqlMigrationDirectory],
-    queueDefinitions: [],
-    registerRoutes: registerNotificationsRoutes
+    queueDefinitions: [{ name: DIGEST_COMPOSE_QUEUE, options: { retryLimit: 0 } }],
+    registerRoutes: registerNotificationsRoutes,
+    registerWorkers: async (boss, deps) => [
+      await registerDataContextWorker(
+        boss,
+        DIGEST_COMPOSE_QUEUE,
+        deps.dataContext,
+        (_job, scopedDb) =>
+          runNotificationDigestCompose(scopedDb, {
+            baseUrl: process.env.JARVIS_PUBLIC_BASE_URL ?? "http://localhost:3000",
+            preferencesRepository: new PreferencesRepository(),
+            notificationsRepository: new NotificationsRepository(),
+            notificationPreferencePort: createNotificationPreferencePort(),
+            sender: createNotificationDigestSender()
+          })
+      )
+    ]
   },
   {
     manifest: calendarModuleManifest,

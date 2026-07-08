@@ -39,4 +39,5 @@ export * from "./memory-dashboard-api.js";
 export * from "./proactive-monitoring-api.js";
 export * from "./freshness-types.js";
 export * from "./time.js";
+export * from "./recurring-schedule.js";
 export * from "./briefings-format.js";

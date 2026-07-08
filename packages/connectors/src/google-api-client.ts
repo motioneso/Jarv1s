@@ -277,12 +277,13 @@ export class GoogleApiClient {
   async sendMessage(input: {
     accessToken: string;
     raw: string;
-    threadId: string;
+    threadId?: string;
   }): Promise<GmailSentMessage> {
+    const body = input.threadId ? { raw: input.raw, threadId: input.threadId } : { raw: input.raw };
     const json = await this.postJson<GmailSentMessage>(
       `${GMAIL_BASE}/users/me/messages/send`,
       input.accessToken,
-      { raw: input.raw, threadId: input.threadId },
+      body,
       "gmail"
     );
     return { id: json.id, threadId: json.threadId };

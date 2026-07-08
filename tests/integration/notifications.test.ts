@@ -172,7 +172,7 @@ describe("Notifications module M5", () => {
     }
   });
 
-  it("loads the built-in Notifications module manifest without queues", () => {
+  it("loads the built-in Notifications module manifest with the digest queue", () => {
     const manifests = getBuiltInModuleManifests();
     const registrations = getBuiltInModuleRegistrations();
     const registration = registrations.find(
@@ -234,7 +234,9 @@ describe("Notifications module M5", () => {
     // The route + APIs remain registered; only the module-nav link was retired.
     expect(manifest?.navigation).toEqual([]);
     expect(manifest?.settings ?? []).toEqual([]);
-    expect(registration?.queueDefinitions).toEqual([]);
+    expect(registration?.queueDefinitions).toEqual([
+      { name: "notifications.digest.compose", options: { retryLimit: 0 } }
+    ]);
     expect(getBuiltInSqlMigrationDirectories()).toContainEqual(
       expect.stringContaining("packages/notifications/sql")
     );

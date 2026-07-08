@@ -194,7 +194,8 @@ export function registerSettingsRoutes(
     ...dependencies,
     repository,
     preferencesRepository,
-    notificationUnreadPort: dependencies.notificationUnreadPort
+    notificationUnreadPort: dependencies.notificationUnreadPort,
+    boss: dependencies.boss
   });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   registerPriorityRoutes(server, { ...dependencies, preferencesRepository });
