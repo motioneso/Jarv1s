@@ -1888,9 +1888,14 @@ not try to adopt it.
 Phase 0a (claim lock from this session), confirm fleet via bounded reads, start a fresh Monitor,
 resume normal Phase 2 supervision.
 
-**Coordinator lock:** now `dfbd2dc6-2b6d-4b3b-b935-141d8e627a08` / label `Coordinator` / pane
-`w1:pB4` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
-Phase 0a and updates this line itself.
+**Coordinator lock:** now `d4f0fb94-a62f-4b4b-8d38-5598ddd28f37` / label `Coordinator` / pane
+`w1:pB5` / tab `w1:t15` (resolve fresh, don't trust the pane number) — claimed this tenure from
+predecessor `dfbd2dc6-2b6d-4b3b-b935-141d8e627a08` (pane `w1:pB4`), confirmed idle/relayed via
+bounded read ("Successor will complete Phase 0a (reap me) and resume fleet supervision.") before
+reap. Verified exactly one `Coordinator` pane via `herdr pane list` immediately after renaming.
+**Context-meter fired 74% on the very first tool call this tenure** (the ~1948-line manifest read
+alone consumed most of the budget) — no-deferral relay, did ONLY Phase 0a (claim lock, reap
+predecessor) and this write, no fleet action taken. See relay checkpoint below.
 
 ## Relay checkpoint (session `58cd692d-ac30-4f76-9e47-a810041e358d`, compaction tripwire — flush + relay per protocol, no further action first)
 
@@ -1945,3 +1950,38 @@ this relay; successor must start a fresh one per the now-standard lesson, do not
 to adopt it). Build-759/PR #873 QA verdict still outstanding (async coordinated-qa subagent from
 predecessor tenure — check for a delivered background message on arrival).
 **merges_since_relay:** 0 (unchanged).
+
+## Relay checkpoint (session `d4f0fb94-a62f-4b4b-8d38-5598ddd28f37`, own context 74% on first tool call)
+
+Context-meter fired at 74% immediately after the initial full-manifest read (no other work done
+yet this tenure) — no-deferral relay trigger, per policy the only permitted action is flush +
+relay. Completed only:
+1. Phase 0a: verified predecessor `dfbd2dc6-2b6d-4b3b-b935-141d8e627a08` (pane `w1:pB4`) was sole
+   `Coordinator` pane and confirmed idle/relayed via bounded read, reaped it, renamed own pane
+   (`w1:pB5`) to `Coordinator`, confirmed exactly one `Coordinator` pane, recorded new lock line,
+   this write.
+
+**NOT done this tenure — successor must pick up immediately:**
+- **Resume supervision of Build-853 (`w1:p9W`) and Build-760 (`w1:pB2`)**, both in tab `w1:t1C`.
+  Per predecessor `dfbd2dc6`'s last checkpoint (top of this file): both confirmed `working`,
+  Sonnet, correct worktrees, as of that read. **Not re-confirmed this tenure — do a fresh bounded
+  read of each before assuming that's still true.**
+  - Build-853: security tier, Task 3 "full local gate" (`pnpm exec vitest run
+    tests/integration/chat-live-api.test.ts`) was in progress at handoff. No PR yet. When done:
+    Opus adversarial QA → mandatory `gh pr comment` verdict → **Ben's merge sign-off is WAIVED
+    per his standing override** (see top-of-file "Merge policy" note: any GREEN QA verdict merges
+    immediately, including security tier) — merge on GREEN QA without a pause-and-ask round trip.
+  - Build-760: routine/sensitive tier (chat skill-integration, `chat_skills` migration + RLS
+    test), Task 1 in progress at handoff. No PR yet.
+- **Start a fresh persistent liveness `Monitor`** for `w1:p9W` + `w1:pB2` — the predecessor's
+  (`b2uf3p437`) was session-scoped and will not have survived this relay, consistent with every
+  prior tenure in this run.
+- Nothing else outstanding: no blockers, no escalations, no doc fixes owed (per the incoming
+  briefing — verify this is still true with a fresh look at "Outstanding escalations" above rather
+  than trusting it blind).
+
+**merges_since_relay:** 0 this tenure (carried forward — nothing merged since the last relay).
+
+**Coordinator lock:** now `d4f0fb94-a62f-4b4b-8d38-5598ddd28f37` / label `Coordinator` / pane
+`w1:pB5` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
+Phase 0a and updates this line itself.
