@@ -690,6 +690,26 @@ log-persistence leakage — see finding below).
    explicit fix before approval: either drop `stack` at the write boundary (state this plainly in
    D4) or explain why persisting it into a user-queryable table is safe.
 
+### ✅ #817 spec — FIXED this tenure (session `4456c532-...`), spec now `docs/superpowers/
+specs/2026-07-07-error-explainability.md` — still awaiting Ben's approval, not a re-relay
+
+Ben's instruction ("if we need to fix it before it's approvable, let's fix it then") — both
+findings above addressed directly in the spec doc (commit `862ca777`):
+
+1. **Tier line corrected** `sensitive` → `security`, with the D3 RLS-trigger reasoning inlined so
+   it's self-documenting without needing this manifest.
+2. **D4 rewritten.** No longer says the write path "reuses" the log-line allowlist verbatim.
+   Explicit now: `recordError(scopedDb, {...})` does not accept a `stack` parameter, and
+   `0145_jarvis_error_log.sql` has no `stack` column — dropped at the write boundary, structurally
+   not just by convention. Existing docker-logs behavior (which does log `stack`, host-only) is
+   called out as unchanged/out of scope. Architecture diagram and the Exit Criteria bullet updated
+   to match — the exit criterion now requires a **new** test proving the persistence-level
+   guarantee, not reuse of #413's response-body-only test.
+
+**Status: spec is fixed and, in this coordinator's judgment, now approvable — still needs Ben's
+actual go-ahead before `/plan`/`/build`.** Not proceeding to spawn a build agent without that.
+First candidate for the Codex provider-mix directive once he approves.
+
 ## Successor tenure notes (session `4456c532-a562-4048-82e3-e5eccec0a535`)
 
 - **Re-adopted the fleet.** Predecessor `c716ccac-7af8-49d8-96b6-81ed0ae6cc31` (pane `w1:pA7`) had
