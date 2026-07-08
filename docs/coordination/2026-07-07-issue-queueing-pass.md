@@ -1,9 +1,10 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `743e10e9-147f-4fb9-88b4-38c72a9755d9` / label `Coordinator` / pane
-`w1:pAC` — claimed 2026-07-07 from predecessor `2d06024b-ecbf-49a6-9f55-5818b130db40` (reaped,
-its pane `w1:pAB` closed). Resolve fresh by label+session, never trust the pane number.
+**Coordinator lock:** now `63c5023b-8368-49da-9f60-e875e7d60d7f` / label `Coordinator` / pane
+`w1:pAE` / tab `w1:t15` — claimed 2026-07-07 from predecessor `743e10e9-147f-4fb9-88b4-38c72a9755d9`
+(confirmed idle/relayed via bounded read — self-handoff task done — before reap; its pane `w1:pAC`
+closed). Resolve fresh by label+session, never trust the pane number.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -17,6 +18,15 @@ relay.
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
+
+## Ben's standing per-merge digest
+
+Continuous record of everything merged this run, so Ben has a picture without gating routine work.
+
+| # | PR | Tier | Verified exit codes | QA verdict | Merge commit |
+| - | -- | ---- | -------------------- | ---------- | ------------- |
+| #854 (integration test DB isolation) | #856 | routine | CI green (`gh pr checks`) | `coordinated-qa` MERGE-READY: YES (PR comment `4909823976`) | `eafb6ae5`, 2026-07-07T23:06:32Z |
+| #817 (anonymous error-log write path) | #862 | security | VF=0, AUDIT=0 (`gh pr checks`: Verify foundation pass, both compose smokes pass) | Opus adversarial QA GREEN, 0 blocking / 2 non-blocking findings (PR comment) | `ec0fbe4a`, 2026-07-07 |
 
 ## How this run started
 
@@ -1013,3 +1023,41 @@ anonymous/unauthenticated write path; (4) the unpushed-coordination-branch struc
 above) is still open, still worth raising with Ben when there's a natural opening; (5) backlog
 triage (#818–826, #741–745, #759–760) — still no reply from Ben, still don't act on it without
 him.
+
+## Successor tenure notes (session `63c5023b-8368-49da-9f60-e875e7d60d7f`)
+
+Re-adopted the fleet: `herdr pane list` showed this session already spawned as
+`Coordinator-relay8` at `w1:pAE`. Predecessor `743e10e9` (`w1:pAC`) confirmed idle/relayed via
+bounded read (self-handoff task list showed both items done) before reap. Claimed lock — renamed
+`w1:pAE` from `Coordinator-relay8` to `Coordinator`, verified exactly one `Coordinator` pane via
+`herdr pane list`. Lock line above updated.
+
+**Fleet discovery — one item beyond the predecessor's continuation note:** Build-817's pane
+(`w1:pAA`, Codex) was still open, but its `cwd` showed its worktree as `(deleted)` and a bounded
+read showed it had already reported PR #862 done — which is the PR the predecessor tenure already
+merged (`ec0fbe4a`). This pane was a stale post-merge leftover, not live work, so it was reaped
+(`herdr pane close w1:pAA`) rather than monitored — no separate confirmation needed since the
+merge itself was already independently verified by the predecessor tenure.
+
+Started a fresh liveness `Monitor` (task `bqj9i5bcm`) for `w1:p9W` only (Build-853; no `w1:pAA` to
+watch anymore per the discovery above).
+
+**Continuation-note items closed out this tenure:**
+1. **Build-853 status** — re-confirmed via bounded read: idle, Task 1+2 done ✔, Task 3 ("full
+   local gate") not yet started ◻. No silent progress since predecessor's last check. Still no PR.
+2. **Ben's standing per-merge digest** — added as a new top-of-file section ("Ben's standing
+   per-merge digest") with both merges recorded (#854/PR #856 routine, #817/PR #862 security).
+3. **`memory_save` for the SECURITY DEFINER anonymous-write pattern** — saved (project `jarv1s`,
+   type `architecture`, id `mem_mrbl796n_a865e3eaaeb5`): forces NULL owner + REVOKE PUBLIC/GRANT
+   `app_runtime`, RLS policy drops the NULL-owner client-insert branch entirely, mirrors the
+   `purgeActionAuditLog` precedent. Reusable for future anonymous/unauthenticated write paths.
+4. **Unpushed-coordination-branch structural gap** — still open, non-urgent, carried forward
+   unchanged. Not raised with Ben this tenure (no natural opening yet).
+5. **Backlog triage (#818–826, #741–745, #759–760)** — still no reply from Ben. Not acted on.
+
+**merges_since_relay:** 0 this tenure (nothing merged yet — the security-tier merge that triggered
+this relay was the predecessor's, already reflected in the digest above).
+
+**Coordinator lock:** unchanged from the line at the top of this file — `63c5023b-8368-49da-9f60-
+e875e7d60d7f` / label `Coordinator` / pane `w1:pAE` / tab `w1:t15` (resolve fresh, don't trust the
+pane number) until a successor claims Phase 0a and updates that line itself.
