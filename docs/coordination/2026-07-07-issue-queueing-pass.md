@@ -1127,3 +1127,25 @@ current `main`, not a blocker).
   start code until Coordinator approves this plan" — normal `coordinated-build` plan-ready gate
   still applies, I approve via the usual escalation read, not a blanket pre-approval). #742 has no
   pre-written plan — its agent authors one per the normal flow.
+
+**Wave 1 spawned (this tenure):** worktrees cut off `origin/main` @ `ec0fbe4a`
+(`.claude/worktrees/742-email-digest-delivery`, `744-private-chat-mode`); handoff docs
+(`docs/coordination/handoffs/2026-07-08-{742,744}-*.md`) committed on this branch and manually
+copied into each worktree (unpushed-coordination-branch workaround — see structural-gap note
+above; both worktrees already carried the full historical `handoffs/` dir from `origin/main`, so
+this was a single-file copy, not a full seed). Both agents spawned on **Codex** (`gpt-5.5`,
+provider-mix directive, 2/3 used) into the shared agents tab (`w1:t1C`, split off `Build-853`'s
+pane, 2×1 grid so far):
+
+| Label | Pane | Issue | Branch | Tier | Status |
+| ----- | ---- | ----- | ------ | ---- | ------ |
+| `Build-742` | `w1:pAF` | #742 email-digest-delivery | `742-email-digest-delivery` | routine | building — confirmed driving, `coordinated-build` invoked |
+| `Build-744` | `w1:pAG` | #744 private-chat-mode | `744-private-chat-mode` | security | building — confirmed driving |
+
+Liveness `Monitor` replaced (old task `bqj9i5bcm` stopped, covered only `w1:p9W`) with new task
+`bk3g41nu1` covering all three active build panes (`w1:p9W` Build-853, `w1:pAF` Build-742,
+`w1:pAG` Build-744), 30s diff-only poll.
+
+**Still pending:** Wave 2 (`#759`) spawns after `#744` merges; Wave 3 (`#760`) spawns after `#759`
+merges (re-verify highest migration on `origin/main` immediately before that spawn — collision map
+assumed `0144`→`0145` as of this tenure, could drift if another lane lands a migration first).
