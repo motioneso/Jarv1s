@@ -1,13 +1,16 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `3b6cd485-5f89-4ecf-bb5c-3137dc409e85` / label `Coordinator` / pane
-`w1:pAV` / tab `w1:t15` — claimed 2026-07-08 from predecessor `5e316669-4c29-4e51-8972-b4f070c6a9a3`
-(confirmed idle/relayed via bounded read before reap; its pane `w1:pAT` closed). Resolve
-fresh by label+session, never trust the pane number. Predecessor's tenure hit its own 75%+
-context-meter warning on Phase 0a's very first PostToolUse (TaskCreate) — did minimum Phase 0a +
-its two in-flight action items, then relayed. See the bottom-of-file checkpoint (session
-`5e316669`) for that tenure's full state.
+**Coordinator lock:** now `4727de9a-8e93-4bd6-a684-7320d6a54a5a` / label `Coordinator` / pane
+`w1:pAW` / tab `w1:t15` — claimed 2026-07-08 from predecessor `3b6cd485-5f89-4ecf-bb5c-3137dc409e85`
+(relayed at 71% context per its own report; pane `w1:pAV` still showed `agent_status: working` with
+its TaskList mid-"Supervise fleet" at first read — messaged it to confirm handoff + stand down
+before reaping). Resolve fresh by label+session, never trust the pane number. Predecessor's tenure
+merged PR #865 (security tier, squash `791ce5e4`) and relayed unconditionally per the
+merges_since_relay=1 security-tier rule. See the bottom-of-file checkpoint (session `3b6cd485`,
+search for its own relay note if present) for that tenure's full state — its top-of-file summary
+above (lines "This tenure — DONE..." through "Successor's first action...") is carried forward
+unedited as this tenure's starting brief.
 **This tenure — DONE, self-handing-off:** (1) Build-853-next contradiction — RESOLVED, no real
 second agent, no action. (2) Fable-865-r4 (PR #865) reported **cycle-4 done**: `purgeTranscripts`
 RPC verb (contract+client+cli-runner) fixed the cycle-3 silent optional-chain no-op;
@@ -1788,3 +1791,24 @@ no action needed** (stale recap text, no real second agent — see prior checkpo
 (2) Fable-865-r4: unchanged, actively writing code, no action needed unless it stalls/relays.**
 Liveness Monitor `b11ckas5l` died with predecessor's session at relay per protocol — restarting a
 fresh one this tenure for `w1:p9W` (Build-853) and `w1:pAR` (Fable-865-r4).
+
+## Successor tenure notes (session `4727de9a-8e93-4bd6-a684-7320d6a54a5a`)
+
+Relayed in from predecessor `3b6cd485-5f89-4ecf-bb5c-3137dc409e85` (pane `w1:pAV`) at its 71%
+context checkpoint (per the top-of-file summary block, which it updated directly rather than
+appending a new relay-checkpoint section — its whole tenure is captured there: PR #865/#744
+merged squash `791ce5e4`, security-tier merge triggered the unconditional relay).
+
+**Phase 0a:**
+- Renamed own pane `Coordinator-relay` → `Coordinator` (`w1:pAW`, tab `w1:t15`).
+- First `herdr pane list` showed **two** `Coordinator`-labeled panes (mine `w1:pAW` and
+  predecessor's `w1:pAV`, `agent_status: working`) — expected transient mid-handoff state, not an
+  incident, since the predecessor hadn't yet reaped itself. Bounded read of `w1:pAV` showed its
+  TaskList with `Supervise fleet` still marked in-progress rather than fully idle — messaging it
+  now to confirm handoff and stand down before treating this as resolved.
+- Lock line above updated to this session / `w1:pAW`.
+- Will re-verify exactly one `Coordinator` pane after the predecessor closes.
+
+**Next:** confirm predecessor stood down and reap it, then resume Wave 2 (#759, Codex) per the
+provider-mix directive and the "RFA wave" section, and resume watching Build-853 (`w1:p9W`,
+idle, Task 3 next).
