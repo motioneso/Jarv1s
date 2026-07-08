@@ -1,7 +1,13 @@
 import type { PgBoss } from "pg-boss";
+import { sql } from "kysely";
 
+import type { DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb } from "@jarv1s/db";
 import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
 import { cronExprFor, timezoneFor, type NotificationDto } from "@jarv1s/shared";
+
+import { NotificationsRepository, type NotificationPreferencePort } from "./repository.js";
+import { serializeNotification } from "./routes.js";
 
 export const DIGEST_COMPOSE_QUEUE = "notifications.digest.compose";
 export const NOTIFICATION_DIGEST_PREFERENCE_KEY = "notifications:digest";
@@ -20,6 +26,32 @@ export interface DigestComposeJobPayload {
   readonly reason: "scheduled-digest";
   readonly idempotencyKey: string;
 }
+
+export interface NotificationDigestPreferencesPort {
+  get(scopedDb: DataContextDb, key: string): Promise<unknown>;
+  upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<unknown>;
+}
+
+export interface NotificationDigestSender {
+  sendDigest(
+    scopedDb: DataContextDb,
+    input: { to: string; subject: string; text: string; html: string }
+  ): Promise<{ ok: boolean }>;
+}
+
+export interface NotificationDigestComposeDeps {
+  readonly baseUrl: string;
+  readonly notificationsRepository?: NotificationsRepository;
+  readonly preferencesRepository: NotificationDigestPreferencesPort;
+  readonly notificationPreferencePort?: NotificationPreferencePort;
+  readonly sender: NotificationDigestSender;
+  readonly now?: () => Date;
+}
+
+export type NotificationDigestComposeResult =
+  | { status: "skipped"; reason: "disabled" | "empty" }
+  | { status: "failed" }
+  | { status: "sent"; count: number };
 
 const DEFAULT_DIGEST_PREFERENCE: NotificationDigestPreference = {
   enabled: false,
@@ -112,6 +144,49 @@ export function renderNotificationDigest(input: {
   };
 }
 
+export async function runNotificationDigestCompose(
+  scopedDb: DataContextDb,
+  deps: NotificationDigestComposeDeps
+): Promise<NotificationDigestComposeResult> {
+  assertDataContextDb(scopedDb);
+  const preferencesRepository = deps.preferencesRepository;
+  const preference = digestPreferenceFromRaw(
+    await preferencesRepository.get(scopedDb, NOTIFICATION_DIGEST_PREFERENCE_KEY)
+  );
+  if (!preference.enabled) return { status: "skipped", reason: "disabled" };
+
+  const repository = deps.notificationsRepository ?? new NotificationsRepository();
+  const rows = await repository.listDigestEligible(scopedDb, {
+    since: preference.lastDigestSentAt
+  });
+  const filtered = [];
+  for (const row of rows) {
+    if (!row.module_id) continue;
+    if (
+      !deps.notificationPreferencePort ||
+      (await deps.notificationPreferencePort.isModuleEnabled(scopedDb, row.module_id))
+    ) {
+      filtered.push(row);
+    }
+  }
+  if (filtered.length === 0) return { status: "skipped", reason: "empty" };
+
+  const rendered = renderNotificationDigest({
+    baseUrl: deps.baseUrl,
+    notifications: filtered.map(serializeNotification)
+  });
+  const to = await getActorEmail(scopedDb);
+  const result = await deps.sender.sendDigest(scopedDb, { to, ...rendered });
+  if (!result.ok) return { status: "failed" };
+
+  await preferencesRepository.upsert(
+    scopedDb,
+    NOTIFICATION_DIGEST_PREFERENCE_KEY,
+    digestPreferenceToRaw({ ...preference, lastDigestSentAt: deps.now?.() ?? new Date() })
+  );
+  return { status: "sent", count: filtered.length };
+}
+
 function parseDate(value: string): Date | null {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -123,4 +198,13 @@ function escapeHtml(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+async function getActorEmail(scopedDb: DataContextDb): Promise<string> {
+  const result = await sql<{ email: string }>`
+    SELECT email FROM app.users WHERE id = app.current_actor_user_id()
+  `.execute(scopedDb.db);
+  const email = result.rows[0]?.email;
+  if (!email) throw new Error("Digest recipient email not found");
+  return email;
 }

@@ -135,7 +135,7 @@ export function registerNotificationPreferencesRoutes(
             const next: NotificationDigestPreference = {
               enabled: body.digest.enabled,
               cadence: body.digest.cadence,
-              scheduleMetadata: body.digest.scheduleMetadata,
+              scheduleMetadata: { ...body.digest.scheduleMetadata },
               lastDigestSentAt: digestPreferenceFromRaw(
                 await dependencies.preferencesRepository.get(
                   scopedDb,

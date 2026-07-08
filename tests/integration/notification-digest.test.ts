@@ -4,10 +4,19 @@ import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import {
+  DIGEST_COMPOSE_QUEUE,
+  NotificationsRepository,
+  digestPreferenceToRaw,
+  digestScheduleData,
+  runNotificationDigestCompose
+} from "@jarv1s/notifications";
 import type {
   GetNotificationDigestPreferenceResponse,
   PutNotificationDigestPreferenceResponse
 } from "@jarv1s/shared";
+import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("notification digest settings", () => {
@@ -40,6 +49,148 @@ describe("notification digest settings", () => {
       } as never
     });
     await server.ready();
+  });
+
+  it("skips empty digests and keeps the pg-boss payload metadata-only", async () => {
+    await setDigestPreference({ enabled: true, lastDigestSentAt: null });
+    const sent: string[] = [];
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "digest:empty" },
+      (scopedDb) =>
+        runNotificationDigestCompose(scopedDb, {
+          baseUrl: "https://jarvis.example.test",
+          notificationsRepository: new NotificationsRepository(),
+          preferencesRepository: new PreferencesRepository(),
+          sender: {
+            sendDigest: async (_scopedDb, input) => {
+              sent.push(input.text);
+              return { ok: true };
+            }
+          }
+        })
+    );
+
+    expect(() => assertMetadataOnlyPayload(digestScheduleData(ids.userA))).not.toThrow();
+    expect(digestScheduleData(ids.userA)).toEqual({
+      actorUserId: ids.userA,
+      reason: "scheduled-digest",
+      idempotencyKey: `digest:${ids.userA}`
+    });
+    expect(result).toEqual({ status: "skipped", reason: "empty" });
+    expect(sent).toHaveLength(0);
+  });
+
+  it("sends only unread enabled-module notifications and advances the watermark once", async () => {
+    await setDigestPreference({ enabled: true, lastDigestSentAt: null });
+    const repository = new NotificationsRepository();
+    const sent: string[] = [];
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "digest:seed" },
+      async (scopedDb) => {
+        await repository.create(scopedDb, { moduleId: "briefings", title: "Briefing ready" });
+        const read = await repository.create(scopedDb, {
+          moduleId: "settings",
+          title: "Already read"
+        });
+        if (read) await repository.markRead(scopedDb, read.id);
+        await repository.create(scopedDb, { moduleId: "settings", title: "Muted settings" });
+      }
+    );
+    await putModule("settings", false);
+
+    const first = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "digest:first" },
+      (scopedDb) =>
+        runNotificationDigestCompose(scopedDb, {
+          baseUrl: "https://jarvis.example.test",
+          notificationsRepository: repository,
+          preferencesRepository: new PreferencesRepository(),
+          notificationPreferencePort: {
+            isModuleEnabled: async (db, moduleId) =>
+              moduleId !== "settings" &&
+              (await new PreferencesRepository().get(db, `notifications:${moduleId}`)) !== false
+          },
+          sender: {
+            sendDigest: async (_scopedDb, input) => {
+              sent.push(input.text);
+              return { ok: true };
+            }
+          }
+        })
+    );
+    const second = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "digest:second" },
+      (scopedDb) =>
+        runNotificationDigestCompose(scopedDb, {
+          baseUrl: "https://jarvis.example.test",
+          notificationsRepository: repository,
+          preferencesRepository: new PreferencesRepository(),
+          sender: { sendDigest: async () => ({ ok: true }) }
+        })
+    );
+
+    expect(first).toEqual({ status: "sent", count: 1 });
+    expect(sent.join("\n")).toContain("Briefing ready");
+    expect(sent.join("\n")).not.toContain("Already read");
+    expect(sent.join("\n")).not.toContain("Muted settings");
+    expect(second).toEqual({ status: "skipped", reason: "empty" });
+  });
+
+  it("does not advance watermark on failed send and never renders secrets or raw payloads", async () => {
+    await setDigestPreference({ enabled: true, lastDigestSentAt: null });
+    const repository = new NotificationsRepository();
+    const sent: string[] = [];
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "digest:secret-seed" },
+      (scopedDb) =>
+        repository.create(scopedDb, {
+          moduleId: "briefings",
+          title: "Safe title",
+          body: "Safe summary",
+          metadata: {
+            accessToken: "SECRET-ACCESS-TOKEN",
+            refreshToken: "SECRET-REFRESH-TOKEN",
+            password: "SECRET-PASSWORD",
+            rawEmailBody: "RAW-PRIVATE-PAYLOAD"
+          }
+        })
+    );
+
+    const failed = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "digest:failed" },
+      (scopedDb) =>
+        runNotificationDigestCompose(scopedDb, {
+          baseUrl: "https://jarvis.example.test",
+          notificationsRepository: repository,
+          preferencesRepository: new PreferencesRepository(),
+          sender: { sendDigest: async () => ({ ok: false }) }
+        })
+    );
+    const retried = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "digest:retried" },
+      (scopedDb) =>
+        runNotificationDigestCompose(scopedDb, {
+          baseUrl: "https://jarvis.example.test",
+          notificationsRepository: repository,
+          preferencesRepository: new PreferencesRepository(),
+          sender: {
+            sendDigest: async (_scopedDb, input) => {
+              sent.push(`${input.text}\n${input.html}`);
+              return { ok: true };
+            }
+          }
+        })
+    );
+
+    expect(failed).toEqual({ status: "failed" });
+    expect(retried).toEqual({ status: "sent", count: 1 });
+    expect(sent.join("\n")).toContain("Safe title");
+    expect(sent.join("\n")).not.toContain("SECRET-ACCESS-TOKEN");
+    expect(sent.join("\n")).not.toContain("SECRET-REFRESH-TOKEN");
+    expect(sent.join("\n")).not.toContain("SECRET-PASSWORD");
+    expect(sent.join("\n")).not.toContain("RAW-PRIVATE-PAYLOAD");
   });
 
   afterEach(async () => {
@@ -181,5 +332,25 @@ describe("notification digest settings", () => {
       payload: { enabled }
     });
     expect(res.statusCode).toBe(200);
+  }
+
+  async function setDigestPreference(input: {
+    enabled: boolean;
+    lastDigestSentAt: Date | null;
+  }): Promise<void> {
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "seed:digest-pref" },
+      (scopedDb) =>
+        new PreferencesRepository().upsert(
+          scopedDb,
+          "notifications:digest",
+          digestPreferenceToRaw({
+            enabled: input.enabled,
+            cadence: "daily",
+            scheduleMetadata: { targetTime: "07:00", timezone: "UTC" },
+            lastDigestSentAt: input.lastDigestSentAt
+          })
+        )
+    );
   }
 });
