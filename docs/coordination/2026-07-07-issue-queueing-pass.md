@@ -1160,3 +1160,10 @@ agent authored one: `docs/superpowers/plans/2026-07-08-email-digest-delivery.md`
 migration (matches spec's preferred `PreferencesRepository` row over a new table), provider
 `sendNew`, digest worker + settings UI. Matches spec's locked decisions. Approved via
 `herdr-pane-message`, confirmed delivered + agent back to `working`. Proceeding to TDD build.
+
+**Build-742 wrap-up reported: DONE.** PR #864, branch `742-email-digest-delivery` pushed +
+rebased on `origin/main`. Self-reported `VF_EXIT=0 AUDIT_EXIT=0`. No deferrals. Per Phase 3 step
+0, re-confirmed own session id (`63c5023b-8368-49da-9f60-e875e7d60d7f`) matches the lock line —
+authoritative to merge. **Not trusting the self-report** — spawned an independent QA agent
+(`coordinated-qa`, routine tier → Sonnet, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_742`)
+against PR #864. Awaiting verdict.
