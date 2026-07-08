@@ -2,11 +2,10 @@
 
 **Date:** 2026-07-07
 **Coordinator lock:** label `Coordinator`, **current session id
-`4456c532-a562-4048-82e3-e5eccec0a535`** (pane `w1:pA8`, tab `w1:t15` at time of writing — resolve
+`2d06024b-ecbf-49a6-9f55-5818b130db40`** (pane `w1:pAB`, tab `w1:t15` at time of writing — resolve
 fresh by label+session, never trust the pane number). Relayed from predecessor session
-`c716ccac-7af8-49d8-96b6-81ed0ae6cc31` (pane `w1:pA7`) — predecessor's relay text confirmed it had
-handed off and was standing by idle; this successor confirmed idle status via bounded pane read
-(5% until auto-compact, no further activity) before reaping (pane closed). Exactly one
+`2504c431-ecdc-4969-ba0e-fe0d5066af0a` (pane `w1:pA9`) — predecessor confirmed idle via bounded
+pane read (51% ctx, empty prompt, no further activity) before reaping (pane closed). Exactly one
 `Coordinator` pane confirmed via `herdr pane list` post-reap.
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
@@ -822,3 +821,24 @@ First candidate for the Codex provider-mix directive once he approves.
   Build-817 (`w1:pAA`). **Successor: start a fresh Monitor for `w1:p9W` + `w1:pAA`.**
 - Relaying now: context meter hit 70% (fired trigger immediately after confirming Build-817's
   pane, no further action taken first per no-deferral rule).
+
+## Successor tenure notes (session `2d06024b-ecbf-49a6-9f55-5818b130db40`)
+
+- Read manifest in full, invoked `coordinate`, re-adopted fleet via `herdr pane list`. Predecessor
+  `2504c431-ecdc-4969-ba0e-fe0d5066af0a` (pane `w1:pA9`) confirmed idle via bounded pane read (at
+  prompt, 51% ctx, no further activity) before reap. Claimed lock, renamed own pane
+  `Coordinator-relay6` → `Coordinator` (`w1:pAB`, tab `w1:t15`), closed predecessor's pane.
+  Verified exactly one `Coordinator` pane via `herdr pane list`.
+- Fleet re-confirmed via `herdr pane list`: **Build-853** (`w1:p9W`, idle, Sonnet, Task 1+2 done,
+  Task 3 not started as of last check) and **Build-817** (`w1:pAA`, working, Codex `gpt-5.5`) —
+  matches manifest exactly, no drift.
+- **Started a fresh liveness `Monitor`** (task `bj7qt3nis`) diffing `herdr pane list` for both
+  `w1:p9W` and `w1:pAA`, emitting only on `agent_status` change. Predecessor's monitor
+  (`bb8pd1v45`) died with its session per protocol.
+- **No reply from Ben yet** on the backlog triage (#818–826, #741–745, #759–760) or on the
+  QA-provider-mixing mechanics ambiguity flagged by the prior tenure — **not acting on either
+  without him.** Also not yet checked whether he's responded on anything else; next action is to
+  check for a reply before doing more.
+- Not yet done this tenure: bounded pane read on Build-853 to refresh its task position (idle
+  per `pane list`, but per prior tenure's caveat, `agent_status` alone shouldn't be trusted for
+  precise task progress — confirm with content when it matters, e.g. before assuming done).
