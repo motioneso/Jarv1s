@@ -1847,3 +1847,10 @@ Status: `building`. Liveness `Monitor` (task `b5ieqzic4`, persistent) added for 
 
 **Fleet now:** Build-853 (`w1:p9W`, idle, Task 3 next) + Build-759 (`w1:pAZ`, building). Two
 persistent liveness monitors running (`btj9yrr0j` for p9W, `b5ieqzic4` for pAZ).
+
+**Build-759 plan approved.** Agent self-reported its own drift check against `origin/main`
+`791ce5e4`: #744 private-mode present in chat-drawer/composer; no chat-model-pill, no
+`forceReplay`, switch route still plain relaunch, admin import/chat-pin UI absent — i.e. exactly
+the greenfield state the plan assumes, no conflicting work landed. Plan matches spec's locked
+decisions, no fork. Approved via `herdr pane run w1:pAZ`; confirmed delivered, agent proceeding
+into TDD build. Weekly Codex quota now 14% left (111K used) — still watching.
