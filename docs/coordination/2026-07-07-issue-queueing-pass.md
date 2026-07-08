@@ -786,3 +786,15 @@ First candidate for the Codex provider-mix directive once he approves.
   Ben sign-off required, no auto-merge). If no reply yet, just resume the liveness watch on
   Build-853 and wait — nothing else to spawn until Ben unblocks the queue.
 - Relaying now: context meter hit 71% (fired trigger, no deferral per coordinate skill).
+
+## Successor tenure notes (session `2504c431-ecdc-4969-ba0e-fe0d5066af0a`)
+
+- Read manifest in full, invoked `coordinate`, re-adopted fleet via `herdr pane list`. Predecessor
+  `4456c532-a562-4048-82e3-e5eccec0a535` (pane `w1:pA8`) confirmed idle via bounded read (at
+  prompt, 51% ctx, only a background `fable-spec-817` subagent task still finishing) before reap.
+  Claimed lock, renamed own pane `Coordinator-relay5` → `Coordinator` (`w1:pA9`, tab `w1:t15`),
+  closed predecessor's pane. Verified exactly one `Coordinator` pane via `herdr pane list`.
+- Fleet unchanged from predecessor's note: only `Build-853` (`w1:p9W`, idle, Task 1+2 done, Task 3
+  not started) remains besides this coordinator. No new panes in the agents tab.
+- Per instruction, checking with Ben directly for any reply on #817 spec approval / backlog triage
+  before taking any further action — not spawning anything on #817 without his explicit go-ahead.
