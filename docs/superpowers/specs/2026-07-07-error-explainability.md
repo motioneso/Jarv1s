@@ -3,9 +3,11 @@
 - **Issue:** #817 (Jarvis should be able to explain user-visible errors)
 - **Brief:** confirmed by Ben 2026-07-07, slug `error-explainability`
 - **Status:** DRAFT — awaiting Ben's approval before `/plan`/`/build`
-- **Proposed tier:** `sensitive` (new cross-cutting data surface; not auth/RLS/secrets, but touches
-  every module's error path and adds a new queryable store) — confirm against the coordinator's
-  tiering table once scope is agreed.
+- **Tier:** `security` (corrected 2026-07-07 during coordinator review — the spec's original
+  self-proposed `sensitive` undersold it: D3 adds a brand-new `FORCE ROW LEVEL SECURITY` table with
+  new policies, which is a mechanical security-tier trigger per the coordinator's tiering table, no
+  downgrade allowed). Gets Opus adversarial QA and Ben's explicit merge sign-off, not just standard
+  QA.
 
 ## Context
 
@@ -95,14 +97,21 @@ the codebase.
   internal_summary, request_id`. `owner_user_id` is nullable for errors that occur before auth is
   established (matches the existing unauthenticated `/api/errors` sink) — unauthenticated errors
   are visible only via a maintenance/service path, never surfaced to any user's chat tool.
-- **D4 — Write path taps the two existing, already-secret-safe call sites.** `setJarvisErrorHandler`
-  (`apps/api/src/error-handling.ts:133`) and `registerClientErrorsRoute`
+- **D4 — Write path taps the two existing call sites, but narrows their fields before persisting.**
+  `setJarvisErrorHandler` (`apps/api/src/error-handling.ts:133`) and `registerClientErrorsRoute`
   (`apps/api/src/error-handling.ts:99`) already construct allowlisted, secret-free structured
-  objects before logging (`err: {message, code, statusCode}` / `clientError: {type, message,
-  stack}`). The new write path reuses those same allowlisted objects — it does not introduce a
-  new place where raw errors are handled, so the existing secrets-never-escape structural
-  guarantee carries over unchanged. `feature`/`operation` are derived from route metadata already
-  available at the error-handler call site (e.g. route pattern → module mapping), not from
+  objects before *logging* (`err: {message, code, statusCode}` / `clientError: {type, message,
+  stack}`). That log-line allowlist is **not** the same as the DB-persistence allowlist — it was
+  designed for the existing `docker compose logs api` trust boundary (host-only, trusted-operator
+  access), and `clientError.stack` is part of it. The new write path is a materially different
+  trust boundary: rows land in a table a chat tool the *end user themselves* can invoke reads from.
+  **`recordError(scopedDb, {...})` (packages/observability/src/write.ts) therefore accepts only
+  `{message, code/type, statusCode, feature, operation, error_category, retryable, user_message,
+  internal_summary, request_id}` — `stack` is dropped at this call boundary and is never a
+  parameter `recordError` accepts, let alone a column `0145_jarvis_error_log.sql` defines.** The
+  existing log-line behavior (which does include `stack`, reaching only `docker compose logs`) is
+  unchanged and out of scope for this spec. `feature`/`operation` are derived from route metadata
+  already available at the error-handler call site (e.g. route pattern → module mapping), not from
   free-text error messages.
 - **D5 — Read path is a chat tool, following the `packages/chat/src/tools.ts` convention.** Same
   shape as `chatListTodaysTurnsExecute`: a `ToolExecute` that calls `assertDataContextDb(scopedDb)`,
@@ -114,11 +123,11 @@ the codebase.
 
 ```
 apps/api error-handling.ts (setJarvisErrorHandler, registerClientErrorsRoute)
-        │  allowlisted {message, code, statusCode} / {type, message, stack}
+        │  narrowed to persistence allowlist — stack dropped here, never passed to recordError
         ▼
 packages/observability  (new)
-  ├─ sql/0145_jarvis_error_log.sql   — table + RLS + purge fn (mirrors 0127 pattern)
-  ├─ src/write.ts                    — recordError(scopedDb, {...}) public API
+  ├─ sql/0145_jarvis_error_log.sql   — table + RLS + purge fn (mirrors 0127 pattern); no stack column
+  ├─ src/write.ts                    — recordError(scopedDb, {...}) public API — stack not a param
   ├─ src/tools.ts                    — errorExplainRecentExecute: ToolExecute
   └─ src/index.ts                    — module registration (public API + tool export)
         │
@@ -148,7 +157,11 @@ on top of existing structured logging, not a replacement.
 - [ ] When no matching error data exists, the tool result makes that explicit (not a guess) and
       names what instrumentation is missing, per #817's acceptance criteria.
 - [ ] Secrets-never-escape: no raw stack trace, request body, header, cookie, or provider payload
-      reaches the chat tool's output — verified by the same kind of structural test #413 used for
-      `error-handling.ts`.
+      reaches the chat tool's output. This needs a **new** test asserting the persistence-level
+      guarantee — that `recordError`'s type signature and `jarvis_error_log`'s schema make it
+      structurally impossible to write a `stack` field, not just that responses don't echo one.
+      #413's existing `error-handling.ts` test only covers response-body leakage and does not
+      already prove this (corrected 2026-07-07 — the original exit criterion overstated its
+      coverage).
 - [ ] Full local gate (`pnpm verify:foundation`) green, including a new migration-list assertion
       update in `foundation.test.ts` for the new migration row.
