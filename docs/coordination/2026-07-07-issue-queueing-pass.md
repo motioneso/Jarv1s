@@ -24,7 +24,9 @@ cap — split is a follow-up, not blocking. **This is QA cycle #4 on PR #865 —
 `QA-865-c4`, isolation worktree, model opus, `JARVIS_PGDATABASE=jarvis_qa_865c4`) — prompt focused
 on the exact recurring pattern across cycles #1-#3 (silent no-op purge leaving disk data while DB
 says purged), verifying #868-scope exclusion, and confirming the new regression test exercises the
-real RPC path (not a mock). Awaiting verdict.
+real RPC path (not a mock). **`QA-865-c4` died to a transient 502 (server-side, inference gateway
+127.0.0.1:8787 per infra note) with no verdict — retried as `QA-865-c4b`, same prompt.** Awaiting
+verdict.
 Restarted liveness Monitor (task `b0b63ubkm`) for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l`
 died at relay per protocol).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
