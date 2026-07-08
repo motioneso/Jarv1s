@@ -1062,6 +1062,44 @@ this relay was the predecessor's, already reflected in the digest above).
 e875e7d60d7f` / label `Coordinator` / pane `w1:pAE` / tab `w1:t15` (resolve fresh, don't trust the
 pane number) until a successor claims Phase 0a and updates that line itself.
 
+## Relay — context 70%, session `63c5023b` handing off
+
+**merges_since_relay: 0** (nothing merged yet this tenure — both PRs still cycling through QA).
+
+**Live fleet at handoff (`herdr pane list`, tab `w1:t1C`):**
+- `Build-853` `w1:p9W` (Claude/Sonnet) — idle, Task 3 "full local gate" not yet started, no PR.
+- `Build-742` `w1:pAF` (Codex/gpt-5.5) — PR #864 (routine), lockfile-drift RED fixed
+  (`918d708a`), **re-QA in flight** (task `a905eda3c6ff635f2` — result not yet returned, do NOT
+  assume its outcome; poll for the notification).
+- `Build-744` `w1:pAG` (Codex/gpt-5.5) — PR #865 (security), QA verdict #1 RED (2 blocking, see
+  section above), findings relayed, agent confirmed `working` on the fix. Failure budget 1/2 —
+  a second RED stops this lane and escalates to Ben.
+
+**Immediate next steps for successor, in order:**
+1. Re-adopt fleet, claim lock (Phase 0a), reap this pane once confirmed relayed.
+2. Check on `a905eda3c6ff635f2` (Build-742 re-QA) — if a notification already landed, act on it
+   (merge if GREEN per Ben's standing instruction below; relay if RED, failure budget already at
+   1/2 so a second RED stops the lane). If not landed, just keep watching.
+3. Watch `w1:pAG` (Build-744) for its fix-done report → spawn **Opus** re-QA on PR #865 → on
+   GREEN, merge directly (no pause, see standing instruction) + log to digest; on RED, this is the
+   2nd failure, **stop the lane and escalate to Ben** per failure-budget rule, do not attempt a
+   3rd cycle unilaterally.
+4. Provider-mix: 2/3 Codex slots used (Build-742, Build-744). Wave 2 (`#759`) is the 3rd Codex
+   slot, spawns after `#744` merges. Wave 3 (`#760`) reverts to Sonnet, spawns after `#759`
+   merges — re-verify highest migration on `origin/main` immediately before that spawn.
+5. Nudge Build-853 (idle, no visible progress on Task 3) with a bounded read; it's been idle
+   across multiple checks now — worth a direct message if still stalled.
+6. Backlog triage (#818–826 minus #742/#744/#759/#760, #741/#743/#745) — still no reply from Ben,
+   still don't act on it without him.
+
+**Standing instruction (Ben, this tenure, carries forward):** "I approve merges after any review
+errors fixed" — once a QA verdict is GREEN (prior REDs fixed + re-verified), merge without a
+separate pause-and-ask, **including security tier**. Still log every merge to the standing
+per-merge digest at the top of this file.
+
+**Coordinator lock:** update the line at the top of this file to the new session id/pane/tab the
+moment Phase 0a is claimed.
+
 ## Standing instruction — merge sign-off (Ben, this tenure)
 
 Ben: **"i approve merges after any review errors fixed."** Read as standing pre-approval for this
@@ -1179,8 +1217,21 @@ self-report and not auto-merging under any circumstance.** Spawned **Opus** adve
 (`coordinated-qa`, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_744`), explicitly prompted to
 hunt partial-cleanup paths, crash/kill mid-session residue, and reaper/explicit-end races against
 the spec's zero-residual-trace invariant; must post its verdict durably via `gh pr comment` before
-returning. Awaiting verdict — will surface to Ben for merge sign-off regardless of outcome
-(security tier never auto-merges).
+returning. **QA verdict #1 on PR #865: RED (Opus).** Posted durably:
+https://github.com/motioneso/Jarv1s/pull/865#issuecomment-4911937518. CI green; 2 BLOCKING: (1)
+`chat-session-manager.ts reconcileLiveSessions` — API/cli-runner restart drops the in-memory
+incognito session + kills the mux engine but never calls `purgeTranscripts()`/`deleteThread()`; no
+boot sweep exists → plaintext transcript JSONL + orphaned incognito `chat_threads` row persist
+forever after a routine `docker compose up -d` restart. Violates spec's zero-durable-artifacts
+invariant. (2) `chat-drawer.tsx`/`use-chat-stream.ts` — no "private chat ended" dead-engine state
+after restart/crash; SSE silently reconnects into a fresh context-free engine while the private
+banner still shows. Invariants/RLS/secrets/module-isolation all OK; gap is narrowly the
+process-restart/crash residue path (untested + unimplemented). **Failure budget: 1/2.** Relayed
+full findings to Build-744 via `herdr-pane-message`, confirmed delivered + agent back to
+`working`. Re-QA (Opus again, security tier) once it reports the fix.
+
+**Merge policy note:** Ben's standing instruction above (`db95c4a1`) means once re-QA on #865
+comes back GREEN, merge directly — no separate pause-and-ask needed, still log to digest.
 
 **Build-742 wrap-up reported: DONE.** PR #864, branch `742-email-digest-delivery` pushed +
 rebased on `origin/main`. Self-reported `VF_EXIT=0 AUDIT_EXIT=0`. No deferrals. Per Phase 3 step
