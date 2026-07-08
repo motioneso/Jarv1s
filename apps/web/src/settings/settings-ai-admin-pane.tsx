@@ -24,6 +24,7 @@ import {
   listAiProviders,
   lookupAiCapabilityRoute,
   patchCapabilityTierPreference,
+  putAiCapabilityRoute,
   putAdminChatModelOverrideEnabled,
   revokeAiProvider,
   testAiProvider,
@@ -583,6 +584,7 @@ function ProviderCard(props: {
 function RouterRow(props: {
   readonly capability: { k: AiModelCapability; name: string; desc: string };
   readonly tierPreference: AiModelTier | undefined;
+  readonly models?: readonly AiConfiguredModelDto[];
 }) {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
@@ -604,8 +606,28 @@ function RouterRow(props: {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const pinMutation = useMutation({
+    mutationFn: (modelId: string | null) => putAiCapabilityRoute(props.capability.k, { modelId }),
+    onSuccess: () => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.capability.k) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.chatModelOverride })
+      ]);
+      toast("Capability route updated", { icon: <GitCommitHorizontal size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
   const resolvedModel = routeQuery.data?.route?.model ?? null;
   const currentTier: AiModelTier = props.tierPreference ?? "interactive";
+  const compatibleModels = (props.models ?? []).filter(
+    (model) =>
+      model.status === "active" &&
+      model.providerStatus === "active" &&
+      model.capabilities.includes(props.capability.k)
+  );
+  const pinValue =
+    routeQuery.data?.route?.reason === "manual-route" ? (resolvedModel?.id ?? "") : "";
 
   return (
     <div className="rt">
@@ -626,6 +648,21 @@ function RouterRow(props: {
             </option>
           ))}
         </Select>
+        {props.capability.k === "chat" ? (
+          <Select
+            value={pinValue}
+            aria-label="Pinned chat model"
+            disabled={pinMutation.isPending || routeQuery.isLoading}
+            onChange={(event) => pinMutation.mutate(event.target.value || null)}
+          >
+            <option value="">Tier fallback</option>
+            {compatibleModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.providerDisplayName} · {model.providerModelId}
+              </option>
+            ))}
+          </Select>
+        ) : null}
         {resolvedModel ? (
           <div className="rt__resolved">{resolvedModel.providerModelId}</div>
         ) : (
@@ -878,6 +915,7 @@ export function AiProvidersPane() {
               key={capability.k}
               capability={capability}
               tierPreference={tierPrefsQuery.data?.preferences[capability.k]}
+              models={models}
             />
           ))}
         </Group>

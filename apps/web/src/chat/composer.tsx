@@ -19,6 +19,7 @@ import { ConnectProviderEmpty } from "./connect-provider-empty";
  * mechanism every other AI feature uses to know a provider is configured+healthy).
  */
 export function Composer(props: {
+  readonly modelSelector?: React.ReactNode;
   readonly readOnly: boolean;
   readonly isFounder: boolean;
   readonly initialText?: string;
@@ -144,6 +145,7 @@ export function Composer(props: {
 
   return (
     <div className="chatd__composer">
+      {props.modelSelector ? <div className="chatd__modelrow">{props.modelSelector}</div> : null}
       {props.needsProvider ? <ConnectProviderEmpty isFounder={props.isFounder} /> : null}
       {props.lockedModelUnavailable ? (
         <p className="chatd-lock-warn">

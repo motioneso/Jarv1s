@@ -46,6 +46,7 @@ import type {
 } from "@jarv1s/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { ActionRequestCard } from "./action-request-card";
+import { ChatModelPill } from "./chat-model-pill";
 import { Composer } from "./composer";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
@@ -322,6 +323,10 @@ export function ChatDrawer(props: {
     void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
   };
 
+  const switchToNewModelChat = () => {
+    startNewChat();
+  };
+
   const startPrivateChat = () => {
     setReviewThreadId(null);
     setShowHistory(false);
@@ -528,6 +533,13 @@ export function ChatDrawer(props: {
       </div>
 
       <Composer
+        modelSelector={
+          <ChatModelPill
+            disabled={reviewing || privateEnded || isSending}
+            privateMode={privateMode}
+            onCrossProviderSwitch={switchToNewModelChat}
+          />
+        }
         readOnly={reviewing || privateEnded}
         isFounder={props.isFounder}
         initialText={props.initialText}

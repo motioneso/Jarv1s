@@ -1,16 +1,3 @@
-/**
- * ChatSessionManager — the per-user live-session orchestrator.
- *
- * This is the integration core of the live chat runtime: it owns at most ONE
- * live CLI engine per user, lazily launching it, replaying the user's prior
- * conversation turns into a freshly-spawned or provider-switched engine, fanning
- * transcript records out to subscribers (multi-tab), persisting completed turns,
- * and reaping idle engines.
- *
- * Every side-effect is injected (engine factory, persistence/provider-routing,
- * persona filesystem, clock) so the orchestration logic is unit-testable without
- * a real tmux session, Postgres, or disk. Task 8 supplies the real adapters.
- */
 import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
@@ -42,7 +29,10 @@ export interface ChatPersistencePort {
     actorUserId: string
   ): Promise<{ provider: ProviderKind; model: string; executionMode?: AiProviderExecutionMode }>;
   /** Prior stored turns split into recent verbatim turns + older rolling summary. */
-  listPriorTurns(actorUserId: string): Promise<{
+  listPriorTurns(
+    actorUserId: string,
+    opts?: { readonly forceReplay?: boolean }
+  ): Promise<{
     recent: readonly { role: "user" | "assistant"; content: string }[];
     oldSummary: string | null;
   }>;
@@ -283,14 +273,18 @@ export class ChatSessionManager {
    * conversation's prior turns as seed context. One engine per user; concurrent
    * calls share a single launch.
    */
-  async ensureSession(actorUserId: string, userName: string): Promise<UserSession> {
+  async ensureSession(
+    actorUserId: string,
+    userName: string,
+    opts?: { readonly forceReplay?: boolean }
+  ): Promise<UserSession> {
     const existing = this.sessions.get(actorUserId);
     if (existing) return existing;
 
     const inFlight = this.launching.get(actorUserId);
     if (inFlight) return inFlight;
 
-    const launch = this.launchSession(actorUserId, userName);
+    const launch = this.launchSession(actorUserId, userName, opts);
     this.launching.set(actorUserId, launch);
     try {
       return await launch;
@@ -299,7 +293,11 @@ export class ChatSessionManager {
     }
   }
 
-  private async launchSession(actorUserId: string, userName: string): Promise<UserSession> {
+  private async launchSession(
+    actorUserId: string,
+    userName: string,
+    opts?: { readonly forceReplay?: boolean }
+  ): Promise<UserSession> {
     const { provider, model, executionMode } =
       await this.deps.persistence.resolveActiveProvider(actorUserId);
     const persona =
@@ -337,7 +335,7 @@ export class ChatSessionManager {
     // provider-switched engine continues seamlessly.
     const [threadState, { recent: recentTurns, oldSummary }] = await Promise.all([
       this.deps.persistence.getCurrentThreadState?.(actorUserId),
-      this.deps.persistence.listPriorTurns(actorUserId)
+      this.deps.persistence.listPriorTurns(actorUserId, { forceReplay: opts?.forceReplay })
     ]);
     const replayParts: string[] = [];
     if (memorySeed) replayParts.push(memorySeed);
@@ -708,7 +706,7 @@ export class ChatSessionManager {
       this.sessions.delete(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
     }
-    await this.ensureSession(actorUserId, userName);
+    await this.ensureSession(actorUserId, userName, { forceReplay: true });
   }
 
   /**
