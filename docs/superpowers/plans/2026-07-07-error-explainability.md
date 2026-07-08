@@ -39,6 +39,7 @@
 ## Task 1: Schema + DB Types
 
 **Files:**
+
 - Create: `packages/ai/sql/0145_jarvis_error_log.sql`
 - Modify: `packages/db/src/types.ts`
 - Modify: `packages/ai/src/manifest.ts`
@@ -245,6 +246,7 @@ git commit -m "feat(ai): add error log schema"
 ## Task 2: Repository + Security Tests
 
 **Files:**
+
 - Modify: `packages/ai/src/repository.ts`
 - Create: `tests/integration/error-log.test.ts`
 
@@ -320,19 +322,21 @@ describe("jarvis error log", () => {
   });
 
   it("rejects a stack field structurally", async () => {
-    await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "req-stack" }, (scopedDb) =>
-      repo.recordError(scopedDb, {
-        id: randomUUID(),
-        feature: "client",
-        operation: "POST /api/errors",
-        errorCategory: "client_error",
-        retryable: false,
-        userMessage: "The page hit an error",
-        internalSummary: "Client reported react_error",
-        requestId: "req-stack",
-        // @ts-expect-error stack is intentionally not accepted at the persistence boundary.
-        stack: "Error: secret"
-      })
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-stack" },
+      (scopedDb) =>
+        repo.recordError(scopedDb, {
+          id: randomUUID(),
+          feature: "client",
+          operation: "POST /api/errors",
+          errorCategory: "client_error",
+          retryable: false,
+          userMessage: "The page hit an error",
+          internalSummary: "Client reported react_error",
+          requestId: "req-stack",
+          // @ts-expect-error stack is intentionally not accepted at the persistence boundary.
+          stack: "Error: secret"
+        })
     );
   });
 
@@ -521,6 +525,7 @@ git commit -m "feat(ai): record structured error events"
 ## Task 3: Assistant Tool
 
 **Files:**
+
 - Create: `packages/ai/src/error-tools.ts`
 - Modify: `packages/ai/src/manifest.ts`
 - Modify: `packages/ai/src/index.ts`
@@ -534,17 +539,19 @@ Append to `tests/integration/error-log.test.ts`:
 import { aiExplainRecentErrorsExecute } from "@jarv1s/ai";
 
 it("assistant tool returns bounded recent matching errors", async () => {
-  await dataContext.withDataContext({ actorUserId: ids.userA, requestId: "req-tool-seed" }, (scopedDb) =>
-    repo.recordError(scopedDb, {
-      id: randomUUID(),
-      feature: "sports",
-      operation: "GET /api/sports/scores",
-      errorCategory: "upstream_provider_unavailable",
-      retryable: true,
-      userMessage: "Scores are temporarily unavailable for some leagues",
-      internalSummary: "Provider returned partial league data",
-      requestId: "req-tool-seed"
-    })
+  await dataContext.withDataContext(
+    { actorUserId: ids.userA, requestId: "req-tool-seed" },
+    (scopedDb) =>
+      repo.recordError(scopedDb, {
+        id: randomUUID(),
+        feature: "sports",
+        operation: "GET /api/sports/scores",
+        errorCategory: "upstream_provider_unavailable",
+        retryable: true,
+        userMessage: "Scores are temporarily unavailable for some leagues",
+        internalSummary: "Provider returned partial league data",
+        requestId: "req-tool-seed"
+      })
   );
 
   const result = await dataContext.withDataContext(
@@ -581,7 +588,8 @@ it("assistant tool says when no diagnostic data exists", async () => {
 
   expect(result.data).toEqual({
     errors: [],
-    message: "No matching structured error data was found. The feature may not have emitted instrumentation for this error yet."
+    message:
+      "No matching structured error data was found. The feature may not have emitted instrumentation for this error yet."
   });
 });
 ```
@@ -641,7 +649,8 @@ export const aiExplainRecentErrorsExecute: ToolExecute = async (
   return {
     data: {
       errors: errors.map((row) => ({
-        occurredAt: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : String(row.occurred_at),
+        occurredAt:
+          row.occurred_at instanceof Date ? row.occurred_at.toISOString() : String(row.occurred_at),
         feature: row.feature,
         operation: row.operation,
         errorCategory: row.error_category,
@@ -675,7 +684,7 @@ assistantTools: [
     },
     execute: aiExplainRecentErrorsExecute
   }
-]
+];
 ```
 
 Add to `packages/ai/src/index.ts`:
@@ -703,6 +712,7 @@ git commit -m "feat(ai): expose recent error explanation tool"
 ## Task 4: API Write Path
 
 **Files:**
+
 - Modify: `apps/api/src/error-handling.ts`
 - Modify: `apps/api/src/server.ts`
 - Modify: `tests/unit/api-error-handling.test.ts`
@@ -825,31 +835,36 @@ Update function signatures:
 export function registerClientErrorsRoute(
   server: FastifyInstance,
   options: ClientErrorsRouteOptions = {}
-): void
+): void;
 
 export function setJarvisErrorHandler(
   server: FastifyInstance,
   options: JarvisErrorHandlerOptions = {}
-): void
+): void;
 ```
 
 Inside `registerClientErrorsRoute`, after the existing log line:
 
 ```ts
-await options.recordClientError?.(
-  {
-    feature: "client",
-    operation: "POST /api/errors",
-    errorCategory: "client_error",
-    retryable: false,
-    userMessage: payload.message.slice(0, MAX_CLIENT_MESSAGE_CHARS),
-    internalSummary: `Client reported ${payload.type}`,
-    requestId: request.id
-  },
-  request
-).catch((recordError) => {
-  request.log.error({ err: String(recordError), reqId: request.id }, "failed to persist client error");
-});
+await options
+  .recordClientError?.(
+    {
+      feature: "client",
+      operation: "POST /api/errors",
+      errorCategory: "client_error",
+      retryable: false,
+      userMessage: payload.message.slice(0, MAX_CLIENT_MESSAGE_CHARS),
+      internalSummary: `Client reported ${payload.type}`,
+      requestId: request.id
+    },
+    request
+  )
+  .catch((recordError) => {
+    request.log.error(
+      { err: String(recordError), reqId: request.id },
+      "failed to persist client error"
+    );
+  });
 ```
 
 Inside `setJarvisErrorHandler`, after the existing log line and before sending the response:
@@ -857,20 +872,25 @@ Inside `setJarvisErrorHandler`, after the existing log line and before sending t
 ```ts
 const operation = `${request.method} ${request.routeOptions.url ?? request.url.split("?")[0] ?? request.url}`;
 const errorCategory = statusCode >= 500 ? "http_5xx" : "http_4xx";
-void options.recordRequestError?.(
-  {
-    feature: "api",
-    operation,
-    errorCategory,
-    retryable: statusCode >= 500,
-    userMessage: statusCode < 500 ? message : "Internal Server Error",
-    internalSummary: `Request failed with status ${statusCode}`,
-    requestId: request.id
-  },
-  request
-).catch((recordError) => {
-  request.log.error({ err: String(recordError), reqId: request.id }, "failed to persist request error");
-});
+void options
+  .recordRequestError?.(
+    {
+      feature: "api",
+      operation,
+      errorCategory,
+      retryable: statusCode >= 500,
+      userMessage: statusCode < 500 ? message : "Internal Server Error",
+      internalSummary: `Request failed with status ${statusCode}`,
+      requestId: request.id
+    },
+    request
+  )
+  .catch((recordError) => {
+    request.log.error(
+      { err: String(recordError), reqId: request.id },
+      "failed to persist request error"
+    );
+  });
 ```
 
 - [ ] **Step 3: Wire server composition**
@@ -922,7 +942,10 @@ registerClientErrorsRoute(server, {
         })
       );
     } catch {
-      request.log.warn({ reqId: request.id }, "skipped error persistence after auth resolution failed");
+      request.log.warn(
+        { reqId: request.id },
+        "skipped error persistence after auth resolution failed"
+      );
     }
   }
 });
@@ -967,6 +990,7 @@ git commit -m "feat(api): persist safe error diagnostics"
 ## Task 5: Final Verification
 
 **Files:**
+
 - All touched files.
 
 - [ ] **Step 1: Re-index code graph**

@@ -9,9 +9,7 @@ function request(headers: Record<string, string | undefined>): FastifyRequest {
 
 describe("hasAuthMaterial", () => {
   it("detects bearer or cookie auth material", () => {
-    expect(hasAuthMaterial(request({ authorization: "Bearer abc", cookie: undefined }))).toBe(
-      true
-    );
+    expect(hasAuthMaterial(request({ authorization: "Bearer abc", cookie: undefined }))).toBe(true);
     expect(hasAuthMaterial(request({ authorization: undefined, cookie: "sid=abc" }))).toBe(true);
   });
 

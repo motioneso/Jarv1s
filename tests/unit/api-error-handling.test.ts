@@ -22,10 +22,12 @@ import {
 
 const SECRET_MARKERS = ["hunter2", "postgres://u:p@host/db", "BETTER_AUTH_SECRET"];
 
-function makeServer(options: {
-  readonly clientErrors?: ClientErrorsRouteOptions;
-  readonly errorHandler?: JarvisErrorHandlerOptions;
-} = {}): FastifyInstance {
+function makeServer(
+  options: {
+    readonly clientErrors?: ClientErrorsRouteOptions;
+    readonly errorHandler?: JarvisErrorHandlerOptions;
+  } = {}
+): FastifyInstance {
   const server = Fastify({ logger: false });
   registerClientErrorsRoute(server, options.clientErrors);
   setJarvisErrorHandler(server, options.errorHandler);
