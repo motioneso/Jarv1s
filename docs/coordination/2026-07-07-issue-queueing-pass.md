@@ -1306,6 +1306,36 @@ leaves nothing on disk," fails via a *different* path each time, which reads as 
 mechanism being incompletely wired into the engine lifecycle rather than one bug away from
 correct). Build-744 (`w1:pAG`) parked idle pending Ben's direction.
 
+**Ben's decision: hand this fix to a Fable 5 agent** (not Codex, not another Codex cycle). Actions
+taken this tenure before hitting the 70% context-meter relay trigger:
+- Messaged old Build-744 (Codex, `w1:pAG`) to stand down — confirmed "Understood, stopping here" —
+  then closed that pane. Worktree confirmed clean (only the untracked handoff doc) before handoff.
+- Wrote handoff addendum: `docs/coordination/handoffs/2026-07-08-744-fable-rpc-purge-fix.md`
+  (commit `7f982faa`) — full context on the RPC-verb gap, task list (add real `purgeTranscripts` RPC
+  verb client+server, add a test against the REAL RPC path not `FakeEngine`, optional Codex
+  per-session tightening, gate+push+report). Points back at the original
+  `2026-07-08-744-private-chat-mode.md` handoff for spec/tier/bans/collision notes, which still
+  apply unchanged.
+- **NOT YET DONE — successor's first action:** actually spawn the Fable 5 agent. Pattern (adapt
+  from the coordinate skill's Phase 1 spawn, using `--model fable` instead of `--model sonnet`):
+  ```
+  herdr agent start "Build-744" --tab w1:<agents-tab> --cwd ~/Jarv1s/.claude/worktrees/744-private-chat-mode --no-focus \
+    -- claude --model fable --permission-mode bypassPermissions \
+    "Read docs/coordination/handoffs/2026-07-08-744-fable-rpc-purge-fix.md IN FULL, then the doc it
+    points back to, then follow it via the coordinated-build skill's build-only portion (plan
+    already approved historically — this is a fix on an already-open PR, not a fresh feature — skip
+    straight to implementing the task list, TDD as usual, then coordinated-wrap-up). Begin now."
+  ```
+  Confirm the pane says **Fable 5** (or `claude-fable-5`) after spawn — herdr's Claude default is
+  Opus, and this run's model policy default is Sonnet, so an unspecified `--model` would boot the
+  wrong model either way; `--model fable` must be explicit. Record the new pane id in the fleet
+  table below once spawned (old `w1:pAG` is stale/closed).
+- When Fable reports done: this is **QA cycle #4** on PR #865. Spawn Opus `coordinated-qa` again
+  (security tier), prompt it to specifically verify (a) the RPC verb is exercised by a real (non-
+  fake-engine) test, (b) purge actually happens end-to-end through the RPC path now, (c) nothing
+  else regressed. Failure budget: treat this as a fresh 1/2 (Ben explicitly authorized this new
+  attempt via a model change, distinct from a straight retry).
+
 **Merge policy note:** Ben's standing instruction above (`db95c4a1`) means once re-QA on #865
 comes back GREEN, merge directly — no separate pause-and-ask needed, still log to digest.
 
