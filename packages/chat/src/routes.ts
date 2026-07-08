@@ -89,6 +89,8 @@ import {
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
+import { registerChatSkillsRoutes } from "./skills/routes.js";
+import { ChatSkillsRepository } from "./skills/repository.js";
 
 const STALE_ACTION_GRACE_MS = 5 * 60_000;
 
@@ -97,6 +99,7 @@ export interface ChatRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
   readonly repository?: ChatRepository;
+  readonly skillsRepository?: ChatSkillsRepository;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly resolveActiveModules?: ActiveModulesResolver;
@@ -154,6 +157,7 @@ export function registerChatRoutes(
   dependencies: ChatRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new ChatRepository();
+  const skillsRepository = dependencies.skillsRepository ?? new ChatSkillsRepository();
   const chatSettingsRepo = new PreferencesRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();
@@ -323,6 +327,15 @@ export function registerChatRoutes(
       resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
     }
   });
+
+  registerChatSkillsRoutes(
+    server,
+    {
+      resolveAccessContext: dependencies.resolveAccessContext,
+      dataContext: dependencies.dataContext
+    },
+    skillsRepository
+  );
 
   server.get(
     "/api/chat/threads",

@@ -15,6 +15,10 @@ export interface CreateSkillInput {
   readonly source: ChatSkillSource;
 }
 
+function jsonb(value: unknown) {
+  return sql<Record<string, unknown>>`${JSON.stringify(value)}::jsonb`;
+}
+
 export interface UpdateSkillInput {
   readonly name?: string;
   readonly description?: string | null;
@@ -31,7 +35,7 @@ export class ChatSkillsRepository {
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         name: input.name,
         description: input.description ?? null,
-        frontmatter: input.frontmatter ?? {},
+        frontmatter: jsonb(input.frontmatter ?? {}),
         body: input.body,
         source: input.source
       })
@@ -72,7 +76,7 @@ export class ChatSkillsRepository {
     const updates: Record<string, unknown> = { updated_at: new Date() };
     if (input.name !== undefined) updates["name"] = input.name;
     if (input.description !== undefined) updates["description"] = input.description;
-    if (input.frontmatter !== undefined) updates["frontmatter"] = input.frontmatter;
+    if (input.frontmatter !== undefined) updates["frontmatter"] = jsonb(input.frontmatter);
     if (input.body !== undefined) updates["body"] = input.body;
     const row = await scopedDb.db
       .updateTable("app.chat_skills")

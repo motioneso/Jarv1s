@@ -100,7 +100,7 @@ describe("ChatSkillsRepository", () => {
     // Each create runs in its own withDataContext call (own transaction) so updated_at
     // timestamps are distinct — within one transaction now() ties, making ordering
     // among equal timestamps arbitrary instead of exercising the real ordering rule.
-    const older = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
+    await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
       repo.create(scopedDb, { name: "Older Enabled", body: "b1", source: "authored" })
     );
     const disabled = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
@@ -114,13 +114,17 @@ describe("ChatSkillsRepository", () => {
     );
 
     // All three rows belong to otherUserId; enabled ones first (newest updated first), then disabled.
-    const list = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) => repo.list(scopedDb));
+    const list = await dataContext.withDataContext(ctx(otherUserId), (scopedDb) =>
+      repo.list(scopedDb)
+    );
     const names = list.map((s) => s.name);
     expect(names.indexOf("Newer Enabled")).toBeLessThan(names.indexOf("Older Enabled"));
     expect(names.indexOf("Older Enabled")).toBeLessThan(names.indexOf("Disabled"));
 
     // Owner scoping: userId's list must not contain otherUserId's rows.
-    const userList = await dataContext.withDataContext(ctx(userId), (scopedDb) => repo.list(scopedDb));
+    const userList = await dataContext.withDataContext(ctx(userId), (scopedDb) =>
+      repo.list(scopedDb)
+    );
     expect(userList.some((s) => s.id === disabled.id)).toBe(false);
   });
 

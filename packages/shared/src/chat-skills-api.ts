@@ -62,7 +62,7 @@ const chatSkillSchema = {
     ownerUserId: { type: "string" },
     name: { type: "string" },
     description: { anyOf: [{ type: "string" }, { type: "null" }] },
-    frontmatter: { type: "object" },
+    frontmatter: { type: "object", additionalProperties: true },
     body: { type: "string" },
     enabled: { type: "boolean" },
     source: { type: "string", enum: CHAT_SKILL_SOURCES },

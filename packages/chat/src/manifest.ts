@@ -42,7 +42,12 @@ export const chatModuleManifest = {
       "sql/0149_chat_skills.sql"
     ],
     migrationDirectories: ["packages/chat/sql"],
-    ownedTables: ["app.chat_threads", "app.chat_messages", "app.chat_user_memory_settings"]
+    ownedTables: [
+      "app.chat_threads",
+      "app.chat_messages",
+      "app.chat_user_memory_settings",
+      "app.chat_skills"
+    ]
   },
   navigation: [
     {
@@ -139,7 +144,14 @@ export const chatModuleManifest = {
       permissionId: "chat.view"
     },
     { method: "POST", path: "/api/mcp", permissionId: "chat.message" },
-    { method: "POST", path: "/internal/permission", permissionId: "chat.message" }
+    { method: "POST", path: "/internal/permission", permissionId: "chat.message" },
+    { method: "GET", path: "/api/chat/skills", permissionId: "chat.view" },
+    { method: "GET", path: "/api/chat/skills/:id", permissionId: "chat.view" },
+    { method: "POST", path: "/api/chat/skills", permissionId: "chat.message" },
+    { method: "PATCH", path: "/api/chat/skills/:id", permissionId: "chat.message" },
+    { method: "PATCH", path: "/api/chat/skills/:id/enabled", permissionId: "chat.message" },
+    { method: "DELETE", path: "/api/chat/skills/:id", permissionId: "chat.message" },
+    { method: "POST", path: "/api/chat/skills/import", permissionId: "chat.message" }
   ],
   assistantTools: [
     {
