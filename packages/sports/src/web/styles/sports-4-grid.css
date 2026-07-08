@@ -12,7 +12,7 @@
 /* Followed-teams section head (Task B / ticker note, Ben 2026-07-07): restores a titled head on
    the strip and pulls Manage down out of the masthead folio (which Ben cleared). Label uses the
    same sans section-head voice as the Standings rail head so the two grid sections read alike;
-   Manage keeps the mono-caps utility voice the folio Manage had. Baseline row + thin rule under. */
+   Manage is a lighter muted secondary link in that same sans face. Baseline row + thin rule under. */
 .sp-ticker__head {
   display: flex;
   align-items: baseline;
@@ -29,10 +29,13 @@
   color: var(--text);
 }
 .sp-ticker__manage {
+  /* Ben 2026-07-08 (/sports annotation #4): the label and this link are the SAME family
+     (--font-sans), but uppercasing + caps-tracking made them read as "two different fonts"
+     on one line. Drop the caps treatment so it's plainly the same font — just a lighter,
+     muted secondary link sitting companionably beside the bold heading. */
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-caps);
+  font-size: var(--text-sm);
+  font-weight: 600;
   color: var(--text-muted);
   text-decoration: none;
   white-space: nowrap;
@@ -358,12 +361,10 @@
   gap: var(--space-2);
   min-width: 0;
 }
-/* Serif-strip experiment (Ben 2026-07-07): with the serif masthead nameplate gone, try /sports
-   fully non-serif again. The three .sp-feat display slots (team name, lead headline, matchup)
-   move from serif to --font-display (bold Helvetica-Neue Swiss, same face as the masthead event +
-   hero) — keeps editorial weight, drops the news-feel serif. Reversible if the page loses too
-   much warmth. NOTE: the serif amendment (display serif allowed on /sports) is on hold pending
-   Ben's verdict here; the dead .sp-mast__brand serif rule is deleted at wrap-up. */
+/* The three .sp-feat display slots (team name, lead headline, matchup) are set in --font-display
+   (bold Swiss, same face as the masthead + hero) for editorial weight. Since 2026-07-08
+   --font-display aliases --font-sans's exact stack (see tokens.css) so these never diverge from
+   the score/body font on non-Mac devices — the "out of place" clash Ben flagged (/sports #1). */
 .sp-feat__name {
   margin: 0;
   flex: 1;
@@ -381,6 +382,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  /* Reserve the row height even when empty (Ben 2026-07-08 /sports annotation #2) so the lead /
+     news block starts at the same y on every card across the four-up strip — teams with no
+     standing or form (many leagues) no longer collapse this row and shove their news up. ~20px
+     matches a form-pip's box (11px text + 4px pad + 2px border ≈ 17px) with a little breathing. */
+  min-height: 1.25rem;
 }
 .sp-feat__standing {
   font-family: var(--font-sans);
@@ -392,7 +398,7 @@
   text-overflow: ellipsis;
 }
 .sp-feat__lead {
-  font-family: var(--font-display); /* serif-strip experiment — see .sp-feat__name note above */
+  font-family: var(--font-display);
   font-size: var(--text-lg);
   line-height: var(--leading-snug);
   color: var(--text);
@@ -423,7 +429,7 @@
 }
 .sp-feat__matchup {
   margin: 0;
-  font-family: var(--font-display); /* serif-strip experiment — see .sp-feat__name note above */
+  font-family: var(--font-display);
   font-size: var(--text-lg);
   line-height: var(--leading-snug);
   color: var(--text);

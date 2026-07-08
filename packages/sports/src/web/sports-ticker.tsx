@@ -262,16 +262,17 @@ function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
           <Crest name={card.name} crestUrl={card.crestUrl} size="sm" />
           <h3 className="sp-feat__name">{card.name}</h3>
         </div>
-        {standingIsSane(card) || card.form.length > 0 ? (
-          <div className="sp-feat__sub">
-            {standingIsSane(card) ? (
-              <span className="sp-feat__standing">{card.standing}</span>
-            ) : null}
-            <FormPips form={card.form} />
-          </div>
-        ) : null}
-        {/* Headline slot: a live/final score reads as the lede in mono tabular; otherwise the
-            lead story headline carries it, set in the desk serif at display size. */}
+        {/* Always render the sub row — even when a team has no standing OR form — so its fixed
+            height is reserved on every card and the news/lead below lines up across the four-up
+            strip regardless of league (Ben 2026-07-08 /sports annotation #2: "reserve this space
+            for all teams/leagues so the news sections line up, even if there's nothing to draw
+            from"). The standing chip and form pips stay conditional INSIDE the reserved row. */}
+        <div className="sp-feat__sub">
+          {standingIsSane(card) ? <span className="sp-feat__standing">{card.standing}</span> : null}
+          <FormPips form={card.form} />
+        </div>
+        {/* Headline slot: a live/final score reads as the lede in tabular figures; otherwise the
+            lead story headline carries it, set in the display face. */}
         {showNews ? (
           lead ? (
             <a className="sp-feat__lead" href={lead.url} target="_blank" rel="noreferrer">

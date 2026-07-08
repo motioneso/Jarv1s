@@ -2,6 +2,7 @@ import "./styles/sports-1.css";
 import "./styles/sports-3.css";
 import "./styles/sports-4-grid.css";
 import "./styles/sports-5-editorial.css";
+import "./styles/sports-6-newsband.css";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { GameSide, Headline, OverviewHero, SportsOverviewResponse } from "@jarv1s/shared";

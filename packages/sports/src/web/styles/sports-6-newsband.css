@@ -1,0 +1,249 @@
+/* Sports broadsheet — NewsBand section (#839 task 9), split out of sports-5-editorial.css
+   on 2026-07-08 to stay under the 1000-line file-size gate. Imported immediately after
+   sports-5 so the cascade order is unchanged (this was the last section of that file). */
+
+/* News band: blurbed league headlines with a league filter (#839 task 9). */
+.sp-newsband {
+  border-top: 2px solid var(--border-strong);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+}
+.sp-newsband__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.sp-newsband__filter {
+  max-width: 160px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+/* Feature story (live feedback mrb47x3h): the band's single biggest story breaks the column
+   grid — full-width split of art beside a display-size headline, closed by a rule before the
+   league columns. Earned only by a heavy story (followed team + art), so quiet days open
+   straight with the columns and the slot stays meaningful. */
+.sp-newsband__feature {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: center;
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.sp-newsband__featurebody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.sp-newsband__featurekicker {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.sp-newsband__title--feature {
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+  font-weight: var(--weight-black);
+}
+.sp-newsband__blurb--feature {
+  font-size: var(--text-md);
+  -webkit-line-clamp: 3;
+}
+/* Cross-league mosaic (live feedback mrb5reqq, supersedes the mrb0wd68 one-column-per-league
+   sections): stories from every league flow into one grid in weight order, so slot size tracks
+   how big the story is instead of every league getting an identical lead/short/brief ration.
+   Fixed track count (not auto-fit) because major stories span two tracks. dense flow lets
+   single-column standards backfill the holes a span leaves behind. */
+.sp-newsband__mosaic {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  gap: var(--space-5) var(--space-6);
+}
+.sp-newsband__art {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  /* Per-story top rule replaces the old vertical column rules — a hairline that works no
+     matter how the spans land in the grid. */
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+}
+/* Every mosaic cell carries its own league tag now that the per-league section headers are
+   gone (mrb5reqq) — same mono kicker voice as the feature's. */
+.sp-newsband__artkicker {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.sp-newsband__img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+/* Feature art frame (Ben 2026-07-08 /sports annotation #6): a fixed 16/9 plate so the column
+   layout stays put whatever the image's real pixels are. A true story photo fills it edge-to-edge
+   (cover); a small ESPN logo/crest — which pixelates when stretched to the column width — is
+   centered at its NATURAL size on the plate and never enlarged (--logo, set by the onLoad probe
+   in FeatureArticle). The frame owns the ratio + corner radius the bare img used to carry. */
+.sp-newsband__imgframe {
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.sp-newsband__imgframe .sp-newsband__img--feature {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: cover;
+  border-radius: 0;
+}
+.sp-newsband__imgframe--logo .sp-newsband__img--feature {
+  /* max-width/height cap the crest to the plate while width/height:auto keep it at its own pixel
+     size — so a 200px logo renders crisp and centered instead of upscaled, yet anything larger
+     than the frame still shrinks to fit. */
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  padding: var(--space-5);
+}
+.sp-newsband__title {
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  margin: 0;
+}
+.sp-newsband__blurb {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Major tier (mrb5reqq "some could span two columns"): double-column slot, display-size
+   headline, an extra blurb line. Earned by weight + art — see the caps in sports-news.tsx. */
+.sp-newsband__art--major {
+  grid-column: span 2;
+}
+.sp-newsband__art--major .sp-newsband__title {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+}
+.sp-newsband__art--major .sp-newsband__blurb {
+  -webkit-line-clamp: 3;
+}
+/* Longform: a major that is a WRITTEN article (mrb5reqq "more text (especially if they are a
+   written article)") — the clamp opens up to a real paragraph instead of a teaser. */
+.sp-newsband__art--longform .sp-newsband__blurb {
+  -webkit-line-clamp: 6;
+}
+.sp-newsband__more {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+/* Combined brief rail (mrb5reqq): the per-league "In brief" clusters merge into one
+   full-width rail under the mosaic; CSS columns wrap the tail like agate type. */
+.sp-newsband__briefs {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-5);
+  padding-top: var(--space-2);
+}
+.sp-newsband__briefslabel {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.sp-newsband__brieflist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 3;
+  column-gap: var(--space-6);
+  column-rule: 1px solid var(--border-subtle);
+}
+.sp-newsband__brief {
+  padding: var(--space-1) 0;
+  /* keep an item's hairline + text in one column */
+  break-inside: avoid;
+}
+.sp-newsband__brief + .sp-newsband__brief {
+  border-top: 1px solid var(--border-subtle);
+}
+.sp-newsband__brieflink {
+  color: inherit;
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.sp-newsband__brieflink:hover {
+  text-decoration: underline;
+}
+/* League tag inline before the headline — the section header the briefs used to sit under */
+.sp-newsband__brieftag {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  margin-right: var(--space-2);
+}
+/* Mosaic narrows track-by-track; majors keep their double span until the grid itself is
+   two tracks wide (span 2 = full row), then everything stacks single-column. */
+@media (max-width: 1100px) {
+  .sp-newsband__mosaic {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .sp-newsband__mosaic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sp-newsband__brieflist {
+    columns: 2;
+  }
+}
+@media (max-width: 720px) {
+  .sp-newsband__mosaic {
+    grid-template-columns: 1fr;
+  }
+  .sp-newsband__art--major {
+    grid-column: auto;
+  }
+  /* Feature stacks art-over-text on narrow screens (mrb47x3h). */
+  .sp-newsband__feature {
+    grid-template-columns: 1fr;
+  }
+  .sp-newsband__brieflist {
+    columns: 1;
+  }
+}
