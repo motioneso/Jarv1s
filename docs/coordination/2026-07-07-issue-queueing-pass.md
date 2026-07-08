@@ -1,15 +1,16 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `b4c88569-498f-4d81-974f-e528977c4848` / label `Coordinator` / pane
-`w1:pAM` / tab `w1:t15` — claimed 2026-07-08 from predecessor `197683fe-7804-4e9c-a26a-a7593255a913`
-(confirmed idle/relayed via bounded read — "My tenure's handoff is complete" — before reap; its
-pane `w1:pAK` closed). Resolve fresh by label+session, never trust the pane number.
-**✅ Action item #0 DONE — Fable 5 build agent spawned for PR #865's RPC-purge-verb fix.** It has
-since relayed THREE times before writing any code (Fable-865 → r2 → r3, see checkpoint sections
-below). **⚠️ Successor's #0 action item now: find/confirm Fable-865-r3's successor (#4), reap r3,
-THEN escalate the 3x-zero-code-relay pattern to Ben** — not yet done as of this relay, see the
-"SUPERSEDED" note under the `b4c88569` tenure section.
+**Coordinator lock:** now `b3b8d840-0a4d-444a-9120-a4bf9797325f` / label `Coordinator` / pane
+`w1:pAS` / tab `w1:t15` — claimed 2026-07-08 from predecessor `b4c88569-498f-4d81-974f-e528977c4848`
+(confirmed idle at its prompt via bounded read before reap; its pane `w1:pAM` closed). Resolve
+fresh by label+session, never trust the pane number. **This tenure hit its own 70%+ context-meter
+warning immediately on re-adoption (72% before any fleet action) — did minimum Phase 0a + the
+in-flight action items below, then relayed with no further action.** See the bottom-of-file
+checkpoint (session `b3b8d840`) for full state and the successor's first actions.
+**✅ Action item #0 DONE — Fable-865 lane now on its 4th agent (r4), actively writing code** (see
+bottom checkpoint). Escalation to Ben about the 3x-zero-code-relay + Opus-not-Fable substitution
+was sent this tenure (chat, not yet acknowledged as of this write).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
 Ben's explicit merge sign-off.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
@@ -1633,4 +1634,77 @@ compaction is eating the budget before real work starts).
   --no-focus` — now in `w1:t1C` alongside Build-853. **Pattern note:** Fable 5 relay-spawns appear
   to default into the wrong tab consistently (2/2 so far this fix) — future coordinator tenures on
   this run should expect to fix tab placement on every Fable relay, not just check for it.
+
+## Relay checkpoint (session `b3b8d840-0a4d-444a-9120-a4bf9797325f`, own context 72%+ on arrival)
+
+Claimed the lock from `b4c88569-498f-4d81-974f-e528977c4848` (pane `w1:pAM`, confirmed idle at its
+prompt via bounded read, closed). Renamed own pane `Coordinator-r2` → `Coordinator` (`w1:pAS`, tab
+`w1:t15`). Verified exactly one `Coordinator` pane via `herdr pane list`. **The PostToolUse
+context-meter hook fired a 72% warning on the very first tool call this tenure** — the full
+1637-line manifest read alone consumed most of the budget. Per no-deferral policy, did the
+in-flight action items from the predecessor's checkpoint ONLY, then relayed immediately — no
+further fleet supervision attempted this tenure.
+
+**Action items completed this tenure:**
+1. **Fable-865-r4 found** (predecessor had already messaged this in before I needed to search):
+   label `Fable-865-r4`, session `a58d1640-875e-4791-8183-3899c1dfd060`, pane `w1:pAR`, branch/cwd
+   `744-private-chat-mode`. Verified driving via my own bounded pane read (not taken on
+   self-report): actively working a 3-task TDD list (purgeTranscripts RPC verb, ordering fix,
+   regression test), none checked off yet but genuinely mid-tool-use.
+   **⚠️ Model: Opus 4.8, not Fable 5** — per predecessor's note, r3 judged this acceptable
+   (design settled, security tier still gated by adversarial QA + Ben sign-off) rather than trigger
+   a 4th relay-before-code cycle. I accepted that judgment and did not respawn.
+2. **Tab hygiene fixed** — r4 had landed in `w1:t17` again (3rd consecutive instance of this
+   drift). Moved to `w1:t1C`: `herdr pane move w1:pAR --tab w1:t1C --split down --target-pane
+   w1:p9W --no-focus`. Confirmed via the move result — now alongside Build-853 and (briefly)
+   Fable-865-r3.
+3. **Reaped Fable-865-r3** (`w1:pAQ`, session `4e095edd-7cc2-47d2-b8f6-30bbed8d9764`) — confirmed
+   idle at an empty prompt via bounded read (model Fable 5, 53% ctx, zero tasks completed) before
+   closing.
+4. **Escalated to Ben in chat** (not a pane message) the 3x-zero-code-relay pattern on PR #865
+   plus the new Opus-not-Fable model substitution, per the explicit instruction to do this before
+   any further action on that lane. Framed informationally, not blocking — r4 is now writing real
+   code. **Not yet acknowledged by Ben as of this checkpoint.**
+5. **Re-adopted Build-853** (`w1:p9W`) via bounded pane read. **New finding, not in any prior
+   checkpoint:** its pane shows a compaction recap reading *"I've relayed to a successor session
+   (Build-853-next) to finish the gate and open the PR... Next: it runs the full test/lint gate
+   then opens the PR for coordinator QA."* — but `herdr pane list` (checked twice this tenure,
+   most recently right before this write) shows **no `Build-853-next` pane anywhere** and `w1:p9W`
+   itself still carries the **original session id `2e85563b-b1e6-4828-9e21-48fa4cfccff8`**, status
+   `idle`, TaskList showing Task 3 ("full local gate") not started, 3/4 tasks done. **This is
+   contradictory and UNRESOLVED — did not have budget to dig further.** Two readings:
+   (a) the recap text is describing a stale/hypothetical plan from before a compaction, not an
+   action actually taken (no distinct successor session id appears anywhere in `pane list`), or
+   (b) a successor really was spawned somewhere I haven't found (different workspace/tab, or still
+   spawning). **Successor's first action on this lane: re-run `herdr pane list`, and if no
+   `Build-853-next`-labeled pane exists, do a fresh bounded read of `w1:p9W` to get its actual
+   current task position before assuming anything — do not trust the recap text alone, and do not
+   assume Build-853 is further along than the last independently-confirmed state (Task 1+2 done,
+   Task 3 not started).**
+6. **Restarted the liveness Monitor** (task `b1t3lij76`, this tenure) for `w1:p9W` (Build-853) and
+   `w1:pAR` (Fable-865-r4, now in `w1:t1C`) — diffs `herdr pane list` for those two pane ids,
+   emits only on change. **Dies with this session at relay — successor must start its own** per
+   protocol.
+
+**Fleet at handoff:**
+- **#853** — security tier, `w1:p9W`, label Build-853, session `2e85563b-...`, idle. Contradictory
+  recap re: a possible `Build-853-next` successor — see finding #5 above, UNRESOLVED, first action
+  for successor. When it reports done (whichever session actually does): Opus adversarial QA →
+  mandatory `gh pr comment` verdict → Ben's explicit sign-off. Never auto-merge.
+- **PR #865** (Fable-865 lane, `744-private-chat-mode`, security tier) — `w1:pAR`, label
+  Fable-865-r4, session `a58d1640-...`, tab `w1:t1C`, **Opus 4.8** (not Fable 5, accepted per r3's
+  judgment), actively writing code (3-task TDD list, 0/3 done as of last read). This is the first
+  of the four Fable/successor sessions on this lane to write actual product code. Escalation to
+  Ben sent this tenure — no further action needed on that unless he responds with a different
+  call (e.g. respawn on Fable 5 anyway).
+- **#663, #854** — no change, already resolved in prior tenures (see earlier sections): #663
+  closed as duplicate, #854 merged (PR #856).
+
+**merges_since_relay:** unchanged at 1 (nothing merged this tenure; carried from `c716ccac`
+tenure — routine-tier #854/PR #856. Threshold is 2 routine/sensitive merges, not yet reached;
+relaying solely on the context-meter trigger).
+
+**Coordinator lock:** now `b3b8d840-0a4d-444a-9120-a4bf9797325f` / label `Coordinator` / pane
+`w1:pAS` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
+Phase 0a and updates this line itself.
 - **merges_since_relay:** unchanged at 1 (no merge action this event).
