@@ -1,31 +1,20 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07 (session continuing 2026-07-08)
-**Coordinator lock:** STALE — was `7dbdd81d-fe53-43ba-aac2-1a9bb989efc1` / pane `w1:pBB` / tab
-`w1:t15`, relaying now at context 70%. Successor claims the lock in `w1:t15`; resolve fresh by
-label+session, never trust a pane number.
-
-**CONTINUATION — do this FIRST:** `Build-760i` (session unknown, spawned this tenure, pane was
-`w1:pBH`) landed in the **wrong tab** — `w1:t15`, which is this coordinator's OWN tab (forbidden;
-only a relay successor may spawn there). The agents tab `w1:t1C` was auto-removed when its last
-two panes (`Build-760g`, `Build-760h`) were closed simultaneously — closing the last pane in a
-tab removes the tab. Successor: (1) `herdr pane list`, resolve `Build-760i` fresh by label; (2)
-`herdr pane move <pane> --new-tab --workspace w1` then rename that tab appropriately (or move
-into an existing agents tab if one still exists — check first); (3) bounded pane read to confirm
-it says **Sonnet** (spawned with `--model sonnet` explicitly, should be correct, but verify — a
-sibling attempt this tenure, Build-760h, leaked Opus via herdr's self-relay default despite the
-build-agent-is-always-Sonnet policy); (4) confirm it's actually reading
-`docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-10.md` and resuming Task 5 TDD;
-(5) once confirmed healthy, update this manifest's fleet block with the new pane/tab and drop this
-CONTINUATION block.
+**Coordinator lock:** now `d3c0adce-dee1-41d6-aa91-5a89181ca575` / label `Coordinator` / pane
+`w1:pBJ` / tab `w1:t15` — claimed this tenure. Predecessor `7dbdd81d-fe53-43ba-aac2-1a9bb989efc1`
+(pane `w1:pBB`) reaped after fresh label+session resolution (see reap note below). Resolve fresh
+by label+session, never trust a pane number.
 
 **Fleet:**
 - **#853 auth-signup-atomicity: MERGED.** PR #875 squash-merged `a519bc88`. Opus adversarial QA
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760i** (pane TBD after successor fixes tab placement — see CONTINUATION above) — chain:
-  760c→d→e→f→g→h→i. Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
+- **Build-760i** — pane `w1:pBH`, tab `w1:t1D` (label "agents"; moved out of the coordinator's own
+  tab `w1:t15` this tenure, confirmed running **Sonnet 5**, 63% context, actively on Task 5 — pure
+  fns done, now "Wire composer.tsx to skill autocomplete + invocation"). Chain: 760c→d→e→f→g→h→i.
+  Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
   grounding/design phase), handoff `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-
   relay-10.md` commit `c50891b0` has full Task5 pure-fn design + confirmed evening-mode.tsx file-
   map correction (no separate input, shared Composer/ChatDrawer covers it). Its successor
