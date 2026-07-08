@@ -203,6 +203,7 @@ export function registerChatRoutes(
       : null;
 
   const runtime = createChatSessionRuntime({
+    rootDb: dependencies.rootDb,
     dataContext: dependencies.dataContext,
     engineFactory: dependencies.chatEngineFactory,
     // #342 (§3.5): only select the engine ourselves when no explicit factory was injected (tests/host
@@ -787,6 +788,7 @@ function serializeThread(thread: ChatThread): ChatThreadDto {
     id: thread.id,
     ownerUserId: thread.owner_user_id,
     title: thread.title,
+    incognito: thread.incognito,
     createdAt: toIsoString(thread.created_at),
     updatedAt: toIsoString(thread.updated_at)
   };

@@ -7,7 +7,7 @@
  * turn is 401, and that the manager subscription is strictly per-actor (no
  * cross-user transcript leakage).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 import Fastify from "fastify";
 
@@ -392,6 +392,33 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
 
       expect(response.statusCode).toBe(429);
       expect(response.json<{ error: string }>().error).toBe("Too many open chat streams.");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("POST /api/chat/private/end ends the authenticated actor's private session", async () => {
+    const endPrivateSession = vi.fn().mockResolvedValue(undefined);
+    const app = Fastify({ logger: false });
+    registerChatLiveRoutes(app, {
+      resolveAccessContext: async () => userAContext(),
+      runtime: {
+        resolveUserName: async () => "User A",
+        manager: { endPrivateSession }
+      } as never
+    });
+    await app.ready();
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/chat/private/end",
+        headers: { "content-type": "text/plain" },
+        payload: ""
+      });
+
+      expect(response.statusCode).toBe(204);
+      expect(endPrivateSession).toHaveBeenCalledWith(ids.userA);
     } finally {
       await app.close();
     }

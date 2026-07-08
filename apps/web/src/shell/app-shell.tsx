@@ -90,7 +90,7 @@ export function AppShell(props: AppShellProps) {
   const openChat = useCallback(() => setChatOpen(true), []);
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
-  const { records, clearRecords } = useChatStream();
+  const { records, clearRecords, streamErrorCount } = useChatStream();
   const navSections = useMemo(
     () => buildShellNavigation(props.modules, props.disabledModuleIds ?? []),
     [props.modules, props.disabledModuleIds]
@@ -237,6 +237,7 @@ export function AppShell(props: AppShellProps) {
         }}
         records={records}
         clearRecords={clearRecords}
+        streamErrorCount={streamErrorCount}
         isFounder={props.me.user.isBootstrapOwner}
         initialText={askJarvisStarter}
       />

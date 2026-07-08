@@ -14,6 +14,7 @@
  *   POST /api/chat/turn    { text }  → { reply }   submit one user turn
  *   POST /api/chat/turn/cancel      → 200          stop the in-flight turn (#456)
  *   POST /api/chat/clear             → 204         reset history + new conversation
+ *   POST /api/chat/private/end       → 204         end private session bookkeeping
  *   POST /api/chat/switch            → 200         re-launch on the now-active provider
  *   GET  /api/chat/stream            → SSE         live transcript records for the actor
  *
@@ -142,6 +143,30 @@ export function registerChatLiveRoutes(
           incognito ? { incognito: true } : undefined
         );
 
+        return reply.code(204).send();
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
+    }
+  );
+
+  server.post(
+    "/api/chat/private/end",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
+
+      try {
+        await runtime.manager.endPrivateSession(access.actorUserId);
         return reply.code(204).send();
       } catch (error) {
         return handleLiveRouteError(error, reply);

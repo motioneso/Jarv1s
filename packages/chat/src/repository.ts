@@ -29,6 +29,7 @@ export class ChatRepository {
     return scopedDb.db
       .selectFrom("app.chat_threads")
       .selectAll()
+      .where("incognito", "=", false)
       .orderBy("last_active_at", "desc")
       .orderBy("id")
       .execute();
@@ -188,6 +189,9 @@ export class ChatRepository {
     if (!thread) {
       return undefined;
     }
+    if (thread.incognito) {
+      return undefined;
+    }
 
     const now = new Date();
     const userMessage = await this.insertMessage(scopedDb, {
@@ -253,5 +257,10 @@ export class ChatRepository {
       .where("id", "=", threadId)
       .returningAll()
       .executeTakeFirst();
+  }
+
+  async deleteThread(scopedDb: DataContextDb, threadId: string): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db.deleteFrom("app.chat_threads").where("id", "=", threadId).execute();
   }
 }

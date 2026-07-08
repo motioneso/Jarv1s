@@ -689,6 +689,14 @@ export async function clearChat(options?: { incognito?: boolean }): Promise<void
   await requestJson<unknown>(url, { method: "POST" });
 }
 
+export async function endPrivateChat(): Promise<void> {
+  await requestJson<unknown>("/api/chat/private/end", { method: "POST" });
+}
+
+export function beaconEndPrivateChat(): void {
+  navigator.sendBeacon?.("/api/chat/private/end", "");
+}
+
 export async function resumeChat(threadId: string): Promise<void> {
   await requestJson<unknown>(`/api/chat/threads/${encodeURIComponent(threadId)}/resume`, {
     method: "POST"

@@ -93,6 +93,60 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(io.run).toHaveBeenCalledWith("rm", ["-rf", "/tmp/neutral-kill"]);
   });
 
+  it("purgeTranscripts removes Claude's per-session transcript directory", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "private-claude", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/private-neutral",
+      personaPath: "/tmp/persona.txt"
+    });
+
+    await engine.purgeTranscripts();
+
+    expect(io.run).toHaveBeenCalledWith("rm", [
+      "-rf",
+      "/host-home/.claude/projects/-tmp-private-neutral"
+    ]);
+  });
+
+  it("purgeTranscripts removes only the resolved Codex session file from the shared day directory", async () => {
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("openai-compatible", "private-codex", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/private-neutral",
+      personaPath: "/tmp/persona.txt"
+    });
+
+    io.run.mockImplementation(async (cmd: string) => {
+      if (cmd === "ls")
+        return { code: 0, stdout: "rollout-mine.jsonl\nrollout-other.jsonl\n", stderr: "" };
+      return { code: 0, stdout: "", stderr: "" };
+    });
+    io.readFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("rollout-mine.jsonl")) {
+        return JSON.stringify({
+          type: "session_meta",
+          payload: { cwd: "/tmp/private-neutral", timestamp: new Date().toISOString() }
+        });
+      }
+      return JSON.stringify({
+        type: "session_meta",
+        payload: { cwd: "/tmp/other-neutral", timestamp: new Date().toISOString() }
+      });
+    });
+
+    await engine.readNew(0);
+    await engine.purgeTranscripts();
+
+    const rmCalls = io.run.mock.calls.filter((call: unknown[]) => call[0] === "rm");
+    expect(rmCalls).toContainEqual(["rm", ["-f", expect.stringContaining("rollout-mine.jsonl")]]);
+    expect(JSON.stringify(rmCalls)).not.toContain("rollout-other.jsonl");
+  });
+
   it("passes --model <id> on the claude launch line for a concrete model override (#367)", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("anthropic", "model-session", io);

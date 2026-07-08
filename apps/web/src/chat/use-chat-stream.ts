@@ -78,8 +78,10 @@ function isChatRecordKind(value: string): value is ChatRecordKind {
 export function useChatStream(): {
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
+  readonly streamErrorCount: number;
 } {
   const [records, setRecords] = useState<readonly TranscriptRecord[]>([]);
+  const [streamErrorCount, setStreamErrorCount] = useState(0);
 
   const clearRecords = useCallback(() => setRecords([]), []);
 
@@ -105,11 +107,20 @@ export function useChatStream(): {
       }
     };
 
-    // EventSource auto-reconnects on transient errors; nothing extra to do here.
+    source.onerror = () => setStreamErrorCount((count) => count + 1);
+
     return () => source.close();
   }, []);
 
-  return { records, clearRecords };
+  return { records, clearRecords, streamErrorCount };
+}
+
+export function shouldEndPrivateChatOnStreamDisconnect(input: {
+  readonly privateMode: boolean;
+  readonly privateEnded: boolean;
+  readonly streamErrorCount: number;
+}): boolean {
+  return input.privateMode && !input.privateEnded && input.streamErrorCount > 0;
 }
 
 export function parseRecord(data: unknown): TranscriptRecord | null {
