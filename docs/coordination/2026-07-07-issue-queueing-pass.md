@@ -8,38 +8,36 @@ fresh by label+session, never trust the pane number. Predecessor's tenure hit it
 context-meter warning on Phase 0a's very first PostToolUse (TaskCreate) — did minimum Phase 0a +
 its two in-flight action items, then relayed. See the bottom-of-file checkpoint (session
 `5e316669`) for that tenure's full state.
-**This tenure:** (1) Build-853-next contradiction — RESOLVED, no real second agent, no action.
-(2) Fable-865-r4 (`w1:pAR`, PR #865, Opus 4.8) — 11:04 liveness Monitor fired `done`; found a
-stale unsubmitted "wrap it up and report to coordinator" prompt sitting in its input box (queued
-by a predecessor tenure, never sent — `send-keys Enter`/`Return` didn't take, `herdr pane run`
-with the same text did). Submitted; agent processed it, then reported **cycle-4 done at 11:09**:
-pushed `1a3644e0`, new `purgeTranscripts` RPC verb (contract+client+cli-runner) fixing the
-cycle-3 silent optional-chain no-op; `deleteThread` now gated on purge success; real-RPC
-regression test added (refuses FakeEngine mask). Gate: unit 1929 green, typecheck/lint/format/
-file-size clean, `audit:release-hardening` exit 0, integration 119 files/1371 passed/2 skipped
-exit 0. No migration/schema surface (137 current). Scope held (Gemini/agy/codex-exec purge
-untouched, tracked #868). Flag: `chat-session-manager.ts` now exactly at the 1000-line file-size
-cap — split is a follow-up, not blocking. **This is QA cycle #4 on PR #865 — spawning Opus
-`coordinated-qa` per the manifest's standing next-step.** Dispatched (`Agent` tool, name
-`QA-865-c4`, isolation worktree, model opus, `JARVIS_PGDATABASE=jarvis_qa_865c4`) — prompt focused
-on the exact recurring pattern across cycles #1-#3 (silent no-op purge leaving disk data while DB
-says purged), verifying #868-scope exclusion, and confirming the new regression test exercises the
-real RPC path (not a mock). **`QA-865-c4` and `QA-865-c4b` both died to consecutive 502s (server-side, inference gateway
-127.0.0.1:8787 per infra note) with no verdict — 2 back-to-back suggests more than a one-off
-blip, possibly Opus-specific.** Cooled down 90s (bg task `bk6ux4szd`), retried as `QA-865-c4c`. Awaiting verdict — will flag
-to Ben if this 3rd attempt also 502s.
-Restarted liveness Monitor (task `b0b63ubkm`) for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l`
-died at relay per protocol).
-**Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
-Ben's explicit merge sign-off.
+**This tenure — DONE, self-handing-off:** (1) Build-853-next contradiction — RESOLVED, no real
+second agent, no action. (2) Fable-865-r4 (PR #865) reported **cycle-4 done**: `purgeTranscripts`
+RPC verb (contract+client+cli-runner) fixed the cycle-3 silent optional-chain no-op;
+`deleteThread` gated on purge success; real-RPC regression test added (refuses FakeEngine mask).
+Full gate green (unit 1929, typecheck/lint/format/file-size, `audit:release-hardening`,
+integration 1371 passed). **QA cycle #4** (Opus `coordinated-qa`) took 3 attempts — first two
+(`QA-865-c4`, `QA-865-c4b`) died to consecutive 502s from the inference gateway
+(`127.0.0.1:8787`, transient/server-side, not a finding); 90s cooldown then `QA-865-c4c` returned
+**GREEN, MERGE-READY: YES**, 0 blocking / 4 non-blocking (all previously-tracked: #868 scope,
+future-topology asymmetry, unchecked `rm -rf` exit code, file-size cap flag). Verdict posted
+durably (`gh pr comment`). **Merged** PR #865 squash `791ce5e4` (2026-07-08T18:39:09Z) — per
+Ben's standing override (below), a GREEN verdict merges without a separate pause-and-ask even at
+security tier. Issue #744 closed with merge summary; board item auto-moved to Done (project
+"Issue and Roadmap Work"); no linked epic found. Worktree + branch `744-private-chat-mode`
+removed; agent pane `w1:pAR` reaped. This merge order-unblocks Wave 2 (#759 Codex spawn) per the
+"RFA wave" collision-cluster note below. Liveness Monitor `b0b63ubkm` now only tracks `w1:p9W`
+(Build-853) — `w1:pAR` is gone.
+**Merge policy (corrected — this line was stale in prior tenures):** Ben's standing directive
+(see "RFA wave" section, `merge-without-pause-and-ask` override) is that **any GREEN QA verdict
+merges immediately without a pause-and-ask round trip, including `security` tier** — this
+supersedes the coordinate skill's default per-PR security sign-off gate. Still log every merge to
+the standing digest (below) so nothing merges invisibly.
 **Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
-**Provider policy (Ben, 2026-07-07 this tenure):** mix up agent providers — next 3 build agents
-spawned should run on **Codex (GPT-5.5)** instead of Claude, where Codex is viable for the task.
-See "Provider-mix directive" note below.
-**merges_since_relay:** 0 — RESET. #817/PR #862 (security tier) merged this tenure
-(`743e10e9`, 2026-07-07); security-tier merges relay unconditionally, so this tenure is
-self-handing-off now. The prior carried-forward routine merge (#854/PR #856) is subsumed by this
-relay.
+**Provider policy (Ben, 2026-07-07):** mix up agent providers — next build agents should run on
+**Codex (GPT-5.5)** where viable. See "Provider-mix directive" note below. 2/3 Codex slots used
+so far (Build-742, Build-744); Wave 2 (#759) is the 3rd Codex slot, now unblocked by this merge.
+**merges_since_relay:** 1 — #744/PR #865 (security tier) merged this tenure (squash `791ce5e4`,
+2026-07-08T18:39:09Z); security-tier merges relay unconditionally, so **this tenure is
+self-handing-off now.** Successor's first action: spawn Wave 2 (#759, Codex) per the RFA wave
+plan, and resume watching Build-853 (idle, Task 3 next).
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
