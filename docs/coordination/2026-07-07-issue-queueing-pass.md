@@ -842,3 +842,28 @@ First candidate for the Codex provider-mix directive once he approves.
 - Not yet done this tenure: bounded pane read on Build-853 to refresh its task position (idle
   per `pane list`, but per prior tenure's caveat, `agent_status` alone shouldn't be trusted for
   precise task progress — confirm with content when it matters, e.g. before assuming done).
+
+### Incident — Build-817 blocked, spec missing from its worktree (resolved this tenure)
+
+**Root cause:** this coordinator's own worktree runs on branch `coord/settings-host-cleanup`
+(225 commits ahead of `origin/main`, never pushed). Every #817 spec commit
+(`7964a3e2`/`862ca777`/`fb694973`) was made **only on this local unpushed branch**. Build-817's
+worktree was correctly cut `off origin/main @ eafb6ae5` per protocol — so it genuinely never had
+the spec file; this was not a build-agent or handoff-doc error. Confirmed via
+`git cat-file -e origin/main:docs/superpowers/specs/2026-07-07-error-explainability.md` → not
+found; file exists on this coordinator's `HEAD` only.
+
+**Fix applied:** copied the approved spec (verified byte-identical, status APPROVED/tier
+security) directly into the `817-error-explainability` worktree and committed it there
+(`c964132d`, on top of the existing handoff commit `3e826d49`). Messaged Build-817's pane
+(`w1:pAA`) with the explanation; confirmed via bounded pane read it resumed working
+(`gpt-5.5 medium`).
+
+**Flag for successors / Ben:** this is a structural gap, not a one-off — *any* doc this
+coordinator authors (specs, handoffs, manifest) lives only on this unpushed branch until
+someone merges it. Every future build-agent worktree cut from `origin/main` will be missing
+whatever spec/handoff was authored here unless it's copied in by hand (as done above) or this
+branch gets merged/pushed. Worth raising with Ben: should `docs/superpowers/specs/` and
+`docs/coordination/` be pushed to `origin/main` (or a shared branch all worktrees fetch) on a
+tighter cadence, instead of staying local-only to whichever worktree the coordinator happens to
+be running in?
