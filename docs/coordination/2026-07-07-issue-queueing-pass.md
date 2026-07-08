@@ -12,8 +12,15 @@ its two in-flight action items, then relayed. See the bottom-of-file checkpoint 
 (2) Fable-865-r4 (`w1:pAR`, PR #865, Opus 4.8) — 11:04 liveness Monitor fired `done`; found a
 stale unsubmitted "wrap it up and report to coordinator" prompt sitting in its input box (queued
 by a predecessor tenure, never sent — `send-keys Enter`/`Return` didn't take, `herdr pane run`
-with the same text did). Submitted; agent now processing the wrap-up. Watching for its
-done/PR-ready report next.
+with the same text did). Submitted; agent processed it, then reported **cycle-4 done at 11:09**:
+pushed `1a3644e0`, new `purgeTranscripts` RPC verb (contract+client+cli-runner) fixing the
+cycle-3 silent optional-chain no-op; `deleteThread` now gated on purge success; real-RPC
+regression test added (refuses FakeEngine mask). Gate: unit 1929 green, typecheck/lint/format/
+file-size clean, `audit:release-hardening` exit 0, integration 119 files/1371 passed/2 skipped
+exit 0. No migration/schema surface (137 current). Scope held (Gemini/agy/codex-exec purge
+untouched, tracked #868). Flag: `chat-session-manager.ts` now exactly at the 1000-line file-size
+cap — split is a follow-up, not blocking. **This is QA cycle #4 on PR #865 — spawning Opus
+`coordinated-qa` per the manifest's standing next-step.**
 Restarted liveness Monitor (task `b0b63ubkm`) for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l`
 died at relay per protocol).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
