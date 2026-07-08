@@ -1570,3 +1570,26 @@ successor in the same worktree/branch, confirmed it driving, and requested reap.
 - Restarted the liveness Monitor to track `w1:p9W` (Build-853) + `w1:pAP` (Fable-865-r2, replaces
   `w1:pAN`).
 - **merges_since_relay:** unchanged at 1 (no merge action this event).
+
+### Fable-865-r2 relayed too — second consecutive zero-code relay, watch item
+
+**Fable-865-r2** relayed again at its own 70% meter, triggered by a compaction-inflated start
+(its own words: "hit 70% meter after compaction, BEFORE code"). Grounding + design work is now
+genuinely COMPLETE and settled — relay doc `docs/superpowers/handoffs/2026-07-08-744-rpc-purge-relay.md`
+(commit `21bb9151`) has a "successor-#2 delta" section resolving the one open design question: the
+engine-less purge path is confirmed to be the NORMAL RPC path, not a special case. **No product
+code has been written across two full relay cycles on this fix (Fable-865 → r2 → r3)** — flagging
+as a watch item, not yet a stop-the-line: if **r3 also relays before writing code**, escalate to
+Ben (possible sign the addendum's task is mis-scoped for a single agent context budget, or repeated
+compaction is eating the budget before real work starts).
+
+- Verified successor **Fable-865-r3** (`w1:pAQ`, session `4e095edd-7cc2-47d2-b8f6-30bbed8d9764`)
+  via bounded pane read: actively working ("Tinkering…"), model **Fable 5**, correct
+  branch/worktree. Reaped predecessor `w1:pAP` (label `Fable-865-r2`, session
+  `bf11eeff-f9bb-4609-b0e4-03070a72975e`).
+- **Tab hygiene — same drift a second time:** Fable-865-r3 again spawned into `w1:t17` (Ben's
+  personal tab). Moved: `herdr pane move w1:pAQ --tab w1:t1C --split down --target-pane w1:p9W
+  --no-focus` — now in `w1:t1C` alongside Build-853. **Pattern note:** Fable 5 relay-spawns appear
+  to default into the wrong tab consistently (2/2 so far this fix) — future coordinator tenures on
+  this run should expect to fix tab placement on every Fable relay, not just check for it.
+- **merges_since_relay:** unchanged at 1 (no merge action this event).
