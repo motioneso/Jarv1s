@@ -26,8 +26,8 @@ on the exact recurring pattern across cycles #1-#3 (silent no-op purge leaving d
 says purged), verifying #868-scope exclusion, and confirming the new regression test exercises the
 real RPC path (not a mock). **`QA-865-c4` and `QA-865-c4b` both died to consecutive 502s (server-side, inference gateway
 127.0.0.1:8787 per infra note) with no verdict — 2 back-to-back suggests more than a one-off
-blip, possibly Opus-specific.** Cooling down 90s (bg task `bk6ux4szd`) before a 3rd attempt rather
-than hammering it; will flag to Ben if a 3rd consecutive failure occurs. Awaiting verdict.
+blip, possibly Opus-specific.** Cooled down 90s (bg task `bk6ux4szd`), retried as `QA-865-c4c`. Awaiting verdict — will flag
+to Ben if this 3rd attempt also 502s.
 Restarted liveness Monitor (task `b0b63ubkm`) for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l`
 died at relay per protocol).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
