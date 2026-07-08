@@ -9,7 +9,11 @@ context-meter warning on Phase 0a's very first PostToolUse (TaskCreate) — did 
 its two in-flight action items, then relayed. See the bottom-of-file checkpoint (session
 `5e316669`) for that tenure's full state.
 **This tenure:** (1) Build-853-next contradiction — RESOLVED, no real second agent, no action.
-(2) Fable-865-r4 (`w1:pAR`, PR #865, Opus 4.8) — unchanged, actively writing code, watching only.
+(2) Fable-865-r4 (`w1:pAR`, PR #865, Opus 4.8) — 11:04 liveness Monitor fired `done`; found a
+stale unsubmitted "wrap it up and report to coordinator" prompt sitting in its input box (queued
+by a predecessor tenure, never sent — `send-keys Enter`/`Return` didn't take, `herdr pane run`
+with the same text did). Submitted; agent now processing the wrap-up. Watching for its
+done/PR-ready report next.
 Restarted liveness Monitor (task `b0b63ubkm`) for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l`
 died at relay per protocol).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
