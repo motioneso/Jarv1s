@@ -1,49 +1,47 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
-import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import { AiRepository } from "@jarv1s/ai";
 import {
   DataContextRunner,
   createDatabase,
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import { ids, connectionStrings, resetFoundationDatabase } from "./test-database.js";
 
-const { Client } = pg;
-
-describe("AI capability route overrides", () => {
+// #870 Slice 1: the per-capability manual routes + tier preferences are retired. This suite covers
+// their replacement — per-service bindings (Chat/Voice), the instance-default provider, and the
+// resolver's mode/model/needs-config behaviour. Admin-owned config is created through the HTTP API
+// as the instance admin (adminUser/sessionAdmin); pin behaviour lives in ai-admin-pin.test.ts.
+describe("AI service bindings + instance-default resolver", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
-  let sharedProviderId: string;
+  let providerId: string;
 
   beforeAll(async () => {
     originalSecretKey = process.env.JARVIS_AI_SECRET_KEY;
-    process.env.JARVIS_AI_SECRET_KEY = "test-ai-secret-key";
+    process.env.JARVIS_AI_SECRET_KEY = "test-ai-service-bindings-secret";
 
     await resetFoundationDatabase();
-    await setUserAInstanceAdmin();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
     server = createApiServer({ appDb, logger: false });
     await server.ready();
 
-    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createProvider(scopedDb, {
-        providerKind: "anthropic",
-        displayName: "Capability route provider",
-        encryptedCredential: createAiSecretCipher().encryptJson({
-          apiKey: "capability-route-secret"
-        })
-      })
-    );
-    sharedProviderId = provider.id;
+    providerId = await seedProvider("Service binding provider");
+    // Make it the instance default so "mode" bindings resolve inside it.
+    const setDefault = await server.inject({
+      method: "PUT",
+      url: `/api/ai/providers/${providerId}/default`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` }
+    });
+    expect(setDefault.statusCode).toBe(200);
   });
 
   afterAll(async () => {
@@ -55,142 +53,219 @@ describe("AI capability route overrides", () => {
     }
   });
 
-  it("uses a valid manual capability route before automatic tier selection", async () => {
-    const automaticRes = await createModel("manual-json-auto", ["json"], "interactive");
-    const manualRes = await createModel("manual-json-selected", ["json"], "reasoning");
-    const manualId = manualRes.json<{ model: { id: string } }>().model.id;
-
-    await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.setCapabilityRoute(scopedDb, {
-        capability: "json",
-        modelId: manualId,
-        actorUserId: ids.userA
-      })
-    );
-
-    const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.resolveModelForCapability(scopedDb, "json", "interactive")
-    );
-    const selected = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.selectModelForCapability(scopedDb, "json", "interactive")
-    );
-
-    expect(automaticRes.statusCode).toBe(201);
-    expect(manualRes.statusCode).toBe(201);
-    expect(resolved.reason).toBe("manual-route");
-    expect(resolved.model?.id).toBe(manualId);
-    expect(selected?.id).toBe(manualId);
-  });
-
-  it("falls back when a manual capability route becomes incompatible", async () => {
-    const compatibleRes = await createModel("manual-vision-compatible", ["vision"], "interactive");
-    const staleRes = await createModel("manual-vision-stale", ["vision"], "reasoning");
-    const compatibleId = compatibleRes.json<{ model: { id: string } }>().model.id;
-    const staleId = staleRes.json<{ model: { id: string } }>().model.id;
-
-    await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.setCapabilityRoute(scopedDb, {
-        capability: "vision",
-        modelId: staleId,
-        actorUserId: ids.userA
-      })
-    );
-    await server.inject({
-      method: "PATCH",
-      url: `/api/ai/models/${staleId}`,
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { status: "disabled" }
-    });
-
-    const resolved = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.resolveModelForCapability(scopedDb, "vision", "interactive")
-    );
-
-    expect(compatibleRes.statusCode).toBe(201);
-    expect(staleRes.statusCode).toBe(201);
-    expect(resolved.reason).toBe("manual-route-unavailable-fallback");
-    expect(resolved.model?.id).toBe(compatibleId);
-  });
-
-  it("lets an admin set, read, use, and clear a manual capability route", async () => {
-    const modelRes = await createModel("route-api-chat", ["chat"], "interactive");
-    const modelId = modelRes.json<{ model: { id: string } }>().model.id;
+  it("resolves a mode binding inside the instance-default provider at the bound tier", async () => {
+    // Two chat-capable models in the default provider on different tiers.
+    await seedModel("mode-chat-economy", ["chat"], "economy");
+    const reasoningId = await seedModel("mode-chat-reasoning", ["chat"], "reasoning");
 
     const putRes = await server.inject({
       method: "PUT",
-      url: "/api/ai/capability-routes/chat",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { modelId }
+      url: "/api/ai/services/chat/binding",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { binding: { kind: "mode", tier: "reasoning" } }
     });
+
+    const resolved = await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "chat", "interactive")
+    );
+
+    expect(putRes.statusCode).toBe(200);
+    expect(putRes.json()).toMatchObject({
+      service: "chat",
+      binding: { kind: "mode", tier: "reasoning" }
+    });
+    expect(resolved.reason).toBe("matched-active-model");
+    expect(resolved.model?.id).toBe(reasoningId);
+  });
+
+  it("resolves a model binding to the exact model and reports needs-config when it is disabled", async () => {
+    const modelId = await seedModel("bind-exact-voice", ["transcription"], "interactive");
+
+    await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/transcription/binding",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { binding: { kind: "model", modelId } }
+    });
+
+    const resolvedActive = await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "transcription", "interactive")
+    );
+
+    // Disable the bound model — a user-facing service can't silently cross to another model.
+    await server.inject({
+      method: "PATCH",
+      url: `/api/ai/models/${modelId}`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { status: "disabled" }
+    });
+    const resolvedDisabled = await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "transcription", "interactive")
+    );
+
+    expect(resolvedActive.reason).toBe("manual-route");
+    expect(resolvedActive.model?.id).toBe(modelId);
+    expect(resolvedDisabled.reason).toBe("needs-config");
+    expect(resolvedDisabled.model).toBeNull();
+  });
+
+  it("lists service bindings via GET and never leaks provider credentials", async () => {
     const listRes = await server.inject({
       method: "GET",
-      url: "/api/ai/capability-routes",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
+      url: "/api/ai/service-bindings",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` }
     });
     const lookupRes = await server.inject({
       method: "GET",
       url: "/api/ai/capability-route/chat",
-      headers: { authorization: `Bearer ${ids.sessionA}` }
-    });
-    const clearRes = await server.inject({
-      method: "PUT",
-      url: "/api/ai/capability-routes/chat",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: { modelId: null }
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` }
     });
 
-    expect(modelRes.statusCode).toBe(201);
-    expect(putRes.statusCode).toBe(200);
-    expect(putRes.json()).toMatchObject({ route: { capability: "chat", modelId } });
-    expect(listRes.json()).toMatchObject({ routes: { chat: modelId } });
-    expect(lookupRes.json()).toMatchObject({
-      route: { capability: "chat", reason: "manual-route", model: { id: modelId } }
+    expect(listRes.statusCode).toBe(200);
+    expect(listRes.json()).toMatchObject({
+      bindings: { chat: { kind: "mode", tier: "reasoning" } }
     });
     expect(lookupRes.body).not.toContain("encrypted_credential");
-    expect(clearRes.json()).toMatchObject({ route: { capability: "chat", modelId: null } });
+    expect(lookupRes.body).not.toContain("service-binding-secret");
   });
 
-  it("rejects non-admin capability route writes", async () => {
+  it("rejects a non-admin service binding write", async () => {
     const response = await server.inject({
       method: "PUT",
-      url: "/api/ai/capability-routes/chat",
+      url: "/api/ai/services/chat/binding",
       headers: { authorization: `Bearer ${ids.sessionB}` },
-      payload: { modelId: null }
+      payload: { binding: { kind: "mode", tier: "interactive" } }
     });
 
     expect(response.statusCode).toBe(403);
   });
 
-  function createModel(providerModelId: string, capabilities: readonly string[], tier: string) {
-    return server.inject({
+  it("rejects binding a worker capability (only Chat/Voice are bindable)", async () => {
+    const response = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/summarization/binding",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { binding: { kind: "mode", tier: "interactive" } }
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("keeps worker capabilities cross-provider automatic (no binding required)", async () => {
+    const summaryId = await seedModel("worker-summary", ["summarization"], "economy");
+
+    const resolved = await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "summarization", "economy")
+    );
+
+    expect(resolved.reason).toBe("matched-active-model");
+    expect(resolved.model?.id).toBe(summaryId);
+  });
+
+  it("promotes a provider to instance-default and clears the prior flag (H1 singleton)", async () => {
+    const secondId = await seedProvider("Second provider");
+
+    const putRes = await server.inject({
+      method: "PUT",
+      url: `/api/ai/providers/${secondId}/default`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` }
+    });
+    const listRes = await server.inject({
+      method: "GET",
+      url: "/api/ai/providers",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` }
+    });
+    const providers = listRes.json<{
+      providers: { id: string; isInstanceDefault: boolean }[];
+    }>().providers;
+    const defaults = providers.filter((p) => p.isInstanceDefault);
+
+    expect(putRes.statusCode).toBe(200);
+    expect(putRes.json()).toMatchObject({ provider: { id: secondId, isInstanceDefault: true } });
+    expect(defaults).toHaveLength(1);
+    expect(defaults[0]!.id).toBe(secondId);
+
+    // Restore the original default so later assertions in this file stay stable.
+    await server.inject({
+      method: "PUT",
+      url: `/api/ai/providers/${providerId}/default`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` }
+    });
+  });
+
+  it("preserves both writes when two services are bound concurrently (M1, no lost update)", async () => {
+    const chatId = await seedModel("m1-chat", ["chat"], "interactive");
+    const voiceId = await seedModel("m1-voice", ["transcription"], "interactive");
+
+    // Two admins saving DIFFERENT services at the same time must not clobber each other.
+    await Promise.all([
+      dataContext.withDataContext(adminContext(), (scopedDb) =>
+        repository.setServiceBinding(
+          scopedDb,
+          "chat",
+          { kind: "model", modelId: chatId },
+          ids.adminUser
+        )
+      ),
+      dataContext.withDataContext(adminContext(), (scopedDb) =>
+        repository.setServiceBinding(
+          scopedDb,
+          "transcription",
+          { kind: "model", modelId: voiceId },
+          ids.adminUser
+        )
+      )
+    ]);
+
+    const bindings = await dataContext.withDataContext(adminContext(), async (scopedDb) => ({
+      chat: await repository.getServiceBinding(scopedDb, "chat"),
+      voice: await repository.getServiceBinding(scopedDb, "transcription")
+    }));
+
+    expect(bindings.chat).toMatchObject({ kind: "model", modelId: chatId });
+    expect(bindings.voice).toMatchObject({ kind: "model", modelId: voiceId });
+  });
+
+  async function seedProvider(displayName: string): Promise<string> {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: {
+        providerKind: "anthropic",
+        displayName,
+        credentialPayload: { apiKey: "service-binding-secret" }
+      }
+    });
+    expect(response.statusCode).toBe(201);
+    return response.json<{ provider: { id: string } }>().provider.id;
+  }
+
+  async function seedModel(
+    providerModelId: string,
+    capabilities: readonly string[],
+    tier: string
+  ): Promise<string> {
+    const response = await server.inject({
       method: "POST",
       url: "/api/ai/models",
-      headers: { authorization: `Bearer ${ids.sessionA}` },
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: {
-        providerConfigId: sharedProviderId,
+        providerConfigId: providerId,
         providerModelId,
         displayName: providerModelId,
         capabilities,
         tier
       }
     });
+    expect(response.statusCode).toBe(201);
+    return response.json<{ model: { id: string } }>().model.id;
   }
 });
 
-function userAContext(): AccessContext {
+function adminContext(): AccessContext {
   return {
-    actorUserId: ids.userA,
-    requestId: "request:user-a-ai-capability-routes"
+    actorUserId: ids.adminUser,
+    requestId: "request:admin-ai-service-bindings"
   };
-}
-
-async function setUserAInstanceAdmin(): Promise<void> {
-  const client = new Client({ connectionString: connectionStrings.bootstrap });
-
-  await client.connect();
-  try {
-    await client.query(`UPDATE app.users SET is_instance_admin = true WHERE id = $1`, [ids.userA]);
-  } finally {
-    await client.end();
-  }
 }

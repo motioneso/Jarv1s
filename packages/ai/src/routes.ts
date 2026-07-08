@@ -79,9 +79,8 @@ import {
 import { ToolInputValidationError, validateToolInput } from "./gateway/input-validation.js";
 import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availability.js";
 import { registerAiAdminPinRoutes } from "./admin-ai-pin-routes.js";
-import { registerAiCapabilityRouteRoutes } from "./capability-route-routes.js";
+import { registerAiServiceRoutes } from "./capability-route-routes.js";
 import { registerAiTranscriptionRoutes } from "./transcription-routes.js";
-import { registerCapabilityTierPreferenceRoutes } from "./capability-tier-preference-routes.js";
 import { registerActionPolicyRoutes } from "./action-policy-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
@@ -158,7 +157,7 @@ export function registerAiRoutes(
           accessContext,
           async (scopedDb) => {
             await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
-            return repository.createProvider(scopedDb, {
+            const created = await repository.createProvider(scopedDb, {
               providerKind: body.providerKind,
               displayName: body.displayName,
               baseUrl: body.baseUrl ?? null,
@@ -167,6 +166,59 @@ export function registerAiRoutes(
               executionMode: body.executionMode,
               encryptedCredential
             });
+
+            // #870 Slice 1 (Step 4): auto-discover models on connect so setup needs zero manual model
+            // entry. Best-effort — a discovery failure must NEVER block or roll back provider creation
+            // (the admin can still add models by hand).
+            //
+            // We insert ONLY models we can stand behind:
+            //   - CLI providers: the curated static list is the intended seed (H5) — inserted
+            //     `disabled` (pin-only), so it's kept even though it's a fallback.
+            //   - API providers: insert only LIVE-discovered models (`!fromFallback`), inserted
+            //     `active`. We deliberately DO NOT persist the static fallback for an API provider —
+            //     a fallback means we never reached the provider's /models endpoint (bad/expired key,
+            //     network, non-anthropic kind), so fabricating "active" models from a guess would
+            //     wrongly present a mis-configured provider as ready. The admin can Discover/add by
+            //     hand. (This also keeps provider-create deterministic and network-independent: the
+            //     RESULT is identical whether the probe 401s or the host is offline.)
+            try {
+              const discovered = await modelDiscovery.discoverModels(
+                `${accessContext.actorUserId}:${created.id}`,
+                {
+                  providerKind: body.providerKind,
+                  authMethod,
+                  baseUrl: body.baseUrl ?? null,
+                  credential: authMethod === "cli" ? { cli: true } : (body.credentialPayload ?? {})
+                }
+              );
+              const isCli = authMethod === "cli";
+              const shouldPersist = isCli || !discovered.fromFallback;
+              if (shouldPersist) {
+                const insertStatus = isCli ? "disabled" : "active";
+                await repository.upsertDiscoveredModels(
+                  scopedDb,
+                  created.id,
+                  discovered.models.map((model) => ({ ...model, status: insertStatus }))
+                );
+              }
+            } catch {
+              // Soft-fail: leave the provider with no auto-discovered models.
+            }
+
+            // #870/H1: if this is the sole active admin-owned provider and none is flagged yet, adopt
+            // it as the instance-default so a single-provider instance "just works" without an extra
+            // click; a second provider added later leaves this flag untouched (admin chooses).
+            if (created.status === "active") {
+              const providers = await repository.listProviders(scopedDb);
+              const activeCount = providers.filter((p) => p.status === "active").length;
+              const anyFlagged = providers.some((p) => p.is_instance_default);
+              if (!anyFlagged && activeCount === 1) {
+                const flagged = await repository.setInstanceDefaultProvider(scopedDb, created.id);
+                if (flagged) return flagged;
+              }
+            }
+
+            return created;
           }
         );
 
@@ -315,9 +367,8 @@ export function registerAiRoutes(
     }
   );
 
-  registerAiCapabilityRouteRoutes(server, dependencies, repository);
+  registerAiServiceRoutes(server, dependencies, repository);
   registerAiTranscriptionRoutes(server, dependencies, repository, secretCipher);
-  registerCapabilityTierPreferenceRoutes(server, dependencies, repository);
   registerActionPolicyRoutes(server, dependencies, repository);
   registerAiAdminPinRoutes(server, dependencies, repository);
 
@@ -806,6 +857,8 @@ export async function serializeProvider(
     executionMode: provider.execution_mode,
     hasCredential: isCli ? false : provider.has_credential,
     cliAvailable: cliAvailableFlag,
+    // #870/H1: expose the single instance-default flag so the admin UI can render the radio state.
+    isInstanceDefault: provider.is_instance_default,
     revokedAt: toIsoString(provider.revoked_at),
     createdAt: serializeDate(provider.created_at),
     updatedAt: serializeDate(provider.updated_at)

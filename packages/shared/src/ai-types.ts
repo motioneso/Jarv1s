@@ -33,7 +33,11 @@ export type AiCapabilityRouteReason =
   | "manual-route"
   | "manual-route-unavailable-fallback"
   | "matched-active-model"
-  | "no-active-model";
+  | "no-active-model"
+  // #870 Slice 1: explicit "an admin must configure this" state for user-facing services
+  // (Chat/Voice). Distinct from `no-active-model` (worker cross-provider miss) on purpose — the UI
+  // renders needs-config as an actionable admin prompt, not a silent worker skip. See resolver.
+  | "needs-config";
 
 export interface AiProviderConfigDto {
   readonly id: string;
@@ -45,6 +49,10 @@ export interface AiProviderConfigDto {
   readonly executionMode: AiProviderExecutionMode;
   readonly hasCredential: boolean;
   readonly cliAvailable: boolean;
+  // #870/H1 Slice 1: the single instance-default provider. User-facing services bound to a "mode"
+  // (tier) resolve their model INSIDE this provider. Globally single-valued (DB partial unique
+  // index in migration 0147); the UI renders it as a mutually-exclusive radio across providers.
+  readonly isInstanceDefault: boolean;
   readonly revokedAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -73,7 +81,17 @@ export interface AiCapabilityRouteDto {
   readonly model: AiConfiguredModelDto | null;
 }
 
-export type AiCapabilityRouteMapDto = Partial<Record<AiModelCapability, string | null>>;
+/**
+ * #870 Slice 1: a per-service binding. The admin binds each user-facing service (Chat, Voice) to
+ * EITHER a "mode" (a tier resolved inside the instance-default provider) OR a specific model. This
+ * replaces the old free-for-all per-capability model route + separate per-user tier preference with
+ * one unified knob per service. Stored under `ai.service_bindings` in `app.instance_settings`.
+ */
+export type AiServiceBinding =
+  | { readonly kind: "mode"; readonly tier: AiModelTier }
+  | { readonly kind: "model"; readonly modelId: string };
+
+export type AiServiceBindingMapDto = Partial<Record<AiModelCapability, AiServiceBinding>>;
 
 export interface AiProviderTestResultDto {
   readonly ok: boolean;
@@ -231,19 +249,17 @@ export interface TranscribeAudioResponse {
   readonly text: string;
 }
 
-export interface ListAiCapabilityRoutesResponse {
-  readonly routes: AiCapabilityRouteMapDto;
+export interface ListAiServiceBindingsResponse {
+  readonly bindings: AiServiceBindingMapDto;
 }
 
-export interface PutAiCapabilityRouteRequest {
-  readonly modelId: string | null;
+export interface PutAiServiceBindingRequest {
+  readonly binding: AiServiceBinding;
 }
 
-export interface PutAiCapabilityRouteResponse {
-  readonly route: {
-    readonly capability: AiModelCapability;
-    readonly modelId: string | null;
-  };
+export interface PutAiServiceBindingResponse {
+  readonly service: AiModelCapability;
+  readonly binding: AiServiceBinding;
 }
 
 export interface TestAiProviderConfigResponse {
@@ -282,9 +298,15 @@ export interface PutAdminChatModelOverrideRequest {
 export interface AiAdminUserPinDto {
   readonly pinnedModelId: string | null;
   readonly pinnedModel: AiConfiguredModelDto | null;
+  // #870 Slice 1 (D8): an admin may pin a whole PROVIDER for a user instead of a single model. A
+  // provider pin hard-locks ALL of that user's traffic (chat + voice + workers) to that provider —
+  // model pin and provider pin are mutually exclusive (the handler enforces at-most-one).
+  readonly pinnedProviderId: string | null;
+  readonly pinnedProvider: AiProviderConfigDto | null;
   readonly effectiveChatModel: AiConfiguredModelDto | null;
   readonly effectiveChatReason: AiCapabilityRouteReason;
   readonly availableModels: readonly AiConfiguredModelDto[];
+  readonly availableProviders: readonly AiProviderConfigDto[];
 }
 
 export interface GetAiAdminUserPinResponse {
@@ -292,7 +314,10 @@ export interface GetAiAdminUserPinResponse {
 }
 
 export interface PutAiAdminUserPinRequest {
-  readonly modelId: string | null;
+  // At most one of modelId/providerId may be non-null (mutually exclusive pin kinds, M4a). Both
+  // null clears the pin.
+  readonly modelId?: string | null;
+  readonly providerId?: string | null;
 }
 
 export interface ListAiAssistantToolsResponse {
@@ -313,13 +338,4 @@ export interface ResolveAiAssistantActionRequest {
 
 export interface ResolveAiAssistantActionResponse {
   readonly action: AiAssistantActionDto;
-}
-
-export interface AiCapabilityTierPreferencesResponse {
-  readonly preferences: Partial<Record<AiModelCapability, AiModelTier>>;
-}
-
-export interface PatchAiCapabilityTierPreferenceRequest {
-  readonly capability: AiModelCapability;
-  readonly tier: AiModelTier;
 }

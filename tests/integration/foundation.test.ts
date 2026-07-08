@@ -315,7 +315,10 @@ describe("MVP foundation scaffold", () => {
         { version: "0142", name: "0142_notifications_module_id.sql" },
         { version: "0143", name: "0143_wellness_checkins_local_date_backfill.sql" },
         { version: "0144", name: "0144_google_sync_sweep_accounts.sql" },
-        { version: "0145", name: "0145_jarvis_error_log.sql" }
+        { version: "0145", name: "0145_jarvis_error_log.sql" },
+        // #870/H1 — instance-default provider flag. NOTE: #744 lands 0146; when
+        // both merge, the owner reconciles this toEqual list (expected collision).
+        { version: "0147", name: "0147_ai_provider_instance_default.sql" }
       ]);
     } finally {
       await client.end();

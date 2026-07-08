@@ -4,25 +4,33 @@ import type { DataContextDb } from "@jarv1s/db";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 import {
   AI_MODEL_CAPABILITIES,
-  listAiCapabilityRoutesRouteSchema,
+  listAiServiceBindingsRouteSchema,
   lookupAiCapabilityRouteRouteSchema,
-  putAiCapabilityRouteRouteSchema,
+  putAiServiceBindingRouteSchema,
+  setInstanceDefaultProviderRouteSchema,
   type AiModelCapability,
-  type PutAiCapabilityRouteRequest
+  type AiServiceBinding
 } from "@jarv1s/shared";
 
 import type { AiRepository } from "./repository.js";
-import { type AiRoutesDependencies, serializeModel } from "./routes.js";
+import { type AiRoutesDependencies, serializeModel, serializeProvider } from "./routes.js";
 
 type CapabilityParams = { readonly capability: string };
+type ServiceParams = { readonly service: string };
+type IdParams = { readonly id: string };
 
 const MODEL_CAPABILITIES = new Set<AiModelCapability>(AI_MODEL_CAPABILITIES);
+// #870 Slice 1: only user-facing services are bindable (Chat + Voice). Worker capabilities stay
+// cross-provider automatic and are never exposed as an admin binding knob.
+const BINDABLE_SERVICES = new Set<AiModelCapability>(["chat", "transcription"]);
 
-export function registerAiCapabilityRouteRoutes(
+export function registerAiServiceRoutes(
   server: FastifyInstance,
   dependencies: AiRoutesDependencies,
   repository: AiRepository
 ): void {
+  // Lookup remains — used by the composer / chat-drawer / settings subviews to resolve the effective
+  // model + reason (including the new `needs-config`) for a given capability at request time.
   server.get<{ Params: CapabilityParams }>(
     "/api/ai/capability-route/:capability",
     { schema: lookupAiCapabilityRouteRouteSchema },
@@ -48,58 +56,101 @@ export function registerAiCapabilityRouteRoutes(
     }
   );
 
+  // #870 Slice 1: the unified per-service binding map (Chat + Voice), replacing the old free-form
+  // per-capability model routes.
   server.get(
-    "/api/ai/capability-routes",
-    { schema: listAiCapabilityRoutesRouteSchema },
+    "/api/ai/service-bindings",
+    { schema: listAiServiceBindingsRouteSchema },
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const routes = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.listCapabilityRoutes(scopedDb)
+        const bindings = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            const result: Partial<Record<AiModelCapability, AiServiceBinding>> = {};
+            for (const service of BINDABLE_SERVICES) {
+              const binding = await repository.getServiceBinding(scopedDb, service);
+              if (binding) result[service] = binding;
+            }
+            return result;
+          }
         );
 
-        return { routes };
+        return { bindings };
       } catch (error) {
         return handleRouteError(error, reply);
       }
     }
   );
 
-  server.put<{ Params: CapabilityParams }>(
-    "/api/ai/capability-routes/:capability",
-    { schema: putAiCapabilityRouteRouteSchema },
+  server.put<{ Params: ServiceParams }>(
+    "/api/ai/services/:service/binding",
+    { schema: putAiServiceBindingRouteSchema },
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        const capability = parseCapability(request.params.capability);
-        const body = parsePutCapabilityRouteBody(request.body);
+        const service = parseBindableService(request.params.service);
+        const binding = parsePutServiceBindingBody(request.body);
 
-        await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+        const saved = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
 
-          if (body.modelId !== null) {
-            const models = await repository.listModels(scopedDb);
-            const valid = models.some(
-              (model) =>
-                model.id === body.modelId &&
-                model.status === "active" &&
-                model.provider_status === "active" &&
-                model.capabilities.includes(capability)
-            );
-
-            if (!valid) {
-              throw new HttpError(400, "modelId must reference an active compatible model");
+            // A "model" binding must reference an active, capability-compatible model.
+            if (binding.kind === "model") {
+              const models = await repository.listModels(scopedDb);
+              const valid = models.some(
+                (model) =>
+                  model.id === binding.modelId &&
+                  model.status === "active" &&
+                  model.provider_status === "active" &&
+                  model.capabilities.includes(service)
+              );
+              if (!valid) {
+                throw new HttpError(400, "modelId must reference an active compatible model");
+              }
             }
+
+            return repository.setServiceBinding(
+              scopedDb,
+              service,
+              binding,
+              accessContext.actorUserId
+            );
           }
+        );
 
-          await repository.setCapabilityRoute(scopedDb, {
-            capability,
-            modelId: body.modelId,
-            actorUserId: accessContext.actorUserId
-          });
-        });
+        return { service, binding: saved };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
 
-        return { route: { capability, modelId: body.modelId } };
+  // #870/H1: promote a provider to the single instance-default (mutually-exclusive radio in the UI).
+  server.put<{ Params: IdParams }>(
+    "/api/ai/providers/:id/default",
+    { schema: setInstanceDefaultProviderRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const provider = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            const updated = await repository.setInstanceDefaultProvider(
+              scopedDb,
+              request.params.id
+            );
+            if (!updated) {
+              throw new HttpError(404, "AI provider config not found");
+            }
+            return updated;
+          }
+        );
+
+        return { provider: await serializeProvider(provider) };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -107,14 +158,24 @@ export function registerAiCapabilityRouteRoutes(
   );
 }
 
-function parsePutCapabilityRouteBody(body: unknown): PutAiCapabilityRouteRequest {
-  const value = requireObject(body);
-  const modelId = value.modelId;
-  if (modelId !== null && typeof modelId !== "string") {
-    throw new HttpError(400, "modelId must be a string or null");
-  }
+function parsePutServiceBindingBody(body: unknown): AiServiceBinding {
+  const value = requireObject(body) as { binding?: unknown };
+  const binding = requireObject(value.binding) as Record<string, unknown>;
 
-  return { modelId };
+  if (binding.kind === "mode") {
+    const tier = binding.tier;
+    if (tier !== "reasoning" && tier !== "interactive" && tier !== "economy") {
+      throw new HttpError(400, "mode binding requires a valid tier");
+    }
+    return { kind: "mode", tier };
+  }
+  if (binding.kind === "model") {
+    if (typeof binding.modelId !== "string" || binding.modelId.length === 0) {
+      throw new HttpError(400, "model binding requires a modelId");
+    }
+    return { kind: "model", modelId: binding.modelId };
+  }
+  throw new HttpError(400, "binding.kind must be 'mode' or 'model'");
 }
 
 function requireObject(value: unknown): Record<string, unknown> {
@@ -132,6 +193,13 @@ export function parseCapability(value: string): AiModelCapability {
   }
 
   throw new HttpError(400, "capability is not supported");
+}
+
+function parseBindableService(value: string): AiModelCapability {
+  if (BINDABLE_SERVICES.has(value as AiModelCapability)) {
+    return value as AiModelCapability;
+  }
+  throw new HttpError(400, "service is not bindable");
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {

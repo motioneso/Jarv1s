@@ -30,8 +30,9 @@ import type {
   RevokeMyOtherSessionsResponse,
   RevokeMySessionResponse,
   PreviewPersonaRequest,
-  AiCapabilityTierPreferencesResponse,
-  PatchAiCapabilityTierPreferenceRequest,
+  ListAiServiceBindingsResponse,
+  PutAiServiceBindingRequest,
+  PutAiServiceBindingResponse,
   PreviewPersonaResponse,
   PutChatSettingsRequest,
   PutChatSettingsResponse,
@@ -817,17 +818,29 @@ export async function transcribeAudio(audio: Blob): Promise<TranscribeAudioRespo
   return response.json() as Promise<TranscribeAudioResponse>;
 }
 
-export async function getCapabilityTierPreferences(): Promise<AiCapabilityTierPreferencesResponse> {
-  return requestJson<AiCapabilityTierPreferencesResponse>("/api/ai/capability-tier-preferences");
+// #870 Slice 1: unified per-service bindings (Chat + Voice) replace the old per-user tier preference.
+export async function listAiServiceBindings(): Promise<ListAiServiceBindingsResponse> {
+  return requestJson<ListAiServiceBindingsResponse>("/api/ai/service-bindings");
 }
 
-export async function patchCapabilityTierPreference(
-  input: PatchAiCapabilityTierPreferenceRequest
-): Promise<void> {
-  await requestJson<void>("/api/ai/capability-tier-preferences", {
-    method: "PATCH",
-    body: input
-  });
+export async function putAiServiceBinding(
+  service: AiModelCapability,
+  input: PutAiServiceBindingRequest
+): Promise<PutAiServiceBindingResponse> {
+  return requestJson<PutAiServiceBindingResponse>(
+    `/api/ai/services/${encodeURIComponent(service)}/binding`,
+    { method: "PUT", body: input }
+  );
+}
+
+// #870/H1: promote a provider to the single instance-default.
+export async function setInstanceDefaultProvider(
+  providerId: string
+): Promise<CreateAiProviderConfigResponse> {
+  return requestJson<CreateAiProviderConfigResponse>(
+    `/api/ai/providers/${encodeURIComponent(providerId)}/default`,
+    { method: "PUT" }
+  );
 }
 
 export async function getChatModelOverrideSettings(): Promise<GetChatModelOverrideSettingsResponse> {

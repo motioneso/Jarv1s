@@ -13,14 +13,14 @@ import {
   getAiAdminUserPinResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
-  listAiCapabilityRoutesResponseSchema,
+  listAiServiceBindingsResponseSchema,
   listAiAssistantActionsResponseSchema,
   listAiAssistantToolsResponseSchema,
   listAiConfiguredModelsResponseSchema,
   listAiProviderConfigsResponseSchema,
   lookupAiCapabilityRouteResponseSchema,
-  putAiCapabilityRouteRequestSchema,
-  putAiCapabilityRouteResponseSchema,
+  putAiServiceBindingRequestSchema,
+  putAiServiceBindingResponseSchema,
   putAdminChatModelOverrideRequestSchema,
   putAiAdminUserPinRequestSchema,
   putChatModelOverrideRequestSchema,
@@ -33,8 +33,6 @@ import {
   updateAiConfiguredModelResponseSchema,
   updateAiProviderConfigRequestSchema,
   updateAiProviderConfigResponseSchema,
-  aiCapabilityTierPreferencesResponseSchema,
-  patchAiCapabilityTierPreferenceRequestSchema,
   getAiActionPoliciesResponseSchema,
   patchAiActionPolicyRequestSchema,
   patchAiActionPolicyResponseSchema,
@@ -69,7 +67,9 @@ export const aiModuleManifest = {
       "sql/0091_chat_model_override.sql",
       "sql/0098_ai_cancel_stale_assistant_actions.sql",
       "sql/0127_jarvis_action_audit_log.sql",
-      "sql/0145_jarvis_error_log.sql"
+      "sql/0145_jarvis_error_log.sql",
+      // #870/H1 — instance-default provider flag + global single-default index.
+      "sql/0147_ai_provider_instance_default.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
@@ -208,34 +208,30 @@ export const aiModuleManifest = {
       permissionId: "ai.route"
     },
     {
+      // #870 Slice 1: unified per-service binding map (Chat + Voice), replaces per-capability routes.
       method: "GET",
-      path: "/api/ai/capability-routes",
-      responseSchema: listAiCapabilityRoutesResponseSchema,
+      path: "/api/ai/service-bindings",
+      responseSchema: listAiServiceBindingsResponseSchema,
       permissionId: "ai.view"
     },
     {
       method: "PUT",
-      path: "/api/ai/capability-routes/:capability",
-      requestSchema: putAiCapabilityRouteRequestSchema,
-      responseSchema: putAiCapabilityRouteResponseSchema,
+      path: "/api/ai/services/:service/binding",
+      requestSchema: putAiServiceBindingRequestSchema,
+      responseSchema: putAiServiceBindingResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      // #870/H1: promote a provider to the single instance-default.
+      method: "PUT",
+      path: "/api/ai/providers/:id/default",
+      responseSchema: createAiProviderConfigResponseSchema,
       permissionId: "ai.manage"
     },
     {
       method: "POST",
       path: "/api/ai/transcriptions",
       responseSchema: transcribeAudioResponseSchema,
-      permissionId: "ai.route"
-    },
-    {
-      method: "GET",
-      path: "/api/ai/capability-tier-preferences",
-      responseSchema: aiCapabilityTierPreferencesResponseSchema,
-      permissionId: "ai.view"
-    },
-    {
-      method: "PATCH",
-      path: "/api/ai/capability-tier-preferences",
-      requestSchema: patchAiCapabilityTierPreferenceRequestSchema,
       permissionId: "ai.route"
     },
     {

@@ -188,10 +188,13 @@ describe("AI admin per-user model pin", () => {
     ]);
   });
 
-  it("non-chat capability with unavailable pin falls through to instance route", async () => {
-    const providerId = await seedProvider(ids.userB, "Fallthrough Provider");
-    const pinnedId = await seedModel(ids.userB, providerId, "fallthrough-pinned", ["json"]);
-    const fallbackId = await seedModel(ids.userB, providerId, "fallthrough-fallback", ["json"]);
+  // #870 locked decision #2: a model pin is a HARD routing constraint on ALL of the user's traffic.
+  // When the pinned model can't serve a WORKER capability, the resolver routes the worker INSIDE the
+  // pinned model's provider (never cross-provider) — there is no escape to the instance-wide route.
+  it("worker capability with unavailable model pin routes inside the pinned provider (hard-lock)", async () => {
+    const providerId = await seedProvider(ids.userB, "Hard-lock Provider");
+    const pinnedId = await seedModel(ids.userB, providerId, "hardlock-pinned", ["json"]);
+    const siblingId = await seedModel(ids.userB, providerId, "hardlock-sibling", ["json"]);
 
     await server.inject({
       method: "PUT",
@@ -201,13 +204,27 @@ describe("AI admin per-user model pin", () => {
     });
     await setModelStatus(pinnedId, "disabled");
 
-    const resolution = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    // A capable sibling exists in the SAME provider → the worker resolves to it, still reason
+    // "admin-pin" (traffic stays on the mandated backend).
+    const resolvedInProvider = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.resolveModelForCapability(scopedDb, "json", "interactive")
     );
 
-    expect(resolution).toMatchObject({
-      reason: "admin-pin-unavailable-fallback"
+    expect(resolvedInProvider).toMatchObject({
+      reason: "admin-pin",
+      model: { id: siblingId }
     });
+
+    // Disable the sibling too → no capable model in the pinned provider → needs-config, NO
+    // cross-provider escape even though another provider CAN serve json (proves the hard-lock).
+    const escapeProviderId = await seedProvider(ids.userB, "Escape Provider (must not be used)");
+    await seedModel(ids.userB, escapeProviderId, "escape-json", ["json"]);
+    await setModelStatus(siblingId, "disabled");
+    const resolvedNeedsConfig = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "json", "interactive")
+    );
+
+    expect(resolvedNeedsConfig).toMatchObject({ reason: "needs-config", model: null });
 
     await server.inject({
       method: "PUT",
@@ -215,7 +232,6 @@ describe("AI admin per-user model pin", () => {
       headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: { modelId: null }
     });
-    void fallbackId;
   });
 
   it("pinned user's direct API call uses the pinned model at the HTTP perimeter", async () => {

@@ -364,6 +364,10 @@ export interface AiProviderConfigsTable {
   status: AiProviderStatus;
   auth_method: AiAuthMethod;
   execution_mode: "interactive" | "non_interactive";
+  // #870/H1 — instance-default provider flag (migration 0147). At most one row
+  // is true (enforced by a global partial unique index); optional on insert,
+  // DB-defaulted false. Reads/updates go through the app_runtime role under RLS.
+  is_instance_default: ColumnType<boolean, boolean | undefined, boolean>;
   encrypted_credential: JsonColumn;
   revoked_at: NullableTimestampColumn;
   created_at: TimestampColumn;
