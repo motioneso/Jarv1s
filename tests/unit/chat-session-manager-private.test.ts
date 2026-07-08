@@ -131,4 +131,25 @@ describe("ChatSessionManager private cleanup", () => {
       vi.useRealTimers();
     }
   });
+
+  it("keeps a private session while any subscriber remains attached", async () => {
+    vi.useFakeTimers();
+    try {
+      const engine = new FakeEngine();
+      const manager = new ChatSessionManager(privateDeps(engine, true));
+      await manager.ensureSession("u1", "Ben");
+
+      const first = manager.subscribe("u1", () => undefined);
+      const second = manager.subscribe("u1", () => undefined);
+      first();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(engine.killed).toBe(false);
+
+      second();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(engine.killed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
