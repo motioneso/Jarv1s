@@ -21,6 +21,10 @@ export const SPORTS_MODULE_ID = "sports";
 const TEAMS_TTL_MS = 24 * 60 * 60 * 1000;
 const SCOREBOARD_TTL_MS = 3 * 60 * 1000;
 const STANDINGS_HEADLINES_SCHEDULE_TTL_MS = 10 * 60 * 1000;
+// A published article's body is effectively immutable, so it caches far longer than the feed that
+// surfaces it — one fetch per featured article, not per overview (#857). The cache key includes the
+// article id, so a new feature just misses and fetches its own body.
+const ARTICLE_BODY_TTL_MS = 6 * 60 * 60 * 1000;
 
 export const sportsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
@@ -160,7 +164,11 @@ export const sportsModuleManifest = {
           ttlMs: STANDINGS_HEADLINES_SCHEDULE_TTL_MS,
           staleness: "degrade-empty"
         },
-        { key: "schedule", ttlMs: STANDINGS_HEADLINES_SCHEDULE_TTL_MS, staleness: "degrade-empty" }
+        { key: "schedule", ttlMs: STANDINGS_HEADLINES_SCHEDULE_TTL_MS, staleness: "degrade-empty" },
+        // Per-article body for the NewsBand featured hero (#857). MUST be declared here or the
+        // dataset runtime throws "Unknown dataset" the moment the service requests it, 500ing the
+        // whole overview — the adapter handling the key is not enough on its own.
+        { key: "articleBody", ttlMs: ARTICLE_BODY_TTL_MS, staleness: "degrade-empty" }
       ]
     }
   ]

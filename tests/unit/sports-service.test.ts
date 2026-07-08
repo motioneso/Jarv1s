@@ -26,8 +26,22 @@ interface FakeSourceHandlers {
   getScoreboard?: (competitionKey: string, day: string, endDay?: string) => Promise<GameSummary[]>;
   getSchedule?: (teamKey: string, competitionKey: string) => Promise<GameSummary[]>;
   getStandings?: (competitionKey: string) => Promise<StandingsTable>;
-  getHeadlines?: (competitionKey: string) => Promise<SourceHeadline[]>;
+  getHeadlines?: (competitionKey: string, teamKey?: string) => Promise<SourceHeadline[]>;
+  getArticleBody?: (articleId: string) => Promise<string>;
 }
+
+// The dataset keys the real manifest declares. Kept next to the stub so the stub can reject an
+// undeclared key exactly like the production DatasetClient does (see below) — the divergence
+// where the stub swallowed unknown keys into the fallback is what let #857 ship a guaranteed
+// /sports 500 past a green gate (Fable C1). New service dataset → add it here AND to the manifest.
+const DECLARED_DATASET_KEYS = new Set([
+  "teams",
+  "scoreboard",
+  "schedule",
+  "standings",
+  "headlines",
+  "articleBody"
+]);
 
 function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
   return {
@@ -36,6 +50,12 @@ function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
       params: Record<string, unknown>,
       options: { fallback: T }
     ): Promise<DatasetEnvelope<T>> {
+      // Mirror the production DatasetClient: an undeclared dataset key is a wiring bug and throws
+      // OUTSIDE the fallback try, so it propagates instead of masquerading as a degraded fetch.
+      // Only genuine fetch failures within a *declared* dataset fall through to the fallback below.
+      if (!DECLARED_DATASET_KEYS.has(datasetKey)) {
+        throw new Error(`Unknown dataset "${datasetKey}" for external source "espn"`);
+      }
       try {
         let data: unknown;
         switch (datasetKey) {
@@ -61,12 +81,21 @@ function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
             );
             break;
           case "headlines":
+            // teamKey travels through so tests can tell the league feed from a followed
+            // team's own feed (the service fetches both — live feedback mraxssnf).
             data = await (handlers.getHeadlines ?? (async () => []))(
-              params.competitionKey as string
+              params.competitionKey as string,
+              params.teamKey as string | undefined
             );
             break;
+          case "articleBody":
+            // Per-article featured-hero body (#857); defaults to "" so overview tests that don't
+            // care about the body still exercise the real fetch/splice path without stubbing it.
+            data = await (handlers.getArticleBody ?? (async () => ""))(params.articleId as string);
+            break;
           default:
-            throw new Error(`unknown dataset "${datasetKey}"`);
+            // Unreachable: the DECLARED_DATASET_KEYS guard above already rejected unknown keys.
+            throw new Error(`unhandled dataset "${datasetKey}"`);
         }
         return { data: data as T, degraded: false, fetchedAt: new Date().toISOString() };
       } catch {
@@ -249,7 +278,10 @@ describe("SportsService.getOverview", () => {
     expect(overview.followedTeams).toEqual([{ competitionKey: "nfl", teamKey: "dal" }]);
   });
 
-  it("joins provider team tags to teamKeys on headlines", async () => {
+  it("joins provider team tags so a matching headline routes to the team's card", async () => {
+    // The sourceTeamId→teamKey join is what makes a league headline "about" a followed club.
+    // Its observable effect since the hero/card dedup (mrb8ahf7): a tagged story is owned by that
+    // club's card (teamStories filters on the resolved teamKeys), not the shared top-stories pool.
     const service = new SportsService(
       makeDeps({
         source: makeSource({
@@ -260,14 +292,15 @@ describe("SportsService.getOverview", () => {
               name: "Dallas Cowboys",
               shortName: "Cowboys",
               crestUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png",
-              sourceTeamId: "6"
+              sourceTeamId: "6" // matches nflHeadlines[0].sourceTeamIds → resolves to "dal"
             }
           ]
         })
       })
     );
     const overview = await service.getOverview(userA);
-    expect(overview.topStories[0]?.teamKeys).toEqual(["dal"]);
+    const dalCard = overview.followed.find((c) => c.teamKey === "dal");
+    expect(dalCard?.stories.map((s) => s.url)).toContain("https://example.com/h1");
   });
 
   it("marks the followed team card live with derived form", async () => {
@@ -278,9 +311,36 @@ describe("SportsService.getOverview", () => {
     expect(card?.competitionLabel).toBe("NFL");
     // W (beat NYG), L (lost at PHI), D (tied WAS)
     expect(card?.form).toEqual(["W", "L", "D"]);
-    expect(card?.standing).toContain("#1");
+    // Labelled section → place-within-section form, not the overall "#1 · 10-2" line
+    // (live feedback mraxrdxr, mraz6m43)
+    expect(card?.standing).toBe("1st · National Football Conference");
     expect(overview.standings[0]?.standingsShape).toBe("record");
     expect(overview.standings[0]?.sections[0]?.label).toBe("National Football Conference");
+  });
+
+  // ESPN's MLB/NHL division labels ("National League West", "Pacific Division") crowd the
+  // narrow ticker sub-row; the card line compresses them while the standings rail keeps the
+  // full label (live feedback mraxrdxr).
+  it("compresses long division labels in the card standing", async () => {
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getStandings: async () => ({
+            sections: [
+              {
+                label: "National League West",
+                rows: nflStandings.sections[0]!.rows
+              }
+            ]
+          })
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.standing).toBe("1st · NL West");
+    // rail keeps the uncompressed label
+    expect(overview.standings[0]?.sections[0]?.label).toBe("National League West");
   });
 
   it("returns a structured next match with the full opponent name", async () => {
@@ -290,7 +350,10 @@ describe("SportsService.getOverview", () => {
     expect(card?.nextMatch).toEqual({
       opponentName: "Green Bay Packers",
       homeAway: "home",
-      startsAt: "2026-07-05T20:00:00.000Z"
+      startsAt: "2026-07-05T20:00:00.000Z",
+      // crest travels with the fixture so the ticker footer can show the opponent's
+      // logo in place of the name text (live feedback mrawvc48)
+      opponentCrestUrl: null
     });
   });
 
@@ -315,7 +378,8 @@ describe("SportsService.getOverview", () => {
     const overview = await service.getOverview(userA);
     const card = overview.followed.find((c) => c.teamKey === "dal");
     expect(card?.status).toBe("news");
-    expect(card?.news).toEqual({
+    // stories are newest-first; the tagged headline leads (mrb0pk1n replaced single `news`)
+    expect(card?.stories[0]).toEqual({
       title: "Cowboys clinch the division",
       url: "https://example.com/h1",
       publishedAt: `${TODAY}T12:00:00.000Z`,
@@ -337,7 +401,58 @@ describe("SportsService.getOverview", () => {
     const overview = await service.getOverview(userA);
     const card = overview.followed.find((c) => c.teamKey === "dal");
     expect(card?.status).toBe("news");
-    expect(card?.news).toBeNull();
+    expect(card?.stories).toEqual([]);
+  });
+
+  // The league-wide feed rarely tags stories to a specific club, so followed cards sat on
+  // "No recent news" even when ESPN's per-team feed was full (live feedback mraxssnf). The
+  // service now pulls each followed team's own feed and merges it in for that card only.
+  it("fills card news from the followed team's own feed when the league feed has none", async () => {
+    const teamStory: SourceHeadline = {
+      id: "t1",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "Cowboys sign a new kicker",
+      url: "https://example.com/t1",
+      publishedAt: `${TODAY}T10:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: ["6"]
+    };
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getScoreboard: async () => [],
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: null,
+              sourceTeamId: "6"
+            }
+          ],
+          // league feed carries only an untagged story; the dal feed has the real one
+          getHeadlines: async (_competitionKey, teamKey) =>
+            teamKey === "dal"
+              ? [teamStory]
+              : [{ ...nflHeadlines[0]!, sourceTeamIds: [], title: "League-wide roundup" }]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("news");
+    expect(card?.stories[0]?.title).toBe("Cowboys sign a new kicker");
+    // the merge is card-local: the team-feed story must not leak into the league news column
+    const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
+    const leagueTitles = [
+      ...overview.topStories.map((h) => h.title),
+      ...(nflGroup?.headlines.map((h) => h.title) ?? [])
+    ];
+    expect(leagueTitles).not.toContain("Cowboys sign a new kicker");
   });
 
   it("falls back to a story hero on a quiet day", async () => {
@@ -363,8 +478,9 @@ describe("SportsService.getOverview", () => {
     expect(overview.hero.mode).toBe("story");
   });
 
-  it("ranks team-tagged stories first, caps top stories at six, dedupes league news", async () => {
-    // 9 stories, all tagged to dal ("6"), publishedAt ascending → newest is h8
+  it("ranks by editorial feed position, caps top stories at six, keeps league news distinct", async () => {
+    // 9 stories, all tagged to dal ("6"), in ESPN feed order h0..h8 (h0 = editorial lead). Ranking
+    // keys off feed POSITION now, not recency (mrb51pnq) — publishedAt only breaks cross-league ties.
     const manyHeadlines = Array.from({ length: 9 }, (_, i) => ({
       id: `h${i}`,
       competitionKey: "nfl",
@@ -396,11 +512,12 @@ describe("SportsService.getOverview", () => {
     );
     const overview = await service.getOverview(userA);
     expect(overview.topStories).toHaveLength(6);
-    expect(overview.topStories[0]?.id).toBe("h8"); // newest tagged story first
+    expect(overview.topStories[0]?.id).toBe("h0"); // editorial feed lead first (front of feed)
     const topIds = new Set(overview.topStories.map((h) => h.id));
     expect(overview.leagueNews).toHaveLength(1);
     expect(overview.leagueNews[0]?.competitionLabel).toBe("NFL");
-    expect(overview.leagueNews[0]?.headlines.map((h) => h.id)).toEqual(["h2", "h1", "h0"]);
+    // Top six [h0..h5] leave the feed tail for the band, in feed order (no byNewest re-sort).
+    expect(overview.leagueNews[0]?.headlines.map((h) => h.id)).toEqual(["h6", "h7", "h8"]);
     for (const group of overview.leagueNews) {
       for (const h of group.headlines) expect(topIds.has(h.id)).toBe(false);
     }

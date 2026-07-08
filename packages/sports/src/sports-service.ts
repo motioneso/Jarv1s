@@ -16,11 +16,11 @@ import {
   type SportsCatalogResponse,
   type SportsFollowDto,
   type SportsOverviewResponse,
-  type StandingsGroup,
-  type StandingsRow
+  type StandingsGroup
 } from "@jarv1s/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
+import { selectFeature } from "./news-ranking.js";
 import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./source/sports-source.js";
 
 /** A compact, non-sensitive today-fact for the daily briefing. */
@@ -193,19 +193,50 @@ export class SportsService {
     // input order so `cards` still lines up with `followedTeams` (#765 M2).
     const cards: FollowedTeamCard[] = await Promise.all(
       followedTeams.map(async (follow) => {
-        const schedule = await this.cached<GameSummary[]>(
-          "schedule",
-          { teamKey: follow.teamKey, competitionKey: follow.competitionKey },
-          [],
-          state
-        );
+        // Resolve the provider's numeric team id from the catalog: ESPN's soccer schedule
+        // endpoint returns an empty payload for abbreviation slugs, which silently zeroed
+        // form/next-match on every soccer card (live feedback mrawhx9c). Null falls back to
+        // the abbreviation inside the source, which the US leagues accept.
+        const sourceTeamId =
+          (teamsByComp.get(follow.competitionKey) ?? []).find(
+            (team) => team.teamKey === follow.teamKey
+          )?.sourceTeamId ?? null;
+        // The league-wide feed rarely files a story under a specific team, so most followed
+        // cards showed "No recent news" while ESPN's per-team feed had plenty (live feedback
+        // mraxssnf). Pull each followed team's own feed — same pattern as the gameday hero
+        // block below — and merge it in for this card only; leagueNews stays league-scoped.
+        const [schedule, teamFeed] = await Promise.all([
+          this.cached<GameSummary[]>(
+            "schedule",
+            { teamKey: follow.teamKey, competitionKey: follow.competitionKey, sourceTeamId },
+            [],
+            state
+          ),
+          this.cached<SourceHeadline[]>(
+            "headlines",
+            { competitionKey: follow.competitionKey, teamKey: follow.teamKey },
+            [],
+            state
+          )
+        ]);
+        const compTeams = teamsByComp.get(follow.competitionKey) ?? [];
+        const leagueHeadlines = headlinesByComp.get(follow.competitionKey) ?? [];
+        const seen = new Set(leagueHeadlines.map((h) => h.id));
+        const headlines = [...leagueHeadlines];
+        for (const headline of resolveHeadlineTeamKeys(teamFeed, compTeams)) {
+          if (seen.has(headline.id)) continue;
+          seen.add(headline.id);
+          headlines.push(headline);
+        }
         return this.buildCard(
           follow,
           scoreboardByComp.get(follow.competitionKey) ?? [],
-          (standingsByComp.get(follow.competitionKey)?.sections ?? []).flatMap((s) => s.rows),
-          headlinesByComp.get(follow.competitionKey) ?? [],
+          // Sections travel whole (not flatMapped) so standingLine can tell a division/group
+          // placing from an overall table position (live feedback mraxrdxr, mraz6m43).
+          standingsByComp.get(follow.competitionKey)?.sections ?? [],
+          headlines,
           schedule,
-          teamsByComp.get(follow.competitionKey) ?? []
+          compTeams
         );
       })
     );
@@ -213,8 +244,22 @@ export class SportsService {
     // Rank across every followed competition (team or whole-league), not just team-followed
     // ones — otherwise a league-only follower's competition never contributes a top story and
     // the story hero has nothing personalized to fall back to (#763).
-    const topStories = rankTopStories(headlinesByComp, followedTeams, competitionKeys);
-    const topStoryIds = new Set(topStories.map((h) => h.id));
+    const rankedTopStories = rankTopStories(headlinesByComp, followedTeams, competitionKeys);
+
+    // The hero must not echo what the followed strip already shows (mrb8ahf7). rankTopStories'
+    // first tier IS followed-team stories — the same pool teamStories draws each card's ≤3
+    // stories from — so the hero's lead routinely duplicated a card's lead. Drop any top story
+    // whose url is already on a followed card: the strip owns a followed team's news, and the
+    // hero then surfaces that team's deeper stories plus each league's editorial lead instead.
+    // Match on url, not id — the same story arrives from the league and per-team feeds under
+    // different ids (the same reason teamStories dedups by url).
+    const followedStoryUrls = new Set(cards.flatMap((card) => card.stories.map((s) => s.url)));
+    const topStories = rankedTopStories.filter((h) => !followedStoryUrls.has(h.url));
+
+    // Band exclusion keys off the FULL ranked set, not the deduped one: a story we pulled from
+    // the hero for already being on a card must not resurface in the league news band either, so
+    // a followed-team story stays shown exactly once — in its card.
+    const topStoryIds = new Set(rankedTopStories.map((h) => h.id));
 
     const hero = this.buildHero(followedTeams, scoreboardByComp, topStories, this.now());
 
@@ -236,11 +281,15 @@ export class SportsService {
         )
       );
       const existing = headlinesByComp.get(game.competitionKey) ?? [];
-      const seen = new Set(existing.map((h) => h.id));
+      // Dedup by url, not id: the same story arrives from the league feed and a hero team's own
+      // feed under DIFFERENT ids (ESPN ids are feed-scoped — see the teamStories/followedStoryUrls
+      // dedup, which key on url for the same reason). Keying on id here let a matchup story render
+      // twice in the NewsBand (Fable M1). url is the story's stable cross-feed identity.
+      const seen = new Set(existing.map((h) => h.url));
       const merged = [...existing];
       for (const headline of resolveHeadlineTeamKeys(teamFeeds.flat(), heroTeams)) {
-        if (seen.has(headline.id)) continue;
-        seen.add(headline.id);
+        if (seen.has(headline.url)) continue;
+        seen.add(headline.url);
         merged.push(headline);
       }
       headlinesByComp.set(game.competitionKey, merged);
@@ -250,9 +299,9 @@ export class SportsService {
       .map((key) => ({
         competitionKey: key,
         competitionLabel: catalogEntry(key)?.label ?? key,
-        headlines: [...(headlinesByComp.get(key) ?? [])]
-          .sort(byNewest)
-          .filter((h) => !topStoryIds.has(h.id))
+        // Feed order preserved deliberately — it's ESPN's editorial prominence ranking, which
+        // the news band's tiering leans on (mrb51pnq; see rankTopStories). No byNewest here.
+        headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryIds.has(h.id))
       }))
       .filter((group) => group.headlines.length > 0);
 
@@ -273,15 +322,38 @@ export class SportsService {
       }))
       .filter((group) => group.sections.some((section) => section.rows.length > 0));
 
+    // Fill the NewsBand hero with real article body (#857). The featured story is picked
+    // CLIENT-side by NewsBand; we recompute the IDENTICAL pick here with the shared ranking
+    // (selectFeature over all groups = the client's default "all" filter), fetch just that one
+    // article's ESPN body (sanitized to plaintext in the source layer), and splice it onto the
+    // matching headline. Body isn't a ranking input, so the pick is stable. Any failure returns
+    // "" → we leave `body` off → the client falls back to the one-paragraph dek. Only ONE extra
+    // request per overview, cached by article id (immutable post-publish).
+    const publicLeagueNews: LeagueNewsGroup[] = leagueNews.map((group) => ({
+      ...group,
+      headlines: group.headlines.map(toPublicHeadline)
+    }));
+    const followedPairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
+    const feature = selectFeature(publicLeagueNews, followedPairs);
+    const featureBody = feature
+      ? await this.cached<string>("articleBody", { articleId: feature.id }, "", state)
+      : "";
+    const leagueNewsWithBody =
+      feature && featureBody
+        ? publicLeagueNews.map((group) => ({
+            ...group,
+            headlines: group.headlines.map((h) =>
+              h.id === feature.id ? { ...h, body: featureBody } : h
+            )
+          }))
+        : publicLeagueNews;
+
     return {
       hero,
       followed: cards,
       scoreboard,
       topStories: topStories.map(toPublicHeadline),
-      leagueNews: leagueNews.map((group) => ({
-        ...group,
-        headlines: group.headlines.map(toPublicHeadline)
-      })),
+      leagueNews: leagueNewsWithBody,
       standings,
       followedTeams: followedTeams.map((f) => ({
         competitionKey: f.competitionKey,
@@ -457,7 +529,7 @@ export class SportsService {
   private buildCard(
     follow: SportsFollowDto & { teamKey: string },
     games: readonly GameSummary[],
-    standings: readonly StandingsRow[],
+    standings: StandingsTable["sections"],
     headlines: readonly SourceHeadline[],
     schedule: readonly GameSummary[],
     teams: readonly SourceTeamRef[]
@@ -477,11 +549,16 @@ export class SportsService {
 
     let status: FollowedTeamCard["status"];
     let primary: string;
+    // Distinguishes a finished today game (score worth keeping in the primary slot) from a
+    // pre-game one (the ticker's Next footer already carries the fixture, so the matchup line
+    // is duplication — live feedback mrawrk0e). Today-widget consumers still get primary as-is.
+    let todayGameState: FollowedTeamCard["todayGameState"];
     if (todayGame && todayGame.state === "live") {
       status = "live";
       primary = scoreLine(todayGame);
     } else if (todayGame) {
       status = "today";
+      todayGameState = todayGame.state === "final" ? "final" : "pre";
       primary =
         todayGame.state === "final" ? resultLine(todayGame, teamKey) : matchupLine(todayGame);
     } else {
@@ -497,7 +574,8 @@ export class SportsService {
       crestUrl,
       status,
       primary,
-      news: newestTeamHeadline(headlines, teamKey),
+      todayGameState,
+      stories: teamStories(headlines, teamKey),
       form: computeForm(schedule, teamKey),
       standing: standingLine(standings, teamKey),
       nextMatch: nextMatchFor(schedule, teamKey, this.now()),
@@ -551,6 +629,21 @@ function byNewest(a: SourceHeadline, b: SourceHeadline): number {
 // before a headline reaches a response boundary — required wherever a single headline sits
 // inside a `oneOf` (e.g. `hero.headline`), where fast-json-stringify's schema-matching rejects
 // objects with properties outside the matched branch instead of silently dropping them.
+// Defense-in-depth for #857's "don't trust the feed" threat model: a source href becomes an
+// <a href> the reader clicks. TLS + host-pinning protect the FETCH, but a poisoned or editorially
+// mangled ESPN payload could still carry a `javascript:`/`data:` href that executes on click (React
+// renders such a URL with only a console warning — Fable M2). Allow only http(s) navigations; any
+// other scheme, or an unparseable/relative value, collapses to "" (an inert same-page href) rather
+// than a script URL. Host is intentionally unrestricted — these are outbound links to the source.
+function safeHref(url: string): string {
+  try {
+    const protocol = new URL(url).protocol;
+    return protocol === "https:" || protocol === "http:" ? url : "";
+  } catch {
+    return "";
+  }
+}
+
 function toPublicHeadline(headline: Headline): Headline {
   const {
     id,
@@ -561,18 +654,24 @@ function toPublicHeadline(headline: Headline): Headline {
     publishedAt,
     imageUrl,
     summary,
-    teamKeys
+    teamKeys,
+    body
   } = headline;
   return {
     id,
     competitionKey,
     competitionLabel,
     title,
-    url,
+    url: safeHref(url),
     publishedAt,
     imageUrl,
     summary,
-    teamKeys
+    teamKeys,
+    // Pass through the sanitized featured-article body (#857) when present. Usually undefined —
+    // the service attaches it to the one featured headline AFTER this call — but honoring it here
+    // keeps the boundary correct if a source ever supplies it directly. Optional in headlineSchema,
+    // so an undefined value is simply omitted from the serialized payload.
+    ...(body === undefined ? {} : { body })
   };
 }
 
@@ -581,6 +680,13 @@ function toPublicHeadline(headline: Headline): Headline {
 // `followedCompetitionKeys` covers every followed competition — team-followed or
 // whole-league-followed — so a league-only follower's competition still contributes a
 // top story and the story hero has something personalized to fall back to (#763).
+// ESPN's league news feed is EDITORIALLY ordered, not chronological (verified live
+// 2026-07-07: published timestamps are non-monotonic — the feed is their front-page
+// headline block). Feed position is therefore the only real "how big is this story"
+// signal we have, and the old byNewest re-sort was destroying it: the hero slot showed
+// whichever followed story was filed most recently, not the one ESPN led with (live
+// feedback mrb51pnq). Rank by feed position first — recency only breaks ties between
+// different leagues' equally-placed stories.
 function rankTopStories(
   headlinesByComp: ReadonlyMap<string, readonly SourceHeadline[]>,
   followedTeams: readonly (SportsFollowDto & { teamKey: string })[],
@@ -589,23 +695,34 @@ function rankTopStories(
   const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
   const picked: SourceHeadline[] = [];
   const pickedIds = new Set<string>();
-  const all = [...headlinesByComp.values()].flat().sort(byNewest);
-  for (const headline of all) {
+
+  // Tier 1 — the BIG story. Each followed competition's EDITORIAL lead (front of feed = what the
+  // source itself led with), whether or not one of the user's teams is in it. Ben's steer
+  // (2026-07-07): "the hero doesn't HAVE to be followed teams — if there's a BIG story we should
+  // be showing that." So the league's headline story leads the hero pool ahead of followed-team
+  // minutiae; the strip (teamStories) is where a followed team's own news lives. Front-of-feed,
+  // not newest, is the editorial lead — same mrb51pnq reasoning as the news band.
+  for (const comp of followedCompetitionKeys) {
+    const lead = (headlinesByComp.get(comp) ?? [])[0];
+    if (lead && !pickedIds.has(lead.id)) {
+      picked.push(lead);
+      pickedIds.add(lead.id);
+    }
+  }
+
+  // Tier 2 — personalization. Remaining followed-team stories, feed-rank ordered, fill the pool
+  // behind the big leads. The caller then drops any of these already shown on a followed card
+  // (mrb8ahf7), so between the two the hero surfaces big + non-duplicated stories.
+  const all = [...headlinesByComp.values()]
+    .flatMap((list) => list.map((headline, feedRank) => ({ headline, feedRank })))
+    .sort((a, b) => a.feedRank - b.feedRank || byNewest(a.headline, b.headline));
+  for (const { headline } of all) {
     if (
       headline.teamKeys.some((k) => pairs.has(`${headline.competitionKey}:${k}`)) &&
       !pickedIds.has(headline.id)
     ) {
       picked.push(headline);
       pickedIds.add(headline.id);
-    }
-  }
-  for (const comp of followedCompetitionKeys) {
-    const newest = [...(headlinesByComp.get(comp) ?? [])]
-      .sort(byNewest)
-      .find((h) => !pickedIds.has(h.id));
-    if (newest) {
-      picked.push(newest);
-      pickedIds.add(newest.id);
     }
   }
   return picked.slice(0, TOP_STORIES_CAP);
@@ -657,24 +774,30 @@ function scheduleSideFor(schedule: readonly GameSummary[], teamKey: string): Gam
   return undefined;
 }
 
-function newestTeamHeadline(
-  headlines: readonly SourceHeadline[],
-  teamKey: string
-): FollowedTeamNews | null {
-  const newest = headlines
+// Up to three of the club's stories, newest first, from the already-merged league + per-team
+// feeds (live feedback mrb0pk1n — "three stories per team… real news for their clubs"). Replaces
+// the single newest-headline pick AND the old client-side title-matching in the ticker: the
+// service's teamKeys tagging (per-team ESPN feed + resolveHeadlineTeamKeys) is the one source of
+// truth for "about this club". Dedup by url — the same story can arrive from both feeds under
+// different ids.
+const TEAM_STORY_LIMIT = 3;
+
+function teamStories(headlines: readonly SourceHeadline[], teamKey: string): FollowedTeamNews[] {
+  const seen = new Set<string>();
+  return headlines
     .filter((h) => h.teamKeys.includes(teamKey))
     .slice()
-    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
-  return newest
-    ? // publishedAt rides along so the ticker can rank idle teams by news freshness (mra54n4h);
-      // imageUrl feeds the small thumbnail on non-live cards (mra5xnt2).
-      {
-        title: newest.title,
-        url: newest.url,
-        publishedAt: newest.publishedAt,
-        imageUrl: newest.imageUrl
-      }
-    : null;
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .filter((h) => (seen.has(h.url) ? false : (seen.add(h.url), true)))
+    .slice(0, TEAM_STORY_LIMIT)
+    .map((h) => ({
+      // publishedAt rides along so the ticker can rank idle teams by news freshness (mra54n4h);
+      // imageUrl feeds the small thumbnail on the lead story (mra5xnt2).
+      title: h.title,
+      url: safeHref(h.url), // same javascript:/data: href guard as toPublicHeadline (#857 M2)
+      publishedAt: h.publishedAt,
+      imageUrl: h.imageUrl
+    }));
 }
 
 // Start time of the team's most recent completed game, from the same season schedule that feeds
@@ -737,14 +860,46 @@ function inGamedayWindow(game: GameSummary, now: Date): boolean {
   return new Date(game.startsAt).getTime() - now.getTime() <= GAMEDAY_HERO_LEAD_MS;
 }
 
-function standingLine(standings: readonly StandingsRow[], teamKey: string): string | null {
-  const row = standings.find((r) => r.teamKey === teamKey);
-  if (!row) return null;
-  // Zero games played = the league isn't in progress; its "rank" is carry-over noise like
-  // "#14 · 0 pts" and the card is better off without the line (live feedback mra39rlv).
-  if (row.wins + row.losses + (row.draws ?? 0) === 0) return null;
-  if (row.points !== null) return `#${row.rank} · ${row.points} pts`;
-  return `#${row.rank} · ${row.wins}-${row.losses}`;
+// The sub-row standing is sport-aware (live feedback mraxrdxr, mraz6m43): leagues whose
+// standings arrive in labelled sections (NFL/NBA divisions, tournament groups) show the
+// place WITHIN that section ("2nd · NFC East") because that's how those sports are read;
+// flat single-table leagues (soccer) keep the overall line ("#4 · 40 pts").
+function standingLine(sections: StandingsTable["sections"], teamKey: string): string | null {
+  for (const section of sections) {
+    const index = section.rows.findIndex((r) => r.teamKey === teamKey);
+    if (index === -1) continue;
+    const row = section.rows[index]!;
+    // Zero games played = the league isn't in progress; its "rank" is carry-over noise like
+    // "#14 · 0 pts" and the card is better off without the line (live feedback mra39rlv).
+    if (row.wins + row.losses + (row.draws ?? 0) === 0) return null;
+    // rank ≤ 0 = the provider omitted the stat and the source's positional fallback didn't
+    // apply (hand-built fixtures, older cache entries) — the section order is still the rank.
+    const place = row.rank > 0 ? row.rank : index + 1;
+    if (section.label) return `${ordinal(place)} · ${shortSectionLabel(section.label)}`;
+    if (row.points !== null) return `#${place} · ${row.points} pts`;
+    return `#${place} · ${row.wins}-${row.losses}`;
+  }
+  return null;
+}
+
+// Display-only compression for the card sub-row: ESPN division labels like "National League
+// West" / "Pacific Division" crowd the pips out of the narrow ticker sub-row (mraxrdxr).
+// Kept server-side but OUT of the standings payload — the standings rail wants the full label,
+// and adding a field to StandingsSection means response-schema churn (see the fast-json-
+// stringify oneOf trap that 500'd the overview this morning). NFL needs no entry: ESPN already
+// names its divisions short ("NFC East").
+function shortSectionLabel(label: string): string {
+  return label
+    .replace(/^American League /, "AL ")
+    .replace(/^National League /, "NL ")
+    .replace(/ Division$/, "");
+}
+
+function ordinal(n: number): string {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  const suffix = ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix}`;
 }
 
 function nextMatchFor(
@@ -763,7 +918,9 @@ function nextMatchFor(
   return {
     opponentName: opponent.name,
     homeAway: next.home.teamKey === teamKey ? "home" : "away",
-    startsAt: next.startsAt
+    startsAt: next.startsAt,
+    // Footer identifies the opponent by crest, not name (live feedback mrawvc48)
+    opponentCrestUrl: opponent.crestUrl
   };
 }
 

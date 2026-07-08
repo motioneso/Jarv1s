@@ -65,6 +65,11 @@ export interface Headline {
   readonly imageUrl: string | null; // first "header" image, else first image, else null
   readonly summary: string; // short article blurb from the source; "" when absent (#840)
   readonly teamKeys: readonly string[]; // filled by the service join (Task 4); source emits []
+  // Sanitized plaintext excerpt of the full article body (#857). Populated ONLY for the single
+  // NewsBand featured story (the service fetches its per-article ESPN body); every other headline
+  // omits it and the UI falls back to `summary`. Already stripped of all HTML/tokens and length-
+  // capped in the source layer — the client renders it as text, never as HTML.
+  readonly body?: string;
 }
 
 export interface CompetitionRef {
@@ -117,6 +122,9 @@ export interface FollowedNextMatch {
   readonly opponentName: string; // full name, resolved per D1
   readonly homeAway: "home" | "away";
   readonly startsAt: string; // ISO instant; formatted client-side in the viewer's locale
+  // Opponent crest for the ticker's Next footer, which identifies the opponent by logo
+  // instead of name (live feedback mrawvc48). Optional: pre-#845 payloads predate it.
+  readonly opponentCrestUrl?: string | null;
 }
 
 export interface FollowedTeamCard {
@@ -127,7 +135,14 @@ export interface FollowedTeamCard {
   readonly crestUrl: string | null;
   readonly status: "live" | "today" | "news";
   readonly primary: string; // "MIN 21 – 14 DAL", "W 4–2 vs NYR", or a headline title
-  readonly news: FollowedTeamNews | null;
+  // For status "today": whether today's game has finished. The ticker keeps a final score in
+  // the primary slot but drops the pre-game matchup line — the Next footer already carries the
+  // fixture (live feedback mrawrk0e). Optional: older payloads predate it.
+  readonly todayGameState?: "pre" | "final";
+  // Up to three of the club's own stories, newest first (live feedback mrb0pk1n — "three
+  // stories per team… real news for their clubs"). stories[0] is the lead (thumbnail slot);
+  // the rest render as text links. Replaces the old single `news` field.
+  readonly stories: readonly FollowedTeamNews[];
   readonly form: readonly ("W" | "D" | "L")[];
   readonly standing: string | null;
   readonly nextMatch: FollowedNextMatch | null;
@@ -305,7 +320,12 @@ const headlineSchema = {
     publishedAt: { type: "string" },
     imageUrl: { type: ["string", "null"] },
     summary: { type: "string" },
-    teamKeys: { type: "array", items: { type: "string" } }
+    teamKeys: { type: "array", items: { type: "string" } },
+    // Optional (not in `required`) — only the featured story carries it (#857). MUST be listed
+    // here even though it's optional: this schema is used inside a oneOf (hero.headline), where
+    // fast-json-stringify REJECTS the whole object for any emitted key it doesn't know — the same
+    // trap documented on `nextMatch`/`stories` below that has 500'd /overview before.
+    body: { type: "string" }
   }
 } as const;
 
@@ -345,7 +365,7 @@ const followedTeamCardSchema = {
     "crestUrl",
     "status",
     "primary",
-    "news",
+    "stories",
     "form",
     "standing",
     "nextMatch",
@@ -360,23 +380,22 @@ const followedTeamCardSchema = {
     crestUrl: { type: ["string", "null"] },
     status: { type: "string", enum: ["live", "today", "news"] },
     primary: { type: "string" },
-    news: {
-      oneOf: [
-        { type: "null" },
-        {
-          type: "object",
-          additionalProperties: false,
-          // New fields must be listed here or fast-json-stringify's oneOf matching rejects the
-          // object (it doesn't just drop unknown keys inside oneOf) — see toPublicHeadline note.
-          required: ["title", "url", "publishedAt", "imageUrl"],
-          properties: {
-            title: { type: "string" },
-            url: { type: "string" },
-            publishedAt: { type: "string" },
-            imageUrl: { type: ["string", "null"] }
-          }
+    stories: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        // Plain array items (no oneOf — an empty array replaces the old null), but keep every
+        // emitted field listed: fast-json-stringify silently DROPS unknown keys outside oneOf,
+        // and rejects the whole object inside one — see toPublicHeadline note.
+        required: ["title", "url", "publishedAt", "imageUrl"],
+        properties: {
+          title: { type: "string" },
+          url: { type: "string" },
+          publishedAt: { type: "string" },
+          imageUrl: { type: ["string", "null"] }
         }
-      ]
+      }
     },
     form: { type: "array", items: { type: "string", enum: ["W", "D", "L"] } },
     standing: { type: ["string", "null"] },
@@ -386,15 +405,20 @@ const followedTeamCardSchema = {
         {
           type: "object",
           additionalProperties: false,
+          // Same oneOf trap as `news` above: a field the service emits but this schema omits
+          // makes fast-json-stringify reject the whole object → 500 on /overview (bit us live
+          // when opponentCrestUrl shipped in the payload without a schema row, mrawvc48).
           required: ["opponentName", "homeAway", "startsAt"],
           properties: {
             opponentName: { type: "string" },
             homeAway: { type: "string", enum: ["home", "away"] },
-            startsAt: { type: "string" }
+            startsAt: { type: "string" },
+            opponentCrestUrl: { type: ["string", "null"] }
           }
         }
       ]
     },
+    todayGameState: { type: "string", enum: ["pre", "final"] },
     lastMatchAt: { type: ["string", "null"] },
     rationale: { type: "string" }
   }

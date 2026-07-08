@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
   GameSide,
@@ -125,6 +125,15 @@ export function StandingsRail(props: {
   // null = follow the derived default (followed team's division); a string = the viewer's own pick.
   const [viewOverride, setViewOverride] = useState<string | null>(null);
 
+  // Vertical scroll affordance (Ben 2026-07-07): the rail is height-capped (mrbah9gw decouple),
+  // so a 20-team division shows only its top ~14 rows with NO hint the rest is below — it "looks
+  // like there's only fourteen teams and it doesn't look wrong". Track whether rows sit past the
+  // scroll bottom and fade the last visible row as an honest "more below" cue (mirrors the board's
+  // right-edge --more mask). Only shows when the list actually overflows, so a short division is
+  // left clean.
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const [moreBelow, setMoreBelow] = useState(false);
+
   const isTournament = catalogEntry(selectedKey)?.kind === "tournament";
   // The overview payload only carries standings for followed leagues; selecting a league outside
   // that set lazily fetches it via the dedicated standings route (#842). Tournaments always fetch
@@ -176,8 +185,29 @@ export function StandingsRail(props: {
         .map((row) => [row.qualificationNote as string, row])
     ).values()
   );
+
+  // Re-measure after every content swap (league/view change resizes the list) and on scroll/
+  // resize. No dep array so a fresh render re-runs it; 8px slack clears the cue exactly at the
+  // end past sub-pixel rounding. clientHeight is the capped viewport, scrollHeight the full list.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 8);
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      el.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  });
+
   return (
-    <section className="sp-standings" aria-label="Standings">
+    <section
+      className={`sp-standings${moreBelow ? " sp-standings--more" : ""}`}
+      aria-label="Standings"
+      ref={scrollRef}
+    >
       <div className="sp-standings__hd">
         <span className="sp-standings__title">
           <TrophyIcon />
@@ -239,6 +269,9 @@ export function StandingsRail(props: {
           ))}
         </ul>
       ) : null}
+      {/* Sticky-bottom fade cue: negative margin so it overlays the last rows without adding
+          scroll length; opacity toggled by --more so it only appears while more rows are below. */}
+      <div className="sp-standings__fade" aria-hidden="true" />
     </section>
   );
 }
@@ -377,9 +410,15 @@ function StandingsTable(props: {
   const { group, section, label } = props;
   // ESPN sometimes returns soccer tables in stale or fetch order — re-sort so the table
   // always reads best-first, while still displaying ESPN's own rank number as-is.
+  // Record-shape leagues that carry points (NHL: W-L + Pts) rank by points, not win% —
+  // sorting an NHL table by win% put teams out of standings order (live feedback mrawe0w4);
+  // for NFL/MLB/NBA points is null on every row, so the comparator falls through to win%.
   const rows = [...section.rows].sort(
     group.standingsShape === "record"
-      ? (a, b) => (b.winPercent ?? -1) - (a.winPercent ?? -1) || b.wins - a.wins
+      ? (a, b) =>
+          (b.points ?? -1) - (a.points ?? -1) ||
+          (b.winPercent ?? -1) - (a.winPercent ?? -1) ||
+          b.wins - a.wins
       : (a, b) => (b.points ?? -1) - (a.points ?? -1) || a.rank - b.rank
   );
   return (
