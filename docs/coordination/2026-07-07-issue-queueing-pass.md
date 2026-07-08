@@ -1175,3 +1175,9 @@ skipped). Review/invariants/exit-criteria not assessed — blocked before code-r
 durably: PR #864 comment `4911784072`. **Failure budget: 1/2** — relayed the fix (regenerate
 lockfile with plain `pnpm install`, commit, push, re-request QA) to Build-742 via
 `herdr-pane-message`, confirmed delivered + agent back to `working`. Re-QA once it reports fixed.
+
+**Build-742 fixed + re-reported.** Cause confirmed as diagnosed: `pnpm-lock.yaml` missing the
+`settings → notifications` workspace importer. Commit `918d708a` pushed. Self-verified
+`pnpm install --frozen-lockfile` + `format:check`/`lint`/`typecheck` all exit 0. Spawned re-QA
+(`coordinated-qa`, routine, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_742b`) against the
+fixed head. Awaiting verdict #2.
