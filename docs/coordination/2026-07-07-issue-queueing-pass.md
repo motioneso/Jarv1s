@@ -31,8 +31,13 @@ immediately without a pause-and-ask round trip, including `security` tier.
 **Provider-mix directive:** COMPLETE — 3/3 Codex slots used (Build-742, Build-744, Build-759);
 Build-760 (Sonnet) is the reversion, as expected.
 **merges_since_relay:** 0 this tenure so far.
-**Open:** Build-853 Task 3 (full local gate) in progress; Build-760 just started (plan-approval
-gate next). Watching both via Monitor `bmt2e7gqq`.
+**Open:** Build-853 Task 3 (full local gate) in progress. Build-760's plan was approved (no drift,
+no fork) and it began TDD Task 1 (migration + `chat_skills` table); it self-relayed at 70% context
+before writing any code (still in migration research) — successor confirmed driving in the same
+pane/worktree, new session `dcc59fef-ed79-4afb-a441-9ffb89b36e02`, label `Build-760-relayed`, old
+process self-reaped (only one pane in the tab post-relay, nothing left for the coordinator to
+close). Task 1 now ~48% per its own todo list. Watching both via Monitor `bmt2e7gqq` (still keyed
+on pane `w1:pB1` — unaffected by the in-place relay since the pane id didn't change).
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
