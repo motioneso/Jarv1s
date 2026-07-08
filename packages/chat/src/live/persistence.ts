@@ -274,6 +274,19 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     return found !== undefined;
   }
 
+  async getCurrentThreadState(
+    actorUserId: string
+  ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined> {
+    return this.run(actorUserId, "get-current-thread-state", async (scopedDb) => {
+      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      return thread ? { id: thread.id, incognito: thread.incognito } : undefined;
+    });
+  }
+
+  async deleteThread(actorUserId: string, threadId: string): Promise<void> {
+    await this.run(actorUserId, "delete-thread", (scopedDb) => this.chat.deleteThread(scopedDb, threadId));
+  }
+
   async getThreadContext(
     actorUserId: string
   ): Promise<{ threadTitle: string | null; localTimezone: string | null }> {

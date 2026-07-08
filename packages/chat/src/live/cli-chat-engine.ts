@@ -353,6 +353,20 @@ export class CliChatEngineImpl implements CliChatEngine {
     }
   }
 
+  async purgeTranscripts(): Promise<void> {
+    if (this.provider === "anthropic") {
+      if (this.transcriptDir !== null) {
+        await this.io.run("rm", ["-rf", this.transcriptDir]);
+      }
+      return;
+    }
+
+    const path = await this.resolveTranscriptPath();
+    if (path !== null) {
+      await this.io.run("rm", ["-f", path]);
+    }
+  }
+
   // ─── introspection (used by tests / callers needing the pinned path) ─────────
 
   /**

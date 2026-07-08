@@ -787,6 +787,7 @@ function serializeThread(thread: ChatThread): ChatThreadDto {
     id: thread.id,
     ownerUserId: thread.owner_user_id,
     title: thread.title,
+    incognito: thread.incognito,
     createdAt: toIsoString(thread.created_at),
     updatedAt: toIsoString(thread.updated_at)
   };

@@ -258,4 +258,9 @@ export class ChatRepository {
       .returningAll()
       .executeTakeFirst();
   }
+
+  async deleteThread(scopedDb: DataContextDb, threadId: string): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db.deleteFrom("app.chat_threads").where("id", "=", threadId).execute();
+  }
 }

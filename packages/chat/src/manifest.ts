@@ -103,6 +103,7 @@ export const chatModuleManifest = {
     { method: "POST", path: "/api/chat/turn/cancel", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
     { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },
+    { method: "POST", path: "/api/chat/private/end", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/threads/:id/resume", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/settings", permissionId: "chat.view" },

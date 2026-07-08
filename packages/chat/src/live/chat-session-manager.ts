@@ -70,6 +70,10 @@ export interface ChatPersistencePort {
   >;
   /** Close the current conversation and open a fresh one (for /clear). */
   openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
+  getCurrentThreadState?(
+    actorUserId: string
+  ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined>;
+  deleteThread?(actorUserId: string, threadId: string): Promise<void>;
   /** Return the current thread title and the user's persisted timezone (null if unset). */
   getThreadContext(
     actorUserId: string
@@ -187,6 +191,8 @@ interface UserSession {
   model: string;
   lastActivity: number;
   transcriptOffset: number;
+  threadId?: string;
+  incognito: boolean;
   /** #679 — last attached page-context snapshot; volatile (deleted with this object on
    *  clear()/resumeThread()/switchProvider()/reapIdle()), reused within PAGE_CONTEXT_TTL_MS. */
   lastPageContext?: CachedPageContext;
@@ -325,8 +331,10 @@ export class ChatSessionManager {
 
     // The bounded window of prior turns (+ older rolling summary) so a respawned or
     // provider-switched engine continues seamlessly.
-    const { recent: recentTurns, oldSummary } =
-      await this.deps.persistence.listPriorTurns(actorUserId);
+    const [threadState, { recent: recentTurns, oldSummary }] = await Promise.all([
+      this.deps.persistence.getCurrentThreadState?.(actorUserId),
+      this.deps.persistence.listPriorTurns(actorUserId)
+    ]);
     const replayParts: string[] = [];
     if (memorySeed) replayParts.push(memorySeed);
     if (oldSummary) replayParts.push(renderSummaryBlock(oldSummary));
@@ -359,7 +367,9 @@ export class ChatSessionManager {
       lastActivity: this.deps.clock.now(),
       // Seed from the launch return so the FIRST real readNew does not re-read the
       // server-drained replay block as the assistant reply (§4.1.2).
-      transcriptOffset: offset
+      transcriptOffset: offset,
+      threadId: threadState?.id,
+      incognito: threadState?.incognito ?? false
     };
     this.sessions.set(actorUserId, session);
 
@@ -630,6 +640,13 @@ export class ChatSessionManager {
    * contextless reset that matches the "known path, no globbing" launch design.
    */
   async clear(actorUserId: string, options?: { incognito?: boolean }): Promise<void> {
+    const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
+    if (currentThread?.incognito) {
+      await this.endPrivateSession(actorUserId);
+      await this.deps.persistence.openNewConversation(actorUserId, options);
+      return;
+    }
+
     const session = this.sessions.get(actorUserId);
     if (session) {
       await session.engine.kill();
@@ -637,6 +654,29 @@ export class ChatSessionManager {
       this.deps.revokeMcpToken?.(actorUserId);
     }
     await this.deps.persistence.openNewConversation(actorUserId, options);
+  }
+
+  async endPrivateSession(actorUserId: string): Promise<void> {
+    const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
+    if (!currentThread?.incognito) return;
+
+    const session = this.sessions.get(actorUserId);
+    if (session) {
+      try {
+        await session.engine.kill();
+      } catch {
+        // best-effort: cleanup continues below.
+      }
+      try {
+        await session.engine.purgeTranscripts?.();
+      } catch {
+        // best-effort: cleanup continues below.
+      }
+      this.sessions.delete(actorUserId);
+      this.deps.revokeMcpToken?.(actorUserId);
+    }
+
+    await this.deps.persistence.deleteThread?.(actorUserId, currentThread.id);
   }
 
   /**
@@ -725,7 +765,14 @@ export class ChatSessionManager {
     await this.withMaintenanceLock(async () => {
       const now = this.deps.clock.now();
       for (const [userId, session] of this.sessions) {
+        if (session.incognito && (this.subscribers.get(userId)?.size ?? 0) > 0) {
+          continue;
+        }
         if (now - session.lastActivity > this.deps.idleMs) {
+          if (session.incognito) {
+            await this.endPrivateSession(userId);
+            continue;
+          }
           await session.engine.kill();
           this.sessions.delete(userId);
           this.deps.revokeMcpToken?.(userId);

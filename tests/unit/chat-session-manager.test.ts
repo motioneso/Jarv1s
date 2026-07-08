@@ -46,6 +46,7 @@ class FakeEngine {
   readonly submitted: string[] = [];
   interrupted = false;
   killed = false;
+  purged = false;
   launchCount = 0;
   private readonly readScript: { records: TranscriptRecord[]; offset: number; complete: boolean }[];
 
@@ -77,10 +78,86 @@ class FakeEngine {
   async kill(): Promise<void> {
     this.killed = true;
   }
+  async purgeTranscripts(): Promise<void> {
+    this.purged = true;
+  }
   async interrupt(): Promise<void> {
     this.interrupted = true;
   }
 }
+
+describe("ChatSessionManager private cleanup", () => {
+  function privateDeps(engine: FakeEngine, incognito: boolean, now = 0) {
+    return makeMinimalDeps({
+      clock: { now: () => now },
+      idleMs: 10,
+      engineFactory: () => engine,
+      persistence: {
+        resolveActiveProvider: vi.fn().mockResolvedValue({ provider: "anthropic", model: "sonnet" }),
+        listPriorTurns: vi.fn().mockResolvedValue({ recent: [], oldSummary: null }),
+        recordTurn: vi.fn().mockResolvedValue(undefined),
+        openNewConversation: vi.fn().mockResolvedValue(undefined),
+        getThreadContext: vi.fn().mockResolvedValue({ threadTitle: null, localTimezone: null }),
+        touchExistingThread: vi.fn().mockResolvedValue(true),
+        getCurrentThreadState: vi.fn().mockResolvedValue({ id: "thread-private", incognito }),
+        deleteThread: vi.fn().mockResolvedValue(undefined)
+      }
+    });
+  }
+
+  it("endPrivateSession kills engine, purges transcripts, deletes bookkeeping, and revokes token", async () => {
+    const engine = new FakeEngine();
+    const revoke = vi.fn();
+    const deps = privateDeps(engine, true);
+    const manager = new ChatSessionManager({ ...deps, revokeMcpToken: revoke });
+    await manager.ensureSession("u1", "Ben");
+
+    await manager.endPrivateSession("u1");
+
+    expect(engine.killed).toBe(true);
+    expect(engine.purged).toBe(true);
+    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(revoke).toHaveBeenCalledWith("u1");
+  });
+
+  it("clear deletes an outgoing private bookkeeping thread before opening the next chat", async () => {
+    const engine = new FakeEngine();
+    const deps = privateDeps(engine, true);
+    const manager = new ChatSessionManager(deps);
+    await manager.ensureSession("u1", "Ben");
+
+    await manager.clear("u1");
+
+    expect(engine.killed).toBe(true);
+    expect(engine.purged).toBe(true);
+    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(deps.persistence.openNewConversation).toHaveBeenCalledWith("u1", undefined);
+  });
+
+  it("reapIdle skips private sessions with subscribers and reaps private sessions without subscribers", async () => {
+    let now = 0;
+    const kept = new FakeEngine();
+    const keptDeps = privateDeps(kept, true, now);
+    const keptManager = new ChatSessionManager({ ...keptDeps, clock: { now: () => now } });
+    await keptManager.ensureSession("u1", "Ben");
+    const unsubscribe = keptManager.subscribe("u1", () => undefined);
+    now = 20;
+    await keptManager.reapIdle();
+    expect(kept.killed).toBe(false);
+    unsubscribe();
+
+    const reaped = new FakeEngine();
+    const reapedDeps = privateDeps(reaped, true, now);
+    const reapedManager = new ChatSessionManager({ ...reapedDeps, clock: { now: () => now } });
+    await reapedManager.ensureSession("u1", "Ben");
+    now = 40;
+    await reapedManager.reapIdle();
+
+    expect(reaped.killed).toBe(true);
+    expect(reaped.purged).toBe(true);
+    expect(reapedDeps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+  });
+});
 
 describe("ChatSessionManager.injectRecord", () => {
   it("fans out the record to all subscribers of that user", () => {
