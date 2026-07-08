@@ -326,3 +326,14 @@
   color: var(--text);
   font-weight: 600;
 }
+/* Inline command styling for footnotes (e.g. the terminal-attach hint, Ben 2026-07-08).
+   Mirrors the chat markdown `code` treatment so commands read consistently app-wide. */
+.set2-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text);
+}
