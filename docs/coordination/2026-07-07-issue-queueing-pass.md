@@ -1,9 +1,9 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07 (session continuing 2026-07-08)
-**Coordinator lock:** STALE — was `da0dca71-c202-43c2-b6c4-60a05a626a70` / pane `w1:pB6` / tab
-`w1:t15`, relaying now at context 70%. Successor claims the lock in `w1:t15`; resolve fresh by
-label+session, never trust a pane number.
+**Coordinator lock:** `7dbdd81d-fe53-43ba-aac2-1a9bb989efc1` / label `Coordinator` / pane `w1:pBB`
+/ tab `w1:t15`. Claimed from predecessor `da0dca71-c202-43c2-b6c4-60a05a626a70` (pane `w1:pB6`,
+reaped). Resolve fresh by label+session, never trust a pane number.
 
 **Fleet:**
 - **#853 auth-signup-atomicity: MERGED.** PR #875 squash-merged `a519bc88`. Opus adversarial QA
