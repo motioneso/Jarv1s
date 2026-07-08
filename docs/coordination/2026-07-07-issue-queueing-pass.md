@@ -10,8 +10,10 @@ Ben's explicit merge sign-off.
 **Provider policy (Ben, 2026-07-07 this tenure):** mix up agent providers — next 3 build agents
 spawned should run on **Codex (GPT-5.5)** instead of Claude, where Codex is viable for the task.
 See "Provider-mix directive" note below.
-**merges_since_relay:** 1 (carried forward — routine #854/PR #856, from `b7a14b99` tenure; relay
-threshold is 2 routine/sensitive merges, not yet reached)
+**merges_since_relay:** 0 — RESET. #817/PR #862 (security tier) merged this tenure
+(`743e10e9`, 2026-07-07); security-tier merges relay unconditionally, so this tenure is
+self-handing-off now. The prior carried-forward routine merge (#854/PR #856) is subsumed by this
+relay.
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
@@ -981,3 +983,33 @@ migration 0145 + foundation.test.ts row present). Exit-criteria met: SECURITY DE
 NULL-owner branch dropped and tested; anonymous-fallback bug fix gated on genuine no-session.
 
 **PAUSED — per security-tier protocol, merge requires Ben's explicit sign-off. Not auto-merging.**
+
+### ✅ #817 / PR #862 — MERGED (this tenure, session `743e10e9`)
+
+Ben replied "merge" (explicit sign-off). Pre-merge: re-confirmed own session id
+(`743e10e9-147f-4fb9-88b4-38c72a9755d9`) against manifest lock line (match) — authoritative.
+`gh pr checks 862`: Verify foundation pass, both compose smokes pass, "Build and publish images"
+pending (post-merge publish job, not a review gate — QA already flagged this). Squash-merged
+`ec0fbe4a`. Local branch delete failed first pass (worktree still held it) — removed worktree
+`.claude/worktrees/817-error-explainability`, then deleted local branch cleanly (remote branch
+already gone via `--delete-branch`). Issue #817 was NOT auto-closed by the merge — closed
+manually with a comment pointing at PR #862. Board status on both `Jarv1s Roadmap` (project 1)
+and `Issue and Roadmap Work` (project 2) already showed `Done` — auto-moved by close automation,
+no manual board edit needed. No parent epic reference found in the issue body.
+
+**merges_since_relay: this tenure's count is now 1, and it is a SECURITY-tier merge — the relay
+trigger is unconditional and fires NOW, no deferral.** Per coordinate skill Phase 3 step 7 /
+relay triggers: flush this manifest (done, this section) and self-handoff immediately. Remaining
+bookkeeping (standing per-merge digest formatting, memory_save for the SECURITY DEFINER
+anonymous-write pattern) goes to the successor as a continuation note below.
+
+**Continuation note for successor:** (1) confirm Build-853 (`w1:p9W`) status — was idle at Task 3
+("full local gate") as of last tenure's check, re-verify with a bounded read, it may have
+progressed silently; (2) add PR #862 to Ben's standing per-merge digest (tier: security, PR link,
+verified exit codes VF=0/AUDIT=0, Opus QA GREEN, merged `ec0fbe4a`); (3) consider
+`memory_save` (project "jarv1s", type "architecture") for the SECURITY DEFINER
+anonymous-actor-write pattern established this run — non-obvious, reusable for any future
+anonymous/unauthenticated write path; (4) the unpushed-coordination-branch structural gap (see
+above) is still open, still worth raising with Ben when there's a natural opening; (5) backlog
+triage (#818–826, #741–745, #759–760) — still no reply from Ben, still don't act on it without
+him.
