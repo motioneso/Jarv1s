@@ -1259,6 +1259,19 @@ for a third cycle; escalating to Ben instead (finding is a hard-invariant violat
 bug). Build-744 (`w1:pAG`) left idle/parked pending Ben's direction — do not resume work on it
 without his input on whether to continue the same lane or reset scope.
 
+**Ben's decision (2026-07-08):** scope #865 to Claude + Codex-interactive only; file the Gemini +
+non-interactive-engine purge gap as a standalone follow-up rather than a 3rd QA cycle on the same
+PR. **Follow-up filed: issue #868** (Part of #744) — covers Gemini engine-less purge, agy-print +
+codex-exec non-interactive purge, and tightening the Codex engine-less branch from per-user
+(neutralDir) to per-session cwd matching (the non-blocking over-deletion finding from verdict #2,
+folded into #868's scope since it touches the same code path). Relayed scope-narrowing direction to
+Build-744 (`w1:pAG`, confirmed delivered + agent `working`): restrict engine-less purge coverage to
+Claude/Codex-interactive only, tighten Codex branch to per-session, leave Gemini/non-interactive
+paths inert (not silently broken) with a doc note pointing at #868, re-run full gate, re-request
+QA. This will be **QA cycle #3** on PR #865 but against a reduced/clarified scope — treat as a
+fresh failure-budget count (2 new chances) since the scope itself changed, not a straight retry of
+the same fix.
+
 **Merge policy note:** Ben's standing instruction above (`db95c4a1`) means once re-QA on #865
 comes back GREEN, merge directly — no separate pause-and-ask needed, still log to digest.
 
