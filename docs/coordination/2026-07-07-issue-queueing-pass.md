@@ -17,6 +17,12 @@ reaped). Resolve fresh by label+session, never trust a pane number.
   skill fns done, TDD test written red (`81696e10`), `settings-skills-pane.tsx` impl NOT yet
   written — Task 4 steps 2-4 + Tasks 5-7 remain. Handoff doc commit `93873bfe`. Still **security
   tier** (owner-scoped RLS + user-authored-content-as-instructions surface). No PR yet.
+  Coordinator call (routine, no escalation needed): `packages/db/src/types.ts` grew to 1011 lines
+  (Task 1 commit `c7262aff`, predates this relay) tripping `check:file-size`; directed to add it
+  to `exemptFiles` in `scripts/check-file-size.ts` — matches existing precedent
+  (`repository.ts`/`routes.ts`/`client.ts`/`module-registry/index.ts` are exempted for the same
+  reason). Do NOT split the file, out of #760 scope. Context already at 72% — next relay likely
+  imminent.
 
 **Liveness Monitor:** none currently running — old task `bmr4q9c48` died at this relay. Successor
 must start a fresh one on `w1:pBA` immediately after adopting.
