@@ -1062,6 +1062,16 @@ this relay was the predecessor's, already reflected in the digest above).
 e875e7d60d7f` / label `Coordinator` / pane `w1:pAE` / tab `w1:t15` (resolve fresh, don't trust the
 pane number) until a successor claims Phase 0a and updates that line itself.
 
+## Standing instruction — merge sign-off (Ben, this tenure)
+
+Ben: **"i approve merges after any review errors fixed."** Read as standing pre-approval for this
+run: once a QA verdict comes back GREEN (any prior RED findings fixed and re-verified), merge
+without a separate pause-and-ask round trip — this applies to `security` tier too, superseding the
+per-PR "PAUSE until his explicit OK" step in the coordinate skill's security-tier gate for the
+remainder of this run. Every merge still gets logged to Ben's standing per-merge digest
+(tier/PR/verified exit codes/QA verdict/commit) so nothing merges invisibly — transparency
+preserved, just not a blocking round trip per merge.
+
 ## RFA wave — #742, #744, #759, #760 (this tenure, `63c5023b`)
 
 Ben flagged mid-tenure: "there are new rfa items from a different session." `gh issue list --label
