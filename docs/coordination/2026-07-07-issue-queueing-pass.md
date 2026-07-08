@@ -1,46 +1,45 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `4727de9a-8e93-4bd6-a684-7320d6a54a5a` / label `Coordinator` / pane
-`w1:pAW` / tab `w1:t15` — claimed 2026-07-08 from predecessor `3b6cd485-5f89-4ecf-bb5c-3137dc409e85`
-(relayed at 71% context per its own report; pane `w1:pAV` still showed `agent_status: working` with
-its TaskList mid-"Supervise fleet" at first read — messaged it to confirm handoff + stand down
-before reaping). Resolve fresh by label+session, never trust the pane number. Predecessor's tenure
-merged PR #865 (security tier, squash `791ce5e4`) and relayed unconditionally per the
-merges_since_relay=1 security-tier rule. See the bottom-of-file checkpoint (session `3b6cd485`,
-search for its own relay note if present) for that tenure's full state — its top-of-file summary
-above (lines "This tenure — DONE..." through "Successor's first action...") is carried forward
-unedited as this tenure's starting brief.
-**This tenure — DONE, self-handing-off:** (1) Build-853-next contradiction — RESOLVED, no real
-second agent, no action. (2) Fable-865-r4 (PR #865) reported **cycle-4 done**: `purgeTranscripts`
-RPC verb (contract+client+cli-runner) fixed the cycle-3 silent optional-chain no-op;
-`deleteThread` gated on purge success; real-RPC regression test added (refuses FakeEngine mask).
-Full gate green (unit 1929, typecheck/lint/format/file-size, `audit:release-hardening`,
-integration 1371 passed). **QA cycle #4** (Opus `coordinated-qa`) took 3 attempts — first two
-(`QA-865-c4`, `QA-865-c4b`) died to consecutive 502s from the inference gateway
-(`127.0.0.1:8787`, transient/server-side, not a finding); 90s cooldown then `QA-865-c4c` returned
-**GREEN, MERGE-READY: YES**, 0 blocking / 4 non-blocking (all previously-tracked: #868 scope,
-future-topology asymmetry, unchecked `rm -rf` exit code, file-size cap flag). Verdict posted
-durably (`gh pr comment`). **Merged** PR #865 squash `791ce5e4` (2026-07-08T18:39:09Z) — per
-Ben's standing override (below), a GREEN verdict merges without a separate pause-and-ask even at
-security tier. Issue #744 closed with merge summary; board item auto-moved to Done (project
-"Issue and Roadmap Work"); no linked epic found. Worktree + branch `744-private-chat-mode`
-removed; agent pane `w1:pAR` reaped. This merge order-unblocks Wave 2 (#759 Codex spawn) per the
-"RFA wave" collision-cluster note below. Liveness Monitor `b0b63ubkm` now only tracks `w1:p9W`
-(Build-853) — `w1:pAR` is gone.
-**Merge policy (corrected — this line was stale in prior tenures):** Ben's standing directive
-(see "RFA wave" section, `merge-without-pause-and-ask` override) is that **any GREEN QA verdict
-merges immediately without a pause-and-ask round trip, including `security` tier** — this
-supersedes the coordinate skill's default per-PR security sign-off gate. Still log every merge to
-the standing digest (below) so nothing merges invisibly.
-**Relay threshold:** per coordinate skill. No deferral. Compaction summary = relay, merge nothing.
-**Provider policy (Ben, 2026-07-07):** mix up agent providers — next build agents should run on
-**Codex (GPT-5.5)** where viable. See "Provider-mix directive" note below. 2/3 Codex slots used
-so far (Build-742, Build-744); Wave 2 (#759) is the 3rd Codex slot, now unblocked by this merge.
-**merges_since_relay:** 1 — #744/PR #865 (security tier) merged this tenure (squash `791ce5e4`,
-2026-07-08T18:39:09Z); security-tier merges relay unconditionally, so **this tenure is
-self-handing-off now.** Successor's first action: spawn Wave 2 (#759, Codex) per the RFA wave
-plan, and resume watching Build-853 (idle, Task 3 next).
+**Coordinator lock:** now (successor TBD) — claimed 2026-07-08 by `4727de9a-8e93-4bd6-a684-7320d6a54a5a`
+/ label `Coordinator` / pane `w1:pAW` / tab `w1:t15`, from predecessor `3b6cd485` (which merged
+PR #865 security-tier and relayed). Resolve the CURRENT lock fresh by label+session — this line is
+stale the instant a new session claims it; never trust a pane number.
+**This tenure (`4727de9a`) — DONE, self-handing-off at 70% context:**
+1. Phase 0a: confirmed sole `Coordinator` pane, reaped predecessor `3b6cd485` (pane `w1:pAV`,
+   confirmed "Handoff complete" before close).
+2. **Spawned Wave 2** — Build-759 (#759 chat-model-selector, `routine`, Codex/gpt-5.5, 3rd/3rd
+   Codex slot per provider-mix directive) off CI-verified `origin/main` `791ce5e4`. Approved its
+   plan (drift-checked clean against #744) and one minor `[DESIGN-FORK]` (Task 4 admin-import
+   already shipped in `settings-ai-admin-pane.tsx` — approved re-scope to verify-only, no
+   security/data-loss stakes, resolved without Opus).
+3. Build-759 reported done: PR #873, rebased on main, `VF_EXIT=0 AUDIT_EXIT=0`. QA (`coordinated-qa`,
+   Sonnet, routine tier) returned **GREEN, MERGE-READY: YES** — 0 blocking / 1 non-blocking
+   (`chat-session-manager.ts` lost its file-header doc comment while staying under the 1000-line
+   cap — flag as a follow-up, not a blocker; verdict posted at
+   https://github.com/motioneso/Jarv1s/pull/873#issuecomment-4918699660). PR #873 confirmed
+   `MERGEABLE`/`CLEAN` against current main (no drift since QA) — **merged squash `263716af`**
+   (2026-07-08T19:58:30Z). Worktree/branch `759-chat-model-selector` removed locally+remote; pane
+   `w1:pAZ` reaped; its liveness Monitor (`b5ieqzic4`) stopped. **Issue #759 closed** with merge
+   summary. No milestone/epic on #759 (labels: enhancement, RFA) — no board/milestone action taken
+   beyond issue close (no established board-move command found in this run's prior history either).
+4. Build-853 (`w1:p9W`) unchanged all tenure: idle, Task 3 "full local gate" next. Its liveness
+   Monitor (`btj9yrr0j`, persistent) is still running — **successor should adopt it, not
+   restart**, before checking it's still alive.
+**Merge policy (Ben's standing override, still in force):** any GREEN QA verdict merges
+immediately without a pause-and-ask round trip, including `security` tier.
+**Provider-mix directive:** COMPLETE — 3/3 Codex slots used (Build-742, Build-744, Build-759).
+**Wave 3 (`#760`, skill-integration-chat, `security` tier)** is next in the "RFA wave" collision
+cluster — it was waiting on #759's merge (now done) to rebase its chat-drawer/composer touches.
+Per provider policy it reverts to **Claude Sonnet**. `#760` needs a spec-approval check (see "RFA
+wave" section below for its collision notes) before spawning — verify it's still `Approved` on
+current `origin/main` first.
+**merges_since_relay:** 1 (routine, PR #873) this tenure — below the routine/sensitive threshold
+of 2, but the **context-meter 70% warning fired independently**, which is non-deferrable per the
+coordinate skill (no "just one more merge"). Relaying now.
+**Successor's first action:** spawn Wave 3 (#760, Sonnet) if its spec is still approved and no new
+collision surfaced from #759's actual merged diff, then resume watching Build-853 (adopt existing
+Monitor `btj9yrr0j`, don't duplicate).
 
 > Externalized memory for this run. GitHub is the source of truth for issue/spec status; this file
 > holds only in-flight operational state.
