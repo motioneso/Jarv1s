@@ -1,9 +1,7 @@
-import type { PgBoss } from "pg-boss";
 import { sql } from "kysely";
 
 import type { DataContextDb } from "@jarv1s/db";
 import { assertDataContextDb } from "@jarv1s/db";
-import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
 import { cronExprFor, timezoneFor, type NotificationDto } from "@jarv1s/shared";
 
 import { NotificationsRepository, type NotificationPreferencePort } from "./repository.js";
@@ -25,6 +23,16 @@ export interface DigestComposeJobPayload {
   readonly actorUserId: string;
   readonly reason: "scheduled-digest";
   readonly idempotencyKey: string;
+}
+
+export interface NotificationDigestScheduler {
+  schedule(
+    name: string,
+    cron: string,
+    data: DigestComposeJobPayload,
+    options: { readonly tz: string; readonly key: string }
+  ): Promise<unknown>;
+  unschedule(name: string, key: string): Promise<unknown>;
 }
 
 export interface NotificationDigestPreferencesPort {
@@ -92,7 +100,7 @@ export function digestScheduleData(actorUserId: string): DigestComposeJobPayload
 }
 
 export async function reconcileDigestSchedule(
-  boss: Pick<PgBoss, "schedule" | "unschedule">,
+  boss: NotificationDigestScheduler,
   actorUserId: string,
   preference: NotificationDigestPreference
 ): Promise<void> {
@@ -102,7 +110,7 @@ export async function reconcileDigestSchedule(
     return;
   }
   const data = digestScheduleData(actorUserId);
-  assertMetadataOnlyPayload(data);
+  assertDigestPayload(data);
   await boss.schedule(
     DIGEST_COMPOSE_QUEUE,
     cronExprFor(preference.cadence, preference.scheduleMetadata),
@@ -198,6 +206,13 @@ function escapeHtml(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function assertDigestPayload(payload: DigestComposeJobPayload): void {
+  const keys = Object.keys(payload).sort();
+  if (keys.join(",") !== "actorUserId,idempotencyKey,reason") {
+    throw new Error("Digest payload must contain metadata keys only");
+  }
 }
 
 async function getActorEmail(scopedDb: DataContextDb): Promise<string> {
