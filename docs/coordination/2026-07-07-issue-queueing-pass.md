@@ -1817,3 +1817,15 @@ w1:pAV`. Re-verified via `herdr pane list`: exactly one `Coordinator`-labeled pa
 **Next:** spawn Wave 2 (#759, Codex) per the provider-mix directive and the "RFA wave" section,
 and resume watching Build-853 (`w1:p9W`, idle, Task 3 "full local gate" next — confirmed via
 bounded read, unchanged from predecessor's last observation).
+
+Restarted liveness `Monitor` (task `btj9yrr0j`, persistent) for `w1:p9W` (Build-853) — predecessor's
+monitor died with its session per protocol. Fleet is now down to Build-853 only (#742/#744 already
+merged+reaped per top-of-file summary).
+
+**Wave 2 prep:** `git fetch origin main` confirmed `791ce5e4` (PR #865 squash) is tip. That commit's
+CI run was `in_progress` at fetch time — started a one-shot `Monitor` (task `b2mxhfhmt`) polling
+`gh run list --branch main` until `completed`, waiting for green before cutting the `#759`
+worktree off it (never spawn onto an unverified main). Confirmed spec approved on `origin/main`
+(`docs/superpowers/specs/2026-07-05-chat-model-selector.md`, Status: Approved 2026-07-07 Ben, tier
+`routine`) and pre-written plan exists at
+`docs/superpowers/plans/2026-07-06-chat-model-selector-plan.md`.
