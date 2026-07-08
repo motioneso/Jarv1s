@@ -23,6 +23,12 @@ reaped). Resolve fresh by label+session, never trust a pane number.
   (`repository.ts`/`routes.ts`/`client.ts`/`module-registry/index.ts` are exempted for the same
   reason). Do NOT split the file, out of #760 scope. Context already at 72% — next relay likely
   imminent.
+  Migration collision on rebase (sensitive — verified before approving): #760's
+  `packages/chat/sql/0147_chat_skills.sql` collided with merged #870's `0147_ai_provider_instance_
+  default.sql`. Verified against `origin/main` directly (not agent self-report): highest landed is
+  `0148_jarvis_error_log_worker_insert.sql`. Approved GO: renumber #760's migration file+embedded
+  version 0147→0149, update `foundation.test.ts` expected row, #870 migrations untouched. Not an
+  applied-migration edit — #760's file was never merged.
 
 **Liveness Monitor:** none currently running — old task `bmr4q9c48` died at this relay. Successor
 must start a fresh one on `w1:pBA` immediately after adopting.
