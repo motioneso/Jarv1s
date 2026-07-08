@@ -286,6 +286,20 @@ function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
             // /sports strip and the /today widget stay in lockstep (top-area feedback 2026-07-07).
             <span className="sp-feat__lead sp-feat__lead--empty">No recent news</span>
           )
+        ) : card.resultMatch ? (
+          // Finished game: lead with the opponent crest and show just "L 3–9" — the crest carries
+          // the opponent's identity so the "vs Blue Jays" text tail (which read as cheap, Ben
+          // 2026-07-08 /sports annotation #2) is gone. Same crest-leads treatment as the Next
+          // footer below. The sr-only name keeps the opponent reachable for screen readers.
+          <div className="sp-feat__result">
+            <Crest
+              name={card.resultMatch.opponentName}
+              crestUrl={card.resultMatch.opponentCrestUrl}
+              size="sm"
+            />
+            <p className="sp-feat__score">{card.resultMatch.scoreText}</p>
+            <span className="sp-sronly">vs {card.resultMatch.opponentName}</span>
+          </div>
         ) : (
           <p className={isScore ? "sp-feat__score" : "sp-feat__matchup"}>
             {card.primary.replace(/\s*·\s*Scheduled$/i, "")}

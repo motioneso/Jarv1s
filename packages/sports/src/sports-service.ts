@@ -4,6 +4,7 @@ import {
   localDay,
   type FollowedLeagueRef,
   type FollowedNextMatch,
+  type FollowedResultMatch,
   type FollowedTeamCard,
   type FollowedTeamNews,
   type GameSide,
@@ -579,6 +580,11 @@ export class SportsService {
       form: computeForm(schedule, teamKey),
       standing: standingLine(standings, teamKey),
       nextMatch: nextMatchFor(schedule, teamKey, this.now()),
+      // Crest-led result for the featured strip's score slot (Ben 2026-07-08 /sports #2). Only
+      // a finished today game qualifies — a live game keeps its two-abbrev scoreLine, a pre-game
+      // has no result yet. The opponent crest replaces the "vs <team>" text `resultLine` appends.
+      resultMatch:
+        todayGame && todayGame.state === "final" ? resultMatchFor(todayGame, teamKey) : null,
       lastMatchAt: lastMatchFor(schedule, teamKey),
       rationale: `You follow ${name}.`
     };
@@ -921,6 +927,22 @@ function nextMatchFor(
     startsAt: next.startsAt,
     // Footer identifies the opponent by crest, not name (live feedback mrawvc48)
     opponentCrestUrl: opponent.crestUrl
+  };
+}
+
+// Result payload for the featured strip's score slot (Ben 2026-07-08 /sports #2). scoreText is
+// resultLine() WITHOUT its "vs <opponent>" tail — the opponent crest carries that identity, the
+// same crest-leads treatment nextMatchFor uses for the fixture footer. Returns null when the game
+// has no resolvable two sides (fully degraded source), so the card falls back to the text slot.
+function resultMatchFor(game: GameSummary, teamKey: string): FollowedResultMatch | null {
+  const side = sideFor(game, teamKey);
+  const opponent = opponentFor(game, teamKey);
+  if (!side || !opponent) return null;
+  const result = resultOf(side, opponent);
+  return {
+    opponentName: opponent.name,
+    opponentCrestUrl: opponent.crestUrl,
+    scoreText: `${result} ${side.score ?? 0}–${opponent.score ?? 0}`
   };
 }
 

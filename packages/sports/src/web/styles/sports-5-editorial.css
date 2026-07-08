@@ -22,7 +22,12 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-5);
-  padding: var(--space-3) 0 0;
+  /* No own vertical padding: the nav is the mast's only line now (the folio above it was
+     removed), so .sp-mast's symmetric space-3 top/bottom padding alone frames it — equal
+     margin from the top rule and the bottom rule (Ben 2026-07-08 /sports annotation:
+     "centered vertically so we have equal margin between lines"). The old `space-3 0 0` top
+     pad double-counted with the mast's own top pad and pushed the row below dead center. */
+  padding: 0;
 }
 .sp-mast__navlink {
   font-family: var(--font-sans);

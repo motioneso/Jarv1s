@@ -357,6 +357,54 @@ describe("SportsService.getOverview", () => {
     });
   });
 
+  it("returns a crest-led result match for a finished today game (annotation #2)", async () => {
+    // Ben 2026-07-08 /sports #2: the featured score slot should show the opponent crest + "L 3–9"
+    // instead of the cheap "L 3–9 vs Blue Jays" text. The crest + result travel together here.
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({
+          getScoreboard: async () => [
+            {
+              id: "gf",
+              competitionKey: "nfl",
+              startsAt: `${TODAY}T17:00:00.000Z`,
+              state: "final",
+              statusDetail: "FT",
+              home: side({ teamKey: "dal", shortName: "DAL", name: "Dallas Cowboys", score: 3 }),
+              away: side({
+                teamKey: "tor",
+                shortName: "TOR",
+                name: "Toronto Blue Jays",
+                score: 9,
+                winner: true,
+                crestUrl: "https://a.espncdn.com/i/teamlogos/mlb/500/tor.png"
+              })
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("today");
+    expect(card?.todayGameState).toBe("final");
+    expect(card?.resultMatch).toEqual({
+      opponentName: "Toronto Blue Jays",
+      opponentCrestUrl: "https://a.espncdn.com/i/teamlogos/mlb/500/tor.png",
+      // result + scores only; NO "vs Toronto" tail — the crest carries the opponent identity
+      scoreText: "L 3–9"
+    });
+  });
+
+  it("leaves resultMatch null for a live game (keeps the two-abbrev scoreLine)", async () => {
+    // Only a finished game gets the crest treatment; a live game keeps its "DAL 21 – 14 MIN" line.
+    const service = new SportsService(makeDeps());
+    const overview = await service.getOverview(userA);
+    const card = overview.followed.find((c) => c.teamKey === "dal");
+    expect(card?.status).toBe("live");
+    expect(card?.resultMatch ?? null).toBeNull();
+  });
+
   it("links the newest team-tagged headline on a news-status card", async () => {
     const service = new SportsService(
       makeDeps({

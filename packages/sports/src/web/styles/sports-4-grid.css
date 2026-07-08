@@ -419,6 +419,14 @@
   color: var(--text-muted);
   font-style: italic;
 }
+/* Finished-game result row (Ben 2026-07-08 /sports annotation #2): opponent crest + "L 3–9",
+   the crest standing in for the "vs Blue Jays" text that read as cheap. Mirrors the .sp-feat__next
+   footer's crest-leads-then-text layout so the two rows on a card feel like one family. */
+.sp-feat__result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .sp-feat__score {
   margin: 0;
   font-family: var(--font-sans);
