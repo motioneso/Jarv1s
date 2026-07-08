@@ -1571,6 +1571,10 @@ successor in the same worktree/branch, confirmed it driving, and requested reap.
   `w1:pAN`).
 - **merges_since_relay:** unchanged at 1 (no merge action this event).
 
+**Watch item resolved:** Fable-865-r3 self-reported past grounding and actively building — RPC
+`purgeTranscripts` verb + session-manager ordering fix + real-RPC regression test. No third
+zero-code relay; no Ben escalation needed.
+
 ### Fable-865-r2 relayed too — second consecutive zero-code relay, watch item
 
 **Fable-865-r2** relayed again at its own 70% meter, triggered by a compaction-inflated start
