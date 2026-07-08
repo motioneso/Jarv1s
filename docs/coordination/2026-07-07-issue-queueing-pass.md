@@ -11,10 +11,12 @@ by label+session, never trust a pane number.
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760i** — pane `w1:pBH`, tab `w1:t1D` (label "agents"; moved out of the coordinator's own
-  tab `w1:t15` this tenure, confirmed running **Sonnet 5**, 63% context, actively on Task 5 — pure
-  fns done, now "Wire composer.tsx to skill autocomplete + invocation"). Chain: 760c→d→e→f→g→h→i.
-  Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
+- **Build-760j** — pane `w1:pBN`, tab `w1:t1D` (label "agents"), confirmed **Sonnet 5**, driving,
+  47% context. Predecessor Build-760i relayed at its own 70% context checkpoint: Task 5 done +
+  committed + green (`a556c42e`, `0f251f6a`); relay-11 handoff doc committed `492fe3d5` with Task 6
+  grounding (gateway test file + `persona.ts` call sites located). Build-760j resuming
+  `coordinated-build` at Task 6 (gateway boundary regression tests), same worktree/branch. Chain:
+  760c→d→e→f→g→h→i→j. Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
   grounding/design phase), handoff `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-
   relay-10.md` commit `c50891b0` has full Task5 pure-fn design + confirmed evening-mode.tsx file-
   map correction (no separate input, shared Composer/ChatDrawer covers it). Its successor
