@@ -72,6 +72,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@jarv1s/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@jarv1s/auth':
         specifier: workspace:*
         version: link:../../packages/auth
