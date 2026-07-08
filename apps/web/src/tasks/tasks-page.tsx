@@ -306,7 +306,7 @@ export function TasksPage() {
           <span className="tk-activetags__lbl">Tags</span>
           {tagFilter.map((name) => (
             <span key={name} className="jds-chip">
-              <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-faint)" }}>#</span>
+              <span style={{ fontFamily: "var(--font-sans)", color: "var(--text-faint)" }}>#</span>
               {name}
               <button
                 type="button"

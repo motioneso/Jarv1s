@@ -20,7 +20,7 @@
   padding: var(--space-3) 0 0;
 }
 .sp-mast__navlink {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -93,7 +93,7 @@
 
 .sp-scorebar__score {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
@@ -127,7 +127,7 @@
   background: var(--surface);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
   white-space: nowrap;
@@ -143,7 +143,7 @@
 }
 
 .sp-scorebar__comp {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: var(--weight-bold);
   text-transform: uppercase;
@@ -236,7 +236,7 @@
 
 /* Reusable editorial primitives (consumed by Latest / Standings / News). */
 .sp-col__kicker {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -245,7 +245,7 @@
 }
 
 .sp-eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -311,7 +311,7 @@
   padding: 0 var(--space-3);
   background: var(--ink);
   color: var(--surface);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
@@ -327,7 +327,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   white-space: nowrap;
 }
@@ -565,7 +565,7 @@
   margin-bottom: var(--space-2);
   background: var(--ink);
   color: var(--surface);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
@@ -597,7 +597,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -632,7 +632,7 @@
 }
 .sp-board__score {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-md);
   font-weight: 700;
@@ -704,7 +704,7 @@
 }
 
 .sp-hl__comp {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -807,7 +807,7 @@
 }
 .sp-newsband__featurekicker {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -847,7 +847,7 @@
    gone (mrb5reqq) — same mono kicker voice as the feature's. */
 .sp-newsband__artkicker {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -891,7 +891,7 @@
   -webkit-line-clamp: 6;
 }
 .sp-newsband__more {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   color: var(--accent);
   text-decoration: none;
@@ -938,7 +938,7 @@
 }
 /* League tag inline before the headline — the section header the briefs used to sit under */
 .sp-newsband__brieftag {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;

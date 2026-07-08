@@ -118,7 +118,7 @@
   justify-content: center;
   background: var(--forest-soft);
   color: var(--accent-fg);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.75rem;
   font-weight: 650;
 }
@@ -143,7 +143,7 @@
   background: var(--forest-soft);
   color: var(--forest-ink);
   padding: 0.06rem 0.45rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.72rem;
   font-weight: 650;
 }
@@ -201,7 +201,7 @@
   background: transparent;
   color: var(--text);
   padding: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.78rem;
 }
 
@@ -344,7 +344,7 @@
 
 .onb-acctlist__ct {
   color: var(--text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.7rem;
 }
 
@@ -402,7 +402,7 @@
 .onb-acct__sep,
 .onb-acct__scopes {
   color: var(--text-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.7rem;
 }
 
@@ -520,7 +520,7 @@
 .onb-keyfield input {
   margin-top: 0.55rem;
   background: var(--surface);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.82rem;
 }
 
@@ -631,7 +631,7 @@
 
 .onb-recap__v .mono {
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.78rem;
   font-weight: 500;
 }

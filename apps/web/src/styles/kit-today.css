@@ -73,7 +73,7 @@
   margin-top: 10px;
 }
 .coming-note {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-subtle);
   letter-spacing: 0.03em;
@@ -209,7 +209,7 @@
   line-height: 1.08;
 }
 .brief-sub {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--text-subtle);
   letter-spacing: 0.04em;
@@ -396,7 +396,7 @@
   color: var(--text-subtle);
 }
 .stat .v {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 500;
   margin-top: 4px;
@@ -416,7 +416,7 @@
   padding-bottom: 26px;
 }
 .cmd-dateline {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -456,14 +456,14 @@
   font-variant-numeric: tabular-nums;
 }
 .cmd-clock__time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 38px;
   font-weight: 400;
   line-height: 1;
   color: var(--text);
 }
 .cmd-clock__ap {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
@@ -476,7 +476,7 @@
   }
 }
 .cmd-eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -502,14 +502,14 @@
   padding: 18px 18px 16px;
 }
 .cmd-next__k {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--rail-fg-muted);
 }
 .cmd-next__v {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 44px;
   line-height: 1;
   margin-top: 10px;
@@ -527,7 +527,7 @@
 }
 
 .cmd-glance__title {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
@@ -556,7 +556,7 @@
   gap: 6px;
 }
 .cmd-stat .v {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 23px;
   font-weight: 500;
   margin-top: 5px;
@@ -626,7 +626,7 @@
   color: var(--text-subtle);
 }
 .inst__meta {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
 }
@@ -638,7 +638,7 @@
   gap: 12px;
 }
 .sched-row__t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-subtle);
   text-align: right;
@@ -720,7 +720,7 @@
 }
 .inst-row__r {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-subtle);
 }
@@ -798,7 +798,7 @@
   display: inline-flex;
 }
 .wx__t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -859,7 +859,7 @@
   border-top: none;
 }
 .day-ev__t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -881,7 +881,7 @@
   margin-top: 2px;
 }
 .day-ev__who {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
   white-space: nowrap;

@@ -11,7 +11,7 @@
   gap: 8px;
 }
 .wx-mini__now .t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -39,7 +39,7 @@
   color: var(--text-faint);
 }
 .wx-mini__day .t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -85,7 +85,7 @@
   color: var(--text-faint);
 }
 .np-photo__cap {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -115,7 +115,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--accent-fg);
@@ -134,7 +134,7 @@
   text-wrap: pretty;
 }
 .np-score {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 8px;
@@ -200,7 +200,7 @@
 }
 .np-row__sub .src {
   color: var(--accent-fg);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
 }
 .np-row__out {
@@ -211,7 +211,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 700;
   align-self: center;
@@ -319,7 +319,7 @@
   gap: 7px;
 }
 .well__ct {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
   color: var(--accent-fg);
@@ -399,7 +399,7 @@
   gap: 2px;
 }
 .kbar-hint kbd {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   line-height: 1;
   padding: 3px 4px;
@@ -419,7 +419,7 @@
   border-top: 1px solid var(--border-subtle);
 }
 .bfresh__label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -447,7 +447,7 @@
   color: var(--text-subtle);
 }
 .bfresh__age {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
 }
