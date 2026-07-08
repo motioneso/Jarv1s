@@ -134,7 +134,11 @@ export function SettingsSkillsPane() {
               {editingId ? "Save changes" : "Create skill"}
             </button>
             {editingId ? (
-              <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={resetForm}>
+              <button
+                type="button"
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                onClick={resetForm}
+              >
                 Cancel
               </button>
             ) : null}

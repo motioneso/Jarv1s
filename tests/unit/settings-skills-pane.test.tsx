@@ -89,8 +89,18 @@ describe("SettingsSkillsPane", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.chat.skills, {
       skills: [
-        makeSkill({ id: "skill-1", name: "Standup", enabled: true, updatedAt: "2026-07-02T00:00:00.000Z" }),
-        makeSkill({ id: "skill-2", name: "Standup", enabled: false, updatedAt: "2026-07-01T00:00:00.000Z" })
+        makeSkill({
+          id: "skill-1",
+          name: "Standup",
+          enabled: true,
+          updatedAt: "2026-07-02T00:00:00.000Z"
+        }),
+        makeSkill({
+          id: "skill-2",
+          name: "Standup",
+          enabled: false,
+          updatedAt: "2026-07-01T00:00:00.000Z"
+        })
       ]
     });
     const html = renderWithQuery(createElement(SettingsSkillsPane), client);

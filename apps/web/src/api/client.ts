@@ -670,9 +670,7 @@ export async function getChatSkill(id: string): Promise<ChatSkillResponse> {
   return requestJson<ChatSkillResponse>(`/api/chat/skills/${encodeURIComponent(id)}`);
 }
 
-export async function createChatSkill(
-  input: CreateChatSkillRequest
-): Promise<ChatSkillResponse> {
+export async function createChatSkill(input: CreateChatSkillRequest): Promise<ChatSkillResponse> {
   return requestJson<ChatSkillResponse>("/api/chat/skills", {
     method: "POST",
     body: input
