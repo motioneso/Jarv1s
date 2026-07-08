@@ -1,11 +1,13 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07
-**Coordinator lock:** now `58cd692d-ac30-4f76-9e47-a810041e358d` / label `Coordinator` / pane
-`w1:pA0` / tab `w1:t15` — claimed 2026-07-08 from predecessor `4727de9a-8e93-4bd6-a684-7320d6a54a5a`
-(pane `w1:pAW`, `agent_status: done`, self-handed-off after merging PR #873/#759). Resolve the
-CURRENT lock fresh by label+session — this line is stale the instant a new session claims it; never
-trust a pane number.
+**Coordinator lock:** now `dfbd2dc6-2b6d-4b3b-b935-141d8e627a08` / label `Coordinator` / pane
+`w1:pB4` / tab `w1:t15` — claimed 2026-07-08 from predecessor `58cd692d-ac30-4f76-9e47-a810041e358d`
+(pane `w1:pA0`, `agent_status: done`, self-handed-off at compaction tripwire; immediate Build-760
+tab fix done + 1 of 3 owed root-cause doc fixes done (`relay` SKILL.md); 3 remaining doc fixes
+(herdr-handoff SKILL.md, coordinate SKILL.md Phase 2, incidents.md) picked up first thing this
+tenure — see relay checkpoint below). Resolve the CURRENT lock fresh by label+session — this line
+is stale the instant a new session claims it; never trust a pane number.
 **This tenure (`58cd692d`) — IN PROGRESS:**
 1. Phase 0a: renamed pane, confirmed sole ACTIVE `Coordinator` pane (predecessor `4727de9a`,
    pane `w1:pAW`, was `agent_status: done` — expected pre-reap state, not a duplicate-loop
