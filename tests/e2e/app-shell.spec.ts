@@ -261,7 +261,9 @@ test("configures AI providers and capability routing through settings REST calls
   await expect(page.getByText("claude-smoke", { exact: true })).toBeVisible();
 
   // #870 Slice 1: services (Chat / Voice) replace the old capability-routing rows.
-  await expect(page.getByText("Services")).toBeVisible();
+  // exact:true — the default substring match also hits the footer Note ("…follows the
+  // services above"), so scope to the section heading div (strict-mode 2-element violation).
+  await expect(page.getByText("Services", { exact: true })).toBeVisible();
   await expect(page.getByText(/Routing override .*not wired/)).toHaveCount(0);
   await page.getByLabel("Binding for Chat & briefing").selectOption("mode:reasoning");
   await expect(page.getByText("Service updated")).toBeVisible();
