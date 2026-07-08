@@ -20,7 +20,11 @@ file-size clean, `audit:release-hardening` exit 0, integration 119 files/1371 pa
 exit 0. No migration/schema surface (137 current). Scope held (Gemini/agy/codex-exec purge
 untouched, tracked #868). Flag: `chat-session-manager.ts` now exactly at the 1000-line file-size
 cap — split is a follow-up, not blocking. **This is QA cycle #4 on PR #865 — spawning Opus
-`coordinated-qa` per the manifest's standing next-step.**
+`coordinated-qa` per the manifest's standing next-step.** Dispatched (`Agent` tool, name
+`QA-865-c4`, isolation worktree, model opus, `JARVIS_PGDATABASE=jarvis_qa_865c4`) — prompt focused
+on the exact recurring pattern across cycles #1-#3 (silent no-op purge leaving disk data while DB
+says purged), verifying #868-scope exclusion, and confirming the new regression test exercises the
+real RPC path (not a mock). Awaiting verdict.
 Restarted liveness Monitor (task `b0b63ubkm`) for `w1:p9W` + `w1:pAR` (predecessor's `b11ckas5l`
 died at relay per protocol).
 **Merge policy:** autonomous-after-verified-QA for `routine`/`sensitive`; `security`-tier needs
