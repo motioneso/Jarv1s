@@ -10,13 +10,13 @@ reaped). Resolve fresh by label+session, never trust a pane number.
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760e** (`w1:pBD`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760d,
-  verified driving, old pane (`w1:pBC`) reaped. Tasks 1–3 done+committed, Task 3 pushed clean,
-  rebase+trio green, no conflicts (`760-skill-integration-chat`). Task 4 (settings skills pane)
-  research done, no code yet — next thing this lane does. Continuation doc
-  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-7.md` commit `1ddc5880`.
-  Still **security tier** (owner-scoped RLS + user-authored-content-as-instructions surface). No
-  PR yet.
+- **Build-760f** (`w1:pBE`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760e; self-
+  relay initially landed in wrong tab (`w1:t17`), caught and moved to shared agents tab `w1:t1C`
+  by this coordinator before reap. Verified driving post-move, old pane (`w1:pBD`) reaped. Tasks
+  1–3 done+committed. Task 4 (settings skills pane) in progress: `api/client.ts` + `query-keys.ts`
+  skill fns done, TDD test written red (`81696e10`), `settings-skills-pane.tsx` impl NOT yet
+  written — Task 4 steps 2-4 + Tasks 5-7 remain. Handoff doc commit `93873bfe`. Still **security
+  tier** (owner-scoped RLS + user-authored-content-as-instructions surface). No PR yet.
 
 **Liveness Monitor:** none currently running — old task `bmr4q9c48` died at this relay. Successor
 must start a fresh one on `w1:pBA` immediately after adopting.
