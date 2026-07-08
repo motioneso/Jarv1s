@@ -5,7 +5,6 @@ import { createApiServer } from "../../apps/api/src/server.js";
 import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import {
-  DIGEST_COMPOSE_QUEUE,
   NotificationsRepository,
   digestPreferenceToRaw,
   digestScheduleData,

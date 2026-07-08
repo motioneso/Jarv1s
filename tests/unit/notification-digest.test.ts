@@ -82,9 +82,7 @@ describe("notification digest scheduling", () => {
       }
     );
 
-    expect(calls).toEqual([
-      [DIGEST_COMPOSE_QUEUE, "digest:11111111-1111-4111-8111-111111111111"]
-    ]);
+    expect(calls).toEqual([[DIGEST_COMPOSE_QUEUE, "digest:11111111-1111-4111-8111-111111111111"]]);
   });
 });
 

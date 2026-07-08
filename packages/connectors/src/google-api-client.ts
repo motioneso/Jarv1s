@@ -279,9 +279,7 @@ export class GoogleApiClient {
     raw: string;
     threadId?: string;
   }): Promise<GmailSentMessage> {
-    const body = input.threadId
-      ? { raw: input.raw, threadId: input.threadId }
-      : { raw: input.raw };
+    const body = input.threadId ? { raw: input.raw, threadId: input.threadId } : { raw: input.raw };
     const json = await this.postJson<GmailSentMessage>(
       `${GMAIL_BASE}/users/me/messages/send`,
       input.accessToken,

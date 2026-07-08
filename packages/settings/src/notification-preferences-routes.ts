@@ -19,6 +19,7 @@ import {
   reconcileDigestSchedule,
   type NotificationDigestPreference
 } from "@jarv1s/notifications";
+import type { PgBoss } from "@jarv1s/jobs";
 
 import type { ProfilePreferencesPort } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";
@@ -38,7 +39,7 @@ interface NotificationPreferencesRoutesDependencies {
   readonly preferencesRepository: ProfilePreferencesPort;
   readonly repository: SettingsRepository;
   readonly notificationUnreadPort?: NotificationUnreadPort;
-  readonly boss?: Pick<import("@jarv1s/jobs").PgBoss, "schedule" | "unschedule">;
+  readonly boss?: Pick<PgBoss, "schedule" | "unschedule">;
 }
 
 export function registerNotificationPreferencesRoutes(

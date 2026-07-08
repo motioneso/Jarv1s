@@ -44,6 +44,7 @@
 ## Task 1: Fresh Email Send Provider
 
 **Files:**
+
 - Modify: `packages/email/src/email-write-provider.ts`
 - Modify: `packages/email/src/reply-mime.ts`
 - Modify: `packages/connectors/src/google-email-write-provider.ts`
@@ -142,6 +143,7 @@ git commit -m "feat: support fresh connector email sends"
 ## Task 2: Digest Preference, Schedule, Render, and Worker Logic
 
 **Files:**
+
 - Create: `packages/notifications/src/digest.ts`
 - Modify: `packages/notifications/src/repository.ts`
 - Modify: `packages/notifications/src/index.ts`
@@ -286,6 +288,7 @@ git commit -m "feat: add notification digest core"
 ## Task 3: Digest Settings API
 
 **Files:**
+
 - Modify: `packages/shared/src/settings-api.ts`
 - Modify: `packages/settings/src/notification-preferences-routes.ts`
 - Test: `tests/integration/notification-digest.test.ts`
@@ -357,6 +360,7 @@ git commit -m "feat: add notification digest settings api"
 ## Task 4: Digest Compose Worker and Sender
 
 **Files:**
+
 - Modify: `packages/notifications/src/digest.ts`
 - Modify: `packages/module-registry/src/index.ts`
 - Test: `tests/integration/notification-digest.test.ts`
@@ -427,6 +431,7 @@ git commit -m "feat: deliver notification email digests"
 ## Task 5: Notifications Settings UI
 
 **Files:**
+
 - Modify: `apps/web/src/api/client.ts`
 - Modify: `apps/web/src/api/query-keys.ts`
 - Modify: `apps/web/src/settings/settings-module-subviews.tsx`
@@ -474,6 +479,7 @@ git commit -m "feat: enable notification digest settings"
 ## Task 6: Final Gates
 
 **Files:**
+
 - All touched files.
 
 - [ ] **Step 1: Run focused tests**
