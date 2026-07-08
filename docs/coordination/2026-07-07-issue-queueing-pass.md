@@ -1,34 +1,31 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07 (session continuing 2026-07-08)
-**Coordinator lock:** `da0dca71-c202-43c2-b6c4-60a05a626a70` / label `Coordinator` / pane `w1:pB6`
-/ tab `w1:t15` — claimed from predecessor `d4f0fb94-a62f-4b4b-8d38-5598ddd28f37` (pane `w1:pB5`,
-confirmed sole `Coordinator` pane + idle/relayed, reaped). Resolve fresh by label+session — never
-trust a pane number.
+**Coordinator lock:** STALE — was `da0dca71-c202-43c2-b6c4-60a05a626a70` / pane `w1:pB6` / tab
+`w1:t15`, relaying now at context 70%. Successor claims the lock in `w1:t15`; resolve fresh by
+label+session, never trust a pane number.
 
-**Fleet (confirmed via bounded reads this tenure):**
-- **Build-853** (`w1:p9W`, tab `w1:t1C`, Sonnet, working) — security tier, #853
-  auth-signup-atomicity. Task 3 (full local gate) in progress. No PR yet. When done: Opus
-  adversarial QA → `gh pr comment` verdict → merge immediately on GREEN (Ben's standing override
-  waives the separate sign-off pause, including security tier).
-- **Build-760b** (`w1:pB7`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760
-  (`w1:pB2`, session `879ca5bb…`, verified driving then reaped; continuation doc
-  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-2.md` commit `a468dcf2`).
-  **security tier** (a prior checkpoint mid-file mislabeled this "routine/sensitive"; the original
-  spawn-time tiering note and every other reference say `security` — new
-  user-authored-content-as-instructions surface + new owner-scoped RLS table on
-  `app.chat_skills`). Task 1 done+green (`0147` chat_skills migration + RLS test, commit
-  `1b521023`). Task 2 (skills repo + shared DTOs) in progress, research-only so far. No PR yet.
-  Same QA/merge path as #853.
+**Fleet:**
+- **#853 auth-signup-atomicity: MERGED.** PR #875 squash-merged `a519bc88`. Opus adversarial QA
+  GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
+  CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
+  (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
+- **Build-760c** (`w1:pBA`, tab `w1:t1C`, Sonnet, working) — relay successor of Build-760b,
+  verified driving, old pane (`w1:pB7`) reaped. Task 1 + Task 2 done+green (chat_skills migration
+  `1b521023`; skills repo + shared DTOs `62b0077e`, 120f/1382t). Task 3 (routes + upload import) is
+  research-only, no code yet — next thing this lane does. Continuation doc
+  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-4.md` commit `323c05c1`.
+  Still **security tier** (owner-scoped RLS + user-authored-content-as-instructions surface). No
+  PR yet.
 
-**Liveness Monitor:** persistent Monitor (task `bmr4q9c48`) retargeted to `w1:p9W` + `w1:pB7`
-(old `w1:pB2` reaped), emit-on-change only. Dies with this session at relay — successor starts its
-own.
+**Liveness Monitor:** none currently running — old task `bmr4q9c48` died at this relay. Successor
+must start a fresh one on `w1:pBA` immediately after adopting.
 
 **Merge policy (Ben's standing override, still in force):** any GREEN QA verdict merges
 immediately without a pause-and-ask round trip, including `security` tier.
 
-**merges_since_relay:** 0.
+**merges_since_relay:** 1 (PR #875). Per relay trigger rules this alone would warrant a relay at
+2; combined with the 70% context warning, relay now regardless.
 
 **Outstanding escalations — verified clear this tenure, not trusted blind:** #817 is now
 **CLOSED** (`gh issue view 817`) — no longer an open escalation. #780 remains open, Ben-side
