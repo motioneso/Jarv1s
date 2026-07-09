@@ -19,7 +19,11 @@ import {
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
 import { selectFeature } from "./news-ranking.js";
-import { groupFollowedTeams, type FollowedTeamGroup, type ResolvedFollow } from "./followed-groups.js";
+import {
+  groupFollowedTeams,
+  type FollowedTeamGroup,
+  type ResolvedFollow
+} from "./followed-groups.js";
 import {
   currentGameAcrossGroup,
   currentTeamGame,
@@ -799,4 +803,3 @@ function rankTopStories(
   }
   return picked.slice(0, TOP_STORIES_CAP);
 }
-

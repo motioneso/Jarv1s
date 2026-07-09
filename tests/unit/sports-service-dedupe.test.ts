@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { GameSummary, SportsFollowDto } from "@jarv1s/shared";
 
-import type { SourceHeadline, StandingsTable } from "../../packages/sports/src/source/sports-source.js";
+import type {
+  SourceHeadline,
+  StandingsTable
+} from "../../packages/sports/src/source/sports-source.js";
 import {
   SportsService,
   type SportsServiceDependencies
@@ -124,7 +127,9 @@ describe("SportsService.getOverview — followed-team dedupe (#855)", () => {
     sourceTeamIds: ["364"]
   };
 
-  function makeMergedDeps(overrides: { follows?: SportsFollowDto[] } = {}): SportsServiceDependencies {
+  function makeMergedDeps(
+    overrides: { follows?: SportsFollowDto[] } = {}
+  ): SportsServiceDependencies {
     let scheduleCalls = 0;
     let teamHeadlineCalls = 0;
     const deps = makeDeps({

@@ -17,7 +17,10 @@ export interface FollowedTeamGroup {
 // (spec Design §2). Null `sourceTeamId` means "unresolvable" — the caller must never merge that
 // row with anything else (spec: "a duplicate card is safer than mixing unrelated clubs that
 // share a name").
-export function canonicalClubKey(follow: ResolvedFollow, sourceTeamId: string | null): string | null {
+export function canonicalClubKey(
+  follow: ResolvedFollow,
+  sourceTeamId: string | null
+): string | null {
   if (sourceTeamId === null) return null;
   const espnSport = catalogEntry(follow.competitionKey)?.espnSport;
   return espnSport ? `${espnSport}:${sourceTeamId}` : null;

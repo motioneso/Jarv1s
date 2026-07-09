@@ -256,10 +256,16 @@ function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
-export function nextMatchAcross(games: readonly ResolvedGame[], now: Date): FollowedNextMatch | null {
+export function nextMatchAcross(
+  games: readonly ResolvedGame[],
+  now: Date
+): FollowedNextMatch | null {
   const nowIso = now.toISOString();
   const next = games
-    .filter(({ game, teamKey }) => game.state !== "final" && game.startsAt > nowIso && sideFor(game, teamKey))
+    .filter(
+      ({ game, teamKey }) =>
+        game.state !== "final" && game.startsAt > nowIso && sideFor(game, teamKey)
+    )
     .slice()
     .sort((a, b) => a.game.startsAt.localeCompare(b.game.startsAt))[0];
   if (!next) return null;

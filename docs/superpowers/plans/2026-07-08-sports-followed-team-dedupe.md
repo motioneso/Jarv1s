@@ -35,12 +35,14 @@ already declares every field the merged card needs.
 ## Task 1: `followed-groups.ts` — pure grouping/primary-selection module
 
 **Files:**
+
 - Create: `packages/sports/src/followed-groups.ts`
 - Test: `tests/unit/sports-followed-groups.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SportsFollowDto` from `@jarv1s/shared` (`{ id, competitionKey, teamKey: string | null,
-  createdAt }`); `catalogEntry(competitionKey): CatalogEntry | undefined` from
+createdAt }`); `catalogEntry(competitionKey): CatalogEntry | undefined` from
   `./source/catalog.js` (`CatalogEntry.espnSport: string`, `CatalogEntry.kind: "league" | "tournament"`).
 - Produces (consumed by Task 3):
   - `type ResolvedFollow = SportsFollowDto & { teamKey: string }`
@@ -201,7 +203,10 @@ export interface FollowedTeamGroup {
 // (spec Design §2). Null `sourceTeamId` means "unresolvable" — the caller must never merge that
 // row with anything else (spec: "a duplicate card is safer than mixing unrelated clubs that
 // share a name").
-export function canonicalClubKey(follow: ResolvedFollow, sourceTeamId: string | null): string | null {
+export function canonicalClubKey(
+  follow: ResolvedFollow,
+  sourceTeamId: string | null
+): string | null {
   if (sourceTeamId === null) return null;
   const espnSport = catalogEntry(follow.competitionKey)?.espnSport;
   return espnSport ? `${espnSport}:${sourceTeamId}` : null;
@@ -259,6 +264,7 @@ Pure refactor — no observable behavior change. Safety net is the existing
 `tests/unit/sports-service.test.ts` suite (866 lines) passing unmodified before and after.
 
 **Files:**
+
 - Modify: `packages/sports/src/sports-service.ts`
   - `lastMatchFor` (currently lines 812-819)
   - `teamStories` + `TEAM_STORY_LIMIT` (currently lines 789-807)
@@ -266,6 +272,7 @@ Pure refactor — no observable behavior change. Safety net is the existing
   - `nextMatchFor` (currently lines 911-931)
 
 **Interfaces:**
+
 - Consumes: `GameSummary`, `FollowedNextMatch`, `FollowedTeamNews` from `@jarv1s/shared`; existing
   `sideFor`, `opponentFor`, `resultOf`, `safeHref` module-private helpers (unchanged).
 - Produces (consumed by Task 3):
@@ -388,7 +395,10 @@ Replace `nextMatchFor` (lines 911-931) with:
 function nextMatchAcross(games: readonly ResolvedGame[], now: Date): FollowedNextMatch | null {
   const nowIso = now.toISOString();
   const next = games
-    .filter(({ game, teamKey }) => game.state !== "final" && game.startsAt > nowIso && sideFor(game, teamKey))
+    .filter(
+      ({ game, teamKey }) =>
+        game.state !== "final" && game.startsAt > nowIso && sideFor(game, teamKey)
+    )
     .slice()
     .sort((a, b) => a.game.startsAt.localeCompare(b.game.startsAt))[0];
   if (!next) return null;
@@ -436,6 +446,7 @@ git commit -m "refactor(sports): generalize per-team schedule helpers to cross-c
 ## Task 3: Wire grouping into `getOverview()` — merged `FollowedTeamCard`s
 
 **Files:**
+
 - Modify: `packages/sports/src/sports-service.ts`
   - imports (top of file)
   - `getOverview()` cards-building block (currently lines 193-243)
@@ -448,6 +459,7 @@ git commit -m "refactor(sports): generalize per-team schedule helpers to cross-c
 - Test: `tests/unit/sports-service.test.ts` (new `describe` block)
 
 **Interfaces:**
+
 - Consumes (from Task 1): `groupFollowedTeams`, `type ResolvedFollow`, `type FollowedTeamGroup`
   from `./followed-groups.js`.
 - Consumes (from Task 2): `toResolvedGames`, `computeFormAcross`, `nextMatchAcross`,
@@ -576,7 +588,9 @@ describe("SportsService.getOverview — followed-team dedupe (#855)", () => {
     sourceTeamIds: ["364"]
   };
 
-  function makeMergedDeps(overrides: { follows?: SportsFollowDto[] } = {}): SportsServiceDependencies {
+  function makeMergedDeps(
+    overrides: { follows?: SportsFollowDto[] } = {}
+  ): SportsServiceDependencies {
     let scheduleCalls = 0;
     let teamHeadlineCalls = 0;
     const deps = makeDeps({
@@ -725,15 +739,21 @@ Add to the imports at the top of `packages/sports/src/sports-service.ts` (after 
 `./news-ranking.js` import):
 
 ```ts
-import { groupFollowedTeams, type FollowedTeamGroup, type ResolvedFollow } from "./followed-groups.js";
+import {
+  groupFollowedTeams,
+  type FollowedTeamGroup,
+  type ResolvedFollow
+} from "./followed-groups.js";
 ```
 
 Replace the inline narrowed type in three places with the imported `ResolvedFollow`:
 
 - Line 152-154 (`followedTeams` declaration):
+
 ```ts
-    const followedTeams = follows.filter((f): f is ResolvedFollow => Boolean(f.teamKey));
+const followedTeams = follows.filter((f): f is ResolvedFollow => Boolean(f.teamKey));
 ```
+
 - `buildHero`'s first parameter (line 486): `followedTeams: readonly ResolvedFollow[],`
 - `rankTopStories`'s second parameter (line 698): `followedTeams: readonly ResolvedFollow[],`
 
@@ -758,64 +778,63 @@ Replace the cards-building block inside `getOverview()` (currently lines 193-243
 `// One schedule fetch per followed team...` through the closing `);` of the `Promise.all`) with:
 
 ```ts
-    // One schedule fetch per followed team, also parallelized (#765 M2). Each follow's fetched
-    // data is stashed as a bundle rather than piped straight into a card — a merged card (#855)
-    // needs to pool a whole group's bundles, not just one.
-    const bundleList: FollowedTeamBundle[] = await Promise.all(
-      followedTeams.map(async (follow) => {
-        // Resolve the provider's numeric team id from the catalog: ESPN's soccer schedule
-        // endpoint returns an empty payload for abbreviation slugs, which silently zeroed
-        // form/next-match on every soccer card (live feedback mrawhx9c). Null falls back to
-        // the abbreviation inside the source, which the US leagues accept.
-        const sourceTeamId =
-          (teamsByComp.get(follow.competitionKey) ?? []).find(
-            (team) => team.teamKey === follow.teamKey
-          )?.sourceTeamId ?? null;
-        // The league-wide feed rarely files a story under a specific team, so most followed
-        // cards showed "No recent news" while ESPN's per-team feed had plenty (live feedback
-        // mraxssnf). Pull each followed team's own feed — same pattern as the gameday hero
-        // block below — and merge it in for this card only; leagueNews stays league-scoped.
-        const [schedule, teamFeed] = await Promise.all([
-          this.cached<GameSummary[]>(
-            "schedule",
-            { teamKey: follow.teamKey, competitionKey: follow.competitionKey, sourceTeamId },
-            [],
-            state
-          ),
-          this.cached<SourceHeadline[]>(
-            "headlines",
-            { competitionKey: follow.competitionKey, teamKey: follow.teamKey },
-            [],
-            state
-          )
-        ]);
-        const compTeams = teamsByComp.get(follow.competitionKey) ?? [];
-        const leagueHeadlines = headlinesByComp.get(follow.competitionKey) ?? [];
-        const seen = new Set(leagueHeadlines.map((h) => h.id));
-        const headlines = [...leagueHeadlines];
-        for (const headline of resolveHeadlineTeamKeys(teamFeed, compTeams)) {
-          if (seen.has(headline.id)) continue;
-          seen.add(headline.id);
-          headlines.push(headline);
-        }
-        return {
-          follow,
-          sourceTeamId,
-          scoreboard: scoreboardByComp.get(follow.competitionKey) ?? [],
-          standings: standingsByComp.get(follow.competitionKey)?.sections ?? [],
-          headlines,
-          schedule,
-          teams: compTeams
-        };
-      })
-    );
-    const bundles = new Map(bundleList.map((b) => [b.follow.id, b]));
-    // Group by canonical club key (espnSport:sourceTeamId) — spec's dedupe rule (#855). A follow
-    // whose sourceTeamId didn't resolve becomes its own singleton group (never merged by name).
-    const groups = groupFollowedTeams(followedTeams, (f) => bundles.get(f.id)!.sourceTeamId);
-    const cards: FollowedTeamCard[] = groups.map((group) =>
-      this.buildGroupedCard(group, bundles, this.now())
-    );
+// One schedule fetch per followed team, also parallelized (#765 M2). Each follow's fetched
+// data is stashed as a bundle rather than piped straight into a card — a merged card (#855)
+// needs to pool a whole group's bundles, not just one.
+const bundleList: FollowedTeamBundle[] = await Promise.all(
+  followedTeams.map(async (follow) => {
+    // Resolve the provider's numeric team id from the catalog: ESPN's soccer schedule
+    // endpoint returns an empty payload for abbreviation slugs, which silently zeroed
+    // form/next-match on every soccer card (live feedback mrawhx9c). Null falls back to
+    // the abbreviation inside the source, which the US leagues accept.
+    const sourceTeamId =
+      (teamsByComp.get(follow.competitionKey) ?? []).find((team) => team.teamKey === follow.teamKey)
+        ?.sourceTeamId ?? null;
+    // The league-wide feed rarely files a story under a specific team, so most followed
+    // cards showed "No recent news" while ESPN's per-team feed had plenty (live feedback
+    // mraxssnf). Pull each followed team's own feed — same pattern as the gameday hero
+    // block below — and merge it in for this card only; leagueNews stays league-scoped.
+    const [schedule, teamFeed] = await Promise.all([
+      this.cached<GameSummary[]>(
+        "schedule",
+        { teamKey: follow.teamKey, competitionKey: follow.competitionKey, sourceTeamId },
+        [],
+        state
+      ),
+      this.cached<SourceHeadline[]>(
+        "headlines",
+        { competitionKey: follow.competitionKey, teamKey: follow.teamKey },
+        [],
+        state
+      )
+    ]);
+    const compTeams = teamsByComp.get(follow.competitionKey) ?? [];
+    const leagueHeadlines = headlinesByComp.get(follow.competitionKey) ?? [];
+    const seen = new Set(leagueHeadlines.map((h) => h.id));
+    const headlines = [...leagueHeadlines];
+    for (const headline of resolveHeadlineTeamKeys(teamFeed, compTeams)) {
+      if (seen.has(headline.id)) continue;
+      seen.add(headline.id);
+      headlines.push(headline);
+    }
+    return {
+      follow,
+      sourceTeamId,
+      scoreboard: scoreboardByComp.get(follow.competitionKey) ?? [],
+      standings: standingsByComp.get(follow.competitionKey)?.sections ?? [],
+      headlines,
+      schedule,
+      teams: compTeams
+    };
+  })
+);
+const bundles = new Map(bundleList.map((b) => [b.follow.id, b]));
+// Group by canonical club key (espnSport:sourceTeamId) — spec's dedupe rule (#855). A follow
+// whose sourceTeamId didn't resolve becomes its own singleton group (never merged by name).
+const groups = groupFollowedTeams(followedTeams, (f) => bundles.get(f.id)!.sourceTeamId);
+const cards: FollowedTeamCard[] = groups.map((group) =>
+  this.buildGroupedCard(group, bundles, this.now())
+);
 ```
 
 Replace the `buildCard` method (currently lines 530-591, the whole method from

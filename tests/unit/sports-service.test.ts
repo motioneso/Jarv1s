@@ -113,7 +113,9 @@ export const userA: AccessContext = {
   requestId: "req-a"
 };
 
-export function side(overrides: Partial<GameSide> & { teamKey: string; shortName: string }): GameSide {
+export function side(
+  overrides: Partial<GameSide> & { teamKey: string; shortName: string }
+): GameSide {
   return {
     name: overrides.shortName,
     crestUrl: null,
