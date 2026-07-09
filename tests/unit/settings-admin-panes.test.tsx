@@ -147,4 +147,41 @@ describe("settings admin panes", () => {
 
     expect(html).toContain("JARVIS_HERDR_ROOT_PANE");
   });
+
+  it("shows BOTH the tmux attach commands and the herdr-broken hint when tmux is active and herdr is installed-but-broken", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "auto",
+      available: { tmux: true, herdr: false },
+      herdrInstalled: true,
+      active: "tmux",
+      activeSource: "auto",
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    // the operator still needs the working tmux attach command...
+    expect(html).toContain("docker compose exec jarv1s tmux attach");
+    // ...AND the note that herdr is present but not yet usable.
+    expect(html).toContain("JARVIS_HERDR_ROOT_PANE");
+  });
+
+  it("shows a distinct not-usable note (no tmux/herdr attach commands) when nothing is usable", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "auto",
+      available: { tmux: false, herdr: false },
+      herdrInstalled: false,
+      active: null,
+      activeSource: null,
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    expect(html).not.toContain("docker compose exec jarv1s tmux");
+    expect(html).not.toContain("herdr pane attach");
+    expect(html).toContain("No chat multiplexer is usable");
+  });
 });

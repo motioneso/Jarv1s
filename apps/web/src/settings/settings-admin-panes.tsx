@@ -732,39 +732,45 @@ export function HostPane() {
         </Note>
       );
     }
-    if (mux.active === "herdr") {
-      return (
+    // Primary note reflects what's actually active. "herdr installed but broken" is NOT
+    // mutually exclusive with an active mux, so it's appended separately below — otherwise a
+    // working tmux host with a half-installed herdr would hide the tmux attach command the
+    // operator actually needs.
+    const primaryNote =
+      mux.active === "herdr" ? (
         <Note icon={<Terminal size={13} aria-hidden="true" />}>
           Prefer the terminal? Chat sessions run in Herdr on this host. List panes with{" "}
           <code>{"herdr pane list"}</code>, attach with <code>{"herdr pane attach <pane-id>"}</code>
           , or read output non-interactively with <code>{"herdr pane read <pane-id>"}</code>.
         </Note>
-      );
-    }
-    if (mux.herdrInstalled && !mux.available.herdr) {
-      return (
-        <Note icon={<Terminal size={13} aria-hidden="true" />}>
-          Herdr is installed but has no root pane available, so it isn&apos;t usable yet. Set{" "}
-          <code>JARVIS_HERDR_ROOT_PANE</code> (or run the API inside a Herdr pane so{" "}
-          <code>HERDR_PANE_ID</code> is set), then restart.
-        </Note>
-      );
-    }
-    if (mux.active === "tmux") {
-      return (
+      ) : mux.active === "tmux" ? (
         <Note icon={<Terminal size={13} aria-hidden="true" />}>
           Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
           directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
           with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
         </Note>
+      ) : (
+        // active === null: nothing is usable. Don't hand out tmux commands that would fail.
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          No chat multiplexer is usable on this host yet. Install or configure tmux or Herdr, then
+          refresh this page.
+        </Note>
       );
-    }
+
+    const herdrBrokenNote =
+      mux.herdrInstalled && !mux.available.herdr && mux.active !== "herdr" ? (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Herdr is installed but has no root pane available, so it isn&apos;t usable yet. Set{" "}
+          <code>JARVIS_HERDR_ROOT_PANE</code> (or run the API inside a Herdr pane so{" "}
+          <code>HERDR_PANE_ID</code> is set), then restart.
+        </Note>
+      ) : null;
+
     return (
-      <Note icon={<Terminal size={13} aria-hidden="true" />}>
-        Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
-        directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
-        with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
-      </Note>
+      <>
+        {primaryNote}
+        {herdrBrokenNote}
+      </>
     );
   }
 
