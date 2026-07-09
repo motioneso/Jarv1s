@@ -322,7 +322,9 @@ describe("MVP foundation scaffold", () => {
         // #870/H1 — instance-default provider flag.
         { version: "0147", name: "0147_ai_provider_instance_default.sql" },
         // #870 Fable HIGH-1 — worker INSERT grant/policy for jarvis_error_log (H3 observability).
-        { version: "0148", name: "0148_jarvis_error_log_worker_insert.sql" }
+        { version: "0148", name: "0148_jarvis_error_log_worker_insert.sql" },
+        // #874 — `purpose` discriminator + one-voice partial unique index for the Voice(STT) endpoint.
+        { version: "0149", name: "0149_ai_provider_purpose.sql" }
       ]);
     } finally {
       await client.end();

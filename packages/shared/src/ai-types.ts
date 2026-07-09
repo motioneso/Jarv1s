@@ -1,4 +1,9 @@
 export type AiProviderKind = "openai-compatible" | "anthropic" | "google" | "ollama" | "custom";
+// #874 — discriminator on app.ai_provider_configs (migration 0149). 'assistant' rows are the chat
+// LLM providers shown in the LLM Providers list and eligible for chat routing / instance-default /
+// per-user pin. 'voice' is the single instance-wide STT endpoint, kept off every assistant surface
+// so the two never bleed into each other (CRIT-1). Voice endpoints are OpenAI-compatible only.
+export type AiProviderPurpose = "assistant" | "voice";
 export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiAuthMethod = "cli" | "api_key";
 export type AiProviderExecutionMode = "interactive" | "non_interactive";
@@ -82,10 +87,11 @@ export interface AiCapabilityRouteDto {
 }
 
 /**
- * #870 Slice 1: a per-service binding. The admin binds each user-facing service (Chat, Voice) to
- * EITHER a "mode" (a tier resolved inside the instance-default provider) OR a specific model. This
- * replaces the old free-for-all per-capability model route + separate per-user tier preference with
- * one unified knob per service. Stored under `ai.service_bindings` in `app.instance_settings`.
+ * #870 Slice 1: a per-service binding. The admin binds a user-facing service to EITHER a "mode"
+ * (a tier resolved inside the instance-default provider) OR a specific model. This replaces the old
+ * free-for-all per-capability model route + separate per-user tier preference with one unified knob
+ * per service. Stored under `ai.service_bindings` in `app.instance_settings`. #874 HIGH-2: Chat is
+ * the only bindable service — Voice (STT) is configured as its own dedicated endpoint, not a binding.
  */
 export type AiServiceBinding =
   | { readonly kind: "mode"; readonly tier: AiModelTier }
@@ -247,6 +253,40 @@ export interface LookupAiCapabilityRouteResponse {
  */
 export interface TranscribeAudioResponse {
   readonly text: string;
+}
+
+/**
+ * #874 — the single instance-wide Voice (STT) endpoint, surfaced in its own admin section (NOT the
+ * LLM Providers list). Backed by one `purpose='voice'` provider row + its model row. The API key is
+ * WRITE-ONLY: never returned in any DTO (plaintext or ciphertext). `hasKey` reports only whether a
+ * credential is stored. `enabled` maps to provider status ('active' → true).
+ */
+export interface AiVoiceEndpointDto {
+  readonly configured: boolean;
+  readonly enabled: boolean;
+  readonly baseUrl: string | null;
+  readonly modelName: string | null;
+  readonly hasKey: boolean;
+}
+
+export interface GetVoiceEndpointResponse {
+  readonly endpoint: AiVoiceEndpointDto;
+}
+
+/**
+ * PUT /api/ai/voice-endpoint — admin-only upsert of the voice endpoint. `apiKey` is omit-means-keep
+ * on edit: omitted/undefined leaves the stored key untouched; a non-empty string replaces it. An
+ * initial create requires a key (enforced server-side). `enabled` toggles provider status.
+ */
+export interface PutVoiceEndpointRequest {
+  readonly baseUrl: string;
+  readonly modelName: string;
+  readonly apiKey?: string;
+  readonly enabled?: boolean;
+}
+
+export interface PutVoiceEndpointResponse {
+  readonly endpoint: AiVoiceEndpointDto;
 }
 
 export interface ListAiServiceBindingsResponse {

@@ -40,6 +40,7 @@ import { EditModelForm } from "./settings-ai-edit-model-form";
 import { ChatLockGroup } from "./settings-ai-chat-lock-group";
 import { YoloAdminGroup } from "./settings-yolo-admin-group";
 import { WebSearchKeyGroup } from "./settings-web-search-key-group";
+import { VoiceConfigGroup } from "./settings-voice-config-group";
 import {
   AI_MODEL_CAPABILITIES,
   type AiAuthMethod,
@@ -82,20 +83,16 @@ const TIERS: Record<AiModelTier, { label: string; hint: string }> = {
 
 const MODEL_TIERS: readonly AiModelTier[] = ["reasoning", "interactive", "economy"];
 
-// #870 Slice 1: only the two USER-FACING services are configurable here (Chat + Voice). Worker
-// capabilities (tool-use / json / vision / summarization) stay cross-provider automatic and are not
-// surfaced as knobs; embeddings are out of scope (M3). Each service binds to EITHER a "mode" (a tier
+// #870 Slice 1 / #874 HIGH-2: Chat is the only bindable user-facing service here. Voice (STT) moved
+// to its own dedicated endpoint (see VoiceConfigGroup) and is NO longer a per-service binding.
+// Worker capabilities (tool-use / json / vision / summarization) stay cross-provider automatic and
+// are not surfaced as knobs; embeddings are out of scope (M3). Chat binds to EITHER a "mode" (a tier
 // resolved inside the instance-default provider) OR a specific model.
 const SERVICE_ROWS: readonly { k: AiModelCapability; name: string; desc: string }[] = [
   {
     k: "chat",
     name: "Chat & briefing",
     desc: "Everyday conversation and the daily reading voice."
-  },
-  {
-    k: "transcription",
-    name: "Voice",
-    desc: "Speech-to-text for voice notes and dictation."
   }
 ];
 
@@ -959,6 +956,8 @@ export function AiProvidersPane() {
           ))}
         </Group>
       ) : null}
+      {/* #874: Voice (STT) is its own dedicated admin section, independent of the chat providers. */}
+      <VoiceConfigGroup />
       <ChatLockGroup />
       <EmbeddingConfigGroup />
       <WebSearchKeyGroup />

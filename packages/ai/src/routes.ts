@@ -81,6 +81,7 @@ import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availa
 import { registerAiAdminPinRoutes } from "./admin-ai-pin-routes.js";
 import { registerAiServiceRoutes } from "./capability-route-routes.js";
 import { registerAiTranscriptionRoutes } from "./transcription-routes.js";
+import { registerAiVoiceEndpointRoutes } from "./voice-endpoint-routes.js";
 import { registerActionPolicyRoutes } from "./action-policy-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
@@ -369,6 +370,8 @@ export function registerAiRoutes(
 
   registerAiServiceRoutes(server, dependencies, repository);
   registerAiTranscriptionRoutes(server, dependencies, repository, secretCipher);
+  // #874: dedicated admin GET/PUT for the single instance-wide Voice (STT) endpoint (no discovery).
+  registerAiVoiceEndpointRoutes(server, dependencies, repository, secretCipher);
   registerActionPolicyRoutes(server, dependencies, repository);
   registerAiAdminPinRoutes(server, dependencies, repository);
 

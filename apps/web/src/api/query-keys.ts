@@ -43,8 +43,11 @@ export const queryKeys = {
     models: ["ai", "models"] as const,
     chatModelOverride: ["ai", "chat-model-override"] as const,
     adminUserAiPin: (userId: string) => ["ai", "admin", "users", userId, "pin"] as const,
-    // #870 Slice 1: per-service bindings (Chat + Voice) replace the old capability routes / tier prefs.
+    // #870 Slice 1: per-service bindings replace the old capability routes / tier prefs. #874: Chat
+    // is the only bindable service now; Voice (STT) is its own dedicated endpoint (voiceEndpoint).
     serviceBindings: ["ai", "service-bindings"] as const,
+    // #874: the single instance-wide Voice (STT) endpoint config.
+    voiceEndpoint: ["ai", "voice-endpoint"] as const,
     capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
     assistantTools: ["ai", "assistant-tools"] as const,

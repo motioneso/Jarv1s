@@ -31,9 +31,11 @@ function installNetworkStub(): () => void {
 }
 
 // #870 Slice 1: the per-capability manual routes + tier preferences are retired. This suite covers
-// their replacement — per-service bindings (Chat/Voice), the instance-default provider, and the
-// resolver's mode/model/needs-config behaviour. Admin-owned config is created through the HTTP API
-// as the instance admin (adminUser/sessionAdmin); pin behaviour lives in ai-admin-pin.test.ts.
+// their replacement — the per-service binding (Chat only, #874 HIGH-2 dropped the transcription
+// binding — Voice is now its own dedicated endpoint, see ai-voice-endpoint.test.ts), the
+// instance-default provider, and the resolver's mode/model/needs-config behaviour. Admin-owned config
+// is created through the HTTP API as the instance admin (adminUser/sessionAdmin); pin behaviour lives
+// in ai-admin-pin.test.ts.
 describe("AI service bindings + instance-default resolver", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
@@ -101,17 +103,20 @@ describe("AI service bindings + instance-default resolver", () => {
   });
 
   it("resolves a model binding to the exact model and reports needs-config when it is disabled", async () => {
-    const modelId = await seedModel("bind-exact-voice", ["transcription"], "interactive");
+    // #874 HIGH-2: chat is the only bindable service now, so this exercises the model-binding path on
+    // chat (was transcription pre-#874). Restored to the mode binding at the end so later, order-
+    // dependent assertions in this stateful suite still see `chat = mode:reasoning`.
+    const modelId = await seedModel("bind-exact-chat", ["chat"], "interactive");
 
     await server.inject({
       method: "PUT",
-      url: "/api/ai/services/transcription/binding",
+      url: "/api/ai/services/chat/binding",
       headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: { binding: { kind: "model", modelId } }
     });
 
     const resolvedActive = await dataContext.withDataContext(adminContext(), (scopedDb) =>
-      repository.resolveModelForCapability(scopedDb, "transcription", "interactive")
+      repository.resolveModelForCapability(scopedDb, "chat", "interactive")
     );
 
     // Disable the bound model — a user-facing service can't silently cross to another model.
@@ -122,13 +127,21 @@ describe("AI service bindings + instance-default resolver", () => {
       payload: { status: "disabled" }
     });
     const resolvedDisabled = await dataContext.withDataContext(adminContext(), (scopedDb) =>
-      repository.resolveModelForCapability(scopedDb, "transcription", "interactive")
+      repository.resolveModelForCapability(scopedDb, "chat", "interactive")
     );
 
     expect(resolvedActive.reason).toBe("manual-route");
     expect(resolvedActive.model?.id).toBe(modelId);
     expect(resolvedDisabled.reason).toBe("needs-config");
     expect(resolvedDisabled.model).toBeNull();
+
+    // Restore the mode binding this suite's later tests rely on.
+    await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/chat/binding",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { binding: { kind: "mode", tier: "reasoning" } }
+    });
   });
 
   it("lists service bindings via GET and never leaks provider credentials", async () => {
@@ -162,15 +175,24 @@ describe("AI service bindings + instance-default resolver", () => {
     expect(response.statusCode).toBe(403);
   });
 
-  it("rejects binding a worker capability (only Chat/Voice are bindable)", async () => {
-    const response = await server.inject({
+  it("rejects binding a non-chat capability (#874 HIGH-2: only Chat is bindable)", async () => {
+    // A worker capability was never bindable; #874 HIGH-2 also drops transcription (Voice moved to
+    // its dedicated endpoint). Both must 400 at the route as "not bindable".
+    const worker = await server.inject({
       method: "PUT",
       url: "/api/ai/services/summarization/binding",
       headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: { binding: { kind: "mode", tier: "interactive" } }
     });
+    const transcription = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/transcription/binding",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { binding: { kind: "mode", tier: "interactive" } }
+    });
 
-    expect(response.statusCode).toBe(400);
+    expect(worker.statusCode).toBe(400);
+    expect(transcription.statusCode).toBe(400);
   });
 
   it("keeps worker capabilities cross-provider automatic (no binding required)", async () => {
@@ -215,20 +237,15 @@ describe("AI service bindings + instance-default resolver", () => {
     });
   });
 
-  it("preserves both writes when two services are bound concurrently (M1, no lost update)", async () => {
-    const chatId = await seedModel("m1-chat", ["chat"], "interactive");
-    const voiceId = await seedModel("m1-voice", ["transcription"], "interactive");
+  // #874 HIGH-2: `transcription` is no longer a bindable service (Voice is its own dedicated
+  // endpoint). The old "two services bound concurrently" M1 lost-update test is gone with it — chat
+  // is now the ONLY bindable service, so a cross-service concurrent write is unreachable. What
+  // remains worth guarding is the repository-level rejection: setServiceBinding must refuse a
+  // non-user-facing service outright, so no assistant provider can ever be wired to Voice from here.
+  it("setServiceBinding rejects transcription at the repository layer (#874 HIGH-2)", async () => {
+    const voiceId = await seedModel("high2-voice", ["transcription"], "interactive");
 
-    // Two admins saving DIFFERENT services at the same time must not clobber each other.
-    await Promise.all([
-      dataContext.withDataContext(adminContext(), (scopedDb) =>
-        repository.setServiceBinding(
-          scopedDb,
-          "chat",
-          { kind: "model", modelId: chatId },
-          ids.adminUser
-        )
-      ),
+    await expect(
       dataContext.withDataContext(adminContext(), (scopedDb) =>
         repository.setServiceBinding(
           scopedDb,
@@ -237,15 +254,12 @@ describe("AI service bindings + instance-default resolver", () => {
           ids.adminUser
         )
       )
-    ]);
+    ).rejects.toThrow(/not bindable/);
 
-    const bindings = await dataContext.withDataContext(adminContext(), async (scopedDb) => ({
-      chat: await repository.getServiceBinding(scopedDb, "chat"),
-      voice: await repository.getServiceBinding(scopedDb, "transcription")
-    }));
-
-    expect(bindings.chat).toMatchObject({ kind: "model", modelId: chatId });
-    expect(bindings.voice).toMatchObject({ kind: "model", modelId: voiceId });
+    const stored = await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.getServiceBinding(scopedDb, "transcription")
+    );
+    expect(stored).toBeNull();
   });
 
   async function seedProvider(displayName: string): Promise<string> {

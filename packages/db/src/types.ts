@@ -355,6 +355,8 @@ export interface EmailTriageFeedbackTable {
 
 export type AiAuthMethod = "cli" | "api_key";
 
+type AiProviderPurpose = "assistant" | "voice"; // #874 (migration 0149): chat provider vs voice(STT)
+
 export interface AiProviderConfigsTable {
   id: string;
   owner_user_id: string;
@@ -364,9 +366,9 @@ export interface AiProviderConfigsTable {
   status: AiProviderStatus;
   auth_method: AiAuthMethod;
   execution_mode: "interactive" | "non_interactive";
-  // #870/H1 — instance-default provider flag (migration 0147). At most one row
-  // is true (enforced by a global partial unique index); optional on insert,
-  // DB-defaulted false. Reads/updates go through the app_runtime role under RLS.
+  // #874 (migration 0149): 'assistant' vs the single 'voice' STT endpoint; DB default backfills.
+  purpose: ColumnType<AiProviderPurpose, AiProviderPurpose | undefined, AiProviderPurpose>;
+  // #870/H1 (migration 0147): instance-default flag, at most one true (partial unique index).
   is_instance_default: ColumnType<boolean, boolean | undefined, boolean>;
   encrypted_credential: JsonColumn;
   revoked_at: NullableTimestampColumn;

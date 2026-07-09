@@ -20,9 +20,13 @@ type ServiceParams = { readonly service: string };
 type IdParams = { readonly id: string };
 
 const MODEL_CAPABILITIES = new Set<AiModelCapability>(AI_MODEL_CAPABILITIES);
-// #870 Slice 1: only user-facing services are bindable (Chat + Voice). Worker capabilities stay
-// cross-provider automatic and are never exposed as an admin binding knob.
-const BINDABLE_SERVICES = new Set<AiModelCapability>(["chat", "transcription"]);
+// #874 HIGH-2: Chat is the ONLY bindable service. Voice (STT) is no longer a per-service binding —
+// it is configured as a dedicated instance-wide endpoint (see /api/ai/voice-endpoint) and resolves
+// through its own `purpose='voice'` provider row, not the generic binding map. Slice-1 briefly
+// bound `transcription` here; that read-through is dropped outright (no back-compat) so no assistant
+// provider can be wired to Voice. Worker capabilities stay cross-provider automatic and are never
+// exposed as an admin binding knob.
+const BINDABLE_SERVICES = new Set<AiModelCapability>(["chat"]);
 
 export function registerAiServiceRoutes(
   server: FastifyInstance,
@@ -56,8 +60,9 @@ export function registerAiServiceRoutes(
     }
   );
 
-  // #870 Slice 1: the unified per-service binding map (Chat + Voice), replacing the old free-form
-  // per-capability model routes.
+  // #870 Slice 1: the unified per-service binding map, replacing the old free-form per-capability
+  // model routes. #874 HIGH-2: Chat is now the only bindable service (Voice moved to its own
+  // dedicated endpoint), so this map carries a single `chat` entry.
   server.get(
     "/api/ai/service-bindings",
     { schema: listAiServiceBindingsRouteSchema },

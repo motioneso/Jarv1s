@@ -186,14 +186,17 @@ const aiServiceBindingSchema = {
   ]
 } as const;
 
-// Only user-facing services are bindable in Slice 1 (Chat + Voice). Worker capabilities stay
-// cross-provider automatic and are not exposed as a service knob.
+// #874 HIGH-2: Chat is the ONLY bindable service. Voice/transcription is no longer a per-service
+// binding — it is configured as its own instance-wide endpoint (see voice-endpoint routes) and its
+// model is resolved by a dedicated transcription branch in the resolver, never via a service
+// binding. The Slice-1 `transcription` binding is dropped outright (no read-through). Worker
+// capabilities stay cross-provider automatic and are likewise not exposed as a service knob.
 const aiServiceParamsSchema = {
   type: "object",
   additionalProperties: false,
   required: ["service"],
   properties: {
-    service: { type: "string", enum: ["chat", "transcription"] }
+    service: { type: "string", enum: ["chat"] }
   }
 } as const;
 
@@ -201,8 +204,7 @@ const aiServiceBindingMapSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    chat: aiServiceBindingSchema,
-    transcription: aiServiceBindingSchema
+    chat: aiServiceBindingSchema
   }
 } as const;
 
@@ -546,6 +548,9 @@ export const transcribeAudioResponseSchema = {
     text: { type: "string" }
   }
 } as const;
+
+// #874 — the Voice (STT) endpoint payload + route schemas live in ./ai-voice-api.ts (they were split
+// out to keep this file under the 1000-line source cap) and are re-exported from the shared index.
 
 export const putAiServiceBindingRequestSchema = {
   type: "object",

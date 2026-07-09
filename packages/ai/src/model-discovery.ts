@@ -120,9 +120,11 @@ async function fetchModels(
         ? { models: ANTHROPIC_STATIC_MODELS.slice(), fromFallback: true }
         : { models: [], fromFallback: false };
     }
-    const models = extractModelIds(input.providerKind, await response.json()).map((id) =>
-      inferModel(id, input.providerKind)
-    );
+    // #874 HIGH-2: inferModel returns null for pure speech-to-text models (dropped from assistant
+    // discovery); filter them out so only assistant-bindable models reach the admin UI.
+    const models = extractModelIds(input.providerKind, await response.json())
+      .map((id) => inferModel(id, input.providerKind))
+      .filter((model): model is AiProviderDiscoveredModelDto => model !== null);
     return { models, fromFallback: false };
   } catch {
     return input.providerKind === "anthropic"
@@ -208,30 +210,24 @@ function inferTierFromModelId(providerKind: AiProviderKind, modelId: string): Ai
 function inferModel(
   providerModelId: string,
   providerKind: AiProviderKind
-): AiProviderDiscoveredModelDto {
+): AiProviderDiscoveredModelDto | null {
   const lower = providerModelId.toLowerCase();
 
-  // #870/H4: Voice is a real user-facing service (transcription runs over direct HTTP). Discovery
-  // must emit the `transcription` capability or the admin can never bind Voice to a discovered model.
-  // A dedicated speech-to-text model (whisper / *-transcribe) is transcription-ONLY — it is not a
-  // chat/tool model, so tagging it with the chat set would wrongly surface it as a Chat option.
+  // #874 HIGH-2: assistant-provider discovery no longer infers `transcription` at all. Voice (STT)
+  // is a dedicated instance endpoint (`purpose='voice'`, configured manually with a free-text model
+  // name) — it does NOT flow through discovery on an assistant provider. A pure speech-to-text model
+  // (whisper / *-transcribe) has no assistant capability, so we drop it from the discovered list
+  // entirely (caller filters nulls) rather than surfacing an unbindable, non-chat row.
   const isPureTranscription = lower.includes("whisper") || lower.includes("transcribe");
   if (isPureTranscription) {
-    return {
-      providerModelId,
-      displayName: providerModelId,
-      capabilities: ["transcription"],
-      tier: inferTierFromModelId(providerKind, providerModelId)
-    };
+    return null;
   }
 
+  // Multimodal audio chat models (e.g. gpt-4o-audio) keep their chat/tool capabilities but are NOT
+  // tagged `transcription` — Voice never binds to an assistant-side model (#874 HIGH-2 / CRIT-1).
   const capabilities: AiModelCapability[] = ["chat", "tool-use", "json", "summarization"];
   if (lower.includes("vision") || lower.includes("image") || lower.includes("gemini")) {
     capabilities.push("vision");
-  }
-  // Multimodal audio chat models (e.g. gpt-4o-audio) can both chat AND transcribe.
-  if (lower.includes("audio")) {
-    capabilities.push("transcription");
   }
   const tier = inferTierFromModelId(providerKind, providerModelId);
   return { providerModelId, displayName: providerModelId, capabilities, tier };
