@@ -20,7 +20,9 @@ const exemptFiles = new Set<string>([
   "packages/ai/src/repository.ts",
   "packages/ai/src/routes.ts",
   "apps/web/src/api/client.ts",
-  "packages/module-registry/src/index.ts"
+  "packages/module-registry/src/index.ts",
+  // Hand-maintained Kysely table types; grows with schema, not refactorable smaller.
+  "packages/db/src/types.ts"
 ]);
 const checkedExtensions = new Set([
   ".css",
