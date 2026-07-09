@@ -11,6 +11,7 @@ import {
   type TaskTag,
   type TasksTable
 } from "@jarv1s/db";
+import { localDay } from "@jarv1s/shared";
 
 import { HttpError } from "./errors.js";
 import {
@@ -19,6 +20,7 @@ import {
   TASK_URGENCY_WINDOW_MS,
   type TaskQuadrant
 } from "./classification.js";
+import { readActorTimezone } from "./drift.js";
 import { TaskListsRepository } from "./lists.js";
 import { generateNext, rollForwardOwnedSeries, type RecurrenceSpec } from "./recurrence.js";
 
@@ -77,7 +79,13 @@ export class TasksRepository {
     // Lazy-on-view freshness: advance any stale recurring series before reading so the
     // list reflects the current occurrence between daily cron ticks. No-op when nothing
     // is stale. Owner-only (RLS + explicit owner predicate inside rollForwardOwnedSeries).
-    await rollForwardOwnedSeries(scopedDb);
+    //
+    // #877 finding 2: this is the exact "safety net" the recurrence-schedule.ts comment
+    // used to (wrongly) claim kept the list correct regardless of local midnight — it
+    // couldn't while `today` defaulted to the server's UTC day. Read the actor's tz first
+    // and roll on THEIR local day instead.
+    const listVisibleTz = await readActorTimezone(scopedDb);
+    await rollForwardOwnedSeries(scopedDb, localDay(new Date(), listVisibleTz));
 
     return scopedDb.db
       .selectFrom("app.tasks")
@@ -90,7 +98,10 @@ export class TasksRepository {
   async listFiltered(scopedDb: DataContextDb, criteria: ListTasksCriteria = {}): Promise<Task[]> {
     assertDataContextDb(scopedDb);
 
-    await rollForwardOwnedSeries(scopedDb);
+    // Same lazy-on-view safety net as listVisible above — roll forward on the actor's
+    // local day, not the server's UTC day (#877 finding 2).
+    const listFilteredTz = await readActorTimezone(scopedDb);
+    await rollForwardOwnedSeries(scopedDb, localDay(new Date(), listFilteredTz));
 
     let query = scopedDb.db
       .selectFrom("app.tasks as t")

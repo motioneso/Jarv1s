@@ -317,14 +317,19 @@ describe("MVP foundation scaffold", () => {
         { version: "0144", name: "0144_google_sync_sweep_accounts.sql" },
         { version: "0145", name: "0145_jarvis_error_log.sql" },
         // Merge-up (#876): reconciles #744 (chat 0146) with #870 Slice-1 (ai 0147/0148).
-        // Global migration order is strictly numeric across modules, so 0146→0147→0148.
+        // Global migration order is strictly numeric across modules, so 0146→0147→0148→0149.
         { version: "0146", name: "0146_private_chat_cleanup.sql" },
         // #870/H1 — instance-default provider flag.
         { version: "0147", name: "0147_ai_provider_instance_default.sql" },
         // #870 Fable HIGH-1 — worker INSERT grant/policy for jarvis_error_log (H3 observability).
         { version: "0148", name: "0148_jarvis_error_log_worker_insert.sql" },
-        // #874 — `purpose` discriminator + one-voice partial unique index for the Voice(STT) endpoint.
-        { version: "0149", name: "0149_ai_provider_purpose.sql" }
+        // #760 Task 1 — personal chat_skills library table, owner-only RLS. Renumbered
+        // 0147->0149 during rebase to resolve collision with merged #870 (0147/0148).
+        { version: "0149", name: "0149_chat_skills.sql" },
+        // #874 — `purpose` discriminator + one-voice partial unique index for the Voice(STT)
+        // endpoint. Renumbered 0149->0150: chat's 0149_chat_skills (#889) landed on main
+        // first, and migrations are global by landing order, so this takes the next free slot.
+        { version: "0150", name: "0150_ai_provider_purpose.sql" }
       ]);
     } finally {
       await client.end();

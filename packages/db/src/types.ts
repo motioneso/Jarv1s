@@ -459,6 +459,21 @@ export interface ChatMessagesTable {
   updated_at: TimestampColumn;
 }
 
+export type ChatSkillSource = "authored" | "uploaded";
+
+export interface ChatSkillsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  name: string;
+  description: string | null;
+  frontmatter: JsonColumn;
+  body: string;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  source: ChatSkillSource;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface BriefingDefinitionsTable {
   id: string;
   owner_user_id: string;
@@ -937,6 +952,7 @@ export interface JarvisDatabase {
   "app.jarvis_error_log": JarvisErrorLogTable;
   "app.chat_threads": ChatThreadsTable;
   "app.chat_messages": ChatMessagesTable;
+  "app.chat_skills": ChatSkillsTable;
   "app.briefing_definitions": BriefingDefinitionsTable;
   "app.briefing_runs": BriefingRunsTable;
   "app.usefulness_feedback_signals": UsefulnessFeedbackSignalsTable;
@@ -988,6 +1004,7 @@ export type JarvisActionAuditLog = Selectable<JarvisActionAuditLogTable>;
 export type JarvisErrorLog = Selectable<JarvisErrorLogTable>;
 export type ChatThread = Selectable<ChatThreadsTable>;
 export type ChatMessage = Selectable<ChatMessagesTable>;
+export type ChatSkill = Selectable<ChatSkillsTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
 export type BriefingRun = Selectable<BriefingRunsTable>;
 export type UsefulnessFeedbackSignal = Selectable<UsefulnessFeedbackSignalsTable>;

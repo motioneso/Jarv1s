@@ -73,7 +73,8 @@ export const queryKeys = {
     messages: (threadId: string) => ["chat", "threads", threadId, "messages"] as const,
     memorySettings: ["chat", "memory-settings"] as const,
     memoryFacts: ["chat", "memory-facts"] as const,
-    memoryCorrections: ["chat", "memory-corrections"] as const
+    memoryCorrections: ["chat", "memory-corrections"] as const,
+    skills: ["chat", "skills"] as const
   },
   email: {
     list: ["email", "list"] as const,

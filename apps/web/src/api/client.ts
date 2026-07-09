@@ -11,6 +11,11 @@ import type {
   AddTaskActivityResponse,
   AiModelCapability,
   BootstrapStatusResponse,
+  ChatSkillResponse,
+  CreateChatSkillRequest,
+  ListChatSkillsResponse,
+  SetChatSkillEnabledRequest,
+  UpdateChatSkillRequest,
   GetChatSettingsResponse,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
@@ -658,6 +663,65 @@ export async function putChatSettings(
     method: "PUT",
     body: input
   });
+}
+
+export async function listChatSkills(): Promise<ListChatSkillsResponse> {
+  return requestJson<ListChatSkillsResponse>("/api/chat/skills");
+}
+
+export async function getChatSkill(id: string): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>(`/api/chat/skills/${encodeURIComponent(id)}`);
+}
+
+export async function createChatSkill(input: CreateChatSkillRequest): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>("/api/chat/skills", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function updateChatSkill(
+  id: string,
+  input: UpdateChatSkillRequest
+): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>(`/api/chat/skills/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: input
+  });
+}
+
+export async function setChatSkillEnabled(
+  id: string,
+  input: SetChatSkillEnabledRequest
+): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>(`/api/chat/skills/${encodeURIComponent(id)}/enabled`, {
+    method: "PATCH",
+    body: input
+  });
+}
+
+export async function deleteChatSkill(id: string): Promise<void> {
+  await requestJson<void>(`/api/chat/skills/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/**
+ * Uploads a skill file (standard frontmatter + markdown body) for import. Goes around
+ * `requestJson` like `transcribeAudio()` — the body is the raw file text, not JSON.
+ */
+export async function importChatSkill(file: File): Promise<ChatSkillResponse> {
+  const response = await fetch("/api/chat/skills/import", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "text/markdown" },
+    body: await file.text()
+  });
+
+  if (!response.ok) {
+    const { message, code } = await readErrorBody(response);
+    throw new ApiError(response.status, message, code);
+  }
+
+  return response.json() as Promise<ChatSkillResponse>;
 }
 
 /**

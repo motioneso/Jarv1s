@@ -2,9 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Mic, Square, X } from "lucide-react";
 import { type KeyboardEvent, useRef, useState } from "react";
 
-import { ApiError, lookupAiCapabilityRoute, transcribeAudio } from "../api/client";
+import { ApiError, listChatSkills, lookupAiCapabilityRoute, transcribeAudio } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
+import {
+  activeSlashQuery,
+  composeTurnText,
+  resolveBoundSkill,
+  resolveTurnInvocation,
+  SkillAutocomplete
+} from "./skill-autocomplete";
 
 /**
  * Chat composer, extracted from chat-drawer.tsx (#738) so the mic/voice-input control has
@@ -35,6 +42,9 @@ export function Composer(props: {
   // clobber edits or re-fire the chip on re-render).
   const [text, setText] = useState(() => props.initialText ?? "");
   const [queuedText, setQueuedText] = useState<string | null>(null);
+  // Explicit autocomplete pick, tracked by record id (not name — duplicate names are allowed).
+  // Bare-name text typed without a pick still resolves at send time; see resolveTurnInvocation.
+  const [boundSkillId, setBoundSkillId] = useState<string | null>(null);
 
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -50,17 +60,35 @@ export function Composer(props: {
   });
   const micAvailable = Boolean(transcriptionRouteQuery.data?.route?.available);
 
+  const skillsQuery = useQuery({
+    queryKey: queryKeys.chat.skills,
+    queryFn: listChatSkills
+  });
+  const skills = skillsQuery.data?.skills ?? [];
+  const slashQuery = activeSlashQuery(text);
+  const boundSkill = resolveBoundSkill(skills, boundSkillId);
+  const invocation = resolveTurnInvocation(text, boundSkillId, skills);
+  const composedText = composeTurnText(invocation.skill, invocation.remainder);
+
+  const selectSkill = (skillId: string) => {
+    setBoundSkillId(skillId);
+    setText("");
+  };
+
+  const clearBoundSkill = () => setBoundSkillId(null);
+
   const send = () => {
     if (props.readOnly) return;
-    const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!composedText) return;
     if (props.isSending) {
-      setQueuedText(trimmed);
+      setQueuedText(composedText);
       setText("");
+      setBoundSkillId(null);
       return;
     }
-    props.onSend(trimmed);
+    props.onSend(composedText);
     setText("");
+    setBoundSkillId(null);
   };
 
   const restoreQueuedText = () => {
@@ -155,6 +183,27 @@ export function Composer(props: {
       ) : null}
       {props.sendError ? <p className="form-error">{props.sendError}</p> : null}
       {micError ? <p className="form-error">{micError}</p> : null}
+      {boundSkill ? (
+        <div className="chatd-skillac__bound">
+          <span>/{boundSkill.name}</span>
+          <button
+            aria-label="Clear selected skill"
+            className="chatd-skillac__bound-x"
+            title="Clear selected skill"
+            type="button"
+            onClick={clearBoundSkill}
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
+      {!props.readOnly && !boundSkill && slashQuery !== null ? (
+        <SkillAutocomplete
+          query={slashQuery}
+          skills={skills}
+          onSelect={(skill) => selectSkill(skill.id)}
+        />
+      ) : null}
       <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
         <textarea
           aria-label="Message Jarvis"
@@ -189,7 +238,7 @@ export function Composer(props: {
           aria-label={props.isSending ? "Stop generating" : "Send"}
           className="chatd-send"
           disabled={
-            props.readOnly || props.lockedModelUnavailable || (!props.isSending && !text.trim())
+            props.readOnly || props.lockedModelUnavailable || (!props.isSending && !composedText)
           }
           title={props.isSending ? "Stop" : "Send"}
           type="button"

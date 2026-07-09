@@ -161,6 +161,14 @@
   color: var(--text);
   white-space: nowrap;
 }
+/* #885: finished-game result row on /today — opponent crest + "L 3–9", the /today counterpart of
+   .sp-feat__result so both surfaces drop the "vs Blue Jays" text tail. Nested inside the baseline
+   .sp-tk__primary flex row; center-align here so the crest tracks the score, not its baseline. */
+.sp-tk__result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .sp-tk__newsic {
   flex: none;
   color: var(--steel);
