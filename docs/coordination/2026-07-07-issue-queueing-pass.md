@@ -1,16 +1,19 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07 (session continuing 2026-07-08)
-**Coordinator lock:** STALE — was `d3c0adce-dee1-41d6-aa91-5a89181ca575` / pane `w1:pBJ` / tab
-`w1:t15`, relaying now per the mandatory post-security-merge trigger (unconditional, no deferral).
-Successor claims the lock in `w1:t15`; resolve fresh by label+session, never trust a pane number.
+**Coordinator lock:** `99c5cd56-cbb9-4dbd-b948-81a0f089aee4` / label `Coordinator` / pane
+`w1:pBQ` / tab `w1:t15` (resolve fresh by label+session at read time, never trust a written pane
+number). Predecessor `d3c0adce-dee1-41d6-aa91-5a89181ca575` (pane `w1:pBJ`) confirmed idle/done
+via bounded read, then reaped; exactly one `Coordinator` pane verified via `herdr pane list`
+before and after.
 
 **CONTINUATION — do this FIRST:** none outstanding. #760 is fully closed out (PR #889 merged
-`bd567df2`, issue closed, worktree/branch/pane reaped, `merges_since_relay` reset to 0 by this
-relay). **Fleet is currently empty** — no build agents in flight. Successor: (1) `herdr pane list`
-to confirm no stray agent panes in the shared agents tab `w1:t1D`; (2) check with Ben / GitHub
-board for the next item to queue in this run (issue-queueing-pass); this run has no other spec
-currently cleared to build per the last-known manifest state. Nothing else pending.
+`bd567df2`, issue closed, worktree/branch/pane reaped). **Fleet is currently empty** — no build
+agents in flight. This tenure: found + closed one stray dead pane (`w1:pBM`, cwd pointed at the
+already-deleted `760-skill-integration-chat` worktree, `agent_status: unknown`, no live agent
+attached) in the shared agents tab `w1:t1D`, which is now empty. Successor: check with Ben /
+GitHub board for the next item to queue in this run (issue-queueing-pass); no spec is currently
+cleared to build per the last-known manifest state. Nothing else pending.
 
 **Fleet:**
 - **#853 auth-signup-atomicity: MERGED.** PR #875 squash-merged `a519bc88`. Opus adversarial QA
