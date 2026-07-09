@@ -60,11 +60,36 @@ describe("NewsBand featured-article body (#857)", () => {
 describe("NewsBand majors/mosaic url-keying (#858)", () => {
   it("keys majors/mosaic by url, not id, so a same-id different-story headline isn't wrongly promoted to major", () => {
     const items: Headline[] = [
-      headline({ id: "a0", url: "https://www.espn.com/nfl/story/_/id/a0", imageUrl: null, summary: "" }),
-      headline({ id: "dup", url: "https://www.espn.com/nfl/story/_/id/dup-1", summary: "", title: "Story One" }),
-      headline({ id: "b", url: "https://www.espn.com/nfl/story/_/id/b", summary: "", title: "Story Two" }),
-      headline({ id: "dup", url: "https://www.espn.com/nfl/story/_/id/dup-2", summary: "", title: "Story Three Distinct" }),
-      headline({ id: "d", url: "https://www.espn.com/nfl/story/_/id/d", summary: "", title: "Story Four" })
+      headline({
+        id: "a0",
+        url: "https://www.espn.com/nfl/story/_/id/a0",
+        imageUrl: null,
+        summary: ""
+      }),
+      headline({
+        id: "dup",
+        url: "https://www.espn.com/nfl/story/_/id/dup-1",
+        summary: "",
+        title: "Story One"
+      }),
+      headline({
+        id: "b",
+        url: "https://www.espn.com/nfl/story/_/id/b",
+        summary: "",
+        title: "Story Two"
+      }),
+      headline({
+        id: "dup",
+        url: "https://www.espn.com/nfl/story/_/id/dup-2",
+        summary: "",
+        title: "Story Three Distinct"
+      }),
+      headline({
+        id: "d",
+        url: "https://www.espn.com/nfl/story/_/id/d",
+        summary: "",
+        title: "Story Four"
+      })
     ];
     const html = renderToString(
       createElement(NewsBand, {

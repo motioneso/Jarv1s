@@ -43,11 +43,13 @@ tests), no new dependencies.
 ## Task 1: 858b — fetch timeout in `createHostPinnedFetch`
 
 **Files:**
+
 - Modify: `packages/datasets/src/host-pinning.ts:129-167` (current `createHostPinnedFetch`)
 - Modify: `packages/datasets/src/index.ts` (export block, add `DEFAULT_FETCH_TIMEOUT_MS`)
 - Test: `tests/unit/dataset-host-pinning.test.ts` (new `describe` block)
 
 **Interfaces:**
+
 - Produces: `DEFAULT_FETCH_TIMEOUT_MS` (exported `number` constant, value `15_000`) and a new 3rd
   parameter on `createHostPinnedFetch(allowedHosts, fetchFn, timeoutMs?)` — Task 2 consumes both.
 
@@ -216,11 +218,13 @@ git commit -m "feat(datasets): add request timeout to createHostPinnedFetch (#85
 ## Task 2: 858b — thread `fetchTimeoutMs` through `DatasetClientDeps`
 
 **Files:**
+
 - Modify: `packages/datasets/src/client.ts:37-42` (`DatasetClientDeps`), `:88` (the
   `createHostPinnedFetch` call site)
 - Test: `tests/unit/dataset-client.test.ts` (new test)
 
 **Interfaces:**
+
 - Consumes: `createHostPinnedFetch(allowedHosts, fetchFn, timeoutMs?)` from Task 1.
 - Produces: `DatasetClientDeps.fetchTimeoutMs?: number`, threaded into every `DatasetClient` built
   by `createDatasetClient`.
@@ -290,7 +294,11 @@ export interface DatasetClientDeps {
 Change the call site (currently L88):
 
 ```ts
-const pinnedFetch = createHostPinnedFetch(source.fetchHosts, deps.fetchFn ?? fetch, deps.fetchTimeoutMs);
+const pinnedFetch = createHostPinnedFetch(
+  source.fetchHosts,
+  deps.fetchFn ?? fetch,
+  deps.fetchTimeoutMs
+);
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -310,10 +318,12 @@ git commit -m "feat(datasets): thread fetchTimeoutMs through DatasetClientDeps (
 ## Task 3: 858a — web-layer `key={}` id→url fixes (mechanical, 7 sites) + regression test
 
 **Files:**
+
 - Modify: `packages/sports/src/web/sports-news.tsx:159,175,209,316,358-368,395,403`
 - Test: `tests/unit/sports-newsband.test.tsx` (new `describe` block)
 
 **Interfaces:**
+
 - Consumes: `Headline` from `@jarv1s/shared` (`imageUrl: string | null`, not `undefined` — use
   `null` when overriding to "no image" in test fixtures).
 - No new exports; this task only changes internal list-identity keys.
@@ -328,11 +338,36 @@ build this 5-item group inline):
 describe("NewsBand majors/mosaic url-keying (#858)", () => {
   it("keys majors/mosaic by url, not id, so a same-id different-story headline isn't wrongly promoted to major", () => {
     const items: Headline[] = [
-      headline({ id: "a0", url: "https://www.espn.com/nfl/story/_/id/a0", imageUrl: null, summary: "" }),
-      headline({ id: "dup", url: "https://www.espn.com/nfl/story/_/id/dup-1", summary: "", title: "Story One" }),
-      headline({ id: "b", url: "https://www.espn.com/nfl/story/_/id/b", summary: "", title: "Story Two" }),
-      headline({ id: "dup", url: "https://www.espn.com/nfl/story/_/id/dup-2", summary: "", title: "Story Three Distinct" }),
-      headline({ id: "d", url: "https://www.espn.com/nfl/story/_/id/d", summary: "", title: "Story Four" })
+      headline({
+        id: "a0",
+        url: "https://www.espn.com/nfl/story/_/id/a0",
+        imageUrl: null,
+        summary: ""
+      }),
+      headline({
+        id: "dup",
+        url: "https://www.espn.com/nfl/story/_/id/dup-1",
+        summary: "",
+        title: "Story One"
+      }),
+      headline({
+        id: "b",
+        url: "https://www.espn.com/nfl/story/_/id/b",
+        summary: "",
+        title: "Story Two"
+      }),
+      headline({
+        id: "dup",
+        url: "https://www.espn.com/nfl/story/_/id/dup-2",
+        summary: "",
+        title: "Story Three Distinct"
+      }),
+      headline({
+        id: "d",
+        url: "https://www.espn.com/nfl/story/_/id/d",
+        summary: "",
+        title: "Story Four"
+      })
     ];
     const html = renderToString(
       createElement(NewsBand, {
@@ -365,24 +400,28 @@ wrongly re-admits it as a third major).
 3a. HeroSlide (currently L159, inside the carousel `slides.map((headline, i) => (...))`):
 
 ```tsx
-        {slides.map((headline, i) => (
-          <HeroSlide key={headline.url} headline={headline} active={i === active} />
-        ))}
+{
+  slides.map((headline, i) => (
+    <HeroSlide key={headline.url} headline={headline} active={i === active} />
+  ));
+}
 ```
 
 3b. Carousel dot (currently L175, the second `slides.map((headline, i) => (...))`):
 
 ```tsx
-            {slides.map((headline, i) => (
-              <button
-                key={headline.url}
-                type="button"
-                className="sp-carousel__dot"
-                aria-label={`Story ${i + 1} of ${count}`}
-                aria-current={i === active || undefined}
-                onClick={() => setIndex(i)}
-              />
-            ))}
+{
+  slides.map((headline, i) => (
+    <button
+      key={headline.url}
+      type="button"
+      className="sp-carousel__dot"
+      aria-label={`Story ${i + 1} of ${count}`}
+      aria-current={i === active || undefined}
+      onClick={() => setIndex(i)}
+    />
+  ));
+}
 ```
 
 3c. `LatestColumn` list item (currently L209):
@@ -406,26 +445,28 @@ wrongly re-admits it as a third major).
 condition — only the keyed property changes):
 
 ```tsx
-  const majorIds = new Set(
-    rest
-      .filter((s) => s.headline.imageUrl)
-      .slice(0, MAJORS_CAP)
-      .map((s) => s.headline.url)
-  );
-  const flow = rest.filter((s) => !majorIds.has(s.headline.url));
-  const standards = flow.slice(0, STANDARDS_CAP);
-  const mosaicIds = new Set([...majorIds, ...standards.map((s) => s.headline.url)]);
-  // Weight order preserved across both tiers so the page reads big → small.
-  const mosaic = rest.filter((s) => mosaicIds.has(s.headline.url));
-  const briefs = flow.slice(STANDARDS_CAP, STANDARDS_CAP + BRIEFS_CAP);
+const majorIds = new Set(
+  rest
+    .filter((s) => s.headline.imageUrl)
+    .slice(0, MAJORS_CAP)
+    .map((s) => s.headline.url)
+);
+const flow = rest.filter((s) => !majorIds.has(s.headline.url));
+const standards = flow.slice(0, STANDARDS_CAP);
+const mosaicIds = new Set([...majorIds, ...standards.map((s) => s.headline.url)]);
+// Weight order preserved across both tiers so the page reads big → small.
+const mosaic = rest.filter((s) => mosaicIds.has(s.headline.url));
+const briefs = flow.slice(STANDARDS_CAP, STANDARDS_CAP + BRIEFS_CAP);
 ```
 
 3f. `NewsArticle` mosaic render (currently L395):
 
 ```tsx
-        {mosaic.map(({ headline }) => (
-          <NewsArticle key={headline.url} headline={headline} major={majorIds.has(headline.url)} />
-        ))}
+{
+  mosaic.map(({ headline }) => (
+    <NewsArticle key={headline.url} headline={headline} major={majorIds.has(headline.url)} />
+  ));
+}
 ```
 
 3g. Briefs list item (currently L403):
@@ -453,10 +494,12 @@ git commit -m "fix(sports): key NewsBand list identity by url, not id (#858)"
 ## Task 4: 858a service-layer fix 1/3 — `topStoryIds` → `topStoryUrls` (`sports-service.ts:300,342`)
 
 **Files:**
+
 - Modify: `packages/sports/src/sports-service.ts:300` (declaration), `:342` (consumer)
 - Test: `tests/unit/sports-service.test.ts` (new `describe`/`it` block)
 
 **Interfaces:**
+
 - Consumes: `SourceHeadline` (from `./source/sports-source.js`), `makeDeps`/`makeSource`/`userA`
   exported by `tests/unit/sports-service.test.ts` (already used this way by
   `sports-service-dedupe.test.ts`).
@@ -531,13 +574,13 @@ therefore excluded entirely by the trailing `.filter((group) => group.headlines.
 In `packages/sports/src/sports-service.ts`, rename the declaration (currently L300):
 
 ```ts
-    const topStoryUrls = new Set(rankedTopStories.map((h) => h.url));
+const topStoryUrls = new Set(rankedTopStories.map((h) => h.url));
 ```
 
 And its consumer (currently L342, inside the `leagueNews` map):
 
 ```ts
-        headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryUrls.has(h.url))
+headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryUrls.has(h.url));
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -558,10 +601,12 @@ git commit -m "fix(sports): key topStoryIds by url, not id (#858)"
 ## Task 5: 858a service-layer fix 2/3 — feature-body splice by url (`sports-service.ts:376-384`)
 
 **Files:**
+
 - Modify: `packages/sports/src/sports-service.ts:376-384`
 - Test: `tests/unit/sports-service.test.ts` (new `it`)
 
 **Interfaces:**
+
 - Consumes: `topStoryUrls`-fixed behavior from Task 4 (this task's fixture relies on it: a
   non-top-story headline in a second competition survives into `leagueNews`).
 - No signature changes.
@@ -571,95 +616,95 @@ git commit -m "fix(sports): key topStoryIds by url, not id (#858)"
 Add to the `describe("id→url story keying (#858)")` block from Task 4:
 
 ```ts
-  it("does not splice the featured article's body onto an unrelated headline that happens to share its id", async () => {
-    const nflFollow: SportsFollowDto = {
-      id: "f1",
-      competitionKey: "nfl",
-      teamKey: null,
-      createdAt: "2026-06-01T00:00:00.000Z"
-    };
-    const nbaFollow: SportsFollowDto = {
-      id: "f2",
-      competitionKey: "nba",
-      teamKey: null,
-      createdAt: "2026-06-01T00:00:00.000Z"
-    };
-    // nfl feed: an editorial lead (tier-1 top story, excluded from leagueNews) followed by the
-    // heavy story that will become the feature — image + summary + first-in-its-(filtered)-group
-    // bonus clears BIG_STORY_WEIGHT (4): 2 + 1 + 2 = 5.
-    const nflLead: SourceHeadline = {
-      id: "nfl-lead",
-      competitionKey: "nfl",
-      competitionLabel: "NFL",
-      title: "NFL editorial lead",
-      url: "https://example.com/nfl-lead",
-      publishedAt: `${TODAY}T09:00:00.000Z`,
-      imageUrl: null,
-      summary: "",
-      teamKeys: [],
-      sourceTeamIds: []
-    };
-    const nflFeature: SourceHeadline = {
-      id: "dup",
-      competitionKey: "nfl",
-      competitionLabel: "NFL",
-      title: "NFL feature story",
-      url: "https://example.com/nfl-dup",
-      publishedAt: `${TODAY}T10:00:00.000Z`,
-      imageUrl: "https://img.example.com/nfl.jpg",
-      summary: "NFL summary text",
-      teamKeys: [],
-      sourceTeamIds: []
-    };
-    // nba feed: its own editorial lead (tier-1 top story, excluded), then a second, unrelated
-    // story that happens to share `nflFeature`'s id "dup" but has a completely different url.
-    const nbaLead: SourceHeadline = {
-      id: "nba-lead",
-      competitionKey: "nba",
-      competitionLabel: "NBA",
-      title: "NBA editorial lead",
-      url: "https://example.com/nba-lead",
-      publishedAt: `${TODAY}T08:00:00.000Z`,
-      imageUrl: null,
-      summary: "",
-      teamKeys: [],
-      sourceTeamIds: []
-    };
-    const nbaOther: SourceHeadline = {
-      id: "dup",
-      competitionKey: "nba",
-      competitionLabel: "NBA",
-      title: "NBA distinct story (colliding id)",
-      url: "https://example.com/nba-other",
-      publishedAt: `${TODAY}T07:00:00.000Z`,
-      imageUrl: null,
-      summary: "",
-      teamKeys: [],
-      sourceTeamIds: []
-    };
-    const service = new SportsService(
-      makeDeps({
-        follows: [nflFollow, nbaFollow],
-        source: makeSource({
-          getHeadlines: async (competitionKey) => {
-            if (competitionKey === "nfl") return [nflLead, nflFeature];
-            if (competitionKey === "nba") return [nbaLead, nbaOther];
-            return [];
-          },
-          getArticleBody: async () => "Fetched real article body."
-        })
+it("does not splice the featured article's body onto an unrelated headline that happens to share its id", async () => {
+  const nflFollow: SportsFollowDto = {
+    id: "f1",
+    competitionKey: "nfl",
+    teamKey: null,
+    createdAt: "2026-06-01T00:00:00.000Z"
+  };
+  const nbaFollow: SportsFollowDto = {
+    id: "f2",
+    competitionKey: "nba",
+    teamKey: null,
+    createdAt: "2026-06-01T00:00:00.000Z"
+  };
+  // nfl feed: an editorial lead (tier-1 top story, excluded from leagueNews) followed by the
+  // heavy story that will become the feature — image + summary + first-in-its-(filtered)-group
+  // bonus clears BIG_STORY_WEIGHT (4): 2 + 1 + 2 = 5.
+  const nflLead: SourceHeadline = {
+    id: "nfl-lead",
+    competitionKey: "nfl",
+    competitionLabel: "NFL",
+    title: "NFL editorial lead",
+    url: "https://example.com/nfl-lead",
+    publishedAt: `${TODAY}T09:00:00.000Z`,
+    imageUrl: null,
+    summary: "",
+    teamKeys: [],
+    sourceTeamIds: []
+  };
+  const nflFeature: SourceHeadline = {
+    id: "dup",
+    competitionKey: "nfl",
+    competitionLabel: "NFL",
+    title: "NFL feature story",
+    url: "https://example.com/nfl-dup",
+    publishedAt: `${TODAY}T10:00:00.000Z`,
+    imageUrl: "https://img.example.com/nfl.jpg",
+    summary: "NFL summary text",
+    teamKeys: [],
+    sourceTeamIds: []
+  };
+  // nba feed: its own editorial lead (tier-1 top story, excluded), then a second, unrelated
+  // story that happens to share `nflFeature`'s id "dup" but has a completely different url.
+  const nbaLead: SourceHeadline = {
+    id: "nba-lead",
+    competitionKey: "nba",
+    competitionLabel: "NBA",
+    title: "NBA editorial lead",
+    url: "https://example.com/nba-lead",
+    publishedAt: `${TODAY}T08:00:00.000Z`,
+    imageUrl: null,
+    summary: "",
+    teamKeys: [],
+    sourceTeamIds: []
+  };
+  const nbaOther: SourceHeadline = {
+    id: "dup",
+    competitionKey: "nba",
+    competitionLabel: "NBA",
+    title: "NBA distinct story (colliding id)",
+    url: "https://example.com/nba-other",
+    publishedAt: `${TODAY}T07:00:00.000Z`,
+    imageUrl: null,
+    summary: "",
+    teamKeys: [],
+    sourceTeamIds: []
+  };
+  const service = new SportsService(
+    makeDeps({
+      follows: [nflFollow, nbaFollow],
+      source: makeSource({
+        getHeadlines: async (competitionKey) => {
+          if (competitionKey === "nfl") return [nflLead, nflFeature];
+          if (competitionKey === "nba") return [nbaLead, nbaOther];
+          return [];
+        },
+        getArticleBody: async () => "Fetched real article body."
       })
-    );
-    const overview = await service.getOverview(userA);
-    const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
-    expect(nflGroup?.headlines.find((h) => h.title === "NFL feature story")?.body).toBe(
-      "Fetched real article body."
-    );
-    const nbaGroup = overview.leagueNews.find((g) => g.competitionKey === "nba");
-    expect(
-      nbaGroup?.headlines.find((h) => h.title === "NBA distinct story (colliding id)")?.body
-    ).toBeUndefined();
-  });
+    })
+  );
+  const overview = await service.getOverview(userA);
+  const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
+  expect(nflGroup?.headlines.find((h) => h.title === "NFL feature story")?.body).toBe(
+    "Fetched real article body."
+  );
+  const nbaGroup = overview.leagueNews.find((g) => g.competitionKey === "nba");
+  expect(
+    nbaGroup?.headlines.find((h) => h.title === "NBA distinct story (colliding id)")?.body
+  ).toBeUndefined();
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -676,15 +721,15 @@ only the comparison inside the inner `.map` changes; the cache key on the line a
 `{ articleId: feature.id }` untouched (out of scope, a cache-key concern not a list-identity one):
 
 ```ts
-    const leagueNewsWithBody =
-      feature && featureBody
-        ? publicLeagueNews.map((group) => ({
-            ...group,
-            headlines: group.headlines.map((h) =>
-              h.url === feature.url ? { ...h, body: featureBody } : h
-            )
-          }))
-        : publicLeagueNews;
+const leagueNewsWithBody =
+  feature && featureBody
+    ? publicLeagueNews.map((group) => ({
+        ...group,
+        headlines: group.headlines.map((h) =>
+          h.url === feature.url ? { ...h, body: featureBody } : h
+        )
+      }))
+    : publicLeagueNews;
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -704,78 +749,80 @@ git commit -m "fix(sports): splice the featured article body by url, not id (#85
 ## Task 6: 858a service-layer fix 3/3 — `rankTopStories`'s `pickedIds` → `pickedUrls` (`sports-service.ts:773,783,785,798,801`)
 
 **Files:**
+
 - Modify: `packages/sports/src/sports-service.ts:773-801` (`rankTopStories` function body)
 - Test: `tests/unit/sports-service.test.ts` (new `it`)
 
 **Interfaces:**
+
 - No signature changes to `rankTopStories` (still `(headlinesByComp, followedTeams,
-  followedCompetitionKeys) => SourceHeadline[]`) — internal rename + rekey only.
+followedCompetitionKeys) => SourceHeadline[]`) — internal rename + rekey only.
 
 - [ ] **Step 1: Write the failing test**
 
 Add to the `describe("id→url story keying (#858)")` block:
 
 ```ts
-  it("does not let a tier-1 lead's id block a distinct, team-matched story from tier 2 just because the ids collide", async () => {
-    const dalFollow: SportsFollowDto = {
-      id: "f1",
-      competitionKey: "nfl",
-      teamKey: "dal",
-      createdAt: "2026-06-01T00:00:00.000Z"
-    };
-    // h0 is the tier-1 pick (front of feed, unconditional) — not tagged to any team.
-    const h0: SourceHeadline = {
-      id: "dup",
-      competitionKey: "nfl",
-      competitionLabel: "NFL",
-      title: "Editorial lead",
-      url: "https://example.com/a",
-      publishedAt: `${TODAY}T10:00:00.000Z`,
-      imageUrl: null,
-      summary: "",
-      teamKeys: [],
-      sourceTeamIds: []
-    };
-    // h1 shares h0's id ("dup") but is a distinct story (different url) tagged to the followed
-    // team (sourceTeamIds "6" → resolves to "dal" via the listTeams override below) — tier 2
-    // should pick it up.
-    const h1: SourceHeadline = {
-      id: "dup",
-      competitionKey: "nfl",
-      competitionLabel: "NFL",
-      title: "Distinct dal story, colliding id",
-      url: "https://example.com/b",
-      publishedAt: `${TODAY}T11:00:00.000Z`,
-      imageUrl: null,
-      summary: "",
-      teamKeys: [],
-      sourceTeamIds: ["6"]
-    };
-    const service = new SportsService(
-      makeDeps({
-        follows: [dalFollow],
-        source: makeSource({
-          getHeadlines: async (competitionKey, teamKey) => {
-            if (competitionKey !== "nfl") return [];
-            if (teamKey) return []; // isolate: no per-team feed noise for this test
-            return [h0, h1];
-          },
-          listTeams: async (competitionKey) => [
-            {
-              teamKey: "dal",
-              competitionKey,
-              name: "Dallas Cowboys",
-              shortName: "Cowboys",
-              crestUrl: null,
-              sourceTeamId: "6"
-            }
-          ]
-        })
+it("does not let a tier-1 lead's id block a distinct, team-matched story from tier 2 just because the ids collide", async () => {
+  const dalFollow: SportsFollowDto = {
+    id: "f1",
+    competitionKey: "nfl",
+    teamKey: "dal",
+    createdAt: "2026-06-01T00:00:00.000Z"
+  };
+  // h0 is the tier-1 pick (front of feed, unconditional) — not tagged to any team.
+  const h0: SourceHeadline = {
+    id: "dup",
+    competitionKey: "nfl",
+    competitionLabel: "NFL",
+    title: "Editorial lead",
+    url: "https://example.com/a",
+    publishedAt: `${TODAY}T10:00:00.000Z`,
+    imageUrl: null,
+    summary: "",
+    teamKeys: [],
+    sourceTeamIds: []
+  };
+  // h1 shares h0's id ("dup") but is a distinct story (different url) tagged to the followed
+  // team (sourceTeamIds "6" → resolves to "dal" via the listTeams override below) — tier 2
+  // should pick it up.
+  const h1: SourceHeadline = {
+    id: "dup",
+    competitionKey: "nfl",
+    competitionLabel: "NFL",
+    title: "Distinct dal story, colliding id",
+    url: "https://example.com/b",
+    publishedAt: `${TODAY}T11:00:00.000Z`,
+    imageUrl: null,
+    summary: "",
+    teamKeys: [],
+    sourceTeamIds: ["6"]
+  };
+  const service = new SportsService(
+    makeDeps({
+      follows: [dalFollow],
+      source: makeSource({
+        getHeadlines: async (competitionKey, teamKey) => {
+          if (competitionKey !== "nfl") return [];
+          if (teamKey) return []; // isolate: no per-team feed noise for this test
+          return [h0, h1];
+        },
+        listTeams: async (competitionKey) => [
+          {
+            teamKey: "dal",
+            competitionKey,
+            name: "Dallas Cowboys",
+            shortName: "Cowboys",
+            crestUrl: null,
+            sourceTeamId: "6"
+          }
+        ]
       })
-    );
-    const overview = await service.getOverview(userA);
-    expect(overview.topStories.map((h) => h.url)).toContain("https://example.com/b");
-  });
+    })
+  );
+  const overview = await service.getOverview(userA);
+  expect(overview.topStories.map((h) => h.url)).toContain("https://example.com/b");
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
