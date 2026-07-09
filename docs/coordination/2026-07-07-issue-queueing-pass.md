@@ -1,15 +1,16 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07 (session continuing 2026-07-08)
-**Coordinator lock:** `99c5cd56-cbb9-4dbd-b948-81a0f089aee4` / label `Coordinator` / pane
-`w1:pBQ` / tab `w1:t15` (resolve fresh by label+session at read time, never trust a written pane
-number). Predecessor `d3c0adce-dee1-41d6-aa91-5a89181ca575` (pane `w1:pBJ`) confirmed idle/done
-via bounded read, then reaped; exactly one `Coordinator` pane verified via `herdr pane list`
-before and after.
+**Coordinator lock:** `dd8b3920-6924-4eaf-b2bf-4120f187c7a3` / label `Coordinator` / pane
+`w1:pBR` / tab `w1:t15` (resolve fresh by label+session at read time, never trust a written pane
+number). Predecessor `99c5cd56-cbb9-4dbd-b948-81a0f089aee4` (pane `w1:pBQ`) resolved fresh by
+label+session id, session id verified matching, then reaped; exactly one `Coordinator` pane
+verified via `herdr pane list` before and after.
 
-**CONTINUATION — do this FIRST:** Relaying at own context 71% (session `99c5cd56`), see the
-"Relay checkpoint (session `99c5cd56`)" section near the end of this file for full detail. Short
-version: **#760 fully closed** (PR #889 merged `bd567df2`). This tenure landed the two specs that
+**CONTINUATION — do this FIRST:** Relaying in (session `dd8b3920`) from predecessor `99c5cd56`,
+see the "Relay checkpoint (session `99c5cd56`)" section near the end of this file for full
+detail, plus this session's own checkpoint appended after it. Short version: **#760 fully
+closed** (PR #889 merged `bd567df2`). The predecessor's tenure landed the two specs that
 were blocking Phase 0 for the next wave: **#866** (Herdr install + attach hint) and **#855**
 (sports followed-team dedupe) were "RFA"-labeled with approval comments but the actual spec files
 existed only *uncommitted* in the separate live `/home/ben/Jarv1s` checkout — found, verified
@@ -2081,6 +2082,7 @@ not owned by this run, leave alone unless asked.
    yet, not re-raised this tenure.
 4. #874 / PR #886 conflicting-mergeable state — noted, not investigated further this tenure.
 
-**Coordinator lock:** unchanged — still `99c5cd56-cbb9-4dbd-b948-81a0f089aee4` / label
-`Coordinator` / pane `w1:pBQ` / tab `w1:t15` until the successor claims Phase 0a and overwrites
-both this line and the top-of-file lock line with its own real session id.
+**Coordinator lock:** claimed by successor `dd8b3920-6924-4eaf-b2bf-4120f187c7a3` / label
+`Coordinator` / pane `w1:pBR` / tab `w1:t15`. Predecessor `99c5cd56-cbb9-4dbd-b948-81a0f089aee4`
+(pane `w1:pBQ`) resolved fresh by label+session id, verified matching, and reaped. See the next
+checkpoint section below for this tenure's status.
