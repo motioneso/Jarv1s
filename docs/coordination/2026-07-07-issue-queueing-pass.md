@@ -1,28 +1,33 @@
 # Coordination Run — issue-queueing-pass-2026-07-07
 
 **Date:** 2026-07-07 (session continuing 2026-07-08)
-**Coordinator lock:** now `d3c0adce-dee1-41d6-aa91-5a89181ca575` / label `Coordinator` / pane
-`w1:pBJ` / tab `w1:t15` — claimed this tenure. Predecessor `7dbdd81d-fe53-43ba-aac2-1a9bb989efc1`
-(pane `w1:pBB`) reaped after fresh label+session resolution (see reap note below). Resolve fresh
-by label+session, never trust a pane number.
+**Coordinator lock:** STALE — was `d3c0adce-dee1-41d6-aa91-5a89181ca575` / pane `w1:pBJ` / tab
+`w1:t15`, relaying now per the mandatory post-security-merge trigger (unconditional, no deferral).
+Successor claims the lock in `w1:t15`; resolve fresh by label+session, never trust a pane number.
+
+**CONTINUATION — do this FIRST:** none outstanding. #760 is fully closed out (PR #889 merged
+`bd567df2`, issue closed, worktree/branch/pane reaped, `merges_since_relay` reset to 0 by this
+relay). **Fleet is currently empty** — no build agents in flight. Successor: (1) `herdr pane list`
+to confirm no stray agent panes in the shared agents tab `w1:t1D`; (2) check with Ben / GitHub
+board for the next item to queue in this run (issue-queueing-pass); this run has no other spec
+currently cleared to build per the last-known manifest state. Nothing else pending.
 
 **Fleet:**
 - **#853 auth-signup-atomicity: MERGED.** PR #875 squash-merged `a519bc88`. Opus adversarial QA
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760k — DONE, PR open, QA in flight.** `PR #889`, branch `760-skill-integration-chat`
-  rebased on `origin/main@fc8810e1`. `VF_EXIT=0 AUDIT_EXIT=0` (full suite, isolated). Task 7 pg-boss
-  grep clean (no job-enqueue in `skills/`); earlier "tuple concurrently updated" hits confirmed
-  transient PG contention (different unrelated file each time, e.g. `auth-bearer-hardening.test.ts`)
-  — not a #760 regression, per [[multi-agent-pg-contention]]. `evening-mode.tsx` needed zero code
-  (shared Composer already wired). No new deferrals beyond spec non-goals (URL/watched-dir import,
-  marketplace). **Tier: security** — build agent correctly did not merge itself. Opus adversarial
-  QA dispatched this tenure (`coordinated-qa`, worktree-isolated, `JARVIS_PGDATABASE=jarvis_qa_760`)
-  against PR #889 / spec `docs/superpowers/specs/2026-07-05-skill-integration-chat.md`. Awaiting its
-  `gh pr comment` verdict, then Ben's explicit merge sign-off (never auto-merge security tier).
-  Build-760k pane (`w1:pBP`) left running idle pending QA outcome — not yet reaped. Chain:
-  760c→d→e→f→g→h→i→j→k. Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
+- **#760 skill-integration-chat: MERGED.** PR #889 squash-merged `bd567df2`. Opus adversarial
+  security QA GREEN (0 blocking, 0 non-blocking-material) — verdict posted to PR via `gh pr
+  comment`; reviewed the two hardest boundaries directly (skill-sourced tool calls still hit
+  `AssistantToolGateway`'s confirm-gate/YOLO path identically to plain text; cross-user RLS on
+  `chat_skills` proven with a seeded-row isolation test). Merged per Ben's standing override (any
+  GREEN QA verdict merges immediately, security tier included, no pause-and-ask). Issue #760
+  closed (no parent epic — standalone RFA). Worktree + local branch removed. Build-760k pane
+  (`w1:pBP`) reaped after confirming it stopped at the coordinated-build/wrap-up boundary. Chain
+  closed: 760c→d→e→f→g→h→i→j→k→merged. `merges_since_relay`: 1 (security merge — relay trigger
+  fires unconditionally per policy; flushing now). Build-760g relayed cleanly (no code lost,
+  ctx-meter 70%, still in Task5
   grounding/design phase), handoff `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-
   relay-10.md` commit `c50891b0` has full Task5 pure-fn design + confirmed evening-mode.tsx file-
   map correction (no separate input, shared Composer/ChatDrawer covers it). Its successor
