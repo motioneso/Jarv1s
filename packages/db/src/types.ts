@@ -917,6 +917,14 @@ export interface SportsFollowsTable {
   created_at: TimestampColumn;
 }
 
+export interface NewsPrefsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  kind: "source" | "source_exclude" | "topic";
+  key: string;
+  created_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -965,6 +973,7 @@ export interface JarvisDatabase {
   "app.preferences": PreferencesTable;
   "app.wellness_checkins": WellnessCheckinsTable;
   "app.sports_follows": SportsFollowsTable;
+  "app.news_prefs": NewsPrefsTable;
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;

@@ -19,10 +19,22 @@ describe("sports built-in registration", () => {
     expect(dirs.some((d) => d.endsWith("/packages/sports/sql"))).toBe(true);
   });
 
-  it("derives MODULE_IMAGE_CSP_HOSTS from the espn externalSources.imageHosts", () => {
-    // Pinned by tests/unit/static-web-csp.test.ts's exact img-src string — sports is the only
-    // built-in declaring externalSources today, so this equals its imageHosts verbatim.
-    expect(MODULE_IMAGE_CSP_HOSTS).toEqual(["a.espncdn.com", "s.secure.espncdn.com"]);
+  it("derives MODULE_IMAGE_CSP_HOSTS from every module's externalSources.imageHosts", () => {
+    // Pinned by tests/unit/static-web-csp.test.ts's exact img-src string. Order is registration
+    // order (sports before news, #897), with each module's hosts in its manifest order — the
+    // news catalog pre-sorts its union, so the news block below is alphabetical.
+    expect(MODULE_IMAGE_CSP_HOSTS).toEqual([
+      "a.espncdn.com",
+      "s.secure.espncdn.com",
+      "cdn.arstechnica.net",
+      "i.guim.co.uk",
+      "ichef.bbci.co.uk",
+      "media.npr.org",
+      "media.wired.com",
+      "npr.brightspotcdn.com",
+      "platform.theverge.com",
+      "static01.nyt.com"
+    ]);
   });
 });
 

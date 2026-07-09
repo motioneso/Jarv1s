@@ -234,6 +234,7 @@ describe("Calendar and Email connector-backed read modules", () => {
       "wellness",
       "weather",
       "sports",
+      "news",
       "notes",
       "proactive-monitoring",
       "jarvis.commitments",

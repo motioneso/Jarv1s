@@ -68,6 +68,7 @@ const FEATURE_PACKAGES = new Set([
   "@jarv1s/connectors",
   "@jarv1s/email",
   "@jarv1s/goals",
+  "@jarv1s/news",
   "@jarv1s/notes",
   "@jarv1s/notifications",
   "@jarv1s/people",
