@@ -297,7 +297,7 @@ export class SportsService {
     // Band exclusion keys off the FULL ranked set, not the deduped one: a story we pulled from
     // the hero for already being on a card must not resurface in the league news band either, so
     // a followed-team story stays shown exactly once — in its card.
-    const topStoryIds = new Set(rankedTopStories.map((h) => h.id));
+    const topStoryUrls = new Set(rankedTopStories.map((h) => h.url));
 
     const hero = this.buildHero(followedTeams, scoreboardByComp, topStories, this.now());
 
@@ -339,7 +339,7 @@ export class SportsService {
         competitionLabel: catalogEntry(key)?.label ?? key,
         // Feed order preserved deliberately — it's ESPN's editorial prominence ranking, which
         // the news band's tiering leans on (mrb51pnq; see rankTopStories). No byNewest here.
-        headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryIds.has(h.id))
+        headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryUrls.has(h.url))
       }))
       .filter((group) => group.headlines.length > 0);
 

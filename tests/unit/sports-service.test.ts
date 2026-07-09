@@ -688,6 +688,53 @@ describe("SportsService.getOverview", () => {
   });
 });
 
+describe("id→url story keying (#858)", () => {
+  it("does not drop a distinct same-id story from leagueNews just because a different story with the same id became a top story", async () => {
+    const nflLeagueFollow: SportsFollowDto = {
+      id: "f1",
+      competitionKey: "nfl",
+      teamKey: null,
+      createdAt: "2026-06-01T00:00:00.000Z"
+    };
+    const h0: SourceHeadline = {
+      id: "dup",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "Editorial lead (becomes the top story)",
+      url: "https://example.com/dup-a",
+      publishedAt: `${TODAY}T10:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const h1: SourceHeadline = {
+      id: "dup",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "Distinct story, colliding id",
+      url: "https://example.com/dup-b",
+      publishedAt: `${TODAY}T11:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const service = new SportsService(
+      makeDeps({
+        follows: [nflLeagueFollow],
+        source: makeSource({
+          getHeadlines: async (competitionKey) => (competitionKey === "nfl" ? [h0, h1] : [])
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.topStories.map((h) => h.url)).toContain("https://example.com/dup-a");
+    const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
+    expect(nflGroup?.headlines.map((h) => h.title)).toEqual(["Distinct story, colliding id"]);
+  });
+});
+
 describe("SportsService.getFollowedFactsForToday", () => {
   it("returns compact non-sensitive strings", async () => {
     const service = new SportsService(makeDeps());
