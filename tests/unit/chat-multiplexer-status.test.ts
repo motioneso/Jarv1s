@@ -56,11 +56,15 @@ describe("makeChatMultiplexerStatusProbe", () => {
     expect(status.activeSource).toBe("env");
   });
 
-  it("envOverride is null for an unrecognized JARVIS_MULTIPLEXER value", async () => {
+  it("degrades to active=null (never rejects) for an unrecognized JARVIS_MULTIPLEXER value", async () => {
     const probe = makeChatMultiplexerStatusProbe({
       PATH: await pathWith("tmux"),
       JARVIS_MULTIPLEXER: "screen"
     });
-    await expect(probe("auto")).rejects.toThrow();
+    const status = await probe("auto");
+    expect(status.active).toBeNull();
+    expect(status.activeSource).toBeNull();
+    expect(status.envOverride).toBeNull();
+    expect(status.available).toEqual({ tmux: true, herdr: false });
   });
 });

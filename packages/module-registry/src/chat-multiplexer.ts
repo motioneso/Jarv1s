@@ -105,16 +105,28 @@ export function makeChatMultiplexerStatusProbe(
   return async (configured) => {
     const binaryProbe = createBinaryProbe(env);
     const [tmux, herdr] = await Promise.all([usable("tmux"), usable("herdr")]);
-    const decision = decideMultiplexer({
-      env,
-      configured,
-      isInstalled: (bin) => binaryProbe.has(bin)
-    });
+    let active: MultiplexerKind | null = null;
+    let activeSource: MultiplexerSource | null = null;
+    try {
+      const decision = decideMultiplexer({
+        env,
+        configured,
+        isInstalled: (bin) => binaryProbe.has(bin)
+      });
+      if (decision.ok) {
+        active = decision.kind;
+        activeSource = decision.source;
+      }
+    } catch {
+      // decideMultiplexer only throws for an invalid JARVIS_MULTIPLEXER value — a deploy
+      // config error. Mirror resolveChatEngineFactory: degrade to "no active multiplexer"
+      // rather than 500-ing the admin diagnostics page whose whole job is to surface it.
+    }
     return {
       available: { tmux, herdr },
       herdrInstalled: binaryProbe.has("herdr"),
-      active: decision.ok ? decision.kind : null,
-      activeSource: decision.ok ? decision.source : null,
+      active,
+      activeSource,
       envOverride: readEnvOverride(env)
     };
   };
