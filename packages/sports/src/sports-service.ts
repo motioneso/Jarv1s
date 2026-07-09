@@ -785,13 +785,20 @@ function scheduleSideFor(schedule: readonly GameSummary[], teamKey: string): Gam
 // the single newest-headline pick AND the old client-side title-matching in the ticker: the
 // service's teamKeys tagging (per-team ESPN feed + resolveHeadlineTeamKeys) is the one source of
 // truth for "about this club". Dedup by url — the same story can arrive from both feeds under
-// different ids.
+// different ids. Split into filter + toTeamStories (#855) so a merged club's card can pool each
+// member competition's own-filtered headlines before the shared sort/dedup/cap/map pipeline.
 const TEAM_STORY_LIMIT = 3;
 
-function teamStories(headlines: readonly SourceHeadline[], teamKey: string): FollowedTeamNews[] {
+function filterTeamHeadlines(
+  headlines: readonly SourceHeadline[],
+  teamKey: string
+): SourceHeadline[] {
+  return headlines.filter((h) => h.teamKeys.includes(teamKey));
+}
+
+function toTeamStories(headlines: readonly SourceHeadline[]): FollowedTeamNews[] {
   const seen = new Set<string>();
   return headlines
-    .filter((h) => h.teamKeys.includes(teamKey))
     .slice()
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
     .filter((h) => (seen.has(h.url) ? false : (seen.add(h.url), true)))
@@ -806,16 +813,36 @@ function teamStories(headlines: readonly SourceHeadline[], teamKey: string): Fol
     }));
 }
 
+function teamStories(headlines: readonly SourceHeadline[], teamKey: string): FollowedTeamNews[] {
+  return toTeamStories(filterTeamHeadlines(headlines, teamKey));
+}
+
 // Start time of the team's most recent completed game, from the same season schedule that feeds
 // the form pips. The ticker treats "played within the last ten days" as in-season and ranks those
 // teams ahead of idle ones (live feedback mra54n4h). Null when the schedule holds no finals yet.
-function lastMatchFor(schedule: readonly GameSummary[], teamKey: string): string | null {
+// Generalized to `*Across(games: ResolvedGame[])` (#855) so a merged club's card can pool each
+// member competition's own schedule under its own literal teamKey; the single-team functions
+// below are thin wrappers over the pooled primitive.
+interface ResolvedGame {
+  readonly game: GameSummary;
+  readonly teamKey: string;
+}
+
+function toResolvedGames(schedule: readonly GameSummary[], teamKey: string): ResolvedGame[] {
+  return schedule.map((game) => ({ game, teamKey }));
+}
+
+function lastMatchAcross(games: readonly ResolvedGame[]): string | null {
   let latest: string | null = null;
-  for (const game of schedule) {
+  for (const { game, teamKey } of games) {
     if (game.state !== "final" || !sideFor(game, teamKey)) continue;
     if (latest === null || game.startsAt > latest) latest = game.startsAt;
   }
   return latest;
+}
+
+function lastMatchFor(schedule: readonly GameSummary[], teamKey: string): string | null {
+  return lastMatchAcross(toResolvedGames(schedule, teamKey));
 }
 
 function scoreLine(game: GameSummary): string {
@@ -840,20 +867,24 @@ function matchupLine(game: GameSummary): string {
   return `${game.away.shortName} @ ${game.home.shortName} · ${game.statusDetail}`;
 }
 
+function computeFormAcross(games: readonly ResolvedGame[]): readonly ("W" | "D" | "L")[] {
+  return games
+    .filter(({ game, teamKey }) => game.state === "final" && sideFor(game, teamKey))
+    .slice()
+    .sort((a, b) => a.game.startsAt.localeCompare(b.game.startsAt))
+    .slice(-FORM_LENGTH)
+    .map(({ game, teamKey }) => {
+      const side = sideFor(game, teamKey);
+      const opponent = opponentFor(game, teamKey);
+      return side && opponent ? resultOf(side, opponent) : "L";
+    });
+}
+
 function computeForm(
   schedule: readonly GameSummary[],
   teamKey: string
 ): readonly ("W" | "D" | "L")[] {
-  return schedule
-    .filter((g) => g.state === "final" && sideFor(g, teamKey))
-    .slice()
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-    .slice(-FORM_LENGTH)
-    .map((g) => {
-      const side = sideFor(g, teamKey);
-      const opponent = opponentFor(g, teamKey);
-      return side && opponent ? resultOf(side, opponent) : "L";
-    });
+  return computeFormAcross(toResolvedGames(schedule, teamKey));
 }
 
 // Gameday hero window (live feedback mra4kqpf): live games always qualify; upcoming games only
@@ -908,26 +939,30 @@ function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
+function nextMatchAcross(games: readonly ResolvedGame[], now: Date): FollowedNextMatch | null {
+  const nowIso = now.toISOString();
+  const next = games
+    .filter(({ game, teamKey }) => game.state !== "final" && game.startsAt > nowIso && sideFor(game, teamKey))
+    .slice()
+    .sort((a, b) => a.game.startsAt.localeCompare(b.game.startsAt))[0];
+  if (!next) return null;
+  const opponent = opponentFor(next.game, next.teamKey);
+  if (!opponent) return null;
+  return {
+    opponentName: opponent.name,
+    homeAway: next.game.home.teamKey === next.teamKey ? "home" : "away",
+    startsAt: next.game.startsAt,
+    // Footer identifies the opponent by crest, not name (live feedback mrawvc48)
+    opponentCrestUrl: opponent.crestUrl
+  };
+}
+
 function nextMatchFor(
   schedule: readonly GameSummary[],
   teamKey: string,
   now: Date
 ): FollowedNextMatch | null {
-  const nowIso = now.toISOString();
-  const next = schedule
-    .filter((g) => g.state !== "final" && g.startsAt > nowIso && sideFor(g, teamKey))
-    .slice()
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
-  if (!next) return null;
-  const opponent = opponentFor(next, teamKey);
-  if (!opponent) return null;
-  return {
-    opponentName: opponent.name,
-    homeAway: next.home.teamKey === teamKey ? "home" : "away",
-    startsAt: next.startsAt,
-    // Footer identifies the opponent by crest, not name (live feedback mrawvc48)
-    opponentCrestUrl: opponent.crestUrl
-  };
+  return nextMatchAcross(toResolvedGames(schedule, teamKey), now);
 }
 
 // Result payload for the featured strip's score slot (Ben 2026-07-08 /sports #2). scoreText is
