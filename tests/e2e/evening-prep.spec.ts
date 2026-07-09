@@ -27,7 +27,7 @@ async function seedEveningMode(page: Page) {
     briefingDefinitions: [
       createMockBriefingDefinition("briefing-evening", "Evening", {
         briefingType: "evening",
-        cadence: "scheduled",
+        cadence: "daily",
         enabled: true,
         scheduleMetadata: { targetTime: "00:00", timezone: "UTC" }
       })
@@ -72,7 +72,9 @@ test("#891: evening Prep-for-tomorrow opens the drawer before the seed POST reso
   await seedEveningMode(page);
 
   // Hold the seed POST open — the drawer must open immediately, without waiting for it.
-  let releaseSeed: (() => void) | null = null;
+  // Seed with a noop (not null) so the type stays `() => void`; root tsc narrows a
+  // `(() => void) | null` assigned only inside the executor callback down to `never`.
+  let releaseSeed: () => void = () => undefined;
   const seedHeld = new Promise<void>((resolve) => {
     releaseSeed = resolve;
   });
@@ -91,5 +93,5 @@ test("#891: evening Prep-for-tomorrow opens the drawer before the seed POST reso
   const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
   await expect(drawer).toBeVisible(); // open while the seed POST is still pending
 
-  releaseSeed?.();
+  releaseSeed();
 });
