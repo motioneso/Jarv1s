@@ -1,4 +1,6 @@
--- Migration 0149 — Voice (STT) settings: dedicated admin section (task #874, epic #869).
+-- Migration 0150 — Voice (STT) settings: dedicated admin section (task #874, epic #869).
+-- Renumbered 0149→0150: chat's 0149_chat_skills (#889) landed on main first; migrations
+-- are global by landing order, so this AI migration takes the next free slot (0150).
 --
 -- WHY: Voice/transcription is configured as ONE generic OpenAI-compatible STT
 -- endpoint that is kept conceptually separate from the chat-LLM provider list,

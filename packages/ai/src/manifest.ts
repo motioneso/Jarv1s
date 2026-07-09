@@ -78,7 +78,7 @@ export const aiModuleManifest = {
       "sql/0148_jarvis_error_log_worker_insert.sql",
       // #874 — `purpose` discriminator ('assistant'|'voice') + one-voice partial unique index so the
       // Voice(STT) endpoint reuses the AI provider/model tables without bleeding into chat routing.
-      "sql/0149_ai_provider_purpose.sql"
+      "sql/0150_ai_provider_purpose.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
