@@ -152,6 +152,15 @@ export function TodayPage(props: {
     onSuccess: () => {
       chatControls.openChat();
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+    },
+    // #891: this call reaches submitTurn, which needs a configured chat model and
+    // can reject (unconfigured model, provider error, rate limit). Without an
+    // error path the "Chat with {assistant}" button just went silent — onSuccess
+    // never fired, the drawer never opened, and the user saw nothing. Log here and
+    // surface the message on the card via `eveningInterviewMutation.error` below.
+    onError: (error) => {
+      // Keep a console trail for the silent-fail bug (#891).
+      console.error("evening interview failed to start", error);
     }
   });
   const toggleMutation = useMutation({
@@ -538,6 +547,11 @@ export function TodayPage(props: {
             {eveningDefinition?.enabled && todayMode === "evening" ? (
               <EveningPrepCard
                 interviewPending={eveningInterviewMutation.isPending}
+                // #891: react-query clears `.error` on the next mutate(), so this
+                // shows the last failure until the user retries — no stale error.
+                interviewError={
+                  eveningInterviewMutation.isError ? eveningInterviewMutation.error.message : null
+                }
                 onPrep={() => eveningInterviewMutation.mutate()}
               />
             ) : null}
