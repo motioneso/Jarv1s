@@ -12,9 +12,13 @@ describe("chatMultiplexerSettingsSchema", () => {
   });
 
   it("allows null for active/activeSource/envOverride", () => {
-    const active = chatMultiplexerSettingsSchema.properties.active as { type: string[] };
-    const activeSource = chatMultiplexerSettingsSchema.properties.activeSource as { type: string[] };
-    const envOverride = chatMultiplexerSettingsSchema.properties.envOverride as { type: string[] };
+    const active = chatMultiplexerSettingsSchema.properties.active as { type: readonly string[] };
+    const activeSource = chatMultiplexerSettingsSchema.properties.activeSource as {
+      type: readonly string[];
+    };
+    const envOverride = chatMultiplexerSettingsSchema.properties.envOverride as {
+      type: readonly string[];
+    };
     expect(active.type).toContain("null");
     expect(activeSource.type).toContain("null");
     expect(envOverride.type).toContain("null");
