@@ -403,6 +403,21 @@ export function TickerTeam(props: { card: FollowedTeamCard }) {
               <span className="sp-tk__newstx">No recent news</span>
             )}
           </>
+        ) : card.resultMatch ? (
+          // Finished game: crest-leads score, same treatment as FeaturedTeamCard on /sports (#867).
+          // #885: /today never got this branch — only FeaturedTeamCard did — so a final game here
+          // fell through to the text fallback and rendered "L 3–9 vs Blue Jays". The crest carries
+          // the opponent identity; the "vs X" tail is dropped (Ben /sports annotation #2). sr-only
+          // name keeps the opponent reachable. Kept in lockstep with the /sports strip.
+          <div className="sp-tk__result">
+            <Crest
+              name={card.resultMatch.opponentName}
+              crestUrl={card.resultMatch.opponentCrestUrl}
+              size="sm"
+            />
+            <span className="sp-tk__score">{card.resultMatch.scoreText}</span>
+            <span className="sp-sronly">vs {card.resultMatch.opponentName}</span>
+          </div>
         ) : (
           // Matchup lines ("Blue Jays @ Giants") get body type and wrap; score lines stay mono.
           // "· Scheduled" is server noise; the kickoff time lives in the Next footer below

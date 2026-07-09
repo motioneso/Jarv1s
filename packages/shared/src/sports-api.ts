@@ -434,6 +434,26 @@ const followedTeamCardSchema = {
         }
       ]
     },
+    // #885: resultMatch MUST be declared here or fast-json-stringify silently drops it on the
+    // wire (additionalProperties:false) — exactly the trap the nextMatch/stories comments flag.
+    // PR #867 added the field to the interface + service + FeaturedTeamCard render but not this
+    // schema, so the crest+score card degraded to the "L 3–9 vs Blue Jays" text fallback in both
+    // prod and dev. Nullable-object oneOf mirrors nextMatch; shape tracks FollowedResultMatch.
+    resultMatch: {
+      oneOf: [
+        { type: "null" },
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["opponentName", "opponentCrestUrl", "scoreText"],
+          properties: {
+            opponentName: { type: "string" },
+            opponentCrestUrl: { type: ["string", "null"] },
+            scoreText: { type: "string" }
+          }
+        }
+      ]
+    },
     todayGameState: { type: "string", enum: ["pre", "final"] },
     lastMatchAt: { type: ["string", "null"] },
     rationale: { type: "string" }

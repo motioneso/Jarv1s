@@ -229,6 +229,54 @@ describe("sports routes", () => {
     await app.close();
   });
 
+  it("carries a finished game's resultMatch (crest + score) through to the wire (#885)", async () => {
+    // Same class of serialization regression as the nextMatch guard above, but for resultMatch:
+    // #867 shipped the crest-leads result card (interface + service + FeaturedTeamCard render)
+    // without adding resultMatch to followedTeamCardSchema, so fast-json-stringify silently
+    // DROPPED it and every finished-game card degraded to the "L 3–9 vs Blue Jays" text fallback
+    // in prod and dev. A final game today (relative to the injected clock) makes the composed dal
+    // card carry a non-null resultMatch; assert both the field and its nested crest url survive.
+    const { app } = buildApp({
+      datasetClient: makeSource({
+        // now() = 2026-07-01T18:00Z → a game earlier the same Eastern day reads as today+final.
+        getScoreboard: async () => [
+          {
+            id: "g-final",
+            competitionKey: "nfl",
+            startsAt: "2026-07-01T16:00:00.000Z",
+            state: "final",
+            statusDetail: "Final",
+            home: side({ teamKey: "dal", shortName: "DAL", name: "Dallas Cowboys", score: 3 }),
+            away: side({
+              teamKey: "gb",
+              shortName: "GB",
+              name: "Green Bay Packers",
+              score: 9,
+              winner: true,
+              crestUrl: "https://a.espncdn.com/i/teamlogos/nfl/500/gb.png"
+            })
+          }
+        ]
+      })
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/overview" });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const dalCard = body.followed.find((c: { teamKey: string }) => c.teamKey === "dal");
+    expect(dalCard).toBeDefined();
+    // The regression: pre-fix this was undefined (stripped on serialize), not just null.
+    expect(dalCard.resultMatch).not.toBeNull();
+    expect(dalCard.resultMatch).toBeDefined();
+    expect(dalCard.resultMatch.scoreText).toMatch(/^[WL]\s\d+.\d+$/); // "L 3–9" (en-dash)
+    expect(dalCard.resultMatch.opponentCrestUrl).toBe(
+      "https://a.espncdn.com/i/teamlogos/nfl/500/gb.png"
+    );
+    // Belt-and-suspenders: the score text is actually present in the raw wire body.
+    expect(res.body).toContain(dalCard.resultMatch.scoreText);
+    await app.close();
+  });
+
   it("GET /api/sports/catalog returns competitions with teams", async () => {
     const { app } = buildApp();
     await app.ready();
