@@ -381,7 +381,7 @@ export class SportsService {
         ? publicLeagueNews.map((group) => ({
             ...group,
             headlines: group.headlines.map((h) =>
-              h.id === feature.id ? { ...h, body: featureBody } : h
+              h.url === feature.url ? { ...h, body: featureBody } : h
             )
           }))
         : publicLeagueNews;

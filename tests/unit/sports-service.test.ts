@@ -733,6 +733,96 @@ describe("id→url story keying (#858)", () => {
     const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
     expect(nflGroup?.headlines.map((h) => h.title)).toEqual(["Distinct story, colliding id"]);
   });
+
+  it("does not splice the featured article's body onto an unrelated headline that happens to share its id", async () => {
+    const nflFollow: SportsFollowDto = {
+      id: "f1",
+      competitionKey: "nfl",
+      teamKey: null,
+      createdAt: "2026-06-01T00:00:00.000Z"
+    };
+    const nbaFollow: SportsFollowDto = {
+      id: "f2",
+      competitionKey: "nba",
+      teamKey: null,
+      createdAt: "2026-06-01T00:00:00.000Z"
+    };
+    // nfl feed: an editorial lead (tier-1 top story, excluded from leagueNews) followed by the
+    // heavy story that will become the feature — image + summary + first-in-its-(filtered)-group
+    // bonus clears BIG_STORY_WEIGHT (4): 2 + 1 + 2 = 5.
+    const nflLead: SourceHeadline = {
+      id: "nfl-lead",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "NFL editorial lead",
+      url: "https://example.com/nfl-lead",
+      publishedAt: `${TODAY}T09:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const nflFeature: SourceHeadline = {
+      id: "dup",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "NFL feature story",
+      url: "https://example.com/nfl-dup",
+      publishedAt: `${TODAY}T10:00:00.000Z`,
+      imageUrl: "https://img.example.com/nfl.jpg",
+      summary: "NFL summary text",
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    // nba feed: its own editorial lead (tier-1 top story, excluded), then a second, unrelated
+    // story that happens to share `nflFeature`'s id "dup" but has a completely different url.
+    const nbaLead: SourceHeadline = {
+      id: "nba-lead",
+      competitionKey: "nba",
+      competitionLabel: "NBA",
+      title: "NBA editorial lead",
+      url: "https://example.com/nba-lead",
+      publishedAt: `${TODAY}T08:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const nbaOther: SourceHeadline = {
+      id: "dup",
+      competitionKey: "nba",
+      competitionLabel: "NBA",
+      title: "NBA distinct story (colliding id)",
+      url: "https://example.com/nba-other",
+      publishedAt: `${TODAY}T07:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    const service = new SportsService(
+      makeDeps({
+        follows: [nflFollow, nbaFollow],
+        source: makeSource({
+          getHeadlines: async (competitionKey) => {
+            if (competitionKey === "nfl") return [nflLead, nflFeature];
+            if (competitionKey === "nba") return [nbaLead, nbaOther];
+            return [];
+          },
+          getArticleBody: async () => "Fetched real article body."
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const nflGroup = overview.leagueNews.find((g) => g.competitionKey === "nfl");
+    expect(nflGroup?.headlines.find((h) => h.title === "NFL feature story")?.body).toBe(
+      "Fetched real article body."
+    );
+    const nbaGroup = overview.leagueNews.find((g) => g.competitionKey === "nba");
+    expect(
+      nbaGroup?.headlines.find((h) => h.title === "NBA distinct story (colliding id)")?.body
+    ).toBeUndefined();
+  });
 });
 
 describe("SportsService.getFollowedFactsForToday", () => {
