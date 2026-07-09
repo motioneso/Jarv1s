@@ -288,6 +288,11 @@ describe("sports routes", () => {
     );
     expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
     expect(JSON.stringify(body)).not.toContain("sourceTeamId");
+    // fast-json-stringify strip check: confederation must survive serialization (#907).
+    const nfl = body.competitions.find(
+      (c: { competitionKey: string }) => c.competitionKey === "nfl"
+    );
+    expect(nfl.confederation).toBe("INTL");
     await app.close();
   });
 

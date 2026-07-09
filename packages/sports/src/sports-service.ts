@@ -152,6 +152,7 @@ export class SportsService {
           kind: entry.kind,
           marquee: entry.marquee,
           standingsShape: entry.standingsShape,
+          confederation: entry.confederation,
           teams
         };
       })

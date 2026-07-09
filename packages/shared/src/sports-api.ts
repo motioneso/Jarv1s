@@ -72,12 +72,17 @@ export interface Headline {
   readonly body?: string;
 }
 
+/** FIFA confederation grouping for the follow picker's browse mode (#907). "INTL" covers the
+ *  US majors (grouping only applies visually to soccer) and cross-confederation tournaments. */
+export type Confederation = "UEFA" | "CONCACAF" | "CONMEBOL" | "AFC" | "CAF" | "OFC" | "INTL";
+
 export interface CompetitionRef {
   readonly competitionKey: string;
   readonly label: string; // "NFL", "Premier League"
   readonly kind: "league" | "tournament";
   readonly marquee: boolean; // World Cup flag
   readonly standingsShape: StandingsShape;
+  readonly confederation: Confederation;
 }
 
 export interface SportsFollowDto {
@@ -348,13 +353,18 @@ const headlineSchema = {
 const competitionRefSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["competitionKey", "label", "kind", "marquee", "standingsShape"],
+  required: ["competitionKey", "label", "kind", "marquee", "standingsShape", "confederation"],
   properties: {
     competitionKey: { type: "string" },
     label: { type: "string" },
     kind: { type: "string", enum: ["league", "tournament"] },
     marquee: { type: "boolean" },
-    standingsShape: { type: "string", enum: ["table", "groups", "record"] }
+    standingsShape: { type: "string", enum: ["table", "groups", "record"] },
+    // Follow-picker browse grouping (#907); "INTL" = US majors + cross-confederation tournaments.
+    confederation: {
+      type: "string",
+      enum: ["UEFA", "CONCACAF", "CONMEBOL", "AFC", "CAF", "OFC", "INTL"]
+    }
   }
 } as const;
 
@@ -585,7 +595,17 @@ export const sportsCatalogResponseSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["competitionKey", "label", "kind", "marquee", "standingsShape", "teams"],
+            // Own literal `required` list (not derived from competitionRefSchema) — must list
+            // "confederation" here too or fast-json-stringify silently drops the field (#907).
+            required: [
+              "competitionKey",
+              "label",
+              "kind",
+              "marquee",
+              "standingsShape",
+              "confederation",
+              "teams"
+            ],
             properties: {
               ...competitionRefSchema.properties,
               teams: { type: "array", items: teamRefSchema }

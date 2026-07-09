@@ -1,4 +1,4 @@
-import type { StandingsShape } from "@jarv1s/shared";
+import type { Confederation, StandingsShape } from "@jarv1s/shared";
 
 export interface CatalogEntry {
   readonly competitionKey: string;
@@ -8,6 +8,8 @@ export interface CatalogEntry {
   readonly standingsShape: StandingsShape;
   readonly espnSport: string;
   readonly espnLeague: string;
+  // FIFA confederation grouping for the follow picker's browse mode (#907).
+  readonly confederation: Confederation;
 }
 
 export const SPORTS_CATALOG: readonly CatalogEntry[] = [
@@ -18,7 +20,8 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: false,
     standingsShape: "record",
     espnSport: "football",
-    espnLeague: "nfl"
+    espnLeague: "nfl",
+    confederation: "INTL"
   },
   {
     competitionKey: "nba",
@@ -27,7 +30,8 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: false,
     standingsShape: "record",
     espnSport: "basketball",
-    espnLeague: "nba"
+    espnLeague: "nba",
+    confederation: "INTL"
   },
   {
     competitionKey: "nhl",
@@ -36,7 +40,8 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: false,
     standingsShape: "record",
     espnSport: "hockey",
-    espnLeague: "nhl"
+    espnLeague: "nhl",
+    confederation: "INTL"
   },
   {
     competitionKey: "mlb",
@@ -45,7 +50,8 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: false,
     standingsShape: "record",
     espnSport: "baseball",
-    espnLeague: "mlb"
+    espnLeague: "mlb",
+    confederation: "INTL"
   },
   {
     competitionKey: "eng.1",
@@ -54,7 +60,8 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: false,
     standingsShape: "table",
     espnSport: "soccer",
-    espnLeague: "eng.1"
+    espnLeague: "eng.1",
+    confederation: "UEFA"
   },
   {
     competitionKey: "usa.1",
@@ -63,7 +70,8 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: false,
     standingsShape: "table",
     espnSport: "soccer",
-    espnLeague: "usa.1"
+    espnLeague: "usa.1",
+    confederation: "CONCACAF"
   },
   {
     competitionKey: "uefa.champions",
@@ -72,7 +80,10 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: false,
     standingsShape: "groups",
     espnSport: "soccer",
-    espnLeague: "uefa.champions"
+    espnLeague: "uefa.champions",
+    // The CL is unambiguously UEFA-run despite fielding clubs from multiple domestic leagues
+    // within Europe — spec §4.1 (#907).
+    confederation: "UEFA"
   },
   {
     competitionKey: "fifa.world",
@@ -81,7 +92,9 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     marquee: true,
     standingsShape: "groups",
     espnSport: "soccer",
-    espnLeague: "fifa.world"
+    espnLeague: "fifa.world",
+    // Cross-confederation tournament — no single confederation runs it (#907).
+    confederation: "INTL"
   }
 ];
 

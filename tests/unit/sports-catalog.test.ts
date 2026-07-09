@@ -18,4 +18,12 @@ describe("sports catalog", () => {
     expect(e?.kind).toBe("tournament");
     expect(e?.marquee).toBe(true);
   });
+  it("tags every entry with a confederation (#907)", () => {
+    for (const entry of SPORTS_CATALOG) expect(entry.confederation).toBeTruthy();
+    expect(catalogEntry("eng.1")?.confederation).toBe("UEFA");
+    expect(catalogEntry("usa.1")?.confederation).toBe("CONCACAF");
+    expect(catalogEntry("uefa.champions")?.confederation).toBe("UEFA");
+    expect(catalogEntry("fifa.world")?.confederation).toBe("INTL");
+    expect(catalogEntry("nfl")?.confederation).toBe("INTL");
+  });
 });
