@@ -7,7 +7,7 @@ import {
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { FollowedNextMatch, FollowedTeamCard } from "@jarv1s/shared";
-import type { LocaleSettingsDto } from "@jarv1s/shared";
+import { localDay, type LocaleSettingsDto } from "@jarv1s/shared";
 
 import { TOURNAMENT_COMPETITIONS } from "./competitions.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";
@@ -81,6 +81,20 @@ export function nextMatchParts(
     opponent: `${next.homeAway === "home" ? "vs" : "at"} ${next.opponentName}`,
     when: `${date} · ${time}`
   };
+}
+
+/**
+ * True when the fixture starts on the user's local calendar day (#877 finding 1).
+ * Derived from the fixture instant + persisted locale tz — NEVER from card.status:
+ * status "today" is ESPN-Eastern and stays true after today's game goes final,
+ * when nextMatch has already advanced to tomorrow's fixture.
+ */
+export function nextMatchIsToday(
+  next: FollowedNextMatch,
+  locale: LocaleSettingsDto,
+  now: Date = new Date()
+): boolean {
+  return localDay(next.startsAt, locale.timezone) === localDay(now, locale.timezone);
 }
 
 // Newspaper-style scoreboard strip: one dense block per followed team. Horizontal scroll;
@@ -329,7 +343,7 @@ function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
               crestUrl={card.nextMatch.opponentCrestUrl ?? null}
               size="sm"
             />
-            <NextMatchLines next={card.nextMatch} today={card.status === "today"} />
+            <NextMatchLines next={card.nextMatch} />
           </div>
         ) : null}
       </div>
@@ -436,7 +450,7 @@ export function TickerTeam(props: { card: FollowedTeamCard }) {
             crestUrl={card.nextMatch.opponentCrestUrl ?? null}
             size="sm"
           />
-          <NextMatchLines next={card.nextMatch} today={card.status === "today"} />
+          <NextMatchLines next={card.nextMatch} />
         </div>
       ) : null}
     </article>
@@ -448,14 +462,21 @@ export function TickerTeam(props: { card: FollowedTeamCard }) {
 // sr-only: sighted users see logo + kickoff, screen readers still hear "vs Green Bay
 // Packers". For a game later today the date is dead weight — "Today" reads faster than
 // "Tue, Jul 7" (live feedback mrawhf6q).
-function NextMatchLines(props: { next: FollowedNextMatch; today?: boolean }) {
+//
+// The `today` boolean used to arrive as a prop (`card.status === "today"`), but that status is
+// ESPN-Eastern and stays true after today's game goes final — once nextMatch has rolled to
+// tomorrow's fixture the footer kept reading "Today" for it (#877 finding 1, the prod bug).
+// Computing it here from the fixture instant + persisted locale keeps this component the one
+// place that can get it wrong, and deleting the prop removes the stale-concept call sites.
+function NextMatchLines(props: { next: FollowedNextMatch }) {
   const locale = useUserLocale();
   const { opponent, when } = nextMatchParts(props.next, locale);
+  const isToday = nextMatchIsToday(props.next, locale);
   return (
     <span className="sp-tk__nextline">
       <span className="sp-sronly">{opponent}</span>
       <span className="sp-tk__nextwhen">
-        {props.today ? `Today · ${formatTime(props.next.startsAt, locale)}` : when}
+        {isToday ? `Today · ${formatTime(props.next.startsAt, locale)}` : when}
       </span>
     </span>
   );
