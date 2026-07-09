@@ -11,15 +11,17 @@ by label+session, never trust a pane number.
   GREEN (0 blocking; 3 non-blocking edge-path test gaps noted, not invariant issues), all required
   CI checks green, merged per Ben's standing override (no separate sign-off pause). Build-853 pane
   (`w1:p9W`) reaped, worktree removed. Nothing further owed here.
-- **Build-760k** — pane `w1:pBP`, tab `w1:t1D` (label "agents"), confirmed **Sonnet 5**, driving,
-  42% context. Predecessor Build-760j: Task 6 (gateway boundary integration tests) done + committed
-  `209e14d4`, all green. Task 7 (acceptance sweep) mostly confirmed: no watched-dir loading,
-  migration 0149 asserted, `evening-mode.tsx` needs no edit (shared Composer already covers it).
-  **Open for Build-760k:** pg-boss metadata-only grep check + an isolated re-run of
-  `verify:foundation` (prior run showed 2 unrelated integration test files failing with
-  tuple-concurrently-updated — matches known PG-contention flakiness per
-  [[multi-agent-pg-contention]], not yet confirmed clean in isolation). Handoff doc:
-  `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-relay-12.md`. Chain:
+- **Build-760k — DONE, PR open, QA in flight.** `PR #889`, branch `760-skill-integration-chat`
+  rebased on `origin/main@fc8810e1`. `VF_EXIT=0 AUDIT_EXIT=0` (full suite, isolated). Task 7 pg-boss
+  grep clean (no job-enqueue in `skills/`); earlier "tuple concurrently updated" hits confirmed
+  transient PG contention (different unrelated file each time, e.g. `auth-bearer-hardening.test.ts`)
+  — not a #760 regression, per [[multi-agent-pg-contention]]. `evening-mode.tsx` needed zero code
+  (shared Composer already wired). No new deferrals beyond spec non-goals (URL/watched-dir import,
+  marketplace). **Tier: security** — build agent correctly did not merge itself. Opus adversarial
+  QA dispatched this tenure (`coordinated-qa`, worktree-isolated, `JARVIS_PGDATABASE=jarvis_qa_760`)
+  against PR #889 / spec `docs/superpowers/specs/2026-07-05-skill-integration-chat.md`. Awaiting its
+  `gh pr comment` verdict, then Ben's explicit merge sign-off (never auto-merge security tier).
+  Build-760k pane (`w1:pBP`) left running idle pending QA outcome — not yet reaped. Chain:
   760c→d→e→f→g→h→i→j→k. Build-760g relayed cleanly (no code lost, ctx-meter 70%, still in Task5
   grounding/design phase), handoff `docs/superpowers/handoffs/2026-07-08-skill-integration-chat-
   relay-10.md` commit `c50891b0` has full Task5 pure-fn design + confirmed evening-mode.tsx file-
