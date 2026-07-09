@@ -6,7 +6,9 @@ import {
   type ActorScopedJobPayload,
   type QueueDefinition
 } from "@jarv1s/jobs";
+import { localDay } from "@jarv1s/shared";
 
+import { readActorTimezone } from "./drift.js";
 import { TASKS_DEFERRED_STATUS_QUEUE, TASKS_RECURRENCE_QUEUE } from "./manifest.js";
 import { rollForwardOwnedSeries } from "./recurrence.js";
 import { TasksRepository } from "./repository.js";
@@ -139,7 +141,11 @@ export async function registerTasksJobWorkers(
         throw new Error(`Recurrence job ${job.id} contains non-metadata payload fields`);
       }
 
-      const rolledForward = await rollForwardOwnedSeries(scopedDb);
+      // Read the actor's tz first, then roll on THEIR local day, not the worker's UTC
+      // server day (#877 finding 2) — a nightly cron running server-side is the exact
+      // place a UTC default silently rolls a still-due evening task to tomorrow.
+      const tz = await readActorTimezone(scopedDb);
+      const rolledForward = await rollForwardOwnedSeries(scopedDb, localDay(new Date(), tz));
       const result = { rolledForward };
 
       options.onRecurrenceResult?.(job, result);
