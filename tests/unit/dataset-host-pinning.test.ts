@@ -299,3 +299,58 @@ describe("createHostPinnedFetch — 303/301/302 method downgrade, 307/308 preser
     expect(calls[1]?.body).toBeUndefined();
   });
 });
+
+function fakeFetchTimed(
+  responses: readonly { status: number; location?: string; delayMs?: number }[]
+): { fetchFn: typeof fetch; signals: (AbortSignal | undefined)[] } {
+  const signals: (AbortSignal | undefined)[] = [];
+  let i = 0;
+  const fetchFn = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    signals.push(init?.signal ?? undefined);
+    const r = responses[Math.min(i, responses.length - 1)];
+    i += 1;
+    return new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const headers = new Headers();
+        if (r?.location) headers.set("location", r.location);
+        resolve(new Response(null, { status: r?.status ?? 200, headers }));
+      }, r?.delayMs ?? 0);
+      init?.signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    });
+  }) as unknown as typeof fetch;
+  return { fetchFn, signals };
+}
+
+describe("createHostPinnedFetch — fetch timeout (#858)", () => {
+  it("aborts and rejects when the fetch exceeds timeoutMs", async () => {
+    const { fetchFn } = fakeFetchTimed([{ status: 200, delayMs: 200 }]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn, 20);
+    await expect(pinned("https://site.api.espn.com/slow")).rejects.toMatchObject({
+      name: "AbortError"
+    });
+  });
+
+  it("does not abort a fetch that completes well within timeoutMs", async () => {
+    const { fetchFn } = fakeFetchTimed([{ status: 200, delayMs: 5 }]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn, 5_000);
+    const res = await pinned("https://site.api.espn.com/fast");
+    expect(res.status).toBe(200);
+  });
+
+  it("passes the SAME AbortSignal instance to every fetchFn call across redirect hops (deadline is not reset per-hop)", async () => {
+    const { fetchFn, signals } = fakeFetchTimed([
+      { status: 302, location: "https://site.api.espn.com/b" },
+      { status: 302, location: "https://site.api.espn.com/c" },
+      { status: 200 }
+    ]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn, 5_000);
+    await pinned("https://site.api.espn.com/a");
+    expect(signals).toHaveLength(3);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[0]).toBe(signals[1]);
+    expect(signals[1]).toBe(signals[2]);
+  });
+});

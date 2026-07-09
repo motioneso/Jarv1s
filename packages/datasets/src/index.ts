@@ -15,6 +15,7 @@ export type { DatasetCacheHit, DatasetCacheOptions } from "./cache.js";
 export {
   assertValidFetchHosts,
   createHostPinnedFetch,
+  DEFAULT_FETCH_TIMEOUT_MS,
   HostPinningViolationError,
   isPinnableHost
 } from "./host-pinning.js";
