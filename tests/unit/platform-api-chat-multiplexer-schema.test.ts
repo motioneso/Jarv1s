@@ -4,7 +4,14 @@ import { chatMultiplexerSettingsSchema } from "../../packages/shared/src/platfor
 
 describe("chatMultiplexerSettingsSchema", () => {
   it("declares all live-status fields in both properties and required", () => {
-    const fields = ["multiplexer", "available", "herdrInstalled", "active", "activeSource", "envOverride"];
+    const fields = [
+      "multiplexer",
+      "available",
+      "herdrInstalled",
+      "active",
+      "activeSource",
+      "envOverride"
+    ];
     for (const field of fields) {
       expect(chatMultiplexerSettingsSchema.properties).toHaveProperty(field);
       expect(chatMultiplexerSettingsSchema.required).toContain(field);

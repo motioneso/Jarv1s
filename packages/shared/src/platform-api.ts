@@ -529,14 +529,7 @@ export interface ChatMultiplexerSettingsDto {
 
 export const chatMultiplexerSettingsSchema = {
   type: "object",
-  required: [
-    "multiplexer",
-    "available",
-    "herdrInstalled",
-    "active",
-    "activeSource",
-    "envOverride"
-  ],
+  required: ["multiplexer", "available", "herdrInstalled", "active", "activeSource", "envOverride"],
   additionalProperties: false,
   properties: {
     multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] },

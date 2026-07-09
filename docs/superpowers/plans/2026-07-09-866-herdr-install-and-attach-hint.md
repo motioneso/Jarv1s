@@ -45,21 +45,23 @@ the install script's fetch (no curl/wget in the runtime image).
 ### Task 1: Live multiplexer status probe
 
 **Files:**
+
 - Modify: `packages/module-registry/src/chat-multiplexer.ts:9-16` (imports), `:42-47` (delete
   `probeChatMultiplexerAvailability`), add new probe near `makeMultiplexerUsableProbe`
 - Test: `tests/unit/chat-multiplexer-status.test.ts` (new file)
 
 **Interfaces:**
+
 - Consumes: `decideMultiplexer` from `@jarv1s/ai` (`packages/ai/src/adapters/multiplexer-resolve.ts`),
   signature `decideMultiplexer(input: { env: NodeJS.ProcessEnv; configured: ChatMultiplexerChoice;
-  isInstalled: (bin: MultiplexerKind) => boolean }): { ok: true; kind: MultiplexerKind; source:
-  MultiplexerSource } | { ok: false; reason: string }`. `createBinaryProbe(env)` (existing,
+isInstalled: (bin: MultiplexerKind) => boolean }): { ok: true; kind: MultiplexerKind; source:
+MultiplexerSource } | { ok: false; reason: string }`. `createBinaryProbe(env)` (existing,
   `packages/ai`) returning `{ has(bin: string): boolean }`. `makeMultiplexerUsableProbe(env)`
   (existing in this file, untouched).
 - Produces: `export interface LiveChatMultiplexerStatus { available: ChatMultiplexerAvailability;
-  herdrInstalled: boolean; active: MultiplexerKind | null; activeSource: MultiplexerSource | null;
-  envOverride: MultiplexerKind | null }` and `export function makeChatMultiplexerStatusProbe(env:
-  NodeJS.ProcessEnv = process.env): (configured: ChatMultiplexerChoice) => Promise<LiveChatMultiplexerStatus>`.
+herdrInstalled: boolean; active: MultiplexerKind | null; activeSource: MultiplexerSource | null;
+envOverride: MultiplexerKind | null }` and `export function makeChatMultiplexerStatusProbe(env:
+NodeJS.ProcessEnv = process.env): (configured: ChatMultiplexerChoice) => Promise<LiveChatMultiplexerStatus>`.
   Task 3 imports both.
 
 - [ ] **Step 1: Write the failing test**
@@ -218,15 +220,17 @@ git commit -m "feat(chat-multiplexer): add live status probe, retire boot-time s
 ### Task 2: DTO + schema changes in packages/shared
 
 **Files:**
+
 - Modify: `packages/shared/src/platform-api.ts:505-540` (approx — `ChatMultiplexerSettingsDto` and
   `chatMultiplexerSettingsSchema`)
 - Test: `tests/unit/platform-api-chat-multiplexer-schema.test.ts` (new file)
 
 **Interfaces:**
+
 - Produces: `export type MultiplexerKind = "tmux" | "herdr"` (local redeclaration, NOT imported
   from `@jarv1s/ai`), `export type MultiplexerSource = "env" | "configured" | "auto"` (same),
   extended `ChatMultiplexerSettingsDto` with `herdrInstalled: boolean`, `active: MultiplexerKind |
-  null`, `activeSource: MultiplexerSource | null`, `envOverride: MultiplexerKind | null`. Task 4/5
+null`, `activeSource: MultiplexerSource | null`, `envOverride: MultiplexerKind | null`. Task 4/5
   handlers return objects matching this shape; the fast-json-stringify schema must declare all 4
   new fields or they are silently dropped.
 
@@ -240,7 +244,14 @@ import { chatMultiplexerSettingsSchema } from "../../packages/shared/src/platfor
 
 describe("chatMultiplexerSettingsSchema", () => {
   it("declares all live-status fields in both properties and required", () => {
-    const fields = ["multiplexer", "available", "herdrInstalled", "active", "activeSource", "envOverride"];
+    const fields = [
+      "multiplexer",
+      "available",
+      "herdrInstalled",
+      "active",
+      "activeSource",
+      "envOverride"
+    ];
     for (const field of fields) {
       expect(chatMultiplexerSettingsSchema.properties).toHaveProperty(field);
       expect(chatMultiplexerSettingsSchema.required).toContain(field);
@@ -249,7 +260,9 @@ describe("chatMultiplexerSettingsSchema", () => {
 
   it("allows null for active/activeSource/envOverride", () => {
     const active = chatMultiplexerSettingsSchema.properties.active as { type: string[] };
-    const activeSource = chatMultiplexerSettingsSchema.properties.activeSource as { type: string[] };
+    const activeSource = chatMultiplexerSettingsSchema.properties.activeSource as {
+      type: string[];
+    };
     const envOverride = chatMultiplexerSettingsSchema.properties.envOverride as { type: string[] };
     expect(active.type).toContain("null");
     expect(activeSource.type).toContain("null");
@@ -287,14 +300,7 @@ export interface ChatMultiplexerSettingsDto {
 
 export const chatMultiplexerSettingsSchema = {
   type: "object",
-  required: [
-    "multiplexer",
-    "available",
-    "herdrInstalled",
-    "active",
-    "activeSource",
-    "envOverride"
-  ],
+  required: ["multiplexer", "available", "herdrInstalled", "active", "activeSource", "envOverride"],
   additionalProperties: false,
   properties: {
     multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] },
@@ -333,16 +339,18 @@ git commit -m "feat(shared): extend chat-multiplexer DTO/schema with live status
 ### Task 3: Wire the live probe through the composition root
 
 **Files:**
+
 - Modify: `packages/module-registry/src/index.ts:147-151` (import block), `:248-253` (chat-multiplexer
   import), `:378-379` (`BuiltInRouteDependencies` field), `:785` (settings wiring), `:1603-1608`
   (`registerBuiltInApiRoutes` local const), `:1699` (deps object literal)
 - Test: none new — covered by Task 4's integration tests exercising the full route wiring
 
 **Interfaces:**
+
 - Consumes: `makeChatMultiplexerStatusProbe`, `type LiveChatMultiplexerStatus` from
   `./chat-multiplexer.js` (Task 1). `type ChatMultiplexerChoice` from `@jarv1s/shared`.
 - Produces: `BuiltInRouteDependencies.getChatMultiplexerStatus?: (configured: ChatMultiplexerChoice)
-  => Promise<LiveChatMultiplexerStatus>` — Task 4 (`packages/settings/src/routes.ts`) declares its
+=> Promise<LiveChatMultiplexerStatus>` — Task 4 (`packages/settings/src/routes.ts`) declares its
   own structurally-identical local type and consumes this value via the settings module wiring.
 
 - [ ] **Step 1: No new test for this task — proceed straight to implementation**
@@ -424,18 +432,20 @@ git commit -m "feat(module-registry): wire live chat-multiplexer status probe th
 ### Task 4: Settings routes — consume the live probe
 
 **Files:**
+
 - Modify: `packages/settings/src/routes.ts:1-15` (import block), `:126-127`
   (`SettingsRoutesDependencies` field), GET handler (~line 620-638), PUT handler (~line 640-663),
   `registerHostDiagnosticsRoutes` call site (~line 700-708)
 - Test: `tests/integration/chat-multiplexer-admin.test.ts:86-151` (extend existing tests)
 
 **Interfaces:**
+
 - Consumes: `LiveChatMultiplexerStatus`-shaped value returned by `dependencies.getChatMultiplexerStatus`
   (wired in Task 3).
 - Produces: `export type GetChatMultiplexerStatus = (configured: ChatMultiplexerChoice) =>
-  Promise<{ available: ChatMultiplexerAvailability; herdrInstalled: boolean; active:
-  MultiplexerKind | null; activeSource: MultiplexerSource | null; envOverride: MultiplexerKind |
-  null }>`. Task 5 (`host-diagnostics-routes.ts`) imports this exact type from `./routes.js`.
+Promise<{ available: ChatMultiplexerAvailability; herdrInstalled: boolean; active:
+MultiplexerKind | null; activeSource: MultiplexerSource | null; envOverride: MultiplexerKind |
+null }>`. Task 5 (`host-diagnostics-routes.ts`) imports this exact type from `./routes.js`.
 
 - [ ] **Step 1: Extend the failing integration tests**
 
@@ -443,63 +453,63 @@ Replace the two existing route tests (current lines 86-116 of
 `tests/integration/chat-multiplexer-admin.test.ts`) with:
 
 ```typescript
-  it("admin GET returns the default 'auto' choice plus a full live-status snapshot", async () => {
+it("admin GET returns the default 'auto' choice plus a full live-status snapshot", async () => {
+  const res = await server.inject({
+    method: "GET",
+    url: "/api/admin/chat-multiplexer",
+    headers: { cookie: adminCookie }
+  });
+  expect(res.statusCode).toBe(200);
+  const body = res.json<ChatMultiplexerSettingsDto>();
+  expect(body.multiplexer).toBe("auto");
+  expect(typeof body.available.tmux).toBe("boolean");
+  expect(typeof body.available.herdr).toBe("boolean");
+  expect(typeof body.herdrInstalled).toBe("boolean");
+  expect(body.active === null || ["tmux", "herdr"].includes(body.active)).toBe(true);
+  expect(
+    body.activeSource === null || ["env", "configured", "auto"].includes(body.activeSource)
+  ).toBe(true);
+  expect(body.envOverride === null || ["tmux", "herdr"].includes(body.envOverride)).toBe(true);
+});
+
+it("admin PUT persists the choice and echoes the live-status snapshot", async () => {
+  const put = await server.inject({
+    method: "PUT",
+    url: "/api/admin/chat-multiplexer",
+    headers: { cookie: adminCookie, "content-type": "application/json" },
+    payload: { multiplexer: "tmux" }
+  });
+  expect(put.statusCode).toBe(200);
+  const putBody = put.json<ChatMultiplexerSettingsDto>();
+  expect(putBody.multiplexer).toBe("tmux");
+  expect(typeof putBody.herdrInstalled).toBe("boolean");
+
+  const get = await server.inject({
+    method: "GET",
+    url: "/api/admin/chat-multiplexer",
+    headers: { cookie: adminCookie }
+  });
+  expect(get.json<ChatMultiplexerSettingsDto>().multiplexer).toBe("tmux");
+});
+
+it("reflects JARVIS_MULTIPLEXER env override as envOverride + active + activeSource", async () => {
+  const original = process.env.JARVIS_MULTIPLEXER;
+  process.env.JARVIS_MULTIPLEXER = "tmux";
+  try {
     const res = await server.inject({
       method: "GET",
       url: "/api/admin/chat-multiplexer",
       headers: { cookie: adminCookie }
     });
-    expect(res.statusCode).toBe(200);
     const body = res.json<ChatMultiplexerSettingsDto>();
-    expect(body.multiplexer).toBe("auto");
-    expect(typeof body.available.tmux).toBe("boolean");
-    expect(typeof body.available.herdr).toBe("boolean");
-    expect(typeof body.herdrInstalled).toBe("boolean");
-    expect(body.active === null || ["tmux", "herdr"].includes(body.active)).toBe(true);
-    expect(
-      body.activeSource === null || ["env", "configured", "auto"].includes(body.activeSource)
-    ).toBe(true);
-    expect(body.envOverride === null || ["tmux", "herdr"].includes(body.envOverride)).toBe(true);
-  });
-
-  it("admin PUT persists the choice and echoes the live-status snapshot", async () => {
-    const put = await server.inject({
-      method: "PUT",
-      url: "/api/admin/chat-multiplexer",
-      headers: { cookie: adminCookie, "content-type": "application/json" },
-      payload: { multiplexer: "tmux" }
-    });
-    expect(put.statusCode).toBe(200);
-    const putBody = put.json<ChatMultiplexerSettingsDto>();
-    expect(putBody.multiplexer).toBe("tmux");
-    expect(typeof putBody.herdrInstalled).toBe("boolean");
-
-    const get = await server.inject({
-      method: "GET",
-      url: "/api/admin/chat-multiplexer",
-      headers: { cookie: adminCookie }
-    });
-    expect(get.json<ChatMultiplexerSettingsDto>().multiplexer).toBe("tmux");
-  });
-
-  it("reflects JARVIS_MULTIPLEXER env override as envOverride + active + activeSource", async () => {
-    const original = process.env.JARVIS_MULTIPLEXER;
-    process.env.JARVIS_MULTIPLEXER = "tmux";
-    try {
-      const res = await server.inject({
-        method: "GET",
-        url: "/api/admin/chat-multiplexer",
-        headers: { cookie: adminCookie }
-      });
-      const body = res.json<ChatMultiplexerSettingsDto>();
-      expect(body.envOverride).toBe("tmux");
-      expect(body.active).toBe("tmux");
-      expect(body.activeSource).toBe("env");
-    } finally {
-      if (original === undefined) delete process.env.JARVIS_MULTIPLEXER;
-      else process.env.JARVIS_MULTIPLEXER = original;
-    }
-  });
+    expect(body.envOverride).toBe("tmux");
+    expect(body.active).toBe("tmux");
+    expect(body.activeSource).toBe("env");
+  } finally {
+    if (original === undefined) delete process.env.JARVIS_MULTIPLEXER;
+    else process.env.JARVIS_MULTIPLEXER = original;
+  }
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -563,62 +573,62 @@ Then, inside `SettingsRoutesDependencies`:
 - [ ] **Step 5: Update the GET handler**
 
 ```typescript
-  server.get(
-    "/api/admin/chat-multiplexer",
-    { schema: getChatMultiplexerSettingsRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-          const { multiplexer } = await repository.getChatMultiplexerSetting(scopedDb);
-          const status = (await dependencies.getChatMultiplexerStatus?.(multiplexer)) ?? {
-            available: { tmux: false, herdr: false },
-            herdrInstalled: false,
-            active: null,
-            activeSource: null,
-            envOverride: null
-          };
-          return { multiplexer, ...status };
-        });
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+server.get(
+  "/api/admin/chat-multiplexer",
+  { schema: getChatMultiplexerSettingsRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+        await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+        const { multiplexer } = await repository.getChatMultiplexerSetting(scopedDb);
+        const status = (await dependencies.getChatMultiplexerStatus?.(multiplexer)) ?? {
+          available: { tmux: false, herdr: false },
+          herdrInstalled: false,
+          active: null,
+          activeSource: null,
+          envOverride: null
+        };
+        return { multiplexer, ...status };
+      });
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 - [ ] **Step 6: Update the PUT handler the same way**
 
 ```typescript
-  server.put(
-    "/api/admin/chat-multiplexer",
-    { schema: putChatMultiplexerSettingsRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
-          await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-          const { multiplexer: requested } = request.body as { multiplexer: ChatMultiplexerChoice };
-          await repository.setChatMultiplexerSetting(scopedDb, {
-            multiplexer: requested,
-            actorUserId: accessContext.actorUserId,
-            requestId: accessContext.requestId
-          });
-          const status = (await dependencies.getChatMultiplexerStatus?.(requested)) ?? {
-            available: { tmux: false, herdr: false },
-            herdrInstalled: false,
-            active: null,
-            activeSource: null,
-            envOverride: null
-          };
-          return { multiplexer: requested, ...status };
+server.put(
+  "/api/admin/chat-multiplexer",
+  { schema: putChatMultiplexerSettingsRouteSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+        await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+        const { multiplexer: requested } = request.body as { multiplexer: ChatMultiplexerChoice };
+        await repository.setChatMultiplexerSetting(scopedDb, {
+          multiplexer: requested,
+          actorUserId: accessContext.actorUserId,
+          requestId: accessContext.requestId
         });
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+        const status = (await dependencies.getChatMultiplexerStatus?.(requested)) ?? {
+          available: { tmux: false, herdr: false },
+          herdrInstalled: false,
+          active: null,
+          activeSource: null,
+          envOverride: null
+        };
+        return { multiplexer: requested, ...status };
+      });
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 (This step preserves whatever the existing handler body already does for the repository write —
@@ -628,15 +638,15 @@ call ordering.)
 - [ ] **Step 7: Rename the `registerHostDiagnosticsRoutes` call site field**
 
 ```typescript
-  registerHostDiagnosticsRoutes(server, {
-    dataContext: dependencies.dataContext,
-    resolveAccessContext: dependencies.resolveAccessContext,
-    repository,
-    getChatMultiplexerStatus: dependencies.getChatMultiplexerStatus,
-    hostDiagnostics: dependencies.hostDiagnostics,
-    assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
-    handleRouteError
-  });
+registerHostDiagnosticsRoutes(server, {
+  dataContext: dependencies.dataContext,
+  resolveAccessContext: dependencies.resolveAccessContext,
+  repository,
+  getChatMultiplexerStatus: dependencies.getChatMultiplexerStatus,
+  hostDiagnostics: dependencies.hostDiagnostics,
+  assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
+  handleRouteError
+});
 ```
 
 - [ ] **Step 8: Run tests to verify they pass**
@@ -656,11 +666,13 @@ git commit -m "feat(settings): serve live chat-multiplexer status from admin rou
 ### Task 5: Host diagnostics routes — consume the renamed dependency
 
 **Files:**
+
 - Modify: `packages/settings/src/host-diagnostics-routes.ts` (full file, 94 lines)
 - Test: `tests/integration/host-diagnostics-admin.test.ts` (existing assertions must keep passing
   unchanged — no new fields needed on `HostDiagnosticsDto`)
 
 **Interfaces:**
+
 - Consumes: `type GetChatMultiplexerStatus` from `./routes.js` (Task 4).
 - Produces: nothing new downstream — this is the last hop before `buildHostDiagnostics`.
 
@@ -718,7 +730,8 @@ export function registerHostDiagnosticsRoutes(
             } catch {
               ok = false;
             }
-            const { multiplexer: mux } = await dependencies.repository.getChatMultiplexerSetting(scopedDb);
+            const { multiplexer: mux } =
+              await dependencies.repository.getChatMultiplexerSetting(scopedDb);
             const latestReleaseRaw = await scopedDb.db
               .selectFrom("app.instance_settings")
               .select("value")
@@ -781,10 +794,12 @@ git commit -m "refactor(settings): consume renamed getChatMultiplexerStatus in h
 ### Task 6: Mux-aware attach hint + install guidance in HostPane
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-admin-panes.tsx` (`HostPane()`, currently ~lines 679-845)
 - Test: `tests/unit/settings-admin-panes.test.tsx` (extend existing seed data + add new tests)
 
 **Interfaces:**
+
 - Consumes: `ChatMultiplexerSettingsDto` (Task 2) via the existing `muxQuery` (`getChatMultiplexerSettings`)
   — no new API client code needed, `requestJson<ChatMultiplexerSettingsDto>` passes new fields
   through automatically.
@@ -960,109 +975,114 @@ FAIL (current `HostPane` only renders the hardcoded tmux attach Note).
 Locate the current block in `apps/web/src/settings/settings-admin-panes.tsx`:
 
 ```tsx
-    const mux = muxQuery.data;
-    const diag = diagQuery.data;
-    const herdrAvailable = mux?.available.herdr === true;
-    const herdrDesc = herdrAvailable ? "Herdr is usable on this host." : "Herdr is not usable on this host.";
+const mux = muxQuery.data;
+const diag = diagQuery.data;
+const herdrAvailable = mux?.available.herdr === true;
+const herdrDesc = herdrAvailable
+  ? "Herdr is usable on this host."
+  : "Herdr is not usable on this host.";
 ```
 
 and the trailing hardcoded `<Note>`:
 
 ```tsx
-    <Note icon={<Terminal size={13} aria-hidden="true" />}>
-      Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
-      directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
-      with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
-    </Note>
+<Note icon={<Terminal size={13} aria-hidden="true" />}>
+  Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
+  directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach with{" "}
+  <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+</Note>
 ```
 
 Replace with mux-aware logic (keep everything else in `HostPane`, including the existing
 `available` badges, untouched):
 
 ```tsx
-    const mux = muxQuery.data;
-    const diag = diagQuery.data;
-    const herdrAvailable = mux?.available.herdr === true;
-    const herdrDesc = herdrAvailable ? "Herdr is usable on this host." : "Herdr is not usable on this host.";
+const mux = muxQuery.data;
+const diag = diagQuery.data;
+const herdrAvailable = mux?.available.herdr === true;
+const herdrDesc = herdrAvailable
+  ? "Herdr is usable on this host."
+  : "Herdr is not usable on this host.";
 
-    function attachHintNote() {
-      if (!mux) return null;
-      if (mux.envOverride !== null) {
-        return (
-          <Note icon={<Terminal size={13} aria-hidden="true" />}>
-            The <code>JARVIS_MULTIPLEXER</code> environment variable pins this host to{" "}
-            <strong>{mux.envOverride}</strong>, overriding the setting above. From your deployment
-            directory, use{" "}
-            {mux.envOverride === "herdr" ? (
-              <>
-                <code>{"herdr pane list"}</code> and{" "}
-                <code>{"herdr pane attach <pane-id>"}</code>
-              </>
-            ) : (
-              <>
-                <code>{"docker compose exec jarv1s tmux ls"}</code> and{" "}
-                <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>
-              </>
-            )}
-            .
-          </Note>
-        );
-      }
-      if (mux.active === "herdr") {
-        return (
-          <Note icon={<Terminal size={13} aria-hidden="true" />}>
-            Prefer the terminal? Chat sessions run in Herdr on this host. List panes with{" "}
-            <code>{"herdr pane list"}</code>, attach with{" "}
-            <code>{"herdr pane attach <pane-id>"}</code>, or read output non-interactively with{" "}
-            <code>{"herdr pane read <pane-id>"}</code>.
-          </Note>
-        );
-      }
-      if (mux.active === "tmux") {
-        return (
-          <Note icon={<Terminal size={13} aria-hidden="true" />}>
-            Prefer the terminal? Chat sessions run in tmux inside the container. From your
-            deployment directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>,
-            then attach with{" "}
-            <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
-          </Note>
-        );
-      }
-      if (mux.herdrInstalled) {
-        return (
-          <Note icon={<Terminal size={13} aria-hidden="true" />}>
-            Herdr is installed but has no root pane available, so it isn&apos;t usable yet. Set{" "}
-            <code>JARVIS_HERDR_ROOT_PANE</code> (or run the API inside a Herdr pane so{" "}
-            <code>HERDR_PANE_ID</code> is set), then restart.
-          </Note>
-        );
-      }
-      return (
-        <Note icon={<Terminal size={13} aria-hidden="true" />}>
-          Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
-          directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then
-          attach with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
-        </Note>
-      );
-    }
+function attachHintNote() {
+  if (!mux) return null;
+  if (mux.envOverride !== null) {
+    return (
+      <Note icon={<Terminal size={13} aria-hidden="true" />}>
+        The <code>JARVIS_MULTIPLEXER</code> environment variable pins this host to{" "}
+        <strong>{mux.envOverride}</strong>, overriding the setting above. From your deployment
+        directory, use{" "}
+        {mux.envOverride === "herdr" ? (
+          <>
+            <code>{"herdr pane list"}</code> and <code>{"herdr pane attach <pane-id>"}</code>
+          </>
+        ) : (
+          <>
+            <code>{"docker compose exec jarv1s tmux ls"}</code> and{" "}
+            <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>
+          </>
+        )}
+        .
+      </Note>
+    );
+  }
+  if (mux.active === "herdr") {
+    return (
+      <Note icon={<Terminal size={13} aria-hidden="true" />}>
+        Prefer the terminal? Chat sessions run in Herdr on this host. List panes with{" "}
+        <code>{"herdr pane list"}</code>, attach with <code>{"herdr pane attach <pane-id>"}</code>,
+        or read output non-interactively with <code>{"herdr pane read <pane-id>"}</code>.
+      </Note>
+    );
+  }
+  if (mux.active === "tmux") {
+    return (
+      <Note icon={<Terminal size={13} aria-hidden="true" />}>
+        Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
+        directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
+        with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+      </Note>
+    );
+  }
+  if (mux.herdrInstalled) {
+    return (
+      <Note icon={<Terminal size={13} aria-hidden="true" />}>
+        Herdr is installed but has no root pane available, so it isn&apos;t usable yet. Set{" "}
+        <code>JARVIS_HERDR_ROOT_PANE</code> (or run the API inside a Herdr pane so{" "}
+        <code>HERDR_PANE_ID</code> is set), then restart.
+      </Note>
+    );
+  }
+  return (
+    <Note icon={<Terminal size={13} aria-hidden="true" />}>
+      Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
+      directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
+      with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+    </Note>
+  );
+}
 
-    function installGuidanceNote() {
-      if (!mux || mux.herdrInstalled) return null;
-      return (
-        <Note icon={<Terminal size={13} aria-hidden="true" />}>
-          Herdr is not installed on this host. An operator can install it from the deployment
-          directory with <code>{"docker compose exec jarv1s scripts/install-herdr.sh"}</code>, then
-          refresh this page.
-        </Note>
-      );
-    }
+function installGuidanceNote() {
+  if (!mux || mux.herdrInstalled) return null;
+  return (
+    <Note icon={<Terminal size={13} aria-hidden="true" />}>
+      Herdr is not installed on this host. An operator can install it from the deployment directory
+      with <code>{"docker compose exec jarv1s scripts/install-herdr.sh"}</code>, then refresh this
+      page.
+    </Note>
+  );
+}
 ```
 
 Then in the JSX body of `HostPane`, replace the single hardcoded `<Note>` render with both:
 
 ```tsx
-        {attachHintNote()}
-        {installGuidanceNote()}
+{
+  attachHintNote();
+}
+{
+  installGuidanceNote();
+}
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1082,11 +1102,13 @@ git commit -m "feat(web): mux-aware attach hint + herdr install guidance in Host
 ### Task 7: Pinned, checksum-verified host-level install script
 
 **Files:**
+
 - Create: `scripts/install-herdr.sh`
 - Test: `tests/unit/install-herdr-script.test.ts` (new file — tests the script's shape/behavior via
   subprocess, not a real network fetch)
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks (standalone bash script).
 - Produces: nothing consumed by other tasks — referenced only in the Settings copy (Task 6) and
   spec/README-level docs.
@@ -1100,7 +1122,10 @@ import { describe, expect, it } from "vitest";
 
 describe("scripts/install-herdr.sh", () => {
   it("pins both per-arch release artifacts with their SHA-256 and uses set -euo pipefail", async () => {
-    const script = await readFile(new URL("../../scripts/install-herdr.sh", import.meta.url), "utf8");
+    const script = await readFile(
+      new URL("../../scripts/install-herdr.sh", import.meta.url),
+      "utf8"
+    );
 
     expect(script).toContain("set -euo pipefail");
     expect(script).toContain("herdr-linux-x86_64");
@@ -1113,7 +1138,10 @@ describe("scripts/install-herdr.sh", () => {
   });
 
   it("installs into the CLI tools prefix and is idempotent on a matching existing binary", async () => {
-    const script = await readFile(new URL("../../scripts/install-herdr.sh", import.meta.url), "utf8");
+    const script = await readFile(
+      new URL("../../scripts/install-herdr.sh", import.meta.url),
+      "utf8"
+    );
 
     expect(script).toContain("JARVIS_CLI_TOOLS_PREFIX:-/data/cli-tools");
     expect(script).toMatch(/sha256sum|shasum/);

@@ -736,9 +736,8 @@ export function HostPane() {
       return (
         <Note icon={<Terminal size={13} aria-hidden="true" />}>
           Prefer the terminal? Chat sessions run in Herdr on this host. List panes with{" "}
-          <code>{"herdr pane list"}</code>, attach with{" "}
-          <code>{"herdr pane attach <pane-id>"}</code>, or read output non-interactively with{" "}
-          <code>{"herdr pane read <pane-id>"}</code>.
+          <code>{"herdr pane list"}</code>, attach with <code>{"herdr pane attach <pane-id>"}</code>
+          , or read output non-interactively with <code>{"herdr pane read <pane-id>"}</code>.
         </Note>
       );
     }
@@ -754,10 +753,9 @@ export function HostPane() {
     if (mux.active === "tmux") {
       return (
         <Note icon={<Terminal size={13} aria-hidden="true" />}>
-          Prefer the terminal? Chat sessions run in tmux inside the container. From your
-          deployment directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>
-          , then attach with{" "}
-          <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+          Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
+          directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
+          with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
         </Note>
       );
     }
