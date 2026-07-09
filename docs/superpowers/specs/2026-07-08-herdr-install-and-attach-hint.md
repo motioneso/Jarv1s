@@ -78,7 +78,7 @@ Replace the hardcoded tmux note in `HostPane` with mux-aware copy.
 
 - Active tmux: keep the current `docker compose exec jarv1s tmux ls` and attach command.
 - Active Herdr: show Herdr-specific list/read/attach guidance using `docker compose exec jarv1s herdr
-  pane list` as the discovery command.
+pane list` as the discovery command.
 - Env override present: show the override source so operators understand why the selected setting may
   not match active runtime behavior.
 - Herdr installed but not usable: show that a root pane is required.

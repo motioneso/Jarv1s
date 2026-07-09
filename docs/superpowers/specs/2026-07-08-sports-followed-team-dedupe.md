@@ -65,7 +65,7 @@ For a grouped card:
 - `resultMatch` comes from the selected final today game, if any.
 - `lastMatchAt` is the newest completed match across all grouped schedules.
 - `rationale` names all followed competitions, e.g. `You follow Liverpool in Premier League and
-  Champions League.`
+Champions League.`
 
 Primary competition selection:
 
