@@ -345,6 +345,15 @@ export function NotificationSettings(props: {
     queryFn: getNotificationDigestPreference,
     retry: false
   });
+  // #877 finding 4: the digest schedule save used to read the browser-ambient
+  // Intl-resolved runtime zone, which can differ from the user's persisted
+  // locale. Fetch it the same way the briefings pane above does
+  // (BriefingSettings' localeQuery, ~117).
+  const localeQuery = useQuery({
+    queryKey: queryKeys.settings.locale,
+    queryFn: getLocaleSettings
+  });
+  const localTimezone = localeQuery.data?.locale.timezone;
   const mutation = useMutation({
     mutationFn: (input: {
       readonly moduleId: string;
@@ -400,7 +409,10 @@ export function NotificationSettings(props: {
       cadence: "daily" as const,
       scheduleMetadata: {
         targetTime: "07:00",
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        // #877 finding 4: use the persisted locale tz (matching the briefings
+        // pane's ~148 pattern), not the browser-ambient runtime zone — falls
+        // back to UTC only until /api/me/locale resolves.
+        timezone: localTimezone ?? "UTC",
         dayOfWeek: undefined
       }
     };
@@ -410,7 +422,15 @@ export function NotificationSettings(props: {
         cadence: patch.cadence ?? current.cadence,
         scheduleMetadata: {
           targetTime: patch.targetTime ?? current.scheduleMetadata.targetTime,
-          timezone: current.scheduleMetadata.timezone,
+          // #877 finding 4: a digest saved before this fix (or created by the
+          // server's own "UTC" default) has scheduleMetadata.timezone stuck at
+          // "UTC". Upgrade only that default to the persisted locale on the
+          // next save; an explicit prior choice (anything else) is the user's
+          // and must be preserved, not silently overwritten.
+          timezone:
+            current.scheduleMetadata.timezone === "UTC"
+              ? (localTimezone ?? current.scheduleMetadata.timezone)
+              : current.scheduleMetadata.timezone,
           dayOfWeek: patch.dayOfWeek ?? current.scheduleMetadata.dayOfWeek
         }
       }

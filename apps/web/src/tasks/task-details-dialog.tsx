@@ -24,6 +24,7 @@ import {
   updateTask
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useUserLocale } from "../locale/locale-format";
 import {
   buildTaskFields,
   blankTaskDetailsForm,
@@ -77,6 +78,10 @@ export function TaskDetailsDialog(props: {
     return props.taskId;
   };
   const queryClient = useQueryClient();
+  // #877 finding 3: formFromTask needs the persisted-locale timezone (not an
+  // ambient default) so the due-date/reminder inputs it seeds bucket the same
+  // calendar day as the list-view label.
+  const locale = useUserLocale();
   const [form, setForm] = useState<TaskDetailsFormState>(() =>
     blankTaskDetailsForm(props.defaultListId, props.defaultTitle)
   );
@@ -123,12 +128,15 @@ export function TaskDetailsDialog(props: {
       setNewTags([]);
       setNewSubs([]);
     } else if (task) {
-      setForm(formFromTask(task));
+      setForm(formFromTask(task, locale.timezone));
     }
     setTagDraft("");
     setSubDraft("");
     setComment("");
-  }, [props.open, isNew, task, props.defaultListId]);
+    // locale.timezone: re-seed once the persisted locale loads (it starts at
+    // DEFAULT_LOCALE and can flip after `/api/me/locale` resolves) so the
+    // due-date/reminder inputs don't stick to the wrong day (#877 finding 3).
+  }, [props.open, isNew, task, props.defaultListId, locale.timezone]);
 
   const invalidateLists = () =>
     Promise.all([
