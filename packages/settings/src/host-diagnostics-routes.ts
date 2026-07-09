@@ -2,17 +2,17 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
-import { getHostDiagnosticsRouteSchema, type ChatMultiplexerAvailability } from "@jarv1s/shared";
+import { getHostDiagnosticsRouteSchema } from "@jarv1s/shared";
 
 import { buildHostDiagnostics, type HostDiagnosticsProvider } from "./host-diagnostics.js";
 import type { SettingsRepository } from "./repository.js";
+import type { GetChatMultiplexerStatus } from "./routes.js";
 
 export interface HostDiagnosticsRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly repository: SettingsRepository;
-  /** Boot-time multiplexer availability snapshot (same one the chat-multiplexer route echoes). */
-  readonly chatMultiplexerAvailability?: ChatMultiplexerAvailability;
+  readonly getChatMultiplexerStatus?: GetChatMultiplexerStatus;
   /** Runtime-facts provider; injected by the composition root. Absent → 503. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
   readonly assertAdminUser: (scopedDb: DataContextDb, userId: string) => Promise<User>;
@@ -75,11 +75,18 @@ export function registerHostDiagnosticsRoutes(
         // hostDiagnostics is guaranteed defined here (the closure throws otherwise).
         const provider = dependencies.hostDiagnostics as HostDiagnosticsProvider;
         const pgBossOk = await provider.pgBossInstalled().catch(() => false);
+        const status = (await dependencies.getChatMultiplexerStatus?.(multiplexer)) ?? {
+          available: { tmux: false, herdr: false },
+          herdrInstalled: false,
+          active: null,
+          activeSource: null,
+          envOverride: null
+        };
 
         return buildHostDiagnostics({
           info: provider.info(),
           multiplexer,
-          available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false },
+          available: status.available,
           dbOk,
           pgBossOk,
           latestAvailableVersion,

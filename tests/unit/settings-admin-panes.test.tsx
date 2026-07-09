@@ -32,7 +32,11 @@ describe("settings admin panes", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.chatMultiplexer, {
       multiplexer: "auto",
-      available: { tmux: true, herdr: false }
+      available: { tmux: true, herdr: false },
+      herdrInstalled: false,
+      active: "tmux",
+      activeSource: "auto",
+      envOverride: null
     });
 
     const html = renderWithQuery(createElement(HostPane), client);
@@ -46,7 +50,11 @@ describe("settings admin panes", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.chatMultiplexer, {
       multiplexer: "auto",
-      available: { tmux: true, herdr: true }
+      available: { tmux: true, herdr: true },
+      herdrInstalled: true,
+      active: "herdr",
+      activeSource: "auto",
+      envOverride: null
     });
 
     const html = renderWithQuery(createElement(HostPane), client);
@@ -55,5 +63,125 @@ describe("settings admin panes", () => {
     expect(html).not.toContain("Restart command");
     expect(html).not.toContain("Operator-managed");
     expect(html).not.toContain("Restart API");
+  });
+
+  it("shows install guidance with the install script path when herdr is not installed", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "auto",
+      available: { tmux: true, herdr: false },
+      herdrInstalled: false,
+      active: "tmux",
+      activeSource: "auto",
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    expect(html).toContain("scripts/install-herdr.sh");
+    expect(html).not.toContain("Install Herdr");
+  });
+
+  it("does not show install guidance once herdr is installed", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "auto",
+      available: { tmux: true, herdr: true },
+      herdrInstalled: true,
+      active: "herdr",
+      activeSource: "auto",
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    expect(html).not.toContain("scripts/install-herdr.sh");
+  });
+
+  it("renders herdr attach guidance when herdr is the active mux", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "herdr",
+      available: { tmux: false, herdr: true },
+      herdrInstalled: true,
+      active: "herdr",
+      activeSource: "configured",
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    expect(html).toContain("herdr pane list");
+    expect(html).toContain("herdr pane attach");
+  });
+
+  it("shows an env-override note when JARVIS_MULTIPLEXER pins the active mux", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "herdr",
+      available: { tmux: true, herdr: true },
+      herdrInstalled: true,
+      active: "tmux",
+      activeSource: "env",
+      envOverride: "tmux"
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    expect(html).toContain("JARVIS_MULTIPLEXER");
+    expect(html).not.toContain("herdr pane attach");
+  });
+
+  it("shows installed-but-not-usable guidance when herdr is installed but has no root pane", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "auto",
+      available: { tmux: true, herdr: false },
+      herdrInstalled: true,
+      active: "tmux",
+      activeSource: "auto",
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    expect(html).toContain("JARVIS_HERDR_ROOT_PANE");
+  });
+
+  it("shows BOTH the tmux attach commands and the herdr-broken hint when tmux is active and herdr is installed-but-broken", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "auto",
+      available: { tmux: true, herdr: false },
+      herdrInstalled: true,
+      active: "tmux",
+      activeSource: "auto",
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    // the operator still needs the working tmux attach command...
+    expect(html).toContain("docker compose exec jarv1s tmux attach");
+    // ...AND the note that herdr is present but not yet usable.
+    expect(html).toContain("JARVIS_HERDR_ROOT_PANE");
+  });
+
+  it("shows a distinct not-usable note (no tmux/herdr attach commands) when nothing is usable", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.chatMultiplexer, {
+      multiplexer: "auto",
+      available: { tmux: false, herdr: false },
+      herdrInstalled: false,
+      active: null,
+      activeSource: null,
+      envOverride: null
+    });
+
+    const html = renderWithQuery(createElement(HostPane), client);
+
+    expect(html).not.toContain("docker compose exec jarv1s tmux");
+    expect(html).not.toContain("herdr pane attach");
+    expect(html).toContain("No chat multiplexer is usable");
   });
 });

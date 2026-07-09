@@ -83,7 +83,7 @@ describe("GET/PUT /api/admin/chat-multiplexer (HTTP route)", () => {
     await Promise.allSettled([server?.close(), appDb?.destroy()]);
   });
 
-  it("admin GET returns the default 'auto' choice plus a boolean availability snapshot", async () => {
+  it("admin GET returns the default 'auto' choice plus a full live-status snapshot", async () => {
     const res = await server.inject({
       method: "GET",
       url: "/api/admin/chat-multiplexer",
@@ -94,9 +94,15 @@ describe("GET/PUT /api/admin/chat-multiplexer (HTTP route)", () => {
     expect(body.multiplexer).toBe("auto");
     expect(typeof body.available.tmux).toBe("boolean");
     expect(typeof body.available.herdr).toBe("boolean");
+    expect(typeof body.herdrInstalled).toBe("boolean");
+    expect(body.active === null || ["tmux", "herdr"].includes(body.active)).toBe(true);
+    expect(
+      body.activeSource === null || ["env", "configured", "auto"].includes(body.activeSource)
+    ).toBe(true);
+    expect(body.envOverride === null || ["tmux", "herdr"].includes(body.envOverride)).toBe(true);
   });
 
-  it("admin PUT persists the choice and echoes the availability snapshot", async () => {
+  it("admin PUT persists the choice and echoes the live-status snapshot", async () => {
     const put = await server.inject({
       method: "PUT",
       url: "/api/admin/chat-multiplexer",
@@ -104,15 +110,35 @@ describe("GET/PUT /api/admin/chat-multiplexer (HTTP route)", () => {
       payload: { multiplexer: "tmux" }
     });
     expect(put.statusCode).toBe(200);
-    expect(put.json<ChatMultiplexerSettingsDto>().multiplexer).toBe("tmux");
+    const putBody = put.json<ChatMultiplexerSettingsDto>();
+    expect(putBody.multiplexer).toBe("tmux");
+    expect(typeof putBody.herdrInstalled).toBe("boolean");
 
-    // Round-trips on a fresh GET (it was actually written to instance_settings).
     const get = await server.inject({
       method: "GET",
       url: "/api/admin/chat-multiplexer",
       headers: { cookie: adminCookie }
     });
     expect(get.json<ChatMultiplexerSettingsDto>().multiplexer).toBe("tmux");
+  });
+
+  it("reflects JARVIS_MULTIPLEXER env override as envOverride + active + activeSource", async () => {
+    const original = process.env.JARVIS_MULTIPLEXER;
+    process.env.JARVIS_MULTIPLEXER = "tmux";
+    try {
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/admin/chat-multiplexer",
+        headers: { cookie: adminCookie }
+      });
+      const body = res.json<ChatMultiplexerSettingsDto>();
+      expect(body.envOverride).toBe("tmux");
+      expect(body.active).toBe("tmux");
+      expect(body.activeSource).toBe("env");
+    } finally {
+      if (original === undefined) delete process.env.JARVIS_MULTIPLEXER;
+      else process.env.JARVIS_MULTIPLEXER = original;
+    }
   });
 
   it("rejects an invalid multiplexer value with 400 (schema-enforced enum)", async () => {

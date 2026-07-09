@@ -30,7 +30,10 @@ import {
   upsertInstanceSettingRouteSchema,
   type AdminModuleDto,
   type AuthProviderStatusDto,
+  type ChatMultiplexerAvailability,
   type ChatMultiplexerChoice,
+  type MultiplexerKind,
+  type MultiplexerSource,
   type UpsertInstanceSettingRequest
 } from "@jarv1s/shared";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
@@ -89,6 +92,14 @@ import {
   SECRET_INSTANCE_SETTING_KEYS
 } from "./instance-settings-keys.js";
 
+export type GetChatMultiplexerStatus = (configured: ChatMultiplexerChoice) => Promise<{
+  readonly available: ChatMultiplexerAvailability;
+  readonly herdrInstalled: boolean;
+  readonly active: MultiplexerKind | null;
+  readonly activeSource: MultiplexerSource | null;
+  readonly envOverride: MultiplexerKind | null;
+}>;
+
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
   readonly rootDb: Kysely<JarvisDatabase>;
@@ -123,8 +134,8 @@ export interface SettingsRoutesDependencies {
    */
   readonly hasPasswordCredential?: HasPasswordCredentialPort;
   readonly bootstrapConnectionString?: string;
-  /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
-  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  /** Live multiplexer status probe, resolved fresh per request. */
+  readonly getChatMultiplexerStatus?: GetChatMultiplexerStatus;
   /** Onboarding probes; injected to preserve module isolation and fail closed if absent. */
   readonly onboardingProbes?: OnboardingProbes;
   /**
@@ -626,10 +637,14 @@ export function registerSettingsRoutes(
         return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
           await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
           const { multiplexer } = await repository.getChatMultiplexerSetting(scopedDb);
-          return {
-            multiplexer,
-            available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+          const status = (await dependencies.getChatMultiplexerStatus?.(multiplexer)) ?? {
+            available: { tmux: false, herdr: false },
+            herdrInstalled: false,
+            active: null,
+            activeSource: null,
+            envOverride: null
           };
+          return { multiplexer, ...status };
         });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -651,10 +666,14 @@ export function registerSettingsRoutes(
             actorUserId: accessContext.actorUserId,
             requestId: requireRequestId(accessContext)
           });
-          return {
-            multiplexer,
-            available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+          const status = (await dependencies.getChatMultiplexerStatus?.(multiplexer)) ?? {
+            available: { tmux: false, herdr: false },
+            herdrInstalled: false,
+            active: null,
+            activeSource: null,
+            envOverride: null
           };
+          return { multiplexer, ...status };
         });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -701,7 +720,7 @@ export function registerSettingsRoutes(
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,
     repository,
-    chatMultiplexerAvailability: dependencies.chatMultiplexerAvailability,
+    getChatMultiplexerStatus: dependencies.getChatMultiplexerStatus,
     hostDiagnostics: dependencies.hostDiagnostics,
     assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
     handleRouteError

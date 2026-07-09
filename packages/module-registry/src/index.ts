@@ -146,6 +146,7 @@ import {
 } from "@jarv1s/notifications";
 import {
   type AuthProviderStatusDto,
+  type ChatMultiplexerChoice,
   type OnboardingProviderCheckResponse,
   type OnboardingProviderKind
 } from "@jarv1s/shared";
@@ -254,9 +255,10 @@ import {
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
   makeCliPresentProbe,
+  makeChatMultiplexerStatusProbe,
   makeProviderConnectionCheckProbe,
-  probeChatMultiplexerAvailability,
-  resolveChatEngineFactory
+  resolveChatEngineFactory,
+  type LiveChatMultiplexerStatus
 } from "./chat-multiplexer.js";
 import { buildOnboardingInstall } from "./onboarding-install.js";
 import { buildOnboardingLogin } from "./onboarding-login.js";
@@ -382,8 +384,10 @@ export interface BuiltInRouteDependencies {
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
   readonly connectorsRepository?: ConnectorsRepository;
-  /** Boot-time multiplexer availability snapshot for the admin settings UI. */
-  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  /** Live multiplexer status probe for the admin settings UI (resolved fresh per request). */
+  readonly getChatMultiplexerStatus?: (
+    configured: ChatMultiplexerChoice
+  ) => Promise<LiveChatMultiplexerStatus>;
   /** Host diagnostics runtime-facts provider (#255), built by the API composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
@@ -789,7 +793,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         verifySelfPassword: deps.verifySelfPassword,
         hasPasswordCredential: deps.hasPasswordCredential,
         bootstrapConnectionString: deps.bootstrapConnectionString,
-        chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
+        getChatMultiplexerStatus: deps.getChatMultiplexerStatus,
         hostDiagnostics: deps.hostDiagnostics,
         onboardingProbes: deps.onboardingProbes,
         onboardingInstall: deps.onboardingInstall,
@@ -1638,7 +1642,7 @@ export function registerBuiltInApiRoutes(
   dependencies: BuiltInRouteDependencies
 ): void {
   const env = process.env;
-  const availability = probeChatMultiplexerAvailability(env);
+  const getChatMultiplexerStatus = makeChatMultiplexerStatusProbe(env);
 
   // #342 boot-time fork (§3.5): when JARVIS_CLI_RUNNER_SOCKET is set the api drives the cli-runner
   // sidecar over ONE shared socket (§3.4 — one connection per api process). That ONE connection is
@@ -1729,7 +1733,7 @@ export function registerBuiltInApiRoutes(
         return new GraphMemoryRecallService(provider).recall(scopedDb, ownerUserId, query, options);
       }
     },
-    chatMultiplexerAvailability: availability,
+    getChatMultiplexerStatus,
     onboardingProbes,
     onboardingInstall,
     onboardingLogin,

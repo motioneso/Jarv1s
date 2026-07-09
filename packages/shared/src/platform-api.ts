@@ -515,14 +515,21 @@ export interface ChatMultiplexerAvailability {
   readonly herdr: boolean;
 }
 
+export type MultiplexerKind = "tmux" | "herdr";
+export type MultiplexerSource = "env" | "configured" | "auto";
+
 export interface ChatMultiplexerSettingsDto {
   readonly multiplexer: ChatMultiplexerChoice;
   readonly available: ChatMultiplexerAvailability;
+  readonly herdrInstalled: boolean;
+  readonly active: MultiplexerKind | null;
+  readonly activeSource: MultiplexerSource | null;
+  readonly envOverride: MultiplexerKind | null;
 }
 
 export const chatMultiplexerSettingsSchema = {
   type: "object",
-  required: ["multiplexer", "available"],
+  required: ["multiplexer", "available", "herdrInstalled", "active", "activeSource", "envOverride"],
   additionalProperties: false,
   properties: {
     multiplexer: { type: "string", enum: ["auto", "tmux", "herdr"] },
@@ -531,7 +538,11 @@ export const chatMultiplexerSettingsSchema = {
       required: ["tmux", "herdr"],
       additionalProperties: false,
       properties: { tmux: { type: "boolean" }, herdr: { type: "boolean" } }
-    }
+    },
+    herdrInstalled: { type: "boolean" },
+    active: { type: ["string", "null"], enum: ["tmux", "herdr", null] },
+    activeSource: { type: ["string", "null"], enum: ["env", "configured", "auto", null] },
+    envOverride: { type: ["string", "null"], enum: ["tmux", "herdr", null] }
   }
 } as const;
 
