@@ -709,6 +709,78 @@ export function HostPane() {
   const herdrDesc = herdrAvailable
     ? "Herdr is usable on this host."
     : "Herdr is not usable on this host.";
+
+  function attachHintNote() {
+    if (!mux) return null;
+    if (mux.envOverride !== null) {
+      return (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          The <code>JARVIS_MULTIPLEXER</code> environment variable pins this host to{" "}
+          <strong>{mux.envOverride}</strong>, overriding the setting above. From your deployment
+          directory, use{" "}
+          {mux.envOverride === "herdr" ? (
+            <>
+              <code>{"herdr pane list"}</code> and <code>{"herdr pane attach <pane-id>"}</code>
+            </>
+          ) : (
+            <>
+              <code>{"docker compose exec jarv1s tmux ls"}</code> and{" "}
+              <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>
+            </>
+          )}
+          .
+        </Note>
+      );
+    }
+    if (mux.active === "herdr") {
+      return (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Prefer the terminal? Chat sessions run in Herdr on this host. List panes with{" "}
+          <code>{"herdr pane list"}</code>, attach with{" "}
+          <code>{"herdr pane attach <pane-id>"}</code>, or read output non-interactively with{" "}
+          <code>{"herdr pane read <pane-id>"}</code>.
+        </Note>
+      );
+    }
+    if (mux.herdrInstalled && !mux.available.herdr) {
+      return (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Herdr is installed but has no root pane available, so it isn&apos;t usable yet. Set{" "}
+          <code>JARVIS_HERDR_ROOT_PANE</code> (or run the API inside a Herdr pane so{" "}
+          <code>HERDR_PANE_ID</code> is set), then restart.
+        </Note>
+      );
+    }
+    if (mux.active === "tmux") {
+      return (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Prefer the terminal? Chat sessions run in tmux inside the container. From your
+          deployment directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>
+          , then attach with{" "}
+          <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+        </Note>
+      );
+    }
+    return (
+      <Note icon={<Terminal size={13} aria-hidden="true" />}>
+        Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
+        directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
+        with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+      </Note>
+    );
+  }
+
+  function installGuidanceNote() {
+    if (!mux || mux.herdrInstalled) return null;
+    return (
+      <Note icon={<Terminal size={13} aria-hidden="true" />}>
+        Herdr is not installed on this host. An operator can install it from the deployment
+        directory with <code>{"docker compose exec jarv1s scripts/install-herdr.sh"}</code>, then
+        refresh this page.
+      </Note>
+    );
+  }
+
   return (
     <>
       <PaneHead
@@ -750,15 +822,8 @@ export function HostPane() {
             </Badge>
           }
         />
-        {/* Terminal-attach footnote (Ben 2026-07-08). The shipped image forks its OWN tmux
-            server inside the `jarv1s` container (compose hardwires JARVIS_MULTIPLEXER=tmux), so
-            attaching is a two-step docker exec, not a bare `tmux attach` on the host. Session
-            handles are per-thread (`jarv1s-live-<thread>`), hence the `tmux ls` discovery step. */}
-        <Note icon={<Terminal size={13} aria-hidden="true" />}>
-          Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
-          directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
-          with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
-        </Note>
+        {attachHintNote()}
+        {installGuidanceNote()}
       </Group>
       <Group
         title="Diagnostics"
