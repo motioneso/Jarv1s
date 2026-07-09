@@ -823,6 +823,90 @@ describe("id→url story keying (#858)", () => {
       nbaGroup?.headlines.find((h) => h.title === "NBA distinct story (colliding id)")?.body
     ).toBeUndefined();
   });
+
+  it("does not let a tier-1 lead's id block a distinct, team-matched story from tier 2 just because the ids collide", async () => {
+    // Regression for rankTopStories' OWN dedup set (pickedIds -> pickedUrls), isolated from the
+    // separate, correct followedStoryUrls exclusion (L293-296) that drops a top story already
+    // shown on a followed-team card: h1 is tier-2-eligible (feed-rank order, dal-tagged) but aged
+    // off the card's newest-3 cap (toTeamStories, followed-card.ts) by h2/h3/h4 below, so it can
+    // only reach `overview.topStories` via rankTopStories tier 2 — never via the card path.
+    const dalFollow: SportsFollowDto = {
+      id: "f1",
+      competitionKey: "nfl",
+      teamKey: "dal",
+      createdAt: "2026-06-01T00:00:00.000Z"
+    };
+    // h0 is the tier-1 pick (front of feed, unconditional) — not tagged to any team.
+    const h0: SourceHeadline = {
+      id: "dup",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "Editorial lead",
+      url: "https://example.com/a",
+      publishedAt: `${TODAY}T06:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: []
+    };
+    // h1 shares h0's id ("dup") but is a distinct story (different url) tagged to the followed
+    // team (sourceTeamIds "6" -> resolves to "dal" via the listTeams override below) — tier 2
+    // should pick it up. Oldest of the dal-tagged stories, so the card (newest-first, cap 3)
+    // crops it once h2/h3/h4 exist.
+    const h1: SourceHeadline = {
+      id: "dup",
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: "Distinct dal story, colliding id",
+      url: "https://example.com/b",
+      publishedAt: `${TODAY}T07:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: ["6"]
+    };
+    const dalFiller = (n: number): SourceHeadline => ({
+      id: `filler-${n}`,
+      competitionKey: "nfl",
+      competitionLabel: "NFL",
+      title: `Dal filler story ${n}`,
+      url: `https://example.com/filler-${n}`,
+      publishedAt: `${TODAY}T${10 + n}:00:00.000Z`,
+      imageUrl: null,
+      summary: "",
+      teamKeys: [],
+      sourceTeamIds: ["6"]
+    });
+    const h2 = dalFiller(1);
+    const h3 = dalFiller(2);
+    const h4 = dalFiller(3);
+    const service = new SportsService(
+      makeDeps({
+        follows: [dalFollow],
+        source: makeSource({
+          getHeadlines: async (competitionKey, teamKey) => {
+            if (competitionKey !== "nfl") return [];
+            if (teamKey) return []; // isolate: no per-team feed noise for this test
+            return [h0, h1, h2, h3, h4];
+          },
+          listTeams: async (competitionKey) => [
+            {
+              teamKey: "dal",
+              competitionKey,
+              name: "Dallas Cowboys",
+              shortName: "Cowboys",
+              crestUrl: null,
+              sourceTeamId: "6"
+            }
+          ]
+        })
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const dalCard = overview.followed.find((c) => c.teamKey === "dal");
+    expect(dalCard?.stories.map((s) => s.url)).not.toContain("https://example.com/b");
+    expect(overview.topStories.map((h) => h.url)).toContain("https://example.com/b");
+  });
 });
 
 describe("SportsService.getFollowedFactsForToday", () => {

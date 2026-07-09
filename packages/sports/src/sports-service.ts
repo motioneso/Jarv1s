@@ -770,7 +770,7 @@ function rankTopStories(
 ): SourceHeadline[] {
   const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
   const picked: SourceHeadline[] = [];
-  const pickedIds = new Set<string>();
+  const pickedUrls = new Set<string>();
 
   // Tier 1 — the BIG story. Each followed competition's EDITORIAL lead (front of feed = what the
   // source itself led with), whether or not one of the user's teams is in it. Ben's steer
@@ -780,9 +780,9 @@ function rankTopStories(
   // not newest, is the editorial lead — same mrb51pnq reasoning as the news band.
   for (const comp of followedCompetitionKeys) {
     const lead = (headlinesByComp.get(comp) ?? [])[0];
-    if (lead && !pickedIds.has(lead.id)) {
+    if (lead && !pickedUrls.has(lead.url)) {
       picked.push(lead);
-      pickedIds.add(lead.id);
+      pickedUrls.add(lead.url);
     }
   }
 
@@ -795,10 +795,10 @@ function rankTopStories(
   for (const { headline } of all) {
     if (
       headline.teamKeys.some((k) => pairs.has(`${headline.competitionKey}:${k}`)) &&
-      !pickedIds.has(headline.id)
+      !pickedUrls.has(headline.url)
     ) {
       picked.push(headline);
-      pickedIds.add(headline.id);
+      pickedUrls.add(headline.url);
     }
   }
   return picked.slice(0, TOP_STORIES_CAP);
