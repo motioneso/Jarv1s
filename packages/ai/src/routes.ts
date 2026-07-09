@@ -81,6 +81,7 @@ import { cliAvailable, type ProviderKind as CliProviderKind } from "./cli-availa
 import { registerAiAdminPinRoutes } from "./admin-ai-pin-routes.js";
 import { registerAiServiceRoutes } from "./capability-route-routes.js";
 import { registerAiTranscriptionRoutes } from "./transcription-routes.js";
+import { registerAiVoiceEndpointRoutes } from "./voice-endpoint-routes.js";
 import { registerActionPolicyRoutes } from "./action-policy-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
@@ -88,6 +89,7 @@ import { ModelDiscoveryService } from "./model-discovery.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
   AiRepository,
+  NotAGenericProviderError,
   type AiAssistantActionRequestSafeRow,
   type ChatModelOverrideSettings,
   type AiConfiguredModelSafeRow,
@@ -329,6 +331,11 @@ export function registerAiRoutes(
         modelDiscovery.invalidate(accessContext.actorUserId, body.providerConfigId);
         return reply.code(201).send({ model: serializeModel(model, accessContext.actorUserId) });
       } catch (error) {
+        // #886 MED-2: attaching a model to the hidden voice provider is refused. The voice row is not
+        // a *generic* provider, so a 404 (it doesn't exist on this surface) is the right answer.
+        if (error instanceof NotAGenericProviderError) {
+          return handleRouteError(new HttpError(404, error.message), reply);
+        }
         return handleRouteError(error, reply);
       }
     }
@@ -369,6 +376,8 @@ export function registerAiRoutes(
 
   registerAiServiceRoutes(server, dependencies, repository);
   registerAiTranscriptionRoutes(server, dependencies, repository, secretCipher);
+  // #874: dedicated admin GET/PUT for the single instance-wide Voice (STT) endpoint (no discovery).
+  registerAiVoiceEndpointRoutes(server, dependencies, repository, secretCipher);
   registerActionPolicyRoutes(server, dependencies, repository);
   registerAiAdminPinRoutes(server, dependencies, repository);
 

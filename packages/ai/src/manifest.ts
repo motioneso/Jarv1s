@@ -11,6 +11,9 @@ import {
   getAiSummaryResponseSchema,
   getChatModelOverrideSettingsResponseSchema,
   getAiAdminUserPinResponseSchema,
+  getVoiceEndpointResponseSchema,
+  putVoiceEndpointRequestSchema,
+  putVoiceEndpointResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
   listAiServiceBindingsResponseSchema,
@@ -72,7 +75,10 @@ export const aiModuleManifest = {
       "sql/0147_ai_provider_instance_default.sql",
       // #870 Fable HIGH-1 — grant jarvis_worker_runtime INSERT on jarvis_error_log so the H3
       // worker needs-config observability log actually records (0145 granted app-runtime only).
-      "sql/0148_jarvis_error_log_worker_insert.sql"
+      "sql/0148_jarvis_error_log_worker_insert.sql",
+      // #874 — `purpose` discriminator ('assistant'|'voice') + one-voice partial unique index so the
+      // Voice(STT) endpoint reuses the AI provider/model tables without bleeding into chat routing.
+      "sql/0150_ai_provider_purpose.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
@@ -211,7 +217,8 @@ export const aiModuleManifest = {
       permissionId: "ai.route"
     },
     {
-      // #870 Slice 1: unified per-service binding map (Chat + Voice), replaces per-capability routes.
+      // #870 Slice 1: unified per-service binding map, replaces per-capability routes. #874 HIGH-2:
+      // Chat is the only bindable service (Voice moved to its own dedicated endpoint).
       method: "GET",
       path: "/api/ai/service-bindings",
       responseSchema: listAiServiceBindingsResponseSchema,
@@ -236,6 +243,22 @@ export const aiModuleManifest = {
       path: "/api/ai/transcriptions",
       responseSchema: transcribeAudioResponseSchema,
       permissionId: "ai.route"
+    },
+    {
+      // #874: dedicated Voice (STT) admin endpoint — both are admin-gated in-handler
+      // (assertInstanceAdmin). GET never returns the API key (write-only); PUT is an upsert of the
+      // single `purpose='voice'` provider row and runs NO auto-discovery (CRIT-1).
+      method: "GET",
+      path: "/api/ai/voice-endpoint",
+      responseSchema: getVoiceEndpointResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "PUT",
+      path: "/api/ai/voice-endpoint",
+      requestSchema: putVoiceEndpointRequestSchema,
+      responseSchema: putVoiceEndpointResponseSchema,
+      permissionId: "ai.manage"
     },
     {
       method: "GET",

@@ -4,6 +4,7 @@ export type Brand<TValue, TBrand extends string> = TValue & {
 
 export * from "./schema-fragments.js";
 export * from "./ai-api.js";
+export * from "./ai-voice-api.js";
 export * from "./ai-audit-api.js";
 export * from "./ai-summary-api.js";
 export * from "./briefings-api.js";

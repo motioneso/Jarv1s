@@ -26,11 +26,18 @@ const AUDIO_CONTENT_TYPE = /^audio\//;
  * POST /api/ai/transcriptions — transient audio upload + transcription.
  *
  * The request body is a raw audio/* upload (no multipart wrapper needed: exactly one blob,
- * no other fields), resolved through the SAME provider-agnostic capability-routing
- * mechanism as every other AI capability (`selectModelForCapability(scopedDb,
- * "transcription")` — no hardcoded provider or model). The decoded audio buffer lives only
- * in this function's local scope: it is never logged, never written to a table, and never
- * placed on a pg-boss job payload. Only the resulting transcript text is returned.
+ * no other fields). Model resolution goes through `selectModelForCapability(scopedDb,
+ * "transcription")`, which (via `resolveModelForCapability`) applies the #874 routing rules:
+ *   - HIGH-3: an admin per-user pin WINS. A pinned user's transcription is attempted INSIDE the
+ *     pinned provider only; a miss returns no model (mic unavailable) — it never escapes to the
+ *     instance voice endpoint.
+ *   - CRIT-1 / HIGH-2: an un-pinned user resolves via the dedicated `purpose='voice'` endpoint
+ *     (a single instance-wide OpenAI-compatible STT provider), never via cross-provider worker
+ *     routing and never via a service binding.
+ * No model resolved -> 422 (pin-blocked, or no voice endpoint configured). The decoded audio
+ * buffer lives only in this function's local scope: it is never logged, never written to a
+ * table, and never placed on a pg-boss job payload. Only the resulting transcript text is
+ * returned.
  */
 export function registerAiTranscriptionRoutes(
   server: FastifyInstance,

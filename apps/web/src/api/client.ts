@@ -38,6 +38,9 @@ import type {
   ListAiServiceBindingsResponse,
   PutAiServiceBindingRequest,
   PutAiServiceBindingResponse,
+  GetVoiceEndpointResponse,
+  PutVoiceEndpointRequest,
+  PutVoiceEndpointResponse,
   PreviewPersonaResponse,
   PutChatSettingsRequest,
   PutChatSettingsResponse,
@@ -910,6 +913,21 @@ export async function putAiServiceBinding(
     `/api/ai/services/${encodeURIComponent(service)}/binding`,
     { method: "PUT", body: input }
   );
+}
+
+// #874: the dedicated Voice (STT) admin endpoint. GET returns the config DTO (never the API key —
+// only `hasKey`); PUT is an admin-only upsert. On PUT, omit `apiKey` to keep the stored key.
+export async function getVoiceEndpoint(): Promise<GetVoiceEndpointResponse> {
+  return requestJson<GetVoiceEndpointResponse>("/api/ai/voice-endpoint");
+}
+
+export async function putVoiceEndpoint(
+  input: PutVoiceEndpointRequest
+): Promise<PutVoiceEndpointResponse> {
+  return requestJson<PutVoiceEndpointResponse>("/api/ai/voice-endpoint", {
+    method: "PUT",
+    body: input
+  });
 }
 
 // #870/H1: promote a provider to the single instance-default.
