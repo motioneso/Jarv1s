@@ -78,8 +78,10 @@ export function registerAiVoiceEndpointRoutes(
             return repository.upsertVoiceEndpoint(scopedDb, {
               baseUrl: body.baseUrl,
               modelName: body.modelName,
-              // Default enabled on create; on edit the client sends the current toggle explicitly.
-              enabled: body.enabled ?? true,
+              // #886 NIT: pass the toggle through as-is. Omitted => omit-means-keep (create defaults
+              // to enabled; edit leaves the current status untouched) — an absent toggle never
+              // silently re-enables a disabled endpoint.
+              enabled: body.enabled,
               encryptedCredential
             });
           }

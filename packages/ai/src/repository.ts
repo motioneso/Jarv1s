@@ -51,6 +51,20 @@ export class VoiceEndpointKeyRequiredError extends Error {
   }
 }
 
+// #874 / #886 MED-2: the generic provider/model write routes must refuse the hidden `purpose='voice'`
+// row. An admin can learn the voice provider UUID (it leaks as `providerConfigId` on GET
+// /api/ai/capability-route/transcription), so without this guard they could reach the STT row through
+// the generic routes — e.g. `POST /api/ai/models` would add a 2nd model row and corrupt the voice
+// singleton. `createModel` throws this when its target provider is not assistant; the route maps it to
+// a 404 (the voice row simply does not exist as a *generic* provider). updateProvider/revokeProvider
+// instead filter on `purpose='assistant'` in their UPDATE (0 rows → undefined → the existing 404).
+export class NotAGenericProviderError extends Error {
+  constructor() {
+    super("AI provider config not found");
+    this.name = "NotAGenericProviderError";
+  }
+}
+
 export interface AiProviderConfigSafeRow {
   readonly id: string;
   readonly owner_user_id: string;
@@ -139,11 +153,12 @@ export interface CreateAiModelInput {
 
 // #874: the single Voice(STT) endpoint upsert input. `encryptedCredential` is omit-means-keep on
 // edit and REQUIRED on the initial create (a voice endpoint with no key can never transcribe —
-// enforced in upsertVoiceEndpoint). `enabled` maps to provider status (active/disabled).
+// enforced in upsertVoiceEndpoint). `enabled` maps to provider status (active/disabled) and is
+// #886-NIT omit-means-keep on edit: undefined leaves the current status untouched (create defaults on).
 export interface UpsertVoiceEndpointInput {
   readonly baseUrl: string;
   readonly modelName: string;
-  readonly enabled: boolean;
+  readonly enabled?: boolean;
   readonly encryptedCredential?: EncryptedAiSecret;
 }
 
@@ -414,6 +429,10 @@ export class AiRepository {
     const updated = await scopedDb.db
       .updateTable("app.ai_provider_configs")
       .set(updates)
+      // #886 MED-2: the generic provider-update route may only touch assistant providers. Scoping the
+      // UPDATE to purpose='assistant' means a voice UUID matches 0 rows → undefined → the route's
+      // existing 404, so an admin can't flip the STT row's provider_kind/auth_method from here.
+      .where("purpose", "=", "assistant")
       .where("id", "=", providerId)
       .returning("id")
       .executeTakeFirst();
@@ -436,6 +455,10 @@ export class AiRepository {
         revoked_at: new Date(),
         updated_at: new Date()
       })
+      // #886 MED-2: revoke is assistant-only. Without this an admin could tombstone the STT
+      // credential via the generic revoke route; a subsequent keyless voice PUT would then leave
+      // hasKey=true while transcription 422s. Voice enable/disable goes through the Voice section.
+      .where("purpose", "=", "assistant")
       .where("id", "=", providerId)
       .returning("id")
       .executeTakeFirst();
@@ -456,6 +479,20 @@ export class AiRepository {
     input: CreateAiModelInput
   ): Promise<AiConfiguredModelSafeRow> {
     assertDataContextDb(scopedDb);
+
+    // #886 MED-2: refuse to attach a model to the hidden voice provider. Its UUID is discoverable
+    // (leaks as providerConfigId on GET /api/ai/capability-route/transcription), and a 2nd model row
+    // under it would break the voice singleton — the next voice PUT's blind model UPDATE would rename
+    // BOTH rows to the same provider_model_id and hit the UNIQUE(owner,provider,model) constraint.
+    // The voice model row is managed solely by upsertVoiceEndpoint.
+    const target = await scopedDb.db
+      .selectFrom("app.ai_provider_configs")
+      .select("purpose")
+      .where("id", "=", input.providerConfigId)
+      .executeTakeFirst();
+    if (!target || target.purpose !== "assistant") {
+      throw new NotAGenericProviderError();
+    }
 
     const now = new Date();
     const inserted = await scopedDb.db
@@ -803,26 +840,41 @@ export class AiRepository {
     assertDataContextDb(scopedDb);
 
     const now = new Date();
-    const status: AiProviderStatus = input.enabled ? "active" : "disabled";
 
     // Provider fields common to update + insert. owner reassignment is the MED-6 recovery.
+    // #886 MED-2: `revoked_at: null` on EVERY write so a re-PUT reactivates a previously-revoked
+    // endpoint (the insert branch already did this; the update branch did not — a stale tombstone
+    // would otherwise keep transcription failing closed even after a valid re-config).
     const providerCommon = {
       owner_user_id: sql<string>`app.current_actor_user_id()`,
       provider_kind: "openai-compatible" as const,
       display_name: AiRepository.VOICE_PROVIDER_DISPLAY_NAME,
       base_url: input.baseUrl,
-      status,
       auth_method: "api_key" as const,
       execution_mode: "non_interactive" as const,
+      revoked_at: null,
       updated_at: now
     };
+
+    // #886 NIT + MED-2: `enabled` is omit-means-keep on edit (like apiKey) — an absent toggle must not
+    // silently re-enable a *disabled* endpoint. BUT the 0013 table CHECK pairs the two revoke signals
+    // (status='revoked' XOR revoked_at IS NULL), and we clear revoked_at on every write (MED-2
+    // reactivation), so a currently-*revoked* row cannot keep its status. The CASE flips only that one
+    // state to 'active' (a re-PUT reactivates a tombstoned endpoint) while preserving
+    // active/disabled/error otherwise — keeping the pair consistent without an extra round-trip.
+    const statusPatch =
+      input.enabled === undefined
+        ? {
+            status: sql<AiProviderStatus>`CASE WHEN status = 'revoked' THEN 'active'::app.ai_provider_status ELSE status END`
+          }
+        : { status: (input.enabled ? "active" : "disabled") as AiProviderStatus };
 
     const updateResult = await scopedDb.db
       .updateTable("app.ai_provider_configs")
       .set(
         input.encryptedCredential
-          ? { ...providerCommon, encrypted_credential: input.encryptedCredential }
-          : providerCommon
+          ? { ...providerCommon, ...statusPatch, encrypted_credential: input.encryptedCredential }
+          : { ...providerCommon, ...statusPatch }
       )
       .where("purpose", "=", "voice")
       .executeTakeFirst();
@@ -848,9 +900,10 @@ export class AiRepository {
           id: providerId,
           ...providerCommon,
           purpose: "voice",
+          // Fresh create defaults to enabled; only an explicit `enabled:false` starts it disabled.
+          status: (input.enabled ?? true) ? "active" : "disabled",
           encrypted_credential: input.encryptedCredential,
           is_instance_default: false,
-          revoked_at: null,
           created_at: now
         })
         .execute();

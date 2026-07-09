@@ -27,7 +27,10 @@ const { Client } = pg;
 //       discovery (CRIT-1) — the voice row gets exactly one transcription model, never a chat model;
 //   (f) a pinned user's audio stays inside the pinned provider → unavailable, never escaping to the
 //       instance voice endpoint (HIGH-3);
-//   (g) repeated PUTs / a retried create still leave exactly one `purpose='voice'` row (HIGH-5).
+//   (g) repeated PUTs / a retried create still leave exactly one `purpose='voice'` row (HIGH-5);
+//   (h) every voice route is admin-gated — a non-admin gets 403 on GET and PUT (#886 MED-1);
+//   (i) the generic provider/model routes refuse the hidden voice row by id (#886 MED-2);
+//   (j) a re-PUT reactivates a tombstoned endpoint, and omit-`enabled` keeps a disabled one disabled.
 // No test here drives the actual STT POST (that lives in ai-transcription.test.ts, which stubs
 // `fetch`); these exercise config + resolution only, so no network call fires.
 describe("AI Voice (STT) endpoint (#874)", () => {
@@ -270,6 +273,119 @@ describe("AI Voice (STT) endpoint (#874)", () => {
     expect(await voiceModelRows(voiceProviderId)).toHaveLength(1);
   });
 
+  it("(h) MED-1: rejects a non-admin on both GET and PUT (403)", async () => {
+    // Every voice route is admin-gated. This guards against a refactor dropping assertInstanceAdmin:
+    // a non-admin (sessionB) must never read baseUrl/hasKey nor rewrite the instance STT target/key.
+    const getRes = await server.inject({
+      method: "GET",
+      url: "/api/ai/voice-endpoint",
+      headers: { authorization: `Bearer ${ids.sessionB}` }
+    });
+    expect(getRes.statusCode).toBe(403);
+
+    const putRes = await server.inject({
+      method: "PUT",
+      url: "/api/ai/voice-endpoint",
+      headers: { authorization: `Bearer ${ids.sessionB}` },
+      payload: { baseUrl: "https://evil.example", modelName: "whisper-1", apiKey: "sk-attacker" }
+    });
+    expect(putRes.statusCode).toBe(403);
+    // The blocked PUT wrote nothing — no voice row was created.
+    expect(await countVoiceProviders()).toBe(0);
+  });
+
+  it("(i) MED-2: the generic provider/model routes refuse the hidden voice row by id", async () => {
+    // An admin can learn the voice UUID (it leaks as providerConfigId on the transcription
+    // capability-route). The generic write routes must still treat it as absent so the STT row can't
+    // be mutated, revoked, model-stuffed, or probed from that surface.
+    await putVoice({
+      baseUrl: "https://voice.example",
+      modelName: "whisper-1",
+      apiKey: "sk-voice"
+    });
+    const voiceProviderId = (await voiceProviderRow())!.id;
+    const admin = { authorization: `Bearer ${ids.sessionAdmin}` };
+
+    const patched = await server.inject({
+      method: "PATCH",
+      url: `/api/ai/providers/${voiceProviderId}`,
+      headers: admin,
+      payload: { displayName: "hijacked" }
+    });
+    expect(patched.statusCode).toBe(404);
+
+    const revoked = await server.inject({
+      method: "POST",
+      url: `/api/ai/providers/${voiceProviderId}/revoke`,
+      headers: admin
+    });
+    expect(revoked.statusCode).toBe(404);
+
+    const createdModel = await server.inject({
+      method: "POST",
+      url: "/api/ai/models",
+      headers: admin,
+      payload: {
+        providerConfigId: voiceProviderId,
+        providerModelId: "sneaky",
+        displayName: "Sneaky",
+        capabilities: ["transcription"]
+      }
+    });
+    expect(createdModel.statusCode).toBe(404);
+
+    // The discovery/test probe must never fire a live call at the STT host.
+    const discovered = await server.inject({
+      method: "GET",
+      url: `/api/ai/providers/${voiceProviderId}/models/discover`,
+      headers: admin
+    });
+    expect(discovered.statusCode).toBe(404);
+
+    // Every attack was a no-op: still one voice row with its single transcription model, untouched.
+    expect(await countVoiceProviders()).toBe(1);
+    expect(await voiceModelRows(voiceProviderId)).toHaveLength(1);
+    const row = await voiceProviderStatusRow();
+    expect(row).toMatchObject({
+      status: "active",
+      revoked_at: null,
+      display_name: "Voice (STT) endpoint"
+    });
+  });
+
+  it("(j) MED-2: a re-PUT reactivates a tombstoned endpoint; omit-`enabled` keeps a disabled one disabled", async () => {
+    await putVoice({
+      baseUrl: "https://voice.example",
+      modelName: "whisper-1",
+      apiKey: "sk-voice"
+    });
+
+    // Simulate a legacy tombstone (the 0013 CHECK pairs status='revoked' with revoked_at NOT NULL).
+    await tombstoneVoiceRow();
+    expect(await voiceProviderStatusRow()).toMatchObject({ status: "revoked" });
+
+    // Re-PUT with NO enabled flag must reactivate: clearing revoked_at forces status off 'revoked'.
+    const reactivated = await putVoice({
+      baseUrl: "https://voice.example",
+      modelName: "whisper-1"
+    });
+    expect(reactivated.statusCode).toBe(200);
+    expect(await voiceProviderStatusRow()).toMatchObject({ status: "active", revoked_at: null });
+
+    // Now deliberately disable, then edit WITHOUT sending enabled — omit-means-keep leaves it disabled.
+    await putVoice({ baseUrl: "https://voice.example", modelName: "whisper-1", enabled: false });
+    expect(await voiceProviderStatusRow()).toMatchObject({ status: "disabled", revoked_at: null });
+
+    const editedName = await putVoice({
+      baseUrl: "https://voice.example",
+      modelName: "whisper-large"
+    });
+    expect(editedName.statusCode).toBe(200);
+    const afterEdit = await getVoice();
+    expect(afterEdit.json().endpoint).toMatchObject({ enabled: false, modelName: "whisper-large" });
+    expect(await voiceProviderStatusRow()).toMatchObject({ status: "disabled" });
+  });
+
   // ---- helpers -------------------------------------------------------------------------------------
 
   function putVoice(payload: {
@@ -371,6 +487,37 @@ describe("AI Voice (STT) endpoint (#874)", () => {
         `SELECT id, encrypted_credential FROM app.ai_provider_configs WHERE purpose = 'voice'`
       );
       return rows[0] ?? null;
+    } finally {
+      await client.end();
+    }
+  }
+
+  async function voiceProviderStatusRow(): Promise<{
+    status: string;
+    revoked_at: Date | null;
+    display_name: string;
+  } | null> {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const { rows } = await client.query(
+        `SELECT status, revoked_at, display_name FROM app.ai_provider_configs WHERE purpose = 'voice'`
+      );
+      return rows[0] ?? null;
+    } finally {
+      await client.end();
+    }
+  }
+
+  // Force the voice row into the legacy revoked state (status + revoked_at move together per the 0013
+  // CHECK) so the reactivation-on-re-PUT path (#886 MED-2) can be exercised.
+  async function tombstoneVoiceRow(): Promise<void> {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `UPDATE app.ai_provider_configs SET status = 'revoked', revoked_at = now() WHERE purpose = 'voice'`
+      );
     } finally {
       await client.end();
     }

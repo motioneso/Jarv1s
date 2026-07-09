@@ -89,6 +89,7 @@ import { ModelDiscoveryService } from "./model-discovery.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
   AiRepository,
+  NotAGenericProviderError,
   type AiAssistantActionRequestSafeRow,
   type ChatModelOverrideSettings,
   type AiConfiguredModelSafeRow,
@@ -330,6 +331,11 @@ export function registerAiRoutes(
         modelDiscovery.invalidate(accessContext.actorUserId, body.providerConfigId);
         return reply.code(201).send({ model: serializeModel(model, accessContext.actorUserId) });
       } catch (error) {
+        // #886 MED-2: attaching a model to the hidden voice provider is refused. The voice row is not
+        // a *generic* provider, so a 404 (it doesn't exist on this surface) is the right answer.
+        if (error instanceof NotAGenericProviderError) {
+          return handleRouteError(new HttpError(404, error.message), reply);
+        }
         return handleRouteError(error, reply);
       }
     }
