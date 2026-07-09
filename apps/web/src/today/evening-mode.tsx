@@ -178,9 +178,6 @@ export function EveningReviewSection(props: {
 // right spot). Rendered only in evening mode, so the action is time-bound.
 export function EveningPrepCard(props: {
   readonly interviewPending: boolean;
-  // #891: message shown when starting the evening interview fails, so a backend
-  // error (e.g. no chat model configured) is visible instead of a silent no-op.
-  readonly interviewError?: string | null;
   readonly onPrep: () => void;
 }) {
   // Button opens the evening interview chat, so it's labelled by the assistant
@@ -201,12 +198,6 @@ export function EveningPrepCard(props: {
         <MessageSquareText size={14} aria-hidden="true" />
         Chat with {assistantName}
       </button>
-      {props.interviewError ? (
-        // #891: role=alert so the failure is announced, not swallowed like before.
-        <p className="form-error" role="alert">
-          {props.interviewError}
-        </p>
-      ) : null}
     </div>
   );
 }

@@ -150,16 +150,15 @@ export function TodayPage(props: {
   const eveningInterviewMutation = useMutation({
     mutationFn: () => startEveningInterview({ briefingRunId: latestEveningRun?.id }),
     onSuccess: () => {
-      chatControls.openChat();
+      // The seeded interview turn arrives via the global chat SSE stream; just
+      // refresh the thread list. The drawer is already open (see onPrep below).
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
     },
-    // #891: this call reaches submitTurn, which needs a configured chat model and
-    // can reject (unconfigured model, provider error, rate limit). Without an
-    // error path the "Chat with {assistant}" button just went silent — onSuccess
-    // never fired, the drawer never opened, and the user saw nothing. Log here and
-    // surface the message on the card via `eveningInterviewMutation.error` below.
+    // #891: the seed POST reaches submitTurn, which needs a configured chat model
+    // and can reject (unconfigured model, provider error, rate limit). Keep a
+    // console trail; the drawer is already open regardless, so the failure is not
+    // a silent no-op the way it was when opening was gated behind onSuccess.
     onError: (error) => {
-      // Keep a console trail for the silent-fail bug (#891).
       console.error("evening interview failed to start", error);
     }
   });
@@ -547,12 +546,16 @@ export function TodayPage(props: {
             {eveningDefinition?.enabled && todayMode === "evening" ? (
               <EveningPrepCard
                 interviewPending={eveningInterviewMutation.isPending}
-                // #891: react-query clears `.error` on the next mutate(), so this
-                // shows the last failure until the user retries — no stale error.
-                interviewError={
-                  eveningInterviewMutation.isError ? eveningInterviewMutation.error.message : null
-                }
-                onPrep={() => eveningInterviewMutation.mutate()}
+                onPrep={() => {
+                  // #891: open the drawer immediately (like the topbar chat button and
+                  // openChatWith) rather than waiting for the seed POST to resolve.
+                  // Previously openChat lived in the mutation's onSuccess, so a slow or
+                  // failing /api/chat/evening-interview left the button doing nothing —
+                  // the drawer never opened. The seeded turn streams into the now-open
+                  // drawer via the global chat SSE stream.
+                  chatControls.openChat();
+                  eveningInterviewMutation.mutate();
+                }}
               />
             ) : null}
 
