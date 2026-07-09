@@ -37,6 +37,15 @@ function adapterFrom(
   };
 }
 
+function adapterCallingFetch(url: string): ExternalSourceAdapter {
+  return {
+    fetchDataset: async (_datasetKey, _params, ctx: ExternalSourceAdapterContext) => {
+      const res = await ctx.fetchFn(url);
+      return res.json();
+    }
+  };
+}
+
 describe("createDatasetClient", () => {
   it("rejects credential: api-key defensively", () => {
     expect(() =>
@@ -254,5 +263,27 @@ describe("createDatasetClient", () => {
     const envelope = await client.getDataset("widgets", {}, { fallback: { empty: true } });
     expect(envelope).toMatchObject({ data: { empty: true }, degraded: true });
     expect(warnings).toHaveLength(0);
+  });
+
+  it("threads fetchTimeoutMs through to the underlying pinned fetch (#858)", async () => {
+    const hangingFetch = (async (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response("{}", { status: 200 })), 200);
+        init?.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      })) as unknown as typeof fetch;
+
+    const client = createDatasetClient(
+      source({ fetchHosts: ["example.com"] }),
+      adapterCallingFetch("https://example.com/widgets"),
+      { fetchFn: hangingFetch, fetchTimeoutMs: 20 }
+    );
+    const start = performance.now();
+    const envelope = await client.getDataset("widgets", {}, { fallback: { empty: true } });
+    const elapsed = performance.now() - start;
+    expect(envelope).toMatchObject({ data: { empty: true }, degraded: true });
+    expect(elapsed).toBeLessThan(150); // well under the 200ms hang → the 20ms timeout fired
   });
 });

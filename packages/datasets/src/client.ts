@@ -39,6 +39,7 @@ export interface DatasetClientDeps {
   readonly now?: () => Date;
   readonly maxEntriesPerSource?: number;
   readonly logger?: DatasetLogger;
+  readonly fetchTimeoutMs?: number;
 }
 
 /**
@@ -85,7 +86,11 @@ export function createDatasetClient(
   const now = deps.now ?? (() => new Date());
   const logger = deps.logger ?? NOOP_DATASET_LOGGER;
   const cache = new DatasetCache({ maxEntries: deps.maxEntriesPerSource });
-  const pinnedFetch = createHostPinnedFetch(source.fetchHosts, deps.fetchFn ?? fetch);
+  const pinnedFetch = createHostPinnedFetch(
+    source.fetchHosts,
+    deps.fetchFn ?? fetch,
+    deps.fetchTimeoutMs
+  );
   const datasetsByKey = new Map(source.datasets.map((dataset) => [dataset.key, dataset]));
   let lastFetchAtMs = 0;
 

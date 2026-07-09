@@ -106,7 +106,7 @@ export function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetCli
 }
 
 const FIXED_NOW = new Date("2026-07-01T18:00:00.000Z");
-const TODAY = "2026-07-01";
+export const TODAY = "2026-07-01";
 
 export const userA: AccessContext = {
   actorUserId: "00000000-0000-0000-0000-00000000000a",
@@ -234,7 +234,7 @@ const dalTeamFollow: SportsFollowDto = {
   createdAt: "2026-06-01T00:00:00.000Z"
 };
 
-function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
+export function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
   return makeDatasetClient({
     listTeams: async () => [],
     getScoreboard: async () => [dalLiveGame],

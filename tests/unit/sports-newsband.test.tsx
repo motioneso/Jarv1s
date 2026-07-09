@@ -56,3 +56,56 @@ describe("NewsBand featured-article body (#857)", () => {
     expect(blurbCount).toBe(1);
   });
 });
+
+describe("NewsBand majors/mosaic url-keying (#858)", () => {
+  it("keys majors/mosaic by url, not id, so a same-id different-story headline isn't wrongly promoted to major", () => {
+    const items: Headline[] = [
+      headline({
+        id: "a0",
+        url: "https://www.espn.com/nfl/story/_/id/a0",
+        imageUrl: null,
+        summary: ""
+      }),
+      headline({
+        id: "dup",
+        url: "https://www.espn.com/nfl/story/_/id/dup-1",
+        summary: "",
+        title: "Story One"
+      }),
+      headline({
+        id: "b",
+        url: "https://www.espn.com/nfl/story/_/id/b",
+        summary: "",
+        title: "Story Two"
+      }),
+      headline({
+        id: "dup",
+        url: "https://www.espn.com/nfl/story/_/id/dup-2",
+        summary: "",
+        title: "Story Three Distinct"
+      }),
+      headline({
+        id: "d",
+        url: "https://www.espn.com/nfl/story/_/id/d",
+        summary: "",
+        title: "Story Four"
+      })
+    ];
+    const html = renderToString(
+      createElement(NewsBand, {
+        groups: [{ competitionKey: "nfl", competitionLabel: "NFL", headlines: items }],
+        followedPairs: new Set<string>()
+      })
+    );
+    // item0: no imageUrl/no summary, feedRank-0 bonus alone = weight 2 (< BIG_STORY_WEIGHT 4) →
+    // never becomes `feature`. items 1-4: default imageUrl (truthy) from headline(), no summary,
+    // feedRank!=0 = weight 2 each, tied with item0 → stable sort keeps insertion order.
+    // MAJORS_CAP=2 picks the first two image-bearing items in that order: item1 ("dup") + item2
+    // ("b"). item3 shares item1's id ("dup") but has a DIFFERENT url — before the fix, id-keyed
+    // majorIds/mosaicIds wrongly re-admits item3 as a THIRD major (3 occurrences); after the
+    // url-keyed fix, exactly 2.
+    const majorCount = html.split("sp-newsband__art--major").length - 1;
+    expect(majorCount).toBe(2);
+    expect(html).toContain("Story Three Distinct");
+  });
+});

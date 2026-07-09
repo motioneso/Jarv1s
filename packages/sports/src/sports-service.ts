@@ -297,7 +297,7 @@ export class SportsService {
     // Band exclusion keys off the FULL ranked set, not the deduped one: a story we pulled from
     // the hero for already being on a card must not resurface in the league news band either, so
     // a followed-team story stays shown exactly once — in its card.
-    const topStoryIds = new Set(rankedTopStories.map((h) => h.id));
+    const topStoryUrls = new Set(rankedTopStories.map((h) => h.url));
 
     const hero = this.buildHero(followedTeams, scoreboardByComp, topStories, this.now());
 
@@ -339,7 +339,7 @@ export class SportsService {
         competitionLabel: catalogEntry(key)?.label ?? key,
         // Feed order preserved deliberately — it's ESPN's editorial prominence ranking, which
         // the news band's tiering leans on (mrb51pnq; see rankTopStories). No byNewest here.
-        headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryIds.has(h.id))
+        headlines: (headlinesByComp.get(key) ?? []).filter((h) => !topStoryUrls.has(h.url))
       }))
       .filter((group) => group.headlines.length > 0);
 
@@ -381,7 +381,7 @@ export class SportsService {
         ? publicLeagueNews.map((group) => ({
             ...group,
             headlines: group.headlines.map((h) =>
-              h.id === feature.id ? { ...h, body: featureBody } : h
+              h.url === feature.url ? { ...h, body: featureBody } : h
             )
           }))
         : publicLeagueNews;
@@ -770,7 +770,7 @@ function rankTopStories(
 ): SourceHeadline[] {
   const pairs = new Set(followedTeams.map((f) => `${f.competitionKey}:${f.teamKey}`));
   const picked: SourceHeadline[] = [];
-  const pickedIds = new Set<string>();
+  const pickedUrls = new Set<string>();
 
   // Tier 1 — the BIG story. Each followed competition's EDITORIAL lead (front of feed = what the
   // source itself led with), whether or not one of the user's teams is in it. Ben's steer
@@ -780,9 +780,9 @@ function rankTopStories(
   // not newest, is the editorial lead — same mrb51pnq reasoning as the news band.
   for (const comp of followedCompetitionKeys) {
     const lead = (headlinesByComp.get(comp) ?? [])[0];
-    if (lead && !pickedIds.has(lead.id)) {
+    if (lead && !pickedUrls.has(lead.url)) {
       picked.push(lead);
-      pickedIds.add(lead.id);
+      pickedUrls.add(lead.url);
     }
   }
 
@@ -795,10 +795,10 @@ function rankTopStories(
   for (const { headline } of all) {
     if (
       headline.teamKeys.some((k) => pairs.has(`${headline.competitionKey}:${k}`)) &&
-      !pickedIds.has(headline.id)
+      !pickedUrls.has(headline.url)
     ) {
       picked.push(headline);
-      pickedIds.add(headline.id);
+      pickedUrls.add(headline.url);
     }
   }
   return picked.slice(0, TOP_STORIES_CAP);

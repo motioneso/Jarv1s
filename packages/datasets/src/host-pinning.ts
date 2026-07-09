@@ -126,9 +126,12 @@ function assertHttpsAndAllowed(url: URL, allowed: ReadonlySet<string>): void {
  * manually (bounded to {@link MAX_REDIRECTS} hops) so a same-host response redirecting to a
  * disallowed host can never be silently followed by the underlying fetch implementation.
  */
+export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
+
 export function createHostPinnedFetch(
   allowedHosts: readonly string[],
-  fetchFn: typeof fetch
+  fetchFn: typeof fetch,
+  timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS
 ): typeof fetch {
   const allowed = new Set(allowedHosts.map((host) => host.toLowerCase()));
 
@@ -136,32 +139,38 @@ export function createHostPinnedFetch(
     let currentUrl = resolveUrl(input);
     assertHttpsAndAllowed(currentUrl, allowed);
 
-    let currentInit = init;
-    let currentMethod = (init?.method ?? "GET").toUpperCase();
-    let response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
-    let hops = 0;
+    const controller = new AbortController();
+    const timer: ReturnType<typeof setTimeout> = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      let currentInit: RequestInit | undefined = { ...init, signal: controller.signal };
+      let currentMethod = (init?.method ?? "GET").toUpperCase();
+      let response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
+      let hops = 0;
 
-    while (REDIRECT_STATUSES.has(response.status) && hops < MAX_REDIRECTS) {
-      const location = response.headers.get("location");
-      if (!location) break;
-      const previousHost = currentUrl.hostname.toLowerCase();
-      currentUrl = resolveUrl(location, currentUrl);
-      assertHttpsAndAllowed(currentUrl, allowed);
-      if (currentUrl.hostname.toLowerCase() !== previousHost) {
-        currentInit = stripSensitiveHeaders(currentInit);
+      while (REDIRECT_STATUSES.has(response.status) && hops < MAX_REDIRECTS) {
+        const location = response.headers.get("location");
+        if (!location) break;
+        const previousHost = currentUrl.hostname.toLowerCase();
+        currentUrl = resolveUrl(location, currentUrl);
+        assertHttpsAndAllowed(currentUrl, allowed);
+        if (currentUrl.hostname.toLowerCase() !== previousHost) {
+          currentInit = stripSensitiveHeaders(currentInit);
+        }
+        if (shouldDowngradeToGet(response.status, currentMethod)) {
+          currentInit = downgradeToGet(currentInit);
+          currentMethod = "GET";
+        }
+        response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
+        hops += 1;
       }
-      if (shouldDowngradeToGet(response.status, currentMethod)) {
-        currentInit = downgradeToGet(currentInit);
-        currentMethod = "GET";
+
+      if (REDIRECT_STATUSES.has(response.status)) {
+        throw new Error(`Dataset runtime host pinning: exceeded ${MAX_REDIRECTS} redirects`);
       }
-      response = await fetchFn(currentUrl.toString(), { ...currentInit, redirect: "manual" });
-      hops += 1;
-    }
 
-    if (REDIRECT_STATUSES.has(response.status)) {
-      throw new Error(`Dataset runtime host pinning: exceeded ${MAX_REDIRECTS} redirects`);
+      return response;
+    } finally {
+      clearTimeout(timer);
     }
-
-    return response;
   }) as typeof fetch;
 }
