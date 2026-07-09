@@ -43,7 +43,7 @@ const DECLARED_DATASET_KEYS = new Set([
   "articleBody"
 ]);
 
-function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
+export function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
   return {
     async getDataset<T>(
       datasetKey: string,
@@ -108,12 +108,14 @@ function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
 const FIXED_NOW = new Date("2026-07-01T18:00:00.000Z");
 const TODAY = "2026-07-01";
 
-const userA: AccessContext = {
+export const userA: AccessContext = {
   actorUserId: "00000000-0000-0000-0000-00000000000a",
   requestId: "req-a"
 };
 
-function side(overrides: Partial<GameSide> & { teamKey: string; shortName: string }): GameSide {
+export function side(
+  overrides: Partial<GameSide> & { teamKey: string; shortName: string }
+): GameSide {
   return {
     name: overrides.shortName,
     crestUrl: null,
@@ -243,7 +245,7 @@ function makeSource(overrides: FakeSourceHandlers = {}): DatasetClient {
   });
 }
 
-function makeDeps(
+export function makeDeps(
   overrides: {
     source?: DatasetClient;
     follows?: SportsFollowDto[];
