@@ -210,6 +210,13 @@ import {
   sportsModuleManifest,
   sportsModuleSqlMigrationDirectory
 } from "@jarv1s/sports";
+import {
+  configureNewsBriefingService,
+  createRssDatasetAdapter,
+  newsModuleManifest,
+  newsModuleSqlMigrationDirectory,
+  registerNewsRoutes
+} from "@jarv1s/news";
 import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
 import {
   notesModuleManifest,
@@ -1244,6 +1251,32 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       // via a late-bound setter (mirrors `adoptChatRpcConnection` above for the chat RPC path).
       configureSportsBriefingService(datasetClient);
       registerSportsRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        datasetClient
+      });
+    }
+  },
+  {
+    manifest: newsModuleManifest,
+    sqlMigrationDirectories: [newsModuleSqlMigrationDirectory],
+    queueDefinitions: [],
+    registerRoutes: (server, deps) => {
+      // Same dataset-connector-SDK wiring as sports above: the composition root binds the
+      // manifest-declared `newsfeeds` external source to the concrete RSS adapter so host
+      // pinning and TTLs come from the manifest, not the module code.
+      const [feedsSource] = newsModuleManifest.externalSources ?? [];
+      if (!feedsSource) {
+        throw new Error("news module manifest is missing its `newsfeeds` externalSources entry");
+      }
+      const datasetClient = createDatasetClient(feedsSource, createRssDatasetAdapter(), {
+        fetchFn: deps.fetchFn,
+        logger: createModuleLogger(server.log, "news")
+      });
+      // Briefing tool is constructed at import time; it adopts the client late-bound
+      // (mirrors LOADER-SEAM(sports) 3).
+      configureNewsBriefingService(datasetClient);
+      registerNewsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
         datasetClient

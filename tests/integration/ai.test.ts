@@ -189,6 +189,7 @@ describe("AI provider foundation", () => {
       "wellness",
       "weather",
       "sports",
+      "news",
       "notes",
       "proactive-monitoring",
       "jarvis.commitments",

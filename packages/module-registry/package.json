@@ -25,6 +25,7 @@
     "@jarv1s/memory": "workspace:*",
     "@jarv1s/structured-state": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/news": "workspace:*",
     "@jarv1s/notes": "workspace:*",
     "@jarv1s/people": "workspace:*",
     "@jarv1s/proactive-monitoring": "workspace:*",

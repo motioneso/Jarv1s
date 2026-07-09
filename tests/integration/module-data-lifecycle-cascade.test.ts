@@ -124,7 +124,8 @@ describe("dataLifecycle cascade-truth (#801 Phase A)", () => {
         "app.medications",
         "app.medication_logs",
         "app.wellness_therapy_notes",
-        "app.sports_follows"
+        "app.sports_follows",
+        "app.news_prefs"
       ].sort()
     );
   });

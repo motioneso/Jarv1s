@@ -329,7 +329,9 @@ describe("MVP foundation scaffold", () => {
         // #874 — `purpose` discriminator + one-voice partial unique index for the Voice(STT)
         // endpoint. Renumbered 0149->0150: chat's 0149_chat_skills (#889) landed on main
         // first, and migrations are global by landing order, so this takes the next free slot.
-        { version: "0150", name: "0150_ai_provider_purpose.sql" }
+        { version: "0150", name: "0150_ai_provider_purpose.sql" },
+        // #897 — news module prefs (sources / excludes / topics), owner-only RLS.
+        { version: "0151", name: "0151_news_prefs.sql" }
       ]);
     } finally {
       await client.end();

@@ -4,10 +4,15 @@ import { fileURLToPath } from "node:url";
 
 import { SPA_CSP } from "../../apps/api/src/static-web.js";
 
-const EXPECTED_IMG_SRC = "img-src 'self' data: https://a.espncdn.com https://s.secure.espncdn.com";
+// Registration order: sports' ESPN hosts, then the news catalog's (sorted) artwork hosts.
+const EXPECTED_IMG_SRC =
+  "img-src 'self' data: https://a.espncdn.com https://s.secure.espncdn.com" +
+  " https://cdn.arstechnica.net https://i.guim.co.uk https://ichef.bbci.co.uk" +
+  " https://media.npr.org https://media.wired.com https://npr.brightspotcdn.com" +
+  " https://platform.theverge.com https://static01.nyt.com";
 
 describe("SPA CSP image hosts", () => {
-  it("folds the composed SportsSource image hosts into img-src", () => {
+  it("folds every module's declared image hosts into img-src", () => {
     expect(SPA_CSP).toContain(EXPECTED_IMG_SRC);
   });
 

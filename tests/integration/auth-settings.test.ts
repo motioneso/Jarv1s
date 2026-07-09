@@ -280,6 +280,7 @@ describe("M3 auth, users, settings", () => {
       "wellness",
       "weather",
       "sports",
+      "news",
       "notes",
       "proactive-monitoring",
       "jarvis.commitments",
@@ -292,7 +293,8 @@ describe("M3 auth, users, settings", () => {
       "/chat",
       "/briefings",
       "/wellness",
-      "/sports"
+      "/sports",
+      "/news"
     ]);
   });
 

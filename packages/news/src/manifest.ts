@@ -1,0 +1,150 @@
+import { fileURLToPath } from "node:url";
+
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import {
+  createNewsPrefRequestSchema,
+  createNewsPrefResponseSchema,
+  deleteNewsPrefResponseSchema,
+  newsCatalogResponseSchema,
+  newsOverviewResponseSchema,
+  newsPrefsResponseSchema
+} from "@jarv1s/shared";
+
+import { newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
+import { NEWS_FETCH_HOSTS, NEWS_IMAGE_HOSTS } from "./source/catalog.js";
+
+export const NEWS_MODULE_ID = "news";
+
+// Publisher front pages churn on roughly this cadence; matches sports' standings/headlines TTL
+// (docs/superpowers/specs/2026-07-08-news-module.md "Caching").
+const FEED_TTL_MS = 10 * 60 * 1000;
+
+export const newsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+
+export const newsModuleManifest = {
+  id: NEWS_MODULE_ID,
+  name: "News",
+  version: "0.1.0",
+  publisher: "jarv1s",
+  lifecycle: "user-toggleable",
+  compatibility: {
+    jarv1s: ">=0.0.0"
+  },
+  availability: {
+    defaultEnabled: true,
+    required: false,
+    supportsUserDisable: true
+  },
+  database: {
+    migrations: ["sql/0151_news_prefs.sql"],
+    migrationDirectories: ["packages/news/sql"],
+    ownedTables: ["app.news_prefs"]
+  },
+  navigation: [
+    {
+      id: "news",
+      label: "News",
+      path: "/news",
+      icon: "newspaper",
+      order: 34,
+      permissionId: "news.view"
+    }
+  ],
+  settings: [
+    {
+      id: "news.prefs",
+      label: "News",
+      path: "/settings/modules/news",
+      scope: "user",
+      order: 34,
+      permissionId: "news.view",
+      entry: "./settings"
+    }
+  ],
+  permissions: [
+    {
+      id: "news.view",
+      label: "View news",
+      description:
+        "Read the active actor's news source/topic preferences and public headlines from the curated feed catalog.",
+      scope: "user",
+      actions: ["view"]
+    },
+    {
+      id: "news.prefs",
+      label: "Manage news preferences",
+      description: "Create and delete the active actor's own news source and topic preferences.",
+      scope: "user",
+      actions: ["create", "delete"]
+    }
+  ],
+  routes: [
+    {
+      method: "GET",
+      path: "/api/news/catalog",
+      responseSchema: newsCatalogResponseSchema,
+      permissionId: "news.view"
+    },
+    {
+      method: "GET",
+      path: "/api/news/overview",
+      responseSchema: newsOverviewResponseSchema,
+      permissionId: "news.view"
+    },
+    {
+      method: "GET",
+      path: "/api/news/prefs",
+      responseSchema: newsPrefsResponseSchema,
+      permissionId: "news.view"
+    },
+    {
+      method: "POST",
+      path: "/api/news/prefs",
+      requestSchema: createNewsPrefRequestSchema,
+      responseSchema: createNewsPrefResponseSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "DELETE",
+      path: "/api/news/prefs/:id",
+      responseSchema: deleteNewsPrefResponseSchema,
+      permissionId: "news.prefs"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "news.topHeadlinesToday",
+      description:
+        "List the actor's top news headlines right now (one short 'Title — Source' line, max 5), composed from their enabled sources and topics. Read-only; briefing-oriented, not a full article browser.",
+      permissionId: "news.view",
+      risk: "read",
+      inputSchema: { type: "object", properties: {} },
+      execute: newsTopHeadlinesTodayExecute
+    }
+  ],
+  dataLifecycle: {
+    // News prefs are catalog references (source/topic keys), not private content — no export
+    // sections; declared explicitly per the parity assertion (owned tables + no export
+    // sections still requires an explicit empty exportSections).
+    exportSections: [],
+    deletion: {
+      strategy: "cascade",
+      tables: [{ table: "app.news_prefs" }]
+    }
+  },
+  externalSources: [
+    {
+      id: "newsfeeds",
+      displayName: "News feeds",
+      credential: "none",
+      fetchHosts: NEWS_FETCH_HOSTS,
+      imageHosts: NEWS_IMAGE_HOSTS,
+      datasets: [
+        // Single dataset keyed by { sourceKey, topicKey|null }. MUST be declared here or the
+        // dataset runtime throws "Unknown dataset" the moment the service requests it, 500ing
+        // the whole overview — the adapter handling the key is not enough on its own.
+        { key: "feed", ttlMs: FEED_TTL_MS, staleness: "degrade-empty" }
+      ]
+    }
+  ]
+} satisfies JarvisModuleManifest;
