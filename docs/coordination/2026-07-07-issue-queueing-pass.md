@@ -7,13 +7,24 @@ number). Predecessor `d3c0adce-dee1-41d6-aa91-5a89181ca575` (pane `w1:pBJ`) conf
 via bounded read, then reaped; exactly one `Coordinator` pane verified via `herdr pane list`
 before and after.
 
-**CONTINUATION — do this FIRST:** none outstanding. #760 is fully closed out (PR #889 merged
-`bd567df2`, issue closed, worktree/branch/pane reaped). **Fleet is currently empty** — no build
-agents in flight. This tenure: found + closed one stray dead pane (`w1:pBM`, cwd pointed at the
-already-deleted `760-skill-integration-chat` worktree, `agent_status: unknown`, no live agent
-attached) in the shared agents tab `w1:t1D`, which is now empty. Successor: check with Ben /
-GitHub board for the next item to queue in this run (issue-queueing-pass); no spec is currently
-cleared to build per the last-known manifest state. Nothing else pending.
+**CONTINUATION — do this FIRST:** Relaying at own context 71% (session `99c5cd56`), see the
+"Relay checkpoint (session `99c5cd56`)" section near the end of this file for full detail. Short
+version: **#760 fully closed** (PR #889 merged `bd567df2`). This tenure landed the two specs that
+were blocking Phase 0 for the next wave: **#866** (Herdr install + attach hint) and **#855**
+(sports followed-team dedupe) were "RFA"-labeled with approval comments but the actual spec files
+existed only *uncommitted* in the separate live `/home/ben/Jarv1s` checkout — found, verified
+identical, landed via **PR #893 squash-merged `886985fb`** into `docs/superpowers/specs/`.
+**Fleet is currently empty** — no build agents in flight. Successor must, in order: (1) resolve
+the **#858 spec-gate ambiguity** (RFA-labeled, but no spec file or approval comment found anywhere
+— confirm exempt-as-tracked-debt or block it back to needs-spec before including in any manifest),
+(2) build the Phase-0 collision/dependency map (Opus one-shot) for #866 (solo) + #855(+#858 if
+cleared), (3) write and get Ben's OK on the run manifest, (4) spawn. Also unresolved from an
+earlier tenure and not yet re-raised with Ben: whether to push `coord/settings-host-cleanup`'s
+~107 local bookkeeping commits (its own PR #740 already merged 2026-07-04) — flag again if asked.
+Also noted but not yet actioned: PR #886 (#874 voice-stt) is OPEN with `mergeable: CONFLICTING`
+and no CI run, and there was a separate live build session for #874 in `/home/ben/Jarv1s` pane
+`w1:p8Y` — that pane now shows `agent_status: done`, so likely resolved itself; verify before
+treating #874 as queueable.
 
 **Fleet:**
 - **#853 auth-signup-atomicity: MERGED.** PR #875 squash-merged `a519bc88`. Opus adversarial QA
@@ -2024,3 +2035,52 @@ relay. Completed only:
 **Coordinator lock:** now `d4f0fb94-a62f-4b4b-8d38-5598ddd28f37` / label `Coordinator` / pane
 `w1:pB5` / tab `w1:t15` (resolve fresh, don't trust the pane number) until the successor claims
 Phase 0a and updates this line itself.
+
+## Relay checkpoint (session `99c5cd56-cbb9-4dbd-b948-81a0f089aee4`, own context 71%)
+
+**What happened this tenure:**
+
+- Adopted the run from predecessor `d3c0adce-dee1-41d6-aa91-5a89181ca575` (Phase 0a lock claim,
+  reap-by-session-id, closed one stray dead pane `w1:pBM`). Confirmed #760 fully closed
+  (PR #889 merged `bd567df2`).
+- Ben asked (exploratory) "what work could we pick up overnight?" — surveyed the board; #866 and
+  #855 looked RFA-ready. Ben authorized ("yes") writing the manifest + getting Phase 0 OK.
+- **Discovered a spec-gate integrity problem**: #866 and #855 both carry the `RFA` label and an
+  issue comment saying "Approved by Ben on 2026-07-08," but `docs/superpowers/specs/` had no
+  matching files anywhere — not on `origin/main`, not on any branch. Broadened search found both
+  spec files sitting **uncommitted** in the separate, live, actively-in-use primary checkout
+  `/home/ben/Jarv1s` (which had two concurrent Opus sessions running at the time — one on PR #892,
+  one on #874/voice-stt).
+- Surfaced this to Ben via AskUserQuestion with resolution options; he said: "Can you actually
+  check that this hasn't been done yet? if it hasn't, whatever way you want to figure out to get
+  those things committed, please do."
+- Re-verified still-uncommitted, read both spec files in full from `/home/ben/Jarv1s` (read-only —
+  never mutated that checkout), then landed them safely: fresh worktree off `origin/main`
+  (`docs/land-approved-specs-866-855`), wrote both files verbatim, committed, pushed, opened
+  **PR #893**, squash-merged (`886985fb`), worktree removed.
+  - Trap hit + fixed along the way: `git worktree add <relative-path>` resolves the relative path
+    against the CWD at the time the command runs — I ran it from inside the coordinator worktree,
+    so it landed nested at
+    `.../coord-2026-06-30-rfa-fleet/.claude/worktrees/land-approved-specs`, not at the sibling
+    path I later tried to write files into. Caught it via `git rev-parse --show-toplevel`
+    mismatching cwd; moved the files into the real worktree, deleted the stray directory, and
+    committed from the correct location. **Lesson for future coordinator tenures: always use an
+    absolute path for `git worktree add`, or `cd` there first and verify `--show-toplevel` before
+    writing files.**
+
+**Fleet state:** empty. No build agents in flight. Panes `w1:p8Y` and `w1:pBK` (the two sessions
+that were live in `/home/ben/Jarv1s` during the discovery) both now show `agent_status: done` —
+not owned by this run, leave alone unless asked.
+
+**Not yet done / carried to successor** (see CONTINUATION block at top of file — kept in sync):
+
+1. #858 spec-gate ambiguity (RFA label, zero spec file or approval comment found) — unresolved.
+2. Phase 0 collision map + manifest for #866 (solo) + #855 (+#858 if cleared) — not started, this
+   was the original authorized task before the spec-landing detour.
+3. `coord/settings-host-cleanup`'s ~107 unpushed local commits — flagged to Ben earlier, no answer
+   yet, not re-raised this tenure.
+4. #874 / PR #886 conflicting-mergeable state — noted, not investigated further this tenure.
+
+**Coordinator lock:** unchanged — still `99c5cd56-cbb9-4dbd-b948-81a0f089aee4` / label
+`Coordinator` / pane `w1:pBQ` / tab `w1:t15` until the successor claims Phase 0a and overwrites
+both this line and the top-of-file lock line with its own real session id.
