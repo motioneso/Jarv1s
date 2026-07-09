@@ -156,7 +156,7 @@ export function HeroCarousel({ headlines }: { readonly headlines: readonly Headl
           slide's height — no reflow jump between a dek-heavy story and a bare headline. */}
       <div className="sp-carousel__stage">
         {slides.map((headline, i) => (
-          <HeroSlide key={headline.id} headline={headline} active={i === active} />
+          <HeroSlide key={headline.url} headline={headline} active={i === active} />
         ))}
       </div>
       {count > 1 ? (
@@ -172,7 +172,7 @@ export function HeroCarousel({ headlines }: { readonly headlines: readonly Headl
           <div className="sp-carousel__dots">
             {slides.map((headline, i) => (
               <button
-                key={headline.id}
+                key={headline.url}
                 type="button"
                 className="sp-carousel__dot"
                 aria-label={`Story ${i + 1} of ${count}`}
@@ -206,7 +206,7 @@ export function LatestColumn(props: { headlines: readonly Headline[] }) {
       <p className="sp-col__kicker">Top stories</p>
       <ol className="sp-latest__list">
         {props.headlines.slice(0, 6).map((headline) => (
-          <li className="sp-latest__item" key={headline.id}>
+          <li className="sp-latest__item" key={headline.url}>
             <a className="sp-hl" href={headline.url} target="_blank" rel="noreferrer">
               {headline.imageUrl ? (
                 <img className="sp-hl__thumb" src={headline.imageUrl} alt="" loading="lazy" />
@@ -313,7 +313,7 @@ function FeatureArticle({ headline }: { readonly headline: Headline }) {
           headline.body.split("\n\n").map((paragraph, index) => (
             <p
               className="sp-newsband__blurb sp-newsband__blurb--feature"
-              key={`${headline.id}-p${index}`}
+              key={`${headline.url}-p${index}`}
             >
               {paragraph}
             </p>
@@ -359,13 +359,13 @@ export function NewsBand({
     rest
       .filter((s) => s.headline.imageUrl)
       .slice(0, MAJORS_CAP)
-      .map((s) => s.headline.id)
+      .map((s) => s.headline.url)
   );
-  const flow = rest.filter((s) => !majorIds.has(s.headline.id));
+  const flow = rest.filter((s) => !majorIds.has(s.headline.url));
   const standards = flow.slice(0, STANDARDS_CAP);
-  const mosaicIds = new Set([...majorIds, ...standards.map((s) => s.headline.id)]);
+  const mosaicIds = new Set([...majorIds, ...standards.map((s) => s.headline.url)]);
   // Weight order preserved across both tiers so the page reads big → small.
-  const mosaic = rest.filter((s) => mosaicIds.has(s.headline.id));
+  const mosaic = rest.filter((s) => mosaicIds.has(s.headline.url));
   const briefs = flow.slice(STANDARDS_CAP, STANDARDS_CAP + BRIEFS_CAP);
 
   return (
@@ -392,7 +392,7 @@ export function NewsBand({
           lead/short/brief ration regardless of how big its day was. */}
       <div className="sp-newsband__mosaic">
         {mosaic.map(({ headline }) => (
-          <NewsArticle key={headline.id} headline={headline} major={majorIds.has(headline.id)} />
+          <NewsArticle key={headline.url} headline={headline} major={majorIds.has(headline.url)} />
         ))}
       </div>
       {briefs.length > 0 ? (
@@ -400,7 +400,7 @@ export function NewsBand({
           <p className="sp-newsband__briefslabel">In brief</p>
           <ul className="sp-newsband__brieflist">
             {briefs.map(({ headline }) => (
-              <li className="sp-newsband__brief" key={headline.id}>
+              <li className="sp-newsband__brief" key={headline.url}>
                 <a
                   className="sp-newsband__brieflink"
                   href={headline.url}
