@@ -1148,4 +1148,20 @@ trust self-report): (1) the AUDIT_EXIT=1/FORCE-RLS attribution claim and that it
 with #914's separate unmerged ledger work, (2) no secret/credential leakage, (3) module isolation
 preserved, (4) foundation.test.ts full-list `toEqual` correctly updated for the new migrations.
 Awaiting verdict — do not merge until it posts to the PR and Ben signs off (security tier).
+
+**Opus QA verdict landed — GREEN, MERGE-READY: YES.** Posted durably to PR #925 (`gh pr comment`).
+0 blocking / 0 non-blocking findings. Invariants confirmed: AES-256-GCM at rest (dedicated
+keyring), plaintext never escapes response/log/audit/export, FORCE RLS on all 3 new tables
+(owner-only user / admin-only instance), no admin bypass, no worker secret grant, module isolation
+preserved. Task-specific findings: (1) **the earlier `app.module_schema_migrations` FORCE-RLS
+attribution was conflation with #914** — this PR has no module-schema-migration-tracking table;
+the FORCE RLS actually present (migrations 0152/0153/0154) is correct and unrelated to that
+concern — resolved, not a gap; (2) no secret leakage confirmed; (3) module isolation confirmed;
+(4) `foundation.test.ts` `toEqual` correctly extended (0152/0153/0154 after 0151), CI green proves
+no sequence conflict. Only immaterial gap noted: no explicit worker-role SELECT-denial test
+(structurally defended by absent grant — fine for Slice 2).
+
+**PAUSED for Ben's sign-off** — security tier, per `coordinate` skill this is mandatory regardless
+of QA verdict (overnight sign-off override is resolved/moot; normal daytime gate applies). Not
+merging without his explicit OK.
 5. #916 still `needs-spec`; #919 still queued behind #918. No action on either.
