@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `46590121-e5b0-42cb-aa50-b2da3a615f1f`,
-pane `w1:pD9`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `0d7c26c5-e733-40f5-9a92-004ee47a7e4b`,
+pane `w1:pDE`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -418,3 +418,37 @@ the spec gate.
 3. Report back to Ben with a concrete proposal: either spawn #914/#916 plan agents now (if specs
    already suffice) or start a brief spec-authoring pass with Ben for whichever of #914/#916/#913
    are missing coverage — and reconcile the overnight-override question with him at the same time.
+
+## Lock re-claimed (successor session `0d7c26c5-e733-40f5-9a92-004ee47a7e4b`), Phase 0a done
+
+**Lock:** predecessor session `cfdfc7bb-4f60-4230-a261-13ab5ca8474e` had no active pane left in a
+fresh `herdr pane list` (it exited when it spawned this session — nothing to close). My own pane
+`w1:pDE`, tab `w1:t15`, was already running under my session id (found labeled
+`Coordinator-relay6`); renamed to `Coordinator`. Verified uniqueness: exactly one `Coordinator`-
+labeled pane in the fleet. Lock line at top of this manifest updated to session
+`0d7c26c5-e733-40f5-9a92-004ee47a7e4b`, pane `w1:pDE`. Authoritative.
+
+Proceeding to action 2 (spec-readiness check for #914/#916) next.
+
+**Spec-readiness check result — #913/#914/#916 (resolved):** the working tree was stale (behind
+5 origin/main commits including two merged spec PRs); ran `git fetch origin main` and checked
+GitHub directly (source of truth) rather than trusting the 3 candidate spec files by filename:
+
+- **#913** (epic, "Intelligent job search module"): spec approved + merged by Ben directly —
+  PR #921 `docs(spec): approve intelligent job search module (#913)`, merged 2026-07-10T06:56:46Z,
+  commit `264fbfcb`. ✅ Gate satisfied.
+- **#914**: spec approved + merged by Ben directly — PR #920 `docs(spec): module data plane —
+  per-module ledger, privileged install, module-owned tables`, merged 2026-07-10T04:49:35Z, commit
+  `204aca0f`. GitHub label now **`RFA`** (was `needs-spec`). ✅ Gate satisfied — **cleared to spawn
+  a plan agent now.**
+- **#916**: **NOT covered.** Confirmed by content, not filename: `module-web-registry.md` line 160
+  explicitly scopes "briefings UI... stay core (not contributions)" as a **non-goal** — the
+  opposite of what #916 needs. `module-boundary-enforcement.md`'s only hit is an unrelated example
+  string. #916 depends on "#818 Slice 3," which does not exist yet — #918 (this run's own plan
+  agent, still writing its plan) is **Slice 2**; Slice 3 hasn't started. GitHub label confirms:
+  still **`needs-spec`**. ❌ Gate NOT satisfied — do not spawn. Realistically blocked behind #918
+  landing before a Slice-3 spec can even be scoped.
+
+**Proposal reported to Ben (this checkpoint):** spawn a plan agent for #914 now (spec-cleared);
+hold #916 for a spec-authoring pass with Ben once #918/Slice 2 lands. Reconciling the
+overnight-override question with him in the same turn (see below).
