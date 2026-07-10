@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `792382f9-6c9a-4733-9206-ba99909464f6`,
-pane `w1:pE3`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `bbe0b188-bc5a-499d-b711-3f26b4d873e0`,
+pane `w1:pE5`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
