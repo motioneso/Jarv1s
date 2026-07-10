@@ -1135,4 +1135,17 @@ attribution to #914's unmerged migration 0155, rather than accept the agent's se
 verdict → `gh pr comment` → Ben's explicit sign-off required before merge (security tier, no
 auto-merge; overnight override remains resolved/moot). On red: relay finding to `w1:pDJ`, do not
 re-spawn or hand-fix.
+
+**Update — CI resolved green, Opus QA spawned.** First monitor (`bf74zooo8`) timed out at 10min
+with `Verify foundation and app` still `pending` (job genuinely running, not stuck — full
+lint+typecheck+test:integration gate). Re-armed a second monitor (`bmqs8lrr5`); it fired green:
+`Verify foundation and app` passed in 15m2s, both compose-smoke checks passed. Only
+`Build and publish images` (non-blocking image-publish, per established precedent) still pending —
+not a merge gate. Re-verified PR #925 head SHA unchanged (`52083e1a...`), state `OPEN`,
+`mergeable: MERGEABLE` before acting. Spawned Opus adversarial QA (`coordinated-qa`, `isolation:
+worktree`, agent id `a0b5ff765e3036bcf`) with explicit instructions to independently verify (not
+trust self-report): (1) the AUDIT_EXIT=1/FORCE-RLS attribution claim and that it isn't conflated
+with #914's separate unmerged ledger work, (2) no secret/credential leakage, (3) module isolation
+preserved, (4) foundation.test.ts full-list `toEqual` correctly updated for the new migrations.
+Awaiting verdict — do not merge until it posts to the PR and Ben signs off (security tier).
 5. #916 still `needs-spec`; #919 still queued behind #918. No action on either.
