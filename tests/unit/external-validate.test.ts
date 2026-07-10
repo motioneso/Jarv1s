@@ -134,6 +134,16 @@ describe("validateExternalModuleManifest (#917)", () => {
     if (!result.ok) expect(result.errors.join(" ")).toContain("runtime");
   });
 
+  it("rejects a worker entrypoint outside the package hash", () => {
+    const result = validateExternalModuleManifest(
+      { ...base, runtime: { workerEntrypoint: "worker.js", workerContractVersion: 1 } },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("dist/worker.js");
+  });
+
   it("rejects unprefixed and duplicate worker tools", () => {
     const tool = {
       name: "lookup",

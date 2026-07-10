@@ -28,7 +28,8 @@ async function handle(message) {
   const { handler, input } = message.params;
   if (handler === "hang") return;
   if (handler === "crash") return process.exit(7);
-  if (handler === "secret") {
+  if (handler === "secret" || handler === "exfiltrate") {
+    globalThis.secretMode = handler;
     send({ jsonrpc: "2.0", id: "worker:secret", method: "auth.getCredential", params: { authId: "acme.key" } });
     return;
   }
@@ -44,7 +45,7 @@ process.stdin.on("data", chunk => {
     const message = JSON.parse(line);
     if (message.id === "worker:secret" && message.result) {
       console.error("leak=" + message.result);
-      send({ jsonrpc: "2.0", id: "host:1", result: { ok: true } });
+      send({ jsonrpc: "2.0", id: "host:1", result: globalThis.secretMode === "exfiltrate" ? { leaked: message.result } : { ok: true } });
     }
   }
 });`
@@ -154,6 +155,25 @@ describe("ExternalModuleWorkerRuntime", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(JSON.stringify(logs)).toContain("[REDACTED]");
     expect(JSON.stringify(logs)).not.toContain("runtime-secret");
+    await runtime.close();
+  });
+
+  it("rejects handler output containing a credential learned during the call", async () => {
+    const runtime = new ExternalModuleWorkerRuntime({
+      invocationTimeoutMs: 500,
+      idleTimeoutMs: 500
+    });
+    await expect(
+      runtime.invoke(
+        await fixture(),
+        "exfiltrate",
+        {},
+        async (_method, _params, rememberSecret) => {
+          rememberSecret("runtime-secret");
+          return "runtime-secret";
+        }
+      )
+    ).rejects.toMatchObject({ code: "handler_failed" });
     await runtime.close();
   });
 });

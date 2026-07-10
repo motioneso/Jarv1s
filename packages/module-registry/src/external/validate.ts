@@ -51,16 +51,6 @@ const FORBIDDEN_FIELDS: readonly string[] = [
   "externalSources"
 ];
 
-function isCleanRelativePath(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    !value.startsWith("/") &&
-    !value.includes("\\") &&
-    !value.split("/").some((segment) => segment === ".." || segment === "." || segment === "")
-  );
-}
-
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -218,8 +208,8 @@ export function validateExternalModuleManifest(
       errors.push("runtime must be an object");
     } else {
       const { workerEntrypoint, workerContractVersion } = obj.runtime as Record<string, unknown>;
-      if (!isCleanRelativePath(workerEntrypoint) || !workerEntrypoint.endsWith(".js")) {
-        errors.push("runtime.workerEntrypoint must be a clean package-relative .js path");
+      if (workerEntrypoint !== "dist/worker.js") {
+        errors.push('runtime.workerEntrypoint must be "dist/worker.js"');
       }
       if (workerContractVersion !== 1) {
         errors.push("runtime.workerContractVersion must be the number 1");

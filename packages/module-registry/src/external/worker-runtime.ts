@@ -203,7 +203,9 @@ export class ExternalModuleWorkerRuntime {
       if (!pending) continue;
       state.pending.delete(message.id as string | number);
       if (message.error) pending.reject(new ExternalModuleWorkerError("handler_failed"));
-      else pending.resolve(message.result);
+      else if (containsSecret(message.result, state.current?.secrets)) {
+        pending.reject(new ExternalModuleWorkerError("handler_failed"));
+      } else pending.resolve(message.result);
     }
   }
 
@@ -245,4 +247,10 @@ export class ExternalModuleWorkerRuntime {
     if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
     return new Promise((resolve) => child.once("exit", () => resolve()));
   }
+}
+
+function containsSecret(value: unknown, secrets: ReadonlySet<string> | undefined): boolean {
+  if (!secrets?.size) return false;
+  const encoded = JSON.stringify(value);
+  return [...secrets].some((secret) => secret.length > 0 && encoded.includes(secret));
 }
