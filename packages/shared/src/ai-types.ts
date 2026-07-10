@@ -97,6 +97,33 @@ export type AiServiceBinding =
   | { readonly kind: "mode"; readonly tier: AiModelTier }
   | { readonly kind: "model"; readonly modelId: string };
 
+// ---------------------------------------------------------------------------
+// #915 D6: module AI service keys
+// ---------------------------------------------------------------------------
+
+// A module service key is a BINDING key (an admin routing knob), not a capability. Structured
+// output for modules always resolves capability "json"; these keys only steer WHICH model serves
+// it. "module.worker" is the generic default for every module without a module-specific binding;
+// "module.<moduleId>" pins a single module.
+export type ModuleServiceKey = `module.${string}`;
+
+// Everything the service-binding routes can address: a user-facing capability or a module key.
+export type AiServiceKey = AiModelCapability | ModuleServiceKey;
+
+export const MODULE_WORKER_SERVICE_KEY = "module.worker" as const;
+
+// "module." + id: lowercase alnum start, then alnum/underscore/dot/dash, ≤64 chars after the
+// prefix. Kept as a plain string so JSON-schema `pattern` fields can embed it verbatim
+// (ai-service-binding-api.ts must stay in sync — see the comment there).
+export const MODULE_SERVICE_KEY_PATTERN = "^module\\.[a-z0-9][a-z0-9_.-]{0,63}$";
+const moduleServiceKeyRegex = new RegExp(MODULE_SERVICE_KEY_PATTERN);
+
+export function isModuleServiceKey(value: string): value is ModuleServiceKey {
+  return moduleServiceKeyRegex.test(value);
+}
+
+export type ModuleServiceBindingMap = Partial<Record<ModuleServiceKey, AiServiceBinding>>;
+
 export type AiServiceBindingMapDto = Partial<Record<AiModelCapability, AiServiceBinding>>;
 
 export interface AiProviderTestResultDto {

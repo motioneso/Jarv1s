@@ -5,6 +5,12 @@
  */
 
 import type { GenerateChatInput, ChatProviderAdapter } from "../chat-adapter.js";
+import {
+  buildStructuredRequest,
+  extractStructuredResult,
+  type GenerateStructuredProviderInput,
+  type StructuredProviderResult
+} from "./http-api-structured.js";
 import type { ProviderKind } from "./transcript-reader.js";
 
 // ---------------------------------------------------------------------------
@@ -49,6 +55,27 @@ export class HttpApiAdapter implements ChatProviderAdapter {
 
     const json: unknown = await response.json();
     return { text: this.extractText(json) };
+  }
+
+  async generateStructured(
+    input: GenerateStructuredProviderInput
+  ): Promise<StructuredProviderResult> {
+    const request = buildStructuredRequest(
+      this.providerKind,
+      this.apiKey,
+      this._baseUrl ?? null,
+      input
+    );
+    const response = await this._fetch(request.url, {
+      method: "POST",
+      headers: request.headers,
+      body: JSON.stringify(request.body),
+      signal: input.signal
+    });
+    if (!response.ok) {
+      throw new Error(`AI provider request failed: HTTP ${response.status}`);
+    }
+    return extractStructuredResult(this.providerKind, await response.json());
   }
 
   /**

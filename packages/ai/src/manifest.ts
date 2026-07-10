@@ -7,6 +7,7 @@ import {
   createAiConfiguredModelResponseSchema,
   createAiProviderConfigRequestSchema,
   createAiProviderConfigResponseSchema,
+  deleteAiServiceBindingResponseSchema,
   discoverAiProviderModelsResponseSchema,
   getAiSummaryResponseSchema,
   getChatModelOverrideSettingsResponseSchema,
@@ -229,6 +230,12 @@ export const aiModuleManifest = {
       path: "/api/ai/services/:service/binding",
       requestSchema: putAiServiceBindingRequestSchema,
       responseSchema: putAiServiceBindingResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "DELETE",
+      path: "/api/ai/services/:service/binding",
+      responseSchema: deleteAiServiceBindingResponseSchema,
       permissionId: "ai.manage"
     },
     {

@@ -100,6 +100,8 @@ export interface AiRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
   readonly resolveActiveModules: ActiveModulesResolver;
+  // #915 D6: install-level ids for validating module.<id> binding keys.
+  readonly listInstalledModuleIds?: () => readonly string[];
   readonly repository?: AiRepository;
   readonly secretCipher?: AiSecretCipher;
   readonly modelDiscovery?: ModelDiscoveryService;

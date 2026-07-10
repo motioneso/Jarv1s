@@ -1001,6 +1001,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         resolveActiveModules: deps.resolveActiveModules,
+        // #915 D6: installed set, not actor-filtered enablement.
+        listInstalledModuleIds: () => deps.listModuleManifests().map((manifest) => manifest.id),
         tasksCompatibility,
         readToolServices: deps.connectorsRepository
           ? {
