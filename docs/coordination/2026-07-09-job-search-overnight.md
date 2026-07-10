@@ -903,3 +903,43 @@ supervision rather than an immediate re-relay. `merges_since_relay: 0`, unchange
 No blockers, forks, or `[SECURITY]`/`[CRIT]` escalations pending beyond normal Phase 2 supervision
 of #914/#918 to completion (watch for build-done → PR → Opus adversarial QA → Ben sign-off, same
 path for both, security tier).
+
+## #918 build DONE — PR #925, CI pending, Opus QA queued behind it
+
+Build agent (`w1:pDJ`, session `dbf1c605-...`) reported done: all 27 plan tasks executed via TDD,
+each own commit, `VF_EXIT=0` (full local gate: lint/format/file-size/design-tokens/ambient-dates/
+pkg-deps/typecheck/test:unit 315f-2274t/db:migrate/test:integration 130f-1457t, 2 skip). Rebased
+clean on `origin/main` (already current) at `689ed9a0`. PR: #925 (`plan/918-open-module-system-slice2`
+→ `main`).
+
+**Self-reported `AUDIT_EXIT=1` — flagged, not yet independently verified.** Agent claims sole
+failure is `app.module_schema_migrations` missing FORCE RLS, and attributes it to **#914's
+unmerged migration 0155 being applied to the shared dev Postgres** (not an ancestor of #918's HEAD;
+#918's own migrations are 0153/0154 only). Agent's own new tables (`module_credentials`,
+`module_kv`) reportedly pass FORCE RLS clean in the same run. **Consistent with the known
+multi-agent-PG-contention trap** (`[[multi-agent-pg-contention]]` memory: concurrent lanes sharing
+one dev Postgres instance can cross-contaminate) — but not yet independently confirmed; this is
+exactly the kind of self-report the coordinate skill says not to trust blindly. **Tasking the QA
+agent to verify this specific claim** (is `app.module_schema_migrations` actually owned by #914's
+migration and genuinely absent from #918's own migration set, not a real gap in #918's code) as
+part of its brief, not accepting it at face value.
+
+**Real infra follow-up (not blocking, note for later):** per-agent `JARVIS_PGDATABASE` isolation
+was supposed to already apply per `[[fleet-operations]]` memory — worth checking why #918 and #914
+appear to share one instance this run; possibly both defaulted rather than being assigned distinct
+DBs. Not urgent enough to interrupt #914 mid-build over.
+
+**CI status (checked directly via `gh pr checks`, not trusted from self-report):** run
+`29110548665`, 3 required jobs (`Compose deployment smoke`, `Prod compose deployment smoke`,
+`Verify foundation and app`) all `pending` as of this checkpoint. PR state: OPEN, not draft,
+MERGEABLE. **Holding off spawning Opus adversarial QA until CI resolves** — monitor armed
+(`bcnu24bvp`) rather than spawning an expensive QA pass against a build that might still fail CI.
+
+**Next action on CI-green:** spawn `coordinated-qa` agent, `model: opus` (security tier — RLS,
+credentials, migrations), isolated worktree, PR #925, tier `security`, with an explicit
+instruction to verify the AUDIT_EXIT=1 attribution above rather than accept it. Per overnight-panel
+note: override is RESOLVED/moot (Ben confirmed morning, normal daytime ops) — so **normal hard gate
+applies: Ben's explicit merge sign-off required, no auto-merge**, after QA posts its verdict via
+`gh pr comment`.
+
+**Task #1 (supervise #918) status: build phase done, now in QA-gate phase.**
