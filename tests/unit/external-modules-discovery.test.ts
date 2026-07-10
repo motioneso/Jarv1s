@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createExternalActiveModulesResolver,
-  discoverExternalModules
-} from "../../apps/api/src/server.js";
+import { createExternalActiveModulesResolver } from "../../apps/api/src/external-module-tools.js";
+import { discoverExternalModules } from "../../apps/api/src/server.js";
 
 const log = { info: vi.fn(), warn: vi.fn() };
 

@@ -45,18 +45,12 @@ import {
   type HostDiagnosticsInfo,
   type ModuleDto
 } from "@jarv1s/shared";
-import { createModuleLogger, CORE_VERSION, type ToolResult } from "@jarv1s/module-sdk";
-// #917: the /api/modules external-module provider reads persisted enablement state via the
-// settings repository (public API). apps/api is the composition root and legitimately deps
-// @jarv1s/settings; this is NOT a module cross-import (module isolation applies to modules,
-// not the app wiring layer).
-import { createModuleCredentialSecretCipher, SettingsRepository } from "@jarv1s/settings";
-// Server-only subpath (#917). Safe here — the api is never browser-bundled — and keeps
-// createApiServer synchronous (no dynamic import()).
+import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
+// #917: /api/modules reads enablement through the public settings API; this is legitimate
+// composition-root wiring, not a module cross-import.
+import { SettingsRepository } from "@jarv1s/settings";
 import {
-  createExternalModuleRpcHandler,
-  createExternalToolManifests,
-  ExternalModuleWorkerRuntime,
+  type ExternalModuleWorkerRuntime,
   getExternalModuleRegistrations
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
@@ -64,6 +58,10 @@ import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
+import {
+  createExternalActiveModulesResolver,
+  createExternalModuleTools
+} from "./external-module-tools.js";
 
 // `FastifyRequest.timeZone` is declared in `@jarv1s/module-registry` (#801 Phase A),
 // not here: module-registry is the composition root that both the writer (this
@@ -360,40 +358,15 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         }
       : undefined;
 
-    const moduleCredentialCipher = workerDataContext
-      ? createModuleCredentialSecretCipher()
-      : undefined;
-    externalWorkerRuntime = workerDataContext
-      ? new ExternalModuleWorkerRuntime({
-          logger: { warn: (data, message) => server.log.warn(data, message) }
-        })
-      : undefined;
-    const externalToolManifests =
-      externalWorkerRuntime && workerDataContext && moduleCredentialCipher
-        ? createExternalToolManifests(
-            externalModuleSnapshot.discoveries,
-            async (module, tool, toolInput, context) => {
-              const rpc = createExternalModuleRpcHandler({
-                module,
-                toolRisk: tool.risk,
-                actorUserId: context.actorUserId,
-                requestId: context.requestId,
-                workerDataContext,
-                cipher: moduleCredentialCipher,
-                isActorAdmin: () =>
-                  dataContext.withDataContext(
-                    { actorUserId: context.actorUserId, requestId: context.requestId },
-                    async (scopedDb) =>
-                      (await externalModulesRepository.getUserById(scopedDb, context.actorUserId))
-                        ?.is_instance_admin === true
-                  )
-              });
-              return externalToolResult(
-                await externalWorkerRuntime!.invoke(module, tool.handler, toolInput, rpc)
-              );
-            }
-          )
-        : [];
+    const externalTools = createExternalModuleTools({
+      discoveries: externalModuleSnapshot.discoveries,
+      workerDataContext,
+      appDataContext: dataContext,
+      settingsRepository: externalModulesRepository,
+      logger: { warn: (data, message) => server.log.warn(data, message) }
+    });
+    externalWorkerRuntime = externalTools.runtime;
+    const externalToolManifests = externalTools.manifests;
     registerPlatformRoutes(server, authRuntime, getActiveExternalModules);
     // #918: reuses the boot-time discovery snapshot — never re-discovers.
     registerExternalModuleWebAssetRoute(
@@ -641,34 +614,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
 
   return server;
-}
-
-export function createExternalActiveModulesResolver(
-  resolveEnabledModules: (actorUserId: string) => Promise<readonly JarvisModuleManifest[]>,
-  externalModuleIds: ReadonlySet<string>,
-  getActiveExternalModules: (actorUserId: string) => Promise<readonly { id: string }[]>
-): (actorUserId: string) => Promise<readonly JarvisModuleManifest[]> {
-  return async (actorUserId) => {
-    const [enabled, activeExternal] = await Promise.all([
-      resolveEnabledModules(actorUserId),
-      getActiveExternalModules(actorUserId)
-    ]);
-    const activeIds = new Set(activeExternal.map((module) => module.id));
-    return enabled.filter(
-      (manifest) => !externalModuleIds.has(manifest.id) || activeIds.has(manifest.id)
-    );
-  };
-}
-
-function externalToolResult(value: unknown): ToolResult {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const record = value as Record<string, unknown>;
-    if (record.data && typeof record.data === "object" && !Array.isArray(record.data)) {
-      return value as ToolResult;
-    }
-    return { data: record };
-  }
-  return { data: { value } };
 }
 
 export function registerRequestTimeZoneHook(server: FastifyInstance): void {
