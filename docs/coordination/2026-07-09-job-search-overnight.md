@@ -797,3 +797,42 @@ under `SET LOCAL ROLE jarvis_mod_<slug>_runtime`, matching the D5 RPC path; also
 manifest-declared table names before SQL splicing, and updated Task 6/9 Interfaces
 blocks (Produces/Consumes) for the new dependency. No other plan content touched. **#914 is now
 building** (status `working`, plan approved, proceeding per Phase 2 of `coordinated-build`).
+
+## #918 status correction + coordinator self-relay (session fe5eea37-..., context-meter 70%)
+
+**#918 was far ahead of what this manifest showed.** Its build-relay-2 handoff doc
+(`.claude/worktrees/918-implementation-plan/docs/superpowers/handoffs/2026-07-10-918-build-relay-2.md`)
+had baked in a **stale coordinator address** (label `Coordinator`, pane `w1:pDF`, session
+`4d68fcc5-...`) — that predecessor coordinator was already reaped before this session (fe5eea37)
+began, so #918's relay-2 "no blockers" status notification never reached a live coordinator, and
+this manifest kept showing #918 as pre-code. Sent `w1:pDJ` (session `dbf1c605-512a-4c0c-b310-9063ac8893c9`)
+a correction via `herdr pane run` with the current coordinator identity and a request for status.
+
+**Reply received:** 25/27 plan tasks landed (through Task 25, credential-route integration test,
+commit `65c9d3c5`). Remaining: **Task 26** (module KV lifecycle export/delete test), **Task 27**
+(web-asset path-containment + DTO round-trip test), then full gate + `coordinated-wrap-up`. **No
+blocker.** Successor agent driving in background (relay chain intact), will relay again at next
+70% or on completion. Migration numbers `0153`/`0154` held (module_credentials/module_kv, FORCE
+RLS + AES-256-GCM + no-DELETE on credentials, real DELETE on kv) — non-colliding with #914's
+`0155`/`0156`; Opus already cleared no-serialization needed between the two lanes. Only
+mechanical-conflict files at merge time: `tests/integration/foundation.test.ts`,
+`packages/db/src/types.ts`, migration ordering, possibly `scripts/audit-release-hardening.ts`.
+
+**#918 next action for whichever coordinator is live:** nothing to do until it reports build-done
+(PR open). When it does: security tier → spawn Opus adversarial QA (isolation:worktree,
+`coordinated-qa`), verdict must `gh pr comment`, then Ben's explicit merge sign-off before merge —
+same as #914.
+
+**Fleet state at this checkpoint:** #914 building cleanly (Task 9 fix landed, Task-1 implementer
+dispatched, TDD loop progressing). #918 building cleanly (25/27, no blocker, healthy background
+subagent). Neither has a PR yet — Phase 3 QA/merge not yet applicable to either. #916 still
+`needs-spec` (blocked on #918 landing + Slice-3 spec pass with Ben). #919 still queued behind
+#918. `merges_since_relay: 0`. No CI waivers recorded. Build-agent model policy for *future* spawns
+only (#919/#915/#916): Codex CLI `gpt-5.6-sol`, exact flags above — unconfirmed:
+`model_reasoning_effort` config key against a live run.
+
+**Coordinator self-relay fired here** (context-meter 70% warning, no deferral). This session
+(fe5eea37-4946-4214-98a4-b17fb6b84e8c, label `Coordinator`, pane resolved fresh by label at
+handoff time) is spawning its successor now in the same tab per the `coordinate` skill's
+self-handoff protocol. Successor: re-adopt both lanes via this manifest, confirm driving, reap this
+pane. No other bookkeeping pending beyond normal Phase 2 supervision of #914/#918 to completion.
