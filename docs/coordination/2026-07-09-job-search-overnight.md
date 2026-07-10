@@ -2194,3 +2194,26 @@ session auto-compacts → continue in-session, do NOT spawn a successor coordina
 
 **Next actions on resume:** (1) `gh pr checks 940` → merge if green. (2) Watch pEA for Task 7
 commit / relay / stuck. (3) On #914 merge: rebase #939, spawn #915 lane lean.
+
+---
+
+**CONTINUATION NOTE @ ~71% ctx (2026-07-10, in-session, auto-compact, NO successor pane per Ben):**
+
+- **#914 (pEA, PR #941, SECURITY tier) — build DONE, rebase in verification:**
+  - All 9 tasks built (pre-rebase HEAD `ff0470a8`). QA cycle-1 came back RED — 2 blockers, BOTH
+    fixable-by-rebase: (a) `foundation.test.ts` migration-list must union to
+    `0152,0153,0154,0155,0156`; (b) prettier drift. Coordinator-owned rebase → re-tasked pEA.
+  - pEA rebased onto `origin/main` LOCALLY to **`fb148ef0`** (0 behind / 20 ahead). Currently
+    running full `verify:foundation` (`vitest run tests/integration` PID 2582658, live @ ~16:25).
+    **origin/build/914 still `ff0470a8` (UNPUSHED)** until the gate passes + pEA pushes.
+  - 2 non-blocking latent security findings filed as **#942** (`$` dollar-quote validator bypass,
+    `module-sql-runner.ts`) and **#943** (SET LOCAL ROLE never RESET, `module-storage-rpc.ts`),
+    both under epic #860, OUT of #914 scope.
+  - **NEXT (do NOT merge yet):** pEA gate green → push `fb148ef0` → wait CI (`gh pr checks 941`)
+    → spawn FRESH Opus integrated re-QA (diff-scoped vs origin/main) → **Fable merge sign-off**
+    (Ben delegated ALL run authority to Fable this run — route via `Agent(model:"fable", pointer)`)
+    → `gh pr merge 941 --squash --delete-branch` → bookkeeping → reap pEA + remove worktree.
+    QA budget: **cycle 1 of 2 used** — one re-QA cycle left before stop-the-line.
+  - Monitor armed on the push signal (origin/build/914 SHA flip off `ff0470a8`).
+- **#940 skills anti-bloat PR:** still open; merge when `gh pr checks 940` green (routine).
+- **#939 / #915 / #916:** unchanged from prior note (gated on #914 merge / #919 migration).
