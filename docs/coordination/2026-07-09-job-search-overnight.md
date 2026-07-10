@@ -799,3 +799,49 @@ Opus/Ben escalation (mechanical typing correction, not a design fork; no hard-in
 provider-agnostic-AI governs which provider gets *selected*, not this adapter's supported-kind
 surface). Mechanical import/non-null-assertion fixes in the same message also approved without
 separate review.
+
+## Relay checkpoint (self-relay from session `0fe9cd0b-...`, context 70% warning fired)
+
+**Still holding — no PR open for #915 slice-3, no merges, no build lane changes.** Nothing else
+approved/changed since the Task 8 provider-kind grounding above.
+
+**Fleet state at this checkpoint (fresh reads just before the trigger fired):**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, running `pnpm verify:foundation` as an
+  apparent final pre-PR gate (scrollback also shows a `vite.js --host 0.0.0.0 --port 5174`
+  line, likely part of a compose/dev-server smoke step inside that gate — not itself concerning).
+  Earlier progress this session: Task 5 self-audit reported complete (13/13 integration incl.
+  the originally-failing path, 44/44 `test:ai`, typecheck+lint green) and Task 8 provider-kind
+  cast defect approved (grounded — see above). **No PR opened yet**
+  (`gh pr list --head feat/915-slice3-structured-ai` empty, no remote branch as of last check).
+  Do not spawn QA until the PR actually exists.
+- `w1:pCV` "Opus: #917 Plan" — `working`, subagent-driven per-task execution progressing normally
+  (currently on Task 2's dispatched subagent per last read, 3m14s in; earlier reads showed 1 task
+  completed). Context 58%/50%. An earlier read this session showed an ambiguous long-duration
+  (86m10s) subagent entry alongside a fresh one — did NOT reappear on the next two checks, treated
+  as stale UI history rather than a real stall; no nudge/respawn was warranted. No plan-execution
+  escalation received. Watch for either full 10-task completion or a task-level blocker.
+- `w1:pCK` "Codex: Job Search Spec" — pinged this session (first ping in several checkpoints),
+  replied idle/no-action-needed, confirmed #917→#915 sequencing and #913 alignment "look correct."
+  No open items.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — untouched this session, `done`/idle, reap-safe per
+  its own prior assessment, kept alive for potential future slice-1/2/4 planning once #919 lands.
+- Monitor task `bca8egl86` (persistent, changes-only, 60s poll, scoped to
+  `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`) — **dies with this session**; successor must restart its
+  own with the same scope.
+- `merges_since_relay` = 0, unchanged. Overnight sign-off override remains ACTIVE, unexercised —
+  no security-tier merge has occurred yet.
+
+**Successor's immediate queue, in order:**
+1. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`.
+2. Re-check `w1:pCZ` fresh — if `verify:foundation` has finished and a PR is now open on
+   `feat/915-slice3-structured-ai`, proceed to Phase 3: spawn `coordinated-qa` (tier `sensitive`,
+   standard QA + invariant check, no Ben sign-off required, auto-merge + digest once green). If
+   still running, keep waiting (short `ScheduleWakeup` intervals, not tight polling).
+3. Re-check `w1:pCV` fresh — if the 10-task #917 plan is complete, dispatch an independent review
+   (fresh `general-purpose` subagent, not Opus itself — same pattern used for #915's plan review)
+   before treating it as ready to PR. If a task-level escalation/stall appears, judge
+   mechanical-fix-vs-design-fork same as this session's Task 8 approval (ground in source before
+   approving).
+4. No merges pending; nothing to reconcile in `ci_waivers`.
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
