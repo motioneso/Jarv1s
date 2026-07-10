@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `fe5eea37-4946-4214-98a4-b17fb6b84e8c`,
-pane `w1:pDN`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `53fe5b18-a174-4d3b-8fe2-f2ce9ae7a9ac`,
+pane `w1:pDR`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -836,3 +836,42 @@ only (#919/#915/#916): Codex CLI `gpt-5.6-sol`, exact flags above — unconfirme
 handoff time) is spawning its successor now in the same tab per the `coordinate` skill's
 self-handoff protocol. Successor: re-adopt both lanes via this manifest, confirm driving, reap this
 pane. No other bookkeeping pending beyond normal Phase 2 supervision of #914/#918 to completion.
+
+## Lock re-claimed (successor session `53fe5b18-a174-4d3b-8fe2-f2ce9ae7a9ac`), Phase 0a done — immediate re-relay
+
+Phase 0a complete: resolved own pane fresh via `herdr pane list` — session
+`53fe5b18-a174-4d3b-8fe2-f2ce9ae7a9ac`, pane `w1:pDR`, tab `w1:t15` (was labeled
+`Coordinator (successor)`). Closed predecessor pane `w1:pDN` (session `fe5eea37-...`,
+`agent_status: done`) via `herdr pane close`, resolved fresh by label+session, not a remembered
+pane id. Renamed own pane `Coordinator (successor)` → `Coordinator`. Verified uniqueness: exactly
+one `Coordinator`-labeled pane in the fleet (`w1:pDR`, this session). Top-of-file lock line
+updated to this session/pane.
+
+**Re-adopted fleet, unchanged from predecessor's last report:**
+- `w1:pDJ` — `918: open module system slice2 build (relay-1)`, session `dbf1c605-...`, tab
+  `w1:t1E`, `agent_status: working`. 25/27 tasks landed, no blocker, Tasks 26/27 remaining then
+  gate + wrap-up.
+- `w1:pDQ` — `914: module data plane build (relay-5)`, session `8baf4c17-ad28-40c9-8854-a4254e3f2b2c`,
+  tab `w1:t1E`, `agent_status: working`. Task 9 export-role fix confirmed landed, building.
+- Neither lane has a PR yet — no Phase 3 QA/merge action available this checkpoint.
+- Idle panes NOT part of this run, unchanged, leave alone: `w1:pBK` (news-module), `w1:pCP`
+  (Fable sports-fed spec+plan), `w1:pCK` (Codex Job Search Spec, already ack'd), `w1:pCR` (Fable 5
+  Job Search Spec Review, idle).
+
+**Immediate re-relay, no supervision work done this pass:** this session's context-meter fired the
+70% warning on its very first tool call (inherited a long context at spawn) — the relay trigger is
+non-negotiable and fires before any further bookkeeping. Per the skill: flush manifest (done above,
+fleet state unchanged from predecessor so nothing new to reconcile), spawn successor now in the
+same tab (`w1:t15`), confirm it's driving, then it reaps this pane. `merges_since_relay: 0`,
+unchanged. No CI waivers. No blockers, forks, or `[SECURITY]`/`[CRIT]` escalations to hand off
+beyond normal Phase 2 supervision of #914/#918 to completion (watch for #918 build-done → PR →
+Opus adversarial QA → Ben sign-off, same path for #914 when it reaches build-done).
+
+**Successor's first actions, in order:**
+1. Phase 0a lock re-claim (resolve own pane fresh by label+session id; close this pane
+   `w1:pDR`/session `53fe5b18-...` fresh by label+session once confirmed driving; rename own pane
+   to `Coordinator`; verify uniqueness).
+2. Resume Phase 2 supervise loop for `w1:pDJ` (#918) and `w1:pDQ` (#914) — both healthy, no action
+   needed beyond watching for their next report.
+3. #916 still `needs-spec` (blocked on #918 landing + Slice-3 spec pass with Ben). #919 still
+   queued behind #918's build+merge. No action on either.
