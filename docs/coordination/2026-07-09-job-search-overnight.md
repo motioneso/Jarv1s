@@ -161,6 +161,13 @@ already Ben-approved) to rebase onto current `origin/main`, push, and open the s
 This does NOT change the buildability verdict — #913 the epic is still blocked on its children
 landing; this just gets the approved spec text onto `main` where it belongs.
 
+**Fable 5 (`w1:pCR`) reliability escalation:** hit its own 72%-context checkpoint warning right
+before a 3rd mid-stream API stall this session. Nudged (not respawned, per
+`agent-stall-nudge-recovery` memory) to checkpoint progress on the #915 slice-3 plan, write a
+pointer-handoff, and self-relay in the same worktree/tab. Watching for the successor pane; will
+confirm it's driving and reap `w1:pCR` per Phase 2 relay-supervision once it lands. #915 slice-3
+plan / PR still outstanding as of this checkpoint.
+
 **PR #921 open** (Codex, this checkpoint): `docs(spec): approve intelligent job search module
 (#913)`, branch `spec/913-intelligent-job-search` → `main`, draft, docs-only (2 files,
 `docs/superpowers/specs/2026-07-09-intelligent-job-search-module.md` +
