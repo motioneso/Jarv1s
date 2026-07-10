@@ -54,14 +54,11 @@ import { SettingsRepository } from "@jarv1s/settings";
 // Server-only subpath (#917). Safe here — the api is never browser-bundled — and keeps
 // createApiServer synchronous (no dynamic import()).
 import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
-// Only the aggregate result type is referenced here (discoverExternalModules' return).
-// The element types (ExternalModuleDiscovery/ExternalModuleRejection) are consumed in
-// Task 9 when the /api/modules provider reads the snapshot — importing them now trips
-// @typescript-eslint/no-unused-vars (CI-red on the full gate), so they land with their use.
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
+import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
 
 // `FastifyRequest.timeZone` is declared in `@jarv1s/module-registry` (#801 Phase A),
 // not here: module-registry is the composition root that both the writer (this
@@ -345,6 +342,13 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         }
       : undefined;
     registerPlatformRoutes(server, authRuntime, getActiveExternalModules);
+    // #918: reuses the boot-time discovery snapshot — never re-discovers.
+    registerExternalModuleWebAssetRoute(
+      server,
+      authRuntime,
+      externalModuleSnapshot.discoveries,
+      getActiveExternalModules
+    );
 
     // Observability sink (#413): POST /api/errors. Platform infra (no auth, no
     // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
@@ -862,7 +866,10 @@ function serializeExternalModule(m: ReconciledExternalModule): ModuleDto {
     lifecycle: "optional",
     navigation: [],
     settings: [],
-    external: true
+    external: true,
+    // #918: ModuleDto.web is optional — omit rather than emit null when the module
+    // declares no web surface (ReconciledExternalModule.web itself IS nullable).
+    ...(m.web ? { web: m.web } : {})
   };
 }
 
