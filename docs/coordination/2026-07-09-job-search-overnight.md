@@ -329,3 +329,38 @@ i.e. NOT actually finished, just stalled. Nudged via `herdr pane run` (per
 `agent-stall-nudge-recovery` memory — nudge before respawn); confirmed pane flipped back to
 `working`. Plan still outstanding. No plan-ready escalation yet — still holding, no build lane
 spawns.
+
+**Opus xhigh 2nd stall (2026-07-10, ~07:11), nudged again:** same "Write Slice 1 implementation
+plan" task, same "stalled mid-stream" pattern, ~5min after the first. Nudged again via `herdr pane
+run`; plan doc still not written. Two consecutive stalls on the same write step — will respawn
+only if a 3rd stall occurs (per `agent-stall-nudge-recovery` memory, nudge-first still applies,
+but watching closely).
+
+**#915 slice-3 real progress (2026-07-10, ~07:11) — Fable 5 completed cleanly, did NOT stall:**
+PR #922 open (`docs(#915): external worker capabilities spec (rev 2) + slice-3 implementation
+plan`, https://github.com/motioneso/Jarv1s/pull/922), docs-only, `MERGEABLE`, CI 2/3 checks
+done+in-progress (none red as of check time). Contains: spec rev 2 (`6019f94f`, Ben-approved
+2026-07-09) + a 9-task TDD implementation plan
+(`docs/superpowers/plans/2026-07-09-structured-ai-seam.md`, commit `1dc1a346`) for the
+structured-AI seam in `packages/ai` — zero migrations, touches only `packages/ai`,
+`packages/shared` (new `ai-service-binding-api.ts`), one `apps/api/src/server.ts` line, root
+tests. Fable self-reviewed cleanly, verified two hedged claims against real source (both matched),
+ran prettier, pinged Codex (`w1:pCK`) with the `generateStructured` contract for #913 alignment
+(confirmed submitted). Fable's own checkpoint judgment: landed the plan directly rather than
+handoff+relay since compaction restored headroom right as the last chunk finished — noted as a
+stronger checkpoint than a pointer doc. Fable's pane is now reap-safe or available for slice-1/2/4
+planning once #919 lands. Tier assessment for slice-3 build lane: **sensitive** (new cross-module
+shared contract `ai-service-binding-api.ts`), not full security — no auth/RLS/secrets/rate-limit/
+network-surface trigger hit; no migrations.
+
+**Dispatched independent plan review (2026-07-10, ~07:12):** spawned a fresh general-purpose
+subagent (not Fable, not Opus — avoids self-review bias, and this is a scope/invariant check, not
+a design fork, so default model is appropriate) to check the #922 plan against the spec's locked
+Slice-3 decisions and CLAUDE.md hard invariants (provider-agnostic AI, secrets never escape,
+module isolation, scope discipline). Awaiting compact verdict before treating the plan as
+"approved" and before PR #922 merge consideration.
+
+**Still holding — no build lane spawns.** Two gates open: (1) #917 plan — Opus xhigh still
+writing, 2 stalls so far, watching for a 3rd before considering respawn; (2) #915 slice-3 plan —
+committed + PR open, CI in progress, independent review dispatched, verdict pending. Neither is
+build-ready yet.
