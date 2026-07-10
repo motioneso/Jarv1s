@@ -19,6 +19,7 @@ export * from "./repository.js";
 export * from "./routes.js";
 export * from "./structured/schema-bounds.js";
 export * from "./adapters/http-api.js";
+export * from "./adapters/http-api-structured.js";
 export * from "./adapters/tmux-bridge.js";
 export * from "./adapters/multiplexer.js";
 export * from "./adapters/tmux-multiplexer.js";
