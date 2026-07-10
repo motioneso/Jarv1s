@@ -2125,3 +2125,12 @@ Live fleet state at flush:
 Next actions when resumed: (1) watch #939 CI run 29124141122 → on foundation green, diff-scoped
 re-QA of pE4's fix; (2) watch #914 for PR + its relay-6 successor landing in tab w1:t1E;
 (3) when #914 migrations merge, spawn #915 impl lane. All approvals → Fable, none to Ben.
+
+### #939 update: QA cycle-1 fix CI-GREEN; final security QA deferred to post-#914 rebase
+- Verify-foundation PASSED on pE4's fix commit (run 29124141122) → 3 mcp-gateway approval-card
+  tests pass, write-tool agency-trust regression resolved. CI trusted for mechanical gate.
+- Final security Opus adversarial QA DEFERRED until #939 is rebased on origin/main AFTER #914's
+  migrations land (avoids double-spend: rebase changes the diff, incl. possible 0157 renumber).
+- pE4 (codex, 9% ctx left — near exhaustion) told to HOLD, not churn. Fix is committed+pushed to
+  feat/919-worker-runtime, so pE4 dying is non-fatal: a fresh agent can do the post-#914 rebase.
+- Next #939 trigger is chained off #914 merge (monitor batmtn8ch watches #914 PR).
