@@ -47,4 +47,57 @@ describe("module role broker", () => {
     expect(afterDisable.rows[0].rolcanlogin).toBe(false);
     await check.end();
   });
+
+  it("is idempotent and Phase A self-heals a crash that left the installer LOGIN", async () => {
+    // Second call on an existing pair must not throw.
+    await expect(ensureModuleRoles(urls.bootstrap, moduleId)).resolves.toBeDefined();
+
+    const installRole = moduleInstallRoleName(moduleId);
+    const check = new Client({ connectionString: urls.bootstrap });
+    await check.connect();
+
+    // Simulate a crash between Phase B and Phase D: installer is left LOGIN with a live password.
+    await enableInstallerLogin(urls.bootstrap, moduleId);
+    const midCrash = await check.query("SELECT rolcanlogin FROM pg_roles WHERE rolname = $1", [
+      installRole
+    ]);
+    expect(midCrash.rows[0].rolcanlogin).toBe(true);
+
+    // A retried Phase A (Task 7 rerun) must itself reset the installer to NOLOGIN, without ever
+    // running Phase D.
+    await ensureModuleRoles(urls.bootstrap, moduleId);
+    const afterRetry = await check.query("SELECT rolcanlogin FROM pg_roles WHERE rolname = $1", [
+      installRole
+    ]);
+    expect(afterRetry.rows[0].rolcanlogin).toBe(false);
+    await check.end();
+  });
+
+  it("grants the runtime role WITH INHERIT FALSE to both parent runtime roles", async () => {
+    await ensureModuleRoles(urls.bootstrap, moduleId);
+    const runtimeRole = moduleRuntimeRoleName(moduleId);
+
+    const check = new Client({ connectionString: urls.bootstrap });
+    await check.connect();
+    // inherit_option exists on pg_auth_members in Postgres 16+ (target image is pgvector/pgvector:pg17).
+    // false => the parent runtime roles do NOT ambiently inherit the module role; they must
+    // SET LOCAL ROLE to use it.
+    const membership = await check.query(
+      `SELECT m.rolname AS member, am.inherit_option
+         FROM pg_auth_members am
+         JOIN pg_roles r ON r.oid = am.roleid
+         JOIN pg_roles m ON m.oid = am.member
+        WHERE r.rolname = $1 AND m.rolname IN ('jarvis_app_runtime', 'jarvis_worker_runtime')`,
+      [runtimeRole]
+    );
+    const byMember = new Map(
+      membership.rows.map((row: { member: string; inherit_option: boolean }) => [
+        row.member,
+        row.inherit_option
+      ])
+    );
+    expect(byMember.get("jarvis_app_runtime")).toBe(false);
+    expect(byMember.get("jarvis_worker_runtime")).toBe(false);
+    await check.end();
+  });
 });

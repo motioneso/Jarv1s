@@ -2,8 +2,12 @@
 // jarvis_mod_<slug>_runtime (NOLOGIN, granted to the parent runtime roles WITH INHERIT FALSE so
 // they must SET LOCAL ROLE to use it — see module-storage-rpc.ts) and jarvis_mod_<slug>_install
 // (NOLOGIN at rest, flipped to LOGIN with a random in-memory password only for the duration of
-// Phase B, flipped back in Phase D regardless of outcome). Mirrors the idempotent
-// DO $$ ... IF NOT EXISTS ... ELSE ... END $$ pattern in infra/postgres/bootstrap/0000_roles.sql.
+// Phase B, flipped back in Phase D regardless of outcome). Phase A (ensureModuleRoles)
+// unconditionally resets the install role to NOLOGIN PASSWORD NULL on *every* invocation — not
+// only at creation time — which is a stronger guarantee than 0000_roles.sql's create-time
+// IF/ELSE pattern: it makes Phase A self-healing against a crash between Phase B
+// (enableInstallerLogin) and Phase D (disableInstallerLogin), independent of Task 7's
+// retry/cleanup logic. A retried Phase A always leaves the install role login-disabled.
 import { randomBytes } from "node:crypto";
 
 import { Client } from "pg";
@@ -51,13 +55,20 @@ export async function ensureModuleRoles(
       await client.query(
         `DO $$
          BEGIN
-           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${client.escapeLiteral(role)}) THEN
              EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE ' ||
                'NOINHERIT NOREPLICATION NOBYPASSRLS', '${role}');
            END IF;
          END $$;`
       );
     }
+    // Unconditionally force the install role back to NOLOGIN PASSWORD NULL on EVERY call, not just
+    // at creation. This makes Phase A itself the crash-recovery safety net: if a crash landed
+    // between Phase B (enableInstallerLogin) and Phase D (disableInstallerLogin), a retried Phase A
+    // clears the stale LOGIN + password regardless of whether Task 7's try/finally cleanup ran.
+    await client.query(
+      `ALTER ROLE ${client.escapeIdentifier(installRole)} NOLOGIN PASSWORD NULL`
+    );
     await client.query(
       `GRANT ${client.escapeIdentifier(runtimeRole)} TO jarvis_app_runtime, jarvis_worker_runtime ` +
         `WITH INHERIT FALSE`
