@@ -2134,3 +2134,12 @@ re-QA of pE4's fix; (2) watch #914 for PR + its relay-6 successor landing in tab
 - pE4 (codex, 9% ctx left — near exhaustion) told to HOLD, not churn. Fix is committed+pushed to
   feat/919-worker-runtime, so pE4 dying is non-fatal: a fresh agent can do the post-#914 rebase.
 - Next #939 trigger is chained off #914 merge (monitor batmtn8ch watches #914 PR).
+
+## MODEL ROUTING CHANGE (Ben, ~21:3x): Codex entering 5hr window (~2h) → GLM-5.2 opencode HIGH
+- During Codex cooldown, spawn build/impl agents on **GLM-5.2 in opencode, high effort** (NOT
+  Codex). Place opencode panes in w1 agents tab; check for an idle opencode pane before spawning
+  (see mem GLM-pane-placement / headroom-proxy :8788 z.ai anthropic endpoint, baseURL needs /v1).
+- pE4 (#939, Codex, near-dead) NOT needed back — fix committed+pushed to feat/919-worker-runtime.
+  When #914 merges → do the #939 rebase-on-origin/main with a FRESH GLM-5.2 opencode agent.
+- #915 impl lane + #916 → GLM-5.2 opencode high when spawned.
+- Security-tier Opus adversarial QA is UNAFFECTED (Claude subagent via Agent tool, not Codex).
