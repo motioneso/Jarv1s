@@ -1289,6 +1289,26 @@ Epic #818/#860/#913 remains open — this was slice 1 of several; #918/#919 next
 order." `merges_since_relay`: was `1` (carried from predecessor) → **security-tier merge, relay
 is non-negotiable regardless of counter** — flushing now.
 
+## Relay checkpoint (self-relay from session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`, context 71%)
+
+Context-meter fired 71% (>70% threshold) — compounds with the already-mandatory security-tier
+merge relay trigger. **Nothing left mid-doing:** PR #924 merge + all GitHub bookkeeping + Ben's
+digest entry are complete and committed above; `w1:pCV` closed + worktree/branches cleaned up;
+Monitor `bu2jn72mn` (scoped `w1:pCR`/`w1:pCK`/`w1:pCV`) is still running as this session's, will die
+with it — **successor's first action: restart a persistent Monitor** scoped to the current live
+fleet (`w1:pCR` Fable 5, `w1:pCK` Codex — both idle/available; `w1:pCV` is gone, don't reference
+it). Live fleet is otherwise idle — no open build lanes, no pending QA, no blockers.
+
+**Successor's actual next work:** per Ben's relayed order #917→#914→#918→#919→#915→#916 — #917
+just landed, #914 already merged (PR #920). **Next up: #918 and #919** — check whether either has
+an approved spec + implementation plan yet (none did as of this session; may need Fable 5 to draft
+one, same pattern as #917's `w1:pCV` plan lane). #915's remaining 2 prerequisites (queue/schedule
+registration, host-pinned fetch) and #916 remain queued behind those per Ben's order. The overnight
+sign-off override (top of manifest) **remains ACTIVE** (time-boxed to tonight, Ben still not
+back) — re-confirm with him before relying on it once he returns.
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
 ## Lock re-claimed (successor session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`)
 
 Predecessor pane `w1:pD4` (session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, matched manifest lock
