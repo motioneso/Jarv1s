@@ -444,3 +444,12 @@ trigger on top of this context-meter one, but that's moot since we're relaying n
   First (baseline) event confirmed no drift: Codex done, Fable done, Opus working.
 - **Still holding — no build lane spawns.** Waiting on the #922 CI background task before
   merging; #917 plan still in progress.
+
+**Opus xhigh (`w1:pCV`) 3rd mid-stream stall (2026-07-10, this checkpoint), nudged again:** Monitor
+fired on `agent_status` flip to `done`; pane read showed "stalled mid-stream" once more, same
+"Write Slice 1 implementation plan" step (3/4 tasks done, this one still ◼ in-progress), same 60%
+context. Nudged via `herdr pane run` (per `agent-stall-nudge-recovery` memory — nudge-first still
+applies even at the 3rd occurrence); confirmed pane flipped back to `working`. Plan doc still not
+written. **Threshold watch:** 3 stalls now on this exact step — if a 4th occurs, escalate to a
+respawn (fresh Opus xhigh in the same worktree/branch, per coordinate skill's relay-vs-respawn
+guidance) rather than nudging indefinitely. No plan-ready escalation yet — still holding.
