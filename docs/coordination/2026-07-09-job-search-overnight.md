@@ -1,8 +1,15 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `c99d19d5-be17-4ce5-a7c9-d6ce4b9f0fec`,
-pane `w1:pCM`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `395b82b5-c8a5-40fe-95a9-dc8575d8380c`,
+pane `w1:pCS`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff.)
+
+**Lock re-claimed 2026-07-09 (this checkpoint):** predecessor session `c99d19d5-...` (pane
+`w1:pCM`) had already self-closed by the time this successor adopted — verified via `herdr pane
+list`, no other `Coordinator`-labelled pane exists, no explicit close action was needed. Live
+fleet re-confirmed: `w1:pCK` (Codex: Job Search Spec, idle, tab `w1:t1F`) and `w1:pCR` (Fable 5:
+Job Search Spec Review, working, tab `w1:t1F`, worktree `review-913-job-search-spec`) both still
+present and unchanged.
 
 ## Ben's directive (verbatim intent)
 Build everything needed for the Intelligent Job Search module tonight. Fable 5 ("Fable 5: Job
