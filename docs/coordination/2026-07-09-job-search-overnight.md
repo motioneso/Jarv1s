@@ -330,3 +330,21 @@ read: Sonnet 5, correct worktree/branch, bypass-permissions on) before moving it
 predecessor, resolved fresh by session id `bb331864-...` (not the pane number `w1:pDB` given in its
 message, which was correct this time but resolved fresh per policy anyway) — status was `idle`,
 closed. Current #918 plan agent: `w1:pDC`, tab `w1:t1E`, session `7751a8ea-...`, status `building`.
+
+**#918 plan agent relayed again (v2→v3), reaped v2.** Successor `Plan: #918 module system slice2
+(v3)` at `w1:pDD`, tab `w1:t1E`, session `a2d9e833-...` — landed in the correct tab this time (no
+fix needed). Grounding for #918 Slice 2 confirmed complete by v2 before handoff; v3 is proceeding
+straight to `superpowers:writing-plans`, will message with the plan pointer when done (no
+self-approval — security tier needs Ben/overnight-panel sign-off per the overnight override).
+Verified v3 driving (bounded pane read, Sonnet 5, correct worktree/branch) before reaping v2
+(session `7751a8ea-...`, fresh-resolved, was `done`) — closed.
+
+**Session-id reconciliation — answered definitively, should not recur.** v2 re-flagged the same
+question v1 asked (its handoff doc records coordinator session `46590121-...`; my live session is
+`cfdfc7bb-...`) — the earlier reply likely arrived after v1→v2's handoff already completed. Replied
+to v3 directly: this is expected coordinator relay lifecycle, not a continuity break; the manifest
+lock line (not the handoff doc's originally-recorded id) is the current source of truth and stays
+updated at every relay. No further reconciliation should be needed unless I relay again.
+
+**Note:** v3's pane shows "8% until auto-compact" as of this checkpoint — may relay again shortly;
+expect a v4 hop.
