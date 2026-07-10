@@ -307,6 +307,45 @@ export const sportsOverviewFixture: SportsOverviewResponse = {
     { competitionKey: "mlb", teamKey: "nyy" }
   ],
   followedLeagues: [{ competitionKey: "mlb", competitionLabel: "MLB" }],
+  // One active followed-league card (Ben 2026-07-09) so the /today Sports desk exercises the
+  // TickerLeague component: a lead story with art + a secondary link, plus a live and a final result.
+  followedLeagueCards: [
+    {
+      competitionKey: "mlb",
+      competitionLabel: "MLB",
+      kind: "league",
+      status: "live",
+      logoUrl: "https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png",
+      stories: [
+        {
+          title: "Trade deadline shakes up the AL East race",
+          url: "https://example.com/mlb/deadline",
+          publishedAt: "2026-07-09T12:00:00.000Z",
+          imageUrl: "https://example.com/img/mlb-deadline.jpg"
+        },
+        {
+          title: "Rookie call-ups to watch down the stretch",
+          url: "https://example.com/mlb/rookies",
+          publishedAt: "2026-07-09T09:30:00.000Z",
+          imageUrl: null
+        }
+      ],
+      results: [
+        {
+          line: "NYY 5 – 3 BOS",
+          startsAt: "2026-07-09T17:05:00.000Z",
+          state: "live",
+          detail: "Top 7th"
+        },
+        {
+          line: "LAD 2 – 1 SF",
+          startsAt: "2026-07-08T02:10:00.000Z",
+          state: "final",
+          detail: "Final"
+        }
+      ]
+    }
+  ],
   degraded: false
 };
 

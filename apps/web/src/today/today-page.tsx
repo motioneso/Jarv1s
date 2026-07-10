@@ -262,7 +262,6 @@ export function TodayPage(props: {
   return (
     <div className="cmd-wrap">
       <header className="cmd-masthead">
-        <div className="cmd-dateline">{datelineLabel(now, locale)}</div>
         <div className="cmd-masthead__row">
           <div className="cmd-masthead__main">
             <p className="cmd-eyebrow">
@@ -274,17 +273,24 @@ export function TodayPage(props: {
             </h1>
             <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
           </div>
-          {/* PM is shown as a dot floating left of the first digit rather than an "am/pm"
-              suffix (Ben 2026-07-08). AM shows no dot; the dot marks anything past 11:59am. */}
-          <div className="cmd-clock" aria-hidden="true">
-            <span className="cmd-clock__time">
-              {ampm(now.toISOString(), locale) === "pm" ? (
-                // Real element (not a ::before) so it can carry a native "PM" hover tooltip
-                // (Ben 2026-07-08). title is discoverable on hover even under aria-hidden.
-                <span className="cmd-clock__pm" title="PM" />
-              ) : null}
-              {timeLabel(now.toISOString(), locale)}
-            </span>
+          {/* Folio column (Ben 2026-07-09 /today): the dateline moved OUT of its own line above
+              the row and INTO the header row as a top-right folio, stacked over the clock — the
+              eyebrow/title/lede reclaim the vacated top band and rise slightly. Aside pins the
+              dateline to the top and the clock to the bottom (see .cmd-masthead__aside). */}
+          <div className="cmd-masthead__aside">
+            <div className="cmd-dateline">{datelineLabel(now, locale)}</div>
+            {/* PM is shown as a dot floating left of the first digit rather than an "am/pm"
+                suffix (Ben 2026-07-08). AM shows no dot; the dot marks anything past 11:59am. */}
+            <div className="cmd-clock" aria-hidden="true">
+              <span className="cmd-clock__time">
+                {ampm(now.toISOString(), locale) === "pm" ? (
+                  // Real element (not a ::before) so it can carry a native "PM" hover tooltip
+                  // (Ben 2026-07-08). title is discoverable on hover even under aria-hidden.
+                  <span className="cmd-clock__pm" title="PM" />
+                ) : null}
+                {timeLabel(now.toISOString(), locale)}
+              </span>
+            </div>
           </div>
         </div>
       </header>

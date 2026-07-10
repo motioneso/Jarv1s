@@ -550,11 +550,6 @@ button.module-link {
   color: var(--text-muted);
 }
 
-/* The Today agenda rail locks below the sticky top bar, not under it. */
-.cmd-aside {
-  top: calc(var(--topbar-h) + 1rem);
-}
-
 /* Compact weather in the top bar (the "header" weather placement, Today only). */
 .topbar-context {
   display: flex;

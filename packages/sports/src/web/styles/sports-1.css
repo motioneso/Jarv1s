@@ -367,6 +367,92 @@
   background: var(--red-soft);
   border-color: var(--red);
 }
+/* Hover/focus result popup on a form pip (Ben 2026-07-09 /today follow-cards: "add the result of
+   the last match when the user hovers over the L or W… a nice little stylized pop-up"). It opens
+   INWARD — down from the pip and anchored to the pip's right edge so it grows leftward — because
+   both host cards (.sp-tk, .sp-feat) clip with overflow:hidden and the pip row is right-aligned;
+   an outward popup would be sheared off at the card edge. */
+.sp-formpip--pop {
+  position: relative;
+  z-index: 5;
+  cursor: default;
+}
+.sp-formpop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 8.5rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  text-align: left;
+  font-weight: 400;
+  /* Hidden until hover/focus; the pip's aria-label carries the same text for AT. */
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.sp-formpip--pop:hover .sp-formpop,
+.sp-formpip--pop:focus .sp-formpop,
+.sp-formpip--pop:focus-visible .sp-formpop {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sp-formpop__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.sp-formpop__verb {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.sp-formpop__score {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.sp-formpop__opp {
+  max-width: 11rem;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-formpop__date {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-formpop {
+    transition: opacity var(--dur-fast) var(--ease-out);
+    transform: none;
+  }
+  .sp-formpip--pop:hover .sp-formpop,
+  .sp-formpip--pop:focus .sp-formpop,
+  .sp-formpip--pop:focus-visible .sp-formpop {
+    transform: none;
+  }
+}
 /* ---- standings (rail) ---- */
 .sp-standings {
   padding: 0;

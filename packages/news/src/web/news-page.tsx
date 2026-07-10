@@ -8,7 +8,14 @@ import type { NewsHeadline, NewsOverviewResponse, NewsTopicKey } from "@jarv1s/s
 
 import { getNewsOverview } from "./news-client.js";
 import { newsQueryKeys } from "./query-keys.js";
-import { HeroCarousel, NewsMosaic, SourceRail, interleaveGroups } from "./news-mosaic.js";
+import {
+  HeroCarousel,
+  NewsMosaic,
+  NewsBriefs,
+  SourceRail,
+  composeMosaic,
+  interleaveGroups
+} from "./news-mosaic.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=news";
 
@@ -65,6 +72,9 @@ export function NewsPage() {
   // The mosaic pool excludes the carousel's slides so no story renders twice on one page.
   const carouselIds = new Set(topStories.slice(0, 5).map((h) => h.id));
   const pool = interleaveGroups(groups).filter((h) => !carouselIds.has(h.id));
+  // Compose once here so the mosaic and the rail's "In brief" tail share one plan — the tail was
+  // moved out of the mosaic column into the rail (Ben 2026-07-09 /news).
+  const plan = composeMosaic(pool);
 
   return (
     <div className="nw-wrap">
@@ -74,10 +84,11 @@ export function NewsPage() {
           <HeroCarousel headlines={topStories} />
           <div className="nw-grid">
             <div className="nw-grid__main">
-              <NewsMosaic pool={pool} />
+              <NewsMosaic plan={plan} />
             </div>
             <aside className="nw-grid__rail">
               <SourceRail groups={groups} />
+              <NewsBriefs briefs={plan.briefs} />
             </aside>
           </div>
           {data.degraded ? (
