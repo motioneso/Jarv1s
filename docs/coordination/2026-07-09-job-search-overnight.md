@@ -2061,3 +2061,17 @@ Fable (final authority) = DECISION A. Verified #915 mis-closed 2026-07-10 as "Sh
 DONE: `gh issue reopen 915` + scope-correcting comment posted (comment 4939290860).
 
 QUEUED LANE — #915 remaining scope (EXCLUDES structured-AI seam already in #923): worker capability queue/schedule/run-now registration + host-pinned fetch. **blocked-by #919** (runtime dep + migration/foundation.test.ts global-sequence collision — cannot parallel-start with #914/#919). SPAWN TRIGGER: the moment #919's migration merges, ahead of #916 starter-action. Tier: security (worker role / runtime / RLS) → Opus QA + Fable merge sign-off. NOT spawned yet.
+
+## #919 BUILD DONE → PR #939 (security tier); merge order locked
+
+Codex reports PR #939 (branch feat/919-worker-runtime), rebased on origin/main eafa22dd, VF_EXIT=0 AUDIT_EXIT=0 full suite, format/lint/typecheck green. Pane pE4 idle-spent (kept as owning-agent fallback for QA fixes).
+
+MERGE ORDER (migration global sequence): main ends at 0154 → **#914 lands 0155/0156 FIRST → then #919 rebases 0157**. foundation.test.ts toEqual asserts full list; #939 plan has a renumber re-check contingency.
+
+QA: Opus adversarial QA spawned on #939 (agent qa-919-939) — security surface (worker role, app.current_module_id REVOKE/GRANT, module_credentials/module_kv RLS, no BYPASSRLS, no DELETE grant). Posts gh pr comment verdict. After #914 integration, do a CHEAP diff-scoped re-check of just the migration renumber (avoid double full-QA spend).
+
+#914 STATUS: NOT stuck — healthy. Recap shows it legitimately waiting on Task-7 sub-implementer's minutes-long integration test; Tasks 8,9 still open; no PR yet. Do-not-nudge holds. It is now the critical-path bottleneck (gates both #919 merge and the queued #915 lane).
+
+Ben's Q answered: modularity slices are ADDITIVE — existing 21 modules already consume @jarv1s/module-sdk (adoption shipped in merged slices); #919/#914 add role/policy/install machinery only, no existing-module refactor. QA diff-scopes any SDK-signature ripple.
+
+merges_since_relay: 0.
