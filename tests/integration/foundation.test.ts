@@ -331,7 +331,9 @@ describe("MVP foundation scaffold", () => {
         // first, and migrations are global by landing order, so this takes the next free slot.
         { version: "0150", name: "0150_ai_provider_purpose.sql" },
         // #897 — news module prefs (sources / excludes / topics), owner-only RLS.
-        { version: "0151", name: "0151_news_prefs.sql" }
+        { version: "0151", name: "0151_news_prefs.sql" },
+        // #917 (epic #860) — external module enablement state; instance-global, admin-managed.
+        { version: "0152", name: "0152_external_modules.sql" }
       ]);
     } finally {
       await client.end();

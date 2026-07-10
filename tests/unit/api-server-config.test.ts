@@ -27,3 +27,29 @@ describe("resolveApiServerConfig MCP server URL", () => {
     expect(config.mcpServerUrl).toBe("http://127.0.0.1:4100/api/mcp");
   });
 });
+
+describe("resolveApiServerConfig external-module flags (#917)", () => {
+  it("enables external modules only when the flag is exactly '1' and a dir is set", () => {
+    const config = resolveApiServerConfig({
+      JARVIS_ENABLE_EXTERNAL_MODULES: "1",
+      JARVIS_MODULES_DIR: "/srv/modules"
+    } as NodeJS.ProcessEnv);
+    expect(config.enableExternalModules).toBe(true);
+    expect(config.externalModulesDir).toBe("/srv/modules");
+  });
+
+  it("treats any flag value other than '1' as disabled (fail-closed)", () => {
+    for (const value of ["0", "true", "yes", "", undefined]) {
+      const config = resolveApiServerConfig({
+        JARVIS_ENABLE_EXTERNAL_MODULES: value,
+        JARVIS_MODULES_DIR: "/srv/modules"
+      } as NodeJS.ProcessEnv);
+      expect(config.enableExternalModules).toBe(false);
+    }
+  });
+
+  it("defaults the modules dir to null when unset", () => {
+    const config = resolveApiServerConfig({} as NodeJS.ProcessEnv);
+    expect(config.externalModulesDir).toBeNull();
+  });
+});

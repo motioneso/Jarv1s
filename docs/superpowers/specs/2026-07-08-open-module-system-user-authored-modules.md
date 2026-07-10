@@ -465,3 +465,11 @@ Uninstall semantics:
 
 No open product questions remain from the spec interview. The Opus/Fable blocker pass has been folded
 in and Ben approved the spec for RFA.
+
+## Revisions
+
+- 2026-07-10 (Slice 1 revision, PR #924): On-disk jarvis.module.json uses a flat metadata-only
+  envelope with a single top-level schemaVersion: 1, validated at load. runtime.workerContractVersion
+  and optional web.contractVersion validation are deferred to Slices 2-3, where the web-asset and
+  worker loaders that consume them first exist; Slice 1 ships no worker execution or web serving, so
+  those fields would guard nothing this slice. No narrowing of Slice 1's metadata validation.

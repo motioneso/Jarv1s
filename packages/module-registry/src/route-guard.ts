@@ -87,6 +87,9 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("PATCH", "/api/admin/modules/:id"),
   routeKey("GET", "/api/me/modules"),
   routeKey("PATCH", "/api/me/modules/:id"),
+  // #917 external-module admin surface (settings-owned; settings is required/always-on).
+  routeKey("GET", "/api/admin/external-modules"),
+  routeKey("POST", "/api/admin/external-modules/:id"),
   // observability sink (#413): unauthenticated platform route the browser fires
   // client errors into. Owned by no module, never stores anything, only logs.
   routeKey("POST", "/api/errors")

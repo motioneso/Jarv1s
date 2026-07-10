@@ -131,6 +131,16 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/jobs/src/index.ts", import.meta.url))
       },
       {
+        // Server-only subpath export (#917); must precede the bare "@jarv1s/module-registry"
+        // alias below. The root vitest suite resolves @jarv1s/* via this alias map rather than
+        // the package.json "exports" map, so subpaths need an explicit entry — matching the
+        // established @jarv1s/module-sdk/core-version, @jarv1s/chat/live, @jarv1s/db/probes pattern.
+        find: "@jarv1s/module-registry/node",
+        replacement: fileURLToPath(
+          new URL("./packages/module-registry/src/node.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/module-registry",
         replacement: fileURLToPath(
           new URL("./packages/module-registry/src/index.ts", import.meta.url)

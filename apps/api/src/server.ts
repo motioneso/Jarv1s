@@ -20,6 +20,7 @@ import {
   DataContextRunner,
   createDatabase,
   getJarvisDatabaseUrls,
+  type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
 import { createPgBossClient } from "@jarv1s/jobs";
@@ -28,12 +29,14 @@ import {
   createActiveModulesResolver,
   focusSignalProvidersFor,
   getBuiltInModuleManifests,
+  reconcileExternalModules,
   registerBuiltInApiRoutes,
   registerRouteEnablementGuard,
   assertRouteCoverage,
   PLATFORM_UNGUARDED_ROUTES,
   type ChatEngineFactory,
-  type JarvisModuleManifest
+  type JarvisModuleManifest,
+  type ReconciledExternalModule
 } from "@jarv1s/module-registry";
 import {
   listModulesRouteSchema,
@@ -42,7 +45,20 @@ import {
   type HostDiagnosticsInfo,
   type ModuleDto
 } from "@jarv1s/shared";
-import { createModuleLogger } from "@jarv1s/module-sdk";
+import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
+// #917: the /api/modules external-module provider reads persisted enablement state via the
+// settings repository (public API). apps/api is the composition root and legitimately deps
+// @jarv1s/settings; this is NOT a module cross-import (module isolation applies to modules,
+// not the app wiring layer).
+import { SettingsRepository } from "@jarv1s/settings";
+// Server-only subpath (#917). Safe here — the api is never browser-bundled — and keeps
+// createApiServer synchronous (no dynamic import()).
+import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
+// Only the aggregate result type is referenced here (discoverExternalModules' return).
+// The element types (ExternalModuleDiscovery/ExternalModuleRejection) are consumed in
+// Task 9 when the /api/modules provider reads the snapshot — importing them now trips
+// @typescript-eslint/no-unused-vars (CI-red on the full gate), so they land with their use.
+import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
@@ -90,6 +106,13 @@ export interface ApiServerConfig {
   readonly host: string;
   readonly port: number;
   readonly mcpServerUrl: string;
+  // #917: external (non-compiled) trusted-operator modules. Off unless the flag is
+  // exactly "1" AND a read-only mount dir is provided. Fail-closed: any other flag
+  // value disables the whole feature. Discovery runs ONCE at boot (the mount is
+  // read-only and changes only across a redeploy, which restarts the process), so a
+  // package swap requires a container restart to be re-hashed and re-seen.
+  readonly enableExternalModules: boolean;
+  readonly externalModulesDir: string | null;
 }
 
 export function hasAuthMaterial(request: FastifyRequest): boolean {
@@ -104,6 +127,10 @@ export function hasAuthMaterial(request: FastifyRequest): boolean {
 export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): ApiServerConfig {
   const port = Number(env.PORT ?? 3000);
   const host = env.HOST ?? "0.0.0.0";
+  // #917: the flag must equal exactly "1" — no truthy coercion, so "true"/"0"/"yes"
+  // all read as OFF. The modules dir is a read-only mount; null when unset.
+  const enableExternalModules = env.JARVIS_ENABLE_EXTERNAL_MODULES === "1";
+  const externalModulesDir = env.JARVIS_MODULES_DIR ?? null;
   return {
     host,
     port,
@@ -113,8 +140,41 @@ export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): Ap
     // compose-provided service DNS (JARVIS_MCP_SERVER_URL, e.g. http://api:3000/api/mcp) when
     // set; fall back to the loopback URL for dev/non-container runs. URL source only — this
     // does not change the MCP gateway auth/allowlist/token-mint path.
-    mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`
+    mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`,
+    enableExternalModules,
+    externalModulesDir
   };
+}
+
+/**
+ * Discover external modules ONCE at boot (#917). Fail-closed: an empty snapshot when the
+ * feature flag is off or no dir is configured, without reading disk. When on, walks the
+ * read-only mount and returns validated discoveries + rejections. Rescan requires a
+ * process restart (the mount is read-only and changes only across a redeploy). Logs
+ * counts + rejection ids/reasons only — never file contents (secrets-never-escape).
+ */
+export function discoverExternalModules(
+  config: ApiServerConfig,
+  log: { info: (o: object, m: string) => void; warn: (o: object, m: string) => void }
+): ExternalModuleLoadResult {
+  if (!config.enableExternalModules || !config.externalModulesDir) {
+    return { discoveries: [], rejected: [] };
+  }
+  const snapshot = getExternalModuleRegistrations({
+    modulesDir: config.externalModulesDir,
+    coreVersion: CORE_VERSION
+  });
+  log.info(
+    { discovered: snapshot.discoveries.length, rejected: snapshot.rejected.length },
+    "external modules discovered (#917)"
+  );
+  for (const rejection of snapshot.rejected) {
+    log.warn(
+      { moduleId: rejection.id, reason: rejection.reason },
+      "external module rejected (#917)"
+    );
+  }
+  return snapshot;
 }
 
 export function createApiServer(options: CreateApiServerOptions = {}) {
@@ -260,7 +320,31 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
 
     registerBetterAuthRoutes(server, authRuntime, AUTH_MAX);
-    registerPlatformRoutes(server, authRuntime);
+
+    // #917: boot-time external-module discovery snapshot, threaded into the settings
+    // module (admin GET reconciles it against app.external_modules) and the /api/modules
+    // surface. Empty unless the flag is on and a dir is mounted. Discovery runs ONCE at
+    // boot (read-only mount; a package swap needs a restart to be re-hashed). Computed
+    // here — BEFORE registerPlatformRoutes — because the /api/modules provider closes over
+    // it; registerBuiltInApiRoutes below references the same const.
+    const externalModuleSnapshot = discoverExternalModules(apiServerConfig, server.log);
+
+    // #917: active-external-module provider for /api/modules. Read-only: reconciles the
+    // boot discovery snapshot against app.external_modules in the ACTOR's context and
+    // returns only active modules. Never persists drift here (non-admin context) — the
+    // admin GET path owns persistence. Undefined when the flag is off ⇒ /api/modules is
+    // built-ins only (fail-closed).
+    const externalModulesRepository = new SettingsRepository();
+    const getActiveExternalModules = apiServerConfig.enableExternalModules
+      ? async (accessContext: AccessContext): Promise<readonly ReconciledExternalModule[]> => {
+          const states = await dataContext.withDataContext(accessContext, (scopedDb) =>
+            externalModulesRepository.listExternalModuleStates(scopedDb)
+          );
+          const { modules } = reconcileExternalModules(externalModuleSnapshot.discoveries, states);
+          return modules.filter((m) => m.active);
+        }
+      : undefined;
+    registerPlatformRoutes(server, authRuntime, getActiveExternalModules);
 
     // Observability sink (#413): POST /api/errors. Platform infra (no auth, no
     // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
@@ -347,6 +431,9 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           .catch(() => false)
     };
 
+    // #917: externalModuleSnapshot is computed above (before registerPlatformRoutes),
+    // because the /api/modules provider closes over it. registerBuiltInApiRoutes reuses
+    // the same const for the settings module's external-module deps below.
     registerBuiltInApiRoutes(server, {
       rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
@@ -394,6 +481,20 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleApiClient,
       connectorsRepository,
       hostDiagnostics,
+      // #917: forward the boot-time discovery snapshot to the settings module. The real
+      // registry ExternalModuleDiscovery[]/ExternalModuleRejection[] are structurally
+      // identical to settings' local mirror types, so this assignment typechecks.
+      externalModules: {
+        enabled: apiServerConfig.enableExternalModules,
+        discoveries: externalModuleSnapshot.discoveries,
+        rejected: externalModuleSnapshot.rejected,
+        // #917: inject reconcile from the composition root — settings cannot import
+        // @jarv1s/module-registry (cycle). Closes over the boot discovery snapshot; the
+        // returned ReconciledExternalModule[] is structurally the ExternalModuleDto[] the
+        // port declares (field-identical), and ExternalModuleState (settings) is structurally
+        // the ExternalModuleStateInput reconcile wants (Task 7 confirmed). TS bridges both here.
+        reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
+      },
       fetchFn: options.fetchFn
     });
 
@@ -690,13 +791,27 @@ function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | nu
   }
 }
 
-function registerPlatformRoutes(server: FastifyInstance, authRuntime: JarvisAuthRuntime): void {
+function registerPlatformRoutes(
+  server: FastifyInstance,
+  authRuntime: JarvisAuthRuntime,
+  // #917: optional provider of the ACTIVE external modules for the actor. Absent when the
+  // feature is off ⇒ /api/modules stays built-ins only (fail-closed).
+  getActiveExternalModules?: (
+    accessContext: AccessContext
+  ) => Promise<readonly ReconciledExternalModule[]>
+): void {
   server.get("/api/modules", { schema: listModulesRouteSchema }, async (request, reply) => {
     try {
-      await authRuntime.resolveAccessContext(request);
+      const accessContext = await authRuntime.resolveAccessContext(request);
 
+      const builtIns = getBuiltInModuleManifests().map(serializeModule);
+      // #917: append ACTIVE external modules (reconcile already filtered to active === true).
+      // Runs in the actor's own data context, so /api/modules reflects only what is active.
+      const external = getActiveExternalModules
+        ? (await getActiveExternalModules(accessContext)).map(serializeExternalModule)
+        : [];
       return {
-        modules: getBuiltInModuleManifests().map(serializeModule)
+        modules: [...builtIns, ...external]
       };
     } catch (error) {
       const code =
@@ -728,7 +843,26 @@ function serializeModule(module: ReturnType<typeof getBuiltInModuleManifests>[nu
       path: surface.path,
       scope: surface.scope,
       order: surface.order ?? null
-    }))
+    })),
+    // #917: built-ins are never external. Emitted explicitly so the field survives the
+    // fast-json-stringify schema (undeclared/absent fields are dropped) and the shell can
+    // rely on it being present for built-ins.
+    external: false
+  };
+}
+
+// #917: an ACTIVE external module surfaces on /api/modules as metadata only — no
+// navigation, no settings surfaces (Slice 1 modules declare none). external:true lets
+// the shell tag it without loading any of its code.
+function serializeExternalModule(m: ReconciledExternalModule): ModuleDto {
+  return {
+    id: m.id,
+    name: m.name,
+    version: m.version,
+    lifecycle: "optional",
+    navigation: [],
+    settings: [],
+    external: true
   };
 }
 

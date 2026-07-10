@@ -1,4 +1,10 @@
-import type { ListModulesResponse, ListMyModulesResponse } from "@jarv1s/shared";
+import type { Page } from "@playwright/test";
+import type {
+  ExternalModuleDto,
+  ListExternalModulesResponse,
+  ListModulesResponse,
+  ListMyModulesResponse
+} from "@jarv1s/shared";
 
 export const modulesResponse: ListModulesResponse = {
   modules: [
@@ -166,3 +172,45 @@ export const myModulesResponse: ListMyModulesResponse = {
     active: true
   }))
 };
+
+/**
+ * Stateful mock for the #917 external-modules admin surface (Settings → Instance modules).
+ * Seeds one discovered-but-inactive module; the POST toggle flips its status in-memory so the
+ * pane round-trips (enable → refetch shows the switch checked), mirroring the stateful handlers
+ * in mock-api.ts (e.g. handleAdminUsersRoute).
+ *
+ * MUST be registered AFTER mockApi(page, …): Playwright matches the most-recently-registered
+ * route first, so these override mockApi's catch-all 404 for /api/*.
+ */
+export async function mockExternalModules(page: Page): Promise<void> {
+  // `enabled:true` mirrors the server having JARVIS_ENABLE_EXTERNAL_MODULES=1; without it the
+  // pane hides the whole section (the fail-closed default), so the feature-on path needs it true.
+  let current: ExternalModuleDto = {
+    id: "acme-widgets",
+    name: "Acme Widgets",
+    version: "0.1.0",
+    publisher: "Acme, Inc.",
+    status: "discovered",
+    active: false,
+    drifted: false,
+    disabledReason: null
+  };
+
+  // GET list — the pane's initial query and every post-toggle refetch read this.
+  await page.route("**/api/admin/external-modules", async (route) => {
+    const body: ListExternalModulesResponse = { enabled: true, modules: [current], rejected: [] };
+    await route.fulfill({ json: body });
+  });
+
+  // POST /api/admin/external-modules/:id — flip the module's status so the refetched list
+  // reflects the new enablement, matching the real endpoint's { module } envelope.
+  await page.route("**/api/admin/external-modules/*", async (route) => {
+    const enabled = (route.request().postDataJSON() as { enabled: boolean }).enabled;
+    current = {
+      ...current,
+      status: enabled ? "enabled" : "disabled",
+      active: enabled
+    };
+    await route.fulfill({ json: { module: current } });
+  });
+}

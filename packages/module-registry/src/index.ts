@@ -168,7 +168,8 @@ import {
   type VerifySelfPasswordPort,
   type HasPasswordCredentialPort,
   type OnboardingInstallDependencies,
-  type OnboardingLoginDependencies
+  type OnboardingLoginDependencies,
+  type ExternalModulesDependencies
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -283,6 +284,10 @@ declare module "fastify" {
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
+
+export * from "./external/validate.js";
+export * from "./external/types.js";
+export * from "./external/reconcile.js";
 
 export {
   createActiveModulesResolver,
@@ -415,6 +420,13 @@ export interface BuiltInRouteDependencies {
    * routes fail closed (500).
    */
   readonly onboardingLogin?: OnboardingLoginDependencies;
+  /**
+   * #917 — boot-time external-module discovery snapshot, built by the API composition root
+   * (apps/api discoverExternalModules) and forwarded to the settings module, where the Task 9
+   * admin GET route reconciles it against app.external_modules. Absent ⇒ feature off. Optional
+   * so every existing registerBuiltInApiRoutes call site keeps compiling unchanged.
+   */
+  readonly externalModules?: ExternalModulesDependencies;
   /** TEST-ONLY. Inject a fake fetch for weather (and any other external HTTP) without real network. */
   readonly fetchFn?: typeof fetch;
 }
@@ -798,6 +810,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         onboardingProbes: deps.onboardingProbes,
         onboardingInstall: deps.onboardingInstall,
         onboardingLogin: deps.onboardingLogin,
+        externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),
         notificationUnreadPort: new NotificationsRepository(),

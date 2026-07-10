@@ -152,6 +152,21 @@ export interface ModuleEnablementTable {
   updated_at: TimestampColumn;
 }
 
+// External trusted-operator module enablement (#917). Instance-global, admin-managed.
+// `'discovered'` is virtual (no row); only enabled/disabled modules have a row.
+// Backed by migration 0152_external_modules.sql.
+export interface ExternalModulesTable {
+  id: string;
+  status: "enabled" | "disabled";
+  manifest_hash: string;
+  package_hash: string;
+  disabled_reason: string | null;
+  enabled_by: string | null;
+  enabled_at: NullableTimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface RlsProbeItemsTable {
   id: string;
   owner_user_id: string;
@@ -938,6 +953,7 @@ export interface JarvisDatabase {
   "app.instance_settings": InstanceSettingsTable;
   "app.admin_audit_events": AdminAuditEventsTable;
   "app.module_enablement": ModuleEnablementTable;
+  "app.external_modules": ExternalModulesTable;
   "app.rls_probe_items": RlsProbeItemsTable;
   "app.tasks": TasksTable;
   "app.task_activity": TaskActivityTable;
@@ -998,6 +1014,7 @@ export type Share = Selectable<SharesTable>;
 export type InstanceSetting = Selectable<InstanceSettingsTable>;
 export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
 export type ModuleEnablementRow = Selectable<ModuleEnablementTable>;
+export type ExternalModuleRow = Selectable<ExternalModulesTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
 export type Task = Selectable<TasksTable>;
 export type TaskActivity = Selectable<TaskActivityTable>;

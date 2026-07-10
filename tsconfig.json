@@ -30,6 +30,7 @@
       "@jarv1s/jobs": ["packages/jobs/src/index.ts"],
       "@jarv1s/jobs/*": ["packages/jobs/src/*"],
       "@jarv1s/module-registry": ["packages/module-registry/src/index.ts"],
+      "@jarv1s/module-registry/node": ["packages/module-registry/src/node.ts"],
       "@jarv1s/module-sdk": ["packages/module-sdk/src/index.ts"],
       "@jarv1s/module-web-sdk": ["packages/module-web-sdk/src/index.ts"],
       "@jarv1s/news": ["packages/news/src/index.ts"],
