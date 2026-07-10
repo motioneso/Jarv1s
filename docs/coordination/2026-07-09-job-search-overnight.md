@@ -609,3 +609,14 @@ reported "confirmed driving"). Fixed: bounded-read-confirmed the successor was g
 (Sonnet 5, `agentmemory` recall running) *before* moving it — `herdr pane move w1:pDJ --tab w1:t1E
 --split right`. Now correctly in `w1:t1E` alongside `w1:pDH` (#914). Old pane `w1:pDG`
 (session `50971043-...`) closed. Status: `building`, current #918 pane = `w1:pDJ`.
+
+## #914 build agent self-relay (70%, pre-plan)
+
+Build agent for #914 relayed at 70% context, no code written yet, still pre-plan (grounding done,
+no premise drift found). Successor spawned in the same worktree/branch: session
+`9e1e9faf-7275-42d0-a2a6-db4ae6778b76`, label `914: module data plane build (relay-1)`, pane
+`w1:pDK`. Relay handoff committed at `docs/superpowers/handoffs/2026-07-10-914-module-data-plane-relay.md`
+(`cfdc0b7d`, agent's own bookkeeping path, not coordinator handoff dir). **Tab placement correct
+this time** (`w1:t1E`, no incident) — verified via `herdr pane list` before acting. Confirmed
+genuinely driving (Sonnet 5, bounded pane read) before reaping. Old pane `w1:pDH` (session
+`f1887c6e-...`) closed. Status: `building`, current #914 pane = `w1:pDK`.
