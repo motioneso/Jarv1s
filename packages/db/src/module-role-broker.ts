@@ -41,7 +41,11 @@ export interface ModuleRoles {
   readonly installRole: string;
 }
 
-/** Phase A: idempotently create both roles (NOLOGIN) and grant the runtime role to the parent runtime roles. */
+/**
+ * Phase A: idempotently create both roles (NOLOGIN), grant the runtime role to the parent
+ * runtime roles, and grant the install role its scoped schema-level privileges (USAGE+CREATE on
+ * schema app, REFERENCES on app.users(id) for the mandatory owner FK) per spec D2.
+ */
 export async function ensureModuleRoles(
   connectionString: string,
   moduleId: string
@@ -72,6 +76,13 @@ export async function ensureModuleRoles(
     await client.query(
       `GRANT ${client.escapeIdentifier(runtimeRole)} TO jarvis_app_runtime, jarvis_worker_runtime ` +
         `WITH INHERIT FALSE`
+    );
+    // Scoped install-role privileges per spec D2: enough to CREATE its own tables under schema
+    // app and FK-reference app.users(id) — nothing else. GRANT is idempotent (re-granting an
+    // already-held privilege is a no-op), so this is safe on every call, not just at creation.
+    await client.query(`GRANT USAGE, CREATE ON SCHEMA app TO ${client.escapeIdentifier(installRole)}`);
+    await client.query(
+      `GRANT REFERENCES (id) ON app.users TO ${client.escapeIdentifier(installRole)}`
     );
   } finally {
     await client.end();

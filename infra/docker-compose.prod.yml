@@ -13,6 +13,10 @@
 # Manual migration recovery:
 #   docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local \
 #     --profile ops run --rm migrate
+#
+# Install an external module (after it's been placed under the modules directory):
+#   docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local \
+#     --profile ops run --rm module-install
 
 x-app-env-file: &app-env-file
   env_file:
@@ -44,6 +48,20 @@ services:
       dockerfile: Dockerfile
     <<: *app-env-file
     command: ["node_modules/.bin/tsx", "scripts/migrate.ts"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["ops"]
+    networks:
+      - jarv1s
+
+  module-install:
+    image: ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    <<: *app-env-file
+    command: ["node_modules/.bin/tsx", "scripts/module-install.ts"]
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,5 +1,5 @@
 import { Client } from "pg";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   disableInstallerLogin,
@@ -9,13 +9,25 @@ import {
   moduleRuntimeRoleName
 } from "../../packages/db/src/module-role-broker.js";
 import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
+import { resetEmptyFoundationDatabase } from "./test-database.js";
 
 const urls = getJarvisDatabaseUrls();
 const moduleId = "role-broker-fixture";
 
+// ensureModuleRoles now grants schema/table-level ACLs on schema app (#914 Task 7), so this
+// suite needs the app schema to exist regardless of file run order — it can no longer piggyback
+// on some other file's reset having run first in the same shared test database.
+beforeAll(async () => {
+  await resetEmptyFoundationDatabase();
+});
+
 afterAll(async () => {
   const client = new Client({ connectionString: urls.bootstrap });
   await client.connect();
+  // ensureModuleRoles grants schema/table-level ACLs to the install role (spec D2); Postgres
+  // refuses DROP ROLE while grants are outstanding, so revoke before dropping.
+  await client.query(`REVOKE ALL PRIVILEGES ON SCHEMA app FROM ${moduleInstallRoleName(moduleId)}`);
+  await client.query(`REVOKE ALL PRIVILEGES ON app.users FROM ${moduleInstallRoleName(moduleId)}`);
   await client.query(`DROP ROLE IF EXISTS ${moduleInstallRoleName(moduleId)}`);
   await client.query(`DROP ROLE IF EXISTS ${moduleRuntimeRoleName(moduleId)}`);
   await client.end();
