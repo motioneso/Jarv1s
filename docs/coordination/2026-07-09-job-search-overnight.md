@@ -1190,3 +1190,59 @@ now, remaining bookkeeping goes to successor.
    skill (never trust a written pane number; resolve fresh via `herdr pane list`).
 
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## F3 resolved (Opus adjudication, session `f66de1e4`, 2026-07-10)
+
+`w1:pCV` presented 3 options for Codex's blocking finding #3 (on-disk contract mismatch —
+`schemaVersion`/`workerContractVersion`/`web.contractVersion` unvalidated) and explicitly declined
+to pick unilaterally (correct — genuine spec-vs-plan fork on a security-tier PR). Dispatched a
+one-shot Opus subagent per the coordinate skill's design-fork model policy; it ground-truthed the
+actual spec/plan/code (not just w1:pCV's framing).
+
+**Verdict: Option B.** Spec §Architecture + §Build-slices *do* require the nested contract-version
+fields, and the plan/code silently flattened them with no divergence note — Codex's F3 is a real
+"Spec before build" violation. But full alignment (option A) is wrong scope: Slice 1 is
+metadata-only (no `worker.ts` changes, no web serving), so `workerContractVersion`/
+`web.contractVersion` would guard loaders that don't exist until Slice 2-3. Fix: add + validate a
+top-level `schemaVersion: 1` now (the one version that's real tonight), and append a spec-revision
+note recording the deferral — cheap, safe for unattended merge, closes the paper gap.
+
+Relayed the full decision + exact spec-note text + action list (schemaVersion field, validate.ts
+check, spec append, commit/push/re-gate/report) to `w1:pCV` via `herdr pane run` at this checkpoint.
+**Not yet confirmed received** — next coordinator must bounded-read `w1:pCV` to verify it registered
+the message before assuming progress.
+
+## Relay checkpoint (self-relay from session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, context 70%)
+
+Context-meter fired the 70% hard trigger per the coordinate skill (no deferral — flush + relay
+now, merge nothing first). Nothing has merged this checkpoint. State:
+
+- **F3 decision**: resolved + relayed to `w1:pCV` (above) — NOT yet confirmed registered.
+- **PR #924 / #917**: still open, unmerged, head still `968251d8` as of last ground-truth check
+  (predecessor's GREEN Fable5 verdict on this head is STALE — do not reuse; a fresh panel run is
+  required against whatever head w1:pCV pushes next).
+- **w1:pCV** (Opus, worktree `.claude/worktrees/917-implementation-plan`, `agent_status` flaps
+  working/done mid a background gate-wait loop — this is a known pattern for this pane, not a
+  stall): gate already passed once (`REAL_EXIT=0`, unit 2232+2 skip/+4 new, integration 1426+2
+  skip, 143 migrations) for findings 1+2; now needs to also land the F3 fix above, re-run the gate,
+  commit, push, and report.
+- **Immediate action queue for successor** (unchanged from the prior checkpoint, now resumed):
+  1. Bounded-read `w1:pCV` to confirm the F3 relay landed; if the input box still shows stale
+     unsubmitted text from an earlier session, do NOT trust/submit it — only act on w1:pCV's own
+     fresh acknowledgement.
+  2. Wait for w1:pCV to report fixes pushed (all 3 findings, gate green, spec note appended).
+  3. Dispatch a FRESH Opus adversarial QA pass on the new PR #924 head (do not reuse any prior
+     verdict, stale or otherwise).
+  4. If green: re-run the Fable5 (`w1:pCR`) + Codex (`w1:pCK`) overnight-signoff panel from
+     scratch against the new head — both must post fresh `[OVERNIGHT-SIGNOFF]` verdicts (Ben's
+     time-boxed override still applies — read the top-of-file override section for exact steps;
+     a single RED still blocks).
+  5. Merge only if fresh QA AND both fresh panel verdicts are green → squash-merge, close #917,
+     board move, Ben's digest tagged "merged overnight under time-boxed sign-off override — please
+     spot-check" → relay again immediately (security-tier merge is a mandatory relay trigger).
+  6. Re-confirm session-id authority against this manifest's lock line before any merge (Phase 3
+     step 0) — update the lock line to the successor's own session id at Phase 0a.
+  7. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV` (the one from session
+     `f66de1e4` — task `b9wy6e40k` — dies with this session's reap).
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
