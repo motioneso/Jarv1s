@@ -50,7 +50,8 @@ export const aiServiceBindingMapSchema = {
   },
   // Dynamic keys must be declared or fast-json-stringify silently strips them (#859/#885).
   patternProperties: {
-    "^module\\.": aiServiceBindingSchema
+    // Character class is equivalent to `\.` and avoids fast-json-stringify's broken ref path.
+    "^module[.]": aiServiceBindingSchema
   }
 } as const;
 

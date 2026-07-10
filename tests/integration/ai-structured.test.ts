@@ -260,3 +260,117 @@ describe("resolveModelForService precedence", () => {
     expect(restored.model?.id).toBe(modelEconomyJsonId);
   });
 });
+
+describe("module service binding routes", () => {
+  const auth = { authorization: `Bearer ${ids.sessionAdmin}` };
+
+  it("PUT + GET round-trip a module.worker binding (fjs must not strip module keys)", async () => {
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.worker/binding",
+      headers: auth,
+      payload: { binding: { kind: "mode", tier: "economy" } }
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toEqual({
+      service: "module.worker",
+      binding: { kind: "mode", tier: "economy" }
+    });
+
+    const list = await server.inject({
+      method: "GET",
+      url: "/api/ai/service-bindings",
+      headers: auth
+    });
+    expect(list.statusCode, list.body).toBe(200);
+    expect(list.json().bindings["module.worker"]).toEqual({ kind: "mode", tier: "economy" });
+  });
+
+  it("rejects a module-specific binding for a module that is not installed", async () => {
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.definitely-not-installed/binding",
+      headers: auth,
+      payload: { binding: { kind: "mode", tier: "economy" } }
+    });
+    expect(put.statusCode).toBe(400);
+    expect(put.json().message ?? put.json().error).toMatch(/installed module/);
+  });
+
+  it("accepts a module-specific binding for an installed module", async () => {
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.ai/binding",
+      headers: auth,
+      payload: { binding: { kind: "mode", tier: "economy" } }
+    });
+    expect(put.statusCode).toBe(200);
+
+    const del = await server.inject({
+      method: "DELETE",
+      url: "/api/ai/services/module.ai/binding",
+      headers: auth
+    });
+    expect(del.statusCode).toBe(200);
+  });
+
+  it("rejects a model binding whose model lacks the json capability", async () => {
+    const chatOnlyModelId = await seedModel(providerId, "chat-only", ["chat"], "interactive");
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.worker/binding",
+      headers: auth,
+      payload: { binding: { kind: "model", modelId: chatOnlyModelId } }
+    });
+    expect(put.statusCode).toBe(400);
+
+    const chatPut = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/chat/binding",
+      headers: auth,
+      payload: { binding: { kind: "model", modelId: chatOnlyModelId } }
+    });
+    expect(chatPut.statusCode).toBe(200);
+  });
+
+  it("DELETE unbinds module keys only", async () => {
+    const del = await server.inject({
+      method: "DELETE",
+      url: "/api/ai/services/module.worker/binding",
+      headers: auth
+    });
+    expect(del.statusCode).toBe(200);
+    expect(del.json()).toEqual({ service: "module.worker" });
+
+    const list = await server.inject({
+      method: "GET",
+      url: "/api/ai/service-bindings",
+      headers: auth
+    });
+    expect(list.json().bindings["module.worker"]).toBeUndefined();
+
+    const chatDel = await server.inject({
+      method: "DELETE",
+      url: "/api/ai/services/chat/binding",
+      headers: auth
+    });
+    expect(chatDel.statusCode).toBe(400);
+  });
+
+  it("requires auth and instance-admin", async () => {
+    const anon = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.worker/binding",
+      payload: { binding: { kind: "mode", tier: "economy" } }
+    });
+    expect(anon.statusCode).toBe(401);
+
+    const nonAdmin = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.worker/binding",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { binding: { kind: "mode", tier: "economy" } }
+    });
+    expect(nonAdmin.statusCode).toBe(403);
+  });
+});
