@@ -1806,3 +1806,82 @@ then report board status to Ben as the close-out of his ask.
 
 **Relaying now** — successor in same tab (`w1:t15`), `--model sonnet --permission-mode
 bypassPermissions`, bootstrap points to this section only (not the full manifest).
+
+## Lock re-claimed (session `bbe0b188-bc5a-499d-b711-3f26b4d873e0`), IMMEDIATE re-relay at 70% first-turn context
+
+**Phase 0a:** predecessor session `792382f9-...` (pane `w1:pE3`) was still active on pickup —
+closed explicitly after my own pane (`w1:pE5`) was renamed to `Coordinator` and verified as the
+sole `Coordinator`-labelled pane. Lock line at top of file updated to session
+`bbe0b188-bc5a-499d-b711-3f26b4d873e0`, pane `w1:pE5`, tab `w1:t15`. Committed (`e2ff8c7e`).
+
+**#919 SECURITY/RLS fork — RESOLVED this turn, verdict relayed.** Predecessor's Opus one-shot
+(`a97d772da338ececf`) was NOT resumable from this fresh session as warned — re-spawned a new Opus
+one-shot adjudication (background agent, prompt grounded in `docs/superpowers/specs/2026-07-08-
+open-module-system-user-authored-modules.md` §Slice 3 + `packages/settings/sql/0153_module_credentials.sql`
++ `0154_module_kv.sql`, verified fresh against `origin/main`).
+
+**Verdict: APPROVE WITH CHANGES (5 required)** — relayed in full to `w1:pE4` and submitted
+(confirmed via bounded pane read, input box clear, agent `Working`):
+- **C1 BLOCKER (placement):** migration must live in `packages/settings/sql/`, NOT
+  `infra/postgres/migrations/` — module SQL invariant. Rename off `_role` (role
+  `jarvis_worker_runtime` already exists in `infra/postgres/bootstrap/0000_roles.sql` — do not
+  recreate it).
+- **C2 BLOCKER (cross-module leak):** app-only "declared-auth-id match" is insufficient — add
+  `app.current_module_id()` GUC (mirrors `current_actor_user_id()`, `REVOKE FROM PUBLIC`/`GRANT
+  EXECUTE TO jarvis_worker_runtime`, SET-LOCAL per RPC by the API parent). Worker RLS policies on
+  both `module_credentials` and `module_kv` must include `module_id = app.current_module_id()` AND
+  an enabled-module `EXISTS` check — without this, any enabled module's worker could read every
+  OTHER enabled module's instance credentials/KV.
+- **C3:** worker policies gate on enabled-module + module_id-GUC + `owner_user_id =
+  app.current_actor_user_id()` only — never `current_actor_is_admin()`. Parent sets both
+  `app.actor_user_id` (invoking actor, never elevated) and `app.current_module_id` SET-LOCAL per
+  proxied RPC.
+- **C4:** update `foundation.test.ts`'s `toEqual` migration list; reconcile the migration NUMBER
+  with #914 (both branches' full-list assertions will merge-conflict — whichever lands second
+  renumbers).
+- **C5:** no DELETE grant to worker on `module_credentials` (soft-revoke invariant); `module_kv`
+  worker CRUD mirrors `app_runtime` but module_id-GUC-scoped, destructive KV still routes through
+  confirm/audit.
+
+**Migration number: 0157**, coordinator-verified this turn (highest landed on `origin/main` is
+0154; scanned every active worktree — only #914's, uncommitted, provisionally claims 0155/0156;
+no other worktree claims higher). Contingent on #914 landing first (it's at Task 8/9, near
+completion, so very likely) — told `w1:pE4` to re-verify fresh immediately before actually
+writing/merging the migration file, not trust this pointer if time has passed.
+
+`w1:pE4` unblocked, resumed plan authoring via `coordinated-build`. No further coordinator gate
+needed for this fork unless a NEW security question surfaces.
+
+**GitHub board status check (Ben's ask) — CLOSED OUT this turn.** Raw `gh project item-list`
+shape inspected first (fixed the empty-filter bug: needed `--limit 500` on project 2, which has
+385 items, not the default). Findings, all three boards (`motioneso` projects 1/2/3):
+- #917, #918 → `Done` on project 2 — correct, matches merged PRs #924/#925.
+- #914, #919 → `Backlog` on project 2 — **STALE**, both are actively being built (#914 Task 8/9,
+  #919 mid-plan). Not auto-corrected this turn (Ben's ask was "check", not "fix") — flagging for
+  his decision/spot-check.
+- #913 (epic) → listed on BOTH project 1 (`In Progress`) AND project 2 (`Backlog`) —
+  **duplicate/conflicting listing**, flagging rather than resolving (could be intentional
+  cross-board tracking; not obvious enough to auto-merge/delete).
+- #916, #818, #860 → `Backlog` — consistent with held/not-yet-started status, no issue.
+- **Report to Ben pending** (not yet sent — next successor or a status ping should relay this).
+
+**Fleet-liveness Monitor:** re-armed this turn, task `bifzin1jq`, persistent, diffs `herdr pane
+list` for `w1` every 60s, emits changed lines only. **Does not survive this relay** — successor
+must re-arm per Phase 2.
+
+**#914 (`w1:pDQ`):** unchanged, untouched this turn — Task 8/9 in progress, standing
+do-not-nudge-on-routine-flips policy still in force.
+
+**#916:** still held, `needs-spec`, untouched.
+
+`merges_since_relay: 0` (unchanged — no merges this turn).
+
+**Successor's first action:** none required for #919 (fully unblocked) or the board check (fully
+closed out, just needs reporting to Ben). Resume Phase 2 resident supervision: watch for `w1:pE4`
+plan-ready escalation (next real gate — routine plan approval unless it's a genuine
+design/architecture fork), keep hands off `w1:pDQ` per standing policy, re-arm fleet-liveness
+Monitor, leave `w1:t1F` (Codex Job Search Spec / Fable 5 Spec Review, both idle) and `w1:pBK`/
+`w1:pCP` (news-module, sports-fed-spec, both idle) as-is — no queue item touches them.
+
+**Relaying now** — successor in same tab (`w1:t15`), `--model sonnet --permission-mode
+bypassPermissions`, bootstrap points to this section only (not the full manifest).
