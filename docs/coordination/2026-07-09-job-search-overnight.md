@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`,
-pane `w1:pD1`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `ae488fcc-3b93-4be6-9118-14452e66da3d`,
+pane `w1:pD2`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -843,5 +843,23 @@ approved/changed since the Task 8 provider-kind grounding above.
    mechanical-fix-vs-design-fork same as this session's Task 8 approval (ground in source before
    approving).
 4. No merges pending; nothing to reconcile in `ci_waivers`.
+
+## Lock re-claimed (successor session `ae488fcc-3b93-4be6-9118-14452e66da3d`)
+
+Predecessor pane `w1:pD1` (session `0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (never a
+written pane number). Pane text showed its own todo list fully checked off ("Phase 0a: claim
+single-coordinator lock", "Restart Monitor scoped to w1:pCR/pCK/pCV/pCZ", "Confirm w1:pCV #917
+plan execution status", +1 more) and an idle prompt — `agent_status` field read `working` (stale)
+but pane content showed it had already finished and was waiting to be reaped, so it was closed
+without a Monitor wait. Verified exactly **1** `Coordinator`-labelled pane remains: `w1:pD2`,
+session `ae488fcc-3b93-4be6-9118-14452e66da3d`, tab `w1:t15`. Manifest length was unchanged since
+last read (847 lines) — predecessor's completed todo items match what's already recorded in the
+"## Relay checkpoint (self-relay from session `0fe9cd0b-...`)" section immediately above; nothing
+undocumented to reconcile.
+
+**Proceeding with the predecessor's immediate action queue** (restated above): restart persistent
+Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`; re-check `w1:pCZ` fresh for PR-ready state
+on `feat/915-slice3-structured-ai`; re-check `w1:pCV` fresh for #917 plan-execution completion.
 
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
