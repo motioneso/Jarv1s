@@ -943,4 +943,89 @@ re-confirmed (lock line = `ae488fcc-...`, matches). Tier **sensitive** (manifest
 cross-module shared AI-seam contract). Dispatching `coordinated-qa` (Sonnet, isolated worktree) —
 CI trusted via `gh pr checks`, not re-run.
 
+**#915 slice-3 MERGED:** QA verdict GREEN (sensitive-tier standard QA + invariant walk, CI trusted
+via `gh pr checks`). Merged PR #923 via `gh pr merge --squash --delete-branch`; branch delete
+partially failed ("used by worktree") — completed manually with `git worktree remove
+.claude/worktrees/915-slice3-structured-ai --force` + `git branch -D
+feat/915-slice3-structured-ai`. Pane `w1:pCZ` reaped/closed. GitHub bookkeeping: PR body said
+"Closes #915" but #915 is a parent covering 3 prerequisites and only 1 shipped — GitHub
+auto-closed it wrongly; reopened via `gh issue reopen 915` + explanatory comment listing the 2
+remaining prerequisites (queue/schedule registration, host-pinned fetch) and the deferred-scope
+issue #919. #915 not on the project board (highest tracked item is #913), so no board move needed.
+Ben's digest: "#915 slice-3 (structured-AI seam) merged — PR #923, sensitive tier, QA green.
+Parent issue #915 reopened, 2 of 3 prerequisites still open, deferred scope split to #919."
+`merges_since_relay`: 0 → **1**.
+
+## Relay checkpoint (self-relay from session `ae488fcc-3b93-4be6-9118-14452e66da3d`, context 70%)
+
+Context-meter fired 70% warning — non-deferrable relay trigger. Flushing state; the literal next
+action (dispatching Opus QA on PR #924) was **not yet executed** and must not be started by this
+session — it's the successor's first move.
+
+**Mid-doing — successor's very first action:** spawn Opus adversarial QA on PR #924 (#917, tier
+`security`):
+```
+Agent(description: "QA: 917-open-module-system-slice1", subagent_type: "coordinated-qa",
+  isolation: "worktree", model: "opus", prompt: """
+JARVIS_PGDATABASE=jarvis_qa_917
+PR: #924 | Branch: plan/917-open-module-system-slice1 | Spec: locate via issue #917 body / linked
+spec under docs/superpowers/specs/ | Tier: security
+
+Security-tier adversarial pass: external manifest loader + fail-closed module activation is
+privileged-install-adjacent (pluggable-modules epic blocker: "install=privileged-ops").
+Adversarially hunt: path traversal / symlink escape in manifest loading, fail-OPEN edge cases in
+the "fail-closed" activation logic (any path where a malformed/missing manifest silently succeeds
+instead of rejecting), privilege boundary on the admin API + module-install surface, RLS on any new
+external-module state tables, secrets/credential handling in the loader. Not-tested section is
+mandatory for this tier — name any unproven trust boundary explicitly.
+
+Invoke the coordinated-qa skill. Post your verdict via `gh pr comment` on #924 (mandatory for
+security tier) BEFORE returning. Return ONLY the compact verdict as your final message.
+""")
+```
+
+**Then**, per the ACTIVE overnight sign-off override (top of manifest): route the Opus verdict to
+a quick two-model panel — `w1:pCR` (Fable 5, idle) and `w1:pCK` (Codex, idle) — "is PR #924 safe to
+merge unattended given this verdict"; post the combined answer as a PR comment tagged
+`[OVERNIGHT-SIGNOFF]` citing this manifest's override section. Merge only if Opus QA is GREEN and
+the panel says yes. On merge: `gh pr merge 924 --squash --delete-branch`, then
+`git worktree remove .claude/worktrees/917-implementation-plan --force` + `git branch -D
+plan/917-open-module-system-slice1` (branch delete will likely fail first pass while the worktree
+still references it — same pattern as #923, resolve the same way), close pane `w1:pCV`. GitHub
+bookkeeping: **verify #917's actual shipped scope against its full issue scope before closing** —
+learn from the #915 mistake, don't assume 1:1. Check if #917 is tracked on the project board
+(unconfirmed this session) before deciding whether a board move is needed. Digest entry must be
+tagged distinctly: "merged overnight under time-boxed sign-off override — please spot-check" (not
+a routine merge line).
+
+**This merge, once done, immediately re-fires a relay trigger** (security-tier merge is
+unconditional, regardless of the 2-merge counter) — relay again right after, before any further
+fleet action.
+
+**Fleet state at this checkpoint:**
+- `w1:pCV` "Opus: #917 Plan" — idle/standing by, PR #924 open, redirected away from premature
+  issue/board updates, waiting on QA feedback. Was reading ~64% context / "12% until
+  auto-compact" a few ticks ago — may relay on its own soon; not urgent, just watch.
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — **closed and reaped**, no longer part of the fleet.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — `done`/idle, reap-safe from its own prior
+  assessment, but **needed** for the #917 overnight-signoff panel above before being reaped.
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, **needed** for the same panel; also still
+  overdue on Ben's "keep it informed periodically" ask (low priority, does not block the panel).
+- Monitor task `b16z5o0au` (persistent, changes-only, 60s poll, scoped to `w1:pCR`/`w1:pCK`/
+  `w1:pCV`/`w1:pCZ`) — **dies with this session**; successor restarts its own with the same scope
+  (drop `pCZ`, it's reaped — leaving it in is harmless, just a MISSING-pane no-op line).
+- `merges_since_relay` = 1 (the #915 slice-3 merge this session).
+- Overnight sign-off override remains ACTIVE (time-boxed to tonight only) — about to be exercised
+  for the first time, on PR #924.
+
+**Ben's standing digest, queued (not yet sent):**
+1. "#915 slice-3 (structured-AI seam) merged — PR #923, sensitive tier, QA green. Parent issue
+   #915 reopened, 2 of 3 prerequisites still open, deferred scope split to #919."
+2. (pending) "#917 slice 1 (open module system, external manifest loader) — security tier,
+   [outcome once merged/blocked]."
+
+**Session-id authority:** successor must update the manifest lock line to its own
+`agent_session.value` immediately upon claiming Phase 0a, even though this is the same routine
+every relay does — it is the pre-merge authority check for the #924 merge above.
+
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
