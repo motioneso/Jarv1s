@@ -1058,3 +1058,25 @@ Fable5/Codex overnight-signoff panel until this verdict lands.
 Monitor restarted: task `bwntn4bqt` (persistent, changes-only, 60s poll), scoped to
 `w1:pCR`/`w1:pCK`/`w1:pCV` (dropped `w1:pCZ` — already reaped). Predecessor's monitor
 `b16z5o0au` died with that session as expected.
+
+**Opus adversarial QA on PR #924 — VERDICT: GREEN, MERGE-READY: YES** (agent `ae69f24a53a1ea97d`,
+completed, posted `gh pr comment` verified present on PR at 2026-07-10T11:32:26Z). 0 blocking
+findings; 2 non-blocking (symlink-follow on worker.js/manifest reads without regular-file check —
+trusted-mount lowers severity; "loader never writes to mount" asserted in comments not proven by
+test). Invariants confirmed: RLS FORCE + admin-only writes on new config table (migration 0152),
+structural fail-closed (no row = inactive), admin authz before any 404/409 oracle, fs-error
+reasons scrubbed (no path leak), DataContextDb-only, module isolation preserved, server-only
+subpath. Not-tested (security tier, all within documented Slice-1 trusted-operator model, no
+creds/execution yet): hashes captured once at boot (no post-boot drift re-check until restart —
+integrity proven at boot only, enforced by operator/deploy not code), enable-time TOCTOU against
+stale boot snapshot, symlinked package-file content folded into hash with no size/type guard.
+
+**Routed to overnight-signoff panel (this checkpoint):** messaged both `w1:pCR` (Fable 5, high
+effort) and `w1:pCK` (Codex `gpt-5.6-sol` extra-high) with the `[OVERNIGHT-SIGNOFF]` adjudication
+request — independent "safe to merge unattended" judgment (not a QA re-run), citing this
+manifest's override section as authorization, instructed to post their own `gh pr comment` on
+#924 tagged `[OVERNIGHT-SIGNOFF]` before replying to Coordinator. Both confirmed message received
+and working (bounded pane reads). **Fable 5 flagged at 9% until auto-compact** when this message
+landed — watch closely, may stall/relay mid-task; nudge per `agent-stall-nudge-recovery` memory
+if it does, don't respawn unless actually dead. Awaiting both verdicts before merge — do not
+merge on one panel member alone.
