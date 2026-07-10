@@ -106,7 +106,10 @@ bootstrap connection inside this ops-only entrypoint, and only for the two names
   Slice 1 loader (manifest schema, id prefix, path bounds, package hash); ensure the two roles,
   memberships, and scoped grants exist; enable installer login. Then, as `jarvis_migration_owner`,
   journal an **intent row** in `app.module_installs` (`status = 'installing'`, target package
-  hash, and the pending file list with checksums).
+  hash, the pending file list with checksums, and a **canonical pre-B fingerprint** of the
+  module-owned catalog state — tables, columns, constraints, indexes, comments, policies, and
+  grants under the module's prefix, normalized and hashed; never volatile stats or OIDs). The
+  fingerprint is what lets a later process classify recovery states without parsing module SQL.
 - **Phase B — module SQL (installer connection, ONE transaction):** connect _as_
   `jarvis_mod_<slug>_install` and apply **all** pending migration files — each file is a single
   extended-protocol DDL statement per the D3 wire contract, so module text cannot `COMMIT`,
@@ -135,11 +138,19 @@ but unrecorded DDL. On the next run, `status = 'installing'` makes this explicit
 resolves it deterministically from the journaled intent. Determinism holds because of two facts:
 phase B is a single transaction, and the D3 wire contract makes module migrations DDL-only — so
 the catalog either contains **all** of the journaled changes or **none** of them, and there is no
-invisible committed DML to guess about. Recovery is therefore binary: if the journaled DDL is
-fully present and re-verification (D4) passes, complete phase C (roll forward); if none of it is
-present, re-run phase B (retry). For a fresh install the runner may equivalently drop every
-object under the module's prefix and start over — safe, since no user data exists before first
-install completes. The runner never guesses; the intent row is the authority.
+invisible committed DML to guess about.
+
+Classifying which of those two states the new process sees uses the journaled pre-B fingerprint,
+not SQL parsing: recompute the canonical fingerprint of the module-owned catalog state and
+compare. **Equal to the journaled pre-B fingerprint** → phase B never committed; re-run phase B
+(retry). **Different, and D4 re-verification passes** → the atomic phase-B transaction committed;
+complete phase C (roll forward). Any other combination (different but re-verification fails)
+aborts loudly for operator attention — it means outside interference, not a crashed install. So
+that fingerprint comparison is always decisive, D4 additionally **rejects a pending operation
+whose catalog diff is empty**: every accepted install/upgrade must change the fingerprint. For a
+fresh install the runner may equivalently drop every object under the module's prefix and start
+over — safe, since no user data exists before first install completes. The runner never guesses;
+the intent row is the authority.
 
 `app_runtime`, `worker_runtime`, and the module's own worker process can never execute DDL. There
 is no install-from-web-UI path; the runtime surfaces install state read-only.
@@ -213,7 +224,10 @@ asserts:
   `owner_user_id`;
 - no grants exist beyond the generated ones; no functions or triggers were created (v1 scope);
 - every table is listed in the manifest's `database.ownedTables` (which becomes **authoritative
-  and enforced** for external modules, not declarative).
+  and enforced** for external modules, not declarative);
+- the diff is **non-empty**: an operation with pending files that changes no module-owned catalog
+  state is rejected, which keeps the D2 recovery fingerprint comparison decisive (pre-B
+  fingerprint ≠ post-B fingerprint for every accepted operation).
 
 Any assertion failure aborts the transaction — the database is untouched and the module is not
 recorded as installed. The diff catches policy violations (naming, shape, scope creep) and
@@ -288,8 +302,8 @@ New platform SQL (core migration, normal global sequence, next free `NNNN`):
 - `app.module_installs` — `module_id text PK`, `status text` (`installing` | `installed` only —
   enable/disable stays solely in #818's `app.external_modules.status`; no second source of
   truth), `package_hash text`, `table_prefix text UNIQUE`, `runtime_role text UNIQUE`,
-  `install_journal jsonb` (pending file list + checksums for D2 recovery), `installed_at`,
-  `updated_at`. RLS is explicit: `ENABLE` + `FORCE`, a single SELECT policy `USING (true)`
+  `install_journal jsonb` (pending file list + checksums + canonical pre-B catalog fingerprint
+  for D2 recovery), `installed_at`, `updated_at`. RLS is explicit: `ENABLE` + `FORCE`, a single SELECT policy `USING (true)`
   `TO jarvis_app_runtime` (instance-level metadata, no user content, read by admin settings), and
   no INSERT/UPDATE/DELETE policies or grants to any runtime role — writes are install-path only.
 
@@ -360,10 +374,13 @@ AUTHORIZATION`, fails on privileges from the installer connection; wire-contract
   module runtime role cannot read core tables or another module's tables; RPC under user A
   cannot read user B's rows; RPC rejects multi-statement input, enforces `statement_timeout`
   (e.g. against `pg_sleep`) and row/byte caps, and redacts platform internals from errors.
-- Recovery: kill the installer between phase B commit and phase C; the next run resolves the
-  `installing` state per the journal (all-journaled-DDL-present → roll forward; none present →
-  retry). Kill it with installer login enabled; the next run's phase-A sweep disables it, and
-  `VALID UNTIL` bounds the credential regardless.
+- Recovery: kill the installer between phase B commit and phase C; the next run classifies via
+  the journaled pre-B fingerprint (fingerprint unchanged → retry B; changed + D4 re-verify passes
+  → roll forward C) — covered for fresh `CREATE TABLE` installs **and** for upgrades whose only
+  changes are `ALTER TABLE` or `COMMENT ON`; an operation with pending files but an empty catalog
+  diff is rejected; fingerprint-changed-but-verification-fails aborts loudly. Kill it with
+  installer login enabled; the next run's phase-A sweep disables it, and `VALID UNTIL` bounds the
+  credential regardless.
 - Lifecycle path: derived export collects the actor's module rows via
   `SET LOCAL ROLE jarvis_mod_<slug>_runtime` (and fails closed if the membership grant is
   missing); account deletion cascades module rows.
