@@ -19,6 +19,7 @@ import {
   listAdminAuditEventsRouteSchema,
   listAdminModulesRouteSchema,
   listAuthProviderStatusesRouteSchema,
+  listExternalModulesRouteSchema,
   listInstanceSettingsRouteSchema,
   listMyModulesRouteSchema,
   listUsersRouteSchema,
@@ -27,9 +28,13 @@ import {
   patchMeProfileRouteSchema,
   putChatMultiplexerSettingsRouteSchema,
   putRegistrationSettingsRouteSchema,
+  setExternalModuleEnablementRouteSchema,
   upsertInstanceSettingRouteSchema,
   type AdminModuleDto,
   type AuthProviderStatusDto,
+  // #917: wire DTO for the external-module admin surface. Field-identical to the reconcile
+  // port's output — no local mapper needed (see ExternalModulesDependencies.reconcile).
+  type ExternalModuleDto,
   type ChatMultiplexerAvailability,
   type ChatMultiplexerChoice,
   type MultiplexerKind,
@@ -76,7 +81,7 @@ import {
   registerProactiveMonitoringSettingsRoutes,
   type ReconcileProactiveScheduleFn
 } from "./proactive-monitoring-routes.js";
-import { SettingsRepository } from "./repository.js";
+import { SettingsRepository, type ExternalModuleState } from "./repository.js";
 import {
   computeMyModuleDto,
   handleRouteError,
@@ -130,6 +135,20 @@ export interface ExternalModulesDependencies {
   readonly enabled: boolean;
   readonly discoveries: readonly ExternalModuleDiscovery[];
   readonly rejected: readonly ExternalModuleRejection[];
+  /**
+   * #917 — reconcile port injected by the composition root (apps/api). Settings CANNOT import
+   * @jarv1s/module-registry (reconcileExternalModules lives there; that package already depends
+   * on @jarv1s/settings, so a direct import cycles + breaks module isolation — same discipline as
+   * reconcileNotesSchedule). apps/api closes this over the boot discovery snapshot, so callers pass
+   * only the persisted states. `modules` are already reconciled + DTO-shaped (ReconciledExternalModule
+   * is field-identical to ExternalModuleDto), drift-inactive already applied; `driftDisable` is the
+   * to-persist auto-disable list (the GET route writes it back). reason is DRIFT_DISABLED_REASON,
+   * baked in by reconcile — settings never needs that constant.
+   */
+  readonly reconcile: (states: readonly ExternalModuleState[]) => {
+    readonly modules: readonly ExternalModuleDto[];
+    readonly driftDisable: readonly { readonly id: string; readonly reason: string }[];
+  };
 }
 
 export interface SettingsRoutesDependencies {
@@ -833,6 +852,111 @@ export function registerSettingsRoutes(
               requestId: requireRequestId(accessContext)
             });
             return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
+          }
+        );
+        return { module: dto };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // #917: list discovered external modules with reconciled activation state. Admin-only.
+  // This is the ONE path that PERSISTS drift auto-disables — it runs in an admin RLS
+  // context, so autoDisableExternalModule's UPDATE passes current_actor_is_admin(). The
+  // /api/modules provider (apps/api) reconciles in the ACTOR context and never persists.
+  server.get(
+    "/api/admin/external-modules",
+    { schema: listExternalModulesRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const ext = dependencies.externalModules;
+        const body = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            // Authorize FIRST — a non-admin gets 403 regardless of feature state.
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            if (!ext || !ext.enabled) {
+              // Feature off: still admin-gated, just an empty read-only surface.
+              return {
+                enabled: false,
+                modules: [] as readonly ExternalModuleDto[],
+                rejected: [] as readonly { id: string; reason: string }[]
+              };
+            }
+            const states = await repository.listExternalModuleStates(scopedDb);
+            // reconcile is injected by the composition root (apps/api). It closes over the
+            // boot discovery snapshot; `modules` are already ExternalModuleDto-shaped.
+            const { modules, driftDisable } = ext.reconcile(states);
+            // Persist any drift auto-disables discovered this read (admin context only).
+            for (const d of driftDisable) {
+              await repository.autoDisableExternalModule(scopedDb, {
+                id: d.id,
+                reason: d.reason,
+                actorUserId: accessContext.actorUserId,
+                requestId: requireRequestId(accessContext)
+              });
+            }
+            return {
+              enabled: true,
+              modules,
+              rejected: ext.rejected.map((r) => ({ id: r.id, reason: r.reason }))
+            };
+          }
+        );
+        return body;
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // #917: admin enable/disable of a single external module. Enable captures the CURRENT
+  // on-disk hashes as the trusted baseline; disable pins it off. 404 if the id is not a
+  // current on-disk discovery; 409 if the feature is off.
+  server.post<{ Params: { id: string }; Body: { enabled: boolean } }>(
+    "/api/admin/external-modules/:id",
+    { schema: setExternalModuleEnablementRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const ext = dependencies.externalModules;
+        const enable = request.body.enabled;
+        const dto = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            // Authorize FIRST (same non-leak discipline as /api/admin/modules).
+            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
+            if (!ext || !ext.enabled) {
+              throw new HttpError(409, "External modules are not enabled on this instance");
+            }
+            const discovery = ext.discoveries.find((d) => d.id === request.params.id);
+            if (!discovery) throw new HttpError(404, "External module not found");
+
+            if (enable) {
+              await repository.setExternalModuleEnabled(scopedDb, {
+                id: discovery.id,
+                manifestHash: discovery.manifestHash,
+                packageHash: discovery.packageHash,
+                actorUserId: accessContext.actorUserId,
+                requestId: requireRequestId(accessContext)
+              });
+            } else {
+              await repository.setExternalModuleDisabled(scopedDb, {
+                id: discovery.id,
+                reason: "disabled by admin",
+                actorUserId: accessContext.actorUserId,
+                requestId: requireRequestId(accessContext)
+              });
+            }
+
+            // Recompute this module's reconciled DTO from fresh state.
+            const states = await repository.listExternalModuleStates(scopedDb);
+            const { modules } = ext.reconcile(states);
+            const updated = modules.find((m) => m.id === discovery.id);
+            if (!updated) throw new HttpError(404, "External module not found");
+            return updated;
           }
         );
         return { module: dto };

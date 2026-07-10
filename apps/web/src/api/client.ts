@@ -95,6 +95,8 @@ import type {
   ListConnectorAccountsResponse,
   ListMedicationsResponse,
   ListAdminModulesResponse,
+  ExternalModuleDto,
+  ListExternalModulesResponse,
   ListModulesResponse,
   ListMyModulesResponse,
   ListSourceBehaviorsResponse,
@@ -369,6 +371,22 @@ export async function setAdminModuleDisabled(
     method: "PATCH",
     body: { disabled }
   });
+}
+
+/** Admin: list discovered external modules with reconciled activation state (#917). */
+export async function listExternalModules(): Promise<ListExternalModulesResponse> {
+  return requestJson<ListExternalModulesResponse>("/api/admin/external-modules");
+}
+
+/** Admin: enable/disable a single external module (#917). */
+export async function setExternalModuleEnabled(
+  id: string,
+  enabled: boolean
+): Promise<{ module: ExternalModuleDto }> {
+  return requestJson<{ module: ExternalModuleDto }>(
+    `/api/admin/external-modules/${encodeURIComponent(id)}`,
+    { method: "POST", body: { enabled } }
+  );
 }
 
 /** Bounded so a hung status read can never trap the founder before the app shell (Codex R2 #2). */

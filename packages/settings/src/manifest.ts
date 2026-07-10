@@ -308,6 +308,18 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       path: "/api/admin/modules/:id",
       permissionId: "settings.manage"
     },
+    // #917: external-module admin surface. Admin-only (settings.manage), same as the
+    // built-in module admin routes above.
+    {
+      method: "GET",
+      path: "/api/admin/external-modules",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/admin/external-modules/:id",
+      permissionId: "settings.manage"
+    },
     {
       method: "GET",
       path: "/api/me/modules",

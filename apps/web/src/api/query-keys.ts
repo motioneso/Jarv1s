@@ -14,6 +14,8 @@ export const queryKeys = {
     adminAuditEvents: ["settings", "admin", "audit-events"] as const,
     adminUsers: ["settings", "admin", "users"] as const,
     adminModules: ["settings", "admin", "modules"] as const,
+    // #917: admin external-module list. Sibling of adminModules (flat convention).
+    adminExternalModules: ["settings", "admin", "external-modules"] as const,
     locale: ["settings", "locale"] as const,
     sessions: ["settings", "sessions"] as const,
     persona: ["settings", "persona"] as const,
