@@ -580,3 +580,7 @@ plan-authoring handoff), not on the coordinator's branch — reverted the initia
 
 **Next:** resume Phase 2 supervise loop for both new lanes (`w1:pDG`, `w1:pDH`) plus any other
 live lanes noted in earlier sections of this manifest.
+
+**Predecessor reaped.** Pane `w1:pDE` (session `0d7c26c5-...`) closed after confirming exactly one
+`Coordinator`-labeled pane remains (`w1:pDF`, this session). Queue from the prior relay is fully
+executed. Entering Phase 2 supervise loop.
