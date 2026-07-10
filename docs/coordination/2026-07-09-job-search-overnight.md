@@ -1048,3 +1048,13 @@ for overnight-signoff panel), `w1:pCK` "Codex: Job Search Spec" (done/idle, need
 
 **Proceeding with predecessor's immediate action queue:** dispatch Opus adversarial QA on PR #924
 (#917, tier `security`) first, per the exact prompt specified in the checkpoint above.
+
+**Opus QA dispatched (this checkpoint):** `Agent(subagent_type: "coordinated-qa", isolation:
+"worktree", model: "opus")`, agent id `ae69f24a53a1ea97d`, running in background — will post its
+verdict to PR #924 via `gh pr comment` before returning, per the security-tier prompt verbatim
+from the relay checkpoint above. Awaiting completion notification; do not proceed to the
+Fable5/Codex overnight-signoff panel until this verdict lands.
+
+Monitor restarted: task `bwntn4bqt` (persistent, changes-only, 60s poll), scoped to
+`w1:pCR`/`w1:pCK`/`w1:pCV` (dropped `w1:pCZ` — already reaped). Predecessor's monitor
+`b16z5o0au` died with that session as expected.
