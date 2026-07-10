@@ -1203,6 +1203,23 @@ stall. Holding for its fixes-pushed report before dispatching fresh QA.
 `w1:pCR`/`w1:pCK`/`w1:pCV`. Predecessor's monitor `b9wy6e40k` died with that session as expected.
 Baseline event confirmed no drift: Fable5 done/idle, Codex done/idle, Opus working.
 
+## Checkpoint (`w1:pCV` fixes pushed, awaiting fresh CI before QA)
+
+**`w1:pCV` reports fixes pushed (2026-07-10 ~05:30 UTC):** `schemaVersion` field added
+(fail-closed on missing/future), worker/web contract versions explicitly deferred to Slices 2-3
+with rationale (metadata-only Slice 1, no loaders exist yet to consume them), spec `## Revisions`
+note appended verbatim. Gate: `pnpm verify:foundation` green, `REAL_EXIT=0` both rounds; targeted
+external-module suites 32/32. **New PR #924 head: `ab5d3ec570bfebdff415db577f62bb154b1d6a44`**
+(was `968251d8`, the RED-verdict head). SDD ledger + agentmemory updated. Handed back for re-QA.
+
+**Ground-truth via `gh pr view 924`:** confirms `headRefOid: ab5d3ec5...`, `state: OPEN`,
+`mergedAt: null`. All 3 required checks (`Verify foundation and app`, `Compose deployment smoke`,
+`Prod compose deployment smoke`) are `IN_PROGRESS` on this new head — **not dispatching QA yet**,
+QA trusts CI for the mechanical gate per the coordinate skill, no point re-running against pending
+checks. Started a clean background wait (task `bpubup1ms`) polling `gh pr checks 924` every 20s;
+will dispatch fresh Opus adversarial QA the moment all 3 resolve green (or handle red per the CI
+waiver protocol if any fail).
+
 ## Lock re-claimed (successor session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`)
 
 Predecessor pane `w1:pD4` (session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, matched manifest lock
