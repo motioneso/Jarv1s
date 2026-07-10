@@ -90,6 +90,16 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   // #917 external-module admin surface (settings-owned; settings is required/always-on).
   routeKey("GET", "/api/admin/external-modules"),
   routeKey("POST", "/api/admin/external-modules/:id"),
+  // #918: module credential management + web asset serving are PLATFORM routes
+  // (external modules cannot declare routes[]). The asset handler enforces its
+  // own module-active fail-closed 404 (apps/api/src/server.ts).
+  routeKey("GET", "/api/admin/modules/:moduleId/credentials"),
+  routeKey("PUT", "/api/admin/modules/:moduleId/credentials/:credentialId"),
+  routeKey("DELETE", "/api/admin/modules/:moduleId/credentials/:credentialId"),
+  routeKey("GET", "/api/me/modules/:moduleId/credentials"),
+  routeKey("PUT", "/api/me/modules/:moduleId/credentials/:credentialId"),
+  routeKey("DELETE", "/api/me/modules/:moduleId/credentials/:credentialId"),
+  routeKey("GET", "/api/modules/:moduleId/web/*"),
   // observability sink (#413): unauthenticated platform route the browser fires
   // client errors into. Owned by no module, never stores anything, only logs.
   routeKey("POST", "/api/errors")
