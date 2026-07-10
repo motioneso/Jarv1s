@@ -3,7 +3,11 @@
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join, sep } from "node:path";
 
-import { hashCanonicalManifest, hashExternalPackage } from "./external/hash.js";
+import {
+  ExternalPackageEscapeError,
+  hashCanonicalManifest,
+  hashExternalPackage
+} from "./external/hash.js";
 import { MODULE_ID_RE, validateExternalModuleManifest } from "./external/validate.js";
 import type {
   ExternalModuleDiscovery,
@@ -65,13 +69,43 @@ export function getExternalModuleRegistrations(options: {
         continue;
       }
 
+      // #917 SECURITY (Codex re-QA): the manifest file itself must not be a symlink that
+      // escapes the module dir — spec "reject symlinks escaping the module directory". The
+      // readFileSync below FOLLOWS a symlink, so without this a symlinked jarvis.module.json
+      // could resolve to any on-disk file. realpathSync resolves the final link (guarded by the
+      // existsSync above); an out-of-dir target is an escape — the same containment test already
+      // applied to the module directory, now applied to the manifest file.
+      const manifestReal = realpathSync(manifestPath);
+      if (manifestReal !== dirReal && !manifestReal.startsWith(dirReal + sep)) {
+        rejected.push({ id, reason: `jarvis.module.json escapes the module directory: ${id}` });
+        continue;
+      }
+
+      // #917 SECURITY (Codex re-QA): read and parse in SEPARATE try blocks. A readFileSync
+      // failure (EACCES/EISDIR/TOCTOU) embeds the ABSOLUTE on-disk path in error.message — the
+      // same leak vector the outer catch guards against — so it must NEVER be interpolated raw.
+      // Emit only the error CODE/NAME so no path reaches the admin GET `rejected[]` or
+      // server.ts `log.warn({ reason })`. The parse path keeps the nicer "invalid JSON" reason.
+      let contents: string;
+      try {
+        contents = readFileSync(manifestPath, "utf8");
+      } catch (error) {
+        const token =
+          error instanceof Error
+            ? ((error as NodeJS.ErrnoException).code ?? error.name)
+            : "unknown error";
+        rejected.push({ id, reason: `failed to read ${id}/jarvis.module.json: ${token}` });
+        continue;
+      }
+
       let raw: unknown;
       try {
-        // Inner catch yields the nicer "invalid JSON" reason; the outer catch is the
-        // backstop for realpath/hash/TOCTOU throws. Both coexist intentionally.
-        raw = JSON.parse(readFileSync(manifestPath, "utf8"));
+        raw = JSON.parse(contents);
       } catch (error) {
-        rejected.push({ id, reason: `invalid JSON in ${id}/jarvis.module.json: ${String(error)}` });
+        // A JSON SyntaxError can echo file CONTENT but never a filesystem path; still emit only
+        // the error NAME (e.g. "SyntaxError") for defense-in-depth and parity with the read path.
+        const token = error instanceof Error ? error.name : "unknown error";
+        rejected.push({ id, reason: `invalid JSON in ${id}/jarvis.module.json: ${token}` });
         continue;
       }
 
@@ -89,6 +123,17 @@ export function getExternalModuleRegistrations(options: {
         packageHash: hashExternalPackage(dir)
       });
     } catch (error) {
+      // #917 SECURITY (Codex re-QA, finding 2): a package path (jarvis.module.json /
+      // dist/worker.js / dist/web) that symlinks OUT of the module dir surfaces here as an
+      // ExternalPackageEscapeError. Its `relPath` is a FIXED module-relative token (never an
+      // absolute path), so it is safe to surface and gives the operator an actionable reason.
+      if (error instanceof ExternalPackageEscapeError) {
+        rejected.push({
+          id,
+          reason: `package path escapes the module directory (${error.relPath}): ${id}`
+        });
+        continue;
+      }
       // #917 SECURITY: NEVER interpolate the raw error message here. fs errors from
       // realpathSync (ENOENT/EACCES on a dangling/unreadable symlink) and from
       // hashExternalPackage's readFileSync (TOCTOU race) embed the ABSOLUTE on-disk

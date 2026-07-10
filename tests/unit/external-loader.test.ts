@@ -129,4 +129,90 @@ describe("getExternalModuleRegistrations (#917)", () => {
     expect(result.rejected[0]!.id).toBe("acme-widgets");
     expect(result.rejected[0]!.reason).toContain("jarvis.module.json");
   });
+
+  // #917 SECURITY (Codex re-QA, finding 1): a manifest READ failure (distinct from a JSON
+  // parse failure) must sanitize to the error CODE, never the raw fs message that embeds the
+  // absolute on-disk path. The dangling-symlink test above only exercises realpathSync; this
+  // drives readFileSync itself by making jarvis.module.json a DIRECTORY (→ EISDIR on read),
+  // hitting the split read/parse branch that the earlier single-catch loader lacked.
+  it("rejects a manifest read failure (EISDIR) without leaking the on-disk path", () => {
+    const dir = join(modulesDir, "acme-widgets");
+    mkdirSync(dir, { recursive: true });
+    // A directory at the manifest path: existsSync passes, realpathSync stays contained, then
+    // readFileSync throws EISDIR with the absolute path in its message — which must not escape.
+    mkdirSync(join(dir, "jarvis.module.json"), { recursive: true });
+
+    const result = getExternalModuleRegistrations({ modulesDir, coreVersion: "0.1.0" });
+    expect(result.discoveries).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0]!.id).toBe("acme-widgets");
+
+    const reason = result.rejected[0]!.reason;
+    expect(reason).toContain("acme-widgets"); // keeps the module-id framing
+    expect(reason).toContain("EISDIR"); // sanitized to the error code
+    expect(reason).not.toContain(modulesDir); // never the absolute modules path
+    expect(reason).not.toContain(tmpdir()); // nor any absolute temp path
+  });
+
+  // #917 SECURITY (Codex re-QA, finding 2): a symlinked jarvis.module.json whose target escapes
+  // the module dir must be rejected BEFORE it is read — readFileSync follows the link. node.ts
+  // realpath-checks the manifest path itself, so the escape is caught without a parse attempt.
+  it("rejects a symlinked manifest that escapes the module directory", () => {
+    const dir = join(modulesDir, "acme-widgets");
+    mkdirSync(dir, { recursive: true });
+    const outside = join(root, "outside-manifest.json");
+    writeFileSync(outside, validManifest("acme-widgets"));
+    symlinkSync(outside, join(dir, "jarvis.module.json"), "file");
+
+    const result = getExternalModuleRegistrations({ modulesDir, coreVersion: "0.1.0" });
+    expect(result.discoveries).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0]!.id).toBe("acme-widgets");
+    const reason = result.rejected[0]!.reason;
+    expect(reason.toLowerCase()).toContain("escape");
+    expect(reason).not.toContain(root); // no absolute path leak
+  });
+
+  // #917 SECURITY (Codex re-QA, finding 2): the package hasher must not follow a symlinked
+  // dist/worker.js out of the module dir. hashExternalPackage throws ExternalPackageEscapeError
+  // (carrying only the fixed relPath token), which node.ts's outer catch turns into a path-free
+  // reject. The manifest is a real contained file so discovery reaches the hash step.
+  it("rejects a symlinked worker bundle that escapes the module directory", () => {
+    const dir = join(modulesDir, "acme-widgets");
+    mkdirSync(join(dir, "dist"), { recursive: true });
+    writeFileSync(join(dir, "jarvis.module.json"), validManifest("acme-widgets"));
+    const outside = join(root, "outside-worker.js");
+    writeFileSync(outside, "module.exports = {};");
+    symlinkSync(outside, join(dir, "dist", "worker.js"), "file");
+
+    const result = getExternalModuleRegistrations({ modulesDir, coreVersion: "0.1.0" });
+    expect(result.discoveries).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0]!.id).toBe("acme-widgets");
+    const reason = result.rejected[0]!.reason;
+    expect(reason.toLowerCase()).toContain("escape");
+    expect(reason).toContain("dist/worker.js"); // fixed module-relative token, safe to surface
+    expect(reason).not.toContain(root); // no absolute path leak
+  });
+
+  // #917 SECURITY (Codex re-QA, finding 2): same guard for a symlinked dist/web directory whose
+  // real target escapes the module dir — rejected before any file under it is walked or hashed.
+  it("rejects a symlinked web bundle dir that escapes the module directory", () => {
+    const dir = join(modulesDir, "acme-widgets");
+    mkdirSync(join(dir, "dist"), { recursive: true });
+    writeFileSync(join(dir, "jarvis.module.json"), validManifest("acme-widgets"));
+    const outside = join(root, "outside-web");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "index.html"), "<!doctype html>");
+    symlinkSync(outside, join(dir, "dist", "web"), "dir");
+
+    const result = getExternalModuleRegistrations({ modulesDir, coreVersion: "0.1.0" });
+    expect(result.discoveries).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0]!.id).toBe("acme-widgets");
+    const reason = result.rejected[0]!.reason;
+    expect(reason.toLowerCase()).toContain("escape");
+    expect(reason).toContain("dist/web"); // fixed module-relative token, safe to surface
+    expect(reason).not.toContain(root); // no absolute path leak
+  });
 });
