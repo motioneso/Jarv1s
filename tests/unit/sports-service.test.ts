@@ -842,26 +842,33 @@ describe("SportsService two-day scoreboard window (Eastern-midnight flip)", () =
 });
 
 describe("SportsService.getCatalog", () => {
-  it("lists the approved competitions with fetched teams", async () => {
+  it("lists the approved competitions — static data, zero ESPN calls (#907)", async () => {
+    let listTeamsCalls = 0;
     const service = new SportsService(
       makeDeps({
         source: makeSource({
-          listTeams: async (competitionKey) => [
-            {
-              teamKey: "dal",
-              competitionKey,
-              name: "Dallas Cowboys",
-              shortName: "DAL",
-              crestUrl: null,
-              sourceTeamId: "6"
-            }
-          ]
+          listTeams: async (competitionKey) => {
+            listTeamsCalls++;
+            return [
+              {
+                teamKey: "dal",
+                competitionKey,
+                name: "Dallas Cowboys",
+                shortName: "DAL",
+                crestUrl: null,
+                sourceTeamId: "6"
+              }
+            ];
+          }
         })
       })
     );
     const catalog = await service.getCatalog();
     expect(catalog.competitions.map((c) => c.competitionKey)).toContain("nfl");
     const nfl = catalog.competitions.find((c) => c.competitionKey === "nfl");
-    expect(nfl?.teams[0]?.teamKey).toBe("dal");
+    expect(nfl?.confederation).toBeDefined();
+    expect(nfl).not.toHaveProperty("teams");
+    expect(catalog.degraded).toBe(false);
+    expect(listTeamsCalls).toBe(0);
   });
 });
