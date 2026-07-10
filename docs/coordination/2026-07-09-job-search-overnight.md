@@ -669,12 +669,19 @@ notification that will arrive).
 - `merges_since_relay` = 0. Overnight sign-off override still ACTIVE, unexercised.
 
 **Successor's immediate queue (supersedes the shorter list earlier in checkpoint 5):**
-1. Collect the #917 plan review verdict (agent `a66bce70f606575c7`). APPROVED/WITH-NOTES → relay
-   to `w1:pCV`, let it start execution (subagent-driven per-task is the coordinator's own
-   recommendation — 10 tasks, Opus's own context was already 55%/47% used, and per-task subagents
-   with checkpoints match this run's established build pattern better than one long inline
-   session). REJECTED / real spec conflict → treat as design-fork, Opus-subagent adjudication
-   before Ben.
+1. ~~Collect #917 plan review verdict~~ — **DONE, still session `ffba9610-...`:** verdict came
+   back **APPROVED WITH NOTES** (agent `a66bce70f606575c7`) before handoff completed: plan traces
+   cleanly to spec `docs/superpowers/specs/2026-07-08-open-module-system-user-authored-modules.md`
+   Slice 1, all hard invariants satisfied, downstream (#914) decisions concrete not TBD,
+   query-keys self-fix confirmed present in plan text. Two minor notes: (a) Task 5 inlines
+   `require("node:path").sep` in an ESM package — must become a top-level import, don't let the
+   executing agent skip its own follow-up note on this; (b) migration number `0152` was grounded
+   on a single worktree snapshot — the executing agent MUST re-verify it's still the next free
+   number at execution time (parallel lanes landing migrations concurrently), not trust the plan
+   text blindly. **Relayed to `w1:pCV` already, greenlit subagent-driven per-task execution**
+   (Opus's own recommendation — 10 tasks, fresh subagent per task in dependency order, review
+   between tasks). Successor should just confirm `w1:pCV` is now actually executing (not stuck)
+   on adoption, not re-approve anything.
 2. Re-check `w1:pCZ` — confirm the 3rd Task 5 fix (schema-factory) resolves the runtime 500;
    watch for PR-ready → spawn tier-`sensitive` QA per Phase 3.
 3. Restart persistent Monitor (scope above).
