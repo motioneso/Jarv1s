@@ -925,3 +925,108 @@ export const setExternalModuleEnablementRouteSchema = {
     409: errorResponseSchema
   }
 } as const;
+
+// #918: module-credential admin/user surface contracts. ModuleCredentialStatusDto is
+// METADATA ONLY by construction — there is no field that could carry plaintext or the
+// ciphertext envelope, and the strict response schema below (additionalProperties: false)
+// silently strips any accidentally emitted extra field (the fast-json-stringify trap
+// works FOR us here — see docs/superpowers/handoffs for the recurring gotcha).
+export interface ModuleCredentialStatusDto {
+  readonly credentialId: string;
+  readonly displayName: string;
+  readonly scope: "instance" | "user";
+  readonly configured: boolean;
+  readonly updatedAt: string | null;
+}
+
+export interface ListModuleCredentialsResponse {
+  readonly moduleId: string;
+  readonly credentials: readonly ModuleCredentialStatusDto[];
+}
+
+export interface SetModuleCredentialRequest {
+  readonly value: string;
+}
+
+const moduleCredentialStatusSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["credentialId", "displayName", "scope", "configured", "updatedAt"],
+  properties: {
+    credentialId: { type: "string" },
+    displayName: { type: "string" },
+    scope: { type: "string", enum: ["instance", "user"] },
+    configured: { type: "boolean" },
+    updatedAt: { type: ["string", "null"] }
+  }
+} as const;
+
+const moduleCredentialParamsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["moduleId", "credentialId"],
+  properties: {
+    moduleId: { type: "string", minLength: 1, maxLength: 100 },
+    credentialId: { type: "string", minLength: 1, maxLength: 200 }
+  }
+} as const;
+
+export const listModuleCredentialsRouteSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["moduleId"],
+    properties: { moduleId: { type: "string", minLength: 1, maxLength: 100 } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["moduleId", "credentials"],
+      properties: {
+        moduleId: { type: "string" },
+        credentials: { type: "array", items: moduleCredentialStatusSchema }
+      }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const setModuleCredentialRouteSchema = {
+  params: moduleCredentialParamsSchema,
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["value"],
+    properties: { value: { type: "string", minLength: 1, maxLength: 4096 } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["credential"],
+      properties: { credential: moduleCredentialStatusSchema }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
+
+export const revokeModuleCredentialRouteSchema = {
+  params: moduleCredentialParamsSchema,
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["credential"],
+      properties: { credential: moduleCredentialStatusSchema }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema
+  }
+} as const;
