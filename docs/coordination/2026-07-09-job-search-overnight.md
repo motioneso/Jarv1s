@@ -1164,4 +1164,54 @@ no sequence conflict. Only immaterial gap noted: no explicit worker-role SELECT-
 **PAUSED for Ben's sign-off** — security tier, per `coordinate` skill this is mandatory regardless
 of QA verdict (overnight sign-off override is resolved/moot; normal daytime gate applies). Not
 merging without his explicit OK.
+
+**#918 build agent (`w1:pDJ`, session `dbf1c605-...`) independently confirmed all-green** (its own
+message, redundant with the Opus QA above): `Build and publish images` also now SUCCESS (was
+pending at QA-spawn time, non-blocking anyway); fix commit `8013341a`
+(`JARVIS_MODULE_CREDENTIAL_SECRET_KEY` missing from CI smoke env + `infra/env.production.example`)
+confirmed holding across 2 CI runs; all 27 plan tasks landed. Told it QA already ran
+GREEN/MERGE-READY, nothing further needed before merge. **Final reply received: it finalized+pushed
+a relay-3 doc (`27f67f71`) reflecting QA-green/awaiting-Ben-merge state, then deliberately did NOT
+spawn an idle successor** ("nothing further needed from the build side") and ended the session
+cleanly. **No successor pane to look for** — `w1:pDJ` is simply done, safe to reap whenever
+convenient (nothing in-flight, no relay to confirm). If a post-merge follow-up or pre-merge change
+is needed, spawn fresh into worktree `.claude/worktrees/918-implementation-plan`, branch
+`plan/918-open-module-system-slice2`, pointed at its relay-3 doc.
+
+## Lock re-claimed — relay at 70% context-meter, mid #925 sign-off wait
+
+**PR #925 (#918, security tier): READY, PAUSED on Ben's explicit merge sign-off only.** CI fully
+green (including non-blocking image-publish). Opus QA verdict GREEN/MERGE-READY posted durably to
+the PR (`gh pr comment`) — 0 blocking findings, all invariants confirmed (AES-256-GCM, FORCE RLS
+on 3 new tables, module isolation, no secret leakage, foundation.test.ts sequence clean). The
+FORCE-RLS attribution question that had been carried forward across several checkpoints is
+**resolved** — it was conflation with #914's separate work, not a real gap in this PR. **The only
+remaining action on #918 is Ben saying go** — do not re-run QA, do not re-verify CI, just relay his
+answer to a merge (`gh pr merge 925 --squash --delete-branch`) + GitHub bookkeeping (close #918,
+board move, digest entry) when it arrives.
+
+**#914 (`w1:pDQ`, session `8baf4c17-...`):** still healthy, was Task 4/9 (migration file loader +
+ledger helpers) at last bounded read, no blockers, no PR yet. No action needed beyond normal
+supervision — expect a plan/build progress ping or eventual PR-ready report.
+
+**#916/#919:** unchanged — #916 still `needs-spec` (held for a spec-authoring pass with Ben once
+#918 lands); #919 still queued behind #918's merge.
+
+**Monitors:** liveness Monitor `b5xn3b4w0` (persistent, `w1:t15`/`w1:t1E`, diff-only) — re-arm if
+it's not still running. No CI-poll monitor currently needed (both PRs' CI states are already known
+and current as of this checkpoint; only re-poll if a NEW push happens).
+
+**`merges_since_relay: 0`** — no merges executed yet this run; #925 is the first candidate,
+blocked purely on Ben's sign-off, not on any coordinator action.
+
+**Successor's first actions, in order:**
+1. Phase 0a lock re-claim (standard — resolve own pane fresh by label+session id, never a written
+   pane number; rename to `Coordinator`; verify uniqueness; update the top-of-file lock line;
+   close predecessor `w1:pDV` session `57129d71-be43-4eb9-926f-c48e75df7e32` once confirmed
+   driving).
+2. Reap `w1:pDJ` (session `dbf1c605-...`) — confirmed done, deliberately no successor spawned,
+   nothing in flight (see note above).
+3. Re-arm the liveness Monitor if it didn't survive the relay.
+4. Resume Phase 2 supervision of #914. No other action needed until either Ben answers on #925's
+   merge sign-off, or #914 produces a plan/PR-ready escalation.
 5. #916 still `needs-spec`; #919 still queued behind #918. No action on either.
