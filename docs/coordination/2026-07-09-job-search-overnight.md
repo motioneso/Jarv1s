@@ -713,3 +713,31 @@ plan doc directly. Explicitly asked to be reaped. Closed `w1:pDM`. Fleet now cle
 
 **merges_since_relay: 0.** No PRs, no merges, no QA spawned yet. No blockers, no forks, no
 `[SECURITY]`/`[CRIT]` escalations. Resuming normal Phase 2 supervise loop.
+
+Started a fresh persistent liveness Monitor this session (prior sessions' monitors don't carry
+over — each coordinator relay is a new process). Diffs `herdr pane list` for #918/#914/Coordinator
+panes every 60s, emits only on change.
+
+## #914 relay-4 → relay-5, still pre-plan (session `fe5eea37-...`)
+
+**#914** self-relayed again: relay-3 became relay-4 in-place (same pane `w1:pDP`, no new pane —
+same pattern #918 showed earlier), then relay-4 hit the 70% context-meter warning mid
+plan-drafting-grounding (~20 source files read: sql-runner, data-context, role-bootstrap, validate,
+types, module-registry, module-sdk, data-export, test-database, foundation.test tail). **No plan
+file written yet, no code touched** — relayed per protocol before drafting, to avoid producing a
+degraded-context plan on a security-tier spec. Relay-4 reported two failed fork-subagent delegation
+attempts this session (0 tool calls / killed, silent failure) — noted for successor: draft the plan
+directly in-session, don't delegate to a forked subagent. Saved to agentmemory
+(`project: jarv1s`, type `bug`).
+
+Spawned relay-5: new pane `w1:pDQ`, tab `w1:t1E` (correct, no incident), session
+`8baf4c17-ad28-40c9-8854-a4254e3f2b2c`. Verified genuinely driving before touching anything
+(bounded pane read: Sonnet 5, correct worktree `914-module-data-plane`, correct branch
+`build/914-module-data-plane`, actively reading the relay-4 handoff doc). Closed relay-4's pane
+`w1:pDP` (session `a05c0054-...`). Current #914 pane = `w1:pDQ`, status `working`, expected next:
+plan doc write + message for approval before any code (per original instruction — no self-approve).
+
+**#918** unchanged this checkpoint — still `w1:pDJ`, session `dbf1c605-...`, `working`, relay-1, no
+new successor.
+
+**merges_since_relay: 0.**
