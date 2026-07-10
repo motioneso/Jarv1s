@@ -4,6 +4,7 @@ export * from "./database.js";
 export * from "./keyring.js";
 export * from "./migrations/module-sql-runner.js";
 export * from "./migrations/sql-runner.js";
+export * from "./module-role-broker.js";
 export * from "./role-bootstrap.js";
 export * from "./secret-cipher.js";
 export * from "./sharing/index.js";
