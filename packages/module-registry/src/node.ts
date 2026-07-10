@@ -16,6 +16,7 @@ import type {
 } from "./external/types.js";
 
 export * from "./external/hash.js";
+export * from "./external/web-assets.js";
 
 /**
  * Discover external modules under `modulesDir` (#917). Server-only. Read-only: never
