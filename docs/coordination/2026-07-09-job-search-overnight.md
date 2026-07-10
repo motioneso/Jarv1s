@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`,
-pane `w1:pD6`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `cae2b14e-6334-46bd-a64c-a854b7185ac3`,
+pane `w1:pD7`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1424,3 +1424,46 @@ flushing now, relaying immediately, no further queue work done this session.
 
 **Still holding — no build lane spawns** for #918/#919 until each has spec-merged-to-main (already
 true, via #818) AND an approved implementation plan (not yet authored for either).
+
+## Lock re-claimed (successor session `cae2b14e-6334-46bd-a64c-a854b7185ac3`), immediate 73% relay
+
+Predecessor pane `w1:pD6` (session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`, matched manifest lock
+line exactly) confirmed `done`/idle via fresh `herdr pane list` — closed. New coordinator: pane
+`w1:pD7` (was spawned as placeholder label `Coordinator-relay2` since predecessor still held
+`Coordinator` at spawn time), renamed to `Coordinator`, tab `w1:t15`. Verified exactly one
+`Coordinator`-labelled pane via fresh `herdr pane list` after rename. Confirmed driving via own
+`agent_session.value` = `cae2b14e-6334-46bd-a64c-a854b7185ac3` (matches pane list exactly). Lock
+line at top of this manifest updated to this pane/session.
+
+**Context-meter fired 73% immediately after Phase 0a lock claim — per skill, no deferral:**
+flushing now, relaying immediately, **none of the immediate action queue below was executed this
+session** (no Monitor restarted, no CI re-check, no #918 plan-authoring spawned, no Codex ping).
+This is the same pattern as the predecessor's own relay (mid Phase 0a, 70%) — two consecutive
+sessions have now hit the threshold before completing the queue. Successor should expect to
+inherit and execute the queue fresh; consider whether the queue itself (or the manifest reads
+required to resume it) is now the dominant context cost per checkpoint, and if so keep this
+relay-checkpoint prose tighter or point at line ranges instead of re-quoting ground truth.
+
+**Immediate action queue for successor (in order — carried forward unchanged from the prior
+checkpoint, nothing done yet):**
+1. Restart a persistent Monitor scoped to `w1:pCR` (Fable 5, idle) + `w1:pCK` (Codex, idle) —
+   `w1:pCV` (Opus #917 plan) is gone, already reaped after #917 merged. No Monitor is currently
+   running.
+2. Re-confirm `main` CI is green (`gh run list --branch main --limit 1`) before spawning anything
+   — last known state was `in_progress` post-#924-merge (SHA `4bc53694`), never confirmed green.
+3. Spawn implementation-plan authoring for **#918** (next in chain: #917 done PR #924, #914 done
+   PR #920, #918 spec approved via #818 §Slice 2, no plan yet) — same pattern used for #917
+   (isolated worktree off fresh `origin/main`, handoff doc, Opus xhigh or Fable 5 depending on
+   availability, independent review before treating plan as approved, still no build lane until
+   plan is authored AND reviewed). Do not confuse #918/#919 (open-module-system spec slices 2/3)
+   with #915's internal slice numbering (structured-AI seam, already merged).
+4. #919 stays queued behind #918 (serialization order, shared `packages/settings/sql/` +
+   module-registry manifest schema per the collision map) — do not plan it in parallel with #918.
+5. Ping Codex (`w1:pCK`) — Ben's "keep it informed" instruction, overdue for several checkpoints.
+6. Overnight sign-off override (top of manifest) remains ACTIVE, untouched this checkpoint — no
+   new security-tier merge occurred this session.
+7. `merges_since_relay` = 0 (unchanged from last reset; no merge this checkpoint).
+
+**Still holding — no build lane spawns** for #918/#919 until each has an approved implementation
+plan (not yet authored for either). Fleet unchanged: `w1:pCK` (Codex, idle), `w1:pCR` (Fable 5,
+idle), `w1:pCP`/`w1:pCQ` (not part of this run, do not touch).
