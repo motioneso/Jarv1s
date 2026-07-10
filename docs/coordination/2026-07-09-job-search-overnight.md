@@ -139,6 +139,16 @@ already Ben-approved) to rebase onto current `origin/main`, push, and open the s
 This does NOT change the buildability verdict — #913 the epic is still blocked on its children
 landing; this just gets the approved spec text onto `main` where it belongs.
 
+**PR #921 open** (Codex, this checkpoint): `docs(spec): approve intelligent job search module
+(#913)`, branch `spec/913-intelligent-job-search` → `main`, draft, docs-only (2 files,
+`docs/superpowers/specs/2026-07-09-intelligent-job-search-module.md` +
+`docs/superpowers/handoffs/2026-07-09-fable5-job-search-spec-review.md`, +717/-0, no code).
+Tier = **routine** (pure docs, no shared-table/contract/security triggers) — auto-mergeable after
+green, no separate code-review QA needed for a spec-only doc landing whose content Ben already
+approved. CI pending at check time (`Verify foundation and app`, `Compose deployment smoke`,
+`Prod compose deployment smoke`). Coordinator will promote-from-draft + squash-merge once green,
+close nothing (epic #913 stays open, blocked on children), add to Ben's standing digest.
+
 ## Relay checkpoint (coordinator session `395b82b5-...`, context 70% warning fired)
 
 **Ben's directive (this checkpoint, verbatim intent):** move plan-authoring to Opus xhigh,
