@@ -2038,3 +2038,7 @@ changes ≠ Ben's final sign-off).
 **Monitor:** `b3gdz5iry` armed (diffs `herdr pane list`, excludes own pane w1:pE6). **merges_since_relay: 0.** No merges pending. No security-tier PR open.
 
 **Successor first actions:** (1) verify pE7 → PR #929 + JS issue numbers; (2) route #915 to Fable; (3) resume Phase 2 supervision; (4) re-arm Monitor if it didn't survive.
+
+## RELAY ABORTED — auto-compaction already reset context (Ben)
+
+Ben: "You don't need to relay, you auto-compacted." The 70% warning fired pre-compaction; the compaction summary already gave me a fresh context, so no self-handoff was needed. Premature successor pane w1:pE8 (session 47a5d442) killed to preserve single-coordinator lock. **Sole Coordinator remains w1:pE6 / session 58a78927-385c-4b1d-8fa0-94db20255d6f.** Continuing Phase 2 in-session. All continuation-note items still apply (verify pE7/#929 + JS issues, route #915 to Fable, total Fable delegation). merges_since_relay reset context; treat meter fresh post-compaction.
