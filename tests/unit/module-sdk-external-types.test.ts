@@ -11,7 +11,17 @@ describe("external module manifest types (#917)", () => {
       version: "0.1.0",
       publisher: "Acme, Inc.",
       lifecycle: "optional",
-      compatibility: { jarv1s: ">=0.1.0" }
+      compatibility: { jarv1s: ">=0.1.0" },
+      runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 },
+      assistantTools: [
+        {
+          name: "acme-widgets.lookup",
+          description: "Look up a widget",
+          permissionId: "acme-widgets.lookup",
+          risk: "read",
+          handler: "lookup"
+        }
+      ]
     };
     const pkg: ExternalJarvisModulePackage = {
       manifest,

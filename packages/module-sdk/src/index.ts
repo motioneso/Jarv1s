@@ -538,6 +538,21 @@ export interface ModuleWebDeclaration {
   readonly contractVersion: number;
 }
 
+export interface ModuleWorkerDeclaration {
+  readonly workerEntrypoint: string;
+  readonly workerContractVersion: 1;
+}
+
+export interface ExternalModuleAssistantToolDeclaration {
+  readonly name: string;
+  readonly description: string;
+  readonly permissionId: string;
+  readonly risk: ModuleAssistantToolRisk;
+  readonly inputSchema?: JsonSchema;
+  readonly outputSchema?: JsonSchema;
+  readonly handler: string;
+}
+
 /**
  * The JSON-serializable subset of {@link JarvisModuleManifest} that an EXTERNAL
  * (non-compiled) module ships as `jarvis.module.json` (#917). It deliberately omits
@@ -566,6 +581,8 @@ export interface JsonJarvisModuleManifest {
   readonly auth?: readonly ModuleAuthDeclaration[];
   readonly storage?: readonly ModuleStorageDeclaration[];
   readonly web?: ModuleWebDeclaration;
+  readonly runtime?: ModuleWorkerDeclaration;
+  readonly assistantTools?: readonly ExternalModuleAssistantToolDeclaration[];
 }
 
 /**
