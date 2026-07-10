@@ -19,18 +19,25 @@ import {
   type JarvisErrorLog,
   type JarvisDatabase
 } from "@jarv1s/db";
-import type {
-  AiCapabilityRouteReason,
-  AiModelCapability,
-  AiProviderExecutionMode,
-  AiProviderPurpose,
-  AiServiceBinding
+import {
+  isModuleServiceKey,
+  type AiCapabilityRouteReason,
+  type AiModelCapability,
+  type AiProviderExecutionMode,
+  type AiProviderPurpose,
+  type AiServiceBinding,
+  type AiServiceKey,
+  type ModuleServiceBindingMap,
+  type ModuleServiceKey
 } from "@jarv1s/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
 import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
 import { parseCapabilityRouteMap } from "./capability-route-map.js";
-import { parseServiceBindingMap } from "./service-binding-map.js";
+import {
+  parseModuleServiceBindingMap,
+  parseServiceBindingMap
+} from "./service-binding-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
   CHAT_MODEL_OVERRIDE_SETTING_KEY,
@@ -696,12 +703,14 @@ export class AiRepository {
    */
   async setServiceBinding(
     scopedDb: DataContextDb,
-    service: AiModelCapability,
+    service: AiServiceKey,
     binding: AiServiceBinding,
     actorUserId: string
   ): Promise<AiServiceBinding> {
     assertDataContextDb(scopedDb);
-    if (!USER_FACING_SERVICES.has(service)) {
+    // #915 D6: module.* keys are admin routing knobs for module structured work and share this
+    // blob; every OTHER worker capability stays automatic-only (the #874 HIGH-2 decision).
+    if (!USER_FACING_SERVICES.has(service as AiModelCapability) && !isModuleServiceKey(service)) {
       throw new Error(`Service "${service}" is not bindable (worker capabilities stay automatic).`);
     }
 
@@ -726,6 +735,51 @@ export class AiRepository {
       .execute();
 
     return binding;
+  }
+
+  /**
+   * #915 D6: module.* bindings live in the SAME ai.service_bindings blob as user-facing services
+   * but are read through the module-only parser, so neither map can ever leak the other's keys
+   * (parseServiceBindingMap's capability filter is load-bearing for the settings UI).
+   */
+  async listModuleServiceBindings(scopedDb: DataContextDb): Promise<ModuleServiceBindingMap> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.instance_settings")
+      .select("value")
+      .where("key", "=", AI_SERVICE_BINDINGS_SETTING_KEY)
+      .executeTakeFirst();
+    return parseModuleServiceBindingMap(row?.value);
+  }
+
+  async getModuleServiceBinding(
+    scopedDb: DataContextDb,
+    service: ModuleServiceKey
+  ): Promise<AiServiceBinding | null> {
+    const bindings = await this.listModuleServiceBindings(scopedDb);
+    return bindings[service] ?? null;
+  }
+
+  /**
+   * #915 D6: unbind a module service (returns to automatic routing). Single-statement JSONB key
+   * removal, mirroring the merge-upsert above so a concurrent write to a DIFFERENT service key
+   * can't be clobbered (no read-modify-write).
+   */
+  async deleteModuleServiceBinding(
+    scopedDb: DataContextDb,
+    service: ModuleServiceKey,
+    actorUserId: string
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .updateTable("app.instance_settings")
+      .set({
+        value: sql`instance_settings.value - ${service}`,
+        updated_by_user_id: actorUserId,
+        updated_at: new Date()
+      })
+      .where("key", "=", AI_SERVICE_BINDINGS_SETTING_KEY)
+      .execute();
   }
 
   /**
