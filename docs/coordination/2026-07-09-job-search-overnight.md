@@ -691,3 +691,25 @@ labeled pane in the fleet (`w1:pDN`, this session). Top-of-file lock line update
 session/pane above.
 
 Proceeding to successor action 2 (check #918 relay-2 status) next.
+
+## #914 relay-3 confirmed + relay-2 reaped; #918 unchanged (session `fe5eea37-...`)
+
+**#918:** fresh `herdr pane list` shows `w1:pDJ` (session `dbf1c605-...`) is still the only #918
+pane, still `agent_status: working` — no relay-2 successor has appeared yet. Per predecessor's
+note, resuming supervision in place; no action taken.
+
+**#914:** found a genuine relay-in-progress — TWO panes briefly co-existed on the same
+worktree/branch (`build/914-module-data-plane`): `w1:pDM` (relay-2, session `a59d7d97-...`) and a
+new `w1:pDP` (relay-3, session `a05c0054-...`), both `working`. Verified via bounded pane read
+that `w1:pDP` was genuinely driving (Sonnet 5, correct worktree `914-module-data-plane`, correct
+tab `w1:t1E`) before touching anything. Relay-2 then messaged directly confirming: relayed at 70%
+context (pre-plan, all grounding done), successor spawned in same worktree/branch, relay-3 handoff
+committed (`5cd48947`, `docs/superpowers/handoffs/2026-07-10-914-module-data-plane-relay-3.md`) —
+migration numbers resolved to **0155/0156** (superseding the earlier "0152, check live head"
+guidance — #918 must have landed 0152/0153 or the head moved; note for #918/#914 merge-order
+reconciliation later), full file-structure mapped for all 4 build slices, next step is writing the
+plan doc directly. Explicitly asked to be reaped. Closed `w1:pDM`. Fleet now clean: `w1:pDN`
+(Coordinator, me), `w1:pDJ` (#918 relay-1, unchanged), `w1:pDP` (#914 relay-3).
+
+**merges_since_relay: 0.** No PRs, no merges, no QA spawned yet. No blockers, no forks, no
+`[SECURITY]`/`[CRIT]` escalations. Resuming normal Phase 2 supervise loop.
