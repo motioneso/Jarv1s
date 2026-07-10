@@ -756,3 +756,22 @@ beyond identity/status):**
 5. No merges pending; nothing to reconcile in `ci_waivers`.
 
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Checkpoint (session `0fe9cd0b-...`, immediate action queue executed)
+
+- **Monitor restarted:** task `bca8egl86` (persistent, changes-only, 60s poll), scoped to
+  `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`. Baseline confirmed no drift from checkpoint 5b's fleet
+  state: `pCR` done, `pCK` done, `pCV` working, `pCZ` working.
+- **`w1:pCV` (#917) confirmed actively executing, not stalled:** fresh bounded read shows 48%
+  context, dispatching a `general-purpose` subagent — matches the greenlit subagent-driven
+  per-task execution approach (Opus's own recommendation, approved last checkpoint). No action
+  needed.
+- **`w1:pCZ` (#915 Task-5 self-audit) still in progress:** fresh read shows `Working (23m 03s)`,
+  no PR-ready signal yet. Continue watching via Monitor — do not spawn QA until it reports done.
+- **Codex (`w1:pCK`) pinged** — first ping in several checkpoints. Reply: idle, no action needed,
+  confirms current #917→#915 sequencing and #913 alignment "look correct." No concerns raised.
+- `merges_since_relay` = 0, unchanged. Overnight sign-off override remains ACTIVE, unexercised.
+
+**Holding pattern:** no build-lane spawns, no merges pending. Waiting on `w1:pCZ` PR-readiness
+(→ Phase 3 tier-`sensitive` QA) and `w1:pCV` task-by-task progress on the #917 plan (10 tasks,
+subagent-driven — watch for either full completion or a task-level escalation).
