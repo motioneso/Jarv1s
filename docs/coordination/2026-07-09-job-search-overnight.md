@@ -111,6 +111,45 @@ per-issue) **no build lane spawns yet**. #913's own epic spec remains unapproved
 epic itself is not buildable regardless of its children's readiness. #915/#916 lack merged specs.
 Do not parallelize any migration-adder under any circumstance.
 
+## Relay checkpoint (coordinator session `395b82b5-...`, context 70% warning fired)
+
+**Ben's directive (this checkpoint, verbatim intent):** move plan-authoring to Opus xhigh,
+running ALONGSIDE Fable 5 (not replacing it) — confirmed via AskUserQuestion: "Spawn a fresh Opus
+xhigh agent alongside Fable 5."
+
+**Done this checkpoint:**
+- Isolated worktree created: `.claude/worktrees/917-implementation-plan`, branch
+  `plan/917-open-module-system-slice1` off `origin/main` @ `204aca0f`.
+- Handoff doc committed: `docs/coordination/handoffs/917-implementation-plan.md` (plan-authoring
+  task for #917, tier `security`, invokes `superpowers:writing-plans`, reports back to
+  Coordinator before any build spawns).
+- Fable 5 (`w1:pCR`) hit a mid-stream API stall answering my status questions (#915/#913 state) —
+  nudged once (memory: `agent-stall-nudge-recovery` — nudge before respawn), it went back to
+  `working` then just flipped to **`idle`** (this checkpoint's Monitor event) — **its reply has
+  NOT been read yet**, do that first.
+- Codex (`w1:pCK`) fully briefed on collision map, idle, aligned (agreed to hold dispatch).
+- Monitor task `bax84pxa9` (persistent, this session, watches `w1:pCR`+`w1:pCK` only) — dies with
+  this session, successor should start its own.
+
+**NOT done yet (successor's immediate queue, in order):**
+1. **Spawn the Opus xhigh agent** — NOT yet spawned (relay fired right as the handoff doc landed).
+   ```
+   herdr agent start "Opus: #917 Plan" --tab w1:t1F --cwd /home/ben/Jarv1s/.claude/worktrees/917-implementation-plan --no-focus \
+     -- claude --model opus --effort xhigh --permission-mode bypassPermissions \
+     "STEP 1 pnpm install if needed. STEP 2 read docs/coordination/handoffs/917-implementation-plan.md IN FULL and follow it. Begin now."
+   ```
+   Put it in the same tab as Codex/Fable 5 (`w1:t1F`) per tab discipline. Verify pane says
+   "Opus" after spawn (confirm reasoning-effort xhigh is active per the pane's status line, as
+   seen on the Codex pane's `gpt-5.6-sol high` line — Claude panes may not show effort in the
+   status line; if unclear, ask the agent to state its model+effort back to you).
+2. **Read Fable 5's reply** (`herdr pane read w1:pCR --source recent --lines 20`) — it should
+   finally answer: #915 spec-approval state, #913 PR-readiness, and whether it can pivot to help
+   on #917 (now moot since Opus xhigh is taking #917 planning — tell Fable 5 to stay on #915,
+   do NOT have both agents plan #917 redundantly).
+3. Restart a persistent Monitor scoped to `w1:pCR`, `w1:pCK`, and the new Opus pane.
+4. **Still do not spawn any build lane** — #917 plan is only just starting to be authored, not
+   approved. #913 epic spec still unmerged. #915/#916 still no merged spec.
+
 ## Next actions for successor coordinator
 1. Message `w1:pCR` (Fable 5) directly with this table — ask for its current verdict on #915's
    spec-approval state and whether #913's epic spec is ready to open as a PR against main.
