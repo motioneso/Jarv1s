@@ -488,4 +488,38 @@ describe("sports routes", () => {
     expect(res.statusCode).toBe(400);
     await app.close();
   });
+
+  it("GET /api/sports/leagues/:competitionKey/teams returns one league's roster (#907)", async () => {
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        listTeams: async (competitionKey) => [
+          {
+            teamKey: "t.ars",
+            competitionKey,
+            name: "Arsenal",
+            shortName: "ARS",
+            crestUrl: "https://a.espncdn.com/i/teamlogos/soccer/500/359.png",
+            sourceTeamId: "359"
+          } as SourceTeamRef
+        ]
+      })
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/leagues/eng.1/teams" });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.teams).toHaveLength(1);
+    // Wire-body checks: crestUrl survives serialization; source-internal ids do NOT leak.
+    expect(res.body).toContain("crestUrl");
+    expect(res.body).not.toContain("sourceTeamId");
+    await app.close();
+  });
+
+  it("GET /api/sports/leagues/:competitionKey/teams 400s an unknown competition (#907)", async () => {
+    const { app } = buildApp();
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/leagues/nope.9/teams" });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

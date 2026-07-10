@@ -205,6 +205,14 @@ export interface SportsOverviewResponse {
   readonly degraded: boolean; // source failed → cached/empty
 }
 
+/** `GET /api/sports/leagues/:competitionKey/teams` — one league's clubs, fetched on demand by
+ *  the follow picker (browse-expand and followed-chip name resolution). Replaces the retired
+ *  eager per-league fan-out in the catalog (#907). */
+export interface SportsLeagueTeamsResponse {
+  readonly teams: readonly TeamRef[];
+  readonly degraded: boolean; // roster fetch failed → empty teams + retry affordance
+}
+
 export interface SportsCatalogResponse {
   readonly competitions: readonly (CompetitionRef & { readonly teams: readonly TeamRef[] })[];
   readonly degraded: boolean; // one or more competitions' teams failed to load (#765 M1)
@@ -615,6 +623,32 @@ export const sportsCatalogResponseSchema = {
         degraded: { type: "boolean" }
       }
     },
+    401: errorResponseSchema
+  }
+} as const;
+
+/** `GET /api/sports/leagues/:competitionKey/teams` schema (#907) — mirrors sportsStandingsResponseSchema's
+ *  params-validated 400 shape (unknown competitionKey rejected by the route, same as /standings). */
+export const sportsLeagueTeamsResponseSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["competitionKey"],
+    properties: {
+      competitionKey: { type: "string", minLength: 1, maxLength: 100 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["teams", "degraded"],
+      properties: {
+        teams: { type: "array", items: teamRefSchema },
+        degraded: { type: "boolean" }
+      }
+    },
+    400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;

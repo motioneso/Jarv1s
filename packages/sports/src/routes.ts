@@ -8,6 +8,7 @@ import {
   deleteSportsFollowResponseSchema,
   sportsCatalogResponseSchema,
   sportsFollowsResponseSchema,
+  sportsLeagueTeamsResponseSchema,
   sportsOverviewResponseSchema,
   sportsStandingsResponseSchema,
   type CreateSportsFollowRequest,
@@ -62,6 +63,25 @@ export function registerSportsRoutes(
       try {
         await dependencies.resolveAccessContext(request);
         return await service.getCatalog();
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/sports/leagues/:competitionKey/teams",
+    { schema: sportsLeagueTeamsResponseSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const { competitionKey } = request.params as { competitionKey: string };
+        // Same authorization-by-catalog rule as POST /follows: being in SPORTS_CATALOG is what
+        // makes a competition queryable (#907).
+        if (!catalogEntry(competitionKey)) {
+          throw new HttpError(400, `Unknown competition: ${competitionKey}`);
+        }
+        return await service.getLeagueTeams(competitionKey);
       } catch (error) {
         return handleRouteError(error, reply);
       }

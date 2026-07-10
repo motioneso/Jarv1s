@@ -7,6 +7,7 @@ import {
   deleteSportsFollowResponseSchema,
   sportsCatalogResponseSchema,
   sportsFollowsResponseSchema,
+  sportsLeagueTeamsResponseSchema,
   sportsOverviewResponseSchema,
   sportsStandingsResponseSchema
 } from "@jarv1s/shared";
@@ -89,6 +90,12 @@ export const sportsModuleManifest = {
       method: "GET",
       path: "/api/sports/catalog",
       responseSchema: sportsCatalogResponseSchema,
+      permissionId: "sports.view"
+    },
+    {
+      method: "GET",
+      path: "/api/sports/leagues/:competitionKey/teams",
+      responseSchema: sportsLeagueTeamsResponseSchema,
       permissionId: "sports.view"
     },
     {

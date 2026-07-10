@@ -13,6 +13,7 @@ import {
   type ScoreboardGroup,
   type SportsCatalogResponse,
   type SportsFollowDto,
+  type SportsLeagueTeamsResponse,
   type SportsOverviewResponse,
   type StandingsGroup
 } from "@jarv1s/shared";
@@ -160,6 +161,15 @@ export class SportsService {
     // Surface partial failure to the client instead of silently returning "0 teams" with no
     // explanation (#765 M1); the frontend shows a retry affordance when this is true.
     return { competitions, degraded: state.degraded };
+  }
+
+  /** One league's clubs, on demand — picker browse-expand + followed-chip resolution (#907).
+   *  Replaces the catalog's former eager per-competition fan-out to ESPN: the picker now asks
+   *  for a league's roster only when the user actually expands it. */
+  async getLeagueTeams(competitionKey: string): Promise<SportsLeagueTeamsResponse> {
+    const state: DegradeState = { degraded: false };
+    const teams = await this.teamsFor(competitionKey, state);
+    return { teams, degraded: state.degraded };
   }
 
   /** The composed `/api/sports/overview` payload for the actor. */
