@@ -15,6 +15,28 @@ fleet re-confirmed: `w1:pCK` (Codex: Job Search Spec, idle, tab `w1:t1F`) and `w
 Job Search Spec Review, working, tab `w1:t1F`, worktree `review-913-job-search-spec`) both still
 present and unchanged.
 
+## OVERNIGHT SIGN-OFF POLICY OVERRIDE (Ben, 2026-07-09, going to bed — time-boxed to tonight only)
+
+Ben confirmed explicitly (asked directly given this contradicts the coordinate skill's hard gate):
+**for tonight, the two-model panel (Fable 5 / Claude high effort + Codex `gpt-5.6-sol` extra-high)
+is sufficient to sign off security-tier merges too** — not just non-blocking judgment calls. This
+supersedes the skill's "mandatory Ben sign-off, never auto-merge security tier" rule **for this
+run, until Ben is back online.** Applies to all of tonight's likely-security-tier lanes (RLS,
+secrets, privileged module install, external-worker RPC/fetch surfaces).
+
+**How this executes, to keep it auditable:**
+1. Standard QA still runs (Opus adversarial for security tier, per model policy) and still posts
+   its verdict via `gh pr comment` — that part is unchanged.
+2. Before merging a security-tier PR, run a **quick Fable 5 session** (and Codex sol xhigh where
+   the call warrants a second lens) explicitly adjudicating "is this safe to merge unattended" —
+   not just re-running QA. Post that verdict to the PR too (`gh pr comment`), tagged
+   `[OVERNIGHT-SIGNOFF]`, citing this manifest section as the authorization.
+3. Log every such merge distinctly in Ben's standing digest as **"merged overnight under
+   time-boxed sign-off override — please spot-check"**, not as a routine merge.
+4. **This override expires the moment Ben is back / this run closes.** A successor coordinator
+   inheriting this manifest after Ben returns must NOT treat this as standing policy — re-confirm
+   with him before relying on it again.
+
 ## Ben's directive (verbatim intent)
 Build everything needed for the Intelligent Job Search module tonight. Fable 5 ("Fable 5: Job
 Search Spec Review") drafts/approves plans first. Adopt overnight fleet under single Coordinator
