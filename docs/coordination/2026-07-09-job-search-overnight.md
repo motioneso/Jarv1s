@@ -862,4 +862,18 @@ undocumented to reconcile.
 Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`; re-check `w1:pCZ` fresh for PR-ready state
 on `feat/915-slice3-structured-ai`; re-check `w1:pCV` fresh for #917 plan-execution completion.
 
+**Checkpoint update (this session, queue executed):**
+- **Monitor restarted:** task `b16z5o0au` (persistent, changes-only, 60s poll), scoped to
+  `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`. Predecessor's monitor `bca8egl86` died with that session as
+  expected.
+- **`w1:pCZ` (#915 slice-3 build):** fresh read — still running `pnpm verify:foundation` in the
+  background terminal, no PR yet (`gh pr list --head feat/915-slice3-structured-ai` → empty).
+  Not merge-ready. Continue holding.
+- **`w1:pCV` (#917 plan execution):** fresh read — subagent-driven execution ongoing, "3 pending, 2
+  completed" tasks shown, context 67%/50%, flagged "8% until auto-compact" — close to its own
+  relay/compaction risk, watch closely next tick. Not yet complete, no independent review dispatch
+  yet.
+- No merges, no PR opens this checkpoint. `merges_since_relay` = 0, unchanged. Overnight sign-off
+  override remains ACTIVE, unexercised.
+
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
