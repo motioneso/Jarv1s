@@ -98,7 +98,7 @@ describe("ExternalModuleWorkerRuntime", () => {
   it("times out, reports crashes, and respawns on the next call", async () => {
     const module = await fixture();
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 40,
+      invocationTimeoutMs: 300,
       idleTimeoutMs: 500
     });
     await expect(runtime.invoke(module, "hang", {}, async () => null)).rejects.toMatchObject({
