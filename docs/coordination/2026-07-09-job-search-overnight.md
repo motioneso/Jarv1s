@@ -1904,3 +1904,8 @@ leave `w1:t1F` (Codex Job Search Spec / Fable 5 Spec Review, idle) and `w1:pBK`/
 (news-module, sports-fed-spec, idle) untouched.
 
 `merges_since_relay: 0` (unchanged — no merges this turn).
+
+**Fleet-liveness Monitor:** re-armed this turn, task `bvaxqcc5t`, persistent, diffs `herdr pane
+list` for `w1` every 60s, emits changed lines only.
+
+**Board-status report:** relayed to Ben directly in-session this turn (session user is Ben).
