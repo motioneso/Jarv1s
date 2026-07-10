@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`,
-pane `w1:pCY`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`,
+pane `w1:pD1`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -699,6 +699,16 @@ notification that will arrive).
 3. Restart persistent Monitor (scope above) — **NOT done this session**, deferred to successor.
 4. **Ping Codex (`w1:pCK`)** — overdue, **still not done**, do this early in the new session.
 5. No merges pending; nothing to reconcile in `ci_waivers`.
+
+## Lock re-claimed (successor session `0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`)
+
+Predecessor session `af3ee5f0-f086-42cb-b8a8-b332bec34a7d` was **already gone** from `herdr pane
+list` by the time this successor ran Phase 0a — no pane matched that session id at all (not
+`working`, not `done`, not present). Nothing to force-close; the predecessor evidently self-closed
+before or during its own relay spawn. New coordinator: pane `w1:pD1`, session
+`0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`, tab `w1:t15`, label renamed from the spawn default
+"Coordinator (relay)" to canonical `Coordinator`. Verified exactly **1** `Coordinator`-labelled
+pane via fresh `herdr pane list`. Proceeding with the predecessor's immediate action queue below.
 
 ## Lock re-claimed (successor session `af3ee5f0-f086-42cb-b8a8-b332bec34a7d`)
 
