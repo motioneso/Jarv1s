@@ -595,3 +595,17 @@ worktree/branch/tab (`w1:t1E`), new session `50971043-c25a-4971-ad25-f9907c9a0ac
 **Sonnet 5**, actively progressing through its task list (Task 3+4 in progress at check time).
 No separate pane existed to reap (relay reused the same terminal). Status: `building`, no action
 needed beyond this log entry.
+
+## #918 build agent relay-1 — tab-placement incident caught + fixed
+
+Correction to the prior log entry: the 70%-relay successor (session
+`50971043-c25a-4971-ad25-f9907c9a0acb`) itself relayed again shortly after (still before/around
+Task 1), spawning a genuinely new pane — successor session
+`dbf1c605-512a-4c0c-b310-9063ac8893c9`, label `918: open module system slice2 build (relay-1)`.
+**Hit the exact tab-placement incident the coordinate skill warns about:** the self-relay omitted
+`--tab` and the new pane landed in `w1:t15` (the coordinator's own tab), not the shared agents tab.
+Caught via the mandatory tab_id check on every self-relay (not skipped just because the agent
+reported "confirmed driving"). Fixed: bounded-read-confirmed the successor was genuinely driving
+(Sonnet 5, `agentmemory` recall running) *before* moving it — `herdr pane move w1:pDJ --tab w1:t1E
+--split right`. Now correctly in `w1:t1E` alongside `w1:pDH` (#914). Old pane `w1:pDG`
+(session `50971043-...`) closed. Status: `building`, current #918 pane = `w1:pDJ`.
