@@ -286,3 +286,38 @@ context-meter trigger.
   approved (by coordinator per spec-lock-adherence, or escalated per Ben's two-model-panel
   addendum / to Ben directly for a genuine fork). #913 epic spec still unmerged; #915/#916 still
   lack merged specs.
+
+## Relay checkpoint 3 (self-relay from `ff21f505-...`, context 70% warning fired mid-merge)
+
+**Lock re-claimed:** predecessor pane `w1:pCT` (session `ff21f505-...`) confirmed via its own pane
+text ("Successor w1:pCW is live on Sonnet 5 ... including reaping this pane once it confirms it's
+driving") that it had already spawned this successor and was waiting to be reaped. New coordinator
+is pane `w1:pCW`, session `55a96d6e-b72d-41ea-898b-43fdeecfa3da`, tab `w1:t15`, confirmed running
+Sonnet 5. Verified sole `Coordinator`-labelled pane via `herdr pane list` (was 2 momentarily during
+rename, now 1) before closing `w1:pCT` via `herdr pane close`.
+
+**Fleet check this checkpoint (bounded pane reads, no nudges needed — both healthy):**
+- **Fable 5 (`w1:pCR`)** — NOT stalled, NOT relaying. Actively working, 55% context, mid-stream on
+  #915 slice-3 plan ("chunk 2" of a multi-chunk write, tasks 3-5 verbatim-correct per its own
+  note). The earlier API-stall cleared on its own; no successor pane appeared or was needed. Same
+  pane/session as before (`d2661a6c-...`). No action taken — leave it running.
+- **Opus xhigh (`w1:pCV`)** — actively working, 53% context, on #917 plan: "Ground plan" checklist
+  shows module SDK/registry done, settings SQL+files done, currently on `/api/modules, config,
+  settings` step, with "Write Slice 1 implementation plan" queued next. No plan-ready escalation
+  yet — do not expect completion imminently.
+- **Codex (`w1:pCK`)** — not re-checked this pass (unchanged since last checkpoint: idle, #913 PR
+  work complete).
+
+**Monitor restarted:** task `btoa21auy` (persistent, changes-only, 60s poll), scoped to `w1:pCR` +
+`w1:pCK` + `w1:pCV`. Predecessor's monitor `b90uanpka` died with that session as expected.
+
+**Still holding — no build lane spawns** until #917's plan is authored by Opus xhigh AND approved.
+#913 epic spec is merged (PR #921) but epic issue stays open (blocked on children). #915/#916
+still lack merged specs. Overnight sign-off override (see section above) remains ACTIVE and
+untouched this checkpoint — no security-tier merge has occurred yet to exercise it.
+
+**Next actions for successor / continuation:** keep holding on build-lane spawns; when the Monitor
+fires on either #917 plan (pCV) or #915 plan (pCR) completing, read the relevant pointer, and route
+plan approval per spec-lock-adherence or the two-model-panel addendum for genuine forks. Ping
+Codex (`w1:pCK`) periodically per Ben's "keep it informed" instruction — not yet done this
+checkpoint.
