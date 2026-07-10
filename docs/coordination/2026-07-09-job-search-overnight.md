@@ -115,6 +115,25 @@ per-issue) **no build lane spawns yet**. #913's own epic spec remains unapproved
 epic itself is not buildable regardless of its children's readiness. #915/#916 lack merged specs.
 Do not parallelize any migration-adder under any circumstance.
 
+**Correction (2026-07-09, successor `ff21f505-...`, Fable-flagged + independently re-verified via
+`git show 6019f94f`):** #915 **Slice 3 does NOT serialize behind #917.** Spec text (line 459,
+`docs/superpowers/specs/2026-07-09-external-worker-capabilities-design.md` @ `6019f94f`, branch
+`spec/915-external-worker-capabilities`, worktree `review-913-job-search-spec`): *"Slice 3's
+`packages/ai` seam has no external-module dependency and may land first."* Confirmed: D6 touches
+only `packages/ai` routing seam (`resolveModelForService`), no migration, no module-loader
+dependency — a genuine second independently-buildable root alongside #917. Slices 1/2/4 still
+serialize behind #917/#919 per the original map (unchanged). **Does not unlock a spawn tonight**
+— #915 (all slices) has no PR yet (spec approved by Ben 2026-07-09 but unmerged, no plan approved
+for slice 3 either; Fable finishing the slice-3 plan now). Noted for readiness pipeline: once
+#915's spec merges + a slice-3-scoped plan is approved, slice 3 can spawn in parallel with #917
+without waiting on the #917→#914→#918→#919 chain.
+
+**#913 epic spec status: still unconfirmed, per both Fable 5 and this coordinator.** Fable's
+review found it blocked on missing platform capabilities (why #915 exists); Codex (`w1:pCK`) owns
+the `/tmp/jarv1s-913-spec` draft (branch `spec/913-intelligent-job-search`) and is the only party
+who can confirm whether its current revision folded in review feedback / has Ben's approval —
+pinged this checkpoint.
+
 ## Relay checkpoint (coordinator session `395b82b5-...`, context 70% warning fired)
 
 **Ben's directive (this checkpoint, verbatim intent):** move plan-authoring to Opus xhigh,
