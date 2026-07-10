@@ -31,8 +31,8 @@ describe("buildStructuredRequest", () => {
     expect(request.headers["anthropic-version"]).toBe("2023-06-01");
     expect(request.body.tool_choice).toEqual({ type: "tool", name: STRUCTURED_TOOL_NAME });
     const tools = request.body.tools as Array<{ name: string; input_schema: unknown }>;
-    expect(tools[0].name).toBe(STRUCTURED_TOOL_NAME);
-    expect(tools[0].input_schema).toBe(schema);
+    expect(tools[0]!.name).toBe(STRUCTURED_TOOL_NAME);
+    expect(tools[0]!.input_schema).toBe(schema);
     expect(request.body.max_tokens).toBe(512);
   });
 
@@ -69,8 +69,8 @@ describe("buildStructuredRequest", () => {
       contents: Array<{ role: string }>;
       generationConfig: Record<string, unknown>;
     };
-    expect(body.contents[0].role).toBe("model");
-    expect(body.contents[1].role).toBe("user");
+    expect(body.contents[0]!.role).toBe("model");
+    expect(body.contents[1]!.role).toBe("user");
     expect(body.generationConfig.responseMimeType).toBe("application/json");
     expect(body.generationConfig.responseSchema).toBe(schema);
   });
@@ -147,8 +147,8 @@ describe("HttpApiAdapter.generateStructured", () => {
 
     expect(result).toEqual({ rawObject: { a: "b" }, usage: { inputTokens: 3, outputTokens: 2 } });
     expect(calls).toHaveLength(1);
-    expect(calls[0].init.method).toBe("POST");
-    expect(calls[0].init.signal).toBe(controller.signal);
+    expect(calls[0]!.init.method).toBe("POST");
+    expect(calls[0]!.init.signal).toBe(controller.signal);
   });
 
   it("HTTP errors surface status only — never the API key", async () => {
