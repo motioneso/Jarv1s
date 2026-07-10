@@ -561,3 +561,60 @@ standard QA + invariant check, no Ben sign-off, auto-merge + digest).
 stall; watch `w1:pCV` for #917 plan completion (dispatch independent review same as #915 when it
 lands, or respawn on a 5th stall); ping Codex (`w1:pCK`) periodically per Ben's "keep it informed"
 instruction (idle, not yet re-pinged this checkpoint).
+
+## Relay checkpoint 5 (self-relay from session `ffba9610-...`, context 70% warning fired)
+
+**#915 slice-3 build — Task 5 plan defect approved (this checkpoint):** build agent (`w1:pCZ`)
+flagged that the plan's server.ts wiring for `AiRoutesDependencies` can't actually reach
+`listModuleManifests` the way originally scoped — `registerBuiltInApiRoutes` in `server.ts` isn't
+the call site that constructs `registerAiRoutes`'s deps; `packages/module-registry/src/index.ts`
+is (its `registerAiRoutes` closure at the AI module's `registerRoutes` callback, ~line 1000).
+**Grounded before approving** (not rubber-stamped): read `module-registry/src/index.ts` directly,
+confirmed the `registerAiRoutes` call site omits any installed-ids field today, and confirmed
+`deps.listModuleManifests` is already in scope in that same closure (used elsewhere at lines
+789/1076) — so the proposed fix (`listInstalledModuleIds: () => deps.listModuleManifests().map(m
+=> m.id)`, added inside that closure, skip the `server.ts` edit) is directly buildable and keeps
+the same intended contract (install-level validation, not actor-active) with no hard-invariant or
+module-isolation concern. **Approved directly** (mechanical wiring correction, not a design fork —
+no Opus/Ben escalation needed) via `herdr pane run w1:pCZ`, confirmed received and being acted on
+(pane now writing Task 5 route tests, RED-first). Added file beyond the plan's listed set:
+`packages/module-registry/src/index.ts` — build agent told to note this + one-line why in its PR
+description.
+
+**Fleet state at this checkpoint:**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, mid Task 5 (route tests, RED-first), re-scope
+  approved and in progress. Tier `sensitive` unchanged.
+- `w1:pCV` "Opus: #917 Plan" — last read showed genuinely `working` (not stalled), 72% context,
+  "1% until auto-compact" flagged for close watching — re-check fresh on adoption, may have
+  stalled/relayed/completed since.
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, not re-pinged this checkpoint (Ben wants it kept
+  informed periodically — overdue).
+- `w1:pCR` "Fable 5: Job Search Spec Review" — `done`/idle, reap-safe from its own prior
+  assessment, kept alive for potential #915 slice-1/2/4 planning once #919 lands.
+- Monitor task `b1abhzua1` (persistent, changes-only, 60s poll), scoped to `w1:pCR`/`w1:pCK`/
+  `w1:pCV`/`w1:pCZ` — **dies with this session**; successor must restart its own with the same
+  scope.
+- `merges_since_relay` = 0 (no merge since the last reset).
+- Overnight sign-off override (see top section) remains ACTIVE, untouched this checkpoint — no
+  security-tier merge has occurred yet to exercise it.
+
+**Successor's immediate queue, in order:**
+1. Re-check `w1:pCZ` (#915 build) fresh — if it's reached PR-ready, follow Phase 3 (spawn
+   `coordinated-qa` on tier `sensitive`, standard QA + invariant check, no Ben sign-off, auto-merge
+   + digest once green).
+2. Re-check `w1:pCV` (#917 plan) fresh — if complete, dispatch independent review (fresh
+   general-purpose subagent, same pattern as #915's plan review) before treating it approved; if
+   stalled a 5th time this session, respawn (4 prior stalls all nudged, all recovered) rather than
+   nudging indefinitely.
+3. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`.
+4. Send Codex (`w1:pCK`) a status ping — it hasn't been touched in several checkpoints; Ben asked
+   it be kept informed.
+5. Continue holding on any build-lane MERGE until independent QA is green on the integrated
+   result — #915 slice-3 is building, not yet merge-ready.
+
+## Relay note (this checkpoint)
+Coordinator session `ffba9610-00cc-4ebd-b52c-203ab8b521bf` (pane `w1:pCY`) hit the 70%
+context-meter warning right after approving the #915 Task 5 re-scope. Manifest fully flushed above.
+About to self-relay: spawn successor in the SAME tab as this pane (`w1:t15`), NOT the agents tab,
+via `relay` skill pattern. No merge occurred this checkpoint — nothing to reconcile beyond adopting
+the live fleet.
