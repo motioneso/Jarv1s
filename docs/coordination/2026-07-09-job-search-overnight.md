@@ -2021,3 +2021,20 @@ changes ≠ Ben's final sign-off).
    lane?** (Its writing-plans phase wasn't done per memory `spec-915-worker-capabilities`.)
 
 `merges_since_relay: 0` (unchanged).
+
+## RELAY @ 70% — continuation note (session 58a78927 handing off)
+
+**Coordinator lock:** label Coordinator, session 58a78927-385c-4b1d-8fa0-94db20255d6f, pane w1:pE6, tab w1:t15. Successor resolves fresh by label+session; pane number is ephemeral.
+
+**POLICY (Ben, this turn — TOTAL delegation, supersedes earlier narrower wording):** "Nothing needs my call. Fable has FINAL decision for this run." Do NOT AskUserQuestion Ben for ANY approval/decision/scope/blocker call this run — route every one to a Fable agent via `Agent(model:"fable", <pointer-style>)` and act on its verdict. Ben stays in the standing digest for later override only. (I violated this earlier by asking Ben about #915; corrected.)
+
+**Live fleet (agents tab w1:t1E):**
+- **#919 worker runtime** — w1:pE4, Codex gpt-5.6-sol, `working`. Plan approved (satisfies Opus C1–C5, migration 0157). Next gate = its PR/done. Do-not-nudge unless Monitor shows death.
+- **#914 module data plane (relay-5)** — w1:pDQ, `idle` at prompt. Benign / do-not-nudge (Task 8/9). Leave it.
+- **Job Search specs (#913)** — w1:pE7, Codex, `working`, FINALIZING draft PR #929. Fable verdict = **APPROVE-WITH-CHANGES** (agentId a06e39f897e304e01), nothing escalated, 6 decisions settled (see prior "## Fable verdict on #929" section). Relayed 2 required changes (fix stale #915-approval claim + keep #915-mis-closed tracking note; fold 6 settled decisions into docs, delete rejected options) + file JS-01..JS-09 as `Part of #913`. **SUCCESSOR FIRST ACTION: verify pE7 output — PR #929 updated + JS-01..JS-09 issues filed; capture issue numbers into manifest. If incomplete, re-engage pE7.**
+
+**OPEN DECISION → route to FABLE (not Ben):** #915 (worker-capabilities, spec rev2 commit 6019f94f, Ben-approved 2026-07-09) is **mis-closed on GitHub** and its implementation is UNMERGED — it's the true hard blocker for job-search (queue/schedule/run-now + pinned-fetch runtime that JS-01..JS-09 depend on). Spawn `Agent(model:"fable")` to decide: reopen+queue an impl lane / reopen+track-only / flag-and-hold. Act on Fable's call.
+
+**Monitor:** `b3gdz5iry` armed (diffs `herdr pane list`, excludes own pane w1:pE6). **merges_since_relay: 0.** No merges pending. No security-tier PR open.
+
+**Successor first actions:** (1) verify pE7 → PR #929 + JS issue numbers; (2) route #915 to Fable; (3) resume Phase 2 supervision; (4) re-arm Monitor if it didn't survive.
