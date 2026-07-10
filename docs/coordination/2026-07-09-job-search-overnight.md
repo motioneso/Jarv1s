@@ -321,3 +321,11 @@ fires on either #917 plan (pCV) or #915 plan (pCR) completing, read the relevant
 plan approval per spec-lock-adherence or the two-model-panel addendum for genuine forks. Ping
 Codex (`w1:pCK`) periodically per Ben's "keep it informed" instruction — not yet done this
 checkpoint.
+
+**Opus xhigh (`w1:pCV`) mid-stream API stall, nudged (2026-07-10, ~07:06):** Monitor flagged
+`agent_status` flip to `done`; pane read showed "API Error: Response stalled mid-stream" with
+grounding fully complete (3/4 tasks) but "Write Slice 1 implementation plan" still in-progress —
+i.e. NOT actually finished, just stalled. Nudged via `herdr pane run` (per
+`agent-stall-nudge-recovery` memory — nudge before respawn); confirmed pane flipped back to
+`working`. Plan still outstanding. No plan-ready escalation yet — still holding, no build lane
+spawns.
