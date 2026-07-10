@@ -1714,3 +1714,17 @@ high, tier `security`; (2) #914 supervision resumed, no intervention; (3) livene
 re-armed (`brhqi0ok9`); (4) #916 left held. `merges_since_relay: 0`. No relay trigger fired this
 turn (context-meter has not warned, no merges occurred, no compaction). Resident supervision
 continues.
+
+**#919 re-scope clarification — approved.** Build agent (`w1:pE4`) flagged before plan-authoring:
+#918/PR925 already ships tests for metadata-only credential responses, admin/RLS isolation,
+revocation-envelope scrubbing, and module credential/KV export+delete lifecycle
+(`tests/integration/module-credentials.test.ts`, `module-kv-lifecycle.test.ts` on `origin/main`).
+Proposed retaining that coverage and scoping Slice 3's own tests to: worker-runtime auth/KV RPC
+(incl. revoked/missing credential at execution), gateway pending-action/audit, runtime
+isolation/timeout/crash/serialization/env/version-check, and log redaction — no new migration.
+
+Verified directly (grepped both test files on `origin/main` — claim checks out). Stays inside the
+spec's locked Slice 3 decisions (no architecture change, no new migration, no security-relevant
+scope reduction — it's de-duplicating test authorship, not test coverage). **Approved** without
+escalating to Opus/Ben — routine plan-scoping clarification, not a design fork. Replied via
+`herdr pane run w1:pE4`. Agent proceeds to author the plan on this basis.
