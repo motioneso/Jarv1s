@@ -78,6 +78,17 @@ Every task's requirements implicitly include this section. Values copied verbati
 
 - Produces: table `app.external_modules` and Kysely types `ExternalModulesTable` / `ExternalModuleRow` (re-exported from `@jarv1s/db`). Columns: `id text PK`, `status text ('enabled'|'disabled')`, `manifest_hash text`, `package_hash text`, `disabled_reason text NULL`, `enabled_by uuid NULL`, `enabled_at timestamptz NULL`, `created_at`, `updated_at`. `'discovered'` is a **virtual** state (no row) — the table only ever holds enabled/disabled modules.
 
+- [ ] **Step 0: Re-verify the next free migration number (do NOT trust `0152` from this text)**
+
+Migrations land concurrently across parallel lanes, so `0152` may have been taken since this plan was written. Compute the current max prefix and use `max + 1`:
+
+```bash
+find packages apps infra -name '[0-9][0-9][0-9][0-9]_*.sql' | xargs -n1 basename \
+  | grep -oE '^[0-9]{4}' | sort | tail -1
+```
+
+Expected at plan-authoring time: `0151` → next free is `0152`. **If the command prints `0152` or higher, use that value + 1 instead**, and substitute it for every `0152` reference in this task: the SQL filename, the `foundation.test.ts` row (both `version` and `name`), and the DB-types comment. The number is monotonic and assigned by landing order — never reuse or renumber an already-applied migration.
+
 - [ ] **Step 1: Write the failing test (foundation migration list)**
 
 In `tests/integration/foundation.test.ts`, find the last entry of the asserted migration array (currently `{ version: "0151", name: "0151_news_prefs.sql" }` with no trailing comma). Add a comma and the new row:
@@ -989,7 +1000,7 @@ export function getExternalModuleRegistrations(options: {
     const dir = join(modulesDir, id);
     // Symlink-escape guard: the real path must stay inside the real modules root.
     const dirReal = realpathSync(dir);
-    if (dirReal !== rootReal && !dirReal.startsWith(rootReal + require("node:path").sep)) {
+    if (dirReal !== rootReal && !dirReal.startsWith(rootReal + sep)) {
       rejected.push({ id, reason: `symlink target escapes the modules root: ${id}` });
       continue;
     }
@@ -1030,7 +1041,7 @@ export function getExternalModuleRegistrations(options: {
 }
 ```
 
-> Replace the inline `require("node:path").sep` with a top-of-file `import { join, sep } from "node:path";` and use `sep` — shown inline only to keep the guard visible in one place. Final code must use the ESM import (the package is `"type": "module"`).
+> The symlink-escape guard uses `sep` from the top-of-file `import { join, relative, sep } from "node:path";` (already present in the loader source above). Never use `require(...)` — the package is `"type": "module"` and CommonJS `require` is not defined in ESM.
 
 - [ ] **Step 5: Run the tests to confirm they pass**
 
