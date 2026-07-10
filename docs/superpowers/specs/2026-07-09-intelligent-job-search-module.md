@@ -1,6 +1,6 @@
 # Intelligent job search module — design spec
 
-**Status:** Draft — awaiting Ben approval  
+**Status:** Approved — Ben approval after Fable 5 review, 2026-07-09
 **Date:** 2026-07-09  
 **Owner:** Ben  
 **GitHub:** #913  
