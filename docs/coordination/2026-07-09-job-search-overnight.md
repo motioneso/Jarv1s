@@ -1056,6 +1056,15 @@ Proceeding with the predecessor's immediate action queue exactly as specified in
 checkpoint above: hold on merge/panel until `w1:pCV` reports fixes pushed to PR #924, then fresh
 Opus QA → fresh panel → merge only if all green.
 
+**`w1:pCV` progress check (04:57 UTC, this checkpoint):** Monitor fired on `agent_status` flip to
+`done`; fresh pane read shows this is the same "flipped to done but not actually complete" pattern
+seen earlier in this run — it's mid a self-run `verify:foundation`-style gate wait loop, not
+stalled or finished. Concrete progress: **all 3 findings addressed** — 3 files fixed, all 12
+targeted unit tests green, the 3rd finding ("F3") required an escalation/judgment call which it
+grounded against the plan and ledgered (recorded) rather than silently resolving. Commit message
+staged; explicitly waiting on its own gate check before commit+push+PR-update. **Not dispatching QA
+yet — holding for the actual push/report.**
+
 ## Lock re-claimed (successor session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`)
 
 Predecessor pane `w1:pD2` (session `ae488fcc-3b93-4be6-9118-14452e66da3d`, matched manifest lock
