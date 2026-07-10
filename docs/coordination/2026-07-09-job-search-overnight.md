@@ -1029,3 +1029,22 @@ fleet action.
 every relay does — it is the pre-merge authority check for the #924 merge above.
 
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Lock re-claimed (successor session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`)
+
+Predecessor pane `w1:pD2` (session `ae488fcc-3b93-4be6-9118-14452e66da3d`, matched manifest lock
+line exactly) was **already gone** from `herdr pane list` by the time this successor ran Phase 0a
+— no pane matched that session id at all. Nothing to force-close; the predecessor evidently
+self-closed before or during its own relay spawn. New coordinator: pane `w1:pD3`, session
+`1d5beb50-c847-4b7c-8cea-cf99c3143fd3`, tab `w1:t15`, label renamed from spawn default
+"Coordinator (relay)" to canonical `Coordinator`. Verified exactly **1** `Coordinator`-labelled
+pane via fresh `herdr pane list`.
+
+Fleet re-confirmed fresh, unchanged from predecessor's last read: `w1:pCV` "Opus: #917 Plan"
+(idle/standing by, PR #924 open), `w1:pCR` "Fable 5: Job Search Spec Review" (done/idle, needed
+for overnight-signoff panel), `w1:pCK` "Codex: Job Search Spec" (done/idle, needed for panel),
+`w1:pCP`/`w1:pCQ` (unrelated, do not touch). `w1:pCZ` confirmed absent (already reaped).
+`merges_since_relay` = 1 (carried from predecessor). Overnight sign-off override remains ACTIVE.
+
+**Proceeding with predecessor's immediate action queue:** dispatch Opus adversarial QA on PR #924
+(#917, tier `security`) first, per the exact prompt specified in the checkpoint above.
