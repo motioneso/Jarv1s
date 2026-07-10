@@ -2042,3 +2042,14 @@ changes ≠ Ben's final sign-off).
 ## RELAY ABORTED — auto-compaction already reset context (Ben)
 
 Ben: "You don't need to relay, you auto-compacted." The 70% warning fired pre-compaction; the compaction summary already gave me a fresh context, so no self-handoff was needed. Premature successor pane w1:pE8 (session 47a5d442) killed to preserve single-coordinator lock. **Sole Coordinator remains w1:pE6 / session 58a78927-385c-4b1d-8fa0-94db20255d6f.** Continuing Phase 2 in-session. All continuation-note items still apply (verify pE7/#929 + JS issues, route #915 to Fable, total Fable delegation). merges_since_relay reset context; treat meter fresh post-compaction.
+
+## #929 spec finalization DONE (pE7)
+
+Codex spec agent finished (commit 80b4bff7, PR #929 still DRAFT). Settled Fable decisions baked in, stale #915-approval claim corrected, #916 narrowed to starter action. Prettier + diff clean, worktree clean.
+Task issues filed as `Part of #913` (labels task + needs-spec):
+- JS-01 #930 · JS-02 #931 · JS-03 #932 · JS-04 #933 · JS-05 #934 · JS-06 #935 · JS-07 #936 · JS-08 #937 · JS-09 #938
+
+PENDING BATCH DECISION (hold until Fable #915 verdict + refactor-impact scan land):
+- Whether to flip #929 ready→merge (routine docs tier; Fable already APPROVE-WITH-CHANGES on content).
+- #915 disposition (Fable deciding) — real hard blocker for JS runtime.
+- Ben asked: do modularity slices require refactoring existing modules? (Explore scan running.)
