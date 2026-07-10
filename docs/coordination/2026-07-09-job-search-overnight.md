@@ -389,6 +389,15 @@ repo/routes to satisfy the 1000-line cap). Pane transcript shows it mid a backgr
 work, not a stall. **Not dispatching QA — holding, Monitor stays armed for the next real
 completion signal (PR open or an explicit done report).**
 
+**#917 plan execution complete (~09:59-10:09 UTC), agent paused for outward-facing go-ahead.**
+After several more working/done wait-loop flips (10-min gate-check cycles, consistent with the
+earlier pattern — not a stall), pane `w1:pCV` finished its verify gate and drafted "push it and
+open the PR" in its input box, explicitly noting it wouldn't push/open a PR without go-ahead
+(outward-facing action). Approved and submitted via `herdr pane run` (first `send-keys Enter`
+attempt didn't register — text was still sitting unsubmitted, retried with `pane run` per the
+skill's preferred path, confirmed via bounded read: pane now actively working, "Flummoxing…").
+Awaiting PR-open confirmation next tick.
+
 **Dispatched independent plan review (2026-07-10, ~07:12):** spawned a fresh general-purpose
 subagent (not Fable, not Opus — avoids self-review bias, and this is a scope/invariant check, not
 a design fork, so default model is appropriate) to check the #922 plan against the spec's locked
