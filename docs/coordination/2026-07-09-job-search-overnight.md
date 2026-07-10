@@ -1698,3 +1698,8 @@ tab). Verified via bounded pane read: `gpt-5.6-sol high · ~/Jarv1s/.claude/work
 required before merge; no auto-merge). Awaiting plan-ready escalation.
 
 `merges_since_relay: 0` (unchanged).
+
+**#914 supervision resumed.** Bounded pane read of `w1:pDQ`: Tasks 8 (module storage RPC) and 9
+(export/deletion lifecycle) still open, 5 tasks completed, agent sitting idle at its own prompt —
+no `[SECURITY]`/`[BLOCKED]` escalation, no sign of a real stall. Per standing policy, **not
+nudging** on this routine flip. Continuing hands-off supervision.
