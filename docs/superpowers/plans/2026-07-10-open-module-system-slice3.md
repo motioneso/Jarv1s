@@ -25,6 +25,7 @@
 ### Task 1: Declarative manifest and worker authoring contract
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts`
 - Create: `packages/module-sdk/src/worker-protocol.ts`
 - Create: `packages/module-sdk/src/worker.ts`
@@ -35,6 +36,7 @@
 - Create: `tests/unit/module-sdk-worker.test.ts`
 
 **Interfaces:**
+
 - Produces `MODULE_WORKER_CONTRACT_VERSION = 1`, `ModuleWorkerDeclaration`, `ExternalModuleAssistantToolDeclaration`, `ModuleWorkerContext`, and `defineModuleWorker()`.
 - Keeps `@jarv1s/module-sdk` browser-safe; Node imports exist only behind `@jarv1s/module-sdk/worker`.
 
@@ -46,14 +48,16 @@ Add assertions accepting this exact declarative shape and rejecting missing runt
 const toolManifest = {
   ...base,
   runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 },
-  assistantTools: [{
-    name: "acme-widgets.lookup",
-    description: "Look up a widget",
-    permissionId: "acme-widgets.lookup",
-    risk: "read",
-    inputSchema: { type: "object" },
-    handler: "lookup"
-  }]
+  assistantTools: [
+    {
+      name: "acme-widgets.lookup",
+      description: "Look up a widget",
+      permissionId: "acme-widgets.lookup",
+      risk: "read",
+      inputSchema: { type: "object" },
+      handler: "lookup"
+    }
+  ]
 };
 expect(validateExternalModuleManifest(toolManifest, "acme-widgets", "0.1.0").ok).toBe(true);
 ```
@@ -100,8 +104,17 @@ export interface ModuleWorkerContext {
   readonly input: Record<string, unknown>;
   readonly auth: { getCredential(authId: string): Promise<string> };
   readonly kv: {
-    get(scope: "instance" | "user", namespace: string, key: string): Promise<Record<string, unknown> | null>;
-    set(scope: "instance" | "user", namespace: string, key: string, value: Record<string, unknown>): Promise<void>;
+    get(
+      scope: "instance" | "user",
+      namespace: string,
+      key: string
+    ): Promise<Record<string, unknown> | null>;
+    set(
+      scope: "instance" | "user",
+      namespace: string,
+      key: string,
+      value: Record<string, unknown>
+    ): Promise<void>;
     delete(scope: "instance" | "user", namespace: string, key: string): Promise<boolean>;
     list(scope: "instance" | "user", namespace: string): Promise<readonly string[]>;
   };
@@ -126,11 +139,13 @@ Commit: `feat(module-sdk): add external worker authoring contract`
 ### Task 2: Isolated per-module worker process runtime
 
 **Files:**
+
 - Create: `packages/module-registry/src/external/worker-runtime.ts`
 - Modify: `packages/module-registry/src/node.ts`
 - Create: `tests/unit/external-worker-runtime.test.ts`
 
 **Interfaces:**
+
 - Produces `ExternalModuleWorkerRuntime.invoke()` and `close()`.
 - Consumes a per-invocation parent RPC callback; owns no DB or credential cipher.
 
@@ -157,7 +172,9 @@ Expose the minimal API:
 
 ```ts
 export class ExternalModuleWorkerError extends Error {
-  constructor(readonly code: "protocol" | "timeout" | "crash" | "handler_failed") { super(code); }
+  constructor(readonly code: "protocol" | "timeout" | "crash" | "handler_failed") {
+    super(code);
+  }
 }
 
 export class ExternalModuleWorkerRuntime {
@@ -165,7 +182,11 @@ export class ExternalModuleWorkerRuntime {
     module: ExternalModuleDiscovery,
     handler: string,
     input: Record<string, unknown>,
-    rpc: (method: string, params: unknown, rememberSecret: (value: string) => void) => Promise<unknown>
+    rpc: (
+      method: string,
+      params: unknown,
+      rememberSecret: (value: string) => void
+    ) => Promise<unknown>
   ): Promise<unknown>;
   close(): Promise<void>;
 }
@@ -194,6 +215,7 @@ Commit: `feat(module-registry): add isolated external worker runtime`
 ### Task 3: Worker-role RLS and parent auth/KV RPC host
 
 **Files:**
+
 - Create: `packages/settings/sql/0157_module_worker_runtime_access.sql`
 - Modify: `tests/integration/foundation.test.ts`
 - Modify: `packages/settings/src/repository-module-credentials.ts`
@@ -203,6 +225,7 @@ Commit: `feat(module-registry): add isolated external worker runtime`
 - Create: `tests/integration/module-worker-rpc.test.ts`
 
 **Interfaces:**
+
 - Produces `createExternalModuleRpcHandler(discovery, toolRisk, actorUserId, workerDataContext, cipher)`.
 - Every RPC opens a worker-role `withDataContext({ actorUserId, requestId })`, then transaction-locally sets `app.current_module_id` before repository access.
 
@@ -260,12 +283,14 @@ Commit: `feat(settings): scope external worker data access`
 ### Task 4: Adapt active external tools into the existing gateway
 
 **Files:**
+
 - Create: `packages/module-registry/src/external/tool-manifests.ts`
 - Modify: `packages/module-registry/src/node.ts`
 - Create: `tests/unit/external-tool-manifests.test.ts`
 - Modify: `tests/integration/mcp-gateway.test.ts`
 
 **Interfaces:**
+
 - Produces executable `JarvisModuleManifest[]` from validated discoveries.
 - Reuses `AssistantToolGateway` unchanged; generated `execute` closures invoke the worker runtime.
 
@@ -310,12 +335,14 @@ Commit: `feat(ai): route external tools through assistant gateway`
 ### Task 5: Production composition and end-to-end execution
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts`
 - Modify: `packages/module-registry/src/index.ts`
 - Modify: `packages/chat/src/routes.ts`
 - Create: `tests/integration/external-module-tools.test.ts`
 
 **Interfaces:**
+
 - API owns worker-role DB pool, worker runtime, active external manifest adapter, and shutdown.
 - Chat/gateway receives only the combined actor-filtered resolver; no worker internals cross into chat.
 
@@ -348,6 +375,7 @@ Commit: `feat(api): execute enabled external module tools`
 ### Task 6: Final security regression and full gate
 
 **Files:**
+
 - Modify only files required by failures found below; no cleanup outside Slice 3.
 
 - [ ] **Step 1: Run focused security suite**
