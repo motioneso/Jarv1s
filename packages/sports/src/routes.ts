@@ -11,6 +11,7 @@ import {
   sportsLeagueTeamsResponseSchema,
   sportsOverviewResponseSchema,
   sportsStandingsResponseSchema,
+  sportsTeamSearchResponseSchema,
   type CreateSportsFollowRequest,
   type SportsFollowDto
 } from "@jarv1s/shared";
@@ -82,6 +83,20 @@ export function registerSportsRoutes(
           throw new HttpError(400, `Unknown competition: ${competitionKey}`);
         }
         return await service.getLeagueTeams(competitionKey);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/sports/teams/search",
+    { schema: sportsTeamSearchResponseSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const { q } = request.query as { q: string };
+        return await service.searchTeams(q);
       } catch (error) {
         return handleRouteError(error, reply);
       }

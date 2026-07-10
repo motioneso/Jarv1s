@@ -15,6 +15,7 @@ import {
   registerSportsRoutes,
   type SportsRoutesDependencies
 } from "../../packages/sports/src/routes.js";
+import { SPORTS_CATALOG } from "../../packages/sports/src/source/catalog.js";
 import type {
   SourceHeadline,
   SourceTeamRef,
@@ -36,13 +37,32 @@ interface FakeSourceHandlers {
   getHeadlines?: (competitionKey: string) => Promise<SourceHeadline[]>;
 }
 
-function makeDatasetClient(handlers: FakeSourceHandlers = {}): DatasetClient {
+function makeDatasetClient(
+  handlers: FakeSourceHandlers = {},
+  // Models Task 1's `cacheOnly` peek (#907 search): a key not in this set behaves as an
+  // uncached league (cacheMiss: true, fallback, no live fetch counted); a key present in it
+  // falls through to the normal handler below, exactly as the real cache-first client does for
+  // a warm entry.
+  cachedCompetitionKeys: ReadonlySet<string> = new Set()
+): DatasetClient {
   return {
     async getDataset<T>(
       datasetKey: string,
       params: Record<string, unknown>,
-      options: { fallback: T }
+      options: { fallback: T; cacheOnly?: boolean }
     ): Promise<DatasetEnvelope<T>> {
+      if (options.cacheOnly) {
+        const key = params.competitionKey as string;
+        if (!cachedCompetitionKeys.has(key)) {
+          return {
+            data: options.fallback,
+            degraded: false,
+            cacheMiss: true,
+            fetchedAt: new Date().toISOString()
+          };
+        }
+        // fall through: a "cached" league serves via the normal handler below, no live-fetch counted
+      }
       try {
         let data: unknown;
         switch (datasetKey) {
@@ -519,6 +539,76 @@ describe("sports routes", () => {
     const { app } = buildApp();
     await app.ready();
     const res = await app.inject({ method: "GET", url: "/api/sports/leagues/nope.9/teams" });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it("GET /api/sports/teams/search matches cached rosters across leagues (#907)", async () => {
+    let liveFetches = 0;
+    const roster = (competitionKey: string): SourceTeamRef[] =>
+      competitionKey === "eng.1"
+        ? [
+            {
+              teamKey: "t.ars",
+              competitionKey,
+              name: "Arsenal",
+              shortName: "ARS",
+              crestUrl: null
+            } as SourceTeamRef
+          ]
+        : [];
+    const cached = new Set(SPORTS_CATALOG.map((c) => c.competitionKey)); // everything warm
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient(
+        {
+          listTeams: async (key) => {
+            liveFetches++;
+            return roster(key);
+          }
+        },
+        cached
+      )
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/teams/search?q=arsenal" });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.teams.map((t: { teamKey: string }) => t.teamKey)).toEqual(["t.ars"]);
+    expect(body.partial).toBe(false);
+    // fast-json-stringify strip check: `partial` must be on the wire.
+    expect(res.body).toContain('"partial"');
+    // Every catalog league is "cached" here, so the fake's cacheOnly fall-through serves each
+    // one via the normal handler exactly once (no league skipped for the warm-fill cap) —
+    // distinguishes this warm-cache path from the cold-cache cap test below.
+    expect(liveFetches).toBe(SPORTS_CATALOG.length);
+    await app.close();
+  });
+
+  it("search warm-fills at most 5 uncached leagues per query and reports partial (#907)", async () => {
+    let liveFetches = 0;
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient(
+        {
+          listTeams: async () => {
+            liveFetches++;
+            return [];
+          }
+        },
+        new Set() // cold cache: all 8 catalog leagues uncached
+      )
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/teams/search?q=arsenal" });
+    expect(res.statusCode).toBe(200);
+    expect(liveFetches).toBe(5); // SEARCH_WARM_FILL_CAP
+    expect(JSON.parse(res.body).partial).toBe(true); // 3 of 8 leagues skipped
+    await app.close();
+  });
+
+  it("search rejects queries shorter than 2 chars via schema (#907)", async () => {
+    const { app } = buildApp();
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/teams/search?q=a" });
     expect(res.statusCode).toBe(400);
     await app.close();
   });

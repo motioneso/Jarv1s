@@ -9,7 +9,8 @@ import {
   sportsFollowsResponseSchema,
   sportsLeagueTeamsResponseSchema,
   sportsOverviewResponseSchema,
-  sportsStandingsResponseSchema
+  sportsStandingsResponseSchema,
+  sportsTeamSearchResponseSchema
 } from "@jarv1s/shared";
 
 import { sportsFollowedFactsTodayExecute } from "./briefing-tool.js";
@@ -96,6 +97,12 @@ export const sportsModuleManifest = {
       method: "GET",
       path: "/api/sports/leagues/:competitionKey/teams",
       responseSchema: sportsLeagueTeamsResponseSchema,
+      permissionId: "sports.view"
+    },
+    {
+      method: "GET",
+      path: "/api/sports/teams/search",
+      responseSchema: sportsTeamSearchResponseSchema,
       permissionId: "sports.view"
     },
     {

@@ -15,7 +15,9 @@ import {
   type SportsFollowDto,
   type SportsLeagueTeamsResponse,
   type SportsOverviewResponse,
-  type StandingsGroup
+  type SportsTeamSearchResponse,
+  type StandingsGroup,
+  type TeamRef
 } from "@jarv1s/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
@@ -104,6 +106,12 @@ const EMPTY_STANDINGS: StandingsTable = { sections: [] };
 // (fall/winter), NBA/NHL (fall-spring), MLB (spring-fall), Premier League (fall-spring).
 const DEFAULT_SLATE_COMPETITION_KEYS: readonly string[] = ["nfl", "nba", "nhl", "mlb", "eng.1"];
 
+// Cross-league search fan-out bounds (#907 spec §4.4): per query, at most this many uncached
+// league rosters are fetched live; leagues beyond the cap are skipped and reported via
+// `partial` so the UI can hint that coverage is still warming. Repeated searches converge.
+const SEARCH_WARM_FILL_CAP = 5;
+const SEARCH_RESULT_CAP = 30;
+
 /** Mutable degraded flag threaded through a single composition pass. */
 interface DegradeState {
   degraded: boolean;
@@ -170,6 +178,45 @@ export class SportsService {
     const state: DegradeState = { degraded: false };
     const teams = await this.teamsFor(competitionKey, state);
     return { teams, degraded: state.degraded };
+  }
+
+  /** Club search across all catalog leagues without an unbounded ESPN fan-out (#907 §4.4). */
+  async searchTeams(query: string): Promise<SportsTeamSearchResponse> {
+    const state: DegradeState = { degraded: false };
+    const q = query.trim().toLowerCase();
+    const teams: TeamRef[] = [];
+    let warmed = 0;
+    let partial = false;
+    // Sequential on purpose: warm-fill is a bounded, rate-courteous trickle, not a burst.
+    for (const entry of SPORTS_CATALOG) {
+      // Peek first (never fetches) — Task 1's cacheOnly option.
+      const peek = await this.datasetClient.getDataset<SourceTeamRef[]>(
+        "teams",
+        { competitionKey: entry.competitionKey },
+        { fallback: [], cacheOnly: true }
+      );
+      let roster: readonly SourceTeamRef[];
+      if (peek.cacheMiss) {
+        if (warmed >= SEARCH_WARM_FILL_CAP) {
+          // Cap hit: this league's roster isn't cached and we've already spent this query's
+          // live-fetch budget. Skip it rather than fan out to every catalog league on a cold
+          // cache — `partial` tells the client coverage will improve as the cache warms.
+          partial = true;
+          continue;
+        }
+        warmed += 1;
+        roster = await this.teamsFor(entry.competitionKey, state);
+      } else {
+        if (peek.degraded) state.degraded = true;
+        roster = peek.data;
+      }
+      for (const team of roster) {
+        // Team name/shortName only — league-label rows ("Follow all of…") stay client-side
+        // against the cheap catalog list (spec §4.2).
+        if (`${team.name} ${team.shortName}`.toLowerCase().includes(q)) teams.push(team);
+      }
+    }
+    return { teams: teams.slice(0, SEARCH_RESULT_CAP), partial, degraded: state.degraded };
   }
 
   /** The composed `/api/sports/overview` payload for the actor. */

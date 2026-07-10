@@ -213,6 +213,15 @@ export interface SportsLeagueTeamsResponse {
   readonly degraded: boolean; // roster fetch failed → empty teams + retry affordance
 }
 
+/** `GET /api/sports/teams/search?q=` — bounded cross-league club search for the follow picker.
+ *  `partial` = warm-fill hasn't covered every catalog league yet this process lifetime; NOT an
+ *  error state (`degraded` keeps meaning "a fetch failed") — spec §4.4 (#907). */
+export interface SportsTeamSearchResponse {
+  readonly teams: readonly TeamRef[];
+  readonly partial: boolean;
+  readonly degraded: boolean;
+}
+
 export interface SportsCatalogResponse {
   readonly competitions: readonly (CompetitionRef & { readonly teams: readonly TeamRef[] })[];
   readonly degraded: boolean; // one or more competitions' teams failed to load (#765 M1)
@@ -645,6 +654,34 @@ export const sportsLeagueTeamsResponseSchema = {
       required: ["teams", "degraded"],
       properties: {
         teams: { type: "array", items: teamRefSchema },
+        degraded: { type: "boolean" }
+      }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+/** `GET /api/sports/teams/search?q=` schema (#907 §4.4). `q` minLength 2 keeps a single
+ *  keystroke from firing a query; maxLength 80 is a generous cap against abuse, not a real name
+ *  length limit. */
+export const sportsTeamSearchResponseSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    required: ["q"],
+    properties: {
+      q: { type: "string", minLength: 2, maxLength: 80 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["teams", "partial", "degraded"],
+      properties: {
+        teams: { type: "array", items: teamRefSchema },
+        partial: { type: "boolean" },
         degraded: { type: "boolean" }
       }
     },
