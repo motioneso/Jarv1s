@@ -429,3 +429,18 @@ trigger on top of this context-meter one, but that's moot since we're relaying n
    `feat/915-slice3-structured-ai` off `main`, tier `sensitive` per this checkpoint's assessment —
    standard QA + invariant check, no Ben sign-off required, auto-merge + digest).
 5. Continue holding on #917 until its plan is written AND independently reviewed/approved.
+
+## Checkpoint update (successor session `9ed36f3b-...`, executing relay checkpoint 4 queue)
+
+- **PR #922 CI, fresh read (~this checkpoint):** `Compose deployment smoke` = pass,
+  `Prod compose deployment smoke` = pass, `Verify foundation and app` = **still pending**. Not
+  merge-ready yet. Started a clean background wait (`bhb9d7422`, simple `until` loop polling every
+  20s, NOT the buggy predecessor script) — will be notified when it resolves.
+- **Opus xhigh (`w1:pCV`) re-checked fresh:** genuinely `working` (not stalled) — 60% context,
+  still on "Write Slice 1 implementation plan" step, 3 prior ground-plan subtasks done. No 3rd
+  stall observed this pass; no nudge needed.
+- **Monitor restarted:** task `bbvxzui71` (persistent, changes-only), scoped to `w1:pCR` +
+  `w1:pCK` + `w1:pCV`. Predecessor's monitor `btoa21auy` died with that session as expected.
+  First (baseline) event confirmed no drift: Codex done, Fable done, Opus working.
+- **Still holding — no build lane spawns.** Waiting on the #922 CI background task before
+  merging; #917 plan still in progress.
