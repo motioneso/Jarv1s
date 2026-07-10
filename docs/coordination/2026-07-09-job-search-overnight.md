@@ -452,3 +452,25 @@ GitHub directly (source of truth) rather than trusting the 3 candidate spec file
 **Proposal reported to Ben (this checkpoint):** spawn a plan agent for #914 now (spec-cleared);
 hold #916 for a spec-authoring pass with Ben once #918/Slice 2 lands. Reconciling the
 overnight-override question with him in the same turn (see below).
+
+**#918 plan delivered — session-id authority reconciled:** v3 (session `a2d9e833-...`, pane
+`w1:pDD`) reported deliverable ready: `docs/superpowers/plans/2026-07-10-open-module-system-slice2.md`,
+commit `bc035fe1` on branch `plan/918-open-module-system-slice2` (worktree
+`.claude/worktrees/918-implementation-plan`, left in place — NOT pruned, build lane will continue
+from this branch). 27 tasks, NNNN migration placeholders, foundation.test.ts rows, security
+sections (asset path/symlink defense, credential AES-256-GCM end-to-end, KV export/delete
+completeness). Self-review clean. **Explicitly not self-approving — security tier — needs Ben
+sign-off before any build lane starts.** Confirmed pane went `idle` post-message (fresh
+`herdr pane list`); closed the pane (lane done, nothing left running).
+
+Coordinator session-id chain the plan agent flagged (`46590121-...` → `cfdfc7bb-...` →
+`0d7c26c5-...`): this is the normal self-relay history, not a conflict — each relay produces
+exactly one `Coordinator`-labeled pane, verified fresh each time (current: `0d7c26c5-...`, pane
+`w1:pDE`, confirmed via `herdr pane list` at Phase 0a of this session). No action needed beyond
+this note.
+
+Predecessor plan pane v2 (`7751a8ea-...`) — already absent from a fresh pane list, nothing to
+reap.
+
+**Still queued:** #919 remains blocked behind #918 — landing the *plan* does not unblock it; #918
+needs Ben's sign-off + a build lane + merge first (serialized chain, same module system).
