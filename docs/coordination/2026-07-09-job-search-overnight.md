@@ -474,3 +474,69 @@ reap.
 
 **Still queued:** #919 remains blocked behind #918 — landing the *plan* does not unblock it; #918
 needs Ben's sign-off + a build lane + merge first (serialized chain, same module system).
+
+## Lock re-claimed (session `0d7c26c5-e733-40f5-9a92-004ee47a7e4b`), relay at 70% context-meter
+
+**Overnight-override: RESOLVED, moot.** Ben corrected the premise directly (genuine live user
+input, not a notification): he had NOT been live overnight — it's simply morning now. Normal
+daytime operation applies; no override needed either way. Do not re-litigate this.
+
+**Ben's live decisions (genuine user turns, confirmed):** "918 approve, spawn 914." Both are
+GO — this is real authorization, act on it.
+
+**#918 — approved for build.** Plan: `docs/superpowers/plans/2026-07-10-open-module-system-slice2.md`,
+commit `bc035fe1`, branch `plan/918-open-module-system-slice2`, worktree
+`.claude/worktrees/918-implementation-plan` (kept intact, NOT pruned; local branch is 4 ahead of
+`origin/main`, not yet pushed). Security tier. **NEXT:** write a build-phase handoff doc (the plan
+step is DONE — point the build agent straight at the approved plan, skip `writing-plans`, start at
+the Build step of `coordinated-build`) and spawn a build agent **continuing in this exact
+worktree/branch** (do not create a new one) in the agents tab, `--model sonnet`, confirm the pane
+says Sonnet.
+
+**#914 — cleared to spawn.** Spec: `docs/superpowers/specs/2026-07-09-module-data-plane.md`
+(approved, merged via PR #920). Security tier (RLS + privileged install + secrets/credential scope
++ data lifecycle/export/delete). Worktree **already created**: `.claude/worktrees/914-module-data-plane`,
+branch `build/914-module-data-plane` off `origin/main` (`4bc53694`). **NEXT:** write the standard
+`coordinated-build` handoff doc (spec path, tier, worktree/branch, collision notes below) and spawn
+a build agent there in the agents tab, `--model sonnet`.
+
+**Collision check DONE (Opus one-shot, verdict trustworthy — read both source docs itself):**
+build #914 and #918 **in parallel**, no serialization needed before building. Verdict in full:
+- #914's new per-module migration ledger does **NOT** replace `foundation.test.ts`'s whole-list
+  `toEqual` assertion — #914's own spec explicitly preserves it unchanged for core/built-in
+  migrations; the per-module ledger is a separate, additive mechanism only for *external*
+  module-owned tables.
+- #918's 2 new migrations are platform/built-in (`packages/settings/sql/`), go through the
+  existing global `migrate` path untouched by #914's new external-module install machinery. No
+  RLS/table-install overlap — #918's tables are platform-owned with hand-written RLS; #914's new
+  generated-RLS/role machinery is for external-module-owned tables only, a disjoint surface.
+- **Mechanical-only conflicts to resolve at merge** (put in BOTH handoffs' collision-notes
+  section): `tests/integration/foundation.test.ts` (both append rows to the same `toEqual` block),
+  `packages/db/src/types.ts` (both add table interfaces + `JarvisDatabase` registrations), global
+  migration numbers (current head **0152** — #918 provisionally claims 0153/0154 since its plan
+  already fixes its migration count; #914 hasn't planned yet, so its build agent must check the
+  live head at its own plan step and take next-free, expecting to land AFTER #918 — if #918 merges
+  first, #914's owning agent rebases its `foundation.test.ts` + `types.ts` additions onto #918's
+  landed state and re-runs full `test:integration`, never a focused suite, to catch the `toEqual`
+  break), and possibly `scripts/audit-release-hardening.ts` (`protectedTables` coverage, minor).
+- Coordinator action: do NOT hardcode final migration numbers in either handoff — tell each build
+  agent to check the live head and expect the coordinator to confirm final landing order at merge.
+
+**Topology (fresh, this session):** agents tab = `w1:t1E` (label "agents", confirmed via
+`herdr tab list`); coordinator tab = `w1:t15`. Idle panes NOT part of this run, leave alone:
+`w1:pBK` (news-module), `w1:pCP` (Fable sports-fed spec+plan), `w1:pCQ` (Fable PR review
+908/909/910, worktree already deleted, not this run's responsibility), `w1:pCK` (Codex Job Search
+Spec, already ack'd, not owed a reply), `w1:pCR` (Fable 5 Job Search Spec Review, idle).
+
+**#916:** still `needs-spec`, held until #918 lands + a Slice-3 spec-authoring pass with Ben.
+**#919:** still queued behind #918's build+merge.
+
+**Successor's first actions, in order:**
+1. Phase 0a lock re-claim (standard — resolve this pane fresh by label+session id, never a written
+   pane number; rename to `Coordinator`; verify uniqueness).
+2. Write + commit the #918 build-phase handoff doc; spawn its build agent continuing in the
+   existing worktree/branch, agents tab `w1:t1E`, `--model sonnet`, confirm Sonnet.
+3. Write + commit the #914 handoff doc (worktree/branch already exist); spawn its build agent
+   there, agents tab `w1:t1E`, `--model sonnet`, confirm Sonnet.
+4. Both handoffs must carry the collision notes above verbatim (or by pointer to this section).
+5. Resume normal Phase 2 supervise loop for both new lanes plus anything else live.
