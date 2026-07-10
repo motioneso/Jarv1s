@@ -17,7 +17,9 @@ message the coordinator, then use the `relay` skill immediately.
 ## Start
 
 1. `[ -d node_modules ] || pnpm install` (worktrees share the pnpm store; relay successors skip).
-2. Read the spec above IN FULL.
+2. Read the spec above BY SECTION for your current task only — never in full. A full-read bloats a
+   fresh context toward the relay threshold before you write any code, which forces a premature
+   relay-without-progress. Reading is not progress: BUILD, commit per task, relay only past ~80%.
 3. Invoke **`coordinated-build`** and follow it end-to-end: verify the spec against your actual
    branch → plan → coordinator approval (do NOT write code before it) → TDD build →
    **`coordinated-wrap-up`** (PR + report). Escalation rules, gate commands, and caveman-mode

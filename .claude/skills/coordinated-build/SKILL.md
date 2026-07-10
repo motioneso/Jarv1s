@@ -35,9 +35,14 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
   (`coordinated-build` itself, `coordinated-wrap-up`, `relay`). If a skill does NOT resolve by name
   in your spawn environment, use the **absolute build-skill path** from your handoff doc and follow
   it directly — don't silently proceed half-equipped.
-- Read your handoff doc and the spec it points at, IN FULL. Note your worktree/branch, the
-  coordinator label, your **risk tier**, and any collision notes. A `security`-tier spec ships to a
-  higher bar (cross-model QA + Ben merge sign-off) — build defensively and document trust boundaries.
+- Read your handoff doc in full (it's short by design). Read the spec/plan it points at BY SECTION
+  for your current task only — never front-to-back in one pass. A full-read bloats a fresh context
+  toward the relay threshold before you write any code, which forces a premature relay with zero
+  progress (a real failure mode this run: lanes that spent hours emitting only handoff docs, no
+  code). Reading is not progress — BUILD, commit per task, and relay only after real work past
+  ~80%. Note your worktree/branch, the coordinator label, your **risk tier**, and any collision
+  notes. A `security`-tier spec ships to a higher bar (cross-model QA + Ben merge sign-off) — build
+  defensively and document trust boundaries.
 - **Install only if needed:** `[ -d node_modules ] || pnpm install`. Worktrees share the pnpm
   store; if `node_modules` already exists (e.g. you're a relay successor), don't re-install.
   Confirm you are on your own branch, not `main`.
