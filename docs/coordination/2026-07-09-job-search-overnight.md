@@ -531,3 +531,33 @@ fresh re-list. New coordinator: pane `w1:pCY`, session `ffba9610-00cc-4ebd-b52c-
 `w1:t15`. `merges_since_relay` reset to **0** (trigger fired and was fully consumed by the prior
 checkpoint's relay). Proceeding with relay checkpoint 4's remaining queue: spawn #915 slice-3
 build lane, restart Monitor, re-check `w1:pCV`.
+
+## Checkpoint update (session `ffba9610-...`, relay checkpoint 4 queue executed)
+
+- **#915 slice-3 build lane SPAWNED:** worktree `.claude/worktrees/915-slice3-structured-ai`,
+  branch `feat/915-slice3-structured-ai` off `origin/main` @ `17eda21c` (includes merged #922 plan
+  + #921 epic spec). Handoff doc committed:
+  `docs/coordination/handoffs/915-slice3-structured-ai.md` (tier `sensitive`, points at the
+  already-approved plan, explicitly tells the agent to skip plan-authoring and go straight to TDD
+  build). **Trap avoided:** verified handoff docs live ONLY on this coordinator's own branch
+  (`coord/settings-host-cleanup`), never on `origin/main` or the build worktree's branch — a
+  relative path in the boot prompt would 404 in the build agent's cwd. Passed the **absolute path**
+  to the handoff doc in the boot prompt instead. Spawned pane `w1:pCZ` "Codex: #915 Slice-3 Build",
+  tab `w1:t1F` (shared agents tab), confirmed running `gpt-5.6-sol high` (codex config default, no
+  override needed) and `working`.
+- **Opus xhigh (`w1:pCV`) re-checked fresh:** genuinely `working`, not stalled, at this checkpoint
+  (checkpoint shows "1% until auto-compact" at 72% context in its own status line — worth watching
+  closely on the next check, may relay or stall again soon). No action taken.
+- **Monitor restarted:** task `b1abhzua1` (persistent, changes-only, 60s poll), scoped to `w1:pCR` +
+  `w1:pCK` + `w1:pCV` + new `w1:pCZ`. Predecessor's monitor `bbvxzui71` died with that session as
+  expected. Baseline event confirmed no drift.
+- `merges_since_relay` = 0 (reset this checkpoint, recorded above).
+
+**Still holding on #917** — plan not yet written/reviewed (Opus xhigh still working, 4 prior
+stalls). **#915 slice-3 is now actively building** — next gate is its PR + QA (tier `sensitive`:
+standard QA + invariant check, no Ben sign-off, auto-merge + digest).
+
+**Next actions for continuation:** watch Monitor for `w1:pCZ` plan-ready/PR-ready escalation or
+stall; watch `w1:pCV` for #917 plan completion (dispatch independent review same as #915 when it
+lands, or respawn on a 5th stall); ping Codex (`w1:pCK`) periodically per Ben's "keep it informed"
+instruction (idle, not yet re-pinged this checkpoint).
