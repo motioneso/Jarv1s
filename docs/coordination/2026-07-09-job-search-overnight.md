@@ -556,3 +556,27 @@ existing worktree `.claude/worktrees/918-implementation-plan` / branch
 `.claude/worktrees/914-module-data-plane` / branch `build/914-module-data-plane`; both in agents
 tab `w1:t1E`, `--model sonnet`, collision notes carried verbatim from the section above; (3) reap
 predecessor pane `w1:pDE`.
+
+## #918 + #914 build lanes spawned (session `4d68fcc5-...`)
+
+Corrected the handoff-placement approach mid-flow: handoff docs must be committed directly onto
+each build worktree's own branch (confirmed by predecessor pattern, commit `e3c07168` for #918's
+plan-authoring handoff), not on the coordinator's branch — reverted the initial misplaced commit
+(`d16e1376`) and re-did both correctly.
+
+- **#918:** handoff `docs/coordination/handoffs/handoff-918-build-phase.md` committed `1ff852ec`
+  on `plan/918-open-module-system-slice2` (worktree `.claude/worktrees/918-implementation-plan`,
+  continued in place). Build agent "918: open module system slice2 build" spawned pane `w1:pDG`,
+  tab `w1:t1E`, confirmed **Sonnet 5**. Status: `building`.
+- **#914:** handoff `docs/coordination/handoffs/handoff-914-build.md` committed `eaf3c945` on
+  `build/914-module-data-plane` (worktree
+  `.claude/worktrees/coord-2026-06-30-rfa-fleet/.claude/worktrees/914-module-data-plane`,
+  continued in place). Build agent "914: module data plane build" spawned pane `w1:pDH`, tab
+  `w1:t1E`, confirmed **Sonnet 5**. Status: `building`.
+- Both handoffs carry the Opus collision verdict verbatim (foundation.test.ts / types.ts /
+  migration-number mechanical conflicts, #918 expected to land first).
+- Predecessor pane `w1:pDE` (session `0d7c26c5-...`) reaped next now that both lanes are confirmed
+  driving on Sonnet.
+
+**Next:** resume Phase 2 supervise loop for both new lanes (`w1:pDG`, `w1:pDH`) plus any other
+live lanes noted in earlier sections of this manifest.
