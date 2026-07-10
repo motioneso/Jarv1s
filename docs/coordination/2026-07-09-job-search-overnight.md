@@ -584,3 +584,14 @@ live lanes noted in earlier sections of this manifest.
 **Predecessor reaped.** Pane `w1:pDE` (session `0d7c26c5-...`) closed after confirming exactly one
 `Coordinator`-labeled pane remains (`w1:pDF`, this session). Queue from the prior relay is fully
 executed. Entering Phase 2 supervise loop.
+
+## #918 build agent self-relay (70% before Task 1 code)
+
+Build agent for #918 relayed at the 70% context-meter warning, before Task 1 code started.
+Reported: verified premises for Task 1 (`module-sdk` `index.ts`) and Task 2 (`validate.ts`
+`FORBIDDEN_FIELDS`, 20 entries incl. auth/storage) still current and unimplemented; no blockers,
+no forks hit. Successor confirmed driving via bounded pane read — same pane `w1:pDG`, same
+worktree/branch/tab (`w1:t1E`), new session `50971043-c25a-4971-ad25-f9907c9a0acb`, confirmed
+**Sonnet 5**, actively progressing through its task list (Task 3+4 in progress at check time).
+No separate pane existed to reap (relay reused the same terminal). Status: `building`, no action
+needed beyond this log entry.
