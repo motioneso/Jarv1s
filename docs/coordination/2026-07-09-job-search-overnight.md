@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `ae488fcc-3b93-4be6-9118-14452e66da3d`,
-pane `w1:pD2`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`,
+pane `w1:pD5`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1190,6 +1190,27 @@ now, remaining bookkeeping goes to successor.
    skill (never trust a written pane number; resolve fresh via `herdr pane list`).
 
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Checkpoint (session `0bbe2a78-...`, F3 relay confirmed, Monitor restarted)
+
+**Bounded read of `w1:pCV` confirms F3 relay landed and is being executed** (not just
+registered): `schemaVersion: 1` field added to the manifest test fixture, currently on checklist
+step 8 ("spec revision note — check for an existing Revisions section"). Context tight (71% used,
+2-3% until auto-compact per its own status line) — known flapping pattern for this pane, not a
+stall. Holding for its fixes-pushed report before dispatching fresh QA.
+
+**Monitor restarted:** task `bu2jn72mn` (persistent, changes-only, 60s poll), scoped to
+`w1:pCR`/`w1:pCK`/`w1:pCV`. Predecessor's monitor `b9wy6e40k` died with that session as expected.
+Baseline event confirmed no drift: Fable5 done/idle, Codex done/idle, Opus working.
+
+## Lock re-claimed (successor session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`)
+
+Predecessor pane `w1:pD4` (session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (never a
+written pane number) — found `agent_status: done`. Closed `w1:pD4`; confirmed exactly **1**
+`Coordinator`-labelled pane remains: `w1:pD5`, session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`, tab
+`w1:t15`. Lock line at top of manifest updated to this session. Proceeding with the immediate
+action queue from the relay checkpoint above: bounded-read `w1:pCV` to confirm the F3 relay landed.
 
 ## F3 resolved (Opus adjudication, session `f66de1e4`, 2026-07-10)
 
