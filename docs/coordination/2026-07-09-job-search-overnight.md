@@ -2075,3 +2075,15 @@ QA: Opus adversarial QA spawned on #939 (agent qa-919-939) — security surface 
 Ben's Q answered: modularity slices are ADDITIVE — existing 21 modules already consume @jarv1s/module-sdk (adoption shipped in merged slices); #919/#914 add role/policy/install machinery only, no existing-module refactor. QA diff-scopes any SDK-signature ripple.
 
 merges_since_relay: 0.
+
+## #939 Opus QA = RED (QA cycle 1/2) → relayed to pE4 to fix
+
+Opus adversarial QA verdict (posted to PR #939 via gh pr comment):
+- **BLOCKING / CI RED:** `Verify foundation and app` FAILED — 3 assertion failures in tests/integration/mcp-gateway.test.ts (test file UNCHANGED = production regression, deterministic not flake). Cause: resolveActiveModules rewrite in apps/api/src/server.ts ~L402-417 (createExternalActiveModulesResolver + externalToolManifests merge) regressed the write-tool approval-card / agency-trust flow. Self-reported VF_EXIT=0 diverged from CI.
+- **non-blocking HIGH:** no cross-USER negative RLS test (userB denied userA scope=user cred/KV). → folded into pE4 fix task.
+- **non-blocking HIGH (residual, DESIGN):** worker child PROCESS shared across actors (60s idle recycle) → cross-actor in-memory secret surfacing; secret-escape guard scoped to current-invocation only. Semi-trusted-module model. **PENDING FABLE DECISION: does per-actor process isolation block job-search MVP?** (batch with #939 merge sign-off; non-blocking for merge.)
+- **non-blocking LOW:** secret guard exact-substring (defeated by encoding). Track.
+- **Invariants CLEAN:** jarvis_worker_runtime NOBYPASSRLS; app.current_module_id() REVOKE PUBLIC + GRANT worker-only, txn-local GUC set server-side, child can't spoof; module_credentials SELECT-only NO DELETE; FORCE RLS; cross-MODULE isolation proven; encrypted-envelope reads only; DataContextDb-only; metadata-only child boundary.
+- **Migration/sequencing CONFIRMED by QA:** 0157 with reserved 0155/0156 gap; must merge AFTER #914; foundation.test.ts toEqual WILL catch a stale row on rebase.
+
+ACTION: relayed blocking regression + cross-user RLS test to pE4 (now working). Failure budget: 1/2 cycles used. On green → cheap diff-scoped re-QA of the integrated (post-#914) result + Fable merge sign-off + the process-isolation decision.
