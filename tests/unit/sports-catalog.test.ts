@@ -70,6 +70,35 @@ describe("sports catalog", () => {
     for (const entry of SPORTS_CATALOG) {
       expect(entry.standingsShape).not.toBeNull();
     }
+    // Each of the 20 new top-flight leagues must be a soccer table standings entry —
+    // a plain not.toBeNull() above would not catch a regression that flips one of
+    // these to "groups"/"record" (e.g. a copy-paste from a tournament entry).
+    for (const key of [
+      "esp.1",
+      "ger.1",
+      "ita.1",
+      "fra.1",
+      "ned.1",
+      "por.1",
+      "sco.1",
+      "tur.1",
+      "bel.1",
+      "gre.1",
+      "sui.1",
+      "aut.1",
+      "den.1",
+      "mex.1",
+      "crc.1",
+      "bra.1",
+      "arg.1",
+      "col.1",
+      "chi.1",
+      "uru.1"
+    ]) {
+      const entry = catalogEntry(key);
+      expect(entry?.standingsShape).toBe("table");
+      expect(entry?.espnSport).toBe("soccer");
+    }
   });
   it("gives England its full pyramid, all UEFA table leagues (#907)", () => {
     for (const key of ["eng.2", "eng.3", "eng.4", "eng.5"]) {
