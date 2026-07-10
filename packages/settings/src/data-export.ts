@@ -1,6 +1,11 @@
 import { sql, type Kysely } from "kysely";
 
-import { assertQualifiedTableName, createModuleStorageRpc, type DataContextDb, type JarvisDatabase } from "@jarv1s/db";
+import {
+  assertQualifiedTableName,
+  createModuleStorageRpc,
+  type DataContextDb,
+  type JarvisDatabase
+} from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 type JsonPrimitive = boolean | null | number | string;

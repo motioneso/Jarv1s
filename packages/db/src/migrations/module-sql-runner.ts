@@ -15,7 +15,7 @@ const FIRST_COMMAND_ALLOWLIST: readonly RegExp[] = [
   /^CREATE\s+(UNIQUE\s+)?INDEX\b/i,
   /^ALTER\s+TABLE\b/i,
   /^DROP\s+INDEX\b/i,
-  /^COMMENT\s+ON\b/i,
+  /^COMMENT\s+ON\b/i
 ];
 
 export interface ModuleMigrationValidation {

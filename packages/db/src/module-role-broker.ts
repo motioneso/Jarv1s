@@ -70,9 +70,7 @@ export async function ensureModuleRoles(
     // at creation. This makes Phase A itself the crash-recovery safety net: if a crash landed
     // between Phase B (enableInstallerLogin) and Phase D (disableInstallerLogin), a retried Phase A
     // clears the stale LOGIN + password regardless of whether Task 7's try/finally cleanup ran.
-    await client.query(
-      `ALTER ROLE ${client.escapeIdentifier(installRole)} NOLOGIN PASSWORD NULL`
-    );
+    await client.query(`ALTER ROLE ${client.escapeIdentifier(installRole)} NOLOGIN PASSWORD NULL`);
     await client.query(
       `GRANT ${client.escapeIdentifier(runtimeRole)} TO jarvis_app_runtime, jarvis_worker_runtime ` +
         `WITH INHERIT FALSE`

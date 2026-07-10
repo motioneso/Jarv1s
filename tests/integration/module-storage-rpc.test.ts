@@ -53,19 +53,23 @@ describe("createModuleStorageRpc", () => {
     const client = new Client({ connectionString: connectionStrings.bootstrap });
     await client.connect();
     try {
-      await client.query(
-        "REVOKE jarvis_mod_storage_rpc_fixture_runtime FROM jarvis_app_runtime"
-      );
+      await client.query("REVOKE jarvis_mod_storage_rpc_fixture_runtime FROM jarvis_app_runtime");
       await client.query("DROP TABLE IF EXISTS app.storage_rpc_fixture_items");
       // Revoke the runtime role's grants (sourced from the install role's WITH GRANT OPTION)
       // BEFORE revoking the install role's own — Postgres refuses to revoke a grant-option
       // privilege while a dependent downstream grant still exists.
-      await client.query("REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_storage_rpc_fixture_runtime");
+      await client.query(
+        "REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_storage_rpc_fixture_runtime"
+      );
       await client.query(
         "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_storage_rpc_fixture_runtime"
       );
-      await client.query("REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_storage_rpc_fixture_install");
-      await client.query("REVOKE ALL PRIVILEGES ON app.users FROM jarvis_mod_storage_rpc_fixture_install");
+      await client.query(
+        "REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_storage_rpc_fixture_install"
+      );
+      await client.query(
+        "REVOKE ALL PRIVILEGES ON app.users FROM jarvis_mod_storage_rpc_fixture_install"
+      );
       await client.query(
         "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_storage_rpc_fixture_install"
       );

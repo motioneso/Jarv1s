@@ -58,10 +58,14 @@ describe("module migration ledger", () => {
       { version: "0001", name: "0001_first.sql", checksum: "a".repeat(64), sql: "select 1" }
     ];
 
-    expect(await getAppliedModuleMigrations(connectionStrings.migration, moduleId)).toEqual(new Set());
+    expect(await getAppliedModuleMigrations(connectionStrings.migration, moduleId)).toEqual(
+      new Set()
+    );
 
     await recordModuleMigrations(connectionStrings.migration, moduleId, files);
 
-    expect(await getAppliedModuleMigrations(connectionStrings.migration, moduleId)).toEqual(new Set(["0001"]));
+    expect(await getAppliedModuleMigrations(connectionStrings.migration, moduleId)).toEqual(
+      new Set(["0001"])
+    );
   });
 });
