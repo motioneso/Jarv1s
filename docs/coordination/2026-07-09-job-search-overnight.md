@@ -1974,3 +1974,26 @@ Fable's decision and keeps Ben in the standing digest to override later. Applies
   but Fable adjudicates anything blocking the fleet in the meantime.
 
 `merges_since_relay: 0` (unchanged).
+
+## #913 Job Search specs — draft PR #929 open, under FABLE approval
+
+Spec agent (`w1:pE7`) delivered draft PR #929 (grounded eafa22dd) and went idle (FINISHED, not
+stuck — classified per standing stall policy). Package: packaged `jarv1s.job-search` on the external
+SDK, bounded owner-only `module_kv`/`module_credentials`, no core tables, no implementation.
+
+- **Decomposition:** MVP → JS-01..JS-09 task-sized slices.
+- **Hard blockers (agent's analysis):** #919 + the missing queue/schedule/run-now and pinned-fetch
+  portions of (closed) #915. #914 NOT hard for the bounded-KV MVP.
+- **#916 should split:** starter-prompt host action conditionally hard (one-click onboarding);
+  Briefings is NOT MVP.
+- **6 open decisions deferred to Ben:** ranking strategy + AI budget; initial compliant sources;
+  resume format/KV cap; onboarding depth + starter-action requirement; opportunity/run retention
+  ceilings; schedule semantics under static manifest schedules.
+
+**Routing (per standing policy):** spec approval + the 6 open decisions sent to a FABLE approver
+agent (reads PR #929 itself; may ESCALATE-TO-BEN any decision too consequential for a delegate).
+Await Fable verdict → relay required changes + settled decisions back to spec agent `w1:pE7` to
+finalize → then create JS-01..JS-09 task issues. NO job-search build lane spawns tonight regardless
+(hard-blocked on #919 landing + #915 gaps). Escalated-to-Ben decisions go in his digest.
+
+`merges_since_relay: 0` (unchanged).
