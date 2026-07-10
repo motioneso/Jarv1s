@@ -63,7 +63,7 @@ describe("installModule", () => {
         compatibility: { jarv1s: ">=0.0.0" },
         availability: { defaultEnabled: false },
         database: { migrations: [], ownedTables: ["app.install_fixture_widgets"] }
-      } as any,
+      },
       bootstrapConnectionString: urls.bootstrap,
       migrationConnectionString: urls.migration,
       migrationsDirectory: dir

@@ -48,7 +48,7 @@ export async function installModule(
   });
   const password = await enableInstallerLogin(bootstrapConnectionString, moduleId);
 
-  let installed: string[] = [];
+  let installed: string[];
   try {
     // Phase B
     const alreadyApplied = await getAppliedModuleMigrations(migrationConnectionString, moduleId);
