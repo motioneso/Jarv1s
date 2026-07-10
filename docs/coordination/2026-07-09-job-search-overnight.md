@@ -1919,3 +1919,31 @@ not RLS), `foundation.test.ts` updated w/ re-check contingency, no DELETE grant 
 `module_credentials`, no duplicate #918 test coverage. Approval sent to `w1:pE4`, confirmed queued
 (Codex UI queues messages mid-tool-call, auto-submits — no manual Enter needed). Build proceeding
 via `coordinated-build`.
+
+## Spec-drafting lane spawned — Job Search module specs (#913), Ben's request
+
+Ben asked to spawn a Codex/gpt-5.6-sol pane to draft ALL specs needed to unblock + build the job
+search. Grounded first: #913 is the SOLE job-search issue — an epic with a thorough brief (goal /
+first-week success / 6-part MVP / non-goals / packaging / verification) but **no approved design
+spec and no child task issues**. That missing keystone design spec (plus its task decomposition) is
+exactly what blocks job-search build. The module rides the pluggable-module runtime (#860, delivered
+via open-module-system slices #917 merged / #918 merged / #919 building).
+
+- **Worktree:** `.claude/worktrees/job-search-specs`, branch `job-search-specs`, off origin/main @
+  `eafa22dd`.
+- **Agent:** `Codex: Job Search Specs`, pane `w1:pE7`, tab `w1:t1E` (shared agents tab), model
+  `gpt-5.6-sol high` (confirmed via bounded read). Spawned with
+  `--dangerously-bypass-approvals-and-sandbox` (per `codex-sandbox-workaround` — bwrap can't init on
+  this box).
+- **Task:** draft (1) the module design spec on the `@jarv1s/module-sdk` contract (resume + search
+  profile mapped onto module_kv/module_credentials, NOT core tables; onboarding; resume optimization;
+  compliant-source monitoring; dedup/evidence-ranking; UI/tools/monitors/jobs; provider-agnostic),
+  (2) a task decomposition + dependency map that explicitly resolves whether #915/#916 are hard
+  prerequisites for the job-search MVP, (3) an open-decisions section for genuine forks Ben must
+  settle. Specs only — NO code/migrations/build lanes.
+- **Constraints encoded:** isolated worktree, no docs/coordination/ edits, no repo-wide format/broad
+  git add, prettier its own specs, open a DRAFT PR "Job Search module design specs (#913)" for Ben's
+  review (approval gate before any build lane), report PR# + summary + open decisions back to me.
+- **Not a build lane** — spec output still needs Ben's approval before anything spawns to implement it.
+
+`merges_since_relay: 0` (unchanged).
