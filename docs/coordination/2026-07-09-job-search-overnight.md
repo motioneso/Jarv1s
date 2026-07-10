@@ -1616,3 +1616,23 @@ Do not treat as standing policy beyond tonight.
 coordinator in same tab (`w1:t15`), `--model sonnet --permission-mode bypassPermissions`,
 bootstrap points here. No merges executed this checkpoint before relay (compliant with
 "merge nothing first" rule — there was nothing mergeable in flight anyway).
+
+## Lock re-claimed (successor session `cfdfc7bb-4f60-4230-a261-13ab5ca8474e`), Phase 0a done
+
+**Lock:** predecessor pane `w1:pD9` (session `46590121-e5b0-42cb-aa50-b2da3a615f1f`, status
+`done`) closed. Own pane renamed `Coordinator-relay5` → `Coordinator` at `w1:pDA`, tab `w1:t15`.
+Verified exactly one `Coordinator`-labeled pane via fresh `herdr pane list`. Confirmed driving via
+own `agent_session.value` = `cfdfc7bb-4f60-4230-a261-13ab5ca8474e` — this is now the authoritative
+coordinator session id.
+
+**Correction to carried-forward note:** the queue said "resolve the shared agents tab_id fresh
+from pCP/pCQ/pCR before using it," assuming those three share one tab. Fresh `herdr tab list`
+shows they do **not**: `pCP` is on tab `w1:t1A` (labeled `agy`), `pCQ` is on `w1:t1E` (labeled
+`agents` — this is the actual, canonically-labeled shared agents tab), and `pCK`/`pCR` are both on
+`w1:t1F` (labeled `terminal`). Treating `w1:t1E` (label `agents`) as ground truth for where new
+build agents should land; `pCP`'s presence on a separately-labeled `agy` tab looks like drift from
+an earlier session, not something to fix opportunistically right now.
+
+Executing carried-forward queue next: (1) re-verify main CI 29094628852 fresh, (2) spawn #918 plan
+agent into `w1:t1E`, (3) #919 stays queued, (4) close issue #915, (5) ping Codex `w1:pCK` early,
+(6) consider archiving old checkpoints.
