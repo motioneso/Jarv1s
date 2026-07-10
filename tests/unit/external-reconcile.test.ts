@@ -7,6 +7,7 @@ const discovery = (id: string, packageHash: string): ExternalModuleDiscovery => 
   id,
   dir: `/modules/${id}`,
   manifest: {
+    schemaVersion: 1,
     id,
     name: `Name ${id}`,
     version: "0.1.0",

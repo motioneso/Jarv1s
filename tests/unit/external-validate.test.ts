@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { validateExternalModuleManifest } from "@jarv1s/module-registry";
 
 const base = {
+  schemaVersion: 1,
   id: "acme-widgets",
   name: "Acme Widgets",
   version: "0.1.0",
@@ -21,6 +22,25 @@ describe("validateExternalModuleManifest (#917)", () => {
   it("rejects a non-object", () => {
     const result = validateExternalModuleManifest(null, "acme-widgets");
     expect(result.ok).toBe(false);
+  });
+
+  // #917 (spec revision 2026-07-10, PR #924): the on-disk envelope contract version is required
+  // and must be exactly the number 1 — a missing or future value fails closed at load.
+  it("rejects a missing schemaVersion", () => {
+    const { schemaVersion, ...withoutSchemaVersion } = base;
+    const result = validateExternalModuleManifest(withoutSchemaVersion, "acme-widgets", "0.1.0");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("schemaVersion");
+  });
+
+  it("rejects a future schemaVersion", () => {
+    const result = validateExternalModuleManifest(
+      { ...base, schemaVersion: 2 },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("schemaVersion");
   });
 
   it("rejects an id that does not match the directory name", () => {

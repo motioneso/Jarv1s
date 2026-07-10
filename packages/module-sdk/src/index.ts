@@ -536,6 +536,15 @@ export interface ModuleStorageDeclaration {
  * metadata-only invariant); they are typed here for forward compatibility.
  */
 export interface JsonJarvisModuleManifest {
+  /**
+   * On-disk envelope contract version (#917, spec revision 2026-07-10 for PR #924). Slice 1
+   * ships a FLAT metadata-only manifest with a single top-level `schemaVersion: 1`, validated
+   * at load. The spec's nested `runtime.workerContractVersion` / optional `web.contractVersion`
+   * are DEFERRED to Slices 2-3, where the worker and web-asset loaders that consume them first
+   * exist — Slice 1 executes no worker and serves no web assets, so those fields would guard
+   * nothing this slice. Bumping this integer is how a future incompatible on-disk shape is gated.
+   */
+  readonly schemaVersion: 1;
   readonly id: string;
   readonly name: string;
   readonly version: string;

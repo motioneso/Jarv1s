@@ -5,6 +5,7 @@ import type { ExternalJarvisModulePackage, JsonJarvisModuleManifest } from "@jar
 describe("external module manifest types (#917)", () => {
   it("accepts a metadata-only manifest", () => {
     const manifest: JsonJarvisModuleManifest = {
+      schemaVersion: 1,
       id: "acme-widgets",
       name: "Acme Widgets",
       version: "0.1.0",

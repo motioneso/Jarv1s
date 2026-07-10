@@ -63,6 +63,14 @@ export function validateExternalModuleManifest(
   }
   const obj = raw as Record<string, unknown>;
 
+  // On-disk envelope contract version (#917, spec revision 2026-07-10 for PR #924). Slice 1
+  // requires exactly the number 1; a missing, non-numeric, or future value fails closed. This is
+  // the single "contract version" a metadata-only module carries — worker/web contract versions
+  // are deferred to Slices 2-3 (see the JsonJarvisModuleManifest.schemaVersion doc + spec revision).
+  if (obj.schemaVersion !== 1) {
+    errors.push("schemaVersion must be the number 1");
+  }
+
   // Identity.
   if (!isNonEmptyString(obj.id)) {
     errors.push("id is required and must be a non-empty string");
@@ -106,8 +114,10 @@ export function validateExternalModuleManifest(
 
   if (errors.length > 0) return { ok: false, errors };
 
-  // Re-shape to exactly the allowed fields (drop unknown keys defensively).
+  // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
+  // pinned to the literal 1 — validation above guarantees obj.schemaVersion === 1 to reach here.
   const manifest: JsonJarvisModuleManifest = {
+    schemaVersion: 1,
     id: obj.id as string,
     name: obj.name as string,
     version: obj.version as string,

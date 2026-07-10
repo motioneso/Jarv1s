@@ -34,6 +34,7 @@ beforeAll(async () => {
   writeFileSync(
     join(dir, "jarvis.module.json"),
     JSON.stringify({
+      schemaVersion: 1,
       id: "acme-widgets",
       name: "Acme Widgets",
       version: "0.1.0",

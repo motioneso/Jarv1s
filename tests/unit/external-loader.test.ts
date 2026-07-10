@@ -11,6 +11,7 @@ let modulesDir: string;
 
 const validManifest = (id: string) =>
   JSON.stringify({
+    schemaVersion: 1,
     id,
     name: "Acme Widgets",
     version: "0.1.0",
