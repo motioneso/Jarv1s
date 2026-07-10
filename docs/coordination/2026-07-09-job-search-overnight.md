@@ -354,6 +354,31 @@ planning once #919 lands. Tier assessment for slice-3 build lane: **sensitive** 
 shared contract `ai-service-binding-api.ts`), not full security — no auth/RLS/secrets/rate-limit/
 network-surface trigger hit; no migrations.
 
+**#915 slice-3 MERGED (this session, 2026-07-10 ~09:00 UTC):** `coordinated-qa` (Sonnet, isolated
+worktree) returned **GREEN, MERGE-READY: YES** on PR #923 — 0 blocking findings, 1 non-blocking
+(pre-existing `assertInstanceAdmin` gap on a GET route, unchanged by this PR, no secrets exposed);
+all invariants confirmed (DataContextDb-only, no raw fs, AccessContext shape untouched,
+provider-agnostic AI, secrets never escape, module isolation); verdict posted to PR
+(`#923#issuecomment-4933720990`). CI: verify-foundation/compose-smoke/prod-compose-smoke all pass;
+"Build and publish images" pending was the post-merge publish job, not a gate. Session-id authority
+re-confirmed before merge. **Squash-merged** `gh pr merge 923 --squash --delete-branch` → merge
+commit `aaa627d6`. Worktree `.claude/worktrees/915-slice3-structured-ai` removed, local branch
+deleted, pane `w1:pCZ` closed. `merges_since_relay` = 0 → **1** (sensitive tier; relay trigger
+fires at 2 routine/sensitive merges — not yet).
+
+**GitHub bookkeeping correction:** PR #923's body said "Closes #915", which auto-closed the
+**parent** task issue #915 ("pg-boss queue/schedule registration, structured-AI RPC, host-pinned
+fetch" — 3 prerequisites) even though this PR only shipped slice 3 (part of the AI-RPC prereq;
+deferred RPC/caps/credential-guard scope went to #919). Prereqs "queue/schedule registration" and
+"host-pinned fetch" (slices 1/2/4 in this manifest's shorthand) are still unbuilt. **Reopened #915**
+with an explanatory comment. #915 is not on the project board (highest tracked issue is #913) — no
+board move needed.
+
+**Ben's standing digest entry:** "#915 slice-3 (structured-AI seam, `packages/ai`) merged — PR
+#923, sensitive tier, QA green, 0 blocking findings. Parent issue #915 reopened — 2 of 3
+prerequisites (queue/schedule registration, host-pinned fetch) still open, tracked there; deferred
+RPC/credential-guard scope split to #919."
+
 **Dispatched independent plan review (2026-07-10, ~07:12):** spawned a fresh general-purpose
 subagent (not Fable, not Opus — avoids self-review bias, and this is a scope/invariant check, not
 a design fork, so default model is appropriate) to check the #922 plan against the spec's locked
