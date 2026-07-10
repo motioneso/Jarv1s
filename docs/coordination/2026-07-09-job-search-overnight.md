@@ -682,8 +682,67 @@ notification that will arrive).
    (Opus's own recommendation — 10 tasks, fresh subagent per task in dependency order, review
    between tasks). Successor should just confirm `w1:pCV` is now actually executing (not stuck)
    on adoption, not re-approve anything.
-2. Re-check `w1:pCZ` — confirm the 3rd Task 5 fix (schema-factory) resolves the runtime 500;
-   watch for PR-ready → spawn tier-`sensitive` QA per Phase 3.
-3. Restart persistent Monitor (scope above).
-4. **Ping Codex (`w1:pCK`)** — overdue, do this early in the new session.
+2. ~~Re-check `w1:pCZ` — confirm the 3rd Task 5 fix (schema-factory) resolves the runtime 500~~ —
+   **CORRECTED, still session `af3ee5f0-...`:** it did NOT. `w1:pCZ` self-reported (mid-relay,
+   surfaced to coordinator directly) an isolated `fjs@6.4.0` repro proving the real root cause is
+   the escaped-dot `patternProperties` key (`'^module\.'`) hitting the same missing-`$ref` bug
+   independent of shared-vs-fresh schema identity; `'^module[.]'` (character-class, same accepted
+   keys) serializes correctly. **Approved via `herdr pane run`:** revert the factory (unnecessary
+   complexity), change only the patternProperties key to `'^module[.]'`. This is the **4th**
+   defect on Task 5 specifically (installed-ids wiring → missing manifest route declaration →
+   factory-that-didn't-fix-it → now this) — hit the pattern-note threshold from checkpoint 5b, so
+   also instructed `w1:pCZ` to do a full self-audit of Task 5 (exercise the actual failing request
+   against the running app, re-read acceptance criteria end to end) before calling it done, rather
+   than accept a possible 5th piecemeal fix blind. Confirmed message delivered (pane picked it up,
+   `working`). **Successor: this is now the live open item — watch for `w1:pCZ`'s self-audit
+   result (PR-ready or a fresh finding) before spawning tier-`sensitive` QA.**
+3. Restart persistent Monitor (scope above) — **NOT done this session**, deferred to successor.
+4. **Ping Codex (`w1:pCK`)** — overdue, **still not done**, do this early in the new session.
 5. No merges pending; nothing to reconcile in `ci_waivers`.
+
+## Lock re-claimed (successor session `af3ee5f0-f086-42cb-b8a8-b332bec34a7d`)
+
+Predecessor pane `w1:pCY` (session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (not a
+written pane number). At first read it was still `working` (actively generating) — did NOT
+force-close a live pane; used a bounded `Monitor` (task `bn9gz4vax`, ~6s poll, 130s timeout) to
+wait for it to settle instead of a blocking sleep. It flipped to `done`; re-verified via a fresh
+`herdr pane list` immediately before closing (not the stale Monitor event alone). Closed `w1:pCY`;
+confirmed exactly **1** `Coordinator`-labelled pane remains: `w1:pC0`, session
+`af3ee5f0-f086-42cb-b8a8-b332bec34a7d`, tab `w1:t15`.
+
+**Context-meter 70% warning fired during Phase 0a itself** (`111330/158787 tok`, from initial
+orientation alone — system prompt + coordinate skill body + this manifest, before any queue work).
+While completing Phase 0a, a live correction arrived for #915 Task 5 (see item 2 above,
+handled/approved this session — the one substantive action taken). Everything else in checkpoint
+5b's queue is **UNVERIFIED, not confirmed done or pending** — this session did NOT check on the
+#917 plan review verdict (agent `a66bce70f606575c7`), did NOT restart the Monitor, and did NOT
+ping Codex. **Do not assume any of those happened** — treat checkpoint 5b's original 5-item queue
+(further above) as still fully open except for item 2, which is superseded by the correction above.
+Self-relaying now per the skill's no-deferral rule rather than attempting more work at 70%+.
+
+**Fleet state at handoff (from pane-list checks this session, not independently re-verified
+beyond identity/status):**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, acting on the 4th Task 5 correction just
+  approved above. Tier `sensitive` unchanged.
+- `w1:pCV` "Opus: #917 Plan" — **UNVERIFIED this session.** Last confirmed state (checkpoint 5b,
+  predecessor): plan complete (`9612a4c7`), paused holding on execution-approach, waiting on
+  independent review verdict from agent `a66bce70f606575c7` (dispatched, result not yet collected
+  as of checkpoint 5b). This session did not re-check it. **Do not assume approved or executing.**
+- `w1:pCK` "Codex: Job Search Spec" — idle, ping still overdue (multiple checkpoints running now).
+- `w1:pCR` "Fable 5: Job Search Spec Review" — idle, reap-safe, kept alive for future slice
+  planning.
+- No persistent Monitor currently running (predecessor's `b1abhzua1` died with its session; this
+  session did not start a replacement — **successor's first action**).
+- `merges_since_relay` = 0. Overnight sign-off override remains ACTIVE, unexercised.
+
+**Successor's immediate queue, in order:**
+1. Restart persistent Monitor scoped to `w1:pCR` / `w1:pCK` / `w1:pCV` / `w1:pCZ`.
+2. Confirm `w1:pCV` (#917) is actually executing tasks, not stalled/idle waiting.
+3. Watch `w1:pCZ` for its Task-5 self-audit result — PR-ready → Phase 3 tier-`sensitive` QA;
+   fresh finding → judge whether it's another mechanical wiring fix (approve directly, grounded)
+   or a real design fork (escalate).
+4. Ping Codex (`w1:pCK`) — overdue several checkpoints now.
+5. No merges pending; nothing to reconcile in `ci_waivers`.
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
