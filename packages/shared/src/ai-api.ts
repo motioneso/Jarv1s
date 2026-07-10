@@ -162,52 +162,6 @@ const aiCapabilityRouteSchema = {
   }
 } as const;
 
-// #870 Slice 1: a per-service binding is a discriminated union — a tier "mode" OR a specific model.
-const aiServiceBindingSchema = {
-  oneOf: [
-    {
-      type: "object",
-      additionalProperties: false,
-      required: ["kind", "tier"],
-      properties: {
-        kind: { type: "string", enum: ["mode"] },
-        tier: aiModelTierSchema
-      }
-    },
-    {
-      type: "object",
-      additionalProperties: false,
-      required: ["kind", "modelId"],
-      properties: {
-        kind: { type: "string", enum: ["model"] },
-        modelId: { type: "string", format: "uuid" }
-      }
-    }
-  ]
-} as const;
-
-// #874 HIGH-2: Chat is the ONLY bindable service. Voice/transcription is no longer a per-service
-// binding — it is configured as its own instance-wide endpoint (see voice-endpoint routes) and its
-// model is resolved by a dedicated transcription branch in the resolver, never via a service
-// binding. The Slice-1 `transcription` binding is dropped outright (no read-through). Worker
-// capabilities stay cross-provider automatic and are likewise not exposed as a service knob.
-const aiServiceParamsSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["service"],
-  properties: {
-    service: { type: "string", enum: ["chat"] }
-  }
-} as const;
-
-const aiServiceBindingMapSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    chat: aiServiceBindingSchema
-  }
-} as const;
-
 const aiProviderTestResultSchema = {
   type: "object",
   additionalProperties: false,
@@ -529,15 +483,6 @@ export const lookupAiCapabilityRouteResponseSchema = {
   }
 } as const;
 
-export const listAiServiceBindingsResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["bindings"],
-  properties: {
-    bindings: aiServiceBindingMapSchema
-  }
-} as const;
-
 // Transcript text only in the response — the audio body that produced it is a raw upload
 // (not JSON, see transcribeAudioRouteSchema below) and is never echoed back or persisted.
 export const transcribeAudioResponseSchema = {
@@ -551,25 +496,6 @@ export const transcribeAudioResponseSchema = {
 
 // #874 — the Voice (STT) endpoint payload + route schemas live in ./ai-voice-api.ts (they were split
 // out to keep this file under the 1000-line source cap) and are re-exported from the shared index.
-
-export const putAiServiceBindingRequestSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["binding"],
-  properties: {
-    binding: aiServiceBindingSchema
-  }
-} as const;
-
-export const putAiServiceBindingResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["service", "binding"],
-  properties: {
-    service: aiModelCapabilitySchema,
-    binding: aiServiceBindingSchema
-  }
-} as const;
 
 const chatModelOverrideSettingsSchema = {
   type: "object",
@@ -810,13 +736,6 @@ export const lookupAiCapabilityRouteRouteSchema = {
   }
 } as const;
 
-export const listAiServiceBindingsRouteSchema = {
-  response: {
-    200: listAiServiceBindingsResponseSchema,
-    401: errorResponseSchema
-  }
-} as const;
-
 // No `body` schema: the request body is a raw audio upload (content-type audio/*), not JSON —
 // validated by the route handler itself, not ajv.
 export const transcribeAudioRouteSchema = {
@@ -828,17 +747,6 @@ export const transcribeAudioRouteSchema = {
     422: errorResponseSchema,
     502: errorResponseSchema,
     504: errorResponseSchema
-  }
-} as const;
-
-export const putAiServiceBindingRouteSchema = {
-  params: aiServiceParamsSchema,
-  body: putAiServiceBindingRequestSchema,
-  response: {
-    200: putAiServiceBindingResponseSchema,
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema
   }
 } as const;
 
