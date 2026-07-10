@@ -1228,6 +1228,28 @@ independently verify each of the 3 previously-flagged findings (F3 fail-open man
 2 others) against the actual diff, not trust the build agent's self-report, and to `gh pr comment`
 its verdict before returning. Awaiting result.
 
+**Fresh Opus adversarial QA returned GREEN / MERGE-READY (2026-07-10 ~05:55 UTC).** Verdict posted
+to PR #924 via `gh pr comment`. All 3 previously-adjudicated findings confirmed fixed at
+source+test level (not relabeled): schemaVersion !==1 fail-closed with missing+future cases
+tested; worker/web contract versions explicitly DEFERRED to Slices 2-3 in the spec `##
+Revisions` section + doc comment (not silently dropped); symlink/path-leak closed on
+dir+manifest+worker+web-dir with fs errors sanitized to code/name only. Invariants ok (RLS
+ENABLE+FORCE on `app.external_modules`, admin-only writes, no BYPASSRLS, metadata-only audit,
+DataContextDb, module isolation, migration 0152 in module `sql/` + foundation `toEqual` updated).
+4 non-blocking findings named (TOCTOU realpath→readFile, symlink dist/web silently excluded not
+rejected, RO-mount assumed not enforced, route-level non-admin 403 not directly asserted) — all
+inside Slice-1's trusted-operator + read-only-mount threat model, none a new external exposure.
+
+**Dispatched fresh overnight-signoff panel** per the ACTIVE override (top section): messaged
+`w1:pCR` (Fable 5) and `w1:pCK` (Codex) directly via `herdr pane run`, citing the new head
+`ab5d3ec5`, the exact 3 findings each of them previously flagged (Codex went RED on the old head;
+Fable5 was GREEN), and the fresh Opus verdict — instructed both to pull the new head and
+independently re-verify against the actual diff (not reuse prior comments, not trust my summary or
+the Opus verdict), then post a **fresh** `gh pr comment` tagged `[OVERNIGHT-SIGNOFF]` citing this
+manifest's override section. Both bounded-read-confirmed as actively working (Fable5 diffing the
+new head; Codex mid-review). Awaiting both fresh verdicts — merge only if Opus QA green (done) AND
+both fresh panel verdicts green.
+
 ## Lock re-claimed (successor session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`)
 
 Predecessor pane `w1:pD4` (session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, matched manifest lock
