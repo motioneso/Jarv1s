@@ -152,7 +152,10 @@ describe("HttpApiAdapter.generateStructured", () => {
   });
 
   it("HTTP errors surface status only — never the API key", async () => {
-    const fake500 = (async () => ({ ok: false, status: 500 })) as unknown as typeof globalThis.fetch;
+    const fake500 = (async () => ({
+      ok: false,
+      status: 500
+    })) as unknown as typeof globalThis.fetch;
     const adapter = new HttpApiAdapter("anthropic", "sk-secret", { fetch: fake500 });
 
     const error = await adapter.generateStructured(makeInput()).catch((caught: Error) => caught);

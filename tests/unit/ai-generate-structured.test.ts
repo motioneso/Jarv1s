@@ -122,7 +122,10 @@ describe("generateStructured", () => {
   it("needs_config on missing model, provider, or credential", async () => {
     const noModel = makeDeps({
       repository: {
-        resolveModelForService: vi.fn(async () => ({ model: null, reason: "needs-config" as const }))
+        resolveModelForService: vi.fn(async () => ({
+          model: null,
+          reason: "needs-config" as const
+        }))
       }
     });
     expect(await generateStructured(scopedDb, makeInput(), noModel)).toEqual({

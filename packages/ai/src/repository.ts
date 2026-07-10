@@ -35,10 +35,7 @@ import {
 import type { EncryptedAiSecret } from "./crypto.js";
 import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
 import { parseCapabilityRouteMap } from "./capability-route-map.js";
-import {
-  parseModuleServiceBindingMap,
-  parseServiceBindingMap
-} from "./service-binding-map.js";
+import { parseModuleServiceBindingMap, parseServiceBindingMap } from "./service-binding-map.js";
 import {
   CHAT_MODEL_OVERRIDE_PREFERENCE_KEY,
   CHAT_MODEL_OVERRIDE_SETTING_KEY,
@@ -1186,7 +1183,11 @@ export class AiRepository {
         return { model: null, reason: "needs-config" };
       }
 
-      const model = await this.selectAutomaticModelForCapability(scopedDb, capability, binding.tier);
+      const model = await this.selectAutomaticModelForCapability(
+        scopedDb,
+        capability,
+        binding.tier
+      );
       if (model) return { model, reason: "matched-active-model" };
       await this.logNeedsConfig(scopedDb, capability);
       return { model: null, reason: "needs-config" };

@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { AiRepository } from "@jarv1s/ai";
+import {
+  AiRepository,
+  createAiSecretCipher,
+  generateStructured,
+  type GenerateStructuredProviderInput
+} from "@jarv1s/ai";
 import {
   DataContextRunner,
   createDatabase,
@@ -89,12 +94,7 @@ beforeAll(async () => {
 
   modelEconomyJsonId = await seedModel(providerId, "json-economy", ["json"], "economy");
   modelReasoningJsonId = await seedModel(providerId, "json-reasoning", ["json"], "reasoning");
-  modelChatJsonId = await seedModel(
-    providerId,
-    "chat-json",
-    ["chat", "json"],
-    "interactive"
-  );
+  modelChatJsonId = await seedModel(providerId, "chat-json", ["chat", "json"], "interactive");
 });
 
 afterAll(async () => {
@@ -139,11 +139,7 @@ describe("module service binding CRUD (repository)", () => {
         tier: "interactive"
       });
 
-      await repository.deleteModuleServiceBinding(
-        scopedDb,
-        "module.job-search",
-        ids.adminUser
-      );
+      await repository.deleteModuleServiceBinding(scopedDb, "module.job-search", ids.adminUser);
       expect(await repository.getModuleServiceBinding(scopedDb, "module.job-search")).toBeNull();
       expect(await repository.getServiceBinding(scopedDb, "chat")).toEqual({
         kind: "mode",
@@ -249,11 +245,7 @@ describe("resolveModelForService precedence", () => {
 
     await dataContext.withDataContext(adminContext(), async (scopedDb) => {
       await repository.setAdminPinnedModel(scopedDb, null);
-      await repository.deleteModuleServiceBinding(
-        scopedDb,
-        "module.job-search",
-        ids.adminUser
-      );
+      await repository.deleteModuleServiceBinding(scopedDb, "module.job-search", ids.adminUser);
       await repository.deleteModuleServiceBinding(scopedDb, "module.worker", ids.adminUser);
     });
     const restored = await resolve("module.job-search");
@@ -372,5 +364,54 @@ describe("module service binding routes", () => {
       payload: { binding: { kind: "mode", tier: "economy" } }
     });
     expect(nonAdmin.statusCode).toBe(403);
+  });
+});
+
+describe("generateStructured end-to-end", () => {
+  it("resolves the service, decrypts the real credential, calls the adapter, validates", async () => {
+    const captured: { apiKey?: string; input?: GenerateStructuredProviderInput } = {};
+    const fakeAdapter = {
+      generateStructured: async (input: GenerateStructuredProviderInput) => {
+        captured.input = input;
+        return {
+          rawObject: { title: "Staff Engineer" },
+          usage: { inputTokens: 11, outputTokens: 7 }
+        };
+      }
+    };
+
+    const result = await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      generateStructured(
+        scopedDb,
+        {
+          service: "module.job-search",
+          prompt: "Extract the job title.",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["title"],
+            properties: { title: { type: "string" } }
+          }
+        },
+        {
+          repository,
+          cipher: createAiSecretCipher(process.env),
+          createAdapter: (kind, apiKey) => {
+            captured.apiKey = apiKey;
+            expect(kind).toBe("anthropic");
+            return fakeAdapter;
+          }
+        }
+      )
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      object: { title: "Staff Engineer" },
+      usage: { inputTokens: 11, outputTokens: 7 }
+    });
+    expect(captured.apiKey).toBe("structured-test-secret");
+    expect(captured.input?.model.provider_model_id).toBe("json-economy");
+    expect(captured.input?.messages).toEqual([{ role: "user", content: "Extract the job title." }]);
   });
 });

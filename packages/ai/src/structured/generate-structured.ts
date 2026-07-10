@@ -80,7 +80,9 @@ export async function generateStructured(
   );
   if (!provider) return { ok: false, error: "needs_config" };
 
-  const credential = parseAiApiKeyCredential(deps.cipher.decryptJson(provider.encrypted_credential));
+  const credential = parseAiApiKeyCredential(
+    deps.cipher.decryptJson(provider.encrypted_credential)
+  );
   if (!credential) return { ok: false, error: "needs_config" };
 
   if (
