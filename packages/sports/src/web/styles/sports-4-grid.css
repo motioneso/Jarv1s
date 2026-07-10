@@ -15,26 +15,39 @@
    Manage is a lighter muted secondary link in that same sans face. Baseline row + thin rule under. */
 .sp-ticker__head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  /* FOLLOWED | MANAGE sit together at the left, divider-separated, rather than Manage floating
+     at the far right of the band. */
+  justify-content: flex-start;
+  gap: var(--space-2);
   padding: var(--space-3) 0 var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
+  /* Ben 2026-07-09 (/sports): adopt the hero carousel's "TOP STORY | LEAGUE" kicker voice —
+     mono-caps micro-furniture at --text-2xs, not the old sans-sm section head — so the followed
+     strip's head reads as the same editorial desk tag as the lead above it (.sp-hero__kicker). */
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
 }
 .sp-ticker__label {
+  /* The accent "desk word", exactly like .sp-hero__kicker-desk ("TOP STORY"). Size/caps are
+     inherited from .sp-ticker__head so the two halves stay one typographic unit. */
   margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
+  font-family: inherit;
+  font-size: inherit;
   font-weight: 700;
-  color: var(--text);
+  color: var(--accent-fg);
 }
 .sp-ticker__manage {
-  /* Ben 2026-07-08 (/sports annotation #4): the label and this link are the SAME family
-     (--font-sans), but uppercasing + caps-tracking made them read as "two different fonts"
-     on one line. Drop the caps treatment so it's plainly the same font — just a lighter,
-     muted secondary link sitting companionably beside the bold heading. */
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
+  /* The "| MANAGE" half: a hairline divider + muted text, mirroring .sp-hero__kicker-comp —
+     but it stays an actionable link. The border-left IS the pipe (no glyph). Caps/tracking are
+     inherited now (Ben 2026-07-09 wants the hero-kicker look), superseding the 2026-07-08
+     "drop the caps" note from when this head used the plain sans section-head voice. */
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border-subtle);
+  font-family: inherit;
+  font-size: inherit;
   font-weight: 600;
   color: var(--text-muted);
   text-decoration: none;
@@ -87,28 +100,40 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+/* /today followed-team card, "Minimalist Sports Card V3" anatomy (Ben mockup 2026-07-09):
+   identity header / media-left body / inverted next-game bar. TickerTeam only renders inside
+   .sp-tkgrid now (the /sports strip moved to .sp-feat, mrb7mwhv), so the card idiom lives here
+   directly — the old 240px scroll-strip variant (fixed width, right-hand divider) is retired. */
 .sp-tk {
-  flex: none;
-  width: 240px;
-  padding: var(--space-3) var(--space-4);
-  border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  /* a card's content must never bleed into its neighbor — everything inside either
-     ellipsizes or line-clamps, and this is the backstop */
+  gap: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  /* Bottom padding must stay space-3 to match .sp-tk__next's -space-3 bottom bleed (mrb7utbw). */
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  /* a card's content must never bleed past its frame — everything inside either ellipsizes
+     or line-clamps, and this is the backstop; it also clips the bled footer bar's corners
+     to the card radius */
   overflow: hidden;
 }
-/* Header opens the card since the eyebrow row was cut (live feedback mratgoq4); the rule
-   below it separates identity from content (live feedback mrath2lh). The identity block now
-   also holds the standing + form sub-row (live feedback mrawlzb7), so the hairline moved
-   from the name row to the block's outer edge. */
+/* Identity header (V3): crest | name-over-standing | form pips right. The hairline under the
+   row separates identity from content (live feedback mrath2lh); the eyebrow row stays cut
+   (mratgoq4). Supersedes the mrawlzb7 standing/form sub-row. */
 .sp-tk__head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
+}
+.sp-tk__ident {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
 }
 .sp-tk__hd {
   display: flex;
@@ -116,20 +141,10 @@
   gap: var(--space-2);
   min-width: 0;
 }
-/* Standing left, form pips right — directly under the team name, above the header rule
-   (live feedback mrawlzb7; supersedes the mrawcw2y bottom-docked .sp-tk__meta row) */
-.sp-tk__sub {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-width: 0;
-}
 .sp-tk__name {
-  flex: 1;
   min-width: 0;
   font-family: var(--font-sans);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -147,11 +162,28 @@
   text-transform: uppercase;
   color: var(--accent-fg);
 }
-.sp-tk__primary {
+/* Body (V3): lead-story art as a fixed-ratio left column, headline + bullets beside it.
+   Media is conditional — an artless card's text column simply runs full width. */
+.sp-tk__body {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
+  align-items: flex-start;
+  gap: var(--space-3);
   min-height: 20px;
+}
+.sp-tk__media {
+  flex: none;
+  width: 42%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+.sp-tk__col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .sp-tk__score {
   font-family: var(--font-sans);
@@ -162,34 +194,22 @@
   white-space: nowrap;
 }
 /* #885: finished-game result row on /today — opponent crest + "L 3–9", the /today counterpart of
-   .sp-feat__result so both surfaces drop the "vs Blue Jays" text tail. Nested inside the baseline
-   .sp-tk__primary flex row; center-align here so the crest tracks the score, not its baseline. */
+   .sp-feat__result so both surfaces drop the "vs Blue Jays" text tail. Center-align so the crest
+   tracks the score, not its baseline. */
 .sp-tk__result {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
-.sp-tk__newsic {
-  flex: none;
-  color: var(--steel);
-  display: inline-flex;
-}
-/* Story thumbnail on non-live cards (live feedback mra5xnt2) — replaces the news glyph when the
-   headline carries art. Fixed square so two-line titles wrap beside it without reflowing rows. */
-.sp-tk__thumb {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  align-self: flex-start;
-}
+/* Lead-story headline (V3 mockup 2026-07-09): the card's editorial anchor, so it's set bold in
+   text color at reading size — no longer the muted --text-xs caption the pre-V3 inline-thumb
+   layout used. Two-line clamp keeps every card the same height across the grid. */
 .sp-tk__newstx {
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  line-height: 1.35;
-  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading-snug);
+  color: var(--text);
   /* rendered as <a>: without this it picks up the UA's underline (global `a` only resets color) */
   text-decoration: none;
   display: -webkit-box;
@@ -198,9 +218,15 @@
   overflow: hidden;
 }
 .sp-tk__newstx:hover {
-  color: var(--text);
   text-decoration: underline;
   text-underline-offset: 0.15em;
+}
+/* Storyless pre-game/idle card: muted italic placeholder, mirrors .sp-feat__lead--empty so the
+   /today widget and /sports strip read the same "nothing here yet" (never the matchup, mrawrk0e). */
+.sp-tk__newstx--empty {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-muted);
 }
 .sp-tk__standing {
   font-family: var(--font-sans);
@@ -211,37 +237,49 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Next-match footer: pinned to the card's bottom edge behind its own hairline so every card's
-   fixture line sits on the same baseline. Opens with the opponent's crest instead of a "Next"
-   label + name text (live feedback mrawvc48) — center alignment fits the crest block. */
-.sp-tk__next {
-  /* auto top margin absorbs the flexible space to pin the band at the base (this docking
-     used to live on the removed .sp-tk__meta row, mrawcw2y — the sub-row under the team
-     name holds standing + form now, mrawlzb7); negative sides/bottom bleed the band to
-     the card edges so the tinted footer reads as part of the card frame */
-  margin: auto calc(-1 * var(--space-4)) calc(-1 * var(--space-3));
+/* ---- Shared next-game footer bar (.sp-next) ----
+   One footer treatment for BOTH /today (TickerTeam) and /sports (FeaturedTeamCard) so the two
+   pages read as siblings across the bottom (Ben 2026-07-09). Layout + venue color live here; the
+   per-surface container classes (.sp-tk__next / .sp-feat__next) supply only the bleed offsets,
+   which differ because the two cards have different side/bottom padding. */
+.sp-next {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  background: var(--surface-2);
-  border-top: 1px solid var(--border-subtle);
-  /* horizontal padding must stay --space-4 to re-align the bled band's content with the
-     card body; vertical trimmed to --space-2 — the tinted band was reading too tall
-     (live feedback mraxrlxx) */
-  padding: var(--space-2) var(--space-4);
-}
-.sp-tk__nextline {
-  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  /* One accent bar for ALL next matches (Ben 2026-07-09: "have this be the accent color of the
+     theme") — no home/away color; venue reads from the "vs"/"@" token instead. --accent ground /
+     --text-on-accent text is the same pairing primary buttons use, so it re-points per park theme
+     and keeps its authored contrast in both light and dark. */
+  background: var(--accent);
+  color: var(--text-on-accent);
   font-family: var(--font-sans);
   font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--text-muted);
   line-height: 1.35;
+  /* long fixture lines truncate rather than wrap the bar to two rows */
+  overflow: hidden;
 }
-.sp-tk__nextwhen {
-  display: block;
-  font-weight: 400;
-  color: var(--text-subtle);
+/* "vs" (home) / "@" (away) venue token — the only home/away signal now (Ben 2026-07-09), leading
+   the left group ahead of the opponent crest. */
+.sp-next__venue {
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Fixture "when" (Today · 6:45 PM, or a dated line) — margin-left:auto floats it to the right edge
+   so venue + crest stay left-grouped and the date/time sits opposite (Ben 2026-07-09 "date/time on
+   the right"). Truncates so the bar never wraps. */
+.sp-next__when {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* /today bleed: pin to the card base (auto top) and bleed to the edges. Sides = -space-4,
+   bottom = -space-3, matching .sp-tk's padding so the bar sits flush; overflow:hidden on the
+   card clips it to the radius. */
+.sp-tk__next {
+  margin: auto calc(-1 * var(--space-4)) calc(-1 * var(--space-3));
 }
 /* Visually hidden, screen-reader reachable — carries the opponent name the crest replaced
    (mrawvc48). Scoped sp- utility; the app shell has no global sr-only class. */
@@ -256,7 +294,8 @@
   white-space: nowrap;
   border: 0;
 }
-/* Text links to club stories under the form row */
+/* Secondary story links beside the headline — bulleted list (V3 mockup 2026-07-09), a dot
+   marker per line so they read as the card's "more" rail under the lead. */
 .sp-tk__stories {
   list-style: none;
   margin: 0;
@@ -264,6 +303,19 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+.sp-tk__stories li {
+  position: relative;
+  padding-left: var(--space-3);
+}
+/* Bullet as a pseudo-element (not list-style) so it aligns to the first line of a clamped,
+   possibly two-line title instead of centering on the whole li box. */
+.sp-tk__stories li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--text-faint);
 }
 .sp-tk__storylink {
   font-family: var(--font-sans);
@@ -280,6 +332,51 @@
   color: var(--text);
   text-decoration: underline;
   text-underline-offset: 0.15em;
+}
+/* Recent-results strip on the followed-LEAGUE card (Ben 2026-07-09) — the league card has no single
+   next fixture, so where a team card carries its Next-game bar, this carries the competition's
+   live/final games. Score line left, state chip right; a hairline divider sets it off from the news
+   column above (same --border-subtle keyline the card grid uses). */
+.sp-tk__scores {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) 0 0;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.sp-tk__scorerow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.sp-tk__scoreline {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* State chip: muted "Final" by default; the live variant borrows the card's live accent + the
+   inline LiveDot so an in-progress game reads at a glance, matching .sp-tk__live up top. */
+.sp-tk__scorechip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sp-tk__scorechip--live {
+  color: var(--accent-fg);
+  font-weight: 700;
 }
 /* pre-game matchup — body type, wraps; scores stay mono via .sp-tk__score */
 .sp-tk__matchup {
@@ -408,6 +505,9 @@
 .sp-feat__lead {
   font-family: var(--font-display);
   font-size: var(--text-lg);
+  /* Bold the lead so it reads as the headline, separated from the story links below it
+     (Ben 2026-07-09 /sports annotation #1) — mirrors the bold .sp-tk__newstx lede on /today. */
+  font-weight: 700;
   line-height: var(--leading-snug);
   color: var(--text);
   text-decoration: none;
@@ -458,6 +558,20 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+/* Bullet each story link so the list reads as distinct items, separated from the bold lead above
+   (Ben 2026-07-09 /sports annotation #2) — same pseudo-element bullet as /today's .sp-tk__stories,
+   left-aligned to the first line of a clamped two-line title rather than centered on the li box. */
+.sp-feat__stories li {
+  position: relative;
+  padding-left: var(--space-3);
+}
+.sp-feat__stories li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--text-faint);
+}
 .sp-feat__storylink {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
@@ -474,29 +588,15 @@
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
-/* Fixture line is now a tinted section block, venue-colored by the --home/--away modifiers
-   below (mrbaaq24) — the hairline separator gave way to a filled panel that reads as "the next
-   game" at a glance. Inset rounded block so the tint sits inside the card padding. */
+/* /sports footer shares the .sp-next look with /today (Ben 2026-07-09 "similar look across the
+   bottom") but floats instead of bleeding: unlike /today's flush bar, this keeps a little
+   breathing room below the box (Ben 2026-07-09 "space the bottom again"). Pinned toward the base
+   (auto top) but inset by the card's own side + bottom padding, as a rounded block. */
 .sp-feat__next {
-  margin-top: var(--space-2);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  margin-top: auto;
   border-radius: 6px;
 }
-/* Home = accent green (home turf), away = info blue — two calm tints that don't collide with
-   the W/L form pips' green/red, and both are defined for light + dark (mrbaaq24). */
-.sp-feat__next--home {
-  background: var(--forest-soft);
-}
-.sp-feat__next--away {
-  background: var(--steel-soft);
-}
 @media (max-width: 768px) {
-  .sp-tk {
-    width: 200px;
-  }
   .sp-feat {
     /* Phones can't fit four — fall back to a fixed ~1.3-up scroll so cards stay legible. */
     flex-basis: 280px;
@@ -512,19 +612,124 @@
    place of the strip's right-hand divider. */
 .sp-tkgrid {
   display: grid;
+  /* 8px top margin sets the grid off from the widget's "Your teams, today" title with the same
+     rhythm the other /today briefing sections use between head and body (Ben 2026-07-09). */
+  margin-top: var(--space-2);
   /* 300px floor, not the strip's 240px: at 240 the cards ran tall and skinny in /today's
      main column and read cramped (live feedback mrb58wtq) — 300 lands two comfortable
      columns in the widget area and one on narrow viewports. */
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--space-3);
 }
-.sp-tkgrid .sp-tk {
-  width: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  /* Bottom padding must stay space-3 to match .sp-tk__next's -space-3 bottom bleed. A uniform
-     space-4 (the earlier value) left the strip's footer band stopping short of the card edge —
-     the "slight gap at the bottom of the card" Ben flagged (mrb7utbw). Top/sides keep space-4. */
-  padding: var(--space-4) var(--space-4) var(--space-3);
+
+/* --------------------------------------------- /today Sports desk: main story + brief list */
+
+/* World-of-sport lead + briefs (Ben 2026-07-09: the Sports desk opens like the News desk — a main
+   story, then other top sport headlines, before the followed-team cards). These mirror the news
+   widget's .nw-twlead/.nw-twlist look 1:1 so the two /today desks read as siblings, but live in the
+   sports module's own stylesheet — sports never depends on news's classes (module isolation). */
+.sp-lead {
+  display: block;
+  /* Top margin sets the lead photo off from the "Top stories" title (Ben 2026-07-09 "would need the
+     top margin brought back here too") — matches the bottom margin, mirrors the news lead. */
+  margin: var(--space-3) 0;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  text-decoration: none;
+  color: var(--text);
+}
+.sp-lead__photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+  background: var(--bg-sunken);
+}
+.sp-lead__tag {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--accent-fg);
+  margin-bottom: 2px;
+}
+.sp-lead__title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-black);
+  line-height: 1.14;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.sp-lead:hover .sp-lead__title {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+.sp-lead__dek {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  margin-top: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.sp-brief {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sp-brief__item {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sp-brief__item:last-child {
+  border-bottom: 0;
+}
+.sp-brief__link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+  color: var(--text);
+}
+.sp-brief__link:hover .sp-brief__title {
+  text-decoration: underline;
+}
+.sp-brief__tag {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-muted);
+}
+.sp-brief__title {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+/* "Your teams" subhead: a mono-caps section label with a top keyline that splits the followed
+   cards off from the world-of-sport stories above (Ben: "before we see the your teams section"). */
+.sp-tksub {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  /* Ben 2026-07-09 (/today): "same font / size as Top Stories". Matches the "Top stories" desk
+     title (.jds-brief__title) exactly — display face, --text-2xl, semibold — so the followed-cards
+     subhead reads as a peer section title, not the old mono-caps micro-label. The top keyline +
+     margin stay to keep the world-of-sport stories and the followed cards visually split. */
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--leading-tight);
+  color: var(--text);
 }

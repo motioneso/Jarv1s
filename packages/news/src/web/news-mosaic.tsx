@@ -205,8 +205,16 @@ function MosaicArticle({
   readonly headline: NewsHeadline;
   major?: boolean;
 }) {
+  // No-photo standard cards get a --textonly modifier so CSS can let the blurb run longer and
+  // fill the space the missing 16:9 image would have taken (Ben 2026-07-09 /news: "pull in more
+  // body text so when there isn't a photo there isn't a large gap"). `summary` is the only body
+  // field the feed ships, so a genuinely terse summary still can't be padded — but the raised
+  // clamp spends whatever text exists instead of stopping at 3 lines beside a phantom image slot.
+  // Majors always carry art (composeMosaic requires it), so this only ever hits standards.
+  const className = ["nw-mosaic__art", major ? "nw-mosaic__art--major" : ""];
+  if (!major && !headline.imageUrl) className.push("nw-mosaic__art--textonly");
   return (
-    <article className={major ? "nw-mosaic__art nw-mosaic__art--major" : "nw-mosaic__art"}>
+    <article className={className.filter(Boolean).join(" ")}>
       {headline.imageUrl ? (
         <img className="nw-mosaic__img" src={headline.imageUrl} alt="" loading="lazy" />
       ) : null}
@@ -238,9 +246,11 @@ function FeatureArticle({ headline }: { readonly headline: NewsHeadline }) {
   );
 }
 
-export function NewsMosaic({ pool }: { readonly pool: readonly NewsHeadline[] }) {
-  const plan = composeMosaic(pool);
-  if (pool.length === 0) return null;
+// Takes a pre-composed plan (was: raw `pool`, composing internally) so news-page can share the
+// same plan with the rail's <NewsBriefs> — the briefs tail now lives in the rail, not here
+// (Ben 2026-07-09 /news). Composing twice would risk the two blocks drifting apart.
+export function NewsMosaic({ plan }: { readonly plan: MosaicPlan }) {
+  if (!plan.feature && plan.mosaic.length === 0) return null;
   return (
     <section className="nw-band" aria-label="Today's stories">
       {plan.feature ? <FeatureArticle headline={plan.feature} /> : null}
@@ -253,28 +263,40 @@ export function NewsMosaic({ pool }: { readonly pool: readonly NewsHeadline[] })
           />
         ))}
       </div>
-      {plan.briefs.length > 0 ? (
-        <div className="nw-briefs">
-          <p className="nw-briefs__label">In brief</p>
-          <ul className="nw-briefs__list">
-            {plan.briefs.map((headline) => (
-              <li className="nw-briefs__item" key={headline.id}>
-                <a className="nw-briefs__link" href={headline.url} target="_blank" rel="noreferrer">
-                  <span className="nw-briefs__tag">{headline.sourceLabel}</span>
-                  {headline.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </section>
+  );
+}
+
+// "In brief" tail. Ben 2026-07-09 (/news): "moving this to below the news from your sources in the
+// right rail." Lifted out of the wide mosaic column — where it ran as a 2-up list under the cards —
+// into the narrow rail beneath <SourceRail>, where it reads as a single-column digest (CSS). Renders
+// nothing when the tail is empty so the rail just ends at the source list on a quiet day.
+export function NewsBriefs({ briefs }: { readonly briefs: readonly NewsHeadline[] }) {
+  if (briefs.length === 0) return null;
+  return (
+    <div className="nw-briefs">
+      <p className="nw-briefs__label">In brief</p>
+      <ul className="nw-briefs__list">
+        {briefs.map((headline) => (
+          <li className="nw-briefs__item" key={headline.id}>
+            <a className="nw-briefs__link" href={headline.url} target="_blank" rel="noreferrer">
+              <span className="nw-briefs__tag">{headline.sourceLabel}</span>
+              {headline.title}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
 /* --------------------------------------------------------------- Source rail */
 
-const RAIL_ITEMS_CAP = 5;
+// Show the full per-source depth the service ships (GROUP_HEADLINES_CAP = 12) rather than a
+// tighter 5 (Ben 2026-07-09 "fill the rail after this section… otherwise the main panel is just
+// condensed for no reason"): the rail was truncating real headlines, leaving the 1fr column short
+// beside the long 2fr mosaic so the split read as wasted space. Server already bounds the payload.
+const RAIL_ITEMS_CAP = 12;
 
 // Right-rail "From your sources" digest: one block per enabled source, title-only links —
 // the by-source complement to the cross-source mosaic (spec "Page layout").

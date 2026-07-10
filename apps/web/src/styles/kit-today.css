@@ -434,17 +434,33 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ink);
-  padding-bottom: 18px;
+  /* Ben 2026-07-09 (/today): folio line at the top of the aside column now, not a standalone
+     line above the whole masthead — so it right-aligns over the clock and the old 18px bottom
+     pad (which pushed the title down) is gone. */
+  text-align: right;
 }
 .cmd-masthead__row {
   display: flex;
-  align-items: flex-end;
+  /* stretch (was flex-end) so the aside spans the main column's full height — that lets it pin
+     the dateline to the top and the clock to the bottom (Ben 2026-07-09). */
+  align-items: stretch;
   justify-content: space-between;
   gap: 32px;
 }
 .cmd-masthead__main {
   max-width: 72ch;
   min-width: 0;
+}
+/* Right-hand folio column: dateline pinned top, clock pinned bottom (Ben 2026-07-09 /today).
+   space-between spreads them across the main column's height so the date reads as a top-right
+   folio and the clock keeps its original bottom-aligned position. */
+.cmd-masthead__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 12px;
 }
 .cmd-title {
   margin: 12px 0 0;
@@ -630,7 +646,12 @@
   flex-direction: column;
   gap: 14px;
   position: sticky;
-  top: 20px;
+  /* Lock just below the sticky .topbar (--topbar-h), not 20px behind it (Ben 2026-07-09:
+     "lock earlier when scrolling — the separator line should just disappear and then the rail
+     locks"). The old topbar-aware offset lived on .cmd-aside, which isn't the positioned/sticky
+     element, so `top` there was dead and the rail actually pinned at 20px — behind the topbar.
+     Moving it here makes the rail lock flush under the bar right as the masthead rule scrolls off. */
+  top: calc(var(--topbar-h) + 1rem);
 }
 .inst {
   background: var(--surface);

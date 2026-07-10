@@ -138,6 +138,19 @@ export interface FollowedResultMatch {
   readonly scoreText: string; // "L 3–9" — result letter + your–their score, opponent via the crest
 }
 
+// One completed game behind a recent-form pip, so the ticker can show the result on hover
+// (Ben 2026-07-09 /today follow-cards: "add the result of the last match when the user hovers
+// over the L or W… a nice little stylized pop-up"). Same length/order as `form` — index i of
+// `formDetail` describes pip i. `result` duplicates `form[i]` so the client renders from one
+// source. Kept minimal (no crest) because the popup is text-only.
+export interface FollowedFormEntry {
+  readonly result: "W" | "D" | "L";
+  readonly opponentName: string; // full name of the opponent in that game
+  readonly homeAway: "home" | "away"; // was the followed team home or away
+  readonly score: string; // "4–2", your score first — the never-red result lives in `result`
+  readonly playedAt: string; // ISO kickoff of the completed game, formatted client-side
+}
+
 export interface FollowedTeamCard {
   readonly teamKey: string;
   readonly competitionKey: string;
@@ -155,6 +168,10 @@ export interface FollowedTeamCard {
   // the rest render as text links. Replaces the old single `news` field.
   readonly stories: readonly FollowedTeamNews[];
   readonly form: readonly ("W" | "D" | "L")[];
+  // Per-pip result detail backing the hover popup on `form` (Ben 2026-07-09). Same order/length
+  // as `form`. Optional + nullable: pre-#897 payloads predate it, and the client falls back to a
+  // plain (non-interactive) pip when it's absent.
+  readonly formDetail?: readonly FollowedFormEntry[] | null;
   readonly standing: string | null;
   readonly nextMatch: FollowedNextMatch | null;
   // A finished today-game's result, rendered as opponent crest + "L 3–9" on the featured strip
@@ -167,6 +184,34 @@ export interface FollowedTeamCard {
   // days) above idle ones (live feedback mra54n4h).
   readonly lastMatchAt: string | null;
   readonly rationale: string;
+}
+
+// One recent game behind a followed-league card (Ben 2026-07-09 /today: "if the user follows a
+// league or tournament we should show news / results for it"). `line` is scoreLine() — away
+// short + score – score + home short — so the card needs no team refs. Live games rank ahead of
+// finals; pre-games are omitted (a fixture is not a result, and the news body already implies the
+// slate). Text-only by design: a league card is news-forward, the results are the sub-note.
+export interface FollowedLeagueResult {
+  readonly line: string; // "NYY 5 – 3 BOS"
+  readonly startsAt: string; // ISO kickoff; formatted client-side if ever shown
+  readonly state: "live" | "final";
+  readonly detail: string; // statusDetail — "Final", "Q3 4:12" — the state chip on the row
+}
+
+// A followed whole-competition (teamKey: null) rendered as a team-shaped card in the /today
+// Sports desk (Ben 2026-07-09, spec waived by owner). Mirrors FollowedTeamCard's news anatomy —
+// league crest/name header, lead story + secondary links — but swaps the team's form/standing/
+// next-game machinery for a compact recent-results block. Only built for ACTIVE competitions
+// (games in the scoreboard window or news within ~14d); off-season leagues never produce a card,
+// which is the "when that league / tournament is active" gate.
+export interface FollowedLeagueCard {
+  readonly competitionKey: string;
+  readonly competitionLabel: string; // "Premier League", "NFL"
+  readonly kind: "league" | "tournament"; // labels the standing slot ("League"/"Tournament")
+  readonly status: "live" | "news"; // "live" when any game in the league is in progress now
+  readonly logoUrl: string | null; // official competition logo (ESPN CDN); null → initials swatch
+  readonly stories: readonly FollowedTeamNews[]; // ≤3 league headlines, newest first
+  readonly results: readonly FollowedLeagueResult[]; // ≤3 recent live/final games, live first
 }
 
 export interface ScoreboardGroup {
@@ -197,6 +242,10 @@ export interface SportsOverviewResponse {
   readonly standings: readonly StandingsGroup[];
   readonly followedTeams: readonly FollowedTeamRef[]; // for is-you marking on the client
   readonly followedLeagues: readonly FollowedLeagueRef[]; // whole-competition follows (#763)
+  // Team-shaped cards for followed whole-competitions that are active right now (Ben 2026-07-09).
+  // Separate from `followedLeagues` (bare refs, for is-you marking): these carry the news+results
+  // payload the /today Sports desk renders. Empty when no followed league is in-season.
+  readonly followedLeagueCards: readonly FollowedLeagueCard[];
   readonly degraded: boolean; // source failed → cached/empty
 }
 
@@ -414,6 +463,24 @@ const followedTeamCardSchema = {
       }
     },
     form: { type: "array", items: { type: "string", enum: ["W", "D", "L"] } },
+    // Per-pip hover detail (Ben 2026-07-09). MUST be declared or fast-json-stringify silently
+    // drops it on the wire (additionalProperties:false) — the same strip trap resultMatch hit in
+    // #885. Optional, so it stays out of `required`.
+    formDetail: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["result", "opponentName", "homeAway", "score", "playedAt"],
+        properties: {
+          result: { type: "string", enum: ["W", "D", "L"] },
+          opponentName: { type: "string" },
+          homeAway: { type: "string", enum: ["home", "away"] },
+          score: { type: "string" },
+          playedAt: { type: "string" }
+        }
+      }
+    },
     standing: { type: ["string", "null"] },
     nextMatch: {
       oneOf: [
@@ -467,6 +534,60 @@ const followedLeagueRefSchema = {
   properties: {
     competitionKey: { type: "string" },
     competitionLabel: { type: "string" }
+  }
+} as const;
+
+// Followed-league card (Ben 2026-07-09). Declared in full here — fast-json-stringify silently
+// drops any emitted field not in the schema (additionalProperties:false), the strip trap that has
+// 500'd/blanked the overview before (nextMatch, resultMatch). `stories` mirrors the team card's
+// inline story shape exactly; `results` is the new recent-games block.
+const followedLeagueCardSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "competitionKey",
+    "competitionLabel",
+    "kind",
+    "status",
+    "logoUrl",
+    "stories",
+    "results"
+  ],
+  properties: {
+    competitionKey: { type: "string" },
+    competitionLabel: { type: "string" },
+    kind: { type: "string", enum: ["league", "tournament"] },
+    status: { type: "string", enum: ["live", "news"] },
+    // Declared or fast-json-stringify silently strips it on the wire (additionalProperties:false).
+    logoUrl: { type: ["string", "null"] },
+    stories: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "url", "publishedAt", "imageUrl"],
+        properties: {
+          title: { type: "string" },
+          url: { type: "string" },
+          publishedAt: { type: "string" },
+          imageUrl: { type: ["string", "null"] }
+        }
+      }
+    },
+    results: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["line", "startsAt", "state", "detail"],
+        properties: {
+          line: { type: "string" },
+          startsAt: { type: "string" },
+          state: { type: "string", enum: ["live", "final"] },
+          detail: { type: "string" }
+        }
+      }
+    }
   }
 } as const;
 
@@ -544,6 +665,7 @@ export const sportsOverviewResponseSchema = {
         "standings",
         "followedTeams",
         "followedLeagues",
+        "followedLeagueCards",
         "degraded"
       ],
       properties: {
@@ -566,6 +688,7 @@ export const sportsOverviewResponseSchema = {
           }
         },
         followedLeagues: { type: "array", items: followedLeagueRefSchema },
+        followedLeagueCards: { type: "array", items: followedLeagueCardSchema },
         degraded: { type: "boolean" }
       }
     },

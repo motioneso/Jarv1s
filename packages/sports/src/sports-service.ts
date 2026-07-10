@@ -2,6 +2,7 @@ import type { DatasetClient } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import {
   localDay,
+  type FollowedLeagueCard,
   type FollowedLeagueRef,
   type FollowedTeamCard,
   type GameSide,
@@ -17,7 +18,7 @@ import {
   type StandingsGroup
 } from "@jarv1s/shared";
 
-import { SPORTS_CATALOG, catalogEntry } from "./source/catalog.js";
+import { SPORTS_CATALOG, catalogEntry, competitionLogoUrl } from "./source/catalog.js";
 import { selectFeature } from "./news-ranking.js";
 import {
   groupFollowedTeams,
@@ -33,6 +34,7 @@ import {
   inGamedayWindow,
   joinLabels,
   lastMatchAcross,
+  leagueResults,
   matchupLine,
   nextMatchAcross,
   resultLine,
@@ -44,7 +46,8 @@ import {
   teamFact,
   toResolvedGames,
   toTeamStories,
-  computeFormAcross
+  computeFormAcross,
+  computeFormDetailAcross
 } from "./followed-card.js";
 import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./source/sports-source.js";
 
@@ -386,6 +389,33 @@ export class SportsService {
           }))
         : publicLeagueNews;
 
+    // Team-shaped cards for whole-competition follows that are ACTIVE right now (Ben 2026-07-09:
+    // "show news/results for a followed league/tournament when it's active"). Active = the comp has
+    // recent games (scoreboard window) OR fresh headlines — an in-season signal, no separate schedule
+    // probe. A followed league with neither (off-season) yields no card, so the widget stays quiet
+    // instead of showing an empty shell. Reuses the team-card machinery: toTeamStories for the ≤3
+    // headline strip, leagueResults for the recent live/final block.
+    const followedLeagueCards: FollowedLeagueCard[] = followedLeagues
+      .map((league): FollowedLeagueCard => {
+        const games = scoreboardByComp.get(league.competitionKey) ?? [];
+        const stories = toTeamStories(headlinesByComp.get(league.competitionKey) ?? []);
+        const results = leagueResults(games);
+        return {
+          competitionKey: league.competitionKey,
+          competitionLabel: league.competitionLabel,
+          kind: (catalogEntry(league.competitionKey)?.kind ?? "league") as "league" | "tournament",
+          // "live" the instant any of the league's games is in progress — drives the card's live dot,
+          // same as a team card's `.sp-tk__live`. Otherwise it's a news/results card.
+          status: games.some((g) => g.state === "live") ? "live" : "news",
+          // Official competition logo (Ben 2026-07-09 "prefer the logo to be clear"); client Crest
+          // degrades to the initials swatch if the CDN URL 404s.
+          logoUrl: competitionLogoUrl(league.competitionKey),
+          stories,
+          results
+        };
+      })
+      .filter((card) => card.stories.length > 0 || card.results.length > 0);
+
     return {
       hero,
       followed: cards,
@@ -398,6 +428,7 @@ export class SportsService {
         teamKey: f.teamKey
       })),
       followedLeagues,
+      followedLeagueCards,
       degraded: state.degraded
     };
   }
@@ -641,6 +672,7 @@ export class SportsService {
       todayGameState,
       stories: toTeamStories(storyPool),
       form: computeFormAcross(resolvedGames),
+      formDetail: computeFormDetailAcross(resolvedGames),
       // standing comes ONLY from the primary competition (spec Design) — a Champions League
       // group table would be meaningless as "the" standing for a club whose default identity is
       // its domestic league position.

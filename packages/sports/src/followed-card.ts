@@ -1,4 +1,6 @@
 import type {
+  FollowedFormEntry,
+  FollowedLeagueResult,
   FollowedNextMatch,
   FollowedResultMatch,
   FollowedTeamNews,
@@ -171,6 +173,31 @@ export function scoreLine(game: GameSummary): string {
   return `${game.away.shortName} ${game.away.score ?? 0} – ${game.home.score ?? 0} ${game.home.shortName}`;
 }
 
+// League-card recent-results block (Ben 2026-07-09): the /today followed-league card mirrors the
+// team card but has no single team to anchor on, so we show whole-competition games — live first,
+// then most-recent finals. `pre`/scheduled games are dropped (the card's job is "what happened",
+// the news list carries what's coming). Capped like the story list so the card stays glanceable.
+const LEAGUE_RESULT_LIMIT = 3;
+
+export function leagueResults(games: readonly GameSummary[]): FollowedLeagueResult[] {
+  return (
+    games
+      .filter((g) => g.state === "live" || g.state === "final")
+      // live before final, then newest kickoff first — the "priority" ordering the ticker cards use.
+      .sort((a, b) => {
+        if (a.state !== b.state) return a.state === "live" ? -1 : 1;
+        return b.startsAt.localeCompare(a.startsAt);
+      })
+      .slice(0, LEAGUE_RESULT_LIMIT)
+      .map((g) => ({
+        line: scoreLine(g),
+        startsAt: g.startsAt,
+        state: g.state as "live" | "final",
+        detail: g.statusDetail
+      }))
+  );
+}
+
 function resultOf(side: GameSide, opponent: GameSide): "W" | "D" | "L" {
   if (side.score !== null && opponent.score !== null && side.score === opponent.score) return "D";
   return side.winner ? "W" : "L";
@@ -191,7 +218,12 @@ export function matchupLine(game: GameSummary): string {
 
 const FORM_LENGTH = 5;
 
-export function computeFormAcross(games: readonly ResolvedGame[]): readonly ("W" | "D" | "L")[] {
+// Per-pip detail for the hover popup (Ben 2026-07-09 /today follow-cards). Same filter/sort/slice
+// as the letters below, so entry i lines up with form pip i. computeFormAcross now derives from
+// this — one source of truth keeps the visible letters and the popup in lockstep by construction.
+export function computeFormDetailAcross(
+  games: readonly ResolvedGame[]
+): readonly FollowedFormEntry[] {
   return games
     .filter(({ game, teamKey }) => game.state === "final" && sideFor(game, teamKey))
     .slice()
@@ -200,8 +232,20 @@ export function computeFormAcross(games: readonly ResolvedGame[]): readonly ("W"
     .map(({ game, teamKey }) => {
       const side = sideFor(game, teamKey);
       const opponent = opponentFor(game, teamKey);
-      return side && opponent ? resultOf(side, opponent) : "L";
+      return {
+        // `side` is guaranteed by the filter; `opponent` can still be missing on a degraded
+        // one-sided fixture — mirror the old "L" fallback so the letters never change.
+        result: side && opponent ? resultOf(side, opponent) : "L",
+        opponentName: opponent?.name ?? "Opponent",
+        homeAway: game.home.teamKey === teamKey ? "home" : "away",
+        score: `${side?.score ?? 0}–${opponent?.score ?? 0}`,
+        playedAt: game.startsAt
+      };
     });
+}
+
+export function computeFormAcross(games: readonly ResolvedGame[]): readonly ("W" | "D" | "L")[] {
+  return computeFormDetailAcross(games).map((entry) => entry.result);
 }
 
 // Gameday hero window (live feedback mra4kqpf): live games always qualify; upcoming games only
