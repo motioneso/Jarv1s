@@ -63,6 +63,48 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     espnLeague: "eng.1",
     confederation: "UEFA"
   },
+  // English pyramid tiers 2-5, below the Premier League — all UEFA, all standard tables
+  // (#907 slice 2). IDs/team counts verified live via scripts/probe-espn-leagues.mjs.
+  {
+    competitionKey: "eng.2",
+    label: "EFL Championship",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "eng.2",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "eng.3",
+    label: "EFL League One",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "eng.3",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "eng.4",
+    label: "EFL League Two",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "eng.4",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "eng.5",
+    label: "National League",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "eng.5",
+    confederation: "UEFA"
+  },
   {
     competitionKey: "usa.1",
     label: "MLS",

@@ -2,10 +2,31 @@ import { describe, expect, it } from "vitest";
 import { SPORTS_CATALOG, catalogEntry } from "../../packages/sports/src/source/catalog.js";
 
 describe("sports catalog", () => {
-  it("covers the eight approved competitions", () => {
+  it("covers the approved competitions (#907 slice 2: English pyramid)", () => {
     expect(SPORTS_CATALOG.map((c) => c.competitionKey).sort()).toEqual(
-      ["eng.1", "fifa.world", "mlb", "nba", "nfl", "nhl", "uefa.champions", "usa.1"].sort()
+      [
+        "eng.1",
+        "eng.2",
+        "eng.3",
+        "eng.4",
+        "eng.5",
+        "fifa.world",
+        "mlb",
+        "nba",
+        "nfl",
+        "nhl",
+        "uefa.champions",
+        "usa.1"
+      ].sort()
     );
+  });
+  it("gives England its full pyramid, all UEFA table leagues (#907)", () => {
+    for (const key of ["eng.2", "eng.3", "eng.4", "eng.5"]) {
+      const entry = catalogEntry(key);
+      expect(entry?.confederation).toBe("UEFA");
+      expect(entry?.standingsShape).toBe("table");
+      expect(entry?.espnSport).toBe("soccer");
+    }
   });
   it("maps nfl to ESPN football/nfl as a league", () => {
     const e = catalogEntry("nfl");
