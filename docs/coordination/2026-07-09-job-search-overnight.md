@@ -1549,3 +1549,70 @@ Will proceed the moment the watched run reports `completed success`. #919 stays 
 per the standing queue order.
 
 Overnight sign-off override remains ACTIVE (Ben not back yet, time-boxed to tonight).
+
+## Lock re-claimed (successor session `46590121-e5b0-42cb-aa50-b2da3a615f1f`), 70% relay — flushing before handoff
+
+Continuing directly from the prior "Phase 0a done, queue in progress" section (same session,
+no lock change — this is a mid-session checkpoint+relay, not a new claim).
+
+**Fixed this checkpoint:** the `#918` plan-authoring handoff doc had been written to the WRONG
+location (`/home/ben/Jarv1s/docs/coordination/handoffs/918-implementation-plan.md` — the shared
+main checkout, not the build agent's own worktree). Root cause: a relative-path `Read` from a
+spawned agent only resolves against its own `--cwd`, so the handoff doc must live inside the
+agent's own worktree, not the coordinator's. Fix applied:
+- Deleted the stray untracked file at the main-checkout path (confirmed via `git status --short`
+  that it was the only file of mine there — several *other* unrelated untracked files/dirs exist
+  in that shared checkout from other sessions and were left untouched, per CLAUDE.md's
+  "coordinating with other agent sessions" rules).
+- Wrote the full handoff doc to
+  `/home/ben/Jarv1s/.claude/worktrees/918-implementation-plan/docs/coordination/handoffs/918-implementation-plan.md`
+  and committed it there on branch `plan/918-open-module-system-slice2` (commit `e3c07168`).
+- **Precedent note for future spawns:** handoff docs go inside the *target agent's own worktree*,
+  committed on its own branch — not inside the coordinator's worktree. (`#917`'s handoff doc,
+  read as precedent, was never committed to `origin/main` either — same pattern.)
+
+**Fleet state at this checkpoint** (from `herdr pane list`, fresh):
+- `w1:pD9` — me, `Coordinator`, session `46590121-e5b0-42cb-aa50-b2da3a615f1f`, tab `w1:t15` — authoritative, confirmed.
+- `w1:pCP` — Fable: sports-fed spec+plan, idle, worktree `sports-fed-spec`.
+- `w1:pCQ` — Fable: PR review 908/909/910, idle (worktree shows `(deleted)` — likely already reaped/merged upstream of this doc; verify before reuse).
+- `w1:pCK` — Codex: Job Search Spec, status `done`, tab `w1:t1F` — still not yet actioned (ping still owed from carried-forward queue).
+- `w1:pCR` — Fable 5: Job Search Spec Review, status `done`, worktree `review-913-job-search-spec`.
+- No `w1:pCZ` or `w1:pCV` pane present anymore — consistent with earlier finding this pass that the #915 slice-3 build lane and the Opus xhigh lane were already reaped/merged (#915 shipped via PR #923; issue #915 itself still OPEN — bookkeeping gap, task #4 below).
+
+**#918 build worktree/branch:** created — `/home/ben/Jarv1s/.claude/worktrees/918-implementation-plan`,
+branch `plan/918-open-module-system-slice2` off `origin/main@4bc53694` (includes #917/PR #924).
+Handoff doc committed there (`e3c07168`). **NOT YET SPAWNED** via `herdr agent start` — that is
+the very next action for whoever picks this up.
+
+**Monitors still running (background, not yet reaped):**
+- `bk3lryndv` — main CI post-merge run completion watch, still firing `in_progress` repeatedly as
+  of this checkpoint. Treat as still-yellow; re-check `gh run list --branch main --limit 1` fresh
+  before trusting it green, rather than relying solely on monitor silence.
+- `b7jvq4nk2` — fleet liveness monitor (persistent).
+
+**merges_since_relay:** 0 (no merges executed by me this pass — only doc/bookkeeping commits).
+
+**Open TaskCreate items (unchanged):**
+1. Wait for main CI run 29094628852 green — last checked: all gating jobs green, only
+   non-blocking image-publish still running. Re-verify fresh, don't trust cached state.
+2. Spawn #918 plan-authoring agent — worktree/branch/handoff doc all ready; run:
+   ```
+   herdr agent start "Plan: #918 module system slice2" --tab w1:<agents-tab> \
+     --cwd /home/ben/Jarv1s/.claude/worktrees/918-implementation-plan --no-focus \
+     -- claude --model sonnet --permission-mode bypassPermissions \
+     "STEP 1 pnpm install if needed. STEP 2 read docs/coordination/handoffs/918-implementation-plan.md IN FULL and follow it. Begin now."
+   ```
+   Resolve the shared agents tab fresh via `herdr pane list` first (tab_id of `w1:pCP`/`w1:pCQ`/`w1:pCR` — confirm they share one tab_id before reusing it).
+3. Keep #919 queued behind #918 — no action.
+4. Close out issue #915 bookkeeping gap — PR #923 merged the work; issue #915 itself is still open on GitHub. `gh issue close 915` + board move once things settle.
+5. Ping Codex `w1:pCK` (still owed — carried forward twice now, do it early next pass).
+6. Archive old manifest checkpoint sections — this file is 1500+ lines; once stable, split
+   everything before the last 2 "Lock re-claimed" sections into an archive doc.
+
+**Overnight sign-off override:** still ACTIVE (Ben not back; time-boxed to tonight 2026-07-09/10).
+Do not treat as standing policy beyond tonight.
+
+**Relaying now** — context-meter fired 70% warning. Per `relay` skill: spawning successor
+coordinator in same tab (`w1:t15`), `--model sonnet --permission-mode bypassPermissions`,
+bootstrap points here. No merges executed this checkpoint before relay (compliant with
+"merge nothing first" rule — there was nothing mergeable in flight anyway).
