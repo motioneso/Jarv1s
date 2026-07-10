@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `4d68fcc5-bc2c-44cd-ae0d-a2e305f94069`,
-pane `w1:pDF`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `fe5eea37-4946-4214-98a4-b17fb6b84e8c`,
+pane `w1:pDN`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -677,3 +677,17 @@ review 908/909/910, worktree deleted), `w1:pCK` (Codex Job Search Spec, already 
    successor if one has appeared, else just resume supervising in place.
 3. Resume Phase 2 supervise for both lanes; expect a #914 plan-ready escalation soon.
 4. No merges pending — nothing else queued beyond normal supervision.
+
+## Lock re-claimed (successor session `fe5eea37-4946-4214-98a4-b17fb6b84e8c`), Phase 0a done
+
+Phase 0a complete: resolved own pane fresh via `herdr pane list` (never trusted a written pane
+number) — session `fe5eea37-4946-4214-98a4-b17fb6b84e8c`, pane `w1:pDN`, tab `w1:t15` (was labeled
+`Coordinator (incoming)` while predecessor session `4d68fcc5-...` still held `Coordinator` at pane
+`w1:pDF`). Messaged predecessor via `herdr-pane-message` that I was up and ready to take the lock;
+predecessor replied confirming the manifest was fully flushed with nothing further to hand off and
+that it was reaping its own pane. Verified via fresh `herdr pane list`: `w1:pDF` gone. Renamed own
+pane `Coordinator (incoming)` → `Coordinator`. Verified uniqueness: exactly one `Coordinator`-
+labeled pane in the fleet (`w1:pDN`, this session). Top-of-file lock line updated to this
+session/pane above.
+
+Proceeding to successor action 2 (check #918 relay-2 status) next.
