@@ -506,6 +506,61 @@ export interface JarvisModuleManifest {
 }
 
 /**
+ * A single credential a module declares it needs. RESERVED for a future slice —
+ * Slice 1 (#917) rejects any external manifest that populates `auth`, so this type
+ * exists only to make the manifest forward-compatible and let the validator name
+ * what it refused. `id` must be prefixed `${moduleId}.` when a later slice honors it.
+ */
+export interface ModuleAuthDeclaration {
+  readonly id: string;
+  readonly kind: "api-key" | "oauth2";
+  readonly label: string;
+}
+
+/**
+ * A single key-value storage namespace a module declares. RESERVED for a future
+ * slice — Slice 1 (#917) rejects any external manifest that populates `storage`.
+ * `namespace` must be `${moduleId}` or `${moduleId}.<slug>` when later honored.
+ */
+export interface ModuleStorageDeclaration {
+  readonly namespace: string;
+  readonly kind: "kv";
+}
+
+/**
+ * The JSON-serializable subset of {@link JarvisModuleManifest} that an EXTERNAL
+ * (non-compiled) module ships as `jarvis.module.json` (#917). It deliberately omits
+ * every function-valued or executable-surface field of the compiled manifest —
+ * external modules contribute identity/compat metadata only in Slice 1. `auth` and
+ * `storage` are declaration-only and REJECTED at load in this slice (see the
+ * metadata-only invariant); they are typed here for forward compatibility.
+ */
+export interface JsonJarvisModuleManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly publisher: string;
+  readonly description?: string;
+  readonly lifecycle: ModuleLifecycle;
+  readonly compatibility: ModuleCompatibility;
+  readonly auth?: readonly ModuleAuthDeclaration[];
+  readonly storage?: readonly ModuleStorageDeclaration[];
+}
+
+/**
+ * A validated external module package: its parsed metadata-only manifest plus the
+ * two content hashes the platform trusts it by (#917). `manifestHash` is over the
+ * canonical (sorted-key) manifest JSON; `packageHash` is over the whole package
+ * (manifest + dist/worker.js + dist/web/**). Drift in `packageHash` from the value
+ * recorded at admin-enable auto-disables the module.
+ */
+export interface ExternalJarvisModulePackage {
+  readonly manifest: JsonJarvisModuleManifest;
+  readonly manifestHash: string;
+  readonly packageHash: string;
+}
+
+/**
  * Dataset connector SDK (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md).
  * A module declares external HTTP data sources it needs here; the `@jarv1s/datasets` runtime
  * host executes fetches under the declared constraints (host pinning, TTL caching, staleness
