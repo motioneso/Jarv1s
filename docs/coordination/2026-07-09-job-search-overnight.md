@@ -348,3 +348,73 @@ updated at every relay. No further reconciliation should be needed unless I rela
 
 **Note:** v3's pane shows "8% until auto-compact" as of this checkpoint — may relay again shortly;
 expect a v4 hop.
+
+## Lock re-claimed (session `cfdfc7bb-4f60-4230-a261-13ab5ca8474e`), relay at 70% context-meter
+
+**Scope expansion from Ben (live chat, not carried via manifest until now):** Ben asked directly
+in conversation — *"I want to start the work on the job search module and be able to test it then
+use it, so we need to unblock everything."* This means the run's scope now extends beyond
+tonight's original #915/#917/#918/#919 queue to the full epic #860 chain gating epic #913
+("Intelligent job search module"):
+- #914 "Module data plane: per-module migration ledger, privileged install, module-owned tables +
+  data lifecycle" — OPEN, not yet started, NOT in tonight's original queue.
+- #916 "Module host actions: assistant starter-prompt entry + Briefings-capable runtime tool
+  dispatch" — OPEN, not yet started, NOT in tonight's original queue.
+- #913 itself explicitly requires its own approved design spec before implementation (own issue
+  body + CLAUDE.md hard invariant "Spec before build... hard process gate, not a suggestion") —
+  no such spec exists yet, only the epic body.
+
+**IN PROGRESS AT RELAY TIME — spec-readiness check for #914/#916 (do this FIRST, before spawning
+anything for them):** was mid-way through checking whether any file in `docs/superpowers/specs/`
+already covers #914 or #916's scope (by content, not just filename-guessing) when this relay
+fired. Candidate files surfaced by `ls -t`/grep that have NOT yet been opened/verified against
+#914/#916's actual scope:
+- `2026-07-04-module-data-lifecycle-ports.md` — name suggests overlap w/ #914 ("data plane...
+  data lifecycle") — check this ONE FIRST.
+- `2026-07-04-module-boundary-enforcement.md`, `2026-07-04-module-web-registry.md` — possible
+  partial overlap w/ #916 ("host actions... runtime tool dispatch").
+- Also present, likely NOT relevant but listed for completeness:
+  `2026-06-12-p2-module-enablement-seam-docking-ports.md`,
+  `2026-06-13-p5-wellness-first-optional-module.md`, `2026-06-25-module-settings-connector.md`,
+  `2026-06-30-sports-module.md`, `2026-07-04-module-dataset-connector-sdk.md`,
+  `2026-07-04-module-notification-preferences.md`,
+  `2026-07-04-settings-data-sources-module-ownership.md`.
+- Note: #918's own plan agent already confirmed (and saved to agentmemory) that
+  `module-data-lifecycle-ports` and `module-web-registry` specs were **NOT directly reusable for
+  Slice 2** — but "not reusable for slice 2" is a different question than "does this already cover
+  #914/#916's scope." Re-derive the answer for #914/#916 specifically; do not assume the #918
+  finding transfers.
+- **Hard gate (CLAUDE.md + coordinate skill Phase 0):** do NOT spawn any build/plan agent for
+  #914, #916, or #913 until this is resolved. If specs are missing/fuzzy, the next step is helping
+  Ben author them (`superpowers:brainstorming` / `/brief`) — not writing code first.
+
+**#918 status (Slice 2, security-tier):** still v3 (session `a2d9e833-4fe5-...`, pane `w1:pDD`,
+tab `w1:t1E` confirmed correct), label "918-implementation-plan", worktree/branch
+`plan/918-open-module-system-slice2`, status `working`, mid-way through "Write Slice 2
+implementation plan" (prior 2 subtasks done: protected-table registry scope, final file-wiring
+scan). v3 was verified Sonnet 5 at spawn time (see checkpoint above) but its status bar now reads
+**"Fable 5"** — a mid-session model identity change not yet explained (possibly a fast-mode/model
+toggle the agent invoked itself, not necessarily a policy violation since this is a plan-authoring
+task, not mechanical build work). Not urgent to interrupt a `working` agent 61% into its task over
+this — just confirm intent at next natural check-in rather than reflexively killing/respawning.
+Still no self-approval; security-tier sign-off (Ben) required before any implementation starts.
+**#919:** still queued, untouched, waiting on #918 to land (serialized chain, same module system).
+
+**Housekeeping still open from prior checkpoint:** #915 closed ✅. Codex `w1:pCK` ping already
+sent+acked (not owed). Manifest archive done (`-archive.md`, 1378 lines) ✅.
+
+**Overnight sign-off override:** was stated ACTIVE ("Ben not back, time-boxed to tonight
+2026-07-09/10") but Ben has been actively chatting live in this session since — **reconcile this
+explicitly with Ben rather than continuing to assume the override applies**, especially now that
+scope is expanding. Do not use the override to justify spawning #914/#916/#913 work without normal
+Phase 0 spec-approval sign-off; the override was about merge-authority timing, not about skipping
+the spec gate.
+
+**Successor's first 3 actions, in order:**
+1. Phase 0a lock re-claim (per skill: close this pane after confirming your own session id, rename
+   to `Coordinator`, verify uniqueness).
+2. Resolve the #914/#916 spec-readiness question (read the 3 flagged candidate spec files' actual
+   content, not just filenames) — this is the actual blocker on "unblock everything."
+3. Report back to Ben with a concrete proposal: either spawn #914/#916 plan agents now (if specs
+   already suffice) or start a brief spec-authoring pass with Ben for whichever of #914/#916/#913
+   are missing coverage — and reconcile the overnight-override question with him at the same time.
