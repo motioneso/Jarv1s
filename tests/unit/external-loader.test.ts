@@ -81,4 +81,43 @@ describe("getExternalModuleRegistrations (#917)", () => {
     expect(result.discoveries).toEqual([]);
     expect(result.rejected[0]!.reason.toLowerCase()).toContain("symlink");
   });
+
+  // #917 C1 regression: a dangling symlink makes realpathSync throw ENOENT. Fail-closed
+  // means that throw must reject ONLY that entry, never escape and blank the whole set.
+  it("rejects (does not throw) a dangling symlink so it can't blank discovery", () => {
+    symlinkSync(join(root, "does-not-exist"), join(modulesDir, "acme-widgets"), "dir");
+
+    let result: ReturnType<typeof getExternalModuleRegistrations>;
+    expect(() => {
+      result = getExternalModuleRegistrations({ modulesDir, coreVersion: "0.1.0" });
+    }).not.toThrow();
+
+    expect(result!.discoveries).toEqual([]);
+    expect(result!.rejected).toHaveLength(1);
+    expect(result!.rejected[0]!.id).toBe("acme-widgets");
+    expect(typeof result!.rejected[0]!.reason).toBe("string");
+    expect(result!.rejected[0]!.reason.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a directory whose name is not a valid module id slug", () => {
+    const dir = join(modulesDir, "Acme_Widgets");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "jarvis.module.json"), validManifest("Acme_Widgets"));
+
+    const result = getExternalModuleRegistrations({ modulesDir, coreVersion: "0.1.0" });
+    expect(result.discoveries).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0]!.id).toBe("Acme_Widgets");
+    expect(result.rejected[0]!.reason).toContain("slug");
+  });
+
+  it("rejects a module directory that is missing its manifest", () => {
+    mkdirSync(join(modulesDir, "acme-widgets"), { recursive: true });
+
+    const result = getExternalModuleRegistrations({ modulesDir, coreVersion: "0.1.0" });
+    expect(result.discoveries).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0]!.id).toBe("acme-widgets");
+    expect(result.rejected[0]!.reason).toContain("jarvis.module.json");
+  });
 });

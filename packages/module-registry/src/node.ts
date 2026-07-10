@@ -45,41 +45,53 @@ export function getExternalModuleRegistrations(options: {
       continue;
     }
 
-    const dir = join(modulesDir, id);
-    // Symlink-escape guard: the real path must stay inside the real modules root.
-    const dirReal = realpathSync(dir);
-    if (dirReal !== rootReal && !dirReal.startsWith(rootReal + sep)) {
-      rejected.push({ id, reason: `symlink target escapes the modules root: ${id}` });
-      continue;
-    }
-
-    const manifestPath = join(dir, "jarvis.module.json");
-    if (!existsSync(manifestPath)) {
-      rejected.push({ id, reason: `missing jarvis.module.json in ${id}` });
-      continue;
-    }
-
-    let raw: unknown;
+    // #917 C1: the whole per-directory body is wrapped so ANY throw rejects only THIS
+    // module — this is what makes discovery fail-closed. realpathSync throws ENOENT on a
+    // dangling symlink (and EACCES on an unreadable one), and hashExternalPackage's
+    // readFileSync can throw on a TOCTOU race (a file vanishing mid-scan); without this
+    // backstop any one of those would escape the loop and blank the entire discovery set.
     try {
-      raw = JSON.parse(readFileSync(manifestPath, "utf8"));
+      const dir = join(modulesDir, id);
+      // Symlink-escape guard: the real path must stay inside the real modules root.
+      const dirReal = realpathSync(dir);
+      if (dirReal !== rootReal && !dirReal.startsWith(rootReal + sep)) {
+        rejected.push({ id, reason: `symlink target escapes the modules root: ${id}` });
+        continue;
+      }
+
+      const manifestPath = join(dir, "jarvis.module.json");
+      if (!existsSync(manifestPath)) {
+        rejected.push({ id, reason: `missing jarvis.module.json in ${id}` });
+        continue;
+      }
+
+      let raw: unknown;
+      try {
+        // Inner catch yields the nicer "invalid JSON" reason; the outer catch is the
+        // backstop for realpath/hash/TOCTOU throws. Both coexist intentionally.
+        raw = JSON.parse(readFileSync(manifestPath, "utf8"));
+      } catch (error) {
+        rejected.push({ id, reason: `invalid JSON in ${id}/jarvis.module.json: ${String(error)}` });
+        continue;
+      }
+
+      const validation = validateExternalModuleManifest(raw, id, coreVersion);
+      if (!validation.ok) {
+        rejected.push({ id, reason: validation.errors.join("; ") });
+        continue;
+      }
+
+      discoveries.push({
+        id,
+        dir,
+        manifest: validation.manifest,
+        manifestHash: hashCanonicalManifest(validation.manifest),
+        packageHash: hashExternalPackage(dir)
+      });
     } catch (error) {
-      rejected.push({ id, reason: `invalid JSON in ${id}/jarvis.module.json: ${String(error)}` });
+      rejected.push({ id, reason: `failed to load module "${id}": ${String(error)}` });
       continue;
     }
-
-    const validation = validateExternalModuleManifest(raw, id, coreVersion);
-    if (!validation.ok) {
-      rejected.push({ id, reason: validation.errors.join("; ") });
-      continue;
-    }
-
-    discoveries.push({
-      id,
-      dir,
-      manifest: validation.manifest,
-      manifestHash: hashCanonicalManifest(validation.manifest),
-      packageHash: hashExternalPackage(dir)
-    });
   }
 
   // Deterministic order so downstream lists/hashes are stable.
