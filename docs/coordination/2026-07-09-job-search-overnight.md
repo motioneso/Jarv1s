@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `b73c258c-9080-48b8-9161-91727dd1d80d`,
-pane `w1:pD0`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `f2b22c9d-e2b5-46cd-96df-5637170198a5`,
+pane `w1:pE1`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1520,3 +1520,34 @@ sign-off as of the last independently-confirmed check).
 
 **Relaying now** — spawning successor in same tab (`w1:t15`), `--model sonnet
 --permission-mode bypassPermissions`, bootstrap points to this section.
+
+## Lock re-claimed (successor session `f2b22c9d-e2b5-46cd-96df-5637170198a5`), IMMEDIATE re-relay at 70% — Phase 0a only
+
+**Note:** the "647affcf IMMEDIATE re-relay" section above this one is stale/out-of-order (predates
+the PR #925-merged section earlier in the file, git HEAD `52fcbedc`) — ignore its queue, PR #925
+IS merged, #918 IS closed. Needs reordering/archiving when someone has spare cycles.
+
+**Phase 0a done:** session `f2b22c9d-...`, pane `w1:pE1`, tab `w1:t15`, renamed `Coordinator`.
+Predecessor `b73c258c-...` (`w1:pD0`) confirmed idle via bounded read, closed. Uniqueness
+verified: one `Coordinator` pane. Lock line updated top-of-file.
+
+**70% fired immediately after Phase 0a, before any queued action ran.** No deferral — relaying now.
+
+**Fresh fleet snapshot:** `w1:pDQ` = #914 build (relay-5), session `8baf4c17-...`, tab `w1:t1E`,
+idle, worktree `.claude/worktrees/914-module-data-plane`. No #918 pane (expected, merged+reaped).
+`w1:pCK`/`w1:pCR`/`w1:pCP`/`w1:pBK` idle, not this run's concern.
+
+**Queue carried forward, unexecuted — successor's first actions:**
+1. Spawn #919 build lane on Codex `gpt-5.6-sol` high reasoning (Ben's directive) — re-verify
+   readiness fresh (spec on `origin/main`, no existing PR/plan) before spawning, don't trust this
+   pointer alone. Fresh worktree + handoff doc committed inside it, agents tab `w1:t1E`.
+2. Resume Phase 2 supervision of #914 at `w1:pDQ` (session `8baf4c17-...`) — bounded pane read
+   first, don't act blind.
+3. Re-arm fleet-liveness Monitor (persistent, diffs `herdr pane list` for `w1`, changed lines only)
+   — prior ones don't survive a relay.
+4. #916 stays held — `needs-spec`, Slice-3 spec pass with Ben pending.
+
+`merges_since_relay: 0` (reset — prior security-merge trigger already handled by relaying here).
+
+**Relaying now** — successor in same tab (`w1:t15`), `--model sonnet --permission-mode
+bypassPermissions`, bootstrap points to this section only (not the full manifest).
