@@ -115,6 +115,208 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     espnLeague: "usa.1",
     confederation: "CONCACAF"
   },
+  // Remaining UEFA top flights, plus Americas (#907 slice 3). All live-probed via
+  // scripts/probe-espn-leagues.mjs (see task-9 report for the full run) before landing here.
+  {
+    competitionKey: "esp.1",
+    label: "LaLiga",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "esp.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "ger.1",
+    label: "Bundesliga",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "ger.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "ita.1",
+    label: "Serie A",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "ita.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "fra.1",
+    label: "Ligue 1",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "fra.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "ned.1",
+    label: "Eredivisie",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "ned.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "por.1",
+    label: "Primeira Liga",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "por.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "sco.1",
+    label: "Scottish Premiership",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "sco.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "tur.1",
+    label: "Süper Lig",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "tur.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "bel.1",
+    label: "Belgian Pro League",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "bel.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "gre.1",
+    label: "Super League Greece",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "gre.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "sui.1",
+    label: "Swiss Super League",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "sui.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "aut.1",
+    label: "Austrian Bundesliga",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "aut.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "den.1",
+    label: "Danish Superliga",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "den.1",
+    confederation: "UEFA"
+  },
+  {
+    competitionKey: "mex.1",
+    label: "Liga MX",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "mex.1",
+    confederation: "CONCACAF"
+  },
+  {
+    competitionKey: "crc.1",
+    label: "Primera División de Costa Rica",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "crc.1",
+    confederation: "CONCACAF"
+  },
+  {
+    competitionKey: "bra.1",
+    label: "Brasileirão",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "bra.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "arg.1",
+    label: "Liga Profesional de Fútbol",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "arg.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "col.1",
+    label: "Primera A",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "col.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "chi.1",
+    label: "Primera División de Chile",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "chi.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "uru.1",
+    label: "Liga AUF Uruguaya",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "uru.1",
+    confederation: "CONMEBOL"
+  },
   {
     competitionKey: "uefa.champions",
     label: "Champions League",
