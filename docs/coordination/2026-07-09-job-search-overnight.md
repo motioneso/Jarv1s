@@ -1,8 +1,9 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `ff21f505-87fe-4818-97ea-53f16a7a741e`,
-pane `w1:pCT`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
-fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff.)
+**Coordinator lock:** label `Coordinator`, session `9ed36f3b-0118-48d0-abda-10de067d861a`,
+pane `w1:pCX`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
+at each self-relay — see "Lock re-claimed" notes below for history.)
 
 **Lock re-claimed 2026-07-09 (this checkpoint, self-relay from `395b82b5-...`):** predecessor
 pane `w1:pCS` closed after successor pane `w1:pCT` confirmed sole `Coordinator`-labelled pane via
@@ -364,6 +365,14 @@ module isolation, scope discipline). Awaiting compact verdict before treating th
 writing, 2 stalls so far, watching for a 3rd before considering respawn; (2) #915 slice-3 plan —
 committed + PR open, CI in progress, independent review dispatched, verdict pending. Neither is
 build-ready yet.
+
+## Lock re-claimed (successor session `9ed36f3b-...`)
+
+Predecessor pane `w1:pCW` (session `55a96d6e-b72d-41ea-898b-43fdeecfa3da`, matched manifest lock
+line exactly) confirmed via fresh `herdr pane list` — status `done`, closed after verifying 2
+Coordinator-labelled panes momentarily then 1. New coordinator: pane `w1:pCX`, session
+`9ed36f3b-0118-48d0-abda-10de067d861a`, tab `w1:t15`. Proceeding with relay checkpoint 4's queue
+below.
 
 ## Relay checkpoint 4 (self-relay from `55a96d6e-...`, context 70% warning fired)
 
