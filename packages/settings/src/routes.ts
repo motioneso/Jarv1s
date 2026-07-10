@@ -36,7 +36,7 @@ import {
   type MultiplexerSource,
   type UpsertInstanceSettingRequest
 } from "@jarv1s/shared";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { HttpError } from "@jarv1s/module-sdk";
 
 import type { PgBoss } from "@jarv1s/jobs";
@@ -100,6 +100,38 @@ export type GetChatMultiplexerStatus = (configured: ChatMultiplexerChoice) => Pr
   readonly envOverride: MultiplexerKind | null;
 }>;
 
+// #917 — LOCAL mirrors of @jarv1s/module-registry's external-module types. Settings does
+// NOT (and must not) depend on @jarv1s/module-registry — that package already depends on
+// @jarv1s/settings, so importing back would create a dependency cycle and violate module
+// isolation. These are structurally identical to the registry's ExternalModuleDiscovery /
+// ExternalModuleRejection; the composition root (apps/api) passes the REAL registry values
+// in and TypeScript's structural typing accepts them. Keep in sync with
+// packages/module-registry/src/external/types.ts if that shape ever changes.
+export interface ExternalModuleDiscovery {
+  readonly id: string;
+  readonly dir: string;
+  readonly manifest: JsonJarvisModuleManifest;
+  readonly manifestHash: string;
+  readonly packageHash: string;
+}
+
+export interface ExternalModuleRejection {
+  readonly id: string;
+  readonly reason: string;
+}
+
+/**
+ * Boot-time external-module discovery snapshot (#917), injected by the composition root.
+ * The admin GET route (Task 9) reconciles `discoveries` against app.external_modules;
+ * `rejected` is surfaced read-only so admins can see why a mounted dir did not load.
+ * Absent / `enabled: false` ⇒ the external-module admin surface reports the feature off.
+ */
+export interface ExternalModulesDependencies {
+  readonly enabled: boolean;
+  readonly discoveries: readonly ExternalModuleDiscovery[];
+  readonly rejected: readonly ExternalModuleRejection[];
+}
+
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
   readonly rootDb: Kysely<JarvisDatabase>;
@@ -118,6 +150,8 @@ export interface SettingsRoutesDependencies {
   readonly preferencesRepository?: ProfilePreferencesPort;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   readonly repository?: SettingsRepository;
+  /** #917 external-module discovery snapshot; routes added in Task 9 consume it. */
+  readonly externalModules?: ExternalModulesDependencies;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;

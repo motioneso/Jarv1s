@@ -42,7 +42,15 @@ import {
   type HostDiagnosticsInfo,
   type ModuleDto
 } from "@jarv1s/shared";
-import { createModuleLogger } from "@jarv1s/module-sdk";
+import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
+// Server-only subpath (#917). Safe here — the api is never browser-bundled — and keeps
+// createApiServer synchronous (no dynamic import()).
+import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
+import type {
+  ExternalModuleDiscovery,
+  ExternalModuleLoadResult,
+  ExternalModuleRejection
+} from "@jarv1s/module-registry";
 
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
@@ -90,6 +98,13 @@ export interface ApiServerConfig {
   readonly host: string;
   readonly port: number;
   readonly mcpServerUrl: string;
+  // #917: external (non-compiled) trusted-operator modules. Off unless the flag is
+  // exactly "1" AND a read-only mount dir is provided. Fail-closed: any other flag
+  // value disables the whole feature. Discovery runs ONCE at boot (the mount is
+  // read-only and changes only across a redeploy, which restarts the process), so a
+  // package swap requires a container restart to be re-hashed and re-seen.
+  readonly enableExternalModules: boolean;
+  readonly externalModulesDir: string | null;
 }
 
 export function hasAuthMaterial(request: FastifyRequest): boolean {
@@ -104,6 +119,10 @@ export function hasAuthMaterial(request: FastifyRequest): boolean {
 export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): ApiServerConfig {
   const port = Number(env.PORT ?? 3000);
   const host = env.HOST ?? "0.0.0.0";
+  // #917: the flag must equal exactly "1" — no truthy coercion, so "true"/"0"/"yes"
+  // all read as OFF. The modules dir is a read-only mount; null when unset.
+  const enableExternalModules = env.JARVIS_ENABLE_EXTERNAL_MODULES === "1";
+  const externalModulesDir = env.JARVIS_MODULES_DIR ?? null;
   return {
     host,
     port,
@@ -113,8 +132,41 @@ export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): Ap
     // compose-provided service DNS (JARVIS_MCP_SERVER_URL, e.g. http://api:3000/api/mcp) when
     // set; fall back to the loopback URL for dev/non-container runs. URL source only — this
     // does not change the MCP gateway auth/allowlist/token-mint path.
-    mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`
+    mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`,
+    enableExternalModules,
+    externalModulesDir
   };
+}
+
+/**
+ * Discover external modules ONCE at boot (#917). Fail-closed: an empty snapshot when the
+ * feature flag is off or no dir is configured, without reading disk. When on, walks the
+ * read-only mount and returns validated discoveries + rejections. Rescan requires a
+ * process restart (the mount is read-only and changes only across a redeploy). Logs
+ * counts + rejection ids/reasons only — never file contents (secrets-never-escape).
+ */
+export function discoverExternalModules(
+  config: ApiServerConfig,
+  log: { info: (o: object, m: string) => void; warn: (o: object, m: string) => void }
+): ExternalModuleLoadResult {
+  if (!config.enableExternalModules || !config.externalModulesDir) {
+    return { discoveries: [], rejected: [] };
+  }
+  const snapshot = getExternalModuleRegistrations({
+    modulesDir: config.externalModulesDir,
+    coreVersion: CORE_VERSION
+  });
+  log.info(
+    { discovered: snapshot.discoveries.length, rejected: snapshot.rejected.length },
+    "external modules discovered (#917)"
+  );
+  for (const rejection of snapshot.rejected) {
+    log.warn(
+      { moduleId: rejection.id, reason: rejection.reason },
+      "external module rejected (#917)"
+    );
+  }
+  return snapshot;
 }
 
 export function createApiServer(options: CreateApiServerOptions = {}) {
@@ -347,6 +399,13 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           .catch(() => false)
     };
 
+    // #917: boot-time external-module discovery snapshot, threaded into the settings
+    // module (admin GET reconciles it against app.external_modules) and the /api/modules
+    // surface (Task 9). Empty unless the flag is on and a dir is mounted. Kept in
+    // createApiServer scope because Task 9 also references it when building the
+    // /api/modules external-module provider passed to registerPlatformRoutes.
+    const externalModuleSnapshot = discoverExternalModules(apiServerConfig, server.log);
+
     registerBuiltInApiRoutes(server, {
       rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
@@ -394,6 +453,14 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleApiClient,
       connectorsRepository,
       hostDiagnostics,
+      // #917: forward the boot-time discovery snapshot to the settings module. The real
+      // registry ExternalModuleDiscovery[]/ExternalModuleRejection[] are structurally
+      // identical to settings' local mirror types, so this assignment typechecks.
+      externalModules: {
+        enabled: apiServerConfig.enableExternalModules,
+        discoveries: externalModuleSnapshot.discoveries,
+        rejected: externalModuleSnapshot.rejected
+      },
       fetchFn: options.fetchFn
     });
 
