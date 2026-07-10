@@ -618,3 +618,65 @@ context-meter warning right after approving the #915 Task 5 re-scope. Manifest f
 About to self-relay: spawn successor in the SAME tab as this pane (`w1:t15`), NOT the agents tab,
 via `relay` skill pattern. No merge occurred this checkpoint — nothing to reconcile beyond adopting
 the live fleet.
+
+## Checkpoint 5b (still session `ffba9610-...`, finishing in-flight items before handoff)
+
+**#915 slice-3 Task 5 — three plan defects surfaced and approved this checkpoint (all grounded
+against source before approval, none rubber-stamped):**
+1. `AiRoutesDependencies` couldn't reach installed-module ids (server.ts wasn't the construction
+   site) — fixed via `module-registry/src/index.ts`'s existing `deps.listModuleManifests`, no
+   server.ts edit. Approved.
+2. Route-coverage gate rejected the new `DELETE /api/ai/services/:service/binding` — handler
+   (`capability-route-routes.ts:157`) and shared schema (`ai-service-binding-api.ts:85/113`)
+   already existed, only `packages/ai/src/manifest.ts`'s `routes[]` declaration was missing.
+   Approved.
+3. **Runtime-proven** fast-json-stringify 500 on GET module binding: `aiServiceBindingSchema` (a
+   single object) reused at both `properties.chat` (`ai-service-binding-api.ts:49`) and
+   `patternProperties["^module\\."]` (`:53`) inside `aiServiceBindingMapSchema` — fjs's
+   identity-based internal `$ref` breaks when the same object appears twice inside one schema
+   tree. Confirmed by direct read of the file. Fix: a `createAiServiceBindingSchema()` factory
+   returning a fresh object per call site instead of a shared const, used for chat vs. the
+   patternProperties entry. Approved via `herdr pane run w1:pCZ`.
+   **Pattern note for successor:** 3 defects on one task, all mechanical/wiring-shaped (not design
+   forks), all confirmed real by reading source before approving — no need to treat this as
+   lane-health concern yet, but if a 4th surfaces on this same task, consider pausing to ask the
+   build agent for a fuller self-audit of Task 5 before continuing piecemeal fixes.
+
+**#917 root plan — complete, independent review IN FLIGHT (not yet approved for execution):**
+Opus (`w1:pCV`) finished its 10-task implementation plan for the open-module-system Slice 1,
+committed at `9612a4c7` (`docs/superpowers/plans/2026-07-09-open-module-system-slice1.md`, branch
+`plan/917-open-module-system-slice1`, worktree
+`/home/ben/Jarv1s/.claude/worktrees/917-implementation-plan`). Self-review already fixed one bug
+(query-keys nesting) — **self-review by the plan's own author does not count as this run's
+required independent approval.** Instructed Opus to hold on its execution-approach choice
+(offered: 1. subagent-driven per-task [recommended by Opus itself], 2. inline-batched) until
+review lands. **Dispatched fresh `general-purpose` subagent** (id `a66bce70f606575c7`) to
+independently review the plan against its spec + hard invariants + downstream-chain implications
+(root of `#917→#914→#918→#919→#916/#915`). **Result not yet back at handoff time** — successor
+must collect it (either already in context as a completed background result, or via the
+notification that will arrive).
+
+**Fleet state at last read (Monitor tick, before this checkpoint's approvals):**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, now on its 3rd Task 5 fix-in-progress.
+- `w1:pCV` "Opus: #917 Plan" — `done` (plan complete, paused for coordinator on execution-approach;
+  told to hold for independent review).
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, **still not re-pinged** despite Ben's "keep it
+  informed" ask — overdue two checkpoints running now.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — `done`/idle, reap-safe, kept alive for future
+  #915 slice-1/2/4 planning.
+- Monitor task `b1abhzua1` — **dies with this session**; successor restarts scoped to
+  `pCR`/`pCK`/`pCV`/`pCZ`.
+- `merges_since_relay` = 0. Overnight sign-off override still ACTIVE, unexercised.
+
+**Successor's immediate queue (supersedes the shorter list earlier in checkpoint 5):**
+1. Collect the #917 plan review verdict (agent `a66bce70f606575c7`). APPROVED/WITH-NOTES → relay
+   to `w1:pCV`, let it start execution (subagent-driven per-task is the coordinator's own
+   recommendation — 10 tasks, Opus's own context was already 55%/47% used, and per-task subagents
+   with checkpoints match this run's established build pattern better than one long inline
+   session). REJECTED / real spec conflict → treat as design-fork, Opus-subagent adjudication
+   before Ben.
+2. Re-check `w1:pCZ` — confirm the 3rd Task 5 fix (schema-factory) resolves the runtime 500;
+   watch for PR-ready → spawn tier-`sensitive` QA per Phase 3.
+3. Restart persistent Monitor (scope above).
+4. **Ping Codex (`w1:pCK`)** — overdue, do this early in the new session.
+5. No merges pending; nothing to reconcile in `ci_waivers`.
