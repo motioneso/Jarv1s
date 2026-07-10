@@ -1947,3 +1947,30 @@ via open-module-system slices #917 merged / #918 merged / #919 building).
 - **Not a build lane** — spec output still needs Ben's approval before anything spawns to implement it.
 
 `merges_since_relay: 0` (unchanged).
+
+## STANDING POLICY (Ben, this turn) — supersedes default Ben-gates for this run
+
+**1. Stall-detection is a first-class coordinator duty.** Do not merely log Monitor status flips.
+When an agent goes idle (or an escalation lands), CLASSIFY it with a bounded pane read unless it's a
+KNOWN-benign state (e.g. #914 idle-at-prompt mid-task, standing do-not-nudge):
+- **finished** → PR ready, proceed to Phase 3 QA.
+- **paused-for-input / waiting on approval** → answer / approve / route it — unstick immediately.
+- **stalled** (API 529/overload, wedged input box) → nudge per `agent-stall-nudge` (send a message
+  after a short pause, verify it submitted, send Enter if stuck in box). Re-spawn ONLY if the process
+  actually died — re-spawn loses partial work.
+
+**2. Ben's approval authority is delegated to FABLE for this run.** Anything that would normally
+PAUSE for Ben's sign-off/approval now routes to a Fable agent instead — the coordinator proceeds on
+Fable's decision and keeps Ben in the standing digest to override later. Applies to:
+- **security-tier merge sign-off** (was "Ben's explicit merge sign-off") → keep the Opus adversarial
+  QA + posted `gh pr comment` verdict evidence, then ask FABLE for the sign-off, merge on Fable's OK.
+- **unresolved design forks** that the spec didn't settle → adjudicate (Opus one-shot for the
+  analysis if reasoning-heavy) then ask FABLE for the call, not Ben.
+- **manifest / scope / board-fix approvals** that used to gate on Ben.
+- **How to ask Fable:** `Agent(model: "fable", prompt: "<pointer-style: PR#, paths, verdict
+  pointer, the decision needed>")` → await compact decision → proceed + log + add to Ben's digest.
+  (Reasoning-heavy ANALYSIS may still use Opus per model policy; the APPROVAL/sign-off is Fable's.)
+- Genuinely product-direction / build-or-not calls that only Ben should own: still surface to Ben,
+  but Fable adjudicates anything blocking the fleet in the meantime.
+
+`merges_since_relay: 0` (unchanged).
