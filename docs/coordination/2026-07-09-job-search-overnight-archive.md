@@ -1,0 +1,1378 @@
+# Job Search Overnight Run — 2026-07-09 — Checkpoint Archive
+
+Archived checkpoint/relay history from `docs/coordination/2026-07-09-job-search-overnight.md`,
+split out at the ~1650-line mark to keep the live manifest lean. Covers coordinator sessions
+from `395b82b5-...` through the `46590121-...` predecessor. The live manifest retains the
+run header/policy/collision-map and the last 2 "Lock re-claimed" sections for continuity.
+
+## Relay checkpoint (coordinator session `395b82b5-...`, context 70% warning fired)
+
+**Ben's directive (this checkpoint, verbatim intent):** move plan-authoring to Opus xhigh,
+running ALONGSIDE Fable 5 (not replacing it) — confirmed via AskUserQuestion: "Spawn a fresh Opus
+xhigh agent alongside Fable 5."
+
+**Done this checkpoint:**
+- Isolated worktree created: `.claude/worktrees/917-implementation-plan`, branch
+  `plan/917-open-module-system-slice1` off `origin/main` @ `204aca0f`.
+- Handoff doc committed: `docs/coordination/handoffs/917-implementation-plan.md` (plan-authoring
+  task for #917, tier `security`, invokes `superpowers:writing-plans`, reports back to
+  Coordinator before any build spawns).
+- Fable 5 (`w1:pCR`) hit a mid-stream API stall answering my status questions (#915/#913 state) —
+  nudged once (memory: `agent-stall-nudge-recovery` — nudge before respawn), it went back to
+  `working` then just flipped to **`idle`** (this checkpoint's Monitor event) — **its reply has
+  NOT been read yet**, do that first.
+- Codex (`w1:pCK`) fully briefed on collision map, idle, aligned (agreed to hold dispatch).
+- Monitor task `bax84pxa9` (persistent, this session, watches `w1:pCR`+`w1:pCK` only) — dies with
+  this session, successor should start its own.
+
+**NOT done yet (successor's immediate queue, in order):**
+1. **Spawn the Opus xhigh agent** — NOT yet spawned (relay fired right as the handoff doc landed).
+   ```
+   herdr agent start "Opus: #917 Plan" --tab w1:t1F --cwd /home/ben/Jarv1s/.claude/worktrees/917-implementation-plan --no-focus \
+     -- claude --model opus --effort xhigh --permission-mode bypassPermissions \
+     "STEP 1 pnpm install if needed. STEP 2 read docs/coordination/handoffs/917-implementation-plan.md IN FULL and follow it. Begin now."
+   ```
+   Put it in the same tab as Codex/Fable 5 (`w1:t1F`) per tab discipline. Verify pane says
+   "Opus" after spawn (confirm reasoning-effort xhigh is active per the pane's status line, as
+   seen on the Codex pane's `gpt-5.6-sol high` line — Claude panes may not show effort in the
+   status line; if unclear, ask the agent to state its model+effort back to you).
+2. **Read Fable 5's reply** (`herdr pane read w1:pCR --source recent --lines 20`) — it should
+   finally answer: #915 spec-approval state, #913 PR-readiness, and whether it can pivot to help
+   on #917 (now moot since Opus xhigh is taking #917 planning — tell Fable 5 to stay on #915,
+   do NOT have both agents plan #917 redundantly).
+3. Restart a persistent Monitor scoped to `w1:pCR`, `w1:pCK`, and the new Opus pane.
+4. **Still do not spawn any build lane** — #917 plan is only just starting to be authored, not
+   approved. #913 epic spec still unmerged. #915/#916 still no merged spec.
+
+## Relay checkpoint 2 (coordinator session `ff21f505-...`, context 70% warning fired mid-merge)
+
+**PR #921 MERGED** — commit `264fbfcbb15d441b42f628ad313230ee9e8a25cb`, `2026-07-10T06:56:46Z`,
+squash + branch deleted. #913 epic spec is now on `main`. Epic #913 issue stays OPEN (blocked on
+children #917→#914→#918→#919 per spec). `merges_since_relay = 1` (routine tier; trigger is every
+2 routine/sensitive — not yet fired). **Ben digest entry:** "#913 epic spec merged (PR #921,
+routine/docs-only, content was already Ben-approved pre-merge) — no action needed, FYI only."
+
+**Overnight sign-off override is ACTIVE** (see section above) — Ben explicitly extended
+Fable+Codex panel sign-off to cover security-tier merges too, tonight only, until he's back.
+
+**Not yet resolved when this relay fired:**
+- **Fable 5 (`w1:pCR`) self-relay status UNKNOWN** — nudged to checkpoint+self-relay (context
+  72% + 3 API stalls) last checkpoint; successor pane not yet confirmed driving, old pane not yet
+  reaped. Check `w1:t1F` for a new Fable pane; if none appeared, `w1:pCR` may still be the live
+  one (or fully stalled) — read it fresh, nudge again if genuinely stuck (don't respawn unless
+  actually dead, per `agent-stall-nudge-recovery` memory), or respawn only as last resort.
+- **Opus xhigh (`w1:pCV`) #917 plan** — last observed status `working`, no completion signal yet.
+  No plan-ready escalation received. Check pane fresh.
+- **Codex (`w1:pCK`)** — idle, last task (#913 PR) complete. Available for next ping.
+- **Monitor `b4gg5bu76`** (scoped to tab `w1:t1F`) dies with this session — successor must restart
+  its own persistent Monitor over that tab.
+- **Still holding — no build lane spawns** until #917's plan is authored AND reviewed/approved.
+  #915 slice-3 could become a second ready lane once its spec PR lands + plan is approved
+  (untouched this checkpoint). #916 still has no spec.
+
+## Next actions for successor coordinator
+1. Message `w1:pCR` (Fable 5) directly with this table — ask for its current verdict on #915's
+   spec-approval state and whether #913's epic spec is ready to open as a PR against main.
+2. Send a short status ping to `w1:pCK` (Codex) — keep it informed per Ben's instruction, ask
+   status on #917 (first in the relayed order, currently spec-less).
+3. Do the Phase-0 collision map (one-shot Opus subagent) cross-referencing #860's pluggable-module
+   blockers against #914/#917/#918/#919.
+4. For any readiness/tiering/design-fork judgment call that would otherwise page Ben: use the
+   two-model panel (Codex gpt-5.6-sol extra-high + Fable 5/Claude high) per his mid-turn addendum
+   above, reserving direct escalation to Ben for calls that genuinely need his sign-off (security
+   tier merges, non-mechanical scope decisions).
+5. **Still do not spawn any build lane** until spec-merged-to-main AND an approved plan exist for
+   that specific issue. #914 is closest (spec merged) but has no plan yet — check with Fable 5
+   whether one is in progress.
+6. Once ready lanes exist: spawn via Codex `gpt-5.6-sol` high reasoning, isolated worktrees, then
+   independent security-tier QA (likely tier for all of these — privileged install, module data
+   plane, external-worker RPC/fetch all hit the security-tier triggers) + Ben sign-off.
+
+## Relay note
+This manifest was written at a 72%-context checkpoint immediately after completing the
+revalidation above. No build lane has been spawned; no panes have been messaged yet. Coordinator
+is about to self-relay (spawn successor in tab `w1:t15`, same pane) per the coordinate skill's
+context-meter trigger.
+
+## Checkpoint update (successor session `ff21f505-...`, immediate queue executed)
+- Lock re-claimed: pane `w1:pCT` relabeled `Coordinator`, predecessor `w1:pCS` closed after
+  confirming sole-Coordinator uniqueness via `herdr pane list`.
+- **Opus xhigh spawned for #917 plan-authoring:** pane `w1:pCV`, tab `w1:t1F`, worktree
+  `.claude/worktrees/917-implementation-plan`, confirmed running "Opus 4.8" (xhigh passed via
+  argv, not visible in status line but confirmed via launch command). Working through
+  `docs/coordination/handoffs/917-implementation-plan.md`.
+- **Fable 5 (`w1:pCR`) reliability note (Ben, this checkpoint): Fable has been hitting repeated
+  mid-stream API errors** — its reply to the #915/#913 status questions stalled twice before this
+  checkpoint. Treat its output as possibly unreliable/delayed; nudge rather than hammer
+  (`agent-stall-nudge-recovery` memory), don't respawn unless it actually dies. Redirected it to
+  stay on #915 only (Opus xhigh now solely owns #917 planning — no redundant #917 work), asked it
+  to answer #915 spec-approval state + #913 epic-PR readiness whenever stable, no rush.
+- Monitor restarted: task `b90uanpka` (persistent, changes-only), scoped to `w1:pCR` + `w1:pCK` +
+  `w1:pCV`. Predecessor's monitor `bax84pxa9` died with that session as expected.
+- **Still holding — no build lane spawns** until #917's plan is authored by Opus xhigh AND
+  approved (by coordinator per spec-lock-adherence, or escalated per Ben's two-model-panel
+  addendum / to Ben directly for a genuine fork). #913 epic spec still unmerged; #915/#916 still
+  lack merged specs.
+
+## Relay checkpoint 3 (self-relay from `ff21f505-...`, context 70% warning fired mid-merge)
+
+**Lock re-claimed:** predecessor pane `w1:pCT` (session `ff21f505-...`) confirmed via its own pane
+text ("Successor w1:pCW is live on Sonnet 5 ... including reaping this pane once it confirms it's
+driving") that it had already spawned this successor and was waiting to be reaped. New coordinator
+is pane `w1:pCW`, session `55a96d6e-b72d-41ea-898b-43fdeecfa3da`, tab `w1:t15`, confirmed running
+Sonnet 5. Verified sole `Coordinator`-labelled pane via `herdr pane list` (was 2 momentarily during
+rename, now 1) before closing `w1:pCT` via `herdr pane close`.
+
+**Fleet check this checkpoint (bounded pane reads, no nudges needed — both healthy):**
+- **Fable 5 (`w1:pCR`)** — NOT stalled, NOT relaying. Actively working, 55% context, mid-stream on
+  #915 slice-3 plan ("chunk 2" of a multi-chunk write, tasks 3-5 verbatim-correct per its own
+  note). The earlier API-stall cleared on its own; no successor pane appeared or was needed. Same
+  pane/session as before (`d2661a6c-...`). No action taken — leave it running.
+- **Opus xhigh (`w1:pCV`)** — actively working, 53% context, on #917 plan: "Ground plan" checklist
+  shows module SDK/registry done, settings SQL+files done, currently on `/api/modules, config,
+  settings` step, with "Write Slice 1 implementation plan" queued next. No plan-ready escalation
+  yet — do not expect completion imminently.
+- **Codex (`w1:pCK`)** — not re-checked this pass (unchanged since last checkpoint: idle, #913 PR
+  work complete).
+
+**Monitor restarted:** task `btoa21auy` (persistent, changes-only, 60s poll), scoped to `w1:pCR` +
+`w1:pCK` + `w1:pCV`. Predecessor's monitor `b90uanpka` died with that session as expected.
+
+**Still holding — no build lane spawns** until #917's plan is authored by Opus xhigh AND approved.
+#913 epic spec is merged (PR #921) but epic issue stays open (blocked on children). #915/#916
+still lack merged specs. Overnight sign-off override (see section above) remains ACTIVE and
+untouched this checkpoint — no security-tier merge has occurred yet to exercise it.
+
+**Next actions for successor / continuation:** keep holding on build-lane spawns; when the Monitor
+fires on either #917 plan (pCV) or #915 plan (pCR) completing, read the relevant pointer, and route
+plan approval per spec-lock-adherence or the two-model-panel addendum for genuine forks. Ping
+Codex (`w1:pCK`) periodically per Ben's "keep it informed" instruction — not yet done this
+checkpoint.
+
+**Opus xhigh (`w1:pCV`) mid-stream API stall, nudged (2026-07-10, ~07:06):** Monitor flagged
+`agent_status` flip to `done`; pane read showed "API Error: Response stalled mid-stream" with
+grounding fully complete (3/4 tasks) but "Write Slice 1 implementation plan" still in-progress —
+i.e. NOT actually finished, just stalled. Nudged via `herdr pane run` (per
+`agent-stall-nudge-recovery` memory — nudge before respawn); confirmed pane flipped back to
+`working`. Plan still outstanding. No plan-ready escalation yet — still holding, no build lane
+spawns.
+
+**Opus xhigh 2nd stall (2026-07-10, ~07:11), nudged again:** same "Write Slice 1 implementation
+plan" task, same "stalled mid-stream" pattern, ~5min after the first. Nudged again via `herdr pane
+run`; plan doc still not written. Two consecutive stalls on the same write step — will respawn
+only if a 3rd stall occurs (per `agent-stall-nudge-recovery` memory, nudge-first still applies,
+but watching closely).
+
+**#915 slice-3 real progress (2026-07-10, ~07:11) — Fable 5 completed cleanly, did NOT stall:**
+PR #922 open (`docs(#915): external worker capabilities spec (rev 2) + slice-3 implementation
+plan`, https://github.com/motioneso/Jarv1s/pull/922), docs-only, `MERGEABLE`, CI 2/3 checks
+done+in-progress (none red as of check time). Contains: spec rev 2 (`6019f94f`, Ben-approved
+2026-07-09) + a 9-task TDD implementation plan
+(`docs/superpowers/plans/2026-07-09-structured-ai-seam.md`, commit `1dc1a346`) for the
+structured-AI seam in `packages/ai` — zero migrations, touches only `packages/ai`,
+`packages/shared` (new `ai-service-binding-api.ts`), one `apps/api/src/server.ts` line, root
+tests. Fable self-reviewed cleanly, verified two hedged claims against real source (both matched),
+ran prettier, pinged Codex (`w1:pCK`) with the `generateStructured` contract for #913 alignment
+(confirmed submitted). Fable's own checkpoint judgment: landed the plan directly rather than
+handoff+relay since compaction restored headroom right as the last chunk finished — noted as a
+stronger checkpoint than a pointer doc. Fable's pane is now reap-safe or available for slice-1/2/4
+planning once #919 lands. Tier assessment for slice-3 build lane: **sensitive** (new cross-module
+shared contract `ai-service-binding-api.ts`), not full security — no auth/RLS/secrets/rate-limit/
+network-surface trigger hit; no migrations.
+
+**#915 slice-3 MERGED (this session, 2026-07-10 ~09:00 UTC):** `coordinated-qa` (Sonnet, isolated
+worktree) returned **GREEN, MERGE-READY: YES** on PR #923 — 0 blocking findings, 1 non-blocking
+(pre-existing `assertInstanceAdmin` gap on a GET route, unchanged by this PR, no secrets exposed);
+all invariants confirmed (DataContextDb-only, no raw fs, AccessContext shape untouched,
+provider-agnostic AI, secrets never escape, module isolation); verdict posted to PR
+(`#923#issuecomment-4933720990`). CI: verify-foundation/compose-smoke/prod-compose-smoke all pass;
+"Build and publish images" pending was the post-merge publish job, not a gate. Session-id authority
+re-confirmed before merge. **Squash-merged** `gh pr merge 923 --squash --delete-branch` → merge
+commit `aaa627d6`. Worktree `.claude/worktrees/915-slice3-structured-ai` removed, local branch
+deleted, pane `w1:pCZ` closed. `merges_since_relay` = 0 → **1** (sensitive tier; relay trigger
+fires at 2 routine/sensitive merges — not yet).
+
+**GitHub bookkeeping correction:** PR #923's body said "Closes #915", which auto-closed the
+**parent** task issue #915 ("pg-boss queue/schedule registration, structured-AI RPC, host-pinned
+fetch" — 3 prerequisites) even though this PR only shipped slice 3 (part of the AI-RPC prereq;
+deferred RPC/caps/credential-guard scope went to #919). Prereqs "queue/schedule registration" and
+"host-pinned fetch" (slices 1/2/4 in this manifest's shorthand) are still unbuilt. **Reopened #915**
+with an explanatory comment. #915 is not on the project board (highest tracked issue is #913) — no
+board move needed.
+
+**Ben's standing digest entry:** "#915 slice-3 (structured-AI seam, `packages/ai`) merged — PR
+#923, sensitive tier, QA green, 0 blocking findings. Parent issue #915 reopened — 2 of 3
+prerequisites (queue/schedule registration, host-pinned fetch) still open, tracked there; deferred
+RPC/credential-guard scope split to #919."
+
+**`w1:pCV` (#917 plan) flipped to `done` (2026-07-10 ~09:56 UTC) — NOT actually complete.** Fresh
+pane read: idle at prompt between turns, context dropped 67%→14% (self-managed context, not a
+relay — same session). Branch `plan/917-open-module-system-slice1`, 17 commits ahead of
+`origin/main`, **no PR yet**, working tree clean except the coordinator's own untracked
+`.claude/context-meter.log` (not #917's). Latest commit: file-size-gate fix (split settings
+repo/routes to satisfy the 1000-line cap). Pane transcript shows it mid a background
+`verify:foundation`-style gate loop (armed a waiter, hit a 10-min tool timeout, re-arming) — active
+work, not a stall. **Not dispatching QA — holding, Monitor stays armed for the next real
+completion signal (PR open or an explicit done report).**
+
+**#917 plan execution complete (~09:59-10:09 UTC), agent paused for outward-facing go-ahead.**
+After several more working/done wait-loop flips (10-min gate-check cycles, consistent with the
+earlier pattern — not a stall), pane `w1:pCV` finished its verify gate and drafted "push it and
+open the PR" in its input box, explicitly noting it wouldn't push/open a PR without go-ahead
+(outward-facing action). Approved and submitted via `herdr pane run` (first `send-keys Enter`
+attempt didn't register — text was still sitting unsubmitted, retried with `pane run` per the
+skill's preferred path, confirmed via bounded read: pane now actively working, "Flummoxing…").
+Awaiting PR-open confirmation next tick.
+
+**#917 PR #924 open** (https://github.com/motioneso/Jarv1s/pull/924, "feat(#917): open module
+system Slice 1 — external manifest loader + fail-closed activation", branch
+`plan/917-open-module-system-slice1`). Agent then drafted "update the issue and project board" —
+**redirected**: that's coordinator bookkeeping, done after QA+merge, not by the build agent;
+told it to stand by. Tier confirmed **security** (line 192: privileged module install/external
+manifest loader/fail-closed activation — matches CLAUDE.md privileged-install trigger from the
+pluggable-modules epic). Per the **overnight sign-off override** (top of manifest): dispatching
+Opus adversarial QA first (posts verdict via `gh pr comment`, unchanged); then a quick
+Fable 5 (`w1:pCR`) + Codex (`w1:pCK`) two-model adjudication panel on "safe to merge unattended,"
+posted `[OVERNIGHT-SIGNOFF]` citing this manifest section; merge only if both green; digest entry
+tagged "merged overnight under time-boxed sign-off override — please spot-check" per the override's
+step 3.
+
+**Dispatched independent plan review (2026-07-10, ~07:12):** spawned a fresh general-purpose
+subagent (not Fable, not Opus — avoids self-review bias, and this is a scope/invariant check, not
+a design fork, so default model is appropriate) to check the #922 plan against the spec's locked
+Slice-3 decisions and CLAUDE.md hard invariants (provider-agnostic AI, secrets never escape,
+module isolation, scope discipline). Awaiting compact verdict before treating the plan as
+"approved" and before PR #922 merge consideration.
+
+**Still holding — no build lane spawns.** Two gates open: (1) #917 plan — Opus xhigh still
+writing, 2 stalls so far, watching for a 3rd before considering respawn; (2) #915 slice-3 plan —
+committed + PR open, CI in progress, independent review dispatched, verdict pending. Neither is
+build-ready yet.
+
+## Lock re-claimed (successor session `9ed36f3b-...`)
+
+Predecessor pane `w1:pCW` (session `55a96d6e-b72d-41ea-898b-43fdeecfa3da`, matched manifest lock
+line exactly) confirmed via fresh `herdr pane list` — status `done`, closed after verifying 2
+Coordinator-labelled panes momentarily then 1. New coordinator: pane `w1:pCX`, session
+`9ed36f3b-0118-48d0-abda-10de067d861a`, tab `w1:t15`. Proceeding with relay checkpoint 4's queue
+below.
+
+## Relay checkpoint 4 (self-relay from `55a96d6e-...`, context 70% warning fired)
+
+**#915 slice-3 plan review: APPROVED.** Independent general-purpose subagent (not Fable, not
+Opus — avoids self-review bias) verdict: plan stays inside Slice 3's `packages/ai`/
+`packages/shared` footprint, honors provider-agnostic routing precedence (admin pin → module
+binding → `module.worker` → automatic) and secrets-never-escape verbatim from spec D6, no scope
+creep into `ctx.ai` RPC/migrations/other modules (correctly deferred to the #919-blocked
+follow-on). **Plan-approval gate for #915 slice-3 is now CLEAR.** Remaining gate: **PR #922 must
+merge to main** before a build lane can spawn (manifest rule: spec-merged-to-main AND
+plan-approved, per issue). PR #922 is docs-only/routine tier — auto-mergeable once green, no
+separate code-review QA needed (same pattern as PR #921).
+
+**PR #922 CI status at this checkpoint (last read, ~07:14 UTC):** `Compose deployment smoke` =
+pass, `Prod compose deployment smoke` = pass, `Verify foundation and app` = **pending** (not yet
+resolved). A background `gh pr checks` wait-loop I started **failed (exit 2)** — a script bug in
+the loop itself (grep/until syntax issue), NOT a signal about actual CI health. **Successor: run a
+fresh `gh pr checks 922` to get current state; do not trust the failed background task.** Once all
+three are green, this is a routine-tier auto-merge (squash + delete branch), then #915 slice-3
+becomes spawnable (Codex `gpt-5.6-sol` high reasoning per Ben's directive, isolated worktree,
+`feat/915-slice3-structured-ai` cutting from main per Fable's branch-naming note).
+
+**Opus xhigh (`w1:pCV`) #917 plan — status at this checkpoint:** 2 mid-stream API stalls so far
+(both nudged, both recovered to `working`), same "Write Slice 1 implementation plan" step both
+times. Last known status (before this relay): `working`. **Successor: re-check the pane fresh** —
+if it's completed the plan, route it through the SAME independent-review pattern used for #915
+(fresh subagent, not Fable/Opus itself, check against spec's locked Slice-1 decisions +
+CLAUDE.md hard invariants) before treating it as approved. If it's stalled a 3rd time, that's the
+threshold to consider a respawn (2 nudges tried, no respawn yet).
+
+**Fleet state at this checkpoint:**
+- `w1:pCR` Fable 5 — idle/`done`, reap-safe from its own assessment (PR #922 work complete), also
+  available for slice-1/2/4 planning once #919 lands. Not reaped — kept alive for potential
+  review-feedback response or next assignment.
+- `w1:pCV` Opus xhigh — see above, last known `working`.
+- `w1:pCK` Codex — idle, informed of the #915/#913 `generateStructured` contract by Fable.
+- Monitor task `btoa21auy` (persistent, this session) — **dies with this session**; successor
+  must restart its own, scoped to `w1:pCR` + `w1:pCK` + `w1:pCV` (same as before).
+- Background CI-wait task `b658imaev` — failed (script bug), already noted above; nothing to
+  recover, just don't reuse that exact command.
+
+**Still holding — no build lane spawns.** Both #915-slice-3 and #917 remain short one gate each
+(#915: PR merge; #917: plan not yet written/reviewed). Overnight sign-off override remains ACTIVE
+and untouched. `merges_since_relay` still `1` (only PR #921 so far; routine-tier trigger is every
+2, not yet fired — PR #922 will be the 2nd if/when merged, which WOULD fire the relay-after-2
+trigger on top of this context-meter one, but that's moot since we're relaying now anyway).
+
+**Successor's immediate queue, in order:**
+1. `gh pr checks 922` fresh (ignore the failed background task) — merge if green (routine tier).
+2. Re-check `w1:pCV` (Opus xhigh) fresh — nudge again if 3rd stall, else read for
+   plan-ready/completion; if complete, dispatch independent review like #915's.
+3. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`.
+4. Once #922 merges: spawn #915 slice-3 build lane (Codex `gpt-5.6-sol` high, isolated worktree
+   `feat/915-slice3-structured-ai` off `main`, tier `sensitive` per this checkpoint's assessment —
+   standard QA + invariant check, no Ben sign-off required, auto-merge + digest).
+5. Continue holding on #917 until its plan is written AND independently reviewed/approved.
+
+## Checkpoint update (successor session `9ed36f3b-...`, executing relay checkpoint 4 queue)
+
+- **PR #922 CI, fresh read (~this checkpoint):** `Compose deployment smoke` = pass,
+  `Prod compose deployment smoke` = pass, `Verify foundation and app` = **still pending**. Not
+  merge-ready yet. Started a clean background wait (`bhb9d7422`, simple `until` loop polling every
+  20s, NOT the buggy predecessor script) — will be notified when it resolves.
+- **Opus xhigh (`w1:pCV`) re-checked fresh:** genuinely `working` (not stalled) — 60% context,
+  still on "Write Slice 1 implementation plan" step, 3 prior ground-plan subtasks done. No 3rd
+  stall observed this pass; no nudge needed.
+- **Monitor restarted:** task `bbvxzui71` (persistent, changes-only), scoped to `w1:pCR` +
+  `w1:pCK` + `w1:pCV`. Predecessor's monitor `btoa21auy` died with that session as expected.
+  First (baseline) event confirmed no drift: Codex done, Fable done, Opus working.
+- **Still holding — no build lane spawns.** Waiting on the #922 CI background task before
+  merging; #917 plan still in progress.
+
+**Opus xhigh (`w1:pCV`) 3rd mid-stream stall (2026-07-10, this checkpoint), nudged again:** Monitor
+fired on `agent_status` flip to `done`; pane read showed "stalled mid-stream" once more, same
+"Write Slice 1 implementation plan" step (3/4 tasks done, this one still ◼ in-progress), same 60%
+context. Nudged via `herdr pane run` (per `agent-stall-nudge-recovery` memory — nudge-first still
+applies even at the 3rd occurrence); confirmed pane flipped back to `working`. Plan doc still not
+written. **Threshold watch:** 3 stalls now on this exact step — if a 4th occurs, escalate to a
+respawn (fresh Opus xhigh in the same worktree/branch, per coordinate skill's relay-vs-respawn
+guidance) rather than nudging indefinitely. No plan-ready escalation yet — still holding.
+
+**Opus xhigh (`w1:pCV`) 4th mid-stream stall, same step — checked for partial disk work before
+acting:** `git status` + plans-dir listing in `917-implementation-plan` worktree showed **no
+plan file written yet** (only unrelated `.claude/context-meter.log` dirty) — nothing to lose from
+a respawn. Chose one more nudge over respawn (process hasn't died, per
+`agent-stall-nudge-recovery` memory), but changed tactic: instructed it to write the plan doc
+incrementally (Write header/outline, then Edit-append each section) instead of one long
+composition, since 4 stalls on the identical step suggests the single-shot generation length is
+the trigger. Confirmed pane back to `working`. **If a 5th stall occurs on this same step even with
+incremental writing, respawn is the next action — do not keep nudging past that.**
+
+Also started a second background wait for PR #922's new `Build and publish images` check (task
+`bwywp4axs`) — this check wasn't in the original 3-check gate list, appeared mid-checkpoint, still
+`IN_PROGRESS` per `gh pr view --json statusCheckRollup`. No branch protection configured on `main`
+(`gh api .../protection` → 404 "Branch not protected"), so nothing is GitHub-enforced, but per the
+CI waiver protocol a check that's still running is not yet a green light — waiting for it to
+resolve before merging rather than assuming it's non-blocking for a docs-only PR.
+
+## PR #922 MERGED — relay trigger fired (merges_since_relay = 2)
+
+**PR #922 merged** (2026-07-10T07:25:54Z), squash, all 4 checks green
+(`Verify foundation and app`, `Compose deployment smoke`, `Prod deployment smoke`, `Build and
+publish images`), `mergeStateStatus: CLEAN`. Session-id authority re-confirmed before merge
+(pane `w1:pCX`, session `9ed36f3b-...`, sole `Coordinator`-labelled pane). `gh pr merge
+--delete-branch` failed to delete the **local** branch only (`spec/915-external-worker-
+capabilities` still checked out in Fable 5's `review-913-job-search-spec` worktree, `w1:pCR`,
+intentionally kept alive — did not force it, per "never disturb a shared/other-agent worktree").
+Remote branch was also left behind by the failed command; deleted separately via
+`gh api -X DELETE .../git/refs/heads/spec/915-external-worker-capabilities` (safe — PR already
+merged). **Ben digest entry:** "#915 slice-3 spec+plan merged (PR #922, routine/docs-only, 9-task
+TDD plan for structured-AI seam in packages/ai) — #915 slice-3 is now build-ready, spawning next."
+
+**#915 slice-3 build lane is NOW SPAWNABLE** (spec merged + plan independently reviewed/approved
+per checkpoint 4 above) — **NOT YET SPAWNED**, deferred to the relay trigger below.
+
+**Relay trigger fired: `merges_since_relay` was 1 (PR #921) → now **2** (PR #922) — this is the
+mandatory "relay after every 2 routine/sensitive merges" trigger.** Per coordinate skill: no
+deferral once a trigger fires — flush + relay now, remaining bookkeeping (spawning #915 slice-3)
+goes to the successor as the immediate next action, not done by this session.
+
+**Fleet state at this trigger:**
+- `w1:pCV` Opus xhigh #917 plan — 4 mid-stream stalls so far, all nudged back to `working` (4th
+  nudge changed tactic: write incrementally via Write+Edit instead of one long generation, to
+  address the likely root cause of repeated stalls at the same step). **If a 5th stall occurs,
+  respawn is the next action — do not keep nudging past that.** Last known status: `working`.
+- `w1:pCR` Fable 5 — idle/`done`, worktree `review-913-job-search-spec` still holds branch
+  `spec/915-external-worker-capabilities` locally (harmless, PR already merged) — leave it, don't
+  force-cleanup another agent's worktree.
+- `w1:pCK` Codex — idle, available, briefed on collision map + `generateStructured` contract.
+- Monitor task `bbvxzui71` (persistent, this session) — **dies with this session**; successor
+  must restart its own, scoped to `w1:pCR` + `w1:pCK` + `w1:pCV`.
+- No outstanding background CI waits (both #922 checks resolved and consumed).
+
+**Successor's immediate queue, in order:**
+1. **Spawn #915 slice-3 build lane** — Codex `gpt-5.6-sol` high reasoning, isolated worktree off
+   `main` (`git worktree add .claude/worktrees/915-slice3-structured-ai -b
+   feat/915-slice3-structured-ai origin/main`), tier **sensitive** (new cross-module shared
+   contract `ai-service-binding-api.ts`, no auth/RLS/secrets/migration trigger). Handoff doc must
+   point at the merged plan `docs/superpowers/plans/2026-07-09-structured-ai-seam.md` (commit
+   `1dc1a346`, now on `main`). Standard QA + invariant check on completion, no Ben sign-off
+   required for merge, auto-merge + digest per sensitive tier.
+2. Restart persistent Monitor scoped to `w1:pCR` / `w1:pCK` / `w1:pCV` + the new #915 build pane
+   once spawned.
+3. Re-check `w1:pCV` (Opus xhigh #917 plan) fresh — if complete, dispatch independent review (same
+   pattern as #915: fresh general-purpose subagent, not Fable/Opus itself). If stalled a 5th time,
+   respawn.
+4. Reset `merges_since_relay` to 0 in the manifest (this checkpoint's relay resets the counter).
+
+## Lock re-claimed (successor session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`)
+
+Predecessor pane `w1:pCX` (session `9ed36f3b-0118-48d0-abda-10de067d861a`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (not a
+written pane number) — found status `done`, closed after confirming exactly 2
+`Coordinator`-labelled panes momentarily (`pCX` done, `pCY` working) then 1 (`pCY` only) via a
+fresh re-list. New coordinator: pane `w1:pCY`, session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`, tab
+`w1:t15`. `merges_since_relay` reset to **0** (trigger fired and was fully consumed by the prior
+checkpoint's relay). Proceeding with relay checkpoint 4's remaining queue: spawn #915 slice-3
+build lane, restart Monitor, re-check `w1:pCV`.
+
+## Checkpoint update (session `ffba9610-...`, relay checkpoint 4 queue executed)
+
+- **#915 slice-3 build lane SPAWNED:** worktree `.claude/worktrees/915-slice3-structured-ai`,
+  branch `feat/915-slice3-structured-ai` off `origin/main` @ `17eda21c` (includes merged #922 plan
+  + #921 epic spec). Handoff doc committed:
+  `docs/coordination/handoffs/915-slice3-structured-ai.md` (tier `sensitive`, points at the
+  already-approved plan, explicitly tells the agent to skip plan-authoring and go straight to TDD
+  build). **Trap avoided:** verified handoff docs live ONLY on this coordinator's own branch
+  (`coord/settings-host-cleanup`), never on `origin/main` or the build worktree's branch — a
+  relative path in the boot prompt would 404 in the build agent's cwd. Passed the **absolute path**
+  to the handoff doc in the boot prompt instead. Spawned pane `w1:pCZ` "Codex: #915 Slice-3 Build",
+  tab `w1:t1F` (shared agents tab), confirmed running `gpt-5.6-sol high` (codex config default, no
+  override needed) and `working`.
+- **Opus xhigh (`w1:pCV`) re-checked fresh:** genuinely `working`, not stalled, at this checkpoint
+  (checkpoint shows "1% until auto-compact" at 72% context in its own status line — worth watching
+  closely on the next check, may relay or stall again soon). No action taken.
+- **Monitor restarted:** task `b1abhzua1` (persistent, changes-only, 60s poll), scoped to `w1:pCR` +
+  `w1:pCK` + `w1:pCV` + new `w1:pCZ`. Predecessor's monitor `bbvxzui71` died with that session as
+  expected. Baseline event confirmed no drift.
+- `merges_since_relay` = 0 (reset this checkpoint, recorded above).
+
+**Still holding on #917** — plan not yet written/reviewed (Opus xhigh still working, 4 prior
+stalls). **#915 slice-3 is now actively building** — next gate is its PR + QA (tier `sensitive`:
+standard QA + invariant check, no Ben sign-off, auto-merge + digest).
+
+**Next actions for continuation:** watch Monitor for `w1:pCZ` plan-ready/PR-ready escalation or
+stall; watch `w1:pCV` for #917 plan completion (dispatch independent review same as #915 when it
+lands, or respawn on a 5th stall); ping Codex (`w1:pCK`) periodically per Ben's "keep it informed"
+instruction (idle, not yet re-pinged this checkpoint).
+
+## Relay checkpoint 5 (self-relay from session `ffba9610-...`, context 70% warning fired)
+
+**#915 slice-3 build — Task 5 plan defect approved (this checkpoint):** build agent (`w1:pCZ`)
+flagged that the plan's server.ts wiring for `AiRoutesDependencies` can't actually reach
+`listModuleManifests` the way originally scoped — `registerBuiltInApiRoutes` in `server.ts` isn't
+the call site that constructs `registerAiRoutes`'s deps; `packages/module-registry/src/index.ts`
+is (its `registerAiRoutes` closure at the AI module's `registerRoutes` callback, ~line 1000).
+**Grounded before approving** (not rubber-stamped): read `module-registry/src/index.ts` directly,
+confirmed the `registerAiRoutes` call site omits any installed-ids field today, and confirmed
+`deps.listModuleManifests` is already in scope in that same closure (used elsewhere at lines
+789/1076) — so the proposed fix (`listInstalledModuleIds: () => deps.listModuleManifests().map(m
+=> m.id)`, added inside that closure, skip the `server.ts` edit) is directly buildable and keeps
+the same intended contract (install-level validation, not actor-active) with no hard-invariant or
+module-isolation concern. **Approved directly** (mechanical wiring correction, not a design fork —
+no Opus/Ben escalation needed) via `herdr pane run w1:pCZ`, confirmed received and being acted on
+(pane now writing Task 5 route tests, RED-first). Added file beyond the plan's listed set:
+`packages/module-registry/src/index.ts` — build agent told to note this + one-line why in its PR
+description.
+
+**Fleet state at this checkpoint:**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, mid Task 5 (route tests, RED-first), re-scope
+  approved and in progress. Tier `sensitive` unchanged.
+- `w1:pCV` "Opus: #917 Plan" — last read showed genuinely `working` (not stalled), 72% context,
+  "1% until auto-compact" flagged for close watching — re-check fresh on adoption, may have
+  stalled/relayed/completed since.
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, not re-pinged this checkpoint (Ben wants it kept
+  informed periodically — overdue).
+- `w1:pCR` "Fable 5: Job Search Spec Review" — `done`/idle, reap-safe from its own prior
+  assessment, kept alive for potential #915 slice-1/2/4 planning once #919 lands.
+- Monitor task `b1abhzua1` (persistent, changes-only, 60s poll), scoped to `w1:pCR`/`w1:pCK`/
+  `w1:pCV`/`w1:pCZ` — **dies with this session**; successor must restart its own with the same
+  scope.
+- `merges_since_relay` = 0 (no merge since the last reset).
+- Overnight sign-off override (see top section) remains ACTIVE, untouched this checkpoint — no
+  security-tier merge has occurred yet to exercise it.
+
+**Successor's immediate queue, in order:**
+1. Re-check `w1:pCZ` (#915 build) fresh — if it's reached PR-ready, follow Phase 3 (spawn
+   `coordinated-qa` on tier `sensitive`, standard QA + invariant check, no Ben sign-off, auto-merge
+   + digest once green).
+2. Re-check `w1:pCV` (#917 plan) fresh — if complete, dispatch independent review (fresh
+   general-purpose subagent, same pattern as #915's plan review) before treating it approved; if
+   stalled a 5th time this session, respawn (4 prior stalls all nudged, all recovered) rather than
+   nudging indefinitely.
+3. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`.
+4. Send Codex (`w1:pCK`) a status ping — it hasn't been touched in several checkpoints; Ben asked
+   it be kept informed.
+5. Continue holding on any build-lane MERGE until independent QA is green on the integrated
+   result — #915 slice-3 is building, not yet merge-ready.
+
+## Relay note (this checkpoint)
+Coordinator session `ffba9610-00cc-4ebd-b52c-203ab8b521bf` (pane `w1:pCY`) hit the 70%
+context-meter warning right after approving the #915 Task 5 re-scope. Manifest fully flushed above.
+About to self-relay: spawn successor in the SAME tab as this pane (`w1:t15`), NOT the agents tab,
+via `relay` skill pattern. No merge occurred this checkpoint — nothing to reconcile beyond adopting
+the live fleet.
+
+## Checkpoint 5b (still session `ffba9610-...`, finishing in-flight items before handoff)
+
+**#915 slice-3 Task 5 — three plan defects surfaced and approved this checkpoint (all grounded
+against source before approval, none rubber-stamped):**
+1. `AiRoutesDependencies` couldn't reach installed-module ids (server.ts wasn't the construction
+   site) — fixed via `module-registry/src/index.ts`'s existing `deps.listModuleManifests`, no
+   server.ts edit. Approved.
+2. Route-coverage gate rejected the new `DELETE /api/ai/services/:service/binding` — handler
+   (`capability-route-routes.ts:157`) and shared schema (`ai-service-binding-api.ts:85/113`)
+   already existed, only `packages/ai/src/manifest.ts`'s `routes[]` declaration was missing.
+   Approved.
+3. **Runtime-proven** fast-json-stringify 500 on GET module binding: `aiServiceBindingSchema` (a
+   single object) reused at both `properties.chat` (`ai-service-binding-api.ts:49`) and
+   `patternProperties["^module\\."]` (`:53`) inside `aiServiceBindingMapSchema` — fjs's
+   identity-based internal `$ref` breaks when the same object appears twice inside one schema
+   tree. Confirmed by direct read of the file. Fix: a `createAiServiceBindingSchema()` factory
+   returning a fresh object per call site instead of a shared const, used for chat vs. the
+   patternProperties entry. Approved via `herdr pane run w1:pCZ`.
+   **Pattern note for successor:** 3 defects on one task, all mechanical/wiring-shaped (not design
+   forks), all confirmed real by reading source before approving — no need to treat this as
+   lane-health concern yet, but if a 4th surfaces on this same task, consider pausing to ask the
+   build agent for a fuller self-audit of Task 5 before continuing piecemeal fixes.
+
+**#917 root plan — complete, independent review IN FLIGHT (not yet approved for execution):**
+Opus (`w1:pCV`) finished its 10-task implementation plan for the open-module-system Slice 1,
+committed at `9612a4c7` (`docs/superpowers/plans/2026-07-09-open-module-system-slice1.md`, branch
+`plan/917-open-module-system-slice1`, worktree
+`/home/ben/Jarv1s/.claude/worktrees/917-implementation-plan`). Self-review already fixed one bug
+(query-keys nesting) — **self-review by the plan's own author does not count as this run's
+required independent approval.** Instructed Opus to hold on its execution-approach choice
+(offered: 1. subagent-driven per-task [recommended by Opus itself], 2. inline-batched) until
+review lands. **Dispatched fresh `general-purpose` subagent** (id `a66bce70f606575c7`) to
+independently review the plan against its spec + hard invariants + downstream-chain implications
+(root of `#917→#914→#918→#919→#916/#915`). **Result not yet back at handoff time** — successor
+must collect it (either already in context as a completed background result, or via the
+notification that will arrive).
+
+**Fleet state at last read (Monitor tick, before this checkpoint's approvals):**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, now on its 3rd Task 5 fix-in-progress.
+- `w1:pCV` "Opus: #917 Plan" — `done` (plan complete, paused for coordinator on execution-approach;
+  told to hold for independent review).
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, **still not re-pinged** despite Ben's "keep it
+  informed" ask — overdue two checkpoints running now.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — `done`/idle, reap-safe, kept alive for future
+  #915 slice-1/2/4 planning.
+- Monitor task `b1abhzua1` — **dies with this session**; successor restarts scoped to
+  `pCR`/`pCK`/`pCV`/`pCZ`.
+- `merges_since_relay` = 0. Overnight sign-off override still ACTIVE, unexercised.
+
+**Successor's immediate queue (supersedes the shorter list earlier in checkpoint 5):**
+1. ~~Collect #917 plan review verdict~~ — **DONE, still session `ffba9610-...`:** verdict came
+   back **APPROVED WITH NOTES** (agent `a66bce70f606575c7`) before handoff completed: plan traces
+   cleanly to spec `docs/superpowers/specs/2026-07-08-open-module-system-user-authored-modules.md`
+   Slice 1, all hard invariants satisfied, downstream (#914) decisions concrete not TBD,
+   query-keys self-fix confirmed present in plan text. Two minor notes: (a) Task 5 inlines
+   `require("node:path").sep` in an ESM package — must become a top-level import, don't let the
+   executing agent skip its own follow-up note on this; (b) migration number `0152` was grounded
+   on a single worktree snapshot — the executing agent MUST re-verify it's still the next free
+   number at execution time (parallel lanes landing migrations concurrently), not trust the plan
+   text blindly. **Relayed to `w1:pCV` already, greenlit subagent-driven per-task execution**
+   (Opus's own recommendation — 10 tasks, fresh subagent per task in dependency order, review
+   between tasks). Successor should just confirm `w1:pCV` is now actually executing (not stuck)
+   on adoption, not re-approve anything.
+2. ~~Re-check `w1:pCZ` — confirm the 3rd Task 5 fix (schema-factory) resolves the runtime 500~~ —
+   **CORRECTED, still session `af3ee5f0-...`:** it did NOT. `w1:pCZ` self-reported (mid-relay,
+   surfaced to coordinator directly) an isolated `fjs@6.4.0` repro proving the real root cause is
+   the escaped-dot `patternProperties` key (`'^module\.'`) hitting the same missing-`$ref` bug
+   independent of shared-vs-fresh schema identity; `'^module[.]'` (character-class, same accepted
+   keys) serializes correctly. **Approved via `herdr pane run`:** revert the factory (unnecessary
+   complexity), change only the patternProperties key to `'^module[.]'`. This is the **4th**
+   defect on Task 5 specifically (installed-ids wiring → missing manifest route declaration →
+   factory-that-didn't-fix-it → now this) — hit the pattern-note threshold from checkpoint 5b, so
+   also instructed `w1:pCZ` to do a full self-audit of Task 5 (exercise the actual failing request
+   against the running app, re-read acceptance criteria end to end) before calling it done, rather
+   than accept a possible 5th piecemeal fix blind. Confirmed message delivered (pane picked it up,
+   `working`). **Successor: this is now the live open item — watch for `w1:pCZ`'s self-audit
+   result (PR-ready or a fresh finding) before spawning tier-`sensitive` QA.**
+3. Restart persistent Monitor (scope above) — **NOT done this session**, deferred to successor.
+4. **Ping Codex (`w1:pCK`)** — overdue, **still not done**, do this early in the new session.
+5. No merges pending; nothing to reconcile in `ci_waivers`.
+
+## Lock re-claimed (successor session `0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`)
+
+Predecessor session `af3ee5f0-f086-42cb-b8a8-b332bec34a7d` was **already gone** from `herdr pane
+list` by the time this successor ran Phase 0a — no pane matched that session id at all (not
+`working`, not `done`, not present). Nothing to force-close; the predecessor evidently self-closed
+before or during its own relay spawn. New coordinator: pane `w1:pD1`, session
+`0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`, tab `w1:t15`, label renamed from the spawn default
+"Coordinator (relay)" to canonical `Coordinator`. Verified exactly **1** `Coordinator`-labelled
+pane via fresh `herdr pane list`. Proceeding with the predecessor's immediate action queue below.
+
+## Lock re-claimed (successor session `af3ee5f0-f086-42cb-b8a8-b332bec34a7d`)
+
+Predecessor pane `w1:pCY` (session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (not a
+written pane number). At first read it was still `working` (actively generating) — did NOT
+force-close a live pane; used a bounded `Monitor` (task `bn9gz4vax`, ~6s poll, 130s timeout) to
+wait for it to settle instead of a blocking sleep. It flipped to `done`; re-verified via a fresh
+`herdr pane list` immediately before closing (not the stale Monitor event alone). Closed `w1:pCY`;
+confirmed exactly **1** `Coordinator`-labelled pane remains: `w1:pC0`, session
+`af3ee5f0-f086-42cb-b8a8-b332bec34a7d`, tab `w1:t15`.
+
+**Context-meter 70% warning fired during Phase 0a itself** (`111330/158787 tok`, from initial
+orientation alone — system prompt + coordinate skill body + this manifest, before any queue work).
+While completing Phase 0a, a live correction arrived for #915 Task 5 (see item 2 above,
+handled/approved this session — the one substantive action taken). Everything else in checkpoint
+5b's queue is **UNVERIFIED, not confirmed done or pending** — this session did NOT check on the
+#917 plan review verdict (agent `a66bce70f606575c7`), did NOT restart the Monitor, and did NOT
+ping Codex. **Do not assume any of those happened** — treat checkpoint 5b's original 5-item queue
+(further above) as still fully open except for item 2, which is superseded by the correction above.
+Self-relaying now per the skill's no-deferral rule rather than attempting more work at 70%+.
+
+**Fleet state at handoff (from pane-list checks this session, not independently re-verified
+beyond identity/status):**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, acting on the 4th Task 5 correction just
+  approved above. Tier `sensitive` unchanged.
+- `w1:pCV` "Opus: #917 Plan" — **UNVERIFIED this session.** Last confirmed state (checkpoint 5b,
+  predecessor): plan complete (`9612a4c7`), paused holding on execution-approach, waiting on
+  independent review verdict from agent `a66bce70f606575c7` (dispatched, result not yet collected
+  as of checkpoint 5b). This session did not re-check it. **Do not assume approved or executing.**
+- `w1:pCK` "Codex: Job Search Spec" — idle, ping still overdue (multiple checkpoints running now).
+- `w1:pCR` "Fable 5: Job Search Spec Review" — idle, reap-safe, kept alive for future slice
+  planning.
+- No persistent Monitor currently running (predecessor's `b1abhzua1` died with its session; this
+  session did not start a replacement — **successor's first action**).
+- `merges_since_relay` = 0. Overnight sign-off override remains ACTIVE, unexercised.
+
+**Successor's immediate queue, in order:**
+1. Restart persistent Monitor scoped to `w1:pCR` / `w1:pCK` / `w1:pCV` / `w1:pCZ`.
+2. Confirm `w1:pCV` (#917) is actually executing tasks, not stalled/idle waiting.
+3. Watch `w1:pCZ` for its Task-5 self-audit result — PR-ready → Phase 3 tier-`sensitive` QA;
+   fresh finding → judge whether it's another mechanical wiring fix (approve directly, grounded)
+   or a real design fork (escalate).
+4. Ping Codex (`w1:pCK`) — overdue several checkpoints now.
+5. No merges pending; nothing to reconcile in `ci_waivers`.
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Checkpoint (session `0fe9cd0b-...`, immediate action queue executed)
+
+- **Monitor restarted:** task `bca8egl86` (persistent, changes-only, 60s poll), scoped to
+  `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`. Baseline confirmed no drift from checkpoint 5b's fleet
+  state: `pCR` done, `pCK` done, `pCV` working, `pCZ` working.
+- **`w1:pCV` (#917) confirmed actively executing, not stalled:** fresh bounded read shows 48%
+  context, dispatching a `general-purpose` subagent — matches the greenlit subagent-driven
+  per-task execution approach (Opus's own recommendation, approved last checkpoint). No action
+  needed.
+- **`w1:pCZ` (#915 Task-5 self-audit) still in progress:** fresh read shows `Working (23m 03s)`,
+  no PR-ready signal yet. Continue watching via Monitor — do not spawn QA until it reports done.
+- **Codex (`w1:pCK`) pinged** — first ping in several checkpoints. Reply: idle, no action needed,
+  confirms current #917→#915 sequencing and #913 alignment "look correct." No concerns raised.
+- `merges_since_relay` = 0, unchanged. Overnight sign-off override remains ACTIVE, unexercised.
+
+**Holding pattern:** no build-lane spawns, no merges pending. Waiting on `w1:pCZ` PR-readiness
+(→ Phase 3 tier-`sensitive` QA) and `w1:pCV` task-by-task progress on the #917 plan (10 tasks,
+subagent-driven — watch for either full completion or a task-level escalation).
+
+**#915 Task 5 self-audit reported complete (mid-session push from `w1:pCZ`):** 13/13 real
+app+DB integration incl. the originally-failing PUT→GET serializer path, full `test:ai` 44/44,
+typecheck+lint green, added missing positive installed-module case + non-admin 403 assertion,
+final serializer fix isolated to `patternProperties: '^module[.]'` (factory reverted). No fresh
+production finding. **PR not yet open** as of this check (`gh pr list --head
+feat/915-slice3-structured-ai` empty, no remote branch) — pane still `Working` (>30min), likely
+continuing into Task 6+ rather than stopping to open a PR after Task 5. Not treating "PR-ready" as
+"PR open" — waiting for the actual PR before spawning QA.
+
+**#915 Task 8 plan defect — approved, grounded (this checkpoint):** plan's
+`StructuredProviderAdapter` used the narrow 3-variant `ProviderKind` (from
+`packages/ai/src/adapters/transcript-reader.ts:67`: `anthropic | openai-compatible | google`) but
+`AiConfiguredModelSafeRow.provider_kind` is the broader 5-variant `AiProviderKind`
+(`packages/db/src/types.ts:168`, adds `ollama | custom`). **Verified before approving:** read both
+type defs, `http-api.ts:32` adapter constructor, and the two existing canonical call sites
+(`packages/chat/src/jobs.ts:225`, `packages/ai/src/transcription-routes.ts:86`) — both do a
+**blind** `as ProviderKind` cast today with zero runtime check for `ollama`/`custom`. The build
+agent's proposed fix (checked cast, unsupported kind → `provider_error`, no secret leak) is
+strictly safer than existing precedent, not a novel pattern — approved directly, no
+Opus/Ben escalation (mechanical typing correction, not a design fork; no hard-invariant concern —
+provider-agnostic-AI governs which provider gets *selected*, not this adapter's supported-kind
+surface). Mechanical import/non-null-assertion fixes in the same message also approved without
+separate review.
+
+## Relay checkpoint (self-relay from session `0fe9cd0b-...`, context 70% warning fired)
+
+**Still holding — no PR open for #915 slice-3, no merges, no build lane changes.** Nothing else
+approved/changed since the Task 8 provider-kind grounding above.
+
+**Fleet state at this checkpoint (fresh reads just before the trigger fired):**
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — `working`, running `pnpm verify:foundation` as an
+  apparent final pre-PR gate (scrollback also shows a `vite.js --host 0.0.0.0 --port 5174`
+  line, likely part of a compose/dev-server smoke step inside that gate — not itself concerning).
+  Earlier progress this session: Task 5 self-audit reported complete (13/13 integration incl.
+  the originally-failing path, 44/44 `test:ai`, typecheck+lint green) and Task 8 provider-kind
+  cast defect approved (grounded — see above). **No PR opened yet**
+  (`gh pr list --head feat/915-slice3-structured-ai` empty, no remote branch as of last check).
+  Do not spawn QA until the PR actually exists.
+- `w1:pCV` "Opus: #917 Plan" — `working`, subagent-driven per-task execution progressing normally
+  (currently on Task 2's dispatched subagent per last read, 3m14s in; earlier reads showed 1 task
+  completed). Context 58%/50%. An earlier read this session showed an ambiguous long-duration
+  (86m10s) subagent entry alongside a fresh one — did NOT reappear on the next two checks, treated
+  as stale UI history rather than a real stall; no nudge/respawn was warranted. No plan-execution
+  escalation received. Watch for either full 10-task completion or a task-level blocker.
+- `w1:pCK` "Codex: Job Search Spec" — pinged this session (first ping in several checkpoints),
+  replied idle/no-action-needed, confirmed #917→#915 sequencing and #913 alignment "look correct."
+  No open items.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — untouched this session, `done`/idle, reap-safe per
+  its own prior assessment, kept alive for potential future slice-1/2/4 planning once #919 lands.
+- Monitor task `bca8egl86` (persistent, changes-only, 60s poll, scoped to
+  `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`) — **dies with this session**; successor must restart its
+  own with the same scope.
+- `merges_since_relay` = 0, unchanged. Overnight sign-off override remains ACTIVE, unexercised —
+  no security-tier merge has occurred yet.
+
+**Successor's immediate queue, in order:**
+1. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`.
+2. Re-check `w1:pCZ` fresh — if `verify:foundation` has finished and a PR is now open on
+   `feat/915-slice3-structured-ai`, proceed to Phase 3: spawn `coordinated-qa` (tier `sensitive`,
+   standard QA + invariant check, no Ben sign-off required, auto-merge + digest once green). If
+   still running, keep waiting (short `ScheduleWakeup` intervals, not tight polling).
+3. Re-check `w1:pCV` fresh — if the 10-task #917 plan is complete, dispatch an independent review
+   (fresh `general-purpose` subagent, not Opus itself — same pattern used for #915's plan review)
+   before treating it as ready to PR. If a task-level escalation/stall appears, judge
+   mechanical-fix-vs-design-fork same as this session's Task 8 approval (ground in source before
+   approving).
+4. No merges pending; nothing to reconcile in `ci_waivers`.
+
+## Lock re-claimed (successor session `ae488fcc-3b93-4be6-9118-14452e66da3d`)
+
+Predecessor pane `w1:pD1` (session `0fe9cd0b-3b6f-4e21-9d43-6b02f037fc3c`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (never a
+written pane number). Pane text showed its own todo list fully checked off ("Phase 0a: claim
+single-coordinator lock", "Restart Monitor scoped to w1:pCR/pCK/pCV/pCZ", "Confirm w1:pCV #917
+plan execution status", +1 more) and an idle prompt — `agent_status` field read `working` (stale)
+but pane content showed it had already finished and was waiting to be reaped, so it was closed
+without a Monitor wait. Verified exactly **1** `Coordinator`-labelled pane remains: `w1:pD2`,
+session `ae488fcc-3b93-4be6-9118-14452e66da3d`, tab `w1:t15`. Manifest length was unchanged since
+last read (847 lines) — predecessor's completed todo items match what's already recorded in the
+"## Relay checkpoint (self-relay from session `0fe9cd0b-...`)" section immediately above; nothing
+undocumented to reconcile.
+
+**Proceeding with the predecessor's immediate action queue** (restated above): restart persistent
+Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`; re-check `w1:pCZ` fresh for PR-ready state
+on `feat/915-slice3-structured-ai`; re-check `w1:pCV` fresh for #917 plan-execution completion.
+
+**Checkpoint update (this session, queue executed):**
+- **Monitor restarted:** task `b16z5o0au` (persistent, changes-only, 60s poll), scoped to
+  `w1:pCR`/`w1:pCK`/`w1:pCV`/`w1:pCZ`. Predecessor's monitor `bca8egl86` died with that session as
+  expected.
+- **`w1:pCZ` (#915 slice-3 build):** fresh read — still running `pnpm verify:foundation` in the
+  background terminal, no PR yet (`gh pr list --head feat/915-slice3-structured-ai` → empty).
+  Not merge-ready. Continue holding.
+- **`w1:pCV` (#917 plan execution):** fresh read — subagent-driven execution ongoing, "3 pending, 2
+  completed" tasks shown, context 67%/50%, flagged "8% until auto-compact" — close to its own
+  relay/compaction risk, watch closely next tick. Not yet complete, no independent review dispatch
+  yet.
+- No merges, no PR opens this checkpoint. `merges_since_relay` = 0, unchanged. Overnight sign-off
+  override remains ACTIVE, unexercised.
+
+**#915 slice-3 build DONE (`w1:pCZ` report):** PR **#923**
+(https://github.com/motioneso/Jarv1s/pull/923), branch `feat/915-slice3-structured-ai` pushed,
+rebased on `origin/main` @ `17eda21c3696`, HEAD `1aeedde8577a`. Agent-reported: `VF_EXIT=0
+AUDIT_EXIT=0` full suite; 307 unit files/2228 pass; 125 integration files/1432 pass; explicit
+invariants green; Task 5 extra composition/manifest files explained in PR description; deferred
+scope (ctx.ai RPC/caps/credential guard) split to new issue **#919**. Session-id authority
+re-confirmed (lock line = `ae488fcc-...`, matches). Tier **sensitive** (manifest line ~512:
+cross-module shared AI-seam contract). Dispatching `coordinated-qa` (Sonnet, isolated worktree) —
+CI trusted via `gh pr checks`, not re-run.
+
+**#915 slice-3 MERGED:** QA verdict GREEN (sensitive-tier standard QA + invariant walk, CI trusted
+via `gh pr checks`). Merged PR #923 via `gh pr merge --squash --delete-branch`; branch delete
+partially failed ("used by worktree") — completed manually with `git worktree remove
+.claude/worktrees/915-slice3-structured-ai --force` + `git branch -D
+feat/915-slice3-structured-ai`. Pane `w1:pCZ` reaped/closed. GitHub bookkeeping: PR body said
+"Closes #915" but #915 is a parent covering 3 prerequisites and only 1 shipped — GitHub
+auto-closed it wrongly; reopened via `gh issue reopen 915` + explanatory comment listing the 2
+remaining prerequisites (queue/schedule registration, host-pinned fetch) and the deferred-scope
+issue #919. #915 not on the project board (highest tracked item is #913), so no board move needed.
+Ben's digest: "#915 slice-3 (structured-AI seam) merged — PR #923, sensitive tier, QA green.
+Parent issue #915 reopened, 2 of 3 prerequisites still open, deferred scope split to #919."
+`merges_since_relay`: 0 → **1**.
+
+## Relay checkpoint (self-relay from session `ae488fcc-3b93-4be6-9118-14452e66da3d`, context 70%)
+
+Context-meter fired 70% warning — non-deferrable relay trigger. Flushing state; the literal next
+action (dispatching Opus QA on PR #924) was **not yet executed** and must not be started by this
+session — it's the successor's first move.
+
+**Mid-doing — successor's very first action:** spawn Opus adversarial QA on PR #924 (#917, tier
+`security`):
+```
+Agent(description: "QA: 917-open-module-system-slice1", subagent_type: "coordinated-qa",
+  isolation: "worktree", model: "opus", prompt: """
+JARVIS_PGDATABASE=jarvis_qa_917
+PR: #924 | Branch: plan/917-open-module-system-slice1 | Spec: locate via issue #917 body / linked
+spec under docs/superpowers/specs/ | Tier: security
+
+Security-tier adversarial pass: external manifest loader + fail-closed module activation is
+privileged-install-adjacent (pluggable-modules epic blocker: "install=privileged-ops").
+Adversarially hunt: path traversal / symlink escape in manifest loading, fail-OPEN edge cases in
+the "fail-closed" activation logic (any path where a malformed/missing manifest silently succeeds
+instead of rejecting), privilege boundary on the admin API + module-install surface, RLS on any new
+external-module state tables, secrets/credential handling in the loader. Not-tested section is
+mandatory for this tier — name any unproven trust boundary explicitly.
+
+Invoke the coordinated-qa skill. Post your verdict via `gh pr comment` on #924 (mandatory for
+security tier) BEFORE returning. Return ONLY the compact verdict as your final message.
+""")
+```
+
+**Then**, per the ACTIVE overnight sign-off override (top of manifest): route the Opus verdict to
+a quick two-model panel — `w1:pCR` (Fable 5, idle) and `w1:pCK` (Codex, idle) — "is PR #924 safe to
+merge unattended given this verdict"; post the combined answer as a PR comment tagged
+`[OVERNIGHT-SIGNOFF]` citing this manifest's override section. Merge only if Opus QA is GREEN and
+the panel says yes. On merge: `gh pr merge 924 --squash --delete-branch`, then
+`git worktree remove .claude/worktrees/917-implementation-plan --force` + `git branch -D
+plan/917-open-module-system-slice1` (branch delete will likely fail first pass while the worktree
+still references it — same pattern as #923, resolve the same way), close pane `w1:pCV`. GitHub
+bookkeeping: **verify #917's actual shipped scope against its full issue scope before closing** —
+learn from the #915 mistake, don't assume 1:1. Check if #917 is tracked on the project board
+(unconfirmed this session) before deciding whether a board move is needed. Digest entry must be
+tagged distinctly: "merged overnight under time-boxed sign-off override — please spot-check" (not
+a routine merge line).
+
+**This merge, once done, immediately re-fires a relay trigger** (security-tier merge is
+unconditional, regardless of the 2-merge counter) — relay again right after, before any further
+fleet action.
+
+**Fleet state at this checkpoint:**
+- `w1:pCV` "Opus: #917 Plan" — idle/standing by, PR #924 open, redirected away from premature
+  issue/board updates, waiting on QA feedback. Was reading ~64% context / "12% until
+  auto-compact" a few ticks ago — may relay on its own soon; not urgent, just watch.
+- `w1:pCZ` "Codex: #915 Slice-3 Build" — **closed and reaped**, no longer part of the fleet.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — `done`/idle, reap-safe from its own prior
+  assessment, but **needed** for the #917 overnight-signoff panel above before being reaped.
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, **needed** for the same panel; also still
+  overdue on Ben's "keep it informed periodically" ask (low priority, does not block the panel).
+- Monitor task `b16z5o0au` (persistent, changes-only, 60s poll, scoped to `w1:pCR`/`w1:pCK`/
+  `w1:pCV`/`w1:pCZ`) — **dies with this session**; successor restarts its own with the same scope
+  (drop `pCZ`, it's reaped — leaving it in is harmless, just a MISSING-pane no-op line).
+- `merges_since_relay` = 1 (the #915 slice-3 merge this session).
+- Overnight sign-off override remains ACTIVE (time-boxed to tonight only) — about to be exercised
+  for the first time, on PR #924.
+
+**Ben's standing digest, queued (not yet sent):**
+1. "#915 slice-3 (structured-AI seam) merged — PR #923, sensitive tier, QA green. Parent issue
+   #915 reopened, 2 of 3 prerequisites still open, deferred scope split to #919."
+2. (pending) "#917 slice 1 (open module system, external manifest loader) — security tier,
+   [outcome once merged/blocked]."
+
+**Session-id authority:** successor must update the manifest lock line to its own
+`agent_session.value` immediately upon claiming Phase 0a, even though this is the same routine
+every relay does — it is the pre-merge authority check for the #924 merge above.
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Lock re-claimed (successor session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`)
+
+Predecessor pane `w1:pD3` (session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (never a
+written pane number). First read showed it still `working` (6m1s elapsed, mid-processing an
+incoming Fable5 `[OVERNIGHT-SIGNOFF]` GREEN verdict message) — did NOT force-close a live pane; a
+follow-up fresh `herdr pane list` showed it had flipped to `done`. Closed `w1:pD3`; confirmed
+exactly **1** `Coordinator`-labelled pane remains: `w1:pD4`, session
+`f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, tab `w1:t15`.
+
+**Ground-truth check before trusting predecessor's pane narration:** PR #924 confirmed via `gh pr
+view` — `state: OPEN`, `mergedAt: null`, `headRefOid: 968251d8...` (unchanged from the RED-verdict
+head Codex reproduced against). **No merge occurred** — predecessor's on-screen text ("remember to
+log it in Ben's digest as merged-under-override") was narration/reflection on the Fable5 verdict
+that arrived post-relay-trigger, not an action taken. Fable5's GREEN verdict referenced there
+(comment 4934895631) appears to be the SAME `[OVERNIGHT-SIGNOFF]` GREEN already recorded in the
+prior "SPLIT" section (issuecomment-4934894336) — not a second independent verdict, and in any
+case **stale**: it was posted against head `968251d8`, the same head Codex found RED against, not
+a re-run against a fixed head. Per the successor queue below, both panel verdicts must be
+re-collected fresh against #917's NEW head once `w1:pCV` pushes fixes — this stale GREEN does not
+count.
+
+Proceeding with the predecessor's immediate action queue exactly as specified in the relay
+checkpoint above: hold on merge/panel until `w1:pCV` reports fixes pushed to PR #924, then fresh
+Opus QA → fresh panel → merge only if all green.
+
+**`w1:pCV` progress check (04:57 UTC, this checkpoint):** Monitor fired on `agent_status` flip to
+`done`; fresh pane read shows this is the same "flipped to done but not actually complete" pattern
+seen earlier in this run — it's mid a self-run `verify:foundation`-style gate wait loop, not
+stalled or finished. Concrete progress: **all 3 findings addressed** — 3 files fixed, all 12
+targeted unit tests green, the 3rd finding ("F3") required an escalation/judgment call which it
+grounded against the plan and ledgered (recorded) rather than silently resolving. Commit message
+staged; explicitly waiting on its own gate check before commit+push+PR-update. **Not dispatching QA
+yet — holding for the actual push/report.**
+
+## Lock re-claimed (successor session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`)
+
+Predecessor pane `w1:pD2` (session `ae488fcc-3b93-4be6-9118-14452e66da3d`, matched manifest lock
+line exactly) was **already gone** from `herdr pane list` by the time this successor ran Phase 0a
+— no pane matched that session id at all. Nothing to force-close; the predecessor evidently
+self-closed before or during its own relay spawn. New coordinator: pane `w1:pD3`, session
+`1d5beb50-c847-4b7c-8cea-cf99c3143fd3`, tab `w1:t15`, label renamed from spawn default
+"Coordinator (relay)" to canonical `Coordinator`. Verified exactly **1** `Coordinator`-labelled
+pane via fresh `herdr pane list`.
+
+Fleet re-confirmed fresh, unchanged from predecessor's last read: `w1:pCV` "Opus: #917 Plan"
+(idle/standing by, PR #924 open), `w1:pCR` "Fable 5: Job Search Spec Review" (done/idle, needed
+for overnight-signoff panel), `w1:pCK` "Codex: Job Search Spec" (done/idle, needed for panel),
+`w1:pCP`/`w1:pCQ` (unrelated, do not touch). `w1:pCZ` confirmed absent (already reaped).
+`merges_since_relay` = 1 (carried from predecessor). Overnight sign-off override remains ACTIVE.
+
+**Proceeding with predecessor's immediate action queue:** dispatch Opus adversarial QA on PR #924
+(#917, tier `security`) first, per the exact prompt specified in the checkpoint above.
+
+**Opus QA dispatched (this checkpoint):** `Agent(subagent_type: "coordinated-qa", isolation:
+"worktree", model: "opus")`, agent id `ae69f24a53a1ea97d`, running in background — will post its
+verdict to PR #924 via `gh pr comment` before returning, per the security-tier prompt verbatim
+from the relay checkpoint above. Awaiting completion notification; do not proceed to the
+Fable5/Codex overnight-signoff panel until this verdict lands.
+
+Monitor restarted: task `bwntn4bqt` (persistent, changes-only, 60s poll), scoped to
+`w1:pCR`/`w1:pCK`/`w1:pCV` (dropped `w1:pCZ` — already reaped). Predecessor's monitor
+`b16z5o0au` died with that session as expected.
+
+**Opus adversarial QA on PR #924 — VERDICT: GREEN, MERGE-READY: YES** (agent `ae69f24a53a1ea97d`,
+completed, posted `gh pr comment` verified present on PR at 2026-07-10T11:32:26Z). 0 blocking
+findings; 2 non-blocking (symlink-follow on worker.js/manifest reads without regular-file check —
+trusted-mount lowers severity; "loader never writes to mount" asserted in comments not proven by
+test). Invariants confirmed: RLS FORCE + admin-only writes on new config table (migration 0152),
+structural fail-closed (no row = inactive), admin authz before any 404/409 oracle, fs-error
+reasons scrubbed (no path leak), DataContextDb-only, module isolation preserved, server-only
+subpath. Not-tested (security tier, all within documented Slice-1 trusted-operator model, no
+creds/execution yet): hashes captured once at boot (no post-boot drift re-check until restart —
+integrity proven at boot only, enforced by operator/deploy not code), enable-time TOCTOU against
+stale boot snapshot, symlinked package-file content folded into hash with no size/type guard.
+
+**Routed to overnight-signoff panel (this checkpoint):** messaged both `w1:pCR` (Fable 5, high
+effort) and `w1:pCK` (Codex `gpt-5.6-sol` extra-high) with the `[OVERNIGHT-SIGNOFF]` adjudication
+request — independent "safe to merge unattended" judgment (not a QA re-run), citing this
+manifest's override section as authorization, instructed to post their own `gh pr comment` on
+#924 tagged `[OVERNIGHT-SIGNOFF]` before replying to Coordinator. Both confirmed message received
+and working (bounded pane reads). **Fable 5 flagged at 9% until auto-compact** when this message
+landed — watch closely, may stall/relay mid-task; nudge per `agent-stall-nudge-recovery` memory
+if it does, don't respawn unless actually dead. Awaiting both verdicts before merge — do not
+merge on one panel member alone.
+
+## Overnight-signoff panel SPLIT on PR #924 — merge HELD, findings relayed (this checkpoint)
+
+**Panel verdict: SPLIT.** Fable 5 (`w1:pCR`) → GREEN
+(https://github.com/motioneso/Jarv1s/pull/924#issuecomment-4934894336, second comment). Codex
+(`w1:pCK`) → **RED, MERGE-READY: NO**
+(https://github.com/motioneso/Jarv1s/pull/924#issuecomment-4934894336, first comment), grounded/
+reproduced against PR head `968251d8`. Per manifest rule "merge only if both green" — **PR #924
+does NOT merge tonight.** No relay-on-merge trigger fired (no merge occurred).
+
+**Codex's 3 blocking findings (verbatim summary):**
+1. `packages/module-registry/src/node.ts:69-75` — manifest read failure (`EACCES` etc.) caught by
+   an inner catch that interpolates `String(error)` before the sanitized outer catch (91-104);
+   `apps/api/src/server.ts:171-175` logs + admin GET returns it — absolute on-disk paths leak,
+   violating the PR's own no-path-leak invariant. Reproduced live on PR head.
+2. `packages/module-registry/src/external/hash.ts:54-63` — `existsSync`/`statSync`/`readFileSync`
+   follow symlinked `jarvis.module.json`/`dist/worker.js`/`dist/web`, contradicting #818's
+   symlink-escape rejection rule (Opus's QA called this same class "non-blocking"; Codex disagrees
+   — treats it as blocking given the approved spec explicitly requires rejection).
+3. On-disk contract mismatch — #917/#818 require `schemaVersion`/`runtime.workerContractVersion`/
+   optional `web.contractVersion`/entrypoints; this PR's `JsonJarvisModuleManifest`/
+   `ExternalJarvisModulePackage` validates none of it — scope narrowed from the approved contract
+   without a spec revision.
+
+**Relayed to owning build agent** `w1:pCV` ("Opus: #917 Plan", session `251b57c9-...`, worktree
+`.claude/worktrees/917-implementation-plan`, branch `plan/917-open-module-system-slice1`) via
+`herdr pane run` — full findings + fix guidance for each, told to push to PR #924, run the full
+gate, reply to Coordinator when ready for re-QA, explicitly told **not to merge itself**.
+**Confirmed delivered and being acted on** (bounded pane read showed the full message text in
+scrollback + pane actively "Spelunking… (thinking)" immediately after — a benign CX survey overlay
+("How is Claude doing this session?") is present but not blocking; do not dismiss it, it doesn't
+interfere with the agent working).
+
+**merges_since_relay unchanged at 1** (carried since PR #922; no merge this checkpoint).
+**Overnight sign-off override remains ACTIVE**, untouched in substance (used correctly — panel
+disagreement correctly blocked rather than being rubber-stamped).
+
+## Relay checkpoint (self-relay from session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`, context 70% warning fired)
+
+**Trigger:** PostToolUse context-meter hook fired at 70% (143580/204250 tok) immediately after
+confirming the `w1:pCV` message delivery above. Per coordinate skill: no deferral, flush + relay
+now, remaining bookkeeping goes to successor.
+
+**Fleet state at this checkpoint:**
+- `w1:pCV` "Opus: #917 Plan" — actively working (just received the RED-findings relay, thinking/
+  responding). **This is now the critical path** — successor must watch for its fix-complete
+  signal, then dispatch fresh re-QA (Opus adversarial again, security tier unchanged) before any
+  re-attempt at the overnight-signoff panel.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — was `working` last Monitor tick (had posted its
+  GREEN verdict at 11:38:42Z already; likely wrapping up / idle-pending). 9% until auto-compact
+  flagged earlier — check fresh, may have self-relayed.
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, its RED adjudication complete and posted.
+- Monitor task `bwntn4bqt` (persistent, changes-only, 60s poll, scoped to `w1:pCR`/`w1:pCK`/
+  `w1:pCV`) — **dies with this session**; successor must restart its own with the same scope.
+- No merge occurred this checkpoint. `merges_since_relay` = 1 (unchanged, carried forward).
+
+**Successor's immediate queue, in order:**
+1. **Do NOT re-attempt merge or re-panel until `w1:pCV` reports its fixes pushed to PR #924.**
+   Watch for completion (Monitor status flip or explicit report).
+2. Once `w1:pCV` reports done: dispatch a **fresh Opus adversarial QA** pass on the updated PR
+   #924 head (same `coordinated-qa` pattern as before, tier `security`) — do not reuse the stale
+   GREEN verdict, the diff has changed.
+3. If fresh QA is GREEN: re-run the overnight-signoff panel (Fable 5 `w1:pCR` + Codex `w1:pCK`),
+   both must post fresh `[OVERNIGHT-SIGNOFF]` verdicts against the NEW head — do not reuse their
+   prior comments, the code under review has changed.
+4. Merge only if fresh QA AND both fresh panel verdicts are green. Then GitHub bookkeeping (close
+   #917, board move) + Ben's standing digest, tagged "merged overnight under time-boxed sign-off
+   override — please spot-check" per the override's step 3 + relay again (security-tier merge
+   trigger).
+5. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`.
+6. Re-confirm session-id authority against this manifest's lock line before any merge (Phase 3
+   step 0) — the lock line will be updated by the successor itself in Phase 0a per the coordinate
+   skill (never trust a written pane number; resolve fresh via `herdr pane list`).
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Checkpoint (session `0bbe2a78-...`, F3 relay confirmed, Monitor restarted)
+
+**Bounded read of `w1:pCV` confirms F3 relay landed and is being executed** (not just
+registered): `schemaVersion: 1` field added to the manifest test fixture, currently on checklist
+step 8 ("spec revision note — check for an existing Revisions section"). Context tight (71% used,
+2-3% until auto-compact per its own status line) — known flapping pattern for this pane, not a
+stall. Holding for its fixes-pushed report before dispatching fresh QA.
+
+**Monitor restarted:** task `bu2jn72mn` (persistent, changes-only, 60s poll), scoped to
+`w1:pCR`/`w1:pCK`/`w1:pCV`. Predecessor's monitor `b9wy6e40k` died with that session as expected.
+Baseline event confirmed no drift: Fable5 done/idle, Codex done/idle, Opus working.
+
+## Checkpoint (`w1:pCV` fixes pushed, awaiting fresh CI before QA)
+
+**`w1:pCV` reports fixes pushed (2026-07-10 ~05:30 UTC):** `schemaVersion` field added
+(fail-closed on missing/future), worker/web contract versions explicitly deferred to Slices 2-3
+with rationale (metadata-only Slice 1, no loaders exist yet to consume them), spec `## Revisions`
+note appended verbatim. Gate: `pnpm verify:foundation` green, `REAL_EXIT=0` both rounds; targeted
+external-module suites 32/32. **New PR #924 head: `ab5d3ec570bfebdff415db577f62bb154b1d6a44`**
+(was `968251d8`, the RED-verdict head). SDD ledger + agentmemory updated. Handed back for re-QA.
+
+**Ground-truth via `gh pr view 924`:** confirms `headRefOid: ab5d3ec5...`, `state: OPEN`,
+`mergedAt: null`. All 3 required checks (`Verify foundation and app`, `Compose deployment smoke`,
+`Prod compose deployment smoke`) are `IN_PROGRESS` on this new head — **not dispatching QA yet**,
+QA trusts CI for the mechanical gate per the coordinate skill, no point re-running against pending
+checks. Started a clean background wait (task `bpubup1ms`) polling `gh pr checks 924` every 20s;
+will dispatch fresh Opus adversarial QA the moment all 3 resolve green (or handle red per the CI
+waiver protocol if any fail).
+
+**CI resolved GREEN (2026-07-10 ~05:35 UTC):** all 4 checks pass (`Build and publish images`,
+`Compose deployment smoke`, `Prod compose deployment smoke`, `Verify foundation and app`).
+Re-confirmed head still `ab5d3ec5`, PR still OPEN. **Dispatched fresh Opus adversarial QA**
+(security tier, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_917`) — prompt instructs it to
+independently verify each of the 3 previously-flagged findings (F3 fail-open manifest activation +
+2 others) against the actual diff, not trust the build agent's self-report, and to `gh pr comment`
+its verdict before returning. Awaiting result.
+
+**Fresh Opus adversarial QA returned GREEN / MERGE-READY (2026-07-10 ~05:55 UTC).** Verdict posted
+to PR #924 via `gh pr comment`. All 3 previously-adjudicated findings confirmed fixed at
+source+test level (not relabeled): schemaVersion !==1 fail-closed with missing+future cases
+tested; worker/web contract versions explicitly DEFERRED to Slices 2-3 in the spec `##
+Revisions` section + doc comment (not silently dropped); symlink/path-leak closed on
+dir+manifest+worker+web-dir with fs errors sanitized to code/name only. Invariants ok (RLS
+ENABLE+FORCE on `app.external_modules`, admin-only writes, no BYPASSRLS, metadata-only audit,
+DataContextDb, module isolation, migration 0152 in module `sql/` + foundation `toEqual` updated).
+4 non-blocking findings named (TOCTOU realpath→readFile, symlink dist/web silently excluded not
+rejected, RO-mount assumed not enforced, route-level non-admin 403 not directly asserted) — all
+inside Slice-1's trusted-operator + read-only-mount threat model, none a new external exposure.
+
+**Dispatched fresh overnight-signoff panel** per the ACTIVE override (top section): messaged
+`w1:pCR` (Fable 5) and `w1:pCK` (Codex) directly via `herdr pane run`, citing the new head
+`ab5d3ec5`, the exact 3 findings each of them previously flagged (Codex went RED on the old head;
+Fable5 was GREEN), and the fresh Opus verdict — instructed both to pull the new head and
+independently re-verify against the actual diff (not reuse prior comments, not trust my summary or
+the Opus verdict), then post a **fresh** `gh pr comment` tagged `[OVERNIGHT-SIGNOFF]` citing this
+manifest's override section. Both bounded-read-confirmed as actively working (Fable5 diffing the
+new head; Codex mid-review). Awaiting both fresh verdicts — merge only if Opus QA green (done) AND
+both fresh panel verdicts green.
+
+**Both fresh verdicts landed GREEN, ground-truthed via `gh api` (not trusted from pane text alone):**
+- Fable 5 — PR comment `4935553037`: "GREEN — safe to merge unattended tonight", explicitly
+  supersedes the prior verdict (against old head `968251d8`), independently re-verified all 3
+  Codex findings fixed in source+tests on `ab5d3ec5`.
+- Codex `gpt-5.6-sol` xhigh — PR comment `4935564817`: "GREEN — SAFE TO MERGE UNATTENDED", fresh
+  independent adjudication citing the corrective delta from `968251d8`, `pnpm audit:preflight`
+  behind=0, CI 4/4, all 3 prior blockers independently confirmed resolved (path-leak, symlink
+  escape, contract fail-closed + documented deferral). Both cite the override section as
+  authorization per its terms.
+
+**Session-id authority re-confirmed** (sole `Coordinator` pane, `w1:pD5` / `0bbe2a78-...`, matches
+lock line) immediately before merge. `gh pr view 924`: `mergeStateStatus: CLEAN`,
+`mergeable: MERGEABLE`, head unchanged at `ab5d3ec5`.
+
+**MERGED:** `gh pr merge 924 --squash --delete-branch` → merge commit `4bc53694a0d2d85b3050b534b4aa029dd57e4a83`,
+merged `2026-07-10T13:02:48Z`. `--delete-branch` failed on both local and remote (branch pinned by
+the `w1:pCV` worktree) — closed `w1:pCV` pane (job done), `git worktree remove
+.claude/worktrees/917-implementation-plan --force`, `git branch -D
+plan/917-open-module-system-slice1`, `git push origin --delete plan/917-open-module-system-slice1`
+— same pattern as the #915/PR#923 precedent above.
+
+**GitHub bookkeeping:** issue #917 auto-closed by the merge (`closedAt` matches merge time);
+project-board item auto-moved to `Done` (status `Issue and Roadmap Work`). #917 is "Part of #818"
+and "foundation for epic #860 (delivers #913 platform prerequisite 1)" — a single slice of a
+multi-slice epic; **epic #818/#860/#913 exit-criteria NOT met by this alone**, epic stays open, no
+milestone action. Dependents #914 (already merged, PR #920) satisfied; #918/#919 (next in Ben's
+relayed order) are now unblocked on #917.
+
+**Ben's digest entry:** "PR #924 (#917, Open module system Slice 1 — external manifest loader +
+fail-closed activation) **merged overnight under time-boxed sign-off override — please
+spot-check**. Security tier. Fresh Opus adversarial QA GREEN (all 3 previously-flagged findings —
+path leak, symlink escape, contract fail-closed — independently re-verified fixed at source+test
+level on the new head, not just relabeled). Fresh Fable5 + Codex `[OVERNIGHT-SIGNOFF]` panel both
+GREEN independently, both explicitly re-adjudicated against the new head (not reused from the
+earlier RED/GREEN split). Merge commit `4bc53694`. Issue #917 closed, board auto-moved to Done.
+Epic #818/#860/#913 remains open — this was slice 1 of several; #918/#919 next per your relayed
+order." `merges_since_relay`: was `1` (carried from predecessor) → **security-tier merge, relay
+is non-negotiable regardless of counter** — flushing now.
+
+## Relay checkpoint (self-relay from session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`, context 71%)
+
+Context-meter fired 71% (>70% threshold) — compounds with the already-mandatory security-tier
+merge relay trigger. **Nothing left mid-doing:** PR #924 merge + all GitHub bookkeeping + Ben's
+digest entry are complete and committed above; `w1:pCV` closed + worktree/branches cleaned up;
+Monitor `bu2jn72mn` (scoped `w1:pCR`/`w1:pCK`/`w1:pCV`) is still running as this session's, will die
+with it — **successor's first action: restart a persistent Monitor** scoped to the current live
+fleet (`w1:pCR` Fable 5, `w1:pCK` Codex — both idle/available; `w1:pCV` is gone, don't reference
+it). Live fleet is otherwise idle — no open build lanes, no pending QA, no blockers.
+
+**Successor's actual next work:** per Ben's relayed order #917→#914→#918→#919→#915→#916 — #917
+just landed, #914 already merged (PR #920). **Next up: #918 and #919** — check whether either has
+an approved spec + implementation plan yet (none did as of this session; may need Fable 5 to draft
+one, same pattern as #917's `w1:pCV` plan lane). #915's remaining 2 prerequisites (queue/schedule
+registration, host-pinned fetch) and #916 remain queued behind those per Ben's order. The overnight
+sign-off override (top of manifest) **remains ACTIVE** (time-boxed to tonight, Ben still not
+back) — re-confirm with him before relying on it once he returns.
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Lock re-claimed (successor session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`)
+
+Predecessor pane `w1:pD4` (session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (never a
+written pane number) — found `agent_status: done`. Closed `w1:pD4`; confirmed exactly **1**
+`Coordinator`-labelled pane remains: `w1:pD5`, session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`, tab
+`w1:t15`. Lock line at top of manifest updated to this session. Proceeding with the immediate
+action queue from the relay checkpoint above: bounded-read `w1:pCV` to confirm the F3 relay landed.
+
+## F3 resolved (Opus adjudication, session `f66de1e4`, 2026-07-10)
+
+`w1:pCV` presented 3 options for Codex's blocking finding #3 (on-disk contract mismatch —
+`schemaVersion`/`workerContractVersion`/`web.contractVersion` unvalidated) and explicitly declined
+to pick unilaterally (correct — genuine spec-vs-plan fork on a security-tier PR). Dispatched a
+one-shot Opus subagent per the coordinate skill's design-fork model policy; it ground-truthed the
+actual spec/plan/code (not just w1:pCV's framing).
+
+**Verdict: Option B.** Spec §Architecture + §Build-slices *do* require the nested contract-version
+fields, and the plan/code silently flattened them with no divergence note — Codex's F3 is a real
+"Spec before build" violation. But full alignment (option A) is wrong scope: Slice 1 is
+metadata-only (no `worker.ts` changes, no web serving), so `workerContractVersion`/
+`web.contractVersion` would guard loaders that don't exist until Slice 2-3. Fix: add + validate a
+top-level `schemaVersion: 1` now (the one version that's real tonight), and append a spec-revision
+note recording the deferral — cheap, safe for unattended merge, closes the paper gap.
+
+Relayed the full decision + exact spec-note text + action list (schemaVersion field, validate.ts
+check, spec append, commit/push/re-gate/report) to `w1:pCV` via `herdr pane run` at this checkpoint.
+**Not yet confirmed received** — next coordinator must bounded-read `w1:pCV` to verify it registered
+the message before assuming progress.
+
+## Relay checkpoint (self-relay from session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, context 70%)
+
+Context-meter fired the 70% hard trigger per the coordinate skill (no deferral — flush + relay
+now, merge nothing first). Nothing has merged this checkpoint. State:
+
+- **F3 decision**: resolved + relayed to `w1:pCV` (above) — NOT yet confirmed registered.
+- **PR #924 / #917**: still open, unmerged, head still `968251d8` as of last ground-truth check
+  (predecessor's GREEN Fable5 verdict on this head is STALE — do not reuse; a fresh panel run is
+  required against whatever head w1:pCV pushes next).
+- **w1:pCV** (Opus, worktree `.claude/worktrees/917-implementation-plan`, `agent_status` flaps
+  working/done mid a background gate-wait loop — this is a known pattern for this pane, not a
+  stall): gate already passed once (`REAL_EXIT=0`, unit 2232+2 skip/+4 new, integration 1426+2
+  skip, 143 migrations) for findings 1+2; now needs to also land the F3 fix above, re-run the gate,
+  commit, push, and report.
+- **Immediate action queue for successor** (unchanged from the prior checkpoint, now resumed):
+  1. Bounded-read `w1:pCV` to confirm the F3 relay landed; if the input box still shows stale
+     unsubmitted text from an earlier session, do NOT trust/submit it — only act on w1:pCV's own
+     fresh acknowledgement.
+  2. Wait for w1:pCV to report fixes pushed (all 3 findings, gate green, spec note appended).
+  3. Dispatch a FRESH Opus adversarial QA pass on the new PR #924 head (do not reuse any prior
+     verdict, stale or otherwise).
+  4. If green: re-run the Fable5 (`w1:pCR`) + Codex (`w1:pCK`) overnight-signoff panel from
+     scratch against the new head — both must post fresh `[OVERNIGHT-SIGNOFF]` verdicts (Ben's
+     time-boxed override still applies — read the top-of-file override section for exact steps;
+     a single RED still blocks).
+  5. Merge only if fresh QA AND both fresh panel verdicts are green → squash-merge, close #917,
+     board move, Ben's digest tagged "merged overnight under time-boxed sign-off override — please
+     spot-check" → relay again immediately (security-tier merge is a mandatory relay trigger).
+  6. Re-confirm session-id authority against this manifest's lock line before any merge (Phase 3
+     step 0) — update the lock line to the successor's own session id at Phase 0a.
+  7. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV` (the one from session
+     `f66de1e4` — task `b9wy6e40k` — dies with this session's reap).
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Lock re-claimed (successor session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`), immediate 70% relay
+
+Predecessor pane `w1:pD5` (session `0bbe2a78-...`) was mid auto-compaction on adoption (status
+`working`); waited via bounded Monitor (not a blocking sleep) until it settled to `done`, then
+closed. New coordinator: pane `w1:pD6`, session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`, tab
+`w1:t15`. Verified exactly one `Coordinator`-labelled pane via fresh `herdr pane list` before and
+after. **Context-meter fired 70% immediately after**, mid Phase 0a — per skill, no deferral:
+flushing now, relaying immediately, no further queue work done this session.
+
+**Ground truth established this checkpoint (read-only, GitHub-verified):**
+- `#918` (Slice 2: runtime web/settings UI + module credentials + KV store) — OPEN, `task, RFA`.
+  **No open PR, no plan doc found** (`gh pr list` empty for it; no `docs/superpowers/plans/*918*`
+  or `*slice2*` file; no `918`/`slice2` branch). Spec gate per Phase-0 collision map (already in
+  this manifest, unchanged): approved on main via #818 §Slice 2. **Only gate open: implementation
+  plan**, same pattern as #917 (Opus/Fable-authored, independently reviewed before build spawn).
+- `#919` (Slice 3: backend worker runtime + external assistant tool execution) — OPEN, `task,
+  RFA`. **No open PR, no plan doc, no branch found.** Spec approved via #818 §Slice 3 (per
+  collision map). Same single open gate: implementation plan. **Do not confuse with #915 Slice 3**
+  (`packages/ai` structured-AI seam, already merged PR #923/#922) — different issue, different
+  slice numbering scheme (#915's slices are internal to that spec; #918/#919 are the
+  open-module-system spec's slices 2/3). Note this distinction explicitly to whichever agent
+  picks up planning so it doesn't conflate the two.
+- Serialization order per the standing collision map: `#917 (done, PR #924) → #914 (done, PR
+  #920) → #918 → #919 → then #916, #915(remaining slices)`. **#918 is next in the chain and is
+  the correct next plan-authoring target** — its spec is approved, its predecessor (#917) is
+  merged, nothing blocks starting a plan for it now.
+- Did NOT check whether #917's merge (PR #924, `4bc53694`) is done propagating / whether #918's
+  worktree should branch from that new `main` tip — successor must `git fetch origin main` fresh
+  before cutting #918's plan-authoring worktree.
+- Main CI: last checked `in_progress` (post-#924-merge run, SHA `4bc53694`), not yet confirmed
+  green — **re-check before spawning anything onto main**.
+
+**NOT done this checkpoint (successor's immediate queue, in order):**
+1. Restart a persistent Monitor scoped to `w1:pCR` (Fable 5, idle) + `w1:pCK` (Codex, idle) —
+   `w1:pCV` (Opus #917 plan) is gone, already reaped after #917 merged. No Monitor is currently
+   running (predecessor's died with its session).
+2. Re-confirm `main` CI is green (`gh run list --branch main --limit 1`) before spawning anything.
+3. Spawn implementation-plan authoring for **#918** (next in chain, spec approved, no plan yet) —
+   same pattern used for #917 (isolated worktree off fresh `origin/main`, handoff doc, Opus xhigh
+   or Fable 5 depending on availability, independent review before treating plan as approved,
+   still no build lane until plan is authored AND reviewed).
+4. #919 stays queued behind #918 (serialization order, shared `packages/settings/sql/` +
+   module-registry manifest schema per the collision map) — do not plan it in parallel with #918.
+5. Ping Codex (`w1:pCK`) — Ben's "keep it informed" instruction, overdue for several checkpoints.
+6. Overnight sign-off override (top of manifest) remains ACTIVE, untouched this checkpoint — no
+   new security-tier merge occurred this session.
+7. `merges_since_relay` = 0 (unchanged from last reset; no merge this checkpoint).
+
+**Still holding — no build lane spawns** for #918/#919 until each has spec-merged-to-main (already
+true, via #818) AND an approved implementation plan (not yet authored for either).
+
+## Lock re-claimed (successor session `cae2b14e-6334-46bd-a64c-a854b7185ac3`), immediate 73% relay
+
+Predecessor pane `w1:pD6` (session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`, matched manifest lock
+line exactly) confirmed `done`/idle via fresh `herdr pane list` — closed. New coordinator: pane
+`w1:pD7` (was spawned as placeholder label `Coordinator-relay2` since predecessor still held
+`Coordinator` at spawn time), renamed to `Coordinator`, tab `w1:t15`. Verified exactly one
+`Coordinator`-labelled pane via fresh `herdr pane list` after rename. Confirmed driving via own
+`agent_session.value` = `cae2b14e-6334-46bd-a64c-a854b7185ac3` (matches pane list exactly). Lock
+line at top of this manifest updated to this pane/session.
+
+**Context-meter fired 73% immediately after Phase 0a lock claim — per skill, no deferral:**
+flushing now, relaying immediately, **none of the immediate action queue below was executed this
+session** (no Monitor restarted, no CI re-check, no #918 plan-authoring spawned, no Codex ping).
+This is the same pattern as the predecessor's own relay (mid Phase 0a, 70%) — two consecutive
+sessions have now hit the threshold before completing the queue. Successor should expect to
+inherit and execute the queue fresh; consider whether the queue itself (or the manifest reads
+required to resume it) is now the dominant context cost per checkpoint, and if so keep this
+relay-checkpoint prose tighter or point at line ranges instead of re-quoting ground truth.
+
+**Immediate action queue for successor (in order — carried forward unchanged from the prior
+checkpoint, nothing done yet):**
+1. Restart a persistent Monitor scoped to `w1:pCR` (Fable 5, idle) + `w1:pCK` (Codex, idle) —
+   `w1:pCV` (Opus #917 plan) is gone, already reaped after #917 merged. No Monitor is currently
+   running.
+2. Re-confirm `main` CI is green (`gh run list --branch main --limit 1`) before spawning anything
+   — last known state was `in_progress` post-#924-merge (SHA `4bc53694`), never confirmed green.
+3. Spawn implementation-plan authoring for **#918** (next in chain: #917 done PR #924, #914 done
+   PR #920, #918 spec approved via #818 §Slice 2, no plan yet) — same pattern used for #917
+   (isolated worktree off fresh `origin/main`, handoff doc, Opus xhigh or Fable 5 depending on
+   availability, independent review before treating plan as approved, still no build lane until
+   plan is authored AND reviewed). Do not confuse #918/#919 (open-module-system spec slices 2/3)
+   with #915's internal slice numbering (structured-AI seam, already merged).
+4. #919 stays queued behind #918 (serialization order, shared `packages/settings/sql/` +
+   module-registry manifest schema per the collision map) — do not plan it in parallel with #918.
+5. Ping Codex (`w1:pCK`) — Ben's "keep it informed" instruction, overdue for several checkpoints.
+6. Overnight sign-off override (top of manifest) remains ACTIVE, untouched this checkpoint — no
+   new security-tier merge occurred this session.
+7. `merges_since_relay` = 0 (unchanged from last reset; no merge this checkpoint).
+
+**Still holding — no build lane spawns** for #918/#919 until each has an approved implementation
+plan (not yet authored for either). Fleet unchanged: `w1:pCK` (Codex, idle), `w1:pCR` (Fable 5,
+idle), `w1:pCP`/`w1:pCQ` (not part of this run, do not touch).
+
+## Lock re-claimed (successor session `15c56162-ce53-4035-a2e4-502646c3fc84`), IMMEDIATE 83% relay before executing queue
+
+Predecessor pane `w1:pD7` (session `cae2b14e-...`) closed after confirming it was `done`/idle (it
+only spawned this successor then stopped, per its own relay note). New coordinator: pane `w1:pD8`,
+session `15c56162-ce53-4035-a2e4-502646c3fc84`, tab `w1:t15`. Verified sole `Coordinator`-labelled
+pane via fresh `herdr pane list`. Lock line above updated.
+
+**Context hit 83% immediately after reading this manifest in full (before any other action) — the
+manifest itself is now large enough that a full read alone burns past the 70% relay trigger.**
+Per the coordinate skill's relay-trigger rule (no deferral once fired), did NOT execute any of the
+inherited action queue from the "immediate 73% relay" section above — that queue is carried
+forward UNCHANGED to this successor's successor:
+
+1. Restart persistent Monitor scoped to `w1:pCR` (Fable 5, idle) + `w1:pCK` (Codex, idle) — no
+   Monitor is currently running (predecessor's died with its session, per pattern).
+2. Re-confirm main CI green (`gh run list --branch main --limit 1`) before spawning anything.
+3. Spawn implementation-plan authoring for **#918** (next in chain: #917 done → PR #924 merged?
+   — status not re-verified this pass, check fresh; #914 done → PR #920 merged; #918 spec
+   approved via #818 Slice 2, no plan yet).
+4. Keep **#919** queued behind #918 (spec approved via #818 Slice 3, no plan yet).
+5. Ping Codex `w1:pCK` (idle, overdue — Ben wants it kept informed periodically, not touched in
+   several checkpoints).
+
+**Also unverified/unread this pass — successor must ground fresh, do not trust anything below this
+line as current without a fresh check:** status of PR #924 (#917), #915 slice-3 build lane
+(`w1:pCZ` if still present), Opus xhigh `w1:pCV` (#917 plan — had 4 prior mid-stream stalls, last
+known state unclear), `merges_since_relay` counter value. **This manifest file is now very
+large (~1470+ lines) — reading it in full costs ~45K+ tokens. Successor should consider `Grep`
+for the last 2-3 checkpoint sections instead of a full `Read` if context is a concern, and should
+strongly consider trimming/archiving older checkpoint sections (everything before the last 2
+"Lock re-claimed" markers) into a separate archive file once the run stabilizes, to stop this
+compounding.**
+
+Overnight sign-off override (top of manifest) remains ACTIVE, untouched this checkpoint.
+
+About to self-relay per the `relay` skill pattern: spawn successor in the SAME tab (`w1:t15`) as
+this pane, confirm it's driving, then close this pane.
+
+## Lock re-claimed (successor session `46590121-e5b0-42cb-aa50-b2da3a615f1f`), Phase 0a done, queue in progress
+
+Predecessor pane `w1:pD8` (session `15c56162-...`) had already self-closed by the time this
+successor checked — confirmed via fresh `herdr pane list`, no explicit close action needed. New
+coordinator: pane `w1:pD9` (renamed `Coordinator-relay4` → `Coordinator`), session
+`46590121-e5b0-42cb-aa50-b2da3a615f1f`, tab `w1:t15`. Verified sole `Coordinator`-labelled pane.
+Lock line above updated.
+
+**Fresh grounding on everything the predecessor flagged unverified:**
+- **PR #924 (#917):** confirmed **MERGED** (`2026-07-10T13:02:48Z`), all 4 checks SUCCESS
+  (foundation/app, compose smoke x2, build+publish).
+- **Main CI:** the merge itself triggered a new run (`29094628852`) — **in_progress** at check
+  time (~12min elapsed), not yet green. Watching it before spawning anything new.
+- **#915 slice-3 build lane (`w1:pCZ`):** pane no longer present — already reaped. Confirmed via
+  `gh pr list --search 915`: **PR #923** "feat(ai): structured AI seam (#915)" MERGED
+  `2026-07-10T09:00:31Z`. Slice-3 is done, not a live concern.
+- **Opus xhigh `w1:pCV` (#917 plan):** pane no longer present — #917 is closed (PR #924 merged),
+  so this lane completed and was reaped. Not a live concern.
+- **`merges_since_relay`:** confirmed **0** — consistent with the prior security-tier-merge relay
+  (PR #924) having reset it; no merges since.
+- **Issue states (fresh `gh issue view` per number):** #914 OPEN (spec-only PR #920 merged, impl
+  not started — not in this run's immediate queue), #915 OPEN (impl done via PR #923, issue not
+  yet closed — bookkeeping gap, see below), #917 CLOSED (PR #924 merged), #918 OPEN (next in
+  chain, spec approved via #818 Slice 2, **no plan authored yet**), #919 OPEN (queued behind
+  #918), #920 MERGED (spec doc for #914).
+
+**Bookkeeping gap found:** issue #915 is still OPEN despite its implementation (PR #923) having
+merged. Flagging for close-out once this checkpoint's active items settle — not blocking, but
+don't forget it (GitHub is source of truth per CLAUDE.md; open issue for shipped work is drift).
+
+**Actions taken this checkpoint:**
+1. Pinged Codex `w1:pCK` with a status update (PR #924 merged, #918 next, will re-engage for
+   #918's second-lens QA) — acknowledged, idle, 98%/85% context headroom remaining.
+2. Started a persistent liveness `Monitor` diffing `herdr pane list` for `w1:pCR`/`w1:pCK`/`w1:pD9`
+   (emits only on change).
+3. Started a `Monitor` polling `gh run view 29094628852` every 20s until `completed` — **holding
+   the #918 plan-authoring spawn until this resolves green**, per "never spawn onto a red main."
+
+**Not yet done (blocked on CI monitor):** spawn implementation-plan authoring agent for #918.
+Will proceed the moment the watched run reports `completed success`. #919 stays queued behind it
+per the standing queue order.
+
+Overnight sign-off override remains ACTIVE (Ben not back yet, time-boxed to tonight).
+
