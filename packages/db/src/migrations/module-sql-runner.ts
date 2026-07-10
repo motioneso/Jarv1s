@@ -4,6 +4,12 @@
 // grants) is platform-generated (module-rls-emitter.ts) so a module can never grant itself access
 // it shouldn't have.
 
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+import { Client } from "pg";
+
 const FIRST_COMMAND_ALLOWLIST: readonly RegExp[] = [
   /^CREATE\s+TABLE\b/i,
   /^CREATE\s+(UNIQUE\s+)?INDEX\b/i,
@@ -107,9 +113,73 @@ function countTopLevelStatements(sql: string): number {
       i += 1;
       continue;
     }
-    if (!/\s/.test(sql[i])) sawContentSinceSemicolon = true;
+    if (!/\s/.test(sql[i]!)) sawContentSinceSemicolon = true;
     i += 1;
   }
   if (sawContentSinceSemicolon) count += 1;
   return count;
+}
+
+export interface ModuleMigrationFile {
+  readonly version: string;
+  readonly name: string;
+  readonly checksum: string;
+  readonly sql: string;
+}
+
+/** Loads every `.sql` file in `directory`, sorted by filename, validating each against the wire contract. */
+export async function loadModuleMigrationFiles(directory: string): Promise<ModuleMigrationFile[]> {
+  const entries = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+  const files: ModuleMigrationFile[] = [];
+  for (const name of entries) {
+    const sql = await readFile(join(directory, name), "utf8");
+    const validation = validateModuleMigrationSql(sql);
+    if (!validation.ok) {
+      throw new Error(
+        `module migration ${name} violates the wire contract: ${validation.errors.join("; ")}`
+      );
+    }
+    const version = name.split("_")[0]!;
+    files.push({ version, name, checksum: createHash("sha256").update(sql).digest("hex"), sql });
+  }
+  return files;
+}
+
+/** Returns the set of migration versions already recorded for `moduleId`. */
+export async function getAppliedModuleMigrations(
+  connectionString: string,
+  moduleId: string
+): Promise<Set<string>> {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const result = await client.query<{ version: string }>(
+      "SELECT version FROM app.module_schema_migrations WHERE module_id = $1",
+      [moduleId]
+    );
+    return new Set(result.rows.map((row) => row.version));
+  } finally {
+    await client.end();
+  }
+}
+
+/** Records ledger rows for `files` under `moduleId` (Phase C — runs over the migration-owner connection). */
+export async function recordModuleMigrations(
+  connectionString: string,
+  moduleId: string,
+  files: readonly ModuleMigrationFile[]
+): Promise<void> {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    for (const file of files) {
+      await client.query(
+        "INSERT INTO app.module_schema_migrations (module_id, version, name, checksum) " +
+          "VALUES ($1, $2, $3, $4)",
+        [moduleId, file.version, file.name, file.checksum]
+      );
+    }
+  } finally {
+    await client.end();
+  }
 }
