@@ -40,6 +40,7 @@ const protectedTables = [
   "chat_threads",
   "connector_accounts",
   "email_messages",
+  "module_credentials",
   "notification_reads",
   "notifications",
   "task_activity",
