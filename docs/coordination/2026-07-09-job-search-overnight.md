@@ -1,8 +1,12 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `395b82b5-c8a5-40fe-95a9-dc8575d8380c`,
-pane `w1:pCS`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `ff21f505-87fe-4818-97ea-53f16a7a741e`,
+pane `w1:pCT`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff.)
+
+**Lock re-claimed 2026-07-09 (this checkpoint, self-relay from `395b82b5-...`):** predecessor
+pane `w1:pCS` closed after successor pane `w1:pCT` confirmed sole `Coordinator`-labelled pane via
+`herdr pane list`. Fleet unchanged: `w1:pCK` (Codex, idle), `w1:pCR` (Fable 5, idle).
 
 **Lock re-claimed 2026-07-09 (this checkpoint):** predecessor session `c99d19d5-...` (pane
 `w1:pCM`) had already self-closed by the time this successor adopted — verified via `herdr pane
@@ -173,3 +177,23 @@ This manifest was written at a 72%-context checkpoint immediately after completi
 revalidation above. No build lane has been spawned; no panes have been messaged yet. Coordinator
 is about to self-relay (spawn successor in tab `w1:t15`, same pane) per the coordinate skill's
 context-meter trigger.
+
+## Checkpoint update (successor session `ff21f505-...`, immediate queue executed)
+- Lock re-claimed: pane `w1:pCT` relabeled `Coordinator`, predecessor `w1:pCS` closed after
+  confirming sole-Coordinator uniqueness via `herdr pane list`.
+- **Opus xhigh spawned for #917 plan-authoring:** pane `w1:pCV`, tab `w1:t1F`, worktree
+  `.claude/worktrees/917-implementation-plan`, confirmed running "Opus 4.8" (xhigh passed via
+  argv, not visible in status line but confirmed via launch command). Working through
+  `docs/coordination/handoffs/917-implementation-plan.md`.
+- **Fable 5 (`w1:pCR`) reliability note (Ben, this checkpoint): Fable has been hitting repeated
+  mid-stream API errors** — its reply to the #915/#913 status questions stalled twice before this
+  checkpoint. Treat its output as possibly unreliable/delayed; nudge rather than hammer
+  (`agent-stall-nudge-recovery` memory), don't respawn unless it actually dies. Redirected it to
+  stay on #915 only (Opus xhigh now solely owns #917 planning — no redundant #917 work), asked it
+  to answer #915 spec-approval state + #913 epic-PR readiness whenever stable, no rush.
+- Monitor restarted: task `b90uanpka` (persistent, changes-only), scoped to `w1:pCR` + `w1:pCK` +
+  `w1:pCV`. Predecessor's monitor `bax84pxa9` died with that session as expected.
+- **Still holding — no build lane spawns** until #917's plan is authored by Opus xhigh AND
+  approved (by coordinator per spec-lock-adherence, or escalated per Ben's two-model-panel
+  addendum / to Ben directly for a genuine fork). #913 epic spec still unmerged; #915/#916 still
+  lack merged specs.
