@@ -30,9 +30,7 @@ test.describe("External modules admin pane (#917)", () => {
     // The External modules section + its trusted-operator warning are present. `exact` so the
     // section title doesn't also match the warning paragraph, which begins "External modules …".
     await expect(page.getByText("External modules", { exact: true })).toBeVisible();
-    await expect(
-      page.getByText(/only enable modules you authored or fully trust/i)
-    ).toBeVisible();
+    await expect(page.getByText(/only enable modules you authored or fully trust/i)).toBeVisible();
 
     // The authored Switch renders an <input type="checkbox">, so its ARIA role is `checkbox`
     // (NOT `switch`). The native input is visually hidden (opacity:0; 0×0) — the wrapping
