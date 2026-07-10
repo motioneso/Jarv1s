@@ -741,3 +741,51 @@ plan doc write + message for approval before any code (per original instruction 
 new successor.
 
 **merges_since_relay: 0.**
+
+## #914 plan-ready reviewed, conditional approval; build-agent model policy directive (session fe5eea37-...)
+
+**#914 relay-5 plan-ready:** `docs/superpowers/plans/2026-07-10-module-data-plane.md` (~1750
+lines, Slices 1-4, 9 tasks). Per coordinate skill's plan-body discipline, did NOT read the plan
+directly — delegated spec-conformance check to a fresh general-purpose subagent (pointer-style:
+spec path + plan path + the agent's own design-call claim to sanity-check).
+
+**Verdict: MISSING-COVERAGE, not a genuine fork.** Core design decisions (namespaced ledger,
+4-phase role-broker install, RLS/policy/grant emitter, storage RPC, `ownedTables`-manifest-driven
+export/deletion lifecycle mirroring `assertModuleRegistryConsistency` from
+`tests/integration/module-registry.test.ts` #801) all map cleanly onto spec D1-D6 — confirmed, no
+escalation needed. Migration numbers 0155/0156 confirmed correct given verified head 0152, with
+the renumber-if-0153/0154-landed contingency already in the plan.
+
+**One concrete bug found and sent back before build start:** Task 9 Step 6
+(`readExternalModuleExportRows`) ran `SELECT * FROM <table>` directly on `scopedDb.db`, bypassing
+`SET LOCAL ROLE jarvis_mod_<slug>_runtime` and the Task 8 `createModuleStorageRpc` helper —
+contradicts spec D6 (export collector must read module tables only via that same scoped helper;
+`WITH INHERIT FALSE` means the parent role has no ambient grant). As written this either fails on
+privileges at runtime or silently breaks module isolation/private-by-default on the export path.
+Sent conditional approval to `w1:pDQ` (session `8baf4c17-...`) via `herdr pane run`: rest of plan
+approved, fix Task 9 Step 6 to route through `createModuleStorageRpc` before starting the build.
+Verified delivered (pane flipped `idle`→`working`). No Ben escalation needed — fixable
+spec-conformance defect, not a design fork; will note in Ben's standing digest as "caught
+pre-code" when #914 lands.
+
+**Build-agent model policy — Ben directive (mid-turn, this checkpoint): "please use gpt-5.6-sol
+for build agents, I want to test them out."** This matches Ben's *original* handoff intent (already
+in this manifest, line 46: "Ready lanes → Codex `gpt-5.6-sol` high reasoning") which had drifted —
+#914 and #918 both ended up spawned as Claude/Sonnet build agents instead. Not retroactively
+touching #914/#918 (mid-build, both clean/progressing — restarting on a model swap would waste
+completed work for no benefit). **Applies going forward to new lane spawns** (#919, #915, #916 once
+each clears its spec+plan gate).
+
+Ben confirmed invocation path = **Codex CLI** (asked directly rather than guessing since `herdr
+agent start ... -- claude --model sonnet` only covers Claude Code spawns). Confirmed via `codex
+--help` this session — flags to use for future build-lane spawns:
+```
+herdr agent start "<Label>" --tab w1:<agents-tab> --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
+  -- codex --model gpt-5.6-sol -c model_reasoning_effort=high \
+  -s danger-full-access -a never \
+  "<same build-agent bootstrap prompt as the Claude pattern: STEP 1 pnpm install, STEP 2 read the handoff doc IN FULL and follow it via coordinated-build>"
+```
+(`model_reasoning_effort` config key unconfirmed against a live run yet — verify the pane actually
+booted at `high` on first spawn, same "confirm the model" discipline as the Sonnet check.) Tab
+discipline, worktree isolation, handoff-doc-first bootstrap, and Phase 1 spawn verification all
+still apply unchanged — only the underlying CLI/model changes.
