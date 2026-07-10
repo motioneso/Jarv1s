@@ -46,11 +46,11 @@ import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
 // Server-only subpath (#917). Safe here — the api is never browser-bundled — and keeps
 // createApiServer synchronous (no dynamic import()).
 import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
-import type {
-  ExternalModuleDiscovery,
-  ExternalModuleLoadResult,
-  ExternalModuleRejection
-} from "@jarv1s/module-registry";
+// Only the aggregate result type is referenced here (discoverExternalModules' return).
+// The element types (ExternalModuleDiscovery/ExternalModuleRejection) are consumed in
+// Task 9 when the /api/modules provider reads the snapshot — importing them now trips
+// @typescript-eslint/no-unused-vars (CI-red on the full gate), so they land with their use.
+import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
