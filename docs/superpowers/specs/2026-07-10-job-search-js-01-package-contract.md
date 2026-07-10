@@ -12,6 +12,12 @@ activation only; it stores no product data and performs no source fetch or AI ca
 
 ## Contract
 
+Source lives in this repository at `external-modules/job-search/`, outside the `packages/*` pnpm
+workspace and outside built-in module discovery. The default image build must exclude
+`external-modules/` through `.dockerignore`; a separate package build/release command produces the
+installable artifact. CI may test both from the same repository, but the core build never compiles,
+copies, or registers Job Search.
+
 The package emits reviewed, prebuilt artifacts:
 
 ```text
@@ -61,9 +67,3 @@ image and no registration appears in `BUILT_IN_MODULES`.
 
 - No domain records, onboarding, live adapters, schedules, AI, UI design, or migrations.
 - No marketplace, downloader, signing system, or web-initiated install flow.
-
-## Open question
-
-Where should the independently packaged module's source live: this repository in a directory
-excluded from the core workspace/image, or a separate repository/package release? The artifact and
-runtime contract are identical, but CI/release ownership differs.

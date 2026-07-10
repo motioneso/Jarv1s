@@ -65,8 +65,9 @@ their declared dependency boundaries; the diagram does not authorize parallel bu
 **Depends on:** final #919 external manifest/worker ABI, merged #917/#918.
 
 **Delivers:** independently buildable `jarv1s.job-search` package skeleton, JSON manifest, web/worker
-entrypoints, declared namespaces/permissions, compatibility gates, and packaging test proving it is
-absent from the core image and `BUILT_IN_MODULES`.
+entrypoints under `external-modules/job-search/`, declared namespaces/permissions, compatibility
+gates, and packaging test proving it is outside the core workspace, default image, and
+`BUILT_IN_MODULES`.
 
 **Verification:** install/enable/disable/hash-drift contract fixture; no product behavior or data yet.
 

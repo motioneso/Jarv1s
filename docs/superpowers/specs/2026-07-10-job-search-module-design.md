@@ -76,6 +76,10 @@ decision needed from Ben are explicit in the companion open-decisions document.
 
 The installed package contains only reviewed, prebuilt artifacts:
 
+Source lives in this repository under `external-modules/job-search/`, outside the `packages/*`
+workspace. The default Docker build excludes `external-modules/`; a separate package build produces
+the mounted install artifact, so same-repo ownership does not bake it into the core image.
+
 ```text
 jarv1s.job-search/
   package.json
