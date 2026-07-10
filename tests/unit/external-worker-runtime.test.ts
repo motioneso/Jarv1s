@@ -12,14 +12,14 @@ import type { ExternalModuleDiscovery } from "../../packages/module-registry/src
 const dirs: string[] = [];
 afterEach(async () => Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true }))));
 
-async function fixture(version = 1): Promise<ExternalModuleDiscovery> {
+async function fixture(version: number | null = 1): Promise<ExternalModuleDiscovery> {
   const dir = await mkdtemp(join(process.cwd(), ".tmp-external-runtime-"));
   dirs.push(dir);
   await writeFile(
     join(dir, "worker.js"),
     `let active = 0;
 const send = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
-send({ jsonrpc: "2.0", method: "worker.ready", params: { version: ${version} } });
+${version === null ? "" : `send({ jsonrpc: "2.0", method: "worker.ready", params: { version: ${version} } });`}
 let buffer = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", chunk => { buffer += chunk; let i; while ((i = buffer.indexOf("\\n")) >= 0) { const line = buffer.slice(0, i); buffer = buffer.slice(i + 1); void handle(JSON.parse(line)); } });
@@ -121,6 +121,17 @@ describe("ExternalModuleWorkerRuntime", () => {
     await expect(
       runtime.invoke(await fixture(2), "echo", {}, async () => null)
     ).rejects.toBeInstanceOf(ExternalModuleWorkerError);
+    await runtime.close();
+  });
+
+  it("times out when a worker never announces readiness", async () => {
+    const runtime = new ExternalModuleWorkerRuntime({
+      invocationTimeoutMs: 30,
+      idleTimeoutMs: 500
+    });
+    await expect(
+      runtime.invoke(await fixture(null), "echo", {}, async () => null)
+    ).rejects.toMatchObject({ code: "timeout" });
     await runtime.close();
   });
 

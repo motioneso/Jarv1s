@@ -84,22 +84,22 @@ export class ExternalModuleWorkerRuntime {
   ): Promise<unknown> {
     const state = this.states.get(module.id) ?? this.start(module);
     clearTimeout(state.idleTimer);
-    await state.ready;
     const invocation: Invocation = { rpc, secrets: new Set(), stdout: "", stderr: "" };
-    state.current = invocation;
-    const id = `host:${++this.nextId}`;
-    const response = new Promise<unknown>((resolve, reject) =>
-      state.pending.set(id, { resolve, reject })
-    );
-    state.child.stdin.write(
-      `${JSON.stringify({ jsonrpc: "2.0", id, method: "module.invoke", params: { handler, input } })}\n`
-    );
     const timeout = setTimeout(() => {
       const error = new ExternalModuleWorkerError("timeout");
       this.states.delete(module.id);
       this.stop(state, error);
     }, this.options.invocationTimeoutMs ?? 30_000);
     try {
+      await state.ready;
+      state.current = invocation;
+      const id = `host:${++this.nextId}`;
+      const response = new Promise<unknown>((resolve, reject) =>
+        state.pending.set(id, { resolve, reject })
+      );
+      state.child.stdin.write(
+        `${JSON.stringify({ jsonrpc: "2.0", id, method: "module.invoke", params: { handler, input } })}\n`
+      );
       return await response;
     } finally {
       clearTimeout(timeout);

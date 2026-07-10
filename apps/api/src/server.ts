@@ -45,15 +45,20 @@ import {
   type HostDiagnosticsInfo,
   type ModuleDto
 } from "@jarv1s/shared";
-import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
+import { createModuleLogger, CORE_VERSION, type ToolResult } from "@jarv1s/module-sdk";
 // #917: the /api/modules external-module provider reads persisted enablement state via the
 // settings repository (public API). apps/api is the composition root and legitimately deps
 // @jarv1s/settings; this is NOT a module cross-import (module isolation applies to modules,
 // not the app wiring layer).
-import { SettingsRepository } from "@jarv1s/settings";
+import { createModuleCredentialSecretCipher, SettingsRepository } from "@jarv1s/settings";
 // Server-only subpath (#917). Safe here — the api is never browser-bundled — and keeps
 // createApiServer synchronous (no dynamic import()).
-import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
+import {
+  createExternalModuleRpcHandler,
+  createExternalToolManifests,
+  ExternalModuleWorkerRuntime,
+  getExternalModuleRegistrations
+} from "@jarv1s/module-registry/node";
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { registerStaticWeb } from "./static-web.js";
@@ -70,6 +75,7 @@ import { registerExternalModuleWebAssetRoute } from "./external-module-web-route
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
+  readonly workerDb?: Kysely<JarvisDatabase>;
   readonly boss?: PgBoss;
   readonly authRuntime?: JarvisAuthRuntime;
   readonly logger?: boolean;
@@ -184,6 +190,18 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
   const boss = options.boss ?? createPgBossClient(getJarvisDatabaseUrls().app);
   const ownsAppDb = options.appDb === undefined;
+  const externalRuntimeEnabled =
+    apiServerConfig.enableExternalModules && apiServerConfig.externalModulesDir !== null;
+  const workerDb = externalRuntimeEnabled
+    ? (options.workerDb ??
+      createDatabase({
+        connectionString: getJarvisDatabaseUrls().worker,
+        maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
+      }))
+    : undefined;
+  const ownsWorkerDb = workerDb !== undefined && options.workerDb === undefined;
+  const workerDataContext = workerDb ? new DataContextRunner(workerDb) : undefined;
+  let externalWorkerRuntime: ExternalModuleWorkerRuntime | undefined;
   const ownsBoss = options.boss === undefined;
   const dataContext = new DataContextRunner(appDb);
   const aiRepository = new AiRepository();
@@ -341,6 +359,41 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           return modules.filter((m) => m.active);
         }
       : undefined;
+
+    const moduleCredentialCipher = workerDataContext
+      ? createModuleCredentialSecretCipher()
+      : undefined;
+    externalWorkerRuntime = workerDataContext
+      ? new ExternalModuleWorkerRuntime({
+          logger: { warn: (data, message) => server.log.warn(data, message) }
+        })
+      : undefined;
+    const externalToolManifests =
+      externalWorkerRuntime && workerDataContext && moduleCredentialCipher
+        ? createExternalToolManifests(
+            externalModuleSnapshot.discoveries,
+            async (module, tool, toolInput, context) => {
+              const rpc = createExternalModuleRpcHandler({
+                module,
+                toolRisk: tool.risk,
+                actorUserId: context.actorUserId,
+                requestId: context.requestId,
+                workerDataContext,
+                cipher: moduleCredentialCipher,
+                isActorAdmin: () =>
+                  dataContext.withDataContext(
+                    { actorUserId: context.actorUserId, requestId: context.requestId },
+                    async (scopedDb) =>
+                      (await externalModulesRepository.getUserById(scopedDb, context.actorUserId))
+                        ?.is_instance_admin === true
+                  )
+              });
+              return externalToolResult(
+                await externalWorkerRuntime!.invoke(module, tool.handler, toolInput, rpc)
+              );
+            }
+          )
+        : [];
     registerPlatformRoutes(server, authRuntime, getActiveExternalModules);
     // #918: reuses the boot-time discovery snapshot — never re-discovers.
     registerExternalModuleWebAssetRoute(
@@ -376,10 +429,19 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       }
     });
 
-    const resolveActiveModules = createActiveModulesResolver({
+    const resolveEnabledModules = createActiveModulesResolver({
       dataContext,
-      manifests: getBuiltInModuleManifests()
+      manifests: [...getBuiltInModuleManifests(), ...externalToolManifests]
     });
+    const resolveActiveModules = createExternalActiveModulesResolver(
+      resolveEnabledModules,
+      new Set(externalToolManifests.map((manifest) => manifest.id)),
+      async (actorUserId) =>
+        (await getActiveExternalModules?.({
+          actorUserId,
+          requestId: `external-tools:${randomUUID()}`
+        })) ?? []
+    );
 
     // Connector collaborators for the calendar focus-time write tool. A single shared
     // repository + cipher; the service is per-call-scoped via scopedDb, so one instance
@@ -569,14 +631,44 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
 
   server.addHook("onClose", async () => {
+    await externalWorkerRuntime?.close();
     await Promise.allSettled([
       ownsBoss ? boss.stop({ graceful: false }) : Promise.resolve(),
       ownsAuthRuntime ? authRuntime.close() : Promise.resolve(),
-      ownsAppDb ? appDb.destroy() : Promise.resolve()
+      ownsAppDb ? appDb.destroy() : Promise.resolve(),
+      ownsWorkerDb ? workerDb!.destroy() : Promise.resolve()
     ]);
   });
 
   return server;
+}
+
+export function createExternalActiveModulesResolver(
+  resolveEnabledModules: (actorUserId: string) => Promise<readonly JarvisModuleManifest[]>,
+  externalModuleIds: ReadonlySet<string>,
+  getActiveExternalModules: (actorUserId: string) => Promise<readonly { id: string }[]>
+): (actorUserId: string) => Promise<readonly JarvisModuleManifest[]> {
+  return async (actorUserId) => {
+    const [enabled, activeExternal] = await Promise.all([
+      resolveEnabledModules(actorUserId),
+      getActiveExternalModules(actorUserId)
+    ]);
+    const activeIds = new Set(activeExternal.map((module) => module.id));
+    return enabled.filter(
+      (manifest) => !externalModuleIds.has(manifest.id) || activeIds.has(manifest.id)
+    );
+  };
+}
+
+function externalToolResult(value: unknown): ToolResult {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    if (record.data && typeof record.data === "object" && !Array.isArray(record.data)) {
+      return value as ToolResult;
+    }
+    return { data: record };
+  }
+  return { data: { value } };
 }
 
 export function registerRequestTimeZoneHook(server: FastifyInstance): void {
