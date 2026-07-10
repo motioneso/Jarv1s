@@ -1728,3 +1728,81 @@ spec's locked Slice 3 decisions (no architecture change, no new migration, no se
 scope reduction — it's de-duplicating test authorship, not test coverage). **Approved** without
 escalating to Opus/Ben — routine plan-scoping clarification, not a design fork. Replied via
 `herdr pane run w1:pE4`. Agent proceeds to author the plan on this basis.
+
+## Lock re-claimed, IMMEDIATE re-relay at 70% first-turn context
+
+**70% fired — no deferral, relaying now, mid-task.**
+
+**#919 — SECURITY fork in flight, NOT resolved yet.** Build agent (`w1:pE4`, Codex gpt-5.6-sol
+high) hit an [RLS]/[SECURITY] fork while plan-grounding: `packages/settings/sql/0153_module_credentials.sql`'s
+SELECT policy permits `scope='instance'` reads only for admin actors, but Slice 3 requires the
+worker-runtime auth RPC to resolve an instance credential under the INVOKING ACTOR's own
+DataContextDb (not elevated) for any actor allowed to use the enabled module. This contradicts
+the earlier-approved "no migration expected" assumption (see prior re-scope approval entry above
+— that approval stands for TEST scope, not for this newly-discovered migration need).
+
+I escalated to a one-shot Opus subagent (per model policy — hard `[RLS]`/`[SECURITY]` trigger,
+never reason through inline). **Agent id: `a97d772da338ececf`** (addressable via
+`SendMessage(to: "a97d772da338ececf", ...)` — it is NOT a herdr pane, it's an Agent-tool
+subagent running in this Claude session's own background task list, so a fresh coordinator
+session will NOT be able to resume it via SendMessage — **if it hasn't completed by the time you
+read this, you must re-spawn the adjudication as a NEW Opus one-shot subagent**, reusing the
+prompt context below).
+
+Original fork framing sent to Opus: two options — (a) minimal, broaden `jarvis_app_runtime`'s
+instance-scope SELECT with the runtime lookup path (not the admin route/repo) validating
+enabled-module + declared-auth-id; (b) stronger, SECURITY DEFINER function or a narrow dedicated
+runtime role.
+
+**Since then, verified NEW evidence (confirmed directly via `git show origin/main:...`, not
+hearsay) that changes the likely answer:**
+- `0153_module_credentials.sql` lines 74-75 and `0154_module_kv.sql` lines 3/21/46/79 EXPLICITLY
+  anticipate this: "Slice 3's RPC seam adds its own migration with the narrowest grant it needs
+  (least privilege)" — naming the future role `jarvis_worker_runtime`. This was planned by the
+  Slice-2 authors, not a surprise deviation.
+- Precedent exists: `apps/worker/src/worker.ts` (~lines 5, 75, 91) already uses
+  `getJarvisDatabaseUrls().worker` + `DataContextRunner` — a dedicated worker-role DB connection
+  pattern, separate from the API's `jarvis_app_runtime`.
+- Build agent's refined proposal (sent to the Opus agent, not yet confirmed by it): new migration
+  grants a NAMED `jarvis_worker_runtime` role (not broadening `jarvis_app_runtime`) — credential
+  SELECT scoped to actor-owns-enabled-module + declared-auth-id match, plus module KV CRUD scoped
+  similarly. The worker CHILD PROCESS itself gets no direct DB access at all — the API parent
+  holds the connection under this role and proxies RPC calls. `jarvis_app_runtime`'s existing
+  admin-only instance-credential policy is UNCHANGED. This is very likely the right answer and
+  strictly better than the original (a)/(b) framing — successor should treat it as the leading
+  candidate but still get Opus (or a fresh Opus one-shot) sign-off before relaying a decision back
+  to `w1:pE4`, since this is a `[SECURITY]` decision and must not be coordinator-inline-reasoned.
+
+**Still needed before #919 can proceed:** the exact next free migration number. Build agent
+reports #914's in-flight worktree may have already claimed the next number after #918's landed
+sequence — **verify on disk** (`ls .claude/worktrees/coord-2026-06-30-rfa-fleet/.claude/worktrees/914-module-data-plane/**/sql/` or wherever #914's worktree actually lives, cross-check
+against `infra/postgres/migrations/` + every module's own `sql/` dir on `origin/main` for the
+highest landed number) — do not assume the manifest's old "#917→#914→#918→#919" sequence note is
+still accurate; #914 hasn't merged yet so its number claim is provisional until you confirm it.
+
+**`w1:pE4` is currently PAUSED on this fork** — it asked "need decision + next migration number
+before plan" and has NOT been given an answer yet. This is the single most important open item.
+
+**Ben's ask, in progress, not finished:** "make sure all issues have been updated on gh?" — issue
+states checked and look CORRECT: #917/#918/#915 CLOSED (COMPLETED) matching their merged PRs
+(#924/#925/#923); #914/#916/#919 correctly still OPEN (mid-build/held/planning); parent epics
+#818/#860/#913 correctly OPEN. **NOT yet checked:** project BOARD status (Status field per item) —
+`gh project item-list <1|2|3> --owner motioneso --format json` returned empty item lists for all
+three boards when filtered for these issue numbers in my query, which likely means either (a) my
+jq/python filter was wrong (the `content.number` path may not match this CLI version's JSON
+shape — inspect raw output structure first, don't reuse my filter blind) or (b) these issues
+genuinely aren't on a board and should be added. Successor: re-run `gh project item-list <N>
+--owner motioneso --format json | head -c 2000` raw first to see the actual shape before filtering,
+then report board status to Ben as the close-out of his ask.
+
+**#914 (`w1:pDQ`):** unchanged — Task 8/9 in progress, idle-at-prompt, no stall, do not nudge
+(standing policy, still in force).
+
+**Fleet-liveness Monitor `brhqi0ok9`:** does not survive this relay — re-arm per Phase 2.
+
+**#916:** still held, `needs-spec`, untouched.
+
+`merges_since_relay: 0`.
+
+**Relaying now** — successor in same tab (`w1:t15`), `--model sonnet --permission-mode
+bypassPermissions`, bootstrap points to this section only (not the full manifest).
