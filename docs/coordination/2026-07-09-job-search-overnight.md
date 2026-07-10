@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`,
-pane `w1:pD5`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`,
+pane `w1:pD6`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1373,3 +1373,54 @@ now, merge nothing first). Nothing has merged this checkpoint. State:
      `f66de1e4` — task `b9wy6e40k` — dies with this session's reap).
 
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
+
+## Lock re-claimed (successor session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`), immediate 70% relay
+
+Predecessor pane `w1:pD5` (session `0bbe2a78-...`) was mid auto-compaction on adoption (status
+`working`); waited via bounded Monitor (not a blocking sleep) until it settled to `done`, then
+closed. New coordinator: pane `w1:pD6`, session `a55a24f0-bdcb-4a6b-8e5d-e5bdb4d27075`, tab
+`w1:t15`. Verified exactly one `Coordinator`-labelled pane via fresh `herdr pane list` before and
+after. **Context-meter fired 70% immediately after**, mid Phase 0a — per skill, no deferral:
+flushing now, relaying immediately, no further queue work done this session.
+
+**Ground truth established this checkpoint (read-only, GitHub-verified):**
+- `#918` (Slice 2: runtime web/settings UI + module credentials + KV store) — OPEN, `task, RFA`.
+  **No open PR, no plan doc found** (`gh pr list` empty for it; no `docs/superpowers/plans/*918*`
+  or `*slice2*` file; no `918`/`slice2` branch). Spec gate per Phase-0 collision map (already in
+  this manifest, unchanged): approved on main via #818 §Slice 2. **Only gate open: implementation
+  plan**, same pattern as #917 (Opus/Fable-authored, independently reviewed before build spawn).
+- `#919` (Slice 3: backend worker runtime + external assistant tool execution) — OPEN, `task,
+  RFA`. **No open PR, no plan doc, no branch found.** Spec approved via #818 §Slice 3 (per
+  collision map). Same single open gate: implementation plan. **Do not confuse with #915 Slice 3**
+  (`packages/ai` structured-AI seam, already merged PR #923/#922) — different issue, different
+  slice numbering scheme (#915's slices are internal to that spec; #918/#919 are the
+  open-module-system spec's slices 2/3). Note this distinction explicitly to whichever agent
+  picks up planning so it doesn't conflate the two.
+- Serialization order per the standing collision map: `#917 (done, PR #924) → #914 (done, PR
+  #920) → #918 → #919 → then #916, #915(remaining slices)`. **#918 is next in the chain and is
+  the correct next plan-authoring target** — its spec is approved, its predecessor (#917) is
+  merged, nothing blocks starting a plan for it now.
+- Did NOT check whether #917's merge (PR #924, `4bc53694`) is done propagating / whether #918's
+  worktree should branch from that new `main` tip — successor must `git fetch origin main` fresh
+  before cutting #918's plan-authoring worktree.
+- Main CI: last checked `in_progress` (post-#924-merge run, SHA `4bc53694`), not yet confirmed
+  green — **re-check before spawning anything onto main**.
+
+**NOT done this checkpoint (successor's immediate queue, in order):**
+1. Restart a persistent Monitor scoped to `w1:pCR` (Fable 5, idle) + `w1:pCK` (Codex, idle) —
+   `w1:pCV` (Opus #917 plan) is gone, already reaped after #917 merged. No Monitor is currently
+   running (predecessor's died with its session).
+2. Re-confirm `main` CI is green (`gh run list --branch main --limit 1`) before spawning anything.
+3. Spawn implementation-plan authoring for **#918** (next in chain, spec approved, no plan yet) —
+   same pattern used for #917 (isolated worktree off fresh `origin/main`, handoff doc, Opus xhigh
+   or Fable 5 depending on availability, independent review before treating plan as approved,
+   still no build lane until plan is authored AND reviewed).
+4. #919 stays queued behind #918 (serialization order, shared `packages/settings/sql/` +
+   module-registry manifest schema per the collision map) — do not plan it in parallel with #918.
+5. Ping Codex (`w1:pCK`) — Ben's "keep it informed" instruction, overdue for several checkpoints.
+6. Overnight sign-off override (top of manifest) remains ACTIVE, untouched this checkpoint — no
+   new security-tier merge occurred this session.
+7. `merges_since_relay` = 0 (unchanged from last reset; no merge this checkpoint).
+
+**Still holding — no build lane spawns** for #918/#919 until each has spec-merged-to-main (already
+true, via #818) AND an approved implementation plan (not yet authored for either).
