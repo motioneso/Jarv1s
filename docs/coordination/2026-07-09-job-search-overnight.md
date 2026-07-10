@@ -398,6 +398,19 @@ attempt didn't register — text was still sitting unsubmitted, retried with `pa
 skill's preferred path, confirmed via bounded read: pane now actively working, "Flummoxing…").
 Awaiting PR-open confirmation next tick.
 
+**#917 PR #924 open** (https://github.com/motioneso/Jarv1s/pull/924, "feat(#917): open module
+system Slice 1 — external manifest loader + fail-closed activation", branch
+`plan/917-open-module-system-slice1`). Agent then drafted "update the issue and project board" —
+**redirected**: that's coordinator bookkeeping, done after QA+merge, not by the build agent;
+told it to stand by. Tier confirmed **security** (line 192: privileged module install/external
+manifest loader/fail-closed activation — matches CLAUDE.md privileged-install trigger from the
+pluggable-modules epic). Per the **overnight sign-off override** (top of manifest): dispatching
+Opus adversarial QA first (posts verdict via `gh pr comment`, unchanged); then a quick
+Fable 5 (`w1:pCR`) + Codex (`w1:pCK`) two-model adjudication panel on "safe to merge unattended,"
+posted `[OVERNIGHT-SIGNOFF]` citing this manifest section; merge only if both green; digest entry
+tagged "merged overnight under time-boxed sign-off override — please spot-check" per the override's
+step 3.
+
 **Dispatched independent plan review (2026-07-10, ~07:12):** spawned a fresh general-purpose
 subagent (not Fable, not Opus — avoids self-review bias, and this is a scope/invariant check, not
 a design fork, so default model is appropriate) to check the #922 plan against the spec's locked
