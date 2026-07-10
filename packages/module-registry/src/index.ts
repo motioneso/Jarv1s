@@ -286,6 +286,7 @@ export { aggregateFocusSignals } from "@jarv1s/module-sdk";
 
 export * from "./external/validate.js";
 export * from "./external/types.js";
+export * from "./external/reconcile.js";
 
 export {
   createActiveModulesResolver,

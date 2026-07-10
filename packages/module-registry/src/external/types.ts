@@ -21,3 +21,30 @@ export interface ExternalModuleLoadResult {
   readonly discoveries: readonly ExternalModuleDiscovery[];
   readonly rejected: readonly ExternalModuleRejection[];
 }
+
+/** One persisted app.external_modules row, narrowed to what reconcile needs (#917). */
+export interface ExternalModuleStateInput {
+  readonly id: string;
+  readonly status: "enabled" | "disabled";
+  readonly packageHash: string | null;
+  readonly disabledReason: string | null;
+}
+
+/** 'discovered' is virtual — it means "on disk, no DB row". Only enabled/disabled persist. */
+export type ExternalModuleStatus = "discovered" | "enabled" | "disabled";
+
+export interface ReconciledExternalModule {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly publisher: string;
+  readonly status: ExternalModuleStatus;
+  readonly active: boolean;
+  readonly drifted: boolean;
+  readonly disabledReason: string | null;
+}
+
+export interface ExternalReconcileResult {
+  readonly modules: ReconciledExternalModule[];
+  readonly driftDisable: Array<{ id: string; reason: string }>;
+}
