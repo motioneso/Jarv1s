@@ -2156,3 +2156,41 @@ FIX: closed pDQ (partial Task-7 work left intact in worktree tree), spawned FRES
 = pane **w1:pE9** (tab w1:t1E, 37% ctx clean) with hard rules: DIRECT execution (no sub-agent
 delegation), COMMIT AFTER EACH TASK, inherit the uncommitted Task-7 partial. Finishing Tasks 7-9.
 Monitors: bsi7vj8er (liveness, catches pE9 flips) + batmtn8ch (#914 PR appearance) still valid.
+
+---
+
+## CONTINUATION NOTE @ ~70% ctx (in-session, auto-compact, NO successor pane)
+
+**Coordinator:** w1:pE6, session `58a78927-385c-4b1d-8fa0-94db20255d6f` (unchanged; Ben: this
+session auto-compacts → continue in-session, do NOT spawn a successor coordinator).
+
+**Skills anti-bloat fix (Ben's "update skills going forward" ask) — DONE:**
+- Removed all 6 `read … IN FULL` instructions from the coordinate skill family; replaced with
+  by-section reading + "reading is not progress; BUILD, commit per task, relay only past ~80%".
+- Committed `4538dd3b` on `coord/settings-host-cleanup` (this worktree already benefits).
+- Cherry-picked clean onto `origin/main` → **PR #940** (routine, markdown-only). Propagation to
+  main matters this run: future spawns (#915 impl, #916) read skills from main-based worktrees.
+  **TODO:** merge #940 when its CI is green (`gh pr checks 940`) — routine auto-merge; then it's
+  live for all future spawns.
+
+**Fleet state:**
+- **#914 (pEA, relay-7, session `9958d5c3`, Sonnet, ~64% ctx):** HEALTHY, actively building Task 7
+  — running `module-role-broker.test.ts` integration suite (13min = slow PG suite, not stuck).
+  Has lean instruction (no full-doc reads). Will commit on green, then Tasks 8-9. Its migrations
+  0155/0156 gate #919 merge + #915 lane. Watch: at 64% it nears its own relay; lean prompt should
+  hold it. Monitor `b8il0ymyy` fires "no commit" false-positives during long test runs — ignore
+  unless pEA goes idle/stuck-in-box.
+- **#919 (pE4, codex, idle):** HOLDING. Fix already committed+pushed to `feat/919-worker-runtime`
+  so pE4 dying is non-fatal. PR #939.
+- **#939 security:** cycle-1 fix CI-GREEN; final Opus adversarial QA DEFERRED to post-#914-rebase
+  (avoid double-spend). On #914 merge → rebase feat/919-worker-runtime (watch 0157 renumber) →
+  Opus QA → Fable merge sign-off (residual HIGH: per-actor worker isolation = non-blocking).
+- **#915 impl (task 10):** QUEUED blocked-by #919; security tier; spawn GLM-5.2 opencode + LEAN
+  prompt when #919 migration merges.
+- **#916 starter action (task 8):** held (needs-spec + dep #919); Fable: split starter-action onto
+  JS critical path.
+
+**Model routing:** Codex in 2hr+ cap outage → build/impl agents on GLM-5.2 opencode high effort.
+
+**Next actions on resume:** (1) `gh pr checks 940` → merge if green. (2) Watch pEA for Task 7
+commit / relay / stuck. (3) On #914 merge: rebase #939, spawn #915 lane lean.
