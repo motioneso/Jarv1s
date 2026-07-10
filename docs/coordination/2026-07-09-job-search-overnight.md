@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `37c58095-1484-4a76-b99a-a2f59a1c600b`,
-pane `w1:pDS`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `57129d71-be43-4eb9-926f-c48e75df7e32`,
+pane `w1:pDV`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -993,4 +993,146 @@ below is bookkeeping for the successor, not yet sent by this session).
    for both panes — confirm it's still live post-relay, re-arm if not.
 4. `merges_since_relay: 0`, unchanged — no merges happened this checkpoint, so this relay is
    purely the context-meter trigger, not a merge-count trigger.
+
+## Lock re-claimed (successor session `1ed813d7-ff61-4519-8408-73667f249b13`), Phase 0a done — continuation note executed
+
+Phase 0a complete: own pane `w1:pDT`, tab `w1:t15`, was labeled `Coordinator (relay)` — renamed to
+`Coordinator`. Predecessor pane `w1:pDS` (session `37c58095-1484-4a76-b99a-a2f59a1c600b`) closed
+after confirming exactly one `Coordinator`-labeled pane remained (fresh `herdr pane list`, resolved
+by label+session, not a remembered pane id). Top-of-file lock line updated to this session/pane.
+Did **not** re-investigate the PR #925 CI failure — the finding was already fully written up by the
+predecessor; acted on it directly per the continuation note.
+
+**Step 2 done — messaged #918 build agent (`w1:pDJ`, session `dbf1c605-...`).** Delivered the full
+CI failure report verbatim (run `29110548665`, `Prod compose deployment smoke` failed — container
+`jarv1s-prod-smoke-jarv1s-1` unhealthy ~17s in, `scripts/smoke-compose.ts:190` "docker exited with
+status 1", confirmed not a pre-existing `main` flake), asked it to reproduce locally and diagnose
+root cause itself (not guess from CI tails), flagged the self-reported `AUDIT_EXIT=1` /
+`app.module_schema_migrations` FORCE-RLS claim as still unverified, and told it Opus adversarial QA
+is held until a green CI run lands. Verified delivery via bounded pane read: agent is actively
+"Scurrying…" on it (Sonnet 5, correct worktree/branch/tab).
+
+**Step 3 done — #914 (`w1:pDQ`, session `8baf4c17-...`) re-adopted.** Bounded pane read: Task 4/9
+in progress (migration file loader + ledger read/write helpers), 3 tasks completed, Sonnet 5,
+correct worktree `914-module-data-plane` / branch `build/914-module-data-plane`. Healthy, no PR
+yet, no blocker — normal Phase 2 supervision, no action needed.
+
+**Fresh liveness Monitor armed** (task `bex5yfgkn`, persistent, 30s poll, emits only on
+`w1:t15`/`w1:t1E` pane-state changes) — per manifest's own prior note, monitors do not carry across
+coordinator relays; each session must re-arm its own.
+
+**Step 4 — `merges_since_relay: 0`, unchanged.** No merges this checkpoint. #916 still
+`needs-spec`, #919 still queued behind #918 — both unchanged, no action taken, confirmed via this
+checkpoint's fresh fleet snapshot (no new panes for either).
+
+**Fleet snapshot this checkpoint (fresh `herdr pane list`, w1 only):** `w1:pDT` (Coordinator, me,
+`working`), `w1:pDJ` (#918 relay-1, `working`), `w1:pDQ` (#914 relay-5, `working`), plus untouched
+idle panes `w1:pBK` (news-module), `w1:pCP` (Fable sports-fed spec+plan), `w1:pCK` (Codex Job
+Search Spec, already ack'd), `w1:pCR` (Fable 5 Job Search Spec Review, idle). No stray/duplicate
+panes.
+
+**Next for this session (in progress):** wait for #918's diagnosis/fix on PR #925's CI failure
+(monitor + agent working), continue passive Phase 2 supervision of #914. No merge-ready or
+QA-ready lane exists yet — nothing to spawn Opus for at this checkpoint.
+
+## PR #925 CI failure — root cause found + fixed by #918 (self-report, not yet independently confirmed green)
+
+`w1:pDJ` (session `dbf1c605-...`) replied fast with a diagnosis: `createModuleCredentialSecretCipher()`
+(Task 10) calls `resolveKeyring("JARVIS_MODULE_CREDENTIAL_SECRET_KEY", ...)` **eagerly at settings
+route registration** (`routes.ts:792`). That env var was never added to the CI smoke env or
+`infra/env.production.example` (unlike its sibling CONNECTOR/AI keys) → `resolveKeyring()` throws
+under hardened `NODE_ENV` → API crashes on boot → container unhealthy → exact symptom
+(`docker exited with status 1`, ~17s in) matches precisely.
+
+**Fix:** both files corrected, commit `8013341a`, pushed. Agent self-reports both smoke jobs went
+`SUCCESS` on that commit. Then pushed a follow-up **doc-only** commit `52083e1a` (its own relay-3
+handoff doc) which re-triggered CI — all 3 required checks back to `IN_PROGRESS` momentarily at
+report time; agent is re-verifying and says it will report final all-green once that run completes.
+
+**AUDIT_EXIT=1 (`app.module_schema_migrations` FORCE RLS) — agent agrees not settled**, explicitly
+deferring the multi-agent-PG-contention attribution to independent QA rather than asserting it.
+Consistent with the coordinate skill's self-report distrust — will task the QA agent to verify this
+specific claim per the earlier plan, not accept it as-is.
+
+**Coordinator action taken:** none yet — holding for the agent's own "final all-green" report
+before treating CI as trustworthy (a doc-only commit re-triggering CI means the previously-reported
+SUCCESS was on a superseded SHA, not the current PR head). Will independently `gh pr checks 925`
+myself once notified, not trust the self-report alone, before spawning Opus adversarial QA.
+`merges_since_relay: 0`, unchanged — nothing merged.
+
+**Fleet monitor fired: `w1:pDJ` (#918) flipped to `agent_status: done`** right as this session's
+own context-meter hit 70% — the two arrived together. **NOT yet actioned** (no bounded pane read
+done, no `gh pr checks 925` run) — relaying immediately per the skill's no-deferral rule instead.
+
+## Coordinator self-relay (session `1ed813d7-...`, context-meter 70%, concurrent with #918 done flip)
+
+**Own context-meter fired the 70% relay trigger** right as the fleet monitor reported `w1:pDJ`
+(#918) going `done`. Per the skill: no deferral — flushing and relaying now, the pane-done follow-up
+is the successor's first action, not mine to start.
+
+**Successor's first actions, in order:**
+1. **Phase 0a lock re-claim** (resolve own pane fresh via `herdr pane list` by label+session, never
+   a written pane number; close predecessor pane — will be labeled `Coordinator`, session
+   `1ed813d7-ff61-4519-8408-73667f249b13`, currently `w1:pDT` — once confirmed you're driving;
+   rename own pane to `Coordinator`; verify uniqueness; update the top-of-file lock line).
+2. **`w1:pDJ` (#918, session `dbf1c605-...`) just flipped `done`** — bounded pane read
+   (`herdr pane read w1:pDJ --source recent --lines 12`) to see its final report. Independently
+   verify with `gh pr checks 925` yourself (don't trust the self-report alone) — the agent had just
+   pushed a doc-only commit `52083e1a` that re-triggered CI, so confirm the checks are green **on
+   the current PR head SHA**, not a superseded one. If genuinely all-green: this is a **security
+   tier** PR (RLS, credentials, migrations per Phase 0 tiering) — next step is spawning
+   `coordinated-qa` with `model: opus`, `isolation: worktree`, PR #925, tier `security`, with an
+   explicit instruction to independently verify the agent's `AUDIT_EXIT=1` /
+   `app.module_schema_migrations` FORCE-RLS attribution to #914's unmerged migration 0155 (agent
+   itself flagged this as unsettled, not yet confirmed either way). QA verdict must `gh pr comment`;
+   then Ben's explicit merge sign-off is required before merge — no auto-merge on security tier, and
+   the overnight sign-off override is RESOLVED/moot (normal daytime gate applies, confirmed earlier
+   this run).
+3. **Continue Phase 2 supervision of `w1:pDQ` (#914, session `8baf4c17-...`)** — last confirmed
+   status: Task 4/9 in progress (migration file loader + ledger helpers), 3 tasks done, healthy, no
+   PR yet, no blocker. No action needed beyond normal watching.
+4. **#916** still `needs-spec` (blocked on #918 landing + a Slice-3 spec pass with Ben) — no action.
+   **#919** still queued behind #918's build+merge — no action.
+5. **Re-arm the liveness Monitor** — monitors do not carry across coordinator relays (confirmed
+   pattern this run). Diff `herdr pane list` for `w1:t15`/`w1:t1E` panes, emit only on change.
+6. `merges_since_relay: 0`, unchanged — no merges happened this checkpoint; this relay is purely
+   the context-meter trigger.
+
+## Lock re-claimed (successor session `57129d71-be43-4eb9-926f-c48e75df7e32`), Phase 0a done
+
+Phase 0a complete: own pane `w1:pDV`, tab `w1:t15`, was labeled `Coordinator (incoming)` — renamed
+to `Coordinator`. Predecessor pane `w1:pDT` (session `1ed813d7-ff61-4519-8408-73667f249b13`,
+status `done`) closed after confirming exactly one `Coordinator`-labeled pane remained (fresh
+`herdr pane list`, resolved by label+session). Top-of-file lock line updated to this session/pane.
+
+**Step 2 — #918 (`w1:pDJ`, session `dbf1c605-...`) re-checked, NOT actually a final report.**
+Bounded pane read showed the agent's turn ended mid-wait on its own background CI-poll monitor
+("wait for foundation check then report to coordinator") — the `agent_status: done` flip the
+predecessor caught was the agent going idle between monitor ticks, not a genuine completion
+report. Independently verified via `gh pr view 925` / `gh pr checks 925` (not trusting self-report):
+current PR head SHA `52083e1a` (the relay-3 doc-only commit) — `Compose deployment smoke` pass,
+`Prod compose deployment smoke` pass, **`Verify foundation and app` still pending**. Not yet
+green — held off spawning Opus QA. Armed a Monitor (`bf74zooo8`) polling `gh pr checks 925` until
+a terminal state (all resolved or a failure). AUDIT_EXIT=1 attribution claim still unverified,
+carried forward for the QA agent's brief per prior checkpoints.
+
+**Step 3 — #914 (`w1:pDQ`, session `8baf4c17-...`) re-confirmed.** Bounded pane read: still Task
+4/9 in progress (migration file loader + ledger helpers), 3 done, Sonnet 5, healthy, no PR, no
+blocker. No action needed.
+
+**Step 4 — #916/#919 unchanged, no action** (#916 still `needs-spec`; #919 still queued behind
+#918).
+
+**Step 5 — fresh liveness Monitor armed** (task `b5xn3b4w0`, persistent, 30s poll, `w1:t15`/
+`w1:t1E`, emits only on change).
+
+**Step 6 — `merges_since_relay: 0`, unchanged.**
+
+**Next for this session:** waiting on monitor `bf74zooo8` for PR #925 CI to resolve. On green:
+spawn `coordinated-qa` (`model: opus`, `isolation: worktree`, PR #925, tier `security`) with
+explicit instruction to verify the AUDIT_EXIT=1 / `app.module_schema_migrations` FORCE-RLS
+attribution to #914's unmerged migration 0155, rather than accept the agent's self-report. QA
+verdict → `gh pr comment` → Ben's explicit sign-off required before merge (security tier, no
+auto-merge; overnight override remains resolved/moot). On red: relay finding to `w1:pDJ`, do not
+re-spawn or hand-fix.
 5. #916 still `needs-spec`; #919 still queued behind #918. No action on either.
