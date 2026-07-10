@@ -943,3 +943,54 @@ applies: Ben's explicit merge sign-off required, no auto-merge**, after QA posts
 `gh pr comment`.
 
 **Task #1 (supervise #918) status: build phase done, now in QA-gate phase.**
+
+## PR #925 CI came back RED — confirmed real, not waivable, relay-to-owner still pending
+
+Monitor `bcnu24bvp` reported run `29110548665` completed `failure`. Independently verified (not
+trusted from self-report) via `gh run view --json jobs`:
+- `Verify foundation and app` — **success**
+- `Compose deployment smoke` — **success**
+- `Prod compose deployment smoke` — **failure** ← the actual red job
+- `Build and publish images` — skipped (gated on the above)
+
+Checked `gh run list --branch main --limit 5` — **last 5 `main` runs all green**. This is NOT a
+pre-existing flake on `main` at the merge-base SHA → **not waivable** under the CI waiver protocol
+(no `ci_waivers` entry added; none of the three proof conditions met). This is a real, blocking
+failure specific to #925's branch.
+
+**Root cause: NOT YET IDENTIFIED.** Pulled `gh run view --job 86421562018 --log-failed` (tail):
+container `jarv1s-prod-smoke-jarv1s-1` reported `unhealthy` ~17s after start; `scripts/smoke-
+compose.ts:190` throws `Error: docker exited with status 1`, job exits 1. A second pass grepping
+the full job log for `error|migrat|fail|exception|fatal` surfaced nothing beyond the same
+docker-pull-progress noise and the same final failure block — no deeper application-level cause
+(startup crash vs. migration error vs. health-check misconfig) visible from CI logs alone.
+
+**Stopping log-spelunking here per the coordinate skill's context discipline** ("never read raw
+gate logs into your own context") — two rounds of raw log tails already stretched this. Correct
+next step per Phase 3 step 3: **relay the blocking finding to the owning build agent** (`w1:pDJ`,
+session `dbf1c605-...`) and let it reproduce/diagnose locally, not the coordinator continuing to
+mine CI logs.
+
+**Own context-meter hit the 70% relay trigger while investigating this — relaying now per the
+skill's "no deferral" rule** (flush + relay is the only permitted action; the message-to-#918 step
+below is bookkeeping for the successor, not yet sent by this session).
+
+## Relay to successor — continuation note (session `37c58095-...` handing off)
+
+**Immediate next action for successor, in order:**
+1. Phase 0a lock re-claim (resolve own pane fresh by label+session id; close this pane `w1:pDS`/
+   session `37c58095-1484-4a76-b99a-a2f59a1c600b` fresh by label+session once confirmed driving;
+   rename own pane to `Coordinator`; verify uniqueness).
+2. **Message #918 build agent (`w1:pDJ`) now** — it has NOT yet been told about the CI failure.
+   Report: PR #925 run `29110548665` failed job `Prod compose deployment smoke` — container
+   `jarv1s-prod-smoke-jarv1s-1` went unhealthy ~17s after start, `scripts/smoke-compose.ts:190`
+   threw `docker exited with status 1`; confirmed NOT a pre-existing `main` flake (last 5 `main`
+   runs green). Ask it to reproduce locally (`pnpm` smoke/compose script) and diagnose — do not
+   have the agent guess from CI log tails alone. Hold Opus adversarial QA spawn until a fixed,
+   green CI run lands on #925.
+3. Continue Phase 2 supervision of `w1:pDQ` (#914) — last status `working`, healthy, ~Task 9+/9,
+   no PR yet, no blocker. Monitor `bblpiqmx3` (or re-arm equivalent) still tracks fleet liveness
+   for both panes — confirm it's still live post-relay, re-arm if not.
+4. `merges_since_relay: 0`, unchanged — no merges happened this checkpoint, so this relay is
+   purely the context-meter trigger, not a merge-count trigger.
+5. #916 still `needs-spec`; #919 still queued behind #918. No action on either.
