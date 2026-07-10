@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `f2b22c9d-e2b5-46cd-96df-5637170198a5`,
-pane `w1:pE1`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `093c19bb-931a-46df-bdf5-4c1ffee66cfb`,
+pane `w1:pE2`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1551,3 +1551,115 @@ idle, worktree `.claude/worktrees/914-module-data-plane`. No #918 pane (expected
 
 **Relaying now** — successor in same tab (`w1:t15`), `--model sonnet --permission-mode
 bypassPermissions`, bootstrap points to this section only (not the full manifest).
+
+## Lock re-claimed (successor session `093c19bb-931a-46df-bdf5-4c1ffee66cfb`), Phase 0a done, queue in progress
+
+**Phase 0a done:** session `093c19bb-...`, pane `w1:pE2`, tab `w1:t15`, renamed `Coordinator`.
+Predecessor session `f2b22c9d-...` had already self-closed (no pane found in `herdr pane list` —
+no explicit close action needed). Uniqueness verified: exactly one `Coordinator`-labelled pane.
+Lock line updated top-of-file.
+
+**Queue progress:**
+1. **#919 build lane — PENDING, blocked on main CI.** Re-verified readiness fresh: spec approved
+   on `origin/main` (`docs/superpowers/specs/2026-07-08-open-module-system-user-authored-modules.md`,
+   §Slice 3), dependency #918 CLOSED, no existing PR/branch/worktree for #919. However `main`'s
+   latest run (head `eafa22dd2672...`, the just-merged #918 Slice 2 PR) was `in_progress` at
+   checkpoint time — did not spawn onto an unconfirmed commit. Background wait armed
+   (`bp6vob2c1`, polls `gh run list --branch main` every 20s, notifies on completion); will spawn
+   #919 on Codex `gpt-5.6-sol` high reasoning immediately once green, worktree + handoff doc under
+   agents tab `w1:t1E`.
+2. **#914 supervision resumed** at `w1:pDQ` (session `8baf4c17-...`). Found idle with only a UI
+   placeholder hint in the input box (not real queued text — sending `Enter` alone was a no-op,
+   confirmed via unchanged pane content). Sent an explicit `herdr pane run` resume instruction
+   (continue Tasks 7/8/9: module-install.ts orchestration, module storage RPC, export+deletion
+   lifecycle; no check-in needed absent a blocker/[SECURITY]/[DESIGN-FORK]). Confirmed flipped to
+   `working`.
+3. **Fleet-liveness Monitor re-armed** (task `b0wqhz9kc`, persistent, diffs `herdr pane list` for
+   `w1` every 60s, emits changed lines only).
+4. **#916 stays held** — `needs-spec`, no action taken, unchanged.
+
+`merges_since_relay: 0`.
+
+**Continuation note:** if next relay fires before `bp6vob2c1` resolves, successor must re-check
+main CI status fresh (don't trust this pointer) before spawning #919 — never spawn onto a
+not-yet-green commit.
+
+## Lock re-claimed, IMMEDIATE re-relay at 70% first-turn context (mid #919 spawn)
+
+**70% fired mid-task — no deferral, relaying now.** `bp6vob2c1` (main CI wait) resolved GREEN:
+`headSha eafa22dd26729454dd3525d8bff53fc76ca7d3f0`, `conclusion: success`. **#919 spawn is NOT
+done yet** — readiness re-confirmed fresh (spec approved on `origin/main`
+`docs/superpowers/specs/2026-07-08-open-module-system-user-authored-modules.md` §Slice 3, dep
+#918 CLOSED, no existing PR/branch/worktree, main green) but the worktree/handoff-doc/spawn steps
+were interrupted by this relay.
+
+**Successor's first action — finish spawning #919:**
+1. `git fetch origin main && git worktree add .claude/worktrees/919-worker-runtime -b
+   feat/919-worker-runtime origin/main` (re-verify main still green first, don't trust this
+   pointer).
+2. Write handoff doc (`docs/coordination/handoffs/919-worker-runtime.md`, use `915-slice3-
+   structured-ai.md` in that dir as the format template) from issue #919's scope: child-process
+   JSON-RPC worker runtime (per-module lazy spawn, scrubbed env, protocol version check,
+   timeout, serialized invocations, redacted stdio, typed crash+respawn), `defineModuleWorker`
+   SDK contract, wiring external assistant tool handlers into `AssistantToolGateway` (risk-tiered,
+   confirm-gated via `app.ai_assistant_action_requests`, full audit), decrypted credentials to
+   trusted handlers at execution time only. **Tier: `security`** (credential handling +
+   privileged child-process execution + network/tool-exposed surface — Opus adversarial QA +
+   mandatory Ben sign-off before merge; not yet assigned in manifest, successor should record it).
+   No implementation plan exists yet — build agent must plan first (coordinated-build), get
+   coordinator approval, then build.
+3. Spawn via Codex CLI (Ben's directive, applies to all lanes from #919 forward — #914/#918
+   stayed on Claude, not retroactively swapped):
+   ```
+   herdr agent start "919: worker runtime" --tab w1:t1E --cwd $(pwd)/.claude/worktrees/919-worker-runtime --no-focus \
+     -- codex --model gpt-5.6-sol -c model_reasoning_effort=high \
+     -s danger-full-access -a never \
+     "STEP 1 pnpm install. STEP 2 read docs/coordination/handoffs/919-worker-runtime.md IN FULL and follow it via coordinated-build. Begin now."
+   ```
+   **Unconfirmed against a live run** — verify the pane actually booted Codex at `high` reasoning
+   (bounded pane read), same "confirm the model" discipline as the Sonnet check. If the flags
+   are wrong, `codex --help` in that worktree to re-derive them.
+4. Record label/pane/branch/tier in this manifest; status `building`.
+
+**Ben clarified mid-turn (real user, not manifest-derived):** he never said "don't swap #914 to
+Codex" — that was this run's own risk-averse read of an ambiguous earlier note. Ben's actual
+position: swap #914 to Codex *if* it's clean to do so, otherwise fine as-is. Assessed and decided:
+**do NOT swap** — #914 was at Task 9/9 (final task), self-managing a flaky vitest worker restart
+via its own `ScheduleWakeup` loop (~20 min self-set stall threshold, not yet hit), so swapping
+would abandon nearly-complete work for zero benefit. Relayed this reasoning to Ben directly; he
+did not object. **Resolved, no further action on #914 swap question** — successor should not
+re-litigate unless #914 is still incomplete AND its own stall threshold has been exceeded (check
+its transcript: `~/.claude/projects/*914-module-data-plane/<session>.jsonl`, tail for
+`ScheduleWakeup`/stall reasoning) at which point a genuine intervention (not a swap) may be
+warranted.
+
+**#914 supervision policy (still in force):** do NOT nudge `w1:pDQ` on routine Monitor
+`working`↔`idle`/`done` flips — this is the agent's own self-monitoring cadence for the flaky
+test worker, confirmed via its transcript, not a real stall. Only intervene if it exceeds its own
+~20 min threshold or escalates with `[SECURITY]`/`[BLOCKED]`.
+
+**Fleet-liveness Monitor:** still armed this session (task `b0wqhz9kc`, persistent, diffs
+`herdr pane list` for `w1` every 60s, changed lines only) — **does not survive this relay**,
+successor must re-arm per Phase 2.
+
+**#916:** still held, `needs-spec`, untouched.
+
+`merges_since_relay: 0`.
+
+**Relaying now** — successor in same tab (`w1:t15`), `--model sonnet --permission-mode
+bypassPermissions`, bootstrap points to this section only (not the full manifest).
+
+**#914 pane-status flapping — RESOLVED, not a real stall, stop nudging.** liveness Monitor caught
+`w1:pDQ` flip `working`↔`done`/`idle` repeatedly. First nudge (via `herdr pane run`) was
+unnecessary noise — checked the build agent's own transcript directly
+(`~/.claude/projects/.../8baf4c17-....jsonl`) instead of a 3rd bounded pane read, which showed:
+Task 5's subagent (`impl-task5`, an integration-test worker) has its vitest child process
+restarting/forking repeatedly (~8 min elapsed at checkpoint, one `duplicate key value violates`
+PG error observed in passing but the agent is already investigating it itself), and the **main
+build agent is already self-managing this correctly** — polling via its own `ScheduleWakeup`
+(270s cadence) with an explicit self-set stall threshold of **~20 min total** before it would
+treat this as a genuine stall. The `working`/`idle` pane flapping is this agent waking, checking
+`git log`/`task-5-report.md`, finding nothing new, and going back to sleep — normal, not
+actionable. **Coordinator policy for the rest of this run: do not nudge `w1:pDQ` on routine
+Monitor flips; only intervene if it exceeds its own ~20 min threshold (check transcript) or
+escalates with `[SECURITY]`/`[BLOCKED]`.**
