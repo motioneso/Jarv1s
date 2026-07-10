@@ -1030,6 +1030,32 @@ every relay does — it is the pre-merge authority check for the #924 merge abov
 
 Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
 
+## Lock re-claimed (successor session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`)
+
+Predecessor pane `w1:pD3` (session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (never a
+written pane number). First read showed it still `working` (6m1s elapsed, mid-processing an
+incoming Fable5 `[OVERNIGHT-SIGNOFF]` GREEN verdict message) — did NOT force-close a live pane; a
+follow-up fresh `herdr pane list` showed it had flipped to `done`. Closed `w1:pD3`; confirmed
+exactly **1** `Coordinator`-labelled pane remains: `w1:pD4`, session
+`f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, tab `w1:t15`.
+
+**Ground-truth check before trusting predecessor's pane narration:** PR #924 confirmed via `gh pr
+view` — `state: OPEN`, `mergedAt: null`, `headRefOid: 968251d8...` (unchanged from the RED-verdict
+head Codex reproduced against). **No merge occurred** — predecessor's on-screen text ("remember to
+log it in Ben's digest as merged-under-override") was narration/reflection on the Fable5 verdict
+that arrived post-relay-trigger, not an action taken. Fable5's GREEN verdict referenced there
+(comment 4934895631) appears to be the SAME `[OVERNIGHT-SIGNOFF]` GREEN already recorded in the
+prior "SPLIT" section (issuecomment-4934894336) — not a second independent verdict, and in any
+case **stale**: it was posted against head `968251d8`, the same head Codex found RED against, not
+a re-run against a fixed head. Per the successor queue below, both panel verdicts must be
+re-collected fresh against #917's NEW head once `w1:pCV` pushes fixes — this stale GREEN does not
+count.
+
+Proceeding with the predecessor's immediate action queue exactly as specified in the relay
+checkpoint above: hold on merge/panel until `w1:pCV` reports fixes pushed to PR #924, then fresh
+Opus QA → fresh panel → merge only if all green.
+
 ## Lock re-claimed (successor session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`)
 
 Predecessor pane `w1:pD2` (session `ae488fcc-3b93-4be6-9118-14452e66da3d`, matched manifest lock
