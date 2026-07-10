@@ -1,12 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Note, PaneHead } from "@jarv1s/settings-ui";
 import type {
   CompetitionRef,
+  Confederation,
   CreateSportsFollowRequest,
   SportsCatalogResponse,
   SportsFollowDto,
   SportsFollowsResponse,
+  SportsLeagueTeamsResponse,
+  SportsTeamSearchResponse,
   TeamRef
 } from "@jarv1s/shared";
 import { requestJson } from "@jarv1s/module-web-sdk";
@@ -17,7 +20,9 @@ import "./sports-2.css";
 const CATALOG_KEY = sportsQueryKeys.catalog;
 const FOLLOWS_KEY = sportsQueryKeys.follows;
 
-type CompetitionWithTeams = CompetitionRef & { readonly teams: readonly TeamRef[] };
+// #907: the catalog contract dropped `teams` in Task 6 — this pane never read
+// `competition.teams` (the local `CompetitionWithTeams` type was already gone), so every helper
+// below already took plain `CompetitionRef`. The flip was a no-op here.
 
 function getCatalog() {
   return requestJson<SportsCatalogResponse>("/api/sports/catalog");
@@ -32,6 +37,30 @@ function deleteFollow(id: string) {
   return requestJson<{ ok: boolean }>(`/api/sports/follows/${encodeURIComponent(id)}`, {
     method: "DELETE"
   });
+}
+// Lazy per-league roster (Task 3): backs both browse-expand and followed-chip name resolution,
+// deduped by the shared `leagueTeams` query key (#907).
+function getLeagueTeams(competitionKey: string) {
+  return requestJson<SportsLeagueTeamsResponse>(
+    `/api/sports/leagues/${encodeURIComponent(competitionKey)}/teams`
+  );
+}
+// Cross-league server search (Task 4) — replaces the old client-side `filterTeams` scan, which
+// depended on the catalog eagerly embedding every league's roster (#907).
+function searchTeams(q: string) {
+  return requestJson<SportsTeamSearchResponse>(
+    `/api/sports/teams/search?q=${encodeURIComponent(q)}`
+  );
+}
+
+/** Debounce the search box so each keystroke doesn't become a server query (#907). */
+function useDebouncedValue(value: string, delayMs = 250): string {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
 }
 
 function initials(name: string, shortName?: string | null): string {
@@ -62,52 +91,43 @@ function followKey(competitionKey: string, teamKey: string | null): string {
 /* ----- Sports-local, pure search helpers (unit-tested). No generic picker
    abstraction — scoped to this catalog shape on purpose. ----- */
 
-/** Flat team matches for a non-empty query. Empty query returns []. */
-export function filterTeams(
-  query: string,
-  competitions: readonly CompetitionWithTeams[]
-): readonly { competition: CompetitionWithTeams; team: TeamRef }[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  const out: { competition: CompetitionWithTeams; team: TeamRef }[] = [];
-  for (const competition of competitions) {
-    for (const team of competition.teams) {
-      const hay = `${team.name} ${team.shortName} ${competition.label}`.toLowerCase();
-      if (hay.includes(q)) out.push({ competition, team });
-    }
-  }
-  return out;
-}
-
-/** Competitions whose label matches a non-empty query. Empty query returns []. */
+/** Competitions whose label matches a non-empty query. Empty query returns []. Loosened to plain
+    `CompetitionRef` (#907) — no longer needs a roster, since the server owns team matching. */
 export function leagueMatches(
   query: string,
-  competitions: readonly CompetitionWithTeams[]
-): readonly CompetitionWithTeams[] {
+  competitions: readonly CompetitionRef[]
+): readonly CompetitionRef[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
   return competitions.filter((c) => c.label.toLowerCase().includes(q));
 }
 
-/** League rows for search results: direct label matches plus the parent league of every
-    matching team (so "cowboys" also offers "Follow all of NFL"), deduped by competitionKey. */
-export function searchLeagues(
+/** League rows for search results: catalog-label matches plus the parent league of every server
+    result (so "arsenal" also offers "Follow all of Premier League"), deduped by key (#907). */
+export function searchLeagueRows(
   query: string,
-  competitions: readonly CompetitionWithTeams[]
-): readonly CompetitionWithTeams[] {
-  const byKey = new Map<string, CompetitionWithTeams>();
+  resultTeams: readonly TeamRef[],
+  competitions: readonly CompetitionRef[]
+): readonly CompetitionRef[] {
+  const byKey = new Map<string, CompetitionRef>();
   for (const competition of leagueMatches(query, competitions)) {
     byKey.set(competition.competitionKey, competition);
   }
-  for (const { competition } of filterTeams(query, competitions)) {
-    byKey.set(competition.competitionKey, competition);
+  const compsByKey = new Map(competitions.map((c) => [c.competitionKey, c]));
+  for (const team of resultTeams) {
+    const competition = compsByKey.get(team.competitionKey);
+    if (competition) byKey.set(competition.competitionKey, competition);
   }
   return [...byKey.values()];
 }
 
 function FollowedSummary(props: {
   follows: readonly SportsFollowDto[];
-  competitionsByKey: Map<string, CompetitionWithTeams>;
+  competitionsByKey: Map<string, CompetitionRef>;
+  // The catalog no longer carries rosters, so chip name/crest resolution needs each followed
+  // team's league roster looked up separately (fetched by SportsSettings via getLeagueTeams,
+  // #907 spec §4.3).
+  teamsByCompetition: Map<string, readonly TeamRef[]>;
   onToggle: (competitionKey: string, teamKey: string | null) => void;
   pending: boolean;
 }) {
@@ -123,7 +143,9 @@ function FollowedSummary(props: {
         const wholeLeague = follow.teamKey === null;
         const team = wholeLeague
           ? null
-          : competition?.teams.find((t) => t.teamKey === follow.teamKey);
+          : props.teamsByCompetition
+              .get(follow.competitionKey)
+              ?.find((t) => t.teamKey === follow.teamKey);
         const label = orphan
           ? `Unrecognized league (${follow.competitionKey})`
           : wholeLeague
@@ -160,15 +182,38 @@ function FollowedSummary(props: {
 
 export function SearchResults(props: {
   query: string;
-  competitions: readonly CompetitionWithTeams[];
+  results: readonly TeamRef[];
+  partial: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  competitions: readonly CompetitionRef[];
   followsByKey: Map<string, SportsFollowDto>;
   onToggle: (competitionKey: string, teamKey: string | null) => void;
   pending: boolean;
 }) {
-  const teams = filterTeams(props.query, props.competitions);
-  const leagues = searchLeagues(props.query, props.competitions);
-  if (teams.length === 0 && leagues.length === 0) {
-    return <Note>No teams or leagues match your search.</Note>;
+  // A failed search request must never masquerade as an authoritative "no matches" — that would
+  // tell the user their club isn't supported when we simply couldn't ask the server (#907 review
+  // Important-1). Transport errors get an explicit retry, mirroring BrowseGroups' degraded path.
+  if (props.isError) {
+    return (
+      <Note>
+        Couldn&rsquo;t search right now.{" "}
+        <button type="button" className="sp-managebtn" onClick={props.onRetry}>
+          Retry
+        </button>
+      </Note>
+    );
+  }
+  const leagues = searchLeagueRows(props.query, props.results, props.competitions);
+  if (props.results.length === 0 && leagues.length === 0) {
+    // `partial` = the server's warm-fill hasn't covered every league yet this process lifetime —
+    // NOT an error, so this stays a soft note rather than the blanket error/degraded notices
+    // below (#907 spec §4.4).
+    return props.partial ? (
+      <Note>No matches yet — still covering more leagues. Try again in a moment.</Note>
+    ) : (
+      <Note>No teams or leagues match your search.</Note>
+    );
   }
   return (
     <>
@@ -188,17 +233,15 @@ export function SearchResults(props: {
         );
       })}
       <div className="sp-teamgrid">
-        {teams.map(({ competition, team }) => {
-          const active = props.followsByKey.has(
-            followKey(competition.competitionKey, team.teamKey)
-          );
+        {props.results.map((team) => {
+          const active = props.followsByKey.has(followKey(team.competitionKey, team.teamKey));
           return (
             <button
-              key={`${competition.competitionKey}:${team.teamKey}`}
+              key={`${team.competitionKey}:${team.teamKey}`}
               type="button"
               className={`sp-team${active ? " is-active" : ""}`}
               disabled={props.pending}
-              onClick={() => props.onToggle(competition.competitionKey, team.teamKey)}
+              onClick={() => props.onToggle(team.competitionKey, team.teamKey)}
             >
               <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
               <span className="sp-team__name">{team.shortName || team.name}</span>
@@ -206,6 +249,131 @@ export function SearchResults(props: {
           );
         })}
       </div>
+      {props.partial ? <Note>Still covering more leagues…</Note> : null}
+    </>
+  );
+}
+
+// Ordered so the (soccer-only) confederation grouping still leads with what most users follow —
+// US majors/global tournaments first, then FIFA's six confederations alphabetically-by-region
+// (#907 spec §4.2 browse ordering).
+const CONFEDERATION_ORDER: readonly Confederation[] = [
+  "INTL",
+  "UEFA",
+  "CONCACAF",
+  "CONMEBOL",
+  "AFC",
+  "CAF",
+  "OFC"
+];
+const CONFEDERATION_LABELS: Record<Confederation, string> = {
+  INTL: "US majors & global",
+  UEFA: "Europe · UEFA",
+  CONCACAF: "North & Central America · CONCACAF",
+  CONMEBOL: "South America · CONMEBOL",
+  AFC: "Asia · AFC",
+  CAF: "Africa · CAF",
+  OFC: "Oceania · OFC"
+};
+
+/** Confederation-grouped browse mode, shown when the search box is empty. Purely prop-driven (the
+    roster query lives in `SportsSettings`) so this stays SSR-string-testable like `SearchResults`
+    (#907). Leagues are fetched lazily: only the expanded league's roster query is enabled. */
+export function BrowseGroups(props: {
+  competitions: readonly CompetitionRef[];
+  followsByKey: Map<string, SportsFollowDto>;
+  expandedKey: string | null;
+  onExpand: (competitionKey: string | null) => void;
+  expandedTeams: readonly TeamRef[];
+  expandedLoading: boolean;
+  expandedDegraded: boolean;
+  onRetryExpanded: () => void;
+  onToggle: (competitionKey: string, teamKey: string | null) => void;
+  pending: boolean;
+}) {
+  const byConfederation = new Map<Confederation, CompetitionRef[]>();
+  for (const competition of props.competitions) {
+    const group = byConfederation.get(competition.confederation);
+    if (group) group.push(competition);
+    else byConfederation.set(competition.confederation, [competition]);
+  }
+  const populatedOrder = CONFEDERATION_ORDER.filter(
+    (conf) => (byConfederation.get(conf)?.length ?? 0) > 0
+  );
+  return (
+    <>
+      {populatedOrder.map((conf) => (
+        <div key={conf}>
+          <div className="sp-browse__conf">{CONFEDERATION_LABELS[conf]}</div>
+          {(byConfederation.get(conf) ?? []).map((competition) => {
+            const expanded = props.expandedKey === competition.competitionKey;
+            const wholeActive = props.followsByKey.has(followKey(competition.competitionKey, null));
+            return (
+              <div key={competition.competitionKey}>
+                <div className="sp-browse__row">
+                  <button
+                    type="button"
+                    className="sp-browse__league"
+                    aria-expanded={expanded}
+                    onClick={() => props.onExpand(expanded ? null : competition.competitionKey)}
+                  >
+                    {competition.label}
+                  </button>
+                  <button
+                    type="button"
+                    className={`sp-whole${wholeActive ? " is-active" : ""}`}
+                    disabled={props.pending}
+                    onClick={() => props.onToggle(competition.competitionKey, null)}
+                  >
+                    <span className="sp-whole__lbl">Follow all of {competition.label}</span>
+                    <span className="sp-whole__state">{wholeActive ? "Following" : "Follow"}</span>
+                  </button>
+                </div>
+                {expanded ? (
+                  props.expandedLoading ? (
+                    <Note>Loading clubs…</Note>
+                  ) : props.expandedDegraded ? (
+                    <Note>
+                      Couldn&rsquo;t load this league&rsquo;s clubs.{" "}
+                      <button
+                        type="button"
+                        className="sp-managebtn"
+                        onClick={props.onRetryExpanded}
+                      >
+                        Retry
+                      </button>
+                    </Note>
+                  ) : (
+                    <div className="sp-teamgrid">
+                      {props.expandedTeams.map((team) => {
+                        const active = props.followsByKey.has(
+                          followKey(team.competitionKey, team.teamKey)
+                        );
+                        return (
+                          <button
+                            key={`${team.competitionKey}:${team.teamKey}`}
+                            type="button"
+                            className={`sp-team${active ? " is-active" : ""}`}
+                            disabled={props.pending}
+                            onClick={() => props.onToggle(team.competitionKey, team.teamKey)}
+                          >
+                            <PickCrest
+                              name={team.name}
+                              shortName={team.shortName}
+                              crestUrl={team.crestUrl}
+                            />
+                            <span className="sp-team__name">{team.shortName || team.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </>
   );
 }
@@ -224,7 +392,45 @@ export default function SportsSettings() {
   const followsByKey = new Map(
     follows.map((follow) => [followKey(follow.competitionKey, follow.teamKey), follow])
   );
-  const competitionsByKey = new Map(competitions.map((c) => [c.competitionKey, c]));
+  const competitionsByKey = new Map<string, CompetitionRef>(
+    competitions.map((c) => [c.competitionKey, c])
+  );
+
+  const [search, setSearch] = useState("");
+  const query = search.trim();
+  // Debounce the box so typing doesn't fire a server request per keystroke; the immediate `query`
+  // still drives the 1-char hint below so the UI reacts instantly to typing (#907).
+  const debouncedQuery = useDebouncedValue(query);
+  const searchEnabled = debouncedQuery.length >= 2;
+  const searchQuery = useQuery({
+    queryKey: sportsQueryKeys.teamSearch(debouncedQuery),
+    queryFn: () => searchTeams(debouncedQuery),
+    enabled: searchEnabled
+  });
+
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const expandedQuery = useQuery({
+    queryKey: sportsQueryKeys.leagueTeams(expandedKey ?? ""),
+    queryFn: () => getLeagueTeams(expandedKey as string),
+    enabled: expandedKey !== null
+  });
+
+  // Followed-team chips need club names/crests; the catalog no longer carries rosters after the
+  // contract flip, so resolve them via the same per-league roster endpoint (24h-cached,
+  // deduped with browse-expand by React Query key) — spec §4.3 (#907).
+  const followedTeamComps = [
+    ...new Set(follows.filter((f) => f.teamKey !== null).map((f) => f.competitionKey))
+  ];
+  const rosterQueries = useQueries({
+    queries: followedTeamComps.map((key) => ({
+      queryKey: sportsQueryKeys.leagueTeams(key),
+      queryFn: () => getLeagueTeams(key)
+    }))
+  });
+  const teamsByCompetition = new Map(
+    followedTeamComps.map((key, i) => [key, rosterQueries[i]?.data?.teams ?? []])
+  );
+
   const pending =
     catalogQuery.isLoading ||
     followsQuery.isLoading ||
@@ -235,14 +441,6 @@ export default function SportsSettings() {
     followsQuery.isError ||
     followMutation.isError ||
     unfollowMutation.isError;
-  // Partial failure (some competitions' teams didn't load) vs. total query failure — the
-  // catalog still renders with what succeeded, so this needs its own quiet notice + retry
-  // rather than the blanket error message above (#765 M1).
-  const catalogDegraded = catalogQuery.data?.degraded === true;
-
-  const [search, setSearch] = useState("");
-  const query = search.trim();
-
   function toggle(competitionKey: string, teamKey: string | null) {
     const existing = followsByKey.get(followKey(competitionKey, teamKey));
     if (existing) unfollowMutation.mutate(existing.id);
@@ -258,6 +456,7 @@ export default function SportsSettings() {
       <FollowedSummary
         follows={follows}
         competitionsByKey={competitionsByKey}
+        teamsByCompetition={teamsByCompetition}
         onToggle={toggle}
         pending={pending}
       />
@@ -271,29 +470,37 @@ export default function SportsSettings() {
           onChange={(event) => setSearch(event.target.value)}
         />
       </div>
-      {query ? (
+      {searchEnabled ? (
         <SearchResults
-          query={query}
+          query={debouncedQuery}
+          results={searchQuery.data?.teams ?? []}
+          partial={searchQuery.data?.partial === true}
+          isError={searchQuery.isError}
+          onRetry={() => void searchQuery.refetch()}
           competitions={competitions}
           followsByKey={followsByKey}
           onToggle={toggle}
           pending={pending}
         />
-      ) : (
+      ) : query.length === 1 ? (
         <Note>Search above to find teams or leagues to follow.</Note>
+      ) : (
+        <BrowseGroups
+          competitions={competitions}
+          followsByKey={followsByKey}
+          expandedKey={expandedKey}
+          onExpand={setExpandedKey}
+          expandedTeams={expandedQuery.data?.teams ?? []}
+          expandedLoading={expandedQuery.isLoading}
+          // Transport failures (network/5xx) leave `data` undefined with isLoading false — without
+          // isError here a failed league silently renders as an empty roster grid instead of the
+          // retry note (#907 review Important-2).
+          expandedDegraded={expandedQuery.data?.degraded === true || expandedQuery.isError}
+          onRetryExpanded={() => void expandedQuery.refetch()}
+          onToggle={toggle}
+          pending={pending}
+        />
       )}
-      {!error && catalogDegraded ? (
-        <Note>
-          Some leagues didn&rsquo;t load just now.{" "}
-          <button
-            type="button"
-            className="sp-managebtn"
-            onClick={() => void catalogQuery.refetch()}
-          >
-            Retry
-          </button>
-        </Note>
-      ) : null}
       {error ? <Note>Could not load or save sports follows. Try again.</Note> : null}
     </>
   );

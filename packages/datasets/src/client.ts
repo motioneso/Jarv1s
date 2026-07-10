@@ -20,10 +20,17 @@ export interface DatasetEnvelope<T> {
   /** True when this call served a fallback or a stale cache entry instead of a fresh fetch. */
   readonly degraded: boolean;
   readonly fetchedAt: string;
+  /** Only set by `cacheOnly` reads: true when nothing (fresh or stale) was cached (#907). */
+  readonly cacheMiss?: boolean;
 }
 
 export interface GetDatasetOptions<T> {
   readonly fallback: T;
+  /**
+   * Peek: report the cache without ever triggering a live fetch. Lets callers bound their own
+   * fan-out (sports cross-league team search warm-fill, #907 spec §4.4).
+   */
+  readonly cacheOnly?: boolean;
 }
 
 export interface DatasetClient {
@@ -118,6 +125,23 @@ export function createDatasetClient(
       const cacheKey = buildCacheKey(source.id, datasetKey, params);
       const nowMs = now().getTime();
       const hit = cache.get<T>(cacheKey, nowMs);
+      if (options.cacheOnly) {
+        // Peek path: never fetch. Stale-but-retained entries are served degraded, matching the
+        // serve-stale semantics of the normal path (#907).
+        if (hit) {
+          return {
+            data: hit.value,
+            degraded: !hit.fresh,
+            fetchedAt: new Date(nowMs).toISOString()
+          };
+        }
+        return {
+          data: options.fallback,
+          degraded: false,
+          cacheMiss: true,
+          fetchedAt: new Date(nowMs).toISOString()
+        };
+      }
       if (hit && hit.fresh) {
         return { data: hit.value, degraded: false, fetchedAt: new Date(nowMs).toISOString() };
       }

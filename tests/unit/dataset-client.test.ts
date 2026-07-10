@@ -286,4 +286,76 @@ describe("createDatasetClient", () => {
     expect(envelope).toMatchObject({ data: { empty: true }, degraded: true });
     expect(elapsed).toBeLessThan(150); // well under the 200ms hang → the 20ms timeout fired
   });
+
+  describe("cacheOnly peek (#907)", () => {
+    it("returns cacheMiss without calling the adapter on a cold cache", async () => {
+      let calls = 0;
+      const client = createDatasetClient(
+        source(),
+        adapterFrom(async () => {
+          calls += 1;
+          return { n: calls };
+        })
+      );
+      const result = await client.getDataset<string[]>(
+        "widgets",
+        { competitionKey: "eng.1" },
+        { fallback: [], cacheOnly: true }
+      );
+      expect(result.cacheMiss).toBe(true);
+      expect(result.data).toEqual([]);
+      expect(result.degraded).toBe(false);
+      expect(calls).toBe(0);
+    });
+
+    it("serves a fresh cached value without refetching", async () => {
+      let calls = 0;
+      const client = createDatasetClient(
+        source(),
+        adapterFrom(async () => {
+          calls += 1;
+          return { n: calls };
+        })
+      );
+      await client.getDataset("widgets", { competitionKey: "eng.1" }, { fallback: null }); // warm (1 call)
+      const result = await client.getDataset(
+        "widgets",
+        { competitionKey: "eng.1" },
+        { fallback: null, cacheOnly: true }
+      );
+      expect(result.cacheMiss).toBeUndefined();
+      expect(result.degraded).toBe(false);
+      expect(calls).toBe(1); // no second adapter call
+    });
+
+    it("serves a stale-but-retained hit as degraded: true, still without calling the adapter", async () => {
+      let now = 0;
+      let calls = 0;
+      const client = createDatasetClient(
+        source({
+          datasets: [
+            {
+              key: "widgets",
+              ttlMs: 1_000,
+              staleness: "serve-stale-on-error",
+              staleRetentionMs: 10_000
+            }
+          ]
+        }),
+        adapterFrom(async () => {
+          calls += 1;
+          return { n: calls };
+        }),
+        { now: () => new Date(now) }
+      );
+      await client.getDataset("widgets", {}, { fallback: null }); // warm (1 call)
+
+      now = 5_000; // past ttl (1_000) but within staleRetentionMs (10_000 after expiry)
+      const result = await client.getDataset("widgets", {}, { fallback: null, cacheOnly: true });
+      expect(result.cacheMiss).toBeUndefined();
+      expect(result.degraded).toBe(true);
+      expect(result.data).toEqual({ n: 1 });
+      expect(calls).toBe(1); // cacheOnly never triggers a live fetch, even on stale entries
+    });
+  });
 });

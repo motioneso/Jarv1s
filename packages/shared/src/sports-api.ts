@@ -72,12 +72,17 @@ export interface Headline {
   readonly body?: string;
 }
 
+/** FIFA confederation grouping for the follow picker's browse mode (#907). "INTL" covers the
+ *  US majors (grouping only applies visually to soccer) and cross-confederation tournaments. */
+export type Confederation = "UEFA" | "CONCACAF" | "CONMEBOL" | "AFC" | "CAF" | "OFC" | "INTL";
+
 export interface CompetitionRef {
   readonly competitionKey: string;
   readonly label: string; // "NFL", "Premier League"
   readonly kind: "league" | "tournament";
   readonly marquee: boolean; // World Cup flag
   readonly standingsShape: StandingsShape;
+  readonly confederation: Confederation;
 }
 
 export interface SportsFollowDto {
@@ -200,9 +205,27 @@ export interface SportsOverviewResponse {
   readonly degraded: boolean; // source failed → cached/empty
 }
 
+/** `GET /api/sports/leagues/:competitionKey/teams` — one league's clubs, fetched on demand by
+ *  the follow picker (browse-expand and followed-chip name resolution). Replaces the retired
+ *  eager per-league fan-out in the catalog (#907). */
+export interface SportsLeagueTeamsResponse {
+  readonly teams: readonly TeamRef[];
+  readonly degraded: boolean; // roster fetch failed → empty teams + retry affordance
+}
+
+/** `GET /api/sports/teams/search?q=` — bounded cross-league club search for the follow picker.
+ *  `partial` = warm-fill hasn't covered every catalog league yet this process lifetime; NOT an
+ *  error state (`degraded` keeps meaning "a fetch failed") — spec §4.4 (#907). */
+export interface SportsTeamSearchResponse {
+  readonly teams: readonly TeamRef[];
+  readonly partial: boolean;
+  readonly degraded: boolean;
+}
+
 export interface SportsCatalogResponse {
-  readonly competitions: readonly (CompetitionRef & { readonly teams: readonly TeamRef[] })[];
-  readonly degraded: boolean; // one or more competitions' teams failed to load (#765 M1)
+  readonly competitions: readonly CompetitionRef[];
+  // Kept for wire stability; static catalog data can no longer degrade (#907).
+  readonly degraded: boolean;
 }
 
 export interface SportsFollowsResponse {
@@ -348,13 +371,18 @@ const headlineSchema = {
 const competitionRefSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["competitionKey", "label", "kind", "marquee", "standingsShape"],
+  required: ["competitionKey", "label", "kind", "marquee", "standingsShape", "confederation"],
   properties: {
     competitionKey: { type: "string" },
     label: { type: "string" },
     kind: { type: "string", enum: ["league", "tournament"] },
     marquee: { type: "boolean" },
-    standingsShape: { type: "string", enum: ["table", "groups", "record"] }
+    standingsShape: { type: "string", enum: ["table", "groups", "record"] },
+    // Follow-picker browse grouping (#907); "INTL" = US majors + cross-confederation tournaments.
+    confederation: {
+      type: "string",
+      enum: ["UEFA", "CONCACAF", "CONMEBOL", "AFC", "CAF", "OFC", "INTL"]
+    }
   }
 } as const;
 
@@ -580,21 +608,69 @@ export const sportsCatalogResponseSchema = {
       additionalProperties: false,
       required: ["competitions", "degraded"],
       properties: {
+        // Static catalog data — no per-league teams. Rosters are served lazily by
+        // sportsLeagueTeamsResponseSchema / sportsTeamSearchResponseSchema instead (#907).
         competitions: {
           type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["competitionKey", "label", "kind", "marquee", "standingsShape", "teams"],
-            properties: {
-              ...competitionRefSchema.properties,
-              teams: { type: "array", items: teamRefSchema }
-            }
-          }
+          items: competitionRefSchema
         },
         degraded: { type: "boolean" }
       }
     },
+    401: errorResponseSchema
+  }
+} as const;
+
+/** `GET /api/sports/leagues/:competitionKey/teams` schema (#907) — mirrors sportsStandingsResponseSchema's
+ *  params-validated 400 shape (unknown competitionKey rejected by the route, same as /standings). */
+export const sportsLeagueTeamsResponseSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["competitionKey"],
+    properties: {
+      competitionKey: { type: "string", minLength: 1, maxLength: 100 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["teams", "degraded"],
+      properties: {
+        teams: { type: "array", items: teamRefSchema },
+        degraded: { type: "boolean" }
+      }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+/** `GET /api/sports/teams/search?q=` schema (#907 §4.4). `q` minLength 2 keeps a single
+ *  keystroke from firing a query; maxLength 80 is a generous cap against abuse, not a real name
+ *  length limit. */
+export const sportsTeamSearchResponseSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    required: ["q"],
+    properties: {
+      q: { type: "string", minLength: 2, maxLength: 80 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["teams", "partial", "degraded"],
+      properties: {
+        teams: { type: "array", items: teamRefSchema },
+        partial: { type: "boolean" },
+        degraded: { type: "boolean" }
+      }
+    },
+    400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;
