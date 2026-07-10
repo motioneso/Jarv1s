@@ -339,6 +339,156 @@ export const SPORTS_CATALOG: readonly CatalogEntry[] = [
     espnLeague: "fifa.world",
     // Cross-confederation tournament — no single confederation runs it (#907).
     confederation: "INTL"
+  },
+  // AFC, CAF, and the remaining CONMEBOL/CONCACAF feeder leagues from spec Appendix A
+  // (#907 slice 4 — the final batch). All live-probed via scripts/probe-espn-leagues.mjs;
+  // see task-10-report.md for the full run including every failed alt-slug attempt.
+  //
+  // kor.1/egy.1/mar.1/nzl.1 (plus alt-slug guesses rok.1, kr.1, mor.1, egy.prem, egy.premier,
+  // mar.botola, nzl.premiership, nzl.national) all 404 on ESPN's site API — dropped, not
+  // silently capped. uae.1/qat.1/irn.1/alg.1/tun.1/pan.1 also 404 and are dropped for the
+  // same reason. OFC has zero ESPN-served leagues after the nzl.1 alt-slug chase came up
+  // empty, so OFC is absent from the catalog entirely (spec §4.6 permits this).
+  {
+    competitionKey: "jpn.1",
+    label: "J.League",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "jpn.1",
+    confederation: "AFC"
+  },
+  {
+    // ESPN uses ksa.1, not the ISO-3166 sau.1 — the "sau.1 trap" from spec §4.6.
+    competitionKey: "ksa.1",
+    label: "Saudi Pro League",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "ksa.1",
+    confederation: "AFC"
+  },
+  {
+    competitionKey: "chn.1",
+    label: "Chinese Super League",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "chn.1",
+    confederation: "AFC"
+  },
+  {
+    competitionKey: "aus.1",
+    label: "A-League Men",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "aus.1",
+    confederation: "AFC"
+  },
+  {
+    competitionKey: "tha.1",
+    label: "Thai League 1",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "tha.1",
+    confederation: "AFC"
+  },
+  {
+    competitionKey: "rsa.1",
+    label: "South African Premiership",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "rsa.1",
+    confederation: "CAF"
+  },
+  {
+    competitionKey: "ecu.1",
+    label: "LigaPro Ecuador",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "ecu.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "par.1",
+    label: "Paraguayan Primera División",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "par.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "per.1",
+    label: "Peruvian Liga 1",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "per.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "bol.1",
+    label: "Bolivian Liga Profesional",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "bol.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "ven.1",
+    label: "Venezuelan Primera División",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "ven.1",
+    confederation: "CONMEBOL"
+  },
+  {
+    competitionKey: "hon.1",
+    label: "Honduran Liga Nacional",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "hon.1",
+    confederation: "CONCACAF"
+  },
+  {
+    competitionKey: "gua.1",
+    label: "Guatemalan Liga Nacional",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "gua.1",
+    confederation: "CONCACAF"
+  },
+  {
+    competitionKey: "slv.1",
+    label: "Salvadoran Primera División",
+    kind: "league",
+    marquee: false,
+    standingsShape: "table",
+    espnSport: "soccer",
+    espnLeague: "slv.1",
+    confederation: "CONCACAF"
   }
 ];
 
