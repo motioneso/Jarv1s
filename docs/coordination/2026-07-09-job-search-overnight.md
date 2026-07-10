@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `9ed36f3b-0118-48d0-abda-10de067d861a`,
-pane `w1:pCX`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`,
+pane `w1:pCY`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -520,3 +520,14 @@ goes to the successor as the immediate next action, not done by this session.
    pattern as #915: fresh general-purpose subagent, not Fable/Opus itself). If stalled a 5th time,
    respawn.
 4. Reset `merges_since_relay` to 0 in the manifest (this checkpoint's relay resets the counter).
+
+## Lock re-claimed (successor session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`)
+
+Predecessor pane `w1:pCX` (session `9ed36f3b-0118-48d0-abda-10de067d861a`, matched manifest lock
+line exactly) resolved FRESH via `herdr pane list` by label `Coordinator` + session id (not a
+written pane number) — found status `done`, closed after confirming exactly 2
+`Coordinator`-labelled panes momentarily (`pCX` done, `pCY` working) then 1 (`pCY` only) via a
+fresh re-list. New coordinator: pane `w1:pCY`, session `ffba9610-00cc-4ebd-b52c-203ab8b521bf`, tab
+`w1:t15`. `merges_since_relay` reset to **0** (trigger fired and was fully consumed by the prior
+checkpoint's relay). Proceeding with relay checkpoint 4's remaining queue: spawn #915 slice-3
+build lane, restart Monitor, re-check `w1:pCV`.
