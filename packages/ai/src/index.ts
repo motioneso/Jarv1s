@@ -17,6 +17,7 @@ export * from "./provider-validation-routes.js";
 export * from "./provider-validation.js";
 export * from "./repository.js";
 export * from "./routes.js";
+export * from "./structured/schema-bounds.js";
 export * from "./adapters/http-api.js";
 export * from "./adapters/tmux-bridge.js";
 export * from "./adapters/multiplexer.js";
