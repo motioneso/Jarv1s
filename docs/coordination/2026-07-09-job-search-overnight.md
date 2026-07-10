@@ -45,6 +45,21 @@ readiness — #917 (meant to be first) has no spec at all yet; #914 (meant to be
 only one actually spec-complete. **Do not spawn any build lane yet.** This contradicts "approved
 mapping" framing in the handoff — flag to Ben/Fable 5, don't silently reorder.
 
+**Correction (2026-07-09, successor checkpoint, grounded via `gh`/`git`):** #917's spec gate IS
+satisfied — it does not need a standalone spec PR. #917's issue body cites the already-approved
+`docs/superpowers/specs/2026-07-08-open-module-system-user-authored-modules.md` (§Build slices —
+Slice 1), merged to main via PR #911 (`90cc89d7`, "Approved — RFA after Opus + Fable adversarial
+review + Ben approval", GitHub #818). Verified: file present on `origin/main`, #917 is
+OPEN + labeled `task, RFA`, body explicitly scopes Slice 1 (external manifest loader,
+fail-closed activation, `app.external_modules` migration) and states #917 is "the foundation for
+epic #860 (delivers #913 platform prerequisite 1)". **Remaining gate for #917 is an approved
+implementation plan only — no new spec needed.** No #917 plan found yet in main, the Fable
+worktree, or any PR. Flagged by Codex (`w1:pCK`), independently re-verified by coordinator before
+acting on it (grounding discipline). This directly feeds the Phase-0 collision map (dispatched
+this checkpoint, pending) — #917 may need to lead the serialization order since it underlies
+#860's prerequisite 1, which #913's epic depends on. Not yet reordering Fable's queue (it's
+mid-#915) pending the collision map's full-picture verdict.
+
 Epic #913 body confirms hard dependency: job-search module is blocked by / must target the
 pluggable-module runtime in **epic #860** (see `[[pluggable-modules-epic]]` memory — migrations
 coupling, install=privileged-ops, two-bundle runtime load, supply-chain signing, phases 0→3).
