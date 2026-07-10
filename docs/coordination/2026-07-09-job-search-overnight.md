@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `d1e3992a-6ebf-4298-bd05-efd04e42f7d1`,
-pane `w1:pDY`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `647affcf-6c16-4629-92c9-0e77df89ccdf`,
+pane `w1:pDZ`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1349,6 +1349,53 @@ queue, leave alone unless their own escalation arrives:** `w1:pBK` (news-module,
 **No merges executed this checkpoint** (compliant — nothing was mergeable/actioned before this
 relay fired). `merges_since_relay` unchanged from predecessor's last recorded value (see prior
 checkpoints above for history; re-derive from GitHub merge history if needed, do not guess).
+
+**Relaying now** — spawning successor in same tab (`w1:t15`), `--model sonnet
+--permission-mode bypassPermissions`, bootstrap points to this section.
+
+## IMMEDIATE re-relay — context-meter fired at 82% on first turn (session `647affcf-6c16-4629-92c9-0e77df89ccdf`)
+
+Same pattern as the three prior successors: hit the 70%+ context-meter trigger before executing
+any queued action (fired right after Phase 0a). Per skill: no deferral — flush + relay now, merge/
+supervise nothing first.
+
+**Phase 0a done:** own pane resolved fresh via `herdr pane list` (never a written number) —
+session `647affcf-6c16-4629-92c9-0e77df89ccdf`, pane `w1:pDZ`, tab `w1:t15`. Renamed
+`Coordinator (incoming-3)` → `Coordinator`. Predecessor session `d1e3992a-6ebf-4298-bd05-efd04e42f7d1`
+(pane `w1:pDY`) confirmed idle/done via bounded pane read (its own text: "No merges or fleet
+actions were executed this turn — that work is now the successor's job") — closed. Verified
+uniqueness after close: exactly one `Coordinator`-labeled pane. Top-of-file lock line updated to
+this session/pane.
+
+**Queue carried forward UNEXECUTED (same as predecessor left it, unchanged) — successor's first
+actions, in order:**
+1. **PR #925 sign-off check** — resolve current status via `gh pr view 925` / `gh pr checks 925`
+   fresh (do not trust anything cached from before this checkpoint); determine tier and whether
+   Ben sign-off is outstanding before merging. Per last independently-confirmed state (several
+   checkpoints back): CI fully green, Opus adversarial QA verdict GREEN/MERGE-READY posted via
+   `gh pr comment`, paused solely on Ben's explicit merge sign-off — re-verify, don't assume this
+   is still current.
+2. **Reap `w1:pDJ`** — per fleet snapshot this checkpoint, `w1:pDJ` = "918: open module system
+   slice2 build (relay-1)", session `dbf1c605-512a-4c0c-b310-9063ac8893c9`, tab `w1:t1E`,
+   `agent_status: idle`. Re-verify fresh (a newer #918 relay may have landed since) before closing
+   — confirm no work in flight, resolve any newer successor pane first.
+3. **Resume Phase 2 supervision of #914 at `w1:pDQ`** — per fleet snapshot this checkpoint, `w1:pDQ`
+   = "914: module data plane build (relay-5)", session `8baf4c17-ad28-40c9-8854-a4254e3f2b2c`,
+   worktree `.claude/worktrees/coord-2026-06-30-rfa-fleet/.claude/worktrees/914-module-data-plane`,
+   tab `w1:t1E`, `agent_status: idle`. Read its latest message via a bounded pane read
+   (`herdr pane read w1:pDQ --source recent --lines 12`) FIRST — do not act blind.
+4. **Re-arm fleet-liveness Monitor** — prior monitors' survival across this relay is unknown; start
+   a fresh persistent `Monitor` diffing `herdr pane list` for `w1`, emit changed lines only.
+
+**Other live panes confirmed this checkpoint (fresh `herdr pane list`), not part of the above
+queue, leave alone unless their own escalation arrives:** `w1:pBK` (news-module, idle), `w1:pCP`
+(Fable sports-fed spec+plan, idle), `w1:pCK` (Codex Job Search Spec, idle, already ack'd),
+`w1:pCR` (Fable 5 Job Search Spec Review, idle).
+
+**No merges executed this checkpoint.** `merges_since_relay` unchanged from predecessor's last
+recorded value — re-derive from GitHub merge history if truly needed, do not guess (last known: 0,
+no merges executed this entire run yet; #925 is the first candidate, blocked purely on Ben's
+sign-off as of the last independently-confirmed check).
 
 **Relaying now** — spawning successor in same tab (`w1:t15`), `--model sonnet
 --permission-mode bypassPermissions`, bootstrap points to this section.
