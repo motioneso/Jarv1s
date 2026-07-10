@@ -1,6 +1,6 @@
-# Intelligent job search — open decisions for Ben
+# Intelligent job search — settled decision record
 
-**Status:** Open — must be settled before dependent task issues become RFA
+**Status:** Settled by delegated Fable approval; PR remains draft pending Ben's final sign-off
 
 **Date:** 2026-07-10
 
@@ -10,108 +10,69 @@
 
 ---
 
-The architecture fixes the security, packaging, evidence, and module-isolation boundaries. The
-following product/scale forks are intentionally not decided by this spec agent.
+The six product/scale forks from the initial draft are settled below. Rejected options have been
+removed. These decisions are folded into the module design and future task scopes.
 
-## D1 — Ranking strategy and daily AI budget
+## D1 — Deterministic gate plus AI fit bands
 
-Choose one MVP strategy:
+Hard deterministic exclusions run first. New or materially changed survivors receive
+schema-validated AI fit bands, capped at 25 evaluations per user per local day. Pending backlog is
+processed oldest-first. The module requests the platform's economy/standard structured-output
+capability tier and never a provider or model. Every result includes evidence, gaps, freshness,
+confidence, and explicit unknowns; no opaque precision percentage.
 
-- **Deterministic gate + AI fit bands:** hard filters first, then structured AI for a bounded number
-  of new/changed survivors. Richest explanations; incurs configured-provider cost and latency.
-- **Deterministic evidence ranking only:** title/skill/preference/freshness rules with no AI during
-  monitoring. Cheapest and easiest to audit; weaker semantic matching and resume-to-requirement
-  reasoning.
-- **Hybrid on demand:** deterministic feed by default; user requests AI evaluation for selected
-  roles. Lowest scheduled cost; less “intelligent” automation in the first week.
+**Applied to:** JS-07.
 
-Ben must also set the initial per-user daily evaluation ceiling and whether backlog is oldest-first.
-All choices must emit evidence, gaps, freshness, confidence, and unknowns; no opaque percentage.
+## D2 — Greenhouse, Lever, Ashby, and manual capture
 
-**Blocks:** JS-07.
+MVP ships keyless public Greenhouse, Lever, and Ashby board adapters plus one-shot manual public-URL
+and pasted-description capture. No authenticated board, cookie/session use, known-prohibited source,
+or recurring generic scraper is allowed. Each recurring adapter has exact hosts, policy review
+URL/date, courtesy interval, stable identity semantics, and a fail-closed kill-switch posture.
 
-## D2 — Initial compliant sources
+**Applied to:** JS-04.
 
-Select the smallest source set that has current terms/policy review and useful coverage for the
-first user. Candidate classes are:
+## D3 — Capped Markdown resume revisions
 
-- public Greenhouse board endpoints;
-- public Lever postings endpoints;
-- public Ashby board endpoints;
-- direct employer career pages only where a stable public feed/adapter exists;
-- manual public URL or pasted-description capture, without recurring generic scraping.
+Resume input is capped at 48 KB UTF-8 so each immutable normalized Markdown revision plus metadata
+fits below `module_kv`'s 64 KB JSON-value limit. The original pasted text is retained unchanged as
+its own capped `revision/0` provenance value. Oversize input is rejected before write with a clear
+48 KB limit message. No chunking, PDF/DOCX parsing, or #914 dependency enters MVP.
 
-The 2026-07-09 approved design selected Greenhouse + Lever + Ashby + manual capture. Ben should
-confirm that selection still stands or reduce it. Each shipped adapter needs a review URL/date,
-exact hosts, courtesy interval, and kill-switch posture. LinkedIn/authenticated boards and
-known-prohibited automation remain out.
+**Applied to:** JS-02 and JS-03.
 
-**Blocks:** JS-04.
+## D4 — Full onboarding and required starter action
 
-## D3 — Resume storage format and KV ceiling
+MVP uses all six checkpoints: resume intake, critique, truth-guarded approval, search profile,
+sources/schedule, and final review/enable. One-click module-to-assistant launch is required. #916 is
+narrowed to the small generic host starter action specified alongside these docs. Briefings dispatch
+is outside MVP and is not part of #916's build scope.
 
-`module_kv` caps each JSON value at 65,536 bytes. Choose:
+**Applied to:** #916, JS-03, and JS-06.
 
-- **Capped normalized Markdown/plain text:** one immutable revision per KV value, with a lower input
-  cap leaving room for metadata/evidence. Smallest MVP; rejects unusually large resumes.
-- **Chunked Markdown revisions:** manifest plus multiple content chunks. Supports larger input but
-  complicates atomic approval, export, cleanup, and truth-evidence links.
-- **Wait for #914 relational module storage:** store larger/versioned records outside KV. Removes
-  the KV ceiling but makes #914 a hard prerequisite and expands the data-plane dependency.
+## D5 — Bounded KV retention
 
-Also decide whether MVP retains the original pasted text alongside normalized Markdown or only the
-approved normalized revision plus evidence hashes. PDF/DOCX parsing remains out in all options.
+- Maximum 500 opportunities per user.
+- Maximum 16 KB normalized description snapshot per opportunity, with truncation marked.
+- Active and saved opportunities never auto-evict.
+- Passed/stale opportunities evict after 30 days or oldest-first when over the cap.
+- Eviction leaves a compact identity-hash tombstone with a 60-day TTL to block rediscovery.
+- Run history retains the most recent 50 runs or 14 days per monitor, whichever is smaller.
 
-**Blocks:** JS-02 and JS-03.
+These bounds keep #914 out of the MVP critical path.
 
-## D4 — Onboarding depth
+**Applied to:** JS-02 and JS-05.
 
-Choose the required first-pass depth:
+## D6 — Periodic local due-check
 
-- **Six checkpoints:** resume intake, critique, approval, search profile, sources/schedule, final
-  review/enable. Most complete; longer time to first results.
-- **Progressive onboarding:** approve a minimum profile/resume/source, start monitoring, then prompt
-  for compensation, company preferences, and exclusions later. Faster activation; early ranking has
-  more unknowns.
-- **Resume-first:** critique/approve resume before collecting the search profile. Strong document
-  outcome; delays source setup.
+The manifest declares one static tick between every 30 and 60 minutes. Its handler reads the user's
+local due time and last-run local date from KV, performs no network/AI work when not due, runs at
+most once per local day, and performs no missed-interval replay or catch-up storm after downtime.
 
-Ben must also decide whether one-click module-to-assistant launch is acceptance-critical. If yes,
-the starter-prompt portion of #916 is a hard runtime task; if no, MVP may instruct the user to open
-Chat with supplied text.
-
-**Blocks:** JS-03 and JS-06.
-
-## D5 — KV retention ceiling for opportunities and run history
-
-The no-#914 MVP needs bounded storage. Decide:
-
-- maximum retained opportunities per user;
-- maximum stored description bytes per opportunity;
-- how long passed/stale jobs and monitor-run records remain;
-- whether eviction preserves a compact tombstone to prevent rediscovery.
-
-The smallest design keeps active/saved jobs, evicts oldest passed/stale jobs, and retains only safe
-recent run metadata, but exact ceilings are product decisions. If Ben requires unlimited history or
-relational reporting, #914 becomes hard and the KV design must be revised before build.
-
-**Blocks:** JS-02 and JS-05.
-
-## D6 — Schedule semantics
-
-The draft #915 runtime design proposes manifest-static per-user schedules, not arbitrary
-per-user cron. Choose:
-
-- one periodic due-check whose handler reads each user's local desired time and no-ops when not due;
-- one fixed daily manifest time for all users;
-- expand the runtime design to support per-user schedule updates before building job search.
-
-The choice must guarantee at most one scheduled discovery run per local day and no missed-run storm.
-
-**Blocks:** the replacement #915 schedule task and JS-05.
+**Applied to:** the replacement #915 schedule task and JS-05.
 
 ## Approval record
 
-Record Ben's selections here or in the draft PR review. After resolution, update the design and task
-specs, mark the affected JS issues ready only after spec approval, and do not silently preserve
-options the approved choice rejects.
+Fable, acting as delegated approver, returned APPROVE-WITH-CHANGES on PR #929 and settled D1–D6 as
+recorded above. The PR stays draft: these decisions authorize finalizing specs and filing task
+issues, not implementation planning, build lanes, readiness, or merge before Ben's final sign-off.

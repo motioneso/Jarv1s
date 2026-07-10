@@ -66,9 +66,9 @@ decision needed from Ben are explicit in the companion open-decisions document.
   part of #919.
 - #919 is not merged: the child worker, `ctx.kv`/`ctx.auth`, external assistant handlers, and
   `AssistantToolGateway` dispatch are unavailable until it lands.
-- The queue/schedule and host-pinned-fetch portions of the draft #915 design are not present,
-  despite #915 being closed by the structured-AI PR. Monitoring requires those remaining generic
-  capabilities to be approved and tracked in new task issues or by reopening/splitting #915.
+- Ben approved worker-capabilities design revision 2 at `6019f94f`, but its queue/schedule and
+  host-pinned-fetch implementations are not present despite #915 being closed by the structured-AI
+  PR. Monitoring requires replacement task issues for those remaining hard blockers.
 - #914's module-owned relational data plane is in flight, but is not required by the bounded KV MVP
   described here.
 
@@ -92,7 +92,7 @@ The JSON manifest targets the final external ABI, not the executable built-in
 | Identity        | `jarv1s.job-search`, user-toggleable, compatible runtime range            |
 | Web             | contract-v1 entrypoint whose `Root` owns the module surface               |
 | Storage         | user namespaces listed below; no instance data needed for MVP             |
-| Credentials     | only API keys required by a source Ben chooses for MVP                    |
+| Credentials     | none in MVP; all selected sources are keyless                             |
 | Permissions     | read, manage profile/resume, manage monitors, decide on opportunities     |
 | Assistant tools | namespaced read/write handlers listed below                               |
 | Worker          | monitor queue, schedule, handlers, metadata schemas, reviewed fetch hosts |
@@ -110,20 +110,21 @@ keeps all job-search persistence outside core without making #913 wait for custo
 
 KV is acceptable only as a deliberately bounded MVP store. Every logical record is a separate key;
 the design never stores an ever-growing user database in one JSON blob. Per-value and retention
-ceilings must be enforced before write. If Ben chooses unbounded history, richer queries, or resume
-files beyond the accepted cap, #914 becomes a hard prerequisite instead.
+ceilings are enforced before write. The approved bounds keep #914 out of the MVP critical path;
+unbounded history, larger artifacts, relational reporting, and CRM scope remain follow-ups that
+would require #914.
 
 ### Declared user namespaces
 
-| Namespace                         | Key shape                         | Value and rule                                                                      |
-| --------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------- |
-| `jarv1s.job-search.onboarding`    | `state`                           | Current step, completion flags, approved revision ids; no resume text               |
-| `jarv1s.job-search.profile`       | `active`, `revision/<id>`         | Versioned profile JSON, provenance, approval state; active key points to a revision |
-| `jarv1s.job-search.resume`        | `active`, `revision/<id>`         | Normalized text/Markdown, parent id, evidence map, status; immutable after approval |
-| `jarv1s.job-search.monitors`      | `monitor/<id>`, `cursor/<id>`     | Adapter-safe configuration, enabled state, due time, last successful cursor/check   |
-| `jarv1s.job-search.opportunities` | `job/<identity-hash>`             | One normalized posting snapshot, state, freshness, latest evaluation, content hash  |
-| `jarv1s.job-search.runs`          | `run/<id>`, `monitor/<id>/latest` | Safe counts, timestamps, status/error code, idempotency marker; no private bodies   |
-| `jarv1s.job-search.feed`          | `active`                          | Bounded ordered list of opportunity ids and compact card metadata for fast reads    |
+| Namespace                         | Key shape                                          | Value and rule                                                                       |
+| --------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `jarv1s.job-search.onboarding`    | `state`                                            | Current step, completion flags, approved revision ids; no resume text                |
+| `jarv1s.job-search.profile`       | `active`, `revision/<id>`                          | Versioned profile JSON, provenance, approval state; active key points to a revision  |
+| `jarv1s.job-search.resume`        | `active`, `revision/0`, `revision/<id>`            | Capped original paste plus normalized Markdown revisions, evidence, approval status  |
+| `jarv1s.job-search.monitors`      | `monitor/<id>`, `cursor/<id>`                      | Adapter-safe configuration, enabled state, due time, last successful cursor/check    |
+| `jarv1s.job-search.opportunities` | `job/<identity-hash>`, `tombstone/<identity-hash>` | Capped posting snapshot, freshness/evaluation, or compact 60-day eviction tombstone  |
+| `jarv1s.job-search.runs`          | `run/<id>`, `monitor/<id>/latest`                  | Last 50/14 days per monitor: safe counts, timestamps, status/error, idempotency only |
+| `jarv1s.job-search.feed`          | `active`                                           | Bounded ordered list of opportunity ids and compact card metadata for fast reads     |
 
 All scopes are `user`. Keys contain generated identifiers or hashes, never raw URLs, titles,
 company names, or user prose. JSON values carry `schemaVersion` so the package can upgrade its own
@@ -150,9 +151,12 @@ explicit user confirmation makes a revision active. Every approved revision rema
 
 ### Resume revisions and truth guard
 
-Resume intake is plain text/Markdown under the selected KV ceiling. Each immutable revision stores
-its parent, normalized content, critique summary, and evidence links for material changes. The
-active pointer changes only after the user sees a diff and approves it.
+Resume intake accepts at most 48 KB of UTF-8 text. Oversize input is rejected before write with a
+clear message explaining the 48 KB limit. The original paste is retained unchanged as immutable
+`revision/0`; each later KV value contains one capped normalized Markdown revision with its parent,
+critique summary, and evidence links. The 48 KB input ceiling leaves headroom for metadata inside
+the platform's 64 KB JSON-value limit. The active pointer changes only after the user sees a diff
+and approves it.
 
 - Rewording may clarify an existing claim.
 - A new employer, role, date, skill, credential, metric, or outcome requires an earlier quoted
@@ -163,10 +167,10 @@ active pointer changes only after the user sees a diff and approves it.
 
 ### Credentials
 
-Most compliant public ATS feeds need no credential. If Ben selects a keyed provider, the manifest
-declares a module-prefixed `api-key` credential with the minimum correct scope. The worker reads it
-only via `ctx.auth`. Plaintext never reaches KV, browser responses, AI prompts, logs, exports, or job
-payloads. Missing/revoked credentials degrade only that monitor and produce a typed safe error.
+MVP declares no credentials: Greenhouse, Lever, Ashby, manual public URLs, and pasted descriptions
+are keyless. `module_credentials` remains the only permitted future home for a reviewed keyed-source
+secret; resume, profile, source state, and fetched content never belong there. No authenticated board
+or ambient cookie/session is accepted.
 
 ## Conversational onboarding
 
@@ -174,7 +178,8 @@ The module `Root` shows durable progress and a single “Continue with Jarv1s”
 host starter action opens the existing Jarv1s assistant with stable module-authored context; the
 package does not embed a second chat engine.
 
-The assistant drives resumable checkpoints through module tools:
+The required one-click generic host action opens Jarv1s with the module's stable starter prompt.
+The assistant then drives the full six resumable checkpoints through module tools:
 
 1. Intake and confirm resume source text.
 2. Critique clarity, structure, evidence, and ATS readability.
@@ -198,26 +203,27 @@ During onboarding, the assistant may use existing `web.search`/`web.read` to sug
 career pages, or supported boards. Search results remain untrusted evidence. The user approves each
 recurring monitor, and recurring work does not become a general web crawler.
 
-Every shipped adapter records a stable id, reviewed public hosts, policy/terms reference and review
-date, courtesy interval, configuration schema, normalization logic, and external-job-id semantics.
-Only `allowed` adapters ship enabled. `unknown` and `prohibited` adapters fail closed. Configuration
-accepts recognized board/company identifiers, not arbitrary hosts.
+MVP ships public Greenhouse, Lever, and Ashby board adapters plus manual public-URL and
+pasted-description capture. Every adapter records a stable id, reviewed public hosts, policy/terms
+reference and review date, courtesy interval, configuration schema, normalization logic, and
+external-job-id semantics. All recurring adapters are keyless and `allowed`; `unknown`,
+authenticated, and `prohibited` sources fail closed. Configuration accepts recognized board/company
+identifiers, not arbitrary recurring hosts. Manual pasted descriptions perform no network request;
+manual URLs are one-shot capture, not recurring generic scraping.
 
 Fetches use the parent `ctx.fetch` capability: HTTPS, exact declared hosts, revalidated redirects,
 resolved-IP SSRF protection, response/time caps, and rate courtesy. Job text is untrusted external
 data and is stripped of active markup before storage or AI use. No cookies or login credentials are
 provided.
 
-The exact MVP adapter set is an open product decision. Public ATS feeds and direct employer career
-pages are the permitted source classes; authenticated boards and prohibited sources are not.
-
 ## Scheduled, stateful monitoring
 
 The external worker declares one module-prefixed monitor queue with manual-run enabled and one
-platform-reconciled user schedule. If the generic runtime supports only manifest-static cron, the
-smallest compatible shape is a periodic due-check: the handler reads the user's configured local
-due time and last-run date from KV, performs no network work when not due, and guarantees at most
-one scheduled discovery run per local day. Ben must approve the onboarding/cadence choice.
+platform-reconciled manifest-static tick between every 30 and 60 minutes. Each tick reads the user's
+configured local due time and last-run local date from KV. It performs no network or AI work when
+not due, admits at most one discovery run per local day, and performs at most one current run after
+downtime rather than replaying missed intervals. The exact cron within the approved 30–60 minute
+window is an implementation detail, not a per-user schedule.
 
 The job payload is metadata only:
 
@@ -244,7 +250,7 @@ Run flow:
 6. Mark stale only from authoritative absence or an explicit liveness result; fetch failure never
    marks known jobs stale.
 7. Apply deterministic eligibility rules.
-8. Evaluate only the bounded new/changed survivors selected by the approved ranking decision.
+8. Evaluate at most 25 new/changed survivors per user per local day, oldest pending first.
 9. Rebuild the bounded feed index and finish the run record.
 
 A source failure is isolated to its monitor, retains prior data, and exposes a safe degraded state.
@@ -262,9 +268,14 @@ AI failure leaves eligible jobs visible with evaluation `pending`; a later run r
   `active | uncertain | stale`.
 - Missing dates and fields stay unknown; the package never invents them.
 
-### Evidence contract
+### Deterministic gate and AI fit bands
 
-Regardless of the ranking strategy Ben selects, every surfaced recommendation includes:
+Structured facts apply hard exclusions first. Up to 25 new/changed survivors per user per local day
+then receive schema-validated AI fit-band evaluation, with backlog processed oldest-first. The
+module requests the platform's economy/standard structured-output capability tier and never a
+provider or model. Provider failure leaves the deterministic result visible and evaluation pending.
+
+Every surfaced recommendation includes:
 
 - fit band or deterministic priority class, not an unexplained precision percentage;
 - supporting requirements paired with quoted candidate evidence;
@@ -274,10 +285,22 @@ Regardless of the ranking strategy Ben selects, every surfaced recommendation in
 - overall confidence plus a short explanation of what remains uncertain;
 - the profile, resume, and description hashes/revisions used.
 
-Hard exclusions run before AI. External job text is framed as untrusted data, capped, and cannot
-invoke tools or change module state. Structured AI uses `ctx.ai`, requests a capability/tier only,
-validates against a fixed schema, and never names a provider/model. Old evaluations remain visible
-but are marked outdated when their inputs no longer match.
+External job text is framed as untrusted data, capped, and cannot invoke tools or change module
+state. Structured AI uses `ctx.ai`, validates against a fixed schema, and never names a
+provider/model. Old evaluations remain visible but are marked outdated when their inputs no longer
+match.
+
+### Retention and eviction
+
+- Retain at most 500 opportunities per user.
+- Store at most 16 KB of normalized description text per opportunity; mark truncation explicitly.
+- Active and saved opportunities are never auto-evicted.
+- Passed/stale opportunities are evicted after 30 days or oldest-first when the 500-record cap is
+  exceeded.
+- Eviction replaces the job with a compact identity-hash tombstone for 60 days so the same posting
+  is not immediately rediscovered.
+- Per monitor, retain the most recent 50 run records or 14 days of history, whichever is smaller;
+  the `latest` summary remains derived.
 
 ## UI surface
 
@@ -356,6 +379,6 @@ projection, output caps, and audit behavior. Tool names and permission ids are m
 
 ## Approval gate
 
-No implementation plan, migration, task branch, or build lane may start from this draft. Ben must
-approve this design and settle the companion open decisions first. Each implementation slice then
-requires its own GitHub `task` issue.
+No implementation plan, migration, task branch, or build lane may start from this draft. D1–D6 are
+settled in the companion decision record and JS-01 through JS-09 are filed, but Ben's final approval
+of PR #929 remains the build gate.
