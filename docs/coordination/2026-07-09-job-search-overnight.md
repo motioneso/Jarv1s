@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `647affcf-6c16-4629-92c9-0e77df89ccdf`,
-pane `w1:pDZ`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `b73c258c-9080-48b8-9161-91727dd1d80d`,
+pane `w1:pD0`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1352,6 +1352,57 @@ checkpoints above for history; re-derive from GitHub merge history if needed, do
 
 **Relaying now** — spawning successor in same tab (`w1:t15`), `--model sonnet
 --permission-mode bypassPermissions`, bootstrap points to this section.
+
+## Lock re-claimed (successor session `b73c258c-9080-48b8-9161-91727dd1d80d`), Phase 0a done, full queue executed
+
+**Phase 0a done:** own pane resolved fresh via `herdr pane list` (never a written number) — session
+`b73c258c-9080-48b8-9161-91727dd1d80d`, pane `w1:pD0`, tab `w1:t15`. Renamed `Coordinator
+(incoming-4)` → `Coordinator`. Predecessor session `647affcf-6c16-4629-92c9-0e77df89ccdf` (pane
+`w1:pDZ`) confirmed idle/done via bounded pane read ("that's now the successor's job") — closed.
+Verified uniqueness after close: exactly one `Coordinator`-labeled pane. Top-of-file lock line
+updated to this session/pane.
+
+**Unlike the last four successors, this checkpoint did NOT immediately re-relay — full queue
+executed:**
+
+1. **PR #925 sign-off check — done.** Fresh `gh pr view 925` / `gh pr checks 925`: head SHA
+   `27f67f71` (a further doc-only handoff commit past the previously-QA-verified `52083e1a`) —
+   confirmed via `git diff 52083e1a..27f67f71 --stat` that the only change is the agent's own
+   handoff doc (1 file, docs only, no code). `Compose deployment smoke` + `Prod compose deployment
+   smoke` pass; `Verify foundation and app` still **pending** on this re-triggered run. Checked PR
+   comments: Opus adversarial QA verdict GREEN/MERGE-READY already posted (`gh pr comment`,
+   2026-07-10T17:58:43Z) — still the latest QA verdict, still valid since no code changed since
+   that SHA. **No Ben sign-off comment found.** Still paused — do not merge. Nothing else to do
+   here until `Verify foundation and app` resolves AND Ben signs off.
+2. **Reaped `w1:pDJ` — done.** Fresh `herdr pane list` confirmed no newer #918 pane exists (still
+   session `dbf1c605-...`, `idle`, no successor). Closed.
+3. **Resumed Phase 2 supervision of #914 (`w1:pDQ`, session `8baf4c17-...`) — done.** Bounded pane
+   read: healthy, Task 5/9 in progress (per-module Postgres role broker), 4 done, dispatching its
+   own review/impl teammates, waiting on a background integration test subprocess (confirmed via
+   its own disk-state check, not assumed). Input box showed `continue the build without checking
+   in` — sent one `send-keys Enter` per the skill's messaging protocol to test whether it was an
+   unsubmitted message; output was unchanged after Enter, confirming it is placeholder/ghost text
+   in the prompt box, not queued content — no real action was pending. No further action taken;
+   this is healthy normal-course supervision, not a stall.
+4. **Fleet-liveness Monitor re-armed — done** (task `bdn17c7ia`, persistent, 30s poll, diffs
+   `herdr pane list` for all `w1` panes, emits only changed lines). Prior monitors do not survive
+   coordinator relays (confirmed pattern all run) — this is intentionally a fresh one.
+
+**#916/#919 unchanged** — #916 still `needs-spec` (held for a Slice-3 spec pass with Ben once #918
+lands); #919 still queued behind #918's merge. No action on either.
+
+**`merges_since_relay: 0`, unchanged** — no merges executed yet this entire run; #925 remains the
+first candidate, blocked on CI finishing its re-triggered run plus Ben's sign-off.
+
+**Live fleet snapshot this checkpoint (fresh `herdr pane list`, w1 only, post-reap):** `w1:pD0`
+(Coordinator, me, `working`), `w1:pDQ` (#914 relay-5, `idle`, healthy), plus untouched idle panes
+not part of this run: `w1:pBK` (news-module), `w1:pCP` (Fable sports-fed spec+plan), `w1:pCK`
+(Codex Job Search Spec, already ack'd), `w1:pCR` (Fable 5 Job Search Spec Review, idle).
+
+**Next for this session:** waiting on `Verify foundation and app` to resolve on PR #925's current
+head, and on Ben's explicit merge sign-off — neither is a coordinator action, just waiting. Continue
+passive Phase 2 supervision of #914 (healthy, no PR yet). No merge-ready or QA-ready lane needs
+action beyond what's already been done.
 
 ## IMMEDIATE re-relay — context-meter fired at 82% on first turn (session `647affcf-6c16-4629-92c9-0e77df89ccdf`)
 
