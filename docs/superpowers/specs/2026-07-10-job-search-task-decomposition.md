@@ -120,7 +120,7 @@ or unknown adapters stay disabled.
 
 **Depends on:** JS-02, JS-04, external queue/schedule reconciliation, and generic run-now.
 
-**Delivers:** metadata-only queue declaration; one 30–60-minute manifest-static due-check reading
+**Delivers:** metadata-only queue declaration; one hourly manifest-static due-check reading
 local due time/last-run date from KV; monitor cursor/run state; idempotent normalization/upsert;
 failure isolation; at most one local-day run and no catch-up storm.
 
@@ -172,7 +172,8 @@ user decisions survive disable/re-enable.
 **Depends on:** JS-08 and every hard runtime prerequisite.
 
 **Delivers:** end-to-end fixture/live-source acceptance, packaging/lifecycle security checks,
-run-twice dedup check, provider-independence check, and a seven-day success report template.
+run-twice dedup check, provider-independence check, and a post-merge seven-day success report while
+#913 remains open for findings and corrective changes.
 
 **Verification:** execute #913's verification intent exactly; record five active saved roles or a
 truthful insufficient-supply result with healthy source evidence.

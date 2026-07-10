@@ -17,7 +17,7 @@ One module-prefixed queue accepts the host-bound external job envelope with only
 manifest hash, job kind, and monitor UUID. Resume/profile text, descriptions, prompts, responses,
 credentials, URLs, and errors never enter the payload.
 
-The manifest declares one user schedule ticking every 30–60 minutes. On delivery the handler reads
+The manifest declares one user schedule ticking hourly. On delivery the handler reads
 the monitor's IANA timezone, local due time, and last completed local date. It no-ops before due or
 after today's completion. After downtime it performs at most the current local day's run; it never
 replays missed ticks. Spring-forward runs on the first tick after the skipped due time; fall-back
@@ -49,8 +49,5 @@ Per-monitor failures are isolated. AI failure does not fail ingestion; candidate
 - Disable/delete/hash drift prevents delivery work and reconciles schedules.
 - Run retention and safe error-code behavior.
 
-## Open question
-
-Choose the concrete manifest tick inside the settled 30–60-minute window. Recommended default is 60
-minutes for lower idle load unless first-run latency after the local due time needs the 30-minute
-bound.
+The hourly tick is only a due-check. It performs at most 24 bounded KV checks per user/day and one
+real discovery run; it is not an hourly source fetch.

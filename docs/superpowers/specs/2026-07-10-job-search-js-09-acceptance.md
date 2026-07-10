@@ -42,6 +42,13 @@ Success is five distinct still-active opportunities marked saved within seven da
 enablement. If compliant supply yields fewer, acceptance records source coverage, filters, monitor
 health, and a truthful insufficient-supply result; it never pads recommendations.
 
+## Merge and observation policy
+
+Automated gates and day-one manual acceptance are required before implementation merges. The
+seven-day usefulness observation starts after merge/deployment and does not hold a technically green
+PR open. Epic #913 remains open throughout the observation. Findings may produce changes or child
+tasks; the epic closes only after the seven-day result and any required corrective work are recorded.
+
 ## Evidence artifact
 
 Produce one release-review summary containing package/runtime versions, enabled adapters, safe run
@@ -52,8 +59,3 @@ Do not include resume/profile text, descriptions, credentials, prompts, or priva
 
 - No application CRM, employer outcome measurement, source analytics, or scope expansion during
   acceptance.
-
-## Open question
-
-Is the seven-day observation a required pre-merge/release gate, or may code merge after the automated
-and day-one manual checks with the seven-day result recorded as a post-merge product validation?

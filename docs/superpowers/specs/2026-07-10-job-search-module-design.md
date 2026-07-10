@@ -223,11 +223,11 @@ provided.
 ## Scheduled, stateful monitoring
 
 The external worker declares one module-prefixed monitor queue with manual-run enabled and one
-platform-reconciled manifest-static tick between every 30 and 60 minutes. Each tick reads the user's
+platform-reconciled manifest-static hourly tick. Each tick reads the user's
 configured local due time and last-run local date from KV. It performs no network or AI work when
 not due, admits at most one discovery run per local day, and performs at most one current run after
-downtime rather than replaying missed intervals. The exact cron within the approved 30–60 minute
-window is an implementation detail, not a per-user schedule.
+downtime rather than replaying missed intervals. The hourly tick is a due-check, not an hourly
+source fetch; real discovery runs once per local day.
 
 The job payload is metadata only:
 
@@ -386,6 +386,9 @@ projection, output caps, and audit behavior. Tool names and permission ids are m
 
 ## Approval gate
 
-No implementation plan, migration, task branch, or build lane may start from this draft. D1–D6 are
+No implementation plan, migration, task branch, or build lane may start from this draft. D1–D7 are
 settled in the companion decision record and JS-01 through JS-09 are filed, but Ben's final approval
 of PR #929 remains the build gate.
+
+After implementation, automated and day-one manual acceptance gate merge. The seven-day usefulness
+observation runs post-merge while #913 stays open for findings and corrective changes.

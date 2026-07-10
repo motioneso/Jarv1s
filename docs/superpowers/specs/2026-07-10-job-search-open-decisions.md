@@ -66,14 +66,26 @@ These bounds keep #914 out of the MVP critical path.
 
 ## D6 — Periodic local due-check
 
-The manifest declares one static tick between every 30 and 60 minutes. Its handler reads the user's
-local due time and last-run local date from KV, performs no network/AI work when not due, runs at
-most once per local day, and performs no missed-interval replay or catch-up storm after downtime.
+The manifest declares one hourly static tick. Its handler reads the user's local due time and
+last-run local date from KV, performs no network/AI work when not due, runs real discovery at most
+once per local day, and performs no missed-interval replay or catch-up storm after downtime.
 
 **Applied to:** the replacement #915 schedule task and JS-05.
+
+## D7 — Post-merge seven-day usefulness validation
+
+Automated and day-one manual acceptance gate implementation merge. The seven-day real-market
+observation runs after merge/deployment while epic #913 remains open. Findings may drive changes or
+child tasks. #913 closes only after the usefulness result and any required corrective work are
+recorded.
+
+**Applied to:** JS-09 and #913 closeout.
 
 ## Approval record
 
 Fable, acting as delegated approver, returned APPROVE-WITH-CHANGES on PR #929 and settled D1–D6 as
 recorded above. The PR stays draft: these decisions authorize finalizing specs and filing task
 issues, not implementation planning, build lanes, readiness, or merge before Ben's final sign-off.
+
+Ben subsequently settled the source location, protected-record overflow, `interactive` AI tier,
+hourly due-check, and post-merge seven-day validation recorded in the current revisions.
