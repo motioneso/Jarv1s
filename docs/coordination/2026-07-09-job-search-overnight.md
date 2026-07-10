@@ -2087,3 +2087,9 @@ Opus adversarial QA verdict (posted to PR #939 via gh pr comment):
 - **Migration/sequencing CONFIRMED by QA:** 0157 with reserved 0155/0156 gap; must merge AFTER #914; foundation.test.ts toEqual WILL catch a stale row on rebase.
 
 ACTION: relayed blocking regression + cross-user RLS test to pE4 (now working). Failure budget: 1/2 cycles used. On green → cheap diff-scoped re-QA of the integrated (post-#914) result + Fable merge sign-off + the process-isolation decision.
+
+## #929 frozen + auto-merge armed; pE7 reaped
+
+pE7 spec agent CONVERGED (commit e4b905e8: hourly due-check / once-per-user-local-day discovery, day-one acceptance gate, 7-day post-merge usefulness validation; issues #934/#938 updated). "No blocking product questions remain — only adapter policy dates, optional decision-reason format, final UI copy review" (all deferred post-merge follow-ups). REAPED pE7 pane to freeze #929 head (stop autonomous polishing racing the merge). Worktree /home/ben/Jarv1s/.claude/worktrees/job-search-specs still on disk → `git worktree remove` after merge.
+
+Auto-merge armed (bg bdsdabwae): waits #929 CI, merges --squash --delete-branch ONLY if all-green AND head == e4b905e8 (routine docs tier, Fable-approved content). #913 epic stays OPEN (JS-01..09 = #930-938 children). On merge: increment merges_since_relay, cleanup worktree.
