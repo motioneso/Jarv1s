@@ -1250,6 +1250,45 @@ manifest's override section. Both bounded-read-confirmed as actively working (Fa
 new head; Codex mid-review). Awaiting both fresh verdicts — merge only if Opus QA green (done) AND
 both fresh panel verdicts green.
 
+**Both fresh verdicts landed GREEN, ground-truthed via `gh api` (not trusted from pane text alone):**
+- Fable 5 — PR comment `4935553037`: "GREEN — safe to merge unattended tonight", explicitly
+  supersedes the prior verdict (against old head `968251d8`), independently re-verified all 3
+  Codex findings fixed in source+tests on `ab5d3ec5`.
+- Codex `gpt-5.6-sol` xhigh — PR comment `4935564817`: "GREEN — SAFE TO MERGE UNATTENDED", fresh
+  independent adjudication citing the corrective delta from `968251d8`, `pnpm audit:preflight`
+  behind=0, CI 4/4, all 3 prior blockers independently confirmed resolved (path-leak, symlink
+  escape, contract fail-closed + documented deferral). Both cite the override section as
+  authorization per its terms.
+
+**Session-id authority re-confirmed** (sole `Coordinator` pane, `w1:pD5` / `0bbe2a78-...`, matches
+lock line) immediately before merge. `gh pr view 924`: `mergeStateStatus: CLEAN`,
+`mergeable: MERGEABLE`, head unchanged at `ab5d3ec5`.
+
+**MERGED:** `gh pr merge 924 --squash --delete-branch` → merge commit `4bc53694a0d2d85b3050b534b4aa029dd57e4a83`,
+merged `2026-07-10T13:02:48Z`. `--delete-branch` failed on both local and remote (branch pinned by
+the `w1:pCV` worktree) — closed `w1:pCV` pane (job done), `git worktree remove
+.claude/worktrees/917-implementation-plan --force`, `git branch -D
+plan/917-open-module-system-slice1`, `git push origin --delete plan/917-open-module-system-slice1`
+— same pattern as the #915/PR#923 precedent above.
+
+**GitHub bookkeeping:** issue #917 auto-closed by the merge (`closedAt` matches merge time);
+project-board item auto-moved to `Done` (status `Issue and Roadmap Work`). #917 is "Part of #818"
+and "foundation for epic #860 (delivers #913 platform prerequisite 1)" — a single slice of a
+multi-slice epic; **epic #818/#860/#913 exit-criteria NOT met by this alone**, epic stays open, no
+milestone action. Dependents #914 (already merged, PR #920) satisfied; #918/#919 (next in Ben's
+relayed order) are now unblocked on #917.
+
+**Ben's digest entry:** "PR #924 (#917, Open module system Slice 1 — external manifest loader +
+fail-closed activation) **merged overnight under time-boxed sign-off override — please
+spot-check**. Security tier. Fresh Opus adversarial QA GREEN (all 3 previously-flagged findings —
+path leak, symlink escape, contract fail-closed — independently re-verified fixed at source+test
+level on the new head, not just relabeled). Fresh Fable5 + Codex `[OVERNIGHT-SIGNOFF]` panel both
+GREEN independently, both explicitly re-adjudicated against the new head (not reused from the
+earlier RED/GREEN split). Merge commit `4bc53694`. Issue #917 closed, board auto-moved to Done.
+Epic #818/#860/#913 remains open — this was slice 1 of several; #918/#919 next per your relayed
+order." `merges_since_relay`: was `1` (carried from predecessor) → **security-tier merge, relay
+is non-negotiable regardless of counter** — flushing now.
+
 ## Lock re-claimed (successor session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`)
 
 Predecessor pane `w1:pD4` (session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, matched manifest lock
