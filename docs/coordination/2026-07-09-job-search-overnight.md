@@ -379,6 +379,16 @@ board move needed.
 prerequisites (queue/schedule registration, host-pinned fetch) still open, tracked there; deferred
 RPC/credential-guard scope split to #919."
 
+**`w1:pCV` (#917 plan) flipped to `done` (2026-07-10 ~09:56 UTC) — NOT actually complete.** Fresh
+pane read: idle at prompt between turns, context dropped 67%→14% (self-managed context, not a
+relay — same session). Branch `plan/917-open-module-system-slice1`, 17 commits ahead of
+`origin/main`, **no PR yet**, working tree clean except the coordinator's own untracked
+`.claude/context-meter.log` (not #917's). Latest commit: file-size-gate fix (split settings
+repo/routes to satisfy the 1000-line cap). Pane transcript shows it mid a background
+`verify:foundation`-style gate loop (armed a waiter, hit a 10-min tool timeout, re-arming) — active
+work, not a stall. **Not dispatching QA — holding, Monitor stays armed for the next real
+completion signal (PR open or an explicit done report).**
+
 **Dispatched independent plan review (2026-07-10, ~07:12):** spawned a fresh general-purpose
 subagent (not Fable, not Opus — avoids self-review bias, and this is a scope/invariant check, not
 a design fork, so default model is appropriate) to check the #922 plan against the spec's locked
