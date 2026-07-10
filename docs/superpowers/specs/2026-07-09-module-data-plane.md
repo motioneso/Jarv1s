@@ -50,8 +50,15 @@ externally installed module cannot participate in that sequence.
 
 New table `app.module_schema_migrations` with `PRIMARY KEY (module_id, version)`. Each external
 module numbers its own migrations from `0001` in its package's `sql/` directory, independent of the
-global sequence and of every other module. Hash-checking, transaction-per-file, and the advisory
-lock behave exactly as in `runSqlMigrations` today (the runner is parameterized, not duplicated).
+global sequence and of every other module. Hash-checking and the `jarv1s:migrations` advisory lock
+behave exactly as in `runSqlMigrations` today.
+
+Unlike the core runner's transaction-per-file, an external module install/upgrade is **atomic per
+operation**: all pending files for that module, plus the platform-generated security and the
+catalog verification (D3/D4), are applied in a single transaction on the module's installer
+connection. A later invalid file never leaves earlier files committed. "Installed" means the
+ledger rows are committed (D2 phase C); every earlier failure either rolls back to zero trace or
+is deterministically recoverable from the journaled intent row — the exact semantics are in D2.
 
 Core and built-in module migrations are **not** renumbered and **not** moved to the new ledger.
 Applied migrations are immutable; rewriting ledger history for working built-ins is risk with no
@@ -63,19 +70,62 @@ Consequence for tests: `foundation.test.ts`'s full-list assertion continues to c
 built-ins unchanged. External-module coverage is per-module invariants (see Verification), never a
 hardcoded global list.
 
-### D2. Install is an extension of the existing ops seam
+### D2. Install is an extension of the existing ops seam, with a narrow role-broker phase
 
-Module install/upgrade DDL runs only through a new `scripts/module-install.ts`, exposed as a
-Compose ops-profile one-shot service alongside `migrate` (same image, same
-`jarvis_migration_owner` connection, same advisory lock). It:
+Module install/upgrade runs only through a new `scripts/module-install.ts`, exposed as a Compose
+ops-profile one-shot service alongside `migrate` (same image). It uses **three connections with
+strictly separated powers**, mirroring how `scripts/migrate.ts` already splits superuser bootstrap
+(`infra/postgres/bootstrap/`, idempotent, via `urls.bootstrap`) from `jarvis_migration_owner`
+migrations:
 
-1. Discovers packages in `JARVIS_MODULES_DIR` (reusing the #818 Slice 1 loader and validation —
-   manifest schema, id prefixes, path bounds, package hash).
-2. Applies the selected module's pending migrations to the namespaced ledger.
-3. Generates roles, RLS policies, and grants (D3) and runs post-apply verification (D4) in the
-   same transaction; any violation rolls everything back.
-4. Records the applied package hash so runtime hash-drift auto-disable (#818) and the data plane
-   agree on what is installed.
+**Roles (created in phase A, below).** `jarvis_migration_owner` is `NOCREATEROLE`
+(`infra/postgres/bootstrap/0000_roles.sql`) and stays that way — it never creates roles. Instead,
+per installed module the bootstrap connection creates exactly two roles from platform-generated
+DDL (the module id is a validated slug; module-authored text never reaches role DDL):
+
+- `jarvis_mod_<slug>_runtime` — `NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`. Holds
+  grants on exactly the module's tables (D3). Granted to the parent roles that execute storage
+  RPCs — `GRANT jarvis_mod_<slug>_runtime TO jarvis_worker_runtime, jarvis_app_runtime WITH
+INHERIT FALSE` — so those parents may `SET LOCAL ROLE` to it (D5) without ever inheriting its
+  privileges ambiently (`WITH INHERIT FALSE` is PG16+ syntax; Compose runs `pgvector:pg17`). This
+  follows the existing membership precedent
+  (`GRANT jarvis_auth_runtime TO jarvis_migration_owner`, 0000_roles.sql).
+- `jarvis_mod_<slug>_install` — the **installer role**, the confinement boundary for
+  module-authored SQL (D4). `NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`, privileges limited
+  to `USAGE`+`CREATE` on schema `app` and a scoped `GRANT REFERENCES (id) ON app.users` (for the
+  mandatory FK). It has **no** DML, DDL, or even SELECT rights on core tables, platform tables, or
+  other modules' tables. It is `NOLOGIN` at rest; phase A flips it to `LOGIN` with a random
+  ephemeral password for the duration of the run and phase C flips it back.
+
+No role ever receives broad `CREATEROLE`; role provisioning happens only on the superuser
+bootstrap connection inside this ops-only entrypoint, and only for the two names above.
+
+**Phases.** The whole operation serializes under the existing `jarv1s:migrations` advisory lock.
+
+- **Phase A — bootstrap (superuser connection, idempotent):** validate the package with the #818
+  Slice 1 loader (manifest schema, id prefix, path bounds, package hash); ensure the two roles,
+  memberships, and scoped grants exist; enable installer login. Then, as `jarvis_migration_owner`,
+  journal an **intent row** in `app.module_installs` (`status = 'installing'`, target package
+  hash, and the pending file list with checksums).
+- **Phase B — module SQL (installer connection, ONE transaction):** connect _as_
+  `jarvis_mod_<slug>_install` and apply **all** pending migration files, then the
+  platform-generated RLS/policies/grants (D3 — the installer role owns the tables it created, so
+  it can issue these itself), then the catalog verification (D4). Any failure rolls back the
+  entire transaction — zero trace. Because this is a real connection authenticated as the
+  installer role, `RESET ROLE` / `SET SESSION AUTHORIZATION` in module SQL cannot escalate: there
+  is nothing to reset to.
+- **Phase C — record (migration_owner connection, ONE transaction):** write the
+  `app.module_schema_migrations` rows and flip `app.module_installs.status` to `'installed'` with
+  the applied package hash (so runtime hash-drift auto-disable per #818 and the data plane agree);
+  then disable installer login.
+
+**Recovery semantics (the B→C gap).** A crash between B's commit and C's commit leaves secured
+but unrecorded objects. On the next run, `status = 'installing'` makes this explicit and the
+runner resolves it deterministically from the journaled intent: re-verify the catalog against the
+journaled file list and checksums, and either complete phase C (roll forward) or, for a fresh
+install, drop every object under the module's prefix and start over (roll back — safe, no user
+data exists before first install completes). The runner never guesses; the intent row is the
+authority. Fresh installs default to roll-back-and-retry, upgrades to roll-forward.
 
 `app_runtime`, `worker_runtime`, and the module's own worker process can never execute DDL. There
 is no install-from-web-UI path; the runtime surfaces install state read-only.
@@ -93,43 +143,78 @@ The install runner — not the module — then generates for every module-owned 
 - `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY`;
 - per-verb owner-only policies (`owner_user_id = app.current_actor_user_id()`), named
   `<table>_<verb>` per the existing convention;
-- grants to the module's dedicated runtime role (D5) only.
+- grants to the module's dedicated runtime role (D5) only, including `USAGE` on the tables'
+  sequences.
+
+These generated statements execute on the installer connection in the same phase-B transaction:
+the installer role owns the tables it just created, so it may create their policies and grants
+itself, and no other connection needs rights over module objects. Tables stay owned by
+`jarvis_mod_<slug>_install` — which is `NOLOGIN` outside install runs — and `FORCE ROW LEVEL
+SECURITY` subjects even the owner to the policies.
 
 Module authors cannot write policies, grants, `SECURITY DEFINER` functions, triggers on foreign
 tables, or DDL outside their prefix. Owner-only is the only shareability class for external module
 tables in v1 — matching the #913 consumer, which declares no sharing. Owner-or-share and
 recipient-only classes for external modules are follow-on scope with their own spec.
 
-### D4. Verified, not trusted: catalog diff inside the install transaction
+### D4. Privileges are the boundary; the catalog diff is defense-in-depth
 
-Within the install transaction, the runner snapshots `pg_catalog` state (tables, policies, grants,
-functions, triggers) before and after applying the module's SQL and asserts:
+The **primary** confinement of module-authored SQL is the installer connection's privilege set
+(D2): the role can create objects in schema `app` and reference `app.users(id)`, and nothing
+else. `TRUNCATE`, `DELETE`, `UPDATE`, `SELECT`, or DDL against core tables, platform tables, or
+another module's tables fails at the Postgres privilege level regardless of what the SQL says — a
+catalog-identical mutation of foreign data is not possible, because the privilege to perform it
+was never granted. This is not `SET ROLE` from a privileged session (which module SQL could
+`RESET`); it is a separately authenticated connection whose session user _is_ the least-privileged
+role.
 
-- every created/altered object is a table or index under the module's prefix in `app`;
+On top of that, within the same phase-B transaction, the runner snapshots `pg_catalog` state
+(tables, policies, grants, functions, triggers) before and after applying the module's SQL and
+asserts:
+
+- every created/altered object is a table or index under the module's prefix in `app`
+  (`CREATE` on a schema does not constrain names — the diff is what enforces the prefix policy
+  and collision rejection);
 - every module table has `rowsecurity` and `relforcerowsecurity` true and carries
   `owner_user_id`;
-- no grants exist beyond the generated ones; no objects were created outside the prefix;
+- no grants exist beyond the generated ones; no functions or triggers were created (v1 scope);
 - every table is listed in the manifest's `database.ownedTables` (which becomes **authoritative
   and enforced** for external modules, not declarative).
 
 Any assertion failure aborts the transaction — the database is untouched and the module is not
-recorded as installed. This is enforcement by construction plus verification, not review-only
-trust.
+recorded as installed. The diff catches policy violations (naming, shape, scope creep) and
+accidents; it is not what stops hostile DML — the privilege boundary is.
 
-### D5. Per-module runtime role + parent-side scoped access
+### D5. Per-module runtime role + parent-side scoped, bounded access
 
-Each installed module gets a dedicated Postgres role (`jarvis_mod_<slug>_runtime`, created at
-install, `NOSUPERUSER … NOBYPASSRLS` like all runtime roles) with grants on exactly its own
-tables. Module worker handlers still receive no DB handle (#818 invariant). They access their
-tables through a parent-process storage RPC:
+Each installed module gets the dedicated `NOLOGIN` Postgres role `jarvis_mod_<slug>_runtime`
+(created in D2 phase A, `NOSUPERUSER … NOBYPASSRLS` like all runtime roles) with grants on
+exactly its own tables. It is reachable only via `SET ROLE` from the parent roles that hold its
+`WITH INHERIT FALSE` membership (`jarvis_worker_runtime` for module worker RPCs,
+`jarvis_app_runtime` for synchronous assistant-tool dispatch). Module worker handlers still
+receive no DB handle (#818 invariant). They access their tables through a parent-process storage
+RPC:
 
 - `ctx.db.query(sql, params)` — parameterized SQL executed by the trusted parent inside
-  `withDataContext(accessContext)` with `SET LOCAL ROLE jarvis_mod_<slug>_runtime`.
+  `withDataContext(accessContext)` with `SET LOCAL ROLE jarvis_mod_<slug>_runtime`. `SET LOCAL`
+  reverts at transaction end, and the statement itself runs over the **extended query protocol**
+  (parameterized), which Postgres restricts to a single statement — a module cannot smuggle
+  `RESET ROLE; <anything>` because a second statement is rejected at the protocol level, and
+  `RESET ROLE` alone fails the statement-type allowlist below.
 - Enforcement is DB-level, not parser-level: the module role simply has no privileges on any other
   table, and RLS owner policies bind rows to the invocation's `actorUserId`. A malicious or buggy
   query fails on privileges, not on string inspection.
-- The RPC refuses multi-statement strings and statements outside a read/write allowlist
-  (`SELECT/INSERT/UPDATE/DELETE`) as defense-in-depth; the role is the real boundary.
+- **Resource bounds** (privileges don't stop `pg_sleep` or `SELECT generate_series(1, 1e9)`):
+  every call runs under `SET LOCAL statement_timeout` (platform default, per-module override
+  capped by config), a row-count cap and serialized-result byte cap enforced by the parent before
+  handing results to the child, and cancellation — when the invoking job or tool call is
+  cancelled or times out, the parent cancels the in-flight statement rather than orphaning it.
+- **Error redaction:** the child sees only the SQLSTATE, a sanitized primary message, and its own
+  statement context. Anything referencing platform internals (connection details, other roles,
+  core relation internals from planner/executor frames) is stripped by the parent before the RPC
+  error crosses the process boundary.
+- The RPC refuses statements outside a read/write allowlist (`SELECT/INSERT/UPDATE/DELETE`) as
+  defense-in-depth; the role is the real boundary.
 
 Rejected alternative: a declarative CRUD/record API. It would grow into a second ORM to satisfy
 real modules (upserts, dedup queries, aggregate reads — all needed by the first consumer) while
@@ -148,8 +233,9 @@ Because every external module table is owner-only with a mandatory `owner_user_i
 - **Disable:** runtime deactivation only (#818); data is preserved, role grants stay in place but
   nothing executes.
 - **Uninstall purge:** a separate explicit ops action (same `module-install.ts` entrypoint) that
-  drops the module's tables, ledger rows, runtime role, and #818 status/credential/KV rows. Never
-  implied by disable or by deleting the package directory.
+  drops the module's tables, ledger rows, both roles (`_install` and `_runtime`, memberships
+  revoked first), and #818 status/credential/KV rows. Never implied by disable or by deleting the
+  package directory.
 
 ## Data model
 
@@ -158,12 +244,16 @@ New platform SQL (core migration, normal global sequence, next free `NNNN`):
 - `app.module_schema_migrations` — `module_id text`, `version text`, `name text`,
   `checksum text`, `applied_at timestamptz`, `PRIMARY KEY (module_id, version)`. Owned by
   `jarvis_migration_owner`; no runtime role has any grant (install-path only).
-- `app.module_installs` — `module_id text PK`, `package_hash text`, `table_prefix text UNIQUE`,
-  `runtime_role text UNIQUE`, `installed_at`, `updated_at`. Read-only visibility for admin
-  settings via the existing settings-module patterns.
+- `app.module_installs` — `module_id text PK`, `status text` (`installing` | `installed` |
+  `disabled`), `package_hash text`, `table_prefix text UNIQUE`, `runtime_role text UNIQUE`,
+  `install_journal jsonb` (pending file list + checksums for D2 recovery), `installed_at`,
+  `updated_at`. RLS is explicit: `ENABLE` + `FORCE`, a single SELECT policy `USING (true)`
+  `TO jarvis_app_runtime` (instance-level metadata, no user content, read by admin settings), and
+  no INSERT/UPDATE/DELETE policies or grants to any runtime role — writes are install-path only.
 
-Both rows are metadata only — no user content. The core migration adds its rows to the
-`foundation.test.ts` full-list assertion, and full `test:integration` runs (not focused tests).
+Both tables are metadata only — no user content, no secrets (the ephemeral installer password is
+never stored). The core migration adds its rows to the `foundation.test.ts` full-list assertion,
+and full `test:integration` runs (not focused tests).
 
 ## Build slices
 
@@ -171,12 +261,14 @@ Both rows are metadata only — no user content. The core migration adds its row
    integration coverage for hash-drift, duplicate versions within a module, and cross-module
    independence.
 2. **Install entrypoint:** `scripts/module-install.ts` + Compose ops service; #818 loader reuse;
-   prefix/collision validation; `app.module_installs`.
-3. **Generated security:** per-module role creation, generated RLS/policies/grants, catalog-diff
+   prefix/collision validation; `app.module_installs` with intent journaling and B→C recovery.
+3. **Generated security:** phase-A role broker (two roles, memberships, scoped grants, login
+   toggling), installer-connection execution, generated RLS/policies/grants, catalog-diff
    verification, rollback tests (a hostile fixture module must fail closed).
 4. **Storage RPC + lifecycle:** `ctx.db.query` through the parent under `SET LOCAL ROLE` +
-   `withDataContext`; derived export/deletion registration; uninstall purge; end-to-end fixture
-   module proving cross-module and cross-user denial.
+   `withDataContext` with timeout/row/byte caps, cancellation, and error redaction; derived
+   export/deletion registration; uninstall purge; end-to-end fixture module proving cross-module
+   and cross-user denial.
 
 Slices 1–3 depend only on #818 Slice 1 (the loader). Slice 4's RPC lands with the #818 Slice 3
 worker runtime.
@@ -201,8 +293,12 @@ worker runtime.
   module table data only to the module's own trusted handler.
 - **Never edit applied migrations:** hash checks apply per module exactly as globally; a changed
   applied file aborts install.
-- **Module isolation:** DB-level — a module's role has no privileges on core or foreign module
-  tables; verified by integration tests that attempt the access.
+- **Module isolation:** DB-level — neither of a module's roles has privileges on core or foreign
+  module tables; verified by integration tests that attempt the access.
+- **No privilege creep in role provisioning:** no role gains `CREATEROLE`; per-module roles are
+  created only by the superuser bootstrap connection inside the ops-only install entrypoint, from
+  platform-generated DDL over a validated slug. Memberships are `WITH INHERIT FALSE` so parent
+  runtime roles gain only the right to `SET ROLE`, never ambient module-table access.
 
 ## Verification
 
@@ -212,8 +308,14 @@ worker runtime.
   (`rowsecurity`/`relforcerowsecurity`), grants limited to the module role; re-run install is a
   no-op; modified applied file aborts.
 - Security: hostile fixture module (table outside prefix, missing `owner_user_id`, extra GRANT,
-  `SECURITY DEFINER` function) fails the catalog diff and leaves no trace; module role cannot
-  read core tables or another module's tables; RPC under user A cannot read user B's rows.
+  `SECURITY DEFINER` function) fails the catalog diff and leaves no trace; a fixture whose SQL
+  attempts `TRUNCATE`/`UPDATE`/`SELECT` on a core table, or `RESET ROLE` / `SET SESSION
+AUTHORIZATION`, fails on privileges from the installer connection; module runtime role cannot
+  read core tables or another module's tables; RPC under user A cannot read user B's rows; RPC
+  rejects multi-statement input, enforces `statement_timeout` (e.g. against `pg_sleep`) and
+  row/byte caps, and redacts platform internals from errors.
+- Recovery: kill the installer between phase B commit and phase C; the next run resolves the
+  `installing` state per the journal (fresh install → clean retry; upgrade → roll forward).
 - Lifecycle: export contains the actor's module rows; account deletion purges them; uninstall
   purge drops tables/role/ledger; disable preserves data.
 - Gates: `pnpm verify:foundation` + full `test:integration`; `foundation.test.ts` list updated for
