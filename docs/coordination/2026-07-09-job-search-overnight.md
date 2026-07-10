@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `093c19bb-931a-46df-bdf5-4c1ffee66cfb`,
-pane `w1:pE2`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `792382f9-6c9a-4733-9206-ba99909464f6`,
+pane `w1:pE3`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1663,3 +1663,38 @@ treat this as a genuine stall. The `working`/`idle` pane flapping is this agent 
 actionable. **Coordinator policy for the rest of this run: do not nudge `w1:pDQ` on routine
 Monitor flips; only intervene if it exceeds its own ~20 min threshold (check transcript) or
 escalates with `[SECURITY]`/`[BLOCKED]`.**
+
+## Lock re-claimed (successor session `792382f9-6c9a-4733-9206-ba99909464f6`), Phase 0a done
+
+**Lock:** predecessor session `093c19bb-931a-46df-bdf5-4c1ffee66cfb` (pane `w1:pE2`) had already
+vanished from `herdr pane list` by the time I resolved my own pane fresh — no active duplicate to
+reap. My own pane resolved as `w1:pE3` (tab `w1:t15`, workspace `w1`), already labeled
+`Coordinator` (label carried over — no rename needed). Verified uniqueness: exactly one pane
+labeled `Coordinator` across the full fleet listing. Session id `792382f9-6c9a-4733-9206-ba99909464f6`
+is now the authoritative coordinator session; lock line at top of this file updated accordingly.
+
+Fleet snapshot at pickup:
+- `w1:pDQ` — "914: module data plane build (relay-5)" — `agent_status: done`
+- `w1:pCK` — "Codex: Job Search Spec" — `agent_status: idle`
+- `w1:pCR` — "Fable 5: Job Search Spec Review" — `agent_status: idle`
+- `w1:pCP` — "Fable: sports-fed spec+plan" — `agent_status: idle`
+- `w1:pBK` — unlabeled, news-module worktree — `agent_status: idle`
+
+Resuming queue: (1) finish #919 spawn (worktree + handoff + Codex gpt-5.6-sol high-reasoning),
+(2) resume Phase 2 supervision of #914 at `w1:pDQ` (do-not-nudge-on-routine-flips policy already
+recorded), (3) re-arm fleet-liveness Monitor, (4) leave #916 held.
+
+**#919 spawn complete.** Worktree `/home/ben/Jarv1s/.claude/worktrees/919-worker-runtime` (branch
+`feat/919-worker-runtime`, off `origin/main` @ `eafa22dd26729454dd3525d8bff53fc76ca7d3f0`, verified
+green immediately before spawn). Handoff doc committed:
+`docs/coordination/handoffs/919-worker-runtime.md` (`c8e190b4`). Spawned via Codex per Ben's
+directive: `herdr agent start "919: worker runtime" --tab w1:t1E --cwd
+.../919-worker-runtime --no-focus -- codex --model gpt-5.6-sol -c model_reasoning_effort=high -s
+danger-full-access -a never "..."`. Landed at **`w1:pE4`**, tab `w1:t1E` (correct shared agents
+tab). Verified via bounded pane read: `gpt-5.6-sol high · ~/Jarv1s/.claude/worktrees/919-worker-runtime`
+— model and reasoning effort confirmed correct.
+
+**Status: `building`.** Tier: `security` (per handoff — Opus adversarial QA + Ben sign-off
+required before merge; no auto-merge). Awaiting plan-ready escalation.
+
+`merges_since_relay: 0` (unchanged).
