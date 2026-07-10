@@ -89,7 +89,19 @@ export function getExternalModuleRegistrations(options: {
         packageHash: hashExternalPackage(dir)
       });
     } catch (error) {
-      rejected.push({ id, reason: `failed to load module "${id}": ${String(error)}` });
+      // #917 SECURITY: NEVER interpolate the raw error message here. fs errors from
+      // realpathSync (ENOENT/EACCES on a dangling/unreadable symlink) and from
+      // hashExternalPackage's readFileSync (TOCTOU race) embed the ABSOLUTE on-disk
+      // path in their message (e.g. `ENOENT ... '/abs/modules/dir/...'`). This reason
+      // flows to the admin GET response `rejected[]` (packages/settings routes) and to
+      // server.ts `log.warn({ reason })`, so leaking the message would violate the hard
+      // invariant "on-disk paths never in responses or logs." Emit only the error CODE
+      // or NAME — a fixed token that cannot contain a path.
+      const reasonToken =
+        error instanceof Error
+          ? ((error as NodeJS.ErrnoException).code ?? error.name)
+          : "unknown error";
+      rejected.push({ id, reason: `failed to load module "${id}": ${reasonToken}` });
       continue;
     }
   }

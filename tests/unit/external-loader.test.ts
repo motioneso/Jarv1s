@@ -97,6 +97,15 @@ describe("getExternalModuleRegistrations (#917)", () => {
     expect(result!.rejected[0]!.id).toBe("acme-widgets");
     expect(typeof result!.rejected[0]!.reason).toBe("string");
     expect(result!.rejected[0]!.reason.length).toBeGreaterThan(0);
+
+    // #917 SECURITY: the fs-error reject branch must NOT leak the absolute on-disk path.
+    // realpathSync throws ENOENT here with the resolved path in its message; the reason
+    // that reaches the admin response + logs must carry only the error CODE, never a path.
+    const reason = result!.rejected[0]!.reason;
+    expect(reason).toContain("acme-widgets"); // keeps the module-id framing
+    expect(reason).not.toContain("/"); // no absolute path segment of any kind
+    expect(reason).not.toContain(modulesDir); // and specifically not the modules root
+    expect(reason).toContain("ENOENT"); // sanitized to the error code
   });
 
   it("rejects a directory whose name is not a valid module id slug", () => {
