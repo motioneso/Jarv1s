@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { compareJarvisVersions } from "@jarv1s/module-sdk/core-version";
 import {
+  AlertTriangle,
   KeyRound,
   LogOut,
   MoreHorizontal,
@@ -25,13 +26,15 @@ import {
   listAdminConnectorAccounts,
   listAdminModules,
   listAdminUsers,
+  listExternalModules,
   promoteUser,
   putRegistrationSettings,
   reactivateUser,
   revokeAdminUserSessions,
   rejectUser,
   setChatMultiplexerSettings,
-  setAdminModuleDisabled
+  setAdminModuleDisabled,
+  setExternalModuleEnabled
 } from "../api/client";
 import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
@@ -567,6 +570,27 @@ export function InstanceModulesPane() {
       ]),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  // #917: external (user-authored) modules discovered on the box. This query 404s /
+  // returns `enabled:false` when JARVIS_ENABLE_EXTERNAL_MODULES is unset, so the whole
+  // section stays hidden by default (fail-closed). retry:false mirrors the built-in query.
+  const externalModulesQuery = useQuery({
+    queryKey: queryKeys.settings.adminExternalModules,
+    queryFn: listExternalModules,
+    retry: false
+  });
+  const setExternalEnabled = useMutation({
+    mutationFn: (input: { id: string; enabled: boolean }) =>
+      setExternalModuleEnabled(input.id, input.enabled),
+    // Enabling an external module changes what /api/modules reconciles as active, so
+    // refresh both the admin list AND the shell module list (#917 corrections).
+    onSuccess: () =>
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminExternalModules }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.modules })
+      ]),
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const external = externalModulesQuery.data;
   // Only optional modules are shown — required ones are always on and can't be
   // toggled, so there's nothing for the admin to do with them.
   const modules = (modulesQuery.data?.modules ?? []).filter((module) => !module.required);
@@ -604,6 +628,57 @@ export function InstanceModulesPane() {
         Disabling a module hides it for everyone and stops it collecting new data. Existing data is
         kept.
       </Note>
+      {/* #917: External modules only surface when the operator opted in via
+          JARVIS_ENABLE_EXTERNAL_MODULES=1 (server reports `enabled`). While the query is
+          loading or the flag is off, `external` is undefined/`enabled:false` and the whole
+          section is hidden — the fail-closed default. */}
+      {external?.enabled ? (
+        <Group
+          title="External modules"
+          desc="User-authored modules discovered in this instance's modules directory. Off by default."
+        >
+          {/* #917: trusted-operator warning — enabling runs third-party code on the box with
+              the same access as built-in features. Uses the authored <Note> primitive (no `tone`
+              prop exists) with a warning icon. */}
+          <Note icon={<AlertTriangle size={13} aria-hidden="true" />}>
+            External modules are not reviewed by Jarvis. Only enable modules you authored or fully
+            trust — an enabled module runs with the same access as built-in features.
+          </Note>
+          {external.modules.length ? (
+            external.modules.map((module) => {
+              // #917: surface WHY a module is inactive. Drift auto-disable (package changed
+              // after it was enabled) wins; otherwise any server-provided disabledReason.
+              const reason = module.drifted
+                ? "disabled: package changed since it was enabled"
+                : (module.disabledReason ?? null);
+              return (
+                <Row
+                  key={module.id}
+                  name={module.name}
+                  desc={`${module.publisher} · v${module.version}${reason ? ` · ${reason}` : ""}`}
+                  control={
+                    <Switch
+                      ariaLabel={`Enable ${module.name}`}
+                      checked={module.status === "enabled"}
+                      disabled={setExternalEnabled.isPending}
+                      onChange={(value) =>
+                        setExternalEnabled.mutate({ id: module.id, enabled: value })
+                      }
+                    />
+                  }
+                />
+              );
+            })
+          ) : (
+            // The section is gated on `enabled` (data already loaded), so this is the
+            // genuinely-empty case, not a loading placeholder.
+            <Row
+              name="No external modules"
+              desc="No external modules are present in the modules directory."
+            />
+          )}
+        </Group>
+      ) : null}
     </>
   );
 }
