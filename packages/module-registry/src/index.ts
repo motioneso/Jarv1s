@@ -285,6 +285,7 @@ export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
 
 export * from "./external/validate.js";
+export * from "./external/types.js";
 
 export {
   createActiveModulesResolver,
