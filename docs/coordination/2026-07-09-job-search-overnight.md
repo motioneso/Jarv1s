@@ -2093,3 +2093,35 @@ ACTION: relayed blocking regression + cross-user RLS test to pE4 (now working). 
 pE7 spec agent CONVERGED (commit e4b905e8: hourly due-check / once-per-user-local-day discovery, day-one acceptance gate, 7-day post-merge usefulness validation; issues #934/#938 updated). "No blocking product questions remain — only adapter policy dates, optional decision-reason format, final UI copy review" (all deferred post-merge follow-ups). REAPED pE7 pane to freeze #929 head (stop autonomous polishing racing the merge). Worktree /home/ben/Jarv1s/.claude/worktrees/job-search-specs still on disk → `git worktree remove` after merge.
 
 Auto-merge armed (bg bdsdabwae): waits #929 CI, merges --squash --delete-branch ONLY if all-green AND head == e4b905e8 (routine docs tier, Fable-approved content). #913 epic stays OPEN (JS-01..09 = #930-938 children). On merge: increment merges_since_relay, cleanup worktree.
+
+## CONTINUATION NOTE @ ~70% ctx (post-compaction, in-session per Ben — NO successor pane)
+
+Ben standing rule this run: session auto-compacts → do NOT spawn a relay successor on the 70%
+meter; flush here + let compaction reset. Sole Coordinator = w1:pE6 / session
+58a78927-385c-4b1d-8fa0-94db20255d6f (authority re-confirmed against this lock line).
+
+Live fleet state at flush:
+- **#929 job-search specs** — MERGED 2026-07-10T21:16:24Z (squash, routine tier, Fable
+  APPROVE-WITH-CHANGES folded). Head was frozen at e4b905e8. Worktree job-search-specs pruned.
+  merges_since_relay: 1 (threshold 2 → counter trigger NOT tripped). #913 epic stays OPEN
+  (specs only; JS-01..JS-09 = issues #930-#938 filed Part of #913).
+- **#914 module data plane** — pane w1:pDQ / session 8baf4c17 (relay-5), Sonnet 5, tab w1:t1E.
+  NO PR yet; still building impl-task7 (Task 7 of 9). Pane at ~67% ctx → near its own relay-6.
+  DO-NOT-NUDGE. Its migrations 0155/0156 gate #919 (0157) merge AND #915 impl lane.
+  agent_status flips done/working between sub-agent turns — verify completion by PR existence,
+  never by status.
+- **#939 (#919 worker runtime)** — pane w1:pE4 / codex session 019f4d6d, tab w1:t1E. SECURITY
+  tier. QA cycle 1/2: Opus QA found RED (write-tool approval-card regression in server.ts
+  resolveActiveModules rewrite + 3 failing mcp-gateway.test.ts assertions). pE4 pushed fix →
+  CI run 29124141122 live: compose smoke PASS, prod compose PASS, Verify-foundation PENDING.
+  On green → cheap diff-scoped re-QA → Fable merge sign-off (security tier, no auto-merge).
+  HELD behind #914 migration landing. Pending Fable decision at merge: per-actor worker process
+  isolation = non-blocking HIGH residual (does it block JS MVP?).
+- **#915 impl lane** — QUEUED, blocked-by #919 migration merge. Security tier. Spec ready:
+  docs/superpowers/specs/2026-07-09-external-worker-capabilities-design.md (rev2, merged #922).
+- **#916 starter action** — HELD (needs-spec + dep #919). Fable: split starter-action portion
+  onto JS critical path.
+
+Next actions when resumed: (1) watch #939 CI run 29124141122 → on foundation green, diff-scoped
+re-QA of pE4's fix; (2) watch #914 for PR + its relay-6 successor landing in tab w1:t1E;
+(3) when #914 migrations merge, spawn #915 impl lane. All approvals → Fable, none to Ben.
