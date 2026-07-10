@@ -60,6 +60,8 @@ their declared dependency boundaries; the diagram does not authorize parallel bu
 
 ### JS-01 (#930) — Package contract and fail-closed fixture
 
+**Task spec:** `2026-07-10-job-search-js-01-package-contract.md`
+
 **Depends on:** final #919 external manifest/worker ABI, merged #917/#918.
 
 **Delivers:** independently buildable `jarv1s.job-search` package skeleton, JSON manifest, web/worker
@@ -69,6 +71,8 @@ absent from the core image and `BUILT_IN_MODULES`.
 **Verification:** install/enable/disable/hash-drift contract fixture; no product behavior or data yet.
 
 ### JS-02 (#931) — Owner-scoped KV domain and retention contract
+
+**Task spec:** `2026-07-10-job-search-js-02-kv-domain.md`
 
 **Depends on:** JS-01 and #919 `ctx.kv`.
 
@@ -85,6 +89,8 @@ run retention.
 
 ### JS-03 (#932) — Profile, resume truth guard, and conversational tools
 
+**Task spec:** `2026-07-10-job-search-js-03-onboarding-truth-guard.md`
+
 **Depends on:** JS-02, #919 gateway dispatch, #919 `ctx.ai`, and the required #916 starter action.
 
 **Delivers:** resumable onboarding state; profile revisions; resume critique/draft/approval tools;
@@ -94,6 +100,8 @@ evidence mapping; diff approval; unsupported-claim rejection.
 without confirmation; provider/model remains router-owned.
 
 ### JS-04 (#933) — Compliant source adapter foundation
+
+**Task spec:** `2026-07-10-job-search-js-04-source-adapters.md`
 
 **Depends on:** JS-01 and external `ctx.fetch`.
 
@@ -107,6 +115,8 @@ or unknown adapters stay disabled.
 
 ### JS-05 (#934) — Scheduled monitor execution and run-now
 
+**Task spec:** `2026-07-10-job-search-js-05-monitoring.md`
+
 **Depends on:** JS-02, JS-04, external queue/schedule reconciliation, and generic run-now.
 
 **Delivers:** metadata-only queue declaration; one 30–60-minute manifest-static due-check reading
@@ -117,6 +127,8 @@ failure isolation; at most one local-day run and no catch-up storm.
 dedupes; transient source failure retains known jobs; payload contains metadata only.
 
 ### JS-06 (#935) — Dedicated module surface and onboarding handoff
+
+**Task spec:** `2026-07-10-job-search-js-06-module-surface.md`
 
 **Depends on:** JS-02, JS-03, merged #918 web root, and required #916 starter action.
 
@@ -129,6 +141,8 @@ route, external text rendered safely.
 
 ### JS-07 (#936) — Freshness, deduplication, and bounded evaluation
 
+**Task spec:** `2026-07-10-job-search-js-07-ranking.md`
+
 **Depends on:** JS-03 and JS-05.
 
 **Delivers:** source-id/canonical-URL identity, liveness/freshness state, deterministic exclusions,
@@ -140,6 +154,8 @@ unknown; prompt injection cannot call tools or mutate state; excess candidates r
 
 ### JS-08 (#937) — Opportunity feed, decisions, and assistant read tools
 
+**Task spec:** `2026-07-10-job-search-js-08-opportunity-feed.md`
+
 **Depends on:** JS-06 and JS-07.
 
 **Delivers:** new/saved/passed/stale views, compact evidence-backed cards, bounded detail, monitor
@@ -149,6 +165,8 @@ health, saved/passed feedback, compact list/get/decide assistant tools.
 user decisions survive disable/re-enable.
 
 ### JS-09 (#938) — Epic acceptance and one-week validation harness
+
+**Task spec:** `2026-07-10-job-search-js-09-acceptance.md`
 
 **Depends on:** JS-08 and every hard runtime prerequisite.
 
