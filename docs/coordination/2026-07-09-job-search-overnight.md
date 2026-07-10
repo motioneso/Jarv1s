@@ -1703,3 +1703,14 @@ required before merge; no auto-merge). Awaiting plan-ready escalation.
 (export/deletion lifecycle) still open, 5 tasks completed, agent sitting idle at its own prompt —
 no `[SECURITY]`/`[BLOCKED]` escalation, no sign of a real stall. Per standing policy, **not
 nudging** on this routine flip. Continuing hands-off supervision.
+
+**Fleet-liveness Monitor re-armed.** Task `brhqi0ok9`, persistent, diffs `herdr pane list` for `w1`
+every 60s, emits changed lines only. Does not survive relay — any successor must re-arm.
+
+**#916:** still held, `needs-spec`, untouched — no action taken this turn (per queue item 4).
+
+**Checkpoint queue fully executed this turn:** (1) #919 spawn finished — `w1:pE4`, gpt-5.6-sol
+high, tier `security`; (2) #914 supervision resumed, no intervention; (3) liveness Monitor
+re-armed (`brhqi0ok9`); (4) #916 left held. `merges_since_relay: 0`. No relay trigger fired this
+turn (context-meter has not warned, no merges occurred, no compaction). Resident supervision
+continues.
