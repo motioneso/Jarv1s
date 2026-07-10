@@ -20,6 +20,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import {
+  MODULE_WORKER_SERVICE_KEY,
   isModuleServiceKey,
   type AiCapabilityRouteReason,
   type AiModelCapability,
@@ -1140,6 +1141,58 @@ export class AiRepository {
     return model
       ? { model, reason: "matched-active-model" }
       : { model: null, reason: "needs-config" };
+  }
+
+  /**
+   * #915 D6: service-aware resolution for module structured work. `service` steers WHICH model
+   * serves the request; `options.capability` (always "json" for structured output today) is what
+   * the model must actually support. Precedence: admin pin, module-specific binding, generic
+   * module.worker binding, then automatic worker routing.
+   */
+  async resolveModelForService(
+    scopedDb: DataContextDb,
+    service: ModuleServiceKey,
+    options: { capability: AiModelCapability; tierHint?: AiModelTier }
+  ): Promise<AiCapabilityRouteResolution> {
+    assertDataContextDb(scopedDb);
+    const { capability, tierHint = "economy" } = options;
+
+    const [pinnedModelId, pinnedProviderId] = await Promise.all([
+      this.getAdminPinnedModelId(scopedDb),
+      this.getAdminPinnedProviderId(scopedDb)
+    ]);
+    if (pinnedModelId !== null || pinnedProviderId !== null) {
+      return this.resolveModelForCapability(scopedDb, capability, tierHint);
+    }
+
+    const bindings = await this.listModuleServiceBindings(scopedDb);
+    const keys: ModuleServiceKey[] =
+      service === MODULE_WORKER_SERVICE_KEY ? [service] : [service, MODULE_WORKER_SERVICE_KEY];
+
+    for (const key of keys) {
+      const binding = bindings[key];
+      if (!binding) continue;
+
+      if (binding.kind === "model") {
+        const model = await this.safeModelQuery(scopedDb)
+          .where("models.id", "=", binding.modelId)
+          .where("models.status", "=", "active")
+          .where("providers.status", "=", "active")
+          .where("providers.purpose", "=", "assistant")
+          .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
+          .executeTakeFirst();
+        if (model) return { model, reason: "manual-route" };
+        await this.logNeedsConfig(scopedDb, capability);
+        return { model: null, reason: "needs-config" };
+      }
+
+      const model = await this.selectAutomaticModelForCapability(scopedDb, capability, binding.tier);
+      if (model) return { model, reason: "matched-active-model" };
+      await this.logNeedsConfig(scopedDb, capability);
+      return { model: null, reason: "needs-config" };
+    }
+
+    return this.resolveModelForCapability(scopedDb, capability, tierHint);
   }
 
   /**

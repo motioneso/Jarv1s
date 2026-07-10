@@ -167,3 +167,96 @@ describe("module service binding CRUD (repository)", () => {
     });
   });
 });
+
+describe("resolveModelForService precedence", () => {
+  const resolve = (service: `module.${string}`) =>
+    dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.resolveModelForService(scopedDb, service, { capability: "json" })
+    );
+
+  it("unbound service resolves exactly like an automatic worker capability", async () => {
+    const route = await resolve("module.job-search");
+    expect(route.reason).toBe("matched-active-model");
+    expect(route.model?.id).toBe(modelEconomyJsonId);
+  });
+
+  it("module.worker mode binding overrides the tier for every module", async () => {
+    await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.setServiceBinding(
+        scopedDb,
+        "module.worker",
+        { kind: "mode", tier: "reasoning" },
+        ids.adminUser
+      )
+    );
+    const route = await resolve("module.job-search");
+    expect(route.reason).toBe("matched-active-model");
+    expect(route.model?.id).toBe(modelReasoningJsonId);
+  });
+
+  it("a module-specific model binding beats module.worker; other modules keep riding it", async () => {
+    await dataContext.withDataContext(adminContext(), (scopedDb) =>
+      repository.setServiceBinding(
+        scopedDb,
+        "module.job-search",
+        { kind: "model", modelId: modelChatJsonId },
+        ids.adminUser
+      )
+    );
+    const specific = await resolve("module.job-search");
+    expect(specific.reason).toBe("manual-route");
+    expect(specific.model?.id).toBe(modelChatJsonId);
+
+    const other = await resolve("module.other");
+    expect(other.model?.id).toBe(modelReasoningJsonId);
+  });
+
+  it("a stale model binding is needs-config — never a silent fallthrough", async () => {
+    const disable = await server.inject({
+      method: "PATCH",
+      url: `/api/ai/models/${modelChatJsonId}`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { status: "disabled" }
+    });
+    expect(disable.statusCode).toBe(200);
+
+    const route = await resolve("module.job-search");
+    expect(route.model).toBeNull();
+    expect(route.reason).toBe("needs-config");
+
+    const enable = await server.inject({
+      method: "PATCH",
+      url: `/api/ai/models/${modelChatJsonId}`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { status: "active" }
+    });
+    expect(enable.statusCode).toBe(200);
+  });
+
+  it("an admin model pin beats every module binding; cleanup restores automatic", async () => {
+    await dataContext.withDataContext(adminContext(), async (scopedDb) => {
+      await repository.setServiceBinding(
+        scopedDb,
+        "module.job-search",
+        { kind: "model", modelId: modelEconomyJsonId },
+        ids.adminUser
+      );
+      await repository.setAdminPinnedModel(scopedDb, modelChatJsonId);
+    });
+
+    const pinned = await resolve("module.job-search");
+    expect(pinned.model?.id).toBe(modelChatJsonId);
+
+    await dataContext.withDataContext(adminContext(), async (scopedDb) => {
+      await repository.setAdminPinnedModel(scopedDb, null);
+      await repository.deleteModuleServiceBinding(
+        scopedDb,
+        "module.job-search",
+        ids.adminUser
+      );
+      await repository.deleteModuleServiceBinding(scopedDb, "module.worker", ids.adminUser);
+    });
+    const restored = await resolve("module.job-search");
+    expect(restored.model?.id).toBe(modelEconomyJsonId);
+  });
+});
