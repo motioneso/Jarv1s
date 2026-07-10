@@ -97,9 +97,11 @@ import type {
   ListAdminModulesResponse,
   ExternalModuleDto,
   ListExternalModulesResponse,
+  ListModuleCredentialsResponse,
   ListModulesResponse,
   ListMyModulesResponse,
   ListSourceBehaviorsResponse,
+  ModuleCredentialStatusDto,
   MyModuleDto,
   ListNotificationsResponse,
   ListTaskActivityResponse,
@@ -386,6 +388,43 @@ export async function setExternalModuleEnabled(
   return requestJson<{ module: ExternalModuleDto }>(
     `/api/admin/external-modules/${encodeURIComponent(id)}`,
     { method: "POST", body: { enabled } }
+  );
+}
+
+/**
+ * Module credential settings (#918). `surface` picks the admin (instance-scope slots) or
+ * self-service (`me`, user-scope slots) route family — both share the same DTO shape.
+ * `value` is write-only: the server never returns it back (metadata-only responses).
+ */
+export async function listModuleCredentials(
+  surface: "admin" | "me",
+  moduleId: string
+): Promise<ListModuleCredentialsResponse> {
+  return requestJson<ListModuleCredentialsResponse>(
+    `/api/${surface}/modules/${encodeURIComponent(moduleId)}/credentials`
+  );
+}
+
+export async function setModuleCredential(
+  surface: "admin" | "me",
+  moduleId: string,
+  credentialId: string,
+  value: string
+): Promise<{ credential: ModuleCredentialStatusDto }> {
+  return requestJson<{ credential: ModuleCredentialStatusDto }>(
+    `/api/${surface}/modules/${encodeURIComponent(moduleId)}/credentials/${encodeURIComponent(credentialId)}`,
+    { method: "PUT", body: { value } }
+  );
+}
+
+export async function revokeModuleCredential(
+  surface: "admin" | "me",
+  moduleId: string,
+  credentialId: string
+): Promise<{ credential: ModuleCredentialStatusDto }> {
+  return requestJson<{ credential: ModuleCredentialStatusDto }>(
+    `/api/${surface}/modules/${encodeURIComponent(moduleId)}/credentials/${encodeURIComponent(credentialId)}`,
+    { method: "DELETE" }
   );
 }
 

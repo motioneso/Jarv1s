@@ -45,6 +45,7 @@ import {
 } from "./settings-admin-policy";
 import { getConnectorAccountHealth } from "./settings-connector-sync";
 import { useFeedback } from "./settings-feedback";
+import { ModuleCredentialsSection } from "./module-credentials-section";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import { MarkdownMessage } from "../chat/markdown-message";
 import {
@@ -652,21 +653,25 @@ export function InstanceModulesPane() {
                 ? "disabled: package changed since it was enabled"
                 : (module.disabledReason ?? null);
               return (
-                <Row
-                  key={module.id}
-                  name={module.name}
-                  desc={`${module.publisher} · v${module.version}${reason ? ` · ${reason}` : ""}`}
-                  control={
-                    <Switch
-                      ariaLabel={`Enable ${module.name}`}
-                      checked={module.status === "enabled"}
-                      disabled={setExternalEnabled.isPending}
-                      onChange={(value) =>
-                        setExternalEnabled.mutate({ id: module.id, enabled: value })
-                      }
-                    />
-                  }
-                />
+                <div key={module.id}>
+                  <Row
+                    name={module.name}
+                    desc={`${module.publisher} · v${module.version}${reason ? ` · ${reason}` : ""}`}
+                    control={
+                      <Switch
+                        ariaLabel={`Enable ${module.name}`}
+                        checked={module.status === "enabled"}
+                        disabled={setExternalEnabled.isPending}
+                        onChange={(value) =>
+                          setExternalEnabled.mutate({ id: module.id, enabled: value })
+                        }
+                      />
+                    }
+                  />
+                  {/* #918: instance-scope credential slots declared by this module's
+                      manifest, if any — renders nothing when the module has none. */}
+                  <ModuleCredentialsSection moduleId={module.id} surface="admin" />
+                </div>
               );
             })
           ) : (
