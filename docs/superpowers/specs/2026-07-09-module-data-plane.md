@@ -107,8 +107,9 @@ bootstrap connection inside this ops-only entrypoint, and only for the two names
   memberships, and scoped grants exist; enable installer login. Then, as `jarvis_migration_owner`,
   journal an **intent row** in `app.module_installs` (`status = 'installing'`, target package
   hash, the pending file list with checksums, and a **canonical pre-B fingerprint** of the
-  module-owned catalog state — tables, columns, constraints, indexes, comments, policies, and
-  grants under the module's prefix, normalized and hashed; never volatile stats or OIDs). The
+  module-owned catalog state — tables, columns, constraints, indexes, comments, policies, grants,
+  and column-owned sequences under the module's prefix, normalized and hashed; never volatile
+  stats or OIDs). The
   fingerprint is what lets a later process classify recovery states without parsing module SQL.
 - **Phase B — module SQL (installer connection, ONE transaction):** connect _as_
   `jarvis_mod_<slug>_install` and apply **all** pending migration files — each file is a single
@@ -219,7 +220,10 @@ asserts:
 
 - every created/altered object is a table or index under the module's prefix in `app`
   (`CREATE` on a schema does not constrain names — the diff is what enforces the prefix policy
-  and collision rejection);
+  and collision rejection), with one subordinate exception: sequences implicitly created by and
+  owned by a module-table identity/serial column are permitted, included in the fingerprint, and
+  covered by the generated `USAGE` grant (D3); free-standing `CREATE SEQUENCE` remains rejected
+  by the D3 allowlist;
 - every module table has `rowsecurity` and `relforcerowsecurity` true and carries
   `owner_user_id`;
 - no grants exist beyond the generated ones; no functions or triggers were created (v1 scope);
