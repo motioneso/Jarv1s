@@ -1080,3 +1080,78 @@ and working (bounded pane reads). **Fable 5 flagged at 9% until auto-compact** w
 landed — watch closely, may stall/relay mid-task; nudge per `agent-stall-nudge-recovery` memory
 if it does, don't respawn unless actually dead. Awaiting both verdicts before merge — do not
 merge on one panel member alone.
+
+## Overnight-signoff panel SPLIT on PR #924 — merge HELD, findings relayed (this checkpoint)
+
+**Panel verdict: SPLIT.** Fable 5 (`w1:pCR`) → GREEN
+(https://github.com/motioneso/Jarv1s/pull/924#issuecomment-4934894336, second comment). Codex
+(`w1:pCK`) → **RED, MERGE-READY: NO**
+(https://github.com/motioneso/Jarv1s/pull/924#issuecomment-4934894336, first comment), grounded/
+reproduced against PR head `968251d8`. Per manifest rule "merge only if both green" — **PR #924
+does NOT merge tonight.** No relay-on-merge trigger fired (no merge occurred).
+
+**Codex's 3 blocking findings (verbatim summary):**
+1. `packages/module-registry/src/node.ts:69-75` — manifest read failure (`EACCES` etc.) caught by
+   an inner catch that interpolates `String(error)` before the sanitized outer catch (91-104);
+   `apps/api/src/server.ts:171-175` logs + admin GET returns it — absolute on-disk paths leak,
+   violating the PR's own no-path-leak invariant. Reproduced live on PR head.
+2. `packages/module-registry/src/external/hash.ts:54-63` — `existsSync`/`statSync`/`readFileSync`
+   follow symlinked `jarvis.module.json`/`dist/worker.js`/`dist/web`, contradicting #818's
+   symlink-escape rejection rule (Opus's QA called this same class "non-blocking"; Codex disagrees
+   — treats it as blocking given the approved spec explicitly requires rejection).
+3. On-disk contract mismatch — #917/#818 require `schemaVersion`/`runtime.workerContractVersion`/
+   optional `web.contractVersion`/entrypoints; this PR's `JsonJarvisModuleManifest`/
+   `ExternalJarvisModulePackage` validates none of it — scope narrowed from the approved contract
+   without a spec revision.
+
+**Relayed to owning build agent** `w1:pCV` ("Opus: #917 Plan", session `251b57c9-...`, worktree
+`.claude/worktrees/917-implementation-plan`, branch `plan/917-open-module-system-slice1`) via
+`herdr pane run` — full findings + fix guidance for each, told to push to PR #924, run the full
+gate, reply to Coordinator when ready for re-QA, explicitly told **not to merge itself**.
+**Confirmed delivered and being acted on** (bounded pane read showed the full message text in
+scrollback + pane actively "Spelunking… (thinking)" immediately after — a benign CX survey overlay
+("How is Claude doing this session?") is present but not blocking; do not dismiss it, it doesn't
+interfere with the agent working).
+
+**merges_since_relay unchanged at 1** (carried since PR #922; no merge this checkpoint).
+**Overnight sign-off override remains ACTIVE**, untouched in substance (used correctly — panel
+disagreement correctly blocked rather than being rubber-stamped).
+
+## Relay checkpoint (self-relay from session `1d5beb50-c847-4b7c-8cea-cf99c3143fd3`, context 70% warning fired)
+
+**Trigger:** PostToolUse context-meter hook fired at 70% (143580/204250 tok) immediately after
+confirming the `w1:pCV` message delivery above. Per coordinate skill: no deferral, flush + relay
+now, remaining bookkeeping goes to successor.
+
+**Fleet state at this checkpoint:**
+- `w1:pCV` "Opus: #917 Plan" — actively working (just received the RED-findings relay, thinking/
+  responding). **This is now the critical path** — successor must watch for its fix-complete
+  signal, then dispatch fresh re-QA (Opus adversarial again, security tier unchanged) before any
+  re-attempt at the overnight-signoff panel.
+- `w1:pCR` "Fable 5: Job Search Spec Review" — was `working` last Monitor tick (had posted its
+  GREEN verdict at 11:38:42Z already; likely wrapping up / idle-pending). 9% until auto-compact
+  flagged earlier — check fresh, may have self-relayed.
+- `w1:pCK` "Codex: Job Search Spec" — `done`/idle, its RED adjudication complete and posted.
+- Monitor task `bwntn4bqt` (persistent, changes-only, 60s poll, scoped to `w1:pCR`/`w1:pCK`/
+  `w1:pCV`) — **dies with this session**; successor must restart its own with the same scope.
+- No merge occurred this checkpoint. `merges_since_relay` = 1 (unchanged, carried forward).
+
+**Successor's immediate queue, in order:**
+1. **Do NOT re-attempt merge or re-panel until `w1:pCV` reports its fixes pushed to PR #924.**
+   Watch for completion (Monitor status flip or explicit report).
+2. Once `w1:pCV` reports done: dispatch a **fresh Opus adversarial QA** pass on the updated PR
+   #924 head (same `coordinated-qa` pattern as before, tier `security`) — do not reuse the stale
+   GREEN verdict, the diff has changed.
+3. If fresh QA is GREEN: re-run the overnight-signoff panel (Fable 5 `w1:pCR` + Codex `w1:pCK`),
+   both must post fresh `[OVERNIGHT-SIGNOFF]` verdicts against the NEW head — do not reuse their
+   prior comments, the code under review has changed.
+4. Merge only if fresh QA AND both fresh panel verdicts are green. Then GitHub bookkeeping (close
+   #917, board move) + Ben's standing digest, tagged "merged overnight under time-boxed sign-off
+   override — please spot-check" per the override's step 3 + relay again (security-tier merge
+   trigger).
+5. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`.
+6. Re-confirm session-id authority against this manifest's lock line before any merge (Phase 3
+   step 0) — the lock line will be updated by the successor itself in Phase 0a per the coordinate
+   skill (never trust a written pane number; resolve fresh via `herdr pane list`).
+
+Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
