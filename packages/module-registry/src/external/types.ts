@@ -42,6 +42,8 @@ export interface ReconciledExternalModule {
   readonly active: boolean;
   readonly drifted: boolean;
   readonly disabledReason: string | null;
+  /** Web contribution declared by the manifest, or null when the module has no web surface (#918). */
+  readonly web: { readonly entrypoint: string; readonly contractVersion: number } | null;
 }
 
 export interface ExternalReconcileResult {
