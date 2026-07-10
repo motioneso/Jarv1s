@@ -1,6 +1,8 @@
 import { expect, it, vi } from "vitest";
 
 import { createExternalToolManifests } from "@jarv1s/module-registry/node";
+import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { createExternalActiveModulesResolver } from "../../apps/api/src/external-module-tools.js";
 import type { ExternalModuleDiscovery } from "../../packages/module-registry/src/external/types.js";
 
 const discovery: ExternalModuleDiscovery = {
@@ -47,4 +49,57 @@ it("adapts declarations into executable tools with parent-bound identity", async
     { moduleId: "evil" },
     context
   );
+});
+
+it("filters external modules without changing built-in action metadata", async () => {
+  const builtIn = {
+    id: "built-in",
+    name: "Built in",
+    version: "1.0.0",
+    publisher: "Jarvis",
+    lifecycle: "required",
+    compatibility: { jarv1s: "*" },
+    assistantActionFamilies: [
+      {
+        id: "writes",
+        label: "Writes",
+        description: "Write actions",
+        defaultTier: "ask_each_time",
+        allowedTiers: ["ask_each_time", "trusted_auto"]
+      }
+    ],
+    assistantTools: [
+      {
+        name: "built-in.write",
+        description: "Write",
+        permissionId: "built-in.write",
+        risk: "write",
+        executionPolicy: "auto",
+        actionFamilyId: "writes",
+        execute: async () => ({ data: { ok: true } })
+      }
+    ]
+  } satisfies JarvisModuleManifest;
+  const external = { ...builtIn, id: "external", name: "External" };
+  const resolve = createExternalActiveModulesResolver(
+    async () => [builtIn, external],
+    new Set([external.id]),
+    async () => []
+  );
+
+  const resolved = await resolve("actor");
+  expect(resolved).toEqual([builtIn]);
+  expect(resolved[0]).toBe(builtIn);
+  expect(resolved[0]?.assistantActionFamilies).toBe(builtIn.assistantActionFamilies);
+  expect(resolved[0]?.assistantTools).toBe(builtIn.assistantTools);
+});
+
+it("keeps the original resolver when there are no external tool manifests", async () => {
+  const manifests: JarvisModuleManifest[] = [];
+  const enabled = vi.fn(async () => manifests);
+  const external = vi.fn(async () => []);
+  const resolve = createExternalActiveModulesResolver(enabled, new Set(), external);
+
+  await expect(resolve("actor")).resolves.toBe(manifests);
+  expect(external).not.toHaveBeenCalled();
 });

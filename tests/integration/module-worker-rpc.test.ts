@@ -110,6 +110,23 @@ describe("external module worker RLS", () => {
     ]);
   });
 
+  it("denies userB access to userA credential and KV rows", async () => {
+    expect(
+      await workerQuery<{ credential_id: string }>(
+        ids.userB,
+        "acme-a",
+        "SELECT credential_id FROM app.module_credentials ORDER BY credential_id"
+      )
+    ).toEqual([{ credential_id: "acme-a.shared" }]);
+    expect(
+      await workerQuery<{ key: string }>(
+        ids.userB,
+        "acme-a",
+        "SELECT key FROM app.module_kv ORDER BY key"
+      )
+    ).toEqual([{ key: "shared" }]);
+  });
+
   it("returns no rows for a disabled or missing module context", async () => {
     expect(
       await workerQuery(ids.userA, "acme-off", "SELECT module_id FROM app.module_credentials")

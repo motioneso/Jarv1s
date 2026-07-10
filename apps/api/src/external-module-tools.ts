@@ -50,6 +50,7 @@ export function createExternalActiveModulesResolver(
   externalModuleIds: ReadonlySet<string>,
   getActiveExternalModules: (actorUserId: string) => Promise<readonly { id: string }[]>
 ): (actorUserId: string) => Promise<readonly JarvisModuleManifest[]> {
+  if (externalModuleIds.size === 0) return resolveEnabledModules;
   return async (actorUserId) => {
     const [enabled, activeExternal] = await Promise.all([
       resolveEnabledModules(actorUserId),
