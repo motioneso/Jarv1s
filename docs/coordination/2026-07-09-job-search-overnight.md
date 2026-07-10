@@ -789,3 +789,11 @@ herdr agent start "<Label>" --tab w1:<agents-tab> --cwd $(pwd)/.claude/worktrees
 booted at `high` on first spawn, same "confirm the model" discipline as the Sonnet check.) Tab
 discipline, worktree isolation, handoff-doc-first bootstrap, and Phase 1 spawn verification all
 still apply unchanged — only the underlying CLI/model changes.
+
+**#914 fix confirmed:** `w1:pDQ` (relay-5) reported Task 9 Step 6 corrected —
+`readExternalModuleExportRows` now routes through `createModuleStorageRpc(scopedDb, manifest.id)`
+under `SET LOCAL ROLE jarvis_mod_<slug>_runtime`, matching the D5 RPC path; also added
+`assertQualifiedTableName` (exported from Task 6's emitter) as an injection guard on
+manifest-declared table names before SQL splicing, and updated Task 6/9 Interfaces
+blocks (Produces/Consumes) for the new dependency. No other plan content touched. **#914 is now
+building** (status `working`, plan approved, proceeding per Phase 2 of `coordinated-build`).
