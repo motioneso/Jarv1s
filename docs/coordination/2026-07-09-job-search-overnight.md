@@ -1909,3 +1909,13 @@ leave `w1:t1F` (Codex Job Search Spec / Fable 5 Spec Review, idle) and `w1:pBK`/
 list` for `w1` every 60s, emits changed lines only.
 
 **Board-status report:** relayed to Ben directly in-session this turn (session user is Ben).
+
+**#919 plan-ready escalation — APPROVED this turn.** Plan `docs/superpowers/plans/
+2026-07-10-open-module-system-slice3.md` (commit `fcbd2cac`, in `919-worker-runtime` worktree)
+verified directly against all 5 Opus C1-C5 requirements via targeted grep (not full read): 0157
+placed in `packages/settings/sql/`, `app.current_module_id()` GUC w/ REVOKE-then-GRANT, worker RLS
+policies module_id+enabled-module+owner-scoped (admin-only instance-KV gating done in parent code,
+not RLS), `foundation.test.ts` updated w/ re-check contingency, no DELETE grant on
+`module_credentials`, no duplicate #918 test coverage. Approval sent to `w1:pE4`, confirmed queued
+(Codex UI queues messages mid-tool-call, auto-submits — no manual Enter needed). Build proceeding
+via `coordinated-build`.
