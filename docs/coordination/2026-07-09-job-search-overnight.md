@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `0d7c26c5-e733-40f5-9a92-004ee47a7e4b`,
-pane `w1:pDE`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `4d68fcc5-bc2c-44cd-ae0d-a2e305f94069`,
+pane `w1:pDF`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -540,3 +540,19 @@ Spec, already ack'd, not owed a reply), `w1:pCR` (Fable 5 Job Search Spec Review
    there, agents tab `w1:t1E`, `--model sonnet`, confirm Sonnet.
 4. Both handoffs must carry the collision notes above verbatim (or by pointer to this section).
 5. Resume normal Phase 2 supervise loop for both new lanes plus anything else live.
+
+## Lock re-claimed (successor session `4d68fcc5-bc2c-44cd-ae0d-a2e305f94069`), Phase 0a done
+
+Phase 0a complete: resolved own pane fresh via `herdr pane list` (never trusted a written pane
+number) — session `4d68fcc5-bc2c-44cd-ae0d-a2e305f94069`, pane `w1:pDF`, tab `w1:t15`. Renamed to
+`Coordinator`. Predecessor session `0d7c26c5-e733-40f5-9a92-004ee47a7e4b`, pane `w1:pDE`, tab
+`w1:t15`, `agent_status: done`, still alive at Phase 0a start — will be reaped after both new
+lanes are confirmed spawned on Sonnet in the agents tab (`w1:t1E`). Top-of-file lock line updated
+to this session/pane.
+
+Proceeding per predecessor's queue verbatim: (1) #918 build-phase handoff + spawn, continuing in
+existing worktree `.claude/worktrees/918-implementation-plan` / branch
+`plan/918-open-module-system-slice2`; (2) #914 standard handoff + spawn, existing worktree
+`.claude/worktrees/914-module-data-plane` / branch `build/914-module-data-plane`; both in agents
+tab `w1:t1E`, `--model sonnet`, collision notes carried verbatim from the section above; (3) reap
+predecessor pane `w1:pDE`.
