@@ -1423,6 +1423,57 @@ delegated sign-off," not a routine merge, so he can spot-check.
 
 **Applying to PR #925 now** — Opus QA already GREEN; next step is the Fable 5 sign-off pass.
 
+## PR #925 (#918) MERGED — first Fable-5-delegated security-tier merge this run
+
+**Fable 5 sign-off:** MERGE verdict, posted `[FABLE-SIGNOFF]` at
+https://github.com/motioneso/Jarv1s/pull/925#issuecomment-4938364271. Independently re-verified
+(not just re-stated) the Opus QA claims against the actual diff: AES-256-GCM credential envelope
+w/ dedicated keyring, FORCE RLS both new tables (no runtime DELETE grant on credentials — scrub-
+revoke pattern), zero secret path to logs/responses/audit/export/job-payloads, web-asset route
+authenticated + realpath-contained (symlink/encoded-traversal tests pass at unit + app.inject
+level), fast-json-stringify field-strip trap checked (`web` field IS declared in
+`platform-api.ts` — not silently dropped). Two non-blocking notes left on the PR for future slices
+(module web bundles run in host origin — approved spec's accepted trust model; no explicit
+worker-role read-denial test yet — structurally defended, add one in Slice 3).
+
+**Merged:** session id re-confirmed (`b73c258c-...` = manifest lock) before merging. `gh pr merge
+925 --squash --delete-branch` → commit `eafa22dd26729454dd3525d8bff53fc76ca7d3f0`, merged
+2026-07-10T18:31:34Z. (Local `--delete-branch` step failed first pass — branch was checked out in
+the `.claude/worktrees/918-implementation-plan` worktree; removed the worktree with `git worktree
+remove --force`, then `git branch -D` cleaned the local branch. No effect on the GitHub-side
+merge, which had already landed.)
+
+**GitHub bookkeeping:** `gh issue close 918` with a comment pointing to PR #925 + both sign-off
+links. Epic #860 exit-criteria not yet met (more slices outstanding) — left open, no board/
+milestone close triggered. Board auto-syncs on issue close for this repo (per established
+precedent this run).
+
+**Ben's standing digest — add this line:** *"Merged #925 (open module system Slice 2: module
+credentials, KV store, web assets) under Fable-5-delegated security sign-off — please spot-check.
+PR: https://github.com/motioneso/Jarv1s/pull/925, merge commit `eafa22dd`."*
+
+**`merges_since_relay: 1`** (security-tier merge — **relay trigger fires unconditionally,
+regardless of count.** Per skill: no deferral, flush + relay now, merge nothing further first.)
+
+**#919 unblocked next** — was queued strictly behind #918's merge; a successor should evaluate
+spawning its plan/build lane as its next action (spec already approved on main per the earlier
+collision map). **#916 still `needs-spec`** — held for a Slice-3 spec-authoring pass with Ben.
+**#914** unaffected by this merge (disjoint surface per the Opus collision verdict); still
+building, Task 5/9, healthy, no PR yet — successor should resume passive Phase 2 supervision.
+
+**Ben's live directive (mid-turn, this checkpoint): "gpt-5.6-sol high for work now."** Reaffirms
+the manifest's original directive ("Ready lanes → Codex `gpt-5.6-sol` high reasoning") — **new
+build/work lanes from here forward should spawn on Codex `gpt-5.6-sol` at high reasoning, not
+Claude Sonnet**, unless a lane is already mid-flight on Sonnet (e.g. #914 — do not disrupt a
+healthy in-progress lane just to switch models). Applies going forward to: #919's build lane
+(next up, unblocked by this merge) and any future spawn. Successor: when spawning #919, use Codex
+(`codex -s danger-full-access -a never` or the herdr Codex spawn path) with high reasoning, not
+`claude --model sonnet`.
+
+**Relaying now** — context-meter/relay-trigger fired via mandatory security-merge rule. Spawning
+successor in the same tab (`w1:t15`), `--model sonnet --permission-mode bypassPermissions`,
+bootstrap points to this section.
+
 ## IMMEDIATE re-relay — context-meter fired at 82% on first turn (session `647affcf-6c16-4629-92c9-0e77df89ccdf`)
 
 Same pattern as the three prior successors: hit the 70%+ context-meter trigger before executing
