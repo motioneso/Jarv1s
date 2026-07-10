@@ -128,11 +128,16 @@ for slice 3 either; Fable finishing the slice-3 plan now). Noted for readiness p
 #915's spec merges + a slice-3-scoped plan is approved, slice 3 can spawn in parallel with #917
 without waiting on the #917→#914→#918→#919 chain.
 
-**#913 epic spec status: still unconfirmed, per both Fable 5 and this coordinator.** Fable's
-review found it blocked on missing platform capabilities (why #915 exists); Codex (`w1:pCK`) owns
-the `/tmp/jarv1s-913-spec` draft (branch `spec/913-intelligent-job-search`) and is the only party
-who can confirm whether its current revision folded in review feedback / has Ben's approval —
-pinged this checkpoint.
+**#913 epic spec status — RESOLVED this checkpoint (Codex-confirmed):** content is
+**Ben-approved**, not unmerged-and-unapproved as earlier believed. `/tmp/jarv1s-913-spec` branch
+`spec/913-intelligent-job-search` tip `ac9b5554` — Fable review corrections folded in at
+`195665ae`, `ac9b5554` sets Status→Approved recording Ben's approval post-review. Only a
+**mechanical** prerequisite remained: branch was ahead 3 / behind 2 vs `origin/main` (missing
+`260ac0ae` + merged #914 spec `204aca0f`). Authorized Codex (no design decision involved, content
+already Ben-approved) to rebase onto current `origin/main`, push, and open the spec PR
+(spec-only, notes it stays implementation-blocked on #917→#914→#918→#919). Awaiting PR number.
+This does NOT change the buildability verdict — #913 the epic is still blocked on its children
+landing; this just gets the approved spec text onto `main` where it belongs.
 
 ## Relay checkpoint (coordinator session `395b82b5-...`, context 70% warning fired)
 
