@@ -20,10 +20,9 @@ import "./sports-2.css";
 const CATALOG_KEY = sportsQueryKeys.catalog;
 const FOLLOWS_KEY = sportsQueryKeys.follows;
 
-// #907: the catalog still carries `teams` on the wire (retired in Task 6), but this pane no
-// longer reads `competition.teams` anywhere — the local `CompetitionWithTeams` type this file
-// used to keep is deleted, and every helper below takes plain `CompetitionRef`. That's what makes
-// the eventual contract flip (teams dropped from the catalog payload entirely) a no-op here.
+// #907: the catalog contract dropped `teams` in Task 6 — this pane never read
+// `competition.teams` (the local `CompetitionWithTeams` type was already gone), so every helper
+// below already took plain `CompetitionRef`. The flip was a no-op here.
 
 function getCatalog() {
   return requestJson<SportsCatalogResponse>("/api/sports/catalog");
@@ -427,11 +426,6 @@ export default function SportsSettings() {
     followsQuery.isError ||
     followMutation.isError ||
     unfollowMutation.isError;
-  // Partial failure (some competitions' teams didn't load) vs. total query failure — the
-  // catalog still renders with what succeeded, so this needs its own quiet notice + retry
-  // rather than the blanket error message above (#765 M1).
-  const catalogDegraded = catalogQuery.data?.degraded === true;
-
   function toggle(competitionKey: string, teamKey: string | null) {
     const existing = followsByKey.get(followKey(competitionKey, teamKey));
     if (existing) unfollowMutation.mutate(existing.id);
@@ -487,18 +481,6 @@ export default function SportsSettings() {
           pending={pending}
         />
       )}
-      {!error && catalogDegraded ? (
-        <Note>
-          Some leagues didn&rsquo;t load just now.{" "}
-          <button
-            type="button"
-            className="sp-managebtn"
-            onClick={() => void catalogQuery.refetch()}
-          >
-            Retry
-          </button>
-        </Note>
-      ) : null}
       {error ? <Note>Could not load or save sports follows. Try again.</Note> : null}
     </>
   );

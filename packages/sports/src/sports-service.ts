@@ -147,28 +147,18 @@ export class SportsService {
     this.now = deps.now ?? (() => new Date());
   }
 
-  /** Competitions + teams for the follow picker. Never throws (empty teams on failure). */
+  /** League metadata for the follow picker — static catalog data, no ESPN calls. Rosters are
+   *  served lazily by getLeagueTeams/searchTeams instead (#907 §4.2). */
   async getCatalog(): Promise<SportsCatalogResponse> {
-    const state: DegradeState = { degraded: false };
-    // Fetched independently per competition — a slow/failing one shouldn't hold up the rest
-    // of the catalog (#765 M2).
-    const competitions = await Promise.all(
-      SPORTS_CATALOG.map(async (entry) => {
-        const teams = await this.teamsFor(entry.competitionKey, state);
-        return {
-          competitionKey: entry.competitionKey,
-          label: entry.label,
-          kind: entry.kind,
-          marquee: entry.marquee,
-          standingsShape: entry.standingsShape,
-          confederation: entry.confederation,
-          teams
-        };
-      })
-    );
-    // Surface partial failure to the client instead of silently returning "0 teams" with no
-    // explanation (#765 M1); the frontend shows a retry affordance when this is true.
-    return { competitions, degraded: state.degraded };
+    const competitions = SPORTS_CATALOG.map((entry) => ({
+      competitionKey: entry.competitionKey,
+      label: entry.label,
+      kind: entry.kind,
+      marquee: entry.marquee,
+      standingsShape: entry.standingsShape,
+      confederation: entry.confederation
+    }));
+    return { competitions, degraded: false };
   }
 
   /** One league's clubs, on demand — picker browse-expand + followed-chip resolution (#907).

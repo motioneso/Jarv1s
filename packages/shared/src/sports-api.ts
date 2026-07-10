@@ -223,8 +223,9 @@ export interface SportsTeamSearchResponse {
 }
 
 export interface SportsCatalogResponse {
-  readonly competitions: readonly (CompetitionRef & { readonly teams: readonly TeamRef[] })[];
-  readonly degraded: boolean; // one or more competitions' teams failed to load (#765 M1)
+  readonly competitions: readonly CompetitionRef[];
+  // Kept for wire stability; static catalog data can no longer degrade (#907).
+  readonly degraded: boolean;
 }
 
 export interface SportsFollowsResponse {
@@ -607,27 +608,11 @@ export const sportsCatalogResponseSchema = {
       additionalProperties: false,
       required: ["competitions", "degraded"],
       properties: {
+        // Static catalog data — no per-league teams. Rosters are served lazily by
+        // sportsLeagueTeamsResponseSchema / sportsTeamSearchResponseSchema instead (#907).
         competitions: {
           type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            // Own literal `required` list (not derived from competitionRefSchema) — must list
-            // "confederation" here too or fast-json-stringify silently drops the field (#907).
-            required: [
-              "competitionKey",
-              "label",
-              "kind",
-              "marquee",
-              "standingsShape",
-              "confederation",
-              "teams"
-            ],
-            properties: {
-              ...competitionRefSchema.properties,
-              teams: { type: "array", items: teamRefSchema }
-            }
-          }
+          items: competitionRefSchema
         },
         degraded: { type: "boolean" }
       }

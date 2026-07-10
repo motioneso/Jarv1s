@@ -27,9 +27,8 @@ type TeamRefLite = {
   readonly shortName: string;
   readonly crestUrl: string | null;
 };
-// `teams` stays on the fixture (the live catalog payload still carries it until Task 6 flips the
-// contract) but is cast away below — the pane under test never reads competition.teams anymore,
-// only `confederation`, so `CompetitionLite` gains that field per #907.
+// Mirrors the static catalog contract (#907 Task 6): no `teams` field — the pane resolves
+// rosters via the lazy leagueTeams query instead, seeded per-test below where needed.
 type CompetitionLite = {
   readonly competitionKey: string;
   readonly label: string;
@@ -37,7 +36,6 @@ type CompetitionLite = {
   readonly marquee: boolean;
   readonly standingsShape: "table" | "groups" | "record";
   readonly confederation: "INTL" | "UEFA" | "CONCACAF" | "CONMEBOL" | "AFC" | "CAF" | "OFC";
-  readonly teams: readonly TeamRefLite[];
 };
 
 const DAL: TeamRefLite = {
@@ -62,8 +60,7 @@ const TWO_LEAGUES: readonly CompetitionLite[] = [
     kind: "league",
     marquee: false,
     standingsShape: "record",
-    confederation: "INTL",
-    teams: [DAL]
+    confederation: "INTL"
   },
   {
     competitionKey: "epl",
@@ -71,8 +68,7 @@ const TWO_LEAGUES: readonly CompetitionLite[] = [
     kind: "league",
     marquee: false,
     standingsShape: "table",
-    confederation: "UEFA",
-    teams: [ARS]
+    confederation: "UEFA"
   }
 ];
 
@@ -117,7 +113,7 @@ describe("SportsSettings", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const arsWithCrest = { ...ARS, crestUrl: "https://example.com/crests/ars.png" };
     client.setQueryData(CATALOG_KEY, {
-      competitions: [{ ...TWO_LEAGUES[1], teams: [arsWithCrest] }],
+      competitions: [TWO_LEAGUES[1]],
       degraded: false
     });
     client.setQueryData(FOLLOWS_KEY, {

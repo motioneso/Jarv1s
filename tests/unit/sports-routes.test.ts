@@ -297,8 +297,16 @@ describe("sports routes", () => {
     await app.close();
   });
 
-  it("GET /api/sports/catalog returns competitions with teams", async () => {
-    const { app } = buildApp();
+  it("GET /api/sports/catalog returns leagues only — zero ESPN roster calls (#907)", async () => {
+    let teamsCalls = 0;
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient({
+        listTeams: async () => {
+          teamsCalls++;
+          return [];
+        }
+      })
+    });
     await app.ready();
     const res = await app.inject({ method: "GET", url: "/api/sports/catalog" });
     expect(res.statusCode).toBe(200);
@@ -306,13 +314,10 @@ describe("sports routes", () => {
     expect(body.competitions.map((c: { competitionKey: string }) => c.competitionKey)).toContain(
       "nfl"
     );
-    expect(JSON.stringify(body)).not.toContain("sourceTeamIds");
-    expect(JSON.stringify(body)).not.toContain("sourceTeamId");
-    // fast-json-stringify strip check: confederation must survive serialization (#907).
-    const nfl = body.competitions.find(
-      (c: { competitionKey: string }) => c.competitionKey === "nfl"
-    );
-    expect(nfl.confederation).toBe("INTL");
+    expect(body.competitions[0].confederation).toBeDefined();
+    // The wall this spec removes: catalog must not fan out to ESPN per league (#907 §3).
+    expect(teamsCalls).toBe(0);
+    expect(res.body).not.toContain('"teams"');
     await app.close();
   });
 
