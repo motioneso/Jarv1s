@@ -95,6 +95,9 @@ store an ever-growing job database in one KV value or add job-search tables to a
 - A mysterious AI-only match percentage with no supporting evidence.
 - Logged-in scraping, access-control bypasses, anti-bot evasion, or LinkedIn automation.
 - A generic arbitrary-site crawler. MVP sources are explicit adapters plus manual role capture.
+- Autonomous discovery of every company or board worth monitoring. During onboarding, Jarv1s may
+  use an already-configured web-search capability to suggest companies, but the user approves each
+  supported board before it becomes a recurring source.
 - The experimental opt-in for sources known to prohibit automation. It remains follow-up scope.
 - PDF/DOCX parsing or server-side PDF rendering. MVP accepts plain text/Markdown and uses the
   browser's print-to-PDF path.
@@ -148,6 +151,10 @@ The #860 platform must provide these generic capabilities before this module can
 7. A host-pinned outbound fetch capability or equivalent enforced source-host policy.
 8. A generic web-host action that can open Jarv1s assistant with a module-authored starter prompt.
 9. Data lifecycle hooks for export, account deletion, disable, uninstall, and explicit purge.
+10. Runtime assistant-tool dispatch available to every authorized internal tool consumer, including
+    Chat's assistant gateway and Briefings composition. External JSON manifests reference handler
+    ids rather than embedding executable functions, so consumers invoke the generic dispatch
+    contract instead of calling `manifest.assistantTools[].execute` directly.
 
 These are platform features, not job-search exceptions. If #860 chooses different names or wire
 formats, this module maps to the final generic contracts without changing the product behavior in
@@ -189,6 +196,8 @@ The assistant completes five resumable steps:
 3. **Search brief** — confirm target roles, seniority, industries, skills, compensation, location,
    work arrangement, company preferences, must-haves, and dealbreakers.
 4. **Sources** — add supported ATS board URLs/company watchlists and choose the daily local run time.
+   If Jarv1s already has web search configured, it may suggest candidate companies/board URLs from
+   the approved profile; every recurring source still requires user approval and adapter validation.
 5. **Review and start** — show the exact profile, resume revision, monitors, AI budget, and source
    policy; the user explicitly approves the profile/resume and enables monitoring.
 
@@ -422,7 +431,13 @@ untrusted-content framing, strips active markup, caps length, and does not expos
 evaluation call. Job text cannot change monitors, profile, resume, permissions, or source policy.
 
 The default daily AI budget evaluates at most 20 new/changed survivors per user. Excess candidates
-remain pending for later runs; they are not dropped. The setting may be lowered or disabled.
+remain pending for later runs in `pending_since` order; they are not dropped or starved by newer
+arrivals. The setting may be lowered or disabled.
+
+Profile and resume revisions do not trigger an unbounded re-evaluation sweep. Existing evaluations
+remain immutable and display the profile/resume revisions they used. A revision mismatch is shown as
+outdated; it is re-evaluated only when the posting changes or the user explicitly requests it. New
+opportunities always use the current approved revisions.
 
 ### 9. Assistant and daily Jarv1s integration
 
@@ -446,9 +461,10 @@ Minimum tools:
 Read results are compact and metadata-conscious; listing tools never return every stored job
 description. Detail retrieval is explicit and bounded.
 
-The Today widget reads stored results only. Briefings can select the compact read-only opportunity
-tool through the generic assistant-tool surface. Neither integration starts source fetches or AI
-evaluation during page render/briefing composition.
+The Today widget reads stored results only. After #860 provides the generic runtime dispatch
+prerequisite in §1, Briefings can select and invoke the compact read-only opportunity tool without
+requiring an executable function embedded in the external JSON manifest. Neither integration starts
+source fetches or AI evaluation during page render/briefing composition.
 
 Broader integrations—creating Tasks, parsing recruiter Email, linking People, or preparing Calendar
 interviews—belong to the deferred application-management slice and must use declared public APIs or
@@ -456,9 +472,9 @@ events.
 
 ### 10. Feedback and first-week success
 
-The user can mark an opportunity `saved` or `passed` and optionally choose a reason. This feedback is
-owner-private and improves only that user's future ranking. It never trains a shared model or leaves
-the instance.
+The user can mark an opportunity `saved` or `passed` and optionally choose a reason. This owner-private
+feedback supplies the first-week success measure and remains available for later analytics. Using it
+to change future ranking is deferred; it never trains a shared model or leaves the instance.
 
 First-week success is measured from the time monitoring is enabled:
 
@@ -524,6 +540,10 @@ credible matches yet” is a valid result, not a system failure.
 - Instance admin cannot read user-owned job-search data.
 - Account export/delete covers every declared table; disable preserves data; purge removes it.
 - Assistant write tools enter the normal confirmation/audit gateway.
+- Chat and Briefings invoke an external module's read tool through the same authorized runtime
+  dispatch contract; neither depends on a manifest-embedded execute function.
+- A profile/resume revision leaves prior evaluations visible but outdated, does not enqueue a mass
+  sweep, and an explicit re-evaluation uses the current approved revisions.
 
 ### Manual acceptance
 
