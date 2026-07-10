@@ -193,7 +193,8 @@ export async function mockExternalModules(page: Page): Promise<void> {
     status: "discovered",
     active: false,
     drifted: false,
-    disabledReason: null
+    disabledReason: null,
+    web: null
   };
 
   // GET list — the pane's initial query and every post-toggle refetch read this.

@@ -166,6 +166,14 @@ export interface ExternalModuleDto {
   readonly active: boolean;
   readonly drifted: boolean;
   readonly disabledReason: string | null;
+  /** #918: web contribution declaration, null when the module declares none. */
+  readonly web: ModuleWebDto | null;
+}
+
+/** Web contribution surface of an external module (#918). Mirrors platform-api.ts's copy. */
+export interface ModuleWebDto {
+  readonly entrypoint: string;
+  readonly contractVersion: number;
 }
 
 export interface ExternalModuleRejectionDto {
@@ -183,10 +191,30 @@ export interface SetExternalModuleEnablementRequest {
   readonly enabled: boolean;
 }
 
+const moduleWebSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["entrypoint", "contractVersion"],
+  properties: {
+    entrypoint: { type: "string" },
+    contractVersion: { type: "integer" }
+  }
+} as const;
+
 const externalModuleSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "name", "version", "publisher", "status", "active", "drifted", "disabledReason"],
+  required: [
+    "id",
+    "name",
+    "version",
+    "publisher",
+    "status",
+    "active",
+    "drifted",
+    "disabledReason",
+    "web"
+  ],
   properties: {
     id: { type: "string" },
     name: { type: "string" },
@@ -195,7 +223,10 @@ const externalModuleSchema = {
     status: { type: "string", enum: ["discovered", "enabled", "disabled"] },
     active: { type: "boolean" },
     drifted: { type: "boolean" },
-    disabledReason: { type: ["string", "null"] }
+    disabledReason: { type: ["string", "null"] },
+    // #918: field-identical mirror of ModuleWebDto — nullable via type array
+    // (declaration is present-or-absent at the manifest level, never partial).
+    web: { ...moduleWebSchema, type: ["object", "null"] }
   }
 } as const;
 

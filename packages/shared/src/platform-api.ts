@@ -1,3 +1,4 @@
+import type { ModuleWebDto } from "./platform-api-modules.js";
 import { errorResponseSchema } from "./schema-fragments.js";
 
 export interface UserDto {
@@ -55,6 +56,8 @@ export interface ModuleDto {
   readonly settings: readonly ModuleSettingsSurfaceDto[];
   /** #917: true for active external (non-compiled) modules. Absent/false for built-ins. */
   readonly external?: boolean;
+  /** #918: web contribution declaration. Absent for built-ins and modules without one. */
+  readonly web?: ModuleWebDto;
 }
 
 export interface InstanceSettingDto {
@@ -148,6 +151,16 @@ const moduleSettingsSurfaceSchema = {
   }
 } as const;
 
+const moduleWebSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["entrypoint", "contractVersion"],
+  properties: {
+    entrypoint: { type: "string" },
+    contractVersion: { type: "integer" }
+  }
+} as const;
+
 const moduleSchema = {
   type: "object",
   additionalProperties: false,
@@ -165,7 +178,9 @@ const moduleSchema = {
     // #917: declared so fast-json-stringify does not strip it (undeclared fields are
     // silently dropped). NOT in `required` — built-ins emit external:false explicitly,
     // but existing producers/fixtures that omit it stay valid.
-    external: { type: "boolean" }
+    external: { type: "boolean" },
+    // #918: web contribution declaration. NOT in `required` — absent for built-ins.
+    web: moduleWebSchema
   }
 } as const;
 
