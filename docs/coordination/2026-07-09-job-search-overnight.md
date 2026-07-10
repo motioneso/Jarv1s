@@ -320,3 +320,13 @@ Flagged a session-id mismatch (its handoff doc recorded `46590121-...`, my live 
 checkpoint, not a continuity break; manifest lock line is current. Told it to proceed and message
 `Coordinator` with the plan pointer when drafted (no self-approve). Status: `building` (plan
 in progress, mid its own relay).
+
+**#918 plan agent relay landed in the WRONG tab — caught and fixed.** Successor `Plan: #918 module
+system slice2 (v2)` (session `7751a8ea-...`) landed at `w1:pDC` on `w1:t15` — **my own coordinator
+tab**, not the shared agents tab `w1:t1E` — a real instance of the incident the coordinate skill
+warns about (a self-relaying build agent omitting `--tab`). Verified it was driving (bounded pane
+read: Sonnet 5, correct worktree/branch, bypass-permissions on) before moving it:
+`herdr pane move w1:pDC --tab w1:t1E --split right` — confirmed landed correctly. Then reaped the
+predecessor, resolved fresh by session id `bb331864-...` (not the pane number `w1:pDB` given in its
+message, which was correct this time but resolved fresh per policy anyway) — status was `idle`,
+closed. Current #918 plan agent: `w1:pDC`, tab `w1:t1E`, session `7751a8ea-...`, status `building`.
