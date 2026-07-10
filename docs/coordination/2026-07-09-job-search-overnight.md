@@ -297,3 +297,26 @@ was **already sent and acknowledged** in an earlier pass — Codex replied "Ackn
 #918 needs second-lens review." The manifest had been carrying this forward as still-owed for two
 checkpoints by mistake (drift, not a real gap). No ping sent this pass — one is due later, when
 #918's plan/build reaches QA and Codex's second-lens review is actually needed, not before.
+
+**Task 6 done:** archived the pre-existing checkpoint/relay trail (sessions `395b82b5-...` through
+`46590121-...`'s first checkpoint) into `docs/coordination/2026-07-09-job-search-overnight-archive.md`.
+Live manifest shrank 1662 → 299 lines; kept the run header/policy/collision-map plus the last 2
+"Lock re-claimed" sections live for continuity.
+
+**Fleet liveness monitor started** (task `bey414my6`, persistent, diffs `herdr pane list` for `w1`
+every 60s) to supervise the fleet under the new lock without polling.
+
+**#918 plan agent relayed at 70% context, plan doc not yet drafted.** `w1:pDB` reported: grounding
+essentially done, plan-authoring not yet drafted, invoking its own relay (same worktree/branch,
+same pane — self-relay pattern replaces the session in place rather than spawning a new pane; only
+one pane/session exists for that worktree post-relay, confirmed via `herdr pane list`). Reusable
+patterns it confirmed: AES-256-GCM via `packages/db/secret-cipher.ts` +
+`packages/connectors/crypto.ts` subclass pattern for `app.module_credentials`; symlink/path-
+traversal containment via `module-registry/external/{hash,node}.ts` realpath-containment pattern
+for the new asset route — both saved to agentmemory (`project: jarv1s`). Confirmed
+data-lifecycle-ports and module-web-registry specs are NOT directly reusable for this slice.
+Flagged a session-id mismatch (its handoff doc recorded `46590121-...`, my live session is
+`cfdfc7bb-...`) — replied confirming this is the expected coordinator relay from this same
+checkpoint, not a continuity break; manifest lock line is current. Told it to proceed and message
+`Coordinator` with the plan pointer when drafted (no self-approve). Status: `building` (plan
+in progress, mid its own relay).
