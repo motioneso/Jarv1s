@@ -364,3 +364,59 @@ module isolation, scope discipline). Awaiting compact verdict before treating th
 writing, 2 stalls so far, watching for a 3rd before considering respawn; (2) #915 slice-3 plan —
 committed + PR open, CI in progress, independent review dispatched, verdict pending. Neither is
 build-ready yet.
+
+## Relay checkpoint 4 (self-relay from `55a96d6e-...`, context 70% warning fired)
+
+**#915 slice-3 plan review: APPROVED.** Independent general-purpose subagent (not Fable, not
+Opus — avoids self-review bias) verdict: plan stays inside Slice 3's `packages/ai`/
+`packages/shared` footprint, honors provider-agnostic routing precedence (admin pin → module
+binding → `module.worker` → automatic) and secrets-never-escape verbatim from spec D6, no scope
+creep into `ctx.ai` RPC/migrations/other modules (correctly deferred to the #919-blocked
+follow-on). **Plan-approval gate for #915 slice-3 is now CLEAR.** Remaining gate: **PR #922 must
+merge to main** before a build lane can spawn (manifest rule: spec-merged-to-main AND
+plan-approved, per issue). PR #922 is docs-only/routine tier — auto-mergeable once green, no
+separate code-review QA needed (same pattern as PR #921).
+
+**PR #922 CI status at this checkpoint (last read, ~07:14 UTC):** `Compose deployment smoke` =
+pass, `Prod compose deployment smoke` = pass, `Verify foundation and app` = **pending** (not yet
+resolved). A background `gh pr checks` wait-loop I started **failed (exit 2)** — a script bug in
+the loop itself (grep/until syntax issue), NOT a signal about actual CI health. **Successor: run a
+fresh `gh pr checks 922` to get current state; do not trust the failed background task.** Once all
+three are green, this is a routine-tier auto-merge (squash + delete branch), then #915 slice-3
+becomes spawnable (Codex `gpt-5.6-sol` high reasoning per Ben's directive, isolated worktree,
+`feat/915-slice3-structured-ai` cutting from main per Fable's branch-naming note).
+
+**Opus xhigh (`w1:pCV`) #917 plan — status at this checkpoint:** 2 mid-stream API stalls so far
+(both nudged, both recovered to `working`), same "Write Slice 1 implementation plan" step both
+times. Last known status (before this relay): `working`. **Successor: re-check the pane fresh** —
+if it's completed the plan, route it through the SAME independent-review pattern used for #915
+(fresh subagent, not Fable/Opus itself, check against spec's locked Slice-1 decisions +
+CLAUDE.md hard invariants) before treating it as approved. If it's stalled a 3rd time, that's the
+threshold to consider a respawn (2 nudges tried, no respawn yet).
+
+**Fleet state at this checkpoint:**
+- `w1:pCR` Fable 5 — idle/`done`, reap-safe from its own assessment (PR #922 work complete), also
+  available for slice-1/2/4 planning once #919 lands. Not reaped — kept alive for potential
+  review-feedback response or next assignment.
+- `w1:pCV` Opus xhigh — see above, last known `working`.
+- `w1:pCK` Codex — idle, informed of the #915/#913 `generateStructured` contract by Fable.
+- Monitor task `btoa21auy` (persistent, this session) — **dies with this session**; successor
+  must restart its own, scoped to `w1:pCR` + `w1:pCK` + `w1:pCV` (same as before).
+- Background CI-wait task `b658imaev` — failed (script bug), already noted above; nothing to
+  recover, just don't reuse that exact command.
+
+**Still holding — no build lane spawns.** Both #915-slice-3 and #917 remain short one gate each
+(#915: PR merge; #917: plan not yet written/reviewed). Overnight sign-off override remains ACTIVE
+and untouched. `merges_since_relay` still `1` (only PR #921 so far; routine-tier trigger is every
+2, not yet fired — PR #922 will be the 2nd if/when merged, which WOULD fire the relay-after-2
+trigger on top of this context-meter one, but that's moot since we're relaying now anyway).
+
+**Successor's immediate queue, in order:**
+1. `gh pr checks 922` fresh (ignore the failed background task) — merge if green (routine tier).
+2. Re-check `w1:pCV` (Opus xhigh) fresh — nudge again if 3rd stall, else read for
+   plan-ready/completion; if complete, dispatch independent review like #915's.
+3. Restart persistent Monitor scoped to `w1:pCR`/`w1:pCK`/`w1:pCV`.
+4. Once #922 merges: spawn #915 slice-3 build lane (Codex `gpt-5.6-sol` high, isolated worktree
+   `feat/915-slice3-structured-ai` off `main`, tier `sensitive` per this checkpoint's assessment —
+   standard QA + invariant check, no Ben sign-off required, auto-merge + digest).
+5. Continue holding on #917 until its plan is written AND independently reviewed/approved.
