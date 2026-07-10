@@ -284,6 +284,8 @@ export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
 
+export * from "./external/validate.js";
+
 export {
   createActiveModulesResolver,
   type ActiveModulesResolverDeps
