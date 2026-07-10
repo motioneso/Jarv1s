@@ -543,6 +543,8 @@ export interface ModuleWorkerDeclaration {
   readonly workerContractVersion: 1;
 }
 
+export const MODULE_WORKER_CONTRACT_VERSION = 1 as const;
+
 export interface ExternalModuleAssistantToolDeclaration {
   readonly name: string;
   readonly description: string;

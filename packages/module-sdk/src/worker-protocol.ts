@@ -1,4 +1,4 @@
-export const MODULE_WORKER_CONTRACT_VERSION = 1 as const;
+export { MODULE_WORKER_CONTRACT_VERSION } from "./index.js";
 
 export type WorkerRpcId = string | number;
 
