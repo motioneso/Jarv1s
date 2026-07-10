@@ -76,6 +76,41 @@ dispatch (Phase 0 step 3) — not yet done.
 **Do-not-reap:** `/tmp/jarv1s-913-spec` (branch `spec/913-intelligent-job-search`) — Codex's draft
 spec worktree, awaiting Ben approval. Exempt from any repo-hygiene sweep.
 
+## Phase-0 collision map (Opus one-shot, completed 2026-07-09, this checkpoint)
+
+Grounded on `origin/main`, latest global migration `0151` (next free `0152`).
+
+| # | Spec status | Build status |
+|---|---|---|
+| #913 (epic) | Draft only, `ac9b5554` on branch, NOT on main, no PR | **NOT buildable** |
+| #914 | **MERGED** PR #920 (`204aca0f`) | ready *after #917* |
+| #915 | Draft rev2 `6019f94f`, NOT merged, no PR | NOT ready |
+| #916 | No spec | NOT ready, dep #919 |
+| **#917** | **Approved on main** — `2026-07-08-open-module-system-user-authored-modules.md` §Slice 1 | **READY TODAY (root)** — plan still needed |
+| #918 | Approved on main (§Slice 2) | ready *after #917* |
+| #919 | Approved on main (§Slice 3) | ready *after #918* |
+| #860 (epic) | No standalone spec; delivered via #818 (approved) + #914 (merged) | epic OPEN, not itself blocking |
+
+**Collision pairs:** #914/#917/#918/#915 each land ONE new global-sequence migration + edit the
+same `foundation.test.ts` full-list `toEqual` — **cannot parallelize at all**, migration numbering
++ shared assertion forces strict serial landing regardless of logical independence. #919 adds no
+migration (reuses `ai_assistant_action_requests`). #917/#918 share `packages/settings/sql/` +
+module-registry manifest schema. #919/#916/#915 all wire through `AssistantToolGateway`.
+
+**Forced serialization order (dependency-driven, NOT the relayed order):**
+`#917 (root) → #914 → #918 → #919 → then #916, #915` (#915 also deps #917 loader + #919 RPC +
+#914 `ctx.db`).
+
+**#860 check:** has no standalone spec/plan but does NOT block the wave — legitimately delivered
+through #818 (approved) + #914 (merged spec, which explicitly resolves migration-coupling blocker
+via a namespaced external-module ledger, core/built-ins stay on the global sequence).
+
+**Verdict: only #917 is buildable today** (root, RFA, approved spec, no unmet dependency) — but
+still has **no implementation plan**, so per manifest rule (spec merged AND plan approved,
+per-issue) **no build lane spawns yet**. #913's own epic spec remains unapproved/unmerged — the
+epic itself is not buildable regardless of its children's readiness. #915/#916 lack merged specs.
+Do not parallelize any migration-adder under any circumstance.
+
 ## Next actions for successor coordinator
 1. Message `w1:pCR` (Fable 5) directly with this table — ask for its current verdict on #915's
    spec-approval state and whether #913's epic spec is ready to open as a PR against main.
