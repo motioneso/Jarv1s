@@ -2053,3 +2053,11 @@ PENDING BATCH DECISION (hold until Fable #915 verdict + refactor-impact scan lan
 - Whether to flip #929 ready→merge (routine docs tier; Fable already APPROVE-WITH-CHANGES on content).
 - #915 disposition (Fable deciding) — real hard blocker for JS runtime.
 - Ben asked: do modularity slices require refactoring existing modules? (Explore scan running.)
+
+## FABLE DECISION on #915 → executed: reopened + lane QUEUED (blocked-by #919)
+
+Fable (final authority) = DECISION A. Verified #915 mis-closed 2026-07-10 as "Shipped via PR #923" — false: #923 = structured-AI seam ONLY. Queue/schedule/run-now + host-pinned fetch remain UNSHIPPED and are the job-search hard blocker. Spec approved on main: docs/superpowers/specs/2026-07-09-external-worker-capabilities-design.md (rev2 6019f94f, PR #922).
+
+DONE: `gh issue reopen 915` + scope-correcting comment posted (comment 4939290860).
+
+QUEUED LANE — #915 remaining scope (EXCLUDES structured-AI seam already in #923): worker capability queue/schedule/run-now registration + host-pinned fetch. **blocked-by #919** (runtime dep + migration/foundation.test.ts global-sequence collision — cannot parallel-start with #914/#919). SPAWN TRIGGER: the moment #919's migration merges, ahead of #916 starter-action. Tier: security (worker role / runtime / RLS) → Opus QA + Fable merge sign-off. NOT spawned yet.
