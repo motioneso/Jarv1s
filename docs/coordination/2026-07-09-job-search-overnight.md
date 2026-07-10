@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `cae2b14e-6334-46bd-a64c-a854b7185ac3`,
-pane `w1:pD7`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `46590121-e5b0-42cb-aa50-b2da3a615f1f`,
+pane `w1:pD9`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1467,3 +1467,85 @@ checkpoint, nothing done yet):**
 **Still holding — no build lane spawns** for #918/#919 until each has an approved implementation
 plan (not yet authored for either). Fleet unchanged: `w1:pCK` (Codex, idle), `w1:pCR` (Fable 5,
 idle), `w1:pCP`/`w1:pCQ` (not part of this run, do not touch).
+
+## Lock re-claimed (successor session `15c56162-ce53-4035-a2e4-502646c3fc84`), IMMEDIATE 83% relay before executing queue
+
+Predecessor pane `w1:pD7` (session `cae2b14e-...`) closed after confirming it was `done`/idle (it
+only spawned this successor then stopped, per its own relay note). New coordinator: pane `w1:pD8`,
+session `15c56162-ce53-4035-a2e4-502646c3fc84`, tab `w1:t15`. Verified sole `Coordinator`-labelled
+pane via fresh `herdr pane list`. Lock line above updated.
+
+**Context hit 83% immediately after reading this manifest in full (before any other action) — the
+manifest itself is now large enough that a full read alone burns past the 70% relay trigger.**
+Per the coordinate skill's relay-trigger rule (no deferral once fired), did NOT execute any of the
+inherited action queue from the "immediate 73% relay" section above — that queue is carried
+forward UNCHANGED to this successor's successor:
+
+1. Restart persistent Monitor scoped to `w1:pCR` (Fable 5, idle) + `w1:pCK` (Codex, idle) — no
+   Monitor is currently running (predecessor's died with its session, per pattern).
+2. Re-confirm main CI green (`gh run list --branch main --limit 1`) before spawning anything.
+3. Spawn implementation-plan authoring for **#918** (next in chain: #917 done → PR #924 merged?
+   — status not re-verified this pass, check fresh; #914 done → PR #920 merged; #918 spec
+   approved via #818 Slice 2, no plan yet).
+4. Keep **#919** queued behind #918 (spec approved via #818 Slice 3, no plan yet).
+5. Ping Codex `w1:pCK` (idle, overdue — Ben wants it kept informed periodically, not touched in
+   several checkpoints).
+
+**Also unverified/unread this pass — successor must ground fresh, do not trust anything below this
+line as current without a fresh check:** status of PR #924 (#917), #915 slice-3 build lane
+(`w1:pCZ` if still present), Opus xhigh `w1:pCV` (#917 plan — had 4 prior mid-stream stalls, last
+known state unclear), `merges_since_relay` counter value. **This manifest file is now very
+large (~1470+ lines) — reading it in full costs ~45K+ tokens. Successor should consider `Grep`
+for the last 2-3 checkpoint sections instead of a full `Read` if context is a concern, and should
+strongly consider trimming/archiving older checkpoint sections (everything before the last 2
+"Lock re-claimed" markers) into a separate archive file once the run stabilizes, to stop this
+compounding.**
+
+Overnight sign-off override (top of manifest) remains ACTIVE, untouched this checkpoint.
+
+About to self-relay per the `relay` skill pattern: spawn successor in the SAME tab (`w1:t15`) as
+this pane, confirm it's driving, then close this pane.
+
+## Lock re-claimed (successor session `46590121-e5b0-42cb-aa50-b2da3a615f1f`), Phase 0a done, queue in progress
+
+Predecessor pane `w1:pD8` (session `15c56162-...`) had already self-closed by the time this
+successor checked — confirmed via fresh `herdr pane list`, no explicit close action needed. New
+coordinator: pane `w1:pD9` (renamed `Coordinator-relay4` → `Coordinator`), session
+`46590121-e5b0-42cb-aa50-b2da3a615f1f`, tab `w1:t15`. Verified sole `Coordinator`-labelled pane.
+Lock line above updated.
+
+**Fresh grounding on everything the predecessor flagged unverified:**
+- **PR #924 (#917):** confirmed **MERGED** (`2026-07-10T13:02:48Z`), all 4 checks SUCCESS
+  (foundation/app, compose smoke x2, build+publish).
+- **Main CI:** the merge itself triggered a new run (`29094628852`) — **in_progress** at check
+  time (~12min elapsed), not yet green. Watching it before spawning anything new.
+- **#915 slice-3 build lane (`w1:pCZ`):** pane no longer present — already reaped. Confirmed via
+  `gh pr list --search 915`: **PR #923** "feat(ai): structured AI seam (#915)" MERGED
+  `2026-07-10T09:00:31Z`. Slice-3 is done, not a live concern.
+- **Opus xhigh `w1:pCV` (#917 plan):** pane no longer present — #917 is closed (PR #924 merged),
+  so this lane completed and was reaped. Not a live concern.
+- **`merges_since_relay`:** confirmed **0** — consistent with the prior security-tier-merge relay
+  (PR #924) having reset it; no merges since.
+- **Issue states (fresh `gh issue view` per number):** #914 OPEN (spec-only PR #920 merged, impl
+  not started — not in this run's immediate queue), #915 OPEN (impl done via PR #923, issue not
+  yet closed — bookkeeping gap, see below), #917 CLOSED (PR #924 merged), #918 OPEN (next in
+  chain, spec approved via #818 Slice 2, **no plan authored yet**), #919 OPEN (queued behind
+  #918), #920 MERGED (spec doc for #914).
+
+**Bookkeeping gap found:** issue #915 is still OPEN despite its implementation (PR #923) having
+merged. Flagging for close-out once this checkpoint's active items settle — not blocking, but
+don't forget it (GitHub is source of truth per CLAUDE.md; open issue for shipped work is drift).
+
+**Actions taken this checkpoint:**
+1. Pinged Codex `w1:pCK` with a status update (PR #924 merged, #918 next, will re-engage for
+   #918's second-lens QA) — acknowledged, idle, 98%/85% context headroom remaining.
+2. Started a persistent liveness `Monitor` diffing `herdr pane list` for `w1:pCR`/`w1:pCK`/`w1:pD9`
+   (emits only on change).
+3. Started a `Monitor` polling `gh run view 29094628852` every 20s until `completed` — **holding
+   the #918 plan-authoring spawn until this resolves green**, per "never spawn onto a red main."
+
+**Not yet done (blocked on CI monitor):** spawn implementation-plan authoring agent for #918.
+Will proceed the moment the watched run reports `completed success`. #919 stays queued behind it
+per the standing queue order.
+
+Overnight sign-off override remains ACTIVE (Ben not back yet, time-boxed to tonight).
