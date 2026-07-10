@@ -1,6 +1,6 @@
 import { sql, type Kysely } from "kysely";
 
-import type { DataContextDb, JarvisDatabase } from "@jarv1s/db";
+import { assertQualifiedTableName, createModuleStorageRpc, type DataContextDb, type JarvisDatabase } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 type JsonPrimitive = boolean | null | number | string;
@@ -114,6 +114,30 @@ async function collectModuleExportSection<T>(
     );
   }
   return (await section.collect(scopedDb, ctx)) as T;
+}
+
+/**
+ * External-module counterpart to collectModuleExportSection (#914, spec D6). External modules
+ * carry no `collect()` code in their manifest (a function can't survive JSON), so instead of
+ * calling a declared export section, this dumps every row from each declared owned table directly
+ * — via createModuleStorageRpc (Task 8), the same SET LOCAL ROLE jarvis_mod_<slug>_runtime path a
+ * module's own code would use. That scopes each read under the module's RLS-narrowed grant, not
+ * the caller's parent runtime role, so the result is exactly what the module itself could see.
+ */
+export async function readExternalModuleExportRows(
+  scopedDb: DataContextDb,
+  installedManifests: readonly JarvisModuleManifest[]
+): Promise<Record<string, readonly ExportRow[]>> {
+  const rowsByTable: Record<string, readonly ExportRow[]> = {};
+  for (const manifest of installedManifests) {
+    const rpc = createModuleStorageRpc(scopedDb, manifest.id);
+    for (const table of manifest.database?.ownedTables ?? []) {
+      assertQualifiedTableName(table);
+      const result = await rpc.query<Record<string, unknown>>(`SELECT * FROM ${table} ORDER BY id`);
+      rowsByTable[table] = result.rows.map(normalizeRow);
+    }
+  }
+  return rowsByTable;
 }
 
 async function readExportTables(
