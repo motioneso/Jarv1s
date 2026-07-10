@@ -1259,3 +1259,53 @@ Spec Review, idle), `w1:pCP` (Fable sports-fed spec+plan, idle, not this run's r
 
 **Relaying now** — spawning successor coordinator in same tab (`w1:t15`), `--model sonnet
 --permission-mode bypassPermissions`. Bootstrap points here.
+
+## Lock re-claimed (successor session `731f14bf-a9d5-4f75-9d81-84896c88ee30`), IMMEDIATE re-relay — context-meter fired at 80% on first turn (before Phase 0a finished)
+
+**Phase 0a done, nothing else:** own pane `w1:pDX`, tab `w1:t15`, renamed `Coordinator (incoming)`
+→ `Coordinator`. Predecessor `w1:pDW` (session `8e06373a-51f5-4e63-9b84-11be6269a827`) confirmed
+`agent_status: done` via fresh `herdr pane list` before closing. Verified uniqueness: exactly one
+`Coordinator`-labeled pane remains (`w1:pDX`, this session). Top-of-file lock line should be
+updated to this session/pane by whoever next has budget — not done this checkpoint (see below).
+
+**No other action taken this checkpoint.** Context-meter fired the 80% warning on the very first
+tool call after Phase 0a's pane-status check (inherited a long context at spawn — same pattern as
+predecessor's 79%-on-first-turn relay). Per the coordinate skill's no-deferral rule, the only
+permitted action is flush + relay; none of the 4 numbered successor actions below were started.
+
+**Successor's first actions, in order (carried forward UNEXECUTED, unchanged from prior
+checkpoint):**
+1. **PR #925 (issue #918):** CI-green + Opus-QA-GREEN, paused **solely on Ben's explicit merge
+   sign-off**. Do NOT merge without it. Check whether Ben has answered yet (chat history / any
+   message to the Coordinator); if not, just keep waiting — no other action.
+2. **Reap `w1:pDJ`** — `918: open module system slice2 build (relay-1)`, session
+   `dbf1c605-512a-4c0c-b310-9063ac8893c9`, tab `w1:t1E`. Confirmed done cleanly, deliberately no
+   successor spawned (build agent's own choice, see earlier checkpoint) — no successor pane to
+   look for. Fresh `herdr pane list` as of this checkpoint still shows it present,
+   `agent_status: idle`. Resolve fresh by session id before closing, not a remembered pane number.
+3. **Resume Phase 2 supervision of #914** — pane `w1:pDQ`, tab `w1:t1E`, session
+   `8baf4c17-ad28-40c9-8854-a4254e3f2b2c`, label `914: module data plane build (relay-5)`. Fresh
+   `herdr pane list` this checkpoint shows `agent_status: idle` (focused), cwd
+   `.claude/worktrees/coord-2026-06-30-rfa-fleet/.claude/worktrees/914-module-data-plane`. Last
+   known healthy at Task 4/9 (migration file loader + ledger helpers). Do a bounded pane read to
+   confirm current state/progress before assuming a stall — `idle` may just mean between-ticks.
+4. **Re-arm a fleet-liveness Monitor** over `w1:t15` (coordinator tab) / `w1:t1E` (agents tab) —
+   check first whether a previously-armed monitor survived this relay (unlikely — monitors do not
+   carry across coordinator relays per repeated prior-checkpoint findings); if not, start a fresh
+   persistent one diffing `herdr pane list`, emitting only changed lines.
+5. **#916** still `needs-spec`; **#919** still queued behind #918's merge. No action on either.
+6. **Update the top-of-file lock line** to this session (`731f14bf-...`, pane resolved fresh —
+   will change once you rename your own pane) as part of your own Phase 0a, since this checkpoint
+   didn't get to it.
+7. `merges_since_relay`: last known value 0 (carried forward across multiple checkpoints,
+   unchanged) — no merges have executed yet this entire run; #925 is still the first candidate,
+   blocked purely on Ben's sign-off.
+
+**Live fleet snapshot at this checkpoint** (so the successor doesn't need to re-list immediately):
+`w1:pDJ` (#918, idle, tab `w1:t1E`), `w1:pDQ` (#914, idle, tab `w1:t1E`, focused), `w1:pCK` (Codex
+Job Search Spec, idle, not owed anything), `w1:pCR` (Fable 5 Job Search Spec Review, idle), `w1:pCP`
+(Fable sports-fed spec+plan, idle, not this run's responsibility — tab `w1:t1A`), `w1:pBK`
+(news-module, idle, not this run's responsibility, tab `w1:t17`).
+
+**Relaying now** — spawning successor coordinator in same tab (`w1:t15`), `--model sonnet
+--permission-mode bypassPermissions`. Bootstrap points here.
