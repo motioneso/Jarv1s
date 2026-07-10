@@ -2143,3 +2143,16 @@ re-QA of pE4's fix; (2) watch #914 for PR + its relay-6 successor landing in tab
   When #914 merges → do the #939 rebase-on-origin/main with a FRESH GLM-5.2 opencode agent.
 - #915 impl lane + #916 → GLM-5.2 opencode high when spawned.
 - Security-tier Opus adversarial QA is UNAFFECTED (Claude subagent via Agent tool, not Codex).
+
+## SLOWNESS ROOT-CAUSE + FIX (Ben flagged "much slower than normal")
+Diagnosis of the #914 lane (sole critical path — everything serialized behind its migrations):
+- pDQ was **relay-5**, had written a relay-6 handoff but never spawned the successor → limped on
+  exhausted (67% ctx). Task 7 sat "in progress" **2 HOURS with ZERO commits**; only untracked
+  scaffolding (scripts/module-install.ts + test + modified module-role-broker.ts).
+- Root cause = relay-chain churn (handoffs 1→6 = most of budget spent re-orienting) + a
+  manager→sub-agent pattern (impl-task7 doing high-effort thinking on 135k ctx) that stalled
+  between management turns, needing coordinator nudges to un-stick-from-box.
+FIX: closed pDQ (partial Task-7 work left intact in worktree tree), spawned FRESH Sonnet relay-6
+= pane **w1:pE9** (tab w1:t1E, 37% ctx clean) with hard rules: DIRECT execution (no sub-agent
+delegation), COMMIT AFTER EACH TASK, inherit the uncommitted Task-7 partial. Finishing Tasks 7-9.
+Monitors: bsi7vj8er (liveness, catches pE9 flips) + batmtn8ch (#914 PR appearance) still valid.
