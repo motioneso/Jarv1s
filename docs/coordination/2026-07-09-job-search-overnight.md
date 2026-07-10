@@ -1997,3 +1997,27 @@ finalize → then create JS-01..JS-09 task issues. NO job-search build lane spaw
 (hard-blocked on #919 landing + #915 gaps). Escalated-to-Ben decisions go in his digest.
 
 `merges_since_relay: 0` (unchanged).
+
+## Fable verdict on #929: APPROVE-WITH-CHANGES → relayed to spec agent to finalize
+
+Fable (delegated approver) verified storage claims vs migration 0154 (`octet_length <= 65536`, FORCE
+RLS owner-only), blocker table vs merged state, all Hard Invariants honored. **APPROVE-WITH-CHANGES,
+nothing escalated.** 2 required changes (fix stale #915-approval claim; fold 6 decisions in + delete
+rejected options + file JS-01..JS-09) + all 6 open decisions SETTLED (see relay to `w1:pE7`).
+Relayed in full to spec agent `w1:pE7` (confirmed submitted); it's finalizing docs + will file
+JS-01..JS-09 as `Part of #913` and report issue numbers. PR #929 stays DRAFT (Fable-approved-w/-
+changes ≠ Ben's final sign-off).
+
+### BEN DIGEST — two flags from this review:
+1. **Decision 4 adds #916 starter action to the HARD critical path.** Fable settled onboarding as
+   full six-checkpoint + one-click starter action REQUIRED for MVP (split #916, spec only the small
+   generic host starter action; Briefings out of MVP). Aligns with Ben's own epic wording
+   ("conversational onboarding inside the module") but expands the blocker set. Flagged, not blocking.
+2. **#915 was prematurely CLOSED on GitHub but its impl is a hard job-search blocker.** Worker-
+   capabilities design rev 2 is Ben-approved (2026-07-09, commit 6019f94f) but UNMERGED; the
+   queue/schedule/run-now + pinned-fetch runtime JS-01..JS-09 depend on it. So the real critical path
+   to job-search = #919 (building) + #915 worker-capabilities IMPLEMENTATION (approved spec, not yet
+   queued, issue mis-closed). **NEEDS BEN DECISION: reopen/re-track #915 + queue an implementation
+   lane?** (Its writing-plans phase wasn't done per memory `spec-915-worker-capabilities`.)
+
+`merges_since_relay: 0` (unchanged).
