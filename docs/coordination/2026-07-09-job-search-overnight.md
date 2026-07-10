@@ -1639,7 +1639,7 @@ test worker, confirmed via its transcript, not a real stall. Only intervene if i
 ~20 min threshold or escalates with `[SECURITY]`/`[BLOCKED]`.
 
 **Fleet-liveness Monitor:** still armed this session (task `b0wqhz9kc`, persistent, diffs
-`herdr pane list` for `w1` every 60s, changed lines only) — **does not survive this relay**,
+`herdr pane list` for `w1` (excl. own pane `w1:pE6`) every 60s, changed lines only) — **does not survive this relay**,
 successor must re-arm per Phase 2.
 
 **#916:** still held, `needs-spec`, untouched.
@@ -1866,7 +1866,7 @@ shape inspected first (fixed the empty-filter bug: needed `--limit 500` on proje
 - **Report to Ben pending** (not yet sent — next successor or a status ping should relay this).
 
 **Fleet-liveness Monitor:** re-armed this turn, task `bifzin1jq`, persistent, diffs `herdr pane
-list` for `w1` every 60s, emits changed lines only. **Does not survive this relay** — successor
+list` for `w1` (excl. own pane `w1:pE6`) every 60s, emits changed lines only. **Does not survive this relay** — successor
 must re-arm per Phase 2.
 
 **#914 (`w1:pDQ`):** unchanged, untouched this turn — Task 8/9 in progress, standing
@@ -1905,8 +1905,8 @@ leave `w1:t1F` (Codex Job Search Spec / Fable 5 Spec Review, idle) and `w1:pBK`/
 
 `merges_since_relay: 0` (unchanged — no merges this turn).
 
-**Fleet-liveness Monitor:** re-armed this turn, task `bvaxqcc5t`, persistent, diffs `herdr pane
-list` for `w1` every 60s, emits changed lines only.
+**Fleet-liveness Monitor:** re-armed this turn, task `b3gdz5iry`, persistent, diffs `herdr pane
+list` for `w1` (excl. own pane `w1:pE6`) every 60s, emits changed lines only.
 
 **Board-status report:** relayed to Ben directly in-session this turn (session user is Ben).
 
