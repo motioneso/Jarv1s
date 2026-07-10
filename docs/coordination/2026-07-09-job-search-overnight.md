@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `bbe0b188-bc5a-499d-b711-3f26b4d873e0`,
-pane `w1:pE5`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`,
+pane `w1:pE6`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1885,3 +1885,22 @@ Monitor, leave `w1:t1F` (Codex Job Search Spec / Fable 5 Spec Review, both idle)
 
 **Relaying now** — successor in same tab (`w1:t15`), `--model sonnet --permission-mode
 bypassPermissions`, bootstrap points to this section only (not the full manifest).
+
+## Lock re-claimed (session `58a78927-385c-4b1d-8fa0-94db20255d6f`), Phase 0a done
+
+**Phase 0a:** predecessor session `bbe0b188-bc5a-499d-b711-3f26b4d873e0` (pane `w1:pE5`) was still
+present (status `done`, idle at prompt, 68% context) on pickup — confirmed idle via bounded pane
+read before acting. My own pane (`w1:pE6`) renamed to `Coordinator`, verified as the sole
+`Coordinator`-labelled pane (predecessor's `done` status confirmed no parallel loop risk), then
+predecessor pane closed. Lock line at top of file updated to session
+`58a78927-385c-4b1d-8fa0-94db20255d6f`, pane `w1:pE6`, tab `w1:t15`.
+
+**No new work this turn beyond Phase 0a.** Per checkpoint's "Successor's first action": #919 is
+fully unblocked (Opus verdict already relayed, `w1:pE4` resumed plan authoring), GitHub board-status
+check is fully closed out and just needs reporting to Ben (pending, not yet sent — doing this next).
+Resuming Phase 2: watch `w1:pE4` for its next plan-ready escalation, keep hands off `w1:pDQ` (#914,
+standing do-not-nudge policy), re-arm the fleet-liveness Monitor (did not survive this relay),
+leave `w1:t1F` (Codex Job Search Spec / Fable 5 Spec Review, idle) and `w1:pBK`/`w1:pCP`
+(news-module, sports-fed-spec, idle) untouched.
+
+`merges_since_relay: 0` (unchanged — no merges this turn).
