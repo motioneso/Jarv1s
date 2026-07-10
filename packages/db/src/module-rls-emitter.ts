@@ -28,6 +28,18 @@ export function generateModuleTableRlsSql(
   const role = moduleRuntimeRoleName(moduleId);
   const statements: string[] = [];
 
+  // The per-table GRANTs below are useless without schema-level USAGE: the runtime role runs
+  // under SET LOCAL ROLE with INHERIT FALSE (module-storage-rpc.ts), so it needs this granted
+  // directly rather than inheriting it from a parent runtime role's own schema access. Likewise
+  // the owner-check policy predicates call app.current_actor_user_id(), which is REVOKEd from
+  // PUBLIC (0002_app_rls.sql) and only granted per-role — the module runtime role needs its own
+  // EXECUTE grant or every policy evaluation 403s (see 0051_fix_current_actor_user_id_grant.sql
+  // for the same class of bug against jarvis_auth_runtime).
+  if (ownedTables.length > 0) {
+    statements.push(`GRANT USAGE ON SCHEMA app TO ${role};`);
+    statements.push(`GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO ${role};`);
+  }
+
   for (const table of ownedTables) {
     assertQualifiedTableName(table);
     const base = policyBaseName(table);

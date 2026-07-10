@@ -7,6 +7,8 @@ describe("generateModuleTableRlsSql", () => {
     const statements = generateModuleTableRlsSql("acme-widgets", ["app.acme_widgets"]);
 
     expect(statements).toEqual([
+      "GRANT USAGE ON SCHEMA app TO jarvis_mod_acme_widgets_runtime;",
+      "GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO jarvis_mod_acme_widgets_runtime;",
       "ALTER TABLE app.acme_widgets ENABLE ROW LEVEL SECURITY;",
       "ALTER TABLE app.acme_widgets FORCE ROW LEVEL SECURITY;",
       "DROP POLICY IF EXISTS acme_widgets_select ON app.acme_widgets;",

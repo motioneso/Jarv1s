@@ -80,7 +80,19 @@ export async function ensureModuleRoles(
     // Scoped install-role privileges per spec D2: enough to CREATE its own tables under schema
     // app and FK-reference app.users(id) — nothing else. GRANT is idempotent (re-granting an
     // already-held privilege is a no-op), so this is safe on every call, not just at creation.
-    await client.query(`GRANT USAGE, CREATE ON SCHEMA app TO ${client.escapeIdentifier(installRole)}`);
+    await client.query(`GRANT CREATE ON SCHEMA app TO ${client.escapeIdentifier(installRole)}`);
+    // USAGE (and EXECUTE on the RLS-predicate function) need WITH GRANT OPTION: Phase B's
+    // generated RLS (module-rls-emitter.ts) re-grants both onward to the module's own runtime
+    // role from an installer-role connection, not this bootstrap/superuser one. Without grant
+    // option Postgres silently no-ops the re-grant (no error, ACL unchanged) rather than failing
+    // loud — a footgun discovered via a manual ACL inspection, not a thrown error.
+    await client.query(
+      `GRANT USAGE ON SCHEMA app TO ${client.escapeIdentifier(installRole)} WITH GRANT OPTION`
+    );
+    await client.query(
+      `GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO ` +
+        `${client.escapeIdentifier(installRole)} WITH GRANT OPTION`
+    );
     await client.query(
       `GRANT REFERENCES (id) ON app.users TO ${client.escapeIdentifier(installRole)}`
     );

@@ -28,6 +28,9 @@ afterAll(async () => {
   // refuses DROP ROLE while grants are outstanding, so revoke before dropping.
   await client.query(`REVOKE ALL PRIVILEGES ON SCHEMA app FROM ${moduleInstallRoleName(moduleId)}`);
   await client.query(`REVOKE ALL PRIVILEGES ON app.users FROM ${moduleInstallRoleName(moduleId)}`);
+  await client.query(
+    `REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM ${moduleInstallRoleName(moduleId)}`
+  );
   await client.query(`DROP ROLE IF EXISTS ${moduleInstallRoleName(moduleId)}`);
   await client.query(`DROP ROLE IF EXISTS ${moduleRuntimeRoleName(moduleId)}`);
   await client.end();

@@ -24,10 +24,18 @@ afterEach(async () => {
   const client = new Client({ connectionString: urls.bootstrap });
   await client.connect();
   await client.query("DROP TABLE IF EXISTS app.install_fixture_widgets");
-  // ensureModuleRoles grants schema/table-level ACLs to the install role (spec D2); Postgres
-  // refuses DROP ROLE while grants are outstanding, so revoke before dropping.
-  await client.query("REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_install_fixture_install");
+  // ensureModuleRoles grants schema/table-level ACLs to the install role WITH GRANT OPTION
+  // (spec D2), and Phase B re-grants USAGE/EXECUTE onward to the runtime role from that grant
+  // option — so revoking the install role's own grant needs CASCADE to also strip the runtime
+  // role's dependent grant, or Postgres refuses both the revoke and the later DROP ROLE.
+  await client.query(
+    "REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_install_fixture_install CASCADE"
+  );
   await client.query("REVOKE ALL PRIVILEGES ON app.users FROM jarvis_mod_install_fixture_install");
+  await client.query(
+    "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() " +
+      "FROM jarvis_mod_install_fixture_install CASCADE"
+  );
   await client.query(`DROP ROLE IF EXISTS jarvis_mod_install_fixture_install`);
   await client.query(`DROP ROLE IF EXISTS jarvis_mod_install_fixture_runtime`);
   await client.query("DELETE FROM app.module_installs WHERE module_id = $1", [moduleId]);
