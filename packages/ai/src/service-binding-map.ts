@@ -1,9 +1,11 @@
 import {
   AI_MODEL_CAPABILITIES,
+  isModuleServiceKey,
   type AiModelCapability,
   type AiModelTier,
   type AiServiceBinding,
-  type AiServiceBindingMapDto
+  type AiServiceBindingMapDto,
+  type ModuleServiceBindingMap
 } from "@jarv1s/shared";
 
 // #870 Slice 1: tolerant parser for the `ai.service_bindings` blob in `app.instance_settings`.
@@ -41,6 +43,22 @@ export function parseServiceBindingMap(value: unknown): AiServiceBindingMapDto {
     if (!RECOGNIZED_CAPABILITIES.has(capability as AiModelCapability)) continue;
     const binding = parseServiceBinding(raw);
     if (binding) bindings[capability as AiModelCapability] = binding;
+  }
+  return bindings;
+}
+
+// #915 D6: module.* keys live in the SAME `ai.service_bindings` blob but parseServiceBindingMap
+// above intentionally drops them (its capability filter is load-bearing for the user-facing map).
+// This parallel parser keeps exactly the validated `module.*` keys instead — same tolerance rules:
+// malformed entries are dropped, never thrown.
+export function parseModuleServiceBindingMap(value: unknown): ModuleServiceBindingMap {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const bindings: ModuleServiceBindingMap = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (!isModuleServiceKey(key)) continue;
+    const binding = parseServiceBinding(raw);
+    if (binding) bindings[key] = binding;
   }
   return bindings;
 }
