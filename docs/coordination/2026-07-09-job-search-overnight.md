@@ -775,3 +775,27 @@ Spawning successor now in the same tab (`w1:t15`) per the `relay` pattern.
 **Holding pattern:** no build-lane spawns, no merges pending. Waiting on `w1:pCZ` PR-readiness
 (→ Phase 3 tier-`sensitive` QA) and `w1:pCV` task-by-task progress on the #917 plan (10 tasks,
 subagent-driven — watch for either full completion or a task-level escalation).
+
+**#915 Task 5 self-audit reported complete (mid-session push from `w1:pCZ`):** 13/13 real
+app+DB integration incl. the originally-failing PUT→GET serializer path, full `test:ai` 44/44,
+typecheck+lint green, added missing positive installed-module case + non-admin 403 assertion,
+final serializer fix isolated to `patternProperties: '^module[.]'` (factory reverted). No fresh
+production finding. **PR not yet open** as of this check (`gh pr list --head
+feat/915-slice3-structured-ai` empty, no remote branch) — pane still `Working` (>30min), likely
+continuing into Task 6+ rather than stopping to open a PR after Task 5. Not treating "PR-ready" as
+"PR open" — waiting for the actual PR before spawning QA.
+
+**#915 Task 8 plan defect — approved, grounded (this checkpoint):** plan's
+`StructuredProviderAdapter` used the narrow 3-variant `ProviderKind` (from
+`packages/ai/src/adapters/transcript-reader.ts:67`: `anthropic | openai-compatible | google`) but
+`AiConfiguredModelSafeRow.provider_kind` is the broader 5-variant `AiProviderKind`
+(`packages/db/src/types.ts:168`, adds `ollama | custom`). **Verified before approving:** read both
+type defs, `http-api.ts:32` adapter constructor, and the two existing canonical call sites
+(`packages/chat/src/jobs.ts:225`, `packages/ai/src/transcription-routes.ts:86`) — both do a
+**blind** `as ProviderKind` cast today with zero runtime check for `ollama`/`custom`. The build
+agent's proposed fix (checked cast, unsupported kind → `provider_error`, no secret leak) is
+strictly safer than existing precedent, not a novel pattern — approved directly, no
+Opus/Ben escalation (mechanical typing correction, not a design fork; no hard-invariant concern —
+provider-agnostic-AI governs which provider gets *selected*, not this adapter's supported-kind
+surface). Mechanical import/non-null-assertion fixes in the same message also approved without
+separate review.
