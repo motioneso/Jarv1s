@@ -138,7 +138,11 @@ export function validateExternalModuleManifest(
         } else {
           ids.push(id);
         }
-        if (typeof displayName !== "string" || displayName.length === 0 || displayName.length > 200) {
+        if (
+          typeof displayName !== "string" ||
+          displayName.length === 0 ||
+          displayName.length > 200
+        ) {
           errors.push("auth displayName must be a non-empty string (max 200)");
         }
         if (kind !== "api-key") errors.push('auth kind must be "api-key"');
