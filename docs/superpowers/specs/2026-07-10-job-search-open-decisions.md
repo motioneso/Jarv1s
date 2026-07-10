@@ -17,9 +17,9 @@ removed. These decisions are folded into the module design and future task scope
 
 Hard deterministic exclusions run first. New or materially changed survivors receive
 schema-validated AI fit bands, capped at 25 evaluations per user per local day. Pending backlog is
-processed oldest-first. The module requests the platform's economy/standard structured-output
-capability tier and never a provider or model. Every result includes evidence, gaps, freshness,
-confidence, and explicit unknowns; no opaque precision percentage.
+processed oldest-first. The module requests the `interactive` tier for the `json` capability and
+never a provider or model; admin bindings still choose the actual route. Every result includes
+evidence, gaps, freshness, confidence, and explicit unknowns; no opaque precision percentage.
 
 **Applied to:** JS-07.
 
@@ -52,9 +52,10 @@ is outside MVP and is not part of #916's build scope.
 
 ## D5 — Bounded KV retention
 
-- Maximum 500 opportunities per user.
+- Target 500 opportunities per user after evicting eligible records.
 - Maximum 16 KB normalized description snapshot per opportunity, with truncation marked.
 - Active and saved opportunities never auto-evict.
+- Protected active/saved records may overflow the target; saving is never refused to enforce it.
 - Passed/stale opportunities evict after 30 days or oldest-first when over the cap.
 - Eviction leaves a compact identity-hash tombstone with a 60-day TTL to block rediscovery.
 - Run history retains the most recent 50 runs or 14 days per monitor, whichever is smaller.

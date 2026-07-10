@@ -36,8 +36,10 @@ written before derived pointers/indexes, and interrupted derived writes are rebu
 - Reject resume input over 48 KB UTF-8 before writing either original or normalized content.
 - Retain the original paste unchanged as `revision/0`; one normalized Markdown revision per value.
 - Cap stored normalized description text at 16 KB and mark truncation.
-- Retain at most 500 opportunities/user under the resolved protected-record rule below.
+- Target at most 500 opportunities/user after evicting every eligible record.
 - Never auto-evict active/saved jobs.
+- Allow active/saved protected records to overflow the 500-record target rather than refuse a save
+  or silently discard user-selected/current data.
 - Evict passed/stale after 30 days or oldest-first to enforce the cap.
 - Replace evicted jobs with compact identity-hash tombstones expiring after 60 days.
 - Per monitor retain the latest 50 runs or 14 days, whichever is smaller.
@@ -61,9 +63,5 @@ scrubbed errors. A corrupt derived feed is rebuilt rather than treated as data l
 - All retention, tombstone expiry, export/delete, disable, and purge cases.
 - No core SQL/migration or direct DB handle in the package.
 
-## Open question
-
-The settled rules say both “maximum 500 opportunities” and “active/saved never auto-evict.” If more
-than 500 protected records exist, should the store allow protected overflow, refuse additional saves,
-or archive the oldest protected record only with explicit user action? This must be resolved before
-retention implementation.
+The UI reports protected overflow and the next retention pass continues evicting newly eligible
+passed/stale records toward 500. The target is a retention control, not a data-loss boundary.

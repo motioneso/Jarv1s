@@ -276,8 +276,9 @@ AI failure leaves eligible jobs visible with evaluation `pending`; a later run r
 
 Structured facts apply hard exclusions first. Up to 25 new/changed survivors per user per local day
 then receive schema-validated AI fit-band evaluation, with backlog processed oldest-first. The
-module requests the platform's economy/standard structured-output capability tier and never a
-provider or model. Provider failure leaves the deterministic result visible and evaluation pending.
+module requests the `interactive` tier for the `json` capability and never a provider or model;
+admin service/model bindings retain final routing authority. Provider failure leaves the
+deterministic result visible and evaluation pending.
 
 Every surfaced recommendation includes:
 
@@ -296,9 +297,11 @@ match.
 
 ### Retention and eviction
 
-- Retain at most 500 opportunities per user.
+- Target at most 500 opportunities per user after eligible eviction.
 - Store at most 16 KB of normalized description text per opportunity; mark truncation explicitly.
 - Active and saved opportunities are never auto-evicted.
+- Protected active/saved records may overflow 500; the module never refuses a save or discards them
+  to enforce the target.
 - Passed/stale opportunities are evicted after 30 days or oldest-first when the 500-record cap is
   exceeded.
 - Eviction replaces the job with a compact identity-hash tombstone for 60 days so the same posting

@@ -28,8 +28,10 @@ not failure.
 ## AI evaluation
 
 At most 25 new/materially changed survivors per user per local day are processed oldest-pending
-first. Input is the approved profile/resume revisions plus bounded normalized job facts/text framed
-as untrusted data. No tools are available during evaluation.
+first. The module explicitly requests the `interactive` tier—the balanced everyday-quality tier—for
+the `json` capability. Admin model/service bindings still control the actual provider/model. Input is
+the approved profile/resume revisions plus bounded normalized job facts/text framed as untrusted
+data. No tools are available during evaluation.
 
 The fixed output schema contains:
 
@@ -58,9 +60,3 @@ deterministic survivors sort below completed strong/possible evaluations but rem
 - Schema/evidence requirements, invalid output repair/failure, input hash staleness.
 - Prompt-injection job text cannot alter state or invoke tools.
 - At least two provider adapter shapes; no provider/model identity in module code/output.
-
-## Open question
-
-Clarify “economy/standard capability tier”: should JS-07 always request `economy`, request `standard`,
-or request `economy` with platform-controlled fallback to `standard`? The package must name one
-capability/tier policy, never a provider/model.

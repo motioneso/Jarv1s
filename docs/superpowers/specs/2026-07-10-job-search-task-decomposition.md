@@ -84,9 +84,9 @@ retention; export/delete/disable/purge coverage. No core table or migration.
 **Verification:** schema-version upgrades, cap rejection, derived-index rebuild, owner/admin
 isolation, lifecycle tests.
 
-The fixed contract is 48 KB normalized Markdown per revision plus capped original `revision/0`, 500
-opportunities, 16 KB descriptions, 30-day passed/stale eviction, 60-day tombstones, and 50/14-day
-run retention.
+The fixed contract is 48 KB normalized Markdown per revision plus capped original `revision/0`, a
+500-opportunity retention target with protected active/saved overflow, 16 KB descriptions, 30-day
+passed/stale eviction, 60-day tombstones, and 50/14-day run retention.
 
 ### JS-03 (#932) — Profile, resume truth guard, and conversational tools
 
@@ -148,7 +148,7 @@ route, external text rendered safely.
 
 **Delivers:** source-id/canonical-URL identity, liveness/freshness state, deterministic exclusions,
 deterministic gate plus AI fit bands, evidence/gap/uncertainty schema, 25 evaluations per user/day
-oldest-first through the economy/standard capability tier, and derived feed rebuild.
+oldest-first through the `interactive` JSON-capability tier, and derived feed rebuild.
 
 **Verification:** similar jobs remain distinct; changed descriptions re-evaluate; missing facts stay
 unknown; prompt injection cannot call tools or mutate state; excess candidates remain pending.
