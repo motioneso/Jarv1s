@@ -184,11 +184,26 @@ export function SearchResults(props: {
   query: string;
   results: readonly TeamRef[];
   partial: boolean;
+  isError: boolean;
+  onRetry: () => void;
   competitions: readonly CompetitionRef[];
   followsByKey: Map<string, SportsFollowDto>;
   onToggle: (competitionKey: string, teamKey: string | null) => void;
   pending: boolean;
 }) {
+  // A failed search request must never masquerade as an authoritative "no matches" — that would
+  // tell the user their club isn't supported when we simply couldn't ask the server (#907 review
+  // Important-1). Transport errors get an explicit retry, mirroring BrowseGroups' degraded path.
+  if (props.isError) {
+    return (
+      <Note>
+        Couldn&rsquo;t search right now.{" "}
+        <button type="button" className="sp-managebtn" onClick={props.onRetry}>
+          Retry
+        </button>
+      </Note>
+    );
+  }
   const leagues = searchLeagueRows(props.query, props.results, props.competitions);
   if (props.results.length === 0 && leagues.length === 0) {
     // `partial` = the server's warm-fill hasn't covered every league yet this process lifetime —
@@ -460,6 +475,8 @@ export default function SportsSettings() {
           query={debouncedQuery}
           results={searchQuery.data?.teams ?? []}
           partial={searchQuery.data?.partial === true}
+          isError={searchQuery.isError}
+          onRetry={() => void searchQuery.refetch()}
           competitions={competitions}
           followsByKey={followsByKey}
           onToggle={toggle}
@@ -475,7 +492,10 @@ export default function SportsSettings() {
           onExpand={setExpandedKey}
           expandedTeams={expandedQuery.data?.teams ?? []}
           expandedLoading={expandedQuery.isLoading}
-          expandedDegraded={expandedQuery.data?.degraded === true}
+          // Transport failures (network/5xx) leave `data` undefined with isLoading false — without
+          // isError here a failed league silently renders as an empty roster grid instead of the
+          // retry note (#907 review Important-2).
+          expandedDegraded={expandedQuery.data?.degraded === true || expandedQuery.isError}
           onRetryExpanded={() => void expandedQuery.refetch()}
           onToggle={toggle}
           pending={pending}

@@ -218,9 +218,11 @@ describe("is-active styling coverage (#691)", () => {
         query: "ars",
         results: [ARS],
         partial: false,
+        isError: false,
         competitions: TWO_LEAGUES,
         followsByKey: followed,
         onToggle: () => {},
+        onRetry: () => {},
         pending: false
       })
     );
@@ -234,9 +236,11 @@ describe("is-active styling coverage (#691)", () => {
         query: "ars",
         results: [ARS],
         partial: false,
+        isError: false,
         competitions: TWO_LEAGUES,
         followsByKey: new Map(),
         onToggle: () => {},
+        onRetry: () => {},
         pending: false
       })
     );
@@ -249,9 +253,11 @@ describe("is-active styling coverage (#691)", () => {
         query: "ars",
         results: [ARS],
         partial: true,
+        isError: false,
         competitions: TWO_LEAGUES,
         followsByKey: new Map(),
         onToggle: () => {},
+        onRetry: () => {},
         pending: false
       })
     );
@@ -265,9 +271,11 @@ describe("is-active styling coverage (#691)", () => {
         query: "zzz",
         results: [],
         partial: true,
+        isError: false,
         competitions: TWO_LEAGUES,
         followsByKey: new Map(),
         onToggle: () => {},
+        onRetry: () => {},
         pending: false
       })
     );
@@ -280,13 +288,36 @@ describe("is-active styling coverage (#691)", () => {
         query: "zzz",
         results: [],
         partial: false,
+        isError: false,
         competitions: TWO_LEAGUES,
         followsByKey: new Map(),
         onToggle: () => {},
+        onRetry: () => {},
         pending: false
       })
     );
     expect(html).toContain("No teams or leagues match your search.");
+  });
+
+  // #907 IMPORTANT (final-review finding 1): a failed search request must render as a retry
+  // note, never as the same "no matches" copy a real empty result gets — that's a false
+  // negative a user can't tell apart from "this team isn't in our catalog".
+  it("SearchResults shows a retry note (not the false 'no matches' copy) when the search request failed", () => {
+    const html = renderToString(
+      createElement(SearchResults, {
+        query: "ars",
+        results: [],
+        partial: false,
+        isError: true,
+        competitions: TWO_LEAGUES,
+        followsByKey: new Map(),
+        onToggle: () => {},
+        onRetry: () => {},
+        pending: false
+      })
+    );
+    expect(html).not.toContain("No teams or leagues match your search.");
+    expect(html).toContain("Retry");
   });
 });
 
@@ -351,5 +382,15 @@ describe("BrowseGroups", () => {
     expect(html).not.toContain("Asia · AFC");
     expect(html).not.toContain("Africa · CAF");
     expect(html).not.toContain("Oceania · OFC");
+  });
+});
+
+describe("sportsQueryKeys.teamSearch", () => {
+  // #907 MINOR (final-review finding 4): the server matches search case-insensitively (see
+  // sports-service.ts's `.toLowerCase()`), but the React Query cache key didn't normalize case —
+  // "Arsenal" and "arsenal" landed in separate cache entries and re-fetched needlessly.
+  it("normalizes case so differently-cased queries share one cache entry", () => {
+    expect(sportsQueryKeys.teamSearch("Arsenal")).toEqual(sportsQueryKeys.teamSearch("arsenal"));
+    expect(sportsQueryKeys.teamSearch("ARSENAL")).toEqual(sportsQueryKeys.teamSearch("arsenal"));
   });
 });

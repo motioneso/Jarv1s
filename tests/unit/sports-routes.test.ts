@@ -617,4 +617,39 @@ describe("sports routes", () => {
     expect(res.statusCode).toBe(400);
     await app.close();
   });
+
+  it("search treats a whitespace-only query as too short, not a match-everything wildcard (#907 M)", async () => {
+    // Two spaces has raw length 2, so it clears the schema's `minLength: 2` — but trims to "",
+    // and `includes("")` matches every team. Without a post-trim length check this would return
+    // arbitrary teams from every league AND burn the whole 5-fetch warm-fill budget on a query
+    // that's effectively empty.
+    let liveFetches = 0;
+    const { app } = buildApp({
+      datasetClient: makeDatasetClient(
+        {
+          listTeams: async (key) => {
+            liveFetches++;
+            return [
+              {
+                teamKey: `${key}.t1`,
+                competitionKey: key,
+                name: `Team ${key}`,
+                shortName: key.toUpperCase(),
+                crestUrl: null
+              } as SourceTeamRef
+            ];
+          }
+        },
+        new Set() // cold cache: a real bug here would spend the whole warm-fill cap
+      )
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/sports/teams/search?q=%20%20" });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.teams).toEqual([]);
+    expect(body.partial).toBe(false);
+    expect(liveFetches).toBe(0);
+    await app.close();
+  });
 });

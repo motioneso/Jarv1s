@@ -174,6 +174,10 @@ export class SportsService {
   async searchTeams(query: string): Promise<SportsTeamSearchResponse> {
     const state: DegradeState = { degraded: false };
     const q = query.trim().toLowerCase();
+    // The route schema's minLength(2) counts pre-trim characters, so a whitespace-padded query
+    // ("  ") sneaks through and `includes("")` would match every cached roster while burning the
+    // warm-fill budget on live fetches. Enforce the 2-char minimum post-trim too (#907 review).
+    if (q.length < 2) return { teams: [], partial: false, degraded: false };
     const teams: TeamRef[] = [];
     let warmed = 0;
     let partial = false;
