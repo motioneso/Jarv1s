@@ -453,3 +453,70 @@ applies even at the 3rd occurrence); confirmed pane flipped back to `working`. P
 written. **Threshold watch:** 3 stalls now on this exact step — if a 4th occurs, escalate to a
 respawn (fresh Opus xhigh in the same worktree/branch, per coordinate skill's relay-vs-respawn
 guidance) rather than nudging indefinitely. No plan-ready escalation yet — still holding.
+
+**Opus xhigh (`w1:pCV`) 4th mid-stream stall, same step — checked for partial disk work before
+acting:** `git status` + plans-dir listing in `917-implementation-plan` worktree showed **no
+plan file written yet** (only unrelated `.claude/context-meter.log` dirty) — nothing to lose from
+a respawn. Chose one more nudge over respawn (process hasn't died, per
+`agent-stall-nudge-recovery` memory), but changed tactic: instructed it to write the plan doc
+incrementally (Write header/outline, then Edit-append each section) instead of one long
+composition, since 4 stalls on the identical step suggests the single-shot generation length is
+the trigger. Confirmed pane back to `working`. **If a 5th stall occurs on this same step even with
+incremental writing, respawn is the next action — do not keep nudging past that.**
+
+Also started a second background wait for PR #922's new `Build and publish images` check (task
+`bwywp4axs`) — this check wasn't in the original 3-check gate list, appeared mid-checkpoint, still
+`IN_PROGRESS` per `gh pr view --json statusCheckRollup`. No branch protection configured on `main`
+(`gh api .../protection` → 404 "Branch not protected"), so nothing is GitHub-enforced, but per the
+CI waiver protocol a check that's still running is not yet a green light — waiting for it to
+resolve before merging rather than assuming it's non-blocking for a docs-only PR.
+
+## PR #922 MERGED — relay trigger fired (merges_since_relay = 2)
+
+**PR #922 merged** (2026-07-10T07:25:54Z), squash, all 4 checks green
+(`Verify foundation and app`, `Compose deployment smoke`, `Prod deployment smoke`, `Build and
+publish images`), `mergeStateStatus: CLEAN`. Session-id authority re-confirmed before merge
+(pane `w1:pCX`, session `9ed36f3b-...`, sole `Coordinator`-labelled pane). `gh pr merge
+--delete-branch` failed to delete the **local** branch only (`spec/915-external-worker-
+capabilities` still checked out in Fable 5's `review-913-job-search-spec` worktree, `w1:pCR`,
+intentionally kept alive — did not force it, per "never disturb a shared/other-agent worktree").
+Remote branch was also left behind by the failed command; deleted separately via
+`gh api -X DELETE .../git/refs/heads/spec/915-external-worker-capabilities` (safe — PR already
+merged). **Ben digest entry:** "#915 slice-3 spec+plan merged (PR #922, routine/docs-only, 9-task
+TDD plan for structured-AI seam in packages/ai) — #915 slice-3 is now build-ready, spawning next."
+
+**#915 slice-3 build lane is NOW SPAWNABLE** (spec merged + plan independently reviewed/approved
+per checkpoint 4 above) — **NOT YET SPAWNED**, deferred to the relay trigger below.
+
+**Relay trigger fired: `merges_since_relay` was 1 (PR #921) → now **2** (PR #922) — this is the
+mandatory "relay after every 2 routine/sensitive merges" trigger.** Per coordinate skill: no
+deferral once a trigger fires — flush + relay now, remaining bookkeeping (spawning #915 slice-3)
+goes to the successor as the immediate next action, not done by this session.
+
+**Fleet state at this trigger:**
+- `w1:pCV` Opus xhigh #917 plan — 4 mid-stream stalls so far, all nudged back to `working` (4th
+  nudge changed tactic: write incrementally via Write+Edit instead of one long generation, to
+  address the likely root cause of repeated stalls at the same step). **If a 5th stall occurs,
+  respawn is the next action — do not keep nudging past that.** Last known status: `working`.
+- `w1:pCR` Fable 5 — idle/`done`, worktree `review-913-job-search-spec` still holds branch
+  `spec/915-external-worker-capabilities` locally (harmless, PR already merged) — leave it, don't
+  force-cleanup another agent's worktree.
+- `w1:pCK` Codex — idle, available, briefed on collision map + `generateStructured` contract.
+- Monitor task `bbvxzui71` (persistent, this session) — **dies with this session**; successor
+  must restart its own, scoped to `w1:pCR` + `w1:pCK` + `w1:pCV`.
+- No outstanding background CI waits (both #922 checks resolved and consumed).
+
+**Successor's immediate queue, in order:**
+1. **Spawn #915 slice-3 build lane** — Codex `gpt-5.6-sol` high reasoning, isolated worktree off
+   `main` (`git worktree add .claude/worktrees/915-slice3-structured-ai -b
+   feat/915-slice3-structured-ai origin/main`), tier **sensitive** (new cross-module shared
+   contract `ai-service-binding-api.ts`, no auth/RLS/secrets/migration trigger). Handoff doc must
+   point at the merged plan `docs/superpowers/plans/2026-07-09-structured-ai-seam.md` (commit
+   `1dc1a346`, now on `main`). Standard QA + invariant check on completion, no Ben sign-off
+   required for merge, auto-merge + digest per sensitive tier.
+2. Restart persistent Monitor scoped to `w1:pCR` / `w1:pCK` / `w1:pCV` + the new #915 build pane
+   once spawned.
+3. Re-check `w1:pCV` (Opus xhigh #917 plan) fresh — if complete, dispatch independent review (same
+   pattern as #915: fresh general-purpose subagent, not Fable/Opus itself). If stalled a 5th time,
+   respawn.
+4. Reset `merges_since_relay` to 0 in the manifest (this checkpoint's relay resets the counter).
