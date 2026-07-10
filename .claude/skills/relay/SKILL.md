@@ -72,10 +72,15 @@ Do **not** spawn a Codex coordinator with the default, `read-only`, or `workspac
 The coordinator must be able to update/push the manifest, run Herdr pane operations, and run local
 verification without approval prompts.
 - **Build agent:** same worktree/branch (your work continues there), bootstrap = "continue
-  <slug>; `[ -d node_modules ] || pnpm install`; read `docs/.../<slug>-relay.md` IN FULL and resume
-  via `coordinated-build`."
+  <slug>; `[ -d node_modules ] || pnpm install`; read your short `docs/.../<slug>-relay.md` and
+  resume via `coordinated-build`. Read the spec/plan by SECTION for the current task only — never
+  in full (full-reads bloated prior relays to ~71% on boot and forced them to relay again without
+  building). You have a FRESH full budget: BUILD, commit per task, relay only after real work past
+  ~80% — reading is not progress."
 - **Coordinator:** new pane; bootstrap = "you are the new coordinator for run <run-id>; read
-  `docs/coordination/<run-id>.md` IN FULL, invoke `coordinate`, re-confirm the **session-id
+  `docs/coordination/<run-id>.md` — the LATEST continuation note + current fleet/merge-order state
+  (skim; the manifest is long — do NOT deep-read its full history or you bloat on boot), invoke
+  `coordinate`, re-confirm the **session-id
   authority line** (your own pane's `agent_session.value` from `herdr pane list` — session id is
   authority; label is routing; the `…-N` pane number is ephemeral and reflows), re-adopt the live
   fleet (`herdr pane list` + labels), confirm you are driving, then reap the old coordinator —

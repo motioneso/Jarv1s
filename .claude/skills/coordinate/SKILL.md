@@ -151,7 +151,7 @@ For each spec cleared to start (serialized specs wait for their predecessor to l
    ```bash
    herdr agent start "<Label>" --tab w1:<agents-tab> --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
      -- claude --model sonnet --permission-mode bypassPermissions \
-     "Build <slug> in this fresh worktree. STEP 1 pnpm install. STEP 2 read docs/.../<handoff>.md IN FULL and follow it via the coordinated-build skill. Begin now."
+     "Build <slug> in this fresh worktree. STEP 1 pnpm install. STEP 2 read your handoff doc docs/.../<handoff>.md (it's short — that's the point) and follow the coordinated-build skill. Read the spec/plan by SECTION for your current task only — never in full; full-reads bloat a fresh context and trigger premature relays. Reading is not progress: BUILD, commit per task, relay only after real work past ~80%. Begin now."
    ```
    **Tab discipline (Ben, 2026-06-10/27):** ALL build + QA agents share one agents tab, which must
    live in Jarvis workspace `w1`; your coordinator window stays coordinator-only (the ONLY thing
@@ -285,8 +285,10 @@ Fired by the relay triggers (Context discipline / Phase 3 step 7):
    - Codex: `codex -s danger-full-access -a never` (never the default/`workspace-write` sandbox —
      it must rename/close panes, push the manifest, and run the gate unprompted)
    Bootstrap = "you are the new coordinator for run <run-id>; read
-   `docs/coordination/<run-id>.md` IN FULL, invoke `coordinate`, re-adopt the live fleet
-   (`herdr pane list` + labels), confirm you're driving, then close my pane."
+   `docs/coordination/<run-id>.md` — the LATEST continuation note + the current fleet/merge-order
+   state (skim; the manifest is long — do NOT deep-read its full history or you bloat on boot),
+   invoke `coordinate`, re-adopt the live fleet (`herdr pane list` + labels), confirm you're
+   driving, then close my pane."
 3. Confirm the successor is driving (bounded pane read); it reaps you — resolving your pane fresh
    by label + session id, never a written pane number.
 
