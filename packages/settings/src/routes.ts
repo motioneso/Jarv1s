@@ -78,6 +78,8 @@ import {
   type ReconcileProactiveScheduleFn
 } from "./proactive-monitoring-routes.js";
 import { SettingsRepository, type ExternalModuleState } from "./repository.js";
+import { createModuleCredentialSecretCipher } from "./module-credential-crypto.js";
+import { registerModuleCredentialRoutes } from "./routes-module-credentials.js";
 // #917: the module-management route family was extracted here for the 1000-line file-size gate.
 import { registerModuleRoutes } from "./routes-modules.js";
 import {
@@ -780,6 +782,15 @@ export function registerSettingsRoutes(
   // 1000-line file-size gate (Task 9 pushed routes.ts over the cap). Pure move — same handlers,
   // same order, same admin/RLS/fail-closed logic. registerSettingsRoutes keeps its signature.
   registerModuleRoutes(server, { dependencies, repository, assertAdminUser, requireRequestId });
+  // #918: module-credential admin/per-user routes, with their own dedicated cipher
+  // (JARVIS_MODULE_CREDENTIAL_SECRET_KEY family — independent rotation from connector/AI keys).
+  registerModuleCredentialRoutes(server, {
+    dependencies,
+    repository,
+    assertAdminUser,
+    requireRequestId,
+    cipher: createModuleCredentialSecretCipher()
+  });
 }
 
 // The admin check happens INSIDE the route's withDataContext so the admin check and the
