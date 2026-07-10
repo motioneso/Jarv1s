@@ -1,7 +1,7 @@
 # Job Search Overnight Run — 2026-07-09
 
-**Coordinator lock:** label `Coordinator`, session `57129d71-be43-4eb9-926f-c48e75df7e32`,
-pane `w1:pDV`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
+**Coordinator lock:** label `Coordinator`, session `8e06373a-51f5-4e63-9b84-11be6269a827`,
+pane `w1:pDW`, tab `w1:t15`. (Same lock as `2026-07-09-next-wave.md` — that manifest's wave is
 fully merged; this is a fresh manifest for the new overnight initiative per Ben's handoff. Updated
 at each self-relay — see "Lock re-claimed" notes below for history.)
 
@@ -1215,3 +1215,47 @@ blocked purely on Ben's sign-off, not on any coordinator action.
 4. Resume Phase 2 supervision of #914. No other action needed until either Ben answers on #925's
    merge sign-off, or #914 produces a plan/PR-ready escalation.
 5. #916 still `needs-spec`; #919 still queued behind #918. No action on either.
+
+## Lock re-claimed (successor session `8e06373a-51f5-4e63-9b84-11be6269a827`), IMMEDIATE re-relay — context-meter fired at 79% on first turn
+
+**Phase 0a done:** own pane `w1:pDW`, tab `w1:t15`, already labeled `Coordinator` at spawn.
+Predecessor `w1:pDV` (session `57129d71-...`) confirmed idle/done via bounded read ("My work here
+is done — standing down") before closing. Verified via fresh `herdr pane list`: exactly one
+`Coordinator`-labeled pane remains (`w1:pDW`, this session). Top-of-file lock line updated.
+
+**No other Phase 0a/successor action taken this checkpoint** — context-meter warned 79% on the very
+first tool call (inherited a long context at spawn), which is past the 70% no-deferral threshold.
+Per the coordinate skill, the only permitted action once a relay trigger fires is flush + relay;
+everything else is deferred verbatim to the next successor below. Nothing was merged, reaped, or
+touched beyond closing the duplicate predecessor pane.
+
+**Successor's first actions, in order (carried forward unexecuted from the prior checkpoint,
+unchanged):**
+1. **PR #925 (issue #918):** CI-green + Opus-QA-GREEN, paused **solely on Ben's explicit merge
+   sign-off**. Do NOT merge without it. Check whether Ben has answered yet; if not, just keep
+   waiting — no other action.
+2. **Reap `w1:pDJ`** directly — this is `918: open module system slice2 build (relay-1)`,
+   confirmed done cleanly with no successor pane to look for (per prior checkpoint's note). Fresh
+   `herdr pane list` at this checkpoint still shows it present, `agent_status: idle`. Resolve fresh
+   by session id (`dbf1c605-512a-4c0c-b310-9063ac8893c9`) before closing, not the written pane
+   number, in case it changed.
+3. **Resume Phase 2 supervision of #914** — pane `w1:pDQ`, tab `w1:t1E`, session
+   `8baf4c17-ad28-40c9-8854-a4254e3f2b2c`, label `914: module data plane build (relay-5)`, fresh
+   `herdr pane list` shows `agent_status: idle` (last known healthy at Task 4/9 per the prior
+   checkpoint — idle may just mean between-ticks; do a bounded pane read to confirm state/progress
+   before assuming anything, do not assume a stall from `idle` alone).
+4. **Re-arm a fleet-liveness Monitor** over `w1:t15` (coordinator tab) / `w1:t1E` (agents tab) —
+   check first whether the previously-armed monitor (`b7jvq4nk2` / similar) survived this relay; if
+   not, start a fresh persistent one diffing `herdr pane list`, emitting only changed lines.
+5. **#916** still `needs-spec`; **#919** still queued behind #918's merge. No action on either.
+6. No merges executed this checkpoint. `merges_since_relay` unchanged from prior checkpoint value
+   (carry forward — not re-derived here to avoid spending context on it before relay).
+
+**Live fleet snapshot at this checkpoint** (for the successor's convenience, so it doesn't need to
+re-list immediately): `w1:pDJ` (#918, idle, tab `w1:t1E`), `w1:pDQ` (#914, idle, tab `w1:t1E`,
+focused), `w1:pCK` (Codex Job Search Spec, idle, not owed anything), `w1:pCR` (Fable 5 Job Search
+Spec Review, idle), `w1:pCP` (Fable sports-fed spec+plan, idle, not this run's responsibility),
+`w1:pBK` (news-module, idle, not this run's responsibility).
+
+**Relaying now** — spawning successor coordinator in same tab (`w1:t15`), `--model sonnet
+--permission-mode bypassPermissions`. Bootstrap points here.
