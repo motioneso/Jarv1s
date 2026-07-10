@@ -333,7 +333,11 @@ describe("MVP foundation scaffold", () => {
         // #897 — news module prefs (sources / excludes / topics), owner-only RLS.
         { version: "0151", name: "0151_news_prefs.sql" },
         // #917 (epic #860) — external module enablement state; instance-global, admin-managed.
-        { version: "0152", name: "0152_external_modules.sql" }
+        { version: "0152", name: "0152_external_modules.sql" },
+        // #918 (epic #860) — module credential secrets; FORCE RLS, no app_runtime DELETE.
+        { version: "0153", name: "0153_module_credentials.sql" },
+        // #918 (epic #860) — module KV storage; FORCE RLS, scope-shaped policies.
+        { version: "0154", name: "0154_module_kv.sql" }
       ]);
     } finally {
       await client.end();

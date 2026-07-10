@@ -167,6 +167,38 @@ export interface ExternalModulesTable {
   updated_at: TimestampColumn;
 }
 
+/**
+ * Module credential secrets (#918 Slice 2). encrypted_secret is an AES-256-GCM
+ * EncryptedSecret envelope, nullable because revoke scrubs it in place
+ * (app_runtime has no DELETE grant — protected table).
+ */
+export interface ModuleCredentialsTable {
+  id: string;
+  module_id: string;
+  credential_id: string;
+  scope: "instance" | "user";
+  owner_user_id: string | null;
+  display_name: string;
+  encrypted_secret: JsonColumn | null;
+  revoked_at: NullableTimestampColumn;
+  created_by: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+/** Module KV storage (#918 Slice 2). value is plain module data, never secrets. */
+export interface ModuleKvTable {
+  id: string;
+  module_id: string;
+  namespace: string;
+  scope: "instance" | "user";
+  owner_user_id: string | null;
+  key: string;
+  value: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface RlsProbeItemsTable {
   id: string;
   owner_user_id: string;
@@ -954,6 +986,8 @@ export interface JarvisDatabase {
   "app.admin_audit_events": AdminAuditEventsTable;
   "app.module_enablement": ModuleEnablementTable;
   "app.external_modules": ExternalModulesTable;
+  "app.module_credentials": ModuleCredentialsTable;
+  "app.module_kv": ModuleKvTable;
   "app.rls_probe_items": RlsProbeItemsTable;
   "app.tasks": TasksTable;
   "app.task_activity": TaskActivityTable;

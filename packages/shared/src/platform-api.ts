@@ -1,3 +1,4 @@
+import type { ModuleWebDto } from "./platform-api-modules.js";
 import { errorResponseSchema } from "./schema-fragments.js";
 
 export interface UserDto {
@@ -55,6 +56,8 @@ export interface ModuleDto {
   readonly settings: readonly ModuleSettingsSurfaceDto[];
   /** #917: true for active external (non-compiled) modules. Absent/false for built-ins. */
   readonly external?: boolean;
+  /** #918: web contribution declaration. Absent for built-ins and modules without one. */
+  readonly web?: ModuleWebDto;
 }
 
 export interface InstanceSettingDto {
@@ -148,6 +151,16 @@ const moduleSettingsSurfaceSchema = {
   }
 } as const;
 
+const moduleWebSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["entrypoint", "contractVersion"],
+  properties: {
+    entrypoint: { type: "string" },
+    contractVersion: { type: "integer" }
+  }
+} as const;
+
 const moduleSchema = {
   type: "object",
   additionalProperties: false,
@@ -165,7 +178,9 @@ const moduleSchema = {
     // #917: declared so fast-json-stringify does not strip it (undeclared fields are
     // silently dropped). NOT in `required` — built-ins emit external:false explicitly,
     // but existing producers/fixtures that omit it stay valid.
-    external: { type: "boolean" }
+    external: { type: "boolean" },
+    // #918: web contribution declaration. NOT in `required` — absent for built-ins.
+    web: moduleWebSchema
   }
 } as const;
 
@@ -687,241 +702,6 @@ export const getHostDiagnosticsRouteSchema = {
   }
 } as const;
 
-// ── Module enablement (admin + self-service) ────────────────────────────────
-
-export interface AdminModuleDto {
-  readonly id: string;
-  readonly name: string;
-  readonly version: string;
-  readonly lifecycle: "required" | "optional" | "user-toggleable" | "workspace-toggleable";
-  readonly required: boolean;
-  readonly supportsUserDisable: boolean;
-  readonly instanceDisabled: boolean;
-}
-
-export interface MyModuleDto {
-  readonly id: string;
-  readonly name: string;
-  readonly version: string;
-  readonly lifecycle: "required" | "optional" | "user-toggleable" | "workspace-toggleable";
-  readonly required: boolean;
-  readonly supportsUserDisable: boolean;
-  readonly instanceDisabled: boolean;
-  readonly userDisabled: boolean;
-  readonly active: boolean;
-}
-
-export interface ListAdminModulesResponse {
-  readonly modules: readonly AdminModuleDto[];
-}
-
-export interface ListMyModulesResponse {
-  readonly modules: readonly MyModuleDto[];
-}
-
-export interface PatchModuleEnablementRequest {
-  readonly disabled: boolean;
-}
-
-const lifecycleEnum = {
-  type: "string",
-  enum: ["required", "optional", "user-toggleable", "workspace-toggleable"]
-} as const;
-
-const adminModuleSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "id",
-    "name",
-    "version",
-    "lifecycle",
-    "required",
-    "supportsUserDisable",
-    "instanceDisabled"
-  ],
-  properties: {
-    id: { type: "string" },
-    name: { type: "string" },
-    version: { type: "string" },
-    lifecycle: lifecycleEnum,
-    required: { type: "boolean" },
-    supportsUserDisable: { type: "boolean" },
-    instanceDisabled: { type: "boolean" }
-  }
-} as const;
-
-const myModuleSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "id",
-    "name",
-    "version",
-    "lifecycle",
-    "required",
-    "supportsUserDisable",
-    "instanceDisabled",
-    "userDisabled",
-    "active"
-  ],
-  properties: {
-    id: { type: "string" },
-    name: { type: "string" },
-    version: { type: "string" },
-    lifecycle: lifecycleEnum,
-    required: { type: "boolean" },
-    supportsUserDisable: { type: "boolean" },
-    instanceDisabled: { type: "boolean" },
-    userDisabled: { type: "boolean" },
-    active: { type: "boolean" }
-  }
-} as const;
-
-export const adminModuleParamsSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["id"],
-  properties: { id: { type: "string" } }
-} as const;
-
-export const listAdminModulesRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["modules"],
-      properties: { modules: { type: "array", items: adminModuleSchema } }
-    },
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const listMyModulesRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["modules"],
-      properties: { modules: { type: "array", items: myModuleSchema } }
-    },
-    401: errorResponseSchema
-  }
-} as const;
-
-export const patchModuleEnablementRouteSchema = {
-  params: adminModuleParamsSchema,
-  body: {
-    type: "object",
-    additionalProperties: false,
-    required: ["disabled"],
-    properties: { disabled: { type: "boolean" } }
-  },
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["module"],
-      properties: { module: { ...myModuleSchema } }
-    },
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema,
-    404: errorResponseSchema,
-    409: errorResponseSchema,
-    422: errorResponseSchema
-  }
-} as const;
-
-// #917: external-module admin surface contracts. ExternalModuleDto is field-identical to
-// module-registry's ReconciledExternalModule (same 8 readonly fields) so the composition
-// root can hand reconcile output straight through the injected port without a mapper.
-export interface ExternalModuleDto {
-  readonly id: string;
-  readonly name: string;
-  readonly version: string;
-  readonly publisher: string;
-  readonly status: "discovered" | "enabled" | "disabled";
-  readonly active: boolean;
-  readonly drifted: boolean;
-  readonly disabledReason: string | null;
-}
-
-export interface ExternalModuleRejectionDto {
-  readonly id: string;
-  readonly reason: string;
-}
-
-export interface ListExternalModulesResponse {
-  readonly enabled: boolean;
-  readonly modules: readonly ExternalModuleDto[];
-  readonly rejected: readonly ExternalModuleRejectionDto[];
-}
-
-export interface SetExternalModuleEnablementRequest {
-  readonly enabled: boolean;
-}
-
-const externalModuleSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["id", "name", "version", "publisher", "status", "active", "drifted", "disabledReason"],
-  properties: {
-    id: { type: "string" },
-    name: { type: "string" },
-    version: { type: "string" },
-    publisher: { type: "string" },
-    status: { type: "string", enum: ["discovered", "enabled", "disabled"] },
-    active: { type: "boolean" },
-    drifted: { type: "boolean" },
-    disabledReason: { type: ["string", "null"] }
-  }
-} as const;
-
-const externalModuleRejectionSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["id", "reason"],
-  properties: { id: { type: "string" }, reason: { type: "string" } }
-} as const;
-
-export const listExternalModulesRouteSchema = {
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["enabled", "modules", "rejected"],
-      properties: {
-        enabled: { type: "boolean" },
-        modules: { type: "array", items: externalModuleSchema },
-        rejected: { type: "array", items: externalModuleRejectionSchema }
-      }
-    },
-    401: errorResponseSchema,
-    403: errorResponseSchema
-  }
-} as const;
-
-export const setExternalModuleEnablementRouteSchema = {
-  params: adminModuleParamsSchema,
-  body: {
-    type: "object",
-    additionalProperties: false,
-    required: ["enabled"],
-    properties: { enabled: { type: "boolean" } }
-  },
-  response: {
-    200: {
-      type: "object",
-      additionalProperties: false,
-      required: ["module"],
-      properties: { module: { ...externalModuleSchema } }
-    },
-    400: errorResponseSchema,
-    401: errorResponseSchema,
-    403: errorResponseSchema,
-    404: errorResponseSchema,
-    409: errorResponseSchema
-  }
-} as const;
+// #917/#918 module admin + credential contracts moved to platform-api-modules.ts
+// (file-size gate). Re-exported so @jarv1s/shared consumers see no change.
+export * from "./platform-api-modules.js";

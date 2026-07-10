@@ -25,7 +25,8 @@ export function reconcileExternalModules(
       id,
       name: manifest.name,
       version: manifest.version,
-      publisher: manifest.publisher
+      publisher: manifest.publisher,
+      web: manifest.web ?? null
     };
     const row = rowsById.get(id);
 

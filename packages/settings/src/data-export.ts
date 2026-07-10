@@ -57,6 +57,8 @@ export interface UserDataExportTables {
   readonly memoryFacts: readonly ExportRow[];
   readonly memoryFactSources: readonly ExportRow[];
   readonly memoryLegacyFactMigrations: readonly ExportRow[];
+  readonly moduleCredentials: readonly ExportRow[];
+  readonly moduleKv: readonly ExportRow[];
   readonly memorySearchDocuments: readonly ExportRow[];
   readonly notificationReads: readonly ExportRow[];
   readonly notifications: readonly ExportRow[];
@@ -138,6 +140,8 @@ async function readExportTables(
     notifications: await readRows(scopedDb.db, notificationsQuery(userId)),
     notificationReads: await readRows(scopedDb.db, notificationReadsQuery(userId)),
     connectorAccounts: await readRows(scopedDb.db, connectorAccountsQuery(userId)),
+    moduleCredentials: await readRows(scopedDb.db, moduleCredentialsQuery(userId)),
+    moduleKv: await readRows(scopedDb.db, moduleKvQuery(userId)),
     calendarEvents: await readRows(scopedDb.db, calendarEventsQuery(userId)),
     emailMessages: await readRows(scopedDb.db, emailMessagesQuery(userId)),
     aiProviderConfigs: await readRows(scopedDb.db, aiProviderConfigsQuery(userId)),
@@ -318,6 +322,43 @@ function connectorAccountsQuery(userId: string) {
       updated_at AS "updatedAt"
     FROM app.connector_accounts
     WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function moduleCredentialsQuery(userId: string) {
+  // SECURITY: metadata only — the AES-256-GCM envelope is NEVER exported.
+  // hasSecret mirrors connectorAccountsQuery's `encrypted_secret IS NOT NULL`.
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      module_id AS "moduleId",
+      credential_id AS "credentialId",
+      scope,
+      display_name AS "displayName",
+      encrypted_secret IS NOT NULL AS "hasSecret",
+      revoked_at AS "revokedAt",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.module_credentials
+    WHERE owner_user_id = ${userId}::uuid
+    ORDER BY created_at, id
+  `;
+}
+
+function moduleKvQuery(userId: string) {
+  // KV values are the user's plain module data (not secrets) — exported directly.
+  return sql<Record<string, unknown>>`
+    SELECT
+      id::text AS id,
+      module_id AS "moduleId",
+      namespace,
+      key,
+      value,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM app.module_kv
+    WHERE scope = 'user' AND owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
   `;
 }

@@ -506,25 +506,36 @@ export interface JarvisModuleManifest {
 }
 
 /**
- * A single credential a module declares it needs. RESERVED for a future slice —
- * Slice 1 (#917) rejects any external manifest that populates `auth`, so this type
- * exists only to make the manifest forward-compatible and let the validator name
- * what it refused. `id` must be prefixed `${moduleId}.` when a later slice honors it.
+ * Credential slot a module declares (#918 Slice 2). Values are stored
+ * platform-side in app.module_credentials (AES-256-GCM at rest) and are
+ * NOT readable by module code until Slice 3's ctx.auth.getCredential RPC.
+ * `id` must be prefixed with the module id ("<moduleId>." + slug).
  */
 export interface ModuleAuthDeclaration {
   readonly id: string;
-  readonly kind: "api-key" | "oauth2";
-  readonly label: string;
+  readonly displayName: string;
+  readonly kind: "api-key";
+  readonly scope: "instance" | "user";
 }
 
 /**
- * A single key-value storage namespace a module declares. RESERVED for a future
- * slice — Slice 1 (#917) rejects any external manifest that populates `storage`.
- * `namespace` must be `${moduleId}` or `${moduleId}.<slug>` when later honored.
+ * KV namespace a module declares (#918 Slice 2). Rows live platform-side in
+ * app.module_kv; module code cannot read/write them until Slice 3's ctx.kv RPC.
+ * `namespace` must be the module id or "<moduleId>.<slug>".
  */
 export interface ModuleStorageDeclaration {
   readonly namespace: string;
-  readonly kind: "kv";
+  readonly scopes: readonly ("instance" | "user")[];
+}
+
+/**
+ * Web contribution entry (#918 Slice 2). `entrypoint` is a package-relative
+ * ESM file served via GET /api/modules/:moduleId/web/*; `contractVersion`
+ * must equal the host's JARVIS_WEB_CONTRACT_VERSION or nothing mounts.
+ */
+export interface ModuleWebDeclaration {
+  readonly entrypoint: string;
+  readonly contractVersion: number;
 }
 
 /**
@@ -554,6 +565,7 @@ export interface JsonJarvisModuleManifest {
   readonly compatibility: ModuleCompatibility;
   readonly auth?: readonly ModuleAuthDeclaration[];
   readonly storage?: readonly ModuleStorageDeclaration[];
+  readonly web?: ModuleWebDeclaration;
 }
 
 /**
