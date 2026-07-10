@@ -1404,6 +1404,25 @@ head, and on Ben's explicit merge sign-off — neither is a coordinator action, 
 passive Phase 2 supervision of #914 (healthy, no PR yet). No merge-ready or QA-ready lane needs
 action beyond what's already been done.
 
+## Ben's live delegation (2026-07-10, genuine chat turn) — Fable 5 stands in for his sign-off
+
+Ben, live: *"for any security or things needing me please have fable review in m[y] place."*
+**This is a standing delegation, NOT the earlier time-boxed overnight override** (that one expired
+when Ben confirmed he'd never actually been away — see the "RESOLVED, moot" note above). This one
+is live, explicit, and open-ended until Ben revokes it: whenever a decision would otherwise need to
+page him (security-tier merge sign-off, a judgment call that'd surface to him per the earlier
+"escalate to a Codex sol xhigh + Fable 5 high panel instead of paging Ben" addendum), spin up a
+**Fable 5** review to adjudicate in his place instead of pausing indefinitely.
+
+**Mechanics adopted (same shape as the old override's, now standing):** Opus adversarial QA still
+runs and posts its verdict first (unchanged — this is the technical gate). Then a Fable 5 agent
+reviews the PR + QA verdict and explicitly adjudicates "safe to merge" — posts its own `gh pr
+comment` verdict tagged `[FABLE-SIGNOFF]` citing this manifest section as authorization. Merge
+proceeds on that verdict; log the merge in Ben's standing digest as "merged under Fable 5
+delegated sign-off," not a routine merge, so he can spot-check.
+
+**Applying to PR #925 now** — Opus QA already GREEN; next step is the Fable 5 sign-off pass.
+
 ## IMMEDIATE re-relay — context-meter fired at 82% on first turn (session `647affcf-6c16-4629-92c9-0e77df89ccdf`)
 
 Same pattern as the three prior successors: hit the 70%+ context-meter trigger before executing
