@@ -3,7 +3,13 @@
 // surface-contributing field is rejected so an external module can never inject
 // nav/routes/tools/SQL before the slices that safely host those land. No node:*
 // imports here — this is re-exported from @jarv1s/module-registry's browser entry.
-import type { JsonJarvisModuleManifest, ModuleLifecycle } from "@jarv1s/module-sdk";
+import type {
+  JsonJarvisModuleManifest,
+  ModuleAuthDeclaration,
+  ModuleLifecycle,
+  ModuleStorageDeclaration,
+  ModuleWebDeclaration
+} from "@jarv1s/module-sdk";
 import { satisfiesCoreVersion } from "@jarv1s/module-sdk/core-version";
 
 export type ExternalModuleValidation =
@@ -22,8 +28,8 @@ const LIFECYCLES: readonly ModuleLifecycle[] = [
 
 // Every field of the compiled JarvisModuleManifest that carries executable behavior
 // or a UI/data surface. Presence of ANY of these in an external manifest is a
-// Slice-1 rejection (metadata-only). `auth`/`storage` are declaration-only but still
-// out of scope this slice.
+// rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2 (validated
+// positively below) and are deliberately absent from this list.
 const FORBIDDEN_FIELDS: readonly string[] = [
   "availability",
   "database",
@@ -42,9 +48,7 @@ const FORBIDDEN_FIELDS: readonly string[] = [
   "proactiveMonitor",
   "personContextProvider",
   "dataLifecycle",
-  "externalSources",
-  "auth",
-  "storage"
+  "externalSources"
 ];
 
 function isNonEmptyString(value: unknown): value is string {
@@ -112,6 +116,89 @@ export function validateExternalModuleManifest(
     }
   }
 
+  // #918 Slice 2: auth/storage/web are now first-class. Everything else
+  // (routes, tools, jobs, database, dataLifecycle, ...) stays forbidden via FORBIDDEN_FIELDS.
+  if (obj.auth !== undefined) {
+    if (!Array.isArray(obj.auth)) {
+      errors.push("auth must be an array");
+    } else {
+      const ids: string[] = [];
+      for (const entry of obj.auth) {
+        if (typeof entry !== "object" || entry === null) {
+          errors.push("auth entries must be objects");
+          continue;
+        }
+        const { id, displayName, kind, scope } = entry as Record<string, unknown>;
+        if (
+          typeof id !== "string" ||
+          !id.startsWith(`${expectedId}.`) ||
+          id.length <= expectedId.length + 1
+        ) {
+          errors.push(`auth id must be prefixed with "${expectedId}."`);
+        } else {
+          ids.push(id);
+        }
+        if (typeof displayName !== "string" || displayName.length === 0 || displayName.length > 200) {
+          errors.push("auth displayName must be a non-empty string (max 200)");
+        }
+        if (kind !== "api-key") errors.push('auth kind must be "api-key"');
+        if (scope !== "instance" && scope !== "user") {
+          errors.push('auth scope must be "instance" or "user"');
+        }
+      }
+      if (new Set(ids).size !== ids.length) errors.push("auth ids must be unique");
+    }
+  }
+  if (obj.storage !== undefined) {
+    if (!Array.isArray(obj.storage)) {
+      errors.push("storage must be an array");
+    } else {
+      for (const entry of obj.storage) {
+        if (typeof entry !== "object" || entry === null) {
+          errors.push("storage entries must be objects");
+          continue;
+        }
+        const { namespace, scopes } = entry as Record<string, unknown>;
+        if (
+          typeof namespace !== "string" ||
+          (namespace !== expectedId && !namespace.startsWith(`${expectedId}.`))
+        ) {
+          errors.push(`storage namespace must be "${expectedId}" or "${expectedId}.<slug>"`);
+        }
+        if (
+          !Array.isArray(scopes) ||
+          scopes.length === 0 ||
+          scopes.some((s) => s !== "instance" && s !== "user")
+        ) {
+          errors.push('storage scopes must be a non-empty array of "instance" | "user"');
+        }
+      }
+    }
+  }
+  if (obj.web !== undefined) {
+    if (typeof obj.web !== "object" || obj.web === null) {
+      errors.push("web must be an object");
+    } else {
+      const { entrypoint, contractVersion } = obj.web as Record<string, unknown>;
+      if (
+        typeof entrypoint !== "string" ||
+        entrypoint.length === 0 ||
+        entrypoint.startsWith("/") ||
+        entrypoint.includes("\\") ||
+        entrypoint.split("/").some((seg) => seg === ".." || seg === "." || seg.length === 0)
+      ) {
+        errors.push("web.entrypoint must be a clean package-relative path");
+      }
+      if (
+        typeof contractVersion !== "number" ||
+        !Number.isInteger(contractVersion) ||
+        contractVersion < 1
+      ) {
+        errors.push("web.contractVersion must be a positive integer");
+      }
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
@@ -124,7 +211,12 @@ export function validateExternalModuleManifest(
     publisher: obj.publisher as string,
     lifecycle: obj.lifecycle as ModuleLifecycle,
     compatibility: { jarv1s: (compatibility as { jarv1s: string }).jarv1s },
-    ...(typeof obj.description === "string" ? { description: obj.description } : {})
+    ...(typeof obj.description === "string" ? { description: obj.description } : {}),
+    ...(obj.auth !== undefined ? { auth: obj.auth as readonly ModuleAuthDeclaration[] } : {}),
+    ...(obj.storage !== undefined
+      ? { storage: obj.storage as readonly ModuleStorageDeclaration[] }
+      : {}),
+    ...(obj.web !== undefined ? { web: obj.web as ModuleWebDeclaration } : {})
   };
   return { ok: true, manifest };
 }
