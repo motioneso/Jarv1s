@@ -1220,6 +1220,14 @@ checks. Started a clean background wait (task `bpubup1ms`) polling `gh pr checks
 will dispatch fresh Opus adversarial QA the moment all 3 resolve green (or handle red per the CI
 waiver protocol if any fail).
 
+**CI resolved GREEN (2026-07-10 ~05:35 UTC):** all 4 checks pass (`Build and publish images`,
+`Compose deployment smoke`, `Prod compose deployment smoke`, `Verify foundation and app`).
+Re-confirmed head still `ab5d3ec5`, PR still OPEN. **Dispatched fresh Opus adversarial QA**
+(security tier, isolated worktree, `JARVIS_PGDATABASE=jarvis_qa_917`) — prompt instructs it to
+independently verify each of the 3 previously-flagged findings (F3 fail-open manifest activation +
+2 others) against the actual diff, not trust the build agent's self-report, and to `gh pr comment`
+its verdict before returning. Awaiting result.
+
 ## Lock re-claimed (successor session `0bbe2a78-f8cd-4971-a9c0-a086ab13dc14`)
 
 Predecessor pane `w1:pD4` (session `f66de1e4-fd45-4328-b3bf-6fbf39e32aa4`, matched manifest lock
