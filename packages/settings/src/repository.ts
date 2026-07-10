@@ -11,6 +11,21 @@ import type {
   ProviderInstallState
 } from "@jarv1s/shared";
 
+// #917: external-module types + DB row-writer helpers were extracted to a sibling module to
+// satisfy the 1000-line file-size gate (Task 7 pushed repository.ts over the cap). The
+// SettingsRepository methods below delegate to these; the types are re-exported (see below)
+// so the @jarv1s/settings public export surface is unchanged.
+import {
+  listExternalModuleStates as listExternalModuleStatesImpl,
+  setExternalModuleEnabled as setExternalModuleEnabledImpl,
+  writeExternalModuleDisabledRow,
+  type ExternalModuleAuditWriter,
+  type SetModuleDisabledInput,
+  type SetExternalModuleEnabledInput,
+  type SetExternalModuleDisabledInput,
+  type ExternalModuleState
+} from "./repository-external-modules.js";
+
 export interface UpsertInstanceSettingInput {
   readonly key: string;
   readonly value: Record<string, unknown>;
@@ -115,43 +130,16 @@ export interface AssembleOnboardingStatusInput {
  */
 const ONBOARDING_LOGINABLE_PROVIDER_KINDS: readonly OnboardingProviderKind[] = ["anthropic"];
 
-export interface SetModuleDisabledInput {
-  readonly moduleId: string;
-  readonly disabled: boolean;
-  readonly actorUserId: string;
-  readonly requestId: string;
-}
-
-// External-module admin state transitions (#917). All admin-gated at the RLS layer
-// (migration 0152: INSERT/UPDATE/DELETE require app.current_actor_is_admin()).
-export interface SetExternalModuleEnabledInput {
-  readonly id: string;
-  readonly manifestHash: string;
-  readonly packageHash: string;
-  readonly actorUserId: string;
-  readonly requestId: string;
-}
-
-export interface SetExternalModuleDisabledInput {
-  readonly id: string;
-  readonly reason: string;
-  readonly actorUserId: string;
-  readonly requestId: string;
-}
-
-/**
- * One persisted app.external_modules row, narrowed to what the reconcile step consumes (#917).
- * Defined locally rather than imported from @jarv1s/module-registry to avoid a package
- * dependency cycle (module-registry already depends on @jarv1s/settings). Structurally
- * identical to module-registry's ExternalModuleStateInput — the app-layer wiring (a later
- * task) passes these rows straight into reconcileExternalModules by structural compatibility.
- */
-export interface ExternalModuleState {
-  readonly id: string;
-  readonly status: "enabled" | "disabled";
-  readonly packageHash: string | null;
-  readonly disabledReason: string | null;
-}
+// #917: the external-module admin types live in ./repository-external-modules.js (extracted
+// for the 1000-line file-size gate) and are imported above for local use in the method
+// signatures. Re-export them here so consumers that import them from "./repository.js" /
+// "@jarv1s/settings" (routes.ts, apps/api) keep resolving unchanged.
+export type {
+  SetModuleDisabledInput,
+  SetExternalModuleEnabledInput,
+  SetExternalModuleDisabledInput,
+  ExternalModuleState
+};
 
 export class HttpRepositoryError extends Error {
   constructor(
@@ -306,147 +294,55 @@ export class SettingsRepository {
     }
   }
 
-  /**
-   * All external-module enablement rows visible under RLS (#917). SELECT is granted to
-   * every authed actor (instance-global state, mirrors provider_install_state), so this
-   * is the read used by both the public resolver and the admin GET. Narrowed to the
-   * shape reconcileExternalModules() needs (the local ExternalModuleState mirror; see its
-   * doc-comment for why we don't import module-registry's type here — dependency cycle).
-   */
-  async listExternalModuleStates(scopedDb: DataContextDb): Promise<ExternalModuleState[]> {
-    assertDataContextDb(scopedDb);
-    const rows = await scopedDb.db
-      .selectFrom("app.external_modules")
-      .select(["id", "status", "package_hash", "disabled_reason"])
-      .orderBy("id")
-      .execute();
-    return rows.map((r) => ({
-      id: r.id,
-      status: r.status,
-      packageHash: r.package_hash,
-      disabledReason: r.disabled_reason
-    }));
+  // #917: external-module admin state methods. The DB row-writer/mapper bodies were
+  // extracted to ./repository-external-modules.js for the 1000-line file-size gate; these
+  // stay as the class's public surface and delegate. Behavior is unchanged — the audit write
+  // still routes through this.insertAuditEvent via the closure the impls invoke, preserving
+  // the metadata-only invariant. RLS INSERT/UPDATE require current_actor_is_admin().
+  private externalModuleAuditWriter(scopedDb: DataContextDb): ExternalModuleAuditWriter {
+    return (event) => this.insertAuditEvent(scopedDb, event);
   }
 
-  /**
-   * Admin: enable an external module, recording the manifest + package hashes trusted at
-   * this moment (#917). Upsert — enabling an already-enabled module re-captures the hash
-   * (an admin re-approving a changed package). RLS INSERT/UPDATE require
-   * current_actor_is_admin(); a non-admin call is rejected at the policy layer.
-   */
+  /** All external-module enablement rows visible under RLS (#917). See impl for details. */
+  async listExternalModuleStates(scopedDb: DataContextDb): Promise<ExternalModuleState[]> {
+    return listExternalModuleStatesImpl(scopedDb);
+  }
+
+  /** Admin: enable an external module, recording the trusted manifest + package hashes (#917). */
   async setExternalModuleEnabled(
     scopedDb: DataContextDb,
     input: SetExternalModuleEnabledInput
   ): Promise<void> {
-    assertDataContextDb(scopedDb);
-    await scopedDb.db
-      .insertInto("app.external_modules")
-      .values({
-        id: input.id,
-        status: "enabled",
-        manifest_hash: input.manifestHash,
-        package_hash: input.packageHash,
-        disabled_reason: null,
-        enabled_by: input.actorUserId,
-        enabled_at: new Date(),
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-      .onConflict((oc) =>
-        oc.column("id").doUpdateSet({
-          status: "enabled",
-          manifest_hash: input.manifestHash,
-          package_hash: input.packageHash,
-          disabled_reason: null,
-          enabled_by: input.actorUserId,
-          enabled_at: new Date(),
-          updated_at: new Date()
-        })
-      )
-      .execute();
-
-    // Metadata-only audit: { moduleId } ONLY, matching the module.instance_enable precedent.
-    // NEVER record manifest_hash/package_hash or any content here (metadata-only invariant, #917).
-    await this.insertAuditEvent(scopedDb, {
-      actorUserId: input.actorUserId,
-      action: "module.external_enable",
-      targetType: "module",
-      targetId: input.id,
-      metadata: { moduleId: input.id },
-      requestId: input.requestId
-    });
+    await setExternalModuleEnabledImpl(scopedDb, input, this.externalModuleAuditWriter(scopedDb));
   }
 
-  /**
-   * Admin: explicitly disable an external module (#917). Upsert so a never-enabled
-   * (virtual 'discovered') module can be pinned disabled too. Clears the enable pointer.
-   */
+  /** Admin: explicitly disable an external module; upsert so a discovered module can be pinned off (#917). */
   async setExternalModuleDisabled(
     scopedDb: DataContextDb,
     input: SetExternalModuleDisabledInput
   ): Promise<void> {
-    assertDataContextDb(scopedDb);
-    await this.writeDisabledRow(scopedDb, input, "module.external_disable");
+    await writeExternalModuleDisabledRow(
+      scopedDb,
+      input,
+      "module.external_disable",
+      this.externalModuleAuditWriter(scopedDb)
+    );
   }
 
   /**
-   * Drift auto-disable (#917). Same persisted effect as an admin disable, but a distinct
-   * audit action so the log distinguishes "admin turned it off" from "we turned it off
-   * because the package changed". Called ONLY from the admin GET path (admin RLS context)
-   * when reconcile reports drift on an enabled module.
+   * Drift auto-disable (#917). Same persisted effect as an admin disable but a distinct audit
+   * action. Called ONLY from the admin GET path (admin RLS context) when reconcile reports drift.
    */
   async autoDisableExternalModule(
     scopedDb: DataContextDb,
     input: SetExternalModuleDisabledInput
   ): Promise<void> {
-    assertDataContextDb(scopedDb);
-    await this.writeDisabledRow(scopedDb, input, "module.external_auto_disable");
-  }
-
-  /** Shared disable upsert + audit for the two disable entry points above (#917). */
-  private async writeDisabledRow(
-    scopedDb: DataContextDb,
-    input: SetExternalModuleDisabledInput,
-    action: "module.external_disable" | "module.external_auto_disable"
-  ): Promise<void> {
-    await scopedDb.db
-      .insertInto("app.external_modules")
-      .values({
-        id: input.id,
-        status: "disabled",
-        // A disabled row still needs the NOT NULL hash columns; empty sentinels are
-        // fine because activation requires status='enabled' AND a hash match — a
-        // disabled row is never active regardless of what hash it carries.
-        manifest_hash: "",
-        package_hash: "",
-        disabled_reason: input.reason,
-        enabled_by: null,
-        enabled_at: null,
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-      .onConflict((oc) =>
-        oc.column("id").doUpdateSet({
-          status: "disabled",
-          disabled_reason: input.reason,
-          enabled_by: null,
-          enabled_at: null,
-          updated_at: new Date()
-        })
-      )
-      .execute();
-
-    // Metadata-only audit: { moduleId } ONLY (metadata-only invariant, #917). The disable
-    // reason IS persisted, but on the app.external_modules row (disabled_reason column) —
-    // NOT in audit metadata, keeping the audit payload to the module id + actor + requestId.
-    await this.insertAuditEvent(scopedDb, {
-      actorUserId: input.actorUserId,
-      action,
-      targetType: "module",
-      targetId: input.id,
-      metadata: { moduleId: input.id },
-      requestId: input.requestId
-    });
+    await writeExternalModuleDisabledRow(
+      scopedDb,
+      input,
+      "module.external_auto_disable",
+      this.externalModuleAuditWriter(scopedDb)
+    );
   }
 
   async upsertInstanceSetting(
