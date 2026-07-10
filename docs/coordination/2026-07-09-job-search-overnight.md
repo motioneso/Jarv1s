@@ -217,6 +217,32 @@ xhigh agent alongside Fable 5."
 4. **Still do not spawn any build lane** — #917 plan is only just starting to be authored, not
    approved. #913 epic spec still unmerged. #915/#916 still no merged spec.
 
+## Relay checkpoint 2 (coordinator session `ff21f505-...`, context 70% warning fired mid-merge)
+
+**PR #921 MERGED** — commit `264fbfcbb15d441b42f628ad313230ee9e8a25cb`, `2026-07-10T06:56:46Z`,
+squash + branch deleted. #913 epic spec is now on `main`. Epic #913 issue stays OPEN (blocked on
+children #917→#914→#918→#919 per spec). `merges_since_relay = 1` (routine tier; trigger is every
+2 routine/sensitive — not yet fired). **Ben digest entry:** "#913 epic spec merged (PR #921,
+routine/docs-only, content was already Ben-approved pre-merge) — no action needed, FYI only."
+
+**Overnight sign-off override is ACTIVE** (see section above) — Ben explicitly extended
+Fable+Codex panel sign-off to cover security-tier merges too, tonight only, until he's back.
+
+**Not yet resolved when this relay fired:**
+- **Fable 5 (`w1:pCR`) self-relay status UNKNOWN** — nudged to checkpoint+self-relay (context
+  72% + 3 API stalls) last checkpoint; successor pane not yet confirmed driving, old pane not yet
+  reaped. Check `w1:t1F` for a new Fable pane; if none appeared, `w1:pCR` may still be the live
+  one (or fully stalled) — read it fresh, nudge again if genuinely stuck (don't respawn unless
+  actually dead, per `agent-stall-nudge-recovery` memory), or respawn only as last resort.
+- **Opus xhigh (`w1:pCV`) #917 plan** — last observed status `working`, no completion signal yet.
+  No plan-ready escalation received. Check pane fresh.
+- **Codex (`w1:pCK`)** — idle, last task (#913 PR) complete. Available for next ping.
+- **Monitor `b4gg5bu76`** (scoped to tab `w1:t1F`) dies with this session — successor must restart
+  its own persistent Monitor over that tab.
+- **Still holding — no build lane spawns** until #917's plan is authored AND reviewed/approved.
+  #915 slice-3 could become a second ready lane once its spec PR lands + plan is approved
+  (untouched this checkpoint). #916 still has no spec.
+
 ## Next actions for successor coordinator
 1. Message `w1:pCR` (Fable 5) directly with this table — ask for its current verdict on #915's
    spec-approval state and whether #913's epic spec is ready to open as a PR against main.
