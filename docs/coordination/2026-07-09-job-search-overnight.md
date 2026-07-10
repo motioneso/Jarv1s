@@ -620,3 +620,60 @@ no premise drift found). Successor spawned in the same worktree/branch: session
 this time** (`w1:t1E`, no incident) — verified via `herdr pane list` before acting. Confirmed
 genuinely driving (Sonnet 5, bounded pane read) before reaping. Old pane `w1:pDH` (session
 `f1887c6e-...`) closed. Status: `building`, current #914 pane = `w1:pDK`.
+
+## Lock re-claimed (session `4d68fcc5-bc2c-44cd-ae0d-a2e305f94069`), relay at 70% context-meter
+
+**Current live fleet state (both build lanes still pre-code — normal, not a red flag; both spent
+their early budget on grounding/premise-verification, which is working as intended):**
+
+- **#918** — pane `w1:pDJ`, tab `w1:t1E`, session `dbf1c605-512a-4c0c-b310-9063ac8893c9`, label
+  `918: open module system slice2 build (relay-1)`, confirmed Sonnet 5, `agent_status: working`.
+  History: original spawn `w1:pDG` → self-relay in-place (session `50971043-...`, same pane) →
+  self-relay to new pane `w1:pDJ` (**hit a tab-placement incident** — landed in coordinator tab
+  `w1:t15`, caught via mandatory tab_id check, moved to `w1:t1E`, old pane reaped). At last report
+  (relay-2, still pre-Task-1): agent said "masked-plan-span recovery ate budget, not code — all 27
+  tasks now fully verified/recovered from Read-tool masking via grep/sed. Migration head still
+  0152, taking 0153/0154. Spawning successor now, no blockers." **That relay-2 successor pane has
+  NOT yet appeared as of this checkpoint** — a Monitor was armed to catch it but had to be stopped
+  (bug: `prev` var never updated inside the loop, causing repeat-fire on the same event — fix in
+  any future monitor: update `prev=$sess` after each detection, or just re-run a single bounded
+  check instead of a persistent loop for a one-shot wait). **Successor's first action: check
+  `herdr pane list` for a NEW #918 pane (session != `dbf1c605-...`), confirm it's driving +
+  correct tab (`w1:t1E`) before reaping `w1:pDJ`. If `w1:pDJ` is still the only #918 pane and
+  still `working`, it hasn't relayed yet — just resume supervising it in place.**
+
+- **#914** — pane `w1:pDM`, tab `w1:t1E`, session `a59d7d97-1747-47cd-8944-7445a9307a6e`, label
+  `914: module data plane build (relay-2)`, confirmed Sonnet 5, `agent_status: working`. History:
+  original spawn `w1:pDH` → self-relay to new pane `w1:pDK` (relay-1, correct tab, no incident,
+  confirmed+reaped) → self-relay to new pane `w1:pDM` (relay-2, correct tab, confirmed+reaped).
+  At last report (still pre-plan): "spec+handoff+grounding done, migration head=0152 confirmed no
+  drift, validate.ts extension resolved not a conflict. #918 pane shows working but no PR/pushed
+  branch found via gh — re-verifying before finalizing migration numbers. Spawning successor now
+  via relay skill to write the plan. Will msg again once plan doc ready for approval." **Expect a
+  plan-ready escalation from this lane next** — when it lands, approve if it stays inside the
+  spec's locked decisions (per `coordinate` Phase 2), else Opus-adjudicate a genuine fork.
+
+**Both build lanes' repeated pre-code relays are notable but not yet a stop-the-line pattern** —
+each relay reported concrete grounding/recovery work (not stalling), and both are `security` tier
+where thorough premise-verification before code is the right tradeoff. If a lane relays again
+still pre-Task-1/pre-plan with no new concrete progress reported, treat that as a stall — escalate
+to Ben rather than continuing to relay-babysit.
+
+**No PRs, no merges, no QA spawned yet this run** — nothing to verify/merge at this checkpoint.
+**No blockers, no forks, no `[SECURITY]`/`[CRIT]` escalations hit.** `merges_since_relay: 0`.
+
+**Topology unchanged:** agents tab `w1:t1E`; coordinator tab `w1:t15`. Idle panes NOT part of this
+run, leave alone: `w1:pBK` (news-module), `w1:pCP` (Fable sports-fed spec+plan), `w1:pCQ` (Fable PR
+review 908/909/910, worktree deleted), `w1:pCK` (Codex Job Search Spec, already ack'd), `w1:pCR`
+(Fable 5 Job Search Spec Review, idle).
+
+**#916:** still `needs-spec`, held until #918 lands + a Slice-3 spec-authoring pass with Ben.
+**#919:** still queued behind #918's build+merge.
+
+**Successor's first actions, in order:**
+1. Phase 0a lock re-claim (standard — resolve this pane fresh by label+session id, never a written
+   pane number; rename to `Coordinator`; verify uniqueness; update the top-of-file lock line).
+2. Check #918 (`w1:pDJ` / session `dbf1c605-...`) per the note above — reap+confirm a relay-2
+   successor if one has appeared, else just resume supervising in place.
+3. Resume Phase 2 supervise for both lanes; expect a #914 plan-ready escalation soon.
+4. No merges pending — nothing else queued beyond normal supervision.
