@@ -3364,3 +3364,17 @@ degrade to independent Opus critic again if JS-05 QA lands before 14:37.
 - `w1:pFV` News S2 Codex (session 019f5265) — PARKED, quota-blocked, resume 14:37 (cron b5acf481 @14:40).
 - `w1:pEP` Codex done/idle (session 019f4fd0) — News quota fallback if pFV can't resume.
 - `w1:pBK` idle stray (news-module worktree, session 28c218bf) — hold, do not reap blindly.
+
+## News S2 REROUTED to GLM-5.2 (OpenCode) — 2026-07-11 ~11:52 PDT (Ben directive)
+**Ben (genuine msg):** "Codex is 5hr capped until 2:37, so any work planned routed to it should go
+to GLM 5.2 through open code." → News S2 build no longer waits for Codex; handed to GLM-5.2.
+- Codex-resume cron b5acf481 CANCELLED (avoid double-driving the worktree).
+- Parked Codex pane pFV REAPED (was idle/quota-blocked). One-agent-per-worktree preserved.
+- GLM connectivity verified end-to-end (`opencode run` → `GLM_OK`) via proxy :8788 (headroom pid 3505).
+- herdr TUI spawns (pFY, pFZ) DIED on startup (opencode TUI needs a foreground terminal; `--no-focus`
+  pane exits). Fallback = **headless `opencode run` as background task `btzj1e411`** on worktree
+  news-slice2, model zai-coding-plan/glm-5.2, continuing plan Tasks 11-16 from the on-disk WIP.
+  Output: tasks/btzj1e411.output. NOT herdr-tracked → supervise via Read on the output file.
+- GLM now authors News (not Codex) → QA council **Opus + Fable** still valid (author-independent;
+  GLM≠Opus≠Fable). Codex may rejoin QA after 14:37 if useful. Fallback if GLM fails: Codex pEP at 14:37.
+- Plan already APPROVED + committed (2026-07-11-news-s2-safe-discovery.md); GLM executes, no re-approval.
