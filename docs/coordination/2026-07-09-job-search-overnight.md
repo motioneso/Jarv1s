@@ -2477,3 +2477,22 @@ relay leaked herdr default). Kept on Opus — NOT respawned to Sonnet — per Be
 reversal (2026-07-06: build agents on Opus, Sonnet underdelivered), which this lane's 2x Sonnet
 zero-code relays concretely confirm. Opus 1M ctx also gives headroom to plan+build without relaying.
 pEF now reading external-loader.test.ts → writing-plans next. Await plan-ready.
+
+**#916 PLAN APPROVED + MODEL→SONNET @ 2026-07-11 ~04:50.** pEF (r3, Opus) wrote plan
+`docs/superpowers/plans/2026-07-10-916-host-starter-action.md` (7 TDD tasks, on disk 36KB), stopped
+for approval. Coordinator APPROVED (stays inside spec + both Fable edits correctly reflected:
+per-contribution hostActions Root prop; initialText draft not openChatWith; per-module context =
+host-bound moduleId anti-impersonation; correct tests/ tree; e2e asserts zero /api/chat/turn POST;
+cap=1000 fail-closed). Plan shape: new pure `host-actions.ts` (contract v1 + fail-closed
+sanitizeStarterPrompt + moduleId-bound factory), loader Root hostActions prop, chat-controls
+`openAssistantWithDraft`, app-shell moduleDraft→ChatDrawer initialText (#368 askJarvis mirror),
+app.tsx ExternalModuleMount per-module binding, composer focus-on-seed. 3 build guardrails delivered.
+**Ben (2026-07-11): "use sonnet agents for building."** → killed Opus pEF, respawned #916 on SONNET
+**pEG** label `916: host starter action (r4-sonnet)`, session `47b52215-4a72-4546-b598-5ea3ffedb312`,
+tab w1:t17, same worktree/branch, plan file persisted on disk → agent goes straight to BUILD (no
+re-plan/re-research; test-tree + guardrails re-handed in spawn prompt). pEG confirmed Sonnet 5,
+working. Prior 2 Sonnet relays were the wrong-test-tree spin (now diagnosed+fixed, root cause gone).
+Memory corrected: [spawn-defaults-opus] file+MEMORY.md index re-aligned to Sonnet-for-building
+(stale index line had said Opus — that misled the earlier keep-on-Opus call). CHECKPOINT: coordinator
+flushes in-place per Ben's auto-compact override — NO successor coordinator pane. Await pEG done/PR
+(security tier → Opus adversarial QA + panel sign-off).
