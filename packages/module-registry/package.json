@@ -22,6 +22,7 @@
     "@jarv1s/db": "workspace:*",
     "@jarv1s/email": "workspace:*",
     "@jarv1s/goals": "workspace:*",
+    "@jarv1s/host-fetch": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/memory": "workspace:*",
     "@jarv1s/structured-state": "workspace:*",

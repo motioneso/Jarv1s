@@ -552,6 +552,8 @@ importers:
         specifier: ^12.18.2
         version: 12.18.2
 
+  packages/host-fetch: {}
+
   packages/jobs:
     dependencies:
       '@jarv1s/db':
@@ -632,6 +634,9 @@ importers:
       '@jarv1s/goals':
         specifier: workspace:*
         version: link:../goals
+      '@jarv1s/host-fetch':
+        specifier: workspace:*
+        version: link:../host-fetch
       '@jarv1s/jobs':
         specifier: workspace:*
         version: link:../jobs

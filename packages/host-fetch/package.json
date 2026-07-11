@@ -1,0 +1,12 @@
+{
+  "name": "@jarv1s/host-fetch",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./policy": "./src/policy.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

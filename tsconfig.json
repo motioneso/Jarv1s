@@ -23,6 +23,7 @@
       "@jarv1s/connectors": ["packages/connectors/src/index.ts"],
       "@jarv1s/connectors/presets": ["packages/connectors/src/imap-presets.ts"],
       "@jarv1s/datasets": ["packages/datasets/src/index.ts"],
+      "@jarv1s/host-fetch/policy": ["packages/host-fetch/src/policy.ts"],
       "@jarv1s/db": ["packages/db/src/index.ts"],
       "@jarv1s/db/probes": ["packages/db/src/probes/index.ts"],
       "@jarv1s/db/*": ["packages/db/src/*"],

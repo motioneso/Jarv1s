@@ -6,11 +6,13 @@
 import type {
   JsonJarvisModuleManifest,
   ExternalModuleAssistantToolDeclaration,
+  ExternalModuleWorkerDeclaration,
   ModuleAuthDeclaration,
   ModuleLifecycle,
   ModuleStorageDeclaration,
   ModuleWebDeclaration
 } from "@jarv1s/module-sdk";
+import { assertValidFetchHosts } from "@jarv1s/host-fetch/policy";
 import { satisfiesCoreVersion } from "@jarv1s/module-sdk/core-version";
 
 export type ExternalModuleValidation =
@@ -55,10 +57,247 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function validParamsSchema(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const schema = value as Record<string, unknown>;
+  if (["uuid", "identifier", "timestamp", "boolean", "null"].includes(String(schema.type))) {
+    return Object.keys(schema).length === 1;
+  }
+  if (schema.type === "integer" || schema.type === "number") {
+    return (
+      Object.keys(schema).every((key) => ["type", "min", "max"].includes(key)) &&
+      typeof schema.min === "number" &&
+      typeof schema.max === "number" &&
+      Number.isFinite(schema.min) &&
+      Number.isFinite(schema.max) &&
+      schema.min <= schema.max
+    );
+  }
+  if (schema.type === "enum") {
+    return (
+      Object.keys(schema).every((key) => ["type", "values"].includes(key)) &&
+      Array.isArray(schema.values) &&
+      schema.values.length > 0 &&
+      schema.values.every(
+        (item) => typeof item === "string" && /^[a-z0-9][a-z0-9_.:-]{0,63}$/i.test(item)
+      )
+    );
+  }
+  if (schema.type === "array") {
+    return (
+      Object.keys(schema).every((key) => ["type", "items", "maxItems"].includes(key)) &&
+      Number.isInteger(schema.maxItems) &&
+      (schema.maxItems as number) > 0 &&
+      validParamsSchema(schema.items) &&
+      (schema.items as { type?: unknown }).type !== "array" &&
+      (schema.items as { type?: unknown }).type !== "object"
+    );
+  }
+  if (schema.type === "object") {
+    if (
+      !Object.keys(schema).every((key) => ["type", "fields"].includes(key)) ||
+      !schema.fields ||
+      typeof schema.fields !== "object" ||
+      Array.isArray(schema.fields)
+    ) {
+      return false;
+    }
+    return Object.entries(schema.fields).every(
+      ([key, field]) =>
+        /^[a-z][a-zA-Z0-9_]{0,63}$/.test(key) &&
+        validParamsSchema(field) &&
+        (field as { type?: unknown }).type !== "object"
+    );
+  }
+  return false;
+}
+
+function validParamsValue(schema: Record<string, unknown>, value: unknown): boolean {
+  switch (schema.type) {
+    case "uuid":
+      return (
+        typeof value === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+      );
+    case "identifier":
+      return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,63}$/i.test(value);
+    case "timestamp":
+      return typeof value === "string" && !Number.isNaN(Date.parse(value));
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    case "integer":
+    case "number":
+      return (
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        (schema.type !== "integer" || Number.isInteger(value)) &&
+        value >= (schema.min as number) &&
+        value <= (schema.max as number)
+      );
+    case "enum":
+      return typeof value === "string" && (schema.values as readonly string[]).includes(value);
+    case "array":
+      return (
+        Array.isArray(value) &&
+        value.length <= (schema.maxItems as number) &&
+        value.every((item) => validParamsValue(schema.items as Record<string, unknown>, item))
+      );
+    case "object": {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      const fields = schema.fields as Record<string, Record<string, unknown>>;
+      return Object.entries(value as Record<string, unknown>).every(
+        ([key, item]) => fields[key] !== undefined && validParamsValue(fields[key], item)
+      );
+    }
+    default:
+      return false;
+  }
+}
+
+function hasDeadLetterCycle(queues: readonly Record<string, unknown>[]): boolean {
+  const edges = new Map(
+    queues
+      .filter(
+        (queue) => typeof queue.name === "string" && typeof queue.deadLetterQueue === "string"
+      )
+      .map((queue) => [queue.name as string, queue.deadLetterQueue as string])
+  );
+  for (const start of edges.keys()) {
+    const seen = new Set<string>();
+    for (let current: string | undefined = start; current; current = edges.get(current)) {
+      if (seen.has(current)) return true;
+      seen.add(current);
+    }
+  }
+  return false;
+}
+
+function validateWorker(
+  raw: unknown,
+  moduleId: string,
+  errors: string[],
+  reservedQueueNames: ReadonlySet<string>
+): ExternalModuleWorkerDeclaration | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    errors.push("worker must be an object");
+    return undefined;
+  }
+  const worker = raw as Record<string, unknown>;
+  if (worker.queues !== undefined && !Array.isArray(worker.queues)) {
+    errors.push("worker.queues must be an array");
+  }
+  if (worker.schedules !== undefined && !Array.isArray(worker.schedules)) {
+    errors.push("worker.schedules must be an array");
+  }
+  const queues = Array.isArray(worker.queues) ? worker.queues : [];
+  if (queues.length > 16) errors.push("worker declares more than 16 queues");
+  const queueNames = new Set<string>();
+  const normalizedQueues: Record<string, unknown>[] = [];
+  for (const entry of queues) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      errors.push("worker queue entries must be objects");
+      continue;
+    }
+    const queue = entry as Record<string, unknown>;
+    if (typeof queue.name !== "string" || !queue.name.startsWith(`${moduleId}.`)) {
+      errors.push(`worker queue names must be prefixed with "${moduleId}."`);
+    } else if (reservedQueueNames.has(queue.name)) {
+      errors.push(`worker queue "${queue.name}" collides with an existing queue`);
+    } else if (queueNames.has(queue.name)) {
+      errors.push("worker queue names must be unique");
+    } else queueNames.add(queue.name);
+    if (!isNonEmptyString(queue.handler)) errors.push("worker queue handler is required");
+    if (queue.paramsSchema !== undefined && !validParamsSchema(queue.paramsSchema)) {
+      errors.push("worker queue paramsSchema is invalid");
+    }
+    if (
+      queue.retryLimit !== undefined &&
+      (!Number.isInteger(queue.retryLimit) || (queue.retryLimit as number) < 0)
+    ) {
+      errors.push("worker queue retryLimit must be a non-negative integer");
+    }
+    normalizedQueues.push({
+      ...queue,
+      ...(typeof queue.retryLimit === "number"
+        ? { retryLimit: Math.min(queue.retryLimit, 10) }
+        : {})
+    });
+  }
+  for (const queue of queues as Record<string, unknown>[]) {
+    if (typeof queue.deadLetterQueue === "string" && !queueNames.has(queue.deadLetterQueue)) {
+      errors.push("worker queue deadLetterQueue must reference a declared queue");
+    }
+  }
+  if (hasDeadLetterCycle(queues as Record<string, unknown>[])) {
+    errors.push("worker dead-letter graph contains a cycle");
+  }
+  const schedules = Array.isArray(worker.schedules) ? worker.schedules : [];
+  if (schedules.length > 32) errors.push("worker declares more than 32 schedules");
+  const scheduleIds = new Set<string>();
+  for (const entry of schedules) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      errors.push("worker schedule entries must be objects");
+      continue;
+    }
+    const schedule = entry as Record<string, unknown>;
+    if (typeof schedule.id !== "string" || !/^[a-z][a-z0-9_.-]{0,63}$/.test(schedule.id)) {
+      errors.push("worker schedule id must be a bounded identifier");
+    } else if (scheduleIds.has(schedule.id)) {
+      errors.push("worker schedule ids must be unique");
+    } else scheduleIds.add(schedule.id);
+    if (
+      typeof schedule.cron !== "string" ||
+      schedule.cron.trim().split(/\s+/).length !== 5 ||
+      !/^[\d*/?,\-\s]+$/.test(schedule.cron)
+    ) {
+      errors.push("worker schedule cron must be a standard 5-field expression");
+    }
+    if (schedule.scope !== "user") errors.push('worker schedule scope must be "user"');
+    if (
+      typeof schedule.jobKind !== "string" ||
+      !/^[a-z][a-z0-9_.-]{0,63}$/.test(schedule.jobKind)
+    ) {
+      errors.push("worker schedule jobKind must be a bounded identifier");
+    }
+    if (typeof schedule.queue !== "string" || !queueNames.has(schedule.queue)) {
+      errors.push("worker schedule queue must reference a declared queue");
+    }
+    if (schedule.tz !== undefined) {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: String(schedule.tz) }).format();
+      } catch {
+        errors.push("worker schedule time zone is invalid");
+      }
+    }
+    const queue = normalizedQueues.find((candidate) => candidate.name === schedule.queue);
+    if (schedule.params !== undefined) {
+      const encoded = JSON.stringify(schedule.params);
+      if (
+        !queue?.paramsSchema ||
+        encoded.length > 2_048 ||
+        !validParamsValue(queue.paramsSchema as Record<string, unknown>, schedule.params)
+      ) {
+        errors.push("worker schedule params do not match the queue paramsSchema");
+      }
+    }
+  }
+  return {
+    ...(worker.queues !== undefined
+      ? { queues: normalizedQueues as unknown as ExternalModuleWorkerDeclaration["queues"] }
+      : {}),
+    ...(worker.schedules !== undefined
+      ? { schedules: schedules as ExternalModuleWorkerDeclaration["schedules"] }
+      : {})
+  };
+}
+
 export function validateExternalModuleManifest(
   raw: unknown,
   expectedId: string,
-  coreVersion?: string
+  coreVersion?: string,
+  reservedQueueNames: ReadonlySet<string> = new Set()
 ): ExternalModuleValidation {
   const errors: string[] = [];
 
@@ -256,6 +495,28 @@ export function validateExternalModuleManifest(
     }
   }
 
+  if ((obj.worker !== undefined || obj.fetchHosts !== undefined) && obj.runtime === undefined) {
+    errors.push("runtime is required when worker or fetchHosts exist");
+  }
+  const worker =
+    obj.worker === undefined
+      ? undefined
+      : validateWorker(obj.worker, expectedId, errors, reservedQueueNames);
+  if (obj.fetchHosts !== undefined) {
+    if (
+      !Array.isArray(obj.fetchHosts) ||
+      !obj.fetchHosts.every((host) => typeof host === "string")
+    ) {
+      errors.push("fetchHosts must be an array of hostnames");
+    } else {
+      try {
+        assertValidFetchHosts(expectedId, obj.fetchHosts as string[]);
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : "fetchHosts are invalid");
+      }
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
@@ -279,7 +540,9 @@ export function validateExternalModuleManifest(
       : {}),
     ...(obj.assistantTools !== undefined
       ? { assistantTools: obj.assistantTools as readonly ExternalModuleAssistantToolDeclaration[] }
-      : {})
+      : {}),
+    ...(worker !== undefined ? { worker } : {}),
+    ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {})
   };
   return { ok: true, manifest };
 }

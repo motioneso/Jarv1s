@@ -28,6 +28,7 @@ import {
   aggregateFocusSignals,
   createActiveModulesResolver,
   focusSignalProvidersFor,
+  getAllQueueDefinitions,
   getBuiltInModuleManifests,
   reconcileExternalModules,
   registerBuiltInApiRoutes,
@@ -163,7 +164,8 @@ export function discoverExternalModules(
   }
   const snapshot = getExternalModuleRegistrations({
     modulesDir: config.externalModulesDir,
-    coreVersion: CORE_VERSION
+    coreVersion: CORE_VERSION,
+    reservedQueueNames: new Set(getAllQueueDefinitions().map((queue) => queue.name))
   });
   log.info(
     { discovered: snapshot.discoveries.length, rejected: snapshot.rejected.length },
