@@ -4,8 +4,18 @@ import { describe, expect, it } from "vitest";
 import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
-import type { CreateNewsPrefRequest, NewsPrefDto } from "@jarv1s/shared";
+import type {
+  CreateNewsPrefRequest,
+  NewsCustomSourceDto,
+  NewsCustomTopicDto,
+  NewsPrefDto,
+  NewsSourceExclusionDto
+} from "@jarv1s/shared";
 
+import {
+  NewsPersonalizationLimitError,
+  type NewsSnapshotRecord
+} from "../../packages/news/src/personalization-repository.js";
 import { registerNewsRoutes, type NewsRoutesDependencies } from "../../packages/news/src/routes.js";
 import type { RssFeedItem } from "../../packages/news/src/source/rss-source.js";
 
@@ -88,10 +98,100 @@ function makeRepo(initial: NewsPrefDto[]): FakeRepo {
   };
 }
 
+/**
+ * Fake personalization store. `listCustomSources`/`listCustomTopics` deliberately return rows
+ * carrying EXTRA module-private fields (fingerprint, provider identity) beyond the DTO so the
+ * serialization tests can prove the response schemas strip them on the wire.
+ */
+interface FakePersonalization {
+  listCustomSources(scopedDb: DataContextDb): Promise<NewsCustomSourceDto[]>;
+  listCustomTopics(scopedDb: DataContextDb): Promise<NewsCustomTopicDto[]>;
+  listExclusions(scopedDb: DataContextDb): Promise<NewsSourceExclusionDto[]>;
+  createExclusion(
+    scopedDb: DataContextDb,
+    canonicalDomain: string
+  ): Promise<NewsSourceExclusionDto>;
+  removeExclusion(scopedDb: DataContextDb, id: string): Promise<boolean>;
+  readLatestSnapshot(scopedDb: DataContextDb): Promise<NewsSnapshotRecord | null>;
+  createdDomains: string[];
+  removedIds: string[];
+}
+
+const LEAKED_SOURCE_ROW = {
+  id: "33333333-3333-3333-3333-333333333333",
+  label: "Custom Wire",
+  canonicalDomain: "custom-wire.example",
+  homepageUrl: "https://custom-wire.example",
+  feedUrl: null,
+  retrievalMethod: "scrape",
+  validationStatus: "approved",
+  healthStatus: "available",
+  createdAt: "2026-07-10T00:00:00.000Z",
+  // Module-private fields that must NEVER survive serialization:
+  validationFingerprint: "vfp-SECRET-MARKER",
+  provider: "provider-SECRET-MARKER"
+} as unknown as NewsCustomSourceDto;
+
+const LEAKED_TOPIC_ROW = {
+  id: "44444444-4444-4444-4444-444444444444",
+  label: "Fusion policy",
+  guidance: "prefer primary sources",
+  validationStatus: "approved",
+  createdAt: "2026-07-10T00:00:00.000Z",
+  validationFingerprint: "vfp-TOPIC-SECRET",
+  model: "model-SECRET-MARKER"
+} as unknown as NewsCustomTopicDto;
+
+const SEEDED_EXCLUSION: NewsSourceExclusionDto = {
+  id: "55555555-5555-5555-5555-555555555555",
+  canonicalDomain: "tabloid.example",
+  createdAt: "2026-07-09T00:00:00.000Z"
+};
+
+function makePersonalization(overrides: Partial<FakePersonalization> = {}): FakePersonalization {
+  const createdDomains: string[] = [];
+  const removedIds: string[] = [];
+  return {
+    createdDomains,
+    removedIds,
+    listCustomSources: async () => [LEAKED_SOURCE_ROW],
+    listCustomTopics: async () => [LEAKED_TOPIC_ROW],
+    listExclusions: async () => [SEEDED_EXCLUSION],
+    createExclusion: async (_db, canonicalDomain) => {
+      createdDomains.push(canonicalDomain);
+      return {
+        id: "66666666-6666-6666-6666-666666666666",
+        canonicalDomain,
+        createdAt: "2026-07-11T00:00:00.000Z"
+      };
+    },
+    removeExclusion: async (_db, id) => {
+      removedIds.push(id);
+      return true;
+    },
+    readLatestSnapshot: async () => ({
+      compiledAt: new Date("2026-07-11T06:00:00.000Z"),
+      expiresAt: new Date("2026-07-11T07:00:00.000Z"),
+      payload: {
+        articles: [{ title: "PAYLOAD-ARTICLE-SECRET" }],
+        compilerNote: "PAYLOAD-SECRET-MARKER"
+      }
+    }),
+    ...overrides
+  };
+}
+
 function buildApp(
-  overrides: Partial<NewsRoutesDependencies> & { repo?: FakeRepo; getFeed?: FeedHandler } = {}
+  overrides: Partial<NewsRoutesDependencies> & {
+    repo?: FakeRepo;
+    getFeed?: FeedHandler;
+    personalization?: FakePersonalization;
+    hasJsonModel?: boolean;
+    hasWebSearch?: boolean;
+  } = {}
 ) {
   const repo = overrides.repo ?? makeRepo([SEEDED_TOPIC_PREF]);
+  const personalization = overrides.personalization ?? makePersonalization();
   const app = Fastify();
   const deps: NewsRoutesDependencies = {
     datasetClient:
@@ -101,10 +201,15 @@ function buildApp(
         work({} as DataContextDb)
     } as unknown as DataContextRunner,
     resolveAccessContext: overrides.resolveAccessContext ?? (async () => userA),
-    repository: repo
+    repository: repo,
+    personalizationRepository: personalization,
+    availability: {
+      hasJsonModel: async () => overrides.hasJsonModel ?? true,
+      hasWebSearch: async () => overrides.hasWebSearch ?? true
+    }
   };
   registerNewsRoutes(app, deps);
-  return { app, repo };
+  return { app, repo, personalization };
 }
 
 describe("news routes (#897)", () => {
@@ -270,6 +375,208 @@ describe("news routes (#897)", () => {
     await app.ready();
     const res = await app.inject({ method: "GET", url: "/api/news/overview" });
     expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+});
+
+describe("news personalization routes (#953 Slice 1)", () => {
+  it("GET /api/news/personalization returns availability, lists, and snapshot metadata", async () => {
+    const { app } = buildApp();
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/news/personalization" });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.availability).toEqual({
+      aiConfigured: true,
+      webSearchConfigured: true,
+      customSourceByUrlEnabled: true,
+      customSourceByNameEnabled: true,
+      freeformTopicsEnabled: true
+    });
+    // fast-json-stringify guard (#859/#885 trap): declared DTO fields must survive the wire.
+    expect(body.customSources).toEqual([
+      {
+        id: "33333333-3333-3333-3333-333333333333",
+        label: "Custom Wire",
+        canonicalDomain: "custom-wire.example",
+        homepageUrl: "https://custom-wire.example",
+        feedUrl: null,
+        retrievalMethod: "scrape",
+        validationStatus: "approved",
+        healthStatus: "available",
+        createdAt: "2026-07-10T00:00:00.000Z"
+      }
+    ]);
+    expect(body.customTopics).toEqual([
+      {
+        id: "44444444-4444-4444-4444-444444444444",
+        label: "Fusion policy",
+        guidance: "prefer primary sources",
+        validationStatus: "approved",
+        createdAt: "2026-07-10T00:00:00.000Z"
+      }
+    ]);
+    expect(body.sourceExclusions).toEqual([SEEDED_EXCLUSION]);
+    // Snapshot is METADATA ONLY: compiled/expires timestamps + article count, never the payload.
+    expect(body.snapshot).toEqual({
+      compiledAt: "2026-07-11T06:00:00.000Z",
+      expiresAt: "2026-07-11T07:00:00.000Z",
+      articleCount: 1
+    });
+    await app.close();
+  });
+
+  it("never serializes fingerprints, provider identity, or snapshot payload content", async () => {
+    const { app } = buildApp();
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/news/personalization" });
+    expect(res.statusCode).toBe(200);
+    // The fake store returns rows carrying module-private markers; none may reach the wire.
+    expect(res.body).not.toContain("SECRET-MARKER");
+    expect(res.body).not.toContain("vfp-");
+    expect(res.body).not.toContain("PAYLOAD-ARTICLE-SECRET");
+    expect(res.body).not.toContain("validationFingerprint");
+    expect(res.body).not.toContain("payload");
+    await app.close();
+  });
+
+  it("GET /api/news/personalization returns a null snapshot when none is stored", async () => {
+    const { app } = buildApp({
+      personalization: makePersonalization({ readLatestSnapshot: async () => null })
+    });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/news/personalization" });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).snapshot).toBeNull();
+    await app.close();
+  });
+
+  it("derives feature enables from the availability port (JSON AI gates URL; +web search gates name/topics)", async () => {
+    const { app } = buildApp({ hasJsonModel: true, hasWebSearch: false });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/api/news/personalization" });
+    expect(JSON.parse(res.body).availability).toEqual({
+      aiConfigured: true,
+      webSearchConfigured: false,
+      customSourceByUrlEnabled: true,
+      customSourceByNameEnabled: false,
+      freeformTopicsEnabled: false
+    });
+    await app.close();
+
+    const { app: appNoAi } = buildApp({ hasJsonModel: false, hasWebSearch: true });
+    await appNoAi.ready();
+    const resNoAi = await appNoAi.inject({ method: "GET", url: "/api/news/personalization" });
+    expect(JSON.parse(resNoAi.body).availability).toEqual({
+      aiConfigured: false,
+      webSearchConfigured: true,
+      customSourceByUrlEnabled: false,
+      customSourceByNameEnabled: false,
+      freeformTopicsEnabled: false
+    });
+    await appNoAi.close();
+  });
+
+  it("POST /api/news/source-exclusions canonicalizes the input before persisting", async () => {
+    const { app, personalization } = buildApp();
+    await app.ready();
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/news/source-exclusions",
+      payload: { source: "https://News.Example.COM./politics/story?id=1" }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).exclusion.canonicalDomain).toBe("news.example.com");
+    expect(personalization.createdDomains).toEqual(["news.example.com"]);
+    await app.close();
+  });
+
+  it("POST /api/news/source-exclusions rejects invalid domains with 400 before any write", async () => {
+    const { app, personalization } = buildApp();
+    await app.ready();
+    for (const source of [
+      "http://insecure.example.com",
+      "https://192.168.0.1/feed",
+      "localhost",
+      "https://user:pw@example.com",
+      "https://example.com:8443"
+    ]) {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/news/source-exclusions",
+        payload: { source }
+      });
+      expect(res.statusCode).toBe(400);
+    }
+    expect(personalization.createdDomains).toEqual([]);
+    await app.close();
+  });
+
+  it("POST /api/news/source-exclusions maps the per-owner cap to 400, not 500", async () => {
+    const { app } = buildApp({
+      personalization: makePersonalization({
+        createExclusion: async () => {
+          throw new NewsPersonalizationLimitError("source_exclusions", 100);
+        }
+      })
+    });
+    await app.ready();
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/news/source-exclusions",
+      payload: { source: "example.com" }
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it("DELETE /api/news/source-exclusions/:id removes and returns ok", async () => {
+    const { app, personalization } = buildApp();
+    await app.ready();
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/news/source-exclusions/55555555-5555-5555-5555-555555555555"
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).ok).toBe(true);
+    expect(personalization.removedIds).toEqual(["55555555-5555-5555-5555-555555555555"]);
+    await app.close();
+  });
+
+  it("DELETE /api/news/source-exclusions/:id rejects a non-uuid id with 400", async () => {
+    const { app, personalization } = buildApp();
+    await app.ready();
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/news/source-exclusions/not-a-uuid"
+    });
+    expect(res.statusCode).toBe(400);
+    expect(personalization.removedIds).toEqual([]);
+    await app.close();
+  });
+
+  it("maps an auth failure on the personalization routes to 401", async () => {
+    const { app } = buildApp({
+      resolveAccessContext: async () => {
+        throw new HttpError(401, "Session is missing or expired");
+      }
+    });
+    await app.ready();
+    for (const request of [
+      { method: "GET" as const, url: "/api/news/personalization" },
+      {
+        method: "POST" as const,
+        url: "/api/news/source-exclusions",
+        payload: { source: "example.com" }
+      },
+      {
+        method: "DELETE" as const,
+        url: "/api/news/source-exclusions/55555555-5555-5555-5555-555555555555"
+      }
+    ]) {
+      const res = await app.inject(request);
+      expect(res.statusCode).toBe(401);
+    }
     await app.close();
   });
 });

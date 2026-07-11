@@ -153,6 +153,7 @@ import {
 import {
   EXPORT_QUEUE_DEFINITIONS,
   createWebSearchSecretCipher,
+  getWebSearchKeyConfig,
   readBraveSearchApiKey,
   registerSettingsJobWorkers,
   registerSettingsRoutes,
@@ -1304,7 +1305,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       registerNewsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
-        datasetClient
+        datasetClient,
+        // #953: news receives capability BOOLEANS only — model identity and key material stay
+        // behind the AI/Settings public APIs; nothing secret crosses this seam.
+        availability: {
+          hasJsonModel: async (scopedDb) =>
+            (await new AiRepository().resolveModelForCapability(scopedDb, "json")).model !== null,
+          hasWebSearch: async (scopedDb) => (await getWebSearchKeyConfig(scopedDb)).configured
+        }
       });
     }
   },

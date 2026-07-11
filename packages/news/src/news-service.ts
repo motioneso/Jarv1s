@@ -5,10 +5,12 @@ import type {
   NewsHeadline,
   NewsOverviewResponse,
   NewsPrefDto,
+  NewsSourceExclusionDto,
   NewsSourceGroup,
   NewsTopicKey
 } from "@jarv1s/shared";
 
+import { publisherDomainMatches } from "./personalization-domain.js";
 import { rankStories, type RankInput } from "./ranking.js";
 import { NEWS_CATALOG, NEWS_TOPICS, topicOption, type NewsSourceEntry } from "./source/catalog.js";
 import type { RssFeedItem } from "./source/rss-source.js";
@@ -26,6 +28,11 @@ export interface NewsPrefsReader {
   list(scopedDb: DataContextDb): Promise<NewsPrefDto[]>;
 }
 
+/** The subset of `NewsPersonalizationRepository` the service reads (#953 Slice 1). */
+export interface NewsExclusionsReader {
+  listExclusions(scopedDb: DataContextDb): Promise<NewsSourceExclusionDto[]>;
+}
+
 export interface NewsServiceDependencies {
   /**
    * The dataset-connector-SDK runtime client bound to the news module's `newsfeeds` external
@@ -35,6 +42,7 @@ export interface NewsServiceDependencies {
   readonly datasetClient: DatasetClient;
   readonly dataContext: NewsDataContext;
   readonly repository: NewsPrefsReader;
+  readonly personalization: NewsExclusionsReader;
 }
 
 const TOP_STORIES_CAP = 6; // spec: cross-source ranked selection
@@ -60,11 +68,13 @@ export class NewsService {
   private readonly datasetClient: DatasetClient;
   private readonly dataContext: NewsDataContext;
   private readonly repository: NewsPrefsReader;
+  private readonly personalization: NewsExclusionsReader;
 
   constructor(deps: NewsServiceDependencies) {
     this.datasetClient = deps.datasetClient;
     this.dataContext = deps.dataContext;
     this.repository = deps.repository;
+    this.personalization = deps.personalization;
   }
 
   /** Static catalog for the settings pane — no network. */
@@ -82,23 +92,39 @@ export class NewsService {
   }
 
   async getOverview(accessContext: AccessContext): Promise<NewsOverviewResponse> {
-    const prefs = await this.dataContext.withDataContext(accessContext, (db) =>
-      this.repository.list(db)
+    const { prefs, exclusions } = await this.dataContext.withDataContext(
+      accessContext,
+      async (db) => ({
+        prefs: await this.repository.list(db),
+        exclusions: await this.personalization.listExclusions(db)
+      })
     );
-    return this.composeOverview(prefs);
+    return this.composeOverview(prefs, exclusions);
   }
 
   /** Briefing facts: one compact "Title — Source" line per top story, capped at 5. */
   async getTopHeadlinesForToday(scopedDb: DataContextDb): Promise<{ facts: string[] }> {
     const prefs = await this.repository.list(scopedDb);
-    const overview = await this.composeOverview(prefs);
+    const exclusions = await this.personalization.listExclusions(scopedDb);
+    const overview = await this.composeOverview(prefs, exclusions);
     return {
       facts: overview.topStories.slice(0, 5).map((h) => `${h.title} — ${h.sourceLabel}`)
     };
   }
 
-  private async composeOverview(prefs: readonly NewsPrefDto[]): Promise<NewsOverviewResponse> {
-    const { sources, topics } = resolveEffectivePrefs(prefs);
+  private async composeOverview(
+    prefs: readonly NewsPrefDto[],
+    exclusions: readonly NewsSourceExclusionDto[]
+  ): Promise<NewsOverviewResponse> {
+    const excludedDomains = exclusions.map((e) => e.canonicalDomain);
+    // #953: domain exclusions apply at two layers so an excluded publisher never appears
+    // through ANY curated feed — (1) drop whole curated sources whose homepage lives on an
+    // excluded domain before feed planning, (2) drop individual composed headlines whose
+    // article URL hostname matches (syndicated copies in another source's feed).
+    const { sources: effectiveSources, topics } = resolveEffectivePrefs(prefs);
+    const sources = effectiveSources.filter(
+      (entry) => !hostnameIsExcluded(urlHostname(entry.homepageUrl), excludedDomains)
+    );
     const state: DegradeState = { degraded: false };
 
     // Fetch every planned feed in parallel; each one degrades independently to [].
@@ -122,6 +148,9 @@ export class NewsService {
         const inputs: RankInput<NewsHeadline>[] = [];
         for (const { plan, items } of feeds) {
           items.forEach((item, feedPosition) => {
+            // Layer (2): a syndicated copy hosted on an excluded domain is dropped even
+            // when it arrives via a non-excluded curated feed.
+            if (hostnameIsExcluded(urlHostname(item.url), excludedDomains)) return;
             if (seen.has(item.id)) return;
             seen.add(item.id);
             inputs.push({
@@ -168,6 +197,32 @@ export class NewsService {
     if (result.degraded) state.degraded = true;
     return result.data;
   }
+}
+
+/**
+ * Hostname of a feed/homepage URL for exclusion matching, or null when unparseable.
+ * WHATWG URL lowercases and punycodes the hostname, matching normalizePublisherDomain's
+ * canonical form; the trailing-dot strip mirrors it for FQDN-notation links.
+ */
+function urlHostname(url: string): string | null {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * FAIL CLOSED (PR #955 Codex finding): a malformed or missing URL yields a null hostname,
+ * which cannot be proven NOT-excluded, so it is treated as excluded and dropped — never
+ * allowed to fall through the exclusion filter. Slice 1 only string-compares these
+ * hostnames (no fetch/connect consumes them); resolved-IP re-validation of DNS names is a
+ * binding Slice 2 requirement enforced at its fetch boundary, not here.
+ */
+function hostnameIsExcluded(hostname: string | null, excludedDomains: readonly string[]): boolean {
+  if (hostname === null) return true;
+  return excludedDomains.some((excluded) => publisherDomainMatches(excluded, hostname));
 }
 
 /**

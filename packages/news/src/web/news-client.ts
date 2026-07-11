@@ -1,5 +1,9 @@
 import type {
   CreateNewsPrefRequest,
+  CreateNewsSourceExclusionRequest,
+  CreateNewsSourceExclusionResponse,
+  DeleteNewsSourceExclusionResponse,
+  GetNewsPersonalizationResponse,
   NewsCatalogResponse,
   NewsOverviewResponse,
   NewsPrefDto,
@@ -31,4 +35,28 @@ export async function deleteNewsPref(id: string): Promise<{ ok: boolean }> {
   return requestJson<{ ok: boolean }>(`/api/news/prefs/${encodeURIComponent(id)}`, {
     method: "DELETE"
   });
+}
+
+// --- #953 personalization (Slice 1: reads + exclusion writes only) ----------
+
+export async function getNewsPersonalization(): Promise<GetNewsPersonalizationResponse> {
+  return requestJson<GetNewsPersonalizationResponse>("/api/news/personalization");
+}
+
+export async function createNewsSourceExclusion(
+  input: CreateNewsSourceExclusionRequest
+): Promise<CreateNewsSourceExclusionResponse> {
+  return requestJson<CreateNewsSourceExclusionResponse>("/api/news/source-exclusions", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function deleteNewsSourceExclusion(
+  id: string
+): Promise<DeleteNewsSourceExclusionResponse> {
+  return requestJson<DeleteNewsSourceExclusionResponse>(
+    `/api/news/source-exclusions/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
 }

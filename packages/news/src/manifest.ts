@@ -4,13 +4,17 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   createNewsPrefRequestSchema,
   createNewsPrefResponseSchema,
+  createNewsSourceExclusionSchema,
   deleteNewsPrefResponseSchema,
+  deleteNewsSourceExclusionSchema,
+  getNewsPersonalizationSchema,
   newsCatalogResponseSchema,
   newsOverviewResponseSchema,
   newsPrefsResponseSchema
 } from "@jarv1s/shared";
 
 import { newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
+import { collectNewsExportSection } from "./data-lifecycle.js";
 import { NEWS_FETCH_HOSTS, NEWS_IMAGE_HOSTS } from "./source/catalog.js";
 
 export const NEWS_MODULE_ID = "news";
@@ -36,9 +40,16 @@ export const newsModuleManifest = {
     supportsUserDisable: true
   },
   database: {
-    migrations: ["sql/0151_news_prefs.sql"],
+    migrations: ["sql/0151_news_prefs.sql", "sql/0159_news_personalization.sql"],
     migrationDirectories: ["packages/news/sql"],
-    ownedTables: ["app.news_prefs"]
+    ownedTables: [
+      "app.news_prefs",
+      // #953 Slice 1 personalization tables — owner-only FORCE RLS, no worker grants.
+      "app.news_custom_sources",
+      "app.news_custom_topics",
+      "app.news_source_exclusions",
+      "app.news_compilation_snapshots"
+    ]
   },
   navigation: [
     {
@@ -73,7 +84,8 @@ export const newsModuleManifest = {
     {
       id: "news.prefs",
       label: "Manage news preferences",
-      description: "Create and delete the active actor's own news source and topic preferences.",
+      description:
+        "Create and delete the active actor's own news source and topic preferences, including excluded publisher domains.",
       scope: "user",
       actions: ["create", "delete"]
     }
@@ -109,6 +121,26 @@ export const newsModuleManifest = {
       path: "/api/news/prefs/:id",
       responseSchema: deleteNewsPrefResponseSchema,
       permissionId: "news.prefs"
+    },
+    // #953 Slice 1 personalization: reads under news.view, exclusion writes under news.prefs.
+    {
+      method: "GET",
+      path: "/api/news/personalization",
+      responseSchema: getNewsPersonalizationSchema,
+      permissionId: "news.view"
+    },
+    {
+      method: "POST",
+      path: "/api/news/source-exclusions",
+      requestSchema: createNewsSourceExclusionSchema.body,
+      responseSchema: createNewsSourceExclusionSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "DELETE",
+      path: "/api/news/source-exclusions/:id",
+      responseSchema: deleteNewsSourceExclusionSchema,
+      permissionId: "news.prefs"
     }
   ],
   assistantTools: [
@@ -123,13 +155,28 @@ export const newsModuleManifest = {
     }
   ],
   dataLifecycle: {
-    // News prefs are catalog references (source/topic keys), not private content — no export
-    // sections; declared explicitly per the parity assertion (owned tables + no export
-    // sections still requires an explicit empty exportSections).
-    exportSections: [],
+    // #953 Task 6: user-authored personalization (custom sources/topics, exclusions) is
+    // exported; curated news_prefs stay out (catalog references, reproducible from settings)
+    // and compilation snapshots stay out (derived cache, exportable-never — deletion-only).
+    exportSections: [
+      {
+        key: "newsPersonalization",
+        displayName: "News personalization",
+        collect: collectNewsExportSection
+      }
+    ],
     deletion: {
       strategy: "cascade",
-      tables: [{ table: "app.news_prefs" }]
+      tables: [
+        { table: "app.news_prefs" },
+        // #953 Slice 1 — all four personalization tables key on app.users ON DELETE CASCADE.
+        // Snapshots are derived data: deleted with the user, never exported (Task 6 adds the
+        // export sections for sources/topics/exclusions only).
+        { table: "app.news_custom_sources" },
+        { table: "app.news_custom_topics" },
+        { table: "app.news_source_exclusions" },
+        { table: "app.news_compilation_snapshots" }
+      ]
     }
   },
   externalSources: [

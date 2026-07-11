@@ -109,6 +109,74 @@ export interface DeleteNewsPrefResponse {
 }
 
 // ---------------------------------------------------------------------------
+// #953 News personalization (Slice 1). DTOs deliberately omit
+// validation_fingerprint and every provider/model identity field — those are
+// module-private revalidation markers and must never reach the browser.
+// ---------------------------------------------------------------------------
+
+export interface NewsPersonalizationAvailabilityDto {
+  readonly aiConfigured: boolean;
+  readonly webSearchConfigured: boolean;
+  readonly customSourceByUrlEnabled: boolean;
+  readonly customSourceByNameEnabled: boolean;
+  readonly freeformTopicsEnabled: boolean;
+}
+
+export interface NewsCustomSourceDto {
+  readonly id: string;
+  readonly label: string;
+  readonly canonicalDomain: string;
+  readonly homepageUrl: string;
+  readonly feedUrl: string | null;
+  readonly retrievalMethod: "feed" | "scrape";
+  readonly validationStatus: "approved" | "needs_revalidation" | "rejected";
+  readonly healthStatus: "available" | "unavailable";
+  readonly createdAt: string;
+}
+
+export interface NewsCustomTopicDto {
+  readonly id: string;
+  readonly label: string;
+  readonly guidance: string | null;
+  readonly validationStatus: "approved" | "needs_revalidation" | "rejected";
+  readonly createdAt: string;
+}
+
+export interface NewsSourceExclusionDto {
+  readonly id: string;
+  readonly canonicalDomain: string;
+  readonly createdAt: string;
+}
+
+/** Snapshot metadata ONLY — the compiled payload never leaves the backend. */
+export interface NewsSnapshotMetaDto {
+  readonly compiledAt: string;
+  readonly expiresAt: string;
+  readonly articleCount: number;
+}
+
+export interface GetNewsPersonalizationResponse {
+  readonly availability: NewsPersonalizationAvailabilityDto;
+  readonly customSources: readonly NewsCustomSourceDto[];
+  readonly customTopics: readonly NewsCustomTopicDto[];
+  readonly sourceExclusions: readonly NewsSourceExclusionDto[];
+  readonly snapshot: NewsSnapshotMetaDto | null;
+}
+
+export interface CreateNewsSourceExclusionRequest {
+  /** Raw user input (bare domain or HTTPS URL); the backend canonicalizes it. */
+  readonly source: string;
+}
+
+export interface CreateNewsSourceExclusionResponse {
+  readonly exclusion: NewsSourceExclusionDto;
+}
+
+export interface DeleteNewsSourceExclusionResponse {
+  readonly ok: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // JSON schemas (Fastify serialization). additionalProperties:false means any
 // emitted field NOT declared here is silently dropped by fast-json-stringify —
 // keep these in exact lockstep with the interfaces above.
@@ -275,6 +343,151 @@ export const createNewsPrefResponseSchema = {
 } as const;
 
 export const deleteNewsPrefResponseSchema = {
+  params: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id"],
+    properties: {
+      id: { type: "string", format: "uuid" }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["ok"],
+      properties: {
+        ok: { type: "boolean" }
+      }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+// --- #953 personalization schemas ------------------------------------------
+
+const newsCustomSourceDtoSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "label",
+    "canonicalDomain",
+    "homepageUrl",
+    "feedUrl",
+    "retrievalMethod",
+    "validationStatus",
+    "healthStatus",
+    "createdAt"
+  ],
+  properties: {
+    id: { type: "string" },
+    label: { type: "string" },
+    canonicalDomain: { type: "string" },
+    homepageUrl: { type: "string" },
+    feedUrl: { type: ["string", "null"] },
+    retrievalMethod: { type: "string", enum: ["feed", "scrape"] },
+    validationStatus: { type: "string", enum: ["approved", "needs_revalidation", "rejected"] },
+    healthStatus: { type: "string", enum: ["available", "unavailable"] },
+    createdAt: { type: "string" }
+  }
+} as const;
+
+const newsCustomTopicDtoSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "label", "guidance", "validationStatus", "createdAt"],
+  properties: {
+    id: { type: "string" },
+    label: { type: "string" },
+    guidance: { type: ["string", "null"] },
+    validationStatus: { type: "string", enum: ["approved", "needs_revalidation", "rejected"] },
+    createdAt: { type: "string" }
+  }
+} as const;
+
+const newsSourceExclusionDtoSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "canonicalDomain", "createdAt"],
+  properties: {
+    id: { type: "string" },
+    canonicalDomain: { type: "string" },
+    createdAt: { type: "string" }
+  }
+} as const;
+
+export const getNewsPersonalizationSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["availability", "customSources", "customTopics", "sourceExclusions", "snapshot"],
+      properties: {
+        availability: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "aiConfigured",
+            "webSearchConfigured",
+            "customSourceByUrlEnabled",
+            "customSourceByNameEnabled",
+            "freeformTopicsEnabled"
+          ],
+          properties: {
+            aiConfigured: { type: "boolean" },
+            webSearchConfigured: { type: "boolean" },
+            customSourceByUrlEnabled: { type: "boolean" },
+            customSourceByNameEnabled: { type: "boolean" },
+            freeformTopicsEnabled: { type: "boolean" }
+          }
+        },
+        customSources: { type: "array", items: newsCustomSourceDtoSchema },
+        customTopics: { type: "array", items: newsCustomTopicDtoSchema },
+        sourceExclusions: { type: "array", items: newsSourceExclusionDtoSchema },
+        // Metadata only — the compiled payload column never crosses this boundary.
+        snapshot: {
+          type: ["object", "null"],
+          additionalProperties: false,
+          required: ["compiledAt", "expiresAt", "articleCount"],
+          properties: {
+            compiledAt: { type: "string" },
+            expiresAt: { type: "string" },
+            articleCount: { type: "number" }
+          }
+        }
+      }
+    },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const createNewsSourceExclusionSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["source"],
+    properties: {
+      // Raw user input; normalizePublisherDomain canonicalizes and rejects server-side.
+      source: { type: "string", minLength: 1, maxLength: 2048 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["exclusion"],
+      properties: {
+        exclusion: newsSourceExclusionDtoSchema
+      }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const deleteNewsSourceExclusionSchema = {
   params: {
     type: "object",
     additionalProperties: false,

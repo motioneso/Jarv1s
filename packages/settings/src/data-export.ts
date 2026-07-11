@@ -55,6 +55,13 @@ type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
 export type ExportRow = Record<string, JsonValue>;
 
+/** Shape returned by the news module's newsPersonalization export-section collector (#953). */
+export interface NewsPersonalizationExportSection {
+  readonly custom_sources: readonly ExportRow[];
+  readonly custom_topics: readonly ExportRow[];
+  readonly source_exclusions: readonly ExportRow[];
+}
+
 export interface ExportUserDataOptions {
   readonly scopedDb: DataContextDb;
   readonly authDb: Kysely<JarvisDatabase>;
@@ -107,6 +114,14 @@ export interface UserDataExportTables {
   readonly memoryLegacyFactMigrations: readonly ExportRow[];
   readonly moduleCredentials: readonly ExportRow[];
   readonly moduleKv: readonly ExportRow[];
+  /**
+   * #953 Task 6: nested News personalization section collected via the news module's
+   * dataLifecycle.exportSections seam (like wellness). One explicit field, not a generalized
+   * module loop — the exporter stays hand-assembled in this slice. Contains only user-authored
+   * preferences; compilation snapshots and validation fingerprints are excluded by the
+   * collector (pinned in tests/integration/data-export.test.ts).
+   */
+  readonly newsPersonalization: NewsPersonalizationExportSection;
   readonly memorySearchDocuments: readonly ExportRow[];
   readonly notificationReads: readonly ExportRow[];
   readonly notifications: readonly ExportRow[];
@@ -203,6 +218,15 @@ async function readExportTables(
     requestId
   });
 
+  const newsPersonalizationSection =
+    await collectModuleExportSection<NewsPersonalizationExportSection>(
+      listModuleManifests,
+      "news",
+      "newsPersonalization",
+      scopedDb,
+      { actorUserId: userId, requestId }
+    );
+
   return {
     users: await readRows(scopedDb.db, userQuery(userId)),
     authAccounts: await readRows(authDb, authAccountsQuery(userId)),
@@ -245,6 +269,7 @@ async function readExportTables(
     preferences: await readRows(scopedDb.db, preferencesQuery(userId)),
     usefulnessFeedbackSignals: await readRows(scopedDb.db, usefulnessFeedbackSignalsQuery(userId)),
     usefulnessFeedbackTargets: await readRows(scopedDb.db, usefulnessFeedbackTargetsQuery(userId)),
+    newsPersonalization: newsPersonalizationSection,
     wellnessCheckins: wellnessSection.checkins,
     medications: await readRows(scopedDb.db, medicationsQuery(userId)),
     medicationLogs: await readRows(scopedDb.db, medicationLogsQuery(userId)),
