@@ -3559,3 +3559,6 @@ Fleet:
 
 ## JS-06 relay+reap — 2026-07-11 ~14:40
 pG3 (Fable, sess 2934d995) hit its own 70% meter → committed be7692d4 (approved plan + Task 1 RED + relay doc `docs/superpowers/handoffs/2026-07-11-js-06-surface-relay.md`) → successor **pG6 "surface v3" FABLE, sess fb5b0855, tab w1:t17** confirmed driving (TDD list live, resuming Task 1 GREEN). pG3 reaped. Sports pG5 relaying in parallel (Sonnet successor pending; reap 22d13b29 on confirm).
+
+## Sports #963 relay+reap — 2026-07-11 ~14:42
+pG5 (Sonnet, sess 22d13b29) relayed at 70% (no code yet; research done: component `packages/sports/src/web/sports-ticker.tsx` FeaturedTeamCard+TickerTeam, no schema change → ROUTINE holds, both surfaces in lockstep). Successor **pG7 "sports-live-score-2" SONNET, sess 6e9af0e3, tab w1:t17** driving; handoff 2f3713b8. pG5 reaped. Next from pG7: plan doc → my approval (strip-only) → build.
