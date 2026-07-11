@@ -2803,3 +2803,30 @@ anything requiring escalation and do that instead of waiting for me."
 - **JS-03 #932 SPAWNED:** pane `w1:pEY` "JS-03: onboarding+truth (F)", Fable 5 confirmed, tab t17, worktree `.claude/worktrees/js-03-onboarding-truth` on branch `feat/js-03-onboarding-truth` off `origin/main a8d638e4` (atop merged JS-02). Handoff `docs/coordination/2026-07-11-js-03-build-handoff.md` (in build worktree, untracked). SECURITY tier. **ZERO-migration guardrail** encoded (Job Search is module_kv-only; escalate [DESIGN-FORK] if it thinks it needs SQL — would collide with News chain). Awaiting its coordinated-build plan-approval escalation.
 - **News S1:** pEX (Fable R2, session 21e9b17a) sole lane, building. Old pEW reaped.
 - **Next merges (serialized queue):** JS-03 when its PR council-green; News S1 when its PR unanimous-council-green. Single queue avoids migration-number collision (News owns 0159+).
+
+## Checkpoint — JS-03 [DESIGN-FORK] resolved (Task 0 ctx.ai bridge)
+
+- **Fork:** #919/#945 merged WITHOUT the child `ctx.ai` worker bridge (no `ai` on
+  `ModuleWorkerContext` in `packages/module-sdk/src/worker.ts`; no `ai.generateStructured` /
+  `forbidden_ai_call` in `worker-rpc-host.ts`). Parent `generateStructured` seam (#915/#923) IS
+  merged and was, until now, unused. pEY proposed a severable Task 0 to build the bridge in-slice.
+- **Adjudication:** one-shot Opus subagent (design-fork policy). **VERDICT: OPTION A — build Task
+  0.** Rationale: Task 0 COMPLETES an already-approved spec — D6 of
+  `docs/superpowers/specs/2026-07-09-external-worker-capabilities-design.md` (L269–337) — that #919
+  under-delivered; #919's charter (task-decomposition L28/L184) explicitly said "land with the
+  `ctx.ai` bridge." So **spec-before-build is SATISFIED**, not violated. Option B (ai-nullable)
+  would gut the slice: the résumé truth guard would have no AI seam to guard and Task 8's
+  fabrication-rejection tests no real seam to exercise.
+- **Binding guards carried to pEY:** (1) wire `ai` closure ONLY into synchronous tool dispatch
+  (`external-module-tools.ts`), NEVER into `external-module-jobs.ts`/pg-boss payloads — keep the
+  `forbidden_ai_call` fail-closed gate; (2) envelope rebuild drops usage/model/provider ids crossing
+  back to module + integration test asserts no host-extras leak; (3) provider-agnostic error union +
+  Task 10 leak-sweep; (4) complete D6 — include BOTH composition guard (reject ctx.ai input
+  resolvable via ctx.auth, L334) AND per-invocation call cap (L326); escalate if non-trivial, don't
+  silently drop; (5) module-registry stays AI-agnostic (no `@jarv1s/ai` import); PR body notes Task
+  0 completes the #919/#915 worker-capabilities charter; kept IN-SLICE (JS-03 council QA covers it).
+- **State:** JS-03 driver = pEY, session `9b2bb93c`, Fable 5, worktree `js-03-onboarding-truth`
+  off `origin/main a8d638e4`. Plan approved (non-fork scope) + Task 0 approved → full TDD build.
+- **News lane:** S1 pE0 (Fable R4, session `095c0ee5`) on Task 4 (routes+service).
+- **Stray (non-urgent):** idle unlabeled claude pane `w1:pBK` (session `28c218bf`) in a
+  `.claude/worktrees/news-module` worktree — confirm orphan, then reap.
