@@ -3,8 +3,16 @@
 // JS-02 (#931): the domain layer's public surface. JS-03 worker tools and
 // JS-05/06 features import from here, never from individual files — the
 // per-file module layout stays free to change behind this barrel.
+export type { ConfirmationRecord } from "./confirmations.js";
+export {
+  CONFIRMATION_TEXT_MAX_CHARS,
+  confirmationIdFor,
+  listConfirmationIds,
+  saveConfirmation
+} from "./confirmations.js";
 export type { DiffHunk } from "./diff.js";
 export { diffLines } from "./diff.js";
+export type { MaterialClaim, MaterialClaimKind, ResumeEvidence } from "./truth-guard.js";
 export { JobSearchKvError } from "./errors.js";
 export type { JobSearchKvErrorCode } from "./errors.js";
 export type { JobSearchKv, JobSearchNamespace } from "./kv-port.js";

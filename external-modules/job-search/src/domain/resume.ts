@@ -13,6 +13,7 @@ import type { JobSearchKv } from "./kv-port.js";
 import { NS } from "./kv-port.js";
 import { RESUME_INPUT_MAX_BYTES, RESUME_TOO_LARGE_MESSAGE } from "./limits.js";
 import { canonicalJson, readRecord, writeRecord } from "./records.js";
+import type { ResumeEvidence } from "./truth-guard.js";
 
 export interface ResumeRevision {
   schemaVersion: 1;
@@ -21,7 +22,9 @@ export interface ResumeRevision {
   content: string;
   parentRevisionId?: string;
   critiqueSummary?: string;
-  evidence?: readonly string[];
+  // JS-03 (#932): structured truth-guard provenance per material claim
+  // (was a free-form string[]; nothing stored used the old shape).
+  evidence?: readonly ResumeEvidence[];
   createdAt: string;
 }
 
