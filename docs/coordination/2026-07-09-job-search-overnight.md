@@ -3569,3 +3569,6 @@ Ben hard rule: **NO Sonnet authoring plans, EVER.** Plans = Fable; Fable capped 
 - JS lanes already Fable-planned (compliant).
 Also: **Ben resumed News S2 Codex himself** (pEP sess 019f4fd0 working) — do NOT reset that worktree; his agent handles the GLM-WIP checkout per the cron prompt. Task #19 = Codex driving.
 Also: **Next merge/image build = NUMBERED release** (v* tag → CI :<version>), and job-search must NOT be in the default image (downloadable external module). [mem_mrgw50h2]
+
+## JS-06 relay #2 + reap — 2026-07-11 ~14:52
+pG6 (Fable, fb5b0855) hit 70% after Tasks 1-5 green (latest e7910dcd, 21/21 unit + typecheck). Successor **pG9 "surface v4" FABLE, sess 8894150c, tab w1:t17** driving (resumes Task 6 onboarding screen). pG6 reaped.
