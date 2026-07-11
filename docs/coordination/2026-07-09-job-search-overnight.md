@@ -2764,3 +2764,23 @@ anything requiring escalation and do that instead of waiting for me."
 ---
 ### Standing obligation — News chain handoff to pEP
 - After **News S1 merges** (unanimous council green), **notify pEP** (Codex/Sol orchestrator, pane `w1:pEP`, session `019f4fd0-0cf8-7c91-aba3-de24d570af05`) via Herdr. pEP will then re-ground merged main and prepare + adversarially review **News S2** per the serialized chain. pEP has confirmed it will NOT inspect/edit feature code or spawn a duplicate lane. S2 build lane spawns only after S1 merges AND pEP's S2 plan is review-approved.
+
+---
+
+## Checkpoint 2026-07-11 (post-compaction resume)
+
+**JS-02 #952 (SOLO Fable, builder pET session 4348768a = DONE, ready to reap):**
+- Build done, 3533-line diff. CI GREEN on head `32664a82` (run 29145830738): build+publish, compose smoke, prod compose smoke, verify-foundation-and-app (real-PG integration/RLS suite) all pass. MERGEABLE/CLEAN.
+- **Council (DEGRADED — Codex cross-provider-unavailable, repeated OpenAI overload + hang; orphan 568232 killed):**
+  - Lens 1 — Opus QA = **PASS** (posted PR comment 4943908939).
+  - Lens 2 — Opus adversarial **refuter** `a0d74830e5e335dec` running (worktree-isolated). Merge gate = CANNOT-REFUTE.
+  - Degrade authorized by governing directive (council of models, don't wait on Ben). On CANNOT-REFUTE: post aggregated `gh pr comment` verdict documenting cross-provider-unavailable → `gh pr merge 952 --squash --delete-branch` → close #931 → epic/board/milestone bookkeeping → reap pET + `git worktree remove` js-02-kv-domain → increment merges_since_relay (security merge = RELAY trigger; flush + self-handoff after).
+
+**News chain:**
+- Epic **#954** created (Personalized News). Slice-1 task **#953** linked (Part of #954).
+- News S1 builder **pEW** (Fable, session 3fbe25d9, worktree news-slice1-build) = **APPROVED + building** (status done→working). SECURITY tier; **unanimous** cross-provider council gate. Migration 0159 reserved (final = landing order; News is migration-bearing → foundation.test.ts toEqual + full test:integration).
+- **Standing obligation:** after S1 merges, notify **pEP** (w1:pEP, codex session 019f4fd0) → it re-grounds merged main + preps/reviews S2. Spawn S2 lane only after S1 merges AND pEP's S2 plan is review-approved.
+
+**Stray to investigate (non-urgent):** unlabeled idle claude pane `w1:pBK` (session 28c218bf) in a `.claude/worktrees/news-module` worktree — not part of the tracked fleet; confirm orphan then reap.
+
+**After JS-02:** proceed JS-03 (#932) SOLO on Fable, then JS-04…JS-09 sequential, each council-QA'd.
