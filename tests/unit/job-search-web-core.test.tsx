@@ -2,6 +2,8 @@
 // accessor, api outcome mapping, store cache, router parsing, format helpers.
 // The runtime global must be installed before any module web import (helper
 // module first — ESM evaluation order guarantees it).
+// .tsx (despite no JSX): react-importing root tests are .tsx by repo convention —
+// root tsconfig includes tests/**/*.ts only; react types live in apps/web.
 import "./helpers/install-module-runtime";
 
 import { renderToString } from "react-dom/server";

@@ -364,7 +364,7 @@ export async function mockExternalWebModuleFromDist(
     }
     const pathname = new URL(route.request().url()).pathname;
     const match = /\/assistant-tools\/([^/]+)\/invoke$/.exec(pathname);
-    const tool = match ? decodeURIComponent(match[1]) : "";
+    const tool = decodeURIComponent(match?.[1] ?? "");
     await route.fulfill({
       json: { invocation: { status: "succeeded", result: fixtures[tool] ?? {} } }
     });
