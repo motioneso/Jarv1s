@@ -3094,3 +3094,23 @@ anything requiring escalation and do that instead of waiting for me."
   (coordinated-qa, model fable, worktree-isolated) to post a durable third verdict alongside the
   existing Opus GREEN + Codex GREEN + all-CI-green. On Fable GREEN → MERGE #955 (Ben bypass: no
   extra sign-off), close #953, epic #954 exit-check, board→Done, ping News-slice2 (pEP).
+
+---
+### 2026-07-11 ~09:45 — News #955 MERGED (Fable seat closed the gate)
+- **Fable QA GREEN** (worktree-isolated, verdict posted to PR): migration 0159 in `packages/news/sql/`
+  (next slot after 0158), ENABLE+FORCE RLS owner-only on all 4 tables, cross-owner AND admin
+  read/delete adversarial tests passing, foundation ledger `toEqual` MOVED not weakened, no
+  secret/PII leakage (fingerprints never selected, snapshot payload never crosses API/export,
+  availability seam booleans-only, export built worker-side metadata-only). Non-blocking residual:
+  snapshot write path has no prod caller until Slice 2 (guard pre-built); exclusion-cap subquery
+  relies on RLS scoping — re-verify if Slice 2 adds worker visibility.
+- **Council complete:** Opus GREEN + Codex GREEN + **Fable GREEN** + all-CI-green (4/4). MERGED
+  `gh pr merge 955 --squash` → **`fadef5d3`**. Authority reconfirmed (session 58a78927 = lock,
+  pane w1:pE6).
+- **Bookkeeping:** #953 CLOSED. Epic #954 STAYS OPEN (Slices 2-4 defined but not yet issue-filed —
+  "prepared + adversarially reviewed after each predecessor merges"). News build pane pF4
+  (session 03e7c92c) REAPED, worktree `news-slice1-build` removed, branch `feat/news-slice1`
+  deleted. **FOLLOW-UP (light):** move #953 project-board item → Done (issue already closed).
+- **Fleet now:** JS-04 (#933) building (pFK, Fable, working) is the sole active lane. Idle spent
+  panes: pBK/28c218bf (news-module worktree, stray — do NOT reap blindly, may hold uncommitted),
+  pEP codex (old news revalidator, idle, reusable). merges_since_relay reset to 0 (flushed here).
