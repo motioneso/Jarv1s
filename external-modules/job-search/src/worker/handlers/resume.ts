@@ -348,15 +348,20 @@ async function critiqueSave(
   const confirmations = await listConfirmations(ports.kv);
   const confirmationIds = new Set(confirmations.map((c) => c.confirmationId));
   const verdict = verifyClaims({ claims: critique.materialClaims, sources, confirmationIds });
-  // QA RED B1 (PR #956, Codex issuecomment-4945986416 + Opus
-  // issuecomment-4946000922): verifyClaims alone is vacuous when the AI
+  // QA RED B1, fix cycle 2 (PR #956, Codex issuecomment-4946275153 + Opus
+  // issuecomment-4946268694): verifyClaims alone is vacuous when the AI
   // under-declares materialClaims (e.g. []) — fabricated markdown would
   // persist as a draft and become approvable. Coverage is derived from the
-  // markdown ITSELF; its corpus is stored sources + USER-confirmed claim
-  // texts only. AI-declared claim texts never vouch — a legit quote on a
-  // claim whose text smuggles fabricated tokens must not whitelist them.
-  // Fail CLOSED: blocking persist here also kills the approve path, because
-  // the draft revision never exists (approveResume → missing_revision).
+  // markdown ITSELF via segment-phrase matching (each proposed line/sentence
+  // must appear contiguously inside one corpus segment — the cycle-1
+  // caps/digit token heuristic passed all-lowercase spelled-number
+  // fabrications and recombined-token relationships). The corpus is stored
+  // sources + USER-confirmed claim texts only; AI-declared claim texts never
+  // vouch — a legit quote on a claim whose text smuggles fabricated content
+  // must not whitelist it. Empty/whitespace proposedMarkdown is rejected
+  // outright. Fail CLOSED: blocking persist here also kills the approve
+  // path, because the draft revision never exists (approveResume →
+  // missing_revision).
   const coverage = verifyMarkdownCoverage({
     markdown: critique.proposedMarkdown,
     sources,

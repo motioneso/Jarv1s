@@ -236,76 +236,89 @@ export interface MarkdownCoverageVerdict {
 // verdict — ok stays false regardless of how many spans are echoed back.
 const UNVERIFIED_SPANS_MAX = 64;
 
+// Segment boundaries within a line. Commas deliberately do NOT split: "Led
+// migration, then shipped platform" is one asserted statement, and splitting
+// on commas would let a fabricator smuggle relationships as comma fragments.
+const SEGMENT_SPLIT = /[.!?;|]+/;
+
+// Defensive echo cap per span — truncation never flips the verdict.
+const UNVERIFIED_SPAN_ECHO_MAX_CHARS = 200;
+
 /**
- * Material tokens of a markdown revision, derived from the markdown ITSELF —
- * never from what the AI self-reports. QA RED B1 (PR #956, Codex
- * issuecomment-4945986416 + Opus issuecomment-4946000922): verifyClaims alone
- * was vacuous, because `materialClaims: []` verified nothing while
- * proposedMarkdown fabricated freely. Prompt instructions are not a security
- * boundary; this extraction is.
- *
- * Per line: strip heading/quote prefixes, one list prefix, and emphasis
- * markers; whitespace-tokenize; trim non-alphanumerics off token edges. A
- * token is material when it contains a digit (even at segment start), or is
- * capitalized past the first word of its segment (the first word gets a
- * sentence-case allowance — "Improved delivery" asserts nothing by itself).
- * ASCII-caps heuristic by design: proper nouns outside A–Z fall through, but
- * every digit-bearing token (dates, metrics) is still caught.
+ * Canonical word run of a segment: Unicode letter/number tokens, lowercased,
+ * single-space joined. \p{L} keeps non-ASCII proper nouns intact — the
+ * cycle-1 ASCII regex stripped "École" down to "cole" (QA RED fix cycle 2,
+ * Codex issuecomment-4946275153).
  */
-export function extractMaterialSpans(markdown: string): string[] {
-  const spans: string[] = [];
+function normalizePhrase(text: string): string {
+  const tokens = text.toLowerCase().match(/[\p{L}\p{N}]+/gu);
+  return tokens === null ? "" : tokens.join(" ");
+}
+
+/**
+ * Material segments of a markdown revision, derived from the markdown ITSELF —
+ * never from what the AI self-reports (QA RED B1, PR #956). Per line: strip
+ * heading/quote prefixes, one list prefix, and emphasis markers; split into
+ * sentence-level segments; keep each segment's raw text plus its normalized
+ * phrase. Whole-segment matching replaces the cycle-1 caps/digit token
+ * heuristic, which all-lowercase spelled-number fabrications defeated
+ * outright (zero spans → vacuous pass; Codex issuecomment-4946275153).
+ */
+export function extractMaterialSegments(markdown: string): { raw: string; phrase: string }[] {
+  const segments: { raw: string; phrase: string }[] = [];
   for (const line of markdown.split("\n")) {
     const stripped = line
       .replace(/^\s*(?:[#>]+\s*)+/, "")
       .replace(/^\s*(?:[-*+]|\d{1,3}[.)])\s+/, "")
       .replace(/[*_`]/g, "");
-    const tokens = stripped
-      .split(/\s+/)
-      .map((token) => token.replace(/^[^0-9A-Za-z]+/, "").replace(/[^0-9A-Za-z]+$/, ""))
-      .filter((token) => token.length > 0);
-    tokens.forEach((token, index) => {
-      if (/[0-9]/.test(token)) {
-        spans.push(token);
-        return;
+    for (const piece of stripped.split(SEGMENT_SPLIT)) {
+      const raw = piece.trim();
+      const phrase = normalizePhrase(raw);
+      if (phrase !== "") {
+        segments.push({ raw, phrase });
       }
-      if (index === 0) {
-        return;
-      }
-      if (token.length >= 2 && /^[A-Z]/.test(token)) {
-        spans.push(token);
-      }
-    });
+    }
   }
-  return spans;
+  return segments;
 }
 
 /**
- * The persist gate for AI-proposed markdown: every material span must be a
- * case-insensitive substring of the allowed corpus. The corpus is stored
- * source revisions + USER-confirmed claim texts ONLY. AI-declared claim texts
- * must never vouch — the AI could attach a legitimate quote to a claim whose
- * `text` smuggles fabricated tokens, whitelisting them (the exact bypass the
- * QA council flagged). Fail CLOSED: uncovered spans mean the caller returns a
- * question and persists nothing.
+ * The persist gate for AI-proposed markdown: every proposed segment must
+ * appear as a contiguous, word-boundary-aligned phrase inside ONE segment of
+ * the allowed corpus (stored source revisions + USER-confirmed claim texts
+ * ONLY — AI-declared claim texts never vouch). Sub-phrases of a corpus
+ * sentence pass; recombining tokens that only exist in separate segments
+ * fails — the cycle-2 bypass where "Engineer at Acme in 2020" passed because
+ * its tokens existed apart (Codex issuecomment-4946275153, Opus
+ * issuecomment-4946268694). Content-free markdown (empty, whitespace,
+ * punctuation-only) is rejected outright: an empty revision must never be
+ * persistable or approvable. Fail CLOSED on every path.
  */
 export function verifyMarkdownCoverage(input: {
   markdown: string;
   sources: readonly { revisionId: string; content: string }[];
   confirmedTexts: readonly string[];
 }): MarkdownCoverageVerdict {
+  const proposed = extractMaterialSegments(input.markdown);
+  if (proposed.length === 0) {
+    return { ok: false, unverifiedSpans: [] };
+  }
+  // Space-padded per corpus segment — padding keeps needle matches on word
+  // boundaries, and per-segment strings (not one joined blob) prevent false
+  // adjacency across line/sentence boundaries.
   const corpus = [...input.sources.map((source) => source.content), ...input.confirmedTexts]
-    .join("\n")
-    .toLowerCase();
+    .flatMap((text) => extractMaterialSegments(text))
+    .map((segment) => ` ${segment.phrase} `);
   const seen = new Set<string>();
   const unverified: string[] = [];
-  for (const span of extractMaterialSpans(input.markdown)) {
-    const lowered = span.toLowerCase();
-    if (seen.has(lowered)) {
+  for (const segment of proposed) {
+    if (seen.has(segment.phrase)) {
       continue;
     }
-    seen.add(lowered);
-    if (!corpus.includes(lowered)) {
-      unverified.push(span);
+    seen.add(segment.phrase);
+    const needle = ` ${segment.phrase} `;
+    if (!corpus.some((haystack) => haystack.includes(needle))) {
+      unverified.push(segment.raw.slice(0, UNVERIFIED_SPAN_ECHO_MAX_CHARS));
     }
   }
   return {

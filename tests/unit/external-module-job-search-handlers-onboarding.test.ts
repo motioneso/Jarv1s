@@ -269,7 +269,9 @@ describe("six-checkpoint walkthrough (durable checkpoint resume)", () => {
         ok: true as const,
         object: {
           critiqueSummary: "tightened",
-          proposedMarkdown: "Led the Initech migration",
+          // Must be a contiguous phrase of the pasted original — the
+          // segment-phrase coverage guard (fix cycle 2) rejects reworded lines.
+          proposedMarkdown: "Shipped the Initech migration",
           materialClaims: [
             {
               kind: "outcome",

@@ -18,7 +18,7 @@ import { JobSearchKvError } from "../../external-modules/job-search/src/domain/e
 import {
   CLAIM_QUOTE_MIN_CHARS,
   CRITIQUE_SCHEMA,
-  extractMaterialSpans,
+  extractMaterialSegments,
   parseCritique,
   verifyClaims,
   verifyMarkdownCoverage,
@@ -386,83 +386,180 @@ describe("parseCritique", () => {
   });
 });
 
-// QA RED B1 (PR #956, Codex issuecomment-4945986416 + Opus issuecomment-4946000922):
-// verifyClaims only checks what the AI SELF-REPORTS. `materialClaims: []` plus a
-// fabricated proposedMarkdown passed vacuously. The coverage guard derives material
-// content from the markdown itself and fails CLOSED on anything the stored sources
-// or the user's own confirmations cannot vouch for.
-describe("extractMaterialSpans", () => {
-  it("strips markdown syntax and skips the sentence-initial capitalized word", () => {
-    expect(extractMaterialSpans("## Improved delivery cadence")).toEqual([]);
+// QA RED B1 fix cycle 2 (PR #956, Codex issuecomment-4946275153 + Opus
+// issuecomment-4946268694): the cycle-1 token guard keyed on caps/digits, so
+// all-lowercase spelled-number fabrications emitted ZERO spans and passed
+// vacuously; separate corpus tokens also vouched for recombined relationships.
+// The segment-phrase guard verifies each proposed line/sentence as a
+// normalized contiguous phrase against ONE corpus segment, and rejects
+// content-free markdown outright.
+describe("extractMaterialSegments", () => {
+  it("strips markdown syntax and yields raw text plus a normalized phrase", () => {
+    expect(extractMaterialSegments("## **Improved** _delivery_ cadence")).toEqual([
+      { raw: "Improved delivery cadence", phrase: "improved delivery cadence" }
+    ]);
+    expect(extractMaterialSegments("- Led migration at Initech")).toEqual([
+      { raw: "Led migration at Initech", phrase: "led migration at initech" }
+    ]);
   });
 
-  it("treats capitalized words past the segment start as material", () => {
-    expect(extractMaterialSpans("- Led migration at Initech")).toEqual(["Initech"]);
+  it("splits on sentence punctuation but never on commas", () => {
+    expect(
+      extractMaterialSegments("Shipped v2. Cut costs; won award").map((s) => s.phrase)
+    ).toEqual(["shipped v2", "cut costs", "won award"]);
+    expect(extractMaterialSegments("Led migration, then shipped platform")).toEqual([
+      { raw: "Led migration, then shipped platform", phrase: "led migration then shipped platform" }
+    ]);
   });
 
-  it("digit tokens are material even at the segment start", () => {
-    expect(extractMaterialSpans("2019 to 2023 at Acme")).toEqual(["2019", "2023", "Acme"]);
+  it("tokenizes non-ASCII letters instead of stripping them (École)", () => {
+    expect(extractMaterialSegments("Studied at École Polytechnique")).toEqual([
+      { raw: "Studied at École Polytechnique", phrase: "studied at école polytechnique" }
+    ]);
+  });
+
+  it("yields nothing for blank or punctuation-only markdown", () => {
+    expect(extractMaterialSegments("")).toEqual([]);
+    expect(extractMaterialSegments("   \n \n")).toEqual([]);
+    expect(extractMaterialSegments("---")).toEqual([]);
   });
 });
 
 describe("verifyMarkdownCoverage", () => {
-  it("passes when every material token is covered by the sources", () => {
+  it("passes when every proposed segment is a contiguous sub-phrase of one corpus segment", () => {
     const verdict = verifyMarkdownCoverage({
-      markdown: "# Resume\nSenior Engineer at Acme Corp\nCut deploy time by 40%",
+      markdown: "Senior Engineer at Acme Corp\nCut deploy time by 40%",
       sources: SOURCES,
       confirmedTexts: []
     });
     expect(verdict).toEqual({ ok: true, unverifiedSpans: [] });
   });
 
-  it("fails CLOSED on fabricated employer/metric tokens", () => {
+  it("DEFEAT 1: all-lowercase spelled-out fabrication fails closed (Codex PoC)", () => {
+    // Cycle-1 guard extracted zero caps/digit spans from this text → vacuous
+    // pass → fabricated résumé persisted. Now every segment needs coverage.
     const verdict = verifyMarkdownCoverage({
-      markdown: "# Resume\nStaff Engineer at Initech Systems\nRaised ARR by 300%",
+      markdown:
+        "vice president at initech from twenty twenty to twenty twenty four\nincreased revenue by tenfold",
       sources: SOURCES,
       confirmedTexts: []
     });
     expect(verdict.ok).toBe(false);
-    // "Staff"/"Raised" are sentence-initial; "Engineer" appears in rev "0".
-    expect(verdict.unverifiedSpans).toEqual(["Initech", "Systems", "ARR", "300"]);
+    expect(verdict.unverifiedSpans).toEqual([
+      "vice president at initech from twenty twenty to twenty twenty four",
+      "increased revenue by tenfold"
+    ]);
   });
 
-  it("tokens covered ONLY by user-confirmed claim texts pass", () => {
-    const markdown = "Certified Kubernetes Administrator since 2021";
-    const confirmed = ["Certified Kubernetes Administrator, 2021"];
-    expect(verifyMarkdownCoverage({ markdown, sources: [], confirmedTexts: confirmed }).ok).toBe(
-      true
-    );
-    expect(verifyMarkdownCoverage({ markdown, sources: [], confirmedTexts: [] }).ok).toBe(false);
+  it("DEFEAT 3: recombining tokens across corpus segments fails", () => {
+    // Every token exists somewhere in SOURCES ("Senior Engineer at" in rev 0,
+    // "Beta LLC" in rev-b) but the asserted relationship never appears
+    // contiguously inside ONE corpus segment.
+    const verdict = verifyMarkdownCoverage({
+      markdown: "Senior Engineer at Beta LLC",
+      sources: SOURCES,
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unverifiedSpans).toEqual(["Senior Engineer at Beta LLC"]);
   });
 
-  it("a lone sentence-initial capitalized word needs no coverage", () => {
+  it("DEFEAT 2: empty, whitespace-only, or content-free markdown is rejected outright", () => {
+    for (const markdown of ["", "   \n \n", "---"]) {
+      expect(verifyMarkdownCoverage({ markdown, sources: SOURCES, confirmedTexts: [] })).toEqual({
+        ok: false,
+        unverifiedSpans: []
+      });
+    }
+  });
+
+  it("a first-token proper noun no longer dodges the guard", () => {
+    // Cycle-1 heuristic skipped the first word of each segment.
+    const verdict = verifyMarkdownCoverage({
+      markdown: "Initech promoted me twice",
+      sources: SOURCES,
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unverifiedSpans).toEqual(["Initech promoted me twice"]);
+  });
+
+  it("non-ASCII proper nouns participate in matching (École)", () => {
+    const source = [{ revisionId: "0", content: "Studied at École Polytechnique" }];
     expect(
       verifyMarkdownCoverage({
-        markdown: "Improved delivery cadence",
-        sources: [],
+        markdown: "Studied at École Polytechnique",
+        sources: source,
         confirmedTexts: []
       })
     ).toEqual({ ok: true, unverifiedSpans: [] });
+    expect(
+      verifyMarkdownCoverage({
+        markdown: "Studied at École Polytechnique",
+        sources: SOURCES,
+        confirmedTexts: []
+      }).ok
+    ).toBe(false);
   });
 
-  it("digit tokens are always material", () => {
+  it("matches whole words only — a token substring never vouches", () => {
     const verdict = verifyMarkdownCoverage({
-      markdown: "shipped 7 releases",
+      markdown: "Ace",
+      sources: [{ revisionId: "0", content: "Acme Corp" }],
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+  });
+
+  it("a confirmed claim text vouches only for contiguous phrases inside it", () => {
+    const confirmed = ["Certified Kubernetes Administrator since 2021"];
+    expect(
+      verifyMarkdownCoverage({
+        markdown: "Certified Kubernetes Administrator since 2021",
+        sources: [],
+        confirmedTexts: confirmed
+      })
+    ).toEqual({ ok: true, unverifiedSpans: [] });
+    // Same tokens with the connective dropped — no longer contiguous, fails.
+    expect(
+      verifyMarkdownCoverage({
+        markdown: "Certified Kubernetes Administrator 2021",
+        sources: [],
+        confirmedTexts: confirmed
+      }).ok
+    ).toBe(false);
+  });
+
+  it("deduplicates repeated unverified segments in the echo", () => {
+    const verdict = verifyMarkdownCoverage({
+      markdown: "Initech\nInitech",
       sources: [],
       confirmedTexts: []
     });
     expect(verdict.ok).toBe(false);
-    expect(verdict.unverifiedSpans).toEqual(["7"]);
+    expect(verdict.unverifiedSpans).toEqual(["Initech"]);
   });
 
-  it("BYPASS: AI-declared claim text does NOT whitelist markdown tokens", () => {
+  it("caps echoed spans at 64 and truncates each to 200 chars without flipping the verdict", () => {
+    const many = Array.from({ length: 70 }, (_, i) => `fabricated item ${String(i)}`).join("\n");
+    const capped = verifyMarkdownCoverage({ markdown: many, sources: [], confirmedTexts: [] });
+    expect(capped.ok).toBe(false);
+    expect(capped.unverifiedSpans).toHaveLength(64);
+
+    const long = `Initech ${"x".repeat(300)}`;
+    const truncated = verifyMarkdownCoverage({ markdown: long, sources: [], confirmedTexts: [] });
+    expect(truncated.ok).toBe(false);
+    expect(truncated.unverifiedSpans[0]).toHaveLength(200);
+  });
+
+  it("BYPASS: AI-declared claim text does NOT whitelist markdown segments", () => {
     // The coverage corpus is sources + USER-confirmed texts only. If AI claim
     // texts vouched, the AI could attach a legitimate quote to a claim whose
-    // `text` smuggles fabricated tokens and whitelist them — the exact bypass
+    // `text` smuggles fabricated content and whitelist it — the exact bypass
     // the QA council flagged (issuecomment-4945986416, issuecomment-4946000922).
     const smuggler: MaterialClaim = {
       kind: "metric",
-      text: "Raised ARR 300% at Initech",
+      text: "Led work at Initech",
       quote: "Cut deploy time by 40%"
     };
     const claimVerdict = verifyClaims({
@@ -477,6 +574,6 @@ describe("verifyMarkdownCoverage", () => {
       confirmedTexts: [] // …but its text never enters the coverage corpus
     });
     expect(coverage.ok).toBe(false);
-    expect(coverage.unverifiedSpans).toEqual(["Initech"]);
+    expect(coverage.unverifiedSpans).toEqual(["Led work at Initech"]);
   });
 });

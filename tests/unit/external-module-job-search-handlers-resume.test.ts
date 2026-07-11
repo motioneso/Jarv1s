@@ -260,7 +260,9 @@ describe("resume.save-draft handler — manual mode", () => {
 });
 
 describe("resume.save-draft handler — critique mode", () => {
-  const GOOD_MARKDOWN = "# Resume\nLine one, improved\nLine three, kept";
+  // Every segment must be a contiguous phrase of ORIGINAL under the
+  // segment-phrase coverage guard (fix cycle 2) — reordered/kept lines only.
+  const GOOD_MARKDOWN = "Line one\nLine three";
   const GOOD_CRITIQUE = {
     critiqueSummary: "sharpened the opener",
     proposedMarkdown: GOOD_MARKDOWN,
@@ -379,13 +381,89 @@ describe("resume.save-draft handler — critique mode", () => {
     });
     const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
     expect(result.status).toBe("question");
-    expect(result.unverifiedSpans).toContain("Initech");
+    expect((result.unverifiedSpans as string[]).some((span) => span.includes("Initech"))).toBe(
+      true
+    );
     // The kv is byte-identical: no revision, no evidence, no onboarding tick —
     // so the draft can never be approved to active either.
     expect(kv.dump()).toEqual(before);
     await expect(approveResume(kv, draftIdFor("0", fabricatedMarkdown), NOW)).rejects.toMatchObject(
       { code: "missing_revision" }
     );
+  });
+
+  it("ADVERSARIAL B1 cycle 2: all-lowercase spelled-out fabrication is a question, never persisted, never approvable", async () => {
+    // QA RED fix cycle 2 (PR #956, Codex issuecomment-4946275153 + Opus
+    // issuecomment-4946268694): the cycle-1 caps/digit heuristic extracted
+    // ZERO spans from all-lowercase spelled-number text, so this exact PoC
+    // persisted a fabricated résumé. The segment-phrase guard fails it closed.
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const before = kv.dump();
+    const fabricatedMarkdown =
+      "vice president at initech from twenty twenty to twenty twenty four\nincreased revenue by tenfold";
+    const { ai } = fakeAi({
+      ok: true,
+      object: {
+        critiqueSummary: "boosted impact",
+        proposedMarkdown: fabricatedMarkdown,
+        materialClaims: []
+      }
+    });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect((result.unverifiedSpans as string[]).some((span) => span.includes("initech"))).toBe(
+      true
+    );
+    expect(kv.dump()).toEqual(before);
+    await expect(approveResume(kv, draftIdFor("0", fabricatedMarkdown), NOW)).rejects.toMatchObject(
+      { code: "missing_revision" }
+    );
+  });
+
+  it("ADVERSARIAL B1 cycle 2: empty or whitespace-only proposedMarkdown is a question, nothing persisted", async () => {
+    // DEFEAT 2 (Codex issuecomment-4946275153): an empty revision used to
+    // pass coverage vacuously — persistable AND approvable. Reject outright.
+    for (const emptyMarkdown of ["", "\n \n"]) {
+      const kv = createMemoryKv();
+      await saveOriginalResume(kv, ORIGINAL, NOW);
+      const before = kv.dump();
+      const { ai } = fakeAi({
+        ok: true,
+        object: {
+          critiqueSummary: "trimmed everything",
+          proposedMarkdown: emptyMarkdown,
+          materialClaims: []
+        }
+      });
+      const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+      expect(result.status).toBe("question");
+      expect(kv.dump()).toEqual(before);
+    }
+  });
+
+  it("ADVERSARIAL B1 cycle 2: recombined tokens with a legit claim quote still blocked by coverage", async () => {
+    // DEFEAT 3 (Codex issuecomment-4946275153): every token of the proposed
+    // line exists in ORIGINAL, and the declared claim carries a legitimate
+    // ≥12-char quote so verifyClaims passes — but the asserted combination
+    // never appears contiguously in one source segment. Coverage must block.
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const before = kv.dump();
+    const { ai } = fakeAi({
+      ok: true,
+      object: {
+        critiqueSummary: "merged lines",
+        proposedMarkdown: "Line one Line three",
+        materialClaims: [
+          { kind: "employer", text: "employed on line one", quote: "Line one\nLine two" }
+        ]
+      }
+    });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect(result.unverifiedSpans).toEqual(["Line one Line three"]);
+    expect(kv.dump()).toEqual(before);
   });
 
   it("the same fabricated claim persists as confirmed evidence AFTER the user confirms it", async () => {
@@ -433,7 +511,9 @@ describe("resume.save-draft handler — critique mode", () => {
       ok: true,
       object: {
         critiqueSummary: "puffed up",
-        proposedMarkdown: "a".repeat(49_153),
+        // Fully covered content (every segment is a line of ORIGINAL) so the
+        // coverage guard passes and the size gate itself is what rejects.
+        proposedMarkdown: "Line one\n".repeat(5_462),
         materialClaims: []
       }
     });

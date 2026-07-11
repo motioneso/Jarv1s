@@ -386,15 +386,18 @@ describe("job-search onboarding/resume/profile record isolation (#932)", () => {
   });
 });
 
-// JS-03 (#932) QA RED fix cycle 1 — attack-path proof for the B1 finding
-// (PR #956, Codex issuecomment-4945986416 + Opus issuecomment-4946000922):
+// JS-03 (#932) QA RED fix cycle 2 — attack-path proof for the B1 finding
+// (PR #956, Codex issuecomment-4946275153 + Opus issuecomment-4946268694):
 // an AI response that under-declares materialClaims (here: []) while
 // fabricating in proposedMarkdown must NOT persist a draft revision and must
 // never become approvable — proven through the REAL RPC kv port and real
-// Postgres, not the in-memory kv.
+// Postgres, not the in-memory kv. FABRICATED is Codex's exact cycle-2 PoC:
+// all-lowercase spelled-out numbers defeated the cycle-1 caps/digit
+// heuristic (zero spans → vacuous pass); the segment-phrase guard fails it.
 describe("job-search critique truth-guard coverage — fabrication cannot persist (#932)", () => {
   const B_ORIGINAL = "Product Manager at Globex Corporation\nShipped the Meridian platform in 2024";
-  const FABRICATED = "# Resume\nVP of Engineering at Initech\nGrew revenue 300%";
+  const FABRICATED =
+    "vice president at initech from twenty twenty to twenty twenty four\nincreased revenue by tenfold";
 
   it("materialClaims: [] + fabricated markdown → question, no revision row, approve fails", async () => {
     // userB still exists in app.users and its resume namespace is empty after
@@ -421,7 +424,10 @@ describe("job-search critique truth-guard coverage — fabrication cannot persis
       mode: "critique"
     });
     expect(result.status).toBe("question");
-    expect(result.unverifiedSpans).toContain("Initech");
+    // Spans echo raw segments now — check segment-aware, lowercase like the PoC.
+    expect((result.unverifiedSpans as string[]).some((span) => span.includes("initech"))).toBe(
+      true
+    );
 
     // Ground truth via worker-role SQL: only the seeded original revision row
     // exists, and the fabricated content appears in NO row at all.
@@ -436,7 +442,7 @@ describe("job-search critique truth-guard coverage — fabrication cannot persis
       ids.userB,
       "job-search",
       `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
-       AND value::text LIKE '%Initech%'`
+       AND value::text LIKE '%initech%'`
     );
     expect(fabricatedRows).toEqual([]);
 

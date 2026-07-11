@@ -29,7 +29,7 @@ export {
   CRITIQUE_SUMMARY_MAX_CHARS,
   MATERIAL_CLAIMS_MAX,
   MATERIAL_CLAIM_KINDS,
-  extractMaterialSpans,
+  extractMaterialSegments,
   parseCritique,
   verifyClaims,
   verifyMarkdownCoverage
