@@ -3626,3 +3626,13 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   deferred, SENSITIVE, future lane).
 - Next merge/image build = push a numbered v* tag (verify baseline .dockerignore keeps the
   external-modules line so job-search is NOT baked into the default image).
+
+### 2026-07-11 — two PRs in QA/CI
+- **News S2 #958 → PR #967 (SECURITY):** CI was red (ERR_PNPM_OUTDATED_LOCKFILE, packages/news);
+  Codex regenerated + pushed pnpm-lock.yaml → CI GREEN (VF pass, both smokes pass). Council QA
+  SPAWNED: `qa-news-opus` (Opus adversarial, jarvis_qa_1) + `qa-news-fable` (Fable 2nd lens,
+  jarvis_qa_2), both to post `gh pr comment 967`. Council-gated merge on dual APPROVE.
+- **JS-06 #935 → PR #968 (SENSITIVE):** Fable v6 done; gates green post-rebase (BUNDLE/VF/AUDIT=0,
+  e2e 6/6 + external-modules 2/2). CI running (~15m). On green → Sonnet QA + module-isolation /
+  no-contract-drift / fail-closed / text-only walk. Then auto-merge + digest.
+- merges_since_relay = 1. A security merge (#967) will trip the relay trigger.
