@@ -8,26 +8,42 @@ origin/main `9d4589d1` (JS-01..05 included). Read by SECTION only:
 - Spec: `docs/superpowers/specs/2026-07-10-job-search-js-06-module-surface.md` (57 lines, safe to read fully)
 - Coordinator: label `Coordinator`, session id `58a78927-385c-4b1d-8fa0-94db20255d6f` (resolve pane fresh by label; exactly one)
 
-## Where the build stands (updated relay 2, 2026-07-11)
+## Where the build stands (updated relay 3, 2026-07-11)
 
-Done: orient, spec-vs-branch verification, [DESIGN-FORK] resolved (ruling below), smoke test,
-**plan WRITTEN and APPROVED by Coordinator** (rulings below), TDD started. Task 1 is at **RED
-verified** — `tests/unit/helpers/install-module-runtime.ts` + `tests/unit/job-search-web-core.test.ts`
-are committed and fail correctly (unresolvable import of `external-modules/job-search/src/web/runtime.js`).
+Done: orient, spec verification, [DESIGN-FORK] ruling, plan APPROVED, and **plan Tasks 1–5
+COMMITTED GREEN** (RED-GREEN-commit each): `5df78462` T1 jsx shim + runtime accessors ·
+`27020ca9` T2 api.ts invoke/run-now client · `e76efa8a` T3 store/router/format · `7240aef0` T4
+Root shell + authored states + styles + starter drafts · `e7910dcd` T5 Overview screen. Verified:
+21/21 unit tests (`tests/unit/job-search-web-core.test.ts` + `tests/unit/job-search-web-screens.test.tsx`)
++ `pnpm check:external-modules` exit 0.
 
 **THE PLAN IS THE SINGLE SOURCE OF TRUTH:**
 `docs/superpowers/plans/2026-07-11-js-06-module-surface.md` — 12 tasks, COMPLETE code per task,
 exact commands, exact `git add` paths. Read it PER TASK (by section), never front-to-back.
+Section offsets: T6@1438 T7@1586 T8@1862 T9@2091 T10@2194 T11@2331 T12@2367 exit-criteria@2389.
 
-NEXT STEP (immediately): **Task 1 GREEN** per plan Task 1 Step 3 — create
-`external-modules/job-search/src/web/runtime.ts` + `jsx.d.ts`, add
-`jsx: "transform", jsxFactory: "h", jsxFragment: "Fragment"` to the WEB build in
-`scripts/build-external-module.ts`, add `"jsx": "react", "jsxFactory": "h",
-"jsxFragmentFactory": "Fragment"` to `external-modules/job-search/tsconfig.json`. Verify:
-`pnpm vitest run tests/unit/job-search-web-core.test.ts && pnpm vitest run tests/unit/external-module-job-search-bundle.test.ts && pnpm check:external-modules`
-(never trust `| tail` exit codes). Commit per plan Task 1 Step 5. Then Tasks 2–12, RED-GREEN-commit
-each, → `coordinated-wrap-up` (PR `Closes #935` + report to Coordinator; Coordinator QAs
-sensitive-tier: module-isolation / no-contract-drift / fail-closed-disabled / text-only walk).
+NEXT STEP (immediately): **Task 6 — Onboarding screen** (plan line ~1438). RED first (append to
+`tests/unit/job-search-web-screens.test.tsx`), then GREEN (replace placeholder
+`external-modules/job-search/src/web/screens/onboarding.tsx`), verify
+`pnpm vitest run tests/unit/job-search-web-screens.test.tsx tests/unit/job-search-web-core.test.ts && pnpm check:external-modules`
+(never trust `| tail` exit codes), commit per plan Task 6 Step 5. Then T7–T12 the same way, →
+`coordinated-wrap-up` (PR `Closes #935` + report to Coordinator; Coordinator QAs sensitive-tier:
+module-isolation / no-contract-drift / fail-closed-disabled / text-only walk).
+
+Built-so-far map (all under `external-modules/job-search/src/web/`): `runtime.ts` (typed accessors
+over frozen host global; exports h/Fragment/hooks/`ReactNodeLike`), `jsx.d.ts` (loose
+IntrinsicElements), `api.ts` (`invokeTool` → ToolOutcome ok|blocked|disabled|error, 404→disabled;
+`runMonitorNow` → RunNowOutcome, jobId null = already-queued), `store.ts` (`useToolQuery` map cache
++ useSyncExternalStore w/ 3rd arg; `invalidateQueries`, `__resetStoreForTests`), `router.ts`
+(MODULE_BASE `/m/job-search`, `useModulePath`, `ModuleLink` w/ `key?` prop), `format.ts`
+(STEP_LABELS 6 keys, `onboardingProgress`, `dueLabel`, `whenLabel`), `states.tsx` (5 authored
+states + `outcomeGate` ladder — ends `h(Fragment, null, render(...))` because Fragment is typed
+unknown; + `announce`/`subscribeLive` live announcer), `styles.ts` (layout-only jsm-* CSS),
+`starter-drafts.ts` (`starterDraftForStep`), `root.tsx` (Root, HostActions type, TABS, LiveRegion,
+RouteSwitch), `index.ts` (contract v1 default export), `screens/overview.tsx` (real — pure
+`OverviewView` + container chaining onboarding.get-state → monitor.list through outcomeGate).
+`screens/{onboarding,profile,monitors,opportunities}.tsx` still placeholders. Gotcha: renderToString
+inserts `<!-- -->` between adjacent JSX text nodes — build assertable strings as ONE template literal.
 
 ## Plan approval — Coordinator flag rulings (binding)
 
@@ -95,8 +111,9 @@ external job text as TEXT never raw HTML; run-now params = IDs only. Exit criter
 
 ## Task ledger (plan doc is authoritative; this is the pointer)
 
-Plan Tasks 1–12 (task-list IDs #3–#14): T1 jsx shim+runtime (RED done → GREEN next) · T2 api.ts ·
-T3 store/router/format · T4 root+states+styles+starter-drafts · T5–T9 five screens · T10 permanent
+Plan Tasks 1–12: T1–T5 COMMITTED (see "Where the build stands") · **T6 onboarding screen = NEXT** ·
+T7 profile & resume (incl. external-text escaping test) · T8 monitors + RunNowButton (queued state,
+no polling; Step 6 wires RunNow into Overview) · T9 opportunities shell · T10 permanent
 integration test + browser-safety walk extension (**and `rm tests/integration/js06-invoke-smoke.test.ts`
 — temp, NEVER commit it**) · T11 e2e · T12 full gate (`pnpm build:external:job-search &&
 pnpm verify:foundation`) + pre-push trio + rebase + `coordinated-wrap-up`. Unit harness =
