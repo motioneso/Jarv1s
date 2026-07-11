@@ -302,19 +302,20 @@ describe("six-checkpoint walkthrough (durable checkpoint resume)", () => {
     await approveProfileHandler(ports)({ revisionId: draft.revisionId as string });
     expect(await stepNow()).toBe("sources_schedule");
 
-    // 6a. save a disabled monitor
+    // 6a. save a disabled monitor (JS-04: adapterId + query must be a real
+    // registry adapter and a valid board config — monitor.save validates)
     await saveMonitorHandler(ports)({
       monitorId: "m1",
-      adapterId: "boards",
-      query: { titles: ["Staff Engineer"] }
+      adapterId: "greenhouse",
+      query: { board: "gitlab" }
     });
     expect(await stepNow()).toBe("review_enable");
 
     // 6b. enable it — onboarding done
     await saveMonitorHandler(ports)({
       monitorId: "m1",
-      adapterId: "boards",
-      query: { titles: ["Staff Engineer"] },
+      adapterId: "greenhouse",
+      query: { board: "gitlab" },
       enabled: true
     });
     expect(await stepNow()).toBe("done");
@@ -357,13 +358,22 @@ describe("provider-leak sweep", () => {
     await run(await saveResumeDraftHandler(ports)({ mode: "critique" }));
 
     await saveResumeDraftHandler(ports)({ mode: "manual", content: "Shipped the migration" });
-    // gate question (no profile yet)
+    // gate question (no profile yet) — valid adapter+query so the enable
+    // gate (not adapter validation) is what answers
+    await run(
+      await saveMonitorHandler(ports)({
+        monitorId: "m1",
+        adapterId: "greenhouse",
+        query: { board: "gitlab" },
+        enabled: true
+      })
+    );
+    // unknown-adapter question (JS-04) — names registry ids, never providers
     await run(
       await saveMonitorHandler(ports)({
         monitorId: "m1",
         adapterId: "boards",
-        query: {},
-        enabled: true
+        query: { board: "gitlab" }
       })
     );
     // unsupported-claim question + provider_error question via fake ai
@@ -391,7 +401,13 @@ describe("provider-leak sweep", () => {
     await run(
       await saveProfileDraftHandler(ports)({ provenance: "user", fields: { narrative: "x" } })
     );
-    await run(await saveMonitorHandler(ports)({ monitorId: "m1", adapterId: "b", query: {} }));
+    await run(
+      await saveMonitorHandler(ports)({
+        monitorId: "m1",
+        adapterId: "greenhouse",
+        query: { board: "gitlab" }
+      })
+    );
     await run(await getMonitorHandler(ports)({ monitorId: "m1" }));
 
     expect(results.length).toBeGreaterThanOrEqual(16);

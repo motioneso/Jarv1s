@@ -8,9 +8,17 @@
 // metadata-only (the query document never leaves via list) and monitor.get
 // exposes cursor TIMESTAMPS only, never the cursor document itself.
 //
+// JS-04 (#933) Task 10: monitor.save validates adapterId against the source-
+// adapter registry (unknown/disabled → question naming the enabled ids, so
+// the assistant can self-correct) and persists the adapter-NORMALIZED board
+// config — adapter.validateConfig is the single gate deciding what a query
+// may contain, so extra keys never reach storage.
+//
 // Isolation: this module reads approval state through the domain barrel only;
 // it must never import the resume/profile handlers or the confirmations
-// machinery (enforced by a source-grep test).
+// machinery (enforced by a source-grep test). The adapters barrel is module-
+// internal shared code, not a sibling handler — importing it is fine.
+import { getSourceAdapter, listSourceAdapters } from "../../adapters/index.js";
 import type { MonitorConfig } from "../../domain/index.js";
 import {
   JobSearchKvError,
@@ -32,7 +40,24 @@ export function saveMonitorHandler(ports: WorkerPorts) {
     assertId(monitorId);
     const adapterId = readString(input, "adapterId", { required: true });
     assertId(adapterId);
-    const query = readPlainObject(input, "query", { required: true });
+    // Registry gate: only compliance-allowed, non-kill-switched adapters may
+    // back a monitor. A question (not an error) so the assistant can present
+    // the valid choices instead of dead-ending.
+    const adapter = getSourceAdapter(adapterId);
+    if (adapter === null) {
+      const available = listSourceAdapters()
+        .filter((a) => a.enabled)
+        .map((a) => a.adapterId)
+        .join(", ");
+      return {
+        status: "question",
+        question: `Unknown or disabled source adapter. Available adapters: ${available}.`
+      };
+    }
+    // The adapter owns the config shape: validateConfig throws InputError on
+    // anything malformed and returns the normalized document — that exact
+    // shape is what persists (extra keys are dropped here, by construction).
+    const query = adapter.validateConfig(readPlainObject(input, "query", { required: true }));
     const enabled = readBool(input, "enabled") ?? false;
 
     // Enable gate BEFORE any write: the question names only what's missing,
@@ -62,7 +87,9 @@ export function saveMonitorHandler(ports: WorkerPorts) {
       monitorId,
       adapterId,
       enabled,
-      query,
+      // Spread: BoardConfig is an interface (no index signature), and this
+      // also decouples the stored document from the adapter's return value.
+      query: { ...query },
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     };
