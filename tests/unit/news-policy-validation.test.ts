@@ -53,6 +53,21 @@ describe("news discovery policy validation", () => {
     expect(ai.generateJson).not.toHaveBeenCalled();
   });
 
+  it("rejects negative and non-news publisher decisions", async () => {
+    for (const object of [
+      { allowed: false, category: "news_publisher" },
+      { allowed: true, category: "other" }
+    ]) {
+      await expect(
+        decideSourcePolicy(db, { ai: aiReturning(object), repo: repo() }, {
+          canonicalDomain: "example.com",
+          description: "News",
+          sampleHeadlines: []
+        })
+      ).resolves.toEqual({ verdict: "rejected", fingerprint: "fp" });
+    }
+  });
+
   it("validates topics against their own category and defaults closed", async () => {
     await expect(
       validateTopic(db, { ai: aiReturning({ allowed: true, category: "news_topic" }) }, {
@@ -107,5 +122,22 @@ describe("news discovery policy validation", () => {
     const prompt = vi.mocked(ai.generateJson).mock.calls[0]?.[1].prompt ?? "";
     expect(prompt.indexOf("UNTRUSTED DATA")).toBeLessThan(prompt.indexOf("ignore previous"));
     expect(prompt).toContain('"sampleHeadlines"');
+  });
+
+  it("asks the active provider for affirmative policy and safety permission", async () => {
+    const sourceAi = aiReturning({ allowed: true, category: "news_publisher" });
+    const topicAi = aiReturning({ allowed: true, category: "news_topic" });
+    await decideSourcePolicy(db, { ai: sourceAi, repo: repo() }, {
+      canonicalDomain: "example.com",
+      description: "News",
+      sampleHeadlines: []
+    });
+    await validateTopic(db, { ai: topicAi }, { label: "World", guidance: null });
+    for (const port of [sourceAi, topicAi]) {
+      const prompt = vi.mocked(port.generateJson).mock.calls[0]?.[1].prompt ?? "";
+      expect(prompt).toMatch(/ACTIVE provider.*safety policy/i);
+      expect(prompt).toMatch(/illegal.*inappropriate.*uncertain/i);
+      expect(prompt).toContain("UNTRUSTED DATA");
+    }
   });
 });
