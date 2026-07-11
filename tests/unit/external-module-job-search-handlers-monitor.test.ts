@@ -100,7 +100,13 @@ describe("monitor.save handler", () => {
       adapterId: "greenhouse",
       query: QUERY
     });
-    expect(result).toEqual({ status: "ok", monitorId: "m1", enabled: false });
+    expect(result).toEqual({
+      status: "ok",
+      monitorId: "m1",
+      enabled: false,
+      timezone: "UTC",
+      dueTime: "07:00"
+    });
     const stored = await getMonitor(kv, "m1");
     expect(stored).toEqual({
       schemaVersion: 1,
@@ -108,6 +114,8 @@ describe("monitor.save handler", () => {
       adapterId: "greenhouse",
       enabled: false,
       query: QUERY,
+      timezone: "UTC",
+      dueTime: "07:00",
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString()
     });
@@ -138,7 +146,13 @@ describe("monitor.save handler", () => {
       query: QUERY,
       enabled: true
     });
-    expect(result).toEqual({ status: "ok", monitorId: "m1", enabled: true });
+    expect(result).toEqual({
+      status: "ok",
+      monitorId: "m1",
+      enabled: true,
+      timezone: "UTC",
+      dueTime: "07:00"
+    });
     expect((await getMonitor(kv, "m1"))?.enabled).toBe(true);
     const state = await getStateHandler(portsAt(kv, NOW))({});
     expect(state.step).toBe("done");
@@ -179,7 +193,13 @@ describe("monitor.save handler", () => {
       query: QUERY,
       enabled: false
     });
-    expect(result).toEqual({ status: "ok", monitorId: "m1", enabled: false });
+    expect(result).toEqual({
+      status: "ok",
+      monitorId: "m1",
+      enabled: false,
+      timezone: "UTC",
+      dueTime: "07:00"
+    });
     expect((await getMonitor(kv, "m1"))?.enabled).toBe(false);
   });
 
@@ -242,7 +262,7 @@ describe("monitor.save handler", () => {
 });
 
 describe("monitor.list handler", () => {
-  it("items carry exactly the five metadata keys — the query document never leaks", async () => {
+  it("items carry exactly the seven metadata keys — the query document never leaks", async () => {
     const kv = createMemoryKv();
     await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
@@ -263,8 +283,10 @@ describe("monitor.list handler", () => {
       expect(Object.keys(item).sort()).toEqual([
         "adapterId",
         "createdAt",
+        "dueTime",
         "enabled",
         "monitorId",
+        "timezone",
         "updatedAt"
       ]);
     }
@@ -322,5 +344,79 @@ describe("monitor.get handler", () => {
     const result = await wrap(getMonitorHandler(portsAt(kv, NOW)))({ monitorId: "nope" });
     expect(result.status).toBe("error");
     expect(result.code).toBe("missing_record");
+  });
+});
+
+// JS-05 (#934): per-monitor schedule fields. Optional on save (defaults
+// UTC/07:00), preserved when omitted on update, echoed by save/get/list.
+describe("monitor.save schedule fields (JS-05)", () => {
+  const SAVE_INPUT = { monitorId: "m1", adapterId: "greenhouse", query: QUERY };
+
+  it("persists and echoes timezone and dueTime", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      ...SAVE_INPUT,
+      timezone: "America/New_York",
+      dueTime: "06:30"
+    });
+    expect(result).toMatchObject({
+      status: "ok",
+      timezone: "America/New_York",
+      dueTime: "06:30"
+    });
+    const got = await getMonitorHandler(portsAt(kv, NOW))({ monitorId: "m1" });
+    expect(got).toMatchObject({ timezone: "America/New_York", dueTime: "06:30" });
+  });
+
+  it("defaults timezone/dueTime to UTC/07:00 when omitted", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({ ...SAVE_INPUT });
+    expect(result).toMatchObject({ status: "ok", timezone: "UTC", dueTime: "07:00" });
+  });
+
+  it("preserves previously saved timezone/dueTime when omitted on update", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      ...SAVE_INPUT,
+      timezone: "America/New_York",
+      dueTime: "06:30"
+    });
+    const result = await saveMonitorHandler(portsAt(kv, LATER))({ ...SAVE_INPUT });
+    expect(result).toMatchObject({ timezone: "America/New_York", dueTime: "06:30" });
+  });
+
+  it("echoes defaults from monitor.list items", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({ ...SAVE_INPUT });
+    const result = await listMonitorsHandler(portsAt(kv, NOW))({});
+    const monitors = result.monitors as Record<string, unknown>[];
+    expect(monitors[0]).toMatchObject({ timezone: "UTC", dueTime: "07:00" });
+  });
+
+  it("rejects a non-IANA timezone naming key+constraint only", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(saveMonitorHandler(portsAt(kv, NOW)))({
+      ...SAVE_INPUT,
+      timezone: "Mars/Olympus"
+    });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    expect(result.message).toBe("timezone must be a valid IANA time zone");
+    // Constraint only — the hostile value itself is never echoed.
+    expect(JSON.stringify(result)).not.toContain("Mars/Olympus");
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("rejects a malformed dueTime naming key+constraint only", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(saveMonitorHandler(portsAt(kv, NOW)))({
+      ...SAVE_INPUT,
+      dueTime: "7am"
+    });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    expect(result.message).toBe("dueTime must be HH:MM (24-hour)");
+    expect(JSON.stringify(result)).not.toContain("7am");
+    expect(kv.dump().size).toBe(0);
   });
 });

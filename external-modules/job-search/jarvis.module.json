@@ -237,6 +237,14 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA time zone for the daily discovery run (default UTC)"
+          },
+          "dueTime": {
+            "type": "string",
+            "description": "Local due time, HH:MM 24-hour (default 07:00)"
           }
         },
         "required": ["monitorId", "adapterId", "query"],

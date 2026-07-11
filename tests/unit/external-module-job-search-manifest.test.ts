@@ -233,7 +233,17 @@ describe("job-search manifest strict input schemas (#932)", () => {
     const save = schemaFor("job-search.monitor.save");
     expect(save.required).toEqual(["monitorId", "adapterId", "query"]);
     const saveProps = save.properties as Record<string, Record<string, unknown>>;
-    expect(Object.keys(saveProps).sort()).toEqual(["adapterId", "enabled", "monitorId", "query"]);
+    // JS-05 (#934): timezone/dueTime are optional schedule fields (not required).
+    expect(Object.keys(saveProps).sort()).toEqual([
+      "adapterId",
+      "dueTime",
+      "enabled",
+      "monitorId",
+      "query",
+      "timezone"
+    ]);
     expect(saveProps.enabled?.type).toBe("boolean");
+    expect(saveProps.timezone?.type).toBe("string");
+    expect(saveProps.dueTime?.type).toBe("string");
   });
 });
