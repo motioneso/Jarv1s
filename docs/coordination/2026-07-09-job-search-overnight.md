@@ -2372,3 +2372,22 @@ doc, `NODE_MODULES_PRESENT` so skipped reinstall). Old pEB reaped via session-gu
 (confirmed session==019f4ec1 before killing). Migration 0158 = `jarvis_migration_owner` definer
 precedent (NOCREATEROLE-forced swap, disclosed in relay doc/PR). NEXT: successor resumes TDD →
 wrap-up PR → security-tier Opus QA + overnight panel sign-off → merge. merges_since_relay: 0.
+
+**#916 SPEC SIGNED OFF + LINED UP @ 2026-07-11 ~02:50 (Fable panel, Ben pre-authorized auto-approve).**
+Fable (a20e61f4) drift-checked the #916 host-starter-action spec vs current origin/main `ff2ab3a7`:
+VERDICT **APPROVE WITH EDITS — build-ready**, 0 scope reopen. Premises hold (frozen contract-v1
+loader `loader.ts:38`; `initialText` never-auto-sent draft seam `chat-drawer.tsx:82`/`composer.tsx:40`;
+#914 touches no apps/web; #919/#939 worker-only, no conflict; clean net-new seam). Two build-guidance
+edits captured for the eventual #916 handoff: (1) inject host actions PER-CONTRIBUTION at load time
+(loader/Root props), never onto the shared frozen `__JARVIS_MODULE_RUNTIME__` global — that's what
+binds module-id host-side; (2) implementation MUST use the `initialText` draft path, NOT `openChatWith`
+(`app-shell.tsx:86-89` auto-submits via sendChatTurn). Per Ben ("auto approve fable's spec and line it
+up") auto-approved — no relay to Ben. Sign-off posted to issue #916 (comment 4941624508); stale
+`needs-spec` label STRIPPED. #916 is now spec-ready, **lined up behind #915** in the build queue.
+NOTE: #930-938 (JS-01..09) specs also exist on main (PR #929) but were NOT drift-signed-off — they
+keep `needs-spec` pending their own sign-off pass; do NOT strip those labels yet. merges_since_relay: 0.
+
+**QUEUE STATE @ 2026-07-11 ~02:50:** Platform prereqs #917/#914/#918/#919 CLOSED. #915 BUILDING
+(successor pEC, security tier → Opus QA + panel sign-off → merge). #916 SPEC-READY, queued behind
+#915. After #915+#916 land = Open Module System platform complete → Job Search module JS-01..09
+(#930-938, specs on main via #929) buildable, each still needing its coordinated-build plan approval.
