@@ -1,29 +1,41 @@
 // external-modules/job-search/src/worker/index.ts
-// JS-01 (#930): contract-proving worker. Every handler id declared in
-// jarvis.module.json must resolve here (13 assistant tools + the monitor queue),
-// but domain behavior lands in later JS slices — each stub answers
-// not-implemented rather than pretending to work.
+// JS-03 (#932): tool dispatch shell over the registry. Each tool is a factory
+// over WorkerPorts (kv + nullable ai + clock) so handler logic stays testable
+// without the SDK runtime; `wrap` turns the two scrubbed-by-construction error
+// types into structured results and rethrows everything else (→ generic
+// handler_failed at the protocol layer, no accidental message leak). The
+// registry lives in registry.ts because defineModuleWorker is side-effecting
+// at import time (stdin readline) — tests import the registry, never this.
 import { defineModuleWorker } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
-const notImplemented = async (): Promise<{ status: "not-implemented" }> => ({
-  status: "not-implemented"
-});
+import { kvFromWorkerContext } from "../domain/index.js";
+import type { JobSearchAi, WorkerPorts } from "./ai-port.js";
+import { aiFromWorkerContext } from "./ai-port.js";
+import type { ToolFactory } from "./registry.js";
+import { HANDLERS } from "./registry.js";
+import { wrap } from "./wrap.js";
+
+// ctx.ai ships with plan Task 0 (worker-capabilities D6); read it structurally
+// so this worker builds against today's SDK and the critique path degrades
+// gracefully (ai: null → "AI critique unavailable" question) until the bridge
+// lands. This nullable seam is what keeps Task 0 severable.
+type MaybeAiContext = ModuleWorkerContext & { readonly ai?: JobSearchAi };
+
+function ports(ctx: ModuleWorkerContext): WorkerPorts {
+  const ai = (ctx as MaybeAiContext).ai;
+  return {
+    kv: kvFromWorkerContext(ctx.kv),
+    ai: ai ? aiFromWorkerContext(ai) : null,
+    now: () => new Date()
+  };
+}
+
+const tool = (factory: ToolFactory) => (ctx: ModuleWorkerContext) =>
+  wrap(factory(ports(ctx)))(ctx.input);
 
 defineModuleWorker({
-  handlers: {
-    "onboarding.get-state": notImplemented,
-    "profile.get": notImplemented,
-    "profile.save-draft": notImplemented,
-    "profile.approve": notImplemented,
-    "resume.get": notImplemented,
-    "resume.save-draft": notImplemented,
-    "resume.approve": notImplemented,
-    "monitor.list": notImplemented,
-    "monitor.get": notImplemented,
-    "monitor.save": notImplemented,
-    "opportunities.list": notImplemented,
-    "opportunities.get": notImplemented,
-    "opportunity.decide": notImplemented,
-    "monitor.run": notImplemented
-  }
+  handlers: Object.fromEntries(
+    Object.entries(HANDLERS).map(([key, factory]) => [key, tool(factory)])
+  )
 });

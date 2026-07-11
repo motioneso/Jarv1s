@@ -29,6 +29,28 @@ export interface ModuleWorkerContext {
     delete(scope: "instance" | "user", namespace: string, key: string): Promise<boolean>;
     list(scope: "instance" | "user", namespace: string): Promise<readonly string[]>;
   };
+  // Structured generation via the host: the host fixes the service to this
+  // module's id and returns only the object or a typed, provider-agnostic
+  // error — never provider, model, or usage details.
+  readonly ai: {
+    generateStructured(input: {
+      schema: Record<string, unknown>;
+      prompt: string;
+      maxOutputTokens?: number;
+      tierHint?: "reasoning" | "interactive" | "economy";
+    }): Promise<
+      | { ok: true; object: unknown }
+      | {
+          ok: false;
+          error:
+            | "needs_config"
+            | "validation_failed"
+            | "provider_error"
+            | "usage_limited"
+            | "aborted";
+        }
+    >;
+  };
 }
 
 type Handler = (ctx: ModuleWorkerContext) => Promise<unknown>;
@@ -60,6 +82,12 @@ export function defineModuleWorker(input: {
       callParent("kv.delete", { scope, namespace, key }) as Promise<boolean>,
     list: (scope: "instance" | "user", namespace: string) =>
       callParent("kv.list", { scope, namespace }) as Promise<readonly string[]>
+  };
+  const ai: ModuleWorkerContext["ai"] = {
+    generateStructured: (aiInput) =>
+      callParent("ai.generateStructured", aiInput) as ReturnType<
+        ModuleWorkerContext["ai"]["generateStructured"]
+      >
   };
 
   createInterface({ input: process.stdin }).on("line", (line) => {
@@ -101,7 +129,8 @@ export function defineModuleWorker(input: {
               callParent("auth.getCredential", { authId }) as Promise<string>
           },
           fetch: (request) => callParent("fetch.request", request) as Promise<ModuleFetchResponse>,
-          kv
+          kv,
+          ai
         });
         send({ jsonrpc: "2.0", id: message.id, result });
       } catch {

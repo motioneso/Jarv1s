@@ -25,6 +25,7 @@ import type { Kysely } from "kysely";
 import { deleteUserData } from "../../scripts/delete-user-data.js";
 import { exportUserData } from "../../scripts/export-user-data.js";
 import type {
+  ConfirmationRecord,
   JobSearchKv,
   OpportunityInput
 } from "../../external-modules/job-search/src/domain/index.js";
@@ -32,6 +33,8 @@ import {
   NS,
   approveProfile,
   approveResume,
+  confirmationIdFor,
+  contentHash,
   getActiveProfile,
   getActiveResume,
   getOpportunity,
@@ -39,10 +42,16 @@ import {
   opportunityIdentity,
   rebuildFeed,
   readFeed,
+  saveConfirmation,
   saveOriginalResume,
   saveProfileRevision,
   upsertOpportunity
 } from "../../external-modules/job-search/src/domain/index.js";
+import type { JobSearchAi } from "../../external-modules/job-search/src/worker/ai-port.js";
+import {
+  getResumeHandler,
+  saveResumeDraftHandler
+} from "../../external-modules/job-search/src/worker/handlers/resume.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -282,5 +291,164 @@ describe("job-search KV owner/admin isolation + lifecycle (#931)", () => {
     expect(remaining.filter((r) => r.owner_user_id === ids.userA)).toEqual([]);
     // userB's row from the cross-owner case is untouched by userA's delete.
     expect(remaining.filter((r) => r.owner_user_id === ids.userB).length).toBeGreaterThan(0);
+  });
+});
+
+// JS-03 (#932) Task 12 — adversarial proof for THIS slice's record families:
+// resume revisions, confirmation records, and profile revisions + the active
+// pointer are owner-only under the same real-RLS harness. The lifecycle
+// describe above ends by DELETING userA (users row included), so this block
+// re-creates and re-seeds A before probing as B and as an admin.
+const RESUME_TEXT = "# Resume\nUserA JS-03 private resume body — must never cross owners.";
+const CLAIM_TEXT = "Cut deploy time 40% at Acme.";
+const CONFIRMATION: ConfirmationRecord = {
+  schemaVersion: 1,
+  confirmationId: confirmationIdFor("metric", CLAIM_TEXT),
+  claimKind: "metric",
+  claimText: CLAIM_TEXT,
+  confirmedAt: NOW.toISOString()
+};
+
+describe("job-search onboarding/resume/profile record isolation (#932)", () => {
+  beforeAll(async () => {
+    // deleteUserData above removed userA's app.users row — restore it so the
+    // FK on module_kv.owner_user_id accepts fresh writes.
+    await bootstrap.query(
+      `INSERT INTO app.users (id, email, is_instance_admin)
+       VALUES ($1, 'user-a@example.test', false)`,
+      [ids.userA]
+    );
+  });
+
+  it("userA writes resume revision 0, a confirmation, and an approved profile via A's rpc-backed kv", async () => {
+    const kvA = kvForActor(ids.userA);
+    await saveOriginalResume(kvA, RESUME_TEXT, NOW);
+    await saveConfirmation(kvA, CONFIRMATION);
+    await saveProfileRevision(kvA, {
+      schemaVersion: 1,
+      revisionId: "p2",
+      createdAt: NOW.toISOString(),
+      provenance: "user",
+      fields: { targetRole: "Staff Engineer" }
+    });
+    await approveProfile(kvA, "p2", NOW); // writes the profile active pointer
+
+    expect(await kvA.get(NS.resume, keys.resumeRevision("0"))).not.toBeNull();
+    expect(
+      await kvA.get(NS.resume, keys.resumeConfirmation(CONFIRMATION.confirmationId))
+    ).not.toBeNull();
+    expect((await getActiveProfile(kvA))?.revisionId).toBe("p2");
+  });
+
+  it("userB's get/list on the resume and profile namespaces see none of it", async () => {
+    const kvB = kvForActor(ids.userB);
+    expect(await kvB.get(NS.resume, keys.resumeRevision("0"))).toBeNull();
+    expect(
+      await kvB.get(NS.resume, keys.resumeConfirmation(CONFIRMATION.confirmationId))
+    ).toBeNull();
+    expect(await kvB.get(NS.profile, keys.profileRevision("p2"))).toBeNull();
+    expect(await kvB.get(NS.profile, keys.profileActive)).toBeNull();
+    expect(await kvB.list(NS.resume)).toEqual([]);
+    expect(await kvB.list(NS.profile)).toEqual([]);
+  });
+
+  it("userB's resume.get handler asks the onboarding question and never surfaces A's content", async () => {
+    const handler = getResumeHandler({ kv: kvForActor(ids.userB), ai: null, now: () => NOW });
+    const result = await handler({});
+    expect(result.status).toBe("question");
+    expect(result.question).toBe(
+      "I don't have a resume for you yet. Paste your current resume text and " +
+        "I'll store it as the original to work from."
+    );
+    // Belt and braces: A's private resume body appears nowhere in B's response.
+    expect(JSON.stringify(result)).not.toContain("private resume body");
+  });
+
+  it("admin actor still cannot read A's onboarding records — no private-data bypass", async () => {
+    const kvAdmin = kvForActor(ids.adminUser, { admin: true });
+    expect(await kvAdmin.get(NS.resume, keys.resumeRevision("0"))).toBeNull();
+    expect(
+      await kvAdmin.get(NS.resume, keys.resumeConfirmation(CONFIRMATION.confirmationId))
+    ).toBeNull();
+    expect(await kvAdmin.get(NS.profile, keys.profileRevision("p2"))).toBeNull();
+    expect(await kvAdmin.get(NS.profile, keys.profileActive)).toBeNull();
+    expect(await kvAdmin.list(NS.resume)).toEqual([]);
+    expect(await kvAdmin.list(NS.profile)).toEqual([]);
+    // One layer down: worker-role SQL as the admin actor over these
+    // namespaces yields zero rows — RLS applies to all actors.
+    const rows = await workerQuery(
+      ids.adminUser,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND namespace IN ('job-search.resume', 'job-search.profile')`
+    );
+    expect(rows).toEqual([]);
+  });
+});
+
+// JS-03 (#932) QA RED fix cycle 2 — attack-path proof for the B1 finding
+// (PR #956, Codex issuecomment-4946275153 + Opus issuecomment-4946268694):
+// an AI response that under-declares materialClaims (here: []) while
+// fabricating in proposedMarkdown must NOT persist a draft revision and must
+// never become approvable — proven through the REAL RPC kv port and real
+// Postgres, not the in-memory kv. FABRICATED is Codex's exact cycle-2 PoC:
+// all-lowercase spelled-out numbers defeated the cycle-1 caps/digit
+// heuristic (zero spans → vacuous pass); the segment-phrase guard fails it.
+describe("job-search critique truth-guard coverage — fabrication cannot persist (#932)", () => {
+  const B_ORIGINAL = "Product Manager at Globex Corporation\nShipped the Meridian platform in 2024";
+  const FABRICATED =
+    "vice president at initech from twenty twenty to twenty twenty four\nincreased revenue by tenfold";
+
+  it("materialClaims: [] + fabricated markdown → question, no revision row, approve fails", async () => {
+    // userB still exists in app.users and its resume namespace is empty after
+    // the #932 describe above — no re-seed choreography needed.
+    const kvB = kvForActor(ids.userB);
+    // Seed B's original through the real manual-save path.
+    const seed = await saveResumeDraftHandler({ kv: kvB, ai: null, now: () => NOW })({
+      mode: "manual",
+      content: B_ORIGINAL
+    });
+    expect(seed.status).toBe("ok");
+
+    const ai: JobSearchAi = {
+      generateStructured: async () => ({
+        ok: true,
+        object: {
+          critiqueSummary: "puffed the resume up",
+          proposedMarkdown: FABRICATED,
+          materialClaims: []
+        }
+      })
+    };
+    const result = await saveResumeDraftHandler({ kv: kvB, ai, now: () => NOW })({
+      mode: "critique"
+    });
+    expect(result.status).toBe("question");
+    // Spans echo raw segments now — check segment-aware, lowercase like the PoC.
+    expect((result.unverifiedSpans as string[]).some((span) => span.includes("initech"))).toBe(
+      true
+    );
+
+    // Ground truth via worker-role SQL: only the seeded original revision row
+    // exists, and the fabricated content appears in NO row at all.
+    const revisionRows = await workerQuery<{ key: string }>(
+      ids.userB,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND namespace = 'job-search.resume' AND key LIKE 'revision/%' ORDER BY key`
+    );
+    expect(revisionRows.map((r) => r.key)).toEqual(["revision/0"]);
+    const fabricatedRows = await workerQuery<{ key: string }>(
+      ids.userB,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND value::text LIKE '%initech%'`
+    );
+    expect(fabricatedRows).toEqual([]);
+
+    // The draft the critique WOULD have created can never be approved.
+    await expect(
+      approveResume(kvB, contentHash(["rev", "0", FABRICATED].join("\0")), NOW)
+    ).rejects.toMatchObject({ code: "missing_revision" });
   });
 });

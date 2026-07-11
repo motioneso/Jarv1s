@@ -115,3 +115,121 @@ describe("job-search manifest contract (#930)", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+// JS-03 (#932) Task 11: the 10 implemented tools declare strict input schemas that
+// mirror their handler validation (additionalProperties:false so the gateway rejects
+// unknown keys before dispatch); the 3 JS-05/06 stubs stay permissive until built.
+describe("job-search manifest strict input schemas (#932)", () => {
+  const IMPLEMENTED = [
+    "job-search.onboarding.get-state",
+    "job-search.profile.get",
+    "job-search.profile.save-draft",
+    "job-search.profile.approve",
+    "job-search.resume.get",
+    "job-search.resume.save-draft",
+    "job-search.resume.approve",
+    "job-search.monitor.list",
+    "job-search.monitor.get",
+    "job-search.monitor.save"
+  ];
+  const STUBS = [
+    "job-search.opportunities.list",
+    "job-search.opportunities.get",
+    "job-search.opportunity.decide"
+  ];
+
+  const schemaFor = (toolName: string): Record<string, unknown> => {
+    const tools = loadManifest().assistantTools as Array<Record<string, unknown>>;
+    const tool = tools.find((entry) => entry.name === toolName);
+    expect(tool, toolName).toBeDefined();
+    return tool!.inputSchema as Record<string, unknown>;
+  };
+
+  it("every implemented tool rejects unknown input keys", () => {
+    for (const name of IMPLEMENTED) {
+      const schema = schemaFor(name);
+      expect(schema.type, name).toBe("object");
+      expect(schema.additionalProperties, name).toBe(false);
+    }
+  });
+
+  it("JS-05/06 stubs keep the permissive placeholder schema", () => {
+    for (const name of STUBS) {
+      expect(schemaFor(name)).toEqual({ type: "object" });
+    }
+  });
+
+  it("resume.save-draft declares mode + the seven-kind confirmedClaims enum", () => {
+    const schema = schemaFor("job-search.resume.save-draft");
+    const props = schema.properties as Record<string, Record<string, unknown>>;
+    expect(schema.required).toEqual(["mode"]);
+    expect(props.mode?.enum).toEqual(["manual", "critique"]);
+    expect(Object.keys(props).sort()).toEqual([
+      "baseRevisionId",
+      "confirmedClaims",
+      "content",
+      "instructions",
+      "mode",
+      "parentRevisionId"
+    ]);
+    const items = (props.confirmedClaims as { items: Record<string, unknown> }).items;
+    expect(items.additionalProperties).toBe(false);
+    expect(items.required).toEqual(["kind", "text"]);
+    expect((items.properties as Record<string, Record<string, unknown>>).kind?.enum).toEqual([
+      "employer",
+      "role",
+      "date",
+      "skill",
+      "credential",
+      "metric",
+      "outcome"
+    ]);
+  });
+
+  it("resume.get declares optional revisionId + includeDiff only", () => {
+    const schema = schemaFor("job-search.resume.get");
+    const props = schema.properties as Record<string, Record<string, unknown>>;
+    expect(schema.required).toBeUndefined();
+    expect(Object.keys(props).sort()).toEqual(["includeDiff", "revisionId"]);
+    expect(props.includeDiff?.type).toBe("boolean");
+  });
+
+  it("approvals require revisionId; reads without inputs stay empty-strict", () => {
+    for (const name of ["job-search.profile.approve", "job-search.resume.approve"]) {
+      const schema = schemaFor(name);
+      expect(schema.required, name).toEqual(["revisionId"]);
+      expect(Object.keys(schema.properties as Record<string, unknown>), name).toEqual([
+        "revisionId"
+      ]);
+    }
+    // getProfileHandler ignores input entirely (active + draft ids only), so its
+    // schema is empty-strict like get-state and list — the plan's "optional
+    // revisionId" note predates the implemented Task 6 handler.
+    for (const name of [
+      "job-search.onboarding.get-state",
+      "job-search.profile.get",
+      "job-search.monitor.list"
+    ]) {
+      const schema = schemaFor(name);
+      expect(schema.properties, name).toBeUndefined();
+      expect(schema.required, name).toBeUndefined();
+    }
+  });
+
+  it("profile.save-draft requires provenance + fields; monitor tools mirror handlers", () => {
+    const profile = schemaFor("job-search.profile.save-draft");
+    expect(profile.required).toEqual(["provenance", "fields"]);
+    const profileProps = profile.properties as Record<string, Record<string, unknown>>;
+    expect(profileProps.provenance?.enum).toEqual(["user", "inferred"]);
+    expect(profileProps.fields?.type).toBe("object");
+
+    const get = schemaFor("job-search.monitor.get");
+    expect(get.required).toEqual(["monitorId"]);
+
+    const save = schemaFor("job-search.monitor.save");
+    expect(save.required).toEqual(["monitorId", "adapterId", "query"]);
+    const saveProps = save.properties as Record<string, Record<string, unknown>>;
+    expect(Object.keys(saveProps).sort()).toEqual(["adapterId", "enabled", "monitorId", "query"]);
+    expect(saveProps.enabled?.type).toBe("boolean");
+  });
+});

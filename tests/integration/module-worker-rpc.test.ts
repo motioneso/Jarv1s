@@ -3,6 +3,7 @@ import pg from "pg";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import {
+  AI_CALLS_PER_INVOCATION_CAP,
   createExternalModuleRpcHandler,
   ExternalModuleRpcError
 } from "@jarv1s/module-registry/node";
@@ -228,5 +229,172 @@ describe("external module worker RLS", () => {
       bodyBase64: "e30="
     });
     expect(requests).toEqual([{ input: "https://api.example.com/data", init: { method: "GET" } }]);
+  });
+});
+
+describe("ai.generateStructured", () => {
+  // The credential-proxy test above revokes acme-a.shared; restore it with a fresh
+  // secret so the composition-guard test can resolve it via auth.getCredential.
+  const aiSecret = "ai-bridge-runtime-secret";
+  beforeAll(async () => {
+    const envelope = createModuleCredentialSecretCipher().encryptJson({ value: aiSecret });
+    await bootstrap.query(
+      `UPDATE app.module_credentials
+         SET encrypted_secret = $1::jsonb, revoked_at = NULL
+       WHERE module_id = 'acme-a' AND credential_id = 'acme-a.shared'`,
+      [JSON.stringify(envelope)]
+    );
+  });
+
+  // workerDb is assigned in the file-level beforeAll, so build the config lazily.
+  const base = () => ({
+    module: moduleA,
+    actorUserId: ids.userA,
+    requestId: "req-ai",
+    workerDataContext: new DataContextRunner(workerDb),
+    cipher: createModuleCredentialSecretCipher(),
+    isActorAdmin: async () => false
+  });
+  const noSecret = () => undefined;
+
+  it("returns a sanitized result from the injected callback", async () => {
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async (_scopedDb, request) => ({ ok: true, object: { echoed: request.prompt } })
+    });
+    await expect(
+      rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "hi" }, noSecret)
+    ).resolves.toEqual({ ok: true, object: { echoed: "hi" } });
+  });
+
+  it("rebuilds the success envelope so host extras (usage/model/provider) never cross", async () => {
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async () =>
+        ({
+          ok: true,
+          object: { fine: true },
+          usage: { inputTokens: 10, outputTokens: 20 },
+          model: "some-model-id",
+          provider: "some-provider"
+        }) as never
+    });
+    // toEqual is exact: any leaked usage/model/provider key fails this assertion.
+    await expect(
+      rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "hi" }, noSecret)
+    ).resolves.toEqual({ ok: true, object: { fine: true } });
+  });
+
+  it("fails closed when the host has no ai dependency (jobs-path handlers)", async () => {
+    const rpc = createExternalModuleRpcHandler({ ...base(), toolRisk: "write" });
+    await expect(
+      rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "hi" }, noSecret)
+    ).rejects.toMatchObject({ code: "invalid_rpc" });
+  });
+
+  it("read-risk tools cannot call ai", async () => {
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "read",
+      ai: async () => ({ ok: true, object: {} })
+    });
+    await expect(
+      rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "hi" }, noSecret)
+    ).rejects.toMatchObject({ code: "forbidden_ai_call" });
+  });
+
+  it("rejects malformed requests before the callback runs", async () => {
+    let calls = 0;
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async () => {
+        calls += 1;
+        return { ok: true, object: {} };
+      }
+    });
+    for (const params of [
+      { schema: { type: "object" }, prompt: "p", extra: 1 },
+      { schema: { type: "object" }, prompt: "" },
+      { schema: [], prompt: "p" },
+      { schema: { type: "object" }, prompt: "p", tierHint: "opus" },
+      { schema: { type: "object" }, prompt: "p", maxOutputTokens: -1 },
+      { schema: { type: "object" }, prompt: "p", maxOutputTokens: 1.5 },
+      { schema: { type: "object" }, prompt: "p", maxOutputTokens: 1_000_000 }
+    ]) {
+      await expect(rpc("ai.generateStructured", params, noSecret)).rejects.toMatchObject({
+        code: "invalid_rpc"
+      });
+    }
+    expect(calls).toBe(0);
+  });
+
+  it("coerces unexpected error labels to provider_error (no leak channel)", async () => {
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async () => ({ ok: false, error: "anthropic exploded" as never })
+    });
+    await expect(
+      rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "hi" }, noSecret)
+    ).resolves.toEqual({ ok: false, error: "provider_error" });
+  });
+
+  it("rejects prompts or schemas containing a credential resolved in this invocation", async () => {
+    let calls = 0;
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async () => {
+        calls += 1;
+        return { ok: true, object: {} };
+      }
+    });
+    await expect(rpc("auth.getCredential", { authId: "acme-a.shared" }, noSecret)).resolves.toBe(
+      aiSecret
+    );
+    await expect(
+      rpc(
+        "ai.generateStructured",
+        { schema: { type: "object" }, prompt: `please summarize ${aiSecret}` },
+        noSecret
+      )
+    ).rejects.toMatchObject({ code: "forbidden_secret_in_ai_input" });
+    await expect(
+      rpc(
+        "ai.generateStructured",
+        { schema: { type: "object", description: aiSecret }, prompt: "hi" },
+        noSecret
+      )
+    ).rejects.toMatchObject({ code: "forbidden_secret_in_ai_input" });
+    expect(calls).toBe(0);
+    // A clean request on the same handler still goes through.
+    await expect(
+      rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "clean" }, noSecret)
+    ).resolves.toEqual({ ok: true, object: {} });
+    expect(calls).toBe(1);
+  });
+
+  it("caps calls per invocation with a typed usage_limited error", async () => {
+    let calls = 0;
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async () => {
+        calls += 1;
+        return { ok: true, object: { call: calls } };
+      }
+    });
+    for (let i = 1; i <= AI_CALLS_PER_INVOCATION_CAP; i += 1) {
+      await expect(
+        rpc("ai.generateStructured", { schema: { type: "object" }, prompt: `call ${i}` }, noSecret)
+      ).resolves.toEqual({ ok: true, object: { call: i } });
+    }
+    await expect(
+      rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "over cap" }, noSecret)
+    ).resolves.toEqual({ ok: false, error: "usage_limited" });
+    expect(calls).toBe(AI_CALLS_PER_INVOCATION_CAP);
   });
 });

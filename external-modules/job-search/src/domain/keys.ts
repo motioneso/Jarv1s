@@ -75,6 +75,7 @@ export const keys = {
   profileRevision: (id: string) => `revision/${id}`,
   resumeActive: "active",
   resumeRevision: (id: string) => `revision/${id}`,
+  resumeConfirmation: (id: string) => `confirmation/${id}`,
   monitor: (id: string) => `monitor/${id}`,
   monitorCursor: (id: string) => `cursor/${id}`,
   job: (h: string) => `job/${h}`,

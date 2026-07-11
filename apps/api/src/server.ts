@@ -56,6 +56,7 @@ import {
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
+import { createModuleAiBridge } from "./external-module-ai-bridge.js";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
@@ -64,6 +65,7 @@ import {
   registerExternalModuleJobRoutes
 } from "./external-module-jobs.js";
 import {
+  createActiveExternalModulesResolverForApi,
   createExternalActiveModulesResolver,
   createExternalModuleTools
 } from "./external-module-tools.js";
@@ -343,27 +345,21 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     const externalModuleSnapshot = discoverExternalModules(apiServerConfig, server.log);
 
     const externalModulesRepository = new SettingsRepository();
-    const getActiveExternalModules = apiServerConfig.enableExternalModules
-      ? async (accessContext: AccessContext): Promise<readonly ReconciledExternalModule[]> => {
-          const { states, denyRows } = await dataContext.withDataContext(
-            accessContext,
-            async (scopedDb) => ({
-              states: await externalModulesRepository.listExternalModuleStates(scopedDb),
-              denyRows: await externalModulesRepository.listModuleDenyRowsForActor(scopedDb)
-            })
-          );
-          const { modules } = reconcileExternalModules(externalModuleSnapshot.discoveries, states);
-          const disabled = new Set(denyRows.map((row) => row.module_id));
-          return modules.filter((module) => module.active && !disabled.has(module.id));
-        }
-      : undefined;
+    const getActiveExternalModules = createActiveExternalModulesResolverForApi({
+      enabled: apiServerConfig.enableExternalModules,
+      appDataContext: dataContext,
+      settingsRepository: externalModulesRepository,
+      discoveries: externalModuleSnapshot.discoveries
+    });
 
     const externalTools = createExternalModuleTools({
       discoveries: externalModuleSnapshot.discoveries,
       workerDataContext,
       appDataContext: dataContext,
       settingsRepository: externalModulesRepository,
-      logger: { warn: (data, message) => server.log.warn(data, message) }
+      logger: { warn: (data, message) => server.log.warn(data, message) },
+      // ctx.ai bridge for module workers (#932, spec D6).
+      ai: createModuleAiBridge({ aiRepository, logger: server.log })
     });
     externalWorkerRuntime = externalTools.runtime;
     const externalToolManifests = externalTools.manifests;

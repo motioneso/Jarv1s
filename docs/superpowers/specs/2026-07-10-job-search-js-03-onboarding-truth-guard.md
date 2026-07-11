@@ -38,9 +38,12 @@ the actor/module in the parent.
 
 Material changes are employers, roles, dates, skills, credentials, metrics, or outcomes. Each must
 reference exact source text from `revision/0`/an approved revision or a separately recorded explicit
-user confirmation. Unsupported content is returned as a question, never draft resume text. AI may
-reorder, shorten, and clarify sourced claims. The approval view shows a diff and evidence status for
-every material addition.
+user confirmation. Unsupported content is returned as a question, never draft resume text. In JS-03,
+approvable AI output is limited to reordering and verbatim whole-line selection of true/confirmed
+source segments; shortened or paraphrased lines are non-approvable and are returned as a question
+(scope verdict B, issue #932 — no pure syntactic rule can distinguish safe shortening from
+meaning-changing truncation). Full paraphrase support is deferred to truth-guard-v2. The approval
+view shows a diff and evidence status for every material addition.
 
 Structured critique/rewrite uses `ctx.ai`, fixed schemas, bounded prompts/results, and no tools. The
 resume/profile and source material are user data; only the user's configured AI capability receives
