@@ -17,6 +17,9 @@ import type {
 
 export * from "./external/hash.js";
 export * from "./external/web-assets.js";
+export * from "./external/worker-runtime.js";
+export * from "./external/worker-rpc-host.js";
+export * from "./external/tool-manifests.js";
 
 /**
  * Discover external modules under `modulesDir` (#917). Server-only. Read-only: never

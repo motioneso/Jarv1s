@@ -341,7 +341,9 @@ describe("MVP foundation scaffold", () => {
         // #914 Slice 1 — per-module applied-migration ledger, instance bookkeeping.
         { version: "0155", name: "0155_module_schema_migrations.sql" },
         // #914 Slice 2 — per-module install-state journal, instance metadata.
-        { version: "0156", name: "0156_module_installs.sql" }
+        { version: "0156", name: "0156_module_installs.sql" },
+        // #919 (epic #860) — actor + module scoped worker RPC access for credentials/KV.
+        { version: "0157", name: "0157_module_worker_runtime_access.sql" }
       ]);
     } finally {
       await client.end();

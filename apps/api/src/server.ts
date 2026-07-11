@@ -46,19 +46,22 @@ import {
   type ModuleDto
 } from "@jarv1s/shared";
 import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
-// #917: the /api/modules external-module provider reads persisted enablement state via the
-// settings repository (public API). apps/api is the composition root and legitimately deps
-// @jarv1s/settings; this is NOT a module cross-import (module isolation applies to modules,
-// not the app wiring layer).
+// #917: /api/modules reads enablement through the public settings API; this is legitimate
+// composition-root wiring, not a module cross-import.
 import { SettingsRepository } from "@jarv1s/settings";
-// Server-only subpath (#917). Safe here — the api is never browser-bundled — and keeps
-// createApiServer synchronous (no dynamic import()).
-import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
+import {
+  type ExternalModuleWorkerRuntime,
+  getExternalModuleRegistrations
+} from "@jarv1s/module-registry/node";
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
+import {
+  createExternalActiveModulesResolver,
+  createExternalModuleTools
+} from "./external-module-tools.js";
 
 // `FastifyRequest.timeZone` is declared in `@jarv1s/module-registry` (#801 Phase A),
 // not here: module-registry is the composition root that both the writer (this
@@ -70,6 +73,7 @@ import { registerExternalModuleWebAssetRoute } from "./external-module-web-route
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
+  readonly workerDb?: Kysely<JarvisDatabase>;
   readonly boss?: PgBoss;
   readonly authRuntime?: JarvisAuthRuntime;
   readonly logger?: boolean;
@@ -184,6 +188,18 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
   const boss = options.boss ?? createPgBossClient(getJarvisDatabaseUrls().app);
   const ownsAppDb = options.appDb === undefined;
+  const externalRuntimeEnabled =
+    apiServerConfig.enableExternalModules && apiServerConfig.externalModulesDir !== null;
+  const workerDb = externalRuntimeEnabled
+    ? (options.workerDb ??
+      createDatabase({
+        connectionString: getJarvisDatabaseUrls().worker,
+        maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
+      }))
+    : undefined;
+  const ownsWorkerDb = workerDb !== undefined && options.workerDb === undefined;
+  const workerDataContext = workerDb ? new DataContextRunner(workerDb) : undefined;
+  let externalWorkerRuntime: ExternalModuleWorkerRuntime | undefined;
   const ownsBoss = options.boss === undefined;
   const dataContext = new DataContextRunner(appDb);
   const aiRepository = new AiRepository();
@@ -341,6 +357,16 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           return modules.filter((m) => m.active);
         }
       : undefined;
+
+    const externalTools = createExternalModuleTools({
+      discoveries: externalModuleSnapshot.discoveries,
+      workerDataContext,
+      appDataContext: dataContext,
+      settingsRepository: externalModulesRepository,
+      logger: { warn: (data, message) => server.log.warn(data, message) }
+    });
+    externalWorkerRuntime = externalTools.runtime;
+    const externalToolManifests = externalTools.manifests;
     registerPlatformRoutes(server, authRuntime, getActiveExternalModules);
     // #918: reuses the boot-time discovery snapshot — never re-discovers.
     registerExternalModuleWebAssetRoute(
@@ -376,10 +402,19 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       }
     });
 
-    const resolveActiveModules = createActiveModulesResolver({
+    const resolveEnabledModules = createActiveModulesResolver({
       dataContext,
-      manifests: getBuiltInModuleManifests()
+      manifests: [...getBuiltInModuleManifests(), ...externalToolManifests]
     });
+    const resolveActiveModules = createExternalActiveModulesResolver(
+      resolveEnabledModules,
+      new Set(externalToolManifests.map((manifest) => manifest.id)),
+      async (actorUserId) =>
+        (await getActiveExternalModules?.({
+          actorUserId,
+          requestId: `external-tools:${randomUUID()}`
+        })) ?? []
+    );
 
     // Connector collaborators for the calendar focus-time write tool. A single shared
     // repository + cipher; the service is per-call-scoped via scopedDb, so one instance
@@ -569,10 +604,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
 
   server.addHook("onClose", async () => {
+    await externalWorkerRuntime?.close();
     await Promise.allSettled([
       ownsBoss ? boss.stop({ graceful: false }) : Promise.resolve(),
       ownsAuthRuntime ? authRuntime.close() : Promise.resolve(),
-      ownsAppDb ? appDb.destroy() : Promise.resolve()
+      ownsAppDb ? appDb.destroy() : Promise.resolve(),
+      ownsWorkerDb ? workerDb!.destroy() : Promise.resolve()
     ]);
   });
 

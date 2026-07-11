@@ -73,6 +73,28 @@ export async function listModuleCredentialMetadata(
     .execute();
 }
 
+export async function readModuleCredentialSecret(
+  scopedDb: DataContextDb,
+  input: {
+    readonly moduleId: string;
+    readonly credentialId: string;
+    readonly scope: "instance" | "user";
+    readonly ownerUserId: string | null;
+  }
+): Promise<EncryptedModuleCredentialSecret | null> {
+  assertDataContextDb(scopedDb);
+  const row = await scopedDb.db
+    .selectFrom("app.module_credentials")
+    .select("encrypted_secret")
+    .where("module_id", "=", input.moduleId)
+    .where("credential_id", "=", input.credentialId)
+    .where("scope", "=", input.scope)
+    .where("owner_user_id", input.ownerUserId === null ? "is" : "=", input.ownerUserId as never)
+    .where("revoked_at", "is", null)
+    .executeTakeFirst();
+  return (row?.encrypted_secret as EncryptedModuleCredentialSecret | null | undefined) ?? null;
+}
+
 /**
  * Scope-shaped PARTIAL unique indexes (migration 0153) rule out a plain
  * .onConflict(columns) target, so upsert is SELECT -> UPDATE-or-INSERT. Safe: the

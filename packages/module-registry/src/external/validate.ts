@@ -5,6 +5,7 @@
 // imports here — this is re-exported from @jarv1s/module-registry's browser entry.
 import type {
   JsonJarvisModuleManifest,
+  ExternalModuleAssistantToolDeclaration,
   ModuleAuthDeclaration,
   ModuleLifecycle,
   ModuleStorageDeclaration,
@@ -42,7 +43,6 @@ const FORBIDDEN_FIELDS: readonly string[] = [
   "jobs",
   "shareableResources",
   "assistantActionFamilies",
-  "assistantTools",
   "sourceBehaviors",
   "focusSignal",
   "proactiveMonitor",
@@ -203,6 +203,59 @@ export function validateExternalModuleManifest(
     }
   }
 
+  if (obj.runtime !== undefined) {
+    if (typeof obj.runtime !== "object" || obj.runtime === null) {
+      errors.push("runtime must be an object");
+    } else {
+      const { workerEntrypoint, workerContractVersion } = obj.runtime as Record<string, unknown>;
+      if (workerEntrypoint !== "dist/worker.js") {
+        errors.push('runtime.workerEntrypoint must be "dist/worker.js"');
+      }
+      if (workerContractVersion !== 1) {
+        errors.push("runtime.workerContractVersion must be the number 1");
+      }
+    }
+  }
+  if (obj.assistantTools !== undefined) {
+    if (!Array.isArray(obj.assistantTools)) {
+      errors.push("assistantTools must be an array");
+    } else {
+      if (obj.runtime === undefined) errors.push("runtime is required when assistantTools exist");
+      const names: string[] = [];
+      const permissions: string[] = [];
+      const handlers: string[] = [];
+      for (const entry of obj.assistantTools) {
+        if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+          errors.push("assistantTools entries must be objects");
+          continue;
+        }
+        const tool = entry as Record<string, unknown>;
+        if (typeof tool.name !== "string" || !tool.name.startsWith(`${expectedId}.`)) {
+          errors.push(`assistant tool names must be prefixed with "${expectedId}."`);
+        } else names.push(tool.name);
+        if (
+          typeof tool.permissionId !== "string" ||
+          !tool.permissionId.startsWith(`${expectedId}.`)
+        ) {
+          errors.push(`assistant tool permission ids must be prefixed with "${expectedId}."`);
+        } else permissions.push(tool.permissionId);
+        if (!isNonEmptyString(tool.description))
+          errors.push("assistant tool description is required");
+        if (tool.risk !== "read" && tool.risk !== "write" && tool.risk !== "destructive") {
+          errors.push('assistant tool risk must be "read", "write", or "destructive"');
+        }
+        if (!isNonEmptyString(tool.handler)) errors.push("assistant tool handler is required");
+        else handlers.push(tool.handler);
+      }
+      if (new Set(names).size !== names.length) errors.push("assistant tool names must be unique");
+      if (new Set(permissions).size !== permissions.length) {
+        errors.push("assistant tool permission ids must be unique");
+      }
+      if (new Set(handlers).size !== handlers.length)
+        errors.push("assistant tool handlers must be unique");
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
@@ -220,7 +273,13 @@ export function validateExternalModuleManifest(
     ...(obj.storage !== undefined
       ? { storage: obj.storage as readonly ModuleStorageDeclaration[] }
       : {}),
-    ...(obj.web !== undefined ? { web: obj.web as ModuleWebDeclaration } : {})
+    ...(obj.web !== undefined ? { web: obj.web as ModuleWebDeclaration } : {}),
+    ...(obj.runtime !== undefined
+      ? { runtime: obj.runtime as JsonJarvisModuleManifest["runtime"] }
+      : {}),
+    ...(obj.assistantTools !== undefined
+      ? { assistantTools: obj.assistantTools as readonly ExternalModuleAssistantToolDeclaration[] }
+      : {})
   };
   return { ok: true, manifest };
 }

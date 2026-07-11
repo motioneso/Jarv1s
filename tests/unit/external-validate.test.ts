@@ -90,4 +90,84 @@ describe("validateExternalModuleManifest (#917)", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.join(" ")).toContain("auth");
   });
+
+  it("accepts a declared worker tool", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 },
+        assistantTools: [
+          {
+            name: "acme-widgets.lookup",
+            description: "Look up a widget",
+            permissionId: "acme-widgets.lookup",
+            risk: "read",
+            inputSchema: { type: "object" },
+            handler: "lookup"
+          }
+        ]
+      },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects tools without a compatible worker", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        assistantTools: [
+          {
+            name: "acme-widgets.lookup",
+            description: "Look up a widget",
+            permissionId: "acme-widgets.lookup",
+            risk: "read",
+            handler: "lookup"
+          }
+        ]
+      },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("runtime");
+  });
+
+  it("rejects a worker entrypoint outside the package hash", () => {
+    const result = validateExternalModuleManifest(
+      { ...base, runtime: { workerEntrypoint: "worker.js", workerContractVersion: 1 } },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("dist/worker.js");
+  });
+
+  it("rejects unprefixed and duplicate worker tools", () => {
+    const tool = {
+      name: "lookup",
+      description: "Look up a widget",
+      permissionId: "lookup",
+      risk: "read",
+      handler: "lookup"
+    };
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        runtime: { workerEntrypoint: "../worker.js", workerContractVersion: 2 },
+        assistantTools: [tool, tool]
+      },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const errors = result.errors.join(" ");
+      expect(errors).toContain("workerEntrypoint");
+      expect(errors).toContain("workerContractVersion");
+      expect(errors).toContain("prefixed");
+      expect(errors).toContain("unique");
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { sql } from "kysely";
 import type { Kysely } from "kysely";
 
@@ -33,6 +33,11 @@ describe("AssistantToolGateway", () => {
       throw new Error("expected an action_request card to have been emitted");
     }
     return entry.record;
+  }
+
+  async function waitForActionRequest() {
+    await vi.waitFor(() => expect(emitted).toHaveLength(1), { timeout: 5_000 });
+    return firstActionRequest();
   }
 
   beforeAll(async () => {
@@ -260,9 +265,8 @@ describe("AssistantToolGateway", () => {
     });
     const call = gateway.callTool(token, "example.write", { value: "hello" });
 
-    await tick();
+    const card = await waitForActionRequest();
     expect(emitted).toHaveLength(1);
-    const card = firstActionRequest();
     expect(card.toolName).toBe("example.write");
     expect(card.summary).toBe('Write the value "hello"');
     expect(exampleToolCalls).toHaveLength(0);
@@ -286,9 +290,7 @@ describe("AssistantToolGateway", () => {
     });
 
     const call = gateway.callTool(token, "example.autoWrite", { value: "quiet" });
-    await tick();
-
-    const request = firstActionRequest();
+    const request = await waitForActionRequest();
     expect(request.toolName).toBe("example.autoWrite");
     expect(exampleToolCalls).toHaveLength(0);
 
@@ -354,9 +356,7 @@ describe("AssistantToolGateway", () => {
     });
 
     const call = destructiveGateway.callTool(token, "example.destroy", { value: "boom" });
-    await tick();
-
-    const request = firstActionRequest();
+    const request = await waitForActionRequest();
     expect(request.toolName).toBe("example.destroy");
     expect(exampleToolCalls).toHaveLength(0);
     await destructiveGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
@@ -416,15 +416,11 @@ describe("AssistantToolGateway", () => {
     });
 
     const call = gatedGateway.callTool(token, "example.destroy", { value: "boom" });
-    await tick();
+    const request = await waitForActionRequest();
 
-    expect(firstActionRequest().toolName).toBe("example.destroy");
+    expect(request.toolName).toBe("example.destroy");
     expect(exampleToolCalls).toHaveLength(0);
-    await gatedGateway.resolveActionRequest(
-      ids.userA,
-      firstActionRequest().actionRequestId,
-      "cancelled"
-    );
+    await gatedGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
     await call;
   });
 
@@ -603,8 +599,7 @@ describe("AssistantToolGateway", () => {
     });
     const call = gateway.callTool(token, "example.write", { value: "nope" });
 
-    await tick();
-    const card = firstActionRequest();
+    const card = await waitForActionRequest();
 
     await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "rejected");
     const res = await call;
@@ -621,8 +616,7 @@ describe("AssistantToolGateway", () => {
     });
     const call = gateway.callTool(token, "example.destroy", { value: "x" });
 
-    await tick();
-    const card = firstActionRequest();
+    const card = await waitForActionRequest();
     expect(card.toolName).toBe("example.destroy");
     expect(exampleToolCalls).toHaveLength(0);
 
