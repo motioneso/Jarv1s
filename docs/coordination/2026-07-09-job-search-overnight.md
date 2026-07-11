@@ -3114,3 +3114,19 @@ anything requiring escalation and do that instead of waiting for me."
 - **Fleet now:** JS-04 (#933) building (pFK, Fable, working) is the sole active lane. Idle spent
   panes: pBK/28c218bf (news-module worktree, stray — do NOT reap blindly, may hold uncommitted),
   pEP codex (old news revalidator, idle, reusable). merges_since_relay reset to 0 (flushed here).
+
+---
+### 2026-07-11 ~10:05 — News RESUMED (Ben) + JS-04 plan approved
+- **Ben "resumed the goal for news"** → News Slice 2 (#958 filed, Part of #954) spawned as a
+  PARALLEL lane. Worktree `news-slice2` off `fadef5d3`; **pane w1:pFM, tab t17, Fable 5, working**.
+  Security tier (SSRF + external-content→LLM ranking). Reserves migration **0160** (News is the
+  migration-owning lane; JS adds zero → no collision). Handoff written+prettier'd (do-not-commit).
+- **JS-04 (#933) plan APPROVED** (`docs/superpowers/plans/2026-07-11-js-04-source-adapters.md`,
+  11 TDD tasks). Forks confirmed in-spec: (a) monitor.save→normalized board config, (b) +3
+  assistant tools=17, (c) courtesy 60min. ONE correction issued: don't attribute policy-URL review
+  to Ben (mark pending-human-review). Now in TDD build.
+- **pEP correction logged** (Fable reviews; `agy` = current Gemini CLI, `gemini` legacy/banned;
+  durable mems `mem_mrgkglgq`, `mem_mrglaiy1`). Already reflected in notes above.
+- **⚠ FABLE RATE WATCH:** two Fable lanes (JS-04 pFK + News S2 pFM); session limit ~85% used
+  (resets 11am), weekly 67%. JS-04 already hit 2 API mid-stream stalls (likely Fable overload). If
+  both hard-stall on the cap → surface to Ben (wait for 11am reset vs move one lane to Sonnet).
