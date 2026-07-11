@@ -18,7 +18,8 @@ it("serves handlers and parent RPC through the worker contract", async () => {
     `import { defineModuleWorker } from ${JSON.stringify(pathToFileURL(join(process.cwd(), "packages/module-sdk/src/worker.ts")).href)};
 defineModuleWorker({ handlers: { lookup: async (ctx) => ({
   input: ctx.input,
-  token: await ctx.auth.getCredential("acme.key")
+  token: await ctx.auth.getCredential("acme.key"),
+  fetched: await ctx.fetch({ url: "https://api.example.com/data" })
 }) } });`
   );
   const child = spawn(process.execPath, ["--import", "tsx", entry], {
@@ -55,9 +56,25 @@ defineModuleWorker({ handlers: { lookup: async (ctx) => ({
     params: { authId: "acme.key" }
   });
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: credential.id, result: "secret" })}\n`);
+  const fetchRequest = await next();
+  expect(fetchRequest).toMatchObject({
+    method: "fetch.request",
+    params: { url: "https://api.example.com/data" }
+  });
+  child.stdin.write(
+    `${JSON.stringify({ jsonrpc: "2.0", id: fetchRequest.id, result: { status: 200, headers: { "content-type": "application/json" }, bodyBase64: "e30=" } })}\n`
+  );
   expect(await next()).toMatchObject({
     id: "host:1",
-    result: { input: { q: 1 }, token: "secret" }
+    result: {
+      input: { q: 1 },
+      token: "secret",
+      fetched: {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        bodyBase64: "e30="
+      }
+    }
   });
   child.kill();
 });

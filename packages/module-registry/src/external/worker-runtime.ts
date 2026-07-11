@@ -185,6 +185,12 @@ export class ExternalModuleWorkerRuntime {
           this.failProcess(moduleId, state, new ExternalModuleWorkerError("protocol"));
           continue;
         }
+        if (containsSecret(message.params, invocation.secrets)) {
+          state.child.stdin.write(
+            `${JSON.stringify({ jsonrpc: "2.0", id: message.id, error: { code: -32001, message: "rpc_failed" } })}\n`
+          );
+          continue;
+        }
         void invocation
           .rpc(message.method, message.params, (secret) => invocation.secrets.add(secret))
           .then(

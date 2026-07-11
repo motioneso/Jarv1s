@@ -2,6 +2,8 @@ import { sql } from "kysely";
 
 import type { DataContextRunner } from "@jarv1s/db";
 import type { ModuleAssistantToolRisk } from "@jarv1s/module-sdk";
+import type { ModuleFetchRequest, ModuleFetchResponse } from "@jarv1s/module-sdk";
+import { createHostPinnedFetch } from "@jarv1s/host-fetch";
 import {
   deleteModuleKvKey,
   getModuleKvValue,
@@ -36,6 +38,7 @@ export function createExternalModuleRpcHandler(input: {
   readonly workerDataContext: DataContextRunner;
   readonly cipher: ModuleCredentialCipher;
   readonly isActorAdmin: () => Promise<boolean>;
+  readonly createFetch?: (allowedHosts: readonly string[]) => typeof fetch;
 }): (method: string, params: unknown, rememberSecret: (value: string) => void) => Promise<unknown> {
   const declarations = new Map((input.module.manifest.auth ?? []).map((item) => [item.id, item]));
   const storage = new Map(
@@ -44,6 +47,28 @@ export function createExternalModuleRpcHandler(input: {
 
   return async (method, rawParams, rememberSecret) => {
     const params = record(rawParams);
+    if (method === "fetch.request") {
+      const request = fetchRequest(params);
+      const hosts = input.module.manifest.fetchHosts;
+      if (!hosts?.length) throw new ExternalModuleRpcError("invalid_rpc");
+      const response = await (input.createFetch ?? createHostPinnedFetch)(hosts)(request.url, {
+        method: request.method ?? "GET",
+        ...(request.headers ? { headers: request.headers } : {}),
+        ...(request.bodyBase64
+          ? { body: new Uint8Array(Buffer.from(request.bodyBase64, "base64")) }
+          : {})
+      });
+      const headers: Record<string, string> = {};
+      for (const name of ["content-type", "content-length", "last-modified", "etag"]) {
+        const value = response.headers.get(name);
+        if (value !== null) headers[name] = value;
+      }
+      return {
+        status: response.status,
+        headers,
+        bodyBase64: Buffer.from(await response.arrayBuffer()).toString("base64")
+      } satisfies ModuleFetchResponse;
+    }
     return input.workerDataContext.withDataContext(
       { actorUserId: input.actorUserId, requestId: input.requestId },
       async (scopedDb) => {
@@ -95,6 +120,37 @@ export function createExternalModuleRpcHandler(input: {
         return undefined;
       }
     );
+  };
+}
+
+function fetchRequest(value: Record<string, unknown>): ModuleFetchRequest {
+  const allowed = new Set(["url", "method", "headers", "bodyBase64"]);
+  if (
+    Object.keys(value).some((key) => !allowed.has(key)) ||
+    typeof value.url !== "string" ||
+    (value.method !== undefined && value.method !== "GET" && value.method !== "POST") ||
+    (value.bodyBase64 !== undefined &&
+      (typeof value.bodyBase64 !== "string" ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value.bodyBase64)))
+  ) {
+    throw new ExternalModuleRpcError("invalid_rpc");
+  }
+  let headers: Record<string, string> | undefined;
+  if (value.headers !== undefined) {
+    const raw = record(value.headers);
+    if (Object.values(raw).some((header) => typeof header !== "string")) {
+      throw new ExternalModuleRpcError("invalid_rpc");
+    }
+    headers = raw as Record<string, string>;
+  }
+  if ((value.method ?? "GET") === "GET" && value.bodyBase64 !== undefined) {
+    throw new ExternalModuleRpcError("invalid_rpc");
+  }
+  return {
+    url: value.url,
+    ...(value.method === undefined ? {} : { method: value.method }),
+    ...(headers === undefined ? {} : { headers }),
+    ...(value.bodyBase64 === undefined ? {} : { bodyBase64: value.bodyBase64 as string })
   };
 }
 

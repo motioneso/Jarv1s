@@ -67,7 +67,8 @@ const moduleA = {
         scope: "instance" as const
       }
     ],
-    storage: [{ namespace: "acme-a.state", scopes: ["instance", "user"] as const }]
+    storage: [{ namespace: "acme-a.state", scopes: ["instance", "user"] as const }],
+    fetchHosts: ["api.example.com"]
   },
   manifestHash: "sha256:a",
   packageHash: "sha256:a"
@@ -198,5 +199,34 @@ describe("external module worker RLS", () => {
         () => undefined
       )
     ).resolves.toBeUndefined();
+  });
+
+  it("projects host-pinned fetch responses onto the bounded wire DTO", async () => {
+    const requests: Array<{ input: string; init?: RequestInit }> = [];
+    const rpc = createExternalModuleRpcHandler({
+      module: moduleA,
+      toolRisk: "write",
+      actorUserId: ids.userA,
+      requestId: "rpc-fetch",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false,
+      createFetch: () => async (input, init) => {
+        requests.push({ input: String(input), init });
+        return new Response("{}", {
+          status: 200,
+          headers: { "content-type": "application/json", "x-private": "drop" }
+        });
+      }
+    });
+
+    await expect(
+      rpc("fetch.request", { url: "https://api.example.com/data" }, () => undefined)
+    ).resolves.toEqual({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      bodyBase64: "e30="
+    });
+    expect(requests).toEqual([{ input: "https://api.example.com/data", init: { method: "GET" } }]);
   });
 });
