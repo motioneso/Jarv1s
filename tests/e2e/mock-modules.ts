@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import type { Page } from "@playwright/test";
 import type {
   ExternalModuleDto,
@@ -291,4 +293,93 @@ export async function mockExternalWebModule(page: Page): Promise<void> {
       body: bundle
     });
   });
+}
+
+/**
+ * JS-06 (#935) — options for {@link mockExternalWebModuleFromDist}.
+ *
+ * - `invokeFixtures`: per-tool `invocation.result` payloads keyed by tool name; merged over the
+ *   defaults (onboarding paused at step "profile", empty monitor list). Tools with no fixture
+ *   resolve succeeded with `{}` so a missing key degrades a row, never the whole surface.
+ * - `runNowJobIds`: successive `jobId` values the run-now queue route returns (202 each). The
+ *   default `["job-1", null]` exercises queued-then-already-queued; `null` is the #965 dedupe
+ *   contract the client must honor even though the host doesn't emit it yet.
+ * - `invokeStatus`: force every invoke to this HTTP status (e.g. 404 = module disabled
+ *   server-side) to prove the stale-session fail-closed path.
+ */
+export type DistModuleMockOptions = {
+  invokeFixtures?: Record<string, Record<string, unknown>>;
+  runNowJobIds?: Array<string | null>;
+  invokeStatus?: number;
+};
+
+// Playwright runs from the repo root (config lives there), so a cwd-relative path is stable —
+// same convention as the capture-screens harness's test-results/ output dir.
+const JOB_SEARCH_DIST_BUNDLE = "external-modules/job-search/dist/web/index.js";
+
+const DEFAULT_INVOKE_FIXTURES: Record<string, Record<string, unknown>> = {
+  // Mid-onboarding (3 of 6 done, resume approved) so Overview shows real progress and the
+  // "Continue with Jarvis" handoff button is present (step !== "done").
+  "job-search.onboarding.get-state": {
+    step: "profile",
+    completed: { resume_intake: true, resume_critique: true, resume_approval: true },
+    gates: { resumeApproved: true, profileApproved: false, monitorEnabled: false }
+  },
+  "job-search.monitor.list": { monitors: [] }
+};
+
+/**
+ * JS-06 (#935) — mount the REAL job-search web bundle (esbuild output on disk) instead of the
+ * inline stub above, plus the two data-plane routes the surface talks to (risk:read tool invokes
+ * and the run-now queue route). Callers must run `pnpm build:external:job-search` first (the spec
+ * does it in beforeAll) and register this AFTER mockApi so these routes beat its catch-all 404.
+ *
+ * Registration order matters: the listing/bundle routes from mockExternalWebModule go first, then
+ * the dist bundle route re-registers the same glob — Playwright matches most-recently-registered
+ * first, so the real bundle wins over the inline stub.
+ */
+export async function mockExternalWebModuleFromDist(
+  page: Page,
+  options?: DistModuleMockOptions
+): Promise<void> {
+  await mockExternalWebModule(page);
+
+  // Real bundle from disk. Same trailing-`*` glob as above (Vite dev appends `?import`). Read
+  // lazily per request so beforeAll's build always wins over any stale file at register time.
+  await page.route(`**/api/modules/job-search/web/dist/web/index.js*`, async (route) => {
+    await route.fulfill({
+      contentType: "text/javascript; charset=utf-8",
+      body: readFileSync(JOB_SEARCH_DIST_BUNDLE, "utf8")
+    });
+  });
+
+  // risk:read tool invokes — the module surface's only data plane (Coordinator ruling: reads via
+  // the invoke route, write tools never from REST). Envelope mirrors the real route's
+  // { invocation: { status, result } } shape that web/api.ts unwraps.
+  const fixtures = { ...DEFAULT_INVOKE_FIXTURES, ...options?.invokeFixtures };
+  await page.route("**/api/ai/assistant-tools/*/invoke*", async (route) => {
+    if (options?.invokeStatus !== undefined) {
+      await route.fulfill({ status: options.invokeStatus, json: { error: "not found" } });
+      return;
+    }
+    const pathname = new URL(route.request().url()).pathname;
+    const match = /\/assistant-tools\/([^/]+)\/invoke$/.exec(pathname);
+    const tool = decodeURIComponent(match?.[1] ?? "");
+    await route.fulfill({
+      json: { invocation: { status: "succeeded", result: fixtures[tool] ?? {} } }
+    });
+  });
+
+  // Run-now queue route — 202 + jobId per the host contract; jobId:null = manual singleton
+  // already queued (#965 dedupe contract, mock-driven until the host emits it).
+  const jobIds = options?.runNowJobIds ?? ["job-1", null];
+  let runNowCalls = 0;
+  await page.route(
+    "**/api/modules/job-search/queues/job-search.monitor-run/run*",
+    async (route) => {
+      const jobId = jobIds[Math.min(runNowCalls, jobIds.length - 1)] ?? null;
+      runNowCalls += 1;
+      await route.fulfill({ status: 202, json: { jobId } });
+    }
+  );
 }
