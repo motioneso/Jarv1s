@@ -2217,3 +2217,29 @@ commit / relay / stuck. (3) On #914 merge: rebase #939, spawn #915 lane lean.
   - Monitor armed on the push signal (origin/build/914 SHA flip off `ff0470a8`).
 - **#940 skills anti-bloat PR:** still open; merge when `gh pr checks 940` green (routine).
 - **#939 / #915 / #916:** unchanged from prior note (gated on #914 merge / #919 migration).
+
+---
+
+**MERGE DIGEST + CONTINUATION @ 2026-07-11 00:10 (in-session, no successor per Ben):**
+
+- ✅ **#940 MERGED** (squash) — skills anti-bloat fix live on main; future spawns read by-section.
+- ✅ **#914 MERGED** (PR #941, squash `dff032b9`, SECURITY tier). Integrated Opus re-QA GREEN /
+  0 blocking; Fable merge sign-off (APPROVE). Full gate VF/AUDIT=0 (2288 unit + 1468 integration).
+  data-export split verified byte-identical. **Migrations 0155/0156 now on main.** Issue #914
+  closed, worktree + branch `build/914-module-data-plane` removed, pEA (session 9958d5c3) reaped.
+  Non-blocking follow-ups #942 (`$` validator, blast-radius bounded by NOBYPASSRLS least-priv install
+  role) + #943 (RESET ROLE) carried into epic #860. `merges_since_relay`: 2 (1 routine #940 + 1
+  security #914) — Ben override = flush-and-continue in-session, NO successor pane.
+- **NEXT — unblock the #919 chain (migration 0155/0156 landed):**
+  1. **#939 (PR #939, feat/919-worker-runtime, SECURITY):** rebase onto origin/main — WATCH the
+     migration renumber (0157 must sit AFTER 0155/0156; union foundation.test.ts to
+     0152–0157). Owner = pE4 (codex, idle, holding — its fix already committed/pushed so pane death
+     non-fatal). After rebase: final Opus adversarial QA on integrated result → Fable sign-off
+     (residual HIGH per-actor worker isolation = non-blocking). Re-task pE4 to do the rebase.
+  2. **#915 impl lane (task 10):** was blocked-by #919 migration; spawn LEAN (GLM-5.2 opencode high
+     effort, Codex cap outage) once #919/PR #939 lands. Spec:
+     docs/superpowers/specs/2026-07-09-external-worker-capabilities-design.md.
+  3. **#916 starter action:** held (needs-spec + dep #919); Fable said split starter-action onto JS
+     critical path.
+- **Board:** move #914 card → Done (verify board automation didn't already; Ben's earlier
+  gh-hygiene ask flagged board status as unchecked).
