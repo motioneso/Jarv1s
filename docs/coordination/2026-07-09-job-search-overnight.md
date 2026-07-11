@@ -2361,3 +2361,14 @@ This is within the approved envelope — no new approval issued, just confirmed.
 definer is `jarvis_migration_owner` (NOT a bespoke role) and that role-scoped SELECT + worker-only
 EXECUTE still hold. Agent context ~26% left @ 32m — nudged to relay cleanly at meter warning
 (successor in same worktree, `--tab w1:t1H`). merges_since_relay: 0.
+
+**RELAY @ 2026-07-11 ~02:40 — #915 build agent self-relayed (clean).**
+Old build pEB (codex, session `019f4ec1`) hit context threshold, relayed cleanly: green commits
+through migration `eaa91eb6`, mandatory full integration passed (136/136 files, 1475 pass, 2 skip),
+durable relay doc committed `f9347df4`. Successor spawned in SAME worktree, correct agents tab
+`w1:t1H` (tab placement verified — `--tab` passed): **pEC, label `915: worker capabilities relay`,
+session `019f4ef5-1cb6-7ba2-b35b-1054d3433d1d`, codex gpt-5.6-sol.** Verified driving (reading relay
+doc, `NODE_MODULES_PRESENT` so skipped reinstall). Old pEB reaped via session-guarded close
+(confirmed session==019f4ec1 before killing). Migration 0158 = `jarvis_migration_owner` definer
+precedent (NOCREATEROLE-forced swap, disclosed in relay doc/PR). NEXT: successor resumes TDD →
+wrap-up PR → security-tier Opus QA + overnight panel sign-off → merge. merges_since_relay: 0.
