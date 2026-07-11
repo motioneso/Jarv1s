@@ -3054,3 +3054,13 @@ anything requiring escalation and do that instead of waiting for me."
 - News #955 unchanged (held on Gemini). JS-04+ serialized-blocked behind #956.
 
 **CONTINUATION NOTE (post-compaction me):** await R16 re-QA ping on the narrowed head → run Opus + defensive-Codex re-QA → if both GREEN + CI green, DO NOT auto-merge; post the capability-tradeoff summary on #956 and hold for Ben's explicit sign-off (this is the one genuinely-Ben decision here). Keep supervising News + fleet meanwhile. Session authority 58a78927. Fable-only builds.
+
+---
+### Continuation note — 2026-07-11 (in-place checkpoint @71%, no successor pane)
+- **JS-03 #956 relay R16→R17 clean.** R16 (9a93d273) reaped. **R17 = pane w1:pFJ, session `8f3122fe-1ee8-48da-ada2-7b4d396fe842`, Fable, tab t17, DRIVING.**
+- Verdict-B core committed `8fb17198` (equality-only whole-segment guard; head PoCs fail closed; T429 flipped to question; 97/97 targeted unit green). NOT pushed yet.
+- R17 finishing: stale comments + spec truth-guard paragraph + integration/audit + full verify:foundation + push → then pings me for re-QA.
+- **Re-QA gate = Opus adversarial (coordinated-qa, opus, worktree, jarvis_qa_3) AND defensively-framed Codex, + CI green.** Codex prompt MUST be rewritten defensive ("confirm guard REJECTS these fabrication inputs; confirm reorder/whole-line still passes") — the offensive "forge/defeat" framing tripped Codex's content filter last cycle.
+- **Even on unanimous GREEN: DO NOT auto-merge.** Post capability-tradeoff summary on #956, HOLD for Ben's explicit sign-off (verdict-B revokes spec-promised shorten/clarify — council routed this product call to Ben). #957 truth-guard-v2 filed.
+- **News #955:** CI✓ + Opus✓ + Codex✓ — HELD SOLELY on Gemini seat (CLI logged out, Ben-only re-auth). Auto-merge the instant Gemini posts durable GREEN; NO substitution/degrade.
+- Stray idle pane w1:pBK/28c218bf (news-module worktree) — still uninvestigated; may hold uncommitted work; do NOT reap blindly.
