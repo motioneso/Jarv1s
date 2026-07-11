@@ -3562,3 +3562,10 @@ pG3 (Fable, sess 2934d995) hit its own 70% meter → committed be7692d4 (approve
 
 ## Sports #963 relay+reap — 2026-07-11 ~14:42
 pG5 (Sonnet, sess 22d13b29) relayed at 70% (no code yet; research done: component `packages/sports/src/web/sports-ticker.tsx` FeaturedTeamCard+TickerTeam, no schema change → ROUTINE holds, both surfaces in lockstep). Successor **pG7 "sports-live-score-2" SONNET, sess 6e9af0e3, tab w1:t17** driving; handoff 2f3713b8. pG5 reaped. Next from pG7: plan doc → my approval (strip-only) → build.
+
+## MODEL POLICY UPDATE + sports reassignment — 2026-07-11 ~14:48
+Ben hard rule: **NO Sonnet authoring plans, EVER.** Plans = Fable; Fable capped → Opus 4.8 HIGH. Sonnet may still CODE under an approved plan. Supersedes coordinate skill's "Sonnet plans for routine".
+- **Sports #963**: Sonnet lane (pG5→pG7) had written a plan draft (Sonnet) → VIOLATION. Reaped pG7, discarded the Sonnet plan draft (uncommitted, no loss). Re-spawned as **Fable pG8 "sports-963-fable"** (tab w1:t17, worktree .claude/worktrees/sports-live-score @ 2f3713b8) — authoring plan fresh → approval → build. Design = strip-only (Ben).
+- JS lanes already Fable-planned (compliant).
+Also: **Ben resumed News S2 Codex himself** (pEP sess 019f4fd0 working) — do NOT reset that worktree; his agent handles the GLM-WIP checkout per the cron prompt. Task #19 = Codex driving.
+Also: **Next merge/image build = NUMBERED release** (v* tag → CI :<version>), and job-search must NOT be in the default image (downloadable external module). [mem_mrgw50h2]
