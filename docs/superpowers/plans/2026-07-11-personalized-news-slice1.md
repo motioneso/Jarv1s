@@ -22,7 +22,9 @@ migration number immediately before implementation.
 Slice 1).
 
 **Risk tier:** `security` — new owner-private tables, FORCE RLS policies, data export/deletion, and
-cross-module availability ports. Requires adversarial QA and Ben's explicit merge sign-off.
+cross-module availability ports. Merge requires unanimous GREEN from a 3-provider review council:
+Opus + Codex + Gemini, including at least one non-Claude provider, with each verdict posted durably
+to the PR. Any dissent or unreachable provider holds this News merge for Ben's manual decision.
 
 ## Locked scope
 
@@ -131,9 +133,12 @@ hostname, and remove a trailing dot. Do not blindly strip `www.`.
 - `payload jsonb`
 - `created_at`, `updated_at`
 
-The repository validates payload through the shared snapshot contract before an atomic upsert.
-Slice 1 has no production writer; focused repository tests prove replace/read isolation. Never
-export snapshots.
+The repository calls a small News-owned `assertSnapshotPayload` before an atomic upsert. Slice 1
+does not freeze the final article-card schema: the assertion requires a JSON object with an
+`articles` array of at most 40 objects, bounds every string and total serialized bytes, and rejects
+excessive nesting/non-JSON values. Slice 2 replaces this provisional storage guard with its exact
+compilation contract before adding a production writer. Focused repository tests prove replace/read
+isolation. Never export snapshots.
 
 ## Task overview
 
@@ -154,18 +159,25 @@ export snapshots.
 - Modify: `packages/db/src/types.ts`
 - Modify: `packages/news/src/manifest.ts`
 - Modify: `tests/integration/foundation.test.ts`
+- Create: `tests/integration/foundation-schema-catalog.test.ts`
 - Modify: `tests/integration/module-data-lifecycle-cascade.test.ts`
 - Create: `tests/integration/news-personalization-repository.test.ts` (migration/RLS assertions
   begin here and are completed in Task 3)
 
-- [ ] Compute the highest migration prefix across all module and infra SQL on fresh `origin/main`;
-      use `max + 1` everywhere. Never trust the plan-authoring maximum (`0158`).
+- [ ] Compute the highest migration prefix across all module and infra SQL on fresh `origin/main`
+      **and inspect open PRs for claimed migration numbers**; reserve the next unclaimed value
+      everywhere. Never trust the plan-authoring maximum (`0158`).
+- [ ] Before adding assertions, split the migration-ledger and security-catalog assertions out of
+      the exactly-1000-line `foundation.test.ts` into
+      `foundation-schema-catalog.test.ts`. Preserve behavior byte-for-byte, then run the focused
+      tests and `pnpm check:file-size` green before adding new rows.
 - [ ] Write failing foundation and lifecycle tests for all four table names.
 - [ ] Add the four tables, bounds/checks/indexes, standard owner-only FORCE RLS policies, and
       app-runtime grants. Add no worker grants.
 - [ ] Add Kysely table interfaces/map keys/row aliases in `@jarv1s/db`.
 - [ ] Extend `newsModuleManifest.database.migrations`, `ownedTables`, and cascade deletion tables.
-- [ ] Run `pnpm db:migrate`, the focused foundation test, cascade test, and DB typecheck.
+- [ ] Run `pnpm db:migrate`, both focused foundation tests, the cascade test,
+      `pnpm check:file-size`, and DB typecheck.
 - [ ] Commit only Task 1 files.
 
 ### Task 2: Define browser-safe contracts and domain normalization
@@ -181,9 +193,8 @@ export snapshots.
 - `NewsPersonalizationAvailabilityDto`: `aiConfigured`, `webSearchConfigured`,
   `customSourceByUrlEnabled`, `customSourceByNameEnabled`, `freeformTopicsEnabled`.
 - `NewsCustomSourceDto`, `NewsCustomTopicDto`, `NewsSourceExclusionDto` with no secrets or prompt
-  material beyond the user's own saved label/guidance/URLs.
-- `NewsCompilationSnapshotDto`: bounded article-card metadata and ranking fields matching the
-  governing spec; maximum 40 articles.
+  material beyond the user's own saved label/guidance/URLs. Source/topic DTOs explicitly omit
+  `validation_fingerprint` and every provider/model identity field.
 - `GetNewsPersonalizationResponse`: availability, three stored-state lists, and snapshot metadata
   (`compiledAt`, `expiresAt`, `articleCount`) but not the snapshot payload.
 - `CreateNewsSourceExclusionRequest`: one `source` string, max 2048.
@@ -194,9 +205,13 @@ export snapshots.
       and exact required fields.
 - [ ] Implement one pure `normalizePublisherDomain` path. Accept bare hostname or HTTPS URL; reject
       URL credentials, explicit ports, IP literals, invalid IDNA/hostname, non-HTTPS schemes, and
-      overlong values. Return lowercase ASCII hostname without trailing dot.
+      overlong values. Return lowercase ASCII hostname without trailing dot. Include non-ASCII IDN →
+      punycode cases.
 - [ ] Add `publisherDomainMatches(excluded, candidate)` using exact match or
       `candidate.endsWith('.' + excluded)`; test boundary cases such as `notexample.com`.
+- [ ] Add a hand-written, dependency-free `assertSnapshotPayload` with provisional Slice 1 caps:
+      40 article objects, bounded strings, bounded nesting, JSON-only values, and bounded total
+      `JSON.stringify` bytes. Do not add AJV or publish the provisional article shape.
 - [ ] Run focused unit tests and shared/news typechecks.
 - [ ] Commit only Task 2 files.
 
@@ -220,9 +235,9 @@ export snapshots.
 - [ ] Write failing tests proving owner A cannot list/read/update/delete owner B's rows across every
       table, including admin actors.
 - [ ] Prove duplicate exclusions are idempotent and the 101st exclusion fails with a typed domain
-      limit error.
-- [ ] Prove snapshot replace is atomic, returns only the actor's latest row, and validates the 40
-      article/size-bound contract before SQL.
+      limit error. Enforce the cap atomically in SQL rather than count-then-insert.
+- [ ] Prove snapshot replace is atomic, returns only the actor's latest row, and calls
+      `assertSnapshotPayload` before SQL.
 - [ ] Implement the minimum methods above; no generic repository, unit-of-work wrapper, or public
       custom source/topic writer.
 - [ ] Run focused unit/integration tests and `@jarv1s/news` typecheck.
@@ -239,7 +254,7 @@ export snapshots.
 - Modify: `packages/news/package.json` only if an existing public package dependency is required
 - Modify/Test: `tests/unit/news-routes.test.ts`
 - Modify/Test: `tests/unit/news-service.test.ts`
-- Test: `tests/unit/news-registry.test.ts` if no existing registry test cleanly covers the new ports
+- Modify/Test: `tests/integration/module-registry.test.ts`
 
 **Injected ports:**
 
@@ -256,15 +271,19 @@ Research APIs. News receives booleans only and imports no foreign internals. `ha
 instance Brave key or environment fallback without exposing either value.
 
 - [ ] Write failing `app.inject` tests for `GET /api/news/personalization`, exclusion POST/DELETE,
-      schema field survival, auth failure, invalid domains, idempotency, and limit errors.
+      schema field survival, auth failure, invalid domains, idempotency, and limit errors. Seed
+      source/topic rows with fingerprints and prove declared fields survive while fingerprints and
+      provider identity are absent from serialized output.
 - [ ] Add manifest declarations and routes:
   - `GET /api/news/personalization`
   - `POST /api/news/source-exclusions`
   - `DELETE /api/news/source-exclusions/:id`
+    Use `news.view` for GET and `news.prefs` for exclusion writes.
 - [ ] Compute availability under the actor's `DataContextDb`; return custom-source-by-URL enabled
       with JSON AI, and name/topic enabled only with JSON AI + web search.
 - [ ] Extend `NewsService` to read exclusions with V1 prefs. Filter curated sources by canonical
-      homepage domain before feed planning; never fetch an excluded source.
+      homepage domain before feed planning, then also drop any composed headline whose article hostname
+      matches an exclusion; an excluded domain must never appear through a different curated feed.
 - [ ] Preserve existing source-key `source_exclude` semantics and all V1 route payloads.
 - [ ] Wire the narrow availability callbacks and repository at the module-registry composition
       root. Do not move feature logic into the registry.
@@ -292,6 +311,9 @@ instance Brave key or environment fallback without exposing either value.
 - [ ] Add an `Excluded publishers` section with hostname/HTTPS URL input, explicit Add, list, and
       Remove actions. Explain that exclusions apply everywhere and deletion returns a publisher to
       neutral.
+- [ ] Make the dual vocabulary truthful: if a curated toggle remains V1-On while its domain is
+      excluded, render it as excluded/not contributing (or explain the override beside it). Pin the
+      planner/render behavior in a focused test.
 - [ ] Disable only affected controls while mutations run; preserve keyboard/focus and authored
       loading/error states.
 - [ ] Invalidate personalization and overview query keys after exclusion changes so removed
@@ -311,7 +333,8 @@ instance Brave key or environment fallback without exposing either value.
   assertion to the nearest News manifest/registry test
 
 - [ ] Write failing export tests proving custom sources/topics/exclusions are present while
-      snapshots and validation fingerprints are absent; prove actor isolation.
+      snapshots and validation fingerprints are absent; prove actor isolation. Seed a real snapshot so
+      omission is non-vacuous.
 - [ ] Implement `collectNewsExportSection(scopedDb)` inside `@jarv1s/news`, asserting
       `DataContextDb` and returning only user-authored preference fields.
 - [ ] Declare the `news` export section in the News manifest and collect it through the existing
@@ -335,5 +358,5 @@ instance Brave key or environment fallback without exposing either value.
 - Deletion declarations cover every News-owned table and cascade tests pass.
 - No private preference value or snapshot content appears in logs or job payloads.
 - Focused tests, `pnpm verify:foundation`, and the full integration suite are green.
-- Security-tier adversarial QA posts a durable verdict to the PR; merge waits for Ben's explicit
-  sign-off.
+- Security-tier QA posts durable Opus, Codex, and Gemini verdicts to the PR. Merge proceeds only on
+  unanimous 3-provider GREEN; dissent or an unreachable provider holds the merge for Ben.
