@@ -2740,3 +2740,8 @@ anything requiring escalation and do that instead of waiting for me."
     document dissent in the manifest + PR comment. Degraded fallback (only Claude reachable):
     Opus + Fable as two tiers, noted as degraded.
   - **Verdict is authoritative — I merge/proceed on it, never wait for Ben.**
+
+- **Council note (2026-07-11):** Gemini CLI is UNREACHABLE headless (demands interactive OAuth,
+  no cached auth/API key — exit 130). Council degrades to **Opus + Codex** (still ≥1 non-Claude =
+  Codex, satisfies security-tier bar). Fix Gemini auth (GEMINI_API_KEY or `gemini` re-login) to
+  restore the 3rd lens. Until then security-tier merges require BOTH Opus + Codex GREEN.
