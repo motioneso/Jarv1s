@@ -26,8 +26,9 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
     logLevel: "silent",
     alias: { "@jarv1s/module-sdk/worker": join(repoRoot, "packages/module-sdk/src/worker.ts") }
   });
-  // Web: browser ESM; must stay react-free (the source reads the host runtime
-  // global instead of importing react — asserted by the bundle-hygiene test).
+  // Web: browser ESM; must stay react-free (JSX compiles to the module's own
+  // `h`/`Fragment` from src/web/runtime.ts, which delegate to the host React
+  // on the frozen runtime global — asserted by the bundle-hygiene test).
   await build({
     entryPoints: [join(dir, "src/web/index.ts")],
     outfile: join(dir, "dist/web/index.js"),
@@ -36,7 +37,10 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
     format: "esm",
     target: "es2022",
     sourcemap: false,
-    logLevel: "silent"
+    logLevel: "silent",
+    jsx: "transform",
+    jsxFactory: "h",
+    jsxFragment: "Fragment"
   });
 }
 
