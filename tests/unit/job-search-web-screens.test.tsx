@@ -10,6 +10,11 @@ import { describe, expect, it } from "vitest";
 
 import Contribution from "../../external-modules/job-search/src/web/index.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
+import {
+  OverviewView,
+  type MonitorSummary,
+  type OnboardingState
+} from "../../external-modules/job-search/src/web/screens/overview.js";
 import { starterDraftForStep } from "../../external-modules/job-search/src/web/starter-drafts.js";
 import {
   DisabledState,
@@ -21,6 +26,24 @@ import {
 function render(node: unknown): string {
   return renderToString(node as never);
 }
+
+const onboardingFixture: OnboardingState = {
+  step: "profile",
+  completed: { resume_intake: true, resume_critique: true, resume_approval: true },
+  gates: { resumeApproved: true, profileApproved: false, monitorEnabled: false }
+};
+
+const monitorsFixture: MonitorSummary[] = [
+  {
+    monitorId: "m1",
+    adapterId: "greenhouse",
+    enabled: true,
+    timezone: "America/New_York",
+    dueTime: "07:00"
+  }
+];
+
+const noopHost = { openAssistant: () => undefined };
 
 describe("job-search authored states (#935)", () => {
   it("loading state announces via role=status", () => {
@@ -85,5 +108,29 @@ describe("job-search Root contract (#935)", () => {
       expect(html).toContain(label);
     }
     expect(html).toContain('aria-live="polite"');
+  });
+});
+
+describe("job-search overview view (#935)", () => {
+  it("shows onboarding progress, approval gates, and monitor health", () => {
+    const html = render(
+      h(OverviewView, {
+        onboarding: onboardingFixture,
+        monitors: monitorsFixture,
+        hostActions: noopHost
+      })
+    );
+    expect(html).toContain("3 of 6");
+    expect(html).toContain("Resume approved");
+    expect(html).toContain("Profile pending");
+    expect(html).toContain("1 enabled");
+    expect(html).toContain("daily at 07:00 · America/New_York");
+  });
+
+  it("with no monitors, offers the assistant handoff instead of health", () => {
+    const html = render(
+      h(OverviewView, { onboarding: onboardingFixture, monitors: [], hostActions: noopHost })
+    );
+    expect(html).toContain("No monitors yet");
   });
 });
