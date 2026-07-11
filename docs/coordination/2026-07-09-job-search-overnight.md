@@ -2867,3 +2867,11 @@ anything requiring escalation and do that instead of waiting for me."
 - Coordinator w1:pE6 / 58a78927 (authority OK). News builder w1:pF4 / 03e7c92c (Codex-BLOCK fix).
 - JS-03 R7 w1:pF8 / b48988b9. Codex S2 prep w1:pEP / 019f4fd0.
 - Stray (non-urgent): w1:pBK / 28c218bf idle in news-module worktree — investigate before reap.
+
+### Update 2026-07-11b
+- News #955 CI now **GREEN** (all 4: Build+publish images, Compose smoke, Verify foundation and app,
+  Prod compose smoke = SUCCESS). Merge STILL HELD — Codex BLOCK (fix in flight pF4) + Gemini
+  unreachable remain (2 of 3 counts). CI count cleared.
+- JS-03 relayed R7 -> R8: R8 = w1:pF9 / cc150531-87a9-4780-9bcf-2c74504c2dc0 (Fable, tab w1:t17,
+  driving). Task 10 green c5109256, relay doc 2ff53fe9. R8: Task 0 (ctx.ai bridge) -> Tasks 11-13.
+  R7 (pF8/b48988b9) reaped.
