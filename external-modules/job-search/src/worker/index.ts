@@ -8,13 +8,18 @@
 import { defineModuleWorker } from "@jarv1s/module-sdk/worker";
 import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
-import { JobSearchKvError, kvFromWorkerContext } from "../domain/index.js";
+import { kvFromWorkerContext } from "../domain/index.js";
 import type { JobSearchAi, WorkerPorts } from "./ai-port.js";
 import { aiFromWorkerContext } from "./ai-port.js";
 import { getStateHandler } from "./handlers/onboarding.js";
-import { InputError } from "./validate.js";
+import {
+  approveProfileHandler,
+  getProfileHandler,
+  saveProfileDraftHandler
+} from "./handlers/profile.js";
+import type { ToolHandler } from "./wrap.js";
+import { wrap } from "./wrap.js";
 
-type ToolHandler = (input: Record<string, unknown>) => Promise<Record<string, unknown>>;
 type ToolFactory = (ports: WorkerPorts) => ToolHandler;
 
 // ctx.ai ships with plan Task 0 (worker-capabilities D6); read it structurally
@@ -32,20 +37,6 @@ function ports(ctx: ModuleWorkerContext): WorkerPorts {
   };
 }
 
-function wrap(handler: ToolHandler): ToolHandler {
-  return async (input) => {
-    try {
-      return await handler(input);
-    } catch (error) {
-      if (error instanceof JobSearchKvError || error instanceof InputError) {
-        // Both error types name keys/constraints only, never record content.
-        return { status: "error", code: error.code, message: error.message };
-      }
-      throw error;
-    }
-  };
-}
-
 const tool = (factory: ToolFactory) => (ctx: ModuleWorkerContext) =>
   wrap(factory(ports(ctx)))(ctx.input);
 
@@ -54,9 +45,9 @@ const notImplemented: ToolFactory = () => async () => ({ status: "not-implemente
 defineModuleWorker({
   handlers: {
     "onboarding.get-state": tool(getStateHandler),
-    "profile.get": tool(notImplemented),
-    "profile.save-draft": tool(notImplemented),
-    "profile.approve": tool(notImplemented),
+    "profile.get": tool(getProfileHandler),
+    "profile.save-draft": tool(saveProfileDraftHandler),
+    "profile.approve": tool(approveProfileHandler),
     "resume.get": tool(notImplemented),
     "resume.save-draft": tool(notImplemented),
     "resume.approve": tool(notImplemented),
