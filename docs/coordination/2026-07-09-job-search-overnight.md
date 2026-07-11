@@ -2616,3 +2616,14 @@ finishing task7 in parallel — awaiting its relay-successor confirm to reap pEH
 - **SECURITY-tier panel launched (both background, both `gh pr comment` + return verdict):** Opus adversarial QA (trust-boundary hunt: no-auto-submit, cap=1000 fail-closed no-truncate, module-id host-binding anti-impersonation, disabled/hash-drift fail-closed) + Fable panel sign-off (verifies its 2 build-guidance edits: per-contribution host-action injection, `initialText` draft path not `openChatWith`).
 - **Merge condition:** CI green + Opus PASS + Fable APPROVE → merge → close #916 → epic #818 platform-complete (all 6 seams) → board Done. Per Ben override: Fable has final decision (not Ben); after this SECURITY merge, flush in place, NO successor coordinator.
 - **JS-01** relayed old pEJ (reaped by me) → **pEM** `(r2)` Fable 5, tab w1:t17, rulings baked into relay doc `258b8803` + my re-send (queued). Writing plan → will surface for approval.
+
+---
+
+## CHECKPOINT — #916 both SECURITY panels GREEN, waiting on image-build
+
+- **Opus adversarial QA: GREEN / MERGE-READY** — 0 blocking, 3 non-blocking (defensible). Trust boundary holds. Posted to PR #947.
+- **Fable panel sign-off: GREEN / APPROVE / MERGE-READY** — grounded `07b1f260`, posted PR comment. Confirmed both build-guidance edits held (per-contribution closure-bound injection, frozen global untouched; `openAssistantWithDraft`≠`openChatWith`, source-guard unit test + e2e zero chat-turn POSTs). 0 blocking.
+- **CI:** Verify-foundation PASS, both compose smokes PASS (required gate GREEN). `Build and publish images` PENDING — non-required (mergeState=UNSTABLE not BLOCKED); background waiter `bj84jo8mw` watching for terminal state.
+- **Merge authority:** pE6==58a78927 confirmed. Fable=final decision (Ben override) → satisfied. **Merge the moment image-build lands green.** Then: close #916 → epic #818 platform-complete (all 6 seams) → board Done → reap pEK + remove worktree → flush in place (NO successor coordinator per Ben override).
+- **Post-merge follow-up to file:** e2e fixtures for disabled/hash-drift module reaching `openAssistant` + 2-module impersonation (Opus+Fable not-tested; non-blocking, mitigated by #917 auto-disable→404 + #918 test 6 + structural 1:1 route→id binding + zero-authority action).
+- **JS-01** (pEN, Fable): tasks 1-5 green, on Task 6 (enable/disable/drift integration fixture).
