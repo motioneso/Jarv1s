@@ -17,6 +17,11 @@ import {
   type MonitorSummary,
   type OnboardingState
 } from "../../external-modules/job-search/src/web/screens/overview.js";
+import {
+  ProfileView,
+  type ProfileResult,
+  type ResumeResult
+} from "../../external-modules/job-search/src/web/screens/profile.js";
 import { starterDraftForStep } from "../../external-modules/job-search/src/web/starter-drafts.js";
 import {
   DisabledState,
@@ -169,5 +174,58 @@ describe("job-search onboarding view (#935)", () => {
     );
     expect(html).toContain("Onboarding complete");
     expect(html).not.toContain("Continue with Jarvis");
+  });
+});
+
+const profileFixture: ProfileResult = {
+  status: "ok",
+  active: {
+    revisionId: "rev-profile-1",
+    createdAt: "2026-07-10T12:00:00.000Z",
+    provenance: "user",
+    // Hostile external string — must render escaped, never as markup.
+    fields: { targetTitles: ["Staff Engineer", "<script>alert(1)</script>"] }
+  },
+  draftRevisionIds: []
+};
+
+const resumeFixture: ResumeResult = {
+  status: "ok",
+  revisionId: "rev-resume-12345678",
+  kind: "markdown",
+  createdAt: "2026-07-09T12:00:00.000Z",
+  critiqueSummary: "Strong impact bullets; <b>tighten</b> the summary."
+};
+
+describe("job-search profile view (#935)", () => {
+  it("shows approved revision metadata and return-to-assistant actions", () => {
+    const html = render(
+      h(ProfileView, { profile: profileFixture, resume: resumeFixture, hostActions: noopHost })
+    );
+    expect(html).toContain("rev-resu"); // short revision id
+    expect(html).toContain("Staff Engineer");
+    expect(html).toContain("Refine with Jarvis");
+    expect(html).toContain("Update with Jarvis");
+  });
+
+  it("renders external strings as text, never markup", () => {
+    const html = render(
+      h(ProfileView, { profile: profileFixture, resume: resumeFixture, hostActions: noopHost })
+    );
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<b>tighten</b>");
+  });
+
+  it("without a resume, prompts the assistant handoff", () => {
+    const html = render(
+      h(ProfileView, {
+        profile: { status: "ok", active: null, draftRevisionIds: [] },
+        resume: { status: "question" },
+        hostActions: noopHost
+      })
+    );
+    expect(html).toContain("No resume yet");
+    expect(html).toContain("No profile yet");
   });
 });
