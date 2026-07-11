@@ -1,6 +1,10 @@
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import type { JarvisModuleManifest, ToolResult } from "@jarv1s/module-sdk";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import {
+  reconcileExternalModules,
+  type ExternalModuleDiscovery,
+  type ReconciledExternalModule
+} from "@jarv1s/module-registry";
 import {
   createExternalModuleRpcHandler,
   createExternalToolManifests,
@@ -56,6 +60,32 @@ export function createExternalModuleTools(input: {
     }
   );
   return { runtime, manifests };
+}
+
+/**
+ * Per-actor active-module resolver: instance-enabled minus the actor's deny
+ * rows. Extracted from server.ts composition (#932) — behavior unchanged.
+ * Returns undefined when external modules are disabled by config.
+ */
+export function createActiveExternalModulesResolverForApi(input: {
+  readonly enabled: boolean;
+  readonly appDataContext: DataContextRunner;
+  readonly settingsRepository: SettingsRepository;
+  readonly discoveries: readonly ExternalModuleDiscovery[];
+}): ((accessContext: AccessContext) => Promise<readonly ReconciledExternalModule[]>) | undefined {
+  if (!input.enabled) return undefined;
+  return async (accessContext) => {
+    const { states, denyRows } = await input.appDataContext.withDataContext(
+      accessContext,
+      async (scopedDb) => ({
+        states: await input.settingsRepository.listExternalModuleStates(scopedDb),
+        denyRows: await input.settingsRepository.listModuleDenyRowsForActor(scopedDb)
+      })
+    );
+    const { modules } = reconcileExternalModules(input.discoveries, states);
+    const disabled = new Set(denyRows.map((row) => row.module_id));
+    return modules.filter((module) => module.active && !disabled.has(module.id));
+  };
 }
 
 export function createExternalActiveModulesResolver(

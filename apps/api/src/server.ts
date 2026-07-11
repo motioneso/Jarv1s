@@ -7,7 +7,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import { AiRepository, createAiSecretCipher, generateStructured } from "@jarv1s/ai";
+import { AiRepository } from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import {
   ConnectorsRepository,
@@ -56,6 +56,7 @@ import {
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
+import { createModuleAiBridge } from "./external-module-ai-bridge.js";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
@@ -64,6 +65,7 @@ import {
   registerExternalModuleJobRoutes
 } from "./external-module-jobs.js";
 import {
+  createActiveExternalModulesResolverForApi,
   createExternalActiveModulesResolver,
   createExternalModuleTools
 } from "./external-module-tools.js";
@@ -343,46 +345,21 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     const externalModuleSnapshot = discoverExternalModules(apiServerConfig, server.log);
 
     const externalModulesRepository = new SettingsRepository();
-    const getActiveExternalModules = apiServerConfig.enableExternalModules
-      ? async (accessContext: AccessContext): Promise<readonly ReconciledExternalModule[]> => {
-          const { states, denyRows } = await dataContext.withDataContext(
-            accessContext,
-            async (scopedDb) => ({
-              states: await externalModulesRepository.listExternalModuleStates(scopedDb),
-              denyRows: await externalModulesRepository.listModuleDenyRowsForActor(scopedDb)
-            })
-          );
-          const { modules } = reconcileExternalModules(externalModuleSnapshot.discoveries, states);
-          const disabled = new Set(denyRows.map((row) => row.module_id));
-          return modules.filter((module) => module.active && !disabled.has(module.id));
-        }
-      : undefined;
+    const getActiveExternalModules = createActiveExternalModulesResolverForApi({
+      enabled: apiServerConfig.enableExternalModules,
+      appDataContext: dataContext,
+      settingsRepository: externalModulesRepository,
+      discoveries: externalModuleSnapshot.discoveries
+    });
 
-    // ctx.ai bridge for module workers (#932, spec D6). The AiSecretCipher is
-    // process-env keyed and stateless, so one instance serves every invocation.
-    const moduleAiSecretCipher = createAiSecretCipher();
     const externalTools = createExternalModuleTools({
       discoveries: externalModuleSnapshot.discoveries,
       workerDataContext,
       appDataContext: dataContext,
       settingsRepository: externalModulesRepository,
       logger: { warn: (data, message) => server.log.warn(data, message) },
-      ai: async (scopedDb, moduleId, request) => {
-        try {
-          const result = await generateStructured(
-            scopedDb,
-            { service: `module.${moduleId}`, ...request },
-            { repository: aiRepository, cipher: moduleAiSecretCipher, logger: server.log }
-          );
-          return result.ok
-            ? // Drop usage: module workers never see token counts, model or provider ids.
-              { ok: true, object: result.object }
-            : { ok: false, error: result.error };
-        } catch {
-          // Bounds violations and unexpected throws stay opaque to modules.
-          return { ok: false, error: "provider_error" };
-        }
-      }
+      // ctx.ai bridge for module workers (#932, spec D6).
+      ai: createModuleAiBridge({ aiRepository, logger: server.log })
     });
     externalWorkerRuntime = externalTools.runtime;
     const externalToolManifests = externalTools.manifests;
