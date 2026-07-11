@@ -8,15 +8,38 @@ origin/main `9d4589d1` (JS-01..05 included). Read by SECTION only:
 - Spec: `docs/superpowers/specs/2026-07-10-job-search-js-06-module-surface.md` (57 lines, safe to read fully)
 - Coordinator: label `Coordinator`, session id `58a78927-385c-4b1d-8fa0-94db20255d6f` (resolve pane fresh by label; exactly one)
 
-## Where the build stands
+## Where the build stands (updated relay 2, 2026-07-11)
 
-Done: orient, spec-vs-branch verification, one [DESIGN-FORK] escalation (RESOLVED — ruling below),
-mandated smoke test (passed). **No plan written yet; NO code approval yet.**
+Done: orient, spec-vs-branch verification, [DESIGN-FORK] resolved (ruling below), smoke test,
+**plan WRITTEN and APPROVED by Coordinator** (rulings below), TDD started. Task 1 is at **RED
+verified** — `tests/unit/helpers/install-module-runtime.ts` + `tests/unit/job-search-web-core.test.ts`
+are committed and fail correctly (unresolvable import of `external-modules/job-search/src/web/runtime.js`).
 
-NEXT STEP: invoke `superpowers:writing-plans` → write
-`docs/superpowers/plans/2026-07-11-js-06-module-surface.md` → message Coordinator "plan ready for
-js-06-module-surface: <path>. Approve, or flag a fork." → STOP until approval → TDD build →
-`coordinated-wrap-up` (PR `Closes #935`).
+**THE PLAN IS THE SINGLE SOURCE OF TRUTH:**
+`docs/superpowers/plans/2026-07-11-js-06-module-surface.md` — 12 tasks, COMPLETE code per task,
+exact commands, exact `git add` paths. Read it PER TASK (by section), never front-to-back.
+
+NEXT STEP (immediately): **Task 1 GREEN** per plan Task 1 Step 3 — create
+`external-modules/job-search/src/web/runtime.ts` + `jsx.d.ts`, add
+`jsx: "transform", jsxFactory: "h", jsxFragment: "Fragment"` to the WEB build in
+`scripts/build-external-module.ts`, add `"jsx": "react", "jsxFactory": "h",
+"jsxFragmentFactory": "Fragment"` to `external-modules/job-search/tsconfig.json`. Verify:
+`pnpm vitest run tests/unit/job-search-web-core.test.ts && pnpm vitest run tests/unit/external-module-job-search-bundle.test.ts && pnpm check:external-modules`
+(never trust `| tail` exit codes). Commit per plan Task 1 Step 5. Then Tasks 2–12, RED-GREEN-commit
+each, → `coordinated-wrap-up` (PR `Closes #935` + report to Coordinator; Coordinator QAs
+sensitive-tier: module-isolation / no-contract-drift / fail-closed-disabled / text-only walk).
+
+## Plan approval — Coordinator flag rulings (binding)
+
+"[PLAN APPROVED — JS-06] Inside the spec + model-C ruling; green to build." Rulings:
+(1) local fetch helper OK but SAME-ORIGIN AUTHENTICATED — same base URL + creds as module-web-sdk
+`requestJson` (`packages/module-web-sdk/src/index.ts:82`: relative path, `credentials:"include"`,
+accept + X-Timezone headers); only divergence = preserving non-2xx bodies (needed for the 403
+`confirmation_required` invocation body). Do NOT reinvent auth/base-url. (2) no react-query +
+local cache OK. (3) URL-only, NO core nav entry — CONFIRMED correct. (4) wall-clock + IANA zone
+label, no tz math OK. **ZERO host code is a hard line — anything tempting a host-code or
+packages/shared contract change → STOP + [DESIGN-FORK] (bumps to security tier).** External module
+strings TEXT-only + escaped; disabled = fail-closed, no actions.
 
 ## Coordinator ruling (model C — binding)
 
@@ -70,18 +93,17 @@ external job text as TEXT never raw HTML; run-now params = IDs only. Exit criter
 - Six onboarding checkpoints (STEP_ORDER): resume_intake, resume_critique, resume_approval,
   profile, sources_schedule, review_enable; `step` = first incomplete, "done" when all complete.
 
-## Plan sketch (starting point, not approved)
+## Task ledger (plan doc is authoritative; this is the pointer)
 
-1. Build infra: jsxFactory shim + module-web-sdk alias in build script; bundle react-free assert;
-   extend browser-safety walk to external web src. 2. Runtime accessor + internal router + api
-   client (invokeTool/runNow) + unit tests. 3. Overview (onboarding %, monitor health, last
-   success, next due, run-now). 4. Onboarding screen + #916 starter drafts per step. 5.
-   Profile/resume approved-revision metadata + return-to-assistant. 6. Monitors config/health +
-   run-now queued-state. 7. Opportunities shell (JS-08-ready routes). 8. Disabled/degraded
-   fail-closed (invoke 404 → disabled state) + permanent integration tests (read ok / write 403 /
-   run-now dedupe). 9. Nav entry (scope-flag). 10. E2E real-bundle interaction + screenshots
-   light/dark. JDS: serif headings/mono eyebrows/sans body, jds-* only, no new raw colors, no
-   curved left-border accents, external text as text.
+Plan Tasks 1–12 (task-list IDs #3–#14): T1 jsx shim+runtime (RED done → GREEN next) · T2 api.ts ·
+T3 store/router/format · T4 root+states+styles+starter-drafts · T5–T9 five screens · T10 permanent
+integration test + browser-safety walk extension (**and `rm tests/integration/js06-invoke-smoke.test.ts`
+— temp, NEVER commit it**) · T11 e2e · T12 full gate (`pnpm build:external:job-search &&
+pnpm verify:foundation`) + pre-push trio + rebase + `coordinated-wrap-up`. Unit harness =
+`renderToString` from react-dom/server, runtime-install helper imported FIRST;
+`useSyncExternalStore` needs the 3rd getServerSnapshot arg or renderToString throws. JDS: jds-*
+primitives only, module `jsm-*` classes layout-only (zero color declarations), no curved
+left-border accents, external text as text.
 
 ## Bans still in force
 
