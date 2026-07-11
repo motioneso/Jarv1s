@@ -276,7 +276,9 @@ export function App() {
               <Route
                 key={`ext:${route.moduleId}`}
                 path={route.path}
-                element={<ExternalModuleMount moduleId={route.moduleId} Component={route.Component} />}
+                element={
+                  <ExternalModuleMount moduleId={route.moduleId} Component={route.Component} />
+                }
               />
             ))}
             <Route path={webRoutePath("settings")} element={<SettingsPage me={meQuery.data} />} />
