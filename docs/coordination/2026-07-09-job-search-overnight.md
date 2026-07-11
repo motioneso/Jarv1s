@@ -2745,3 +2745,9 @@ anything requiring escalation and do that instead of waiting for me."
   no cached auth/API key — exit 130). Council degrades to **Opus + Codex** (still ≥1 non-Claude =
   Codex, satisfies security-tier bar). Fix Gemini auth (GEMINI_API_KEY or `gemini` re-login) to
   restore the 3rd lens. Until then security-tier merges require BOTH Opus + Codex GREEN.
+
+---
+### Checkpoint 2026-07-11 — JS-02 #952 council live + News S1 reviewer recovery
+- **CI #952 GREEN** (run 29142677472: Verify foundation, Compose smoke, Prod compose smoke, Build+publish — all pass).
+- **Council QA on #952 in flight:** Opus adjudicator `ad89d7d99b733b8c0` (still running). Codex v1 (`b3z7jy86y`) UNUSABLE — hit OpenAI "high demand" overload mid-review, no clean VERDICT (152KB agentic trace). Codex retry `bw66aozla` launched (terser prompt, verdict-first). Gemini still degraded/unauthed → council = **Opus + Codex, require BOTH GREEN** before merge (security-bar). Merge blocked until both valid GREEN verdicts + posted `gh pr comment`.
+- **News S1 plan reviewer** (pEV, session f5231446, worktree news-slice1-plan-review): stalled ~7m at 73% → self-compacted to 42%, still thinking, no verdict. Nudged once for a direct verdict-only output (no file/commit). If unresponsive next check → reap + restart fresh Fable reviewer with narrowed prompt. Root plan unmodified + Prettier-clean.
