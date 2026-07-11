@@ -14,6 +14,7 @@ import {
 } from "@jarv1s/shared";
 
 import { newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
+import { collectNewsExportSection } from "./data-lifecycle.js";
 import { NEWS_FETCH_HOSTS, NEWS_IMAGE_HOSTS } from "./source/catalog.js";
 
 export const NEWS_MODULE_ID = "news";
@@ -154,10 +155,16 @@ export const newsModuleManifest = {
     }
   ],
   dataLifecycle: {
-    // News prefs are catalog references (source/topic keys), not private content — no export
-    // sections; declared explicitly per the parity assertion (owned tables + no export
-    // sections still requires an explicit empty exportSections).
-    exportSections: [],
+    // #953 Task 6: user-authored personalization (custom sources/topics, exclusions) is
+    // exported; curated news_prefs stay out (catalog references, reproducible from settings)
+    // and compilation snapshots stay out (derived cache, exportable-never — deletion-only).
+    exportSections: [
+      {
+        key: "newsPersonalization",
+        displayName: "News personalization",
+        collect: collectNewsExportSection
+      }
+    ],
     deletion: {
       strategy: "cascade",
       tables: [
