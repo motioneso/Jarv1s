@@ -3182,3 +3182,31 @@ anything requiring escalation and do that instead of waiting for me."
   Fix = require trustworthy parsed publication time before eligibility; drop missing/invalid/
   future-skewed; snapshot publishedAt = valid non-null ISO. Test missing/invalid/8-day. Total pEP
   blockers so far: B1–B7, single correction pass.
+
+---
+
+## Continuation note — 2026-07-11 (Codex-sole-News pivot executed + JS-04 relay)
+
+**Ben directive (genuine, 2026-07-11):** "Codex should be the only one building the news stuff."
+→ Fable stops building News; Codex is SOLE News builder. Job Search stays Fable (unaffected).
+
+**News S2 (#958) — pivot done:**
+- Plan fully hardened & committed on `feat/news-slice2` (rooted fadef5d3): B1–B8 + B4 column-test
+  wording all resolved. Commits: `0d714ad5`, `fa6def51`, `525a66b5` (B4 test split: same-owner
+  column-grant test [label/homepage/feed/validation UPDATE→42501, health_status UPDATE→1 row] +
+  separate cross-owner RLS 0-row test), relay/context doc `fe776b7b`. ZERO feature code at handoff.
+- Fable author pane pFM (session `7fa75954`) **REAPED** after finalizing (its F3 successor
+  `6f9cbf41` self-killed earlier). Handoff doc patched: MODEL=Codex + "implement, do not re-plan".
+- **Codex builder driving:** pane `w1:pFR`, tab `w1:t17`, model gpt-5.6-sol high, branch
+  `feat/news-slice2`. Implementing approved plan via TDD.
+- **News QA council = Opus + Fable** (non-Codex, author-independent — separation intentional).
+  Migration **0160** reserved (packages/news/sql/). Merge on council+CI gate (Ben bypass, no extra
+  sign-off). News reviewer must NOT be Codex.
+
+**JS-04 (#933) — relay handled (stays Fable):**
+- pFN (F2, `509fbc39`) **REAPED**. Successor pFQ (F3, `696bc213`, Fable 5) driving, tab `w1:t17`,
+  next = Task 6 Ashby. Tasks 1–5 green (latest `3c104f4f` lever adapter, 41 adapter tests),
+  continuation doc `800f2237`. At PR: council QA (Opus + Codex + CI), merge on gate.
+
+**Lock:** coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f` (in-place compaction; no
+successor pane). Stray pane pBK/`28c218bf` (news-module worktree, idle) — do NOT reap blindly.
