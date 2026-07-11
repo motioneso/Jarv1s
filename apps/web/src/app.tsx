@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, type ComponentType, type ReactNode } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 import { MODULE_WEB_CONTRIBUTIONS, MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
 
 import {
@@ -280,7 +280,10 @@ export function App() {
               />
             ))}
             <Route path={webRoutePath("settings")} element={<SettingsPage me={meQuery.data} />} />
-            <Route path="*" element={<Navigate to={webRoutePath("today")} replace />} />
+            <Route
+              path="*"
+              element={<NotFoundRedirect modulesLoading={modulesQuery.isLoading} />}
+            />
           </Routes>
         </Suspense>
       </AppShell>
@@ -294,6 +297,22 @@ export function App() {
  * state request errored — fail closed) → redirect to /tasks so the gated UI never mounts;
  * "enabled" → render the children.
  */
+/**
+ * #916 — the catch-all "*" route. External module routes are only added to the tree once
+ * `modulesQuery` resolves (Task 4's `externalModuleRoutes` is derived from its data), so on a
+ * hard navigation/deep link to `/m/:id` the module's specific Route doesn't exist yet for the
+ * first render(s) and would otherwise fall through here and get redirected to Today before the
+ * query ever has a chance to add it. Hold on a loading screen for `/m/*` paths while modules are
+ * still loading; only redirect once we know the path truly isn't a module (or isn't external).
+ */
+function NotFoundRedirect(props: { readonly modulesLoading: boolean }) {
+  const location = useLocation();
+  if (props.modulesLoading && location.pathname.startsWith("/m/")) {
+    return <LoadingScreen />;
+  }
+  return <Navigate to={webRoutePath("today")} replace />;
+}
+
 function ModuleGatedRoute(props: {
   readonly gate: "loading" | "enabled" | "denied";
   readonly children: ReactNode;

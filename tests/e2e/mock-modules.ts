@@ -271,7 +271,11 @@ export async function mockExternalWebModule(page: Page): Promise<void> {
   });
 
   // The bundle itself — a real ESM module whose Root invokes the host action from a click.
-  await page.route(`**/api/modules/${moduleId}/web/${entrypoint}`, async (route) => {
+  // Trailing `*` (not an exact match): the dev-time `import(url)` in loader.ts hits an absolute
+  // URL Vite doesn't own, so its browser client appends a `?import` query suffix to the request —
+  // an exact-path glob 404s on that suffix, which only ever shows up under Vite dev, never prod
+  // (Fastify route matching ignores query strings there).
+  await page.route(`**/api/modules/${moduleId}/web/${entrypoint}*`, async (route) => {
     const bundle = [
       "const { react: React } = window.__JARVIS_MODULE_RUNTIME__;",
       "export default {",
