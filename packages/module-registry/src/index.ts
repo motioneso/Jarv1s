@@ -223,8 +223,10 @@ import {
 import {
   configureNewsBriefingService,
   createRssDatasetAdapter,
+  NEWS_QUEUE_DEFINITIONS,
   newsModuleManifest,
   newsModuleSqlMigrationDirectory,
+  registerNewsJobWorkers,
   registerNewsRoutes
 } from "@jarv1s/news";
 import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
@@ -1351,7 +1353,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: newsModuleManifest,
     sqlMigrationDirectories: [newsModuleSqlMigrationDirectory],
-    queueDefinitions: [],
+    queueDefinitions: [...NEWS_QUEUE_DEFINITIONS],
     registerRoutes: (server, deps) => {
       // Same dataset-connector-SDK wiring as sports above: the composition root binds the
       // manifest-declared `newsfeeds` external source to the concrete RSS adapter so host
@@ -1385,6 +1387,17 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               })
             ).model !== null,
           hasWebSearch: async (scopedDb) => (await getWebSearchKeyConfig(scopedDb)).configured
+        }
+      });
+    },
+    registerWorkers: (boss, deps) => {
+      const discovery = buildNewsDiscoveryPorts(
+        deps.logger ? createModuleLogger(deps.logger, "news") : undefined
+      );
+      return registerNewsJobWorkers(boss, deps.dataContext, {
+        ...discovery,
+        logger: {
+          info: (fields) => deps.logger?.info(fields, "news compilation")
         }
       });
     }

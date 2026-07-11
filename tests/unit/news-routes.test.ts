@@ -743,4 +743,32 @@ describe("news personalization routes (#958 Slice 2)", () => {
     expect(events).toEqual(["bump", "prune:example.com"]);
     await app.close();
   });
+
+  it("refreshes a stale snapshot on open but leaves a fresh snapshot alone", async () => {
+    const fresh = makePersonalization({
+      readLatestSnapshot: async () => ({
+        compiledAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        payload: { articles: [] }
+      })
+    });
+    const { app: freshApp } = buildApp({ personalization: fresh });
+    await freshApp.ready();
+    await freshApp.inject({ method: "GET", url: "/api/news/personalization" });
+    expect(fresh.refreshBumps).toEqual([]);
+    await freshApp.close();
+
+    const stale = makePersonalization({
+      readLatestSnapshot: async () => ({
+        compiledAt: new Date(Date.now() - 31 * 60_000),
+        expiresAt: new Date(Date.now() + 60_000),
+        payload: { articles: [] }
+      })
+    });
+    const { app: staleApp } = buildApp({ personalization: stale });
+    await staleApp.ready();
+    await staleApp.inject({ method: "GET", url: "/api/news/personalization" });
+    expect(stale.refreshBumps).toEqual([1]);
+    await staleApp.close();
+  });
 });

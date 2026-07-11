@@ -36,7 +36,7 @@ export interface MetadataLogger {
   info(fields: NewsCompilationLogFields): void;
 }
 
-type CompilationRepository = Pick<
+export type CompilationRepository = Pick<
   NewsPersonalizationRepository,
   | "listCustomSources"
   | "listCustomTopics"
