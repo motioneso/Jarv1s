@@ -3545,3 +3545,14 @@ findings B–G defaulted in plan (additive-optional; schemaVersion===1 hard-pinn
 fold into JS-07 build. merges_since_relay unchanged (no merge).
 
 - **JS-07 plan FINALIZED** @ `948a06ae` (feat/js-07-plan) — ruling folded, scout pG4 reaped (session verified), worktree/branch KEPT for the builder. JS-07 build QUEUED behind JS-06.
+
+## RELAY CHECKPOINT (70% meter — auto-compact IN PLACE, no successor pane) — 2026-07-11 ~14:25
+
+Coordinator lock UNIQUE: session `58a78927-385c-4b1d-8fa0-94db20255d6f`, label `Coordinator`, tab w1:t15. `merges_since_relay=0`.
+
+Fleet:
+- **JS-06 (#935, task #21)** — agent pG3 "surface v2" (FABLE, session `2934d995`), tab w1:t17. **PLAN APPROVED this turn**; now BUILDING (TDD). Plan: `docs/superpowers/plans/2026-07-11-js-06-module-surface.md` (12 tasks). Reads via 6 risk:read tools thru `POST /api/ai/assistant-tools/:name/invoke`; run-now via `POST /api/modules/job-search/queues/job-search.monitor-run/run` (202/null, no polling); ZERO host code; react-free bundle (jsxFactory h); fail-closed disabled (404); TEXT-only escaped strings. Flags ruled: local fetch helper same-origin-authed (preserves 403 body); no react-query+local cache; URL-only NO nav entry (navigation:[] by design); wall-clock+IANA no tz math. **SENSITIVE** tier → on done QA = standard + module-isolation/no-contract-drift/fail-closed/text-only walk. Watch: if it tempts host-code / packages/shared drift → bumps to SECURITY.
+- **JS-07 (#936, task #22)** — plan FINALIZED @ `948a06ae` (`docs/superpowers/plans/2026-07-11-js-07-freshness-dedup-fit.md`); build QUEUED behind JS-06; **SECURITY** tier; Step 0 = isolated worker ctx.ai commit (mirror external-module-ai-bridge.ts into worker rpc handler ~worker.ts:263) w/ 6 invariant tests; ZERO migration. Spawn FABLE builder on feat/js-07-plan when JS-06 clears; fold #962 items 1-2.
+- **Sports #963 (task #23)** — agent pG5 (SONNET), worktree feat/sports-live-score-strip @ 9d4589d1, tab w1:t17. Building STRIP-ONLY (Ben confirmed: live score moves to footer match-strip, REMOVED from bold body slot; body reverts to news lede). ROUTINE tier, auto-merge after green. Awaiting its short plan before code.
+- **News S2 (#958, task #19)** — CronCreate `42049f84` fires 14:40 PDT to resume Codex in news-slice2 worktree (feat/news-slice2 @ fadef5d3, SECURITY, plan committed, QA council Opus+Fable).
+- **#962** — items 1-2 fold into JS-07; items 3-4 = small route hardening (unqueued).
