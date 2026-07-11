@@ -3446,3 +3446,10 @@ Ben: "we dont need to continue the news build with GLM, just need to nudge codex
 - `merges_since_relay` reset to 0.
 
 **Continuation note (mid-doing):** spawning JS-06 build agent next; then re-check #959 QA verdict; News S2 cron self-fires.
+
+## JS-06 #935 SPAWNED — 2026-07-11 ~13:05 PDT
+- Worktree `.claude/worktrees/js-06-surface`, branch `feat/js-06-module-surface`, rooted `9d4589d1` (post-JS-05).
+- Agent **pG2 "JS-06 surface"**, model **Fable 5** (confirmed via status line), tab w1:t17, status `building`.
+- Handoff: `docs/coordination/2026-07-11-js-06-build-handoff.md` (committed on feat branch).
+- Tier **SENSITIVE** (new module surface wired into shell, consumes #916 cross-module assistant action; no migration/secrets/network). QA on done = Sonnet standard + invariant walk (module-isolation + no contract/payload drift). Escalate to security tier only if a contract/endpoint/payload change appears.
+- Awaiting: plan-ready escalation → Coordinator approval before code.
