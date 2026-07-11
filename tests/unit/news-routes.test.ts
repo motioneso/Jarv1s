@@ -705,6 +705,19 @@ describe("news personalization routes (#958 Slice 2)", () => {
     await app.close();
   });
 
+  it("rejects topic creation when web search is unavailable", async () => {
+    const { app, personalization } = buildApp({ hasWebSearch: false });
+    await app.ready();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/news/topics",
+      payload: { label: "Watches" }
+    });
+    expect(response.statusCode).toBe(503);
+    expect(personalization.refreshBumps).toEqual([]);
+    await app.close();
+  });
+
   it("bumps the generation for every curated preference change", async () => {
     const { app, personalization } = buildApp();
     await app.ready();

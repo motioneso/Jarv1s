@@ -332,6 +332,9 @@ export function registerNewsPersonalizationRoutes(
       const accessContext = await dependencies.resolveAccessContext(request);
       const input = cleanTopic(request.body as CreateNewsTopicRequest);
       const topic = await dependencies.dataContext.withDataContext(accessContext, async (db) => {
+        if (!(await dependencies.availability.hasWebSearch(db))) {
+          throw new HttpError(503, "Topic discovery requires web search");
+        }
         const policy = await validateTopic(db, { ai: dependencies.discovery.ai }, input);
         if (policy.verdict === "unavailable")
           throw new HttpError(503, "Topic validation unavailable");
@@ -369,6 +372,9 @@ export function registerNewsPersonalizationRoutes(
             label: update.label ?? current.label,
             guidance: update.guidance ?? current.guidance ?? undefined
           });
+          if (!(await dependencies.availability.hasWebSearch(db))) {
+            throw new HttpError(503, "Topic discovery requires web search");
+          }
           const policy = await validateTopic(db, { ai: dependencies.discovery.ai }, input);
           if (policy.verdict === "unavailable") {
             throw new HttpError(503, "Topic validation unavailable");

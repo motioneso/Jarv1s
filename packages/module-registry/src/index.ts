@@ -522,9 +522,7 @@ function buildNewsDiscoveryPorts(logger?: Pick<FastifyBaseLogger, "info" | "warn
           })
         ).model;
         if (!model) return null;
-        return createHash("sha256")
-          .update(`${model.provider_kind}\0${model.provider_model_id}`)
-          .digest("hex");
+        return createHash("sha256").update(`${model.provider_kind}\0${model.id}`).digest("hex");
       }
     }
   };
