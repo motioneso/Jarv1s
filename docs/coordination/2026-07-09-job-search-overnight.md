@@ -3244,3 +3244,28 @@ provider-policy/safety decision (lawful/appropriate AND permitted under the ACTI
 content/safety rules); refusal OR uncertainty => unavailable/rejected, NO override. Tests: prompt
 includes policy/safety + illegal/inappropriate criteria; allowed:false & category='other' rejected.
 External text stays labeled UNTRUSTED DATA. **QA council must confirm landed.**
+
+## Continuation note — 2026-07-11 (News S2 Codex-to-Codex relay + JS-04 in QA)
+
+**News S2 (#958):** Codex pFR hit its 5h provider limit at Task 11 seams — relayed Codex→Codex
+(NO Fable fallback per Ben). Successor **pFV** (Codex gpt-5.6-sol, tab w1:t17) driving; pFR reaped.
+Branch feat/news-slice2 CLEAN at **f6dcf995** — Tasks 1-10 committed:
+- 09a432ae abort timed-out validation+rate waits (T3 abort-race)
+- 9503da10 rate limits / 7a95c42a hardened raw fetch / b66cf3ab robots (reader extension)
+- 648155fd owner refresh state / 59361472 generation CAS (B1/B5/B6)
+- a073c1e6 default-deny validation / 73d2795b active-provider safety approval (B3/T9)
+- 11c8efba verified-publisher resolution / f6dcf995 exclusions across redirects (T10)
+Remaining: **Task 11 routes/wiring + gate + wrap-up (PR 'Closes #958')**. Successor bootstrap carries
+the full relayed-corrections checklist (T3/T6/T9/T10/B6) to verify present before wrap-up. Migration
+**0160** in packages/news/sql/ + foundation-schema-catalog row. QA council = **Opus + Fable**
+(author-independent, never Codex). Relay doc on branch: docs/superpowers/handoffs/2026-07-11-news-slice2-relay.md.
+
+**JS-04 (#933):** PR **#959** open (Closes #933), branch rebased on fadef5d3 HEAD 97cb8c76. Agent
+VF_EXIT=0 (1511 tests), AUDIT_EXIT=0, post-rebase 2772 green, SSRF suite drives REAL
+createHostPinnedFetch, zero migrations. CI: 2 smokes pass, verify-foundation running. **Opus
+adversarial QA in flight (agent a6db4d7)** — posts verdict to PR. Owning agent pFT (acd90c21) held
+IDLE for fixes/rebase — do NOT reap until merged. After Opus GREEN: Codex second lens → merge on
+gate (Ben bypass, no extra sign-off). JS-04 QA council = Opus + Codex.
+
+**Lock:** coordinator session 58a78927 (in-place compaction; NO successor pane). Monitor b54y9f2eg
+armed. Stray pane pBK/28c218bf (news-module worktree, idle) — do NOT reap blindly.
