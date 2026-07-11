@@ -100,9 +100,7 @@
           "id": 4040904002,
           "name": "United States of America",
           "location": null,
-          "child_ids": [
-            4040902002
-          ],
+          "child_ids": [4040902002],
           "parent_id": 4019551002
         }
       ],

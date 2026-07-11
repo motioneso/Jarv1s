@@ -7,9 +7,7 @@
       "department": "Customer Success",
       "location": "Arlington, TX",
       "team": "Professional Services",
-      "allLocations": [
-        "Arlington, TX"
-      ]
+      "allLocations": ["Arlington, TX"]
     },
     "createdAt": 1553186035299,
     "descriptionPlain": "Welcome to the Demo Job Listing for Lever! This is a fictional job created solely for demonstration purposes and is not an actual open position. We’ve crafted this listing to showcase the functionality of our ATS platform, including job descriptions, application processes, and more.\n\nWhile you can explore the application process and features here, please note that applications submitted to this job will not be reviewed or responded to as it’s for demonstration only. \n\n\nthis job is AMAAAAAAAAAAAAZING!\n",
@@ -43,9 +41,7 @@
       "department": "Sales",
       "location": "Atlanta, Georgia",
       "team": "Account Executive",
-      "allLocations": [
-        "Atlanta, Georgia"
-      ]
+      "allLocations": ["Atlanta, Georgia"]
     },
     "createdAt": 1502907102690,
     "descriptionPlain": "Welcome to the Demo Job Listing for Lever! This is a fictional job created solely for demonstration purposes and is not an actual open position. We’ve crafted this listing to showcase the functionality of our ATS platform, including job descriptions, application processes, and more.\n\nWhile you can explore the application process and features here, please note that applications submitted to this job will not be reviewed or responded to as it’s for demonstration only. \n\n\nA fantastic opportunity to make an impact with a forward thinking company\n\n",
@@ -78,9 +74,7 @@
       "department": "Sales",
       "location": "Bombay, MH",
       "team": "Account Executive",
-      "allLocations": [
-        "Bombay, MH"
-      ]
+      "allLocations": ["Bombay, MH"]
     },
     "createdAt": 1558041148927,
     "descriptionPlain": "Welcome to the Demo Job Listing for Lever! This is a fictional job created solely for demonstration purposes and is not an actual open position. We’ve crafted this listing to showcase the functionality of our ATS platform, including job descriptions, application processes, and more.\n\nWhile you can explore the application process and features here, please note that applications submitted to this job will not be reviewed or responded to as it’s for demonstration only. \n\n\nAdd all your text here.\n",
