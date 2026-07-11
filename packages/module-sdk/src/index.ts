@@ -10,6 +10,7 @@ export { sessionRateLimitKey, mcpSessionRateLimitKey } from "./rate-limit-key.js
 export { CORE_VERSION, compareJarvisVersions, satisfiesCoreVersion } from "./core-version.js";
 
 export { createModuleLogger } from "./logger.js";
+export * from "./module-params.js";
 
 export type ModuleLifecycle = "required" | "optional" | "user-toggleable" | "workspace-toggleable";
 export type ModuleScope = "user" | "admin" | "system";

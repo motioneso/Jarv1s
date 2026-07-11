@@ -13,6 +13,7 @@ import type {
   ModuleWebDeclaration
 } from "@jarv1s/module-sdk";
 import { assertValidFetchHosts } from "@jarv1s/host-fetch/policy";
+import { isValidModuleParamsSchema, matchesModuleParamsSchema } from "@jarv1s/module-sdk";
 import { satisfiesCoreVersion } from "@jarv1s/module-sdk/core-version";
 
 export type ExternalModuleValidation =
@@ -55,105 +56,6 @@ const FORBIDDEN_FIELDS: readonly string[] = [
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function validParamsSchema(value: unknown): boolean {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const schema = value as Record<string, unknown>;
-  if (["uuid", "identifier", "timestamp", "boolean", "null"].includes(String(schema.type))) {
-    return Object.keys(schema).length === 1;
-  }
-  if (schema.type === "integer" || schema.type === "number") {
-    return (
-      Object.keys(schema).every((key) => ["type", "min", "max"].includes(key)) &&
-      typeof schema.min === "number" &&
-      typeof schema.max === "number" &&
-      Number.isFinite(schema.min) &&
-      Number.isFinite(schema.max) &&
-      schema.min <= schema.max
-    );
-  }
-  if (schema.type === "enum") {
-    return (
-      Object.keys(schema).every((key) => ["type", "values"].includes(key)) &&
-      Array.isArray(schema.values) &&
-      schema.values.length > 0 &&
-      schema.values.every(
-        (item) => typeof item === "string" && /^[a-z0-9][a-z0-9_.:-]{0,63}$/i.test(item)
-      )
-    );
-  }
-  if (schema.type === "array") {
-    return (
-      Object.keys(schema).every((key) => ["type", "items", "maxItems"].includes(key)) &&
-      Number.isInteger(schema.maxItems) &&
-      (schema.maxItems as number) > 0 &&
-      validParamsSchema(schema.items) &&
-      (schema.items as { type?: unknown }).type !== "array" &&
-      (schema.items as { type?: unknown }).type !== "object"
-    );
-  }
-  if (schema.type === "object") {
-    if (
-      !Object.keys(schema).every((key) => ["type", "fields"].includes(key)) ||
-      !schema.fields ||
-      typeof schema.fields !== "object" ||
-      Array.isArray(schema.fields)
-    ) {
-      return false;
-    }
-    return Object.entries(schema.fields).every(
-      ([key, field]) =>
-        /^[a-z][a-zA-Z0-9_]{0,63}$/.test(key) &&
-        validParamsSchema(field) &&
-        (field as { type?: unknown }).type !== "object"
-    );
-  }
-  return false;
-}
-
-function validParamsValue(schema: Record<string, unknown>, value: unknown): boolean {
-  switch (schema.type) {
-    case "uuid":
-      return (
-        typeof value === "string" &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
-      );
-    case "identifier":
-      return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,63}$/i.test(value);
-    case "timestamp":
-      return typeof value === "string" && !Number.isNaN(Date.parse(value));
-    case "boolean":
-      return typeof value === "boolean";
-    case "null":
-      return value === null;
-    case "integer":
-    case "number":
-      return (
-        typeof value === "number" &&
-        Number.isFinite(value) &&
-        (schema.type !== "integer" || Number.isInteger(value)) &&
-        value >= (schema.min as number) &&
-        value <= (schema.max as number)
-      );
-    case "enum":
-      return typeof value === "string" && (schema.values as readonly string[]).includes(value);
-    case "array":
-      return (
-        Array.isArray(value) &&
-        value.length <= (schema.maxItems as number) &&
-        value.every((item) => validParamsValue(schema.items as Record<string, unknown>, item))
-      );
-    case "object": {
-      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-      const fields = schema.fields as Record<string, Record<string, unknown>>;
-      return Object.entries(value as Record<string, unknown>).every(
-        ([key, item]) => fields[key] !== undefined && validParamsValue(fields[key], item)
-      );
-    }
-    default:
-      return false;
-  }
 }
 
 function hasDeadLetterCycle(queues: readonly Record<string, unknown>[]): boolean {
@@ -209,7 +111,7 @@ function validateWorker(
       errors.push("worker queue names must be unique");
     } else queueNames.add(queue.name);
     if (!isNonEmptyString(queue.handler)) errors.push("worker queue handler is required");
-    if (queue.paramsSchema !== undefined && !validParamsSchema(queue.paramsSchema)) {
+    if (queue.paramsSchema !== undefined && !isValidModuleParamsSchema(queue.paramsSchema)) {
       errors.push("worker queue paramsSchema is invalid");
     }
     if (
@@ -275,9 +177,9 @@ function validateWorker(
     if (schedule.params !== undefined) {
       const encoded = JSON.stringify(schedule.params);
       if (
-        !queue?.paramsSchema ||
+        !isValidModuleParamsSchema(queue?.paramsSchema) ||
         encoded.length > 2_048 ||
-        !validParamsValue(queue.paramsSchema as Record<string, unknown>, schedule.params)
+        !matchesModuleParamsSchema(queue.paramsSchema, schedule.params)
       ) {
         errors.push("worker schedule params do not match the queue paramsSchema");
       }
