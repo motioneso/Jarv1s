@@ -236,9 +236,10 @@ describe("SportsPage", () => {
     expect(html).toContain("sp-ticker");
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
-    // the fixture card is live — the next-game footer stays hidden until full time
-    // (live feedback mrawrk0e); the ticker's own suite covers the non-live footer
-    expect(html).not.toContain("sp-tk__next");
+    // #963: the fixture card is live — the footer strip carries the live score + LIVE token
+    // (supersedes mrawrk0e's hidden-footer rule); body/next-game specifics live in the
+    // ticker's own suite.
+    expect(html).toContain("sp-next__livetag");
   });
 
   it("renders the Top-stories column on gameday without the RANKED eyebrow or explainer dek", () => {
