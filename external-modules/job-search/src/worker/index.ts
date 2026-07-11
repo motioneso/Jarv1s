@@ -17,6 +17,7 @@ import {
   getProfileHandler,
   saveProfileDraftHandler
 } from "./handlers/profile.js";
+import { getResumeHandler } from "./handlers/resume.js";
 import type { ToolHandler } from "./wrap.js";
 import { wrap } from "./wrap.js";
 
@@ -48,7 +49,7 @@ defineModuleWorker({
     "profile.get": tool(getProfileHandler),
     "profile.save-draft": tool(saveProfileDraftHandler),
     "profile.approve": tool(approveProfileHandler),
-    "resume.get": tool(notImplemented),
+    "resume.get": tool(getResumeHandler),
     "resume.save-draft": tool(notImplemented),
     "resume.approve": tool(notImplemented),
     "monitor.list": tool(notImplemented),
