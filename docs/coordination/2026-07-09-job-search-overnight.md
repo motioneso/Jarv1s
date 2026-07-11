@@ -3478,3 +3478,39 @@ Ben asked to decouple planning from building. Decision: fully pre-baking APPROVE
 
 ## JS-06 pG3 API stall — nudged — 2026-07-11 ~14:00 PDT
 pG3 (JS-06 v2, Fable, session 2934d995) hit `API Error: Response stalled mid-stream` while drafting the plan doc (todo: "Write JS-06 plan doc" + "Message Coordinator for approval" both open). Process ALIVE (Fable 5, 55% ctx). Nudged (message + Enter); context meter ticked 10→11% (input accepted). NOT respawning (stall≠death per stall-nudge-recovery). Re-armed 240s recheck for recovery; if still wedged idle next tick → spawn fresh JS-06 agent onto same worktree state. Plan-approval gate still holds — no code before I approve.
+
+## RELAY CHECKPOINT (70% meter — auto-compact in place) — 2026-07-11 ~14:05
+
+Per standing directive: coordinator auto-compacts IN PLACE — NO successor pane spawned on the
+70% meter. State flushed here + to agentmemory; loop continues in-session.
+
+**Coordinator lock:** session `58a78927-385c-4b1d-8fa0-94db20255d6f`, label `Coordinator`,
+pane `w1:pE6`, tab `w1:t15`. Unique. merges_since_relay = 0 (reset after JS-05 #961 merge).
+
+**Live fleet (agents tab w1:t17, all Fable):**
+- **JS-06 #935 (task #21, SENSITIVE)** — agent pG3 "JS-06 surface v2", session `2934d995`.
+  Fork resolved (model C: build against existing `POST /api/ai/assistant-tools/:name/invoke`
+  read path — no new endpoint/spec). Smoke test PASSED. Had API stall mid-plan ~14:00 →
+  nudged → RECOVERED (working). Drafting JS-06 plan doc. GATE: must send plan for Coordinator
+  approval BEFORE any feature code. On done → QA = standard + module-isolation/no-contract-drift
+  invariant walk.
+- **JS-07 #936 (task #22)** — grounding scout pG4, session `9a171afd`. PLANNER not builder:
+  produces `docs/superpowers/plans/2026-07-11-js-07-freshness-dedup-fit.md` + fork report. No
+  code/migration/PR. Awaiting its premise/fork report (expect "premises hold, plan ready" or
+  a [DESIGN-FORK]). Zero-migration expected.
+
+**Parked:** News S2 #958 (task #19) — CronCreate `42049f84` (one-shot 14:40 PDT) resumes on
+Codex in news-slice2 worktree (branch feat/news-slice2, rooted fadef5d3, SECURITY tier, QA
+council Opus+Fable). Handoff already committed on that branch.
+
+**#962 follow-up** filed (Part of #913): items 1-2 fold into JS-07; items 3-4 = small route
+hardening.
+
+**Wake signals:** Monitor `b54y9f2eg` (pane liveness) primary; ScheduleWakeup 1500s fallback
+(next ~14:30); News cron 14:40. Stale idle pane pBK (session 28c218bf, news-module cwd) in
+t17 — harmless, reap opportunistically.
+
+**Continuation note (mid-doing):** nothing mid-merge. Waiting on (a) pG3 JS-06 plan-ready
+escalation → approve only if inside spec's locked decisions, then it builds; (b) pG4 JS-07
+fork report. Do NOT approve any plan until the agent actually sends it. No PushNotification
+(Ben: keep moving).
