@@ -2506,3 +2506,8 @@ reminded pEG: successor MUST boot `--model sonnet` (herdr self-relay defaults to
 w1:t17` (agents tab). AWAITING successor-driving confirmation → then verify model+tab, reap pEG,
 record new session id. merges_since_relay unchanged (no merge). Coordinator stays resident
 (auto-compact override).
+
+**#916 RELAY-3 COMPLETE.** Successor pEH `916: host starter action (r5-sonnet)`, session
+`859a99cd-b0e7-4490-97df-59d4ec977cd2`, tab w1:t17 ✓, model Sonnet 5 ✓ (pEG verified via pane read),
+bypass-perms, working on tasks 3-7. pEG (r4-sonnet, session 47b52215) reaped. Same worktree/branch
+`feat/916-host-starter-action`. #916 owner is now pEH. Await its wrap-up PR (security tier).
