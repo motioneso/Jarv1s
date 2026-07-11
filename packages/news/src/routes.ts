@@ -223,7 +223,8 @@ export function registerNewsRoutes(
           customSources: result.customSources,
           customTopics: result.customTopics,
           sourceExclusions: result.sourceExclusions,
-          snapshot: toSnapshotMeta(result.snapshot)
+          snapshot: toSnapshotMeta(result.snapshot),
+          refresh: { state: "idle", updatedAt: null }
         };
         return response;
       } catch (error) {

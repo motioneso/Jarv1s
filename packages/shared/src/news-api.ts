@@ -161,6 +161,75 @@ export interface GetNewsPersonalizationResponse {
   readonly customTopics: readonly NewsCustomTopicDto[];
   readonly sourceExclusions: readonly NewsSourceExclusionDto[];
   readonly snapshot: NewsSnapshotMetaDto | null;
+  readonly refresh: NewsRefreshStateDto;
+}
+
+export interface NewsSourcePreviewRequest {
+  readonly input: string;
+  readonly replaceSourceId?: string;
+}
+
+export interface NewsSourcePreviewCandidate {
+  readonly label: string;
+  readonly canonicalDomain: string;
+  readonly homepageUrl: string;
+  readonly retrievalMethod: "feed" | "scrape";
+  readonly sampleCount: number;
+}
+
+export interface NewsSourcePreviewResponse {
+  readonly status: "ok" | "ambiguous" | "rejected" | "unavailable" | "invalid";
+  readonly confirmationId?: string;
+  readonly candidates?: readonly NewsSourcePreviewCandidate[];
+  readonly candidateIds?: readonly string[];
+  readonly reason?: string;
+  readonly duplicateOfSourceId?: string;
+}
+
+export interface ConfirmNewsSourceRequest {
+  readonly confirmationId: string;
+  readonly candidateId?: string;
+}
+
+export interface ConfirmNewsSourceResponse {
+  readonly source: NewsCustomSourceDto;
+}
+
+export interface DeleteNewsCustomSourceResponse {
+  readonly deleted: boolean;
+}
+
+export interface CreateNewsTopicRequest {
+  readonly label: string;
+  readonly guidance?: string;
+}
+
+export interface UpdateNewsTopicRequest {
+  readonly label?: string;
+  readonly guidance?: string;
+}
+
+export interface CreateNewsTopicResponse {
+  readonly topic: NewsCustomTopicDto;
+}
+
+export interface UpdateNewsTopicResponse {
+  readonly topic: NewsCustomTopicDto;
+}
+
+export interface DeleteNewsTopicResponse {
+  readonly deleted: boolean;
+}
+
+export interface NewsRefreshStateDto {
+  readonly state: "idle" | "queued" | "running" | "failed";
+  readonly updatedAt: string | null;
+  readonly failureKind?: "fetch" | "ai" | "internal";
+}
+
+export interface TriggerNewsRefreshResponse {
+  readonly queued: boolean;
+  readonly state: NewsRefreshStateDto["state"];
 }
 
 export interface CreateNewsSourceExclusionRequest {
@@ -418,12 +487,37 @@ const newsSourceExclusionDtoSchema = {
   }
 } as const;
 
+const newsRefreshStateDtoSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["state", "updatedAt"],
+  properties: {
+    state: { type: "string", enum: ["idle", "queued", "running", "failed"] },
+    updatedAt: { type: ["string", "null"] },
+    failureKind: { type: "string", enum: ["fetch", "ai", "internal"] }
+  }
+} as const;
+
+const idParamsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id"],
+  properties: { id: { type: "string", format: "uuid" } }
+} as const;
+
 export const getNewsPersonalizationSchema = {
   response: {
     200: {
       type: "object",
       additionalProperties: false,
-      required: ["availability", "customSources", "customTopics", "sourceExclusions", "snapshot"],
+      required: [
+        "availability",
+        "customSources",
+        "customTopics",
+        "sourceExclusions",
+        "snapshot",
+        "refresh"
+      ],
       properties: {
         availability: {
           type: "object",
@@ -456,7 +550,8 @@ export const getNewsPersonalizationSchema = {
             expiresAt: { type: "string" },
             articleCount: { type: "number" }
           }
-        }
+        },
+        refresh: newsRefreshStateDtoSchema
       }
     },
     401: errorResponseSchema
@@ -506,6 +601,174 @@ export const deleteNewsSourceExclusionSchema = {
       }
     },
     400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const previewNewsSourceSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["input"],
+    properties: {
+      input: { type: "string", minLength: 1, maxLength: 512 },
+      replaceSourceId: { type: "string", format: "uuid" }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["status"],
+      properties: {
+        status: {
+          type: "string",
+          enum: ["ok", "ambiguous", "rejected", "unavailable", "invalid"]
+        },
+        confirmationId: { type: "string" },
+        candidates: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "label",
+              "canonicalDomain",
+              "homepageUrl",
+              "retrievalMethod",
+              "sampleCount"
+            ],
+            properties: {
+              label: { type: "string" },
+              canonicalDomain: { type: "string" },
+              homepageUrl: { type: "string" },
+              retrievalMethod: { type: "string", enum: ["feed", "scrape"] },
+              sampleCount: { type: "number" }
+            }
+          }
+        },
+        candidateIds: { type: "array", items: { type: "string" } },
+        reason: { type: "string" },
+        duplicateOfSourceId: { type: "string", format: "uuid" }
+      }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const confirmNewsSourceSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["confirmationId"],
+    properties: {
+      confirmationId: { type: "string", minLength: 1, maxLength: 256 },
+      candidateId: { type: "string", minLength: 1, maxLength: 256 }
+    }
+  },
+  response: {
+    201: {
+      type: "object",
+      additionalProperties: false,
+      required: ["source"],
+      properties: { source: newsCustomSourceDtoSchema }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    409: errorResponseSchema
+  }
+} as const;
+
+export const deleteNewsCustomSourceSchema = {
+  params: idParamsSchema,
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["deleted"],
+      properties: { deleted: { type: "boolean" } }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+const newsTopicWriteResponses = {
+  400: errorResponseSchema,
+  401: errorResponseSchema,
+  422: errorResponseSchema,
+  503: errorResponseSchema
+} as const;
+
+export const createNewsTopicSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["label"],
+    properties: {
+      label: { type: "string", minLength: 1, maxLength: 80 },
+      guidance: { type: "string", maxLength: 1000 }
+    }
+  },
+  response: {
+    201: {
+      type: "object",
+      additionalProperties: false,
+      required: ["topic"],
+      properties: { topic: newsCustomTopicDtoSchema }
+    },
+    ...newsTopicWriteResponses
+  }
+} as const;
+
+export const updateNewsTopicSchema = {
+  params: idParamsSchema,
+  body: {
+    type: "object",
+    additionalProperties: false,
+    minProperties: 1,
+    properties: {
+      label: { type: "string", minLength: 1, maxLength: 80 },
+      guidance: { type: "string", maxLength: 1000 }
+    }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["topic"],
+      properties: { topic: newsCustomTopicDtoSchema }
+    },
+    ...newsTopicWriteResponses
+  }
+} as const;
+
+export const deleteNewsTopicSchema = {
+  params: idParamsSchema,
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["deleted"],
+      properties: { deleted: { type: "boolean" } }
+    },
+    400: errorResponseSchema,
+    401: errorResponseSchema
+  }
+} as const;
+
+export const triggerNewsRefreshSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["queued", "state"],
+      properties: {
+        queued: { type: "boolean" },
+        state: { type: "string", enum: ["idle", "queued", "running", "failed"] }
+      }
+    },
     401: errorResponseSchema
   }
 } as const;
