@@ -3137,3 +3137,9 @@ anything requiring escalation and do that instead of waiting for me."
   pattern used for #955 (Fable QA was a separate Agent). News S2 council = Opus adversarial QA +
   Codex second lens + independent Fable QA. Stale "named-Gemini-unanimity" gate text is DEAD
   (superseded by Ben's correction: cross-provider council, Fable seat, `agy` not `gemini`).
+
+- **JS-04 relay (self-handoff at 70%):** pFK (session c8161b20) relayed → successor **pFN**
+  (session `509fbc39`, label "JS-04: source adapters (F2)", tab w1:t17, Fable 5, bypass, driving).
+  Verified tab+model+driving independently, then reaped pFK. Progress at handoff: T1 fixtures
+  committed 5c30a449, T2 red test on disk, relay doc bf073f5e
+  (docs/superpowers/handoffs/2026-07-11-js-04-source-adapters-relay.md). Lane continues in TDD.
