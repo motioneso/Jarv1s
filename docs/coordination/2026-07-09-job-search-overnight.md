@@ -2875,3 +2875,13 @@ anything requiring escalation and do that instead of waiting for me."
 - JS-03 relayed R7 -> R8: R8 = w1:pF9 / cc150531-87a9-4780-9bcf-2c74504c2dc0 (Fable, tab w1:t17,
   driving). Task 10 green c5109256, relay doc 2ff53fe9. R8: Task 0 (ctx.ai bridge) -> Tasks 11-13.
   R7 (pF8/b48988b9) reaped.
+
+### Update 2026-07-11c — Codex re-run usage-limited
+- Builder fix 3f05acf2 pushed (fail-closed null-hostname exclusion, 24/24, no-fetch evidence at
+  PR #955 issuecomment-4945168991, gates VF=0/AUDIT=0). Addresses Codex's BLOCK on the builder side.
+- Codex RE-RUN FAILED: `You've hit your usage limit ... try again at 4:18 AM` (headroom/gpt-5.6-sol).
+  No review, nothing posted; last durable Codex verdict on PR is STILL BLOCK. Ground worktree cleaned.
+- Retry scheduled: one-shot cron 3883c38d @ 04:20 PDT (post-reset) -> re-dispatch Codex harness agent
+  (bypass-sandbox) to re-review 3f05acf2 + post verdict. If still limited, reschedule.
+- #955 held on TWO provider counts now: Codex (re-run pending) + Gemini (Ben re-auth). CI green,
+  Opus green. No substitution. Fleet continues (JS-03 R8 building).
