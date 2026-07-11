@@ -91,7 +91,7 @@ that a row seeded with a fingerprint serializes without it.
 3. **Exclusion-cap race.** `createExclusion`'s count-then-insert can over-admit the 100-domain cap
    under concurrent requests. Either enforce in one statement (`INSERT ... SELECT ... WHERE count`)
    or document the accepted race; single-owner tables make this low-stakes.
-4. **Headline-level exclusion hardening.** Task 4 filters curated *sources* by homepage domain. A
+4. **Headline-level exclusion hardening.** Task 4 filters curated _sources_ by homepage domain. A
    headline whose article URL host matches an excluded domain can still surface through another
    curated source's feed (rare; the catalog is first-party publishers). Cheap to also apply
    `publisherDomainMatches` to each composed headline's URL host — closes the spec's "never appear"
@@ -143,7 +143,7 @@ that a row seeded with a fingerprint serializes without it.
 
 ## Lens summary
 
-- **Scope fidelity:** faithful. Slice 1 spec bullets all covered; exclusion *writes* in Slice 1 are
+- **Scope fidelity:** faithful. Slice 1 spec bullets all covered; exclusion _writes_ in Slice 1 are
   a legitimate reading (they need no LLM/web validation, so default-deny is not weakened). Nothing
   pulled forward from Slices 2–4.
 - **Default-deny:** holds structurally — no route, repository writer, chat tool, or import path can
