@@ -3594,3 +3594,6 @@ Standing directive #3: this coordinator auto-compacts in place; do NOT spawn a s
 
 ### Continuation note (mid-doing)
 Just approved sports #963 + filed #964. Nothing awaiting my ack now. Next watch: JS-06 pG9 done -> QA/merge; sports pG8 done -> QA/merge (relay after 2 routine/sensitive merges or next security merge). #964 spec is a distinct workstream to stand up (Fable lane) when Ben wants it moving — not urgent, no builder until spec approved.
+
+### JS-06 relay #3 + reap — 2026-07-11 ~15:12
+pG9 "surface v4" (8894150c) hit 70%, committed T1-T9 green (31/31 unit + check:external-modules 0), relay doc 6fbeb720. Successor **pGA "surface v5" session 5f7eaa4d** confirmed: Fable 5, agents tab w1:t17, on feat/js-06-module-surface, resuming **Task 10 (integration test)**. v4 pane reaped. JS-06 lock -> **pGA / 5f7eaa4d**.
