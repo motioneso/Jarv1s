@@ -2445,3 +2445,12 @@ two build-guidance edits folded in (per-contribution injection; `initialText` no
 Build agent **pED** (tab w1:t17, session `c9baeba1`) booted on **Sonnet 5**, correct branch, bypass
 on. Tier = **security** (host trust boundary) → same bar: Opus adversarial QA + panel sign-off
 (Codex rejoins ≥10:12). Awaiting its plan-ready escalation. Task #8 → in_progress.
+
+**#916 pED AUTO-COMPACTED (not new-pane relay) @ 2026-07-11 ~04:10.** pED messaged "spawning
+successor via relay" at 70% but actually hit its own auto-compact first (no code written yet — only
+spec-verify + architecture research: loader.ts Root-prop injection point + chat `initialText`
+draft-seam confirmed). Auto-compact resumes the SAME session `c9baeba1` in the SAME worktree/branch
+— NO successor pane spawned, nothing to reap, no state lost (nothing committed). Expect pED to
+resume post-compact → write plan → escalate plan-ready. If it instead sits idle or re-spins on
+research, nudge it: "plan first, no more research — escalate for approval." Supervising via push +
+liveness monitor; not polling.
