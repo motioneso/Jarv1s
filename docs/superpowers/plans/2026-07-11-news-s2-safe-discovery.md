@@ -408,10 +408,16 @@ upsertPolicyVerdict(scopedDb, input: { canonicalDomain; fingerprint; verdict; tt
       `NewsPersonalizationLimitError`), duplicate domain → `NewsDuplicateSourceError`; topic CI-dup
       label rejected; verdict expiry honored (expired ⇒ null); fingerprint mismatch ⇒ null;
       `replaceCustomSource` on other owner's id ⇒ null; refresh-state default idle + upsert
-      round-trip. **Worker-role proof:** via bootstrap `pg.Client` `SET ROLE jarvis_worker_runtime` +
-      `set_config('app.current_actor_user_id', …)` — worker can SELECT own-owner sources and UPDATE
-      health, CANNOT UPDATE label/homepage of any row it can see cross-owner (0 rows), CANNOT SELECT
-      other owner's rows.
+      round-trip. **Worker-role proof (B4 — two SEPARATE tests, RLS and column grant are different
+      mechanisms):** via bootstrap `pg.Client` `SET ROLE jarvis_worker_runtime` +
+      `set_config('app.current_actor_user_id', …)`: 1. **Column-grant test (same-owner row):** on a source row the worker CAN see (its own
+      owner context), `UPDATE app.news_custom_sources SET health_status = 'unavailable'`
+      SUCCEEDS (1 row), while each of `SET label = …`, `SET homepage_url = …`,
+      `SET feed_url = …`, `SET validation_fingerprint = …` is REJECTED with
+      `permission denied` (SQLSTATE 42501) — proving the column-list `GRANT UPDATE
+       (health_status)` blocks rewriting source identity even on visible rows. 2. **Cross-owner RLS test:** under owner A's context, SELECT of owner B's rows returns
+      0 rows, and `UPDATE … SET health_status` targeting owner B's row affects 0 rows
+      (RLS row filter, distinct from the column grant above).
 - [ ] **Step 2:** run `pnpm test:integration -- news-discovery-repository` → FAIL.
 - [ ] **Step 3:** implement repository methods (follow `createExclusion`'s atomic
       `INSERT … SELECT … WHERE (SELECT count(*) …) < cap` pattern; never select
