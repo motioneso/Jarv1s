@@ -3328,3 +3328,24 @@ fresh context, adversarial** — spawned now. Rationale: scarce post-14:37 Codex
 IRREPLACEABLE News build (Codex-only), not a replaceable JS-04 review lens; holding JS-04 3h would
 stall the serialized JS chain (JS-05+ wait on it landing). On critic GREEN → merge (Ben bypass on
 sign-off; gate met = Opus GREEN + independent second lens GREEN + CI green). On RED → relay to pFT.
+
+## JS-04 #959 MERGED + JS-05 #934 spawning — 2026-07-11 11:36 PDT
+
+**MERGED:** JS-04 #959 → squash **af318809** on main (base fadef5d3). Council gate met: Opus QA GREEN
+(0 blocking) + independent Opus second-lens critic GREEN (documented Codex-quota degrade) + CI green
+(verify-foundation 16m17s + 2 compose smokes + build/publish). Ben bypass on sign-off. Issue #933
+CLOSED. pFT reaped, worktree+branch removed. **DIGEST for Ben:** JS-04 host-pinned Greenhouse/Lever/
+Ashby adapters + manual capture landed; SSRF suite drives real fetch; ZERO migrations. Forward-risk
+issue **#960** filed (sanitizer strip-then-decode → entity-encoded markup survives as literal text;
+inert now, guard needed when a JS-05/06 consumer renders `description`).
+
+**merges_since_relay reset (security-tier merge relay handled in-place: memory mem_mrgpgpf6 + this flush).**
+
+**JS-05 #934 (scheduled monitoring + run-now) — CLEARED TO SPAWN.** Spec-before-build gate MET:
+docs/superpowers/specs/2026-07-10-job-search-js-05-monitoring.md exists on origin/main (53-line
+substantive spec, merged via approved PR #929). `needs-spec` label + "Draft" header both proven STALE
+(JS-04 #933 built+merged carrying identical `needs-spec`). Deps #931/#933/#915 all merged. Model =
+**Fable** (Ben's Job Search scoped exception; successors stay Fable). Tier = security (network-exposed
+fetch + external content). ZERO migrations (module_kv only) → NO collision with the parallel News S2
+Codex build. QA council = Opus + Codex(+CI) — but Codex quota-blocked till 14:37, so second lens may
+degrade to independent Opus critic again if JS-05 QA lands before 14:37.
