@@ -3236,3 +3236,11 @@ enqueue; **bump MUST precede prune**. Applies to source DELETE + exclusion ADD (
 unexclude/non-destructive only bump. Test: interleave old publish between bump/prune, assert
 CAS=false AND excluded/deleted domain absent on route return. **QA council must confirm ordering +
 test landed.**
+
+### News S2 Task 9 required policy coverage (relayed to Codex pFR 2026-07-11)
+2nd-lens (Codex pEP): policy-validation.ts only asked 'legitimate publisher/topic'. Safety envelope
+(default-deny B3 + provider-agnostic-AI) REQUIRES: BOTH source+topic prompts request an AFFIRMATIVE
+provider-policy/safety decision (lawful/appropriate AND permitted under the ACTIVE provider's
+content/safety rules); refusal OR uncertainty => unavailable/rejected, NO override. Tests: prompt
+includes policy/safety + illegal/inappropriate criteria; allowed:false & category='other' rejected.
+External text stays labeled UNTRUSTED DATA. **QA council must confirm landed.**
