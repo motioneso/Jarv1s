@@ -3161,3 +3161,18 @@ anything requiring escalation and do that instead of waiting for me."
     limited to health_status (+updated_at if needed) + owner-scoped worker UPDATE policy + negative
     column test.
   Awaiting pFM corrected plan + re-[PLAN-READY].
+
+- **News S2 plan blockers B5–B6 (pEP, same correction pass) — concurrency correctness:**
+  - **B5 (coalescing lost-update):** exclusive+singletonKey=actor drops a trigger arriving mid-run
+    → active run finishes idle with a snapshot missing that change. Fix = persisted
+    dirty/generation handshake in news_refresh_state; worker atomically detects a request newer
+    than the run it compiled and loops/requeues before idle. Test: pause active run, change/trigger,
+    resume, prove follow-up compilation includes it.
+  - **B6 (absolute-exclusion race, ties to B5):** a refresh that read prefs before an exclusion can
+    replace the snapshot after pruning and briefly resurrect the excluded domain (violates the
+    ABSOLUTE exclusion invariant). Fix = publication conditional on the same prefs/request
+    generation captured at compile (transactional CAS); stale runs don't publish, they rerun. Prune
+    = one atomic DB update. Test: pause compile after candidate collection, add exclusion, resume
+    old compile, assert excluded story never reappears + follow-up stays queued.
+  B5+B6 share the news_refresh_state generation/CAS (design together); lives in migration 0160.
+  Review may still be ongoing (pEP streaming findings) — ALL fold into the single correction pass.
