@@ -3405,3 +3405,10 @@ Coordinator session **58a78927-385c-4b1d-8fa0-94db20255d6f** (authority). NO suc
 ### merges_since_relay = 0 (reset). Next heartbeat 12:29 (sanity-check GLM diff). Codex account-cap lifts 14:37 PDT.
 ### GLM ops: model zai-coding-plan/glm-5.2 via proxy :8788 (headroom pid 3505). `opencode run` headless WORKS;
 ###   herdr TUI spawns (--no-focus) DIE — no foreground terminal. Config ~/.config/opencode/opencode.json (perms all-allow).
+
+### JS-05 relay #3→#4 — 2026-07-11 ~12:35 PDT
+Fable v3 (pF0, session 58635e79) hit 70% meter. Tasks 3+4/6 committed GREEN:
+- 3c020956 discovery core
+- 606f7b9c sweep + run-now dispatch
+Module sweep 27 files / 366 tests green. Spawning Fable successor (same worktree, feat/js-05-monitoring),
+resuming Task 5 (manifest cron). AWAITING "successor driving + reap" follow-up before reaping pF0.
