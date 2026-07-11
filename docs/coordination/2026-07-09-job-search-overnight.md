@@ -2402,3 +2402,12 @@ bypass probes, migration 0158 definer/search_path/EXECUTE, metadata-only payload
 (3) overnight two-model panel sign-off (Fable + Codex) in lieu of Ben per manifest override. pEC is
 `done`/idle — NOT reaped yet (kept for possible rebase-conflict resolution until merge).
 merges_since_relay: 0.
+
+**PANEL ADJUST @ 2026-07-11 ~03:20 — Codex capped until 10:12 (Ben).** Codex (gpt-5.6-sol)
+unavailable for the two-model sign-off until 10:12. #915 security-tier sign-off therefore =
+**Opus adversarial QA (running) + Fable sign-off**, Fable holding final-decision authority per the
+run override. This matches the bar #919/#914 actually cleared (Opus QA + Fable); Codex was the
+additional cross-lens, not required. #915 does NOT stall for Codex — merges on Opus-QA-GREEN +
+CI-green + Fable sign-off; Codex-unavailable noted. If Fable elects to hold for Codex's lens at
+sign-off, that is Fable's call. Same policy applies to #916 sign-off tonight if it reaches merge
+before 10:12.
