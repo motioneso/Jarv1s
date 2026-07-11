@@ -3378,3 +3378,30 @@ to GLM 5.2 through open code." → News S2 build no longer waits for Codex; hand
 - GLM now authors News (not Codex) → QA council **Opus + Fable** still valid (author-independent;
   GLM≠Opus≠Fable). Codex may rejoin QA after 14:37 if useful. Fallback if GLM fails: Codex pEP at 14:37.
 - Plan already APPROVED + committed (2026-07-11-news-s2-safe-discovery.md); GLM executes, no re-approval.
+
+## RELAY CHECKPOINT (70% meter) — 2026-07-11 ~12:15 PDT — coordinator auto-compacts IN PLACE
+Coordinator session **58a78927-385c-4b1d-8fa0-94db20255d6f** (authority). NO successor pane — flush+memory then continue.
+
+### Live fleet
+- `w1:pE6` Coordinator (me, 58a78927).
+- `w1:pF0` **JS-05: monitoring (Fable v3)** session `58635e79-e936-471b-b9ab-50a9fad62808` — WORKING, plan Task 3/6.
+- News S2 = **GLM-5.2 headless bg task `btzj1e411`** (NOT a herdr pane; supervise via output file
+  `tasks/btzj1e411.output` + `git -C .claude/worktrees/news-slice2 diff --stat`). pid was 3472113.
+- `w1:pEP` idle Codex (session 019f4fd0) — News fallback if GLM fails / after 14:37.
+- `w1:pBK` idle stray (news-module, 28c218bf) — hold, don't reap blindly.
+
+### Lane status
+- **JS-05 #934** (Fable, security, ZERO migrations): plan APPROVED (commit 13de2971, 3 scope flags in-spec).
+  Tasks 1-2/6 committed GREEN — 17b19989 (schedule domain), 0de0116f (monitor.save tz/dueTime); 2792 unit pass.
+  Relay continuation doc cd9e0f70. Successor pF0 resuming Task 3 (candidate/collection per plan). Branch
+  feat/js-05-monitoring off af318809. QA council on completion = **Opus + Codex + CI** (Codex ok after 14:37;
+  before that degrade 2nd lens to Opus critic). Reuse #915 enqueue + JS-04 safe reader; owner-only KV + cross-owner test.
+- **News S2 #958** (GLM-5.2, security, migration 0160): Ben rerouted off capped Codex. Executing plan Tasks 11-16
+  from parked WIP atop f6dcf995 (routes.ts/jobs.ts/package.json uncommitted at handoff). Plan approved+committed
+  (2026-07-11-news-s2-safe-discovery.md) → GLM executes, no re-approval. QA council = **Opus + Fable**
+  (author-independent; GLM≠Opus≠Fable). Fallback: Codex pEP resumes same worktree at 14:37 if GLM stalls/garbles.
+- **JS-04 #959** MERGED af318809; #933 closed+board Done; forward-risk #960 filed.
+
+### merges_since_relay = 0 (reset). Next heartbeat 12:29 (sanity-check GLM diff). Codex account-cap lifts 14:37 PDT.
+### GLM ops: model zai-coding-plan/glm-5.2 via proxy :8788 (headroom pid 3505). `opencode run` headless WORKS;
+###   herdr TUI spawns (--no-focus) DIE — no foreground terminal. Config ~/.config/opencode/opencode.json (perms all-allow).
