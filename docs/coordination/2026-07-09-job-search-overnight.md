@@ -2899,3 +2899,21 @@ anything requiring escalation and do that instead of waiting for me."
 - NO substitution/degrade (pEP [DISSENT] binding). Ben digest FYI only, non-blocking, NOT a push:
   run `gemini` re-auth to fill the last seat. Fleet continues (JS-03 R9 building).
 - News builder pF4 (03e7c92c) idle/done, kept for a potential rebase (unlikely — rebase-clean).
+
+### Checkpoint 2026-07-11e (70% flush, in-place — no successor pane)
+- **News #955:** CI GREEN + Opus GREEN + Codex GREEN (re-review of 3f05acf2, issuecomment-4945267564,
+  no-fetch CONFIRMED). Held SOLELY on Gemini seat — CLI logged out, no GEMINI_API_KEY/GOOGLE_API_KEY,
+  no oauth_creds.json, `gemini` not on PATH; in-scope recovery EXHAUSTED, Ben-only re-auth. Council =
+  merge authority: on Gemini durable GREEN -> AUTO-MERGE (no separate Ben sign-off) -> close #953 /
+  #954 exit-check / board Done / ping pEP (w1:pEP/019f4fd0) for S2. NO substitution/degrade (pEP
+  dissent binding). Ben digest FYI, non-blocking, NOT a push. News builder pF4(03e7c92c) idle/done.
+- **JS-03 #932:** ALL BUILD TASKS COMMITTED GREEN — Task 0 ctx.ai bridge 1edbd370, Task 11 0ae3643b,
+  Task 12 cross-owner isolation test 20d0af3a (integration 1510 pass exit 0), server.ts file-size fix
+  a7a09f5d, relay docs. Current driver R11 = w1:pFC / 8674f160-a668-4b0d-ab30-8ada39085189 (Fable,
+  tab w1:t17). R11 remaining: full verify:foundation + pre-push trio + coordinated-wrap-up -> open PR
+  Closes #932. On PR -> SECURITY-tier council QA (Opus + cross-provider) -> merge -> release JS-04 #933.
+  Relay history this run: R6..R11 (each verified driving before reap). ZERO migrations (module_kv).
+- **Next actions on wake:** (1) JS-03 PR opens -> spawn security council QA. (2) #955 Gemini GREEN ->
+  auto-merge. (3) Codex retry cron 3883c38d already fired+deleted (Codex GREEN achieved).
+- **Live panes:** Coordinator w1:pE6/58a78927. JS-03 R11 w1:pFC/8674f160. Codex S2 pEP w1:pEP/019f4fd0.
+  News builder pF4/03e7c92c idle. Stray pBK/28c218bf idle (news-module worktree) — investigate before reap.
