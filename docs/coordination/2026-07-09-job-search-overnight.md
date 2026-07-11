@@ -3042,3 +3042,15 @@ anything requiring escalation and do that instead of waiting for me."
 ## Note — Codex cycle-3 QA died on content-filter flag (no verdict); Opus RED stands
 - Codex (PID 2352914) exited without a verdict: log = `ERROR: This content was flagged for possible cybersecurity risk`. The adversarial framing ("forge a fabricated résumé claim / defeat the guard") tripped Codex's own cybersecurity filter. TRAP: for future Codex truth-guard QA, frame DEFENSIVELY ("verify the guard REJECTS unsupported claims; confirm these inputs are correctly refused") — never "forge/defeat/exploit." Monitor bzvfmeiw6 stopped (moot).
 - Merge remains correctly HELD on Opus QA RED alone (gate needs BOTH green). Codex is record-only this cycle. If design-fork = A (redesign), re-run Codex with defensive framing for the FINAL re-QA second lens.
+
+---
+## Checkpoint — JS-03 #956 design-fork = SCOPE VERDICT B (defer D3 out of JS-03); narrowing relayed to R16, merge holds for Ben
+
+- **Opus design-fork adjudicator: VERDICT B.** Proof that Option A is IMPOSSIBLE: the D3 fabrication ("Vice President\nInitech") is byte-identical to shorten⊕reorder, and the spec + tests (T429 shorten, GR2 reorder) require BOTH operands to pass individually → no pure syntactic rule can reject the composition without deleting the "shorten" grant. Closing D3 needs SEMANTIC typing, which B1 stopped trusting from AI.
+- **Shippable narrowing (relayed to R16, building now):** verifyMarkdownCoverage → WHOLE-SEGMENT normalized equality for EVERY proposed segment (single+multi-token). Approvable AI output = reorder + verbatim-whole-line select only. Every PoC fails closed. T429 sub-phrase flips to a question (the deliberate deferral). Consumers unchanged. Doc + spec updated to mark shorten/paraphrase non-approvable in JS-03. Pure fn, ZERO migrations.
+- **MERGE HOLDS FOR BEN:** this intentionally REDUCES the résumé assistant capability (no shorten/paraphrase). The council explicitly routed this PRODUCT tradeoff to Ben ("a chosen tradeoff, not a silent regression"). So even on GREEN re-QA, #956 does NOT auto-merge — surface the tradeoff to Ben for sign-off. This is executing the council verdict, not idling.
+- **Re-QA plan when R16 pushes:** Opus (Agent/coordinated-qa, opus, worktree, jarvis_qa_3) + Codex with DEFENSIVE framing (per new memory — offensive "forge/defeat" framing tripped Codex's content filter last cycle and killed the run). Gate = both GREEN + CI green → then hold for Ben's tradeoff sign-off.
+- **v2 follow-up filed:** https://github.com/motioneso/Jarv1s/issues/957 (truth-guard-v2 relationship-preserving coverage, Part of #913, spec-gated).
+- News #955 unchanged (held on Gemini). JS-04+ serialized-blocked behind #956.
+
+**CONTINUATION NOTE (post-compaction me):** await R16 re-QA ping on the narrowed head → run Opus + defensive-Codex re-QA → if both GREEN + CI green, DO NOT auto-merge; post the capability-tradeoff summary on #956 and hold for Ben's explicit sign-off (this is the one genuinely-Ben decision here). Keep supervising News + fleet meanwhile. Session authority 58a78927. Fable-only builds.
