@@ -2350,3 +2350,14 @@ and note swap in PR. Confirmed sound: SSRF genuinely closed (resolve-all + per-h
 pinned-IP + SNI/Host + cap), EXECUTE worker-only/revoked-PUBLIC, coverage + TDD granularity. Agent
 cleared to CODE (Task 1). Next gate = wrap-up PR → security-tier QA + overnight panel sign-off.
 merges_since_relay: 0.
+
+**BUILD NOTE @ 2026-07-11 ~02:15 — #915 definer swap (pre-authorized fallback taken).**
+Agent hit the exact case Opus flagged: bespoke NOLOGIN owner role CANNOT be created from a module
+migration — `jarvis_migration_owner` is NOCREATEROLE (bootstrap 0000). So the swap is FORCED, not
+merely error-prone. Agent applying authorized fallback: migration 0158 = `jarvis_migration_owner`
+SECURITY DEFINER + narrowly role-scoped SELECT policies + worker-only EXECUTE + search_path
+`pg_catalog, app, pg_temp` (the proven 0144/0112/0137 pattern). Swap to be disclosed in PR body.
+This is within the approved envelope — no new approval issued, just confirmed. QA note: verify the
+definer is `jarvis_migration_owner` (NOT a bespoke role) and that role-scoped SELECT + worker-only
+EXECUTE still hold. Agent context ~26% left @ 32m — nudged to relay cleanly at meter warning
+(successor in same worktree, `--tab w1:t1H`). merges_since_relay: 0.
