@@ -13,6 +13,7 @@
     "check:no-ambient-dates": "tsx scripts/check-no-ambient-dates.ts",
     "check:package-deps": "tsx scripts/check-package-deps.ts",
     "check:external-modules": "tsc -p external-modules/job-search --noEmit",
+    "build:external:job-search": "tsx scripts/build-external-module.ts external-modules/job-search",
     "turbo:typecheck": "turbo run typecheck",
     "turbo:lint": "turbo run lint",
     "typecheck": "tsc --noEmit && pnpm --filter @jarv1s/web typecheck && pnpm check:external-modules",
