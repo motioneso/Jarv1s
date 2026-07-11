@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { greenhouseAdapter } from "../../external-modules/job-search/src/adapters/greenhouse.js";
+import { leverAdapter } from "../../external-modules/job-search/src/adapters/lever.js";
 import {
   JobSearchFetchError,
   MAX_POSTINGS_PER_FETCH
@@ -113,5 +114,103 @@ describe("greenhouseAdapter", () => {
     const result = greenhouseAdapter.normalize({ jobs }, cfg);
     expect(result.postings).toHaveLength(MAX_POSTINGS_PER_FETCH);
     expect(result.skippedCount).toBe(5);
+  });
+});
+
+describe("leverAdapter", () => {
+  const cfg = leverAdapter.validateConfig({ board: "leverdemo" });
+
+  it("builds the pinned postings API URL and accepts board URLs", () => {
+    expect(leverAdapter.buildUrl(cfg)).toBe("https://api.lever.co/v0/postings/leverdemo?mode=json");
+    expect(new URL(leverAdapter.buildUrl(cfg)).hostname).toBe("api.lever.co");
+    expect(leverAdapter.validateConfig({ url: "https://jobs.lever.co/leverdemo" })).toEqual({
+      board: "leverdemo"
+    });
+    // Lever site names may carry hyphens and uppercase, unlike greenhouse.
+    expect(leverAdapter.validateConfig({ board: "Lever-Demo" })).toEqual({ board: "Lever-Demo" });
+  });
+
+  it("declares allowed compliance with automated-review attribution", () => {
+    expect(leverAdapter.compliance.status).toBe("allowed");
+    expect(leverAdapter.compliance.reviewedBy).toBe("coordinator/automated");
+  });
+
+  it("normalizes the live fixture", () => {
+    const result = leverAdapter.normalize(loadFixture("lever-postings.json"), cfg);
+    expect(result.postings).toHaveLength(3);
+    expect(result.skippedCount).toBe(0);
+
+    const first = result.postings[0]!;
+    expect(first.externalId).toBe("33538a2f-d27d-4a96-8f05-fa4b0e4d940e");
+    expect(first.canonicalUrl).toBe(
+      "https://jobs.lever.co/leverdemo/33538a2f-d27d-4a96-8f05-fa4b0e4d940e"
+    );
+    expect(first.company).toBe("leverdemo");
+    expect(first.locations).toEqual(["Arlington, TX"]);
+    expect(first.workMode).toBe("hybrid");
+    expect(first.employmentType).toBe("Regular Full Time (Salary)");
+    expect(first.compensation).toBeUndefined(); // salaryRange is null in fixture
+    expect(first.publishedAt).toBe("2019-03-21T16:33:55.299Z"); // epoch-ms createdAt
+    expect(first.description).not.toContain("<");
+    expect(first.descriptionTruncated).toBe(false);
+
+    // workplaceType "unspecified" (third posting) must not map to a mode.
+    expect(result.postings[2]!.workMode).toBeUndefined();
+  });
+
+  it("formats compensation only for finite salary ranges", () => {
+    const base = {
+      id: "abc",
+      hostedUrl: "https://jobs.lever.co/leverdemo/abc",
+      text: "Role",
+      description: "<p>body</p>"
+    };
+    const withSalary = {
+      ...base,
+      salaryRange: { min: 70_000, max: 90_000, currency: "USD", interval: "year" }
+    };
+    const result = leverAdapter.normalize([withSalary], cfg);
+    expect(result.postings[0]!.compensation).toBe("70000–90000 USD per year");
+
+    for (const salaryRange of [null, {}, { min: "70000", max: 90_000 }, { min: 1 }]) {
+      const out = leverAdapter.normalize([{ ...base, salaryRange }], cfg);
+      expect(out.postings[0]!.compensation).toBeUndefined();
+    }
+  });
+
+  it("prefers descriptionPlain but still strips it, falling back to html description", () => {
+    const base = { id: "abc", hostedUrl: "https://jobs.lever.co/leverdemo/abc", text: "Role" };
+    const plain = leverAdapter.normalize(
+      [{ ...base, descriptionPlain: "Plain <b>text</b>", description: "<p>ignored</p>" }],
+      cfg
+    );
+    expect(plain.postings[0]!.description).toBe("Plain text");
+    const fallback = leverAdapter.normalize([{ ...base, description: "<p>from html</p>" }], cfg);
+    expect(fallback.postings[0]!.description).toBe("from html");
+  });
+
+  it("throws malformed_payload for non-array payloads and skips bad items", () => {
+    for (const payload of [{}, "x", null, { postings: [] }]) {
+      try {
+        leverAdapter.normalize(payload, cfg);
+        expect.unreachable("should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(JobSearchFetchError);
+        expect((error as JobSearchFetchError).code).toBe("malformed_payload");
+      }
+    }
+    const good = { id: "ok", hostedUrl: "https://jobs.lever.co/leverdemo/ok", text: "Role" };
+    const result = leverAdapter.normalize(
+      [
+        good,
+        { ...good, id: 42 }, // lever ids are strings
+        { ...good, hostedUrl: "http://evil" },
+        { ...good, text: undefined },
+        "not an object"
+      ],
+      cfg
+    );
+    expect(result.postings).toHaveLength(1);
+    expect(result.skippedCount).toBe(4);
   });
 });

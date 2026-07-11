@@ -9,7 +9,7 @@
 // trusted or echoed into errors.
 import { truncateUtf8 } from "../domain/index.js";
 import { DESCRIPTION_MAX_BYTES } from "../domain/limits.js";
-import { parseBoardConfig, parseIsoTimestamp } from "./board-config.js";
+import { httpsUrl, parseBoardConfig, parseIsoTimestamp, record } from "./board-config.js";
 import { decodeEntities, sanitizeInlineField, stripHtmlToText } from "./sanitize.js";
 import type { NormalizedPosting, NormalizeResult, SourceAdapter } from "./types.js";
 import {
@@ -24,24 +24,6 @@ const RULES = {
   tokenPattern: /^[a-z0-9]{1,100}$/,
   urlHosts: ["boards.greenhouse.io", "job-boards.greenhouse.io"]
 } as const;
-
-function record(v: unknown): Record<string, unknown> | null {
-  return typeof v === "object" && v !== null && !Array.isArray(v)
-    ? (v as Record<string, unknown>)
-    : null;
-}
-
-// canonicalUrl renders as a clickable link downstream — anything but https
-// (javascript:, http:, data:) is treated as a hostile item and skipped.
-function httpsUrl(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  try {
-    const u = new URL(v);
-    return u.protocol === "https:" ? u.toString() : null;
-  } catch {
-    return null;
-  }
-}
 
 export const greenhouseAdapter: SourceAdapter = {
   id: "greenhouse",

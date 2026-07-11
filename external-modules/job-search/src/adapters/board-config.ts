@@ -73,6 +73,25 @@ function tokenFromUrl(raw: string, rules: BoardConfigRules): string {
   return decoded;
 }
 
+// Shared payload-probing helpers for adapter normalize() implementations.
+export function record(v: unknown): Record<string, unknown> | null {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
+// canonicalUrl renders as a clickable link downstream — anything but https
+// (javascript:, http:, data:) is treated as a hostile item and skipped.
+export function httpsUrl(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 const WORK_MODES: Record<string, WorkMode> = {
   remote: "remote",
   hybrid: "hybrid",
