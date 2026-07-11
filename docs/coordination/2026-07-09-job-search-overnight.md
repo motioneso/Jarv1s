@@ -3636,3 +3636,19 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   e2e 6/6 + external-modules 2/2). CI running (~15m). On green → Sonnet QA + module-isolation /
   no-contract-drift / fail-closed / text-only walk. Then auto-merge + digest.
 - merges_since_relay = 1. A security merge (#967) will trip the relay trigger.
+
+### 2026-07-11 — SECURITY MERGE: News S2 #967 landed
+- **PR #967 MERGED** squash `aa7216a6`, issue #958 CLOSED. Dual-council security QA GREEN:
+  Opus (0 blocking) + Fable (0 blocking, 2 non-blocking). Verdicts posted to PR (durable).
+  MED non-blocking (topic-guidance validated@300 / used@1000, own-user-only) → filed **#969**.
+  Fable QA worktree removed. Codex pane pEP (session 019f4fd0, Ben's) LEFT ALONE.
+- Security-merge relay trigger fired → **flushed in place, no successor pane** (standing directive
+  #3: this coordinator auto-compacts in place). `merges_since_relay` RESET to 0.
+- **JS-06 #935 → PR #968 (SENSITIVE):** both compose smokes pass, VF pending (~min left). On green
+  → Sonnet QA + module-isolation / no-contract-drift / fail-closed / text-only walk → auto-merge +
+  digest. Owning pane pGB (c1c8f6ce) held `done` for QA-fix duty until merge.
+- **Coordinator lock:** label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`, pane
+  w1:pE6 (verified single/authoritative before #967 merge).
+- Queued: JS-07 #936 (spawn Fable when JS-06 clears); #964 (SPEC-GATED); #965 (deferred).
+- Next merge/image build after JS-06 = numbered v* tag; confirm .dockerignore keeps external-modules
+  out of the default image.
