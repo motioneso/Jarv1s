@@ -78,6 +78,7 @@ describe("news personalization schema posture (#953)", () => {
         `SELECT policyname, roles::text[] AS roles, cmd, qual, with_check
            FROM pg_policies
           WHERE schemaname = 'app' AND tablename = $1
+            AND 'jarvis_app_runtime' = ANY(roles)
           ORDER BY cmd`,
         [table]
       );
@@ -103,16 +104,23 @@ describe("news personalization schema posture (#953)", () => {
     }
   });
 
-  it("grants jarvis_worker_runtime no privilege of any kind (Slice 1 has no worker path)", async () => {
-    for (const table of PERSONALIZATION_TABLES) {
-      const result = await client.query<{ has_privilege: boolean }>(
-        `SELECT bool_or(has_table_privilege('jarvis_worker_runtime', $1, priv)) AS has_privilege
-           FROM unnest(ARRAY[
-             'select','insert','update','delete','truncate','references','trigger'
-           ]) AS priv`,
+  it("gives the Slice 2 worker only required table-level access", async () => {
+    for (const [table, expected] of [
+      ["news_custom_sources", [true, false, false, false]],
+      ["news_custom_topics", [true, false, false, false]],
+      ["news_source_exclusions", [true, false, false, false]],
+      ["news_compilation_snapshots", [true, true, true, true]]
+    ] as const) {
+      const result = await client.query<{ privileges: boolean[] }>(
+        `SELECT ARRAY[
+           has_table_privilege('jarvis_worker_runtime', $1, 'select'),
+           has_table_privilege('jarvis_worker_runtime', $1, 'insert'),
+           has_table_privilege('jarvis_worker_runtime', $1, 'update'),
+           has_table_privilege('jarvis_worker_runtime', $1, 'delete')
+         ] AS privileges`,
         [`app.${table}`]
       );
-      expect(result.rows[0]?.has_privilege, table).toBe(false);
+      expect(result.rows[0]?.privileges, table).toEqual(expected);
     }
   });
 

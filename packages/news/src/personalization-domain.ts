@@ -26,6 +26,9 @@ const MAX_INPUT_LENGTH = 2048;
 /** RFC 1035 total hostname bound (after trailing-dot strip). */
 const MAX_HOSTNAME_LENGTH = 253;
 
+export const NEWS_MAX_CUSTOM_SOURCES = 10;
+export const NEWS_MAX_CUSTOM_TOPICS = 10;
+
 // Anything with a scheme-like prefix is parsed as-is so non-HTTPS schemes (http, ftp,
 // javascript, or a bare host:port misread as scheme) are rejected rather than mangled.
 const SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;

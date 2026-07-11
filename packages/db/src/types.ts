@@ -1024,6 +1024,24 @@ export interface NewsCompilationSnapshotsTable {
   updated_at: TimestampColumn;
 }
 
+export interface NewsRefreshStateTable {
+  owner_user_id: string;
+  state: "idle" | "queued" | "running" | "failed";
+  failure_kind: "fetch" | "ai" | "internal" | null;
+  requested_generation: ColumnType<string, string | number | undefined, string | number>;
+  compiled_generation: ColumnType<string, string | number | undefined, string | number>;
+  updated_at: TimestampColumn;
+}
+
+export interface NewsPolicyVerdictsTable {
+  owner_user_id: string;
+  canonical_domain: string;
+  fingerprint: string;
+  verdict: "approved" | "rejected";
+  decided_at: TimestampColumn;
+  expires_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -1080,6 +1098,8 @@ export interface JarvisDatabase {
   "app.news_custom_topics": NewsCustomTopicsTable;
   "app.news_source_exclusions": NewsSourceExclusionsTable;
   "app.news_compilation_snapshots": NewsCompilationSnapshotsTable;
+  "app.news_refresh_state": NewsRefreshStateTable;
+  "app.news_policy_verdicts": NewsPolicyVerdictsTable;
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
@@ -1135,3 +1155,5 @@ export type NewsCustomSource = Selectable<NewsCustomSourcesTable>;
 export type NewsCustomTopic = Selectable<NewsCustomTopicsTable>;
 export type NewsSourceExclusion = Selectable<NewsSourceExclusionsTable>;
 export type NewsCompilationSnapshot = Selectable<NewsCompilationSnapshotsTable>;
+export type NewsRefreshState = Selectable<NewsRefreshStateTable>;
+export type NewsPolicyVerdict = Selectable<NewsPolicyVerdictsTable>;

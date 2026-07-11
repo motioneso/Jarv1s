@@ -130,7 +130,10 @@ describe("dataLifecycle cascade-truth (#801 Phase A)", () => {
         "app.news_custom_sources",
         "app.news_custom_topics",
         "app.news_source_exclusions",
-        "app.news_compilation_snapshots"
+        "app.news_compilation_snapshots",
+        // #958 News Slice 2 owner-scoped refresh coordination and verdict cache.
+        "app.news_refresh_state",
+        "app.news_policy_verdicts"
       ].sort()
     );
   });
