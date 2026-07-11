@@ -27,7 +27,8 @@ describe("job-search manifest contract (#930)", () => {
       workerEntrypoint: "dist/worker.js",
       workerContractVersion: 1
     });
-    expect(result.manifest.assistantTools).toHaveLength(13);
+    // 13 from JS-01..03 + the three JS-04 capture-surface tools.
+    expect(result.manifest.assistantTools).toHaveLength(16);
     // Spec delta 2: one permission per tool, equal to the tool name.
     for (const tool of result.manifest.assistantTools ?? []) {
       expect(tool.permissionId).toBe(tool.name);
@@ -130,7 +131,10 @@ describe("job-search manifest strict input schemas (#932)", () => {
     "job-search.resume.approve",
     "job-search.monitor.list",
     "job-search.monitor.get",
-    "job-search.monitor.save"
+    "job-search.monitor.save",
+    "job-search.sources.list",
+    "job-search.capture.paste",
+    "job-search.capture.url"
   ];
   const STUBS = [
     "job-search.opportunities.list",
