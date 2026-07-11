@@ -2976,3 +2976,10 @@ anything requiring escalation and do that instead of waiting for me."
 **Relay:** JS-03 R14 (9a7df97a) → R15 (e9e36096, Fable 5, pFG/t17) at 72% meter. Handoff committed ead8806f ('R14→R15 continuation'). R14 reaped. R15 executing cycle-2: RED tests → segment guard → gates → push → re-QA ping (same Opus+Codex council). Cycle-2 = LAST budget cycle. No code edits yet at handoff.
 
 **Relay:** JS-03 R15 (e9e36096) → R16 (9a93d273, Fable, pFH/t17). R15 reaped. **Cycle-2 fix COMMITTED: fa40b478** ("verify critique markdown as contiguous segment phrases, fail closed") — segment-phrase coverage guard addressing Codex D1/D2/D3. Relay doc 33cb4ae3. R16 finishing: gates → push → re-QA ping (same Opus+Codex council). NOT yet pushed / not yet gated at handoff.
+
+**Cycle-2 re-QA LAUNCHED (final budget cycle)** on PR #956 head 0146b0bd (fix fa40b478):
+- Opus QA agent ac732e395cd731ee0 (isolated worktree, jarvis_qa_3) — posts gh pr comment.
+- Codex QA PID 2223188 (js-03 worktree) → scratchpad/codex-js03-cycle2-out.log — posts gh pr comment.
+- Both scoped to: D1 lowercase/spelled-number, D2 empty markdown, D3 fabricated-relationship (+ new-bypass attempt), R16's oversize-payload test deviation, and security invariants (owner-only KV, zero-migration, secrets, provider-agnostic, module isolation).
+- GATE: JS-03 merges only on Opus AND Codex both GREEN + CI green. Split/RED → stop lane, hold #956 for Ben (budget exhausted), JS-04+ stays serialized.
+- CI on 0146b0bd: IN_PROGRESS at launch (mergeState UNSTABLE).
