@@ -275,6 +275,29 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* Live-score strip (#963): while a game is in progress the footer bar carries the current
+   score instead of the next fixture — same .sp-next ground. The LIVE token takes the venue
+   token's slot; same 2xs uppercase voice as .sp-tk__live / .sp-feat__flag. */
+.sp-next__livetag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* The pulse dot is accent-on-accent inside this bar — repaint it in the bar's text color. */
+.sp-next__livetag .sp-livedot {
+  background: currentColor;
+}
+/* Score rides the .sp-next__when right-float slot; tabular figures so a changing score
+   doesn't jitter the bar. */
+.sp-next__score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
 /* /today bleed: pin to the card base (auto top) and bleed to the edges. Sides = -space-4,
    bottom = -space-3, matching .sp-tk's padding so the bar sits flush; overflow:hidden on the
    card clips it to the radius. */

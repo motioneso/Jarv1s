@@ -264,18 +264,20 @@ export function SportsTicker(props: { followed: readonly FollowedTeamCard[] }) {
 // are shared so the two layouts can't drift on what a team's status/standing means.
 function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
   const { card } = props;
-  // Same primary-slot rule as TickerTeam: a pre-game/idle card leads with news, a live or
-  // finished game leads with its score (the Next footer, not this slot, carries the fixture).
+  // Body slot rule (#963 supersedes the live half of mrawrk0e): pre-game/idle AND live cards
+  // lead with news — a live game's score lives in the footer strip now, not the body — while
+  // a finished game still leads with its result.
   const showNews =
-    card.status === "news" || (card.status === "today" && card.todayGameState !== "final");
+    card.status === "news" ||
+    card.status === "live" ||
+    (card.status === "today" && card.todayGameState !== "final");
   const lead = card.stories[0] ?? null;
-  // The Next-game footer renders only for a team with an upcoming fixture that isn't live right
-  // now; an inactive/off-season card has no footer and so a footer's worth of empty space at the
-  // bottom. Spend that space on one more headline instead of leaving a gap (Ben 2026-07-09
-  // /sports: "for teams/leagues not active and without the next game bar, add another story
-  // headline"). Active cards keep the tighter two-link cap so the fixture bar has room.
-  const hasNextBar = Boolean(card.nextMatch) && card.status !== "live";
-  const storyCap = hasNextBar ? 2 : 3;
+  // The footer bar renders for an upcoming fixture OR a live game (#963). A card with no
+  // footer at all spends that space on one more headline instead of leaving a gap (Ben
+  // 2026-07-09 /sports: "for teams/leagues not active and without the next game bar, add
+  // another story headline"). Footer-bearing cards keep the tighter two-link cap.
+  const hasFooterBar = card.status === "live" || Boolean(card.nextMatch);
+  const storyCap = hasFooterBar ? 2 : 3;
   // A score card never spent stories[0] on its headline, so its link list starts at 0; a news
   // card already showed stories[0] as the headline, so its list starts at 1. Cap governed by
   // hasNextBar above — air, not a wall of headlines (mrb7mwhv).
@@ -366,17 +368,15 @@ function FeaturedTeamCard(props: { card: FollowedTeamCard }) {
             ))}
           </ul>
         ) : null}
-        {/* Next-game footer stays hidden while a team is live — the in-progress score owns the
-            card until full time (mrawrk0e). Today games reuse the slot with "Today" for the
-            date (mrawhf6q). */}
-        {card.nextMatch && card.status !== "live" ? (
-          // Fixture line is a tinted section, colored by venue (mrbaaq24) — green for a home
-          // game, blue for away — so a glance down the strip reads which upcoming games are at
-          // home. homeAway is "home"|"away", so the modifier resolves to --home/--away.
-          //
-          // Shared dark footer bar with /today (Ben 2026-07-09): same NextGameContent + .sp-next
-          // look; this surface's container class supplies the float/inset. One dark bar for all
-          // next matches — venue reads from the "vs"/"@" token, not color.
+        {/* Footer strip (#963): a live game shows its current score here — the same dark
+            .sp-next bar the next fixture uses (shared with /today, Ben 2026-07-09), so the
+            strip is the one place a live card differs from its neighbors. Otherwise the
+            upcoming fixture renders as before; no footer when there is neither. */}
+        {card.status === "live" ? (
+          <div className="sp-feat__next sp-next">
+            <LiveNowContent scoreText={card.primary} />
+          </div>
+        ) : card.nextMatch ? (
           <div className="sp-feat__next sp-next">
             <NextGameContent next={card.nextMatch} />
           </div>
@@ -586,6 +586,24 @@ function NextGameBar(props: { next: FollowedNextMatch }) {
     <div className="sp-tk__next sp-next">
       <NextGameContent next={props.next} />
     </div>
+  );
+}
+
+// Live-score footer content for BOTH surfaces (#963): while a game is in progress, the strip
+// that normally carries the next fixture carries the current score instead — same dark
+// .sp-next bar, so live and upcoming read as one system across the card bases. Composition
+// mirrors NextGameContent: status token on the left (where the venue token sits), score
+// floated right in the kickoff slot. scoreText is card.primary — the server already writes
+// scoreLine(game) there for a live game, so no new data crosses the contract.
+function LiveNowContent(props: { scoreText: string }) {
+  return (
+    <>
+      <span className="sp-next__livetag">
+        <LiveDot />
+        Live
+      </span>
+      <span className="sp-next__when sp-next__score">{props.scoreText}</span>
+    </>
   );
 }
 

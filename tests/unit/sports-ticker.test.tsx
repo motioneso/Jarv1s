@@ -49,20 +49,55 @@ function render(followed: FollowedTeamCard[]): string {
 }
 
 describe("SportsTicker", () => {
-  it("renders a live team block with score and header sub-row, footer hidden", () => {
-    const html = render([card()]);
+  it("renders a live team with the score in the footer strip and news in the body (#963)", () => {
+    const html = render([
+      card({
+        stories: [story({ title: "Vikings lead late in Dallas", url: "https://example.com/live" })]
+      })
+    ]);
     expect(html).toContain("sp-ticker");
     expect(html).toContain("Minnesota Vikings");
-    expect(html).toContain("MIN 21 – 14 DAL");
-    // standing + form moved into the header sub-row under the team name (mrawlzb7)
+    // standing + form stay in the header sub-row under the team name (mrawlzb7)
     expect(html).toContain("sp-feat__sub");
     expect(html).toContain("sp-formpip");
     expect(html).toContain("2nd · NFC North");
-    // the live score owns the card — the next-game footer waits until full time (mrawrk0e).
-    // FeaturedTeamCard uses the sp-feat prefix (this strip renders it, not TickerTeam).
-    expect(html).not.toContain("sp-feat__next");
-    // the competition/status eyebrow row was removed (live feedback mratgoq4)
+    // #963: the live score moves into the footer strip (same .sp-next bar as next-game),
+    // with a LIVE token; the body slot goes back to the news lede like any non-live card.
+    expect(html).toContain("sp-feat__next");
+    expect(html).toContain("sp-next__livetag");
+    expect(html).toContain("MIN 21 – 14 DAL");
+    expect(html).toContain("Vikings lead late in Dallas");
+    // the bold body score is gone — no score-styled body element renders
+    expect(html).not.toContain("sp-feat__score");
+    // live strip shows the score, never the upcoming fixture, even though nextMatch is set
+    expect(html).not.toContain("sp-next__venue");
+    // the competition/status eyebrow row stays removed (live feedback mratgoq4)
     expect(html).not.toContain("sp-feat__comp");
+  });
+
+  it("shows the No-recent-news placeholder on a storyless live card (#963)", () => {
+    const html = render([card({ stories: [] })]);
+    expect(html).toContain("No recent news");
+    expect(html).toContain("sp-next__livetag");
+    expect(html).toContain("MIN 21 – 14 DAL");
+    expect(html).not.toContain("sp-feat__score");
+  });
+
+  it("caps a live card at two secondary stories — the strip needs its room (#963)", () => {
+    // live behaves like any footer-bearing card: lede + 2 links, not lede + 3.
+    const html = render([
+      card({
+        stories: [
+          story({ title: "Lede story", url: "https://example.com/a" }),
+          story({ title: "Second story", url: "https://example.com/b" }),
+          story({ title: "Third story", url: "https://example.com/c" }),
+          story({ title: "Fourth story", url: "https://example.com/d" })
+        ]
+      })
+    ]);
+    expect(html).toContain("Second story");
+    expect(html).toContain("Third story");
+    expect(html).not.toContain("Fourth story");
   });
 
   // Regression for the standingIsSane guard: the old bare /-\d/ negative-points check also
