@@ -2606,3 +2606,13 @@ finishing task7 in parallel — awaiting its relay-successor confirm to reap pEH
 **Stale/benign:** pBK (idle, unrelated news-module Opus, session 28c218bf) parked in agents tab — not the #916 successor, benign leftover.
 
 **Next:** await pEK gate→PR (SECURITY QA path: Opus adversarial + Fable panel + posted verdict → merge → close #916 → epic #818 platform-complete → board Done). Await pEJ plan → approve in-spec. Then W2 fan-out (JS-02+JS-04 on Fable, security tier).
+
+---
+
+## CHECKPOINT — #916 PR open, SECURITY gate running
+
+- **#916 PR #947** OPEN, MERGEABLE, tip `07b1f260`, closes #916. Local VF=0/AUDIT=0/trio=0 (pEK). CI **pending** (VF + 2 compose smokes). CI-green is a hard merge precondition.
+- Authority re-confirmed: pE6 session `58a78927` == manifest lock. Authoritative to merge.
+- **SECURITY-tier panel launched (both background, both `gh pr comment` + return verdict):** Opus adversarial QA (trust-boundary hunt: no-auto-submit, cap=1000 fail-closed no-truncate, module-id host-binding anti-impersonation, disabled/hash-drift fail-closed) + Fable panel sign-off (verifies its 2 build-guidance edits: per-contribution host-action injection, `initialText` draft path not `openChatWith`).
+- **Merge condition:** CI green + Opus PASS + Fable APPROVE → merge → close #916 → epic #818 platform-complete (all 6 seams) → board Done. Per Ben override: Fable has final decision (not Ben); after this SECURITY merge, flush in place, NO successor coordinator.
+- **JS-01** relayed old pEJ (reaped by me) → **pEM** `(r2)` Fable 5, tab w1:t17, rulings baked into relay doc `258b8803` + my re-send (queued). Writing plan → will surface for approval.
