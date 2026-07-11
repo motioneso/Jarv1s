@@ -3428,3 +3428,21 @@ Ben: "we dont need to continue the news build with GLM, just need to nudge codex
   in the news-slice2 worktree. Codex to assess GLM leftover → `git checkout -- packages/news && git clean -fd
   packages/news` if incoherent → build Tasks 11-16 fresh from committed plan. QA council Opus+Fable.
 - If cron doesn't fire (session change), the autonomous heartbeat picks it up after 14:37.
+
+## RELAY CHECKPOINT (70% meter + security merge) — 2026-07-11 ~13:00 PDT
+
+**Handled in place (directive #3: coordinator auto-compacts, NO successor pane).**
+
+### JS-05 #934 MERGED
+- **PR #961 squash `9d4589d1`** (Closes #934). Security tier. VF green 140 files/1527 tests, CI green.
+- QA council: primary Opus (coordinated-qa) + degraded 2nd-lens Opus critic (Codex capped) — BOTH GREEN/SAFE-TO-MERGE. Convergent non-blocking finding only.
+- Reaped: build agent pG1 (Fable v4, e4374ed4); worktree removed; local branch `feat/js-05-monitoring` deleted. #934 CLOSED.
+- Follow-up filed: **#962** (Part of #913) — handler-level cross-owner run-now denial test + schedule-state UPDATE clobber assert + restrict run-now jobKind + singletonKey monitorId. Non-blocking; fold 1-2 into JS-07, 3-4 small route hardening.
+
+### Lane state after this merge
+- **JS DAG:** JS-01..JS-05 DONE. **JS-06 (#935) now unblocked — next to spawn (Fable build agent, worktree off origin/main).**
+- **News S2 #958:** parked; cron `42049f84` fires **14:40 PDT** to resume on Codex in news-slice2 worktree; QA council = Opus + Fable. GLM build abandoned per Ben; committed nothing.
+- **#933 JS-04 PR #959:** Opus QA was running — re-check status next loop.
+- `merges_since_relay` reset to 0.
+
+**Continuation note (mid-doing):** spawning JS-06 build agent next; then re-check #959 QA verdict; News S2 cron self-fires.
