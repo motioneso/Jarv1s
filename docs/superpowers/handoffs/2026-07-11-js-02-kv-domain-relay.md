@@ -19,9 +19,11 @@ Successor: you continue this build in THIS worktree/branch. You are **Fable**
   No code written yet. Spec-vs-branch verification DONE (result recorded in the plan).
 - Coordinator (label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`) was messaged
   2026-07-11: plan ready + purge-descope fork + namespace-drift note.
-- **GATE: do NOT write code until the coordinator approves the plan** (it may also rule on the
-  purge fork — plan Task 12/PR notes assume descope unless it says otherwise). If no reply is in
-  your pane input/queue, poll your own pane context; if silent, wait — don't build.
+- **GATE: do NOT write code until the coordinator approves the plan.** Coordinator ack
+  (2026-07-11, pre-relay): plan received; namespace ruling CONFIRMED (`job-search.*` wins);
+  purge-descope fork being adjudicated via Opus (it is verifying the no-platform-purge-path
+  claim); explicit HOLD until approval arrives. Plan Task 12/PR notes assume descope unless the
+  ruling says otherwise. If silent, wait — don't build.
 
 ## Implementation notes not in the plan doc
 
