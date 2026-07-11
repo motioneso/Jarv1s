@@ -2794,3 +2794,12 @@ anything requiring escalation and do that instead of waiting for me."
 **JS-03 #932 — QUEUED, not yet spawned.** Spec (on origin/main a8d638e4, NOT on coord branch): `docs/superpowers/specs/2026-07-10-job-search-js-03-onboarding-truth-guard.md` (+ module-design + task-decomposition). Epic #913. GATE: holding spawn until main CI on a8d638e4 concludes green (watch bhrb5syhy, one-shot). Then: worktree off origin/main, Fable handoff, spawn Fable build agent (SOLO lane, coordinated-build → plan → my approval → TDD). Tier TBD from spec ("resume truth guard" → ≥ sensitive, likely security).
 
 **News S1 pEW (Fable) RELAYING at 70%.** Progress: plan approved; Task 1 partial — split foundation.test.ts → foundation-schema-catalog.test.ts (dbcf9092, 31/31 green, file-size gate green), prettier 1cda4286. Migration 0159 reserved, NOT written. pEW spawning its own Fable successor same worktree/tab. **ACTION PENDING:** verify successor lands in agents tab on `claude-fable-5` (self-relay can misplace tab), then reap old pEW pane. NOTE: foundation.test.ts split is a shared-file structural change — low collision risk now (News is sole migration-bearing lane; JS-03 not yet spawned).
+
+---
+
+## Checkpoint 2026-07-11c — JS-03 spawned, News S1 on pEX
+
+- **Main CI `a8d638e4` = SUCCESS** (watch bhrb5syhy). JS-03 gate cleared.
+- **JS-03 #932 SPAWNED:** pane `w1:pEY` "JS-03: onboarding+truth (F)", Fable 5 confirmed, tab t17, worktree `.claude/worktrees/js-03-onboarding-truth` on branch `feat/js-03-onboarding-truth` off `origin/main a8d638e4` (atop merged JS-02). Handoff `docs/coordination/2026-07-11-js-03-build-handoff.md` (in build worktree, untracked). SECURITY tier. **ZERO-migration guardrail** encoded (Job Search is module_kv-only; escalate [DESIGN-FORK] if it thinks it needs SQL — would collide with News chain). Awaiting its coordinated-build plan-approval escalation.
+- **News S1:** pEX (Fable R2, session 21e9b17a) sole lane, building. Old pEW reaped.
+- **Next merges (serialized queue):** JS-03 when its PR council-green; News S1 when its PR unanimous-council-green. Single queue avoids migration-number collision (News owns 0159+).
