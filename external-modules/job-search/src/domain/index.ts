@@ -25,6 +25,7 @@ export {
   CRITIQUE_SCHEMA,
   CRITIQUE_SUMMARY_MAX_CHARS,
   MATERIAL_CLAIMS_MAX,
+  MATERIAL_CLAIM_KINDS,
   parseCritique,
   verifyClaims
 } from "./truth-guard.js";

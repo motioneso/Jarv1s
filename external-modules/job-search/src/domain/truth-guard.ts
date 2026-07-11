@@ -42,7 +42,9 @@ export interface TruthGuardVerdict {
   readonly unsupported: readonly MaterialClaim[];
 }
 
-const MATERIAL_CLAIM_KINDS: readonly MaterialClaimKind[] = [
+// Exported so tool-input validation names the same seven kinds the guard
+// enforces — a drift here would let a claim kind bypass verification.
+export const MATERIAL_CLAIM_KINDS: readonly MaterialClaimKind[] = [
   "employer",
   "role",
   "date",
