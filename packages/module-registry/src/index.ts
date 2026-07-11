@@ -427,6 +427,11 @@ export interface BuiltInRouteDependencies {
    * so every existing registerBuiltInApiRoutes call site keeps compiling unchanged.
    */
   readonly externalModules?: ExternalModulesDependencies;
+  readonly reconcileExternalModuleJobs?: (
+    change:
+      | { readonly kind: "module"; readonly moduleId: string }
+      | { readonly kind: "user"; readonly userId: string }
+  ) => Promise<void>;
   /** TEST-ONLY. Inject a fake fetch for weather (and any other external HTTP) without real network. */
   readonly fetchFn?: typeof fetch;
 }
@@ -811,6 +816,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         onboardingInstall: deps.onboardingInstall,
         onboardingLogin: deps.onboardingLogin,
         externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
+        reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),
         notificationUnreadPort: new NotificationsRepository(),

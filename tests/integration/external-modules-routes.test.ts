@@ -5,6 +5,7 @@ import type { OutgoingHttpHeaders } from "node:http";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
+import { Client } from "pg";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 
@@ -95,6 +96,14 @@ describe("external-module admin routes (#917)", () => {
     });
     expect(enableRes.statusCode).toBe(200);
     expect(enableRes.json().module).toMatchObject({ status: "enabled", active: true });
+
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    const controls = await client.query<{ data: Record<string, unknown> }>(
+      `SELECT data FROM pgboss.job_common WHERE name = 'platform.module-control' ORDER BY created_on DESC LIMIT 1`
+    );
+    await client.end();
+    expect(controls.rows[0]?.data).toEqual({ moduleId: "acme-widgets", action: "reconcile" });
 
     const modulesRes = await server.inject({
       method: "GET",

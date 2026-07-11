@@ -169,6 +169,11 @@ export interface SettingsRoutesDependencies {
   readonly repository?: SettingsRepository;
   /** #917 external-module discovery snapshot; routes added in Task 9 consume it. */
   readonly externalModules?: ExternalModulesDependencies;
+  readonly reconcileExternalModuleJobs?: (
+    change:
+      | { readonly kind: "module"; readonly moduleId: string }
+      | { readonly kind: "user"; readonly userId: string }
+  ) => Promise<void>;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;
@@ -249,7 +254,8 @@ export function registerSettingsRoutes(
     bootstrapConnectionString: dependencies.bootstrapConnectionString,
     verifySelfPassword: dependencies.verifySelfPassword,
     hasPasswordCredential: dependencies.hasPasswordCredential,
-    moduleDeletionTables: dependencies.moduleDeletionTables
+    moduleDeletionTables: dependencies.moduleDeletionTables,
+    reconcileExternalModuleJobs: dependencies.reconcileExternalModuleJobs
   });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerNotificationPreferencesRoutes(server, {
@@ -502,6 +508,14 @@ export function registerSettingsRoutes(
           if (verb === "deactivate" && dependencies.revokeUserSessions) {
             await dependencies.revokeUserSessions(id);
           }
+          try {
+            await dependencies.reconcileExternalModuleJobs?.({ kind: "user", userId: id });
+          } catch (error) {
+            request.log.warn(
+              { userId: id, errorName: (error as Error).name },
+              "external module user schedule reconcile failed"
+            );
+          }
           return { user: serializeUser(user) };
         } catch (error) {
           return handleRouteError(error, reply);
@@ -609,6 +623,14 @@ export function registerSettingsRoutes(
         throw new HttpError(409, error.message);
       }
       throw error;
+    }
+    try {
+      await dependencies.reconcileExternalModuleJobs?.({ kind: "user", userId: id });
+    } catch (error) {
+      request.log.warn(
+        { userId: id, errorName: (error as Error).name },
+        "external module user schedule reconcile failed"
+      );
     }
     return id;
   }

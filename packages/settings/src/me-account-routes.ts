@@ -47,6 +47,10 @@ export interface MeAccountRoutesDependencies {
   readonly hasPasswordCredential?: HasPasswordCredentialPort;
   /** See SettingsRoutesDependencies.moduleDeletionTables (#801 Phase A). */
   readonly moduleDeletionTables: readonly { table: string; countPredicate: string }[];
+  readonly reconcileExternalModuleJobs?: (change: {
+    readonly kind: "user";
+    readonly userId: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -189,6 +193,15 @@ export function registerMeAccountRoutes(
             throw new LastAdminSelfDeleteError();
           }
           throw error;
+        }
+
+        try {
+          await dependencies.reconcileExternalModuleJobs?.({ kind: "user", userId: actorUserId });
+        } catch (error) {
+          request.log.warn(
+            { userId: actorUserId, errorName: (error as Error).name },
+            "external module user schedule reconcile failed"
+          );
         }
 
         // The caller's own session was cascade-deleted by the user-row delete;

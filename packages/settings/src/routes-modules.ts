@@ -229,6 +229,17 @@ export function registerModuleRoutes(server: FastifyInstance, ctx: ModuleRoutesC
             return updated;
           }
         );
+        try {
+          await dependencies.reconcileExternalModuleJobs?.({
+            kind: "module",
+            moduleId: request.params.id
+          });
+        } catch (error) {
+          request.log.warn(
+            { moduleId: request.params.id, errorName: (error as Error).name },
+            "external module job reconcile signal failed"
+          );
+        }
         return { module: dto };
       } catch (error) {
         return handleRouteError(error, reply);

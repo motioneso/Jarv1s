@@ -23,7 +23,7 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { createPgBossClient, sendModuleControl } from "@jarv1s/jobs";
 import {
   aggregateFocusSignals,
   createActiveModulesResolver,
@@ -59,6 +59,7 @@ import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
+import { registerExternalModuleJobRoutes } from "./external-module-jobs.js";
 import {
   createExternalActiveModulesResolver,
   createExternalModuleTools
@@ -377,6 +378,17 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       externalModuleSnapshot.discoveries,
       getActiveExternalModules
     );
+    if (apiServerConfig.enableExternalModules) {
+      registerExternalModuleJobRoutes(server, {
+        boss,
+        discoveries: externalModuleSnapshot.discoveries,
+        resolveAccessContext: authRuntime.resolveAccessContext,
+        isModuleActive: async (access, moduleId) =>
+          (await getActiveExternalModules?.(access))?.some((module) => module.id === moduleId) ===
+          true,
+        rateLimitKey: authPrincipalRateLimitKey
+      });
+    }
 
     // Observability sink (#413): POST /api/errors. Platform infra (no auth, no
     // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
@@ -535,6 +547,21 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         // port declares (field-identical), and ExternalModuleState (settings) is structurally
         // the ExternalModuleStateInput reconcile wants (Task 7 confirmed). TS bridges both here.
         reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
+      },
+      reconcileExternalModuleJobs: async (change) => {
+        if (change.kind === "module") {
+          await sendModuleControl(boss, { moduleId: change.moduleId, action: "reconcile" });
+          return;
+        }
+        const moduleIds = new Set(externalModuleSnapshot.discoveries.map((module) => module.id));
+        for (const schedule of await boss.getSchedules()) {
+          if (
+            schedule.key.endsWith(`:${change.userId}`) &&
+            [...moduleIds].some((moduleId) => schedule.name.startsWith(`${moduleId}.`))
+          ) {
+            await boss.unschedule(schedule.name, schedule.key);
+          }
+        }
       },
       fetchFn: options.fetchFn
     });
