@@ -2422,3 +2422,26 @@ hardening issue post-merge. Slice-3 structured-AI split confirmed intended (#923
 foundation+app + both smokes PASS; "Build and publish images" finishing (non-required). Fable
 sign-off spawned (a9af1144, sole 2nd-lens — Codex capped). Merge on Fable APPROVE + all CI green.
 merges_since_relay: 0.
+
+**#915 MERGED @ 2026-07-11 ~03:55.** Security-tier gates all cleared: CI GREEN (pass=4/fail=0),
+Opus adversarial QA GREEN (comment `4942172129`), Fable second-lens sign-off APPROVE (comment
+`4942209026`; Codex capped until 10:12 → Opus+Fable panel per the #919/#914 precedent). **Merged
+PR #945 squash `2f4a0fe3`** (`feat(modules): add external worker capabilities (#915)`). Post-merge
+bookkeeping DONE: issue #915 CLOSED; build agent pEC (session `019f4ef5`) reaped; worktree
+`915-worker-capabilities` removed + branch deleted; follow-up SSRF-hardening TEST issue **#946**
+filed (non-blocking gaps incl. `::ffff:0:0/96` parity — Fable adjudicated non-reachable: 3 barriers).
+Task #10 → done. **merges_since_relay: 1** (security merge fired relay trigger).
+
+**RELAY DECISION @ 2026-07-11 ~03:55 — FLUSH IN PLACE, NO SUCCESSOR.** Standing Ben override for
+this session ("You don't need to relay, you auto-compacted"): this coordinator auto-compacts, so on
+the 70% meter / security-merge relay trigger I do NOT spawn a successor pane — I flush manifest +
+memory in-place and continue in-session. Lock unchanged: session `58a78927`, pane resolved fresh by
+label. merges_since_relay reset conceptually (no handoff); continuing.
+
+**#916 RELEASED @ 2026-07-11 ~03:55.** Prereq #915 merged → spawned #916 build lane. Worktree
+`.claude/worktrees/916-host-starter-action` off origin/main @ `2f4a0fe3`; branch
+`feat/916-host-starter-action`; handoff written into the agent worktree (untracked) with Fable's
+two build-guidance edits folded in (per-contribution injection; `initialText` not `openChatWith`).
+Build agent **pED** (tab w1:t17, session `c9baeba1`) booted on **Sonnet 5**, correct branch, bypass
+on. Tier = **security** (host trust boundary) → same bar: Opus adversarial QA + panel sign-off
+(Codex rejoins ≥10:12). Awaiting its plan-ready escalation. Task #8 → in_progress.
