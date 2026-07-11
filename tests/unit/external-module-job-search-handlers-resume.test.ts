@@ -21,6 +21,7 @@ import {
   getOnboardingState,
   listConfirmationIds,
   RESUME_TOO_LARGE_MESSAGE,
+  saveConfirmation,
   saveOriginalResume,
   saveResumeRevision
 } from "../../external-modules/job-search/src/domain/index.js";
@@ -31,6 +32,7 @@ import type {
   WorkerPorts
 } from "../../external-modules/job-search/src/worker/ai-port.js";
 import {
+  approveResumeHandler,
   getResumeHandler,
   saveResumeDraftHandler
 } from "../../external-modules/job-search/src/worker/handlers/resume.js";
@@ -411,5 +413,67 @@ describe("resume.save-draft handler — critique mode", () => {
     expect(result.code).toBe("resume_input_too_large");
     expect(result.message).toBe(RESUME_TOO_LARGE_MESSAGE);
     expect(kv.dump()).toEqual(before);
+  });
+});
+
+describe("resume.approve handler", () => {
+  it("approve existing revision: active pointer set, three flags complete, id recorded", async () => {
+    const kv = createMemoryKv();
+    await seedRevised(kv);
+    const result = await approveResumeHandler(portsFor(kv))({ revisionId: "r1" });
+    expect(result).toEqual({ status: "ok", revisionId: "r1" });
+
+    // Default get now resolves through the active pointer, not the original.
+    const active = await getResumeHandler(portsFor(kv))({});
+    expect(active.revisionId).toBe("r1");
+
+    // Approval is the third checkpoint — a paste+approve user (no critique)
+    // still passes all three flags; that monotonic jump is the flow-engine
+    // design from Task 4, not an accident.
+    const state = await getOnboardingState(kv);
+    expect(state?.completed["resume_intake"]).toBe(true);
+    expect(state?.completed["resume_critique"]).toBe(true);
+    expect(state?.completed["resume_approval"]).toBe(true);
+    expect(state?.approvedResumeRevisionId).toBe("r1");
+  });
+
+  it("unknown revision id: missing_revision error via wrap", async () => {
+    const kv = createMemoryKv();
+    await seedRevised(kv);
+    const result = await wrap(approveResumeHandler(portsFor(kv)))({ revisionId: "nope" });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("missing_revision");
+  });
+
+  it("backward movement: approving an older revision keeps every revision and confirmation", async () => {
+    const kv = createMemoryKv();
+    await seedRevised(kv);
+    await saveConfirmation(kv, {
+      schemaVersion: 1,
+      confirmationId: confirmationIdFor("metric", "Raised revenue 40%"),
+      claimKind: "metric",
+      claimText: "Raised revenue 40%",
+      confirmedAt: NOW.toISOString()
+    });
+    await approveResumeHandler(portsFor(kv))({ revisionId: "r1" });
+    const afterForward = kv.dump();
+
+    // Roll back to the original. History is append-only: only the active
+    // pointer and onboarding record may differ — nothing disappears.
+    const result = await approveResumeHandler(portsFor(kv))({ revisionId: "0" });
+    expect(result).toEqual({ status: "ok", revisionId: "0" });
+    const active = await getResumeHandler(portsFor(kv))({});
+    expect(active.revisionId).toBe("0");
+
+    const afterBack = kv.dump();
+    expect(afterBack.size).toBe(afterForward.size);
+    for (const key of afterForward.keys()) {
+      expect(afterBack.has(key)).toBe(true);
+    }
+    const state = await getOnboardingState(kv);
+    expect(state?.approvedResumeRevisionId).toBe("0");
+    expect(await listConfirmationIds(kv)).toEqual(
+      new Set([confirmationIdFor("metric", "Raised revenue 40%")])
+    );
   });
 });

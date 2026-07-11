@@ -19,6 +19,7 @@ import {
   NS,
   RESUME_INPUT_MAX_BYTES,
   RESUME_TOO_LARGE_MESSAGE,
+  approveResume,
   assertId,
   confirmationIdFor,
   contentHash,
@@ -376,5 +377,27 @@ export function saveResumeDraftHandler(ports: WorkerPorts) {
   return async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const mode = readEnum(input, "mode", ["manual", "critique"] as const, { required: true });
     return mode === "manual" ? manualSave(ports, input) : critiqueSave(ports, input);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// resume.approve (Task 9)
+// ---------------------------------------------------------------------------
+
+export function approveResumeHandler(ports: WorkerPorts) {
+  return async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const revisionId = readString(input, "revisionId", { required: true });
+    assertId(revisionId);
+    // approveResume verifies the revision exists (missing_revision otherwise)
+    // and moves the active pointer — history stays append-only.
+    await approveResume(ports.kv, revisionId, ports.now());
+    // Flags are monotonic: approval marks all three resume checkpoints, so a
+    // user who pasted and approved without ever running a critique still
+    // clears the checkpoint (flow-engine design from Task 4).
+    await updateOnboarding(ports.kv, {
+      complete: ["resume_intake", "resume_critique", "resume_approval"],
+      approvedResumeRevisionId: revisionId
+    });
+    return { status: "ok", revisionId };
   };
 }
