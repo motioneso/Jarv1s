@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type { NewsPrefDto } from "@jarv1s/shared";
+import type { NewsPrefDto, NewsSourceExclusionDto } from "@jarv1s/shared";
 
 import {
   NewsService,
@@ -71,10 +71,25 @@ function pref(kind: NewsPrefDto["kind"], key: string): NewsPrefDto {
   };
 }
 
+let exclusionCounter = 0;
+function exclusion(canonicalDomain: string): NewsSourceExclusionDto {
+  exclusionCounter += 1;
+  return {
+    id: `10000000-0000-0000-0000-${String(exclusionCounter).padStart(12, "0")}`,
+    canonicalDomain,
+    createdAt: "2026-07-11T00:00:00.000Z"
+  };
+}
+
 function makeDeps(
-  overrides: { getFeed?: FeedHandler; prefs?: NewsPrefDto[] } = {}
+  overrides: {
+    getFeed?: FeedHandler;
+    prefs?: NewsPrefDto[];
+    exclusions?: NewsSourceExclusionDto[];
+  } = {}
 ): NewsServiceDependencies {
   const prefs = overrides.prefs ?? [];
+  const exclusions = overrides.exclusions ?? [];
   return {
     datasetClient: makeDatasetClient(overrides.getFeed ?? (async () => [item()])),
     dataContext: {
@@ -83,6 +98,9 @@ function makeDeps(
     },
     repository: {
       list: async () => prefs
+    },
+    personalization: {
+      listExclusions: async () => exclusions
     }
   };
 }
@@ -258,6 +276,71 @@ describe("NewsService.getOverview (#897)", () => {
     );
     const overview = await service.getOverview(userA);
     expect(overview.activeTopics).toEqual(["world"]);
+  });
+});
+
+describe("NewsService exclusion filtering (#953 Slice 1)", () => {
+  it("drops a curated source whose homepage domain is excluded BEFORE any fetch", async () => {
+    const calls: string[] = [];
+    const service = new NewsService(
+      makeDeps({
+        exclusions: [exclusion("bbc.com")], // homepage www.bbc.com is a subdomain match
+        getFeed: async (sourceKey) => {
+          calls.push(sourceKey);
+          return [item()];
+        }
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(calls).toEqual(["guardian", "npr"]);
+    expect(overview.sourceGroups.map((g) => g.sourceKey)).toEqual(["guardian", "npr"]);
+    expect(overview.enabledSources.map((s) => s.sourceKey)).toEqual(["guardian", "npr"]);
+  });
+
+  it("drops composed headlines whose article hostname matches an exclusion via ANOTHER feed", async () => {
+    // An excluded domain must never appear through a different curated feed: the guardian
+    // feed here carries a syndicated copy hosted on the excluded domain (and one on a
+    // subdomain of it); both must vanish while the guardian's own story survives.
+    const service = new NewsService(
+      makeDeps({
+        exclusions: [exclusion("syndicated.example")],
+        getFeed: async (sourceKey) =>
+          sourceKey === "guardian"
+            ? [
+                item({ url: "https://syndicated.example/wire-story" }),
+                item({ url: "https://cdn.syndicated.example/wire-story-2" }),
+                item({ url: "https://www.theguardian.com/own-story" })
+              ]
+            : []
+      })
+    );
+    const overview = await service.getOverview(userA);
+    const urls = overview.topStories.map((h) => h.url);
+    expect(urls).toEqual(["https://www.theguardian.com/own-story"]);
+  });
+
+  it("does not match suffix tricks (excluding example.com keeps notexample.com)", async () => {
+    const service = new NewsService(
+      makeDeps({
+        exclusions: [exclusion("example.com")],
+        getFeed: async (sourceKey) =>
+          sourceKey === "npr" ? [item({ url: "https://notexample.com/story" })] : []
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.topStories.map((h) => h.url)).toEqual(["https://notexample.com/story"]);
+  });
+
+  it("keeps exclusions effective on the briefing path (getTopHeadlinesForToday)", async () => {
+    const service = new NewsService(
+      makeDeps({
+        exclusions: [exclusion("bbc.com")],
+        getFeed: async (sourceKey) => (sourceKey === "bbc" ? [item(), item()] : [item()])
+      })
+    );
+    const { facts } = await service.getTopHeadlinesForToday({} as DataContextDb);
+    expect(facts.length).toBeGreaterThan(0);
+    for (const fact of facts) expect(fact).not.toContain("BBC News");
   });
 });
 

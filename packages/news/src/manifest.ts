@@ -4,7 +4,10 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   createNewsPrefRequestSchema,
   createNewsPrefResponseSchema,
+  createNewsSourceExclusionSchema,
   deleteNewsPrefResponseSchema,
+  deleteNewsSourceExclusionSchema,
+  getNewsPersonalizationSchema,
   newsCatalogResponseSchema,
   newsOverviewResponseSchema,
   newsPrefsResponseSchema
@@ -80,7 +83,8 @@ export const newsModuleManifest = {
     {
       id: "news.prefs",
       label: "Manage news preferences",
-      description: "Create and delete the active actor's own news source and topic preferences.",
+      description:
+        "Create and delete the active actor's own news source and topic preferences, including excluded publisher domains.",
       scope: "user",
       actions: ["create", "delete"]
     }
@@ -115,6 +119,26 @@ export const newsModuleManifest = {
       method: "DELETE",
       path: "/api/news/prefs/:id",
       responseSchema: deleteNewsPrefResponseSchema,
+      permissionId: "news.prefs"
+    },
+    // #953 Slice 1 personalization: reads under news.view, exclusion writes under news.prefs.
+    {
+      method: "GET",
+      path: "/api/news/personalization",
+      responseSchema: getNewsPersonalizationSchema,
+      permissionId: "news.view"
+    },
+    {
+      method: "POST",
+      path: "/api/news/source-exclusions",
+      requestSchema: createNewsSourceExclusionSchema.body,
+      responseSchema: createNewsSourceExclusionSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "DELETE",
+      path: "/api/news/source-exclusions/:id",
+      responseSchema: deleteNewsSourceExclusionSchema,
       permissionId: "news.prefs"
     }
   ],

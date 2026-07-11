@@ -4,6 +4,7 @@ import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 
 import { NewsPrefsRepository } from "./repository.js";
 import { NewsService } from "./news-service.js";
+import { NewsPersonalizationRepository } from "./personalization-repository.js";
 
 /**
  * Sole intended consumer is the daily briefing (mirrors sports' followedFactsToday). It is
@@ -31,7 +32,9 @@ export function configureNewsBriefingService(datasetClient: DatasetClient): void
         throw new Error("news briefing tool reads the gateway-scoped db directly");
       }
     },
-    repository: new NewsPrefsRepository()
+    repository: new NewsPrefsRepository(),
+    // #953: briefing headlines honor the actor's publisher-domain exclusions too.
+    personalization: new NewsPersonalizationRepository()
   });
 }
 
