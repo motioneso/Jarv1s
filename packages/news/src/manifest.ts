@@ -2,15 +2,22 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
+  confirmNewsSourceSchema,
   createNewsPrefRequestSchema,
   createNewsPrefResponseSchema,
   createNewsSourceExclusionSchema,
+  createNewsTopicSchema,
+  deleteNewsCustomSourceSchema,
   deleteNewsPrefResponseSchema,
   deleteNewsSourceExclusionSchema,
+  deleteNewsTopicSchema,
   getNewsPersonalizationSchema,
   newsCatalogResponseSchema,
   newsOverviewResponseSchema,
-  newsPrefsResponseSchema
+  newsPrefsResponseSchema,
+  previewNewsSourceSchema,
+  triggerNewsRefreshSchema,
+  updateNewsTopicSchema
 } from "@jarv1s/shared";
 
 import { newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
@@ -146,6 +153,52 @@ export const newsModuleManifest = {
       method: "DELETE",
       path: "/api/news/source-exclusions/:id",
       responseSchema: deleteNewsSourceExclusionSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "POST",
+      path: "/api/news/sources/preview",
+      requestSchema: previewNewsSourceSchema.body,
+      responseSchema: previewNewsSourceSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "POST",
+      path: "/api/news/sources",
+      requestSchema: confirmNewsSourceSchema.body,
+      responseSchema: confirmNewsSourceSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "DELETE",
+      path: "/api/news/sources/:id",
+      responseSchema: deleteNewsCustomSourceSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "POST",
+      path: "/api/news/topics",
+      requestSchema: createNewsTopicSchema.body,
+      responseSchema: createNewsTopicSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "PATCH",
+      path: "/api/news/topics/:id",
+      requestSchema: updateNewsTopicSchema.body,
+      responseSchema: updateNewsTopicSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "DELETE",
+      path: "/api/news/topics/:id",
+      responseSchema: deleteNewsTopicSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "POST",
+      path: "/api/news/refresh",
+      responseSchema: triggerNewsRefreshSchema,
       permissionId: "news.prefs"
     }
   ],

@@ -9,13 +9,12 @@ import type {
   NewsCustomSourceDto,
   NewsCustomTopicDto,
   NewsPrefDto,
+  NewsRefreshStateDto,
   NewsSourceExclusionDto
 } from "@jarv1s/shared";
 
-import {
-  NewsPersonalizationLimitError,
-  type NewsSnapshotRecord
-} from "../../packages/news/src/personalization-repository.js";
+import { NewsPersonalizationLimitError } from "../../packages/news/src/personalization-repository.js";
+import type { NewsPersonalizationStore } from "../../packages/news/src/personalization-routes.js";
 import { registerNewsRoutes, type NewsRoutesDependencies } from "../../packages/news/src/routes.js";
 import type { RssFeedItem } from "../../packages/news/src/source/rss-source.js";
 
@@ -103,18 +102,11 @@ function makeRepo(initial: NewsPrefDto[]): FakeRepo {
  * carrying EXTRA module-private fields (fingerprint, provider identity) beyond the DTO so the
  * serialization tests can prove the response schemas strip them on the wire.
  */
-interface FakePersonalization {
-  listCustomSources(scopedDb: DataContextDb): Promise<NewsCustomSourceDto[]>;
-  listCustomTopics(scopedDb: DataContextDb): Promise<NewsCustomTopicDto[]>;
-  listExclusions(scopedDb: DataContextDb): Promise<NewsSourceExclusionDto[]>;
-  createExclusion(
-    scopedDb: DataContextDb,
-    canonicalDomain: string
-  ): Promise<NewsSourceExclusionDto>;
-  removeExclusion(scopedDb: DataContextDb, id: string): Promise<boolean>;
-  readLatestSnapshot(scopedDb: DataContextDb): Promise<NewsSnapshotRecord | null>;
+interface FakePersonalization extends NewsPersonalizationStore {
   createdDomains: string[];
   removedIds: string[];
+  refreshBumps: number[];
+  prunedDomains: string[];
 }
 
 const LEAKED_SOURCE_ROW = {
@@ -151,9 +143,14 @@ const SEEDED_EXCLUSION: NewsSourceExclusionDto = {
 function makePersonalization(overrides: Partial<FakePersonalization> = {}): FakePersonalization {
   const createdDomains: string[] = [];
   const removedIds: string[] = [];
+  const refreshBumps: number[] = [];
+  const prunedDomains: string[] = [];
+  let refreshState: NewsRefreshStateDto = { state: "idle", updatedAt: null };
   return {
     createdDomains,
     removedIds,
+    refreshBumps,
+    prunedDomains,
     listCustomSources: async () => [LEAKED_SOURCE_ROW],
     listCustomTopics: async () => [LEAKED_TOPIC_ROW],
     listExclusions: async () => [SEEDED_EXCLUSION],
@@ -169,6 +166,47 @@ function makePersonalization(overrides: Partial<FakePersonalization> = {}): Fake
       removedIds.push(id);
       return true;
     },
+    createCustomSource: async (_db, input) => ({
+      id: "77777777-7777-7777-7777-777777777777",
+      ...input,
+      validationStatus: "approved",
+      healthStatus: "available",
+      createdAt: "2026-07-11T00:00:00.000Z"
+    }),
+    replaceCustomSource: async (_db, id, input) => ({
+      id,
+      ...input,
+      validationStatus: "approved",
+      healthStatus: "available",
+      createdAt: "2026-07-11T00:00:00.000Z"
+    }),
+    deleteCustomSource: async () => true,
+    createCustomTopic: async (_db, input) => ({
+      id: "88888888-8888-8888-8888-888888888888",
+      label: input.label,
+      guidance: input.guidance,
+      validationStatus: "approved",
+      createdAt: "2026-07-11T00:00:00.000Z"
+    }),
+    updateCustomTopic: async (_db, id, input) => ({
+      id,
+      label: input.label,
+      guidance: input.guidance,
+      validationStatus: "approved",
+      createdAt: "2026-07-11T00:00:00.000Z"
+    }),
+    deleteCustomTopic: async () => true,
+    readRefreshState: async () => refreshState,
+    bumpRefreshRequest: async () => {
+      refreshBumps.push(refreshBumps.length + 1);
+      refreshState = { state: "queued", updatedAt: "2026-07-11T00:00:00.000Z" };
+      return refreshBumps.length;
+    },
+    pruneSnapshotDomain: async (_db, domain) => {
+      prunedDomains.push(domain);
+    },
+    readPolicyVerdict: async () => null,
+    upsertPolicyVerdict: async () => undefined,
     readLatestSnapshot: async () => ({
       compiledAt: new Date("2026-07-11T06:00:00.000Z"),
       expiresAt: new Date("2026-07-11T07:00:00.000Z"),
@@ -206,7 +244,19 @@ function buildApp(
     availability: {
       hasJsonModel: async () => overrides.hasJsonModel ?? true,
       hasWebSearch: async () => overrides.hasWebSearch ?? true
-    }
+    },
+    discovery: overrides.discovery ?? {
+      fetch: async () => ({ ok: false, reason: "network" }),
+      search: { search: async () => ({ results: [] }) },
+      ai: {
+        generateJson: async () => ({
+          ok: true,
+          object: { allowed: true, category: "news_topic" }
+        }),
+        fingerprint: async () => "test-fingerprint"
+      }
+    },
+    boss: overrides.boss ?? null
   };
   registerNewsRoutes(app, deps);
   return { app, repo, personalization };
@@ -577,6 +627,120 @@ describe("news personalization routes (#953 Slice 1)", () => {
       const res = await app.inject(request);
       expect(res.statusCode).toBe(401);
     }
+    await app.close();
+  });
+});
+
+describe("news personalization routes (#958 Slice 2)", () => {
+  const feed = `<?xml version="1.0"?><rss><channel><title>Example News</title><item><title>Verified publisher headline</title><link>https://example.com/story</link><pubDate>Fri, 11 Jul 2026 12:00:00 GMT</pubDate></item></channel></rss>`;
+
+  it("previews and confirms a verified source without exposing its fingerprint", async () => {
+    const { app, personalization } = buildApp({
+      discovery: {
+        fetch: async (url) => ({
+          ok: true,
+          status: 200,
+          finalUrl: url,
+          contentType: "application/rss+xml",
+          body: feed,
+          truncated: false
+        }),
+        search: { search: async () => ({ results: [] }) },
+        ai: {
+          generateJson: async () => ({
+            ok: true,
+            object: { allowed: true, category: "news_publisher" }
+          }),
+          fingerprint: async () => "private-fingerprint"
+        }
+      }
+    });
+    await app.ready();
+    const preview = await app.inject({
+      method: "POST",
+      url: "/api/news/sources/preview",
+      payload: { input: "https://example.com/feed.xml" }
+    });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).not.toContain("fingerprint");
+    const previewBody = JSON.parse(preview.body);
+    expect(previewBody).toMatchObject({
+      status: "ok",
+      candidates: [{ canonicalDomain: "example.com", retrievalMethod: "feed", sampleCount: 1 }]
+    });
+
+    const confirmed = await app.inject({
+      method: "POST",
+      url: "/api/news/sources",
+      payload: { confirmationId: previewBody.confirmationId }
+    });
+    expect(confirmed.statusCode).toBe(201);
+    expect(JSON.parse(confirmed.body).source.canonicalDomain).toBe("example.com");
+    expect(personalization.refreshBumps).toHaveLength(1);
+    await app.close();
+  });
+
+  it("rejects a topic when the provider policy does not affirm it", async () => {
+    const { app, personalization } = buildApp({
+      discovery: {
+        fetch: async () => ({ ok: false, reason: "network" }),
+        search: { search: async () => ({ results: [] }) },
+        ai: {
+          generateJson: async () => ({
+            ok: true,
+            object: { allowed: false, category: "news_topic" }
+          }),
+          fingerprint: async () => "policy-fingerprint"
+        }
+      }
+    });
+    await app.ready();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/news/topics",
+      payload: { label: "Disallowed topic" }
+    });
+    expect(response.statusCode).toBe(422);
+    expect(personalization.refreshBumps).toEqual([]);
+    await app.close();
+  });
+
+  it("bumps the generation for every curated preference change", async () => {
+    const { app, personalization } = buildApp();
+    await app.ready();
+    await app.inject({
+      method: "POST",
+      url: "/api/news/prefs",
+      payload: { kind: "source", key: "nytimes" }
+    });
+    await app.inject({
+      method: "DELETE",
+      url: "/api/news/prefs/11111111-1111-1111-1111-111111111111"
+    });
+    expect(personalization.refreshBumps).toEqual([1, 2]);
+    await app.close();
+  });
+
+  it("bumps before pruning a newly excluded domain", async () => {
+    const events: string[] = [];
+    const personalization = makePersonalization({
+      bumpRefreshRequest: async () => {
+        events.push("bump");
+        return 1;
+      },
+      pruneSnapshotDomain: async (_db, domain) => {
+        events.push(`prune:${domain}`);
+      }
+    });
+    const { app } = buildApp({ personalization });
+    await app.ready();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/news/source-exclusions",
+      payload: { source: "example.com" }
+    });
+    expect(response.statusCode).toBe(200);
+    expect(events).toEqual(["bump", "prune:example.com"]);
     await app.close();
   });
 });
