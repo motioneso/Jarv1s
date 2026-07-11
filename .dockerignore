@@ -6,6 +6,7 @@ node_modules
 .github
 tests
 spikes
+external-modules
 docs
 backups
 exports
