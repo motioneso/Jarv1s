@@ -2590,3 +2590,19 @@ writing plan → will STOP for coordinator plan-approval before code (I approve 
 uninterrupted). Tier sensitive. Next: approve JS-01 plan when it lands → on JS-01 merge, spawn W2
 (JS-02 + JS-04, both Fable, both security-tier → Opus adversarial QA). #916 (pEH, Sonnet) still
 finishing task7 in parallel — awaiting its relay-successor confirm to reap pEH.
+
+---
+
+## CHECKPOINT (in-place, ~71% ctx — no relay per Ben's auto-compact override)
+
+**Live lanes (verified via bounded pane read):**
+- **pEK** `916: wrap-up (recovery)` — Sonnet 5, session `e154d185`, tab w1:t17, 38% ctx, **running full gate** on branch `feat/916-host-starter-action` (code-complete, 11 commits, tip `07b1f260`). Awaiting gate result → PR open (Closes #916, SECURITY tier). Prettier trap pre-empted (untracked coordinator docs already formatted, exit 0).
+- **pEJ** `JS-01: package contract` — **Fable 5**, session `87215753`, tab w1:t17, auto-compacting in-place at 71% (same session, model stays Fable). Spec-verify DONE; 2 spec-vs-merged-ABI conflicts RULED (below). Will write plan post-compact → send for approval.
+
+**JS-01 coordinator rulings (in-spec; spec was drafted pre-merge, conform to merged ABI):**
+1. Module id `jarv1s.job-search` (dotted) violates merged `MODULE_ID_RE` (kebab-only, id==dir). → **use plain `job-search`**, dir `external-modules/job-search`, identifiers `job-search.*`. Do NOT widen platform grammar (banned platform edit / module-isolation). Downstream JS lanes inherit this.
+2. Design's 4 shared permission ids violate merged unique-per-tool rule. → **permissionId == tool name for JS-01**; consolidated permission model deferred to JS-06.
+
+**Stale/benign:** pBK (idle, unrelated news-module Opus, session 28c218bf) parked in agents tab — not the #916 successor, benign leftover.
+
+**Next:** await pEK gate→PR (SECURITY QA path: Opus adversarial + Fable panel + posted verdict → merge → close #916 → epic #818 platform-complete → board Done). Await pEJ plan → approve in-spec. Then W2 fan-out (JS-02+JS-04 on Fable, security tier).
