@@ -100,7 +100,7 @@ describe("resume repo", () => {
     );
     // revision/0 is retained unchanged.
     const stored = await kv.get(NS.resume, keys.resumeRevision("0"));
-    expect((stored as ResumeRevision).content).toBe("My resume");
+    expect(stored?.content).toBe("My resume");
   });
 
   it("refuses a markdown revision claiming revisionId 0", async () => {
