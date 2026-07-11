@@ -2627,3 +2627,30 @@ finishing task7 in parallel — awaiting its relay-successor confirm to reap pEH
 - **Merge authority:** pE6==58a78927 confirmed. Fable=final decision (Ben override) → satisfied. **Merge the moment image-build lands green.** Then: close #916 → epic #818 platform-complete (all 6 seams) → board Done → reap pEK + remove worktree → flush in place (NO successor coordinator per Ben override).
 - **Post-merge follow-up to file:** e2e fixtures for disabled/hash-drift module reaching `openAssistant` + 2-module impersonation (Opus+Fable not-tested; non-blocking, mitigated by #917 auto-disable→404 + #918 test 6 + structural 1:1 route→id binding + zero-authority action).
 - **JS-01** (pEN, Fable): tasks 1-5 green, on Task 6 (enable/disable/drift integration fixture).
+
+---
+## CHECKPOINT 2026-07-11 05:54 UTC — #916 MERGED, platform complete, in-place flush
+
+**#916 host starter-action MERGED** squash `c986ebf8` (PR #947) — SECURITY-tier gate fully run:
+Opus adversarial QA GREEN (posted) + Fable panel sign-off GREEN (posted) + image-build green → authority-guarded squash. #916 auto-closed. pEK recovery pane reaped, worktree+branch removed.
+
+**Epic #818 Open Module System — ALL 6 SEAMS MERGED (platform code-complete):**
+#917 `4bc53694` · #914 `dff032b9` · #918 `eafa22dd` · #919 `ff2ab3a7` · #915 `2f4a0fe3` · #916 `c986ebf8`.
+- Posted platform-complete comment on #818 (issuecomment-4942826821); left OPEN pending roadmap
+  review — Job Search (#913) is the first real consumer / proof-of-use; close #818 when it ships.
+- Filed follow-up test-coverage issue **#948** (e2e: disabled/hash-drift reaching openAssistant +
+  2-module impersonation; non-blocking, mitigated by #917 auto-disable/#918 test6/structural binding).
+
+**Relay decision:** security-tier merge normally forces relay — but Ben's standing override for THIS
+run ("you auto-compact; don't spawn a successor coordinator; flush in place and continue") governs.
+Flushed manifest + memory (mem_mrfy96ef) IN PLACE. NO successor pane spawned. Continuing in-session.
+
+**Live fleet now:** pE6 Coordinator (me, session 58a78927 — authority intact). pEN "JS-01 (r3)"
+session `4e53e789` **WORKING** in `.claude/worktrees/js-01-package-contract` on Fable — building
+JS-01 tasks 6-7 (#930, tier sensitive, PR not yet open). pBK stale news-module (28c218bf) parked/benign.
+
+**NEXT (autonomous — "nothing needs Ben's call, Fable has final decision"):**
+1. Supervise pEN → on JS-01 wrap-up: independent QA (sensitive tier), merge #930, then fan out W2
+   (JS-02 + JS-04, Fable build, security-tier QA = Opus adversarial + Fable panel).
+2. #916 merge now UNBLOCKS JS-06 (hard gate) + JS-03 (soft) later in the JS DAG.
+3. Delivery flakiness (Ben): verify every herdr send landed via bounded read; manifest = backstop.
