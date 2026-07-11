@@ -2454,3 +2454,10 @@ draft-seam confirmed). Auto-compact resumes the SAME session `c9baeba1` in the S
 resume post-compact → write plan → escalate plan-ready. If it instead sits idle or re-spins on
 research, nudge it: "plan first, no more research — escalate for approval." Supervising via push +
 liveness monitor; not polling.
+
+**#916 RELAY COMPLETE @ 2026-07-11 ~04:20.** pED did relay after all (post-compact): successor
+**pEE** label `916: host starter action (r2)`, session `c071432b-dfff-4167-b6b2-24bfaefb05c3`, tab
+w1:t17, **Sonnet 5**, ~43% fresh ctx, driving, same worktree/branch `feat/916-host-starter-action`.
+Old pED (session `c9baeba1`) confirmed `done` → reaped (session-guarded, resolved fresh by
+label+session). No code committed pre-relay (only spec-verify + architecture research carried
+forward in continuation doc). #916 lane owner is now pEE. Await plan-ready escalation from pEE.
