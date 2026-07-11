@@ -3064,3 +3064,9 @@ anything requiring escalation and do that instead of waiting for me."
 - **Even on unanimous GREEN: DO NOT auto-merge.** Post capability-tradeoff summary on #956, HOLD for Ben's explicit sign-off (verdict-B revokes spec-promised shorten/clarify — council routed this product call to Ben). #957 truth-guard-v2 filed.
 - **News #955:** CI✓ + Opus✓ + Codex✓ — HELD SOLELY on Gemini seat (CLI logged out, Ben-only re-auth). Auto-merge the instant Gemini posts durable GREEN; NO substitution/degrade.
 - Stray idle pane w1:pBK/28c218bf (news-module worktree) — still uninvestigated; may hold uncommitted work; do NOT reap blindly.
+
+---
+### 2026-07-11 ~09:00 — both lanes READY, parked on Ben
+- **JS-03 #956 GATE MET:** CI ✅ (foundation + 2 smokes) + Opus QA ✅ GREEN D3-closed (#4947254308) + Codex QA ✅ GREEN (#4947345209). Head 8f85dd5d. Capability-tradeoff summary posted for Ben (#4947359617). HOLD for Ben's product call: (1) merge safe reorder+whole-line v1 now → unblock JS-04..09, or (2) hold for v2-first. #957 truth-guard-v2 filed. Security defect closed either way. Codex defensive framing worked (no content-filter trip).
+- **News #955:** pEP revalidated live — head 3f05acf2, CI ✅ + Opus ✅ + Codex ✅ all durable. Still held SOLELY on Gemini seat (CLI 0.49.0 interactive-auth, Ben-only). No substitution. Auto-merge on Gemini GREEN → releases S2.
+- Ben online ~09:00, asked status — both decisions surfaced to him.
