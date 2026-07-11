@@ -16,18 +16,20 @@ Spec: `docs/superpowers/specs/2026-07-10-job-search-js-01-package-contract.md` (
 - No code written. Plan approval gate NOT passed. Next step = write plan
   (`superpowers:writing-plans` → `docs/superpowers/plans/2026-07-10-js-01-package-contract.md`),
   message Coordinator for approval, STOP until approved.
-- Coordinator was already messaged the 2 fork items below (awaiting its ruling — check for a reply
-  before re-asking).
+- The 2 spec-vs-ABI forks are **RESOLVED** (coordinator ruled 2026-07-10; see below). Record both
+  rulings in a **"Spec deltas"** section of the plan so downstream JS lanes inherit them.
 
-## FORKS (coordinator must rule; recommendation already sent)
+## FORKS — RESOLVED (coordinator rulings, both = conform to merged platform)
 
-1. **Dotted id.** Spec/design say id `jarv1s.job-search`; merged ABI forbids dots:
-   `MODULE_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/` (validate.ts:24, predates spec grounding
-   `eafa22dd`) and dir name must equal id (node.ts loader). **Rec:** id `job-search`, dir
-   `external-modules/job-search/`, all identifiers `job-search.*`.
-2. **Shared permission ids.** Design's 4 shared permissions (`.read`, `.manage-profile`,
-   `.manage-monitors`, `.decide`) violate merged rule "assistant tool permission ids must be
-   unique" (validate.ts:392). **Rec:** `permissionId == tool name` for JS-01; revisit JS-06.
+1. **Dotted id → plain kebab `job-search`.** Spec/design said `jarv1s.job-search`; merged ABI
+   forbids dots (`MODULE_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/`, validate.ts:24; dir name
+   must equal id, node.ts). RULING: id `job-search`, dir `external-modules/job-search/`, all
+   identifiers `job-search.*`. Do NOT touch MODULE_ID_RE/validate.ts — widening platform grammar
+   is a banned platform edit (module-isolation invariant).
+2. **Shared permission ids → `permissionId == tool name`.** Design's 4 shared permissions
+   (`.read .manage-profile .manage-monitors .decide`) violate merged unique-per-tool rule
+   (validate.ts:392). RULING: permissionId == tool name for JS-01; the consolidated permission
+   model is deferred to JS-06.
 
 ## Verified ABI facts (all @ 2f4a0fe3 — cite, don't re-read broadly)
 
