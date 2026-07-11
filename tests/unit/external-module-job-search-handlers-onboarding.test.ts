@@ -269,8 +269,9 @@ describe("six-checkpoint walkthrough (durable checkpoint resume)", () => {
         ok: true as const,
         object: {
           critiqueSummary: "tightened",
-          // Must be a contiguous phrase of the pasted original — the
-          // segment-phrase coverage guard (fix cycle 2) rejects reworded lines.
+          // Must EQUAL a whole line of the pasted original — the
+          // whole-segment coverage guard (verdict B, #932) rejects reworded
+          // or shortened lines.
           proposedMarkdown: "Shipped the Initech migration",
           materialClaims: [
             {

@@ -260,8 +260,9 @@ describe("resume.save-draft handler — manual mode", () => {
 });
 
 describe("resume.save-draft handler — critique mode", () => {
-  // Every segment must be a contiguous phrase of ORIGINAL under the
-  // segment-phrase coverage guard (fix cycle 2) — reordered/kept lines only.
+  // Every segment must EQUAL a whole segment of ORIGINAL under the
+  // whole-segment coverage guard (verdict B, #932) — approvable AI output is
+  // reorder + verbatim whole-line selection only.
   const GOOD_MARKDOWN = "Line one\nLine three";
   const GOOD_CRITIQUE = {
     critiqueSummary: "sharpened the opener",
