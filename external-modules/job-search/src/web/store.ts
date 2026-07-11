@@ -53,7 +53,8 @@ export function useToolQuery<T extends Record<string, unknown>>(
         entry.listeners.delete(onChange);
       };
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- key encodes name+input
+    // key encodes name+input, so it is the only dependency (no react-hooks plugin is
+    // loaded for this tree — a disable directive for it would itself be a lint error).
     [key]
   );
   const getSnapshot = useCallback(() => entryFor(key).snapshot, [key]);
