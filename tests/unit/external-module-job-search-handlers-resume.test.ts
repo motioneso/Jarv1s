@@ -1,10 +1,12 @@
 // tests/unit/external-module-job-search-handlers-resume.test.ts
 //
-// JS-03 (#932) Task 7: resume.get — read path only. Pins the read order
-// (explicit revisionId > active pointer > immutable original "0"), the
-// no-resume question (never a fabricated empty resume), the parent→child
-// diff projection, and verbatim evidence pass-through. Task 8 extends this
-// file with the save-draft (truth-guard) suite.
+// JS-03 (#932) Tasks 7+8: resume.get + resume.save-draft. The get suite pins
+// the read order (explicit revisionId > active pointer > immutable original
+// "0"), the no-resume question (never a fabricated empty resume), the
+// parent→child diff projection, and verbatim evidence pass-through. The
+// save-draft suites pin the truth-guard seam: manual intake (original at "0",
+// deterministic draft ids, confirmations) and AI critique where an
+// unsupported claim is ALWAYS a question and NEVER persisted.
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -12,12 +14,26 @@ import type {
   ResumeEvidence
 } from "../../external-modules/job-search/src/domain/index.js";
 import {
+  CRITIQUE_SCHEMA,
   approveResume,
+  confirmationIdFor,
+  contentHash,
+  getOnboardingState,
+  listConfirmationIds,
+  RESUME_TOO_LARGE_MESSAGE,
   saveOriginalResume,
   saveResumeRevision
 } from "../../external-modules/job-search/src/domain/index.js";
-import type { WorkerPorts } from "../../external-modules/job-search/src/worker/ai-port.js";
-import { getResumeHandler } from "../../external-modules/job-search/src/worker/handlers/resume.js";
+import type {
+  JobSearchAi,
+  JobSearchAiInput,
+  JobSearchAiResult,
+  WorkerPorts
+} from "../../external-modules/job-search/src/worker/ai-port.js";
+import {
+  getResumeHandler,
+  saveResumeDraftHandler
+} from "../../external-modules/job-search/src/worker/handlers/resume.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
 import { createMemoryKv } from "./helpers/job-search-memory-kv.js";
 import type { MemoryKv } from "./helpers/job-search-memory-kv.js";
@@ -29,6 +45,30 @@ const portsFor = (kv: MemoryKv): WorkerPorts => ({
   ai: null,
   now: () => NOW
 });
+
+const portsWith = (kv: MemoryKv, ai: JobSearchAi): WorkerPorts => ({
+  kv,
+  ai,
+  now: () => NOW
+});
+
+/** Canned structured-AI seam that records every call it receives. */
+function fakeAi(result: JobSearchAiResult): { ai: JobSearchAi; calls: JobSearchAiInput[] } {
+  const calls: JobSearchAiInput[] = [];
+  return {
+    calls,
+    ai: {
+      generateStructured: async (input) => {
+        calls.push(input);
+        return result;
+      }
+    }
+  };
+}
+
+/** Deterministic draft id contract: contentHash("rev\0<parent>\0<content>"). */
+const draftIdFor = (parentRevisionId: string, content: string): string =>
+  contentHash(["rev", parentRevisionId, content].join("\0"));
 
 const ORIGINAL = "Line one\nLine two\nLine three";
 const REVISED = "Line one\nLine 2 revised\nLine three\nLine four";
@@ -127,5 +167,249 @@ describe("resume.get handler", () => {
     await seedRevised(kv, evidence);
     const result = await getResumeHandler(portsFor(kv))({ revisionId: "r1" });
     expect(result.evidence).toEqual(evidence);
+  });
+});
+
+describe("resume.save-draft handler — manual mode", () => {
+  it("first manual save writes the immutable original at 0 and completes resume_intake", async () => {
+    const kv = createMemoryKv();
+    const result = await saveResumeDraftHandler(portsFor(kv))({
+      mode: "manual",
+      content: ORIGINAL
+    });
+    expect(result.status).toBe("ok");
+    expect(result.revisionId).toBe("0");
+    const read = await getResumeHandler(portsFor(kv))({ revisionId: "0" });
+    expect(read.kind).toBe("original");
+    expect(read.content).toBe(ORIGINAL);
+    const state = await getOnboardingState(kv);
+    expect(state?.completed["resume_intake"]).toBe(true);
+  });
+
+  it("oversize content rejects verbatim with NOTHING persisted — not even confirmations", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(saveResumeDraftHandler(portsFor(kv)))({
+      mode: "manual",
+      content: "a".repeat(49_153),
+      confirmedClaims: [{ kind: "employer", text: "Acme Corp" }]
+    });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("resume_input_too_large");
+    expect(result.message).toBe(RESUME_TOO_LARGE_MESSAGE);
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("second manual save creates a markdown revision with deterministic id and parent 0", async () => {
+    const kv = createMemoryKv();
+    await saveResumeDraftHandler(portsFor(kv))({ mode: "manual", content: ORIGINAL });
+    const draft = "Line one\nLine two (edited)\nLine three";
+    const result = await saveResumeDraftHandler(portsFor(kv))({ mode: "manual", content: draft });
+    expect(result.status).toBe("ok");
+    expect(result.revisionId).toBe(draftIdFor("0", draft));
+    const read = await getResumeHandler(portsFor(kv))({ revisionId: result.revisionId as string });
+    expect(read.kind).toBe("markdown");
+    expect(read.content).toBe(draft);
+    expect(read.parentRevisionId).toBe("0");
+  });
+
+  it("manual parent defaults to the active revision once one is approved", async () => {
+    const kv = createMemoryKv();
+    await saveResumeDraftHandler(portsFor(kv))({ mode: "manual", content: ORIGINAL });
+    const first = "Line one\nLine two (edited)\nLine three";
+    const firstId = draftIdFor("0", first);
+    await saveResumeDraftHandler(portsFor(kv))({ mode: "manual", content: first });
+    await approveResume(kv, firstId, NOW);
+    const second = "Line one\nLine two (edited twice)\nLine three";
+    const result = await saveResumeDraftHandler(portsFor(kv))({ mode: "manual", content: second });
+    expect(result.revisionId).toBe(draftIdFor(firstId, second));
+    const read = await getResumeHandler(portsFor(kv))({ revisionId: result.revisionId as string });
+    expect(read.parentRevisionId).toBe(firstId);
+  });
+
+  it("confirmedClaims without content writes retrievable confirmation records", async () => {
+    const kv = createMemoryKv();
+    const result = await saveResumeDraftHandler(portsFor(kv))({
+      mode: "manual",
+      confirmedClaims: [{ kind: "employer", text: "Acme Corp" }]
+    });
+    expect(result.status).toBe("ok");
+    const ids = await listConfirmationIds(kv);
+    expect(ids.has(confirmationIdFor("employer", "Acme Corp"))).toBe(true);
+  });
+
+  it("requires at least one of content or confirmedClaims", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(saveResumeDraftHandler(portsFor(kv)))({ mode: "manual" });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("rejects a confirmed claim whose kind is outside the guard's seven kinds", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(saveResumeDraftHandler(portsFor(kv)))({
+      mode: "manual",
+      confirmedClaims: [{ kind: "vibe", text: "great culture fit" }]
+    });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    expect(kv.dump().size).toBe(0);
+  });
+});
+
+describe("resume.save-draft handler — critique mode", () => {
+  const GOOD_MARKDOWN = "# Resume\nLine one, improved\nLine three, kept";
+  const GOOD_CRITIQUE = {
+    critiqueSummary: "sharpened the opener",
+    proposedMarkdown: GOOD_MARKDOWN,
+    materialClaims: [
+      { kind: "employer", text: "employed on line one", quote: "Line one" },
+      { kind: "skill", text: "skill from line three", quote: "Line three" }
+    ]
+  };
+
+  it("ai unavailable → question that names NO provider", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const result = await saveResumeDraftHandler(portsFor(kv))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect(result.question).toMatch(/unavailable/i);
+    expect(result.question).not.toMatch(/anthropic|openai|claude|gpt|gemini/i);
+  });
+
+  it("requires the pasted original before any critique", async () => {
+    const kv = createMemoryKv();
+    const { ai } = fakeAi({ ok: true, object: GOOD_CRITIQUE });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("ai error result → question, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const before = kv.dump();
+    const { ai } = fakeAi({ ok: false, error: "needs_config" });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect(result.question).not.toMatch(/anthropic|openai|claude|gpt|gemini/i);
+    expect(kv.dump()).toEqual(before);
+  });
+
+  it("fully-sourced critique persists with evidence and completes resume_critique", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const { ai, calls } = fakeAi({ ok: true, object: GOOD_CRITIQUE });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("ok");
+    expect(result.revisionId).toBe(draftIdFor("0", GOOD_MARKDOWN));
+    expect(result.critiqueSummary).toBe("sharpened the opener");
+    expect(result.evidence).toEqual([
+      {
+        claimKind: "employer",
+        claimText: "employed on line one",
+        status: "sourced",
+        sourceRevisionId: "0",
+        quote: "Line one"
+      },
+      {
+        claimKind: "skill",
+        claimText: "skill from line three",
+        status: "sourced",
+        sourceRevisionId: "0",
+        quote: "Line three"
+      }
+    ]);
+    const read = await getResumeHandler(portsFor(kv))({ revisionId: result.revisionId as string });
+    expect(read.content).toBe(GOOD_MARKDOWN);
+    expect(read.parentRevisionId).toBe("0");
+    const state = await getOnboardingState(kv);
+    expect(state?.completed["resume_critique"]).toBe(true);
+    // Seam contract: the guard's schema object, the base content in the
+    // prompt, and the fixed token budget.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.schema).toBe(CRITIQUE_SCHEMA);
+    expect(calls[0]?.prompt).toContain(ORIGINAL);
+    expect(calls[0]?.maxOutputTokens).toBe(16_384);
+  });
+
+  it("ADVERSARIAL: a fabricated claim is a question, never a revision, never approvable", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const before = kv.dump();
+    const fabricated = { kind: "metric", text: "Raised revenue 40%" };
+    const { ai } = fakeAi({
+      ok: true,
+      object: {
+        critiqueSummary: "boosted impact",
+        proposedMarkdown: GOOD_MARKDOWN,
+        materialClaims: [fabricated]
+      }
+    });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect(result.unsupportedClaims).toEqual([fabricated]);
+    // The kv is byte-identical: no revision, no evidence, no onboarding tick.
+    expect(kv.dump()).toEqual(before);
+    // The revision the critique WOULD have created can never be approved.
+    await expect(approveResume(kv, draftIdFor("0", GOOD_MARKDOWN), NOW)).rejects.toMatchObject({
+      code: "missing_revision"
+    });
+  });
+
+  it("the same fabricated claim persists as confirmed evidence AFTER the user confirms it", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    await saveResumeDraftHandler(portsFor(kv))({
+      mode: "manual",
+      confirmedClaims: [{ kind: "metric", text: "Raised revenue 40%" }]
+    });
+    const { ai } = fakeAi({
+      ok: true,
+      object: {
+        critiqueSummary: "boosted impact",
+        proposedMarkdown: GOOD_MARKDOWN,
+        materialClaims: [{ kind: "metric", text: "Raised revenue 40%" }]
+      }
+    });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("ok");
+    expect(result.evidence).toEqual([
+      {
+        claimKind: "metric",
+        claimText: "Raised revenue 40%",
+        status: "confirmed",
+        confirmationId: confirmationIdFor("metric", "Raised revenue 40%")
+      }
+    ]);
+  });
+
+  it("shape garbage from the ai → question, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const before = kv.dump();
+    const { ai } = fakeAi({ ok: true, object: { totally: "unexpected" } });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect(kv.dump()).toEqual(before);
+  });
+
+  it("oversize proposedMarkdown → resume_input_too_large, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const before = kv.dump();
+    const { ai } = fakeAi({
+      ok: true,
+      object: {
+        critiqueSummary: "puffed up",
+        proposedMarkdown: "a".repeat(49_153),
+        materialClaims: []
+      }
+    });
+    const result = await wrap(saveResumeDraftHandler(portsWith(kv, ai)))({ mode: "critique" });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("resume_input_too_large");
+    expect(result.message).toBe(RESUME_TOO_LARGE_MESSAGE);
+    expect(kv.dump()).toEqual(before);
   });
 });
