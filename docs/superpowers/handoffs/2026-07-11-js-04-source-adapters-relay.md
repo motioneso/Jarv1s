@@ -1,12 +1,17 @@
 # Relay — JS-04 source adapters (#933)
 
-Successor: you are the SAME lane continuing. Model must be `claude-fable-5` (Ben's directive for
-this run). Resume via `coordinated-build`; plan is APPROVED — do NOT re-plan, do NOT re-ask.
+Successor: you are the SAME lane continuing (3rd session). Model must be `claude-fable-5` (Ben's
+directive for this run). Resume via `coordinated-build`; plan is APPROVED — do NOT re-plan, do NOT
+re-ask.
 
 ## Pointers (read by section, never in full)
 
 - **Plan (approved, execute as written):** `docs/superpowers/plans/2026-07-11-js-04-source-adapters.md`
-  — 11 TDD tasks with complete code. Read ONE task at a time.
+  — 11 TDD tasks with complete code. UNTRACKED on purpose (contains literal control bytes — use
+  `grep -a` and `sed -n 'X,Yp'`, never plain grep/file). Read ONE task at a time. Line map:
+  Task 6 (Ashby): 504–582 · Task 7 (registry): 583–612 · Task 8 (fetch-board + SSRF): 613–658 ·
+  Task 9 (capture tools): 659–703 · Task 10 (monitor.save): 704–728 · Task 11 (full gate): 729–741 ·
+  Self-review notes: 742–754.
 - **Build handoff (rules/bans):** `docs/coordination/2026-07-11-js-04-build-handoff.md` — untracked,
   coordinator-only file: READ it, NEVER commit it.
 - Spec: `docs/superpowers/specs/2026-07-10-job-search-js-04-source-adapters.md` (already verified
@@ -22,32 +27,40 @@ escalations [SECURITY]/[SSRF]/[DESIGN-FORK].
 
 **Approval corrections/mandates (apply during build):**
 
-1. Compliance metadata must NOT attribute review to Ben → add `reviewedBy: "coordinator/automated"`
-   to `AdapterCompliance` (types.ts) and set it on all three adapters; keep `status: "allowed"`,
-   `reviewedAt: "2026-07-11"`, policy URLs as in plan. Expose `reviewedBy` in `SourceAdapterInfo` /
-   sources.list output + tests.
+1. Compliance metadata must NOT attribute review to Ben → `reviewedBy: "coordinator/automated"` in
+   `AdapterCompliance`. DONE in types.ts + greenhouse + lever (+ tests). Still to apply: ashby
+   adapter (Task 6) and expose `reviewedBy` in `SourceAdapterInfo` / sources.list output + tests
+   (Task 9).
 2. NON-NEGOTIABLE: Task 8 adversarial SSRF tests drive the REAL `createHostPinnedFetch` from
    `@jarv1s/host-fetch` with injected resolve/request fakes — not a mock of it.
 3. Zero migrations; `monitor.run` stays JS-05 stub.
 
 ## State
 
-- **Done + committed:** Task 1 fixtures `5c30a449` (`tests/fixtures/job-search/` + README).
-- **In flight (uncommitted, on disk):** Task 2 red test
-  `tests/unit/external-module-job-search-adapters-sanitize.test.ts` — verified failing (module
-  missing). Expectations updated vs plan: adjacent block tags → `\n\n` (one test comment marks it);
-  control-char case uses backslash-u escape notation.
-- **Next action:** implement `external-modules/job-search/src/adapters/sanitize.ts` per plan Task 2
-  Step 3, make tests green, commit; then Tasks 3–11 in order.
+- **Done + committed (all tests green at each commit):**
+  - Task 1 fixtures `5c30a449` (`tests/fixtures/job-search/` + README).
+  - Task 2 sanitizer `fceeb1b1` (`src/adapters/sanitize.ts` + 15 tests).
+  - Task 3 types + board config `d7d0e9ee` (`types.ts`, `board-config.ts`, wrap.ts error chain,
+    13 config tests).
+  - Task 4 greenhouse `0e907c16` (`greenhouse.ts`, 7 normalize tests; `truncateUtf8` exported from
+    domain barrel).
+  - Task 5 lever `3c104f4f` (`lever.ts`, 6 lever tests; shared `record`/`httpsUrl` moved to
+    `board-config.ts` exports, greenhouse imports them).
+  - Suite check: 41 tests green across the 3 adapter test files (sanitize/config/normalize).
+- **Next action:** Task 6 — Ashby adapter (plan lines 504–582): red tests extend
+  `tests/unit/external-module-job-search-adapters-normalize.test.ts`, then
+  `src/adapters/ashby.ts`; remember mandate 1 (`reviewedBy: "coordinator/automated"`). Then Tasks
+  7–11 in order, commit per task.
 
 ## Known plan warts (fix while implementing, already agreed)
 
-- Plan Task 2 `collapse()` shows a control-char regex with LITERAL control bytes — author it as
+- Control-char regexes: ALWAYS author as `\u`-escape form, e.g.
   `/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g` with `// eslint-disable-next-line no-control-regex`.
-  It must also scrub raw C1 chars (test pins U+009F). Keep `\t` until the `[ \t]+` collapse.
-- Plan Task 4 `mapWorkMode(locations.some(...) ? "remote" : undefined)` → write directly:
-  `locations.some((l) => /\bremote\b/i.test(l)) ? ("remote" as const) : undefined`.
-- Task 4 note: export `truncateUtf8` from `domain/opportunities.ts` + re-export via domain barrel.
+  The Write tool once emitted literal control bytes for this — if a file reads as "binary", fix via
+  `perl -i -pe` on that line.
+- Plan Task 6 note: reuse shared `record`/`httpsUrl`/`mapWorkMode`/`parseIsoTimestamp` from
+  `./board-config.js` (already exported) — do NOT re-declare local copies.
+- Never mask gate exit codes with `| tail` — redirect to scratchpad file and `echo "EXIT=$?"`.
 
 ## Run bans (unchanged)
 
@@ -61,20 +74,15 @@ escalations [SECURITY]/[SSRF]/[DESIGN-FORK].
 
 ## Fixture facts (save a probe)
 
-First-job assertion values: greenhouse id `8503792002`, url
-`https://job-boards.greenhouse.io/gitlab/jobs/8503792002`, `first_published`
-`2026-04-17T05:58:03-04:00`, location `Remote, Italy`, offices `[Italy]`, content is
-entity-ESCAPED HTML. Lever[0]: id `33538a2f-d27d-4a96-8f05-fa4b0e4d940e`, hostedUrl
-`https://jobs.lever.co/leverdemo/<id>`, createdAt `1553186035299`, workplaceType `hybrid`,
-allLocations `["Arlington, TX"]`, commitment `Regular Full Time (Salary)`, salaryRange `null`.
-Ashby jobs[0]: id `03e2d4e1-73ad-4f09-a058-2eb9ce34c2bc`, jobUrl
+Ashby jobs[0] (Task 6 assertions): id `03e2d4e1-73ad-4f09-a058-2eb9ce34c2bc`, jobUrl
 `https://jobs.ashbyhq.com/ramp/<id>`, isListed `true`, isRemote `true`, publishedAt
 `2026-07-07T20:47:09.753+00:00`, location `Remote (US)`, secondary `[San Francisco, CA; New York,
-NY (HQ)]`, employmentType `FullTime`, compTier `$151K – $231K • Offers Equity • Multiple Ranges`.
-Use `jq` on `tests/fixtures/job-search/*.json` for anything else.
+NY (HQ)]`, employmentType `FullTime`, compensation tier summary
+`$151K – $231K • Offers Equity • Multiple Ranges`. Fixture has 3 jobs. Use `jq` on
+`tests/fixtures/job-search/ashby-job-board.json` for anything else.
 
 ## Context discipline
 
-Fresh budget: BUILD. Commit per task. Relay only past ~80% meter with real progress. Message the
-Coordinator "relayed, safe to reap" flow is already done for THIS predecessor — you only report at
-wrap-up or on blockers.
+Fresh budget: BUILD. Commit per task. Relay only past ~80% meter with real progress — reading is
+not progress. Message-the-Coordinator "relayed, safe to reap" flow is already done for THIS
+predecessor — you only report at wrap-up or on blockers.
