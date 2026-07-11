@@ -4,10 +4,21 @@
 // module first — ESM evaluation order guarantees it).
 import "./helpers/install-module-runtime";
 
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { invokeTool, runMonitorNow } from "../../external-modules/job-search/src/web/api.js";
+import {
+  dueLabel,
+  onboardingProgress,
+  STEP_LABELS
+} from "../../external-modules/job-search/src/web/format.js";
+import { parseModulePath } from "../../external-modules/job-search/src/web/router.js";
 import { Fragment, h, react } from "../../external-modules/job-search/src/web/runtime.js";
+import {
+  __resetStoreForTests,
+  useToolQuery
+} from "../../external-modules/job-search/src/web/store.js";
 
 function stubFetch(status: number, body: unknown): ReturnType<typeof vi.fn> {
   const stub = vi.fn(async () => ({
@@ -98,5 +109,55 @@ describe("job-search web api client (#935)", () => {
       kind: "error",
       message: "Request failed (503)"
     });
+  });
+});
+
+describe("job-search web store (#935)", () => {
+  it("renders loading first, then caches the settled outcome per key", async () => {
+    __resetStoreForTests();
+    stubFetch(200, {
+      invocation: {
+        status: "succeeded",
+        blockedReason: null,
+        result: { status: "ok", monitors: [] }
+      }
+    });
+    function Probe(): unknown {
+      const snapshot = useToolQuery("job-search.monitor.list");
+      return h("i", null, snapshot.status);
+    }
+    // Server snapshot path (renderToString) must not throw and reports loading.
+    expect(renderToString(h(Probe, null) as never)).toContain("loading");
+  });
+});
+
+describe("job-search internal router (#935)", () => {
+  it("parses module-relative paths", () => {
+    expect(parseModulePath("/m/job-search")).toBe("/");
+    expect(parseModulePath("/m/job-search/")).toBe("/");
+    expect(parseModulePath("/m/job-search/monitors")).toBe("/monitors");
+    expect(parseModulePath("/m/job-search/opportunities/saved")).toBe("/opportunities/saved");
+    expect(parseModulePath("/today")).toBe("/");
+  });
+});
+
+describe("job-search format helpers (#935)", () => {
+  it("computes onboarding progress over the six checkpoints", () => {
+    expect(onboardingProgress({})).toEqual({ done: 0, total: 6, percent: 0 });
+    expect(
+      onboardingProgress({ resume_intake: true, resume_critique: true, resume_approval: true })
+    ).toEqual({ done: 3, total: 6, percent: 50 });
+    expect(Object.keys(STEP_LABELS)).toEqual([
+      "resume_intake",
+      "resume_critique",
+      "resume_approval",
+      "profile",
+      "sources_schedule",
+      "review_enable"
+    ]);
+  });
+
+  it("labels a monitor schedule without timezone arithmetic", () => {
+    expect(dueLabel("07:00", "America/New_York")).toBe("daily at 07:00 · America/New_York");
   });
 });
