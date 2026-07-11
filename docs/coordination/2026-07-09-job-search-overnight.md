@@ -2983,3 +2983,17 @@ anything requiring escalation and do that instead of waiting for me."
 - Both scoped to: D1 lowercase/spelled-number, D2 empty markdown, D3 fabricated-relationship (+ new-bypass attempt), R16's oversize-payload test deviation, and security invariants (owner-only KV, zero-migration, secrets, provider-agnostic, module isolation).
 - GATE: JS-03 merges only on Opus AND Codex both GREEN + CI green. Split/RED → stop lane, hold #956 for Ben (budget exhausted), JS-04+ stays serialized.
 - CI on 0146b0bd: IN_PROGRESS at launch (mergeState UNSTABLE).
+
+---
+## Checkpoint — JS-03 #956 cycle-2 re-QA: Codex RED (D3 open); budget EXHAUSTED
+
+**Codex verdict (posted PR #956, head 0146b0bd / fix fa40b478):**
+- D1 CLOSED — lowercase/spelled-number fabrication → non-contiguous segments → coverage.ok=false → question, no revision.
+- D2 CLOSED — empty/whitespace/punctuation-only markdown → zero segments → rejected.
+- **D3 STILL OPEN — segment-boundary RECOMBINATION.** Guard verifies each line/sentence individually present in source but NEVER verifies adjacency/relationship. Repro: markdown "Vice President\nInitech\n2020–2024" where each line matches a DIFFERENT true source context → coverage.ok=true; assembled entry asserts fabricated "VP at Initech 2020–2024"; persists + approvable. Same primitive via sentence punctuation / list items / headings / `|` boundaries.
+- R16 size deviation OK (handler order unchanged, 48 KiB gate intact). Invariants OK.
+- **VERDICT: RED.**
+
+**Budget:** cycle 1 RED + cycle 2 RED = 2 failed QA cycles → skill mandate = stop lane, escalate. BUT D1+D2 genuinely closed (real progress); D3 is now a design/scope question (adjacency-verification), not a blind 3rd fix. Awaiting Opus seat (ac732e395cd731ee0) to know if this is unanimous-block or a scope-split. If split hinges on scope, spec (2026-07-10-job-search-js-03-onboarding-truth-guard.md) is tiebreaker → focused Opus scope adjudication. NO merge. NO route-to-Ben until second seat lands.
+
+**News #955:** unchanged — held on Gemini seat.
