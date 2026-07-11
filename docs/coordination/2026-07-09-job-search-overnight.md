@@ -2885,3 +2885,17 @@ anything requiring escalation and do that instead of waiting for me."
   (bypass-sandbox) to re-review 3f05acf2 + post verdict. If still limited, reschedule.
 - #955 held on TWO provider counts now: Codex (re-run pending) + Gemini (Ben re-auth). CI green,
   Opus green. No substitution. Fleet continues (JS-03 R8 building).
+
+### Update 2026-07-11d — Codex GREEN; #955 held ONLY on Gemini
+- Codex re-run (retry post-reset) = **GREEN/APPROVE** on 3f05acf2, posted durably at PR #955
+  issuecomment-4945267564. No-fetch claim CONFIRMED (traced every consumer of
+  canonical_domain/homepage_url/feed_url — none reach fetch/DNS/net; only network call uses
+  compile-time catalog URLs behind NEWS_FETCH_HOSTS). Fail-closed fix confirmed. Migration 0159 new
+  (not an edit), owner-only RLS forced on all 4 tables, no worker grant, no secrets/provider hardcode.
+- **#955 gate: CI GREEN + Opus GREEN + Codex GREEN — held SOLELY on the Gemini seat** (CLI logged
+  out, no GEMINI_API_KEY; Ben-only interactive re-auth; in-scope recovery exhausted).
+- Council is merge authority (Ben's council-instead-of-waiting directive) — on Gemini durable GREEN,
+  AUTO-MERGE (no separate Ben sign-off), then #953 close / #954 exit-check / board Done / ping pEP S2.
+- NO substitution/degrade (pEP [DISSENT] binding). Ben digest FYI only, non-blocking, NOT a push:
+  run `gemini` re-auth to fill the last seat. Fleet continues (JS-03 R9 building).
+- News builder pF4 (03e7c92c) idle/done, kept for a potential rebase (unlikely — rebase-clean).
