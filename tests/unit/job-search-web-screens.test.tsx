@@ -18,6 +18,11 @@ import {
   type OnboardingState
 } from "../../external-modules/job-search/src/web/screens/overview.js";
 import {
+  MonitorsView,
+  runStateLabel,
+  type MonitorDetail
+} from "../../external-modules/job-search/src/web/screens/monitors.js";
+import {
   ProfileView,
   type ProfileResult,
   type ResumeResult
@@ -227,5 +232,39 @@ describe("job-search profile view (#935)", () => {
     );
     expect(html).toContain("No resume yet");
     expect(html).toContain("No profile yet");
+  });
+});
+
+const monitorDetail: MonitorDetail = {
+  monitorId: "m1",
+  adapterId: "greenhouse",
+  enabled: true,
+  timezone: "America/New_York",
+  dueTime: "07:00",
+  lastCheckedAt: "2026-07-10T11:00:00.000Z",
+  lastSuccessAt: "2026-07-10T11:00:00.000Z"
+};
+
+describe("job-search monitors view (#935)", () => {
+  it("shows adapter, schedule, enabled state, and last success", () => {
+    const html = render(h(MonitorsView, { monitors: [monitorDetail] }));
+    expect(html).toContain("greenhouse");
+    expect(html).toContain("daily at 07:00 · America/New_York");
+    expect(html).toContain("Enabled");
+    expect(html).toContain("Last success");
+    expect(html).toContain("Run now");
+  });
+
+  it("maps run-now outcomes to announced labels", () => {
+    expect(runStateLabel({ kind: "queued" })).toBe("Run queued");
+    expect(runStateLabel({ kind: "already-queued" })).toBe("Already queued");
+    expect(runStateLabel({ kind: "disabled" })).toBe("Module is turned off");
+    expect(runStateLabel({ kind: "error", message: "Request failed (503)" })).toBe(
+      "Could not queue the run"
+    );
+  });
+
+  it("with no monitors renders the authored empty state", () => {
+    expect(render(h(MonitorsView, { monitors: [] }))).toContain("No monitors yet");
   });
 });
