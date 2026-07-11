@@ -2952,3 +2952,23 @@ anything requiring escalation and do that instead of waiting for me."
   0510bf1a (zero fix code yet). Spawned R12 = w1:pFD / 38a3c2ef-f958-4af1-a910-5bef5f6d7827,
   Fable 5, tab w1:t17, js-03 worktree — confirmed driving. R11 reaped. R12 implements B1 fail-closed
   fix + attack-path test + folded :189 min-length, then full gate + push + ping for re-QA.
+
+---
+## Checkpoint — JS-03 #956 re-QA COUNCIL SPLIT (fix cycle 2 relayed)
+
+**Re-QA of fix commit 1842dca7 (B1 coverage guard):**
+- **Opus GREEN** — issuecomment-4946268694. Judged lowercase under-extraction as "narrows attack surface, does NOT reopen B1."
+- **Codex RED** — issuecomment-4946275153. Concrete reproducible bypass of the fix; B1 NOT closed.
+
+**Adjudication → HOLD merge (not unanimous; Codex RED stands).** JS-03 gate = Opus + Codex both GREEN. On a security surface a working PoC beats a severity downgrade, and Opus's own analysis corroborates the underlying under-extraction (it saw it, under-weighted it). Codex's finding is conservative-correct.
+
+**Codex defeats (must be fixed in cycle 2):**
+- D1 (reopens B1): `extractMaterialSpans` flags only digit-bearing OR capitalized-past-first-word tokens. All-lowercase spelled-out fabrication emits ZERO spans → `coverage.ok` passes vacuously → fabrication persists + approvable. PoC: `vice president at initech from twenty twenty to twenty twenty four\nincreased revenue by tenfold`. Also non-ASCII caps (Ecole→cole) + first-token-of-line placement.
+- D2 (fail-open regression): empty/whitespace markdown → no spans → passes → empty revision persistable+approvable.
+- D3 (assertions vs vocabulary): coverage is plain case-insensitive substring, no word boundary / no span-length floor → fabricated relationships pass when tokens exist separately in corpus.
+
+**Cycle-2 fix (relayed to R14 w1:pFF/9a7df97a):** verify each non-empty proposed line/sentence as a normalized phrase against source+confirmed text (word-boundary aware, span floor); reject empty/whitespace markdown; if paraphrase allowed keep AI markdown NON-approvable until user confirms; regression tests for lowercase PoC + empty markdown + fabricated-relationship. Fail closed on every path.
+
+**BUDGET: this is fix cycle 2 of 2 (LAST).** If re-QA after cycle 2 is still not unanimous GREEN → stop the JS-03 lane, HOLD #956 for Ben (digest, non-blocking), JS-04+ stays serialized-blocked. Council-is-authority, no route-to-Ben unless budget exhausted.
+
+**News #955:** unchanged — held solely on Gemini seat (Opus+Codex+CI all GREEN).
