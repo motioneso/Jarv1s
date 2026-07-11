@@ -2496,3 +2496,13 @@ Memory corrected: [spawn-defaults-opus] file+MEMORY.md index re-aligned to Sonne
 (stale index line had said Opus — that misled the earlier keep-on-Opus call). CHECKPOINT: coordinator
 flushes in-place per Ben's auto-compact override — NO successor coordinator pane. Await pEG done/PR
 (security tier → Opus adversarial QA + panel sign-off).
+
+**#916 RELAY-3 (pEG self-relay @ 70%) — PROGRESS GOOD.** pEG (Sonnet, session 47b52215) committed
+task1 `host-actions.ts`+unit test `8d398688`, task2 loader.ts hostActions prop `f5aa8a27` (12/12
+unit green). Transient typecheck fail in app.tsx is EXPECTED — existing external-route consumer
+needs task4 ExternalModuleMount wrapper; matches plan's documented task3-5 transient-failure
+pattern, surfaced 1 task early (not a defect). pEG relaying to a successor for tasks 3-7. Coordinator
+reminded pEG: successor MUST boot `--model sonnet` (herdr self-relay defaults to Opus) + `--tab
+w1:t17` (agents tab). AWAITING successor-driving confirmation → then verify model+tab, reap pEG,
+record new session id. merges_since_relay unchanged (no merge). Coordinator stays resident
+(auto-compact override).
