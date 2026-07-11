@@ -2929,3 +2929,20 @@ anything requiring escalation and do that instead of waiting for me."
 - **Opus adversarial QA:** IN FLIGHT (agent ae92a98d) — awaiting to consolidate blocking set.
 - **Action:** HOLD merge. On Opus return -> relay combined blockers to owning agent R11 (w1:pFC/
   8674f160, kept alive) -> fix -> re-QA. Failure budget 2 cycles.
+
+### JS-03 PR #956 — Council UNANIMOUS RED, relayed to R11 (fix cycle 1/2)
+- **Opus adversarial QA: RED** (issuecomment-4946000922). Independently concurs w/ Codex on B1.
+  CI green (Verify foundation 16m15s + both compose smokes). Invariants ALL PASS (owner-only KV
+  real-RLS test: userB+admin+worker-role read zero JS-03 resume/confirmation/profile keys, no
+  BYPASSRLS; zero migrations; ctx.kv-only; secrets never escape; provider-agnostic ctx.ai; module
+  isolation). Plan-drift (a) profile.get empty-strict = INPUT schema safe, (b) a7a09f5d pure
+  refactor, (c) D6 fetch-body deferral safe (host-pinned).
+- **B1 BLOCKING (both lenses):** truth-guard vacuous pass — verifyClaims([]) => ok:true, so AI prose
+  in proposedMarkdown w/ materialClaims:[] persists draft evidence:[] (resume.ts:340->357) +
+  approvable active (:393). Zero test coverage of under-declared-claims attack. Fix = fail-closed
+  reject markdown diverging from sources w/o covering evidence + unit&integration test.
+- **Folded non-blockers:** truth-guard.ts:189 bare String.includes quote check (no min-length; test
+  L168 codifies weak behavior). Deferred non-blockers: diff.ts LCS 369MB worst-case (bounded,
+  owner data); opportunities.* loose {type:object} schemas.
+- **Relayed to R11 (w1:pFC/8674f160) via herdr pane run — lane re-opened, fix cycle 1 of 2.** On
+  R11 push+ping -> re-QA same council (Opus+Codex). Merge HELD until unanimous GREEN + CI green.
