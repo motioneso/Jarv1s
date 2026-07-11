@@ -3556,3 +3556,6 @@ Fleet:
 - **Sports #963 (task #23)** — agent pG5 (SONNET), worktree feat/sports-live-score-strip @ 9d4589d1, tab w1:t17. Building STRIP-ONLY (Ben confirmed: live score moves to footer match-strip, REMOVED from bold body slot; body reverts to news lede). ROUTINE tier, auto-merge after green. Awaiting its short plan before code.
 - **News S2 (#958, task #19)** — CronCreate `42049f84` fires 14:40 PDT to resume Codex in news-slice2 worktree (feat/news-slice2 @ fadef5d3, SECURITY, plan committed, QA council Opus+Fable).
 - **#962** — items 1-2 fold into JS-07; items 3-4 = small route hardening (unqueued).
+
+## JS-06 relay+reap — 2026-07-11 ~14:40
+pG3 (Fable, sess 2934d995) hit its own 70% meter → committed be7692d4 (approved plan + Task 1 RED + relay doc `docs/superpowers/handoffs/2026-07-11-js-06-surface-relay.md`) → successor **pG6 "surface v3" FABLE, sess fb5b0855, tab w1:t17** confirmed driving (TDD list live, resuming Task 1 GREEN). pG3 reaped. Sports pG5 relaying in parallel (Sonnet successor pending; reap 22d13b29 on confirm).
