@@ -3176,3 +3176,9 @@ anything requiring escalation and do that instead of waiting for me."
     old compile, assert excluded story never reappears + follow-up stays queued.
   B5+B6 share the news_refresh_state generation/CAS (design together); lives in migration 0160.
   Review may still be ongoing (pEP streaming findings) — ALL fold into the single correction pass.
+
+- **News S2 blocker B7 (pEP, same pass) — age/time contract:** publishedAt nullable + no deterministic
+  time filter, but spec needs actual publication time on every card + nothing older than 7 days.
+  Fix = require trustworthy parsed publication time before eligibility; drop missing/invalid/
+  future-skewed; snapshot publishedAt = valid non-null ISO. Test missing/invalid/8-day. Total pEP
+  blockers so far: B1–B7, single correction pass.
