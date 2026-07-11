@@ -2538,3 +2538,23 @@ If Ben instead wants Fable-MODEL to write code, he'll say so.
    TDD build → PR → tier QA (Opus adversarial for security-tier tasks: KV/adapters/scheduling/
    host-handoff) → FABLE panel sign-off → merge. Ben not gated at any step.
 4. Coordinator stays resident, flushes manifest in-place (auto-compact override), no successor pane.
+
+## JS PHASE — REVISION (Ben, 2026-07-11): FABLE BUILDS (max-out before morning reset)
+
+**Ben:** "We can have Fable build, it resets in the morning so I want to max it out."
+
+Supersedes prior interpretation. For the **Job Search phase specifically**, build agents = **Fable**
+(`claude-fable-5`), not Sonnet — deliberately burn Fable allowance overnight before its morning quota
+reset. (The "use sonnet agents for building" rule STILL governs #916 and any non-JS lane; this is a
+scoped exception Ben explicitly authorized.)
+
+**Independence:** Fable is now the BUILDER, so it can't be the code sign-off authority (would grade
+its own homework). JS code QA = **Opus adversarial** (security-tier tasks) + **Codex** cross-model
+when available — both non-Fable lenses. Plan-approval gate = **Coordinator** approves in-spec plans
+(preserves the spec-before-build hard gate while keeping Ben uninterrupted); only a genuine product
+fork surfaces to Ben.
+
+**Parallel start:** all platform seams EXCEPT #916 are merged (#914/#917/#918/#919/#915 on main).
+JS-01..05, 07..09 build on current main NOW — do NOT wait for #916. Only **JS-06 (#935, module
+surface + assistant handoff)** depends on #916's openAssistant contract → held until #916 merges.
+Fable starts immediately in dependency order to maximize overnight utilization. DAG scout dispatched.
