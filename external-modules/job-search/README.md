@@ -28,7 +28,9 @@ the module id `job-search`) with `JARVIS_ENABLE_EXTERNAL_MODULES=1`. The host ha
 - **Permissions:** one per assistant tool, `permissionId == tool name` (ruling 2026-07-10; the
   consolidated permission model is deferred to JS-06).
 - **Storage:** seven user-scoped KV namespaces (`job-search.onboarding`, `.profile`, `.resume`,
-  `.monitors`, `.opportunities`, `.runs`, `.feed`). No instance-scoped data.
+  `.monitors`, `.opportunities`, `.runs`, `.feed`). No instance-scoped data. Owner
+  delete-cascade/export/disable and per-owner retention are covered in JS-02; the platform-side
+  cross-owner purge of `module_kv` at operator uninstall/disable is deferred to issue #951.
 - **Credentials:** none in MVP — no `auth` section.
 - **Worker:** JSON-RPC over stdio via `@jarv1s/module-sdk/worker` (contract version 1). Handlers:
   13 assistant-tool stubs + `monitor.run`; all answer `{status: "not-implemented"}` until later
