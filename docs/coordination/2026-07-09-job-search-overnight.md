@@ -3310,3 +3310,21 @@ sanctioned wait: an external constraint no orchestration can bypass without viol
   (.claude/worktrees/news-slice2) — WIP intact on disk. Still Codex-only.
 - **Meanwhile the fleet keeps moving on the UNAFFECTED lane:** JS-04 #959 (Fable/Opus account, not
   Codex) — Opus QA a6db4d7 in flight is the active front.
+
+## JS-04 #959 — Opus QA GREEN + documented Codex-degrade second lens — 2026-07-11 11:57 PDT
+
+Opus adversarial QA verdict = **GREEN, MERGE-READY: YES** (posted to PR). 0 blocking; 2 accepted
+non-blocking (compliance="allowed" is coordinator/automated review = accepted business risk;
+fetchBoard has no src caller this slice, monitor.run stub until scheduling slice — orchestration
+proven by tests). Invariants ok: ZERO migrations, owner-scoped ctx.kv only, metadata-only,
+provider-agnostic AI, module isolation, no raw fs/DataContextDb, SSRF suite drives REAL
+createHostPinnedFetch, sanitize+cap before scan. CI green (Verify foundation+app pass 16m17s + 2 smokes).
+
+**Council gate = Opus + Codex + CI. Codex second lens is DEGRADED** (documented): Codex account is
+hard quota-limited until 14:37 PDT and genuinely unreachable. Per JS-04 handoff ("documented degrade
+only when a second provider is genuinely unreachable") + CLAUDE.md degrade ladder (cross-provider →
+independent Claude critic → self-review), the second lens = **independent Opus critic (a7167f0b),
+fresh context, adversarial** — spawned now. Rationale: scarce post-14:37 Codex budget must go to the
+IRREPLACEABLE News build (Codex-only), not a replaceable JS-04 review lens; holding JS-04 3h would
+stall the serialized JS chain (JS-05+ wait on it landing). On critic GREEN → merge (Ben bypass on
+sign-off; gate met = Opus GREEN + independent second lens GREEN + CI green). On RED → relay to pFT.
