@@ -78,6 +78,8 @@ export const keys = {
   resumeConfirmation: (id: string) => `confirmation/${id}`,
   monitor: (id: string) => `monitor/${id}`,
   monitorCursor: (id: string) => `cursor/${id}`,
+  /** JS-05 schedule state (NS.monitors). Key ABI — breaking-contract note above applies. */
+  monitorSchedule: (monitorId: string) => `schedule/${monitorId}`,
   job: (h: string) => `job/${h}`,
   tombstone: (h: string) => `tombstone/${h}`,
   run: (monitorId: string, runId: string) => `run/${monitorId}/${runId}`,

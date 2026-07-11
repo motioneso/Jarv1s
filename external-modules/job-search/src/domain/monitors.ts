@@ -54,6 +54,7 @@ export async function listMonitorIds(kv: JobSearchKv): Promise<readonly string[]
 export async function deleteMonitor(kv: JobSearchKv, monitorId: string): Promise<boolean> {
   assertId(monitorId);
   await kv.delete(NS.monitors, keys.monitorCursor(monitorId));
+  await kv.delete(NS.monitors, keys.monitorSchedule(monitorId));
   return kv.delete(NS.monitors, keys.monitor(monitorId));
 }
 
