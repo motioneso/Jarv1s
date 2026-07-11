@@ -3010,3 +3010,19 @@ anything requiring escalation and do that instead of waiting for me."
 **Budget:** 2 blind fix cycles exhausted. D3 is now a DESIGN decision, not a 3rd blind tweak. Per genuine-Ben directive (council = escalation authority, keep moving, don't stall for Ben): gating next step on a one-shot **Opus design adjudication** → rules (a) is D3-closure in JS-03 spec scope or a tracked follow-up, and (b) the minimal correct fix. Then: in-scope → ONE final DESIGNED implementation cycle on R16 → re-QA same council; out-of-scope → file follow-up issue + council-green on the spec-complete (D1/D2-closed) surface. If the final designed cycle still fails council → THEN park #956 for Ben (genuinely exhausted). NO merge now. JS-04+ serialized-blocked behind JS-03.
 
 **News #955:** unchanged — held on Gemini seat.
+
+---
+## Checkpoint — JS-03 #956 Opus design ruling → FINAL designed cycle relayed to R16 (70% flush, IN-PLACE)
+
+**Opus design adjudicator (ac1e46fd847d46e3f) ruling:**
+- **SCOPE: IN-SCOPE** — D3 violates spec bar ("reference exact source text" / "unsupported-claim adversarial cases cannot become approved") + B1 Hard Invariant. Must close.
+- **FIX (localized to pure verifyMarkdownCoverage/extractMaterialSegments; ZERO migrations, no deps, KV untouched):** two-tier match by proposed-segment TOKEN COUNT:
+  - MULTI-token proposed segment → keep current rule: contiguous phrase containment within a SINGLE corpus segment.
+  - SINGLE-token proposed segment → must match a corpus segment by FULL EQUALITY (`phrase === corpusPhrase`), NEVER sub-containment. Lone token passes only if it IS a whole source item.
+  - Keep empty/whitespace reject.
+- **Regression tests (ship with fix):** (1) `"Senior\nEngineer\nat\nBeta\nLLC"` → ok:false; (2) `"Vice President\nInitech\n2020–2024"` cross-context → ok:false; (3) guard-rail: a legit single-token skill line that IS a whole source bullet still passes + a genuine contiguous reorder still passes.
+- **RISK: high confidence permanent** (full-equality at token floor removes the last sub-containment loophole; no finer decomposition exists).
+
+**ACTION (this checkpoint):** relayed the above design to R16 (pFH/9a93d273, Fable, done→will resume) as the FINAL designed cycle. R16: implement two-tier match TDD → 3 regression tests → full verify:foundation + trio → push → re-QA ping (SAME Opus+Codex council). **LAST cycle** — if council still not-unanimous-GREEN, park #956 for Ben (genuinely exhausted).
+
+**CONTINUATION NOTE (post-compaction me, resume here):** JS-03 #956 head was 0146b0bd (D1/D2 closed, D3 open). Final designed fix relayed to R16. NEXT = await R16 push+ping → re-QA #956 with Opus (coordinated-qa, model opus, isolation worktree, JARVIS_PGDATABASE=jarvis_qa_3) + Codex (`codex exec --dangerously-bypass-approvals-and-sandbox`, prompt scratchpad/codex-js03-cycle2-qa.txt updated for the new head, monitor log for `^VERDICT:`). Merge #956 ONLY on Opus AND Codex both GREEN + CI green (JS-03 gate = Opus+Codex, NOT the News named-3). If GREEN → squash-merge, close #932, epic #913 exit-check, board→Done, release JS-04 (#933). If RED again → park #956 for Ben, JS-04+ stays blocked. **News #955 = held SOLELY on Gemini seat (Opus+Codex+CI all GREEN); auto-merge on Gemini durable GREEN, no substitution.** My session authority = 58a78927 (pE6). Fable-only builds. Fleet Monitor b54y9f2eg persistent.
