@@ -13,6 +13,10 @@ import { STEP_LABELS } from "../../external-modules/job-search/src/web/format.js
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
 import { OnboardingView } from "../../external-modules/job-search/src/web/screens/onboarding.js";
 import {
+  bucketFromPath,
+  OpportunitiesScreen
+} from "../../external-modules/job-search/src/web/screens/opportunities.js";
+import {
   OverviewView,
   type MonitorSummary,
   type OnboardingState
@@ -266,5 +270,21 @@ describe("job-search monitors view (#935)", () => {
 
   it("with no monitors renders the authored empty state", () => {
     expect(render(h(MonitorsView, { monitors: [] }))).toContain("No monitors yet");
+  });
+});
+
+describe("job-search opportunities shell (#935)", () => {
+  it("parses bucket routes with a new default", () => {
+    expect(bucketFromPath("/opportunities")).toBe("new");
+    expect(bucketFromPath("/opportunities/saved")).toBe("saved");
+    expect(bucketFromPath("/opportunities/passed")).toBe("passed");
+    expect(bucketFromPath("/opportunities/stale")).toBe("stale");
+    expect(bucketFromPath("/opportunities/bogus")).toBe("new");
+  });
+
+  it("renders bucket tabs and the JS-08 empty state", () => {
+    const html = render(h(OpportunitiesScreen, { path: "/opportunities/saved" }));
+    for (const label of ["New", "Saved", "Passed", "Stale"]) expect(html).toContain(label);
+    expect(html).toContain("Opportunities arrive with monitoring runs");
   });
 });
