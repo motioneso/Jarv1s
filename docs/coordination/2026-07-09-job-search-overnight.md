@@ -2972,3 +2972,5 @@ anything requiring escalation and do that instead of waiting for me."
 **BUDGET: this is fix cycle 2 of 2 (LAST).** If re-QA after cycle 2 is still not unanimous GREEN → stop the JS-03 lane, HOLD #956 for Ben (digest, non-blocking), JS-04+ stays serialized-blocked. Council-is-authority, no route-to-Ben unless budget exhausted.
 
 **News #955:** unchanged — held solely on Gemini seat (Opus+Codex+CI all GREEN).
+
+**Relay:** JS-03 R14 (9a7df97a) → R15 (e9e36096, Fable 5, pFG/t17) at 72% meter. Handoff committed ead8806f ('R14→R15 continuation'). R14 reaped. R15 executing cycle-2: RED tests → segment guard → gates → push → re-QA ping (same Opus+Codex council). Cycle-2 = LAST budget cycle. No code edits yet at handoff.
