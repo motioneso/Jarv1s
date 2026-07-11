@@ -3269,3 +3269,27 @@ gate (Ben bypass, no extra sign-off). JS-04 QA council = Opus + Codex.
 
 **Lock:** coordinator session 58a78927 (in-place compaction; NO successor pane). Monitor b54y9f2eg
 armed. Stray pane pBK/28c218bf (news-module worktree, idle) — do NOT reap blindly.
+
+## CORRECTION — 2026-07-11 News S2 remaining scope is Tasks 11–16 (NOT 11+gate)
+
+Prior note understated remaining work. Branch f6dcf995 covers plan **Tasks 1–10 only**. The
+approved plan (docs/superpowers/plans/2026-07-11-news-s2-safe-discovery.md) still requires, in order:
+- **Task 11** — routes / root wiring (refresh-on-change on POST/DELETE /api/news/prefs)
+- **Task 12** — candidate collection + filters (7-day age, non-null ISO publishedAt, exclusions absolute)
+- **Task 13** — structured LLM ranking (external text = UNTRUSTED DATA; provider-agnostic router)
+- **Task 14** — compile / CAS orchestrator (generation handshake B5/B6; atomic last-good snapshot swap)
+- **Task 15** — refresh worker / single-flight tests (metadata-only jobs; coalescing; no stampede)
+- **Task 16** — gate + wrap-up (PR 'Closes #958')
+
+**ACCEPTANCE CHECKLIST (QA council MUST verify ALL before merge — pFV cannot wrap after routes):**
+1. Tasks 11–16 all landed (not just routes). 2. Six relayed pre-commit corrections present in tests:
+T3 abort-race, T6 RLS coverage, T9 provider-policy safety approval, T10 arg-order + name-search
+exclusion (fetch count 0) + redirect-identity revalidation, B6 bump-before-prune order guard.
+3. Migration **0160** in packages/news/sql/ + foundation-schema-catalog toEqual row. 4. SSRF adversarial
+tests drive the REAL reader. 5. Owner-only cross-owner denial proven. QA council = **Opus + Fable** (never Codex).
+
+**Codex quota fallback (Ben directive 2026-07-11):** pFV inherits the same account-wide <5% 5h Codex
+limit and is preserving pFR's partial Task 11 edits (routes.ts, package.json, jobs.ts). Let pFV work.
+**If quota stops it: do NOT churn another CLI session** — stand pFV down and hand the SAME isolated
+worktree (.claude/worktrees/news-slice2) to Codex **pEP** for direct continuation. Keeps Ben
+Codex-only and avoids provider-session roulette. No Fable fallback for News build.
