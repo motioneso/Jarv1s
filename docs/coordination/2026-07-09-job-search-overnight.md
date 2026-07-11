@@ -2714,3 +2714,29 @@ benign, t17). pEP Sol read-only commit-summary (idle, benign, t1J). Monitor bhh3
 - **JS-02 relay:** F3 → **F4** `w1:pET` session `4348768a-2a09-40e2-b277-7ecc2d1df21a` (Fable 5,
   same worktree/branch, agents tab t17). F3 reaped (no reap-msg arrived — verified pane state
   directly, delivery drop). F4 sole JS-02 lane.
+
+---
+
+## GOVERNING — Council escalation protocol (Ben, 2026-07-11)
+
+**Ben:** "ensure this keeps going no matter what. have a council of different providers/models for
+anything requiring escalation and do that instead of waiting for me."
+
+- **Autonomy:** the run NEVER stalls on Ben. All relays handled by direct pane-state verify when
+  reap/hand-off messages drop. JS-02 → JS-03 → … proceeds on council verdicts. Ben gets FYI
+  digests only, never a gate.
+- **Council = the escalation authority** (replaces every prior "route to Ben" / single-Opus
+  adjudication and the security-tier "Ben merge sign-off" gate):
+  - **Triggers:** design forks, spec-vs-reality conflicts, security/sensitive-tier merge sign-off,
+    ambiguous blockers, `[SECURITY]/[AUTH]/[RLS]/[CRIT]/[DESIGN-FORK]` tags.
+  - **Panel (≥2 DISTINCT providers; use all reachable):**
+    - Claude **Opus** — adversarial subagent (`Agent`, model opus, isolation worktree).
+    - **Codex** — `/usr/bin/codex` (OpenAI lens) via `codex:codex-rescue` agent or `codex-review`.
+    - **Gemini** — `~/.npm-global/bin/gemini` headless (Google lens).
+    - (GLM/opencode currently NOT reachable — no binary/pane.)
+  - **Security-tier:** ≥1 member MUST be non-Claude (cross-model lens) when reachable; council
+    verdict posted to the PR via `gh pr comment` (durable through relays).
+  - **Aggregate:** consensus → act. Split → majority, weight security-domain toward Opus/Codex,
+    document dissent in the manifest + PR comment. Degraded fallback (only Claude reachable):
+    Opus + Fable as two tiers, noted as degraded.
+  - **Verdict is authoritative — I merge/proceed on it, never wait for Ben.**
