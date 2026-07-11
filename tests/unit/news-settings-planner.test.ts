@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  curatedTileState,
+  exclusionRejectionMessage,
   planSourceToggle,
   planTopicToggle,
   sourceEnabled,
   type PrefOp
 } from "../../packages/news/src/settings/index.js";
+import type { PublisherDomainRejection } from "../../packages/news/src/personalization-domain.js";
 import { NEWS_CATALOG, sourceEntry } from "../../packages/news/src/source/catalog.js";
 import type { NewsPrefDto } from "@jarv1s/shared";
 
@@ -113,6 +116,55 @@ describe("planSourceToggle: enabling (#897)", () => {
 
   it("returns [] for a source key not in the catalog", () => {
     expect(planSourceToggle("not-a-source", NEWS_CATALOG, [])).toEqual([]);
+  });
+});
+
+// #953 Task 5: domain exclusions override the curated On/Off vocabulary. A curated tile whose
+// publisher domain is excluded must render as "excluded" (not contributing) no matter what the
+// V1 pref rows say — otherwise Settings shows "On" for a source the server will never fetch.
+describe("curatedTileState (#953)", () => {
+  it("mirrors sourceEnabled when nothing is excluded", () => {
+    expect(curatedTileState(bbc, [], [])).toBe("on");
+    expect(curatedTileState(nytimes, [], [])).toBe("off");
+    expect(curatedTileState(bbc, [pref("source_exclude", "bbc")], [])).toBe("off");
+  });
+
+  it("excluded wins over an On curated toggle (subdomain homepage matches parent exclusion)", () => {
+    // bbc homepage is https://www.bbc.com/news → www.bbc.com is a subdomain of bbc.com.
+    expect(curatedTileState(bbc, [], ["bbc.com"])).toBe("excluded");
+  });
+
+  it("shows excluded even when the curated toggle is Off (turning it On would be a lie)", () => {
+    expect(curatedTileState(nytimes, [], ["nytimes.com"])).toBe("excluded");
+  });
+
+  it("a deeper-subdomain exclusion does NOT capture the curated homepage", () => {
+    // Excluding news.bbc.com must not mark www.bbc.com as excluded (downward-only matching).
+    expect(curatedTileState(bbc, [], ["news.bbc.com"])).toBe("on");
+  });
+});
+
+describe("exclusionRejectionMessage (#953)", () => {
+  const reasons: readonly PublisherDomainRejection[] = [
+    "empty",
+    "input_too_long",
+    "unparseable",
+    "non_https_scheme",
+    "credentials",
+    "explicit_port",
+    "ip_literal",
+    "single_label",
+    "hostname_too_long",
+    "invalid_label"
+  ];
+
+  it("has human copy for every rejection key and never echoes machine keys", () => {
+    for (const reason of reasons) {
+      const message = exclusionRejectionMessage(reason);
+      expect(message.length).toBeGreaterThan(10);
+      // UI copy, not the raw enum value leaking through.
+      expect(message).not.toContain("_");
+    }
   });
 });
 

@@ -5,5 +5,6 @@
 export const newsQueryKeys = {
   overview: ["news", "overview"] as const,
   catalog: ["news", "catalog"] as const,
-  prefs: ["news", "prefs"] as const
+  prefs: ["news", "prefs"] as const,
+  personalization: ["news", "personalization"] as const
 };

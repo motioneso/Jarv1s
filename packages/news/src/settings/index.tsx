@@ -1,7 +1,9 @@
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Note, PaneHead } from "@jarv1s/settings-ui";
+import { Badge, ComingSoon, Note, PaneHead } from "@jarv1s/settings-ui";
 import type {
   NewsCatalogSource,
+  NewsPersonalizationAvailabilityDto,
   NewsPrefDto,
   NewsPrefKind,
   NewsTopicKey,
@@ -9,9 +11,17 @@ import type {
 } from "@jarv1s/shared";
 
 import {
+  normalizePublisherDomain,
+  publisherDomainMatches,
+  type PublisherDomainRejection
+} from "../personalization-domain.js";
+import {
   createNewsPref,
+  createNewsSourceExclusion,
   deleteNewsPref,
+  deleteNewsSourceExclusion,
   getNewsCatalog,
+  getNewsPersonalization,
   listNewsPrefs
 } from "../web/news-client.js";
 import { newsQueryKeys } from "../web/query-keys.js";
@@ -96,6 +106,52 @@ export function planSourceToggle(
   return ops;
 }
 
+/**
+ * #953 Task 5: domain exclusions override the curated On/Off vocabulary. A curated tile whose
+ * publisher homepage falls under an excluded domain renders "excluded" (not contributing)
+ * regardless of the V1 pref rows — the server suppresses that source before fetch (two-layer
+ * filtering in NewsService), so showing "On" would be a lie.
+ */
+export type CuratedTileState = "on" | "off" | "excluded";
+
+export function curatedTileState(
+  source: Pick<NewsCatalogSource, "sourceKey" | "defaultEnabled" | "homepageUrl">,
+  prefs: readonly NewsPrefDto[],
+  excludedDomains: readonly string[]
+): CuratedTileState {
+  const normalized = normalizePublisherDomain(source.homepageUrl);
+  if (
+    normalized.ok &&
+    excludedDomains.some((domain) => publisherDomainMatches(domain, normalized.domain))
+  ) {
+    return "excluded";
+  }
+  return sourceEnabled(source, prefs) ? "on" : "off";
+}
+
+/**
+ * UI copy per rejection key from `normalizePublisherDomain`. The Record is exhaustive by
+ * type — adding a rejection key without copy is a compile error. Keys are stable machine
+ * identifiers (the POST route 400s carry the same keys, never the raw input), so this map is
+ * the single place raw reasons become human sentences.
+ */
+const EXCLUSION_REJECTION_COPY: Record<PublisherDomainRejection, string> = {
+  empty: "Enter a publisher domain or HTTPS link.",
+  input_too_long: "That input is too long to be a web address.",
+  unparseable: "That doesn't look like a web address.",
+  non_https_scheme: "Only HTTPS links or bare domains are accepted.",
+  credentials: "Web addresses with embedded credentials aren't accepted.",
+  explicit_port: "Web addresses with an explicit port aren't accepted.",
+  ip_literal: "IP addresses aren't accepted — use the publisher's domain name.",
+  single_label: "Enter a full domain, like example.com.",
+  hostname_too_long: "That domain name is too long.",
+  invalid_label: "That domain name contains characters that aren't allowed."
+};
+
+export function exclusionRejectionMessage(reason: PublisherDomainRejection): string {
+  return EXCLUSION_REJECTION_COPY[reason];
+}
+
 /** Topic chips are simple membership rows: one `topic` pref per followed topic. */
 export function planTopicToggle(
   topicKey: NewsTopicKey,
@@ -115,10 +171,42 @@ async function runOps(ops: readonly PrefOp[]): Promise<void> {
   }
 }
 
+/**
+ * Prerequisite gate copy for the closed-write sections. Slice 1 ships NO custom-source/topic
+ * write APIs (preview/confirm arrive in Slice 2), so the Add buttons are ALWAYS disabled here —
+ * the availability booleans only decide WHICH explanation is truthful: "set up the missing
+ * prerequisite" vs "the feature itself hasn't shipped yet" (spec §Prerequisites and availability).
+ */
+function ClosedWriteGate(props: { readonly ready: boolean; readonly requirement: string }) {
+  if (!props.ready) {
+    return (
+      <span className="nw-set__gate">
+        {props.requirement}{" "}
+        <a className="nw-set__gatelink" href="/settings?section=assistant">
+          Set it up in Assistant settings
+        </a>
+        .
+      </span>
+    );
+  }
+  return (
+    <span className="nw-set__gate">
+      <ComingSoon /> Ready to go — adding arrives in an upcoming update.
+    </span>
+  );
+}
+
 export default function NewsSettings() {
   const queryClient = useQueryClient();
   const catalogQuery = useQuery({ queryKey: newsQueryKeys.catalog, queryFn: getNewsCatalog });
   const prefsQuery = useQuery({ queryKey: newsQueryKeys.prefs, queryFn: listNewsPrefs });
+  const personalizationQuery = useQuery({
+    queryKey: newsQueryKeys.personalization,
+    queryFn: getNewsPersonalization
+  });
+
+  const [exclusionInput, setExclusionInput] = useState("");
+  const [exclusionValidation, setExclusionValidation] = useState<string | null>(null);
 
   const opsMutation = useMutation({
     mutationFn: runOps,
@@ -129,16 +217,64 @@ export default function NewsSettings() {
     }
   });
 
+  // Exclusion changes reshape both the personalization pane AND the composed front page
+  // (server drops excluded publishers pre-fetch), so both caches must refetch immediately.
+  const invalidateAfterExclusionChange = () => {
+    void queryClient.invalidateQueries({ queryKey: newsQueryKeys.personalization });
+    void queryClient.invalidateQueries({ queryKey: newsQueryKeys.overview });
+  };
+  const addExclusionMutation = useMutation({
+    mutationFn: createNewsSourceExclusion,
+    onSuccess: () => {
+      setExclusionInput("");
+      invalidateAfterExclusionChange();
+    }
+  });
+  const removeExclusionMutation = useMutation({
+    mutationFn: deleteNewsSourceExclusion,
+    onSuccess: invalidateAfterExclusionChange
+  });
+
   const sources = catalogQuery.data?.sources ?? [];
   const topics = catalogQuery.data?.topics ?? [];
   const prefs = prefsQuery.data?.prefs ?? [];
+  const personalization = personalizationQuery.data ?? null;
+  const availability: NewsPersonalizationAvailabilityDto | null =
+    personalization?.availability ?? null;
+  const customSources = personalization?.customSources ?? [];
+  const customTopics = personalization?.customTopics ?? [];
+  const exclusions = personalization?.sourceExclusions ?? [];
+  const excludedDomains = exclusions.map((exclusion) => exclusion.canonicalDomain);
   const followedTopics = new Set(
     prefs.filter((pref) => pref.kind === "topic").map((pref) => pref.key)
   );
   const pending = catalogQuery.isLoading || prefsQuery.isLoading || opsMutation.isPending;
   const error = catalogQuery.isError || prefsQuery.isError || opsMutation.isError;
 
-  const enabledCount = sources.filter((source) => sourceEnabled(source, prefs)).length;
+  const tileStates = new Map(
+    sources.map((source) => [source.sourceKey, curatedTileState(source, prefs, excludedDomains)])
+  );
+  const enabledCount = sources.filter((source) => tileStates.get(source.sourceKey) === "on").length;
+  const anyTileExcluded = sources.some((source) => tileStates.get(source.sourceKey) === "excluded");
+
+  function submitExclusion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // Client-side pre-validation for instant feedback only — the route re-normalizes and is
+    // the actual gate (its 400s carry reason keys, never the raw input).
+    const normalized = normalizePublisherDomain(exclusionInput);
+    if (!normalized.ok) {
+      setExclusionValidation(exclusionRejectionMessage(normalized.reason));
+      return;
+    }
+    setExclusionValidation(null);
+    addExclusionMutation.mutate({ source: exclusionInput.trim() });
+  }
+
+  const exclusionError =
+    exclusionValidation ??
+    (addExclusionMutation.isError
+      ? (addExclusionMutation.error?.message ?? "Could not exclude that publisher.")
+      : null);
 
   return (
     <>
@@ -151,24 +287,37 @@ export default function NewsSettings() {
         <p className="nw-set__kicker">Sources</p>
         <div className="nw-set__grid">
           {sources.map((source) => {
-            const active = sourceEnabled(source, prefs);
+            const state = tileStates.get(source.sourceKey) ?? "off";
+            // An excluded tile is inert: its V1 toggle would silently do nothing (the server
+            // suppresses the domain pre-fetch), so it renders disabled + "Excluded" instead
+            // of a fake On/Off.
+            const excluded = state === "excluded";
+            const active = state === "on";
             return (
               <button
                 key={source.sourceKey}
                 type="button"
-                className={`nw-setsrc${active ? " is-active" : ""}`}
-                disabled={pending}
+                className={`nw-setsrc${active ? " is-active" : ""}${excluded ? " is-excluded" : ""}`}
+                disabled={pending || excluded}
                 aria-pressed={active}
                 onClick={() =>
                   opsMutation.mutate(planSourceToggle(source.sourceKey, sources, prefs))
                 }
               >
                 <span className="nw-setsrc__name">{source.label}</span>
-                <span className="nw-setsrc__state">{active ? "On" : "Off"}</span>
+                <span className="nw-setsrc__state">
+                  {excluded ? "Excluded" : active ? "On" : "Off"}
+                </span>
               </button>
             );
           })}
         </div>
+        {anyTileExcluded ? (
+          <Note>
+            Excluded publishers override these toggles — manage them under Excluded publishers
+            below.
+          </Note>
+        ) : null}
         {!pending && enabledCount === 0 ? (
           <Note>No sources enabled — your News page will be empty until you turn one on.</Note>
         ) : null}
@@ -199,6 +348,162 @@ export default function NewsSettings() {
         </div>
       </section>
 
+      <section className="nw-set" aria-label="Personalized sources">
+        <p className="nw-set__kicker">Personalized sources</p>
+        <p className="nw-set__hint">
+          Publications you add yourself, verified before they join your feed. Verified sources
+          contribute recent headlines to News and briefings.
+        </p>
+        {availability ? (
+          <p className="nw-set__prereq">
+            <Badge tone={availability.aiConfigured ? "pine" : "amber"} dot>
+              AI model {availability.aiConfigured ? "ready" : "needed"}
+            </Badge>
+            <Badge tone={availability.webSearchConfigured ? "pine" : "amber"} dot>
+              Web search {availability.webSearchConfigured ? "ready" : "needed"}
+            </Badge>
+          </p>
+        ) : null}
+        {customSources.length > 0 ? (
+          <ul className="nw-set__list">
+            {customSources.map((source) => (
+              <li key={source.id} className="nw-set__item">
+                <span className="nw-set__item-label">{source.label}</span>
+                <span className="nw-set__item-meta">{source.canonicalDomain}</span>
+                {source.validationStatus !== "approved" ? (
+                  <Badge tone="amber">Needs revalidation</Badge>
+                ) : source.healthStatus === "unavailable" ? (
+                  <Badge tone="red">Unavailable</Badge>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="nw-set__addrow">
+          <button
+            type="button"
+            className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
+            disabled
+          >
+            Add source
+          </button>
+          {availability ? (
+            <ClosedWriteGate
+              ready={availability.customSourceByUrlEnabled}
+              requirement="Adding sources needs an AI model with structured output."
+            />
+          ) : null}
+        </div>
+      </section>
+
+      <section className="nw-set" aria-label="Topics you describe">
+        <p className="nw-set__kicker">Topics you describe</p>
+        <p className="nw-set__hint">
+          Freeform topics in your own words — like &ldquo;mechanical watches, not
+          smartwatches&rdquo; — discovered across the web, not just your sources.
+        </p>
+        {customTopics.length > 0 ? (
+          <ul className="nw-set__list">
+            {customTopics.map((topic) => (
+              <li key={topic.id} className="nw-set__item">
+                <span className="nw-set__item-label">{topic.label}</span>
+                {topic.guidance ? (
+                  <span className="nw-set__item-meta">{topic.guidance}</span>
+                ) : null}
+                {topic.validationStatus !== "approved" ? (
+                  <Badge tone="amber">Needs revalidation</Badge>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="nw-set__addrow">
+          <button
+            type="button"
+            className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
+            disabled
+          >
+            Add topic
+          </button>
+          {availability ? (
+            <ClosedWriteGate
+              ready={availability.freeformTopicsEnabled}
+              requirement="Described topics need an AI model and web search."
+            />
+          ) : null}
+        </div>
+      </section>
+
+      <section className="nw-set" aria-label="Excluded publishers">
+        <p className="nw-set__kicker">Excluded publishers</p>
+        <p className="nw-set__hint">
+          Excluded publishers never appear anywhere in News, Today, or briefings — including through
+          topics. Removing one returns it to neutral; it may show up again, but is not preferred.
+        </p>
+        <form className="nw-set__exform" onSubmit={submitExclusion}>
+          <label className="nw-set__exlabel" htmlFor="nw-exclusion-input">
+            Publisher domain or HTTPS link
+          </label>
+          <div className="nw-set__exrow">
+            <input
+              id="nw-exclusion-input"
+              className="jds-input"
+              type="text"
+              value={exclusionInput}
+              placeholder="example.com"
+              disabled={addExclusionMutation.isPending}
+              aria-describedby={exclusionError ? "nw-exclusion-error" : undefined}
+              onChange={(event) => {
+                setExclusionInput(event.target.value);
+                // Stale validation copy beside fresh input reads as a new failure — clear it.
+                setExclusionValidation(null);
+              }}
+            />
+            <button
+              type="submit"
+              className="jds-btn jds-btn--sm nw-set__exadd"
+              disabled={addExclusionMutation.isPending}
+            >
+              Add
+            </button>
+          </div>
+        </form>
+        {exclusionError ? (
+          <p id="nw-exclusion-error" className="nw-set__exerr" role="alert">
+            {exclusionError}
+          </p>
+        ) : null}
+        {exclusions.length > 0 ? (
+          <ul className="nw-set__list">
+            {exclusions.map((exclusion) => {
+              const removing =
+                removeExclusionMutation.isPending &&
+                removeExclusionMutation.variables === exclusion.id;
+              return (
+                <li key={exclusion.id} className="nw-set__item">
+                  <span className="nw-set__item-label">{exclusion.canonicalDomain}</span>
+                  <button
+                    type="button"
+                    className="jds-btn jds-btn--sm jds-btn--secondary"
+                    aria-label={`Remove ${exclusion.canonicalDomain}`}
+                    disabled={removing}
+                    onClick={() => removeExclusionMutation.mutate(exclusion.id)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        {removeExclusionMutation.isError ? (
+          <Note>Could not remove that exclusion. Try again.</Note>
+        ) : null}
+      </section>
+
+      {personalizationQuery.isError ? (
+        <Note>Could not load personalization details. Try again.</Note>
+      ) : null}
       {error ? <Note>Could not load or save news preferences. Try again.</Note> : null}
     </>
   );
