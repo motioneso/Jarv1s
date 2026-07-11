@@ -2327,3 +2327,12 @@ commit / relay / stuck. (3) On #914 merge: rebase #939, spawn #915 lane lean.
 - **Still held:** #916 starter action (task 8) — `needs-spec`, Fable split it onto JS critical path.
 - **Open TODO:** verify #919 board card → Done (low priority; `gh project item-list 2` returned empty
   earlier — CLI/project-number format suspect).
+
+**MIGRATION ASSIGNMENT @ 2026-07-11 01:55 — 0158 CLAIMED by #915.**
+Agent w1:pEB escalated: spec drift confirmed as expected (#919 runtime + migration 0157 present;
+scoped Goal 1/3 seams still absent — matches my re-scope). Goal 1 needs a SECURITY DEFINER
+migration. **Assigned migration 0158** (seq tops at 0157; #915 is sole active build lane → no
+contention). Sent SECURITY DEFINER guardrails to bake into plan: pin search_path, GRANT EXECUTE
+narrowly (not PUBLIC), stay NOBYPASSRLS-consistent with jarvis_worker_runtime, least-priv body;
+module SQL in owning module sql/ dir. Agent instructed to finalize plan → escalate full plan for
+approval BEFORE code. **Awaiting plan escalation.** merges_since_relay: 0.
