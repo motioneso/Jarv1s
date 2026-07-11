@@ -8,85 +8,87 @@ origin/main `9d4589d1` (JS-01..05 included). Read by SECTION only:
 - Spec: `docs/superpowers/specs/2026-07-10-job-search-js-06-module-surface.md` (57 lines, safe to read fully)
 - Coordinator: label `Coordinator`, session id `58a78927-385c-4b1d-8fa0-94db20255d6f` (resolve pane fresh by label; exactly one)
 
-## Where the build stands (updated relay 4, 2026-07-11)
+## Where the build stands (updated relay 5, 2026-07-11)
 
-**Plan Tasks 1–9 COMMITTED GREEN** (RED-GREEN-commit each): `5df78462` T1 jsx shim + runtime ·
+**Plan Tasks 1–10 COMMITTED GREEN** (RED-GREEN-commit each): `5df78462` T1 jsx shim + runtime ·
 `27020ca9` T2 api.ts client · `e76efa8a` T3 store/router/format · `7240aef0` T4 Root shell +
 states + starter drafts · `e7910dcd` T5 Overview · `e8a0ac66` T6 Onboarding · `931ba104` T7
-Profile & resume · `09564dc6` T8 Monitors + RunNowButton · `84a8cac1` T9 Opportunities shell.
-Verified at T9: **31/31 unit tests** (`tests/unit/job-search-web-core.test.ts` +
-`tests/unit/job-search-web-screens.test.tsx`) + `pnpm check:external-modules` exit 0. All five
-screens under `external-modules/job-search/src/web/screens/` are now real (no placeholders left).
-T8's optional Overview mod was SKIPPED per plan (overview.tsx already had the /monitors link).
+Profile & resume · `09564dc6` T8 Monitors + RunNowButton · `84a8cac1` T9 Opportunities shell ·
+**`40a11728` T10 integration guards + browser-safety walk + #965 comments**. Verified at T10:
+unit 34/34, integration 5/5 exit 0. Temp smoke test `tests/integration/js06-invoke-smoke.test.ts`
+was DELETED (never committed) — do not recreate.
 
 **THE PLAN IS THE SINGLE SOURCE OF TRUTH:**
 `docs/superpowers/plans/2026-07-11-js-06-module-surface.md` — read PER TASK (by section), never
-front-to-back. Section offsets: T10@2194 T11@2331 T12@2367 exit-criteria@2389.
+front-to-back. Section offsets: T11@2331 T12@2367 exit-criteria@2389.
 
-NEXT STEP (immediately): **Task 10 — permanent integration test + browser-safety walk** (plan line
-~2194). Exploration is DONE (see verified facts below) — write the test directly. Create
-`tests/integration/js06-module-surface.test.ts` (clone harness from
-`tests/integration/external-module-job-search.test.ts`), 5 tests: (1) GET `/api/ai/assistant-tools`
-filtered `t.moduleId === "job-search"` lists the 6 read tools; (2) `monitor.list` invoke → 200
-`invocation` matchObject `{status:"succeeded", blockedReason:null, result:{status:"ok",monitors:[]}}`;
-(3) `monitor.save` invoke → 403 `{status:"blocked", blockedReason:"confirmation_required"}`;
-(4) run-now first → 202 jobId string, second → 202 jobId null; (5) disable module then invoke →
-404. Also: append `external-modules/job-search/src/web/index.ts` to the walked entry roots in
-`tests/unit/module-web-browser-safety.test.ts`, and **`rm tests/integration/js06-invoke-smoke.test.ts`**
-(temp file, header says DO NOT COMMIT — it is still uncommitted on disk; delete, never stage).
-Verify: `pnpm vitest run tests/unit/module-web-browser-safety.test.ts` +
-`pnpm test:integration -- js06-module-surface` (never trust `| tail` exit codes). Commit
-`test(job-search): permanent surface data-plane guards; extend browser-safety walk (#935)` with
-explicit adds of exactly those two test files. Then T11 (e2e via `tests/e2e/mock-modules.ts`
-extension: real built bundle + mocked invoke/run-now, interactions, screenshots), T12 full gate
-(`pnpm build:external:job-search && pnpm verify:foundation`) + pre-push trio + rebase, →
-`coordinated-wrap-up` (PR `Closes #935` + report to Coordinator).
+NEXT STEP (immediately): **Task 11 — e2e real-bundle spec + screenshots** (plan line ~2331).
+Exploration is DONE (facts below) — write directly. (a) Extend `tests/e2e/mock-modules.ts` with
+`mockExternalWebModuleFromDist(page, options?)` serving the REAL built bundle
+`external-modules/job-search/dist/web/index.js` from disk (options: `invokeFixtures` per tool
+name, `runNowJobIds` default `["job-1", null]`, `invokeStatus` 404 for disabled). (b) Create
+`tests/e2e/js06-module-surface.spec.ts`, 5 scenarios per plan: real-data render (monitor row
+"daily at 07:00 · America/New_York"); onboarding→composer handoff prefills WITHOUT auto-submit
+(#916); run-now queued then already-queued via aria-live, button disabled after settle
+(jobId:null path is MOCK-driven — valid despite #965 defer); disabled fail-closed "Job Search is
+turned off", no Continue button; light/dark screenshots of Overview/Onboarding/Monitors →
+`test-results/js06-screens/{route}-{theme}.png`. beforeAll builds bundle once via
+`execSync("pnpm build:external:job-search", ...)`. Run: `pnpm test:e2e -- js06-module-surface`
+(frontend gate only, no PG — safe alongside other agents). Commit `test(job-search): e2e
+real-bundle surface interactions + light/dark screenshots (#935)` — explicit adds of exactly
+those two files. Then T12: `pnpm build:external:job-search && pnpm verify:foundation` (record
+exit codes), pre-push trio + `git fetch origin main && git rebase origin/main`, confirm nothing
+from `docs/coordination/` or `.claude/context-meter.log` staged → `coordinated-wrap-up` (push,
+PR `Closes #935` with user-facing "What's new" line, report PR + evidence to Coordinator).
 
-## Task-10 verified facts (do NOT re-explore — all confirmed on this branch)
+## Task-11 verified facts (do NOT re-explore)
 
-- Invoke route: `POST /api/ai/assistant-tools/:name/invoke` (`packages/ai/src/routes.ts:577`).
-  404 body message `"Assistant tool is not declared"` when tool unknown OR module disabled.
-  Non-read risk → createPendingAssistantAction + 403. Response serializer
-  `serializeAssistantToolInvocation` (`routes.ts:806`) → `{moduleId, moduleName, name, description,
-  permissionId, risk, status, blockedReason, actionRequestId, result}` wrapped as `{invocation}`.
-  GET `/api/ai/assistant-tools` → `{tools}` incl. `moduleId`.
-- Run-now route: `apps/api/src/external-module-jobs.ts` — `POST
-  /api/modules/:moduleId/queues/:queueName/run`; requires module ACTIVE + queue
-  `allowManualRun` else 404; body keys only `{jobKind, params}`; → `202 {jobId}`;
-  pg-boss `singletonKey = manual:${moduleId}:${queueName}:${actorUserId}` so second submit while
-  queued → `jobId: null`. `job-search.monitor-run` has `allowManualRun: true`
-  (`external-modules/job-search/jarvis.module.json:355`).
-- pg-boss: `createApiServer` creates + STARTS its own boss by default (`apps/api/src/server.ts:197`,
-  start ~:599) — run-now works in the integration harness with no extra setup.
-- Harness template (`tests/integration/external-module-job-search.test.ts`): signUp helper (POST
-  `/api/auth/sign-up/email`, join set-cookie), bootServer closure, resetEmptyFoundationDatabase →
-  buildExternalModule → mkdtemp modulesDir (cpSync jarvis.module.json + dist) →
-  `createApiServer({enableExternalModules, externalModulesDir})` → first signup = admin → enable
-  via `POST /api/admin/external-modules/job-search {enabled:true}` (same route with
-  `{enabled:false}` disables, for test 5). beforeAll timeout 120_000; afterAll
-  Promise.allSettled(close, destroy, rmSync).
+- `tests/e2e/mock-modules.ts`: exports `modulesResponse`, `myModulesResponse`,
+  `mockExternalModules(page)`, `mockExternalWebModule(page)` — moduleId `job-search`, entrypoint
+  `dist/web/index.js`, navigation path `/m/job-search` order 60. Bundle route glob is
+  `**/api/modules/job-search/web/dist/web/index.js*` — the trailing `*` is REQUIRED (Vite adds
+  `?import`). Fulfill with `contentType: "text/javascript"`. Bundle reads host React from
+  `window.__JARVIS_MODULE_RUNTIME__`.
+- `tests/e2e/external-modules.spec.ts` (structure template): call `mockApi(page, {authenticated:
+  true, connectorAccounts: [], connectorProviders: [], notifications: [], tasks: []})` FIRST,
+  module mocks AFTER — most-recently-registered `page.route` wins. Chat submit detection:
+  `page.route("**/api/chat/turn", ...)` + turnPosted flag. Composer =
+  `page.getByRole("textbox", { name: "Message Jarvis" })`. Keyboard activation =
+  `button.press("Enter")`. jds Switch renders a checkbox role; click the `label.jds-switch`.
 
-## Unit-harness gotchas (already handled in committed tests; reuse if writing more)
+## Traps confirmed this run (bug memory saved: pg-boss singletonKey)
 
-renderToString inserts `<!-- -->` between adjacent JSX text nodes (assert single template
-literals) AND HTML-escapes `&`→`&amp;` (T6 test uses `label.replace(/&/g, "&amp;")`).
-Runtime-install helper must be the FIRST import. `useSyncExternalStore` needs the 3rd
-getServerSnapshot arg or renderToString throws. Custom components used in lists need an explicit
-`key?: string` prop (runtime's loose JSX typing has no implicit key slot — see ModuleLink,
-MonitorRow, MonitorDetailRow precedent).
+- **pg-boss v12 singletonKey dedupe is policy-gated**: only short/singleton/stately-policy queues
+  have the partial unique index; external module queues are created standard-policy by the worker
+  reconciler → singletonKey silently no-ops. Host fix = issue #965 (deferred, own branch).
+- **API-only integration harness must provision external queues itself**:
+  `await migratePgBoss(connectionStrings.migration, [{name: "job-search.monitor-run", options:
+  {retryLimit: 3}}])` in beforeAll, or run-now's boss.send throws → 503. (The worker reconciler
+  isn't in the API harness.)
+- **Single-file integration run**: `pnpm tsx scripts/test-integration.ts
+  tests/integration/js06-module-surface.test.ts` — the `pnpm test:integration -- <filter>` form
+  does NOT filter (runs all 141 files, ~11 min). Never trust `| tail` exit codes.
+- `chat-recall.test.ts` "tuple concurrently updated" during full-suite runs = multi-agent PG
+  contention (environmental), not a regression.
+
+## Coordinator #965 DEFER ruling (binding, Opus-adjudicated)
+
+1. Integration test 4 asserts 202-only (both submits) — already committed that way; do NOT
+   tighten until #965 lands. 2. Manual-path singletonKey stays as-is (no host change). 3. KEEP
+   RunNowButton's jobId-null "already queued" branch — dead-but-defensive, lights up when #965
+   lands. 4. #965 comments already placed in `api.ts` + the integration test. **ZERO host code
+   remains the hard line — any host/packages/shared temptation → STOP + [DESIGN-FORK].**
 
 ## Coordinator rulings (binding — unchanged)
 
 Model C: reads via invoke route only; run-now via queue route, no polling; module id `job-search`
 NOT `jarv1s.job-search`; JSX via esbuild jsxFactory shim off frozen
-`window.__JARVIS_MODULE_RUNTIME__` (web bundle react-free). **ZERO host code is a hard line —
-anything tempting a host-code or packages/shared contract change → STOP + [DESIGN-FORK] (bumps to
-security tier).** SECURITY (do not weaken): only risk:read executes on REST (write tools 403
-`confirmation_required`); dispatch is `withDataContext(accessContext)`, never
-actorUserId-from-body; external strings TEXT-only + escaped; disabled = fail-closed, no actions;
-run-now params = IDs only. Plan-approval rulings: local fetch helper SAME-ORIGIN AUTHENTICATED
-mirroring module-web-sdk `requestJson`; no react-query; URL-only, NO core nav entry; wall-clock +
-IANA zone label. Exit criteria stand — nothing deferred.
+`window.__JARVIS_MODULE_RUNTIME__` (web bundle react-free). SECURITY (do not weaken): only
+risk:read executes on REST (write tools 403 `confirmation_required`); dispatch is
+`withDataContext(accessContext)`, never actorUserId-from-body; external strings TEXT-only +
+escaped; disabled = fail-closed, no actions; run-now params = IDs only. Local fetch helper
+SAME-ORIGIN AUTHENTICATED; no react-query; URL-only, NO core nav entry; wall-clock + IANA zone
+label. Exit criteria stand — nothing deferred except #965 (host-side, out of scope).
 
 ## Bans still in force
 
