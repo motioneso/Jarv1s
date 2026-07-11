@@ -2830,3 +2830,40 @@ anything requiring escalation and do that instead of waiting for me."
 - **News lane:** S1 pE0 (Fable R4, session `095c0ee5`) on Task 4 (routes+service).
 - **Stray (non-urgent):** idle unlabeled claude pane `w1:pBK` (session `28c218bf`) in a
   `.claude/worktrees/news-module` worktree — confirm orphan, then reap.
+
+## Checkpoint 2026-07-11 — News #955 HELD (Codex BLOCK + Gemini down); JS-03 → R7
+
+### News S1 (PR #955) — HELD on the unanimous named gate
+- Gate (pEP-adopted, BINDING): UNANIMOUS **Opus+Codex+Gemini** durable GREEN + CI green. Any
+  dissent OR unreachable provider holds THIS merge for Ben; the rest of the fleet continues.
+  NO provider substitution (GLM rejected by pEP), NO 2-provider floor, NO same-lens degrade.
+  Ben's keep-going/council directive was already reconciled INTO this named gate.
+- Council posted durably to PR #955:
+  - Opus = **GREEN** (issuecomment-4945028395); 0 blocking, 1 cosmetic nit.
+  - Codex (independent, `codex exec --dangerously-bypass-approvals-and-sandbox`) = **BLOCK**
+    (issuecomment-4945043178): malformed/missing headline URL fails open; literal
+    localhost/private forms already rejected; DNS-name->private-IP rebinding is S2-only.
+  - Gemini = **UNREACHABLE** (issuecomment-4945038150): CLI logged out, no GEMINI_API_KEY,
+    needs Ben interactive re-auth.
+  - GLM(z.ai)-via-opencode lens STOPPED (does not count toward the named gate).
+- CI: 2/3 smokes pass; 'Verify foundation and app' IN_PROGRESS (run 29149555854).
+  Watch = Monitor brzhnvnqm -> emits `NEWS955_CI_DONE` + per-check final state.
+- FIX IN FLIGHT: News builder pF4 (session 03e7c92c, working). S1 scope ONLY = fail-closed
+  exclusion of malformed/missing headline URLs + test + explicit no-fetch evidence for the Codex
+  re-run. NO DNS/network plumbing in S1 (S2 owns resolved-IP re-check; would collide w/ News S2).
+- NEXT: pF4 reports fix -> re-run Codex lens to durable GREEN -> still HELD on Gemini until Ben
+  re-auths -> unanimous + CI green -> merge (council authority, no Ben merge-gate) -> close #953,
+  epic #954 exit-check, board->Done, ping pEP (w1:pEP / 019f4fd0) for S2.
+- **BEN DIGEST (non-blocking):** Gemini CLI logged out — run `gemini` re-auth (or set
+  GEMINI_API_KEY) to complete the News #955 council. #955 holds until then; fleet unaffected.
+
+### JS-03 (#932) — relayed R6 -> R7
+- R7 = pane w1:pF8, session b48988b9 (R6 dabfbde1 reaped). Fable, agents tab w1:t17, worktree
+  js-03-onboarding-truth. Tasks 1-9 committed green (82d794be), relay doc fd89f15c.
+  R7: Step 10.2 -> Task 0 (ctx.ai bridge, Option A, 5 guards) -> Tasks 11-13.
+- ZERO migrations (module_kv via ctx.kv). On PR -> security council QA -> merge -> release JS-04 (#933).
+
+### Live panes
+- Coordinator w1:pE6 / 58a78927 (authority OK). News builder w1:pF4 / 03e7c92c (Codex-BLOCK fix).
+- JS-03 R7 w1:pF8 / b48988b9. Codex S2 prep w1:pEP / 019f4fd0.
+- Stray (non-urgent): w1:pBK / 28c218bf idle in news-module worktree — investigate before reap.
