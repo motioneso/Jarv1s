@@ -1,4 +1,4 @@
-# Relay — News Slice 1 build (continuation, hop 3 → hop 4)
+# Relay — News Slice 1 build (continuation, hop 4 → hop 5)
 
 **You are the successor build agent. Model MUST be Fable (`claude-fable-5`) — Ben's directive;
 if you relay again, spawn Fable.**
@@ -42,20 +42,37 @@ if you relay again, spawn Fable.**
   (`tests/integration/news-personalization-repository.test.ts` — RLS owner isolation incl.
   admin actor, duplicate idempotency, per-owner cap, snapshot atomicity). Typecheck/lint/format
   green.
+- `eb491f74` **Task 4 COMPLETE**: routes GET `/api/news/personalization` (news.view; one
+  DataContext window, Promise.all over 4 reads + 2 availability calls; snapshot METADATA only
+  via `toSnapshotMeta`; availability DTO = aiConfigured/webSearchConfigured/
+  customSourceByUrlEnabled (=json)/customSourceByNameEnabled+freeformTopicsEnabled
+  (=json&&web)), POST/DELETE `/api/news/source-exclusions` (news.prefs; normalize server-side,
+  400 carries reason KEY only — never echoes raw input; `NewsPersonalizationLimitError` → 400).
+  `NewsPersonalizationAvailabilityPort` + `NewsPersonalizationStore` interfaces in
+  `packages/news/src/routes.ts`; NewsService two-layer exclusion filtering (curated homepage
+  domain pre-fetch + composed-headline URL hostname via `publisherDomainMatches`) incl. the
+  briefing path (`briefing-tool.ts` now constructs `NewsPersonalizationRepository`); manifest 3
+  route declarations (POST requestSchema = `.body` per repo convention) + news.prefs description
+  extended; module-registry injects availability booleans via
+  `new AiRepository().resolveModelForCapability(scopedDb, "json").model !== null` and
+  `getWebSearchKeyConfig(scopedDb).configured` (import added). Tests: unit 44/44
+  (`tests/unit/news-{routes,service}.test.ts` — incl. secret-leak markers, availability
+  derivation, canonicalization, cap→400, two-layer + suffix-trick filtering), integration
+  module-registry 13/13. Trio green.
 
-## Next: Task 4 (plan §Task 4 — routes + service wiring)
+## Next: Task 5 (plan §Task 5 — News Settings UI sections)
 
-- Read plan §Task 4 first, then spec sections it cites. RED test first (TDD).
-- Scope from plan: GET `/api/news/personalization` + POST/DELETE
-  `/api/news/source-exclusions` under existing news perms (news.view / news.prefs);
-  `NewsPersonalizationAvailabilityPort` injected callbacks (hasJsonModel via
-  `AiRepository.resolveModelForCapability(scopedDb, "json")`, hasWebSearch via Brave key check);
-  availability booleans in GET response; NewsService exclusion filtering of curated sources
-  (canonical homepage domain pre-fetch + composed-headline hostname drop via
-  `publisherDomainMatches`); module-registry wiring. Snapshot in GET = metadata only.
-- Then Task 5 (News Settings UI sections) and Task 6 (data-lifecycle export: sources/topics/
-  exclusions included, snapshots+fingerprints OMITTED; then `pnpm verify:foundation` + full
-  integration; closeout via `coordinated-wrap-up` → PR "Part of #954", references #953).
+- Read plan §Task 5 first (starts ~line 293), then spec sections it cites. RED test first where
+  testable. No false affordances: gate custom-source/topic affordances on the availability
+  booleans from GET `/api/news/personalization`; Slice 1 has NO custom source/topic WRITE routes
+  (Slice 2) — UI must not pretend otherwise. Exclusions ARE writable (POST/DELETE above).
+- Preserve authored design system (jds-\*, serif headings/mono eyebrows/sans body; raw colors in
+  `apps/web/src/styles/tokens.css` only). Frontend recall: `memory_smart_search`
+  `"jarv1s frontend workspace querykey"` before starting.
+- Then Task 6 (data-lifecycle export: sources/topics/exclusions included, snapshots+fingerprints
+  OMITTED; then `pnpm verify:foundation` + full integration; closeout via `coordinated-wrap-up`
+  → PR "Part of #954", references #953; pre-push trio + rebase origin/main; re-check migration
+  0159 landing order vs open PRs before opening the PR).
 
 ## Traps (verified)
 
