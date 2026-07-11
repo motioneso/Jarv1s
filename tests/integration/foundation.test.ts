@@ -337,7 +337,11 @@ describe("MVP foundation scaffold", () => {
         // #918 (epic #860) — module credential secrets; FORCE RLS, no app_runtime DELETE.
         { version: "0153", name: "0153_module_credentials.sql" },
         // #918 (epic #860) — module KV storage; FORCE RLS, scope-shaped policies.
-        { version: "0154", name: "0154_module_kv.sql" }
+        { version: "0154", name: "0154_module_kv.sql" },
+        // #914 Slice 1 — per-module applied-migration ledger, instance bookkeeping.
+        { version: "0155", name: "0155_module_schema_migrations.sql" },
+        // #914 Slice 2 — per-module install-state journal, instance metadata.
+        { version: "0156", name: "0156_module_installs.sql" }
       ]);
     } finally {
       await client.end();

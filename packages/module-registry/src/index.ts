@@ -1588,6 +1588,27 @@ export const MODULE_DELETION_TABLES: readonly ResolvedModuleDeletionTable[] =
   getModuleDeletionTables();
 
 /**
+ * External-module counterpart to getModuleDeletionTables (#914, spec D6 "lifecycle derived from
+ * structure, no module code"). Built-in modules declare dataLifecycle.deletion.tables explicitly;
+ * external modules never carry module code in their manifest, so the platform derives deletion
+ * coverage structurally from `database.ownedTables` instead — every owned table is automatically
+ * swept with the default owner_user_id predicate, with no per-module deletion declaration to
+ * maintain. Manifests are passed in explicitly (unlike MODULE_DELETION_TABLES' eager snapshot)
+ * because external modules install post-deploy — the caller (scripts/delete-user-data-cli.ts)
+ * reads installed manifests at run time, not from a static import-time snapshot.
+ */
+export function getExternalModuleDeletionTables(
+  installedManifests: readonly JarvisModuleManifest[]
+): readonly ResolvedModuleDeletionTable[] {
+  return installedManifests.flatMap((manifest) =>
+    (manifest.database?.ownedTables ?? []).map((table) => ({
+      table,
+      countPredicate: DEFAULT_MODULE_DELETION_COUNT_PREDICATE
+    }))
+  );
+}
+
+/**
  * Build the focus-signal provider list from a manifest set. Pass the per-actor ACTIVE
  * manifests (resolveActiveModules(actorUserId)) so a per-user-disabled module is excluded.
  * Generic: any module that declares `focusSignal` participates; no module is special-cased.
