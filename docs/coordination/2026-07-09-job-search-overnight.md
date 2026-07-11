@@ -3143,3 +3143,21 @@ anything requiring escalation and do that instead of waiting for me."
   Verified tab+model+driving independently, then reaped pFK. Progress at handoff: T1 fixtures
   committed 5c30a449, T2 red test on disk, relay doc bf073f5e
   (docs/superpowers/handoffs/2026-07-11-js-04-source-adapters-relay.md). Lane continues in TDD.
+
+- **News S2 plan HELD — 4 blockers (Codex pEP cross-provider review), 2026-07-11:** plan file
+  `docs/superpowers/plans/2026-07-11-news-slice2-discovery-compilation.md` (pFM, uncommitted at
+  review). Feature code held until corrected. Blockers, all folded into ONE correction pass
+  (all worker-grant fixes live in migration 0160):
+  - **B1 (RLS/worker read):** worker compilation reads owner curated prefs but worker role has no
+    owner-scoped read on the prefs table + no NewsPrefsReader port. Fix = owner-scoped worker
+    SELECT policy in 0160 (USING actor=owner), injected reader port, adversarial cross-owner RLS
+    proof. NO BYPASSRLS, NO blanket grant, never edit the applied prefs migration.
+  - **B2 (refresh-on-change gap):** existing POST/DELETE /api/news/prefs (curated add/remove) must
+    enqueue the SAME coalesced/single-flight refresh. Add route behavior + tests.
+  - **B3 (topic policy):** validateTopic used category=news_publisher; freeform topics aren't
+    publishers. Use a separate default-deny affirmative topic-policy schema.
+  - **B4 (column privilege):** table-level GRANT UPDATE on news_custom_sources over-permits (RLS =
+    rows not columns → worker could rewrite label/homepage/feed). Fix = column-level UPDATE grant
+    limited to health_status (+updated_at if needed) + owner-scoped worker UPDATE policy + negative
+    column test.
+  Awaiting pFM corrected plan + re-[PLAN-READY].
