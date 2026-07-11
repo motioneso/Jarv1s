@@ -473,6 +473,61 @@ describe("verifyMarkdownCoverage", () => {
     }
   });
 
+  it("DEFEAT 4: word-per-line fragment decomposition fails at the singleton tier (Opus PoC)", () => {
+    // Cycle-2 guard verified presence, not adjacency: splitting a fabricated
+    // relationship into one-token lines let each token sub-match some larger
+    // true segment ("Senior"/"Engineer"/"at" inside rev 0, "Beta"/"LLC"
+    // inside rev-b) → ok:true. A single-token proposed segment now passes
+    // ONLY by full equality with a whole corpus segment, never by
+    // sub-containment (fix cycle 3, Opus issuecomment-4946829260).
+    const verdict = verifyMarkdownCoverage({
+      markdown: "Senior\nEngineer\nat\nBeta\nLLC",
+      sources: SOURCES,
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unverifiedSpans).toEqual(["Senior", "Engineer", "at", "Beta", "LLC"]);
+  });
+
+  it("DEFEAT 5: cross-context line recombination fails at the singleton tier (Codex PoC)", () => {
+    // Each line is individually true in a DIFFERENT source context; stacked,
+    // they assert a fabricated "Vice President at Initech 2020-2024". The
+    // multi-token lines legitimately match their own source segments — the
+    // interior singleton "Initech" is what must fail: it appears inside a
+    // larger true segment but IS not a whole segment itself.
+    const verdict = verifyMarkdownCoverage({
+      markdown: "Vice President\nInitech\n2020-2024",
+      sources: [
+        { revisionId: "0", content: "Vice President of Sales at Globex" },
+        { revisionId: "1", content: "Led work at Initech before that" },
+        { revisionId: "2", content: "Stayed at Globex 2020-2024" }
+      ],
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unverifiedSpans).toEqual(["Initech"]);
+  });
+
+  it("GUARD-RAIL: a single-token line that IS a whole source segment still passes", () => {
+    // The singleton tier must not over-block real content: a lone skill
+    // that is a standalone source bullet is a whole corpus segment.
+    const verdict = verifyMarkdownCoverage({
+      markdown: "- TypeScript",
+      sources: [{ revisionId: "0", content: "Skills\n- TypeScript\n- Kubernetes" }],
+      confirmedTexts: []
+    });
+    expect(verdict).toEqual({ ok: true, unverifiedSpans: [] });
+  });
+
+  it("GUARD-RAIL: a genuine contiguous reorder of real source segments still passes", () => {
+    const verdict = verifyMarkdownCoverage({
+      markdown: "Led migration to TypeScript\nSenior Engineer at Acme Corp",
+      sources: SOURCES,
+      confirmedTexts: []
+    });
+    expect(verdict).toEqual({ ok: true, unverifiedSpans: [] });
+  });
+
   it("a first-token proper noun no longer dodges the guard", () => {
     // Cycle-1 heuristic skipped the first word of each segment.
     const verdict = verifyMarkdownCoverage({
