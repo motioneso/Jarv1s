@@ -78,6 +78,10 @@ export async function runMonitorNow(monitorId: string): Promise<RunNowOutcome> {
     const body = (await parseJson(response)) as { jobId?: string | null } | null;
     // jobId:null = the manual singleton for this actor is already queued —
     // report queued state without polling (spec: no duplicate activation).
+    // NOTE (#965): today the host never returns jobId:null — external queues
+    // are standard-policy, so pg-boss ignores the singletonKey and every
+    // submit gets a fresh jobId. This branch is intentionally kept as the
+    // defensive contract; it starts firing once #965 adds dedupe on the route.
     return body && body.jobId ? { kind: "queued" } : { kind: "already-queued" };
   }
   if (response.status === 404) return { kind: "disabled" };
