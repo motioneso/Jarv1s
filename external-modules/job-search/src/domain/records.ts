@@ -13,6 +13,25 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Deterministic JSON with recursively sorted object keys. Used for the
+ * revision-immutability comparison so "identical content" doesn't depend on
+ * property insertion order (arrays keep their order — it's meaningful).
+ */
+export function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  if (isPlainObject(value)) {
+    const entries = Object.keys(value)
+      .sort()
+      .filter((k) => value[k] !== undefined)
+      .map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k])}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
  * Write a domain record. Throws `invalid_record` for non-plain-object values
  * or `schemaVersion !== 1`, and `oversize_value` when the JSON serialization
  * exceeds KV_VALUE_MAX_BYTES (65_535 — strictly below the DB's 65_536 check,
