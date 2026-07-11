@@ -2243,3 +2243,30 @@ commit / relay / stuck. (3) On #914 merge: rebase #939, spawn #915 lane lean.
      critical path.
 - **Board:** move #914 card → Done (verify board automation didn't already; Ben's earlier
   gh-hygiene ask flagged board status as unchecked).
+
+---
+
+**STATUS @ 2026-07-11 ~00:40 (in-session flush @ 70% ctx, no successor per Ben):**
+
+- ✅ #914 board card auto-moved to **Done** on close — no manual field-set needed. #914 100% done.
+- **#939 (#919 worker runtime, SECURITY) — CI RED, diagnosing:** pE4 rebased onto main + pushed
+  **`21911f80`** (migration union 0152–0157 exact, 0157 keeps number). Local gate VF_EXIT=0 (2303
+  unit + 1474 integration). **BUT CI "Verify foundation and app" FAILED** (run 29132663111, job
+  86490893821, 14m53s) — local-green/CI-red. STOP-THE-LINE per CI waiver protocol (no merge until
+  resolved). pE4 (owner, idle→working, codex gpt-5.6-sol, ctx 51%) tasked to: pull `--log-failed`,
+  identify exact failing test+step, decide FLAKE (I re-trigger CI) vs REAL regression (it fixes +
+  re-pushes). Awaiting its finding. **This is the 1st CI failure on rebased #939 — 2nd failure =
+  hard stop-the-line + escalate to Fable.**
+  - On green: final Opus adversarial security QA (integrated, diff-scoped vs origin/main) → Fable
+    sign-off (residual HIGH per-actor worker isolation = non-blocking) → confirm image-publish
+    green → squash-merge → unblocks #915.
+- **#939 CI failure = FLAKE, resolved (00:50):** pE4 diagnosed + I independently verified. Failing
+  file `tests/integration/tasks-agency-tools.test.ts` is NOT in #939's 25 changed files (only
+  `foundation.test.ts` is). Root cause = fixed `setTimeout(50)` race under full-suite CI DB load →
+  late notifier writes into a reassigned shared `emitted` array, cascading stale records across
+  tests. Isolated rerun 7/7 green. NOT a regression. Action taken: filed flake as **issue #944**;
+  re-triggered failed jobs via `gh run rerun 29132663111 --failed` (no no-op force-push, per pE4).
+  **1st failure — a 2nd VF failure on the rerun = hard stop-the-line + escalate Fable.**
+- **Active monitors:** `bsi7vj8er` fleet-liveness (persistent); `b0s032za4` = #939 VF correctness
+  gate on rerun 29132663111 (emits GREEN→clear for final Opus QA, or RED→2nd-failure hard stop).
+- **#915 (task 10) / #916 (task 8):** still gated on #939 landing.
