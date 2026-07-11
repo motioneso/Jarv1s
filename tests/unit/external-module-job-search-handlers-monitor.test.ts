@@ -1,0 +1,276 @@
+// tests/unit/external-module-job-search-handlers-monitor.test.ts
+//
+// JS-03 (#932) Task 10: monitor config tools. The load-bearing rule is the
+// enable gate — a monitor can only be saved enabled once BOTH an approved
+// resume and an approved profile exist (spec: enablement is the last
+// checkpoint, after the user has reviewed real stored state). List responses
+// are metadata-only: the query document never leaves via monitor.list.
+import { describe, expect, it } from "vitest";
+
+import {
+  approveProfile,
+  approveResume,
+  getMonitor,
+  saveMonitorCursor,
+  saveOriginalResume,
+  saveProfileRevision
+} from "../../external-modules/job-search/src/domain/index.js";
+import type { WorkerPorts } from "../../external-modules/job-search/src/worker/ai-port.js";
+import {
+  getMonitorHandler,
+  listMonitorsHandler,
+  saveMonitorHandler
+} from "../../external-modules/job-search/src/worker/handlers/monitor.js";
+import { approveResumeHandler } from "../../external-modules/job-search/src/worker/handlers/resume.js";
+import { approveProfileHandler } from "../../external-modules/job-search/src/worker/handlers/profile.js";
+import { getStateHandler } from "../../external-modules/job-search/src/worker/handlers/onboarding.js";
+import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
+import { createMemoryKv } from "./helpers/job-search-memory-kv.js";
+import type { MemoryKv } from "./helpers/job-search-memory-kv.js";
+
+const NOW = new Date("2026-07-11T12:00:00.000Z");
+const LATER = new Date("2026-07-11T13:30:00.000Z");
+
+/** Clock is injectable so the createdAt/updatedAt tests can move time. */
+const portsAt = (kv: MemoryKv, now: Date): WorkerPorts => ({
+  kv,
+  ai: null,
+  now: () => now
+});
+
+const QUERY = { titles: ["Staff Engineer"], locations: ["remote"] };
+
+/** Seed + approve resume and profile via the domain (pointer-level truth). */
+async function approveBoth(kv: MemoryKv): Promise<void> {
+  await saveOriginalResume(kv, "Line one", NOW);
+  await approveResume(kv, "0", NOW);
+  await saveProfileRevision(kv, {
+    schemaVersion: 1,
+    revisionId: "p1",
+    createdAt: NOW.toISOString(),
+    provenance: "user",
+    fields: { targetTitles: ["Staff Engineer"] }
+  });
+  await approveProfile(kv, "p1", NOW);
+}
+
+describe("monitor.save handler", () => {
+  it("enabled save with neither approval: question naming BOTH gaps, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY,
+      enabled: true
+    });
+    expect(result.status).toBe("question");
+    expect(result.question).toMatch(/resume/i);
+    expect(result.question).toMatch(/profile/i);
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("enabled save with resume approved but no profile: question names the profile only", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, "Line one", NOW);
+    await approveResume(kv, "0", NOW);
+    const before = kv.dump();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY,
+      enabled: true
+    });
+    expect(result.status).toBe("question");
+    expect(result.question).not.toMatch(/resume/i);
+    expect(result.question).toMatch(/profile/i);
+    expect(kv.dump()).toEqual(before);
+  });
+
+  it("disabled save persists without approvals: sources_schedule complete, review_enable NOT", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY
+    });
+    expect(result).toEqual({ status: "ok", monitorId: "m1", enabled: false });
+    const stored = await getMonitor(kv, "m1");
+    expect(stored).toEqual({
+      schemaVersion: 1,
+      monitorId: "m1",
+      adapterId: "boards",
+      enabled: false,
+      query: QUERY,
+      createdAt: NOW.toISOString(),
+      updatedAt: NOW.toISOString()
+    });
+    const state = await getStateHandler(portsAt(kv, NOW))({});
+    const completed = state.completed as Record<string, boolean>;
+    expect(completed["sources_schedule"]).toBe(true);
+    expect(completed["review_enable"]).toBeUndefined();
+  });
+
+  it("after both approvals an enabled save persists, review_enable completes, step is done", async () => {
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, "Line one", NOW);
+    // Approvals go through the HANDLERS so the onboarding flags advance the
+    // same way they do in production (domain approve moves pointers only).
+    await approveResumeHandler(portsAt(kv, NOW))({ revisionId: "0" });
+    await saveProfileRevision(kv, {
+      schemaVersion: 1,
+      revisionId: "p1",
+      createdAt: NOW.toISOString(),
+      provenance: "user",
+      fields: { targetTitles: ["Staff Engineer"] }
+    });
+    await approveProfileHandler(portsAt(kv, NOW))({ revisionId: "p1" });
+
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY,
+      enabled: true
+    });
+    expect(result).toEqual({ status: "ok", monitorId: "m1", enabled: true });
+    expect((await getMonitor(kv, "m1"))?.enabled).toBe(true);
+    const state = await getStateHandler(portsAt(kv, NOW))({});
+    expect(state.step).toBe("done");
+    expect((state.completed as Record<string, boolean>)["review_enable"]).toBe(true);
+    expect((state.gates as Record<string, boolean>)["monitorEnabled"]).toBe(true);
+  });
+
+  it("update preserves createdAt and refreshes updatedAt", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY
+    });
+    await saveMonitorHandler(portsAt(kv, LATER))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: { titles: ["Principal Engineer"] }
+    });
+    const stored = await getMonitor(kv, "m1");
+    expect(stored?.createdAt).toBe(NOW.toISOString());
+    expect(stored?.updatedAt).toBe(LATER.toISOString());
+    expect(stored?.query).toEqual({ titles: ["Principal Engineer"] });
+  });
+
+  it("disabling an enabled monitor is always allowed (no gate on the way down)", async () => {
+    const kv = createMemoryKv();
+    await approveBoth(kv);
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY,
+      enabled: true
+    });
+    const result = await saveMonitorHandler(portsAt(kv, LATER))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY,
+      enabled: false
+    });
+    expect(result).toEqual({ status: "ok", monitorId: "m1", enabled: false });
+    expect((await getMonitor(kv, "m1"))?.enabled).toBe(false);
+  });
+
+  it("rejects a missing monitorId/adapterId/query by name", async () => {
+    const kv = createMemoryKv();
+    const ports = portsAt(kv, NOW);
+    const noId = await wrap(saveMonitorHandler(ports))({ adapterId: "boards", query: QUERY });
+    expect(noId.status).toBe("error");
+    expect(noId.message).toMatch(/monitorId/);
+    const noAdapter = await wrap(saveMonitorHandler(ports))({ monitorId: "m1", query: QUERY });
+    expect(noAdapter.status).toBe("error");
+    expect(noAdapter.message).toMatch(/adapterId/);
+    const noQuery = await wrap(saveMonitorHandler(ports))({ monitorId: "m1", adapterId: "b" });
+    expect(noQuery.status).toBe("error");
+    expect(noQuery.message).toMatch(/query/);
+    expect(kv.dump().size).toBe(0);
+  });
+});
+
+describe("monitor.list handler", () => {
+  it("items carry exactly the five metadata keys — the query document never leaks", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY
+    });
+    await saveMonitorHandler(portsAt(kv, LATER))({
+      monitorId: "m2",
+      adapterId: "feeds",
+      query: { secretTerm: "do-not-leak" }
+    });
+    const result = await listMonitorsHandler(portsAt(kv, NOW))({});
+    expect(result.status).toBe("ok");
+    const monitors = result.monitors as Record<string, unknown>[];
+    expect(monitors).toHaveLength(2);
+    for (const item of monitors) {
+      expect(Object.keys(item).sort()).toEqual([
+        "adapterId",
+        "createdAt",
+        "enabled",
+        "monitorId",
+        "updatedAt"
+      ]);
+    }
+    expect(JSON.stringify(result)).not.toContain("do-not-leak");
+  });
+
+  it("empty list is ok with no items", async () => {
+    const kv = createMemoryKv();
+    const result = await listMonitorsHandler(portsAt(kv, NOW))({});
+    expect(result).toEqual({ status: "ok", monitors: [] });
+  });
+});
+
+describe("monitor.get handler", () => {
+  it("returns the full config plus cursor TIMESTAMPS only (never the cursor document)", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY
+    });
+    await saveMonitorCursor(kv, {
+      schemaVersion: 1,
+      monitorId: "m1",
+      cursor: { lastSeenPostingId: "cursor-secret" },
+      lastCheckedAt: LATER.toISOString(),
+      lastSuccessAt: LATER.toISOString()
+    });
+    const result = await getMonitorHandler(portsAt(kv, NOW))({ monitorId: "m1" });
+    expect(result.status).toBe("ok");
+    expect(result.monitorId).toBe("m1");
+    expect(result.adapterId).toBe("boards");
+    expect(result.enabled).toBe(false);
+    expect(result.query).toEqual(QUERY);
+    expect(result.cursor).toEqual({
+      lastCheckedAt: LATER.toISOString(),
+      lastSuccessAt: LATER.toISOString()
+    });
+    expect(JSON.stringify(result)).not.toContain("cursor-secret");
+  });
+
+  it("omits cursor when the monitor has never been scanned", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "boards",
+      query: QUERY
+    });
+    const result = await getMonitorHandler(portsAt(kv, NOW))({ monitorId: "m1" });
+    expect(result.cursor).toBeUndefined();
+  });
+
+  it("unknown monitor id: missing_record error", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(getMonitorHandler(portsAt(kv, NOW)))({ monitorId: "nope" });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("missing_record");
+  });
+});
