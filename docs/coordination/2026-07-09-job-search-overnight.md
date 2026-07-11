@@ -3218,3 +3218,11 @@ signal → hung resolver exceeds timeout, or a rate wait wakes post-timeout and 
 Fix relayed: abort-aware DNS+limiter waits, reject-before-transport on aborted signal, tests
 (resolver-never-settles→timeout; limiter-wait-past-timeout→timeout + transport call count 0);
 redirect-hop resolved-IP pinning preserved. **QA council must confirm this landed** before merge.
+
+### News S2 Task 6 required coverage (relayed to Codex pFR 2026-07-11)
+2nd-lens (Codex pEP): news-discovery-repository.test.ts missing approved-plan proofs. Relayed as
+REQUIRED: (1) jarvis_worker_runtime SELECTs own news_prefs but NOT another owner's (B1 pos+neg);
+(2) cross-owner UPDATE **and** DELETE denial on BOTH news_refresh_state AND news_policy_verdicts
+(not just read-null); (3) 11th custom topic → NewsPersonalizationLimitError (10-topic contract).
+Same-owner column-grant + source cross-owner tests already good. **QA council must confirm all
+three landed** before merge.
