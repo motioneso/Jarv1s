@@ -3514,3 +3514,32 @@ t17 — harmless, reap opportunistically.
 escalation → approve only if inside spec's locked decisions, then it builds; (b) pG4 JS-07
 fork report. Do NOT approve any plan until the agent actually sends it. No PushNotification
 (Ben: keep moving).
+
+## JS-07 [FORK-A] ADJUDICATED (Opus council) — 2026-07-11 ~14:12
+
+Scout pG4 (session 9a171afd) grounded feat/js-07-plan @ 4e5075e2; plan committed
+(358d0b71); core premises HOLD, ZERO migration confirmed. One cross-boundary ruling: finding
+**(A)** — JS-07's AI fit-band eval runs in monitor.run (queue/worker), but the worker rpc
+handler builds ctx WITHOUT `ctx.ai` (fails closed), while approved spec #915 D6 says queue
+invocations get it.
+
+**Opus verdict: FOLD** into JS-07 as an isolated Step 0 commit (NOT a precursor PR). #915 D6
+already satisfies the spec gate; JS-07 is the sole consumer of the ~40-line mirror of
+`apps/api/src/external-module-ai-bridge.ts` → a precursor would serialize cost for zero reuse.
+**→ JS-07 overall tier bumped to SECURITY** (Step 0 activates the credential-composition guard
++ provider-agnostic envelope + fail-closed AI boundary on the queue path; wiring `ai:` into the
+worker rpc handler `worker.ts`~L263 is what makes #915's D6 guard actually fire on the queue).
+
+Invariants Step 0 must PROVE: secrets-never-escape (no creds in ExternalModuleJobPayload; creds
+resolve worker-side via cipher+AiRepository on actor-scoped DB; drop usage/model/provider from
+result); metadata-only payload (assertModuleJobPayload unchanged); provider-agnostic (capability
++tierHint only; resolveModelForCapability picks model; grep-test no provider string); composition
+guard FIRES ON QUEUE; fail-closed (null model → error, survivors evalPending, no throw); 8-call
+cap on queue. Traps: scopedDb under withDataContext (never root workerDb); REUSE existing worker
+cipher (one AiRepository, no second env-keyed cipher); no secrets in payload; fail-closed parity
+(only this rpc handler gains the dep); JS-07 daily(25)+per-eval(6) budgets live ABOVE host 8-cap.
+
+Ruling relayed to scout pG4 → folding into plan doc, then reap. **JS-07 build QUEUED behind
+JS-06** (not concurrent — budget + 3 security-ish lanes would overload the QA council). Lesser
+findings B–G defaulted in plan (additive-optional; schemaVersion===1 hard-pinned). #962 items 1-2
+fold into JS-07 build. merges_since_relay unchanged (no merge).
