@@ -2917,3 +2917,15 @@ anything requiring escalation and do that instead of waiting for me."
   auto-merge. (3) Codex retry cron 3883c38d already fired+deleted (Codex GREEN achieved).
 - **Live panes:** Coordinator w1:pE6/58a78927. JS-03 R11 w1:pFC/8674f160. Codex S2 pEP w1:pEP/019f4fd0.
   News builder pF4/03e7c92c idle. Stray pBK/28c218bf idle (news-module worktree) — investigate before reap.
+
+### JS-03 PR #956 — Council QA (2026-07-11)
+- **Codex (gpt-5.6-sol, SECURITY tier): RED / BLOCK.** Truth-guard vacuous-pass bypass — AI puts
+  fabricated facts in `proposedMarkdown` while returning `materialClaims: []`; `verifyClaims` passes
+  an empty list, unverified markdown persisted (resume.ts:340->357) and approvable active (:393).
+  Prompt "list all claims" is not a security boundary. Ground-checked real. 6 other areas PASS
+  (owner-only KV @ worker-rpc-host.ts:176 + forced RLS; zero migrations; secrets/payload min;
+  provider-agnostic ctx.ai; module isolation; both plan-drift items safe). Verdict comment:
+  PR#956 issuecomment-4945986416.
+- **Opus adversarial QA:** IN FLIGHT (agent ae92a98d) — awaiting to consolidate blocking set.
+- **Action:** HOLD merge. On Opus return -> relay combined blockers to owning agent R11 (w1:pFC/
+  8674f160, kept alive) -> fix -> re-QA. Failure budget 2 cycles.
