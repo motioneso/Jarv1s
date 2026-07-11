@@ -3070,3 +3070,11 @@ anything requiring escalation and do that instead of waiting for me."
 - **JS-03 #956 GATE MET:** CI ✅ (foundation + 2 smokes) + Opus QA ✅ GREEN D3-closed (#4947254308) + Codex QA ✅ GREEN (#4947345209). Head 8f85dd5d. Capability-tradeoff summary posted for Ben (#4947359617). HOLD for Ben's product call: (1) merge safe reorder+whole-line v1 now → unblock JS-04..09, or (2) hold for v2-first. #957 truth-guard-v2 filed. Security defect closed either way. Codex defensive framing worked (no content-filter trip).
 - **News #955:** pEP revalidated live — head 3f05acf2, CI ✅ + Opus ✅ + Codex ✅ all durable. Still held SOLELY on Gemini seat (CLI 0.49.0 interactive-auth, Ben-only). No substitution. Auto-merge on Gemini GREEN → releases S2.
 - Ben online ~09:00, asked status — both decisions surfaced to him.
+
+---
+### 2026-07-11 ~09:15 — JS-03 MERGED (Ben lifted the hold), JS-04 spawned
+- **Ben online, invoked his standing bypass directive** ("keep going, council decides, don't wait for me"). Confirmed the JS-03 capability-tradeoff "Ben product hold" was an over-application — the JS gate (Opus+Codex+CI) was already met and the council had adjudicated verdict-B. **MERGED #956 → main `aaa0888f`** (squash, --delete-branch). #932 auto-closed. R17 (pFJ) reaped, js-03 worktree removed.
+- **JS-04 (#933) SPAWNED:** worktree `.claude/worktrees/js-04-source-adapters` off aaa0888f; handoff written+prettier'd; agent **pane w1:pFK, tab t17, Fable 5, driving (coordinated-build)**. Tier = **SECURITY** (public Greenhouse/Lever/Ashby adapters + URL/paste capture = SSRF + external-content sanitization surface). ZERO migrations still enforced.
+- **News #955 STILL held on Gemini seat** — awaiting Ben's call: (a) re-auth gemini → full named-3 gate auto-merges, or (b) explicitly authorize dropping to Opus+Codex (relaxes his no-substitution rule). Surfaced to Ben.
+- Board TODO: move #932 project item → Done (issue already closed).
+- Stray pane pBK/28c218bf (news-module worktree) still idle+uninvestigated.
