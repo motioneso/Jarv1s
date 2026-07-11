@@ -9,7 +9,9 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import Contribution from "../../external-modules/job-search/src/web/index.js";
+import { STEP_LABELS } from "../../external-modules/job-search/src/web/format.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
+import { OnboardingView } from "../../external-modules/job-search/src/web/screens/onboarding.js";
 import {
   OverviewView,
   type MonitorSummary,
@@ -132,5 +134,40 @@ describe("job-search overview view (#935)", () => {
       h(OverviewView, { onboarding: onboardingFixture, monitors: [], hostActions: noopHost })
     );
     expect(html).toContain("No monitors yet");
+  });
+});
+
+describe("job-search onboarding view (#935)", () => {
+  it("lists the six checkpoints with done/current/todo status", () => {
+    const html = render(h(OnboardingView, { state: onboardingFixture, hostActions: noopHost }));
+    for (const label of [
+      "Share your resume",
+      "Review the critique",
+      "Approve a resume revision",
+      "Build your search profile",
+      "Choose sources & schedule",
+      "Review & enable monitoring"
+    ]) {
+      // renderToString HTML-escapes text nodes ("&" → "&amp;").
+      expect(html).toContain(label.replace(/&/g, "&amp;"));
+    }
+    expect(html).toContain("Done"); // completed steps
+    expect(html).toContain("Current"); // the active step badge
+    expect(html).toContain("Continue with Jarvis");
+  });
+
+  it("celebrates completion without a continue action", () => {
+    const html = render(
+      h(OnboardingView, {
+        state: {
+          step: "done",
+          completed: Object.fromEntries(Object.keys(STEP_LABELS).map((s) => [s, true])),
+          gates: { resumeApproved: true, profileApproved: true, monitorEnabled: true }
+        },
+        hostActions: noopHost
+      })
+    );
+    expect(html).toContain("Onboarding complete");
+    expect(html).not.toContain("Continue with Jarvis");
   });
 });
