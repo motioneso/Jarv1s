@@ -2582,3 +2582,11 @@ headers, but #919 (`ff2ab3a7`) and #915 (`2f4a0fe3`) are ALREADY MERGED. Only re
 hard for JS-06, soft for JS-03. Critical path reaches JS-06 at W4 — #916 merges long before → no stall.
 **JS-01 buildable NOW.** Spawning Fable (`claude-fable-5`) build agent on JS-01, worktree
 `.claude/worktrees/js-01-package-contract` branch `feat/js-01-package-contract` off origin/main.
+
+**JS-01 SPAWNED — Fable building.** pEJ `JS-01: package contract`, session
+`87215753-1efd-43e7-8dad-aeeb952b5fb2`, tab w1:t17, **model Fable 5 ✓** (verified pane read),
+bypass-perms, branch `feat/js-01-package-contract`. Handoff written (untracked in worktree). Agent
+writing plan → will STOP for coordinator plan-approval before code (I approve in-spec; keeps Ben
+uninterrupted). Tier sensitive. Next: approve JS-01 plan when it lands → on JS-01 merge, spawn W2
+(JS-02 + JS-04, both Fable, both security-tier → Opus adversarial QA). #916 (pEH, Sonnet) still
+finishing task7 in parallel — awaiting its relay-successor confirm to reap pEH.
