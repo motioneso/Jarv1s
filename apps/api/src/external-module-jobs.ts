@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
 import type { AccessContext } from "@jarv1s/db";
-import { sendModuleJob } from "@jarv1s/jobs";
+import { sendModuleControl, sendModuleJob } from "@jarv1s/jobs";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 
 export function registerExternalModuleJobRoutes(
@@ -87,4 +87,23 @@ export function registerExternalModuleJobRoutes(
       }
     }
   );
+}
+
+export async function reconcileExternalModuleUserJobs(
+  boss: PgBoss,
+  discoveries: readonly Pick<ExternalModuleDiscovery, "id">[],
+  userId: string
+): Promise<void> {
+  const moduleIds = new Set(discoveries.map((module) => module.id));
+  for (const schedule of await boss.getSchedules()) {
+    if (
+      schedule.key.endsWith(`:${userId}`) &&
+      [...moduleIds].some((moduleId) => schedule.name.startsWith(`${moduleId}.`))
+    ) {
+      await boss.unschedule(schedule.name, schedule.key);
+    }
+  }
+  for (const moduleId of moduleIds) {
+    await sendModuleControl(boss, { moduleId, action: "reconcile" });
+  }
 }

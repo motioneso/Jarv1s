@@ -59,7 +59,10 @@ import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
-import { registerExternalModuleJobRoutes } from "./external-module-jobs.js";
+import {
+  reconcileExternalModuleUserJobs,
+  registerExternalModuleJobRoutes
+} from "./external-module-jobs.js";
 import {
   createExternalActiveModulesResolver,
   createExternalModuleTools
@@ -337,27 +340,21 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
 
     registerBetterAuthRoutes(server, authRuntime, AUTH_MAX);
 
-    // #917: boot-time external-module discovery snapshot, threaded into the settings
-    // module (admin GET reconciles it against app.external_modules) and the /api/modules
-    // surface. Empty unless the flag is on and a dir is mounted. Discovery runs ONCE at
-    // boot (read-only mount; a package swap needs a restart to be re-hashed). Computed
-    // here — BEFORE registerPlatformRoutes — because the /api/modules provider closes over
-    // it; registerBuiltInApiRoutes below references the same const.
     const externalModuleSnapshot = discoverExternalModules(apiServerConfig, server.log);
 
-    // #917: active-external-module provider for /api/modules. Read-only: reconciles the
-    // boot discovery snapshot against app.external_modules in the ACTOR's context and
-    // returns only active modules. Never persists drift here (non-admin context) — the
-    // admin GET path owns persistence. Undefined when the flag is off ⇒ /api/modules is
-    // built-ins only (fail-closed).
     const externalModulesRepository = new SettingsRepository();
     const getActiveExternalModules = apiServerConfig.enableExternalModules
       ? async (accessContext: AccessContext): Promise<readonly ReconciledExternalModule[]> => {
-          const states = await dataContext.withDataContext(accessContext, (scopedDb) =>
-            externalModulesRepository.listExternalModuleStates(scopedDb)
+          const { states, denyRows } = await dataContext.withDataContext(
+            accessContext,
+            async (scopedDb) => ({
+              states: await externalModulesRepository.listExternalModuleStates(scopedDb),
+              denyRows: await externalModulesRepository.listModuleDenyRowsForActor(scopedDb)
+            })
           );
           const { modules } = reconcileExternalModules(externalModuleSnapshot.discoveries, states);
-          return modules.filter((m) => m.active);
+          const disabled = new Set(denyRows.map((row) => row.module_id));
+          return modules.filter((module) => module.active && !disabled.has(module.id));
         }
       : undefined;
 
@@ -371,7 +368,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     externalWorkerRuntime = externalTools.runtime;
     const externalToolManifests = externalTools.manifests;
     registerPlatformRoutes(server, authRuntime, getActiveExternalModules);
-    // #918: reuses the boot-time discovery snapshot — never re-discovers.
     registerExternalModuleWebAssetRoute(
       server,
       authRuntime,
@@ -390,10 +386,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       });
     }
 
-    // Observability sink (#413): POST /api/errors. Platform infra (no auth, no
-    // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
-    // does not 404 it. Registered before the guard + static web so it lands in
-    // the final route tree. Safe by construction (see error-handling.ts).
     registerClientErrorsRoute(server, {
       recordClientError: async (event, request) => {
         const input = { id: randomUUID(), ...event };
@@ -534,18 +526,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleApiClient,
       connectorsRepository,
       hostDiagnostics,
-      // #917: forward the boot-time discovery snapshot to the settings module. The real
-      // registry ExternalModuleDiscovery[]/ExternalModuleRejection[] are structurally
-      // identical to settings' local mirror types, so this assignment typechecks.
       externalModules: {
         enabled: apiServerConfig.enableExternalModules,
         discoveries: externalModuleSnapshot.discoveries,
         rejected: externalModuleSnapshot.rejected,
-        // #917: inject reconcile from the composition root — settings cannot import
-        // @jarv1s/module-registry (cycle). Closes over the boot discovery snapshot; the
-        // returned ReconciledExternalModule[] is structurally the ExternalModuleDto[] the
-        // port declares (field-identical), and ExternalModuleState (settings) is structurally
-        // the ExternalModuleStateInput reconcile wants (Task 7 confirmed). TS bridges both here.
         reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
       },
       reconcileExternalModuleJobs: async (change) => {
@@ -553,24 +537,15 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           await sendModuleControl(boss, { moduleId: change.moduleId, action: "reconcile" });
           return;
         }
-        const moduleIds = new Set(externalModuleSnapshot.discoveries.map((module) => module.id));
-        for (const schedule of await boss.getSchedules()) {
-          if (
-            schedule.key.endsWith(`:${change.userId}`) &&
-            [...moduleIds].some((moduleId) => schedule.name.startsWith(`${moduleId}.`))
-          ) {
-            await boss.unschedule(schedule.name, schedule.key);
-          }
-        }
+        await reconcileExternalModuleUserJobs(
+          boss,
+          externalModuleSnapshot.discoveries,
+          change.userId
+        );
       },
       fetchFn: options.fetchFn
     });
 
-    // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
-    // throwaway INACTIVE manifest so a test can prove the REAL server's guard 404s an
-    // inactive module's route. Ignored in production (option is undefined). The synthetic
-    // manifests are appended to the guard's manifest set; the resolver (built-ins only)
-    // never returns them as active, so the guard 404s their routes.
     const guardManifests = [
       ...getBuiltInModuleManifests(),
       ...(options.__testExtraGuardedRoutes?.manifests ?? [])
@@ -581,9 +556,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       }
     }
 
-    // Register the route-enablement guard AFTER all routes exist so the onRequest hook
-    // can read request.routeOptions.url (the matched pattern). The guard 404s a request
-    // whose owning module is not active for the actor (never 403 — no existence leak).
     registerRouteEnablementGuard(server, {
       manifests: guardManifests,
       resolveActiveModules,

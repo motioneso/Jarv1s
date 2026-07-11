@@ -13,6 +13,7 @@ export class ExternalModuleJobReconciler {
     private readonly deps: {
       readonly boss: PgBoss;
       readonly discoveries: () => readonly ExternalModuleDiscovery[];
+      readonly reservedQueueNames?: ReadonlySet<string>;
       readonly isModuleEnabled: (moduleId: string) => Promise<boolean>;
       readonly listActiveUserIds: (moduleId: string) => Promise<readonly string[]>;
       readonly registerWorker?: (
@@ -29,6 +30,11 @@ export class ExternalModuleJobReconciler {
       try {
         await this.reconcileModule(module.id);
       } catch (error) {
+        try {
+          await this.stopModule(module.id);
+        } catch {
+          // Later startup/control reconciliation retries cleanup; never block sibling modules.
+        }
         this.deps.logger?.warn(
           { moduleId: module.id, errorName: error instanceof Error ? error.name : "Error" },
           "external module job reconcile failed"
@@ -38,6 +44,29 @@ export class ExternalModuleJobReconciler {
     const discoveredIds = new Set(discoveries.map((module) => module.id));
     for (const moduleId of this.ownedQueues.keys()) {
       if (!discoveredIds.has(moduleId)) await this.purgeModule(moduleId);
+    }
+    if (this.deps.reservedQueueNames) {
+      for (const schedule of await this.deps.boss.getSchedules()) {
+        const moduleId = schedule.key.split(":", 1)[0];
+        if (
+          moduleId &&
+          !discoveredIds.has(moduleId) &&
+          !this.deps.reservedQueueNames.has(schedule.name) &&
+          schedule.name.startsWith(`${moduleId}.`)
+        ) {
+          await this.deps.boss.unschedule(schedule.name, schedule.key);
+        }
+      }
+      for (const queue of await this.deps.boss.getQueues()) {
+        const moduleId = queue.name.split(".", 1)[0];
+        if (
+          moduleId &&
+          !discoveredIds.has(moduleId) &&
+          !this.deps.reservedQueueNames.has(queue.name)
+        ) {
+          await this.deps.boss.deleteQueue(queue.name);
+        }
+      }
     }
   }
 
@@ -57,6 +86,7 @@ export class ExternalModuleJobReconciler {
       return;
     }
     const queues = module.manifest.worker?.queues ?? [];
+    const previousQueues = this.ownedQueues.get(moduleId) ?? [];
     this.ownedQueues.set(moduleId, queues);
     const targets = new Set(queues.flatMap((queue) => queue.deadLetterQueue ?? []));
     for (const queue of [...queues].sort(
@@ -81,6 +111,13 @@ export class ExternalModuleJobReconciler {
         current.set(queue.name, signature);
       }
       this.registrations.set(moduleId, current);
+    }
+    const desiredQueueNames = new Set(queues.map((queue) => queue.name));
+    const previousTargets = new Set(previousQueues.flatMap((queue) => queue.deadLetterQueue ?? []));
+    for (const queue of [...previousQueues]
+      .filter((queue) => !desiredQueueNames.has(queue.name))
+      .sort((a, b) => Number(previousTargets.has(a.name)) - Number(previousTargets.has(b.name)))) {
+      await this.deps.boss.deleteQueue(queue.name);
     }
 
     const desiredScheduleKeys = new Set<string>();

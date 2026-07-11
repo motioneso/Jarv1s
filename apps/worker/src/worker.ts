@@ -202,9 +202,10 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
 
   const externalConfig = resolveExternalWorkerConfig();
   if (externalConfig) {
+    const reservedQueueNames = new Set(getAllQueueDefinitions().map((queue) => queue.name));
     const discoveries = getExternalModuleRegistrations({
       modulesDir: externalConfig.modulesDir,
-      reservedQueueNames: new Set(getAllQueueDefinitions().map((queue) => queue.name))
+      reservedQueueNames
     }).discoveries;
     externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
     const runtime = externalRuntime;
@@ -220,6 +221,7 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     externalReconciler = new ExternalModuleJobReconciler({
       boss,
       discoveries: () => discoveries,
+      reservedQueueNames,
       isModuleEnabled: async (moduleId) => {
         const module = discoveryById.get(moduleId);
         if (!module) return false;

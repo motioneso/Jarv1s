@@ -211,6 +211,9 @@ describe("external module job reconciliation", () => {
   it("registers once and stops the old worker before a manifest replacement", async () => {
     const calls: string[] = [];
     let manifestHash = `sha256:${"a".repeat(64)}`;
+    let queues: Array<{ name: string; handler: string }> = [
+      { name: "fixture.main", handler: "main" }
+    ];
     const discovery = (): ExternalModuleDiscovery => ({
       id: "fixture",
       dir: "/fixture",
@@ -225,13 +228,14 @@ describe("external module job reconciliation", () => {
         lifecycle: "optional",
         compatibility: { jarv1s: ">=0.0.0" },
         runtime: { workerEntrypoint: "worker.js", workerContractVersion: 1 },
-        worker: { queues: [{ name: "fixture.main", handler: "main" }] }
+        worker: { queues }
       }
     });
     const boss = {
       getQueue: async () => ({ name: "fixture.main" }),
       getSchedules: async () => [],
-      offWork: async (name: string) => calls.push(`off:${name}`)
+      offWork: async (name: string) => calls.push(`off:${name}`),
+      deleteQueue: async (name: string) => calls.push(`delete:${name}`)
     } as unknown as PgBoss;
     const reconciler = new ExternalModuleJobReconciler({
       boss,
@@ -247,8 +251,16 @@ describe("external module job reconciliation", () => {
     await reconciler.reconcileAll();
     manifestHash = `sha256:${"c".repeat(64)}`;
     await reconciler.reconcileAll();
+    queues = [];
+    await reconciler.reconcileAll();
 
-    expect(calls).toEqual(["work:fixture.main", "off:fixture.main", "work:fixture.main"]);
+    expect(calls).toEqual([
+      "work:fixture.main",
+      "off:fixture.main",
+      "work:fixture.main",
+      "off:fixture.main",
+      "delete:fixture.main"
+    ]);
   });
 
   it("fans schedules out by user and removes stale module keys", async () => {
@@ -450,5 +462,77 @@ describe("external module job reconciliation", () => {
     await reconciler.close();
 
     expect(calls).toEqual(["fixture.main"]);
+  });
+
+  it("fails one module closed without blocking sibling reconciliation", async () => {
+    const calls: string[] = [];
+    const logs: unknown[] = [];
+    let failing = false;
+    let goodHash = `sha256:${"b".repeat(64)}`;
+    const module = (id: string, manifestHash: string) =>
+      ({
+        id,
+        dir: `/${id}`,
+        manifestHash,
+        packageHash: `sha256:${"c".repeat(64)}`,
+        manifest: {
+          worker: { queues: [{ name: `${id}.main`, handler: "main" }] }
+        }
+      }) as unknown as ExternalModuleDiscovery;
+    const discoveries = () => [module("bad", `sha256:${"a".repeat(64)}`), module("good", goodHash)];
+    const boss = {
+      getQueue: async (name: string) => {
+        if (failing && name === "bad.main") throw new TypeError("private detail");
+        return { name };
+      },
+      getSchedules: async () => (failing ? [{ name: "bad.main", key: "bad:daily:user" }] : []),
+      offWork: async (name: string) => calls.push(`off:${name}`),
+      unschedule: async (name: string, key: string) => calls.push(`unschedule:${name}:${key}`)
+    } as unknown as PgBoss;
+    const reconciler = new ExternalModuleJobReconciler({
+      boss,
+      discoveries,
+      isModuleEnabled: async () => true,
+      listActiveUserIds: async () => [],
+      registerWorker: async (_module, queue) => {
+        calls.push(`work:${queue.name}`);
+      },
+      logger: { warn: (data) => logs.push(data) }
+    });
+    await reconciler.reconcileAll();
+    calls.length = 0;
+    failing = true;
+    goodHash = `sha256:${"d".repeat(64)}`;
+
+    await reconciler.reconcileAll();
+
+    expect(calls).toEqual([
+      "off:bad.main",
+      "unschedule:bad.main:bad:daily:user",
+      "off:good.main",
+      "work:good.main"
+    ]);
+    expect(logs).toEqual([{ moduleId: "bad", errorName: "TypeError" }]);
+  });
+
+  it("purges cold-start orphan schedules and queues but preserves reserved queues", async () => {
+    const calls: string[] = [];
+    const boss = {
+      getSchedules: async () => [{ name: "orphan.main", key: "orphan:daily:user" }],
+      getQueues: async () => [{ name: "platform.module-control" }, { name: "orphan.main" }],
+      unschedule: async (name: string, key: string) => calls.push(`unschedule:${name}:${key}`),
+      deleteQueue: async (name: string) => calls.push(`delete:${name}`)
+    } as unknown as PgBoss;
+    const reconciler = new ExternalModuleJobReconciler({
+      boss,
+      discoveries: () => [],
+      reservedQueueNames: new Set(["platform.module-control"]),
+      isModuleEnabled: async () => false,
+      listActiveUserIds: async () => []
+    });
+
+    await reconciler.reconcileAll();
+
+    expect(calls).toEqual(["unschedule:orphan.main:orphan:daily:user", "delete:orphan.main"]);
   });
 });

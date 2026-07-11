@@ -8,6 +8,7 @@ import type { Kysely } from "kysely";
 import { Client } from "pg";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient } from "@jarv1s/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -23,7 +24,9 @@ let root: string;
 let appDb: Kysely<JarvisDatabase>;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;
+let adminUserId: string;
 let memberCookie: string;
+let memberUserId: string;
 
 beforeAll(async () => {
   await resetEmptyFoundationDatabase();
@@ -31,7 +34,8 @@ beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), "extmod-routes-"));
   const modulesDir = join(root, "modules");
   const dir = join(modulesDir, "acme-widgets");
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(join(dir, "dist"), { recursive: true });
+  writeFileSync(join(dir, "dist", "worker.js"), "// fixture worker\n");
   writeFileSync(
     join(dir, "jarvis.module.json"),
     JSON.stringify({
@@ -41,7 +45,17 @@ beforeAll(async () => {
       version: "0.1.0",
       publisher: "Acme, Inc.",
       lifecycle: "optional",
-      compatibility: { jarv1s: ">=0.1.0" }
+      compatibility: { jarv1s: ">=0.1.0" },
+      runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 },
+      worker: {
+        queues: [
+          {
+            name: "acme-widgets.manual",
+            handler: "manual",
+            allowManualRun: true
+          }
+        ]
+      }
     })
   );
 
@@ -60,8 +74,12 @@ beforeAll(async () => {
   await server.ready();
 
   // First sign-up bootstraps the instance owner (admin); the second is a plain member.
-  adminCookie = (await signUp(server, "owner@extmod.test", "Owner")).cookie;
-  memberCookie = (await signUp(server, "member@extmod.test", "Member")).cookie;
+  const admin = await signUp(server, "owner@extmod.test", "Owner");
+  adminCookie = admin.cookie;
+  adminUserId = admin.userId;
+  const member = await signUp(server, "member@extmod.test", "Member");
+  memberCookie = member.cookie;
+  memberUserId = member.userId;
 });
 
 afterAll(async () => {
@@ -112,6 +130,32 @@ describe("external-module admin routes (#917)", () => {
     });
     const listed = modulesRes.json().modules.find((m: { id: string }) => m.id === "acme-widgets");
     expect(listed).toMatchObject({ id: "acme-widgets", external: true });
+
+    const migrationBoss = createPgBossClient(connectionStrings.migration);
+    await migrationBoss.start();
+    await migrationBoss.createQueue("acme-widgets.manual");
+    await migrationBoss.stop({ graceful: false });
+
+    const run = await server.inject({
+      method: "POST",
+      url: "/api/modules/acme-widgets/queues/acme-widgets.manual/run",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { jobKind: "manual" }
+    });
+    expect(run.statusCode).toBe(202);
+    expect(run.json()).toEqual({ jobId: expect.any(String) });
+    const payloadClient = new Client({ connectionString: connectionStrings.bootstrap });
+    await payloadClient.connect();
+    const payload = await payloadClient.query<{ data: Record<string, unknown> }>(
+      `SELECT data FROM pgboss.job_common WHERE name = 'acme-widgets.manual' ORDER BY created_on DESC LIMIT 1`
+    );
+    await payloadClient.end();
+    expect(payload.rows[0]?.data).toEqual({
+      actorUserId: adminUserId,
+      moduleId: "acme-widgets",
+      jobKind: "manual",
+      manifestHash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/)
+    });
   });
 
   it("returns 404 for POST to an unknown external module id", async () => {
@@ -122,6 +166,39 @@ describe("external-module admin routes (#917)", () => {
       payload: { enabled: true }
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it("hides a globally enabled external module from a user deny-listed for it", async () => {
+    const approve = await server.inject({
+      method: "POST",
+      url: `/api/admin/users/${memberUserId}/approve`,
+      headers: { cookie: adminCookie }
+    });
+    expect(approve.statusCode).toBe(200);
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    await client.query(
+      `INSERT INTO app.module_enablement (scope, module_id, user_id) VALUES ('user', 'acme-widgets', $1)`,
+      [memberUserId]
+    );
+    await client.end();
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/modules",
+      headers: { cookie: memberCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().modules.some((module: { id: string }) => module.id === "acme-widgets")).toBe(
+      false
+    );
+    const run = await server.inject({
+      method: "POST",
+      url: "/api/modules/acme-widgets/queues/acme-widgets.manual/run",
+      headers: { cookie: memberCookie, "content-type": "application/json" },
+      payload: { jobKind: "manual" }
+    });
+    expect(run.statusCode).toBe(404);
   });
 
   it("denies a non-admin GET with 403 (admin-gated surface)", async () => {

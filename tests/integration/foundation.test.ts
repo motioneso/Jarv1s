@@ -25,9 +25,6 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
-// Test-only RLS-bypass read of the probe table via a root Kysely handle. This deliberately
-// skips `withDataContext`, so it lives in the test harness — never on the shipped
-// `DataContextRunner` — to assert that RLS denies rows when no actor context is set.
 async function selectVisibleProbeIds(rootDb: Kysely<JarvisDatabase>): Promise<string[]> {
   const rows = await rootDb.selectFrom("app.rls_probe_items").select("id").orderBy("id").execute();
 
@@ -60,8 +57,6 @@ describe("MVP foundation scaffold", () => {
     dataContext = new DataContextRunner(appDb);
     repository = new RlsProbeRepository();
 
-    // Seed app.shares for itemBGrantedToA: userB shares 'view' to userA so the
-    // new owner-or-share RLS policy grants userA access (replacing resource_grants).
     await dataContext.withDataContext(
       { actorUserId: ids.userB, requestId: "setup:seed-share" },
       async (scopedDb) => {
