@@ -75,7 +75,9 @@ function assertHash(hash: string): void {
  * Truncate to at most maxBytes of UTF-8 without splitting a code point:
  * back off past continuation bytes to the previous character boundary.
  */
-function truncateUtf8(text: string, maxBytes: number): { text: string; truncated: boolean } {
+// Exported for JS-04 adapters: descriptions are capped with the same
+// UTF-8-boundary-safe truncation the repo applies on upsert.
+export function truncateUtf8(text: string, maxBytes: number): { text: string; truncated: boolean } {
   const bytes = Buffer.from(text, "utf8");
   if (bytes.length <= maxBytes) {
     return { text, truncated: false };

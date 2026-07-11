@@ -87,6 +87,7 @@ export {
   getOpportunity,
   listOpportunities,
   setOpportunityStatus,
+  truncateUtf8,
   upsertOpportunity
 } from "./opportunities.js";
 export type { RunRecord, RunSummary } from "./runs.js";
