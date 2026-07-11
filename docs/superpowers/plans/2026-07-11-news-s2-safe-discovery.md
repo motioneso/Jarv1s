@@ -830,14 +830,18 @@ export function registerNewsJobWorkers(
 ): void;
 ```
 
-Worker handler (B5+B6 loop, inside `registerDataContextWorker`): bounded loop (≤3 iterations) —
+Worker handler (B5+B6+B8 loop, inside `registerDataContextWorker`): loop **until the CURRENT
+generation is CAS-published or CAS-failed** — NO arbitrary iteration cap (B8: exiting at a count
+with state `queued` strands the last saved change when no later trigger ever arrives, because the
+exclusive job is already terminal and nothing remains enqueued). Each iteration:
 `generation = beginRefreshRun(scopedDb)` → `compilePersonalizedNews(scopedDb, deps, { now,
 generation })` → outcome `"replaced"` ⇒ done (CAS already set idle + compiled_generation);
-`"kept_last_good"` ⇒ `failRefreshRunIfCurrent(scopedDb, generation, failureKind)` — false means a
-newer request arrived, loop again; `"stale"` ⇒ loop again (recompile at the newer generation). If
-still stale at the loop bound, LEAVE state `queued` and exit — the job is then terminal, so the
-next trigger's `sendJob` succeeds and a fresh run picks up the latest generation (self-healing,
-no lost update).
+`"kept_last_good"` ⇒ `failRefreshRunIfCurrent(scopedDb, generation, failureKind)` — true ⇒ done,
+false (newer request arrived) ⇒ loop; `"stale"` ⇒ loop (recompile at the newer generation).
+Termination is structural, not counted: the loop repeats ONLY when `requested_generation` advanced
+during the compile, so it converges as soon as triggers stop (each compile is itself bounded by
+fetch caps/timeouts, and a user can bump generations only via rate-limited routes) — the single
+active exclusive worker owns convergence and never relies on a future trigger.
 
 30-minute policy lives at the trigger sites (Task 11 routes): compare snapshot `compiledAt` age;
 within 30 min ⇒ no enqueue, no search/scrape/LLM. Single-flight = pg-boss
@@ -849,11 +853,14 @@ anywhere.
       `assertMetadataOnlyPayload` and contains NO url/topic/headline keys (assert exact key set);
       worker run flips state queued→running→idle and publishes snapshot (fake ports via worker
       registration seam); ai-failing run ends `failed`/`"ai"` and keeps prior snapshot;
-      **B5 lost-update test: start run at generation G (pause compile via fake-port gate), change
-      prefs mid-run (bump to G+1), resume — worker loops and the follow-up compilation includes the
-      change**; **B6 resurrection test: pause compile after collection, add exclusion (prune runs +
-      bump), resume the OLD compile — CAS refuses publication, excluded domain NEVER reappears in
-      the snapshot (read back), and the loop's recompile excludes it**; refresh-on-open:
+      **B5/B8 lost-update test: start run at generation G (pause compile via fake-port gate),
+      change prefs mid-run (bump to G+1), resume — the SAME worker job loops and publishes a
+      compilation that includes the change, with NO further trigger/enqueue after the mid-run
+      change (assert zero additional boss.send calls and final `compiled_generation` = G+1 —
+      convergence never depends on a later user/open trigger, B8)**; **B6 resurrection test: pause
+      compile after collection, add exclusion (prune runs + bump), resume the OLD compile — CAS
+      refuses publication, excluded domain NEVER reappears in the snapshot (read back), and the
+      loop's recompile excludes it**; refresh-on-open:
       personalization GET with 31-min-old snapshot enqueues, with 5-min-old does NOT (spy on boss);
       exclusion add prunes domain from snapshot payload immediately (read back) before any worker
       runs; `POST /api/news/refresh` after failure re-queues.
@@ -891,7 +898,7 @@ anywhere.
   instance-wide reuse).
 - **Type consistency:** port names/types repeated verbatim in T7 block and consumed in T9–15;
   repository signatures defined once in T6.
-- **Codex pEP review folded (B1–B7):** B1 worker `news_prefs` SELECT grant + owner-scoped policy
+- **Codex pEP review folded (B1–B8):** B1 worker `news_prefs` SELECT grant + owner-scoped policy
   in 0160 + `NewsPrefsReader` port + cross-owner RLS proof (T5/T6); B2 curated prefs POST/DELETE
   trigger refresh (T11); B3 `validateTopic` gets its own strict `news_topic` schema, default-deny
   (T9); B4 worker source-write narrowed to column-level `GRANT UPDATE (health_status)` + negative
@@ -899,4 +906,6 @@ anywhere.
   pg-boss coalesces + worker loop (T6/T11/T15); B6 publication CAS'd on compile-start generation +
   atomic `pruneSnapshotDomain` — stale runs never publish, exclusions never resurrect
   (T6/T14/T15); B7 trustworthy non-null parsed `publishedAt` required for eligibility —
-  missing/invalid/future-skewed dropped, snapshot times always valid ISO (T12/T14).
+  missing/invalid/future-skewed dropped, snapshot times always valid ISO (T12/T14); B8 worker loop
+  has NO arbitrary iteration cap — it converges structurally by CAS-publishing/failing the current
+  generation, never relying on a later trigger (T15).
