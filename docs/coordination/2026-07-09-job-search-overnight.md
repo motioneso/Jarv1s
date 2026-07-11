@@ -2461,3 +2461,19 @@ w1:t17, **Sonnet 5**, ~43% fresh ctx, driving, same worktree/branch `feat/916-ho
 Old pED (session `c9baeba1`) confirmed `done` → reaped (session-guarded, resolved fresh by
 label+session). No code committed pre-relay (only spec-verify + architecture research carried
 forward in continuation doc). #916 lane owner is now pEE. Await plan-ready escalation from pEE.
+
+**#916 RELAY-2 + UNBLOCK @ 2026-07-11 ~04:35.** Second relay, STILL 0 code / 0 plan — the
+research-not-progress failure mode. Successor **pEF** label `916: host starter action (r3)`, session
+`8bceddee-fa7b-44a3-b5ca-0f4c80c97c95`, tab w1:t17, same worktree/branch. Old r2 (pEE, `c071432b`)
+reaped session-guarded. ROOT CAUSE of the spin diagnosed + delivered to pEF: (a) it searched the
+WRONG test tree — module tests are NOT co-located under apps/web/src, they live in top-level
+`tests/` (`tests/unit/external-loader.test.ts`, `tests/unit/external-hash.test.ts`,
+`tests/e2e/external-modules.spec.ts` — the "no e2e fixture" claim was wrong). Guidance: logic → node
+unit (loader/hash patterns, pure fns no DOM), draft/no-auto-submit UI → extend the existing e2e
+Playwright fixture, NO new jsdom/RTL harness. (b) spec-authority flag resolved: #916 `needs-spec`
+STRIPPED (labels=[task]), Fable sign-off comment 02:25Z durable — the spec FILE status line
+"pending Ben sign-off" is STALE; proceed on handoff. **MODEL NOTE:** pEF booted **Opus 4.8** (self-
+relay leaked herdr default). Kept on Opus — NOT respawned to Sonnet — per Ben's [spawn-defaults-opus]
+reversal (2026-07-06: build agents on Opus, Sonnet underdelivered), which this lane's 2x Sonnet
+zero-code relays concretely confirm. Opus 1M ctx also gives headroom to plan+build without relaying.
+pEF now reading external-loader.test.ts → writing-plans next. Await plan-ready.
