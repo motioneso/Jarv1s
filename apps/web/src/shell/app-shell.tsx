@@ -76,6 +76,9 @@ export function AppShell(props: AppShellProps) {
   // read-and-clear it: if set, open the drawer pre-filled with the setup-check starter (never
   // auto-sent). A refresh does not re-trigger it (the flag was consumed).
   const [askJarvisStarter, setAskJarvisStarter] = useState<string | undefined>(undefined);
+  // #916 — a module-authored starter draft handed up via ChatControls.openAssistantWithDraft. One-
+  // shot, mirrors #368's askJarvisStarter: seeds the composer on drawer open, cleared on close.
+  const [moduleDraft, setModuleDraft] = useState<string | undefined>(undefined);
   const [theme] = useState<ShellTheme>(() => loadShellTheme());
   useEffect(() => {
     if (consumeAskJarvis()) {
@@ -88,6 +91,13 @@ export function AppShell(props: AppShellProps) {
     void sendChatTurn(prompt);
   }, []);
   const openChat = useCallback(() => setChatOpen(true), []);
+  // #916 — open the drawer with a module-authored draft the user edits + submits (NEVER auto-sent;
+  // contrast openChatWith, which sends). Direct setState in an event handler is correct here — this
+  // is NOT a render-phase updater, so it is not the StrictMode double-fire trap #368 warned about.
+  const openAssistantWithDraft = useCallback((draft: string) => {
+    setModuleDraft(draft);
+    setChatOpen(true);
+  }, []);
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords, streamErrorCount } = useChatStream();
@@ -214,7 +224,7 @@ export function AppShell(props: AppShellProps) {
         </header>
 
         <main className="content-surface">
-          <ChatControlsProvider value={{ openChat, openChatWith }}>
+          <ChatControlsProvider value={{ openChat, openChatWith, openAssistantWithDraft }}>
             {props.children}
           </ChatControlsProvider>
         </main>
@@ -234,12 +244,14 @@ export function AppShell(props: AppShellProps) {
           // #368: the starter is a one-shot — once the drawer closes, a later manual open starts
           // from a blank composer, not the setup-check chip.
           setAskJarvisStarter(undefined);
+          // #368 + #916: starters are one-shot — a later manual open starts from a blank composer.
+          setModuleDraft(undefined);
         }}
         records={records}
         clearRecords={clearRecords}
         streamErrorCount={streamErrorCount}
         isFounder={props.me.user.isBootstrapOwner}
-        initialText={askJarvisStarter}
+        initialText={moduleDraft ?? askJarvisStarter}
       />
     </div>
   );
