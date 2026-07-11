@@ -2411,3 +2411,14 @@ additional cross-lens, not required. #915 does NOT stall for Codex — merges on
 CI-green + Fable sign-off; Codex-unavailable noted. If Fable elects to hold for Codex's lens at
 sign-off, that is Fable's call. Same policy applies to #916 sign-off tonight if it reaches merge
 before 10:12.
+
+**#915 QA GREEN @ 2026-07-11 ~03:35.** Opus adversarial QA (a82c9525): **GREEN, MERGE-READY, 0
+blocking**, verdict posted PR #945 comment `4942172129`. Invariants verified (0158 definer/pinned
+search_path/worker-only EXECUTE/NOBYPASSRLS/toEqual row/module sql; SSRF resolve-all+per-hop
+blocklist+IP-pin+SNI/Host+443/https/userinfo/hop guards; metadata-only payloads; actor-scoped
+worker context; no admin-write seam; secrets guarded). 6 NON-blocking = SSRF hardening TEST gaps
+(logic present+correct, low reachability) incl. `::ffff:0:0/96` blocklist parity gap → FOLLOW-UP
+hardening issue post-merge. Slice-3 structured-AI split confirmed intended (#923). CI: Verify
+foundation+app + both smokes PASS; "Build and publish images" finishing (non-required). Fable
+sign-off spawned (a9af1144, sole 2nd-lens — Codex capped). Merge on Fable APPROVE + all CI green.
+merges_since_relay: 0.
