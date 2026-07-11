@@ -36,9 +36,16 @@ export const newsModuleManifest = {
     supportsUserDisable: true
   },
   database: {
-    migrations: ["sql/0151_news_prefs.sql"],
+    migrations: ["sql/0151_news_prefs.sql", "sql/0159_news_personalization.sql"],
     migrationDirectories: ["packages/news/sql"],
-    ownedTables: ["app.news_prefs"]
+    ownedTables: [
+      "app.news_prefs",
+      // #953 Slice 1 personalization tables — owner-only FORCE RLS, no worker grants.
+      "app.news_custom_sources",
+      "app.news_custom_topics",
+      "app.news_source_exclusions",
+      "app.news_compilation_snapshots"
+    ]
   },
   navigation: [
     {
@@ -129,7 +136,16 @@ export const newsModuleManifest = {
     exportSections: [],
     deletion: {
       strategy: "cascade",
-      tables: [{ table: "app.news_prefs" }]
+      tables: [
+        { table: "app.news_prefs" },
+        // #953 Slice 1 — all four personalization tables key on app.users ON DELETE CASCADE.
+        // Snapshots are derived data: deleted with the user, never exported (Task 6 adds the
+        // export sections for sources/topics/exclusions only).
+        { table: "app.news_custom_sources" },
+        { table: "app.news_custom_topics" },
+        { table: "app.news_source_exclusions" },
+        { table: "app.news_compilation_snapshots" }
+      ]
     }
   },
   externalSources: [

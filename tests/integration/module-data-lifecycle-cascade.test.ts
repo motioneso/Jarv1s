@@ -125,7 +125,12 @@ describe("dataLifecycle cascade-truth (#801 Phase A)", () => {
         "app.medication_logs",
         "app.wellness_therapy_notes",
         "app.sports_follows",
-        "app.news_prefs"
+        "app.news_prefs",
+        // #953 News Slice 1 personalization tables — all owner-keyed to app.users cascade.
+        "app.news_custom_sources",
+        "app.news_custom_topics",
+        "app.news_source_exclusions",
+        "app.news_compilation_snapshots"
       ].sort()
     );
   });

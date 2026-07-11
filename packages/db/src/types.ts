@@ -972,6 +972,58 @@ export interface NewsPrefsTable {
   created_at: TimestampColumn;
 }
 
+// #953 News Slice 1 personalization tables (0159_news_personalization.sql). All owner-only
+// under FORCE RLS; validation_fingerprint is an opaque revalidation marker, never a
+// provider/model identity. Slice 2 owns source/topic writes; Slice 1 reads/exports them.
+export type NewsValidationStatus = "approved" | "needs_revalidation" | "rejected";
+
+export interface NewsCustomSourcesTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  label: string;
+  canonical_domain: string;
+  homepage_url: string;
+  feed_url: string | null;
+  retrieval_method: "feed" | "scrape";
+  validation_status: NewsValidationStatus;
+  health_status: "available" | "unavailable";
+  validation_fingerprint: string;
+  validated_at: TimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface NewsCustomTopicsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  label: string;
+  guidance: string | null;
+  validation_status: NewsValidationStatus;
+  validation_fingerprint: string;
+  validated_at: TimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface NewsSourceExclusionsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  canonical_domain: string;
+  created_at: TimestampColumn;
+}
+
+// Derived/transient compiled-feed cache: one row per user (owner_user_id IS the primary
+// key), replaced atomically, never exported. payload has no DB default — writers must
+// always supply a value the News-owned assertSnapshotPayload has accepted.
+export interface NewsCompilationSnapshotsTable {
+  owner_user_id: string;
+  compiled_at: TimestampColumn;
+  expires_at: TimestampColumn;
+  payload: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -1024,6 +1076,10 @@ export interface JarvisDatabase {
   "app.wellness_checkins": WellnessCheckinsTable;
   "app.sports_follows": SportsFollowsTable;
   "app.news_prefs": NewsPrefsTable;
+  "app.news_custom_sources": NewsCustomSourcesTable;
+  "app.news_custom_topics": NewsCustomTopicsTable;
+  "app.news_source_exclusions": NewsSourceExclusionsTable;
+  "app.news_compilation_snapshots": NewsCompilationSnapshotsTable;
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
@@ -1075,3 +1131,7 @@ export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
 export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;
 export type DataExportJob = Selectable<DataExportJobsTable>;
+export type NewsCustomSource = Selectable<NewsCustomSourcesTable>;
+export type NewsCustomTopic = Selectable<NewsCustomTopicsTable>;
+export type NewsSourceExclusion = Selectable<NewsSourceExclusionsTable>;
+export type NewsCompilationSnapshot = Selectable<NewsCompilationSnapshotsTable>;

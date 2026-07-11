@@ -268,7 +268,10 @@ describe("MVP foundation schema catalog", () => {
         { version: "0156", name: "0156_module_installs.sql" },
         // #919 (epic #860) — actor + module scoped worker RPC access for credentials/KV.
         { version: "0157", name: "0157_module_worker_runtime_access.sql" },
-        { version: "0158", name: "0158_external_module_active_users.sql" }
+        { version: "0158", name: "0158_external_module_active_users.sql" },
+        // #953 (epic #954) News Slice 1 — personalization tables (custom sources/topics,
+        // domain exclusions, compilation snapshot); owner-only FORCE RLS, no worker grants.
+        { version: "0159", name: "0159_news_personalization.sql" }
       ]);
     } finally {
       await client.end();
