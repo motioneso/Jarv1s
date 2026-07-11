@@ -331,6 +331,42 @@ describe("NewsService exclusion filtering (#953 Slice 1)", () => {
     expect(overview.topStories.map((h) => h.url)).toEqual(["https://notexample.com/story"]);
   });
 
+  it("drops headlines whose URL is malformed or missing — fail closed (PR #955 Codex finding)", async () => {
+    // A headline URL that cannot be parsed cannot be proven NOT-excluded, so it must be
+    // dropped rather than fall through the exclusion filter. Covers both the malformed and
+    // the missing/empty URL shape a broken or hostile feed could emit.
+    const service = new NewsService(
+      makeDeps({
+        exclusions: [exclusion("example.com")],
+        getFeed: async (sourceKey) =>
+          sourceKey === "npr"
+            ? [
+                item({ url: "not a url" }),
+                item({ url: "" }),
+                item({ url: "https://ok.example.org/story" })
+              ]
+            : []
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.topStories.map((h) => h.url)).toEqual(["https://ok.example.org/story"]);
+  });
+
+  it("drops malformed-URL headlines even when the user has NO exclusions", async () => {
+    // Fail-closed is unconditional: the null-hostname branch must not depend on the
+    // exclusion list being non-empty.
+    const service = new NewsService(
+      makeDeps({
+        getFeed: async (sourceKey) =>
+          sourceKey === "npr"
+            ? [item({ url: "http://[broken" }), item({ url: "https://ok.example.org/story" })]
+            : []
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.topStories.map((h) => h.url)).toEqual(["https://ok.example.org/story"]);
+  });
+
   it("keeps exclusions effective on the briefing path (getTopHeadlinesForToday)", async () => {
     const service = new NewsService(
       makeDeps({

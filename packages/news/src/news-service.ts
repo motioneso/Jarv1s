@@ -200,8 +200,7 @@ export class NewsService {
 }
 
 /**
- * Hostname of a feed/homepage URL for exclusion matching, or null when unparseable
- * (an unparseable URL can't be proven excluded, and V1 items already passed RSS parsing).
+ * Hostname of a feed/homepage URL for exclusion matching, or null when unparseable.
  * WHATWG URL lowercases and punycodes the hostname, matching normalizePublisherDomain's
  * canonical form; the trailing-dot strip mirrors it for FQDN-notation links.
  */
@@ -214,8 +213,15 @@ function urlHostname(url: string): string | null {
   }
 }
 
+/**
+ * FAIL CLOSED (PR #955 Codex finding): a malformed or missing URL yields a null hostname,
+ * which cannot be proven NOT-excluded, so it is treated as excluded and dropped — never
+ * allowed to fall through the exclusion filter. Slice 1 only string-compares these
+ * hostnames (no fetch/connect consumes them); resolved-IP re-validation of DNS names is a
+ * binding Slice 2 requirement enforced at its fetch boundary, not here.
+ */
 function hostnameIsExcluded(hostname: string | null, excludedDomains: readonly string[]): boolean {
-  if (hostname === null) return false;
+  if (hostname === null) return true;
   return excludedDomains.some((excluded) => publisherDomainMatches(excluded, hostname));
 }
 
