@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jarv1s/host-fetch": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*"
   }
 }

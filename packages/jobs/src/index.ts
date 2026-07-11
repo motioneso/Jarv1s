@@ -1,3 +1,4 @@
 export * from "./pg-boss.js";
+export * from "./module-jobs.js";
 export * from "./upgrade-check.js";
 export * from "./upgrade-notify.js";

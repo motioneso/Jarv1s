@@ -25,9 +25,6 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
-// Test-only RLS-bypass read of the probe table via a root Kysely handle. This deliberately
-// skips `withDataContext`, so it lives in the test harness — never on the shipped
-// `DataContextRunner` — to assert that RLS denies rows when no actor context is set.
 async function selectVisibleProbeIds(rootDb: Kysely<JarvisDatabase>): Promise<string[]> {
   const rows = await rootDb.selectFrom("app.rls_probe_items").select("id").orderBy("id").execute();
 
@@ -60,8 +57,6 @@ describe("MVP foundation scaffold", () => {
     dataContext = new DataContextRunner(appDb);
     repository = new RlsProbeRepository();
 
-    // Seed app.shares for itemBGrantedToA: userB shares 'view' to userA so the
-    // new owner-or-share RLS policy grants userA access (replacing resource_grants).
     await dataContext.withDataContext(
       { actorUserId: ids.userB, requestId: "setup:seed-share" },
       async (scopedDb) => {
@@ -343,9 +338,70 @@ describe("MVP foundation scaffold", () => {
         // #914 Slice 2 — per-module install-state journal, instance metadata.
         { version: "0156", name: "0156_module_installs.sql" },
         // #919 (epic #860) — actor + module scoped worker RPC access for credentials/KV.
-        { version: "0157", name: "0157_module_worker_runtime_access.sql" }
+        { version: "0157", name: "0157_module_worker_runtime_access.sql" },
+        { version: "0158", name: "0158_external_module_active_users.sql" }
       ]);
     } finally {
+      await client.end();
+    }
+  });
+
+  it("enumerates only active non-denied module users through a locked-down definer", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const security = await client.query<{
+        owner_name: string;
+        proconfig: string[];
+        rolbypassrls: boolean;
+        worker_execute: boolean;
+        public_execute: boolean;
+      }>(`
+        SELECT owner.rolname AS owner_name,
+               p.proconfig,
+               owner.rolbypassrls,
+               has_function_privilege(
+                 'jarvis_worker_runtime', p.oid, 'EXECUTE'
+               ) AS worker_execute,
+               has_function_privilege('public', p.oid, 'EXECUTE') AS public_execute
+        FROM pg_proc p
+        JOIN pg_roles owner ON owner.oid = p.proowner
+        WHERE p.oid = 'app.list_active_external_module_users(text)'::regprocedure
+      `);
+      expect(security.rows).toEqual([
+        {
+          owner_name: "jarvis_migration_owner",
+          proconfig: ["search_path=pg_catalog, app, pg_temp"],
+          rolbypassrls: false,
+          worker_execute: true,
+          public_execute: false
+        }
+      ]);
+
+      await client.query(
+        `INSERT INTO app.external_modules
+           (id, status, manifest_hash, package_hash)
+         VALUES ('fixture', 'enabled', 'sha256:manifest', 'sha256:package')`
+      );
+      const before = await sql<{ user_id: string }>`
+        SELECT user_id FROM app.list_active_external_module_users('fixture')
+      `.execute(workerDb);
+      expect(before.rows.map((row) => row.user_id)).toContain(ids.userA);
+      expect(before.rows.map((row) => row.user_id)).toContain(ids.userB);
+
+      await client.query(
+        `INSERT INTO app.module_enablement (scope, module_id, user_id)
+         VALUES ('user', 'fixture', $1::uuid)`,
+        [ids.userA]
+      );
+      const after = await sql<{ user_id: string }>`
+        SELECT user_id FROM app.list_active_external_module_users('fixture')
+      `.execute(workerDb);
+      expect(after.rows.map((row) => row.user_id)).not.toContain(ids.userA);
+      expect(after.rows.map((row) => row.user_id)).toContain(ids.userB);
+    } finally {
+      await client.query(`DELETE FROM app.module_enablement WHERE module_id = 'fixture'`);
+      await client.query(`DELETE FROM app.external_modules WHERE id = 'fixture'`);
       await client.end();
     }
   });

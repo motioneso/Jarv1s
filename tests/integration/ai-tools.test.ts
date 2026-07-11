@@ -459,6 +459,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "rls-probe",
       "system.upgrade-check",
       "system.upgrade-notify",
+      "platform.module-control",
       "export.build",
       "export.cleanup",
       "connectors.google-sync",

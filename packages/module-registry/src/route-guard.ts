@@ -100,6 +100,7 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("PUT", "/api/me/modules/:moduleId/credentials/:credentialId"),
   routeKey("DELETE", "/api/me/modules/:moduleId/credentials/:credentialId"),
   routeKey("GET", "/api/modules/:moduleId/web/*"),
+  routeKey("POST", "/api/modules/:moduleId/queues/:queueName/run"),
   // observability sink (#413): unauthenticated platform route the browser fires
   // client errors into. Owned by no module, never stores anything, only logs.
   routeKey("POST", "/api/errors")

@@ -20,6 +20,7 @@ export * from "./external/web-assets.js";
 export * from "./external/worker-runtime.js";
 export * from "./external/worker-rpc-host.js";
 export * from "./external/tool-manifests.js";
+export * from "./external/job-reconciler.js";
 
 /**
  * Discover external modules under `modulesDir` (#917). Server-only. Read-only: never
@@ -31,8 +32,9 @@ export * from "./external/tool-manifests.js";
 export function getExternalModuleRegistrations(options: {
   readonly modulesDir: string;
   readonly coreVersion?: string;
+  readonly reservedQueueNames?: ReadonlySet<string>;
 }): ExternalModuleLoadResult {
-  const { modulesDir, coreVersion } = options;
+  const { modulesDir, coreVersion, reservedQueueNames } = options;
   const discoveries: ExternalModuleDiscovery[] = [];
   const rejected: ExternalModuleRejection[] = [];
 
@@ -113,7 +115,7 @@ export function getExternalModuleRegistrations(options: {
         continue;
       }
 
-      const validation = validateExternalModuleManifest(raw, id, coreVersion);
+      const validation = validateExternalModuleManifest(raw, id, coreVersion, reservedQueueNames);
       if (!validation.ok) {
         rejected.push({ id, reason: validation.errors.join("; ") });
         continue;

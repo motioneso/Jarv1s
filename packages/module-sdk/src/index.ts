@@ -10,6 +10,7 @@ export { sessionRateLimitKey, mcpSessionRateLimitKey } from "./rate-limit-key.js
 export { CORE_VERSION, compareJarvisVersions, satisfiesCoreVersion } from "./core-version.js";
 
 export { createModuleLogger } from "./logger.js";
+export * from "./module-params.js";
 
 export type ModuleLifecycle = "required" | "optional" | "user-toggleable" | "workspace-toggleable";
 export type ModuleScope = "user" | "admin" | "system";
@@ -545,6 +546,66 @@ export interface ModuleWorkerDeclaration {
 
 export const MODULE_WORKER_CONTRACT_VERSION = 1 as const;
 
+export type ModuleParamScalarSchema =
+  | { readonly type: "uuid" | "identifier" | "timestamp" | "boolean" | "null" }
+  | { readonly type: "integer" | "number"; readonly min: number; readonly max: number }
+  | { readonly type: "enum"; readonly values: readonly string[] };
+
+export type ModuleParamsSchema =
+  | ModuleParamScalarSchema
+  | { readonly type: "array"; readonly items: ModuleParamScalarSchema; readonly maxItems: number }
+  | {
+      readonly type: "object";
+      readonly fields: Readonly<
+        Record<
+          string,
+          | ModuleParamScalarSchema
+          | {
+              readonly type: "array";
+              readonly items: ModuleParamScalarSchema;
+              readonly maxItems: number;
+            }
+        >
+      >;
+    };
+
+export interface ExternalModuleQueueDeclaration {
+  readonly name: string;
+  readonly handler: string;
+  readonly paramsSchema?: ModuleParamsSchema;
+  readonly retryLimit?: number;
+  readonly deadLetterQueue?: string;
+  readonly allowManualRun?: boolean;
+}
+
+export interface ExternalModuleScheduleDeclaration {
+  readonly id: string;
+  readonly cron: string;
+  readonly tz?: string;
+  readonly queue: string;
+  readonly jobKind: string;
+  readonly scope: "user";
+  readonly params?: Readonly<Record<string, unknown>>;
+}
+
+export interface ExternalModuleWorkerDeclaration {
+  readonly queues?: readonly ExternalModuleQueueDeclaration[];
+  readonly schedules?: readonly ExternalModuleScheduleDeclaration[];
+}
+
+export interface ModuleFetchRequest {
+  readonly url: string;
+  readonly method?: "GET" | "POST";
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly bodyBase64?: string;
+}
+
+export interface ModuleFetchResponse {
+  readonly status: number;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly bodyBase64: string;
+}
+
 export interface ExternalModuleAssistantToolDeclaration {
   readonly name: string;
   readonly description: string;
@@ -585,6 +646,8 @@ export interface JsonJarvisModuleManifest {
   readonly web?: ModuleWebDeclaration;
   readonly runtime?: ModuleWorkerDeclaration;
   readonly assistantTools?: readonly ExternalModuleAssistantToolDeclaration[];
+  readonly worker?: ExternalModuleWorkerDeclaration;
+  readonly fetchHosts?: readonly string[];
 }
 
 /**

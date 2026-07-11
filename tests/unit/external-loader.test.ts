@@ -51,6 +51,27 @@ describe("getExternalModuleRegistrations (#917)", () => {
     expect(result.discoveries[0]!.packageHash.startsWith("sha256:")).toBe(true);
   });
 
+  it("rejects a worker queue that collides with a platform queue", () => {
+    const dir = join(modulesDir, "acme-widgets");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "jarvis.module.json"),
+      JSON.stringify({
+        ...JSON.parse(validManifest("acme-widgets")),
+        runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 },
+        worker: { queues: [{ name: "acme-widgets.sync", handler: "sync" }] }
+      })
+    );
+
+    const result = getExternalModuleRegistrations({
+      modulesDir,
+      coreVersion: "0.1.0",
+      reservedQueueNames: new Set(["acme-widgets.sync"])
+    });
+    expect(result.discoveries).toEqual([]);
+    expect(result.rejected[0]?.reason).toContain("collides");
+  });
+
   it("rejects a module whose manifest id != directory name", () => {
     const dir = join(modulesDir, "acme-widgets");
     mkdirSync(dir, { recursive: true });

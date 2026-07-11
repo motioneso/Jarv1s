@@ -6,12 +6,14 @@ import {
   type WorkerRpcRequest,
   type WorkerRpcResponse
 } from "./worker-protocol.js";
+import type { ModuleFetchRequest, ModuleFetchResponse } from "./index.js";
 
 export { MODULE_WORKER_CONTRACT_VERSION } from "./worker-protocol.js";
 
 export interface ModuleWorkerContext {
   readonly input: Record<string, unknown>;
   readonly auth: { getCredential(authId: string): Promise<string> };
+  readonly fetch: (request: ModuleFetchRequest) => Promise<ModuleFetchResponse>;
   readonly kv: {
     get(
       scope: "instance" | "user",
@@ -98,6 +100,7 @@ export function defineModuleWorker(input: {
             getCredential: (authId) =>
               callParent("auth.getCredential", { authId }) as Promise<string>
           },
+          fetch: (request) => callParent("fetch.request", request) as Promise<ModuleFetchResponse>,
           kv
         });
         send({ jsonrpc: "2.0", id: message.id, result });

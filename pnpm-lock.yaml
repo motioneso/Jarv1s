@@ -205,6 +205,12 @@ importers:
       '@jarv1s/module-registry':
         specifier: workspace:*
         version: link:../../packages/module-registry
+      '@jarv1s/settings':
+        specifier: workspace:*
+        version: link:../../packages/settings
+      kysely:
+        specifier: ^0.29.2
+        version: 0.29.2
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -482,6 +488,9 @@ importers:
 
   packages/datasets:
     dependencies:
+      '@jarv1s/host-fetch':
+        specifier: workspace:*
+        version: link:../host-fetch
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
@@ -551,6 +560,8 @@ importers:
       pg-boss:
         specifier: ^12.18.2
         version: 12.18.2
+
+  packages/host-fetch: {}
 
   packages/jobs:
     dependencies:
@@ -632,6 +643,9 @@ importers:
       '@jarv1s/goals':
         specifier: workspace:*
         version: link:../goals
+      '@jarv1s/host-fetch':
+        specifier: workspace:*
+        version: link:../host-fetch
       '@jarv1s/jobs':
         specifier: workspace:*
         version: link:../jobs
