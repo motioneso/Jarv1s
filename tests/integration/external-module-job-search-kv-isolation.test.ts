@@ -34,6 +34,7 @@ import {
   approveProfile,
   approveResume,
   confirmationIdFor,
+  contentHash,
   getActiveProfile,
   getActiveResume,
   getOpportunity,
@@ -46,7 +47,11 @@ import {
   saveProfileRevision,
   upsertOpportunity
 } from "../../external-modules/job-search/src/domain/index.js";
-import { getResumeHandler } from "../../external-modules/job-search/src/worker/handlers/resume.js";
+import type { JobSearchAi } from "../../external-modules/job-search/src/worker/ai-port.js";
+import {
+  getResumeHandler,
+  saveResumeDraftHandler
+} from "../../external-modules/job-search/src/worker/handlers/resume.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -378,5 +383,66 @@ describe("job-search onboarding/resume/profile record isolation (#932)", () => {
        AND namespace IN ('job-search.resume', 'job-search.profile')`
     );
     expect(rows).toEqual([]);
+  });
+});
+
+// JS-03 (#932) QA RED fix cycle 1 — attack-path proof for the B1 finding
+// (PR #956, Codex issuecomment-4945986416 + Opus issuecomment-4946000922):
+// an AI response that under-declares materialClaims (here: []) while
+// fabricating in proposedMarkdown must NOT persist a draft revision and must
+// never become approvable — proven through the REAL RPC kv port and real
+// Postgres, not the in-memory kv.
+describe("job-search critique truth-guard coverage — fabrication cannot persist (#932)", () => {
+  const B_ORIGINAL = "Product Manager at Globex Corporation\nShipped the Meridian platform in 2024";
+  const FABRICATED = "# Resume\nVP of Engineering at Initech\nGrew revenue 300%";
+
+  it("materialClaims: [] + fabricated markdown → question, no revision row, approve fails", async () => {
+    // userB still exists in app.users and its resume namespace is empty after
+    // the #932 describe above — no re-seed choreography needed.
+    const kvB = kvForActor(ids.userB);
+    // Seed B's original through the real manual-save path.
+    const seed = await saveResumeDraftHandler({ kv: kvB, ai: null, now: () => NOW })({
+      mode: "manual",
+      content: B_ORIGINAL
+    });
+    expect(seed.status).toBe("ok");
+
+    const ai: JobSearchAi = {
+      generateStructured: async () => ({
+        ok: true,
+        object: {
+          critiqueSummary: "puffed the resume up",
+          proposedMarkdown: FABRICATED,
+          materialClaims: []
+        }
+      })
+    };
+    const result = await saveResumeDraftHandler({ kv: kvB, ai, now: () => NOW })({
+      mode: "critique"
+    });
+    expect(result.status).toBe("question");
+    expect(result.unverifiedSpans).toContain("Initech");
+
+    // Ground truth via worker-role SQL: only the seeded original revision row
+    // exists, and the fabricated content appears in NO row at all.
+    const revisionRows = await workerQuery<{ key: string }>(
+      ids.userB,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND namespace = 'job-search.resume' AND key LIKE 'revision/%' ORDER BY key`
+    );
+    expect(revisionRows.map((r) => r.key)).toEqual(["revision/0"]);
+    const fabricatedRows = await workerQuery<{ key: string }>(
+      ids.userB,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND value::text LIKE '%Initech%'`
+    );
+    expect(fabricatedRows).toEqual([]);
+
+    // The draft the critique WOULD have created can never be approved.
+    await expect(
+      approveResume(kvB, contentHash(["rev", "0", FABRICATED].join("\0")), NOW)
+    ).rejects.toMatchObject({ code: "missing_revision" });
   });
 });

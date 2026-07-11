@@ -16,9 +16,12 @@ import {
 } from "../../external-modules/job-search/src/domain/confirmations.js";
 import { JobSearchKvError } from "../../external-modules/job-search/src/domain/errors.js";
 import {
+  CLAIM_QUOTE_MIN_CHARS,
   CRITIQUE_SCHEMA,
+  extractMaterialSpans,
   parseCritique,
   verifyClaims,
+  verifyMarkdownCoverage,
   type MaterialClaim
 } from "../../external-modules/job-search/src/domain/truth-guard.js";
 import { keys } from "../../external-modules/job-search/src/domain/keys.js";
@@ -167,12 +170,29 @@ describe("verifyClaims", () => {
 
   it("attributes the quote to the first source containing it", () => {
     const verdict = verifyClaims({
-      claims: [claim({ kind: "metric", text: "40% faster deploys", quote: "40%" })],
+      claims: [
+        claim({ kind: "metric", text: "40% faster deploys", quote: "Cut deploy time by 40%" })
+      ],
       sources: SOURCES,
       confirmationIds: new Set()
     });
-    // "40%" only appears in rev-b.
+    // The quote only appears in rev-b.
     expect(verdict.evidence[0]?.sourceRevisionId).toBe("rev-b");
+  });
+
+  it("rejects a quote under CLAIM_QUOTE_MIN_CHARS even when it IS a source substring", () => {
+    // QA RED B1 fold-in (PR #956 issuecomment-4945986416 + issuecomment-4946000922):
+    // a trivial token like "Acme Corp" (9 chars) must not source a whole claim.
+    const short = claim({ quote: "Acme Corp" });
+    const verdict = verifyClaims({
+      claims: [short],
+      sources: SOURCES,
+      confirmationIds: new Set()
+    });
+    expect(CLAIM_QUOTE_MIN_CHARS).toBe(12);
+    expect(verdict.ok).toBe(false);
+    expect(verdict.evidence).toEqual([]);
+    expect(verdict.unsupported).toEqual([short]);
   });
 
   it("treats a quote that matches no source as unsupported — quotes are not testimony", () => {
@@ -363,5 +383,100 @@ describe("parseCritique", () => {
     expect(claimSchema.properties.quote.maxLength).toBe(200);
     // Forbidden structured-AI keywords must not appear anywhere in the schema.
     expect(JSON.stringify(schema)).not.toMatch(/\$ref|"pattern"/);
+  });
+});
+
+// QA RED B1 (PR #956, Codex issuecomment-4945986416 + Opus issuecomment-4946000922):
+// verifyClaims only checks what the AI SELF-REPORTS. `materialClaims: []` plus a
+// fabricated proposedMarkdown passed vacuously. The coverage guard derives material
+// content from the markdown itself and fails CLOSED on anything the stored sources
+// or the user's own confirmations cannot vouch for.
+describe("extractMaterialSpans", () => {
+  it("strips markdown syntax and skips the sentence-initial capitalized word", () => {
+    expect(extractMaterialSpans("## Improved delivery cadence")).toEqual([]);
+  });
+
+  it("treats capitalized words past the segment start as material", () => {
+    expect(extractMaterialSpans("- Led migration at Initech")).toEqual(["Initech"]);
+  });
+
+  it("digit tokens are material even at the segment start", () => {
+    expect(extractMaterialSpans("2019 to 2023 at Acme")).toEqual(["2019", "2023", "Acme"]);
+  });
+});
+
+describe("verifyMarkdownCoverage", () => {
+  it("passes when every material token is covered by the sources", () => {
+    const verdict = verifyMarkdownCoverage({
+      markdown: "# Resume\nSenior Engineer at Acme Corp\nCut deploy time by 40%",
+      sources: SOURCES,
+      confirmedTexts: []
+    });
+    expect(verdict).toEqual({ ok: true, unverifiedSpans: [] });
+  });
+
+  it("fails CLOSED on fabricated employer/metric tokens", () => {
+    const verdict = verifyMarkdownCoverage({
+      markdown: "# Resume\nStaff Engineer at Initech Systems\nRaised ARR by 300%",
+      sources: SOURCES,
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+    // "Staff"/"Raised" are sentence-initial; "Engineer" appears in rev "0".
+    expect(verdict.unverifiedSpans).toEqual(["Initech", "Systems", "ARR", "300"]);
+  });
+
+  it("tokens covered ONLY by user-confirmed claim texts pass", () => {
+    const markdown = "Certified Kubernetes Administrator since 2021";
+    const confirmed = ["Certified Kubernetes Administrator, 2021"];
+    expect(verifyMarkdownCoverage({ markdown, sources: [], confirmedTexts: confirmed }).ok).toBe(
+      true
+    );
+    expect(verifyMarkdownCoverage({ markdown, sources: [], confirmedTexts: [] }).ok).toBe(false);
+  });
+
+  it("a lone sentence-initial capitalized word needs no coverage", () => {
+    expect(
+      verifyMarkdownCoverage({
+        markdown: "Improved delivery cadence",
+        sources: [],
+        confirmedTexts: []
+      })
+    ).toEqual({ ok: true, unverifiedSpans: [] });
+  });
+
+  it("digit tokens are always material", () => {
+    const verdict = verifyMarkdownCoverage({
+      markdown: "shipped 7 releases",
+      sources: [],
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unverifiedSpans).toEqual(["7"]);
+  });
+
+  it("BYPASS: AI-declared claim text does NOT whitelist markdown tokens", () => {
+    // The coverage corpus is sources + USER-confirmed texts only. If AI claim
+    // texts vouched, the AI could attach a legitimate quote to a claim whose
+    // `text` smuggles fabricated tokens and whitelist them — the exact bypass
+    // the QA council flagged (issuecomment-4945986416, issuecomment-4946000922).
+    const smuggler: MaterialClaim = {
+      kind: "metric",
+      text: "Raised ARR 300% at Initech",
+      quote: "Cut deploy time by 40%"
+    };
+    const claimVerdict = verifyClaims({
+      claims: [smuggler],
+      sources: SOURCES,
+      confirmationIds: new Set()
+    });
+    expect(claimVerdict.ok).toBe(true); // the self-reported claim is "sourced"…
+    const coverage = verifyMarkdownCoverage({
+      markdown: "Led work at Initech",
+      sources: SOURCES,
+      confirmedTexts: [] // …but its text never enters the coverage corpus
+    });
+    expect(coverage.ok).toBe(false);
+    expect(coverage.unverifiedSpans).toEqual(["Initech"]);
   });
 });

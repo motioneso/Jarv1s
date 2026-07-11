@@ -265,8 +265,9 @@ describe("resume.save-draft handler — critique mode", () => {
     critiqueSummary: "sharpened the opener",
     proposedMarkdown: GOOD_MARKDOWN,
     materialClaims: [
-      { kind: "employer", text: "employed on line one", quote: "Line one" },
-      { kind: "skill", text: "skill from line three", quote: "Line three" }
+      // Quotes must clear CLAIM_QUOTE_MIN_CHARS (12) — they may span newlines.
+      { kind: "employer", text: "employed on line one", quote: "Line one\nLine two" },
+      { kind: "skill", text: "skill from line three", quote: "Line two\nLine three" }
     ]
   };
 
@@ -312,14 +313,14 @@ describe("resume.save-draft handler — critique mode", () => {
         claimText: "employed on line one",
         status: "sourced",
         sourceRevisionId: "0",
-        quote: "Line one"
+        quote: "Line one\nLine two"
       },
       {
         claimKind: "skill",
         claimText: "skill from line three",
         status: "sourced",
         sourceRevisionId: "0",
-        quote: "Line three"
+        quote: "Line two\nLine three"
       }
     ]);
     const read = await getResumeHandler(portsFor(kv))({ revisionId: result.revisionId as string });
@@ -357,6 +358,34 @@ describe("resume.save-draft handler — critique mode", () => {
     await expect(approveResume(kv, draftIdFor("0", GOOD_MARKDOWN), NOW)).rejects.toMatchObject({
       code: "missing_revision"
     });
+  });
+
+  it("ADVERSARIAL B1: fabricated markdown with materialClaims: [] is a question, never persisted, never approvable", async () => {
+    // QA RED B1 (PR #956, Codex issuecomment-4945986416 + Opus issuecomment-4946000922):
+    // the guard used to verify only self-reported claims, so `materialClaims: []`
+    // passed vacuously while proposedMarkdown fabricated freely. Markdown coverage
+    // is now derived from the markdown itself — fail CLOSED, persist NOTHING.
+    const kv = createMemoryKv();
+    await saveOriginalResume(kv, ORIGINAL, NOW);
+    const before = kv.dump();
+    const fabricatedMarkdown = "# Resume\nStaff Engineer at Initech Systems\nRaised ARR by 300%";
+    const { ai } = fakeAi({
+      ok: true,
+      object: {
+        critiqueSummary: "boosted impact",
+        proposedMarkdown: fabricatedMarkdown,
+        materialClaims: []
+      }
+    });
+    const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+    expect(result.status).toBe("question");
+    expect(result.unverifiedSpans).toContain("Initech");
+    // The kv is byte-identical: no revision, no evidence, no onboarding tick —
+    // so the draft can never be approved to active either.
+    expect(kv.dump()).toEqual(before);
+    await expect(approveResume(kv, draftIdFor("0", fabricatedMarkdown), NOW)).rejects.toMatchObject(
+      { code: "missing_revision" }
+    );
   });
 
   it("the same fabricated claim persists as confirmed evidence AFTER the user confirms it", async () => {

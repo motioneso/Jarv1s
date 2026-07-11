@@ -8,11 +8,13 @@ export {
   CONFIRMATION_TEXT_MAX_CHARS,
   confirmationIdFor,
   listConfirmationIds,
+  listConfirmations,
   saveConfirmation
 } from "./confirmations.js";
 export type { DiffHunk } from "./diff.js";
 export { diffLines } from "./diff.js";
 export type {
+  MarkdownCoverageVerdict,
   MaterialClaim,
   MaterialClaimKind,
   ParsedCritique,
@@ -21,13 +23,16 @@ export type {
 } from "./truth-guard.js";
 export {
   CLAIM_QUOTE_MAX_CHARS,
+  CLAIM_QUOTE_MIN_CHARS,
   CLAIM_TEXT_MAX_CHARS,
   CRITIQUE_SCHEMA,
   CRITIQUE_SUMMARY_MAX_CHARS,
   MATERIAL_CLAIMS_MAX,
   MATERIAL_CLAIM_KINDS,
+  extractMaterialSpans,
   parseCritique,
-  verifyClaims
+  verifyClaims,
+  verifyMarkdownCoverage
 } from "./truth-guard.js";
 export { JobSearchKvError } from "./errors.js";
 export type { JobSearchKvErrorCode } from "./errors.js";

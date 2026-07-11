@@ -26,13 +26,14 @@ import {
   diffLines,
   getActiveResume,
   keys,
-  listConfirmationIds,
+  listConfirmations,
   parseCritique,
   readRecord,
   saveConfirmation,
   saveOriginalResume,
   saveResumeRevision,
-  verifyClaims
+  verifyClaims,
+  verifyMarkdownCoverage
 } from "../../domain/index.js";
 import type { WorkerPorts } from "../ai-port.js";
 import { InputError, readBool, readEnum, readString } from "../validate.js";
@@ -244,17 +245,23 @@ async function manualSave(
   return response;
 }
 
-// Fixed instruction block (plan 8.3): names the seven material-claim kinds
-// and the quote requirement so the guard's contract is stated to the model
-// up front, not just enforced after the fact. No provider/model names.
+// Fixed instruction block (plan 8.3): names the seven material-claim kinds,
+// the quote requirement, and the coverage rule so the guard's contract is
+// stated to the model up front. The prompt is GUIDANCE only — the enforced
+// security boundary is verifyClaims + verifyMarkdownCoverage after the fact
+// (QA RED B1, PR #956, issuecomment-4945986416 + issuecomment-4946000922).
+// No provider/model names.
 const CRITIQUE_INSTRUCTIONS =
   "You are critiquing the resume below. Return critiqueSummary (what you " +
   "changed and why) and proposedMarkdown (the full improved resume as " +
   "markdown). In materialClaims, list every factual claim the proposal makes " +
   "about the candidate — employer, role, date, skill, credential, metric, or " +
-  "outcome — each with an exact quote copied verbatim from the provided " +
-  "resume that backs it. NEVER invent employers, roles, dates, skills, " +
-  "credentials, metrics, or outcomes the resume does not contain.";
+  "outcome — each with an exact quote of at least 12 characters (a " +
+  "substantive span, not a lone number or name) copied verbatim from the " +
+  "provided resume that backs it. Every factual statement in proposedMarkdown " +
+  "must come from the provided resume or the user's confirmed claims. NEVER " +
+  "invent employers, roles, dates, skills, credentials, metrics, or outcomes " +
+  "the resume does not contain.";
 
 async function critiqueSave(
   ports: WorkerPorts,
@@ -336,18 +343,37 @@ async function critiqueSave(
     };
   }
 
-  const confirmationIds = await listConfirmationIds(ports.kv);
+  // ONE kv.list pass: the full confirmation records power both the claim-id
+  // check and the coverage corpus below.
+  const confirmations = await listConfirmations(ports.kv);
+  const confirmationIds = new Set(confirmations.map((c) => c.confirmationId));
   const verdict = verifyClaims({ claims: critique.materialClaims, sources, confirmationIds });
-  if (!verdict.ok) {
-    // The truth guard's whole point: unsupported claims are questions, and
-    // NOTHING is persisted — not the revision, not partial evidence.
+  // QA RED B1 (PR #956, Codex issuecomment-4945986416 + Opus
+  // issuecomment-4946000922): verifyClaims alone is vacuous when the AI
+  // under-declares materialClaims (e.g. []) — fabricated markdown would
+  // persist as a draft and become approvable. Coverage is derived from the
+  // markdown ITSELF; its corpus is stored sources + USER-confirmed claim
+  // texts only. AI-declared claim texts never vouch — a legit quote on a
+  // claim whose text smuggles fabricated tokens must not whitelist them.
+  // Fail CLOSED: blocking persist here also kills the approve path, because
+  // the draft revision never exists (approveResume → missing_revision).
+  const coverage = verifyMarkdownCoverage({
+    markdown: critique.proposedMarkdown,
+    sources,
+    confirmedTexts: confirmations.map((c) => c.claimText)
+  });
+  if (!verdict.ok || !coverage.ok) {
+    // The truth guard's whole point: unsupported claims and unverified
+    // content are questions, and NOTHING is persisted — not the revision,
+    // not partial evidence.
     return {
       status: "question",
       question:
-        "The critique makes claims I can't verify against your resume, so " +
-        "nothing was saved. Confirm the ones that are true (or correct your " +
-        "resume) and run the critique again.",
-      unsupportedClaims: verdict.unsupported
+        "The critique contains claims or content I can't verify against " +
+        "your resume, so nothing was saved. Confirm what's true (or correct " +
+        "your resume) and run the critique again.",
+      ...(verdict.unsupported.length > 0 ? { unsupportedClaims: verdict.unsupported } : {}),
+      ...(coverage.unverifiedSpans.length > 0 ? { unverifiedSpans: coverage.unverifiedSpans } : {})
     };
   }
 

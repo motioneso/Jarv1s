@@ -56,6 +56,30 @@ export async function saveConfirmation(kv: JobSearchKv, record: ConfirmationReco
   await writeRecord(kv, NS.resume, key, record);
 }
 
+/**
+ * Full confirmation records, not just ids. The markdown-coverage guard needs
+ * the user-confirmed claim TEXTS as its only non-source vouching corpus —
+ * AI-declared claim texts must never vouch (QA RED B1, PR #956
+ * issuecomment-4945986416 + issuecomment-4946000922). saveConfirmation
+ * guarantees every stored record's id re-derives from its own kind + text,
+ * so these texts are exactly what the user confirmed.
+ */
+export async function listConfirmations(kv: JobSearchKv): Promise<ConfirmationRecord[]> {
+  const allKeys = await kv.list(NS.resume);
+  const records: ConfirmationRecord[] = [];
+  for (const key of allKeys) {
+    if (!key.startsWith(CONFIRMATION_KEY_PREFIX)) {
+      continue;
+    }
+    const record = await readRecord(kv, NS.resume, key);
+    if (record !== null) {
+      // readRecord fails closed on shape drift; schemaVersion 1 is verified.
+      records.push(record as unknown as ConfirmationRecord);
+    }
+  }
+  return records;
+}
+
 export async function listConfirmationIds(kv: JobSearchKv): Promise<ReadonlySet<string>> {
   const allKeys = await kv.list(NS.resume);
   const ids = new Set<string>();

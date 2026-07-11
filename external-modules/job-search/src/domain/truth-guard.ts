@@ -56,6 +56,12 @@ export const MATERIAL_CLAIM_KINDS: readonly MaterialClaimKind[] = [
 
 export const CLAIM_TEXT_MAX_CHARS = 500;
 export const CLAIM_QUOTE_MAX_CHARS = 200;
+// QA RED B1 fold-in (PR #956, Codex issuecomment-4945986416 + Opus
+// issuecomment-4946000922): a bare `includes` check let a trivial token like
+// "40%" source a whole claim. Enforced in verifyClaims — deliberately NOT in
+// CRITIQUE_SCHEMA/parseCritique, because a schema failure takes the seam-error
+// path while a short quote should take the recoverable "question" path.
+export const CLAIM_QUOTE_MIN_CHARS = 12;
 // Caps the per-revision evidence blob so it can't blow the 65_535-byte KV
 // record cap sitting alongside up to 48 KB of resume content.
 export const MATERIAL_CLAIMS_MAX = 64;
@@ -186,6 +192,12 @@ export function verifyClaims(input: {
         unsupported.push(claim);
         continue;
       }
+      if (claim.quote.trim().length < CLAIM_QUOTE_MIN_CHARS) {
+        // A short quote ("40%", "Acme Corp") is too weak to vouch for a whole
+        // claim even when it IS a source substring — fail toward "question".
+        unsupported.push(claim);
+        continue;
+      }
       const source = sources.find((s) => s.content.includes(claim.quote as string));
       if (source === undefined) {
         unsupported.push(claim);
@@ -213,4 +225,91 @@ export function verifyClaims(input: {
     unsupported.push(claim);
   }
   return { ok: unsupported.length === 0, evidence, unsupported };
+}
+
+export interface MarkdownCoverageVerdict {
+  readonly ok: boolean;
+  readonly unverifiedSpans: readonly string[];
+}
+
+// Defensive response-size cap on the echoed spans. Truncation never flips the
+// verdict — ok stays false regardless of how many spans are echoed back.
+const UNVERIFIED_SPANS_MAX = 64;
+
+/**
+ * Material tokens of a markdown revision, derived from the markdown ITSELF —
+ * never from what the AI self-reports. QA RED B1 (PR #956, Codex
+ * issuecomment-4945986416 + Opus issuecomment-4946000922): verifyClaims alone
+ * was vacuous, because `materialClaims: []` verified nothing while
+ * proposedMarkdown fabricated freely. Prompt instructions are not a security
+ * boundary; this extraction is.
+ *
+ * Per line: strip heading/quote prefixes, one list prefix, and emphasis
+ * markers; whitespace-tokenize; trim non-alphanumerics off token edges. A
+ * token is material when it contains a digit (even at segment start), or is
+ * capitalized past the first word of its segment (the first word gets a
+ * sentence-case allowance — "Improved delivery" asserts nothing by itself).
+ * ASCII-caps heuristic by design: proper nouns outside A–Z fall through, but
+ * every digit-bearing token (dates, metrics) is still caught.
+ */
+export function extractMaterialSpans(markdown: string): string[] {
+  const spans: string[] = [];
+  for (const line of markdown.split("\n")) {
+    const stripped = line
+      .replace(/^\s*(?:[#>]+\s*)+/, "")
+      .replace(/^\s*(?:[-*+]|\d{1,3}[.)])\s+/, "")
+      .replace(/[*_`]/g, "");
+    const tokens = stripped
+      .split(/\s+/)
+      .map((token) => token.replace(/^[^0-9A-Za-z]+/, "").replace(/[^0-9A-Za-z]+$/, ""))
+      .filter((token) => token.length > 0);
+    tokens.forEach((token, index) => {
+      if (/[0-9]/.test(token)) {
+        spans.push(token);
+        return;
+      }
+      if (index === 0) {
+        return;
+      }
+      if (token.length >= 2 && /^[A-Z]/.test(token)) {
+        spans.push(token);
+      }
+    });
+  }
+  return spans;
+}
+
+/**
+ * The persist gate for AI-proposed markdown: every material span must be a
+ * case-insensitive substring of the allowed corpus. The corpus is stored
+ * source revisions + USER-confirmed claim texts ONLY. AI-declared claim texts
+ * must never vouch — the AI could attach a legitimate quote to a claim whose
+ * `text` smuggles fabricated tokens, whitelisting them (the exact bypass the
+ * QA council flagged). Fail CLOSED: uncovered spans mean the caller returns a
+ * question and persists nothing.
+ */
+export function verifyMarkdownCoverage(input: {
+  markdown: string;
+  sources: readonly { revisionId: string; content: string }[];
+  confirmedTexts: readonly string[];
+}): MarkdownCoverageVerdict {
+  const corpus = [...input.sources.map((source) => source.content), ...input.confirmedTexts]
+    .join("\n")
+    .toLowerCase();
+  const seen = new Set<string>();
+  const unverified: string[] = [];
+  for (const span of extractMaterialSpans(input.markdown)) {
+    const lowered = span.toLowerCase();
+    if (seen.has(lowered)) {
+      continue;
+    }
+    seen.add(lowered);
+    if (!corpus.includes(lowered)) {
+      unverified.push(span);
+    }
+  }
+  return {
+    ok: unverified.length === 0,
+    unverifiedSpans: unverified.slice(0, UNVERIFIED_SPANS_MAX)
+  };
 }
