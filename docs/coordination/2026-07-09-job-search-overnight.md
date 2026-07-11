@@ -3293,3 +3293,20 @@ limit and is preserving pFR's partial Task 11 edits (routes.ts, package.json, jo
 **If quota stops it: do NOT churn another CLI session** — stand pFV down and hand the SAME isolated
 worktree (.claude/worktrees/news-slice2) to Codex **pEP** for direct continuation. Keeps Ben
 Codex-only and avoids provider-session roulette. No Fable fallback for News build.
+
+## News S2 QUOTA-BLOCKED — 2026-07-11 11:23 PDT (resume 14:37+)
+
+Codex account hit its HARD usage limit mid Task 11 (message: "You've hit your usage limit ... try
+again at 2:37 PM"). The gpt-5.4-mini downgrade did NOT escape it — the cap is **account-wide**, so
+pEP (same account) is equally blocked. Ben's directive forecloses a Fable fallback (News = Codex-only).
+Therefore News build genuinely CANNOT proceed until the reset at **14:37 PDT**. This is the one
+sanctioned wait: an external constraint no orchestration can bypass without violating the directive.
+
+- pFV (w1:pFV) left **parked, not churned** (Ben: "do not churn another CLI session"). Its partial
+  Task 11 edits (routes.ts, package.json, jobs.ts) are **safe on disk** in the isolated worktree
+  regardless of pane liveness. Nothing committed yet on top of f6dcf995 — clean feature head unchanged.
+- **Resume plan (CronCreate one-shot ~14:40 PDT):** re-message pFV to continue Tasks 11–16 on Codex;
+  if pFV's CLI died, spawn fresh Codex (`codex -s danger-full-access -a never`) in the SAME worktree
+  (.claude/worktrees/news-slice2) — WIP intact on disk. Still Codex-only.
+- **Meanwhile the fleet keeps moving on the UNAFFECTED lane:** JS-04 #959 (Fable/Opus account, not
+  Codex) — Opus QA a6db4d7 in flight is the active front.
