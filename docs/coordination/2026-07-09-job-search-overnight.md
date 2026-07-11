@@ -3543,3 +3543,5 @@ Ruling relayed to scout pG4 → folding into plan doc, then reap. **JS-07 build 
 JS-06** (not concurrent — budget + 3 security-ish lanes would overload the QA council). Lesser
 findings B–G defaulted in plan (additive-optional; schemaVersion===1 hard-pinned). #962 items 1-2
 fold into JS-07 build. merges_since_relay unchanged (no merge).
+
+- **JS-07 plan FINALIZED** @ `948a06ae` (feat/js-07-plan) — ruling folded, scout pG4 reaped (session verified), worktree/branch KEPT for the builder. JS-07 build QUEUED behind JS-06.
