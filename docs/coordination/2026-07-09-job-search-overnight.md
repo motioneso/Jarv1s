@@ -3037,3 +3037,8 @@ anything requiring escalation and do that instead of waiting for me."
 - **NO MERGE on #956.** JS-04+ (#933–#938) stay serialized-blocked. News #955 unchanged (held on Gemini seat).
 
 **CONTINUATION NOTE (post-compaction me):** await Opus design-fork verdict (+ Codex cycle-3 verdict for the record). If A → relay the concrete adjacency redesign + tests to R16 (pFH/9a93d273/Fable) as a deliberate redesign, then final re-QA Opus+Codex. If B → park #956 for Ben: post the narrowing recommendation, file a truth-guard-v2 follow-up task issue (Ben's hard rule: task issue + spec before build), keep JS lane parked, keep supervising News + fleet. Session authority 58a78927. Fable-only builds.
+
+---
+## Note — Codex cycle-3 QA died on content-filter flag (no verdict); Opus RED stands
+- Codex (PID 2352914) exited without a verdict: log = `ERROR: This content was flagged for possible cybersecurity risk`. The adversarial framing ("forge a fabricated résumé claim / defeat the guard") tripped Codex's own cybersecurity filter. TRAP: for future Codex truth-guard QA, frame DEFENSIVELY ("verify the guard REJECTS unsupported claims; confirm these inputs are correctly refused") — never "forge/defeat/exploit." Monitor bzvfmeiw6 stopped (moot).
+- Merge remains correctly HELD on Opus QA RED alone (gate needs BOTH green). Codex is record-only this cycle. If design-fork = A (redesign), re-run Codex with defensive framing for the FINAL re-QA second lens.
