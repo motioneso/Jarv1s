@@ -233,10 +233,7 @@ export function monitorRunHandler(ports: WorkerPorts) {
   };
 }
 
-async function sweep(
-  ports: WorkerPorts,
-  idempotencyKey: string
-): Promise<Record<string, unknown>> {
+async function sweep(ports: WorkerPorts, idempotencyKey: string): Promise<Record<string, unknown>> {
   const now = ports.now();
   let checked = 0;
   let ran = 0;

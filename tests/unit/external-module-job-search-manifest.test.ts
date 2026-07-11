@@ -269,7 +269,7 @@ describe("job-search manifest monitoring worker surface (#934)", () => {
 
   it("declares an hourly sweep and a manually runnable queue with a monitorId params schema", () => {
     const manifest = validated();
-    const queue = manifest.worker?.queues[0];
+    const queue = manifest.worker?.queues?.[0];
     expect(queue).toMatchObject({
       name: "job-search.monitor-run",
       handler: "monitor.run",
@@ -277,7 +277,7 @@ describe("job-search manifest monitoring worker surface (#934)", () => {
       allowManualRun: true,
       paramsSchema: { type: "object", fields: { monitorId: { type: "identifier" } } }
     });
-    expect(manifest.worker?.schedules[0]).toMatchObject({
+    expect(manifest.worker?.schedules?.[0]).toMatchObject({
       id: "job-search.monitor-sweep",
       cron: "0 * * * *",
       scope: "user",
@@ -287,7 +287,7 @@ describe("job-search manifest monitoring worker surface (#934)", () => {
   });
 
   it("payloads pass the platform metadata-only gate (sweep, run-now) and reject prose", () => {
-    const queue = validated().worker!.queues[0];
+    const queue = validated().worker!.queues![0]!;
     const base = {
       actorUserId: "11111111-1111-4111-8111-111111111111",
       moduleId: "job-search",
