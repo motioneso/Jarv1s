@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { ashbyAdapter } from "../../external-modules/job-search/src/adapters/ashby.js";
 import { greenhouseAdapter } from "../../external-modules/job-search/src/adapters/greenhouse.js";
 import { leverAdapter } from "../../external-modules/job-search/src/adapters/lever.js";
 import {
@@ -208,6 +209,120 @@ describe("leverAdapter", () => {
         { ...good, text: undefined },
         "not an object"
       ],
+      cfg
+    );
+    expect(result.postings).toHaveLength(1);
+    expect(result.skippedCount).toBe(4);
+  });
+});
+
+describe("ashbyAdapter", () => {
+  const cfg = ashbyAdapter.validateConfig({ board: "ramp" });
+
+  it("builds the pinned posting-api URL and accepts board URLs and dotted names", () => {
+    expect(ashbyAdapter.buildUrl(cfg)).toBe(
+      "https://api.ashbyhq.com/posting-api/job-board/ramp?includeCompensation=true"
+    );
+    expect(new URL(ashbyAdapter.buildUrl(cfg)).hostname).toBe("api.ashbyhq.com");
+    expect(ashbyAdapter.validateConfig({ url: "https://jobs.ashbyhq.com/ramp" })).toEqual({
+      board: "ramp"
+    });
+    // Ashby org names may contain dots (e.g. "acme.co"), unlike the other boards.
+    expect(ashbyAdapter.validateConfig({ board: "acme.co" })).toEqual({ board: "acme.co" });
+  });
+
+  it("declares allowed compliance with automated-review attribution", () => {
+    expect(ashbyAdapter.compliance.status).toBe("allowed");
+    expect(ashbyAdapter.compliance.reviewedBy).toBe("coordinator/automated");
+  });
+
+  it("normalizes the live fixture", () => {
+    const result = ashbyAdapter.normalize(loadFixture("ashby-job-board.json"), cfg);
+    expect(result.postings).toHaveLength(3);
+    expect(result.skippedCount).toBe(0);
+
+    const first = result.postings[0]!;
+    expect(first.externalId).toBe("03e2d4e1-73ad-4f09-a058-2eb9ce34c2bc");
+    expect(first.canonicalUrl).toBe(
+      "https://jobs.ashbyhq.com/ramp/03e2d4e1-73ad-4f09-a058-2eb9ce34c2bc"
+    );
+    expect(first.title).toBe("Technical Consultant, Mid-Market");
+    expect(first.company).toBe("ramp");
+    // Primary location + secondaryLocations[].location, deduped in order.
+    expect(first.locations).toEqual(["Remote (US)", "San Francisco, CA", "New York, NY (HQ)"]);
+    expect(first.workMode).toBe("remote");
+    expect(first.employmentType).toBe("FullTime");
+    expect(first.compensation).toBe("$151K – $231K • Offers Equity • Multiple Ranges");
+    expect(first.publishedAt).toBe("2026-07-07T20:47:09.753Z");
+    expect(first.description.length).toBeGreaterThan(0);
+    expect(first.description).not.toContain("<");
+    expect(first.descriptionTruncated).toBe(false);
+
+    // isRemote wins over workplaceType: fixture job[1] is Hybrid but isRemote.
+    expect(result.postings[1]!.workMode).toBe("remote");
+  });
+
+  it("skips unlisted postings instead of surfacing them", () => {
+    const good = {
+      id: "abc",
+      jobUrl: "https://jobs.ashbyhq.com/ramp/abc",
+      title: "Role",
+      isListed: true,
+      descriptionPlain: "body"
+    };
+    const result = ashbyAdapter.normalize(
+      { jobs: [good, { ...good, id: "def", isListed: false }] },
+      cfg
+    );
+    expect(result.postings).toHaveLength(1);
+    expect(result.postings[0]!.externalId).toBe("abc");
+    expect(result.skippedCount).toBe(1);
+  });
+
+  it("prefers descriptionPlain but still strips it, falling back to descriptionHtml", () => {
+    const base = { id: "abc", jobUrl: "https://jobs.ashbyhq.com/ramp/abc", title: "Role" };
+    const plain = ashbyAdapter.normalize(
+      {
+        jobs: [
+          { ...base, descriptionPlain: "Plain <b>text</b>", descriptionHtml: "<p>ignored</p>" }
+        ]
+      },
+      cfg
+    );
+    expect(plain.postings[0]!.description).toBe("Plain text");
+    const fallback = ashbyAdapter.normalize(
+      { jobs: [{ ...base, descriptionHtml: "<p>from html</p>" }] },
+      cfg
+    );
+    expect(fallback.postings[0]!.description).toBe("from html");
+  });
+
+  it("throws malformed_payload for non-board shapes and skips bad items", () => {
+    for (const payload of [{}, "x", null, { jobs: "nope" }]) {
+      try {
+        ashbyAdapter.normalize(payload, cfg);
+        expect.unreachable("should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(JobSearchFetchError);
+        expect((error as JobSearchFetchError).code).toBe("malformed_payload");
+      }
+    }
+    const good = {
+      id: "ok",
+      jobUrl: "https://jobs.ashbyhq.com/ramp/ok",
+      title: "Role",
+      descriptionPlain: "body"
+    };
+    const result = ashbyAdapter.normalize(
+      {
+        jobs: [
+          good,
+          { ...good, id: 42 }, // ashby ids are strings
+          { ...good, jobUrl: "http://evil" },
+          { ...good, title: undefined },
+          "not an object"
+        ]
+      },
       cfg
     );
     expect(result.postings).toHaveLength(1);
