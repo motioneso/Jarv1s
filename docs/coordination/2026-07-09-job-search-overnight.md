@@ -2760,3 +2760,7 @@ anything requiring escalation and do that instead of waiting for me."
 - Heads-up to News orchestrator pEP (Codex/Sol, w1:pEP) delivery UNCONFIRMED (Herdr drop risk) but pEP is independently inspecting pEW + coordinator pane — it sees the S1 lane. Low double-spawn risk.
 - **Two serialized security chains now run in parallel:** JS (module_kv, ZERO migrations) + News (migration-bearing). Single serialized merge queue prevents global migration-number collision. News merges = unanimous council; JS merges = Opus+Codex both-green (Gemini degraded).
 - **JS-02 #952 still pending council:** Opus `ad89d7d9` blocking on CI settle; Codex retry `bw66aozla` running (no verdict yet). Merge on BOTH-green.
+
+---
+### Standing obligation — News chain handoff to pEP
+- After **News S1 merges** (unanimous council green), **notify pEP** (Codex/Sol orchestrator, pane `w1:pEP`, session `019f4fd0-0cf8-7c91-aba3-de24d570af05`) via Herdr. pEP will then re-ground merged main and prepare + adversarially review **News S2** per the serialized chain. pEP has confirmed it will NOT inspect/edit feature code or spawn a duplicate lane. S2 build lane spawns only after S1 merges AND pEP's S2 plan is review-approved.
