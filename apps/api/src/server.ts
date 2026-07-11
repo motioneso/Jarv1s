@@ -7,7 +7,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import { AiRepository } from "@jarv1s/ai";
+import { AiRepository, createAiSecretCipher, generateStructured } from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import {
   ConnectorsRepository,
@@ -358,12 +358,31 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         }
       : undefined;
 
+    // ctx.ai bridge for module workers (#932, spec D6). The AiSecretCipher is
+    // process-env keyed and stateless, so one instance serves every invocation.
+    const moduleAiSecretCipher = createAiSecretCipher();
     const externalTools = createExternalModuleTools({
       discoveries: externalModuleSnapshot.discoveries,
       workerDataContext,
       appDataContext: dataContext,
       settingsRepository: externalModulesRepository,
-      logger: { warn: (data, message) => server.log.warn(data, message) }
+      logger: { warn: (data, message) => server.log.warn(data, message) },
+      ai: async (scopedDb, moduleId, request) => {
+        try {
+          const result = await generateStructured(
+            scopedDb,
+            { service: `module.${moduleId}`, ...request },
+            { repository: aiRepository, cipher: moduleAiSecretCipher, logger: server.log }
+          );
+          return result.ok
+            ? // Drop usage: module workers never see token counts, model or provider ids.
+              { ok: true, object: result.object }
+            : { ok: false, error: result.error };
+        } catch {
+          // Bounds violations and unexpected throws stay opaque to modules.
+          return { ok: false, error: "provider_error" };
+        }
+      }
     });
     externalWorkerRuntime = externalTools.runtime;
     const externalToolManifests = externalTools.manifests;

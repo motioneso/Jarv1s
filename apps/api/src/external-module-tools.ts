@@ -1,10 +1,12 @@
-import type { DataContextRunner } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import type { JarvisModuleManifest, ToolResult } from "@jarv1s/module-sdk";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 import {
   createExternalModuleRpcHandler,
   createExternalToolManifests,
-  ExternalModuleWorkerRuntime
+  ExternalModuleWorkerRuntime,
+  type ExternalModuleAiRequest,
+  type ExternalModuleAiResult
 } from "@jarv1s/module-registry/node";
 import { createModuleCredentialSecretCipher, type SettingsRepository } from "@jarv1s/settings";
 
@@ -14,6 +16,14 @@ export function createExternalModuleTools(input: {
   readonly appDataContext: DataContextRunner;
   readonly settingsRepository: SettingsRepository;
   readonly logger: { warn(data: Record<string, unknown>, message?: string): void };
+  // ctx.ai bridge (#932, spec D6): injected from server.ts so module-registry never
+  // imports @jarv1s/ai. Only this synchronous tool-dispatch path gets it — the
+  // queued-jobs handler (apps/worker) is built without it and fails closed.
+  readonly ai?: (
+    scopedDb: DataContextDb,
+    moduleId: string,
+    request: ExternalModuleAiRequest
+  ) => Promise<ExternalModuleAiResult>;
 }): {
   readonly runtime?: ExternalModuleWorkerRuntime;
   readonly manifests: readonly JarvisModuleManifest[];
@@ -37,7 +47,10 @@ export function createExternalModuleTools(input: {
             async (scopedDb) =>
               (await input.settingsRepository.getUserById(scopedDb, context.actorUserId))
                 ?.is_instance_admin === true
-          )
+          ),
+        // Bind the module id here so the rpc host stays module-agnostic; the host
+        // still enforces risk gating, the composition guard, and the call cap.
+        ...(input.ai ? { ai: (db, req) => input.ai!(db, module.id, req) } : {})
       });
       return externalToolResult(await runtime.invoke(module, tool.handler, toolInput, rpc));
     }
