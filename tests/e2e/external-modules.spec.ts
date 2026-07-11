@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 import { mockApi } from "./mock-api.js";
-import { mockExternalModules } from "./mock-modules.js";
+import { mockExternalModules, mockExternalWebModule } from "./mock-modules.js";
 
 // #917 (Open module system, Slice 1 — Task 10): the admin Settings → Instance modules
 // pane surfaces user-authored "external" modules discovered on the box, with a
@@ -45,5 +45,42 @@ test.describe("External modules admin pane (#917)", () => {
     // list query so the refetch re-renders the switch checked.
     await toggleLabel.click();
     await expect(page.getByRole("checkbox", { name: /enable acme widgets/i })).toBeChecked();
+  });
+});
+
+test.describe("External module host starter action (#916)", () => {
+  test("keyboard-activating the module button opens an editable draft, never auto-sent", async ({
+    page
+  }) => {
+    // Flag any chat-turn POST — the whole point is that NO turn is sent until the user submits.
+    let turnPosted = false;
+    await page.route("**/api/chat/turn", async (route) => {
+      turnPosted = true;
+      await route.fulfill({ json: { userMessageId: "u1", assistantMessageId: "a1", reply: "hi" } });
+    });
+
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: [],
+      notifications: [],
+      tasks: []
+    });
+    await mockExternalWebModule(page);
+
+    await page.goto("/m/job-search");
+
+    // Keyboard activation (a11y basic): focus the module button and press Enter.
+    const button = page.getByRole("button", { name: "Continue with Jarvis" });
+    await expect(button).toBeVisible();
+    await button.press("Enter");
+
+    // The drawer opened and the composer holds the exact starter as an editable, focused draft.
+    const composer = page.getByRole("textbox", { name: "Message Jarvis" });
+    await expect(composer).toHaveValue("Help me start my job search.");
+    await expect(composer).toBeFocused();
+
+    // No message was submitted and no tool ran — send stays a manual action.
+    expect(turnPosted).toBe(false);
   });
 });

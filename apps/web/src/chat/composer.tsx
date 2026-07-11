@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Mic, Square, X } from "lucide-react";
-import { type KeyboardEvent, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { ApiError, listChatSkills, lookupAiCapabilityRoute, transcribeAudio } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -41,6 +41,17 @@ export function Composer(props: {
   // value — typing/sending clears it and we never re-seed from the prop (no useEffect that would
   // clobber edits or re-fire the chip on re-render).
   const [text, setText] = useState(() => props.initialText ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // #916 — when the composer opens seeded with a starter (module draft #916 or onboarding #368),
+  // move focus to the textarea and place the caret at the end so the editable draft is immediately
+  // reviewable/editable. Mount-only (empty deps): it must not steal focus on later re-renders.
+  useEffect(() => {
+    if (!props.initialText) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
   const [queuedText, setQueuedText] = useState<string | null>(null);
   // Explicit autocomplete pick, tracked by record id (not name — duplicate names are allowed).
   // Bare-name text typed without a pick still resolves at send time; see resolveTurnInvocation.
@@ -206,6 +217,7 @@ export function Composer(props: {
       ) : null}
       <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
         <textarea
+          ref={textareaRef}
           aria-label="Message Jarvis"
           disabled={props.readOnly || props.lockedModelUnavailable}
           onChange={(event) => setText(event.target.value)}

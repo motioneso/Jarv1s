@@ -84,6 +84,9 @@ describe("createModuleHostActions (#916 host-bound module id, fail closed)", () 
     a.openAssistant({ starterPrompt: "from A" });
     expect(openA).toHaveBeenCalledExactlyOnceWith("from A");
     expect(openB).not.toHaveBeenCalled();
+    b.openAssistant({ starterPrompt: "from B" });
+    expect(openB).toHaveBeenCalledExactlyOnceWith("from B");
+    expect(openA).toHaveBeenCalledExactlyOnceWith("from A");
   });
 });
 
