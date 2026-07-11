@@ -2654,3 +2654,33 @@ JS-01 tasks 6-7 (#930, tier sensitive, PR not yet open). pBK stale news-module (
    (JS-02 + JS-04, Fable build, security-tier QA = Opus adversarial + Fable panel).
 2. #916 merge now UNBLOCKS JS-06 (hard gate) + JS-03 (soft) later in the JS DAG.
 3. Delivery flakiness (Ben): verify every herdr send landed via bounded read; manifest = backstop.
+
+---
+## CHECKPOINT 2026-07-11 ~06:1x UTC — JS-01 MERGED, JS-02 spawned, SEQUENTIAL plan correction
+
+**JS-01 #930 MERGED** squash `6b37bc01` (PR #949, sensitive/security-bar). Opus adversarial QA GREEN
+(0 blocking, 3 non-blocking doc-level; verdict posted) + full CI green ("Verify foundation and app"
+16m16s + both smokes). Fable build + Opus-QA-green = merge authority per Ben overnight policy (no Ben
+gate). pEN reaped, worktree+branch (local+remote) removed. #930 CLOSED.
+Non-blocking follow-up worth doing later: surface hash-drift boot-snapshot limitation in module README
+(currently only in test comments) — QA finding, not gating.
+
+**⚠️ PLAN CORRECTION — NO parallel JS lanes.** Carried-forward plan said "fan out W2 (JS-02+JS-04)".
+That is WRONG. Authoritative task-decomposition spec (line 56-57): "Job-search tasks remain sequential
+at their declared dependency boundaries; the diagram does not authorize parallel build lanes" — all JS
+slices extend the SAME new jarv1s.job-search package (collide on manifest/index/shared types). Build
+SEQUENTIALLY. DAG: JS-01✓ → JS-02(#931,dep JS-01) → JS-03(#932,dep JS-02+#916) → JS-04(#933,dep JS-01)
+→ JS-05(dep JS-02+JS-04) → JS-06(dep JS-02+JS-03+#916) → JS-07(dep JS-03+JS-05) → JS-08(dep JS-06+JS-07)
+→ JS-09(dep JS-08). Follow strict numeric order respecting deps.
+
+**JS-02 #931 SPAWNED — SOLO.** Fable at `w1:pEQ` (session pending), tab `w1:t17` (agents tab),
+worktree `.claude/worktrees/js-02-kv-domain` off `6b37bc01`, branch feat/js-02-kv-domain. Confirmed
+Fable 5, high effort, thinking. Tier sensitive/security-bar (owner-only KV isolation — Opus QA hunts
+cross-owner leakage). NO migration/table/DB-handle by spec (platform module_kv via ctx.kv). Handoff
+written+prettier'd (untracked, coordinator-only). Awaiting plan → approve if in-spec → TDD → QA → merge.
+
+**Relay:** sensitive merge — Ben override governs (flush in place, NO successor coordinator). Flushed
+manifest + memory (mem: JS-DAG sequential correction). Continuing in-session. pE6 authority intact.
+
+**Fleet now:** pE6 Coordinator (me, 58a78927). pEQ JS-02 Fable (working). pBK news-module (idle,
+benign, t17). pEP Sol read-only commit-summary (idle, benign, t1J). Monitor bhh32744s watches JS lanes.
