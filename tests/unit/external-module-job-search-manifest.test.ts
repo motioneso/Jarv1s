@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { assertModuleJobPayload } from "@jarv1s/jobs";
 import { validateExternalModuleManifest } from "@jarv1s/module-registry";
 
 // JS-01 (#930): the REAL shipped manifest must pass the merged external ABI, and
@@ -53,13 +54,20 @@ describe("job-search manifest contract (#930)", () => {
       "api.lever.co",
       "api.ashbyhq.com"
     ]);
+    // JS-05 (#934): run-now enablement + hourly tick (KV due-check bounds real work).
     expect(result.manifest.worker?.queues).toEqual([
-      { name: "job-search.monitor-run", handler: "monitor.run", retryLimit: 3 }
+      {
+        name: "job-search.monitor-run",
+        handler: "monitor.run",
+        retryLimit: 3,
+        allowManualRun: true,
+        paramsSchema: { type: "object", fields: { monitorId: { type: "identifier" } } }
+      }
     ]);
     expect(result.manifest.worker?.schedules).toEqual([
       {
         id: "job-search.monitor-sweep",
-        cron: "*/15 * * * *",
+        cron: "0 * * * *",
         scope: "user",
         jobKind: "job-search.monitor-sweep",
         queue: "job-search.monitor-run"
@@ -245,5 +253,63 @@ describe("job-search manifest strict input schemas (#932)", () => {
     expect(saveProps.enabled?.type).toBe("boolean");
     expect(saveProps.timezone?.type).toBe("string");
     expect(saveProps.dueTime?.type).toBe("string");
+  });
+});
+
+// JS-05 (#934) Task 5: the manifest alone enables run-now — allowManualRun exposes the
+// #915 manual-enqueue route, and the monitorId-only paramsSchema is the fail-closed gate
+// that keeps job content (titles/URLs/prose) out of pg-boss payloads.
+describe("job-search manifest monitoring worker surface (#934)", () => {
+  const validated = () => {
+    const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
+    expect(result.ok, JSON.stringify(!result.ok ? result.errors : [])).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    return result.manifest;
+  };
+
+  it("declares an hourly sweep and a manually runnable queue with a monitorId params schema", () => {
+    const manifest = validated();
+    const queue = manifest.worker?.queues[0];
+    expect(queue).toMatchObject({
+      name: "job-search.monitor-run",
+      handler: "monitor.run",
+      retryLimit: 3,
+      allowManualRun: true,
+      paramsSchema: { type: "object", fields: { monitorId: { type: "identifier" } } }
+    });
+    expect(manifest.worker?.schedules[0]).toMatchObject({
+      id: "job-search.monitor-sweep",
+      cron: "0 * * * *",
+      scope: "user",
+      jobKind: "job-search.monitor-sweep",
+      queue: "job-search.monitor-run"
+    });
+  });
+
+  it("payloads pass the platform metadata-only gate (sweep, run-now) and reject prose", () => {
+    const queue = validated().worker!.queues[0];
+    const base = {
+      actorUserId: "11111111-1111-4111-8111-111111111111",
+      moduleId: "job-search",
+      manifestHash: `sha256:${"a".repeat(64)}`
+    };
+    expect(() =>
+      assertModuleJobPayload(queue, { ...base, jobKind: "job-search.monitor-sweep" })
+    ).not.toThrow();
+    expect(() =>
+      assertModuleJobPayload(queue, {
+        ...base,
+        jobKind: "job-search.monitor-run-now",
+        params: { monitorId: "mon-1" }
+      })
+    ).not.toThrow();
+    // Undeclared param keys (e.g. smuggled content) are rejected by the schema.
+    expect(() =>
+      assertModuleJobPayload(queue, {
+        ...base,
+        jobKind: "job-search.monitor-run-now",
+        params: { title: "Senior Engineer — apply now!" }
+      })
+    ).toThrow();
   });
 });
