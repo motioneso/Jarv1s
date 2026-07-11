@@ -3606,3 +3606,23 @@ Opus (afbd4ea6) verified @ 6fbeb720. Confirmed agent's finding; corrections: (A)
 
 ### JS-06 relay #4 + reap — 2026-07-11 ~15:34
 v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-safety walk + #965 defer comment, all green per DEFER ruling), continuation doc 8df356fc. T11 e2e NOT started. Successor **pGB "surface v6" session c1c8f6ce** confirmed Fable 5, agents tab w1:t17, driving. v5 reaped. JS-06 lock -> **pGB / c1c8f6ce**. Remaining: T11 e2e -> wrap-up PR (Closes #935).
+
+---
+
+## Checkpoint 2026-07-11 (in-place, no successor pane)
+
+- **Sports #963 MERGED** — PR #966 squash `dea7db3b`, issue #963 CLOSED, branch deleted, sports
+  agent (pG8/53df7767) reaped, worktree removed. Task #23 done. `merges_since_relay = 1` (routine;
+  below the 2-routine relay threshold → continue driving, no coordinator relay).
+- **JS-06 #935 (task #21):** Fable v6 (pane pGB, session c1c8f6ce) — T11 e2e real-bundle spec +
+  screenshots DONE; running T12 full gate + wrap-up → PR (`Closes #935`) imminent. SENSITIVE tier.
+  On PR: QA standard + module-isolation / no-contract-drift / fail-closed / text-only walk.
+- **News S2 #958 (task #19):** Codex (Ben's, pane pEP, session 019f4fd0) working — do NOT touch
+  `.claude/worktrees/news-slice2`. SECURITY, council QA + council-gated merge.
+- **Coordinator lock:** label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`,
+  pane w1:pE6 (verified single, authoritative).
+- **Queued:** JS-07 #936 (task #22, plan @948a06ae, SECURITY, spawn Fable when JS-06 clears);
+  #964 module distribution (task #24, SPEC-GATED, no builder); #965 run-now dedupe (task #25,
+  deferred, SENSITIVE, future lane).
+- Next merge/image build = push a numbered v* tag (verify baseline .dockerignore keeps the
+  external-modules line so job-search is NOT baked into the default image).
