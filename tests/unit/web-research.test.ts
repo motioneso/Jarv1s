@@ -243,18 +243,20 @@ describe("fetchWebResource", () => {
 
   it("revalidates redirects and rejects private or downgraded targets", async () => {
     setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
-    setWebHttpTransportForTests(async () =>
-      new Response("", {
-        status: 302,
-        headers: { location: "http://good.example/downgraded" }
-      })
+    setWebHttpTransportForTests(
+      async () =>
+        new Response("", {
+          status: 302,
+          headers: { location: "http://good.example/downgraded" }
+        })
     );
     await expect(
       fetchWebResource("https://good.example", { requireHttps: true })
     ).resolves.toMatchObject({ ok: false, reason: "not_https" });
 
-    setWebHttpTransportForTests(async () =>
-      new Response("", { status: 302, headers: { location: "https://169.254.169.254/" } })
+    setWebHttpTransportForTests(
+      async () =>
+        new Response("", { status: 302, headers: { location: "https://169.254.169.254/" } })
     );
     await expect(fetchWebResource("https://good.example")).resolves.toMatchObject({
       ok: false,
@@ -350,24 +352,20 @@ describe("fetchWebResource", () => {
     });
   });
 
-  it(
-    "times out a resolver that never settles",
-    async () => {
-      let transportCalls = 0;
-      setWebHostResolverForTests(() => new Promise(() => {}));
-      setWebHttpTransportForTests(async () => {
-        transportCalls += 1;
-        return new Response("unexpected");
-      });
+  it("times out a resolver that never settles", async () => {
+    let transportCalls = 0;
+    setWebHostResolverForTests(() => new Promise(() => {}));
+    setWebHttpTransportForTests(async () => {
+      transportCalls += 1;
+      return new Response("unexpected");
+    });
 
-      await expect(fetchWebResource("https://example.com", { timeoutMs: 1 })).resolves.toEqual({
-        ok: false,
-        reason: "timeout"
-      });
-      expect(transportCalls).toBe(0);
-    },
-    100
-  );
+    await expect(fetchWebResource("https://example.com", { timeoutMs: 1 })).resolves.toEqual({
+      ok: false,
+      reason: "timeout"
+    });
+    expect(transportCalls).toBe(0);
+  }, 100);
 
   it("does not start transport when a limiter wait exceeds the timeout", async () => {
     let transportCalls = 0;

@@ -478,6 +478,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "chat.extract-facts",
       "briefings-run",
       "wellness-export",
+      "news.refresh",
       "notes.sync",
       "proactive-scan-source",
       "commitment-extraction",

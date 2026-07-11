@@ -28,7 +28,9 @@ function repo(exclusions: string[] = []) {
   };
 }
 
-function fetchMap(entries: Record<string, { body: string; contentType?: string }>): NewsSafeFetchPort {
+function fetchMap(
+  entries: Record<string, { body: string; contentType?: string }>
+): NewsSafeFetchPort {
   return vi.fn(async (url: string) => {
     const entry = entries[url];
     return entry
@@ -124,7 +126,10 @@ describe("resolveSourceInput", () => {
         { fetch, search: noSearch, ai: ai(), repo: repo() },
         { raw: "https://one.example/article", hasWebSearch: false }
       )
-    ).resolves.toMatchObject({ status: "ok", candidates: [{ homepageUrl: "https://one.example/" }] });
+    ).resolves.toMatchObject({
+      status: "ok",
+      candidates: [{ homepageUrl: "https://one.example/" }]
+    });
     expect(fetch).toHaveBeenCalledWith("https://one.example/");
   });
 
@@ -146,7 +151,11 @@ describe("resolveSourceInput", () => {
       }
     });
     await expect(
-      resolveSourceInput(db, { fetch, search, ai: ai(), repo: repo() }, { raw: "Daily News", hasWebSearch: true })
+      resolveSourceInput(
+        db,
+        { fetch, search, ai: ai(), repo: repo() },
+        { raw: "Daily News", hasWebSearch: true }
+      )
     ).resolves.toMatchObject({ status: "ambiguous", candidates: [{}, {}] });
   });
 
@@ -191,12 +200,20 @@ describe("resolveSourceInput", () => {
 
   it("fails closed without prerequisites, on exclusions, policy rejection, or fetch challenge", async () => {
     await expect(
-      resolveSourceInput(db, { fetch: fetchMap({}), search: noSearch, ai: ai(), repo: repo() }, { raw: "Daily News", hasWebSearch: false })
+      resolveSourceInput(
+        db,
+        { fetch: fetchMap({}), search: noSearch, ai: ai(), repo: repo() },
+        { raw: "Daily News", hasWebSearch: false }
+      )
     ).resolves.toEqual({ status: "unavailable" });
 
     const excludedFetch = fetchMap({});
     await expect(
-      resolveSourceInput(db, { fetch: excludedFetch, search: noSearch, ai: ai(), repo: repo(["example.com"]) }, { raw: "https://news.example.com", hasWebSearch: false })
+      resolveSourceInput(
+        db,
+        { fetch: excludedFetch, search: noSearch, ai: ai(), repo: repo(["example.com"]) },
+        { raw: "https://news.example.com", hasWebSearch: false }
+      )
     ).resolves.toMatchObject({ status: "rejected" });
     expect(excludedFetch).not.toHaveBeenCalled();
 
@@ -204,14 +221,24 @@ describe("resolveSourceInput", () => {
     const excludedSearch = {
       search: vi.fn(async () => ({
         results: [
-          { title: "Blocked", url: "https://news.example.com/", snippet: "", publishedAt: "2026-07-11" }
+          {
+            title: "Blocked",
+            url: "https://news.example.com/",
+            snippet: "",
+            publishedAt: "2026-07-11"
+          }
         ]
       }))
     };
     await expect(
       resolveSourceInput(
         db,
-        { fetch: excludedSearchFetch, search: excludedSearch, ai: ai(), repo: repo(["example.com"]) },
+        {
+          fetch: excludedSearchFetch,
+          search: excludedSearch,
+          ai: ai(),
+          repo: repo(["example.com"])
+        },
         { raw: "Blocked News", hasWebSearch: true }
       )
     ).resolves.toMatchObject({ status: "rejected" });
@@ -257,7 +284,11 @@ describe("resolveSourceInput", () => {
       status: 403
     });
     await expect(
-      resolveSourceInput(db, { fetch: challenged, search: noSearch, ai: ai(), repo: repo() }, { raw: "https://one.example", hasWebSearch: false })
+      resolveSourceInput(
+        db,
+        { fetch: challenged, search: noSearch, ai: ai(), repo: repo() },
+        { raw: "https://one.example", hasWebSearch: false }
+      )
     ).resolves.toMatchObject({ status: "rejected", reason: "unreachable" });
   });
 });

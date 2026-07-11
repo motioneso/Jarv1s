@@ -66,14 +66,17 @@ export function parseRobots(
 
   const target = userAgent.toLowerCase();
   const specific = groups.filter((group) => group.agents.includes(target));
-  const selected = specific.length > 0 ? specific : groups.filter((group) => group.agents.includes("*"));
+  const selected =
+    specific.length > 0 ? specific : groups.filter((group) => group.agents.includes("*"));
   const selectedRules = selected.flatMap((group) => group.rules);
 
   return {
     isPathAllowed(path) {
       const matches = selectedRules.filter((rule) => rule.pattern.test(path));
       if (matches.length === 0) return true;
-      matches.sort((left, right) => right.length - left.length || Number(right.allow) - Number(left.allow));
+      matches.sort(
+        (left, right) => right.length - left.length || Number(right.allow) - Number(left.allow)
+      );
       return matches[0]!.allow;
     }
   };

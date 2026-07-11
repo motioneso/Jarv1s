@@ -31,7 +31,9 @@ export function createPreviewStore(
 
   return {
     put(preview) {
-      const ownerEntries = [...entries].filter(([, value]) => value.ownerUserId === preview.ownerUserId);
+      const ownerEntries = [...entries].filter(
+        ([, value]) => value.ownerUserId === preview.ownerUserId
+      );
       if (ownerEntries.length >= maxPerOwner) {
         ownerEntries.sort((left, right) => left[1].createdAt - right[1].createdAt);
         entries.delete(ownerEntries[0]![0]);

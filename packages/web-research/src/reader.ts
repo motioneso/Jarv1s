@@ -326,7 +326,8 @@ export async function readWebPage(rawUrl: string): Promise<
         excerpt: cappedText.slice(0, 500),
         fetchedAt: new Date().toISOString(),
         truncated:
-          response.truncated || extracted.text.length > DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars,
+          response.truncated ||
+          extracted.text.length > DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars,
         status: response.status
       }
     };

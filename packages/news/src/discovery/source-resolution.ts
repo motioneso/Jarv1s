@@ -3,10 +3,7 @@ import { Parser } from "htmlparser2";
 
 import type { DataContextDb } from "@jarv1s/db";
 
-import {
-  normalizePublisherDomain,
-  publisherDomainMatches
-} from "../personalization-domain.js";
+import { normalizePublisherDomain, publisherDomainMatches } from "../personalization-domain.js";
 import type { NewsPersonalizationRepository } from "../personalization-repository.js";
 import { TITLE_CHAR_CAP, sanitizeFeedText } from "../source/sanitize.js";
 import {
@@ -101,11 +98,10 @@ export async function resolveSourceInput(
   input: { raw: string; hasWebSearch: boolean }
 ): Promise<SourceResolutionResult> {
   const raw = input.raw.trim();
-  const exclusions = (await deps.repo.listExclusions(scopedDb)).map(
-    (item) => item.canonicalDomain
-  );
+  const exclusions = (await deps.repo.listExclusions(scopedDb)).map((item) => item.canonicalDomain);
   const normalized = normalizePublisherDomain(raw);
-  const looksLikeUrl = /^[a-z][a-z0-9+.-]*:/i.test(raw) || (!raw.includes(" ") && raw.includes("."));
+  const looksLikeUrl =
+    /^[a-z][a-z0-9+.-]*:/i.test(raw) || (!raw.includes(" ") && raw.includes("."));
   if (looksLikeUrl) {
     if (!normalized.ok) {
       return {
@@ -239,11 +235,15 @@ async function verifyPublisher(
     return { status: "failed", result: { status: "rejected", reason: "invalid_input" } };
   }
   const metadata = htmlMetadata(homepageBody);
-  const policy = await decideSourcePolicy(scopedDb, { ai: deps.ai, repo: deps.repo }, {
-    canonicalDomain: domain.domain,
-    description: metadata.description,
-    sampleHeadlines: headlines.map((item) => item.headline)
-  });
+  const policy = await decideSourcePolicy(
+    scopedDb,
+    { ai: deps.ai, repo: deps.repo },
+    {
+      canonicalDomain: domain.domain,
+      description: metadata.description,
+      sampleHeadlines: headlines.map((item) => item.headline)
+    }
+  );
   if (policy.verdict === "unavailable") {
     return { status: "failed", result: { status: "unavailable" } };
   }

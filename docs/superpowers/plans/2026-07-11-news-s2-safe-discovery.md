@@ -414,8 +414,8 @@ upsertPolicyVerdict(scopedDb, input: { canonicalDomain; fingerprint; verdict; tt
       owner context), `UPDATE app.news_custom_sources SET health_status = 'unavailable'`
       SUCCEEDS (1 row), while each of `SET label = …`, `SET homepage_url = …`,
       `SET feed_url = …`, `SET validation_fingerprint = …` is REJECTED with
-      `permission denied` (SQLSTATE 42501) — proving the column-list `GRANT UPDATE
-       (health_status)` blocks rewriting source identity even on visible rows. 2. **Cross-owner RLS test:** under owner A's context, SELECT of owner B's rows returns
+      `permission denied` (SQLSTATE 42501) — proving the column-list
+      `GRANT UPDATE (health_status)` blocks rewriting source identity even on visible rows. 2. **Cross-owner RLS test:** under owner A's context, SELECT of owner B's rows returns
       0 rows, and `UPDATE … SET health_status` targeting owner B's row affects 0 rows
       (RLS row filter, distinct from the column grant above).
 - [ ] **Step 2:** run `pnpm test:integration -- news-discovery-repository` → FAIL.

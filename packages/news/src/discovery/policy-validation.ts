@@ -50,16 +50,10 @@ export async function decideSourcePolicy(
     description: string;
     sampleHeadlines: readonly string[];
   }
-): Promise<
-  { verdict: "approved" | "rejected"; fingerprint: string } | { verdict: "unavailable" }
-> {
+): Promise<{ verdict: "approved" | "rejected"; fingerprint: string } | { verdict: "unavailable" }> {
   const fingerprint = await deps.ai.fingerprint(scopedDb);
   if (!fingerprint) return { verdict: "unavailable" };
-  const cached = await deps.repo.readPolicyVerdict(
-    scopedDb,
-    input.canonicalDomain,
-    fingerprint
-  );
+  const cached = await deps.repo.readPolicyVerdict(scopedDb, input.canonicalDomain, fingerprint);
   if (cached) return { verdict: cached, fingerprint };
 
   const data = {
@@ -94,9 +88,7 @@ export async function validateTopic(
   scopedDb: DataContextDb,
   deps: { ai: NewsAiPort },
   input: { label: string; guidance: string | null }
-): Promise<
-  { verdict: "approved" | "rejected"; fingerprint: string } | { verdict: "unavailable" }
-> {
+): Promise<{ verdict: "approved" | "rejected"; fingerprint: string } | { verdict: "unavailable" }> {
   const fingerprint = await deps.ai.fingerprint(scopedDb);
   if (!fingerprint) return { verdict: "unavailable" };
   const data = {

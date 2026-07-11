@@ -42,8 +42,6 @@ describe("createHostRateLimiter", () => {
     });
 
     await limiter.acquire("example.com");
-    await expect(limiter.acquire("example.com")).rejects.toBeInstanceOf(
-      RateLimitExceededError
-    );
+    await expect(limiter.acquire("example.com")).rejects.toBeInstanceOf(RateLimitExceededError);
   });
 });

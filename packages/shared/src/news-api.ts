@@ -631,13 +631,7 @@ export const previewNewsSourceSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: [
-              "label",
-              "canonicalDomain",
-              "homepageUrl",
-              "retrievalMethod",
-              "sampleCount"
-            ],
+            required: ["label", "canonicalDomain", "homepageUrl", "retrievalMethod", "sampleCount"],
             properties: {
               label: { type: "string" },
               canonicalDomain: { type: "string" },
