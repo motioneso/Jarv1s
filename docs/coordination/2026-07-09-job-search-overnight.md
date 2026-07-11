@@ -2336,3 +2336,17 @@ contention). Sent SECURITY DEFINER guardrails to bake into plan: pin search_path
 narrowly (not PUBLIC), stay NOBYPASSRLS-consistent with jarvis_worker_runtime, least-priv body;
 module SQL in owning module sql/ dir. Agent instructed to finalize plan → escalate full plan for
 approval BEFORE code. **Awaiting plan escalation.** merges_since_relay: 0.
+
+**PLAN APPROVED @ 2026-07-11 02:10 — #915 (APPROVE WITH CHANGES, Opus adversarial review).**
+Opus subagent (a8e2e2b3) reviewed plan + forks against the actual codebase. VERDICT: APPROVE WITH
+CHANGES, 0 blocking. **Both forks ruled CORRECT (premises verified true):** Fork A — no admin-write
+seam exists for worker (`autoDisableExternalModule` is admin-RLS-path only; worker is actor-context
+`jarvis_worker_runtime`), so process-local fail-closed + retry-on-reconcile is correct and honors
+no-admin-bypass. Fork B — no live uninstall endpoint (discovery disk-based), so startup/control-plane
+orphan purge is the right seam. **Relayed to pEB:** (1) MANDATORY — migration 0158 search_path add
+`pg_temp` → `pg_catalog, app, pg_temp` (match precedent 0144:31); (2) keep stricter bespoke definer
+(better security-tier posture), implement exactly, else fall back to proven precedent 0144/0112/0137
+and note swap in PR. Confirmed sound: SSRF genuinely closed (resolve-all + per-hop BlockList +
+pinned-IP + SNI/Host + cap), EXECUTE worker-only/revoked-PUBLIC, coverage + TDD granularity. Agent
+cleared to CODE (Task 1). Next gate = wrap-up PR → security-tier QA + overnight panel sign-off.
+merges_since_relay: 0.
