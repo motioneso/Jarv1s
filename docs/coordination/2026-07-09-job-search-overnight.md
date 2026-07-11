@@ -2558,3 +2558,11 @@ fork surfaces to Ben.
 JS-01..05, 07..09 build on current main NOW — do NOT wait for #916. Only **JS-06 (#935, module
 surface + assistant handoff)** depends on #916's openAssistant contract → held until #916 merges.
 Fable starts immediately in dependency order to maximize overnight utilization. DAG scout dispatched.
+
+**#916 RELAY-4 (pEH @ 70%, relay#4→#5) — NEARLY DONE.** Task6 committed `d11691d3`: e2e 2/2 pass;
+also fixed 2 pre-existing bugs surfaced by e2e (app.tsx /m/:id deep-link race vs catch-all route;
+mock-modules.ts glob missing Vite `?import` suffix). Lint+typecheck clean. ONLY task7 remains =
+full verify:foundation gate + coordinated-wrap-up (PR + report). pEH relaying to successor same
+worktree/branch. Successor must be Sonnet (#916 = platform seam, Sonnet rule) + tab w1:t17.
+AWAITING successor-driving confirm → verify + reap pEH. Then #916 wrap-up PR = SECURITY tier →
+Opus adversarial QA + Fable panel sign-off → merge → platform (epic #818) COMPLETE.
