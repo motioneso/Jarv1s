@@ -5,25 +5,57 @@
   "version": "0.1.0",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
-  "compatibility": { "jarv1s": ">=0.1.0" },
+  "compatibility": {
+    "jarv1s": ">=0.1.0"
+  },
   "storage": [
-    { "namespace": "job-search.onboarding", "scopes": ["user"] },
-    { "namespace": "job-search.profile", "scopes": ["user"] },
-    { "namespace": "job-search.resume", "scopes": ["user"] },
-    { "namespace": "job-search.monitors", "scopes": ["user"] },
-    { "namespace": "job-search.opportunities", "scopes": ["user"] },
-    { "namespace": "job-search.runs", "scopes": ["user"] },
-    { "namespace": "job-search.feed", "scopes": ["user"] }
+    {
+      "namespace": "job-search.onboarding",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.profile",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.resume",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.monitors",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.opportunities",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.runs",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.feed",
+      "scopes": ["user"]
+    }
   ],
-  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
-  "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
+  "web": {
+    "entrypoint": "dist/web/index.js",
+    "contractVersion": 1
+  },
+  "runtime": {
+    "workerEntrypoint": "dist/worker.js",
+    "workerContractVersion": 1
+  },
   "assistantTools": [
     {
       "name": "job-search.onboarding.get-state",
       "permissionId": "job-search.onboarding.get-state",
       "description": "Read the user's job-search onboarding progress",
       "risk": "read",
-      "inputSchema": { "type": "object", "additionalProperties": false },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "handler": "onboarding.get-state"
     },
     {
@@ -31,7 +63,10 @@
       "permissionId": "job-search.profile.get",
       "description": "Read the user's job-search profile",
       "risk": "read",
-      "inputSchema": { "type": "object", "additionalProperties": false },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "handler": "profile.get"
     },
     {
@@ -42,8 +77,13 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "provenance": { "type": "string", "enum": ["user", "inferred"] },
-          "fields": { "type": "object" }
+          "provenance": {
+            "type": "string",
+            "enum": ["user", "inferred"]
+          },
+          "fields": {
+            "type": "object"
+          }
         },
         "required": ["provenance", "fields"],
         "additionalProperties": false
@@ -57,7 +97,11 @@
       "risk": "write",
       "inputSchema": {
         "type": "object",
-        "properties": { "revisionId": { "type": "string" } },
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          }
+        },
         "required": ["revisionId"],
         "additionalProperties": false
       },
@@ -71,8 +115,12 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "revisionId": { "type": "string" },
-          "includeDiff": { "type": "boolean" }
+          "revisionId": {
+            "type": "string"
+          },
+          "includeDiff": {
+            "type": "boolean"
+          }
         },
         "additionalProperties": false
       },
@@ -86,11 +134,22 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "mode": { "type": "string", "enum": ["manual", "critique"] },
-          "content": { "type": "string" },
-          "parentRevisionId": { "type": "string" },
-          "baseRevisionId": { "type": "string" },
-          "instructions": { "type": "string" },
+          "mode": {
+            "type": "string",
+            "enum": ["manual", "critique"]
+          },
+          "content": {
+            "type": "string"
+          },
+          "parentRevisionId": {
+            "type": "string"
+          },
+          "baseRevisionId": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
           "confirmedClaims": {
             "type": "array",
             "items": {
@@ -100,7 +159,9 @@
                   "type": "string",
                   "enum": ["employer", "role", "date", "skill", "credential", "metric", "outcome"]
                 },
-                "text": { "type": "string" }
+                "text": {
+                  "type": "string"
+                }
               },
               "required": ["kind", "text"],
               "additionalProperties": false
@@ -119,7 +180,11 @@
       "risk": "write",
       "inputSchema": {
         "type": "object",
-        "properties": { "revisionId": { "type": "string" } },
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          }
+        },
         "required": ["revisionId"],
         "additionalProperties": false
       },
@@ -130,7 +195,10 @@
       "permissionId": "job-search.monitor.list",
       "description": "List the user's job monitors",
       "risk": "read",
-      "inputSchema": { "type": "object", "additionalProperties": false },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "handler": "monitor.list"
     },
     {
@@ -140,7 +208,11 @@
       "risk": "read",
       "inputSchema": {
         "type": "object",
-        "properties": { "monitorId": { "type": "string" } },
+        "properties": {
+          "monitorId": {
+            "type": "string"
+          }
+        },
         "required": ["monitorId"],
         "additionalProperties": false
       },
@@ -154,10 +226,18 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "monitorId": { "type": "string" },
-          "adapterId": { "type": "string" },
-          "query": { "type": "object" },
-          "enabled": { "type": "boolean" }
+          "monitorId": {
+            "type": "string"
+          },
+          "adapterId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
         },
         "required": ["monitorId", "adapterId", "query"],
         "additionalProperties": false
@@ -165,11 +245,76 @@
       "handler": "monitor.save"
     },
     {
+      "name": "job-search.sources.list",
+      "permissionId": "job-search.sources.list",
+      "description": "List the supported job-board sources with their compliance metadata",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "handler": "sources.list"
+    },
+    {
+      "name": "job-search.capture.paste",
+      "permissionId": "job-search.capture.paste",
+      "description": "Store a job description the user pasted into the conversation",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": ["title", "company", "description"],
+        "additionalProperties": false
+      },
+      "handler": "capture.paste"
+    },
+    {
+      "name": "job-search.capture.url",
+      "permissionId": "job-search.capture.url",
+      "description": "Store a job description already retrieved via the assistant's governed web.read flow; the module never fetches the URL itself",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "extractedText": {
+            "type": "string"
+          }
+        },
+        "required": ["url", "title", "company", "extractedText"],
+        "additionalProperties": false
+      },
+      "handler": "capture.url"
+    },
+    {
       "name": "job-search.opportunities.list",
       "permissionId": "job-search.opportunities.list",
       "description": "List discovered job opportunities",
       "risk": "read",
-      "inputSchema": { "type": "object" },
+      "inputSchema": {
+        "type": "object"
+      },
       "handler": "opportunities.list"
     },
     {
@@ -177,7 +322,9 @@
       "permissionId": "job-search.opportunities.get",
       "description": "Read one job opportunity",
       "risk": "read",
-      "inputSchema": { "type": "object" },
+      "inputSchema": {
+        "type": "object"
+      },
       "handler": "opportunities.get"
     },
     {
@@ -185,12 +332,20 @@
       "permissionId": "job-search.opportunity.decide",
       "description": "Record the user's decision on a job opportunity",
       "risk": "write",
-      "inputSchema": { "type": "object" },
+      "inputSchema": {
+        "type": "object"
+      },
       "handler": "opportunity.decide"
     }
   ],
   "worker": {
-    "queues": [{ "name": "job-search.monitor-run", "handler": "monitor.run", "retryLimit": 3 }],
+    "queues": [
+      {
+        "name": "job-search.monitor-run",
+        "handler": "monitor.run",
+        "retryLimit": 3
+      }
+    ],
     "schedules": [
       {
         "id": "job-search.monitor-sweep",

@@ -5,6 +5,11 @@
 // resume and an approved profile exist (spec: enablement is the last
 // checkpoint, after the user has reviewed real stored state). List responses
 // are metadata-only: the query document never leaves via monitor.list.
+//
+// JS-04 (#933) Task 10: monitor.save additionally validates adapterId against
+// the source-adapter registry (unknown/disabled → question naming the enabled
+// ids) and persists the adapter-NORMALIZED board config — extra query keys
+// never survive into storage.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -38,7 +43,9 @@ const portsAt = (kv: MemoryKv, now: Date): WorkerPorts => ({
   now: () => now
 });
 
-const QUERY = { titles: ["Staff Engineer"], locations: ["remote"] };
+// A valid greenhouse board config — monitor.save now round-trips the query
+// through adapter.validateConfig, so fixtures must be real board configs.
+const QUERY = { board: "gitlab" };
 
 /** Seed + approve resume and profile via the domain (pointer-level truth). */
 async function approveBoth(kv: MemoryKv): Promise<void> {
@@ -59,7 +66,7 @@ describe("monitor.save handler", () => {
     const kv = createMemoryKv();
     const result = await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY,
       enabled: true
     });
@@ -76,7 +83,7 @@ describe("monitor.save handler", () => {
     const before = kv.dump();
     const result = await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY,
       enabled: true
     });
@@ -90,7 +97,7 @@ describe("monitor.save handler", () => {
     const kv = createMemoryKv();
     const result = await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY
     });
     expect(result).toEqual({ status: "ok", monitorId: "m1", enabled: false });
@@ -98,7 +105,7 @@ describe("monitor.save handler", () => {
     expect(stored).toEqual({
       schemaVersion: 1,
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       enabled: false,
       query: QUERY,
       createdAt: NOW.toISOString(),
@@ -127,7 +134,7 @@ describe("monitor.save handler", () => {
 
     const result = await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY,
       enabled: true
     });
@@ -143,18 +150,18 @@ describe("monitor.save handler", () => {
     const kv = createMemoryKv();
     await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY
     });
     await saveMonitorHandler(portsAt(kv, LATER))({
       monitorId: "m1",
-      adapterId: "boards",
-      query: { titles: ["Principal Engineer"] }
+      adapterId: "greenhouse",
+      query: { board: "acme" }
     });
     const stored = await getMonitor(kv, "m1");
     expect(stored?.createdAt).toBe(NOW.toISOString());
     expect(stored?.updatedAt).toBe(LATER.toISOString());
-    expect(stored?.query).toEqual({ titles: ["Principal Engineer"] });
+    expect(stored?.query).toEqual({ board: "acme" });
   });
 
   it("disabling an enabled monitor is always allowed (no gate on the way down)", async () => {
@@ -162,13 +169,13 @@ describe("monitor.save handler", () => {
     await approveBoth(kv);
     await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY,
       enabled: true
     });
     const result = await saveMonitorHandler(portsAt(kv, LATER))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY,
       enabled: false
     });
@@ -176,16 +183,58 @@ describe("monitor.save handler", () => {
     expect((await getMonitor(kv, "m1"))?.enabled).toBe(false);
   });
 
+  it("unknown adapterId: question names the enabled adapter ids, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "linkedin",
+      query: QUERY
+    });
+    expect(result.status).toBe("question");
+    const question = result.question as string;
+    expect(question).toContain("greenhouse");
+    expect(question).toContain("lever");
+    expect(question).toContain("ashby");
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("invalid board config: invalid_input envelope naming the constraint, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(saveMonitorHandler(portsAt(kv, NOW)))({
+      monitorId: "m1",
+      adapterId: "greenhouse",
+      query: { board: "a/b" }
+    });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    // Constraint only — the hostile value itself is never echoed.
+    expect(result.message).not.toContain("a/b");
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("persists the NORMALIZED query exactly — extra keys do not survive", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "greenhouse",
+      query: { board: "gitlab", titles: ["Staff Engineer"], locations: ["remote"] }
+    });
+    expect((await getMonitor(kv, "m1"))?.query).toEqual({ board: "gitlab" });
+  });
+
   it("rejects a missing monitorId/adapterId/query by name", async () => {
     const kv = createMemoryKv();
     const ports = portsAt(kv, NOW);
-    const noId = await wrap(saveMonitorHandler(ports))({ adapterId: "boards", query: QUERY });
+    const noId = await wrap(saveMonitorHandler(ports))({ adapterId: "greenhouse", query: QUERY });
     expect(noId.status).toBe("error");
     expect(noId.message).toMatch(/monitorId/);
     const noAdapter = await wrap(saveMonitorHandler(ports))({ monitorId: "m1", query: QUERY });
     expect(noAdapter.status).toBe("error");
     expect(noAdapter.message).toMatch(/adapterId/);
-    const noQuery = await wrap(saveMonitorHandler(ports))({ monitorId: "m1", adapterId: "b" });
+    const noQuery = await wrap(saveMonitorHandler(ports))({
+      monitorId: "m1",
+      adapterId: "greenhouse"
+    });
     expect(noQuery.status).toBe("error");
     expect(noQuery.message).toMatch(/query/);
     expect(kv.dump().size).toBe(0);
@@ -197,13 +246,14 @@ describe("monitor.list handler", () => {
     const kv = createMemoryKv();
     await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY
     });
+    // companyName survives normalization, so the leak assertion still bites.
     await saveMonitorHandler(portsAt(kv, LATER))({
       monitorId: "m2",
-      adapterId: "feeds",
-      query: { secretTerm: "do-not-leak" }
+      adapterId: "lever",
+      query: { board: "leverdemo", companyName: "do-not-leak" }
     });
     const result = await listMonitorsHandler(portsAt(kv, NOW))({});
     expect(result.status).toBe("ok");
@@ -233,7 +283,7 @@ describe("monitor.get handler", () => {
     const kv = createMemoryKv();
     await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY
     });
     await saveMonitorCursor(kv, {
@@ -246,7 +296,7 @@ describe("monitor.get handler", () => {
     const result = await getMonitorHandler(portsAt(kv, NOW))({ monitorId: "m1" });
     expect(result.status).toBe("ok");
     expect(result.monitorId).toBe("m1");
-    expect(result.adapterId).toBe("boards");
+    expect(result.adapterId).toBe("greenhouse");
     expect(result.enabled).toBe(false);
     expect(result.query).toEqual(QUERY);
     expect(result.cursor).toEqual({
@@ -260,7 +310,7 @@ describe("monitor.get handler", () => {
     const kv = createMemoryKv();
     await saveMonitorHandler(portsAt(kv, NOW))({
       monitorId: "m1",
-      adapterId: "boards",
+      adapterId: "greenhouse",
       query: QUERY
     });
     const result = await getMonitorHandler(portsAt(kv, NOW))({ monitorId: "m1" });

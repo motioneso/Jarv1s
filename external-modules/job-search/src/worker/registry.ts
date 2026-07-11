@@ -7,6 +7,7 @@
 // stays a thin dispatch shell over this table. JS-05/06 tools and the
 // monitor.run queue handler remain not-implemented stubs until their slices.
 import type { WorkerPorts } from "./ai-port.js";
+import { listSourcesHandler, pasteCaptureHandler, urlCaptureHandler } from "./handlers/capture.js";
 import { getMonitorHandler, listMonitorsHandler, saveMonitorHandler } from "./handlers/monitor.js";
 import { getStateHandler } from "./handlers/onboarding.js";
 import {
@@ -36,6 +37,9 @@ export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   "monitor.list": listMonitorsHandler,
   "monitor.get": getMonitorHandler,
   "monitor.save": saveMonitorHandler,
+  "sources.list": listSourcesHandler,
+  "capture.paste": pasteCaptureHandler,
+  "capture.url": urlCaptureHandler,
   "opportunities.list": notImplemented,
   "opportunities.get": notImplemented,
   "opportunity.decide": notImplemented,
