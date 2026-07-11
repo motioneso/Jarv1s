@@ -47,6 +47,9 @@ export function ModuleLink(props: {
   className?: string;
   "aria-current"?: string;
   children?: unknown;
+  // Accepted at the call site for list rendering; host React extracts it at
+  // createElement time, so the component body never sees it.
+  key?: string;
 }): ReactNodeLike {
   const { to, children, ...rest } = props;
   const onClick = useCallback(
