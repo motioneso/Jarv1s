@@ -4,7 +4,10 @@ import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
 import { Readable } from "node:stream";
 
 import { DEFAULT_WEB_RESEARCH_CONFIG } from "./config.js";
-import { type HostResolver, validateHttpUrl } from "./url-safety.js";
+import type { HostRateLimiter } from "./rate-limit.js";
+import { RateLimitExceededError } from "./rate-limit.js";
+import type { RobotsGate } from "./robots.js";
+import { type HostResolver, type SafeHttpUrl, validateHttpUrl } from "./url-safety.js";
 
 type WebFetch = typeof fetch;
 export interface WebHttpTransportRequest {
@@ -84,26 +87,7 @@ function decodeHtml(text: string): string {
     .replace(/&#39;/g, "'");
 }
 
-async function fetchWithSafeRedirects(
-  startUrl: URL,
-  options: { readonly signal: AbortSignal; readonly resolveHost?: HostResolver }
-): Promise<Response> {
-  let current = startUrl;
-  for (let redirects = 0; redirects <= DEFAULT_WEB_RESEARCH_CONFIG.redirectLimit; redirects += 1) {
-    const safe = await validateHttpUrl(current.toString(), options.resolveHost);
-    if (!safe.ok) throw new Error(safe.reason);
-    const response = await requestCheckedUrl(safe.url, options.signal);
-    if (!isRedirect(response.status)) return response;
-    const location = response.headers.get("location");
-    if (!location) return response;
-    current = new URL(location, current);
-  }
-  throw new Error("Redirect limit exceeded");
-}
-
-async function requestCheckedUrl(url: URL, signal: AbortSignal): Promise<Response> {
-  const checked = await validateHttpUrl(url.toString());
-  if (!checked.ok) throw new Error(checked.reason);
+async function requestCheckedUrl(checked: SafeHttpUrl, signal: AbortSignal): Promise<Response> {
   const hostHeader = checked.url.host;
   const servername =
     checked.url.protocol === "https:" ? stripIpv6Brackets(checked.url.hostname) : undefined;
@@ -124,6 +108,111 @@ async function requestCheckedUrl(url: URL, signal: AbortSignal): Promise<Respons
     });
   }
   return nodeHttpTransport(request);
+}
+
+export interface FetchWebResourceOptions {
+  readonly requireHttps?: boolean;
+  readonly robots?: RobotsGate;
+  readonly rateLimiter?: HostRateLimiter;
+  readonly maxBytes?: number;
+  readonly timeoutMs?: number;
+  readonly resolveHost?: HostResolver;
+}
+
+export type FetchWebResourceResult =
+  | {
+      readonly ok: true;
+      readonly status: number;
+      readonly finalUrl: string;
+      readonly contentType: string | null;
+      readonly body: string;
+      readonly truncated: boolean;
+    }
+  | {
+      readonly ok: false;
+      readonly reason:
+        | "blocked"
+        | "robots"
+        | "rate_limited"
+        | "not_https"
+        | "timeout"
+        | "network"
+        | "http_error";
+      readonly status?: number;
+    };
+
+export async function fetchWebResource(
+  rawUrl: string,
+  options: FetchWebResourceOptions = {}
+): Promise<FetchWebResourceResult> {
+  let current: URL;
+  try {
+    current = new URL(rawUrl);
+  } catch {
+    return { ok: false, reason: "blocked" };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? DEFAULT_WEB_RESEARCH_CONFIG.timeoutMs
+  );
+  try {
+    for (
+      let redirects = 0;
+      redirects <= DEFAULT_WEB_RESEARCH_CONFIG.redirectLimit;
+      redirects += 1
+    ) {
+      const safe = await validateHttpUrl(current.toString(), options.resolveHost);
+      if (!safe.ok) return { ok: false, reason: "blocked" };
+      if (options.requireHttps && safe.url.protocol !== "https:") {
+        return { ok: false, reason: "not_https" };
+      }
+      if (options.robots) {
+        const allowed = await options.robots.isAllowed(safe.url, async (robotsUrl) => {
+          const robotsSafe = await validateHttpUrl(robotsUrl.toString(), options.resolveHost);
+          if (!robotsSafe.ok) return null;
+          await options.rateLimiter?.acquire(robotsSafe.url.hostname);
+          const response = await requestCheckedUrl(robotsSafe, controller.signal);
+          const { text: body } = await readCapped(
+            response,
+            options.maxBytes ?? DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
+          );
+          return { status: response.status, body };
+        });
+        if (!allowed) return { ok: false, reason: "robots" };
+      }
+      await options.rateLimiter?.acquire(safe.url.hostname);
+      const response = await requestCheckedUrl(safe, controller.signal);
+      if (isRedirect(response.status)) {
+        const location = response.headers.get("location");
+        if (!location) return { ok: false, reason: "http_error", status: response.status };
+        current = new URL(location, current);
+        continue;
+      }
+      if (response.status >= 400) {
+        return { ok: false, reason: "http_error", status: response.status };
+      }
+      const { text: body, truncated } = await readCapped(
+        response,
+        options.maxBytes ?? DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
+      );
+      return {
+        ok: true,
+        status: response.status,
+        finalUrl: response.url || safe.url.toString(),
+        contentType: response.headers.get("content-type"),
+        body,
+        truncated
+      };
+    }
+    return { ok: false, reason: "network" };
+  } catch (error) {
+    if (controller.signal.aborted) return { ok: false, reason: "timeout" };
+    if (error instanceof RateLimitExceededError) return { ok: false, reason: "rate_limited" };
+    return { ok: false, reason: "network" };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function stripIpv6Brackets(hostname: string): string {
@@ -185,30 +274,23 @@ export async function readWebPage(rawUrl: string): Promise<
       readonly reason: string;
     }
 > {
-  const safe = await validateHttpUrl(rawUrl);
-  if (!safe.ok) return { ok: false, url: rawUrl, reason: safe.reason };
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DEFAULT_WEB_RESEARCH_CONFIG.timeoutMs);
+  const response = await fetchWebResource(rawUrl);
+  if (!response.ok) return { ok: false, url: rawUrl, reason: response.reason };
   try {
-    const response = await fetchWithSafeRedirects(safe.url, { signal: controller.signal });
-    const { text: html, truncated: byteTruncated } = await readCapped(
-      response,
-      DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
-    );
+    const html = response.body;
     const extracted = extractReadableText(html);
     const cappedText = extracted.text.slice(0, DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars);
     return {
       ok: true,
       document: {
-        url: response.url || safe.url.toString(),
-        domain: safe.url.hostname,
+        url: response.finalUrl,
+        domain: new URL(response.finalUrl).hostname,
         title: extracted.title,
         text: cappedText,
         excerpt: cappedText.slice(0, 500),
         fetchedAt: new Date().toISOString(),
         truncated:
-          byteTruncated || extracted.text.length > DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars,
+          response.truncated || extracted.text.length > DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars,
         status: response.status
       }
     };
@@ -218,7 +300,5 @@ export async function readWebPage(rawUrl: string): Promise<
       url: rawUrl,
       reason: error instanceof Error ? error.message : "Fetch failed"
     };
-  } finally {
-    clearTimeout(timer);
   }
 }
