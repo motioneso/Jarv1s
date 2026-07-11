@@ -6,6 +6,9 @@
 // hop, query, or encoded byte must be rejected, URLs must be https on a
 // recognized host with no credentials, and InputError messages name the
 // key + constraint only (JS-02/JS-03 discipline — never echo hostile input).
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,6 +16,14 @@ import {
   parseBoardConfig,
   parseIsoTimestamp
 } from "../../external-modules/job-search/src/adapters/board-config.js";
+import { greenhouseAdapter } from "../../external-modules/job-search/src/adapters/greenhouse.js";
+import {
+  activeAdapters,
+  getSourceAdapter,
+  KILL_SWITCHED,
+  listSourceAdapters,
+  SOURCE_ADAPTERS
+} from "../../external-modules/job-search/src/adapters/registry.js";
 import { JobSearchFetchError } from "../../external-modules/job-search/src/adapters/types.js";
 import { InputError } from "../../external-modules/job-search/src/worker/validate.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
@@ -144,5 +155,93 @@ describe("JobSearchFetchError through the wrap envelope", () => {
       code: "board_not_found",
       message: "board does not exist on greenhouse"
     });
+  });
+});
+
+describe("adapter registry", () => {
+  const MODULE_ROOT = join(__dirname, "..", "..", "external-modules", "job-search");
+
+  it("resolves the three reviewed adapters and nothing else", () => {
+    for (const id of ["greenhouse", "lever", "ashby"]) {
+      expect(getSourceAdapter(id)?.id).toBe(id);
+    }
+    // No adapter exists for boards we have not compliance-reviewed.
+    expect(getSourceAdapter("linkedin")).toBeNull();
+    expect(getSourceAdapter("")).toBeNull();
+  });
+
+  it("activeAdapters fails closed on non-allowed compliance and kill switch", () => {
+    const unknown = {
+      ...greenhouseAdapter,
+      id: "mystery",
+      compliance: { ...greenhouseAdapter.compliance, status: "unknown" as const }
+    };
+    const prohibited = {
+      ...greenhouseAdapter,
+      id: "banned",
+      compliance: { ...greenhouseAdapter.compliance, status: "prohibited" as const }
+    };
+    const pool = [...SOURCE_ADAPTERS, unknown, prohibited];
+    expect(activeAdapters(pool, KILL_SWITCHED).map((a) => a.id)).toEqual([
+      "greenhouse",
+      "lever",
+      "ashby"
+    ]);
+    // A release-flipped kill switch disables FETCH for that adapter only;
+    // metadata listing (and stored captures) stay readable.
+    expect(activeAdapters(pool, new Set(["lever"])).map((a) => a.id)).toEqual([
+      "greenhouse",
+      "ashby"
+    ]);
+  });
+
+  it("lists metadata for every declared adapter with an enabled flag", () => {
+    const infos = listSourceAdapters();
+    expect(infos.map((i) => i.adapterId)).toEqual(["greenhouse", "lever", "ashby"]);
+    for (const info of infos) {
+      expect(info.enabled).toBe(true); // kill switch is empty this release
+      expect(info.status).toBe("allowed");
+      expect(info.courtesyMinutes).toBeGreaterThanOrEqual(15);
+      expect(info.configHint.length).toBeGreaterThan(0);
+      expect(info.displayName.length).toBeGreaterThan(0);
+      // Coordinator mandate: automated-review attribution is part of the
+      // surfaced metadata, so users can see nobody personally vetted terms.
+      expect(info.reviewedBy).toBe("coordinator/automated");
+    }
+  });
+
+  it("every registered adapter carries a current allowed compliance review", () => {
+    for (const adapter of SOURCE_ADAPTERS) {
+      expect(adapter.compliance.status).toBe("allowed");
+      expect(adapter.compliance.policyUrl).toMatch(/^https:\/\//);
+      expect(Number.isNaN(Date.parse(adapter.compliance.reviewedAt))).toBe(false);
+      expect(adapter.compliance.reviewedBy).toBe("coordinator/automated");
+      expect(adapter.courtesyIntervalMs).toBeGreaterThanOrEqual(15 * 60 * 1000);
+    }
+  });
+
+  it("adapter fetchHosts are a subset of the manifest fetchHosts", () => {
+    // The manifest is what the platform host-pins fetch to — adapter
+    // self-declaration must never exceed it, or drift silently.
+    const manifest = JSON.parse(readFileSync(join(MODULE_ROOT, "jarvis.module.json"), "utf8")) as {
+      fetchHosts: string[];
+    };
+    for (const adapter of SOURCE_ADAPTERS) {
+      expect(adapter.fetchHosts.length).toBeGreaterThan(0);
+      for (const host of adapter.fetchHosts) {
+        expect(manifest.fetchHosts, `${adapter.id} host ${host}`).toContain(host);
+      }
+    }
+  });
+
+  it("adapter sources contain no evasion logic", () => {
+    // Compliance pin: no cookie jars, robots-dodging, captcha solving, or
+    // credentialed requests anywhere in the adapter implementations.
+    for (const file of ["greenhouse.ts", "lever.ts", "ashby.ts", "registry.ts"]) {
+      const source = readFileSync(join(MODULE_ROOT, "src", "adapters", file), "utf8").toLowerCase();
+      for (const banned of ["cookie", "robots", "captcha", "authorization"]) {
+        expect(source, `${file} must not mention ${banned}`).not.toContain(banned);
+      }
+    }
   });
 });
