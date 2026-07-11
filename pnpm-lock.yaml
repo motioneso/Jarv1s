@@ -488,6 +488,9 @@ importers:
 
   packages/datasets:
     dependencies:
+      '@jarv1s/host-fetch':
+        specifier: workspace:*
+        version: link:../host-fetch
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
