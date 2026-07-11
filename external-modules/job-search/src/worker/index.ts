@@ -11,6 +11,7 @@ import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 import { JobSearchKvError, kvFromWorkerContext } from "../domain/index.js";
 import type { JobSearchAi, WorkerPorts } from "./ai-port.js";
 import { aiFromWorkerContext } from "./ai-port.js";
+import { getStateHandler } from "./handlers/onboarding.js";
 import { InputError } from "./validate.js";
 
 type ToolHandler = (input: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -52,7 +53,7 @@ const notImplemented: ToolFactory = () => async () => ({ status: "not-implemente
 
 defineModuleWorker({
   handlers: {
-    "onboarding.get-state": tool(notImplemented),
+    "onboarding.get-state": tool(getStateHandler),
     "profile.get": tool(notImplemented),
     "profile.save-draft": tool(notImplemented),
     "profile.approve": tool(notImplemented),
