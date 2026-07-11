@@ -73,8 +73,17 @@ describe("job-search bundle hygiene (#930)", () => {
   });
 
   it("answers a declared handler with not-implemented", async () => {
+    // opportunities.list is a JS-05 stub; profile.get was implemented in JS-03
+    // (it now issues kv RPCs to the parent, which this bare harness never answers).
     const messages = await runWorker(
-      [{ jsonrpc: "2.0", id: "t1", method: "module.invoke", params: { handler: "profile.get" } }],
+      [
+        {
+          jsonrpc: "2.0",
+          id: "t1",
+          method: "module.invoke",
+          params: { handler: "opportunities.list" }
+        }
+      ],
       (m) => m.id === "t1"
     );
     expect(messages.at(-1)).toMatchObject({ id: "t1", result: { status: "not-implemented" } });
