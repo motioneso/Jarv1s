@@ -12,7 +12,22 @@ export {
 } from "./confirmations.js";
 export type { DiffHunk } from "./diff.js";
 export { diffLines } from "./diff.js";
-export type { MaterialClaim, MaterialClaimKind, ResumeEvidence } from "./truth-guard.js";
+export type {
+  MaterialClaim,
+  MaterialClaimKind,
+  ParsedCritique,
+  ResumeEvidence,
+  TruthGuardVerdict
+} from "./truth-guard.js";
+export {
+  CLAIM_QUOTE_MAX_CHARS,
+  CLAIM_TEXT_MAX_CHARS,
+  CRITIQUE_SCHEMA,
+  CRITIQUE_SUMMARY_MAX_CHARS,
+  MATERIAL_CLAIMS_MAX,
+  parseCritique,
+  verifyClaims
+} from "./truth-guard.js";
 export { JobSearchKvError } from "./errors.js";
 export type { JobSearchKvErrorCode } from "./errors.js";
 export type { JobSearchKv, JobSearchNamespace } from "./kv-port.js";
