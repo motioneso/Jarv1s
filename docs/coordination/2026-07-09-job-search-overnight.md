@@ -2997,3 +2997,16 @@ anything requiring escalation and do that instead of waiting for me."
 **Budget:** cycle 1 RED + cycle 2 RED = 2 failed QA cycles → skill mandate = stop lane, escalate. BUT D1+D2 genuinely closed (real progress); D3 is now a design/scope question (adjacency-verification), not a blind 3rd fix. Awaiting Opus seat (ac732e395cd731ee0) to know if this is unanimous-block or a scope-split. If split hinges on scope, spec (2026-07-10-job-search-js-03-onboarding-truth-guard.md) is tiebreaker → focused Opus scope adjudication. NO merge. NO route-to-Ben until second seat lands.
 
 **News #955:** unchanged — held on Gemini seat.
+
+---
+## Checkpoint — JS-03 #956 cycle-2 re-QA: UNANIMOUS RED (D3), design-gate before any further cycle
+
+**Both council seats RED on the SAME finding (not a split):**
+- Codex (issuecomment 14:28:36Z): D1 CLOSED, D2 CLOSED, **D3 open via segment-boundary recombination** (each line matches a different true source context → false relationship persists).
+- Opus (ac732e395cd731ee0, issuecomment-4946829260): D1 CLOSED, D2 CLOSED, R16 size-deviation legit, invariants (zero-migration/provider-agnostic/module-isolation/no-BYPASSRLS) OK, **D3 open via word-per-line decomposition.** PoC vs real code: "Senior Engineer at Beta LLC" one line → ok:false; "Senior\nEngineer\nat\nBeta\nLLC" → ok:true (each single-token segment matches any corpus word). B1 invariant broken. Untested boundary = the live bypass.
+
+**Root cause (converged):** guard treats fragment PRESENCE as provenance; splitting on \n/.!?;| lets any fabrication decompose into individually-true fragments. Fix needs ADJACENCY verification (contiguous multi-token phrase against a SINGLE source region; reject trivially-matching single-token segments), not more fragment-matching.
+
+**Budget:** 2 blind fix cycles exhausted. D3 is now a DESIGN decision, not a 3rd blind tweak. Per genuine-Ben directive (council = escalation authority, keep moving, don't stall for Ben): gating next step on a one-shot **Opus design adjudication** → rules (a) is D3-closure in JS-03 spec scope or a tracked follow-up, and (b) the minimal correct fix. Then: in-scope → ONE final DESIGNED implementation cycle on R16 → re-QA same council; out-of-scope → file follow-up issue + council-green on the spec-complete (D1/D2-closed) surface. If the final designed cycle still fails council → THEN park #956 for Ben (genuinely exhausted). NO merge now. JS-04+ serialized-blocked behind JS-03.
+
+**News #955:** unchanged — held on Gemini seat.
