@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FollowedTeamCard, FollowedTeamNews } from "@jarv1s/shared";
 
-import { SportsTicker } from "../../packages/sports/src/web/sports-ticker.js";
+import { SportsTicker, TickerTeam } from "../../packages/sports/src/web/sports-ticker.js";
 
 // Stories arrive fully-formed on the card now (mrb0pk1n) — no client-side headline matching.
 function story(overrides: Partial<FollowedTeamNews> = {}): FollowedTeamNews {
@@ -216,5 +216,47 @@ describe("SportsTicker", () => {
     // Whole-league follows also render no block here — the league-grouped sections below
     // carry them, so a league-only follower sees no Followed strip (header redesign pass).
     expect(render([])).toBe("");
+  });
+});
+
+// TickerTeam is the /today surface of the same card — #963 requires the live-score strip on
+// BOTH surfaces in lockstep, so it gets its own direct render coverage (it had none before).
+function renderTickerTeam(c: FollowedTeamCard): string {
+  const client = new QueryClient();
+  return renderToString(
+    createElement(QueryClientProvider, { client }, createElement(TickerTeam, { card: c }))
+  );
+}
+
+describe("TickerTeam", () => {
+  it("renders a live team with the score in the footer strip and news in the body (#963)", () => {
+    const html = renderTickerTeam(
+      card({
+        stories: [story({ title: "Vikings lead late in Dallas", url: "https://example.com/live" })]
+      })
+    );
+    expect(html).toContain("sp-tk__next");
+    expect(html).toContain("sp-next__livetag");
+    expect(html).toContain("MIN 21 – 14 DAL");
+    expect(html).toContain("Vikings lead late in Dallas");
+    // the bold body score is gone on this surface too
+    expect(html).not.toContain("sp-tk__score");
+    // live strip carries the score, not the fixture, even with nextMatch set
+    expect(html).not.toContain("Green Bay Packers");
+  });
+
+  it("shows the No-recent-news placeholder on a storyless live card (#963)", () => {
+    const html = renderTickerTeam(card({ stories: [] }));
+    expect(html).toContain("No recent news");
+    expect(html).toContain("sp-next__livetag");
+    expect(html).toContain("MIN 21 – 14 DAL");
+    expect(html).not.toContain("sp-tk__score");
+  });
+
+  it("keeps the next-game footer on a non-live card (#963 non-regression)", () => {
+    const html = renderTickerTeam(card({ status: "news", primary: "", stories: [story()] }));
+    expect(html).toContain("sp-tk__next");
+    expect(html).toContain("Green Bay Packers");
+    expect(html).not.toContain("sp-next__livetag");
   });
 });

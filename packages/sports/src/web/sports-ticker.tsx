@@ -401,8 +401,12 @@ export function TickerTeam(props: { card: FollowedTeamCard }) {
   // mrawrk0e) — but blanking the whole primary slot left those cards a hollow void next to
   // their news-status neighbors (top-area feedback 2026-07-07). Only the matchup text was
   // redundant; fill the slot with news instead so every non-score card shares one anatomy.
+  // #963 extends that to live: the in-progress score moved to the footer strip, so the live
+  // body shows news too — same rule as FeaturedTeamCard, both surfaces in lockstep.
   const showNews =
-    card.status === "news" || (card.status === "today" && card.todayGameState !== "final");
+    card.status === "news" ||
+    card.status === "live" ||
+    (card.status === "today" && card.todayGameState !== "final");
   const lead = card.stories[0] ?? null;
   // Same slicing rule as FeaturedTeamCard: a news card spent stories[0] on its headline so
   // bullets start at 1; a score/result card never did, so its freshest story leads the bullets
@@ -481,12 +485,18 @@ export function TickerTeam(props: { card: FollowedTeamCard }) {
           ) : null}
         </div>
       </div>
-      {/* Next-game footer: the V3 inverted bar — "Next game:" label + opponent + kickoff as one
-          line of text. The opponent returns as TEXT here (mockup shows "vs Rockies"), reversing
-          mrawvc48's crest-for-name swap for THIS surface only; /sports keeps its crest footer.
-          Hidden while the team is live: the in-progress score owns the card until the game
-          ends (mrawrk0e). Today games read "Today · 6:45 PM" (mrawhf6q). */}
-      {card.nextMatch && card.status !== "live" ? <NextGameBar next={card.nextMatch} /> : null}
+      {/* Footer bar: the V3 inverted strip. A live game shows its current score here (#963 —
+          supersedes mrawrk0e's hide-while-live rule; the score left the body for this bar).
+          Otherwise the next fixture renders as one line of text — opponent as TEXT on THIS
+          surface (mockup "vs Rockies", reversing mrawvc48 here only; /sports keeps its crest
+          footer). Today games read "Today · 6:45 PM" (mrawhf6q). */}
+      {card.status === "live" ? (
+        <div className="sp-tk__next sp-next">
+          <LiveNowContent scoreText={card.primary} />
+        </div>
+      ) : card.nextMatch ? (
+        <NextGameBar next={card.nextMatch} />
+      ) : null}
     </article>
   );
 }
