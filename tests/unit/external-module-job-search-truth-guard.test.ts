@@ -325,7 +325,25 @@ describe("parseCritique", () => {
   });
 
   it("CRITIQUE_SCHEMA mirrors the parser: closed objects, seven-kind enum, caps", () => {
-    const schema = CRITIQUE_SCHEMA as Record<string, any>;
+    // Structural view of exactly the paths this test asserts — no `any`.
+    const schema = CRITIQUE_SCHEMA as {
+      additionalProperties: boolean;
+      required: string[];
+      properties: {
+        critiqueSummary: { maxLength: number };
+        materialClaims: {
+          maxItems: number;
+          items: {
+            additionalProperties: boolean;
+            properties: {
+              kind: { enum: string[] };
+              text: { maxLength: number };
+              quote: { maxLength: number };
+            };
+          };
+        };
+      };
+    };
     expect(schema.additionalProperties).toBe(false);
     expect(schema.required).toEqual(["critiqueSummary", "proposedMarkdown", "materialClaims"]);
     expect(schema.properties.critiqueSummary.maxLength).toBe(2000);

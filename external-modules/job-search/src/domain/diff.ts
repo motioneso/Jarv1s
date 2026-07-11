@@ -78,14 +78,16 @@ function lcsOps(
     return before.map((line) => ({ type: "removed" as const, line }));
   }
 
-  // table[i][j] = LCS length of before[i..] vs after[j..]
-  const table: Uint32Array[] = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  // Flat (n+1)×(m+1) table; cell(i, j) = LCS length of before[i..] vs
+  // after[j..]. Flat typed-array indexing keeps every read a plain number
+  // (no per-row undefined under noUncheckedIndexedAccess).
+  const width = m + 1;
+  const table = new Uint32Array((n + 1) * width);
+  const cell = (i: number, j: number): number => table[i * width + j]!;
   for (let i = n - 1; i >= 0; i -= 1) {
     for (let j = m - 1; j >= 0; j -= 1) {
-      table[i][j] =
-        before[i] === after[j]
-          ? table[i + 1][j + 1] + 1
-          : Math.max(table[i + 1][j], table[i][j + 1]);
+      table[i * width + j] =
+        before[i] === after[j] ? cell(i + 1, j + 1) + 1 : Math.max(cell(i + 1, j), cell(i, j + 1));
     }
   }
 
@@ -102,25 +104,25 @@ function lcsOps(
   while (i < n && j < m) {
     if (before[i] === after[j]) {
       flushAdds();
-      ops.push({ type: "equal", line: before[i] });
+      ops.push({ type: "equal", line: before[i]! });
       i += 1;
       j += 1;
-    } else if (table[i + 1][j] >= table[i][j + 1]) {
+    } else if (cell(i + 1, j) >= cell(i, j + 1)) {
       // Buffer adds seen so far so a mixed edit region emits removed first.
-      ops.push({ type: "removed", line: before[i] });
+      ops.push({ type: "removed", line: before[i]! });
       i += 1;
     } else {
-      pendingAdds.push(after[j]);
+      pendingAdds.push(after[j]!);
       j += 1;
     }
   }
   while (i < n) {
-    ops.push({ type: "removed", line: before[i] });
+    ops.push({ type: "removed", line: before[i]! });
     i += 1;
   }
   flushAdds();
   while (j < m) {
-    ops.push({ type: "added", line: after[j] });
+    ops.push({ type: "added", line: after[j]! });
     j += 1;
   }
   return ops;
