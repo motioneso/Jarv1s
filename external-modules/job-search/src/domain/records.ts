@@ -19,11 +19,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * so the domain always fires first). Error messages carry sizes only, never
  * record content.
  */
-export async function writeRecord(
+// Generic (not Record<string, unknown>) so interface-typed domain records
+// are accepted without index signatures; runtime validation does the real
+// shape enforcement.
+export async function writeRecord<T extends object>(
   kv: JobSearchKv,
   namespace: string,
   key: string,
-  record: Record<string, unknown>
+  record: T
 ): Promise<void> {
   if (!isPlainObject(record) || record.schemaVersion !== 1) {
     throw new JobSearchKvError("invalid_record", "record must be an object with schemaVersion 1");
