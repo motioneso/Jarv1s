@@ -3349,3 +3349,18 @@ substantive spec, merged via approved PR #929). `needs-spec` label + "Draft" hea
 fetch + external content). ZERO migrations (module_kv only) → NO collision with the parallel News S2
 Codex build. QA council = Opus + Codex(+CI) — but Codex quota-blocked till 14:37, so second lens may
 degrade to independent Opus critic again if JS-05 QA lands before 14:37.
+
+### JS-05 #934 SPAWNED — 2026-07-11 11:40 PDT
+- Agent **JS-05: monitoring (Fable)** pane `w1:pFW`, tab `w1:t17` (shared agents tab), worktree
+  `.claude/worktrees/js-05-monitoring`, branch `feat/js-05-monitoring` @ `af318809`. Model verified
+  **Fable 5** (status line). Status: **building** (coordinated-build; plan approval pending).
+- Tier **security**; ZERO migrations (module_kv) → no collision with parallel News S2 Codex build.
+- QA council on completion = Opus adversarial + Codex(+CI) author-independent. If QA lands before
+  Codex quota reset (14:37), second lens degrades to independent Opus critic (documented).
+
+### Live fleet snapshot 2026-07-11 11:40 PDT
+- `w1:pE6` Coordinator (me, session 58a78927) — authority.
+- `w1:pFW` JS-05 Fable — building.
+- `w1:pFV` News S2 Codex (session 019f5265) — PARKED, quota-blocked, resume 14:37 (cron b5acf481 @14:40).
+- `w1:pEP` Codex done/idle (session 019f4fd0) — News quota fallback if pFV can't resume.
+- `w1:pBK` idle stray (news-module worktree, session 28c218bf) — hold, do not reap blindly.
