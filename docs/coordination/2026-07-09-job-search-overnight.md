@@ -3210,3 +3210,11 @@ anything requiring escalation and do that instead of waiting for me."
 
 **Lock:** coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f` (in-place compaction; no
 successor pane). Stray pane pBK/`28c218bf` (news-module worktree, idle) — do NOT reap blindly.
+
+### News S2 Task 3 pre-commit finding (relayed to Codex pFR 2026-07-11)
+2nd-lens (Codex pEP): fetchWebResource timeout does NOT abort-race the DNS `validateHttpUrl` await
+nor `rateLimiter.acquire`; requestCheckedUrl/nodeHttpTransport don't pre-check an already-aborted
+signal → hung resolver exceeds timeout, or a rate wait wakes post-timeout and still starts transport.
+Fix relayed: abort-aware DNS+limiter waits, reject-before-transport on aborted signal, tests
+(resolver-never-settles→timeout; limiter-wait-past-timeout→timeout + transport call count 0);
+redirect-hop resolved-IP pinning preserved. **QA council must confirm this landed** before merge.
