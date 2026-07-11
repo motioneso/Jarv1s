@@ -3226,3 +3226,13 @@ REQUIRED: (1) jarvis_worker_runtime SELECTs own news_prefs but NOT another owner
 (not just read-null); (3) 11th custom topic → NewsPersonalizationLimitError (10-topic contract).
 Same-owner column-grant + source cross-owner tests already good. **QA council must confirm all
 three landed** before merge.
+
+### News S2 B6 implementation-order guard (relayed to Codex pFR 2026-07-11) — PLAN-TEXT CORRECTION
+2nd-lens (Codex pEP): generation CAS only prevents snapshot resurrection if a DESTRUCTIVE pref
+change bumps generation BEFORE prune. Approved plan text ordered delete/exclude→prune→bump — a race
+(old compile CAS-publishes between prune and bump). CORRECTED ordering (supersedes plan text):
+one DataContext txn where feasible — persist delete/exclusion → bumpRefreshRequest → atomic prune →
+enqueue; **bump MUST precede prune**. Applies to source DELETE + exclusion ADD (immediate removal);
+unexclude/non-destructive only bump. Test: interleave old publish between bump/prune, assert
+CAS=false AND excluded/deleted domain absent on route return. **QA council must confirm ordering +
+test landed.**
