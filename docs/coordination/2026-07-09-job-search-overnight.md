@@ -3130,3 +3130,10 @@ anything requiring escalation and do that instead of waiting for me."
 - **⚠ FABLE RATE WATCH:** two Fable lanes (JS-04 pFK + News S2 pFM); session limit ~85% used
   (resets 11am), weekly 67%. JS-04 already hit 2 API mid-stream stalls (likely Fable overload). If
   both hard-stall on the cap → surface to Ben (wait for 11am reset vs move one lane to Sonnet).
+
+- **News S2 QA role-separation (pEP guard, RECORDED):** pFM (Fable) is the coordinated-build
+  AUTHOR. Its council QA MUST include an **independent Fable reviewer = a fresh worktree-isolated
+  coordinated-qa agent (model fable), NOT pFM** — an author cannot review its own work. Same
+  pattern used for #955 (Fable QA was a separate Agent). News S2 council = Opus adversarial QA +
+  Codex second lens + independent Fable QA. Stale "named-Gemini-unanimity" gate text is DEAD
+  (superseded by Ben's correction: cross-provider council, Fable seat, `agy` not `gemini`).
