@@ -2784,3 +2784,13 @@ anything requiring escalation and do that instead of waiting for me."
 **Stray to investigate (non-urgent):** unlabeled idle claude pane `w1:pBK` (session 28c218bf) in a `.claude/worktrees/news-module` worktree — not part of the tracked fleet; confirm orphan then reap.
 
 **After JS-02:** proceed JS-03 (#932) SOLO on Fable, then JS-04…JS-09 sequential, each council-QA'd.
+
+---
+
+## Checkpoint 2026-07-11b — JS-02 MERGED, JS-03 queued, News S1 relaying
+
+**JS-02 #952 MERGED** squash `a8d638e4` @08:42:42Z. Council (degraded): Opus QA PASS + Opus refuter CANNOT-REFUTE + CI green (real-PG RLS) + Codex cross-provider-unavailable, aggregated verdict posted (comment 4944007144). #931 closed, pET reaped, worktree+branch removed. `merges_since_relay` — security merge; per standing auto-compact directive, flushing IN-PLACE (NO successor pane), continuing in-session.
+
+**JS-03 #932 — QUEUED, not yet spawned.** Spec (on origin/main a8d638e4, NOT on coord branch): `docs/superpowers/specs/2026-07-10-job-search-js-03-onboarding-truth-guard.md` (+ module-design + task-decomposition). Epic #913. GATE: holding spawn until main CI on a8d638e4 concludes green (watch bhrb5syhy, one-shot). Then: worktree off origin/main, Fable handoff, spawn Fable build agent (SOLO lane, coordinated-build → plan → my approval → TDD). Tier TBD from spec ("resume truth guard" → ≥ sensitive, likely security).
+
+**News S1 pEW (Fable) RELAYING at 70%.** Progress: plan approved; Task 1 partial — split foundation.test.ts → foundation-schema-catalog.test.ts (dbcf9092, 31/31 green, file-size gate green), prettier 1cda4286. Migration 0159 reserved, NOT written. pEW spawning its own Fable successor same worktree/tab. **ACTION PENDING:** verify successor lands in agents tab on `claude-fable-5` (self-relay can misplace tab), then reap old pEW pane. NOTE: foundation.test.ts split is a shared-file structural change — low collision risk now (News is sole migration-bearing lane; JS-03 not yet spawned).
