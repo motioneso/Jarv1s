@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "id": "job-search",
+  "name": "Job Search",
+  "version": "0.1.0",
+  "publisher": "Jarvis Project",
+  "lifecycle": "optional",
+  "compatibility": { "jarv1s": ">=0.1.0" },
+  "storage": [
+    { "namespace": "job-search.onboarding", "scopes": ["user"] },
+    { "namespace": "job-search.profile", "scopes": ["user"] },
+    { "namespace": "job-search.resume", "scopes": ["user"] },
+    { "namespace": "job-search.monitors", "scopes": ["user"] },
+    { "namespace": "job-search.opportunities", "scopes": ["user"] },
+    { "namespace": "job-search.runs", "scopes": ["user"] },
+    { "namespace": "job-search.feed", "scopes": ["user"] }
+  ],
+  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
+  "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
+  "assistantTools": [
+    {
+      "name": "job-search.onboarding.get-state",
+      "permissionId": "job-search.onboarding.get-state",
+      "description": "Read the user's job-search onboarding progress",
+      "risk": "read",
+      "inputSchema": { "type": "object" },
+      "handler": "onboarding.get-state"
+    },
+    {
+      "name": "job-search.profile.get",
+      "permissionId": "job-search.profile.get",
+      "description": "Read the user's job-search profile",
+      "risk": "read",
+      "inputSchema": { "type": "object" },
+      "handler": "profile.get"
+    },
+    {
+      "name": "job-search.profile.save-draft",
+      "permissionId": "job-search.profile.save-draft",
+      "description": "Save a draft of the user's job-search profile",
+      "risk": "write",
+      "inputSchema": { "type": "object" },
+      "handler": "profile.save-draft"
+    },
+    {
+      "name": "job-search.profile.approve",
+      "permissionId": "job-search.profile.approve",
+      "description": "Approve the drafted job-search profile",
+      "risk": "write",
+      "inputSchema": { "type": "object" },
+      "handler": "profile.approve"
+    },
+    {
+      "name": "job-search.resume.get",
+      "permissionId": "job-search.resume.get",
+      "description": "Read the user's structured resume",
+      "risk": "read",
+      "inputSchema": { "type": "object" },
+      "handler": "resume.get"
+    },
+    {
+      "name": "job-search.resume.save-draft",
+      "permissionId": "job-search.resume.save-draft",
+      "description": "Save a draft of the user's structured resume",
+      "risk": "write",
+      "inputSchema": { "type": "object" },
+      "handler": "resume.save-draft"
+    },
+    {
+      "name": "job-search.resume.approve",
+      "permissionId": "job-search.resume.approve",
+      "description": "Approve the drafted structured resume",
+      "risk": "write",
+      "inputSchema": { "type": "object" },
+      "handler": "resume.approve"
+    },
+    {
+      "name": "job-search.monitor.list",
+      "permissionId": "job-search.monitor.list",
+      "description": "List the user's job monitors",
+      "risk": "read",
+      "inputSchema": { "type": "object" },
+      "handler": "monitor.list"
+    },
+    {
+      "name": "job-search.monitor.get",
+      "permissionId": "job-search.monitor.get",
+      "description": "Read one job monitor",
+      "risk": "read",
+      "inputSchema": { "type": "object" },
+      "handler": "monitor.get"
+    },
+    {
+      "name": "job-search.monitor.save",
+      "permissionId": "job-search.monitor.save",
+      "description": "Create or update a job monitor",
+      "risk": "write",
+      "inputSchema": { "type": "object" },
+      "handler": "monitor.save"
+    },
+    {
+      "name": "job-search.opportunities.list",
+      "permissionId": "job-search.opportunities.list",
+      "description": "List discovered job opportunities",
+      "risk": "read",
+      "inputSchema": { "type": "object" },
+      "handler": "opportunities.list"
+    },
+    {
+      "name": "job-search.opportunities.get",
+      "permissionId": "job-search.opportunities.get",
+      "description": "Read one job opportunity",
+      "risk": "read",
+      "inputSchema": { "type": "object" },
+      "handler": "opportunities.get"
+    },
+    {
+      "name": "job-search.opportunity.decide",
+      "permissionId": "job-search.opportunity.decide",
+      "description": "Record the user's decision on a job opportunity",
+      "risk": "write",
+      "inputSchema": { "type": "object" },
+      "handler": "opportunity.decide"
+    }
+  ],
+  "worker": {
+    "queues": [{ "name": "job-search.monitor-run", "handler": "monitor.run", "retryLimit": 3 }],
+    "schedules": [
+      {
+        "id": "job-search.monitor-sweep",
+        "cron": "*/15 * * * *",
+        "scope": "user",
+        "jobKind": "job-search.monitor-sweep",
+        "queue": "job-search.monitor-run"
+      }
+    ]
+  },
+  "fetchHosts": ["boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com"]
+}
