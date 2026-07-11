@@ -3,7 +3,8 @@ import type {
   ExternalModuleDto,
   ListExternalModulesResponse,
   ListModulesResponse,
-  ListMyModulesResponse
+  ListMyModulesResponse,
+  ModuleDto
 } from "@jarv1s/shared";
 
 export const modulesResponse: ListModulesResponse = {
@@ -213,5 +214,81 @@ export async function mockExternalModules(page: Page): Promise<void> {
       active: enabled
     };
     await route.fulfill({ json: { module: current } });
+  });
+}
+
+/**
+ * #916 — mount a fake ENABLED external web module and serve its bundle, so the e2e can drive the
+ * real button-click → host-action → editable-draft flow. Registered AFTER mockApi so these routes
+ * win (Playwright matches most-recently-registered first).
+ *
+ * The served bundle is valid ESM: it reads the host React from the runtime global the loader
+ * installs at boot (window.__JARVIS_MODULE_RUNTIME__), so exactly one React instance exists, and
+ * its Root calls the host action from a user gesture — no JSX/transpile needed to serve it as text.
+ */
+export async function mockExternalWebModule(page: Page): Promise<void> {
+  const moduleId = "job-search";
+  const entrypoint = "dist/web/index.js";
+
+  const externalEntry = {
+    id: moduleId,
+    name: "Job Search",
+    version: "0.1.0",
+    lifecycle: "optional" as const,
+    external: true,
+    web: { entrypoint, contractVersion: 1 },
+    navigation: [{ id: moduleId, label: "Job Search", path: `/m/${moduleId}`, order: 60 }],
+    settings: []
+  };
+
+  // /api/modules — the app.tsx externalModuleRoutes filter needs external:true + web set.
+  await page.route("**/api/modules", async (route) => {
+    const body: ListModulesResponse = {
+      modules: [...modulesResponse.modules, externalEntry as unknown as ModuleDto]
+    };
+    await route.fulfill({ json: body });
+  });
+
+  // /api/me/modules — mark it active so the module is enabled for the actor.
+  await page.route("**/api/me/modules", async (route) => {
+    const body: ListMyModulesResponse = {
+      modules: [
+        ...myModulesResponse.modules,
+        {
+          id: moduleId,
+          name: "Job Search",
+          version: "0.1.0",
+          lifecycle: "optional",
+          required: false,
+          supportsUserDisable: true,
+          instanceDisabled: false,
+          userDisabled: false,
+          active: true
+        }
+      ]
+    };
+    await route.fulfill({ json: body });
+  });
+
+  // The bundle itself — a real ESM module whose Root invokes the host action from a click.
+  // Trailing `*` (not an exact match): the dev-time `import(url)` in loader.ts hits an absolute
+  // URL Vite doesn't own, so its browser client appends a `?import` query suffix to the request —
+  // an exact-path glob 404s on that suffix, which only ever shows up under Vite dev, never prod
+  // (Fastify route matching ignores query strings there).
+  await page.route(`**/api/modules/${moduleId}/web/${entrypoint}*`, async (route) => {
+    const bundle = [
+      "const { react: React } = window.__JARVIS_MODULE_RUNTIME__;",
+      "export default {",
+      "  contractVersion: 1,",
+      "  Root: (props) => React.createElement('button', {",
+      "    type: 'button',",
+      "    onClick: () => props.hostActions.openAssistant({ starterPrompt: 'Help me start my job search.' })",
+      "  }, 'Continue with Jarvis')",
+      "};"
+    ].join("\n");
+    await route.fulfill({
+      contentType: "text/javascript; charset=utf-8",
+      body: bundle
+    });
   });
 }
