@@ -2566,3 +2566,19 @@ full verify:foundation gate + coordinated-wrap-up (PR + report). pEH relaying to
 worktree/branch. Successor must be Sonnet (#916 = platform seam, Sonnet rule) + tab w1:t17.
 AWAITING successor-driving confirm → verify + reap pEH. Then #916 wrap-up PR = SECURITY tier →
 Opus adversarial QA + Fable panel sign-off → merge → platform (epic #818) COMPLETE.
+
+## JS BUILD DAG (Fable scout, corrected) — 2026-07-11
+
+FOUNDATION: JS-01 (#930). Waves:
+- W1: **JS-01** #930 [sensitive] — package contract/manifest ABI + fail-closed fixture; deps none.
+- W2 ‖: JS-02 #931 [security] (RLS owner-isolation, export/delete/retention), JS-04 #933 [security] (host-pinned egress/SSRF, HTML sanitize, rate) — dep JS-01.
+- W3 ‖: JS-03 #932 [sensitive] (gateway/confirm-gated writes/truth-guard) dep JS-02 [#916 soft — can start, one-click verify needs #916]; JS-05 #934 [sensitive] (pg-boss metadata-only payloads, schedule idempotency) dep JS-02+JS-04.
+- W4 ‖: JS-06 #935 [routine] dep JS-02+JS-03 [#916 HARD — verification tests editable-draft/focus]; JS-07 #936 [security] (prompt-injection containment, 25/day cap) dep JS-03+JS-05.
+- W5: JS-08 #937 [sensitive] (assistant read/decide via gateway, owner/admin isolation) dep JS-06+JS-07.
+- W6: JS-09 #938 [sensitive] (acceptance/privacy scans, validation-only) dep JS-08.
+
+**Scout's "runtime gates" were STALE** — it inferred blockers from spec `depends on #919/#915`
+headers, but #919 (`ff2ab3a7`) and #915 (`2f4a0fe3`) are ALREADY MERGED. Only real gate = **#916**,
+hard for JS-06, soft for JS-03. Critical path reaches JS-06 at W4 — #916 merges long before → no stall.
+**JS-01 buildable NOW.** Spawning Fable (`claude-fable-5`) build agent on JS-01, worktree
+`.claude/worktrees/js-01-package-contract` branch `feat/js-01-package-contract` off origin/main.
