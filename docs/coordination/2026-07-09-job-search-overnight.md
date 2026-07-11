@@ -2300,3 +2300,30 @@ commit / relay / stuck. (3) On #914 merge: rebase #939, spawn #915 lane lean.
   security tier. Spawn LEAN. Then #916 (task 8, still needs-spec).
 - **TODO:** verify #919 board card → Done (auto-move on close, like #914; confirm not stuck).
 - **#915 (task 10) / #916 (task 8):** still gated on #939 landing.
+
+---
+
+**CHECKPOINT @ 2026-07-11 01:40 — #915 build lane SPAWNED (post-#939-merge, no successor per Ben's override):**
+
+- **#915 external worker capabilities — BUILDING.** Agent `w1:pEB` (codex `gpt-5.6-sol high`,
+  session `019f4ec1-77a3-73a3-a4d9-2c2960b33f0f`), fresh `agents` tab `w1:t1H`. Worktree
+  `.claude/worktrees/915-worker-capabilities` (canonical fleet path under main repo), branch
+  `feat/915-worker-capabilities` off `origin/main` @`ff2ab3a7`. **Security tier.**
+- **Worktree relocation note:** initially created NESTED under the coordinator worktree by mistake;
+  removed + re-added at canonical `/home/ben/Jarv1s/.claude/worktrees/915-worker-capabilities`. The
+  handoff commit `9fbc2974` rode the branch across the move (branch-scoped, not worktree-scoped).
+- **Spawn placement fix:** `herdr agent start --workspace w1` (no `--tab`) auto-placed pEB into the
+  Coordinator tab `t15`; immediately `herdr pane move w1:pEB --new-tab --workspace w1 --label agents`
+  → clean `agents` tab `w1:t1H`. Coordinator `pE6` stays alone in `t15`. (Lesson: spawns without an
+  existing agents tab land in the coordinator tab — always move out.)
+- **Scope (from handoff):** Goal #1 (queue/schedule/run-now registration + reconciliation) + Goal #3
+  (host-pinned SSRF-safe fetch). **EXCLUDES** Goal #2 structured-AI RPC seam — already shipped PR #923.
+- **Collision:** #919 runtime is on main (build on it, don't duplicate). Migration seq tops at 0157;
+  **next free = 0158** (do not assume — I assign landing order). pg-boss client `packages/jobs/src/pg-boss.ts`.
+- **Gate:** awaiting plan escalation to Coordinator label before any code (coordinated-build step 1).
+- **merges_since_relay: 0** (reset after #939). No new merges this checkpoint. Meter fired 70% →
+  flushed in-place, NO successor (Ben's auto-compact override still governing).
+- **Active monitors:** `bsi7vj8er` fleet-liveness (persistent).
+- **Still held:** #916 starter action (task 8) — `needs-spec`, Fable split it onto JS critical path.
+- **Open TODO:** verify #919 board card → Done (low priority; `gh project item-list 2` returned empty
+  earlier — CLI/project-number format suspect).
