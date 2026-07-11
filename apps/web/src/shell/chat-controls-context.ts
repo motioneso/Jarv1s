@@ -5,6 +5,11 @@ export interface ChatControls {
   readonly openChat: () => void;
   /** Open the chat drawer and send `prompt` as a turn. */
   readonly openChatWith: (prompt: string) => void;
+  /**
+   * #916 — open the drawer with a module-authored `draft` as an EDITABLE composer draft. Never
+   * auto-sends; the user reviews and submits. Distinct from `openChatWith`, which auto-sends.
+   */
+  readonly openAssistantWithDraft: (draft: string) => void;
 }
 
 const ChatControlsContext = createContext<ChatControls | null>(null);
