@@ -3572,3 +3572,25 @@ Also: **Next merge/image build = NUMBERED release** (v* tag → CI :<version>), 
 
 ## JS-06 relay #2 + reap — 2026-07-11 ~14:52
 pG6 (Fable, fb5b0855) hit 70% after Tasks 1-5 green (latest e7910dcd, 21/21 unit + typecheck). Successor **pG9 "surface v4" FABLE, sess 8894150c, tab w1:t17** driving (resumes Task 6 onboarding screen). pG6 reaped.
+
+---
+
+## RELAY CHECKPOINT (70% meter — auto-compact IN PLACE, no successor pane) — 2026-07-11 ~15:05
+
+Standing directive #3: this coordinator auto-compacts in place; do NOT spawn a successor coordinator pane on the 70% meter. Flush + memory here, continue driving. Coordinator session **58a78927** (authority), pane w1:pE6, tab w1:t15 — re-confirm vs this lock before any merge.
+
+**merges_since_relay = 0** (no merges since last relay; nothing to merge this window).
+
+### Live fleet (resolved fresh this checkpoint)
+- **JS-06 #935 (task #21)** — pG9 "surface v4", session **8894150c**, Fable, WORKING. SENSITIVE. Building Task 6+ (Tasks 1-5 green: 21/21 unit + typecheck). On done -> QA standard + module-isolation/no-contract-drift/fail-closed/text-only walk.
+- **sports #963 (task #23)** — pG8, session **53df7767**, Fable 5, WORKING (68%, high). ROUTINE. Plan APPROVED this checkpoint (strip-only: live score -> footer strip, bold body slot reverts to lede; existing banner/name-row Live markers KEPT, strip LIVE tag additive; story cap 3->2; 2 stale live-footer test assertions updated). On green -> wrap-up PR -> Coordinator QA -> auto-merge (routine).
+- **News S2 #958 (task #19)** — pEP, session **019f4fd0**, Codex (Ben's, resumed by Ben), WORKING in .claude/worktrees/news-slice2. SECURITY, council QA Opus+Fable, council-gated merge. DO NOT touch that worktree/tree.
+- **JS-07 #936 (task #22)** — plan finalized @ 948a06ae (feat/js-07-plan), QUEUED behind JS-06. SECURITY. Spawn Fable builder when JS-06 clears. Folds #962 items 1-2.
+
+### NEW this checkpoint
+- **Issue #964 filed (Part of #860)** — module distribution & install feature Ben requested ("detect modules in the repo and let the admin download"). Scope decided by Ben: **remote registry download + FULL privileged install** (biggest security surface; module-marketplace territory). SPEC-GATED — Fable-authored spec + council review + Ben/council approval BEFORE build. NO builder spawned. Explore-verified gap: runtime load + enable/disable BUILT; download/registry-fetch/signing NOT built; scripts/module-install.ts dormant (no caller).
+- **Numbered release directive (Ben):** next merge/image build = push a `v*` tag (CI -> :<version> multi-arch). Before tagging, verify the merged baseline `.dockerignore` has the `external-modules` line so job-search is EXCLUDED from the default image (job-search is NOT a default module — must be downloaded/mounted + admin-enabled).
+- **Model policy (Ben, hard):** NO Sonnet authoring plans/specs — EVER. Plans/specs = Fable; Fable capped -> Opus 4.8 high. Sonnet may still code under an approved plan.
+
+### Continuation note (mid-doing)
+Just approved sports #963 + filed #964. Nothing awaiting my ack now. Next watch: JS-06 pG9 done -> QA/merge; sports pG8 done -> QA/merge (relay after 2 routine/sensitive merges or next security merge). #964 spec is a distinct workstream to stand up (Fable lane) when Ben wants it moving — not urgent, no builder until spec approved.
