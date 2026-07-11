@@ -26,6 +26,9 @@ const MAX_INPUT_LENGTH = 2048;
 /** RFC 1035 total hostname bound (after trailing-dot strip). */
 const MAX_HOSTNAME_LENGTH = 253;
 
+export const NEWS_MAX_CUSTOM_SOURCES = 10;
+export const NEWS_MAX_CUSTOM_TOPICS = 10;
+
 // Anything with a scheme-like prefix is parsed as-is so non-HTTPS schemes (http, ftp,
 // javascript, or a bare host:port misread as scheme) are rejected rather than mangled.
 const SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
@@ -104,6 +107,38 @@ export const NEWS_SNAPSHOT_MAX_STRING_LENGTH = 4096;
 export const NEWS_SNAPSHOT_MAX_TOTAL_BYTES = 256 * 1024;
 export const NEWS_SNAPSHOT_MAX_DEPTH = 8;
 
+export interface NewsSnapshotArticle {
+  readonly id: string;
+  readonly publisher: string;
+  readonly canonicalDomain: string;
+  readonly headline: string;
+  readonly url: string;
+  readonly publishedAt: string;
+  readonly excerpt: string | null;
+  readonly imageUrl: string | null;
+  readonly topics: readonly string[];
+  readonly preferred: boolean;
+  readonly rank: number;
+}
+
+export interface NewsSnapshotPayload {
+  readonly articles: readonly NewsSnapshotArticle[];
+}
+
+const SNAPSHOT_ARTICLE_KEYS = [
+  "canonicalDomain",
+  "excerpt",
+  "headline",
+  "id",
+  "imageUrl",
+  "preferred",
+  "publishedAt",
+  "publisher",
+  "rank",
+  "topics",
+  "url"
+] as const;
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const proto: unknown = Object.getPrototypeOf(value);
@@ -150,9 +185,12 @@ function assertJsonValue(value: unknown, depth: number, path: string): void {
  * `{ articles: object[] (≤ NEWS_SNAPSHOT_MAX_ARTICLES), ... }` within the string,
  * depth, and total-byte caps above. Callers MUST run this before any snapshot SQL.
  */
-export function assertSnapshotPayload(payload: unknown): void {
+export function assertSnapshotPayload(payload: unknown): asserts payload is NewsSnapshotPayload {
   if (!isPlainObject(payload)) {
     throw new Error("snapshot payload must be a plain JSON object");
+  }
+  if (Object.keys(payload).length !== 1 || !("articles" in payload)) {
+    throw new Error("snapshot payload must contain only articles");
   }
   const { articles } = payload;
   if (!Array.isArray(articles)) {
@@ -164,6 +202,65 @@ export function assertSnapshotPayload(payload: unknown): void {
   for (const [index, article] of articles.entries()) {
     if (!isPlainObject(article)) {
       throw new Error(`snapshot payload articles[${index}] must be a plain JSON object`);
+    }
+    const path = `snapshot payload articles[${index}]`;
+    if (Object.keys(article).sort().join(",") !== SNAPSHOT_ARTICLE_KEYS.join(",")) {
+      throw new Error(`${path} has an invalid shape`);
+    }
+    for (const key of [
+      "id",
+      "publisher",
+      "canonicalDomain",
+      "headline",
+      "url",
+      "publishedAt"
+    ] as const) {
+      if (typeof article[key] !== "string" || article[key].length === 0) {
+        throw new Error(`${path}.${key} must be a non-empty string`);
+      }
+    }
+    const domain = normalizePublisherDomain(article.canonicalDomain as string);
+    if (!domain.ok || domain.domain !== article.canonicalDomain) {
+      throw new Error(`${path}.canonicalDomain must be canonical`);
+    }
+    try {
+      const url = new URL(article.url as string);
+      if (url.protocol !== "https:") throw new Error();
+    } catch {
+      throw new Error(`${path}.url must be HTTPS`);
+    }
+    if (
+      Number.isNaN(Date.parse(article.publishedAt as string)) ||
+      new Date(article.publishedAt as string).toISOString() !== article.publishedAt
+    ) {
+      throw new Error(`${path}.publishedAt must be an ISO timestamp`);
+    }
+    if (article.excerpt !== null && typeof article.excerpt !== "string") {
+      throw new Error(`${path}.excerpt must be a string or null`);
+    }
+    if (article.imageUrl !== null) {
+      try {
+        const image = new URL(article.imageUrl as string);
+        if (image.protocol !== "https:") throw new Error();
+      } catch {
+        throw new Error(`${path}.imageUrl must be HTTPS or null`);
+      }
+    }
+    if (
+      !Array.isArray(article.topics) ||
+      !article.topics.every((topic) => typeof topic === "string")
+    ) {
+      throw new Error(`${path}.topics must be a string array`);
+    }
+    if (typeof article.preferred !== "boolean") {
+      throw new Error(`${path}.preferred must be boolean`);
+    }
+    if (
+      !Number.isInteger(article.rank) ||
+      (article.rank as number) < 1 ||
+      (article.rank as number) > NEWS_SNAPSHOT_MAX_ARTICLES
+    ) {
+      throw new Error(`${path}.rank is invalid`);
     }
   }
 

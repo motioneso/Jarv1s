@@ -1,35 +1,28 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { PgBoss } from "pg-boss";
 
 import type { DatasetClient } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
   createNewsPrefResponseSchema,
-  createNewsSourceExclusionSchema,
   deleteNewsPrefResponseSchema,
-  deleteNewsSourceExclusionSchema,
-  getNewsPersonalizationSchema,
   newsCatalogResponseSchema,
   newsOverviewResponseSchema,
   newsPrefsResponseSchema,
   type CreateNewsPrefRequest,
-  type CreateNewsSourceExclusionRequest,
-  type GetNewsPersonalizationResponse,
-  type NewsCustomSourceDto,
-  type NewsCustomTopicDto,
-  type NewsPrefDto,
-  type NewsSnapshotMetaDto,
-  type NewsSourceExclusionDto
+  type NewsPrefDto
 } from "@jarv1s/shared";
 
 import { NewsPrefsRepository } from "./repository.js";
 import { NewsService, type NewsPrefsReader } from "./news-service.js";
-import { normalizePublisherDomain } from "./personalization-domain.js";
+import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "./discovery/ports.js";
 import {
-  NewsPersonalizationLimitError,
-  NewsPersonalizationRepository,
-  type NewsSnapshotRecord
-} from "./personalization-repository.js";
+  registerNewsPersonalizationRoutes,
+  triggerNewsRefresh,
+  type NewsPersonalizationStore
+} from "./personalization-routes.js";
+import { NewsPersonalizationRepository } from "./personalization-repository.js";
 import { sourceEntry, topicOption } from "./source/catalog.js";
 
 /**
@@ -52,19 +45,6 @@ export interface NewsPersonalizationAvailabilityPort {
   hasWebSearch(scopedDb: DataContextDb): Promise<boolean>;
 }
 
-/** The personalization persistence surface the routes need (tests inject a fake). */
-export interface NewsPersonalizationStore {
-  listCustomSources(scopedDb: DataContextDb): Promise<NewsCustomSourceDto[]>;
-  listCustomTopics(scopedDb: DataContextDb): Promise<NewsCustomTopicDto[]>;
-  listExclusions(scopedDb: DataContextDb): Promise<NewsSourceExclusionDto[]>;
-  createExclusion(
-    scopedDb: DataContextDb,
-    canonicalDomain: string
-  ): Promise<NewsSourceExclusionDto>;
-  removeExclusion(scopedDb: DataContextDb, id: string): Promise<boolean>;
-  readLatestSnapshot(scopedDb: DataContextDb): Promise<NewsSnapshotRecord | null>;
-}
-
 export interface NewsRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -75,25 +55,16 @@ export interface NewsRoutesDependencies {
   readonly datasetClient: DatasetClient;
   /** #953: injected availability callbacks (see NewsPersonalizationAvailabilityPort). */
   readonly availability: NewsPersonalizationAvailabilityPort;
+  readonly discovery: {
+    readonly fetch: NewsSafeFetchPort;
+    readonly search: NewsWebSearchPort;
+    readonly ai: NewsAiPort;
+  };
+  readonly boss: PgBoss | null;
   /** Optional injection point for tests; defaults to a real `NewsPrefsRepository`. */
   readonly repository?: NewsPrefsWriter;
   /** Optional injection point for tests; defaults to a real `NewsPersonalizationRepository`. */
   readonly personalizationRepository?: NewsPersonalizationStore;
-}
-
-/**
- * Snapshot METADATA for the GET response. The payload jsonb never crosses this function's
- * return — only its article count. (The response schema would strip a leaked payload anyway;
- * not building it into the response object is the primary guard, the schema is defense-in-depth.)
- */
-function toSnapshotMeta(record: NewsSnapshotRecord | null): NewsSnapshotMetaDto | null {
-  if (!record) return null;
-  const articles = (record.payload as { articles?: unknown }).articles;
-  return {
-    compiledAt: record.compiledAt.toISOString(),
-    expiresAt: record.expiresAt.toISOString(),
-    articleCount: Array.isArray(articles) ? articles.length : 0
-  };
 }
 
 /** POST /prefs key validation: the key must exist in the catalog for its kind. */
@@ -164,7 +135,15 @@ export function registerNewsRoutes(
           );
         }
         const pref = await dependencies.dataContext.withDataContext(accessContext, (db) =>
-          repository.create(db, input)
+          repository.create(db, input).then(async (created) => {
+            await triggerNewsRefresh(
+              db,
+              personalization,
+              dependencies.boss,
+              accessContext.actorUserId
+            );
+            return created;
+          })
         );
         return { pref };
       } catch (error) {
@@ -180,104 +159,31 @@ export function registerNewsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const { id } = request.params as { id: string };
-        const ok = await dependencies.dataContext.withDataContext(accessContext, (db) =>
-          repository.remove(db, id)
-        );
-        return { ok };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.get(
-    "/api/news/personalization",
-    { schema: getNewsPersonalizationSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        // One DataContext window for all six reads; parallel awaits on one scopedDb is the
-        // established repository pattern (see ai/repository.ts resolveModelForCapability).
-        const result = await dependencies.dataContext.withDataContext(accessContext, async (db) => {
-          const [customSources, customTopics, sourceExclusions, snapshot, jsonModel, webSearch] =
-            await Promise.all([
-              personalization.listCustomSources(db),
-              personalization.listCustomTopics(db),
-              personalization.listExclusions(db),
-              personalization.readLatestSnapshot(db),
-              dependencies.availability.hasJsonModel(db),
-              dependencies.availability.hasWebSearch(db)
-            ]);
-          return { customSources, customTopics, sourceExclusions, snapshot, jsonModel, webSearch };
-        });
-        // Spec availability mapping: URL-based custom sources need only a JSON-capable model;
-        // name-based sources and freeform topics additionally need web search to resolve/verify.
-        const response: GetNewsPersonalizationResponse = {
-          availability: {
-            aiConfigured: result.jsonModel,
-            webSearchConfigured: result.webSearch,
-            customSourceByUrlEnabled: result.jsonModel,
-            customSourceByNameEnabled: result.jsonModel && result.webSearch,
-            freeformTopicsEnabled: result.jsonModel && result.webSearch
-          },
-          customSources: result.customSources,
-          customTopics: result.customTopics,
-          sourceExclusions: result.sourceExclusions,
-          snapshot: toSnapshotMeta(result.snapshot)
-        };
-        return response;
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.post(
-    "/api/news/source-exclusions",
-    { schema: createNewsSourceExclusionSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const input = request.body as CreateNewsSourceExclusionRequest;
-        const normalized = normalizePublisherDomain(input.source);
-        if (!normalized.ok) {
-          // Reason key only — never echo the raw submitted string back (or into logs).
-          throw new HttpError(400, `Invalid publisher domain (${normalized.reason})`);
-        }
-        const exclusion = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (db) => {
-            try {
-              return await personalization.createExclusion(db, normalized.domain);
-            } catch (error) {
-              if (error instanceof NewsPersonalizationLimitError) {
-                throw new HttpError(400, error.message);
-              }
-              throw error;
-            }
+        const ok = await dependencies.dataContext.withDataContext(accessContext, async (db) => {
+          const removed = await repository.remove(db, id);
+          if (removed) {
+            await triggerNewsRefresh(
+              db,
+              personalization,
+              dependencies.boss,
+              accessContext.actorUserId
+            );
           }
-        );
-        return { exclusion };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.delete(
-    "/api/news/source-exclusions/:id",
-    { schema: deleteNewsSourceExclusionSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const { id } = request.params as { id: string };
-        const ok = await dependencies.dataContext.withDataContext(accessContext, (db) =>
-          personalization.removeExclusion(db, id)
-        );
+          return removed;
+        });
         return { ok };
       } catch (error) {
         return handleRouteError(error, reply);
       }
     }
   );
+
+  registerNewsPersonalizationRoutes(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    availability: dependencies.availability,
+    discovery: dependencies.discovery,
+    boss: dependencies.boss,
+    repository: personalization
+  });
 }

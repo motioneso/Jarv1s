@@ -737,6 +737,9 @@ importers:
       '@jarv1s/db':
         specifier: workspace:*
         version: link:../db
+      '@jarv1s/jobs':
+        specifier: workspace:*
+        version: link:../jobs
       '@jarv1s/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
@@ -764,6 +767,9 @@ importers:
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.7)
+      pg-boss:
+        specifier: ^12.18.2
+        version: 12.18.2
       react:
         specifier: ^19.0.0
         version: 19.2.7

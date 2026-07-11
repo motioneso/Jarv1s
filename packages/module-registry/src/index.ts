@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
@@ -28,6 +30,7 @@ import {
   aiModuleManifest,
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
+  generateStructured,
   registerAiMaintenanceWorkers,
   registerAiRoutes
 } from "@jarv1s/ai";
@@ -193,7 +196,11 @@ import {
   GOALS_MEMORY_SYNC_RECONCILE_QUEUE
 } from "@jarv1s/goals";
 import {
+  createHostRateLimiter,
+  createRobotsGate,
+  fetchWebResource,
   invalidateWebSearchProviderCache,
+  resolveWebSearchProvider,
   setWebSearchKeyResolver,
   webModuleManifest
 } from "@jarv1s/web-research";
@@ -216,8 +223,10 @@ import {
 import {
   configureNewsBriefingService,
   createRssDatasetAdapter,
+  NEWS_QUEUE_DEFINITIONS,
   newsModuleManifest,
   newsModuleSqlMigrationDirectory,
+  registerNewsJobWorkers,
   registerNewsRoutes
 } from "@jarv1s/news";
 import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
@@ -461,6 +470,62 @@ export interface BuiltInModuleRegistration {
     boss: PgBoss,
     dependencies: BuiltInWorkerDependencies
   ) => Promise<readonly string[]>;
+}
+
+const newsRobotsGate = createRobotsGate();
+const newsHostRateLimiter = createHostRateLimiter();
+
+function buildNewsDiscoveryPorts(logger?: Pick<FastifyBaseLogger, "info" | "warn">) {
+  const repository = new AiRepository();
+  const cipher = createAiSecretCipher();
+  return {
+    fetch: (url: string) =>
+      fetchWebResource(url, {
+        requireHttps: true,
+        robots: newsRobotsGate,
+        rateLimiter: newsHostRateLimiter
+      }),
+    search: {
+      async search(
+        scopedDb: DataContextDb,
+        query: string,
+        options: { limit: number; freshness?: "day" | "week" }
+      ) {
+        const result = await (
+          await resolveWebSearchProvider(scopedDb)
+        ).search({
+          query,
+          ...options
+        });
+        return { results: [...result.results] };
+      }
+    },
+    ai: {
+      generateJson: (
+        scopedDb: DataContextDb,
+        input: {
+          schema: Record<string, unknown>;
+          prompt: string;
+          maxOutputTokens?: number;
+        }
+      ) =>
+        generateStructured(
+          scopedDb,
+          { service: "module.news", ...input },
+          { repository, cipher, logger }
+        ),
+      async fingerprint(scopedDb: DataContextDb) {
+        const model = (
+          await repository.resolveModelForService(scopedDb, "module.news", {
+            capability: "json",
+            tierHint: "economy"
+          })
+        ).model;
+        if (!model) return null;
+        return createHash("sha256").update(`${model.provider_kind}\0${model.id}`).digest("hex");
+      }
+    }
+  };
 }
 
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
@@ -1286,7 +1351,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: newsModuleManifest,
     sqlMigrationDirectories: [newsModuleSqlMigrationDirectory],
-    queueDefinitions: [],
+    queueDefinitions: [...NEWS_QUEUE_DEFINITIONS],
     registerRoutes: (server, deps) => {
       // Same dataset-connector-SDK wiring as sports above: the composition root binds the
       // manifest-declared `newsfeeds` external source to the concrete RSS adapter so host
@@ -1302,16 +1367,35 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       // Briefing tool is constructed at import time; it adopts the client late-bound
       // (mirrors LOADER-SEAM(sports) 3).
       configureNewsBriefingService(datasetClient);
+      const discovery = buildNewsDiscoveryPorts(createModuleLogger(server.log, "news"));
       registerNewsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
         datasetClient,
+        discovery,
+        boss: deps.boss,
         // #953: news receives capability BOOLEANS only — model identity and key material stay
         // behind the AI/Settings public APIs; nothing secret crosses this seam.
         availability: {
           hasJsonModel: async (scopedDb) =>
-            (await new AiRepository().resolveModelForCapability(scopedDb, "json")).model !== null,
+            (
+              await new AiRepository().resolveModelForService(scopedDb, "module.news", {
+                capability: "json",
+                tierHint: "economy"
+              })
+            ).model !== null,
           hasWebSearch: async (scopedDb) => (await getWebSearchKeyConfig(scopedDb)).configured
+        }
+      });
+    },
+    registerWorkers: (boss, deps) => {
+      const discovery = buildNewsDiscoveryPorts(
+        deps.logger ? createModuleLogger(deps.logger, "news") : undefined
+      );
+      return registerNewsJobWorkers(boss, deps.dataContext, {
+        ...discovery,
+        logger: {
+          info: (fields) => deps.logger?.info(fields, "news compilation")
         }
       });
     }

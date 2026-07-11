@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  createRobotsGate,
+  fetchWebResource,
   isBlockedIp,
+  RateLimitExceededError,
+  readWebPage,
   setWebHttpTransportForTests,
   setWebFetchForTests,
   setWebHostResolverForTests,
@@ -222,6 +226,162 @@ describe("web.read", () => {
       skippedUrlCount: 6
     });
     expect(fetchCalls).toBe(0);
+  });
+});
+
+describe("fetchWebResource", () => {
+  it("enforces HTTPS without changing readWebPage compatibility", async () => {
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(async () => new Response("ok", { status: 200 }));
+
+    await expect(fetchWebResource("http://example.com", { requireHttps: true })).resolves.toEqual({
+      ok: false,
+      reason: "not_https"
+    });
+    await expect(readWebPage("http://example.com")).resolves.toMatchObject({ ok: true });
+  });
+
+  it("revalidates redirects and rejects private or downgraded targets", async () => {
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(
+      async () =>
+        new Response("", {
+          status: 302,
+          headers: { location: "http://good.example/downgraded" }
+        })
+    );
+    await expect(
+      fetchWebResource("https://good.example", { requireHttps: true })
+    ).resolves.toMatchObject({ ok: false, reason: "not_https" });
+
+    setWebHttpTransportForTests(
+      async () =>
+        new Response("", { status: 302, headers: { location: "https://169.254.169.254/" } })
+    );
+    await expect(fetchWebResource("https://good.example")).resolves.toMatchObject({
+      ok: false,
+      reason: "blocked"
+    });
+  });
+
+  it("pins the validated address and blocks a rebind-shaped redirect", async () => {
+    const requests: string[] = [];
+    setWebHostResolverForTests(async (hostname) => [
+      {
+        address: hostname === "rebound.example" ? "10.0.0.1" : "93.184.216.34",
+        family: 4
+      }
+    ]);
+    setWebHttpTransportForTests(async (request) => {
+      requests.push(request.connectHost);
+      return new Response("", {
+        status: 302,
+        headers: { location: "https://rebound.example/private" }
+      });
+    });
+
+    await expect(fetchWebResource("https://good.example")).resolves.toMatchObject({
+      ok: false,
+      reason: "blocked"
+    });
+    expect(requests).toEqual(["93.184.216.34"]);
+  });
+
+  it.each(["http://[::]/", "http://0x7f000001/", "http://[::ffff:127.0.0.1]/"])(
+    "blocks adversarial literal %s before transport",
+    async (url) => {
+      let calls = 0;
+      setWebHttpTransportForTests(async () => {
+        calls += 1;
+        return new Response("nope");
+      });
+      await expect(fetchWebResource(url)).resolves.toMatchObject({
+        ok: false,
+        reason: "blocked"
+      });
+      expect(calls).toBe(0);
+    }
+  );
+
+  it("consults robots before the page and fails closed", async () => {
+    const paths: string[] = [];
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(async (request) => {
+      paths.push(request.url.pathname);
+      return new Response("User-agent: *\nDisallow: /private", { status: 200 });
+    });
+
+    await expect(
+      fetchWebResource("https://example.com/private", { robots: createRobotsGate() })
+    ).resolves.toMatchObject({ ok: false, reason: "robots" });
+    expect(paths).toEqual(["/robots.txt"]);
+
+    setWebHttpTransportForTests(async () => new Response("unavailable", { status: 503 }));
+    await expect(
+      fetchWebResource("https://other.example/story", { robots: createRobotsGate() })
+    ).resolves.toMatchObject({ ok: false, reason: "robots" });
+  });
+
+  it("maps rate limits, truncation, and timeout", async () => {
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(async () => new Response("abcdef", { status: 200 }));
+    await expect(
+      fetchWebResource("https://example.com", {
+        rateLimiter: {
+          acquire: async () => {
+            throw new RateLimitExceededError();
+          }
+        }
+      })
+    ).resolves.toMatchObject({ ok: false, reason: "rate_limited" });
+    await expect(fetchWebResource("https://example.com", { maxBytes: 3 })).resolves.toMatchObject({
+      ok: true,
+      body: "abc",
+      truncated: true
+    });
+
+    setWebHttpTransportForTests(
+      async ({ signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        })
+    );
+    await expect(fetchWebResource("https://example.com", { timeoutMs: 1 })).resolves.toMatchObject({
+      ok: false,
+      reason: "timeout"
+    });
+  });
+
+  it("times out a resolver that never settles", async () => {
+    let transportCalls = 0;
+    setWebHostResolverForTests(() => new Promise(() => {}));
+    setWebHttpTransportForTests(async () => {
+      transportCalls += 1;
+      return new Response("unexpected");
+    });
+
+    await expect(fetchWebResource("https://example.com", { timeoutMs: 1 })).resolves.toEqual({
+      ok: false,
+      reason: "timeout"
+    });
+    expect(transportCalls).toBe(0);
+  }, 100);
+
+  it("does not start transport when a limiter wait exceeds the timeout", async () => {
+    let transportCalls = 0;
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(async () => {
+      transportCalls += 1;
+      return new Response("unexpected");
+    });
+
+    await expect(
+      fetchWebResource("https://example.com", {
+        timeoutMs: 1,
+        rateLimiter: { acquire: () => new Promise((resolve) => setTimeout(resolve, 50)) }
+      })
+    ).resolves.toEqual({ ok: false, reason: "timeout" });
+    expect(transportCalls).toBe(0);
   });
 });
 
