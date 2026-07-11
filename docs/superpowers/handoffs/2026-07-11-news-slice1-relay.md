@@ -1,4 +1,4 @@
-# Relay — News Slice 1 build (continuation, hop 4 → hop 5)
+# Relay — News Slice 1 build (continuation, hop 5 → hop 6)
 
 **You are the successor build agent. Model MUST be Fable (`claude-fable-5`) — Ben's directive;
 if you relay again, spawn Fable.**
@@ -59,20 +59,34 @@ if you relay again, spawn Fable.**
   (`tests/unit/news-{routes,service}.test.ts` — incl. secret-leak markers, availability
   derivation, canonicalization, cap→400, two-layer + suffix-trick filtering), integration
   module-registry 13/13. Trio green.
+- `191c8e91` **Task 5 COMPLETE**: News Settings personalization sections in
+  `packages/news/src/settings/index.tsx` + `news-settings.css` (tokens only) —
+  "Personalized sources" / "Topics you describe" (read-only lists, prereq `Badge` row, Add
+  buttons ALWAYS disabled in Slice 1, `ClosedWriteGate` copy switches setup-link
+  `/settings?section=assistant` vs `ComingSoon` on availability booleans), "Excluded publishers"
+  (live POST/DELETE form; client pre-validation reuses `normalizePublisherDomain`, copy map
+  `EXCLUSION_REJECTION_COPY` exhaustive over `PublisherDomainRejection` — reason KEYS only,
+  raw input never echoed); curated tiles under an excluded domain render `is-excluded` +
+  "Excluded" + disabled via exported `curatedTileState` (uses `publisherDomainMatches`).
+  Client fns in `packages/news/src/web/news-client.ts`, key `newsQueryKeys.personalization`.
+  Tests: planner unit + NEW `tests/unit/news-settings-pane.test.tsx` (renderToString, primed
+  QueryClient — sports-page pattern; pane assertions are attribute-order-sensitive, JSX prop
+  order type→className→disabled). 68/68 green across 4 news unit suites;
+  check:design-tokens + check:file-size + trio green.
 
-## Next: Task 5 (plan §Task 5 — News Settings UI sections)
+## Next: Task 6 (plan §Task 6 — data-lifecycle export, ~line 324)
 
-- Read plan §Task 5 first (starts ~line 293), then spec sections it cites. RED test first where
-  testable. No false affordances: gate custom-source/topic affordances on the availability
-  booleans from GET `/api/news/personalization`; Slice 1 has NO custom source/topic WRITE routes
-  (Slice 2) — UI must not pretend otherwise. Exclusions ARE writable (POST/DELETE above).
-- Preserve authored design system (jds-\*, serif headings/mono eyebrows/sans body; raw colors in
-  `apps/web/src/styles/tokens.css` only). Frontend recall: `memory_smart_search`
-  `"jarv1s frontend workspace querykey"` before starting.
-- Then Task 6 (data-lifecycle export: sources/topics/exclusions included, snapshots+fingerprints
-  OMITTED; then `pnpm verify:foundation` + full integration; closeout via `coordinated-wrap-up`
-  → PR "Part of #954", references #953; pre-push trio + rebase origin/main; re-check migration
-  0159 landing order vs open PRs before opening the PR).
+- Read plan §Task 6 first. RED export tests first: sources/topics/exclusions PRESENT in export,
+  snapshots + `validation_fingerprint` ABSENT, actor isolation — seed a REAL snapshot so the
+  omission assertion is non-vacuous.
+- Create `packages/news/src/data-lifecycle.ts` with `collectNewsExportSection(scopedDb)`
+  (assert DataContextDb); wire `packages/news/src/manifest.ts`,
+  `packages/settings/src/data-export.ts` (one explicit `newsPersonalization` archive field;
+  do NOT import News internals from Settings — public API only),
+  `tests/integration/data-export.test.ts`.
+- Then `pnpm verify:foundation` + full integration (record exact exit codes), closeout via
+  `coordinated-wrap-up` → PR "Part of #954", references #953; pre-push trio + rebase
+  origin/main; re-check migration 0159 landing order vs open PRs before opening the PR.
 
 ## Traps (verified)
 
