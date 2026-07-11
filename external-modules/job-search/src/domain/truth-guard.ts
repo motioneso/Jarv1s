@@ -283,23 +283,20 @@ export function extractMaterialSegments(markdown: string): { raw: string; phrase
 }
 
 /**
- * The persist gate for AI-proposed markdown, two-tier by proposed-segment
- * token count (fix cycle 3, design-adjudicated: Opus issuecomment-4946829260):
+ * The persist gate for AI-proposed markdown: EVERY proposed segment — single-
+ * and multi-token alike — must EQUAL a whole segment of the allowed corpus by
+ * normalized phrase; sub-containment never vouches.
  *
- * - MULTI-token segment: must appear as a contiguous, word-boundary-aligned
- *   phrase inside ONE segment of the allowed corpus. Sub-phrases of a corpus
- *   sentence pass; recombining tokens that only exist in separate segments
- *   fails — the cycle-2 bypass where "Engineer at Acme in 2020" passed
- *   because its tokens existed apart (Codex issuecomment-4946275153, Opus
- *   issuecomment-4946268694).
- * - SINGLE-token segment: must equal a WHOLE corpus segment, never
- *   sub-containment. Fragment decomposition's only lever is inserting
- *   boundaries to shrink the match unit; at the one-token floor, equality
- *   removes the sub-containment loophole, so "Senior\nEngineer\nat\nBeta\n
- *   LLC" (word-per-line, each token inside some larger true segment) and
- *   cross-context recombination ("Vice President\nInitech\n2020-2024") both
- *   fail — the cycle-3 unanimous QA RED (Opus issuecomment-4946829260 +
- *   Codex on PR #956).
+ * Scope verdict B (fix cycle 3 design-fork adjudication, #932): D3 fragment
+ * recombination cannot be closed by ANY pure syntactic rule while shortening
+ * remains approvable — the forged "Vice President\nInitech" is byte-identical
+ * to shorten("Vice President of Sales at Globex" → "Vice President") composed
+ * with reorder(next to a standalone "Initech" source bullet), and both
+ * operands were individually legitimate under every sub-phrase rule. JS-03
+ * therefore ships the provably-safe reduced subset: approvable AI output is
+ * REORDER + VERBATIM-WHOLE-LINE SELECTION of true/confirmed source segments;
+ * any shortened or paraphrased line comes back to the user as a question
+ * (non-approvable). Full paraphrase support is deferred to truth-guard-v2.
  *
  * The corpus is stored source revisions + USER-confirmed claim texts ONLY —
  * AI-declared claim texts never vouch. Content-free markdown (empty,
@@ -315,16 +312,14 @@ export function verifyMarkdownCoverage(input: {
   if (proposed.length === 0) {
     return { ok: false, unverifiedSpans: [] };
   }
-  const corpusSegments = [
-    ...input.sources.map((source) => source.content),
-    ...input.confirmedTexts
-  ].flatMap((text) => extractMaterialSegments(text));
-  // Space-padded per corpus segment — padding keeps needle matches on word
-  // boundaries, and per-segment strings (not one joined blob) prevent false
-  // adjacency across line/sentence boundaries.
-  const corpusPadded = corpusSegments.map((segment) => ` ${segment.phrase} `);
-  // Whole-segment phrases for the singleton equality tier.
-  const corpusWhole = new Set(corpusSegments.map((segment) => segment.phrase));
+  // Whole-segment normalized phrases — the ONLY match unit. No padded
+  // sub-containment haystacks: a proper fragment of a true line must never
+  // be approvable, or shorten+reorder recombines fragments into forgeries.
+  const corpusWhole = new Set(
+    [...input.sources.map((source) => source.content), ...input.confirmedTexts]
+      .flatMap((text) => extractMaterialSegments(text))
+      .map((segment) => segment.phrase)
+  );
   const seen = new Set<string>();
   const unverified: string[] = [];
   for (const segment of proposed) {
@@ -332,11 +327,7 @@ export function verifyMarkdownCoverage(input: {
       continue;
     }
     seen.add(segment.phrase);
-    // Normalized phrases are single-space joined, so a space means ≥2 tokens.
-    const covered = segment.phrase.includes(" ")
-      ? corpusPadded.some((haystack) => haystack.includes(` ${segment.phrase} `))
-      : corpusWhole.has(segment.phrase);
-    if (!covered) {
+    if (!corpusWhole.has(segment.phrase)) {
       unverified.push(segment.raw.slice(0, UNVERIFIED_SPAN_ECHO_MAX_CHARS));
     }
   }

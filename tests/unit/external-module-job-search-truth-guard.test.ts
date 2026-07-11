@@ -426,13 +426,22 @@ describe("extractMaterialSegments", () => {
 });
 
 describe("verifyMarkdownCoverage", () => {
-  it("passes when every proposed segment is a contiguous sub-phrase of one corpus segment", () => {
+  it("DEFERRED to v2: a shortened sub-phrase of a source segment is a QUESTION, not approvable", () => {
+    // Scope verdict B (fix cycle 3 adjudication, #932): shorten + reorder
+    // compose into fabrications that are byte-identical to legitimate output
+    // ("Vice President of Sales at Globex" shortened to "Vice President",
+    // reordered next to a standalone "Initech" bullet), so NO syntactic rule
+    // can allow shortening safely. JS-03 deliberately narrows approvable AI
+    // output to reorder + verbatim-whole-line selection; "Cut deploy time by
+    // 40%" (truncated from rev-b's longer line) now correctly comes back as
+    // a question. Paraphrase/shorten support is deferred to truth-guard-v2.
     const verdict = verifyMarkdownCoverage({
       markdown: "Senior Engineer at Acme Corp\nCut deploy time by 40%",
       sources: SOURCES,
       confirmedTexts: []
     });
-    expect(verdict).toEqual({ ok: true, unverifiedSpans: [] });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unverifiedSpans).toEqual(["Cut deploy time by 40%"]);
   });
 
   it("DEFEAT 1: all-lowercase spelled-out fabrication fails closed (Codex PoC)", () => {
@@ -489,12 +498,11 @@ describe("verifyMarkdownCoverage", () => {
     expect(verdict.unverifiedSpans).toEqual(["Senior", "Engineer", "at", "Beta", "LLC"]);
   });
 
-  it("DEFEAT 5: cross-context line recombination fails at the singleton tier (Codex PoC)", () => {
+  it("DEFEAT 5: cross-context line recombination fails — every fragment needs whole-segment equality (Codex PoC)", () => {
     // Each line is individually true in a DIFFERENT source context; stacked,
-    // they assert a fabricated "Vice President at Initech 2020-2024". The
-    // multi-token lines legitimately match their own source segments — the
-    // interior singleton "Initech" is what must fail: it appears inside a
-    // larger true segment but IS not a whole segment itself.
+    // they assert a fabricated "Vice President at Initech 2020-2024". Under
+    // scope verdict B, ALL THREE fragments fail: none equals a whole corpus
+    // segment (each is a proper sub-phrase of a longer true line).
     const verdict = verifyMarkdownCoverage({
       markdown: "Vice President\nInitech\n2020-2024",
       sources: [
@@ -505,7 +513,48 @@ describe("verifyMarkdownCoverage", () => {
       confirmedTexts: []
     });
     expect(verdict.ok).toBe(false);
-    expect(verdict.unverifiedSpans).toEqual(["Initech"]);
+    expect(verdict.unverifiedSpans).toEqual(["Vice President", "Initech", "2020-2024"]);
+  });
+
+  it("DEFEAT 6: shorten+reorder recombination fails — the cycle-3 head PoC (verdict B)", () => {
+    // The unclosable-by-token-rules case: "Vice President" is a legitimate
+    // SHORTENING of a real multi-token segment, and "Initech" IS a real
+    // standalone source bullet (whole segment). Composed, they forge a
+    // role@company that never existed. Whole-segment equality for EVERY
+    // proposed segment closes it: the shortened fragment no longer vouches.
+    const sources = [
+      { revisionId: "0", content: "Vice President of Sales at Globex" },
+      { revisionId: "1", content: "Companies\n- Initech\n- Globex" }
+    ];
+    const stacked = verifyMarkdownCoverage({
+      markdown: "Vice President\nInitech",
+      sources,
+      confirmedTexts: []
+    });
+    expect(stacked.ok).toBe(false);
+    expect(stacked.unverifiedSpans).toEqual(["Vice President"]);
+    // Same forgery with an inline pipe separator (a segment boundary) —
+    // must not fare any better than the line-break form.
+    const piped = verifyMarkdownCoverage({
+      markdown: "Vice President | Initech",
+      sources,
+      confirmedTexts: []
+    });
+    expect(piped.ok).toBe(false);
+    expect(piped.unverifiedSpans).toEqual(["Vice President"]);
+  });
+
+  it("DEFEAT 6b: shortened role next to a whole-segment employer fails (Senior Engineer / Google)", () => {
+    const verdict = verifyMarkdownCoverage({
+      markdown: "Senior Engineer\nGoogle",
+      sources: [
+        { revisionId: "0", content: "Senior Engineer at Acme Corp" },
+        { revisionId: "1", content: "Employers\n- Google\n- Acme Corp" }
+      ],
+      confirmedTexts: []
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.unverifiedSpans).toEqual(["Senior Engineer"]);
   });
 
   it("GUARD-RAIL: a single-token line that IS a whole source segment still passes", () => {
