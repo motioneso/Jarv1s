@@ -38,6 +38,7 @@ import {
   getActiveProfile,
   getActiveResume,
   getOpportunity,
+  getScheduleState,
   keys,
   opportunityIdentity,
   rebuildFeed,
@@ -45,6 +46,7 @@ import {
   saveConfirmation,
   saveOriginalResume,
   saveProfileRevision,
+  saveScheduleState,
   upsertOpportunity
 } from "../../external-modules/job-search/src/domain/index.js";
 import type { JobSearchAi } from "../../external-modules/job-search/src/worker/ai-port.js";
@@ -450,5 +452,27 @@ describe("job-search critique truth-guard coverage — fabrication cannot persis
     await expect(
       approveResume(kvB, contentHash(["rev", "0", FABRICATED].join("\0")), NOW)
     ).rejects.toMatchObject({ code: "missing_revision" });
+  });
+});
+
+// JS-05 (#934) Task 6 — the monitoring slice's NEW record family. The sweep's
+// schedule/<id> state (which local day last completed) lives in NS.monitors and
+// must be owner-only like everything else: B never learns when A's monitors run.
+// Same real-RLS harness; both users exist at this point in the suite.
+describe("job-search schedule-state isolation (#934)", () => {
+  it("schedule state is invisible across owners", async () => {
+    const kvA = kvForActor(ids.userA);
+    const kvB = kvForActor(ids.userB);
+    await saveScheduleState(kvA, {
+      schemaVersion: 1,
+      monitorId: "mon-iso",
+      lastCompletedLocalDate: "2026-07-11"
+    });
+    expect(await getScheduleState(kvB, "mon-iso")).toBeNull();
+    expect(await kvB.list(NS.monitors)).not.toContain("schedule/mon-iso");
+    // Owner A still sees their own state — the write itself landed.
+    expect(await getScheduleState(kvA, "mon-iso")).toMatchObject({
+      lastCompletedLocalDate: "2026-07-11"
+    });
   });
 });

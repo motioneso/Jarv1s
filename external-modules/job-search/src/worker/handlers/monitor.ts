@@ -21,17 +21,21 @@
 import { getSourceAdapter, listSourceAdapters } from "../../adapters/index.js";
 import type { MonitorConfig } from "../../domain/index.js";
 import {
+  DEFAULT_DUE_TIME,
+  DEFAULT_TIMEZONE,
+  DUE_TIME_PATTERN,
   JobSearchKvError,
   assertId,
   getActiveProfile,
   getActiveResume,
   getMonitor,
   getMonitorCursor,
+  isValidTimeZone,
   listMonitorIds,
   saveMonitor
 } from "../../domain/index.js";
 import type { WorkerPorts } from "../ai-port.js";
-import { readBool, readPlainObject, readString } from "../validate.js";
+import { InputError, readBool, readPlainObject, readString } from "../validate.js";
 import { updateOnboarding } from "./flow.js";
 
 export function saveMonitorHandler(ports: WorkerPorts) {
@@ -60,6 +64,22 @@ export function saveMonitorHandler(ports: WorkerPorts) {
     const query = adapter.validateConfig(readPlainObject(input, "query", { required: true }));
     const enabled = readBool(input, "enabled") ?? false;
 
+    // JS-05 (#934): schedule fields. Omitted on update → preserve, else
+    // default. The `existing` lookup lives up here (before the enable gate)
+    // because the preserve fallback needs it; the gate itself writes nothing.
+    // Error messages name key + constraint only — never the submitted value.
+    const existing = await getMonitor(ports.kv, monitorId);
+    const timezoneInput = readString(input, "timezone");
+    if (timezoneInput !== undefined && !isValidTimeZone(timezoneInput)) {
+      throw new InputError("timezone must be a valid IANA time zone");
+    }
+    const dueTimeInput = readString(input, "dueTime");
+    if (dueTimeInput !== undefined && !DUE_TIME_PATTERN.test(dueTimeInput)) {
+      throw new InputError("dueTime must be HH:MM (24-hour)");
+    }
+    const timezone = timezoneInput ?? existing?.timezone ?? DEFAULT_TIMEZONE;
+    const dueTime = dueTimeInput ?? existing?.dueTime ?? DEFAULT_DUE_TIME;
+
     // Enable gate BEFORE any write: the question names only what's missing,
     // and nothing is persisted while the gate holds.
     if (enabled) {
@@ -81,7 +101,6 @@ export function saveMonitorHandler(ports: WorkerPorts) {
     }
 
     const now = ports.now().toISOString();
-    const existing = await getMonitor(ports.kv, monitorId);
     const config: MonitorConfig = {
       schemaVersion: 1,
       monitorId,
@@ -90,6 +109,8 @@ export function saveMonitorHandler(ports: WorkerPorts) {
       // Spread: BoardConfig is an interface (no index signature), and this
       // also decouples the stored document from the adapter's return value.
       query: { ...query },
+      timezone,
+      dueTime,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     };
@@ -97,7 +118,7 @@ export function saveMonitorHandler(ports: WorkerPorts) {
     await updateOnboarding(ports.kv, {
       complete: enabled ? ["sources_schedule", "review_enable"] : ["sources_schedule"]
     });
-    return { status: "ok", monitorId, enabled };
+    return { status: "ok", monitorId, enabled, timezone, dueTime };
   };
 }
 
@@ -114,6 +135,8 @@ export function listMonitorsHandler(ports: WorkerPorts) {
         monitorId: config.monitorId,
         adapterId: config.adapterId,
         enabled: config.enabled,
+        timezone: config.timezone ?? DEFAULT_TIMEZONE,
+        dueTime: config.dueTime ?? DEFAULT_DUE_TIME,
         createdAt: config.createdAt,
         updatedAt: config.updatedAt
       });
@@ -135,6 +158,8 @@ export function getMonitorHandler(ports: WorkerPorts) {
       adapterId: config.adapterId,
       enabled: config.enabled,
       query: config.query,
+      timezone: config.timezone ?? DEFAULT_TIMEZONE,
+      dueTime: config.dueTime ?? DEFAULT_DUE_TIME,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt
     };

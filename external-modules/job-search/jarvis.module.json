@@ -237,6 +237,14 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA time zone for the daily discovery run (default UTC)"
+          },
+          "dueTime": {
+            "type": "string",
+            "description": "Local due time, HH:MM 24-hour (default 07:00)"
           }
         },
         "required": ["monitorId", "adapterId", "query"],
@@ -343,13 +351,18 @@
       {
         "name": "job-search.monitor-run",
         "handler": "monitor.run",
-        "retryLimit": 3
+        "retryLimit": 3,
+        "allowManualRun": true,
+        "paramsSchema": {
+          "type": "object",
+          "fields": { "monitorId": { "type": "identifier" } }
+        }
       }
     ],
     "schedules": [
       {
         "id": "job-search.monitor-sweep",
-        "cron": "*/15 * * * *",
+        "cron": "0 * * * *",
         "scope": "user",
         "jobKind": "job-search.monitor-sweep",
         "queue": "job-search.monitor-run"

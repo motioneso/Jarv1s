@@ -24,7 +24,8 @@ import {
   pasteCaptureHandler,
   urlCaptureHandler
 } from "../../external-modules/job-search/src/worker/handlers/capture.js";
-import { HANDLERS, notImplemented } from "../../external-modules/job-search/src/worker/registry.js";
+import { monitorRunHandler } from "../../external-modules/job-search/src/worker/handlers/run.js";
+import { HANDLERS } from "../../external-modules/job-search/src/worker/registry.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
 import { createMemoryKv } from "./helpers/job-search-memory-kv.js";
 import type { MemoryKv } from "./helpers/job-search-memory-kv.js";
@@ -218,19 +219,28 @@ describe("capture handlers are zero-network by construction", () => {
     expect(source).not.toMatch(/fetch/i);
   });
 
-  it("WorkerPorts carries no network member at the type level", () => {
-    // Compile-time proof: if a fetch member ever lands on WorkerPorts this
-    // assignment stops type-checking.
-    type WorkerPortsHasNoFetch = "fetch" extends keyof WorkerPorts ? never : true;
-    const workerPortsHasNoFetch: WorkerPortsHasNoFetch = true;
-    expect(workerPortsHasNoFetch).toBe(true);
+  it("WorkerPorts.fetch is optional and capture handlers never touch it", () => {
+    // JS-05 (#934) added the host-pinned fetch port for scheduled discovery,
+    // so the old "no fetch member" pin is gone. Two replacements: (1)
+    // compile-time proof the port stays OPTIONAL — handlers built over
+    // { kv, ai, now } ports must keep working; (2) source-level proof the
+    // capture path still contains no network access of its own (all capture
+    // network I/O flows through fetchBoard in a later slice, never here).
+    type FetchIsOptional = undefined extends WorkerPorts["fetch"] ? true : never;
+    const fetchIsOptional: FetchIsOptional = true;
+    expect(fetchIsOptional).toBe(true);
+    const source = readFileSync(
+      new URL("../../external-modules/job-search/src/worker/handlers/capture.ts", import.meta.url),
+      "utf8"
+    );
+    expect(source).not.toMatch(/\bfetch\b/i);
   });
 
-  it("registry wires the three new tools; monitor.run stays a stub", () => {
+  it("registry wires the three new tools and the monitor.run dispatch", () => {
     expect(HANDLERS["sources.list"]).toBe(listSourcesHandler);
     expect(HANDLERS["capture.paste"]).toBe(pasteCaptureHandler);
     expect(HANDLERS["capture.url"]).toBe(urlCaptureHandler);
-    expect(HANDLERS["monitor.run"]).toBe(notImplemented);
+    expect(HANDLERS["monitor.run"]).toBe(monitorRunHandler);
     expect(Object.keys(HANDLERS)).toHaveLength(17);
   });
 });

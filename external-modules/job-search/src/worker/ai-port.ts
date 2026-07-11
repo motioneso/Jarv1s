@@ -6,6 +6,7 @@
 // it lands. `ai` is nullable end-to-end: with no bridge the critique path
 // degrades to an "AI critique unavailable" question (coordinator-approved
 // graceful-degrade seam), never a crash.
+import type { AdapterFetch } from "../adapters/index.js";
 import type { JobSearchKv } from "../domain/index.js";
 
 export type JobSearchAiResult =
@@ -27,6 +28,12 @@ export interface JobSearchAi {
 export interface WorkerPorts {
   readonly kv: JobSearchKv;
   readonly ai: JobSearchAi | null;
+  /**
+   * JS-05 (#934): host-pinned network port (JS-04 safe reader input).
+   * Optional-nullable: absent/null until the platform provides ctx.fetch;
+   * discovery records fetch_unavailable rather than crashing.
+   */
+  readonly fetch?: AdapterFetch | null;
   now(): Date;
 }
 

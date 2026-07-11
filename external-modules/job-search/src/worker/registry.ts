@@ -4,12 +4,13 @@
 // index.ts because defineModuleWorker attaches a readline on process.stdin at
 // import time — tests must be able to pin the full registry (all 14 manifest
 // tool keys, stubs included) without triggering that side effect. index.ts
-// stays a thin dispatch shell over this table. JS-05/06 tools and the
-// monitor.run queue handler remain not-implemented stubs until their slices.
+// stays a thin dispatch shell over this table. JS-06 opportunity tools
+// remain not-implemented stubs until their slice.
 import type { WorkerPorts } from "./ai-port.js";
 import { listSourcesHandler, pasteCaptureHandler, urlCaptureHandler } from "./handlers/capture.js";
 import { getMonitorHandler, listMonitorsHandler, saveMonitorHandler } from "./handlers/monitor.js";
 import { getStateHandler } from "./handlers/onboarding.js";
+import { monitorRunHandler } from "./handlers/run.js";
 import {
   approveProfileHandler,
   getProfileHandler,
@@ -43,5 +44,5 @@ export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   "opportunities.list": notImplemented,
   "opportunities.get": notImplemented,
   "opportunity.decide": notImplemented,
-  "monitor.run": notImplemented
+  "monitor.run": monitorRunHandler
 };

@@ -90,6 +90,17 @@ export {
   truncateUtf8,
   upsertOpportunity
 } from "./opportunities.js";
+export {
+  DEFAULT_DUE_TIME,
+  DEFAULT_TIMEZONE,
+  DUE_TIME_PATTERN,
+  getScheduleState,
+  isDue,
+  isValidTimeZone,
+  localDateAndTime,
+  saveScheduleState
+} from "./schedule.js";
+export type { MonitorScheduleState } from "./schedule.js";
 export type { RunRecord, RunSummary } from "./runs.js";
 export { getRunSummary, listRuns, recordRun } from "./runs.js";
 export type { FeedEntry, FeedIndex } from "./feed.js";

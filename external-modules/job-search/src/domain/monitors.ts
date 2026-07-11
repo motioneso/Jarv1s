@@ -15,6 +15,10 @@ export interface MonitorConfig {
   adapterId: string;
   enabled: boolean;
   query: Record<string, unknown>;
+  /** IANA zone for the daily discovery run. Optional: pre-JS-05 records lack it (default UTC). */
+  timezone?: string;
+  /** Local due time "HH:MM" 24-hour. Optional: pre-JS-05 records lack it (default 07:00). */
+  dueTime?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +58,7 @@ export async function listMonitorIds(kv: JobSearchKv): Promise<readonly string[]
 export async function deleteMonitor(kv: JobSearchKv, monitorId: string): Promise<boolean> {
   assertId(monitorId);
   await kv.delete(NS.monitors, keys.monitorCursor(monitorId));
+  await kv.delete(NS.monitors, keys.monitorSchedule(monitorId));
   return kv.delete(NS.monitors, keys.monitor(monitorId));
 }
 

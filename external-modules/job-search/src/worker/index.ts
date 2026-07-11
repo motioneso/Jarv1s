@@ -9,6 +9,7 @@
 import { defineModuleWorker } from "@jarv1s/module-sdk/worker";
 import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
+import { fetchFromWorkerContext } from "../adapters/index.js";
 import { kvFromWorkerContext } from "../domain/index.js";
 import type { JobSearchAi, WorkerPorts } from "./ai-port.js";
 import { aiFromWorkerContext } from "./ai-port.js";
@@ -27,6 +28,10 @@ function ports(ctx: ModuleWorkerContext): WorkerPorts {
   return {
     kv: kvFromWorkerContext(ctx.kv),
     ai: ai ? aiFromWorkerContext(ai) : null,
+    // ctx.fetch is typed required on ModuleWorkerContext, but guard anyway:
+    // an older host omitting it must degrade to fetch_unavailable run
+    // records (JS-05 #934), never a worker crash.
+    fetch: ctx.fetch ? fetchFromWorkerContext(ctx.fetch) : null,
     now: () => new Date()
   };
 }
