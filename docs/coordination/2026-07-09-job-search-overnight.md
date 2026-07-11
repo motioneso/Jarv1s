@@ -3453,3 +3453,9 @@ Ben: "we dont need to continue the news build with GLM, just need to nudge codex
 - Handoff: `docs/coordination/2026-07-11-js-06-build-handoff.md` (committed on feat branch).
 - Tier **SENSITIVE** (new module surface wired into shell, consumes #916 cross-module assistant action; no migration/secrets/network). QA on done = Sonnet standard + invariant walk (module-isolation + no contract/payload drift). Escalate to security tier only if a contract/endpoint/payload change appears.
 - Awaiting: plan-ready escalation → Coordinator approval before code.
+
+## JS-06 [DESIGN-FORK] — spec premise broken (no browser read path) — 2026-07-11 ~13:15 PDT
+Fable pG2 verified on-branch: external module Root has NO browser read path for job-search reads (onboarding/monitor/profile/resume exist only as worker-gateway assistant tools). Browser-reachable module routes = GET /api/modules, /api/me/modules, GET /api/modules/:id/web/*, POST /api/modules/:id/queues/:q/run — nothing else. Also: build-external-module.ts lacks react-shim/JSX + module-web-sdk alias; external modules get no nav entry (navigation:[]); module id = `job-search` (not jarv1s.job-search) → route /m/job-search/*.
+- **Option A:** generic platform route POST /api/modules/:moduleId/tools/:toolKey (READ-risk tools only, actor-auth+route-guard) → NEW endpoint+contract = security-tier + likely needs its own spec (Spec-before-build).
+- **Option B:** ship UI shell only (authored states + #916 starter handoffs), no live data; run-now blocked → spec exit criteria NOT met.
+- **ADJUDICATION:** Opus one-shot `a70e999b` running — verify 5 findings on-branch + rule the Spec-before-build gate for A. pG2 HOLDING (do not draft plan). Will relay ruling + build instruction.
