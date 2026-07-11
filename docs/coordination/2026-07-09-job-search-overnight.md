@@ -3084,9 +3084,12 @@ anything requiring escalation and do that instead of waiting for me."
 - **Ben disowned the "named-3 unanimous (Opus+Codex+Gemini), no-substitution" gate** — that was a
   coordinator-invented rule, NOT his directive. His actual rule: cross-provider council for
   escalation; act on council-met (bypass authority). So #955 is NOT structurally blocked.
-- **NOTE CORRECTION:** the third-provider lens tooling is **AGY**, not the `gemini` CLI. Prior
-  "Gemini CLI logged out / interactive browser auth" notes are obsolete tooling — ignore. AGY is
-  the provider path going forward.
+- **NOTE CORRECTION (Ben override, durable mem `mem_mrgkglgq_d85a9f1a4e7e`):** the Gemini CLI
+  **command is now `agy`** — the legacy `gemini` CLI binary/auth is obsolete for our workflow.
+  All prior "gemini CLI logged out / interactive browser auth = blocker" notes are WRONG tooling —
+  ignore them; legacy gemini auth is NOT a blocker. Use `agy` if a Gemini lens is needed.
+- **#955 review seat (Ben override):** **Fable reviews #955.** Fable QA already spawned (Agent
+  `a2984dbdfd9342ac4`, worktree-isolated) → posts durable verdict to the PR → merge on green.
 - **Action:** spawning a **Fable** independent QA lens on #955 (head `3f05acf2`) via Agent tool
   (coordinated-qa, model fable, worktree-isolated) to post a durable third verdict alongside the
   existing Opus GREEN + Codex GREEN + all-CI-green. On Fable GREEN → MERGE #955 (Ben bypass: no
