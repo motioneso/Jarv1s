@@ -349,6 +349,42 @@ describe("fetchWebResource", () => {
       reason: "timeout"
     });
   });
+
+  it(
+    "times out a resolver that never settles",
+    async () => {
+      let transportCalls = 0;
+      setWebHostResolverForTests(() => new Promise(() => {}));
+      setWebHttpTransportForTests(async () => {
+        transportCalls += 1;
+        return new Response("unexpected");
+      });
+
+      await expect(fetchWebResource("https://example.com", { timeoutMs: 1 })).resolves.toEqual({
+        ok: false,
+        reason: "timeout"
+      });
+      expect(transportCalls).toBe(0);
+    },
+    100
+  );
+
+  it("does not start transport when a limiter wait exceeds the timeout", async () => {
+    let transportCalls = 0;
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(async () => {
+      transportCalls += 1;
+      return new Response("unexpected");
+    });
+
+    await expect(
+      fetchWebResource("https://example.com", {
+        timeoutMs: 1,
+        rateLimiter: { acquire: () => new Promise((resolve) => setTimeout(resolve, 50)) }
+      })
+    ).resolves.toEqual({ ok: false, reason: "timeout" });
+    expect(transportCalls).toBe(0);
+  });
 });
 
 describe("web.search", () => {

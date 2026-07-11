@@ -87,7 +87,30 @@ function decodeHtml(text: string): string {
     .replace(/&#39;/g, "'");
 }
 
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new Error("Request aborted"));
+  return new Promise((resolve, reject) => {
+    const cleanup = (): void => signal.removeEventListener("abort", onAbort);
+    const onAbort = (): void => {
+      cleanup();
+      reject(new Error("Request aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      }
+    );
+  });
+}
+
 async function requestCheckedUrl(checked: SafeHttpUrl, signal: AbortSignal): Promise<Response> {
+  if (signal.aborted) throw new Error("Request aborted");
   const hostHeader = checked.url.host;
   const servername =
     checked.url.protocol === "https:" ? stripIpv6Brackets(checked.url.hostname) : undefined;
@@ -162,16 +185,27 @@ export async function fetchWebResource(
       redirects <= DEFAULT_WEB_RESEARCH_CONFIG.redirectLimit;
       redirects += 1
     ) {
-      const safe = await validateHttpUrl(current.toString(), options.resolveHost);
+      const safe = await abortable(
+        validateHttpUrl(current.toString(), options.resolveHost),
+        controller.signal
+      );
       if (!safe.ok) return { ok: false, reason: "blocked" };
       if (options.requireHttps && safe.url.protocol !== "https:") {
         return { ok: false, reason: "not_https" };
       }
       if (options.robots) {
         const allowed = await options.robots.isAllowed(safe.url, async (robotsUrl) => {
-          const robotsSafe = await validateHttpUrl(robotsUrl.toString(), options.resolveHost);
+          const robotsSafe = await abortable(
+            validateHttpUrl(robotsUrl.toString(), options.resolveHost),
+            controller.signal
+          );
           if (!robotsSafe.ok) return null;
-          await options.rateLimiter?.acquire(robotsSafe.url.hostname);
+          if (options.rateLimiter) {
+            await abortable(
+              options.rateLimiter.acquire(robotsSafe.url.hostname),
+              controller.signal
+            );
+          }
           const response = await requestCheckedUrl(robotsSafe, controller.signal);
           const { text: body } = await readCapped(
             response,
@@ -181,7 +215,9 @@ export async function fetchWebResource(
         });
         if (!allowed) return { ok: false, reason: "robots" };
       }
-      await options.rateLimiter?.acquire(safe.url.hostname);
+      if (options.rateLimiter) {
+        await abortable(options.rateLimiter.acquire(safe.url.hostname), controller.signal);
+      }
       const response = await requestCheckedUrl(safe, controller.signal);
       if (isRedirect(response.status)) {
         const location = response.headers.get("location");
