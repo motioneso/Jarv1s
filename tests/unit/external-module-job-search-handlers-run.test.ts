@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AdapterFetch } from "../../external-modules/job-search/src/adapters/index.js";
 import {
+  getMonitor,
   getRunSummary,
   listOpportunities,
   listRuns,
@@ -18,6 +19,7 @@ import {
 import type { WorkerPorts } from "../../external-modules/job-search/src/worker/ai-port.js";
 import {
   deriveRunId,
+  monitorRunHandler,
   runMonitorDiscovery
 } from "../../external-modules/job-search/src/worker/handlers/run.js";
 import { createMemoryKv, type MemoryKv } from "./helpers/job-search-memory-kv.js";
@@ -188,5 +190,116 @@ describe("runMonitorDiscovery", () => {
       consumeSlot: true
     });
     expect(outcome).toMatchObject({ ran: false, reason: "error", errorCode: "fetch_unavailable" });
+  });
+});
+
+describe("monitor.run handler", () => {
+  const sweepInput = (idempotencyKey: string) => ({
+    actorUserId: "11111111-1111-4111-8111-111111111111",
+    jobKind: "job-search.monitor-sweep",
+    idempotencyKey,
+    params: {}
+  });
+  const runNowInput = (idempotencyKey: string, monitorId: string) => ({
+    actorUserId: "11111111-1111-4111-8111-111111111111",
+    jobKind: "job-search.monitor-run-now",
+    idempotencyKey,
+    params: { monitorId }
+  });
+
+  it("sweep runs a due monitor once; a second tick the same hour/day no-ops (idempotency proof)", async () => {
+    const kv = createMemoryKv();
+    await saveMonitor(kv, monitor());
+    const handler = monitorRunHandler(makePorts(kv, okFetch, T0));
+    const first = await handler(sweepInput("job-search:sweep:1"));
+    expect(first).toMatchObject({ status: "ok", checked: 1, ran: 1 });
+    // Double-tick: same local day, slot consumed → due-check no-ops. No
+    // second fetch, no second run record.
+    const again = monitorRunHandler(makePorts(kv, okFetch, "2026-07-11T09:00:00.000Z"));
+    const second = await again(sweepInput("job-search:sweep:2"));
+    expect(second).toMatchObject({ status: "ok", checked: 1, ran: 0, skipped: 1 });
+    expect((await listRuns(kv, "mon-1")).length).toBe(1);
+  });
+
+  it("sweep skips before the local due time", async () => {
+    const kv = createMemoryKv();
+    await saveMonitor(kv, monitor({ dueTime: "22:00" }));
+    const handler = monitorRunHandler(makePorts(kv, okFetch, T0)); // 08:00 UTC
+    expect(await handler(sweepInput("k1"))).toMatchObject({ ran: 0, skipped: 1 });
+    expect(await listRuns(kv, "mon-1")).toEqual([]);
+  });
+
+  it("sweep ignores disabled monitors", async () => {
+    const kv = createMemoryKv();
+    await saveMonitor(kv, monitor({ enabled: false }));
+    const handler = monitorRunHandler(makePorts(kv, okFetch, T0));
+    expect(await handler(sweepInput("k1"))).toMatchObject({ checked: 0, ran: 0 });
+  });
+
+  it("sweep failure does not consume the slot: a later tick the same day retries", async () => {
+    const kv = createMemoryKv();
+    await saveMonitor(kv, monitor());
+    await monitorRunHandler(makePorts(kv, failFetch, T0))(sweepInput("k1"));
+    // 2h later (courtesy elapsed), fetch healthy again → runs the SAME day.
+    const result = await monitorRunHandler(makePorts(kv, okFetch, "2026-07-11T10:00:00.000Z"))(
+      sweepInput("k2")
+    );
+    expect(result).toMatchObject({ ran: 1 });
+  });
+
+  it("sweep isolates per-monitor failures (one bad monitor never aborts the rest)", async () => {
+    const kv = createMemoryKv();
+    await saveMonitor(kv, monitor({ monitorId: "mon-bad", adapterId: "greenhouse" }));
+    // Corrupt the stored query so validateConfig throws at run time.
+    const bad = await getMonitor(kv, "mon-bad");
+    await saveMonitor(kv, { ...(bad as MonitorConfig), query: { board: "NOT A TOKEN!!" } });
+    await saveMonitor(kv, monitor({ monitorId: "mon-good" }));
+    const result = await monitorRunHandler(makePorts(kv, okFetch, T0))(sweepInput("k1"));
+    expect(result).toMatchObject({ checked: 2, ran: 1, failed: 1 });
+  });
+
+  it("run-now runs immediately without consuming the daily slot", async () => {
+    const kv = createMemoryKv();
+    await saveMonitor(kv, monitor());
+    const runNow = await monitorRunHandler(makePorts(kv, okFetch, "2026-07-11T05:00:00.000Z"))(
+      runNowInput("manual:1", "mon-1")
+    );
+    expect(runNow).toMatchObject({ status: "ok", ran: true });
+    // The scheduled sweep at 08:00 still runs today — run-now is additive.
+    const sweep = await monitorRunHandler(makePorts(kv, okFetch, T0))(sweepInput("k1"));
+    expect(sweep).toMatchObject({ ran: 1 });
+  });
+
+  it("run-now respects courtesy (compliance floor applies to manual runs too)", async () => {
+    const kv = createMemoryKv();
+    await saveMonitor(kv, monitor());
+    await monitorRunHandler(makePorts(kv, okFetch, T0))(runNowInput("manual:1", "mon-1"));
+    const second = await monitorRunHandler(makePorts(kv, okFetch, "2026-07-11T08:10:00.000Z"))(
+      runNowInput("manual:2", "mon-1")
+    );
+    expect(second).toMatchObject({ status: "ok", ran: false, reason: "courtesy_not_due" });
+    expect((await listRuns(kv, "mon-1")).length).toBe(1);
+  });
+
+  it("run-now rejects unknown and disabled monitors with fixed messages", async () => {
+    const kv = createMemoryKv();
+    const handler = monitorRunHandler(makePorts(kv, okFetch, T0));
+    expect(await handler(runNowInput("k1", "mon-x"))).toMatchObject({
+      status: "error",
+      code: "monitor_not_found"
+    });
+    await saveMonitor(kv, monitor({ enabled: false }));
+    expect(await handler(runNowInput("k2", "mon-1"))).toMatchObject({
+      status: "error",
+      code: "monitor_disabled"
+    });
+  });
+
+  it("rejects an unsupported jobKind naming the key only", async () => {
+    const kv = createMemoryKv();
+    const handler = monitorRunHandler(makePorts(kv, okFetch, T0));
+    await expect(
+      handler({ jobKind: "job-search.other", idempotencyKey: "k1", params: {} })
+    ).rejects.toThrow("jobKind is not supported");
   });
 });

@@ -47,7 +47,8 @@ import {
   getResumeHandler,
   saveResumeDraftHandler
 } from "../../external-modules/job-search/src/worker/handlers/resume.js";
-import { HANDLERS, notImplemented } from "../../external-modules/job-search/src/worker/registry.js";
+import { monitorRunHandler } from "../../external-modules/job-search/src/worker/handlers/run.js";
+import { HANDLERS } from "../../external-modules/job-search/src/worker/registry.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
 import { createMemoryKv } from "./helpers/job-search-memory-kv.js";
 import type { MemoryKv } from "./helpers/job-search-memory-kv.js";
@@ -418,12 +419,15 @@ describe("provider-leak sweep", () => {
 });
 
 describe("monitor jobs cannot edit resume or profile", () => {
-  it("monitor.run is wired to the notImplemented stub in the registry", async () => {
-    expect(HANDLERS["monitor.run"]).toBe(notImplemented);
-    // The stub really is inert regardless of input.
+  it("monitor.run is wired to the dispatch handler; malformed input writes nothing", async () => {
+    // JS-05 (#934): the stub became the real sweep/run-now dispatch. The
+    // inertness guarantee this suite cares about survives as: a malformed
+    // payload is rejected before ANY kv write (resume/profile untouched).
+    expect(HANDLERS["monitor.run"]).toBe(monitorRunHandler);
     const kv = createMemoryKv();
-    const result = await HANDLERS["monitor.run"]!({ kv, ai: null, now: () => new Date(0) })({});
-    expect(result).toEqual({ status: "not-implemented" });
+    await expect(
+      HANDLERS["monitor.run"]!({ kv, ai: null, now: () => new Date(0) })({})
+    ).rejects.toThrow("jobKind");
     expect(kv.dump().size).toBe(0);
   });
 

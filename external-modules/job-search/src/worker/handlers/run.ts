@@ -23,10 +23,15 @@ import {
 } from "../../adapters/index.js";
 import type { MonitorConfig, OpportunityInput } from "../../domain/index.js";
 import {
+  DEFAULT_DUE_TIME,
   DEFAULT_TIMEZONE,
   contentHash,
+  getMonitor,
   getMonitorCursor,
   getOpportunity,
+  getScheduleState,
+  isDue,
+  listMonitorIds,
   localDateAndTime,
   opportunityIdentity,
   recordRun,
@@ -36,6 +41,7 @@ import {
   upsertOpportunity
 } from "../../domain/index.js";
 import type { WorkerPorts } from "../ai-port.js";
+import { InputError, readPlainObject, readString } from "../validate.js";
 
 export const SWEEP_JOB_KIND = "job-search.monitor-sweep";
 export const RUN_NOW_JOB_KIND = "job-search.monitor-run-now";
@@ -208,4 +214,94 @@ export async function runMonitorDiscovery(
   }
 
   return { ran: true, runId: opts.runId, counts };
+}
+
+/**
+ * The "monitor.run" queue tool. ctx.input (per #915 worker delivery) is
+ * { actorUserId, jobKind, idempotencyKey, params } — actorUserId is ignored
+ * here because ports.kv is already pinned to the acting user's scope.
+ */
+export function monitorRunHandler(ports: WorkerPorts) {
+  return async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const jobKind = readString(input, "jobKind", { required: true });
+    const idempotencyKey = readString(input, "idempotencyKey", { required: true });
+    if (jobKind === SWEEP_JOB_KIND) return sweep(ports, idempotencyKey);
+    if (jobKind === RUN_NOW_JOB_KIND) {
+      return runNow(ports, idempotencyKey, readPlainObject(input, "params") ?? {});
+    }
+    throw new InputError("jobKind is not supported");
+  };
+}
+
+async function sweep(
+  ports: WorkerPorts,
+  idempotencyKey: string
+): Promise<Record<string, unknown>> {
+  const now = ports.now();
+  let checked = 0;
+  let ran = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const monitorId of await listMonitorIds(ports.kv)) {
+    // Per-monitor isolation: a corrupt record or adapter bug in one monitor
+    // must never abort the rest of the sweep.
+    try {
+      const config = await getMonitor(ports.kv, monitorId);
+      if (config === null || !config.enabled) continue;
+      checked += 1;
+      const state = await getScheduleState(ports.kv, monitorId);
+      const due = isDue({
+        now,
+        timeZone: config.timezone ?? DEFAULT_TIMEZONE,
+        dueTime: config.dueTime ?? DEFAULT_DUE_TIME,
+        ...(state?.lastCompletedLocalDate !== undefined
+          ? { lastCompletedLocalDate: state.lastCompletedLocalDate }
+          : {})
+      });
+      if (!due) {
+        skipped += 1;
+        continue;
+      }
+      const outcome = await runMonitorDiscovery(ports, config, {
+        runId: deriveRunId(idempotencyKey, monitorId),
+        consumeSlot: true
+      });
+      if (outcome.ran) ran += 1;
+      else if (outcome.reason === "error") failed += 1;
+      else skipped += 1;
+    } catch {
+      // Unexpected (non-fetch-layer) failure: counted only — never rethrown
+      // and never echoed; the message could derive from stored bytes.
+      failed += 1;
+    }
+  }
+  // Counts only: the sweep response is a metadata surface.
+  return { status: "ok", jobKind: SWEEP_JOB_KIND, checked, ran, skipped, failed };
+}
+
+async function runNow(
+  ports: WorkerPorts,
+  idempotencyKey: string,
+  params: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const monitorId = readString(params, "monitorId", { required: true });
+  const config = await getMonitor(ports.kv, monitorId);
+  if (config === null) {
+    return { status: "error", code: "monitor_not_found", message: "monitor not found" };
+  }
+  if (!config.enabled) {
+    return { status: "error", code: "monitor_disabled", message: "monitor is not enabled" };
+  }
+  const outcome = await runMonitorDiscovery(ports, config, {
+    runId: deriveRunId(idempotencyKey, monitorId),
+    // Run-now is additive: it NEVER consumes the scheduled local-day slot.
+    consumeSlot: false
+  });
+  if (outcome.ran) {
+    return { status: "ok", ran: true, runId: outcome.runId, counts: outcome.counts };
+  }
+  if (outcome.reason === "courtesy_not_due") {
+    return { status: "ok", ran: false, reason: "courtesy_not_due" };
+  }
+  return { status: "error", code: outcome.errorCode, message: "monitor run failed" };
 }
