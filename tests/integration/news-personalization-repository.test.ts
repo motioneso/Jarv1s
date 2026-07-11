@@ -352,7 +352,23 @@ describe("news personalization repository (#953 Task 3)", () => {
     const first = {
       compiledAt: new Date("2026-07-11T06:00:00Z"),
       expiresAt: new Date("2026-07-11T12:00:00Z"),
-      payload: { articles: [{ title: "First", url: "https://example.com/1" }] }
+      payload: {
+        articles: [
+          {
+            id: "first",
+            publisher: "Example",
+            canonicalDomain: "example.com",
+            headline: "First",
+            url: "https://example.com/1",
+            publishedAt: "2026-07-11T05:00:00.000Z",
+            excerpt: null,
+            imageUrl: null,
+            topics: [],
+            preferred: true,
+            rank: 1
+          }
+        ]
+      }
     };
     await asActor(alice, "np-5a", (scopedDb) => repo.replaceLatestSnapshot(scopedDb, first));
 

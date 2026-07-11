@@ -38,15 +38,14 @@ export interface NewsCandidate {
 
 type CandidateWithoutId = Omit<NewsCandidate, "id">;
 
-type CandidateRepository = Pick<
+export type CandidateRepository = Pick<
   NewsPersonalizationRepository,
   | "listCustomSources"
   | "listCustomTopics"
   | "listExclusions"
   | "readPolicyVerdict"
   | "upsertPolicyVerdict"
-> &
-  NewsPrefsReader;
+>;
 
 function excluded(domain: string, exclusions: readonly string[]): boolean {
   return exclusions.some((item) => publisherDomainMatches(item, domain));
@@ -215,6 +214,7 @@ export async function collectCandidates(
     search: NewsWebSearchPort;
     ai: NewsAiPort;
     repo: CandidateRepository;
+    prefs: NewsPrefsReader;
     catalog: readonly NewsSourceEntry[];
   },
   opts: { now: Date }
@@ -227,7 +227,7 @@ export async function collectCandidates(
     deps.repo.listCustomSources(scopedDb),
     deps.repo.listCustomTopics(scopedDb),
     deps.repo.listExclusions(scopedDb),
-    deps.repo.list(scopedDb)
+    deps.prefs.list(scopedDb)
   ]);
   const exclusions = exclusionRows.map((item) => item.canonicalDomain);
   const collected: CandidateWithoutId[] = [];

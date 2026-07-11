@@ -25,7 +25,6 @@ function repo(overrides: Record<string, unknown> = {}) {
     listExclusions: async () => [],
     readPolicyVerdict: async () => null,
     upsertPolicyVerdict: async () => undefined,
-    list: async () => [],
     ...overrides
   };
 }
@@ -65,6 +64,7 @@ describe("collectCandidates", () => {
             { id: "ex-1", canonicalDomain: "example.com", createdAt: now.toISOString() }
           ]
         }),
+        prefs: { list: async () => [] },
         catalog: emptyCatalog
       },
       { now }
@@ -116,6 +116,7 @@ describe("collectCandidates", () => {
             }
           ]
         }),
+        prefs: { list: async () => [] },
         catalog: emptyCatalog
       },
       { now }
@@ -163,6 +164,7 @@ describe("collectCandidates", () => {
             }
           ]
         }),
+        prefs: { list: async () => [] },
         catalog: emptyCatalog
       },
       { now }

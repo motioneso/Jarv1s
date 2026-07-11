@@ -169,8 +169,32 @@ describe("news discovery repository", () => {
       expiresAt: new Date("2026-07-11T12:30:00Z"),
       payload: {
         articles: [
-          { canonicalDomain: "news.example.com", headline: "One" },
-          { canonicalDomain: "other.test", headline: "Two" }
+          {
+            id: "one",
+            publisher: "News Example",
+            canonicalDomain: "news.example.com",
+            headline: "One",
+            url: "https://news.example.com/one",
+            publishedAt: "2026-07-11T11:00:00.000Z",
+            excerpt: null,
+            imageUrl: null,
+            topics: [],
+            preferred: true,
+            rank: 1
+          },
+          {
+            id: "two",
+            publisher: "Other",
+            canonicalDomain: "other.test",
+            headline: "Two",
+            url: "https://other.test/two",
+            publishedAt: "2026-07-11T10:00:00.000Z",
+            excerpt: null,
+            imageUrl: null,
+            topics: [],
+            preferred: false,
+            rank: 2
+          }
         ]
       }
     };

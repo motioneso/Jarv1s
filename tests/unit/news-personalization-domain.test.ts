@@ -4,7 +4,6 @@ import {
   assertSnapshotPayload,
   NEWS_SNAPSHOT_MAX_ARTICLES,
   NEWS_SNAPSHOT_MAX_STRING_LENGTH,
-  NEWS_SNAPSHOT_MAX_TOTAL_BYTES,
   normalizePublisherDomain,
   publisherDomainMatches
 } from "../../packages/news/src/personalization-domain.js";
@@ -94,10 +93,19 @@ describe("publisherDomainMatches", () => {
   });
 });
 
-describe("assertSnapshotPayload (provisional Slice 1 storage guard)", () => {
+describe("assertSnapshotPayload (compiled article guard)", () => {
   const article = (overrides: Record<string, unknown> = {}) => ({
-    title: "A headline",
+    id: "article-1",
+    publisher: "Example",
+    canonicalDomain: "example.com",
+    headline: "A headline",
     url: "https://example.com/a",
+    publishedAt: "2026-07-11T12:00:00.000Z",
+    excerpt: null,
+    imageUrl: null,
+    topics: [],
+    preferred: true,
+    rank: 1,
     ...overrides
   });
 
@@ -107,14 +115,18 @@ describe("assertSnapshotPayload (provisional Slice 1 storage guard)", () => {
 
   it("accepts exactly the max article count", () => {
     const payload = {
-      articles: Array.from({ length: NEWS_SNAPSHOT_MAX_ARTICLES }, () => article())
+      articles: Array.from({ length: NEWS_SNAPSHOT_MAX_ARTICLES }, (_, index) =>
+        article({ rank: index + 1 })
+      )
     };
     expect(() => assertSnapshotPayload(payload)).not.toThrow();
   });
 
   it("rejects one article over the cap", () => {
     const payload = {
-      articles: Array.from({ length: NEWS_SNAPSHOT_MAX_ARTICLES + 1 }, () => article())
+      articles: Array.from({ length: NEWS_SNAPSHOT_MAX_ARTICLES + 1 }, (_, index) =>
+        article({ rank: Math.min(index + 1, NEWS_SNAPSHOT_MAX_ARTICLES) })
+      )
     };
     expect(() => assertSnapshotPayload(payload)).toThrow(/articles/);
   });
@@ -138,17 +150,15 @@ describe("assertSnapshotPayload (provisional Slice 1 storage guard)", () => {
 
   it("rejects any string over the per-string cap", () => {
     const payload = {
-      articles: [article({ title: "x".repeat(NEWS_SNAPSHOT_MAX_STRING_LENGTH + 1) })]
+      articles: [article({ headline: "x".repeat(NEWS_SNAPSHOT_MAX_STRING_LENGTH + 1) })]
     };
     expect(() => assertSnapshotPayload(payload)).toThrow(/string/i);
   });
 
-  it("rejects excessive nesting", () => {
-    let deep: Record<string, unknown> = { leaf: true };
-    for (let i = 0; i < 10; i += 1) deep = { nested: deep };
-    expect(() => assertSnapshotPayload({ articles: [article({ extra: deep })] })).toThrow(
-      /depth|nest/i
-    );
+  it("rejects undeclared article fields", () => {
+    expect(() =>
+      assertSnapshotPayload({ articles: [article({ fingerprint: "private" })] })
+    ).toThrow(/shape/i);
   });
 
   it.each([
@@ -163,10 +173,14 @@ describe("assertSnapshotPayload (provisional Slice 1 storage guard)", () => {
 
   it("rejects a payload over the total serialized-bytes cap", () => {
     // Many near-cap strings blow the total budget while each string stays legal.
-    const count = Math.ceil(NEWS_SNAPSHOT_MAX_TOTAL_BYTES / NEWS_SNAPSHOT_MAX_STRING_LENGTH) + 1;
     const payload = {
-      articles: [article()],
-      padding: Array.from({ length: count }, () => "y".repeat(NEWS_SNAPSHOT_MAX_STRING_LENGTH))
+      articles: Array.from({ length: NEWS_SNAPSHOT_MAX_ARTICLES }, (_, index) =>
+        article({
+          rank: index + 1,
+          publisher: "p".repeat(NEWS_SNAPSHOT_MAX_STRING_LENGTH),
+          headline: "h".repeat(NEWS_SNAPSHOT_MAX_STRING_LENGTH)
+        })
+      )
     };
     expect(() => assertSnapshotPayload(payload)).toThrow(/bytes|size/i);
   });
@@ -181,7 +195,8 @@ describe("news personalization API schemas", () => {
       "customSources",
       "customTopics",
       "sourceExclusions",
-      "snapshot"
+      "snapshot",
+      "refresh"
     ]);
     // Snapshot exposes metadata only — never the payload.
     const snapshot = response.properties.snapshot;
