@@ -150,6 +150,45 @@ describe("resolveSourceInput", () => {
     ).resolves.toMatchObject({ status: "ambiguous", candidates: [{}, {}] });
   });
 
+  it("rejects homepage and feed redirects that change publisher identity", async () => {
+    const homepageRedirect = vi.fn<NewsSafeFetchPort>(async (url) => ({
+      ok: true as const,
+      status: 200,
+      finalUrl: url.endsWith("/article") ? url : "https://evil.test/",
+      contentType: "text/html",
+      body: url.endsWith("/article")
+        ? `<link rel="canonical" href="https://one.example/story">`
+        : `<a href="/story">A sufficiently important headline today</a>`,
+      truncated: false
+    }));
+    await expect(
+      resolveSourceInput(
+        db,
+        { fetch: homepageRedirect, search: noSearch, ai: ai(), repo: repo() },
+        { raw: "https://one.example/article", hasWebSearch: false }
+      )
+    ).resolves.toMatchObject({ status: "rejected", reason: "policy" });
+
+    const feedRedirect = vi.fn<NewsSafeFetchPort>(async (url) => ({
+      ok: true as const,
+      status: 200,
+      finalUrl: url.endsWith("feed.xml") ? "https://evil.test/feed.xml" : url,
+      contentType: url.endsWith("feed.xml") ? "application/rss+xml" : "text/html",
+      body: url.endsWith("feed.xml")
+        ? feed
+        : `<link rel="alternate" type="application/rss+xml" href="/feed.xml">`,
+      truncated: false
+    }));
+    await expect(
+      resolveSourceInput(
+        db,
+        { fetch: feedRedirect, search: noSearch, ai: ai(), repo: repo() },
+        { raw: "https://one.example", hasWebSearch: false }
+      )
+    ).resolves.toMatchObject({ status: "rejected", reason: "unreachable" });
+    expect(feedRedirect).toHaveBeenCalledTimes(2);
+  });
+
   it("fails closed without prerequisites, on exclusions, policy rejection, or fetch challenge", async () => {
     await expect(
       resolveSourceInput(db, { fetch: fetchMap({}), search: noSearch, ai: ai(), repo: repo() }, { raw: "Daily News", hasWebSearch: false })
@@ -157,9 +196,43 @@ describe("resolveSourceInput", () => {
 
     const excludedFetch = fetchMap({});
     await expect(
-      resolveSourceInput(db, { fetch: excludedFetch, search: noSearch, ai: ai(), repo: repo(["one.example"]) }, { raw: "https://one.example", hasWebSearch: false })
+      resolveSourceInput(db, { fetch: excludedFetch, search: noSearch, ai: ai(), repo: repo(["example.com"]) }, { raw: "https://news.example.com", hasWebSearch: false })
     ).resolves.toMatchObject({ status: "rejected" });
     expect(excludedFetch).not.toHaveBeenCalled();
+
+    const excludedSearchFetch = fetchMap({});
+    const excludedSearch = {
+      search: vi.fn(async () => ({
+        results: [
+          { title: "Blocked", url: "https://news.example.com/", snippet: "", publishedAt: "2026-07-11" }
+        ]
+      }))
+    };
+    await expect(
+      resolveSourceInput(
+        db,
+        { fetch: excludedSearchFetch, search: excludedSearch, ai: ai(), repo: repo(["example.com"]) },
+        { raw: "Blocked News", hasWebSearch: true }
+      )
+    ).resolves.toMatchObject({ status: "rejected" });
+    expect(excludedSearchFetch).not.toHaveBeenCalled();
+
+    const redirectedFetch = vi.fn<NewsSafeFetchPort>(async () => ({
+      ok: true,
+      status: 200,
+      finalUrl: "https://news.example.com/article",
+      contentType: "text/html",
+      body: `<link rel="canonical" href="https://news.example.com/story">`,
+      truncated: false
+    }));
+    await expect(
+      resolveSourceInput(
+        db,
+        { fetch: redirectedFetch, search: noSearch, ai: ai(), repo: repo(["example.com"]) },
+        { raw: "https://alias.test/article", hasWebSearch: false }
+      )
+    ).resolves.toMatchObject({ status: "rejected", reason: "policy" });
+    expect(redirectedFetch).toHaveBeenCalledTimes(1);
 
     await expect(
       resolveSourceInput(
