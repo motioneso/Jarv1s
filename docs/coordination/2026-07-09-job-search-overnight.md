@@ -3652,3 +3652,25 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
 - Queued: JS-07 #936 (spawn Fable when JS-06 clears); #964 (SPEC-GATED); #965 (deferred).
 - Next merge/image build after JS-06 = numbered v* tag; confirm .dockerignore keeps external-modules
   out of the default image.
+
+### 2026-07-11 — JS-06 merged; JS-07 build lane spawned (Fable)
+- **JS-06 #935 → PR #968 MERGED** squash `d8544793` (SENSITIVE). Sonnet QA GREEN 0-blocking;
+  invariant walk clean (assistant via public hostActions.openAssistant, no api.ts drift, owner-only,
+  5 fail-closed states, text-only guarded by import-graph test). Non-blocking = #965 dedupe gap
+  (deferred) + minor UX nit. Digest to Ben. pane pGB reaped. `merges_since_relay = 1`.
+- **JS-07 #936 build lane SPAWNED (SECURITY, FABLE).** Worktree `.claude/worktrees/js-07-build`,
+  branch `feat/js-07-freshness-dedup-fit` rooted `origin/main d8544793` (JS-01..JS-06 + News S2 live).
+  Handoff `docs/coordination/2026-07-11-js-07-build-handoff.md`; adopts finalized plan
+  `docs/superpowers/plans/2026-07-11-js-07-freshness-dedup-fit.md` (948a06ae; worker-ctx.ai fork
+  already ruled+folded). Pane **w1:pGC**, session `5857920e-da3c-4d11-9177-74dc31e22ae3`, agents tab
+  **w1:t1K** (spawn landed in Codex's tab w1:t1J → moved to fresh agents tab). Boot confirmed
+  **Fable 5**, high effort. Status: `building` — verifying plan premises vs branch, then
+  Coordinator plan-approval BEFORE code. Zero-migration expected; migration = [DESIGN-FORK] escalate.
+- **Relay-in-place** at 71% meter (standing directive #3: coordinator auto-compacts in place, NO
+  successor pane). Manifest flushed + memory saved in-session. `merges_since_relay = 1`.
+- **Coordinator lock:** label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
+  NOTE: coordinator pane number may reflow post-compaction — resolve fresh by label+session, never
+  trust a written pane number.
+- Awaiting: JS-07 plan-confirm escalation (approve if premises hold vs current main; escalate the
+  worker-ctx.ai fork to Opus only if the folded ruling looks unsound). Reap js-07-plan scout worktree
+  once builder confirmed driving (DONE-confirmed above).
