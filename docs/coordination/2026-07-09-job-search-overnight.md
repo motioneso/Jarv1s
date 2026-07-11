@@ -2946,3 +2946,9 @@ anything requiring escalation and do that instead of waiting for me."
   owner data); opportunities.* loose {type:object} schemas.
 - **Relayed to R11 (w1:pFC/8674f160) via herdr pane run — lane re-opened, fix cycle 1 of 2.** On
   R11 push+ping -> re-QA same council (Opus+Codex). Merge HELD until unanimous GREEN + CI green.
+
+### JS-03 fix cycle 1 — R11->R12 relay (2026-07-11)
+- R11 (8674f160) hit 70% + compaction mid-B1-design; committed full B1 fix design to relay doc
+  0510bf1a (zero fix code yet). Spawned R12 = w1:pFD / 38a3c2ef-f958-4af1-a910-5bef5f6d7827,
+  Fable 5, tab w1:t17, js-03 worktree — confirmed driving. R11 reaped. R12 implements B1 fail-closed
+  fix + attack-path test + folded :189 min-length, then full gate + push + ping for re-QA.
