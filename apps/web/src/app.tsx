@@ -16,11 +16,14 @@ import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
 import {
   installModuleHostRuntime,
-  loadExternalModuleContribution
+  loadExternalModuleContribution,
+  type ExternalWebContributionProps
 } from "./external-modules/loader";
+import { createModuleHostActions } from "./external-modules/host-actions";
 import { shouldShowOnboarding } from "./onboarding/resume";
 import { OnboardingWizard } from "./onboarding/onboarding-wizard";
 import { AppShell } from "./shell/app-shell";
+import { useChatControls } from "./shell/chat-controls-context";
 
 // #918: install the host React runtime before any external module bundle can ever be
 // imported (module scope — runs once at app boot, well before the first lazy() fires).
@@ -273,7 +276,7 @@ export function App() {
               <Route
                 key={`ext:${route.moduleId}`}
                 path={route.path}
-                element={<route.Component />}
+                element={<ExternalModuleMount moduleId={route.moduleId} Component={route.Component} />}
               />
             ))}
             <Route path={webRoutePath("settings")} element={<SettingsPage me={meQuery.data} />} />
@@ -298,6 +301,25 @@ function ModuleGatedRoute(props: {
   if (props.gate === "loading") return <LoadingScreen />;
   if (props.gate === "denied") return <Navigate to="/tasks" replace />;
   return <>{props.children}</>;
+}
+
+/**
+ * #916 — mount point for one external module's web Root. Rendered inside AppShell, so it can read
+ * the shell's chat controls from context and build `hostActions` bound to THIS module id (closure
+ * at a host-controlled call site — the module never supplies its own id). Recomputed only when the
+ * id or the callback identity changes.
+ */
+function ExternalModuleMount(props: {
+  readonly moduleId: string;
+  readonly Component: ComponentType<ExternalWebContributionProps>;
+}) {
+  const { openAssistantWithDraft } = useChatControls();
+  const hostActions = useMemo(
+    () => createModuleHostActions(props.moduleId, openAssistantWithDraft),
+    [props.moduleId, openAssistantWithDraft]
+  );
+  const Component = props.Component;
+  return <Component hostActions={hostActions} />;
 }
 
 function LoadingScreen() {
