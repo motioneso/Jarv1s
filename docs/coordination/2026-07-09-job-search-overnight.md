@@ -2511,3 +2511,30 @@ record new session id. merges_since_relay unchanged (no merge). Coordinator stay
 `859a99cd-b0e7-4490-97df-59d4ec977cd2`, tab w1:t17 ✓, model Sonnet 5 ✓ (pEG verified via pane read),
 bypass-perms, working on tasks 3-7. pEG (r4-sonnet, session 47b52215) reaped. Same worktree/branch
 `feat/916-host-starter-action`. #916 owner is now pEH. Await its wrap-up PR (security tier).
+
+## JOB SEARCH BUILD PHASE — POLICY (Ben directive, 2026-07-11)
+
+**Ben:** "For the actual job search, Fable reviews the plans if built, else drafts them, then
+handles the ENTIRE build uninterrupted."
+
+**Ground truth (checked on main):**
+- 9 JS task specs EXIST on main (PR #929, drafts): `docs/superpowers/specs/2026-07-10-job-search-js-01..09-*.md`
+  + module-design / open-decisions / task-decomposition. All #930-938 OPEN, `needs-spec` (drift sign-off pending).
+- NO coordinated-build PLANS exist yet for any JS task → Fable DRAFTS them (Ben's "if not, draft it up").
+- Blocked behind #916 (last platform seam, still building pEH). JS-06 (#935 module surface + assistant
+  handoff) depends directly on #916's host-action contract → do NOT draft JS plans until #916 merges.
+
+**Interpretation (correctable):** "Fable handles the build" = Fable is the standing brain —
+drift-signs-off the 9 specs, drafts the build plans, and is the per-gate approval + PR sign-off
+authority for every JS task, so BEN IS NEVER PINGED (that is what "uninterrupted" means). Actual
+coding = **Sonnet** build agents (Ben's standing "use sonnet agents for building" rule, unreversed).
+Fable = plan/review/decision layer; Sonnet = hands; Coordinator = spawn/merge/manifest as usual.
+If Ben instead wants Fable-MODEL to write code, he'll say so.
+
+**Execution (triggers when #916 lands):**
+1. #916 merges → platform complete (epic #818) → JS unblocked.
+2. Fable one-shot pass: drift-review + sign off JS-01..09 specs; DRAFT the 9 coordinated-build plans.
+3. Per JS task, in dependency order: Sonnet build agent → plan approval by FABLE (not Ben) →
+   TDD build → PR → tier QA (Opus adversarial for security-tier tasks: KV/adapters/scheduling/
+   host-handoff) → FABLE panel sign-off → merge. Ben not gated at any step.
+4. Coordinator stays resident, flushes manifest in-place (auto-compact override), no successor pane.
