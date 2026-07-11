@@ -2391,3 +2391,14 @@ keep `needs-spec` pending their own sign-off pass; do NOT strip those labels yet
 (successor pEC, security tier → Opus QA + panel sign-off → merge). #916 SPEC-READY, queued behind
 #915. After #915+#916 land = Open Module System platform complete → Job Search module JS-01..09
 (#930-938, specs on main via #929) buildable, each still needing its coordinated-build plan approval.
+
+**#915 DONE → PHASE 3 @ 2026-07-11 ~03:15.** Build agent pEC reported done: PR **#945**
+(feat/915-worker-capabilities @ `6f655f97`, VF_EXIT=0 AUDIT_EXIT=0 full suite, rebased on
+`ff2ab3a7`, no deferrals; codegraph CLI unavailable but MCP index refreshed). PR MERGEABLE, base
+main. Authority re-confirmed (own pE6 session `58a78927` == manifest lock). CI PENDING at report time
+— monitor `b299tck46` armed for conclusion. **Security tier gates before merge:** (1) CI green;
+(2) Opus adversarial QA GREEN — agent `a82c9525` running, MUST `gh pr comment` verdict (SSRF fetch
+bypass probes, migration 0158 definer/search_path/EXECUTE, metadata-only payloads, RLS/no-bypass);
+(3) overnight two-model panel sign-off (Fable + Codex) in lieu of Ben per manifest override. pEC is
+`done`/idle — NOT reaped yet (kept for possible rebase-conflict resolution until merge).
+merges_since_relay: 0.
