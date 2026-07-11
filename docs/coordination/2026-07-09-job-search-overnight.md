@@ -3412,3 +3412,9 @@ Fable v3 (pF0, session 58635e79) hit 70% meter. Tasks 3+4/6 committed GREEN:
 - 606f7b9c sweep + run-now dispatch
 Module sweep 27 files / 366 tests green. Spawning Fable successor (same worktree, feat/js-05-monitoring),
 resuming Task 5 (manifest cron). AWAITING "successor driving + reap" follow-up before reaping pF0.
+
+### JS-05 relay #3→#4 COMPLETE — 2026-07-11 ~12:40 PDT
+Successor DRIVING: label 'JS-05: monitoring (Fable v4)', pane pG1, session e4374ed4-d72e-4b71-9862-1be8da5a62e2,
+Fable 5, tab w1:t17, executing Task 5 (manifest cron). Relay/continuation doc committed 448c3b34.
+Old v3 (pF0, session 58635e79) REAPED after fresh session-id confirm. (Relay msg garbled the successor-id
+field — coordinator resolved fresh, no mispath.) JS-05 = Tasks 4/6 done, on Task 5.
