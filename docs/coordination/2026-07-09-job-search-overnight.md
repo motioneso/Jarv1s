@@ -2267,6 +2267,36 @@ commit / relay / stuck. (3) On #914 merge: rebase #939, spawn #915 lane lean.
   tests. Isolated rerun 7/7 green. NOT a regression. Action taken: filed flake as **issue #944**;
   re-triggered failed jobs via `gh run rerun 29132663111 --failed` (no no-op force-push, per pE4).
   **1st failure — a 2nd VF failure on the rerun = hard stop-the-line + escalate Fable.**
-- **Active monitors:** `bsi7vj8er` fleet-liveness (persistent); `b0s032za4` = #939 VF correctness
-  gate on rerun 29132663111 (emits GREEN→clear for final Opus QA, or RED→2nd-failure hard stop).
+- **#939 VF GREEN on rerun (00:58)** — same SHA 21911f80 passed, flake definitively confirmed.
+  Authority check passed (w1:pE6 / session 58a78927 = lock). PR MERGEABLE + UP_TO_DATE with
+  origin/main (21911f80 IS the integrated result; UNSTABLE = non-required publish job only).
+  **Final Opus adversarial security QA spawned** (agent `a766feb481af9f020`, isolation worktree,
+  jarvis_qa_919, diff-scoped) — posts verdict to PR #939. ON GREEN: Fable sign-off (residual HIGH
+  per-actor worker isolation = known non-blocking) → squash-merge → close #919 → reap pE4 (session
+  019f4d6d) + remove worktree → unblocks #915.
+- **Active monitors:** `bsi7vj8er` fleet-liveness (persistent). (#939 VF monitor `b0s032za4` fired
+  GREEN + ended.)
+
+---
+
+**MERGE DIGEST @ 2026-07-11 01:10 — #939 (#919 worker runtime) MERGED:**
+
+- ✅ **PR #939 squash-merged** `ff2ab3a7` (security-tier). Migration `0157_module_worker_runtime_access.sql`
+  now on main → main migration sequence tops at **0157**.
+- Final Opus adversarial QA: **GREEN**, 0 blocking / 0 non-blocking (verdict posted to PR). Fable
+  merge sign-off: **APPROVE** (independently verified CI-green-at-head, rebase, and that the earlier
+  `mcp-gateway.test.ts` approval-flow regression was fixed at head 21911f80 — not rerun-washed).
+- The one CI failure was a confirmed pre-existing flake (`tasks-agency-tools.test.ts` setTimeout
+  race, issue **#944**), re-triggered → same SHA passed GREEN.
+- Issue **#919 closed** (manual — PR said "Implements" not "Closes"). pE4 reaped (session 019f4d6d),
+  worktree `919-worker-runtime` removed, branch `feat/919-worker-runtime` deleted. Epic #860 stays
+  OPEN (slices remain).
+- Residual HIGH (per-actor worker process isolation) = known, Fable-ruled non-blocking; track for a
+  later slice.
+- **merges_since_relay:** security-tier merge → relay trigger fired. Per Ben's standing override
+  ("you auto-compacted, no successor"), flushed in-place, NO successor coordinator spawned. Counter
+  reset.
+- **NEXT: #915 impl lane now UNBLOCKED** (task 10). Spec `docs/superpowers/specs/2026-07-09-external-worker-capabilities-design.md`,
+  security tier. Spawn LEAN. Then #916 (task 8, still needs-spec).
+- **TODO:** verify #919 board card → Done (auto-move on close, like #914; confirm not stuck).
 - **#915 (task 10) / #916 (task 8):** still gated on #939 landing.
