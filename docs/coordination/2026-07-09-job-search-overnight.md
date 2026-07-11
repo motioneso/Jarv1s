@@ -2684,3 +2684,25 @@ manifest + memory (mem: JS-DAG sequential correction). Continuing in-session. pE
 
 **Fleet now:** pE6 Coordinator (me, 58a78927). pEQ JS-02 Fable (working). pBK news-module (idle,
 benign, t17). pEP Sol read-only commit-summary (idle, benign, t1J). Monitor bhh32744s watches JS lanes.
+
+---
+
+## Checkpoint — JS-02 building (2026-07-11, post-adjudication)
+
+- **JS-02 (#931)** SOLO Fable lane. Predecessor pane relayed → reaped. **Active: F2** `w1:pER`,
+  session `ecf0b471-1cb8-490a-818e-c2f3f7821f0d`, Fable 5 confirmed, branch `feat/js-02-kv-domain`
+  off `6b37bc01`. Plan `30d131ce`/`d65d52bf` **APPROVED**; now in TDD build.
+- **Namespace fork ruled:** `job-search.*` (shipped JS-01 manifest = ABI) wins over module-design
+  doc's `jarv1s.job-search.*`. Manifest is authority.
+- **Purge-descope fork ruled DESCOPE-OK** (Opus adjudicator `a64d4a8fe65b1df29`, all 3 claims
+  CONFIRMED vs real code, **zero privacy gap**):
+  - In-slice & shipped: owner delete-cascade (`0154` ON DELETE CASCADE), export (`moduleKvQuery`),
+    disable (preserve+re-read), per-owner retention/tombstone (`runRetentionPass`), owner-only RLS
+    adversarial test.
+  - Deferred → **issue #951** (Part of #818): platform-side cross-owner hard-purge of `module_kv`
+    at module disable/uninstall — needs privileged sweep role = migration = banned this slice.
+    Requires own spec. F2 to reference #951 in PR body + README/persistence-doc note.
+- **Merge order unchanged:** JS-02 → JS-03(#932) → JS-04 → … strictly sequential per
+  task-decomposition line 56 (no parallel JS lanes).
+- Fleet: 1 active JS lane (F2 building). Non-fleet Sol/news panes benign, monitor `bhh32744s`
+  denylists them. `merges_since_relay` since JS-01 = 0.
