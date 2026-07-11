@@ -40,7 +40,11 @@ export const newsModuleManifest = {
     supportsUserDisable: true
   },
   database: {
-    migrations: ["sql/0151_news_prefs.sql", "sql/0159_news_personalization.sql"],
+    migrations: [
+      "sql/0151_news_prefs.sql",
+      "sql/0159_news_personalization.sql",
+      "sql/0160_news_discovery.sql"
+    ],
     migrationDirectories: ["packages/news/sql"],
     ownedTables: [
       "app.news_prefs",
@@ -48,7 +52,9 @@ export const newsModuleManifest = {
       "app.news_custom_sources",
       "app.news_custom_topics",
       "app.news_source_exclusions",
-      "app.news_compilation_snapshots"
+      "app.news_compilation_snapshots",
+      "app.news_refresh_state",
+      "app.news_policy_verdicts"
     ]
   },
   navigation: [
@@ -175,7 +181,9 @@ export const newsModuleManifest = {
         { table: "app.news_custom_sources" },
         { table: "app.news_custom_topics" },
         { table: "app.news_source_exclusions" },
-        { table: "app.news_compilation_snapshots" }
+        { table: "app.news_compilation_snapshots" },
+        { table: "app.news_refresh_state" },
+        { table: "app.news_policy_verdicts" }
       ]
     }
   },

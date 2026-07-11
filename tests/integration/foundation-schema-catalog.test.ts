@@ -271,7 +271,8 @@ describe("MVP foundation schema catalog", () => {
         { version: "0158", name: "0158_external_module_active_users.sql" },
         // #953 (epic #954) News Slice 1 — personalization tables (custom sources/topics,
         // domain exclusions, compilation snapshot); owner-only FORCE RLS, no worker grants.
-        { version: "0159", name: "0159_news_personalization.sql" }
+        { version: "0159", name: "0159_news_personalization.sql" },
+        { version: "0160", name: "0160_news_discovery.sql" }
       ]);
     } finally {
       await client.end();
