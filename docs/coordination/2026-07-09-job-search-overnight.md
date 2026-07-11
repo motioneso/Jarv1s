@@ -2710,3 +2710,7 @@ benign, t17). pEP Sol read-only commit-summary (idle, benign, t1J). Monitor bhh3
 - **JS-02 relay (70%):** F2 → **F3** `w1:pES` session `5161489b-4cbc-4663-b32c-510985c001f8`
   (Fable 5), same worktree/branch, on Task 5 (tasks 1-4 committed green:
   23d23239/971e5177/7ffd3b79/c1293864). F2 reaped. Tasks 5-12 remain before PR.
+
+- **JS-02 relay:** F3 → **F4** `w1:pET` session `4348768a-2a09-40e2-b277-7ecc2d1df21a` (Fable 5,
+  same worktree/branch, agents tab t17). F3 reaped (no reap-msg arrived — verified pane state
+  directly, delivery drop). F4 sole JS-02 lane.
