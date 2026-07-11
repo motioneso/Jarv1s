@@ -3418,3 +3418,13 @@ Successor DRIVING: label 'JS-05: monitoring (Fable v4)', pane pG1, session e4374
 Fable 5, tab w1:t17, executing Task 5 (manifest cron). Relay/continuation doc committed 448c3b34.
 Old v3 (pF0, session 58635e79) REAPED after fresh session-id confirm. (Relay msg garbled the successor-id
 field — coordinator resolved fresh, no mispath.) JS-05 = Tasks 4/6 done, on Task 5.
+
+### News S2 #958 — GLM build ABANDONED, reverting to Codex — 2026-07-11 ~12:45 PDT (Ben directive)
+Ben: "we dont need to continue the news build with GLM, just need to nudge codex when the cap resets."
+- GLM headless run btzj1e411 KILLED (pids 3472074/3472113 gone). GLM committed NOTHING — head still f6dcf995
+  (Tasks 1-10). All GLM work = uncommitted working-tree scramble (routes.ts net-shrunk, jobs.ts churned),
+  LEFT IN PLACE in the news-slice2 worktree (no active session on it now).
+- One-shot cron scheduled 14:40 PDT to nudge: resume News S2 on CODEX (pEP session 019f4fd0 or fresh Codex)
+  in the news-slice2 worktree. Codex to assess GLM leftover → `git checkout -- packages/news && git clean -fd
+  packages/news` if incoherent → build Tasks 11-16 fresh from committed plan. QA council Opus+Fable.
+- If cron doesn't fire (session change), the autonomous heartbeat picks it up after 14:37.
