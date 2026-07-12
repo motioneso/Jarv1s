@@ -186,8 +186,8 @@ export const myModulesResponse: ListMyModulesResponse = {
  * route first, so these override mockApi's catch-all 404 for /api/*.
  */
 export async function mockExternalModules(page: Page): Promise<void> {
-  // `enabled:true` mirrors the server having JARVIS_ENABLE_EXTERNAL_MODULES=1; without it the
-  // pane hides the whole section (the fail-closed default), so the feature-on path needs it true.
+  // #996/#860: external modules are always-on now (no server-side flag to mirror) — this
+  // mock always seeds `enabled:true`, matching production's always-on ListExternalModulesResponse.
   let current: ExternalModuleDto = {
     id: "acme-widgets",
     name: "Acme Widgets",
