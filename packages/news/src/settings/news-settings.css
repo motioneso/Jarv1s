@@ -1,0 +1,235 @@
+/* News settings pane. Tokens only — raw colors live in apps/web/src/styles/tokens.css. */
+
+.nw-set {
+  margin-top: var(--space-5);
+}
+
+.nw-set__kicker {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-muted);
+}
+
+.nw-set__hint {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.nw-set__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-2);
+}
+
+.nw-setsrc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  text-align: left;
+}
+.nw-setsrc:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.nw-setsrc:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.nw-setsrc.is-active {
+  border-color: var(--accent);
+  background: var(--forest-soft);
+}
+.nw-setsrc__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+.nw-setsrc__state {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--text-muted);
+}
+.nw-setsrc.is-active .nw-setsrc__state {
+  color: var(--accent-fg);
+}
+
+.nw-set__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.nw-settopic {
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.nw-settopic:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.nw-settopic:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.nw-settopic.is-active {
+  border-color: var(--accent);
+  background: var(--forest-soft);
+  color: var(--accent-fg);
+  font-weight: var(--weight-bold);
+}
+
+/* ----- #953 personalization sections ----- */
+
+/* An excluded curated tile is inert — dashed border + muted text reads as "overridden",
+   distinct from the plain disabled (pending) state's opacity fade. */
+.nw-setsrc.is-excluded {
+  border-style: dashed;
+  background: var(--surface);
+  opacity: 1;
+}
+.nw-setsrc.is-excluded .nw-setsrc__name {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.nw-setsrc.is-excluded .nw-setsrc__state {
+  color: var(--text-muted);
+}
+
+.nw-set__prereq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.nw-set__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.nw-set__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+}
+
+.nw-set__item-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+
+.nw-set__item-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.nw-set__item > button {
+  margin-left: auto;
+}
+
+.nw-set__addrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.nw-set__gate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.nw-set__gatelink {
+  color: var(--accent-fg);
+  text-decoration: underline;
+}
+
+.nw-set__exform {
+  margin: 0 0 var(--space-3);
+}
+
+.nw-set__exlabel {
+  display: block;
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.nw-set__exrow {
+  display: flex;
+  gap: var(--space-2);
+  max-width: 28rem;
+}
+
+.nw-set__exrow .jds-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.nw-set__exerr {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--danger, var(--text));
+}
+
+/* ----- #975 Task 9: add-source/topic write flows ----- */
+
+/* Stacked label/row pairs inside one form (topic label + guidance) need breathing room
+   between the first row and the next label. */
+.nw-set__exrow + .nw-set__exlabel {
+  margin-top: var(--space-2);
+}
+
+.nw-set__addflow {
+  margin-top: var(--space-2);
+}
+
+.nw-set__candidates {
+  margin: var(--space-2) 0 0;
+}
+
+/* Candidate radios sit inline with the flex row items. */
+.nw-set__item > input[type="radio"] {
+  margin: 0;
+  accent-color: var(--accent);
+}

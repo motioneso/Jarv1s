@@ -152,6 +152,63 @@ export interface ModuleEnablementTable {
   updated_at: TimestampColumn;
 }
 
+// External trusted-operator module enablement (#917). Instance-global, admin-managed.
+// `'discovered'` is virtual (no row); only enabled/disabled modules have a row.
+// Backed by migration 0152_external_modules.sql; distribution columns by 0162 (#964).
+export interface ExternalModulesTable {
+  id: string;
+  status: "enabled" | "disabled";
+  manifest_hash: string;
+  package_hash: string;
+  disabled_reason: string | null;
+  enabled_by: string | null;
+  enabled_at: NullableTimestampColumn;
+  // #964 distribution: staged-download intent (accepted by the boot reconcile),
+  // purge marks (executed by the boot reconcile), and the last install failure.
+  staged_version: string | null;
+  staged_package_hash: string | null;
+  staged_at: NullableTimestampColumn;
+  staged_by: string | null;
+  staged_source: "admin-download" | "compose-ensure" | null;
+  purge_requested_at: NullableTimestampColumn;
+  purge_requested_by: string | null;
+  last_install_error: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+/**
+ * Module credential secrets (#918 Slice 2). encrypted_secret is an AES-256-GCM
+ * EncryptedSecret envelope, nullable because revoke scrubs it in place
+ * (app_runtime has no DELETE grant — protected table).
+ */
+export interface ModuleCredentialsTable {
+  id: string;
+  module_id: string;
+  credential_id: string;
+  scope: "instance" | "user";
+  owner_user_id: string | null;
+  display_name: string;
+  encrypted_secret: JsonColumn | null;
+  revoked_at: NullableTimestampColumn;
+  created_by: string | null;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+/** Module KV storage (#918 Slice 2). value is plain module data, never secrets. */
+export interface ModuleKvTable {
+  id: string;
+  module_id: string;
+  namespace: string;
+  scope: "instance" | "user";
+  owner_user_id: string | null;
+  key: string;
+  value: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
 export interface RlsProbeItemsTable {
   id: string;
   owner_user_id: string;
@@ -355,6 +412,8 @@ export interface EmailTriageFeedbackTable {
 
 export type AiAuthMethod = "cli" | "api_key";
 
+type AiProviderPurpose = "assistant" | "voice"; // #874 (migration 0149): chat provider vs voice(STT)
+
 export interface AiProviderConfigsTable {
   id: string;
   owner_user_id: string;
@@ -364,6 +423,10 @@ export interface AiProviderConfigsTable {
   status: AiProviderStatus;
   auth_method: AiAuthMethod;
   execution_mode: "interactive" | "non_interactive";
+  // #874 (migration 0149): 'assistant' vs the single 'voice' STT endpoint; DB default backfills.
+  purpose: ColumnType<AiProviderPurpose, AiProviderPurpose | undefined, AiProviderPurpose>;
+  // #870/H1 (migration 0147): instance-default flag, at most one true (partial unique index).
+  is_instance_default: ColumnType<boolean, boolean | undefined, boolean>;
   encrypted_credential: JsonColumn;
   revoked_at: NullableTimestampColumn;
   created_at: TimestampColumn;
@@ -416,6 +479,19 @@ export interface JarvisActionAuditLogTable {
   occurred_at: TimestampColumn;
 }
 
+export interface JarvisErrorLogTable {
+  id: string;
+  owner_user_id: string | null;
+  occurred_at: TimestampColumn;
+  feature: string;
+  operation: string;
+  error_category: string;
+  retryable: boolean;
+  user_message: string;
+  internal_summary: string;
+  request_id: string | null;
+}
+
 export interface ChatThreadsTable {
   id: string;
   owner_user_id: string;
@@ -436,6 +512,21 @@ export interface ChatMessagesTable {
   body: string;
   model_metadata: JsonColumn;
   tool_metadata: JsonColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export type ChatSkillSource = "authored" | "uploaded";
+
+export interface ChatSkillsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  name: string;
+  description: string | null;
+  frontmatter: JsonColumn;
+  body: string;
+  enabled: ColumnType<boolean, boolean | undefined, boolean>;
+  source: ChatSkillSource;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
@@ -883,6 +974,84 @@ export interface SportsFollowsTable {
   created_at: TimestampColumn;
 }
 
+export interface NewsPrefsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  kind: "source" | "source_exclude" | "topic";
+  key: string;
+  created_at: TimestampColumn;
+}
+
+// #953 News Slice 1 personalization tables (0159_news_personalization.sql). All owner-only
+// under FORCE RLS; validation_fingerprint is an opaque revalidation marker, never a
+// provider/model identity. Slice 2 owns source/topic writes; Slice 1 reads/exports them.
+export type NewsValidationStatus = "approved" | "needs_revalidation" | "rejected";
+
+export interface NewsCustomSourcesTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  label: string;
+  canonical_domain: string;
+  homepage_url: string;
+  feed_url: string | null;
+  retrieval_method: "feed" | "scrape";
+  validation_status: NewsValidationStatus;
+  health_status: "available" | "unavailable";
+  validation_fingerprint: string;
+  validated_at: TimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface NewsCustomTopicsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  label: string;
+  guidance: string | null;
+  validation_status: NewsValidationStatus;
+  validation_fingerprint: string;
+  validated_at: TimestampColumn;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface NewsSourceExclusionsTable {
+  id: ColumnType<string, string | undefined, string>;
+  owner_user_id: string;
+  canonical_domain: string;
+  created_at: TimestampColumn;
+}
+
+// Derived/transient compiled-feed cache: one row per user (owner_user_id IS the primary
+// key), replaced atomically, never exported. payload has no DB default — writers must
+// always supply a value the News-owned assertSnapshotPayload has accepted.
+export interface NewsCompilationSnapshotsTable {
+  owner_user_id: string;
+  compiled_at: TimestampColumn;
+  expires_at: TimestampColumn;
+  payload: ColumnType<Record<string, unknown>, Record<string, unknown>, Record<string, unknown>>;
+  created_at: TimestampColumn;
+  updated_at: TimestampColumn;
+}
+
+export interface NewsRefreshStateTable {
+  owner_user_id: string;
+  state: "idle" | "queued" | "running" | "failed";
+  failure_kind: "fetch" | "ai" | "internal" | null;
+  requested_generation: ColumnType<string, string | number | undefined, string | number>;
+  compiled_generation: ColumnType<string, string | number | undefined, string | number>;
+  updated_at: TimestampColumn;
+}
+
+export interface NewsPolicyVerdictsTable {
+  owner_user_id: string;
+  canonical_domain: string;
+  fingerprint: string;
+  verdict: "approved" | "rejected";
+  decided_at: TimestampColumn;
+  expires_at: TimestampColumn;
+}
+
 export interface JarvisDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
@@ -896,6 +1065,9 @@ export interface JarvisDatabase {
   "app.instance_settings": InstanceSettingsTable;
   "app.admin_audit_events": AdminAuditEventsTable;
   "app.module_enablement": ModuleEnablementTable;
+  "app.external_modules": ExternalModulesTable;
+  "app.module_credentials": ModuleCredentialsTable;
+  "app.module_kv": ModuleKvTable;
   "app.rls_probe_items": RlsProbeItemsTable;
   "app.tasks": TasksTable;
   "app.task_activity": TaskActivityTable;
@@ -915,8 +1087,10 @@ export interface JarvisDatabase {
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
   "app.jarvis_action_audit_log": JarvisActionAuditLogTable;
+  "app.jarvis_error_log": JarvisErrorLogTable;
   "app.chat_threads": ChatThreadsTable;
   "app.chat_messages": ChatMessagesTable;
+  "app.chat_skills": ChatSkillsTable;
   "app.briefing_definitions": BriefingDefinitionsTable;
   "app.briefing_runs": BriefingRunsTable;
   "app.usefulness_feedback_signals": UsefulnessFeedbackSignalsTable;
@@ -929,6 +1103,13 @@ export interface JarvisDatabase {
   "app.preferences": PreferencesTable;
   "app.wellness_checkins": WellnessCheckinsTable;
   "app.sports_follows": SportsFollowsTable;
+  "app.news_prefs": NewsPrefsTable;
+  "app.news_custom_sources": NewsCustomSourcesTable;
+  "app.news_custom_topics": NewsCustomTopicsTable;
+  "app.news_source_exclusions": NewsSourceExclusionsTable;
+  "app.news_compilation_snapshots": NewsCompilationSnapshotsTable;
+  "app.news_refresh_state": NewsRefreshStateTable;
+  "app.news_policy_verdicts": NewsPolicyVerdictsTable;
   "app.medications": MedicationsTable;
   "app.medication_logs": MedicationLogsTable;
   "app.wellness_therapy_notes": WellnessTherapyNotesTable;
@@ -953,6 +1134,7 @@ export type Share = Selectable<SharesTable>;
 export type InstanceSetting = Selectable<InstanceSettingsTable>;
 export type AdminAuditEvent = Selectable<AdminAuditEventsTable>;
 export type ModuleEnablementRow = Selectable<ModuleEnablementTable>;
+export type ExternalModuleRow = Selectable<ExternalModulesTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
 export type Task = Selectable<TasksTable>;
 export type TaskActivity = Selectable<TaskActivityTable>;
@@ -965,8 +1147,10 @@ export type CalendarEvent = Selectable<CalendarEventsTable>;
 export type EmailMessage = Selectable<EmailMessagesTable>;
 export type AiAssistantActionRequest = Selectable<AiAssistantActionRequestsTable>;
 export type JarvisActionAuditLog = Selectable<JarvisActionAuditLogTable>;
+export type JarvisErrorLog = Selectable<JarvisErrorLogTable>;
 export type ChatThread = Selectable<ChatThreadsTable>;
 export type ChatMessage = Selectable<ChatMessagesTable>;
+export type ChatSkill = Selectable<ChatSkillsTable>;
 export type BriefingDefinition = Selectable<BriefingDefinitionsTable>;
 export type BriefingRun = Selectable<BriefingRunsTable>;
 export type UsefulnessFeedbackSignal = Selectable<UsefulnessFeedbackSignalsTable>;
@@ -977,3 +1161,9 @@ export type Medication = Selectable<MedicationsTable>;
 export type MedicationLog = Selectable<MedicationLogsTable>;
 export type WellnessTherapyNote = Selectable<WellnessTherapyNotesTable>;
 export type DataExportJob = Selectable<DataExportJobsTable>;
+export type NewsCustomSource = Selectable<NewsCustomSourcesTable>;
+export type NewsCustomTopic = Selectable<NewsCustomTopicsTable>;
+export type NewsSourceExclusion = Selectable<NewsSourceExclusionsTable>;
+export type NewsCompilationSnapshot = Selectable<NewsCompilationSnapshotsTable>;
+export type NewsRefreshState = Selectable<NewsRefreshStateTable>;
+export type NewsPolicyVerdict = Selectable<NewsPolicyVerdictsTable>;

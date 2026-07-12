@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 
 import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
+import { localDay } from "@jarv1s/shared";
 
 import { TASK_URGENCY_WINDOW_HOURS } from "./classification.js";
 import { rollForwardOwnedSeries } from "./recurrence.js";
@@ -12,8 +13,12 @@ const AT_RISK_DUE_WINDOW_DAYS = TASK_URGENCY_WINDOW_HOURS / 24;
  * Read the actor's IANA timezone from app.preferences key "locale".
  * Validates via Intl.DateTimeFormat — unknown zone → DEFAULT_TIMEZONE.
  * Runs inside the caller's already-open DataContextDb transaction (RLS-scoped).
+ *
+ * Exported (was private `readUserTimezone`) so jobs.ts's recurrence worker can reuse the
+ * same preferences read before rolling that actor's series forward (#877 finding 2),
+ * instead of duplicating this lookup.
  */
-async function readUserTimezone(db: DataContextDb): Promise<string> {
+export async function readActorTimezone(db: DataContextDb): Promise<string> {
   assertDataContextDb(db);
   const row = await db.db
     .selectFrom("app.preferences")
@@ -39,8 +44,11 @@ export class TaskDriftRepository {
    */
   async getOverdue(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
-    await rollForwardOwnedSeries(db);
-    const tz = await readUserTimezone(db);
+    // Read tz FIRST, then roll forward on the actor's local day — not the server's UTC
+    // day (#877 finding 2). Reordered from the old tz-after-roll sequence, which let the
+    // roll silently default to UTC and advance a still-due task before evening Pacific.
+    const tz = await readActorTimezone(db);
+    await rollForwardOwnedSeries(db, localDay(new Date(), tz));
     return this.queryOverdue(db, tz);
   }
 
@@ -75,8 +83,10 @@ export class TaskDriftRepository {
    */
   async getAtRisk(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
-    await rollForwardOwnedSeries(db);
-    const tz = await readUserTimezone(db);
+    // Read tz FIRST, then roll forward on the actor's local day (#877 finding 2) — see
+    // getOverdue's comment above.
+    const tz = await readActorTimezone(db);
+    await rollForwardOwnedSeries(db, localDay(new Date(), tz));
     return this.queryAtRisk(db, tz);
   }
 
@@ -121,9 +131,11 @@ export class TaskDriftRepository {
   async getFocus(db: DataContextDb): Promise<Task[]> {
     assertDataContextDb(db);
 
-    await rollForwardOwnedSeries(db);
-    // Read timezone once; pass to both private queries so we don't hit preferences twice.
-    const tz = await readUserTimezone(db);
+    // Read timezone once — reused for the roll-forward day AND both private queries below,
+    // so we don't hit preferences twice and the roll uses the actor's local day (#877
+    // finding 2), not the server's UTC day.
+    const tz = await readActorTimezone(db);
+    await rollForwardOwnedSeries(db, localDay(new Date(), tz));
     const [overdue, atRisk] = await Promise.all([
       this.queryOverdue(db, tz),
       this.queryAtRisk(db, tz)

@@ -13,6 +13,7 @@
     "@jarv1s/db": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/notifications": "workspace:*",
     "@jarv1s/priority": "workspace:*",
     "@jarv1s/shared": "workspace:*",
     "@jarv1s/source-behaviors": "workspace:*",

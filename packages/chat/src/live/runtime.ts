@@ -8,7 +8,8 @@
  */
 import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
 import { extractTimezone } from "../locale-utils.js";
-import type { DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner, JarvisDatabase, PreferencesPort } from "@jarv1s/db";
+import type { Kysely } from "kysely";
 import {
   CHAT_SETTINGS_PREFERENCE_KEY,
   normalizePersonaSettings,
@@ -35,6 +36,7 @@ import { AgyPrintChatEngine } from "./agy-print-chat-engine.js";
 import { ClaudePrintChatEngine } from "./claude-print-chat-engine.js";
 import { CliChatEngineImpl } from "./cli-chat-engine.js";
 import { CliChatUnavailableError } from "./errors.js";
+import { purgePrivateTranscripts } from "./private-transcript-cleanup.js";
 export { CliChatUnavailableError } from "./errors.js";
 export { ChatEngineRpcClient, RpcConnection } from "./chat-engine-rpc-client.js";
 export type {
@@ -205,6 +207,7 @@ export function unavailableEngineFactory(reason: string): ChatEngineFactory {
 export const realEngineFactory: ChatEngineFactory = createRealEngineFactory();
 
 export interface CreateChatSessionRuntimeDeps {
+  readonly rootDb?: Kysely<JarvisDatabase>;
   readonly dataContext: DataContextRunner;
   /** Override the engine factory (tests inject a fake); defaults to the real tmux engine. */
   readonly engineFactory?: ChatEngineFactory;
@@ -309,6 +312,7 @@ export interface ChatSessionRuntime {
  */
 export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): ChatSessionRuntime {
   const persistence = new DataContextChatPersistence({
+    rootDb: deps.rootDb,
     dataContext: deps.dataContext,
     chatRepository: new ChatRepository(),
     aiRepository: new AiRepository(),
@@ -390,6 +394,13 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     killSession: connection
       ? (sessionKey) => killOrphan(activeReconcileDriver, connection!, sessionKey)
       : undefined,
+    purgePrivateTranscripts: (sessionKey) =>
+      purgePrivateTranscripts(
+        createRealTmuxIo(),
+        resolveChatHome(),
+        sessionKey,
+        process.env.JARVIS_CLI_HOME_BASE
+      ),
     serverOwnsDrain,
     recall: deps.recall,
     passiveRetrieval: deps.passiveMemoryRecall
@@ -408,6 +419,12 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
         })
       : undefined
   });
+
+  if (connection) {
+    // Boot-time connect kicks the reconcile hook once up front so orphaned incognito
+    // rows/transcripts are swept before the first live turn on the RPC path.
+    void connection.ensureConnected().catch(() => undefined);
+  }
 
   // §5.5 — start the idle reaper at boot (the PREFERRED outcome) for the RPC path. It shares the §5.4
   // maintenance mutex with reconciliation, so it can never race it. Opt-out via

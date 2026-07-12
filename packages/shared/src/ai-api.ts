@@ -78,6 +78,7 @@ const aiProviderConfigSchema = {
     "executionMode",
     "hasCredential",
     "cliAvailable",
+    "isInstanceDefault",
     "revokedAt",
     "createdAt",
     "updatedAt"
@@ -92,6 +93,8 @@ const aiProviderConfigSchema = {
     executionMode: aiProviderExecutionModeSchema,
     hasCredential: { type: "boolean" },
     cliAvailable: { type: "boolean" },
+    // #870/H1: single instance-default provider flag (migration 0147).
+    isInstanceDefault: { type: "boolean" },
     revokedAt: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" }
@@ -149,35 +152,13 @@ const aiCapabilityRouteSchema = {
         "manual-route",
         "manual-route-unavailable-fallback",
         "matched-active-model",
-        "no-active-model"
+        "no-active-model",
+        "needs-config"
       ]
     },
     model: {
       anyOf: [aiConfiguredModelSchema, { type: "null" }]
     }
-  }
-} as const;
-
-const aiCapabilityRouteMapSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    chat: { type: ["string", "null"] },
-    "tool-use": { type: ["string", "null"] },
-    json: { type: ["string", "null"] },
-    vision: { type: ["string", "null"] },
-    summarization: { type: ["string", "null"] },
-    transcription: { type: ["string", "null"] }
-  }
-} as const;
-
-const aiCapabilityRouteSettingSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["capability", "modelId"],
-  properties: {
-    capability: aiModelCapabilitySchema,
-    modelId: { type: ["string", "null"] }
   }
 } as const;
 
@@ -502,15 +483,6 @@ export const lookupAiCapabilityRouteResponseSchema = {
   }
 } as const;
 
-export const listAiCapabilityRoutesResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["routes"],
-  properties: {
-    routes: aiCapabilityRouteMapSchema
-  }
-} as const;
-
 // Transcript text only in the response — the audio body that produced it is a raw upload
 // (not JSON, see transcribeAudioRouteSchema below) and is never echoed back or persisted.
 export const transcribeAudioResponseSchema = {
@@ -522,23 +494,8 @@ export const transcribeAudioResponseSchema = {
   }
 } as const;
 
-export const putAiCapabilityRouteRequestSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["modelId"],
-  properties: {
-    modelId: { type: ["string", "null"] }
-  }
-} as const;
-
-export const putAiCapabilityRouteResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["route"],
-  properties: {
-    route: aiCapabilityRouteSettingSchema
-  }
-} as const;
+// #874 — the Voice (STT) endpoint payload + route schemas live in ./ai-voice-api.ts (they were split
+// out to keep this file under the 1000-line source cap) and are re-exported from the shared index.
 
 const chatModelOverrideSettingsSchema = {
   type: "object",
@@ -591,9 +548,11 @@ export const putAdminChatModelOverrideRequestSchema = {
 export const putAiAdminUserPinRequestSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["modelId"],
+  // #870 (M4a): modelId and providerId are mutually exclusive; both omitted/null clears the pin.
+  // The handler enforces the at-most-one rule (ajv can't express it cleanly across two nullables).
   properties: {
-    modelId: { type: ["string", "null"] }
+    modelId: { type: ["string", "null"] },
+    providerId: { type: ["string", "null"] }
   }
 } as const;
 
@@ -603,16 +562,22 @@ const aiAdminUserPinSchema = {
   required: [
     "pinnedModelId",
     "pinnedModel",
+    "pinnedProviderId",
+    "pinnedProvider",
     "effectiveChatModel",
     "effectiveChatReason",
-    "availableModels"
+    "availableModels",
+    "availableProviders"
   ],
   properties: {
     pinnedModelId: { type: ["string", "null"] },
     pinnedModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
+    pinnedProviderId: { type: ["string", "null"] },
+    pinnedProvider: { anyOf: [aiProviderConfigSchema, { type: "null" }] },
     effectiveChatModel: { anyOf: [aiConfiguredModelSchema, { type: "null" }] },
     effectiveChatReason: aiCapabilityRouteSchema.properties.reason,
-    availableModels: { type: "array", items: aiConfiguredModelSchema }
+    availableModels: { type: "array", items: aiConfiguredModelSchema },
+    availableProviders: { type: "array", items: aiProviderConfigSchema }
   }
 } as const;
 
@@ -771,13 +736,6 @@ export const lookupAiCapabilityRouteRouteSchema = {
   }
 } as const;
 
-export const listAiCapabilityRoutesRouteSchema = {
-  response: {
-    200: listAiCapabilityRoutesResponseSchema,
-    401: errorResponseSchema
-  }
-} as const;
-
 // No `body` schema: the request body is a raw audio upload (content-type audio/*), not JSON —
 // validated by the route handler itself, not ajv.
 export const transcribeAudioRouteSchema = {
@@ -792,14 +750,16 @@ export const transcribeAudioRouteSchema = {
   }
 } as const;
 
-export const putAiCapabilityRouteRouteSchema = {
-  params: aiCapabilityParamsSchema,
-  body: putAiCapabilityRouteRequestSchema,
+// #870/H1: promote a provider to instance-default (mutually exclusive radio). Reuses the standard
+// single-provider response envelope.
+export const setInstanceDefaultProviderRouteSchema = {
+  params: idParamsSchema,
   response: {
-    200: putAiCapabilityRouteResponseSchema,
+    200: createAiProviderConfigResponseSchema,
     400: errorResponseSchema,
     401: errorResponseSchema,
-    403: errorResponseSchema
+    403: errorResponseSchema,
+    404: errorResponseSchema
   }
 } as const;
 
@@ -886,42 +846,6 @@ export const resolveAiAssistantActionRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     404: errorResponseSchema
-  }
-} as const;
-
-export const aiCapabilityTierPreferencesResponseSchema = {
-  type: "object",
-  properties: {
-    preferences: {
-      type: "object",
-      additionalProperties: aiModelTierSchema
-    }
-  },
-  required: ["preferences"]
-} as const;
-
-export const patchAiCapabilityTierPreferenceRequestSchema = {
-  type: "object",
-  properties: {
-    capability: aiModelCapabilitySchema,
-    tier: aiModelTierSchema
-  },
-  required: ["capability", "tier"]
-} as const;
-
-export const listAiCapabilityTierPreferencesRouteSchema = {
-  response: {
-    200: aiCapabilityTierPreferencesResponseSchema,
-    401: errorResponseSchema
-  }
-} as const;
-
-export const patchAiCapabilityTierPreferenceRouteSchema = {
-  body: patchAiCapabilityTierPreferenceRequestSchema,
-  response: {
-    204: { type: "null" },
-    400: errorResponseSchema,
-    401: errorResponseSchema
   }
 } as const;
 

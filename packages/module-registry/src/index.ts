@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
@@ -28,6 +30,7 @@ import {
   aiModuleManifest,
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
+  generateStructured,
   registerAiMaintenanceWorkers,
   registerAiRoutes
 } from "@jarv1s/ai";
@@ -90,7 +93,9 @@ import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
+  GoogleEmailWriteProvider,
   IMAP_SYNC_QUEUE_DEFINITIONS,
+  ImapEmailWriteProvider,
   MONITOR_QUEUE_DEFINITIONS,
   buildFeatureGrantService,
   buildRuntimeSourceContextService,
@@ -120,7 +125,12 @@ import {
   EmailRepository,
   registerEmailRoutes
 } from "@jarv1s/email";
-import { assertMetadataOnlyPayload, FOUNDATION_QUEUES, type QueueDefinition } from "@jarv1s/jobs";
+import {
+  assertMetadataOnlyPayload,
+  FOUNDATION_QUEUES,
+  registerDataContextWorker,
+  type QueueDefinition
+} from "@jarv1s/jobs";
 import { createModuleLogger } from "@jarv1s/module-sdk";
 import type {
   JarvisModuleManifest,
@@ -129,19 +139,24 @@ import type {
 } from "@jarv1s/module-sdk";
 import {
   NotificationsRepository,
+  DIGEST_COMPOSE_QUEUE,
   type NotificationPreferencePort,
+  runNotificationDigestCompose,
   notificationsModuleManifest,
   notificationsModuleSqlMigrationDirectory,
-  registerNotificationsRoutes
+  registerNotificationsRoutes,
+  type NotificationDigestSender
 } from "@jarv1s/notifications";
 import {
   type AuthProviderStatusDto,
+  type ChatMultiplexerChoice,
   type OnboardingProviderCheckResponse,
   type OnboardingProviderKind
 } from "@jarv1s/shared";
 import {
   EXPORT_QUEUE_DEFINITIONS,
   createWebSearchSecretCipher,
+  getWebSearchKeyConfig,
   readBraveSearchApiKey,
   registerSettingsJobWorkers,
   registerSettingsRoutes,
@@ -157,7 +172,9 @@ import {
   type VerifySelfPasswordPort,
   type HasPasswordCredentialPort,
   type OnboardingInstallDependencies,
-  type OnboardingLoginDependencies
+  type OnboardingLoginDependencies,
+  type ExternalModulesDependencies,
+  type ModuleDistributionDependencies
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -180,7 +197,12 @@ import {
   GOALS_MEMORY_SYNC_RECONCILE_QUEUE
 } from "@jarv1s/goals";
 import {
+  createHostRateLimiter,
+  createRobotsGate,
+  fetchWebResource,
+  fetchWebResourceBytes,
   invalidateWebSearchProviderCache,
+  resolveWebSearchProvider,
   setWebSearchKeyResolver,
   webModuleManifest
 } from "@jarv1s/web-research";
@@ -200,6 +222,15 @@ import {
   sportsModuleManifest,
   sportsModuleSqlMigrationDirectory
 } from "@jarv1s/sports";
+import {
+  configureNewsBriefingService,
+  createRssDatasetAdapter,
+  NEWS_QUEUE_DEFINITIONS,
+  newsModuleManifest,
+  newsModuleSqlMigrationDirectory,
+  registerNewsJobWorkers,
+  registerNewsRoutes
+} from "@jarv1s/news";
 import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
 import {
   notesModuleManifest,
@@ -237,9 +268,10 @@ import {
 import { assertModulesCompatible } from "./compat-gate.js";
 import {
   makeCliPresentProbe,
+  makeChatMultiplexerStatusProbe,
   makeProviderConnectionCheckProbe,
-  probeChatMultiplexerAvailability,
-  resolveChatEngineFactory
+  resolveChatEngineFactory,
+  type LiveChatMultiplexerStatus
 } from "./chat-multiplexer.js";
 import { buildOnboardingInstall } from "./onboarding-install.js";
 import { buildOnboardingLogin } from "./onboarding-login.js";
@@ -264,6 +296,10 @@ declare module "fastify" {
 export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
+
+export * from "./external/validate.js";
+export * from "./external/types.js";
+export * from "./external/reconcile.js";
 
 export {
   createActiveModulesResolver,
@@ -365,8 +401,10 @@ export interface BuiltInRouteDependencies {
   readonly googleConnectionService?: GoogleConnectionService;
   readonly googleApiClient?: GoogleApiClient;
   readonly connectorsRepository?: ConnectorsRepository;
-  /** Boot-time multiplexer availability snapshot for the admin settings UI. */
-  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  /** Live multiplexer status probe for the admin settings UI (resolved fresh per request). */
+  readonly getChatMultiplexerStatus?: (
+    configured: ChatMultiplexerChoice
+  ) => Promise<LiveChatMultiplexerStatus>;
   /** Host diagnostics runtime-facts provider (#255), built by the API composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
@@ -394,6 +432,19 @@ export interface BuiltInRouteDependencies {
    * routes fail closed (500).
    */
   readonly onboardingLogin?: OnboardingLoginDependencies;
+  /**
+   * #917 — boot-time external-module discovery snapshot, built by the API composition root
+   * (apps/api discoverExternalModules) and forwarded to the settings module, where the Task 9
+   * admin GET route reconciles it against app.external_modules. Absent ⇒ feature off. Optional
+   * so every existing registerBuiltInApiRoutes call site keeps compiling unchanged.
+   */
+  readonly externalModules?: ExternalModulesDependencies;
+  readonly moduleDistribution?: ModuleDistributionDependencies;
+  readonly reconcileExternalModuleJobs?: (
+    change:
+      | { readonly kind: "module"; readonly moduleId: string }
+      | { readonly kind: "user"; readonly userId: string }
+  ) => Promise<void>;
   /** TEST-ONLY. Inject a fake fetch for weather (and any other external HTTP) without real network. */
   readonly fetchFn?: typeof fetch;
 }
@@ -422,6 +473,69 @@ export interface BuiltInModuleRegistration {
     boss: PgBoss,
     dependencies: BuiltInWorkerDependencies
   ) => Promise<readonly string[]>;
+}
+
+const newsRobotsGate = createRobotsGate();
+const newsHostRateLimiter = createHostRateLimiter();
+
+function buildNewsDiscoveryPorts(logger?: Pick<FastifyBaseLogger, "info" | "warn">) {
+  const repository = new AiRepository();
+  const cipher = createAiSecretCipher();
+  return {
+    fetch: (url: string) =>
+      fetchWebResource(url, {
+        requireHttps: true,
+        robots: newsRobotsGate,
+        rateLimiter: newsHostRateLimiter
+      }),
+    image: (url: string, maxBytes: number) =>
+      fetchWebResourceBytes(url, {
+        requireHttps: true,
+        robots: newsRobotsGate,
+        rateLimiter: newsHostRateLimiter,
+        maxBytes
+      }),
+    search: {
+      async search(
+        scopedDb: DataContextDb,
+        query: string,
+        options: { limit: number; freshness?: "day" | "week" }
+      ) {
+        const result = await (
+          await resolveWebSearchProvider(scopedDb)
+        ).search({
+          query,
+          ...options
+        });
+        return { results: [...result.results] };
+      }
+    },
+    ai: {
+      generateJson: (
+        scopedDb: DataContextDb,
+        input: {
+          schema: Record<string, unknown>;
+          prompt: string;
+          maxOutputTokens?: number;
+        }
+      ) =>
+        generateStructured(
+          scopedDb,
+          { service: "module.news", ...input },
+          { repository, cipher, logger }
+        ),
+      async fingerprint(scopedDb: DataContextDb) {
+        const model = (
+          await repository.resolveModelForService(scopedDb, "module.news", {
+            capability: "json",
+            tierHint: "economy"
+          })
+        ).model;
+        if (!model) return null;
+        return createHash("sha256").update(`${model.provider_kind}\0${model.id}`).digest("hex");
+      }
+    }
+  };
 }
 
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
@@ -671,6 +785,46 @@ function buildReconcileProactiveSchedule(boss: PgBoss): ReconcileProactiveSchedu
   };
 }
 
+function createNotificationDigestSender(): NotificationDigestSender {
+  const connectorsRepository = new ConnectorsRepository();
+  const cipher = createConnectorSecretCipher();
+  const googleProvider = new GoogleEmailWriteProvider(
+    new RuntimeGoogleConnectionService({
+      repository: connectorsRepository,
+      cipher,
+      oauthClient: new GoogleOAuthClient()
+    }),
+    new RuntimeGoogleApiClient()
+  );
+  const imapProvider = new ImapEmailWriteProvider(connectorsRepository, cipher);
+
+  return {
+    async sendDigest(scopedDb, input) {
+      const accounts = await connectorsRepository.listAccounts(scopedDb);
+      const google = accounts.find(
+        (account) => account.status === "active" && account.provider_type === "google"
+      );
+      if (google) {
+        return googleProvider.sendNew(scopedDb, {
+          to: input.to,
+          subject: input.subject,
+          body: input.text
+        });
+      }
+      const imap = accounts.find(
+        (account) => account.status === "active" && account.provider_type === "imap"
+      );
+      if (!imap) return { ok: false };
+      return imapProvider.sendNew(scopedDb, {
+        connectorAccountId: imap.id,
+        to: input.to,
+        subject: input.subject,
+        body: input.text
+      });
+    }
+  };
+}
+
 /**
  * Composes the tasks module's EmailTriageFeedbackPort over the email cache and the
  * connectors feedback store. Lives here because only the composition root may import
@@ -732,11 +886,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         verifySelfPassword: deps.verifySelfPassword,
         hasPasswordCredential: deps.hasPasswordCredential,
         bootstrapConnectionString: deps.bootstrapConnectionString,
-        chatMultiplexerAvailability: deps.chatMultiplexerAvailability,
+        getChatMultiplexerStatus: deps.getChatMultiplexerStatus,
         hostDiagnostics: deps.hostDiagnostics,
         onboardingProbes: deps.onboardingProbes,
         onboardingInstall: deps.onboardingInstall,
         onboardingLogin: deps.onboardingLogin,
+        externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
+        moduleDistribution: deps.moduleDistribution,
+        reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),
         notificationUnreadPort: new NotificationsRepository(),
@@ -890,8 +1047,23 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: notificationsModuleManifest,
     sqlMigrationDirectories: [notificationsModuleSqlMigrationDirectory],
-    queueDefinitions: [],
-    registerRoutes: registerNotificationsRoutes
+    queueDefinitions: [{ name: DIGEST_COMPOSE_QUEUE, options: { retryLimit: 0 } }],
+    registerRoutes: registerNotificationsRoutes,
+    registerWorkers: async (boss, deps) => [
+      await registerDataContextWorker(
+        boss,
+        DIGEST_COMPOSE_QUEUE,
+        deps.dataContext,
+        (_job, scopedDb) =>
+          runNotificationDigestCompose(scopedDb, {
+            baseUrl: process.env.JARVIS_PUBLIC_BASE_URL ?? "http://localhost:3000",
+            preferencesRepository: new PreferencesRepository(),
+            notificationsRepository: new NotificationsRepository(),
+            notificationPreferencePort: createNotificationPreferencePort(),
+            sender: createNotificationDigestSender()
+          })
+      )
+    ]
   },
   {
     manifest: calendarModuleManifest,
@@ -925,6 +1097,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         resolveAccessContext: deps.resolveAccessContext,
         dataContext: deps.dataContext,
         resolveActiveModules: deps.resolveActiveModules,
+        // #915 D6: installed set, not actor-filtered enablement.
+        listInstalledModuleIds: () => deps.listModuleManifests().map((manifest) => manifest.id),
         tasksCompatibility,
         readToolServices: deps.connectorsRepository
           ? {
@@ -1171,7 +1345,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         throw new Error("sports module manifest is missing its `espn` externalSources entry");
       }
       const datasetClient = createDatasetClient(espnSource, createEspnDatasetAdapter(), {
-        fetchFn: deps.fetchFn
+        fetchFn: deps.fetchFn,
+        logger: createModuleLogger(server.log, "sports")
       });
       // LOADER-SEAM(sports) 3: the briefing tool (`briefing-tool.ts`) is constructed from
       // static manifest data at import time, before this wiring runs, so it adopts the client
@@ -1181,6 +1356,67 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
         datasetClient
+      });
+    }
+  },
+  {
+    manifest: newsModuleManifest,
+    sqlMigrationDirectories: [newsModuleSqlMigrationDirectory],
+    queueDefinitions: [...NEWS_QUEUE_DEFINITIONS],
+    registerRoutes: (server, deps) => {
+      // Same dataset-connector-SDK wiring as sports above: the composition root binds the
+      // manifest-declared `newsfeeds` external source to the concrete RSS adapter so host
+      // pinning and TTLs come from the manifest, not the module code.
+      const [feedsSource] = newsModuleManifest.externalSources ?? [];
+      if (!feedsSource) {
+        throw new Error("news module manifest is missing its `newsfeeds` externalSources entry");
+      }
+      const datasetClient = createDatasetClient(feedsSource, createRssDatasetAdapter(), {
+        fetchFn: deps.fetchFn,
+        logger: createModuleLogger(server.log, "news")
+      });
+      // Briefing tool is constructed at import time; it adopts the client late-bound
+      // (mirrors LOADER-SEAM(sports) 3).
+      configureNewsBriefingService(datasetClient);
+      const discovery = buildNewsDiscoveryPorts(createModuleLogger(server.log, "news"));
+      registerNewsRoutes(server, {
+        dataContext: deps.dataContext,
+        resolveAccessContext: deps.resolveAccessContext,
+        datasetClient,
+        discovery,
+        boss: deps.boss,
+        // #953: news receives capability BOOLEANS only — model identity and key material stay
+        // behind the AI/Settings public APIs; nothing secret crosses this seam.
+        availability: {
+          hasJsonModel: async (scopedDb) =>
+            (
+              await new AiRepository().resolveModelForService(scopedDb, "module.news", {
+                capability: "json",
+                tierHint: "economy"
+              })
+            ).model !== null,
+          hasWebSearch: async (scopedDb) => (await getWebSearchKeyConfig(scopedDb)).configured
+        }
+      });
+    },
+    registerWorkers: (boss, deps) => {
+      const discovery = buildNewsDiscoveryPorts(
+        deps.logger ? createModuleLogger(deps.logger, "news") : undefined
+      );
+      return registerNewsJobWorkers(boss, deps.dataContext, {
+        ...discovery,
+        logger: {
+          info: (fields) => deps.logger?.info(fields, "news compilation")
+        },
+        // #975 Slice 4: revalidation summary notification honors quiet hours and the
+        // owner's per-module notification preference like every other module emitter.
+        notificationsRepository: new NotificationsRepository(
+          quietHoursPortImpl,
+          createNotificationPreferencePort()
+        ),
+        revalidationLogger: {
+          info: (fields) => deps.logger?.info(fields, "news revalidation")
+        }
       });
     }
   },
@@ -1470,6 +1706,27 @@ export const MODULE_DELETION_TABLES: readonly ResolvedModuleDeletionTable[] =
   getModuleDeletionTables();
 
 /**
+ * External-module counterpart to getModuleDeletionTables (#914, spec D6 "lifecycle derived from
+ * structure, no module code"). Built-in modules declare dataLifecycle.deletion.tables explicitly;
+ * external modules never carry module code in their manifest, so the platform derives deletion
+ * coverage structurally from `database.ownedTables` instead — every owned table is automatically
+ * swept with the default owner_user_id predicate, with no per-module deletion declaration to
+ * maintain. Manifests are passed in explicitly (unlike MODULE_DELETION_TABLES' eager snapshot)
+ * because external modules install post-deploy — the caller (scripts/delete-user-data-cli.ts)
+ * reads installed manifests at run time, not from a static import-time snapshot.
+ */
+export function getExternalModuleDeletionTables(
+  installedManifests: readonly JarvisModuleManifest[]
+): readonly ResolvedModuleDeletionTable[] {
+  return installedManifests.flatMap((manifest) =>
+    (manifest.database?.ownedTables ?? []).map((table) => ({
+      table,
+      countPredicate: DEFAULT_MODULE_DELETION_COUNT_PREDICATE
+    }))
+  );
+}
+
+/**
  * Build the focus-signal provider list from a manifest set. Pass the per-actor ACTIVE
  * manifests (resolveActiveModules(actorUserId)) so a per-user-disabled module is excluded.
  * Generic: any module that declares `focusSignal` participates; no module is special-cased.
@@ -1539,7 +1796,7 @@ export function registerBuiltInApiRoutes(
   dependencies: BuiltInRouteDependencies
 ): void {
   const env = process.env;
-  const availability = probeChatMultiplexerAvailability(env);
+  const getChatMultiplexerStatus = makeChatMultiplexerStatusProbe(env);
 
   // #342 boot-time fork (§3.5): when JARVIS_CLI_RUNNER_SOCKET is set the api drives the cli-runner
   // sidecar over ONE shared socket (§3.4 — one connection per api process). That ONE connection is
@@ -1630,7 +1887,7 @@ export function registerBuiltInApiRoutes(
         return new GraphMemoryRecallService(provider).recall(scopedDb, ownerUserId, query, options);
       }
     },
-    chatMultiplexerAvailability: availability,
+    getChatMultiplexerStatus,
     onboardingProbes,
     onboardingInstall,
     onboardingLogin,

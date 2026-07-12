@@ -7,20 +7,24 @@ import {
   createAiConfiguredModelResponseSchema,
   createAiProviderConfigRequestSchema,
   createAiProviderConfigResponseSchema,
+  deleteAiServiceBindingResponseSchema,
   discoverAiProviderModelsResponseSchema,
   getAiSummaryResponseSchema,
   getChatModelOverrideSettingsResponseSchema,
   getAiAdminUserPinResponseSchema,
+  getVoiceEndpointResponseSchema,
+  putVoiceEndpointRequestSchema,
+  putVoiceEndpointResponseSchema,
   invokeAiAssistantToolRequestSchema,
   invokeAiAssistantToolResponseSchema,
-  listAiCapabilityRoutesResponseSchema,
+  listAiServiceBindingsResponseSchema,
   listAiAssistantActionsResponseSchema,
   listAiAssistantToolsResponseSchema,
   listAiConfiguredModelsResponseSchema,
   listAiProviderConfigsResponseSchema,
   lookupAiCapabilityRouteResponseSchema,
-  putAiCapabilityRouteRequestSchema,
-  putAiCapabilityRouteResponseSchema,
+  putAiServiceBindingRequestSchema,
+  putAiServiceBindingResponseSchema,
   putAdminChatModelOverrideRequestSchema,
   putAiAdminUserPinRequestSchema,
   putChatModelOverrideRequestSchema,
@@ -33,13 +37,13 @@ import {
   updateAiConfiguredModelResponseSchema,
   updateAiProviderConfigRequestSchema,
   updateAiProviderConfigResponseSchema,
-  aiCapabilityTierPreferencesResponseSchema,
-  patchAiCapabilityTierPreferenceRequestSchema,
   getAiActionPoliciesResponseSchema,
   patchAiActionPolicyRequestSchema,
   patchAiActionPolicyResponseSchema,
   listActionAuditLogRouteSchema
 } from "@jarv1s/shared";
+
+import { aiExplainRecentErrorsExecute } from "./error-tools.js";
 
 export const AI_MODULE_ID = "ai";
 export const aiModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
@@ -66,14 +70,24 @@ export const aiModuleManifest = {
       "sql/0048_ai_model_tier.sql",
       "sql/0091_chat_model_override.sql",
       "sql/0098_ai_cancel_stale_assistant_actions.sql",
-      "sql/0127_jarvis_action_audit_log.sql"
+      "sql/0127_jarvis_action_audit_log.sql",
+      "sql/0145_jarvis_error_log.sql",
+      // #870/H1 — instance-default provider flag + global single-default index.
+      "sql/0147_ai_provider_instance_default.sql",
+      // #870 Fable HIGH-1 — grant jarvis_worker_runtime INSERT on jarvis_error_log so the H3
+      // worker needs-config observability log actually records (0145 granted app-runtime only).
+      "sql/0148_jarvis_error_log_worker_insert.sql",
+      // #874 — `purpose` discriminator ('assistant'|'voice') + one-voice partial unique index so the
+      // Voice(STT) endpoint reuses the AI provider/model tables without bleeding into chat routing.
+      "sql/0150_ai_provider_purpose.sql"
     ],
     migrationDirectories: ["packages/ai/sql"],
     ownedTables: [
       "app.ai_provider_configs",
       "app.ai_configured_models",
       "app.ai_assistant_action_requests",
-      "app.jarvis_action_audit_log"
+      "app.jarvis_action_audit_log",
+      "app.jarvis_error_log"
     ]
   },
   settings: [
@@ -204,16 +218,31 @@ export const aiModuleManifest = {
       permissionId: "ai.route"
     },
     {
+      // #870 Slice 1: unified per-service binding map, replaces per-capability routes. #874 HIGH-2:
+      // Chat is the only bindable service (Voice moved to its own dedicated endpoint).
       method: "GET",
-      path: "/api/ai/capability-routes",
-      responseSchema: listAiCapabilityRoutesResponseSchema,
+      path: "/api/ai/service-bindings",
+      responseSchema: listAiServiceBindingsResponseSchema,
       permissionId: "ai.view"
     },
     {
       method: "PUT",
-      path: "/api/ai/capability-routes/:capability",
-      requestSchema: putAiCapabilityRouteRequestSchema,
-      responseSchema: putAiCapabilityRouteResponseSchema,
+      path: "/api/ai/services/:service/binding",
+      requestSchema: putAiServiceBindingRequestSchema,
+      responseSchema: putAiServiceBindingResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      method: "DELETE",
+      path: "/api/ai/services/:service/binding",
+      responseSchema: deleteAiServiceBindingResponseSchema,
+      permissionId: "ai.manage"
+    },
+    {
+      // #870/H1: promote a provider to the single instance-default.
+      method: "PUT",
+      path: "/api/ai/providers/:id/default",
+      responseSchema: createAiProviderConfigResponseSchema,
       permissionId: "ai.manage"
     },
     {
@@ -223,16 +252,20 @@ export const aiModuleManifest = {
       permissionId: "ai.route"
     },
     {
+      // #874: dedicated Voice (STT) admin endpoint — both are admin-gated in-handler
+      // (assertInstanceAdmin). GET never returns the API key (write-only); PUT is an upsert of the
+      // single `purpose='voice'` provider row and runs NO auto-discovery (CRIT-1).
       method: "GET",
-      path: "/api/ai/capability-tier-preferences",
-      responseSchema: aiCapabilityTierPreferencesResponseSchema,
-      permissionId: "ai.view"
+      path: "/api/ai/voice-endpoint",
+      responseSchema: getVoiceEndpointResponseSchema,
+      permissionId: "ai.manage"
     },
     {
-      method: "PATCH",
-      path: "/api/ai/capability-tier-preferences",
-      requestSchema: patchAiCapabilityTierPreferenceRequestSchema,
-      permissionId: "ai.route"
+      method: "PUT",
+      path: "/api/ai/voice-endpoint",
+      requestSchema: putVoiceEndpointRequestSchema,
+      responseSchema: putVoiceEndpointResponseSchema,
+      permissionId: "ai.manage"
     },
     {
       method: "GET",
@@ -311,6 +344,22 @@ export const aiModuleManifest = {
       path: "/api/ai/action-audit",
       responseSchema: listActionAuditLogRouteSchema.response[200],
       permissionId: "ai.assistant-actions"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "ai.explainRecentErrors",
+      description: "List recent structured error events visible to the active actor.",
+      permissionId: "ai.view",
+      risk: "read",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number" }
+        }
+      },
+      execute: aiExplainRecentErrorsExecute
     }
   ]
 } satisfies JarvisModuleManifest;

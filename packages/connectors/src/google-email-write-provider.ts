@@ -1,4 +1,10 @@
-import { buildReplyMime, type EmailWriteProvider, type EmailWriteResult } from "@jarv1s/email";
+import {
+  buildNewMessageMime,
+  buildReplyMime,
+  type EmailWriteProvider,
+  type EmailWriteResult,
+  type NewEmailInput
+} from "@jarv1s/email";
 import type { DataContextDb, EmailMessage } from "@jarv1s/db";
 import {
   GoogleApiError,
@@ -42,6 +48,28 @@ export class GoogleEmailWriteProvider implements EmailWriteProvider {
     body: string
   ): Promise<EmailWriteResult> {
     return this.run(scopedDb, "send", to, subject, threadId, body);
+  }
+
+  async sendNew(scopedDb: DataContextDb, input: NewEmailInput): Promise<EmailWriteResult> {
+    const raw = buildNewMessageMime(input);
+
+    let accessToken: string;
+    try {
+      accessToken = await this.googleService.getFreshAccessToken(scopedDb);
+    } catch (error) {
+      return {
+        ok: false,
+        mode: "send",
+        message: error instanceof GoogleConnectError ? MSG_NO_CONNECTION : MSG_REFRESH_FAILED
+      };
+    }
+
+    try {
+      await this.googleApiClient.sendMessage({ accessToken, raw });
+      return { ok: true, mode: "send" };
+    } catch {
+      return { ok: false, mode: "send", message: MSG_UPSTREAM_FAILED };
+    }
   }
 
   private async run(

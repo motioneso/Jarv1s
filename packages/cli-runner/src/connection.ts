@@ -220,6 +220,14 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
       await host.kill(key);
       return { ok: true };
     }
+    case "purgeTranscripts": {
+      // #744 — private-chat transcript purge. Same per-session dispatch shape as kill; the host
+      // purges by directory when the engine is already gone (kill runs first). A throw here maps
+      // to an RPC error and keeps the api's bookkeeping row for the next boot sweep.
+      const key = requireSessionKey(req);
+      await host.purgeTranscripts(key);
+      return { ok: true };
+    }
     case "interrupt": {
       const key = requireSessionKey(req);
       await host.interrupt(key);

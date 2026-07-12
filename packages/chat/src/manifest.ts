@@ -37,10 +37,17 @@ export const chatModuleManifest = {
       "sql/0049_chat_conversation_summary.sql",
       "sql/0057_revoke_app_runtime_chat_update.sql",
       "sql/0058_chat_threads_incognito_immutable.sql",
-      "sql/0060_chat_memory_settings_to_role.sql"
+      "sql/0060_chat_memory_settings_to_role.sql",
+      "sql/0146_private_chat_cleanup.sql",
+      "sql/0149_chat_skills.sql"
     ],
     migrationDirectories: ["packages/chat/sql"],
-    ownedTables: ["app.chat_threads", "app.chat_messages", "app.chat_user_memory_settings"]
+    ownedTables: [
+      "app.chat_threads",
+      "app.chat_messages",
+      "app.chat_user_memory_settings",
+      "app.chat_skills"
+    ]
   },
   navigation: [
     {
@@ -103,6 +110,7 @@ export const chatModuleManifest = {
     { method: "POST", path: "/api/chat/turn/cancel", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
     { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },
+    { method: "POST", path: "/api/chat/private/end", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/threads/:id/resume", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/settings", permissionId: "chat.view" },
@@ -136,7 +144,14 @@ export const chatModuleManifest = {
       permissionId: "chat.view"
     },
     { method: "POST", path: "/api/mcp", permissionId: "chat.message" },
-    { method: "POST", path: "/internal/permission", permissionId: "chat.message" }
+    { method: "POST", path: "/internal/permission", permissionId: "chat.message" },
+    { method: "GET", path: "/api/chat/skills", permissionId: "chat.view" },
+    { method: "GET", path: "/api/chat/skills/:id", permissionId: "chat.view" },
+    { method: "POST", path: "/api/chat/skills", permissionId: "chat.message" },
+    { method: "PATCH", path: "/api/chat/skills/:id", permissionId: "chat.message" },
+    { method: "PATCH", path: "/api/chat/skills/:id/enabled", permissionId: "chat.message" },
+    { method: "DELETE", path: "/api/chat/skills/:id", permissionId: "chat.message" },
+    { method: "POST", path: "/api/chat/skills/import", permissionId: "chat.message" }
   ],
   assistantTools: [
     {

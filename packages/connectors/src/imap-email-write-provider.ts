@@ -1,4 +1,10 @@
-import { buildReplyMime, type EmailWriteProvider, type EmailWriteResult } from "@jarv1s/email";
+import {
+  buildNewMessageMime,
+  buildReplyMime,
+  type EmailWriteProvider,
+  type EmailWriteResult,
+  type NewEmailInput
+} from "@jarv1s/email";
 import type { DataContextDb, EmailMessage } from "@jarv1s/db";
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
@@ -65,6 +71,27 @@ export class ImapEmailWriteProvider implements EmailWriteProvider {
 
     try {
       await this.sendViaSmtp(secret, to, buffer);
+      await this.appendToImapFolder(secret, SENT_FOLDER, buffer);
+      return { ok: true, mode: "send" };
+    } catch {
+      return { ok: false, mode: "send", message: MSG_UPSTREAM_FAILED };
+    }
+  }
+
+  async sendNew(scopedDb: DataContextDb, input: NewEmailInput): Promise<EmailWriteResult> {
+    if (!input.connectorAccountId) {
+      return { ok: false, mode: "send", message: MSG_UPSTREAM_FAILED };
+    }
+    const secret = await this.getSecret(scopedDb, input.connectorAccountId);
+    if (!secret) {
+      return { ok: false, mode: "send", message: MSG_UPSTREAM_FAILED };
+    }
+
+    const raw = buildNewMessageMime(input);
+    const buffer = Buffer.from(raw, "base64url");
+
+    try {
+      await this.sendViaSmtp(secret, input.to, buffer);
       await this.appendToImapFolder(secret, SENT_FOLDER, buffer);
       return { ok: true, mode: "send" };
     } catch {

@@ -149,6 +149,7 @@ export type RpcMethod =
   | "isAlive"
   | "interrupt"
   | "kill" // per-session (sessionKey required)
+  | "purgeTranscripts" // per-session (sessionKey required) — #744 private-chat transcript purge over RPC
   | "listLiveSessions" // non-session (reconciliation, §4.6)
   | "probeProvider" // non-session (onboarding, §4.8)
   | "installProvider" // non-session (on-demand installer, install-contract §A.2 — ADDITIVE)
@@ -299,6 +300,18 @@ export interface RpcReadNewResult {
 export type RpcKillParams = Record<string, never>;
 /** result for method "kill" (§4.5). */
 export interface RpcKillResult {
+  readonly ok: true;
+}
+
+/**
+ * params for method "purgeTranscripts" (#744) — empty; sessionKey rides the envelope like kill.
+ * Private (incognito) chat purge. On the split RPC topology the api cannot see the cli-runner's
+ * home dir, so the purge MUST run server-side; this verb is the authoritative success signal the
+ * manager gates its bookkeeping-row delete on (a false success would strand a private transcript).
+ */
+export type RpcPurgeTranscriptsParams = Record<string, never>;
+/** result for method "purgeTranscripts" (#744). */
+export interface RpcPurgeTranscriptsResult {
   readonly ok: true;
 }
 

@@ -33,7 +33,7 @@
   color: var(--forest-ink);
 }
 .sp-whole__state {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -179,4 +179,64 @@
 .sp-chip__remove:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Confederation-grouped browse mode (#907): shown when the search box is empty, replacing the
+   old "Search above…" hint. Reuses .sp-whole/.sp-teamgrid/.sp-team for the follow-all button and
+   expanded team grid — only the group heading and the expand/collapse row button are new. */
+
+.sp-browse__conf {
+  margin: 18px 0 8px;
+  /* Matches the existing .sp-whole__state eyebrow above — NOT --font-mono, which Ben retired
+     app-wide 2026-07-08 ("kill mono anywhere in the app"); --font-sans is the current eyebrow
+     face everywhere else in this file. */
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.sp-browse__conf:first-child {
+  margin-top: 0;
+}
+
+.sp-browse__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+/* .sp-whole normally stretches full-width as a standalone search result row; inside a browse
+   row it sits beside .sp-browse__league instead, so it needs to give up that stretch. */
+.sp-browse__row .sp-whole {
+  width: auto;
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+
+.sp-browse__league {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 9px 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: left;
+  transition: var(--transition-control);
+}
+.sp-browse__league:hover {
+  background: var(--surface-2);
+}
+.sp-browse__league[aria-expanded="true"] {
+  background: var(--forest-soft);
+  border-color: var(--forest-soft-2);
+  color: var(--forest-ink);
 }

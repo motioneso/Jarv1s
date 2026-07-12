@@ -1,4 +1,5 @@
 export * from "./assistant-tools.js";
+export * from "./error-tools.js";
 export {
   AI_PURGE_AUDIT_LOG_QUEUE,
   AI_QUEUE_DEFINITIONS,
@@ -16,7 +17,10 @@ export * from "./provider-validation-routes.js";
 export * from "./provider-validation.js";
 export * from "./repository.js";
 export * from "./routes.js";
+export * from "./structured/schema-bounds.js";
+export * from "./structured/generate-structured.js";
 export * from "./adapters/http-api.js";
+export * from "./adapters/http-api-structured.js";
 export * from "./adapters/tmux-bridge.js";
 export * from "./adapters/multiplexer.js";
 export * from "./adapters/tmux-multiplexer.js";

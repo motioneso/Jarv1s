@@ -328,6 +328,23 @@ export class NotificationsRepository {
     return this.countUnread(scopedDb);
   }
 
+  async listDigestEligible(
+    scopedDb: DataContextDb,
+    input: { since: Date | null; limit?: number }
+  ): Promise<NotificationWithReadState[]> {
+    assertDataContextDb(scopedDb);
+
+    let query = this.visibleRowsQuery(scopedDb).where("reads.notification_id", "is", null);
+    if (input.since) {
+      query = query.where("notifications.created_at", ">", input.since);
+    }
+    return query
+      .orderBy("notifications.created_at", "asc")
+      .orderBy("notifications.id")
+      .limit(input.limit ?? 50)
+      .execute();
+  }
+
   private async listVisibleRows(scopedDb: DataContextDb): Promise<NotificationWithReadState[]> {
     return this.visibleRowsQuery(scopedDb)
       .orderBy("notifications.created_at", "desc")

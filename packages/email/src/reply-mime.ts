@@ -87,6 +87,10 @@ function stripHeaderValue(value: string): string {
  * The body is emitted verbatim; headers are minimal (To/Subject/MIME-Version/Content-Type).
  */
 export function buildReplyMime(input: { to: string; subject: string; body: string }): string {
+  return buildNewMessageMime(input);
+}
+
+export function buildNewMessageMime(input: { to: string; subject: string; body: string }): string {
   const headers = [
     `To: ${stripHeaderValue(input.to)}`,
     `Subject: ${stripHeaderValue(input.subject)}`,

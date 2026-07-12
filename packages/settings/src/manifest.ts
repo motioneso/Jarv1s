@@ -120,6 +120,16 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "GET",
+      path: "/api/me/notification-digest-preference",
+      permissionId: "settings.view"
+    },
+    {
+      method: "PUT",
+      path: "/api/me/notification-digest-preference",
+      permissionId: "settings.write"
+    },
+    {
+      method: "GET",
       path: "/api/me/weather-location",
       permissionId: "settings.view"
     },
@@ -296,6 +306,18 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       method: "PATCH",
       path: "/api/admin/modules/:id",
+      permissionId: "settings.manage"
+    },
+    // #917: external-module admin surface. Admin-only (settings.manage), same as the
+    // built-in module admin routes above.
+    {
+      method: "GET",
+      path: "/api/admin/external-modules",
+      permissionId: "settings.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/admin/external-modules/:id",
       permissionId: "settings.manage"
     },
     {

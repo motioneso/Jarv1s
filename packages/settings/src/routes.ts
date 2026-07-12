@@ -17,23 +17,27 @@ import {
   getChatMultiplexerSettingsRouteSchema,
   getRegistrationSettingsRouteSchema,
   listAdminAuditEventsRouteSchema,
-  listAdminModulesRouteSchema,
   listAuthProviderStatusesRouteSchema,
   listInstanceSettingsRouteSchema,
-  listMyModulesRouteSchema,
   listUsersRouteSchema,
   meRouteSchema,
-  patchModuleEnablementRouteSchema,
   patchMeProfileRouteSchema,
   putChatMultiplexerSettingsRouteSchema,
   putRegistrationSettingsRouteSchema,
   upsertInstanceSettingRouteSchema,
-  type AdminModuleDto,
   type AuthProviderStatusDto,
+  // #917: wire DTO for the external-module admin surface. Field-identical to the reconcile
+  // port's output — no local mapper needed (see ExternalModulesDependencies.reconcile). The
+  // module-management route handlers themselves now live in ./routes-modules.js; this type is
+  // still referenced here by ExternalModulesDependencies.reconcile's signature.
+  type ExternalModuleDto,
+  type ChatMultiplexerAvailability,
   type ChatMultiplexerChoice,
+  type MultiplexerKind,
+  type MultiplexerSource,
   type UpsertInstanceSettingRequest
 } from "@jarv1s/shared";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { HttpError } from "@jarv1s/module-sdk";
 
 import type { PgBoss } from "@jarv1s/jobs";
@@ -73,14 +77,18 @@ import {
   registerProactiveMonitoringSettingsRoutes,
   type ReconcileProactiveScheduleFn
 } from "./proactive-monitoring-routes.js";
-import { SettingsRepository } from "./repository.js";
+import { SettingsRepository, type ExternalModuleState } from "./repository.js";
+import { createModuleCredentialSecretCipher } from "./module-credential-crypto.js";
+import { registerModuleCredentialRoutes } from "./routes-module-credentials.js";
+// #917: the module-management route family was extracted here for the 1000-line file-size gate.
+import type { ModuleRegistryEntryLike } from "./module-registry-rows.js";
+import { registerModuleRegistryRoutes } from "./routes-module-registry.js";
+import { registerModuleRoutes } from "./routes-modules.js";
 import {
-  computeMyModuleDto,
   handleRouteError,
   serializeAdminAuditEvent,
   serializeInstanceSetting,
-  serializeUser,
-  toMyModuleDto
+  serializeUser
 } from "./routes-serializers.js";
 import { registerSourceBehaviorRoutes } from "./source-behavior-routes.js";
 import {
@@ -88,6 +96,90 @@ import {
   KNOWN_INSTANCE_SETTING_KEYS,
   SECRET_INSTANCE_SETTING_KEYS
 } from "./instance-settings-keys.js";
+
+export type GetChatMultiplexerStatus = (configured: ChatMultiplexerChoice) => Promise<{
+  readonly available: ChatMultiplexerAvailability;
+  readonly herdrInstalled: boolean;
+  readonly active: MultiplexerKind | null;
+  readonly activeSource: MultiplexerSource | null;
+  readonly envOverride: MultiplexerKind | null;
+}>;
+
+// #917 — LOCAL mirrors of @jarv1s/module-registry's external-module types. Settings does
+// NOT (and must not) depend on @jarv1s/module-registry — that package already depends on
+// @jarv1s/settings, so importing back would create a dependency cycle and violate module
+// isolation. These are structurally identical to the registry's ExternalModuleDiscovery /
+// ExternalModuleRejection; the composition root (apps/api) passes the REAL registry values
+// in and TypeScript's structural typing accepts them. Keep in sync with
+// packages/module-registry/src/external/types.ts if that shape ever changes.
+export interface ExternalModuleDiscovery {
+  readonly id: string;
+  readonly dir: string;
+  readonly manifest: JsonJarvisModuleManifest;
+  readonly manifestHash: string;
+  readonly packageHash: string;
+}
+
+export interface ExternalModuleRejection {
+  readonly id: string;
+  readonly reason: string;
+}
+
+/**
+ * Boot-time external-module discovery snapshot (#917), injected by the composition root.
+ * The admin GET route (Task 9) reconciles `discoveries` against app.external_modules;
+ * `rejected` is surfaced read-only so admins can see why a mounted dir did not load.
+ * Absent / `enabled: false` ⇒ the external-module admin surface reports the feature off.
+ */
+export interface ExternalModulesDependencies {
+  readonly enabled: boolean;
+  readonly discoveries: readonly ExternalModuleDiscovery[];
+  readonly rejected: readonly ExternalModuleRejection[];
+  /**
+   * #917 — reconcile port injected by the composition root (apps/api). Settings CANNOT import
+   * @jarv1s/module-registry (reconcileExternalModules lives there; that package already depends
+   * on @jarv1s/settings, so a direct import cycles + breaks module isolation — same discipline as
+   * reconcileNotesSchedule). apps/api closes this over the boot discovery snapshot, so callers pass
+   * only the persisted states. `modules` are already reconciled + DTO-shaped (ReconciledExternalModule
+   * is field-identical to ExternalModuleDto), drift-inactive already applied; `driftDisable` is the
+   * to-persist auto-disable list (the GET route writes it back). reason is DRIFT_DISABLED_REASON,
+   * baked in by reconcile — settings never needs that constant.
+   */
+  readonly reconcile: (states: readonly ExternalModuleState[]) => {
+    readonly modules: readonly ExternalModuleDto[];
+    readonly driftDisable: readonly { readonly id: string; readonly reason: string }[];
+  };
+}
+
+/**
+ * #964 — module-distribution port injected by the composition root. Network + filesystem
+ * only; all DB writes stay in this package (updateExternalModuleStaging etc.), so the
+ * pipeline never needs a database handle and settings never imports module-registry.
+ */
+export interface ModuleDistributionDependencies {
+  /**
+   * Pinned-registry index entries, served through the composition root's 10-minute
+   * in-process cache; `refresh: true` busts it. null = registry unreachable/invalid —
+   * the GET degrades to local-only rows, never a 500 (spec §6).
+   */
+  readonly fetchRegistryEntries: (options: {
+    readonly refresh: boolean;
+  }) => Promise<readonly ModuleRegistryEntryLike[] | null>;
+  /** Run download→verify→extract→stage (Task 5 pipeline). Never touches the DB. */
+  readonly download: (input: {
+    readonly moduleId: string;
+    readonly version?: string;
+  }) => Promise<
+    | { readonly ok: true; readonly version: string; readonly packageHash: string }
+    | { readonly ok: false; readonly code: string; readonly message: string }
+  >;
+  /** Delete JARVIS_MODULES_DIR/<id>. Idempotent; missing dir is fine. */
+  readonly removeModuleFiles: (moduleId: string) => Promise<void>;
+  /** LIVE readdir of JARVIS_MODULES_DIR (module dirs only, no dot-dirs). */
+  readonly listOnDiskModuleIds: () => Promise<readonly string[]>;
+  /** Ids declared in JARVIS_MODULES_ENSURE (for declared-not-present rows). */
+  readonly ensureIds: readonly string[];
+}
 
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
@@ -107,6 +199,15 @@ export interface SettingsRoutesDependencies {
   readonly preferencesRepository?: ProfilePreferencesPort;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   readonly repository?: SettingsRepository;
+  /** #917 external-module discovery snapshot; routes added in Task 9 consume it. */
+  readonly externalModules?: ExternalModulesDependencies;
+  /** #964 module-distribution port; registry routes degrade to enabled:false when absent. */
+  readonly moduleDistribution?: ModuleDistributionDependencies;
+  readonly reconcileExternalModuleJobs?: (
+    change:
+      | { readonly kind: "module"; readonly moduleId: string }
+      | { readonly kind: "user"; readonly userId: string }
+  ) => Promise<void>;
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
   readonly meSessions?: MeSessionsService;
@@ -123,8 +224,8 @@ export interface SettingsRoutesDependencies {
    */
   readonly hasPasswordCredential?: HasPasswordCredentialPort;
   readonly bootstrapConnectionString?: string;
-  /** Boot-time availability snapshot, injected by the composition root (apply-on-restart). */
-  readonly chatMultiplexerAvailability?: { readonly tmux: boolean; readonly herdr: boolean };
+  /** Live multiplexer status probe, resolved fresh per request. */
+  readonly getChatMultiplexerStatus?: GetChatMultiplexerStatus;
   /** Onboarding probes; injected to preserve module isolation and fail closed if absent. */
   readonly onboardingProbes?: OnboardingProbes;
   /**
@@ -187,14 +288,16 @@ export function registerSettingsRoutes(
     bootstrapConnectionString: dependencies.bootstrapConnectionString,
     verifySelfPassword: dependencies.verifySelfPassword,
     hasPasswordCredential: dependencies.hasPasswordCredential,
-    moduleDeletionTables: dependencies.moduleDeletionTables
+    moduleDeletionTables: dependencies.moduleDeletionTables,
+    reconcileExternalModuleJobs: dependencies.reconcileExternalModuleJobs
   });
   registerPersonaRoutes(server, { ...dependencies, repository, preferencesRepository });
   registerNotificationPreferencesRoutes(server, {
     ...dependencies,
     repository,
     preferencesRepository,
-    notificationUnreadPort: dependencies.notificationUnreadPort
+    notificationUnreadPort: dependencies.notificationUnreadPort,
+    boss: dependencies.boss
   });
   registerSourceBehaviorRoutes(server, { ...dependencies, preferencesRepository });
   registerPriorityRoutes(server, { ...dependencies, preferencesRepository });
@@ -439,6 +542,14 @@ export function registerSettingsRoutes(
           if (verb === "deactivate" && dependencies.revokeUserSessions) {
             await dependencies.revokeUserSessions(id);
           }
+          try {
+            await dependencies.reconcileExternalModuleJobs?.({ kind: "user", userId: id });
+          } catch (error) {
+            request.log.warn(
+              { userId: id, errorName: (error as Error).name },
+              "external module user schedule reconcile failed"
+            );
+          }
           return { user: serializeUser(user) };
         } catch (error) {
           return handleRouteError(error, reply);
@@ -547,6 +658,14 @@ export function registerSettingsRoutes(
       }
       throw error;
     }
+    try {
+      await dependencies.reconcileExternalModuleJobs?.({ kind: "user", userId: id });
+    } catch (error) {
+      request.log.warn(
+        { userId: id, errorName: (error as Error).name },
+        "external module user schedule reconcile failed"
+      );
+    }
     return id;
   }
 
@@ -625,10 +744,14 @@ export function registerSettingsRoutes(
         return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
           await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
           const { multiplexer } = await repository.getChatMultiplexerSetting(scopedDb);
-          return {
-            multiplexer,
-            available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+          const status = (await dependencies.getChatMultiplexerStatus?.(multiplexer)) ?? {
+            available: { tmux: false, herdr: false },
+            herdrInstalled: false,
+            active: null,
+            activeSource: null,
+            envOverride: null
           };
+          return { multiplexer, ...status };
         });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -650,10 +773,14 @@ export function registerSettingsRoutes(
             actorUserId: accessContext.actorUserId,
             requestId: requireRequestId(accessContext)
           });
-          return {
-            multiplexer,
-            available: dependencies.chatMultiplexerAvailability ?? { tmux: false, herdr: false }
+          const status = (await dependencies.getChatMultiplexerStatus?.(multiplexer)) ?? {
+            available: { tmux: false, herdr: false },
+            herdrInstalled: false,
+            active: null,
+            activeSource: null,
+            envOverride: null
           };
+          return { multiplexer, ...status };
         });
       } catch (error) {
         return handleRouteError(error, reply);
@@ -700,153 +827,32 @@ export function registerSettingsRoutes(
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,
     repository,
-    chatMultiplexerAvailability: dependencies.chatMultiplexerAvailability,
+    getChatMultiplexerStatus: dependencies.getChatMultiplexerStatus,
     hostDiagnostics: dependencies.hostDiagnostics,
     assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
     handleRouteError
   });
 
-  function requireManifests(): readonly JarvisModuleManifest[] {
-    return dependencies.listModuleManifests();
-  }
-
-  function findManifest(id: string): JarvisModuleManifest | undefined {
-    return requireManifests().find((m) => m.id === id);
-  }
-
-  function isRequired(m: JarvisModuleManifest): boolean {
-    return m.availability?.required === true;
-  }
-
-  function supportsUserDisable(m: JarvisModuleManifest): boolean {
-    return m.availability?.supportsUserDisable !== false;
-  }
-
-  server.get(
-    "/api/admin/modules",
-    { schema: listAdminModulesRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const instanceRows = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-            return repository.listInstanceModuleDenyRows(scopedDb);
-          }
-        );
-        const instanceDisabled = new Set(instanceRows.map((r) => r.module_id));
-        const modules: AdminModuleDto[] = requireManifests().map((m) => ({
-          id: m.id,
-          name: m.name,
-          version: m.version,
-          lifecycle: m.lifecycle,
-          required: isRequired(m),
-          supportsUserDisable: supportsUserDisable(m),
-          instanceDisabled: instanceDisabled.has(m.id)
-        }));
-        return { modules };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.patch<{ Params: { id: string } }>(
-    "/api/admin/modules/:id",
-    { schema: patchModuleEnablementRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const disabled = parseDisabledBody(request.body);
-        // SECURITY: authorize FIRST, before any manifest lookup or required/unknown
-        // check, so a non-admin can never distinguish unknown (404) vs required (409)
-        // modules — they always get the admin 403. assertAdminUser must run before the
-        // 404/409 branches. All checks live inside one withDataContext.
-        const dto = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            await assertAdminUser(repository, scopedDb, accessContext.actorUserId);
-            const manifest = findManifest(request.params.id);
-            if (!manifest) throw new HttpError(404, "Module not found");
-            if (disabled && isRequired(manifest)) {
-              throw new HttpError(409, "Required modules cannot be disabled");
-            }
-            await repository.setInstanceModuleDisabled(scopedDb, {
-              moduleId: manifest.id,
-              disabled,
-              actorUserId: accessContext.actorUserId,
-              requestId: requireRequestId(accessContext)
-            });
-            return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
-          }
-        );
-        return { module: dto };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
-
-  server.get("/api/me/modules", { schema: listMyModulesRouteSchema }, async (request, reply) => {
-    try {
-      const accessContext = await dependencies.resolveAccessContext(request);
-      const modules = await dependencies.dataContext.withDataContext(
-        accessContext,
-        async (scopedDb) => {
-          const rows = await repository.listModuleDenyRowsForActor(scopedDb);
-          const instanceDisabled = new Set(
-            rows.filter((r) => r.scope === "instance").map((r) => r.module_id)
-          );
-          const userDisabled = new Set(
-            rows
-              .filter((r) => r.scope === "user" && r.user_id === accessContext.actorUserId)
-              .map((r) => r.module_id)
-          );
-          return requireManifests().map((m) =>
-            toMyModuleDto(m, instanceDisabled.has(m.id), userDisabled.has(m.id))
-          );
-        }
-      );
-      return { modules };
-    } catch (error) {
-      return handleRouteError(error, reply);
-    }
+  // #917: the module-management route family (admin modules, external modules, per-user
+  // modules) plus parseDisabledBody was extracted to ./routes-modules.js to satisfy the
+  // 1000-line file-size gate (Task 9 pushed routes.ts over the cap). Pure move — same handlers,
+  // same order, same admin/RLS/fail-closed logic. registerSettingsRoutes keeps its signature.
+  registerModuleRoutes(server, { dependencies, repository, assertAdminUser, requireRequestId });
+  registerModuleRegistryRoutes(server, {
+    dependencies,
+    repository,
+    assertAdminUser,
+    requireRequestId
   });
-
-  server.patch<{ Params: { id: string } }>(
-    "/api/me/modules/:id",
-    { schema: patchModuleEnablementRouteSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const disabled = parseDisabledBody(request.body);
-        const manifest = findManifest(request.params.id);
-        if (!manifest) throw new HttpError(404, "Module not found");
-        if (disabled && isRequired(manifest)) {
-          throw new HttpError(409, "Required modules cannot be disabled");
-        }
-        if (disabled && !supportsUserDisable(manifest)) {
-          throw new HttpError(422, "This module cannot be disabled per-user");
-        }
-        const dto = await dependencies.dataContext.withDataContext(
-          accessContext,
-          async (scopedDb) => {
-            await repository.setUserModuleDisabled(scopedDb, {
-              moduleId: manifest.id,
-              disabled,
-              actorUserId: accessContext.actorUserId,
-              requestId: requireRequestId(accessContext)
-            });
-            return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
-          }
-        );
-        return { module: dto };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
-    }
-  );
+  // #918: module-credential admin/per-user routes, with their own dedicated cipher
+  // (JARVIS_MODULE_CREDENTIAL_SECRET_KEY family — independent rotation from connector/AI keys).
+  registerModuleCredentialRoutes(server, {
+    dependencies,
+    repository,
+    assertAdminUser,
+    requireRequestId,
+    cipher: createModuleCredentialSecretCipher()
+  });
 }
 
 // The admin check happens INSIDE the route's withDataContext so the admin check and the
@@ -923,15 +929,4 @@ function requireObject(value: unknown): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
-}
-
-function parseDisabledBody(body: unknown): boolean {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new HttpError(400, "Expected JSON object body");
-  }
-  const disabled = (body as Record<string, unknown>).disabled;
-  if (typeof disabled !== "boolean") {
-    throw new HttpError(400, "disabled must be a boolean");
-  }
-  return disabled;
 }

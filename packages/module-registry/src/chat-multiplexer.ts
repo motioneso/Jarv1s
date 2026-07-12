@@ -14,7 +14,10 @@ import {
   cliAvailable,
   createBinaryProbe,
   createRealTmuxIo,
+  decideMultiplexer,
   resolveMultiplexer,
+  type MultiplexerKind,
+  type MultiplexerSource,
   type TmuxIo
 } from "@jarv1s/ai";
 import {
@@ -37,14 +40,6 @@ export interface ChatMultiplexerAvailability {
  * AES-256-GCM credential store, never in instance_settings).
  */
 const PREAUTH_READABLE_SETTING_KEYS = new Set<string>(["chat.multiplexer"]);
-
-/** Sync PATH probe for the admin UI hint (apply-on-restart, so a boot snapshot is correct). */
-export function probeChatMultiplexerAvailability(
-  env: NodeJS.ProcessEnv = process.env
-): ChatMultiplexerAvailability {
-  const probe = createBinaryProbe(env);
-  return { tmux: probe.has("tmux"), herdr: probe.has("herdr") };
-}
 
 /** Cap a host probe so a slow/hung binary lookup degrades to false instead of stalling a request. */
 async function boundedProbe(p: Promise<boolean>, ms = 1500): Promise<boolean> {
@@ -86,6 +81,55 @@ export function makeMultiplexerUsableProbe(
         return probe.has("herdr") && herdrRootAvailable;
       })
     );
+}
+
+export interface LiveChatMultiplexerStatus {
+  readonly available: ChatMultiplexerAvailability;
+  readonly herdrInstalled: boolean;
+  readonly active: MultiplexerKind | null;
+  readonly activeSource: MultiplexerSource | null;
+  readonly envOverride: MultiplexerKind | null;
+}
+
+function readEnvOverride(env: NodeJS.ProcessEnv): MultiplexerKind | null {
+  const raw = env.JARVIS_MULTIPLEXER?.trim().toLowerCase();
+  return raw === "tmux" || raw === "herdr" ? raw : null;
+}
+
+/** Live host probe for the admin Settings UI — resolved fresh on every request, so an operator's
+ * install / env change is reflected on the next fetch (no restart-only snapshot). */
+export function makeChatMultiplexerStatusProbe(
+  env: NodeJS.ProcessEnv = process.env
+): (configured: ChatMultiplexerChoice) => Promise<LiveChatMultiplexerStatus> {
+  const usable = makeMultiplexerUsableProbe(env);
+  return async (configured) => {
+    const binaryProbe = createBinaryProbe(env);
+    const [tmux, herdr] = await Promise.all([usable("tmux"), usable("herdr")]);
+    let active: MultiplexerKind | null = null;
+    let activeSource: MultiplexerSource | null = null;
+    try {
+      const decision = decideMultiplexer({
+        env,
+        configured,
+        isInstalled: (bin) => binaryProbe.has(bin)
+      });
+      if (decision.ok) {
+        active = decision.kind;
+        activeSource = decision.source;
+      }
+    } catch {
+      // decideMultiplexer only throws for an invalid JARVIS_MULTIPLEXER value — a deploy
+      // config error. Mirror resolveChatEngineFactory: degrade to "no active multiplexer"
+      // rather than 500-ing the admin diagnostics page whose whole job is to surface it.
+    }
+    return {
+      available: { tmux, herdr },
+      herdrInstalled: binaryProbe.has("herdr"),
+      active,
+      activeSource,
+      envOverride: readEnvOverride(env)
+    };
+  };
 }
 
 /**

@@ -2,6 +2,13 @@ import type { DataContextDb, EmailMessage } from "@jarv1s/db";
 
 import type { EmailWriteResult } from "./email-write-service.js";
 
+export interface NewEmailInput {
+  readonly connectorAccountId?: string;
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+}
+
 /**
  * The provider-abstracted email write seam. Owns the backend-specific mechanics of
  * drafting (save to provider) and sending (submit + append to Sent). Each provider
@@ -56,4 +63,6 @@ export interface EmailWriteProvider {
     threadId: string | null,
     body: string
   ): Promise<EmailWriteResult>;
+
+  sendNew(scopedDb: DataContextDb, input: NewEmailInput): Promise<EmailWriteResult>;
 }

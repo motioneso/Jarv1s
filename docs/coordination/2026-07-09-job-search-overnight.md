@@ -5059,3 +5059,9 @@ hash-verified, path-traversal-safe, RLS-scoped install; admin status surface exp
 **Queue now:** #981 news error-copy (routine, packages/news; 500 half needs Ben env+stack) · #979
 flake (task #31) · #965 parked (task #25) · #943/#942 module hardening bugs (unspawned, need triage).
 No build lanes live. Auto-compact in place — NO successor pane.
+
+## Continuation note (2026-07-12, ~70% ckpt #3)
+- **PROD DEPLOYED to edge post-#964:** `docker-compose.prod.yml` (NOT default name — needs `-f`), `-p jarv1s-prod --env-file env.production.local`. Digest flipped `5ed2b8c7…`→`68f7199f…`, `health=healthy`, `/health`→200. **Ben can now install the built-in Job Search module.** (Deploy = pull jarv1s + up -d jarv1s from /home/ben/JarvisProd.)
+- **#981 root-caused (prod DB):** News json/economy → Haiku on provider 33df431e = anthropic **auth_method=cli** (no API key). generateStructured tries to decrypt+use an API credential a CLI provider lacks → raw AES-GCM error as bare 500 (secret-cipher.ts:178, no catch). Key NOT rotated. See memory mem_mri5sto4.
+- **Ben AI-admin frustration (mid-turn):** capabilities ARE auto-detected (inferModel + "Discover models" btn), but manual "Add model" form defaults caps to ["chat"] only (settings-ai-admin-pane.tsx:167) + CLI providers' discovered models come in inactive/pin-only. Proposed 3 tasks under epic #869: (1) Add-form prefill from inferModel; (2) CLI auto-discover-on-connect+activate; (3) #981 typed decrypt error→actionable msg. **AWAITING Ben's go to file.** See memory mem_mri5snxv.
+- Open parked lanes: #965 dedupe (task #25), #979 flake (task #31). Fleet idle.

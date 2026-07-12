@@ -2,10 +2,17 @@ import {
   emitVirtualModule,
   emitWebVirtualModule,
   scanModuleSettings,
-  scanModuleWeb
+  scanModuleWeb,
+  SHELL_RESERVED_WEB_PATHS
 } from "./scanner.ts";
 
-export { emitVirtualModule, emitWebVirtualModule, scanModuleSettings, scanModuleWeb };
+export {
+  emitVirtualModule,
+  emitWebVirtualModule,
+  scanModuleSettings,
+  scanModuleWeb,
+  SHELL_RESERVED_WEB_PATHS
+};
 
 export function jarvisModuleSettingsPlugin(options: { readonly rootDir?: string } = {}) {
   const virtualId = "virtual:jarvis-module-settings";

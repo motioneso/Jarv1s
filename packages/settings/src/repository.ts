@@ -11,6 +11,21 @@ import type {
   ProviderInstallState
 } from "@jarv1s/shared";
 
+// #917: external-module types + DB row-writer helpers were extracted to a sibling module to
+// satisfy the 1000-line file-size gate (Task 7 pushed repository.ts over the cap). The
+// SettingsRepository methods below delegate to these; the types are re-exported (see below)
+// so the @jarv1s/settings public export surface is unchanged.
+import {
+  listExternalModuleStates as listExternalModuleStatesImpl,
+  setExternalModuleEnabled as setExternalModuleEnabledImpl,
+  writeExternalModuleDisabledRow,
+  type ExternalModuleAuditWriter,
+  type SetModuleDisabledInput,
+  type SetExternalModuleEnabledInput,
+  type SetExternalModuleDisabledInput,
+  type ExternalModuleState
+} from "./repository-external-modules.js";
+
 export interface UpsertInstanceSettingInput {
   readonly key: string;
   readonly value: Record<string, unknown>;
@@ -115,12 +130,16 @@ export interface AssembleOnboardingStatusInput {
  */
 const ONBOARDING_LOGINABLE_PROVIDER_KINDS: readonly OnboardingProviderKind[] = ["anthropic"];
 
-export interface SetModuleDisabledInput {
-  readonly moduleId: string;
-  readonly disabled: boolean;
-  readonly actorUserId: string;
-  readonly requestId: string;
-}
+// #917: the external-module admin types live in ./repository-external-modules.js (extracted
+// for the 1000-line file-size gate) and are imported above for local use in the method
+// signatures. Re-export them here so consumers that import them from "./repository.js" /
+// "@jarv1s/settings" (routes.ts, apps/api) keep resolving unchanged.
+export type {
+  SetModuleDisabledInput,
+  SetExternalModuleEnabledInput,
+  SetExternalModuleDisabledInput,
+  ExternalModuleState
+};
 
 export class HttpRepositoryError extends Error {
   constructor(
@@ -273,6 +292,60 @@ export class SettingsRepository {
         .where("user_id", "=", input.actorUserId)
         .execute();
     }
+  }
+
+  // #917: external-module admin state methods. The DB row-writer/mapper bodies were
+  // extracted to ./repository-external-modules.js for the 1000-line file-size gate; these
+  // stay as the class's public surface and delegate. Behavior is unchanged — the audit write
+  // still routes through this.insertAuditEvent via the closure the impls invoke, preserving
+  // the metadata-only invariant. RLS INSERT/UPDATE require current_actor_is_admin().
+  // Public as of #964 so the distribution routes can call the standalone staging/purge
+  // writers in repository-external-modules.ts directly (repository.ts is at the file-size
+  // cap — no new delegates).
+  externalModuleAuditWriter(scopedDb: DataContextDb): ExternalModuleAuditWriter {
+    return (event) => this.insertAuditEvent(scopedDb, event);
+  }
+
+  /** All external-module enablement rows visible under RLS (#917). See impl for details. */
+  async listExternalModuleStates(scopedDb: DataContextDb): Promise<ExternalModuleState[]> {
+    return listExternalModuleStatesImpl(scopedDb);
+  }
+
+  /** Admin: enable an external module, recording the trusted manifest + package hashes (#917). */
+  async setExternalModuleEnabled(
+    scopedDb: DataContextDb,
+    input: SetExternalModuleEnabledInput
+  ): Promise<void> {
+    await setExternalModuleEnabledImpl(scopedDb, input, this.externalModuleAuditWriter(scopedDb));
+  }
+
+  /** Admin: explicitly disable an external module; upsert so a discovered module can be pinned off (#917). */
+  async setExternalModuleDisabled(
+    scopedDb: DataContextDb,
+    input: SetExternalModuleDisabledInput
+  ): Promise<void> {
+    await writeExternalModuleDisabledRow(
+      scopedDb,
+      input,
+      "module.external_disable",
+      this.externalModuleAuditWriter(scopedDb)
+    );
+  }
+
+  /**
+   * Drift auto-disable (#917). Same persisted effect as an admin disable but a distinct audit
+   * action. Called ONLY from the admin GET path (admin RLS context) when reconcile reports drift.
+   */
+  async autoDisableExternalModule(
+    scopedDb: DataContextDb,
+    input: SetExternalModuleDisabledInput
+  ): Promise<void> {
+    await writeExternalModuleDisabledRow(
+      scopedDb,
+      input,
+      "module.external_auto_disable",
+      this.externalModuleAuditWriter(scopedDb)
+    );
   }
 
   async upsertInstanceSetting(

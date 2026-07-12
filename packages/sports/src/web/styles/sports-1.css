@@ -5,9 +5,16 @@
    token var — raw literals live solely in apps/web/src/styles/tokens.css. */
 
 .sp-wrap {
-  max-width: 1080px;
+  /* mrb7l76w: go full-bleed with a thin side margin instead of the centered 1200px
+     column — the editorial layout wants the whole width. (History: 1080 → 1200 when the
+     grid read cramped, mratt8hu; now uncapped.) --space-6 keeps content just off the
+     viewport edge rather than literally edge-to-edge. */
+  max-width: none;
   margin: 0 auto;
-  padding: var(--space-7) var(--space-8) var(--space-11);
+  /* Top breathing room history: space-7 → space-9 (mrb7otj3, full-bleed masthead sat too close
+     to the topbar) → space-6 (mrb7x9c0, Ben wanted some of that margin back off now that the
+     nameplate is scaling up to true masthead size and fills the space itself). */
+  padding: var(--space-6) var(--space-6) var(--space-11);
 }
 
 /* ---- page header ---- */
@@ -105,7 +112,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -116,163 +123,141 @@
 /* ============================================================= HERO — edge-to-edge broadsheet block */
 .sp-hero {
   margin-top: 0;
+  /* Bottom margin keeps breathing room under the hero (live feedback mrb11j9h). The hero's own
+     closing rule was removed — the section rule now sits on top of the Latest/Standings grid so
+     the hero floats between rules the same way it does against the around-the-leagues strip
+     above (live feedback mrb422s4). */
+  margin-bottom: var(--space-4);
   border: none;
-  border-bottom: 2px solid var(--border);
   border-radius: 0;
   background: none;
   padding: var(--space-6) 0;
 }
-.sp-hero--live {
-  background: none;
-  border-color: var(--border);
-}
-.sp-hero__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-.sp-hero__comp {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.sp-hero__phase {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-.sp-hero__match {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: var(--space-5);
-  margin: var(--space-4) 0 var(--space-1);
-}
-.sp-hero__side {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  text-align: center;
-  opacity: 0.72;
-}
-.sp-hero__side.is-lead {
-  opacity: 1;
-}
-.sp-hero__team {
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.2;
-}
-.sp-hero__score {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-.sp-hero__score .n {
-  font-size: var(--text-5xl);
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-.sp-hero__score .dash {
-  font-size: var(--text-2xl);
-  color: var(--text-faint);
-}
-.sp-hero__foot {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-.sp-rationale {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--accent-fg);
-}
-.sp-rationale svg {
-  color: var(--accent-fg);
-}
-.sp-hero__note {
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  color: var(--text-muted);
-}
-.sp-hero__also {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-subtle);
-}
-.sp-hero__also svg {
-  color: var(--text-faint);
-}
-.sp-hero__also b {
-  color: var(--text);
-  font-weight: 600;
-}
-
-/* story hero (quiet day) */
+/* story hero (quiet day, now the front-page lead) */
 .sp-hero--story {
-  background: var(--surface);
-  border-color: var(--border);
+  /* Was a filled surface panel — the single biggest "this is an ad" tell (mrbalm9x): a boxed
+     image-beside-copy rectangle is display-ad anatomy. A front-page lead sits ON the newsprint
+     like everything else, so no fill. Furniture (kicker) + top-alignment + a dominant headline
+     carry the hierarchy instead of a background box. */
+  background: none;
 }
 .sp-hero--split {
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: var(--space-6);
   align-items: stretch;
+  /* Designed constant height so every rotated lead occupies the same slot — the carousel must
+     not reflow the page when it swaps a dek-heavy story for a bare headline (mrb9z5dm). Floor
+     holds the max clamped content (kicker + 2-line 5xl headline + 3-line dek + jump line +
+     padding, mrbalm9x); the headline 2-line clamp and dek 3-line clamp cap the ceiling, so
+     every story lands here. */
+  min-height: 304px;
 }
 @media (max-width: 720px) {
   .sp-hero--split {
     grid-template-columns: 1fr;
   }
+  /* Full-bleed hero on phones (mrb9uu1x): cancel the .sp-wrap space-6 side gutter so the
+     background container reaches the viewport edge, but add matching inner padding so the
+     photo + text keep their margin off the edge. Margins land exactly on the wrap's padding
+     edge, so no horizontal overflow. */
+  .sp-hero {
+    margin-left: calc(-1 * var(--space-6));
+    margin-right: calc(-1 * var(--space-6));
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
+  /* Display scale is a desktop luxury — at phone widths --text-4xl wraps every other word
+     (live feedback mrav5twh) */
+  .sp-hero__headline {
+    font-size: var(--text-2xl);
+  }
 }
 .sp-hero__storybody {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* Top-align, not vertical-center (mrbalm9x): centered copy beside an image is promo-card
+     framing. A news lead stacks from the top — kicker, then headline, then dek — so the eye
+     lands on the desk tag and headline first. */
+  justify-content: flex-start;
   min-width: 0;
+}
+/* Front-page desk kicker (mrbalm9x) — the editorial signal an ad never carries. Accent desk
+   tag ("TOP STORY") welded to the league section by a hairline; mono/caps furniture at lead
+   scale, sat at the very top of the story body above the headline. */
+.sp-hero__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+.sp-hero__kicker-desk {
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+.sp-hero__kicker-comp {
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border-subtle);
+  color: var(--text-muted);
 }
 .sp-hero__headline {
   font-family: var(--font-display);
-  font-size: var(--text-4xl);
+  /* Lead scale (mrbalm9x): the headline is the loudest thing on a front page, and the photo
+     supports it. Bumped 4xl→5xl so the lead dominates the photo instead of reading co-equal
+     with it (co-equal image+copy was part of the promo-card feel). Still 2-line clamped. */
+  font-size: var(--text-5xl);
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.012em;
   color: var(--text);
   margin: var(--space-3) 0 0;
-  max-width: 30ch;
+  /* Was 30ch — wrapped ~600px into a ~1000px 1fr column, breaking lines earlier than the
+     space allowed (mrb9z5dm). Widen to a real display measure so the headline uses the
+     column, and clamp to 2 lines so it also caps the box's designed height (see
+     .sp-hero--split min-height). */
+  max-width: 44ch;
   text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-.sp-hero__dek {
+/* Newspaper jump line under the dek (mrbalm9x round 2) — the web echo of "continued on page
+   A12", the affordance that carries the reader from the lead paragraph into the full story.
+   Understated accent furniture; hugs its text (align-self) so the hover underline spans only
+   the words, not the whole column. */
+.sp-hero__more {
+  align-self: flex-start;
+  margin-top: var(--space-3);
   font-family: var(--font-sans);
-  font-size: var(--text-lg);
-  line-height: 1.55;
-  color: var(--text-muted);
-  margin: var(--space-2) 0 0;
-  max-width: 60ch;
-  text-wrap: pretty;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--accent-fg);
+  text-decoration: none;
 }
-
+.sp-hero__more:hover {
+  text-decoration: underline;
+}
+/* Standfirst under the headline (live feedback mrawc8ww) — body type at reading measure,
+   clamped so a long ESPN summary can't outgrow the hero art beside it */
+.sp-hero__dek {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 55ch;
+  text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 /* editorial photo placeholders (striped swatch — a real image can drop in here) */
 .sp-photo {
   position: relative;
@@ -291,7 +276,7 @@
   overflow: hidden;
 }
 .sp-photo__cap {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -303,6 +288,16 @@
   max-width: 100%;
   min-height: 208px;
   height: 100%;
+  /* breathing room so the hero art doesn't sit flush on the block's left edge
+     (live feedback mratkv9k) */
+  margin-left: var(--space-4);
+}
+/* Stacked single-column hero: the desktop breathing-room margin pushed a 100%-wide image
+   past the container edge (live feedback mrav5bw0); the wrap's own padding spaces it here */
+@media (max-width: 720px) {
+  .sp-photo--herostory {
+    margin-left: 0;
+  }
 }
 
 /* ============================================================= SECTIONS */
@@ -328,7 +323,7 @@
   gap: var(--space-2);
 }
 .sp-sec__title .sub {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -336,193 +331,180 @@
   text-transform: none;
 }
 
-/* ---- followed-team cards (cross-sport consistent shape) ---- */
-.sp-fcgrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(266px, 1fr));
-  gap: 12px;
-}
-.sp-fc {
-  position: relative;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  padding: 15px 16px 14px;
-  display: flex;
-  flex-direction: column;
-}
-.sp-fc__hd {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-.sp-fc__id {
-  flex: 1;
-  min-width: 0;
-}
-.sp-fc__name {
-  display: block;
-  font-family: var(--font-sans);
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.2;
-}
-.sp-fc__comp {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  margin-top: 2px;
-}
-.sp-tag {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-subtle);
-  background: var(--surface-2);
-  padding: 3px 7px;
-  border-radius: var(--radius-pill);
-}
-.sp-tag--live {
-  color: var(--accent-fg);
-  background: var(--forest-soft);
-}
-.sp-tag--today {
-  color: var(--forest-ink);
-  background: var(--forest-soft);
-}
-.sp-tag--news {
-  color: var(--steel-ink);
-  background: var(--steel-soft);
-}
-.sp-fc__primary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 13px;
-}
-.sp-fc__resscore {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  white-space: nowrap;
-}
-.sp-fc__newsic {
-  flex: none;
-  color: var(--steel);
-  display: inline-flex;
-  margin-top: 1px;
-}
-.sp-fc__newstx {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-.sp-fc__form {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 11px;
-}
-.sp-fc__standing {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.02em;
-  color: var(--text-subtle);
-}
-.sp-fc__standing svg {
-  color: var(--text-faint);
-}
-.sp-fc__next {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-  padding-top: 11px;
-  border-top: 1px solid var(--border-subtle);
-}
-.sp-fc__nextlbl {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.sp-fc__nextlbl svg {
-  color: var(--text-faint);
-}
-.sp-fc__nextmatch {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-/* ---- shared form-pip row (rendered by FormPips; still used by the ticker, #829) ---- */
+/* ---- shared form row (rendered by FormPips; ticker + Today widget) ----
+   Boxed result pips: green box around W, red box around L (mrba9wkg — Ben reversing the earlier
+   bare-letter treatment from mrawaqje; the boxes read more like a scoreboard form guide and the
+   outline makes W/L legible at a glance, not just by letter color). D stays a neutral outline. */
 .sp-formrow {
   display: inline-flex;
   gap: var(--space-1);
   margin-left: auto;
 }
 .sp-formpip {
-  width: 15px;
-  height: 15px;
-  border-radius: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-mono);
+  min-width: 1.2em;
+  padding: 2px 3px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 700;
+  line-height: 1;
 }
 .sp-formpip--w {
-  background: var(--forest-soft);
   color: var(--forest-ink);
+  background: var(--forest-soft);
+  border-color: var(--forest);
 }
 .sp-formpip--d {
-  background: var(--steel-soft);
   color: var(--steel-ink);
+  border-color: var(--border-subtle);
 }
 .sp-formpip--l {
-  background: var(--surface-2);
+  color: var(--red-ink);
+  background: var(--red-soft);
+  border-color: var(--red);
+}
+/* Hover/focus result popup on a form pip (Ben 2026-07-09 /today follow-cards: "add the result of
+   the last match when the user hovers over the L or W… a nice little stylized pop-up"). It opens
+   INWARD — down from the pip and anchored to the pip's right edge so it grows leftward — because
+   both host cards (.sp-tk, .sp-feat) clip with overflow:hidden and the pip row is right-aligned;
+   an outward popup would be sheared off at the card edge. */
+.sp-formpip--pop {
+  position: relative;
+  z-index: 5;
+  cursor: default;
+}
+.sp-formpop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 8.5rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  text-align: left;
+  font-weight: 400;
+  /* Hidden until hover/focus; the pip's aria-label carries the same text for AT. */
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.sp-formpip--pop:hover .sp-formpop,
+.sp-formpip--pop:focus .sp-formpop,
+.sp-formpip--pop:focus-visible .sp-formpop {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sp-formpop__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.sp-formpop__verb {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.sp-formpop__score {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.sp-formpop__opp {
+  max-width: 11rem;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-formpop__date {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
   color: var(--text-subtle);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-formpop {
+    transition: opacity var(--dur-fast) var(--ease-out);
+    transform: none;
+  }
+  .sp-formpip--pop:hover .sp-formpop,
+  .sp-formpip--pop:focus .sp-formpop,
+  .sp-formpip--pop:focus-visible .sp-formpop {
+    transform: none;
+  }
 }
 /* ---- standings (rail) ---- */
 .sp-standings {
   padding: 0;
-  border-top: 2px solid var(--border);
+  /* No border-top: the hero's 2px bottom rule sits directly above the grid, so an own top
+     rule stacked into a double-thick line over the rail while the Latest column showed a
+     single rule (live feedback mrawggsb) */
+  /* Height-capped internal scroller (mrbah9gw decouple): the standings own their scroll so a
+     tall division doesn't tower the grid row. Cap ≈ the board's 6-game band (game 80px * 6 +
+     96px header delta) so the two columns bottom out near each other. The --sp-board-game-h var
+     isn't in scope here (it's on the board in the sibling column), so the 80px fallback is what
+     resolves — kept in the expression to document the intent. Sticky header + fade cue below. */
+  max-height: calc(var(--sp-board-game-h, 80px) * 6 + 96px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+/* "More below" cue for the capped standings (mrbah9gw follow-up, Ben 2026-07-07): a bottom fade
+   pinned to the scroll viewport. Sticky + negative margin so it overlays the last rows and adds
+   no scroll length; opacity flips on only while rows sit past the bottom (JS --more toggle in
+   StandingsRail), so a short division stays clean and a long one reads as clearly continuing. */
+.sp-standings__fade {
+  position: sticky;
+  bottom: 0;
+  height: 40px;
+  margin-top: -40px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.sp-standings--more .sp-standings__fade {
+  opacity: 1;
 }
 .sp-standings__hd {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-3) 0 var(--space-2);
+  /* Match the table's horizontal inset (.sp-tbl th/td carry var(--space-2) L/R padding) so the
+     sticky title + division selector align to the standings grid instead of hanging var(--space-2)
+     outside it on both edges — Ben 2026-07-08 "standings margin is off, particularly the header". */
+  padding: var(--space-3) var(--space-2) var(--space-2);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--text);
+  /* The rail now scrolls internally (mrbah9gw): pin the title + division selector so they stay
+     reachable while the standings rows scroll under them. Surface background hides rows passing
+     behind the header. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
 }
 .sp-standings__title,
 .sp-standings__nav {
@@ -536,7 +518,6 @@
   gap: var(--space-1);
 }
 .sp-standings__select {
-  max-width: 96px;
   height: 24px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -579,7 +560,7 @@
   border-collapse: collapse;
 }
 .sp-tbl th {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -599,7 +580,7 @@
 }
 .sp-tbl td {
   padding: var(--space-2) var(--space-2);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xs);
   color: var(--text-muted);
@@ -628,25 +609,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sp-tbl tr.is-you td {
-  background: var(--forest-soft);
-}
+/* Followed team: highlight the NAME only. The old row-level tint (forest-soft across every td)
+   spoke the same visual language as the qualification-zone tints — it read as "qualified for
+   whatever" — and, because td backgrounds paint over the tr's inline zone tint, it also HID the
+   real zone color on the followed row (Ben couldn't see Arsenal's Europa League tint at all).
+   (live feedback mrb4imes) */
 .sp-tbl tr.is-you .nm {
-  color: var(--accent-fg);
-  font-weight: 700;
-}
-/* Numbered marker keyed to the legend below the table — a note index, not a color, so
-   distinct notes (e.g. Champions League vs. relegation) stay distinguishable (#841). */
-.sp-tbl__adv {
-  display: inline-block;
-  min-width: 12px;
-  margin-right: var(--space-1);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: var(--weight-bold);
   color: var(--accent);
-  text-align: center;
-  vertical-align: middle;
+  font-weight: 700;
 }
 /* Visually-hidden note text for screen readers — same clip-rect technique as
    apps/web/src/styles/onboarding-connectors.css's .onb-json-upload input. */
@@ -657,6 +627,87 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* Knockout-round fixtures replace the standings table once a tournament's group stage is
+   complete (#839 follow-up): away · score-or-kickoff · home on a hairline-ruled list. */
+.sp-knock__kicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: var(--space-2) 0;
+}
+.sp-knock__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sp-knock__row {
+  display: grid;
+  /* FIXED score + status columns (was `auto auto`) so every knockout game lines up vertically
+     regardless of its result/schedule text (Ben 2026-07-08 /sports annotation #5). With `auto`
+     each row sized the score/status tracks to its own content — "v" vs "3–1", "12:00 PM" vs "FT"
+     — so the home-team and status columns landed at a different x on each row. Fixed tracks pin
+     them: away team (1fr, right-aligned) → score (3.5rem, centered) → home team (1fr, left) →
+     status (6rem, right-aligned). 3.5rem fits "3–1"/"v"; 6rem fits the kickoff-time/FT tokens. */
+  grid-template-columns: 1fr 3.5rem 1fr 6rem;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sp-knock__row:last-child {
+  border-bottom: none;
+}
+.sp-knock__team {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-knock__team--away {
+  text-align: right;
+}
+.sp-knock__team--home {
+  text-align: left;
+}
+/* Decided match: winner bold with a caret pointing at them, loser dimmed — score alone can't
+   say who advanced after penalties (live feedback mra2zo1o) */
+.sp-knock__team.is-winner {
+  font-weight: 700;
+}
+.sp-knock__team.is-loser {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+.sp-knock__won {
+  color: var(--accent-fg);
+}
+.sp-knock__score {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  /* Centered within its fixed 3.5rem track so "v" and "3–1" share one x across all rows (#5). */
+  text-align: center;
+}
+.sp-knock__status {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+  /* Right-aligned within its fixed 6rem track so the status column is flush on every row (#5). */
+  text-align: right;
 }
 
 /* ============================================================= EMPTY STATE */
@@ -728,9 +779,4 @@
   padding-top: var(--space-7);
   border-top: 2px solid var(--border);
   align-items: start;
-}
-@media (max-width: 900px) {
-  .sp-emptyboard {
-    grid-template-columns: 1fr;
-  }
 }

@@ -11,24 +11,38 @@ import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./sports-sou
 // through this adapter (LOADER-SEAM(sports)), and only through the runtime's pinned `fetchFn`.
 const SITE_BASE = "https://site.api.espn.com/apis/site/v2/sports";
 const CORE_BASE = "https://site.api.espn.com/apis/v2/sports";
+// Per-article content host (#857). The list `/news` feed omits the article body; the full `story`
+// HTML lives only under this host's per-id endpoint. URLs are built from the numeric article id
+// (never the provider-supplied `links.api.self.href`) so the fetch target can't be steered — see
+// getArticleBody. A THIRD fetchHost, so it must join ESPN_FETCH_HOSTS below (which manifest.ts
+// feeds straight into the module's externalSources allowlist) or the runtime blocks the request.
+const CONTENT_BASE = "https://content.core.api.espn.com/v1/sports/news";
 
 // Hosts ESPN crest/photo URLs resolve to (team.logos + article images).
 export const ESPN_IMAGE_HOSTS: readonly string[] = ["a.espncdn.com", "s.secure.espncdn.com"];
 
-export const ESPN_FETCH_HOSTS: readonly string[] = ["site.api.espn.com"];
+export const ESPN_FETCH_HOSTS: readonly string[] = [
+  "site.api.espn.com",
+  "content.core.api.espn.com" // per-article body fetch (#857)
+];
 
 // --- Minimal shapes for the fields we read (ESPN payloads carry far more) ------------------
 
 interface EspnCompetitor {
   readonly homeAway?: string;
   readonly winner?: boolean;
-  readonly score?: string;
+  // Scoreboard events carry score as a plain string; the team /schedule endpoint wraps it in
+  // an object ({ value, displayValue }) — both shapes are live (verified 2026-07-07).
+  readonly score?: string | { readonly value?: number; readonly displayValue?: string };
   readonly team?: {
     readonly id?: string;
     readonly abbreviation?: string;
     readonly displayName?: string;
     readonly shortDisplayName?: string;
+    // Scoreboard competitors carry a flat `logo`; the team /schedule endpoint sends a
+    // `logos` array instead (verified live 2026-07-07) — both are read in toSide.
     readonly logo?: string;
+    readonly logos?: readonly { readonly href?: string }[];
   };
   readonly records?: readonly { readonly summary?: string }[];
 }
@@ -77,13 +91,20 @@ function mapState(state: string | undefined): GameSummary["state"] {
 function toSide(competitor: EspnCompetitor | undefined): GameSide {
   const team = competitor?.team;
   const teamKey = (team?.abbreviation ?? team?.id ?? "").toLowerCase();
+  // Object-shaped scores come from the /schedule endpoint; Number({...}) is NaN, which used to
+  // null every schedule score — soccer draws then fell through resultOf()'s winner check and
+  // rendered as losses in the form pips (live feedback mrawhx9c).
   const scoreRaw = competitor?.score;
-  const score = scoreRaw === undefined || scoreRaw === "" ? null : Number(scoreRaw);
+  const scoreValue = typeof scoreRaw === "object" ? scoreRaw.value : scoreRaw;
+  const score = scoreValue === undefined || scoreValue === "" ? null : Number(scoreValue);
   return {
     teamKey,
     name: team?.displayName ?? teamKey,
     shortName: team?.shortDisplayName ?? team?.displayName ?? teamKey,
-    crestUrl: team?.logo ?? null,
+    // `logo` on scoreboard payloads, `logos[0].href` on schedule payloads — without the
+    // fallback every schedule-derived side had a null crest, so the ticker footer's opponent
+    // logo (mrawvc48) silently degraded to the initials swatch.
+    crestUrl: team?.logo ?? team?.logos?.[0]?.href ?? null,
     score: score === null || Number.isNaN(score) ? null : score,
     record: competitor?.records?.[0]?.summary ?? null,
     winner: competitor?.winner === true
@@ -114,12 +135,28 @@ function statValue(
   return stats?.find((s) => s.name === name)?.value;
 }
 
-function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
+// ESPN ships malformed note colors — the Premier League Europa slot arrives as "##B5E7CE"
+// (double hash, verified live 2026-07-07). Injected raw into color-mix() that invalidates the
+// whole declaration, so Europa rows silently lost their zone tint while CL/relegation rows kept
+// theirs (live feedback mrb4sa8y). Normalize to one "#" and hard-validate the hex; anything
+// unparseable becomes null so the web layer's neutral fallback takes over. This is also the
+// safety valve for feeding a provider-supplied string into inline styles.
+function normalizeNoteColor(color: string | undefined): string | null {
+  if (!color) return null;
+  const hex = `#${color.replace(/^#+/, "")}`;
+  return /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex) ? hex : null;
+}
+
+function toStandingsRow(entry: EspnStandingsEntry, index: number): StandingsRow {
   const teamKey = (entry.team?.abbreviation ?? entry.team?.id ?? "").toLowerCase();
   return {
     teamKey,
     name: entry.team?.displayName ?? teamKey,
-    rank: statValue(entry.stats, "rank") ?? 0,
+    // US record leagues at ?level=3 carry NO "rank" stat on division entries (verified live
+    // 2026-07-07) but arrive standings-sorted, so the position in the section IS the rank.
+    // The old `?? 0` fallback produced "#0 · 10-2" lines the web sanity guard then hid on
+    // every card (live feedback mraxrdxr, mraz6m43).
+    rank: statValue(entry.stats, "rank") ?? index + 1,
     points: statValue(entry.stats, "points") ?? null,
     wins: statValue(entry.stats, "wins") ?? 0,
     losses: statValue(entry.stats, "losses") ?? 0,
@@ -127,7 +164,7 @@ function toStandingsRow(entry: EspnStandingsEntry): StandingsRow {
     winPercent: statValue(entry.stats, "winPercent") ?? null,
     qualifies: entry.note != null,
     qualificationNote: entry.note?.description ?? null,
-    qualificationColor: entry.note?.color ?? null
+    qualificationColor: normalizeNoteColor(entry.note?.color)
   };
 }
 
@@ -143,11 +180,20 @@ export interface EspnTeamsParams {
 export interface EspnScoreboardParams {
   readonly competitionKey: string;
   readonly day: IsoDate;
+  // When present, the scoreboard is fetched over the inclusive `day`..`endDay` range instead of
+  // the single `day` (ESPN accepts `dates=YYYYMMDD-YYYYMMDD`) — used for tournament fixtures
+  // that span several days (#839 follow-up).
+  readonly endDay?: IsoDate;
 }
 
 export interface EspnScheduleParams {
   readonly teamKey: string;
   readonly competitionKey: string;
+  // ESPN numeric team id from the teams catalog. Soccer leagues do NOT resolve abbreviation
+  // slugs on the schedule endpoint (/soccer/usa.1/teams/sd/schedule → empty payload, verified
+  // live 2026-07-07) while the numeric id works for every sport — so this is preferred over
+  // teamKey whenever the catalog has it (live feedback mrawhx9c: soccer cards had no form).
+  readonly sourceTeamId?: string | null;
 }
 
 export interface EspnStandingsParams {
@@ -156,6 +202,8 @@ export interface EspnStandingsParams {
 
 export interface EspnHeadlinesParams {
   readonly competitionKey: string;
+  /** ESPN team slug — narrows the news feed to one team (`?team=sf`). */
+  readonly teamKey?: string;
 }
 
 async function listTeams(fetchFn: typeof fetch, params: EspnTeamsParams): Promise<SourceTeamRef[]> {
@@ -198,9 +246,10 @@ async function getScoreboard(
   fetchFn: typeof fetch,
   params: EspnScoreboardParams
 ): Promise<GameSummary[]> {
-  const { competitionKey, day } = params;
+  const { competitionKey, day, endDay } = params;
   const { sport, league } = resolve(competitionKey);
-  const dates = day.replace(/-/g, "");
+  const start = day.replace(/-/g, "");
+  const dates = endDay ? `${start}-${endDay.replace(/-/g, "")}` : start;
   const data = (await fetchJson(
     fetchFn,
     `${SITE_BASE}/${sport}/${league}/scoreboard?dates=${dates}`,
@@ -215,12 +264,60 @@ async function getSchedule(
 ): Promise<GameSummary[]> {
   const { teamKey, competitionKey } = params;
   const { sport, league } = resolve(competitionKey);
+  // Numeric id first — the abbreviation slug 404s-to-empty on soccer schedule URLs (see
+  // EspnScheduleParams.sourceTeamId); teamKey stays as the fallback for callers without a
+  // catalog in hand.
+  const pathKey = params.sourceTeamId ?? teamKey;
   const data = (await fetchJson(
     fetchFn,
-    `${SITE_BASE}/${sport}/${league}/teams/${teamKey}/schedule`,
+    `${SITE_BASE}/${sport}/${league}/teams/${pathKey}/schedule`,
     `${league} schedule`
   )) as { events?: readonly EspnEvent[] };
   return (data.events ?? []).map((event) => toGame(event, competitionKey));
+}
+
+// `?level=3` nests conference nodes (which carry no entries of their own) above the division
+// nodes that do (verified live: NFL → American/National Football Conference → AFC East ×4 teams;
+// soccer stays flat with no children). We walk the tree collecting every node that has
+// `standings.entries` as one section, tagging it with the nearest ancestor that had children but
+// no entries (the conference); flat leagues fall through with `conference: null`.
+interface EspnStandingsNode {
+  readonly name?: string;
+  readonly abbreviation?: string;
+  readonly standings?: { entries?: readonly EspnStandingsEntry[] };
+  readonly children?: readonly EspnStandingsNode[];
+}
+
+type StandingsSectionRaw = {
+  label: string | null;
+  conference: string | null;
+  rows: StandingsRow[];
+};
+
+function collectStandingsSections(
+  node: EspnStandingsNode,
+  conference: string | null,
+  depth: number,
+  out: StandingsSectionRaw[]
+): void {
+  const entries = node.standings?.entries ?? [];
+  if (entries.length > 0) {
+    out.push({
+      label: node.name ?? node.abbreviation ?? null,
+      conference,
+      rows: entries.map(toStandingsRow)
+    });
+  }
+  const children = node.children ?? [];
+  // A non-root node with children but no entries of its own is a grouping level (a conference);
+  // its label becomes the `conference` tag for everything beneath it. The top-level root is never
+  // a conference ("null at top level"), so soccer group stages (Group A…H under the root) stay
+  // flat with no conference tag.
+  const childConference =
+    depth > 0 && entries.length === 0 ? (node.name ?? node.abbreviation ?? conference) : conference;
+  for (const child of children) {
+    collectStandingsSections(child, childConference, depth + 1, out);
+  }
 }
 
 async function getStandings(
@@ -231,24 +328,11 @@ async function getStandings(
   const { sport, league } = resolve(competitionKey);
   const data = (await fetchJson(
     fetchFn,
-    `${CORE_BASE}/${sport}/${league}/standings`,
+    `${CORE_BASE}/${sport}/${league}/standings?level=3`,
     `${league} standings`
-  )) as {
-    children?: readonly {
-      name?: string;
-      abbreviation?: string;
-      standings?: { entries?: readonly EspnStandingsEntry[] };
-    }[];
-    standings?: { entries?: readonly EspnStandingsEntry[] };
-  };
-  const children = data.children ?? [];
-  const sections =
-    children.length > 0
-      ? children.map((child) => ({
-          label: child.name ?? child.abbreviation ?? null,
-          rows: (child.standings?.entries ?? []).map(toStandingsRow)
-        }))
-      : [{ label: null, rows: (data.standings?.entries ?? []).map(toStandingsRow) }];
+  )) as EspnStandingsNode;
+  const sections: StandingsSectionRaw[] = [];
+  collectStandingsSections(data, null, 0, sections);
   return { sections: sections.filter((section) => section.rows.length > 0) };
 }
 
@@ -256,11 +340,12 @@ async function getHeadlines(
   fetchFn: typeof fetch,
   params: EspnHeadlinesParams
 ): Promise<SourceHeadline[]> {
-  const { competitionKey } = params;
+  const { competitionKey, teamKey } = params;
   const { sport, league } = resolve(competitionKey);
+  const teamFilter = teamKey ? `?team=${encodeURIComponent(teamKey)}` : "";
   const data = (await fetchJson(
     fetchFn,
-    `${SITE_BASE}/${sport}/${league}/news`,
+    `${SITE_BASE}/${sport}/${league}/news${teamFilter}`,
     `${league} news`
   )) as {
     articles?: readonly {
@@ -294,9 +379,128 @@ async function getHeadlines(
   });
 }
 
+// --- Per-article body (#857) ---------------------------------------------------------------
+// The NewsBand featured hero underfills with only the one-paragraph dek. The full body lives on
+// the per-article content host; we fetch it for the SINGLE featured story and sanitize the HTML
+// down to plaintext BEFORE it leaves this layer, so the web tier renders inert text and never
+// ESPN markup. See spec on issue #857.
+
+export interface EspnArticleBodyParams {
+  // ESPN numeric article id (the `id` set on each SourceHeadline in getHeadlines). The fetch URL
+  // is built from this — never from a provider-supplied href — so a poisoned payload can't steer
+  // the request to another host/path (SSRF hardening, #857).
+  readonly articleId: string;
+}
+
+// Decode the small set of HTML entities ESPN actually emits in story bodies (named + numeric).
+// Deliberately narrow: we're producing plaintext for text rendering, not a general HTML decoder.
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;|&apos;|&rsquo;/g, "’")
+    .replace(/&lsquo;/g, "‘")
+    .replace(/&ldquo;/g, "“")
+    .replace(/&rdquo;/g, "”")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&hellip;/g, "…")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (m: string, code: string) => codePointOr(Number(code), m))
+    .replace(/&#x([0-9a-fA-F]+);/g, (m: string, code: string) =>
+      codePointOr(parseInt(code, 16), m)
+    );
+}
+
+// String.fromCodePoint throws RangeError on a value above U+10FFFF (or a lone surrogate), and the
+// caller's catch would then drop the ENTIRE article body over one malformed entity (Fable L2). An
+// out-of-range codepoint keeps its literal source text instead — lossless and never throwing.
+function codePointOr(n: number, original: string): string {
+  if (!Number.isInteger(n) || n < 0 || n > 0x10ffff || (n >= 0xd800 && n <= 0xdfff)) {
+    return original;
+  }
+  return String.fromCodePoint(n);
+}
+
+// Cap length AND turn ESPN story HTML into safe plaintext (#857). This is the core injection
+// mitigation: after this runs there are zero tags/tokens left, so the web layer rendering it as
+// React text ({string}) can't emit any ESPN-controlled markup or `<photoN>` embed. Exported so
+// the unit suite can assert "zero surviving tags" directly against real fixtures.
+const BODY_CHAR_CAP = 900; // ~3 short paragraphs; keeps the hero filled without over-fetching text
+const MAX_BODY_PARAGRAPHS = 3;
+
+export function sanitizeArticleBody(story: string | undefined | null): string {
+  if (!story) return "";
+  // Pull the first few <p> blocks — ESPN wraps every body paragraph in <p>; anything outside them
+  // (photo embeds, promo rails) is chrome we don't want in the hero.
+  const paragraphs: string[] = [];
+  const paragraphRe = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = paragraphRe.exec(story)) !== null && paragraphs.length < MAX_BODY_PARAGRAPHS) {
+    const plain = decodeEntities(
+      (match[1] ?? "") // capture group always present on a match; ?? satisfies noUncheckedIndexedAccess
+        .replace(/<[^>]+>/g, "") // strip inline tags (<a> <i> <b> …) inside the paragraph
+        .replace(/\s+/g, " ")
+    ).trim();
+    // Drop `<photoN>` placeholder tokens and any residual angle-bracket debris, then re-check empty.
+    const cleaned = plain
+      .replace(/<\s*photo\d+\s*>/gi, "")
+      .replace(/[<>]/g, "")
+      .trim();
+    if (cleaned) paragraphs.push(cleaned);
+  }
+  // Fallback: some stories carry no <p> wrappers — flatten the whole thing so we still get text.
+  if (paragraphs.length === 0) {
+    const flat = decodeEntities(story.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "))
+      .replace(/<\s*photo\d+\s*>/gi, "")
+      .replace(/[<>]/g, "")
+      .trim();
+    if (flat) paragraphs.push(flat);
+  }
+  const joined = paragraphs.join("\n\n");
+  if (joined.length <= BODY_CHAR_CAP) return joined;
+  // Cap at a word boundary so we don't slice mid-word, then append an ellipsis.
+  const clipped = joined.slice(0, BODY_CHAR_CAP);
+  const lastSpace = clipped.lastIndexOf(" ");
+  return `${(lastSpace > BODY_CHAR_CAP * 0.6 ? clipped.slice(0, lastSpace) : clipped).trimEnd()}…`;
+}
+
+async function getArticleBody(
+  fetchFn: typeof fetch,
+  params: EspnArticleBodyParams
+): Promise<string> {
+  // Validate BEFORE building the URL: real ESPN article ids are multi-digit numerics. `^\d{4,}$`
+  // both hardens the fetch target (only a bare number can reach the URL — no host/path/query
+  // injection) AND excludes the index-fallback ids getHeadlines assigns when an article has no id
+  // (`String(index)`, 1–3 digits for overview-sized lists) — those aren't real articles, so
+  // there's nothing to fetch.
+  if (!/^\d{4,}$/.test(params.articleId)) return "";
+  try {
+    const data = (await fetchJson(
+      fetchFn,
+      `${CONTENT_BASE}/${params.articleId}`,
+      "article body"
+    )) as { headlines?: readonly { story?: string }[] };
+    return sanitizeArticleBody(data.headlines?.[0]?.story);
+  } catch {
+    // Graceful degrade (#857): any failure (404 on a stale id, timeout, malformed JSON) → no body,
+    // and the UI falls back to the dek. The body must NEVER block or fail the overview render.
+    return "";
+  }
+}
+
 // --- Adapter (the `ExternalSourceAdapter` implementation the dataset runtime dispatches to) --
 
-const ESPN_DATASET_KEYS = ["teams", "scoreboard", "schedule", "standings", "headlines"] as const;
+const ESPN_DATASET_KEYS = [
+  "teams",
+  "scoreboard",
+  "schedule",
+  "standings",
+  "headlines",
+  "articleBody" // per-article body for the featured hero only (#857)
+] as const;
 type EspnDatasetKey = (typeof ESPN_DATASET_KEYS)[number];
 
 function isEspnDatasetKey(value: string): value is EspnDatasetKey {
@@ -324,6 +528,10 @@ export function createEspnDatasetAdapter(): ExternalSourceAdapter {
           return getStandings(ctx.fetchFn, params as unknown as EspnStandingsParams);
         case "headlines":
           return getHeadlines(ctx.fetchFn, params as unknown as EspnHeadlinesParams);
+        case "articleBody":
+          // Featured-hero body only (#857). Returns "" on any failure so the caller falls back
+          // to the dek — never throws, never blocks the overview.
+          return getArticleBody(ctx.fetchFn, params as unknown as EspnArticleBodyParams);
       }
     }
   };

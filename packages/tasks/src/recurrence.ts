@@ -146,12 +146,18 @@ export function nextOccurrenceAtOrAfter(spec: RecurrenceSpec, today: string): st
  * next occurrence at-or-after today. One live instance, missed rolls forward without
  * stacking (no new row). Idempotent: a series already at/after today is a no-op.
  *
+ * `today` (YYYY-MM-DD) is REQUIRED — it must be the ACTOR's local calendar day, never
+ * the server's UTC day (#877 finding 2: a UTC-default here silently advanced a still-due
+ * daily task from 5 PM Pacific on, because the server day had already flipped). There is
+ * intentionally no default; making the param required forces every caller to compute the
+ * actor's day (typically via readActorTimezone + localDay) instead of drifting to UTC.
+ *
  * Returns true if a row was advanced, false otherwise.
  */
 export async function rollForwardRecurringSeries(
   db: DataContextDb,
   seriesId: string,
-  today: string = new Date().toISOString().slice(0, 10)
+  today: string
 ): Promise<boolean> {
   assertDataContextDb(db);
 
@@ -244,11 +250,14 @@ export async function rollForwardRecurringSeries(
  * Roll forward every live recurring series owned by the current actor (RLS-scoped).
  * Finds distinct series with a stale live instance, rolls each via
  * rollForwardRecurringSeries, and returns the count advanced. Idempotent.
+ *
+ * `today` (YYYY-MM-DD) is REQUIRED and must be the ACTOR's local calendar day — see
+ * rollForwardRecurringSeries's doc comment (#877 finding 2). No default is provided on
+ * purpose so every caller (drift.ts repository methods, the recurrence worker in
+ * jobs.ts) is forced through the compiler to compute it via readActorTimezone + localDay
+ * instead of silently falling back to the server's UTC day.
  */
-export async function rollForwardOwnedSeries(
-  db: DataContextDb,
-  today: string = new Date().toISOString().slice(0, 10)
-): Promise<number> {
+export async function rollForwardOwnedSeries(db: DataContextDb, today: string): Promise<number> {
   assertDataContextDb(db);
 
   // OWNER-ONLY scan: distinct stale series the ACTOR OWNS (explicit predicate, not just

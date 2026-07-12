@@ -78,3 +78,4 @@ export * from "./memory-settings-repository.js";
 export * from "./recall-port.js";
 export * from "./repository.js";
 export * from "./routes.js";
+export * from "./skills/repository.js";

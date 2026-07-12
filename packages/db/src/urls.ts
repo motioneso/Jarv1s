@@ -1,3 +1,5 @@
+export const DEFAULT_JARVIS_DATABASE_NAME = "jarv1s";
+
 export interface JarvisDatabaseUrls {
   readonly bootstrap: string;
   readonly migration: string;
@@ -17,7 +19,7 @@ function getExplicitProductionUrl(env: NodeJS.ProcessEnv, envVar: string): strin
 export function getJarvisDatabaseUrls(env: NodeJS.ProcessEnv = process.env): JarvisDatabaseUrls {
   const host = env.JARVIS_PGHOST ?? "localhost";
   const port = env.JARVIS_PGPORT ?? "55433";
-  const database = env.JARVIS_PGDATABASE ?? "jarv1s";
+  const database = env.JARVIS_PGDATABASE ?? DEFAULT_JARVIS_DATABASE_NAME;
 
   return {
     bootstrap:

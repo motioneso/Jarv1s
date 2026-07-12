@@ -9,9 +9,16 @@
  * them directly via `../../chat/src/live/*` relative imports before this
  * boundary was made honest. This barrel changes no behavior; it just gives that
  * existing surface a declared, package-boundary-respecting entry point.
+ *
+ * #744 adds `private-transcript-cleanup`: the cli-runner's engine-host needs
+ * `purgePrivateTranscripts` for the engine-less purge path (kill deletes the
+ * server-side engine before the purge verb arrives, so purge runs by directory).
+ * Collision-safe — that module's local `sanitizeSessionKey`/`deriveNeutralDir`
+ * are NOT exported, so they don't clash with cli-chat-engine's public ones.
  */
 export * from "./cli-chat-engine.js";
 export * from "./rpc-contract.js";
 export * from "./login-contract.js";
 export * from "./install-contract.js";
 export * from "./errors.js";
+export * from "./private-transcript-cleanup.js";

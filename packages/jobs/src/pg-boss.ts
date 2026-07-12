@@ -16,6 +16,7 @@ export const PGBOSS_SCHEMA = "pgboss";
 export const RLS_PROBE_QUEUE = "rls-probe";
 export const UPGRADE_CHECK_QUEUE = "system.upgrade-check";
 export const UPGRADE_NOTIFY_QUEUE = "system.upgrade-notify";
+export const PLATFORM_MODULE_CONTROL_QUEUE = "platform.module-control";
 
 export interface ActorScopedJobPayload {
   readonly actorUserId: string;
@@ -55,6 +56,14 @@ export const FOUNDATION_QUEUES: readonly QueueDefinition[] = [
       retryLimit: 3,
       deleteAfterSeconds: 86400,
       retentionSeconds: 86400
+    }
+  },
+  {
+    name: PLATFORM_MODULE_CONTROL_QUEUE,
+    options: {
+      retryLimit: 3,
+      deleteAfterSeconds: 3600,
+      retentionSeconds: 3600
     }
   }
 ];

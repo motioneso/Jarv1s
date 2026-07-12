@@ -17,6 +17,7 @@ import {
   killMuxSessionByName,
   listLiveMuxSessions,
   probeProvider,
+  purgePrivateTranscripts,
   removeNeutralDir,
   sanitizeSessionKey,
   type ProbeProviderResult,
@@ -327,6 +328,25 @@ export class CliChatEngineHost {
       // may still exist. Kill by canonical name and remove the neutral dir (§4.5/§6.5).
       await killMuxSessionByName(this.deps.io, key);
       await removeNeutralDir(this.deps.io, this.deps.neutralBase, key);
+    });
+  }
+
+  // ─── purgeTranscripts (#744) — private-chat transcript purge; engine-less is NORMAL ──
+  //
+  // The manager kills BEFORE it purges, and kill() deletes the server-side engine, so over
+  // RPC this verb almost always arrives engine-less. That is NOT an error: purge by directory
+  // (purgePrivateTranscripts covers Claude + interactive Codex; Gemini/agy/codex-exec are #868).
+  // Only when the engine is somehow still resident do we delegate to it. Serialized on the
+  // per-key queue so a purge never interleaves a launch/submit for the same session.
+  purgeTranscripts(sessionKey: string): Promise<void> {
+    const key = sanitizeSessionKey(sessionKey);
+    return this.enqueue(key, async () => {
+      const engine = this.engines.get(key);
+      if (engine) {
+        await engine.purgeTranscripts();
+        return;
+      }
+      await purgePrivateTranscripts(this.deps.io, this.deps.neutralBase, key, this.deps.homeBase);
     });
   }
 

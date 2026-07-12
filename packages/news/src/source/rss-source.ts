@@ -1,0 +1,259 @@
+import { Parser } from "htmlparser2";
+
+import type { ExternalSourceAdapter, ExternalSourceAdapterContext } from "@jarv1s/module-sdk";
+
+import { sourceEntry, type NewsSourceEntry } from "./catalog.js";
+import {
+  SUMMARY_CHAR_CAP,
+  TITLE_CHAR_CAP,
+  sanitizeFeedText,
+  sanitizeImageUrl,
+  sanitizeItemUrl,
+  sanitizePublishedAt
+} from "./sanitize.js";
+
+// Everything a feed contributes to the page. Fully sanitized before it leaves this layer —
+// the service composes these into `NewsHeadline`s without touching the raw XML.
+export interface RssFeedItem {
+  /** Stable hash of the article URL (dedupe key + React key). */
+  readonly id: string;
+  readonly title: string;
+  readonly url: string;
+  readonly publishedAt: string | null;
+  readonly imageUrl: string | null;
+  readonly summary: string;
+}
+
+export interface NewsFeedParams {
+  readonly sourceKey: string;
+  /** Canonical topic key, or null for the source's top feed. */
+  readonly topicKey: string | null;
+}
+
+const ITEMS_PER_FEED_CAP = 30;
+
+/** FNV-1a 32-bit over the URL — stable across processes (no per-boot salt), collision-tolerant
+ *  because it's only a dedupe/React key, never a security boundary. */
+export function stableIdForUrl(url: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < url.length; i += 1) {
+    hash ^= url.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+interface RawFeedItem {
+  title: string;
+  link: string;
+  summary: string;
+  contentFallback: string;
+  publishedAt: string;
+  imageUrl: string;
+  imageIsThumbnail: boolean;
+  imageWidth: number;
+}
+
+function emptyRawItem(): RawFeedItem {
+  return {
+    title: "",
+    link: "",
+    summary: "",
+    contentFallback: "",
+    publishedAt: "",
+    imageUrl: "",
+    imageIsThumbnail: false,
+    imageWidth: 0
+  };
+}
+
+// Accumulating-text fields ontext() can append to (attribute-driven fields are set directly).
+type TextField = "title" | "link" | "summary" | "contentFallback" | "publishedAt";
+
+/**
+ * Streaming RSS 2.0 / Atom parser over htmlparser2's XML mode (CDATA + entity decoding handled
+ * by the parser; both feed dialects verified against real fixtures in `__fixtures__/`).
+ * Tolerates whitespace/attributes after the root tag name — the Verge's Atom root spreads its
+ * xmlns attributes across lines, which naive regex sniffing misses.
+ */
+export function parseFeedXml(xml: string): RawFeedItem[] {
+  const items: RawFeedItem[] = [];
+  let current: RawFeedItem | null = null;
+  let field: TextField | null = null;
+  // Depth guard: media:group or nested containers can hold their own <title>-like tags; only
+  // capture text for direct children of <item>/<entry> (depth === itemDepth + 1).
+  let depth = 0;
+  let itemDepth = -1;
+
+  const parser = new Parser(
+    {
+      onopentag(name, attribs) {
+        depth += 1;
+        const tag = name.toLowerCase();
+        if ((tag === "item" || tag === "entry") && current === null) {
+          current = emptyRawItem();
+          itemDepth = depth;
+          return;
+        }
+        if (!current) return;
+        // Media tags may sit inside <media:group>; accept them at any depth within the item.
+        if (tag === "media:content" || tag === "media:thumbnail") {
+          const url = attribs["url"];
+          // Prefer media:content (full-size art) over media:thumbnail, and among several
+          // media:content sizes (Guardian emits 140/460/…) keep the widest.
+          if (url) {
+            const width = Number(attribs["width"]) || 0;
+            if (tag === "media:content") {
+              if (!current.imageUrl || current.imageIsThumbnail || width > current.imageWidth) {
+                current.imageUrl = url;
+                current.imageIsThumbnail = false;
+                current.imageWidth = width;
+              }
+            } else if (tag === "media:thumbnail" && !current.imageUrl) {
+              current.imageUrl = url;
+              current.imageIsThumbnail = true;
+              current.imageWidth = width;
+            }
+          }
+          return;
+        }
+        if (tag === "enclosure") {
+          if (!current.imageUrl && attribs["url"] && (attribs["type"] ?? "").startsWith("image/")) {
+            current.imageUrl = attribs["url"];
+          }
+          return;
+        }
+        if (depth !== itemDepth + 1) return;
+        switch (tag) {
+          case "title":
+            field = "title";
+            break;
+          case "description":
+          case "summary":
+            field = "summary";
+            break;
+          case "content":
+          case "content:encoded":
+            // Fallback body when the feed has no description/summary (some Atom feeds).
+            field = "contentFallback";
+            break;
+          case "link":
+            if (attribs["href"]) {
+              // Atom: <link href="..."/> (rel absent or "alternate" = the article link).
+              const rel = attribs["rel"];
+              if ((!rel || rel === "alternate") && !current.link) {
+                current.link = attribs["href"];
+              }
+            } else {
+              field = "link"; // RSS: <link>https://…</link>
+            }
+            break;
+          case "pubdate":
+          case "published":
+          case "updated":
+          case "dc:date":
+            // First-wins keeps <published> over a later <updated> in Atom entries.
+            if (!current.publishedAt) field = "publishedAt";
+            break;
+          default:
+            break;
+        }
+      },
+      ontext(text) {
+        if (current && field) current[field] += text;
+      },
+      onclosetag(name) {
+        const tag = name.toLowerCase();
+        if ((tag === "item" || tag === "entry") && current && depth === itemDepth) {
+          items.push(current);
+          current = null;
+          itemDepth = -1;
+        }
+        field = null;
+        depth -= 1;
+      }
+    },
+    { xmlMode: true }
+  );
+  parser.write(xml);
+  parser.end();
+  return items;
+}
+
+/** Parse + sanitize one feed's XML into ready-to-serve items (also the fixture-test entrypoint). */
+export function toFeedItems(xml: string, source: NewsSourceEntry): RssFeedItem[] {
+  const items: RssFeedItem[] = [];
+  const seen = new Set<string>();
+  for (const raw of parseFeedXml(xml)) {
+    if (items.length >= ITEMS_PER_FEED_CAP) break;
+    const url = sanitizeItemUrl(raw.link);
+    if (!url) continue; // no valid http(s) link → the item is unusable, drop it whole
+    const id = stableIdForUrl(url);
+    if (seen.has(id)) continue;
+    const title = sanitizeFeedText(raw.title, TITLE_CHAR_CAP);
+    if (!title) continue;
+    seen.add(id);
+    items.push({
+      id,
+      title,
+      url,
+      publishedAt: sanitizePublishedAt(raw.publishedAt),
+      imageUrl: sanitizeImageUrl(raw.imageUrl, source.imageHosts),
+      summary: sanitizeFeedText(raw.summary || raw.contentFallback, SUMMARY_CHAR_CAP)
+    });
+  }
+  return items;
+}
+
+function resolveFeedUrl(source: NewsSourceEntry, topicKey: string | null): string | null {
+  if (topicKey === null) return source.topFeedUrl;
+  const url = source.topicFeeds[topicKey as keyof typeof source.topicFeeds];
+  return url ?? null;
+}
+
+async function getFeed(fetchFn: typeof fetch, params: NewsFeedParams): Promise<RssFeedItem[]> {
+  const source = sourceEntry(params.sourceKey);
+  if (!source) {
+    throw new Error(`news adapter: unknown source "${params.sourceKey}"`);
+  }
+  const feedUrl = resolveFeedUrl(source, params.topicKey);
+  if (!feedUrl) {
+    // The service only plans fetches for topics a source maps, so this is a caller bug — but
+    // degrade to empty rather than 500 the whole overview over one feed.
+    return [];
+  }
+  const response = await fetchFn(feedUrl, {
+    headers: { accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" }
+  });
+  if (!response.ok) {
+    throw new Error(`news feed fetch failed (${response.status}) for ${params.sourceKey}`);
+  }
+  return toFeedItems(await response.text(), source);
+}
+
+// --- Adapter (the `ExternalSourceAdapter` implementation the dataset runtime dispatches to) --
+
+// Single dataset: one cached entry per (sourceKey, topicKey) via the runtime's param-keyed cache.
+// The key MUST be declared in manifest.ts externalSources[].datasets or the runtime throws
+// "Unknown dataset" at request time and 500s the whole overview (recurring trap, see sports).
+const NEWS_DATASET_KEYS = ["feed"] as const;
+type NewsDatasetKey = (typeof NEWS_DATASET_KEYS)[number];
+
+function isNewsDatasetKey(value: string): value is NewsDatasetKey {
+  return (NEWS_DATASET_KEYS as readonly string[]).includes(value);
+}
+
+export function createRssDatasetAdapter(): ExternalSourceAdapter {
+  return {
+    async fetchDataset(
+      datasetKey: string,
+      params: Record<string, unknown>,
+      ctx: ExternalSourceAdapterContext
+    ): Promise<unknown> {
+      if (!isNewsDatasetKey(datasetKey)) {
+        throw new Error(`news adapter: unknown dataset "${datasetKey}"`);
+      }
+      return getFeed(ctx.fetchFn, params as unknown as NewsFeedParams);
+    }
+  };
+}

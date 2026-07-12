@@ -145,6 +145,13 @@ async function loadTestableProvider(
   if (!provider) {
     throw new HttpError(404, "AI provider config not found");
   }
+  // #886 MED-2: the test / discovery probes run a live /models (or auth) call against the provider's
+  // host. The voice endpoint must never be reachable from these generic routes — otherwise an admin
+  // could aim a discovery probe at the STT host. Treat the voice row as absent on this surface (404).
+  // This also closes the discovery NIT: no auto-discovery can ever run against the voice endpoint.
+  if (provider.purpose !== "assistant") {
+    throw new HttpError(404, "AI provider config not found");
+  }
   if (provider.status === "revoked") {
     throw new HttpError(400, "AI provider config is revoked");
   }

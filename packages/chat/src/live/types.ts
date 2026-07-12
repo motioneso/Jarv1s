@@ -82,6 +82,7 @@ export interface CliChatEngine {
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
   isAlive(): Promise<boolean>;
   kill(): Promise<void>;
+  purgeTranscripts?(): Promise<void>;
   /**
    * #456 — re-arm the response deadline for any in-flight turn verb of this engine's session.
    * Called by the manager when it observes new transcript records (activity), so an

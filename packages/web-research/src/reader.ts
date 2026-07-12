@@ -4,7 +4,10 @@ import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
 import { Readable } from "node:stream";
 
 import { DEFAULT_WEB_RESEARCH_CONFIG } from "./config.js";
-import { type HostResolver, validateHttpUrl } from "./url-safety.js";
+import type { HostRateLimiter } from "./rate-limit.js";
+import { RateLimitExceededError } from "./rate-limit.js";
+import type { RobotsGate } from "./robots.js";
+import { type HostResolver, type SafeHttpUrl, validateHttpUrl } from "./url-safety.js";
 
 type WebFetch = typeof fetch;
 export interface WebHttpTransportRequest {
@@ -33,11 +36,17 @@ function isRedirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
-async function readCapped(
+async function readBytesCapped(
   response: Response,
   maxBytes: number
-): Promise<{ text: string; truncated: boolean }> {
-  if (!response.body) return { text: await response.text(), truncated: false };
+): Promise<{ body: Uint8Array; truncated: boolean }> {
+  if (!response.body) {
+    const body = new Uint8Array(await response.arrayBuffer());
+    return {
+      body: body.slice(0, maxBytes),
+      truncated: body.byteLength > maxBytes
+    };
+  }
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -55,7 +64,15 @@ async function readCapped(
     total += value.byteLength;
   }
   await reader.cancel().catch(() => {});
-  return { text: new TextDecoder().decode(Buffer.concat(chunks)), truncated };
+  return { body: Buffer.concat(chunks), truncated };
+}
+
+async function readTextCapped(
+  response: Response,
+  maxBytes: number
+): Promise<{ body: string; truncated: boolean }> {
+  const result = await readBytesCapped(response, maxBytes);
+  return { body: new TextDecoder().decode(result.body), truncated: result.truncated };
 }
 
 export function extractReadableText(html: string): { title: string; text: string } {
@@ -84,26 +101,30 @@ function decodeHtml(text: string): string {
     .replace(/&#39;/g, "'");
 }
 
-async function fetchWithSafeRedirects(
-  startUrl: URL,
-  options: { readonly signal: AbortSignal; readonly resolveHost?: HostResolver }
-): Promise<Response> {
-  let current = startUrl;
-  for (let redirects = 0; redirects <= DEFAULT_WEB_RESEARCH_CONFIG.redirectLimit; redirects += 1) {
-    const safe = await validateHttpUrl(current.toString(), options.resolveHost);
-    if (!safe.ok) throw new Error(safe.reason);
-    const response = await requestCheckedUrl(safe.url, options.signal);
-    if (!isRedirect(response.status)) return response;
-    const location = response.headers.get("location");
-    if (!location) return response;
-    current = new URL(location, current);
-  }
-  throw new Error("Redirect limit exceeded");
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new Error("Request aborted"));
+  return new Promise((resolve, reject) => {
+    const cleanup = (): void => signal.removeEventListener("abort", onAbort);
+    const onAbort = (): void => {
+      cleanup();
+      reject(new Error("Request aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      }
+    );
+  });
 }
 
-async function requestCheckedUrl(url: URL, signal: AbortSignal): Promise<Response> {
-  const checked = await validateHttpUrl(url.toString());
-  if (!checked.ok) throw new Error(checked.reason);
+async function requestCheckedUrl(checked: SafeHttpUrl, signal: AbortSignal): Promise<Response> {
+  if (signal.aborted) throw new Error("Request aborted");
   const hostHeader = checked.url.host;
   const servername =
     checked.url.protocol === "https:" ? stripIpv6Brackets(checked.url.hostname) : undefined;
@@ -124,6 +145,144 @@ async function requestCheckedUrl(url: URL, signal: AbortSignal): Promise<Respons
     });
   }
   return nodeHttpTransport(request);
+}
+
+export interface FetchWebResourceOptions {
+  readonly requireHttps?: boolean;
+  readonly robots?: RobotsGate;
+  readonly rateLimiter?: HostRateLimiter;
+  readonly maxBytes?: number;
+  readonly timeoutMs?: number;
+  readonly resolveHost?: HostResolver;
+}
+
+export interface FetchWebResourceSuccess<TBody> {
+  readonly ok: true;
+  readonly status: number;
+  readonly finalUrl: string;
+  readonly contentType: string | null;
+  readonly body: TBody;
+  readonly truncated: boolean;
+}
+
+export type FetchWebResourceFailure = {
+  readonly ok: false;
+  readonly reason:
+    | "blocked"
+    | "robots"
+    | "rate_limited"
+    | "not_https"
+    | "timeout"
+    | "network"
+    | "http_error";
+  readonly status?: number;
+};
+
+export type FetchWebResourceResult = FetchWebResourceSuccess<string> | FetchWebResourceFailure;
+export type FetchWebResourceBytesResult =
+  | FetchWebResourceSuccess<Uint8Array>
+  | FetchWebResourceFailure;
+
+async function fetchWebResourceWithBody<TBody>(
+  rawUrl: string,
+  options: FetchWebResourceOptions,
+  readBody: (response: Response, maxBytes: number) => Promise<{ body: TBody; truncated: boolean }>
+): Promise<FetchWebResourceSuccess<TBody> | FetchWebResourceFailure> {
+  let current: URL;
+  try {
+    current = new URL(rawUrl);
+  } catch {
+    return { ok: false, reason: "blocked" };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? DEFAULT_WEB_RESEARCH_CONFIG.timeoutMs
+  );
+  try {
+    for (
+      let redirects = 0;
+      redirects <= DEFAULT_WEB_RESEARCH_CONFIG.redirectLimit;
+      redirects += 1
+    ) {
+      const safe = await abortable(
+        validateHttpUrl(current.toString(), options.resolveHost),
+        controller.signal
+      );
+      if (!safe.ok) return { ok: false, reason: "blocked" };
+      if (options.requireHttps && safe.url.protocol !== "https:") {
+        return { ok: false, reason: "not_https" };
+      }
+      if (options.robots) {
+        const allowed = await options.robots.isAllowed(safe.url, async (robotsUrl) => {
+          const robotsSafe = await abortable(
+            validateHttpUrl(robotsUrl.toString(), options.resolveHost),
+            controller.signal
+          );
+          if (!robotsSafe.ok) return null;
+          if (options.rateLimiter) {
+            await abortable(
+              options.rateLimiter.acquire(robotsSafe.url.hostname),
+              controller.signal
+            );
+          }
+          const response = await requestCheckedUrl(robotsSafe, controller.signal);
+          const { body } = await readTextCapped(
+            response,
+            options.maxBytes ?? DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
+          );
+          return { status: response.status, body };
+        });
+        if (!allowed) return { ok: false, reason: "robots" };
+      }
+      if (options.rateLimiter) {
+        await abortable(options.rateLimiter.acquire(safe.url.hostname), controller.signal);
+      }
+      const response = await requestCheckedUrl(safe, controller.signal);
+      if (isRedirect(response.status)) {
+        const location = response.headers.get("location");
+        if (!location) return { ok: false, reason: "http_error", status: response.status };
+        current = new URL(location, current);
+        continue;
+      }
+      if (response.status >= 400) {
+        return { ok: false, reason: "http_error", status: response.status };
+      }
+      const { body, truncated } = await readBody(
+        response,
+        options.maxBytes ?? DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
+      );
+      return {
+        ok: true,
+        status: response.status,
+        finalUrl: response.url || safe.url.toString(),
+        contentType: response.headers.get("content-type"),
+        body,
+        truncated
+      };
+    }
+    return { ok: false, reason: "network" };
+  } catch (error) {
+    if (controller.signal.aborted) return { ok: false, reason: "timeout" };
+    if (error instanceof RateLimitExceededError) return { ok: false, reason: "rate_limited" };
+    return { ok: false, reason: "network" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function fetchWebResource(
+  rawUrl: string,
+  options: FetchWebResourceOptions = {}
+): Promise<FetchWebResourceResult> {
+  return fetchWebResourceWithBody(rawUrl, options, readTextCapped);
+}
+
+export function fetchWebResourceBytes(
+  rawUrl: string,
+  options: FetchWebResourceOptions = {}
+): Promise<FetchWebResourceBytesResult> {
+  return fetchWebResourceWithBody(rawUrl, options, readBytesCapped);
 }
 
 function stripIpv6Brackets(hostname: string): string {
@@ -185,30 +344,24 @@ export async function readWebPage(rawUrl: string): Promise<
       readonly reason: string;
     }
 > {
-  const safe = await validateHttpUrl(rawUrl);
-  if (!safe.ok) return { ok: false, url: rawUrl, reason: safe.reason };
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DEFAULT_WEB_RESEARCH_CONFIG.timeoutMs);
+  const response = await fetchWebResource(rawUrl);
+  if (!response.ok) return { ok: false, url: rawUrl, reason: response.reason };
   try {
-    const response = await fetchWithSafeRedirects(safe.url, { signal: controller.signal });
-    const { text: html, truncated: byteTruncated } = await readCapped(
-      response,
-      DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
-    );
+    const html = response.body;
     const extracted = extractReadableText(html);
     const cappedText = extracted.text.slice(0, DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars);
     return {
       ok: true,
       document: {
-        url: response.url || safe.url.toString(),
-        domain: safe.url.hostname,
+        url: response.finalUrl,
+        domain: new URL(response.finalUrl).hostname,
         title: extracted.title,
         text: cappedText,
         excerpt: cappedText.slice(0, 500),
         fetchedAt: new Date().toISOString(),
         truncated:
-          byteTruncated || extracted.text.length > DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars,
+          response.truncated ||
+          extracted.text.length > DEFAULT_WEB_RESEARCH_CONFIG.maxExtractedChars,
         status: response.status
       }
     };
@@ -218,7 +371,5 @@ export async function readWebPage(rawUrl: string): Promise<
       url: rawUrl,
       reason: error instanceof Error ? error.message : "Fetch failed"
     };
-  } finally {
-    clearTimeout(timer);
   }
 }

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -21,26 +22,29 @@
     "@jarv1s/db": "workspace:*",
     "@jarv1s/email": "workspace:*",
     "@jarv1s/goals": "workspace:*",
+    "@jarv1s/host-fetch": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/memory": "workspace:*",
-    "@jarv1s/structured-state": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/news": "workspace:*",
     "@jarv1s/notes": "workspace:*",
+    "@jarv1s/notifications": "workspace:*",
     "@jarv1s/people": "workspace:*",
     "@jarv1s/proactive-monitoring": "workspace:*",
-    "@jarv1s/notifications": "workspace:*",
     "@jarv1s/settings": "workspace:*",
     "@jarv1s/shared": "workspace:*",
     "@jarv1s/source-behaviors": "workspace:*",
     "@jarv1s/sports": "workspace:*",
+    "@jarv1s/structured-state": "workspace:*",
     "@jarv1s/tasks": "workspace:*",
     "@jarv1s/usefulness-feedback": "workspace:*",
     "@jarv1s/vault": "workspace:*",
-    "@jarv1s/web-research": "workspace:*",
     "@jarv1s/weather": "workspace:*",
+    "@jarv1s/web-research": "workspace:*",
     "@jarv1s/wellness": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2",
-    "pg-boss": "^12.18.2"
+    "pg-boss": "^12.18.2",
+    "tar": "^7.5.16"
   }
 }

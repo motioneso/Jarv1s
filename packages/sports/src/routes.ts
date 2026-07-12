@@ -8,8 +8,10 @@ import {
   deleteSportsFollowResponseSchema,
   sportsCatalogResponseSchema,
   sportsFollowsResponseSchema,
+  sportsLeagueTeamsResponseSchema,
   sportsOverviewResponseSchema,
   sportsStandingsResponseSchema,
+  sportsTeamSearchResponseSchema,
   type CreateSportsFollowRequest,
   type SportsFollowDto
 } from "@jarv1s/shared";
@@ -69,6 +71,39 @@ export function registerSportsRoutes(
   );
 
   server.get(
+    "/api/sports/leagues/:competitionKey/teams",
+    { schema: sportsLeagueTeamsResponseSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const { competitionKey } = request.params as { competitionKey: string };
+        // Same authorization-by-catalog rule as POST /follows: being in SPORTS_CATALOG is what
+        // makes a competition queryable (#907).
+        if (!catalogEntry(competitionKey)) {
+          throw new HttpError(400, `Unknown competition: ${competitionKey}`);
+        }
+        return await service.getLeagueTeams(competitionKey);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
+    "/api/sports/teams/search",
+    { schema: sportsTeamSearchResponseSchema },
+    async (request, reply) => {
+      try {
+        await dependencies.resolveAccessContext(request);
+        const { q } = request.query as { q: string };
+        return await service.searchTeams(q);
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  server.get(
     "/api/sports/overview",
     { schema: sportsOverviewResponseSchema },
     async (request, reply) => {
@@ -91,8 +126,8 @@ export function registerSportsRoutes(
         if (!catalogEntry(competitionKey)) {
           throw new HttpError(400, `Unknown competition: ${competitionKey}`);
         }
-        const group = await service.getStandings(competitionKey);
-        return { group };
+        const { group, fixtures } = await service.getStandings(competitionKey);
+        return { group, fixtures };
       } catch (error) {
         return handleRouteError(error, reply);
       }
