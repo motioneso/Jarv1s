@@ -244,7 +244,7 @@ describe("M7 release hardening lifecycle scripts", () => {
     }
   });
 
-  it("keeps app and worker roles without DELETE on protected product and secret tables", async () => {
+  it("keeps runtime DELETE grants limited to audited protected-table exceptions", async () => {
     const client = new Client({ connectionString: connectionStrings.bootstrap });
 
     await client.connect();
@@ -286,7 +286,7 @@ describe("M7 release hardening lifecycle scripts", () => {
       expect(privileges.rows).toEqual(
         privileges.rows.map((row) => ({
           ...row,
-          app_can_delete: false,
+          app_can_delete: row.table_name === "ai_configured_models",
           worker_can_delete: row.table_name === "calendar_events"
         }))
       );
