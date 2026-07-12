@@ -3674,3 +3674,12 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
 - Awaiting: JS-07 plan-confirm escalation (approve if premises hold vs current main; escalate the
   worker-ctx.ai fork to Opus only if the folded ruling looks unsound). Reap js-07-plan scout worktree
   once builder confirmed driving (DONE-confirmed above).
+
+### 2026-07-11 — JS-07 self-relay (Fable→Fable), successor driving
+- JS-07 builder relayed at its own 70% meter (zero code yet — plan approved + Step 0 fully
+  researched; continuation `RELAY-JS07-CONTINUATION.md` at worktree root, untracked). Tree clean.
+- **Successor pane w1:pGD** session `e0abce50-0b01-4b72-90f8-376c48a49758`, agents tab **w1:t1K**
+  (correct — did NOT leak into another tab), booted **Fable 5**, working, branch
+  `feat/js-07-freshness-dedup-fit`. Old pane pGC REAPED. Pane-specific liveness monitor retired;
+  fleet-liveness monitor covers pGD.
+- JS-07 lane status: `building` (Step 0 isolated commit first). No merges since last relay.
