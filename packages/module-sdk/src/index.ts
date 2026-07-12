@@ -617,6 +617,17 @@ export interface ExternalModuleAssistantToolDeclaration {
 }
 
 /**
+ * Database surface of a downloadable module (#964). Declaration only — the privileged
+ * installer (scripts/module-install.ts) creates tables from the module's sql/ directory;
+ * the manifest declares which app-schema table names the module owns so install, purge,
+ * and registry capability display all key off one list. Validation (module-registry)
+ * enforces the `app.<module_slug>_` prefix so no module can claim another's tables.
+ */
+export interface ExternalModuleDatabaseDeclaration {
+  readonly ownedTables: readonly string[];
+}
+
+/**
  * The JSON-serializable subset of {@link JarvisModuleManifest} that an EXTERNAL
  * (non-compiled) module ships as `jarvis.module.json` (#917). It deliberately omits
  * every function-valued or executable-surface field of the compiled manifest —
@@ -648,6 +659,7 @@ export interface JsonJarvisModuleManifest {
   readonly assistantTools?: readonly ExternalModuleAssistantToolDeclaration[];
   readonly worker?: ExternalModuleWorkerDeclaration;
   readonly fetchHosts?: readonly string[];
+  readonly database?: ExternalModuleDatabaseDeclaration;
 }
 
 /**

@@ -4,13 +4,13 @@ How to build a module for Jarvis: a self-contained feature (its own tables, rout
 frontend surfaces, and external data sources) that docks into the platform through declared
 seams instead of hand-wired edits across the app.
 
-**Current state (read this first).** Today every module is compiled into the app as a workspace
+**Current state (read this first).** In-tree modules are compiled into the app as a workspace
 package under `packages/` and registered in the composition root
-(`packages/module-registry/src/index.ts`). There is no runtime plugin loading, no marketplace,
-and no third-party distribution channel yet — "third-party" today means: write your module the
-way this guide describes, and it will dock cleanly into a Jarvis build. The docking seams
-(manifest, data lifecycle, dataset connector, web registry) are the stable contract; the
-distribution mechanism will come later without changing how a module is written.
+(`packages/module-registry/src/index.ts`). There is no runtime loading of arbitrary code and no
+marketplace, but external modules CAN now be distributed as signed GitHub Release artifacts and
+installed into a running instance without a rebuild — see [§13 Distribution](#13-distribution).
+The docking seams (manifest, data lifecycle, dataset connector, web registry) are the stable
+contract for both paths; only how the module reaches the instance differs.
 
 Authoritative deep references: the four seam specs under `docs/superpowers/specs/`
 (`2026-07-04-module-boundary-enforcement.md`, `-data-lifecycle-ports.md`,
@@ -351,7 +351,48 @@ Until dynamic loading exists, a module is activated by one entry in `BUILT_IN_MO
 The `LOADER-SEAM(sports)` comments in that file mark every touchpoint a future dynamic loader
 will replace — keep your entry to the same shape.
 
-## 13. Pre-flight checklist
+## 13. Distribution
+
+External modules ship as GitHub Release artifacts and install into a running instance without a
+rebuild. This section covers only the distribution-specific surface — manifest authoring, RLS,
+and the web entry are unchanged from the rest of this guide.
+
+**Publishing.** `scripts/publish-module-registry.ts` builds the publication set: for each module
+directory under `external-modules/` (dockerignored — the core image never ships it), it runs the
+JS-01 bundler, validates the manifest, and packs a portable gzip tarball of exactly the on-disk
+trust set (`jarvis.module.json` + `dist/**` + `sql/**`) as `<id>-<version>.tgz` (a bare filename,
+never a URL — `ARTIFACT_FILENAME_RE` in
+`packages/module-registry/src/distribution/index-schema.ts` rejects anything else and the whole
+registry entry is dropped, fail-closed). It also emits `index.json`, retaining the current version
+plus the 4 previous per module (`REGISTRY_RETAINED_VERSIONS = 5`). `.github/workflows/
+modules-registry.yml` runs this in CI on release; run the script locally to test a publish before
+tagging.
+
+**Declaring owned tables and migrations.** No distribution-specific syntax beyond what §4 already
+covers: `database.ownedTables` in the manifest plus a `sql/` migrations directory is exactly what
+both the in-tree and external install paths consume.
+
+**Install lifecycle.** Admins install/enable/disable/remove/purge from Settings
+(`ModuleRegistrySection`, `apps/web/src/settings/settings-module-registry-section.tsx`), which
+drives the same admin routes documented for `routes-module-registry.ts` — download stages the
+package to disk, boot reconcile applies migrations and creates the module's Postgres roles
+(`jarvis_mod_<slug>_runtime`, `jarvis_mod_<slug>_install`), remove disables without touching data,
+purge drops owned tables and roles. The admin registry list reflects a boot-time-only discovery
+snapshot of `external-modules/` (`discoverExternalModules` in `apps/api/src/server.ts`) — a
+process restart is required to see on-disk changes; this is a deliberate startup-only design, not
+a bug.
+
+**`JARVIS_MODULES_ENSURE`.** Comma/whitespace-separated `id` or `id@version` tokens
+(`packages/module-registry/src/distribution/ensure-list.ts`), parsed leniently: invalid IDs and
+duplicates become non-fatal parse errors rather than a boot crash, and the first entry wins on a
+duplicate ID. Boot reconcile downloads and installs every listed module that isn't already
+present, applying migrations as it would for an admin-triggered install.
+
+**Dev parity.** `pnpm db:reconcile` (`tsx scripts/module-reconcile.ts`) runs the same reconcile
+pass boot uses, against your local registry and `JARVIS_MODULES_ENSURE` — use it to test an
+install/update/purge cycle without restarting the whole server.
+
+## 14. Pre-flight checklist
 
 Before opening a PR:
 

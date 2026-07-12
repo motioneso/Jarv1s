@@ -90,6 +90,13 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   // #917 external-module admin surface (settings-owned; settings is required/always-on).
   routeKey("GET", "/api/admin/external-modules"),
   routeKey("POST", "/api/admin/external-modules/:id"),
+  // #964 module-registry distribution surface (settings-owned, admin-gated via
+  // assertAdminUser in routes-module-registry.ts — NOT module-enablement-gated; a
+  // disabled/not-yet-installed module must still be discoverable/installable here).
+  routeKey("GET", "/api/admin/module-registry"),
+  routeKey("POST", "/api/admin/external-modules/:id/download"),
+  routeKey("POST", "/api/admin/external-modules/:id/remove"),
+  routeKey("DELETE", "/api/admin/external-modules/:id/purge"),
   // #918: module credential management + web asset serving are PLATFORM routes
   // (external modules cannot declare routes[]). The asset handler enforces its
   // own module-active fail-closed 404 (apps/api/src/server.ts).

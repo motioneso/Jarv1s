@@ -27,6 +27,12 @@ export interface ConfirmOptions {
   readonly confirmLabel?: string;
   readonly cancelLabel?: string;
   readonly danger?: boolean;
+  /**
+   * #964: type-to-confirm. When set, the dialog renders a text input and the confirm
+   * button stays disabled until the typed value matches exactly (spec §9: purging a
+   * module's data requires typing the module id).
+   */
+  readonly requireText?: string;
   readonly onConfirm: () => void;
 }
 
@@ -51,6 +57,7 @@ interface ToastEntry extends ToastOptions {
 export function FeedbackProvider(props: { readonly children: ReactNode }) {
   const [toasts, setToasts] = useState<readonly ToastEntry[]>([]);
   const [dialog, setDialog] = useState<ConfirmOptions | null>(null);
+  const [confirmInput, setConfirmInput] = useState("");
   const nextId = useRef(1);
 
   const toast = useCallback((message: string, options?: ToastOptions) => {
@@ -63,6 +70,7 @@ export function FeedbackProvider(props: { readonly children: ReactNode }) {
   }, []);
 
   const confirm = useCallback((options: ConfirmOptions) => {
+    setConfirmInput("");
     setDialog(options);
   }, []);
 
@@ -129,6 +137,19 @@ export function FeedbackProvider(props: { readonly children: ReactNode }) {
                 <div className="jds-dialog__desc">{dialog.description}</div>
               ) : null}
             </div>
+            {dialog.requireText !== undefined ? (
+              <div className="jds-dialog__body">
+                <label>
+                  Type <strong>{dialog.requireText}</strong> to confirm
+                  <input
+                    className="jds-input"
+                    value={confirmInput}
+                    onChange={(event) => setConfirmInput(event.target.value)}
+                    autoFocus
+                  />
+                </label>
+              </div>
+            ) : null}
             <div className="jds-dialog__foot">
               <button type="button" className="jds-btn jds-btn--quiet" onClick={closeDialog}>
                 {dialog.cancelLabel ?? "Cancel"}
@@ -137,6 +158,7 @@ export function FeedbackProvider(props: { readonly children: ReactNode }) {
                 type="button"
                 className={`jds-btn ${dialog.danger ? "jds-btn--danger" : "jds-btn--primary"}`}
                 onClick={runConfirm}
+                disabled={dialog.requireText !== undefined && confirmInput !== dialog.requireText}
               >
                 {dialog.confirmLabel ?? "Confirm"}
               </button>

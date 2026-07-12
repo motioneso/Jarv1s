@@ -81,6 +81,8 @@ import { SettingsRepository, type ExternalModuleState } from "./repository.js";
 import { createModuleCredentialSecretCipher } from "./module-credential-crypto.js";
 import { registerModuleCredentialRoutes } from "./routes-module-credentials.js";
 // #917: the module-management route family was extracted here for the 1000-line file-size gate.
+import type { ModuleRegistryEntryLike } from "./module-registry-rows.js";
+import { registerModuleRegistryRoutes } from "./routes-module-registry.js";
 import { registerModuleRoutes } from "./routes-modules.js";
 import {
   handleRouteError,
@@ -149,6 +151,36 @@ export interface ExternalModulesDependencies {
   };
 }
 
+/**
+ * #964 — module-distribution port injected by the composition root. Network + filesystem
+ * only; all DB writes stay in this package (updateExternalModuleStaging etc.), so the
+ * pipeline never needs a database handle and settings never imports module-registry.
+ */
+export interface ModuleDistributionDependencies {
+  /**
+   * Pinned-registry index entries, served through the composition root's 10-minute
+   * in-process cache; `refresh: true` busts it. null = registry unreachable/invalid —
+   * the GET degrades to local-only rows, never a 500 (spec §6).
+   */
+  readonly fetchRegistryEntries: (options: {
+    readonly refresh: boolean;
+  }) => Promise<readonly ModuleRegistryEntryLike[] | null>;
+  /** Run download→verify→extract→stage (Task 5 pipeline). Never touches the DB. */
+  readonly download: (input: {
+    readonly moduleId: string;
+    readonly version?: string;
+  }) => Promise<
+    | { readonly ok: true; readonly version: string; readonly packageHash: string }
+    | { readonly ok: false; readonly code: string; readonly message: string }
+  >;
+  /** Delete JARVIS_MODULES_DIR/<id>. Idempotent; missing dir is fine. */
+  readonly removeModuleFiles: (moduleId: string) => Promise<void>;
+  /** LIVE readdir of JARVIS_MODULES_DIR (module dirs only, no dot-dirs). */
+  readonly listOnDiskModuleIds: () => Promise<readonly string[]>;
+  /** Ids declared in JARVIS_MODULES_ENSURE (for declared-not-present rows). */
+  readonly ensureIds: readonly string[];
+}
+
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
   readonly rootDb: Kysely<JarvisDatabase>;
@@ -169,6 +201,8 @@ export interface SettingsRoutesDependencies {
   readonly repository?: SettingsRepository;
   /** #917 external-module discovery snapshot; routes added in Task 9 consume it. */
   readonly externalModules?: ExternalModulesDependencies;
+  /** #964 module-distribution port; registry routes degrade to enabled:false when absent. */
+  readonly moduleDistribution?: ModuleDistributionDependencies;
   readonly reconcileExternalModuleJobs?: (
     change:
       | { readonly kind: "module"; readonly moduleId: string }
@@ -804,6 +838,12 @@ export function registerSettingsRoutes(
   // 1000-line file-size gate (Task 9 pushed routes.ts over the cap). Pure move — same handlers,
   // same order, same admin/RLS/fail-closed logic. registerSettingsRoutes keeps its signature.
   registerModuleRoutes(server, { dependencies, repository, assertAdminUser, requireRequestId });
+  registerModuleRegistryRoutes(server, {
+    dependencies,
+    repository,
+    assertAdminUser,
+    requireRequestId
+  });
   // #918: module-credential admin/per-user routes, with their own dedicated cipher
   // (JARVIS_MODULE_CREDENTIAL_SECRET_KEY family — independent rotation from connector/AI keys).
   registerModuleCredentialRoutes(server, {

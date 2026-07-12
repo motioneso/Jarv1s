@@ -154,7 +154,7 @@ export interface ModuleEnablementTable {
 
 // External trusted-operator module enablement (#917). Instance-global, admin-managed.
 // `'discovered'` is virtual (no row); only enabled/disabled modules have a row.
-// Backed by migration 0152_external_modules.sql.
+// Backed by migration 0152_external_modules.sql; distribution columns by 0162 (#964).
 export interface ExternalModulesTable {
   id: string;
   status: "enabled" | "disabled";
@@ -163,6 +163,16 @@ export interface ExternalModulesTable {
   disabled_reason: string | null;
   enabled_by: string | null;
   enabled_at: NullableTimestampColumn;
+  // #964 distribution: staged-download intent (accepted by the boot reconcile),
+  // purge marks (executed by the boot reconcile), and the last install failure.
+  staged_version: string | null;
+  staged_package_hash: string | null;
+  staged_at: NullableTimestampColumn;
+  staged_by: string | null;
+  staged_source: "admin-download" | "compose-ensure" | null;
+  purge_requested_at: NullableTimestampColumn;
+  purge_requested_by: string | null;
+  last_install_error: string | null;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }

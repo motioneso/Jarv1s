@@ -14,7 +14,7 @@
 #   docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local \
 #     --profile ops run --rm migrate
 #
-# Install an external module (after it's been placed under the modules directory):
+# Reconcile modules (download/install/purge; after placing/removing files under the modules dir):
 #   docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local \
 #     --profile ops run --rm module-install
 
@@ -61,7 +61,14 @@ services:
       context: ..
       dockerfile: Dockerfile
     <<: *app-env-file
-    command: ["node_modules/.bin/tsx", "scripts/module-install.ts"]
+    # #964: was scripts/module-install.ts (DB install only); reconcile is a superset —
+    # purge → ensure-present → accept-staged → DB install → drift, same script boot runs.
+    command: ["node_modules/.bin/tsx", "scripts/module-reconcile.ts"]
+    environment:
+      JARVIS_ENABLE_EXTERNAL_MODULES: "${JARVIS_ENABLE_EXTERNAL_MODULES:-1}"
+      JARVIS_MODULES_DIR: /data/modules
+    volumes:
+      - jarv1s-modules:/data/modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,6 +104,8 @@ services:
       JARVIS_MCP_SERVER_URL: ${JARVIS_MCP_SERVER_URL:-http://127.0.0.1:3000/api/mcp}
       JARVIS_EMBED_PROVIDER: ${JARVIS_EMBED_PROVIDER:-local}
       JARVIS_EMBED_MODEL: ${JARVIS_EMBED_MODEL:-}
+      JARVIS_ENABLE_EXTERNAL_MODULES: "${JARVIS_ENABLE_EXTERNAL_MODULES:-1}"
+      JARVIS_MODULES_DIR: /data/modules
     restart: unless-stopped
     healthcheck:
       test:
@@ -122,6 +131,7 @@ services:
       - jarv1s-cli-tools:/data/cli-tools
       - jarv1s-cli-auth:/data/cli-auth
       - jarv1s-cli-socket:/run/jarv1s
+      - jarv1s-modules:/data/modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,6 +159,8 @@ volumes:
   jarv1s-cli-tools:
   jarv1s-cli-auth:
   jarv1s-cli-socket:
+  # #964: downloaded module packages survive image upgrades — modules are data, not image.
+  jarv1s-modules:
 
 networks:
   jarv1s:

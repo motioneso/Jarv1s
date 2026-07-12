@@ -16,6 +16,8 @@ export const queryKeys = {
     adminModules: ["settings", "admin", "modules"] as const,
     // #917: admin external-module list. Sibling of adminModules (flat convention).
     adminExternalModules: ["settings", "admin", "external-modules"] as const,
+    // #964: registry-backed distribution rows (superset of adminExternalModules info).
+    adminModuleRegistry: ["settings", "admin", "module-registry"] as const,
     locale: ["settings", "locale"] as const,
     sessions: ["settings", "sessions"] as const,
     persona: ["settings", "persona"] as const,

@@ -275,7 +275,9 @@ describe("MVP foundation schema catalog", () => {
         { version: "0160", name: "0160_news_discovery.sql" },
         // #975 (epic #954) News Slice 4 — column-scoped worker UPDATE grants so the
         // revalidation worker can persist validation outcomes; RLS keeps writes owner-scoped.
-        { version: "0161", name: "0161_news_revalidation.sql" }
+        { version: "0161", name: "0161_news_revalidation.sql" },
+        // #964 module distribution — staged-download intent, purge marks, last install error.
+        { version: "0162", name: "0162_external_module_distribution.sql" }
       ]);
     } finally {
       await client.end();

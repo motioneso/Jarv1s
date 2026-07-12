@@ -46,8 +46,8 @@ function walkFiles(root: string): string[] {
 }
 
 /**
- * Thrown when a hashable package path (`jarvis.module.json`, `dist/worker.js`, `dist/web`)
- * is a symlink whose target resolves OUTSIDE the module directory (#917, Codex re-QA). The
+ * Thrown when a hashable package path (`jarvis.module.json`, `dist/worker.js`, `dist/web`,
+ * `sql`) is a symlink whose target resolves OUTSIDE the module directory (#917, Codex re-QA). The
  * approved #818 spec requires rejecting "symlinks escaping the module directory"; existsSync /
  * statSync / readFileSync all FOLLOW symlinks, so the package hash must prove containment first
  * — otherwise a symlinked package file would pull arbitrary on-disk content into the hash.
@@ -79,9 +79,10 @@ export function hashExternalPackage(dir: string): string {
     return true;
   };
 
-  // The hashable set: the manifest, the worker bundle, and everything the web bundle ships.
-  // Anything else in the mounted dir is ignored so unrelated files can't churn the hash. Files
-  // that don't exist are simply omitted (a Slice-1 metadata-only module may ship only the manifest).
+  // The hashable set: the manifest, the worker bundle, everything the web bundle ships, and
+  // the sql migrations. Anything else in the mounted dir is ignored so unrelated files can't
+  // churn the hash. Files that don't exist are simply omitted (a Slice-1 metadata-only module
+  // may ship only the manifest).
   const relPaths: string[] = [];
   if (includeIfContained("jarvis.module.json")) relPaths.push("jarvis.module.json");
   if (includeIfContained(join("dist", "worker.js"))) relPaths.push("dist/worker.js");
@@ -91,6 +92,15 @@ export function hashExternalPackage(dir: string): string {
     // neither isDirectory nor isFile — so it never follows a nested symlink out of the tree.
     if (statSync(webDir).isDirectory()) {
       for (const rel of walkFiles(webDir)) relPaths.push(`dist/web/${rel}`);
+    }
+  }
+  // #964: sql/** joins the hashable set. Module DDL is executed by the PRIVILEGED
+  // installer, so a swapped migration file must invalidate the trusted package hash
+  // exactly like a swapped worker bundle. Same containment discipline as dist/web.
+  if (includeIfContained("sql")) {
+    const sqlDir = join(dir, "sql");
+    if (statSync(sqlDir).isDirectory()) {
+      for (const rel of walkFiles(sqlDir)) relPaths.push(`sql/${rel}`);
     }
   }
 

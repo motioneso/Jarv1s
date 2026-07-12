@@ -30,6 +30,11 @@ export {
 } from "./notes-source-routes.js";
 export { registerPriorityRoutes } from "./priority-routes.js";
 export {
+  type ModuleRegistryEntryLike,
+  type ModuleRegistryDeriveInput,
+  deriveModuleRegistryRows
+} from "./module-registry-rows.js";
+export {
   registerProactiveMonitoringSettingsRoutes,
   type ReconcileProactiveScheduleFn
 } from "./proactive-monitoring-routes.js";

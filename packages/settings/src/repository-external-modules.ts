@@ -191,3 +191,202 @@ export async function writeExternalModuleDisabledRow(
     requestId: input.requestId
   });
 }
+
+// ── #964 distribution state ─────────────────────────────────────────────────
+
+export interface UpdateExternalModuleStagingInput {
+  readonly id: string;
+  readonly stagedVersion: string;
+  readonly stagedPackageHash: string;
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
+/**
+ * Record a verified admin download as staged intent (#964, spec §5 step 8). Upsert:
+ * a not-yet-installed module has no row (insert, status 'disabled' — only the boot
+ * reconcile flips to 'enabled' when it accepts the staged files); an update (re-download,
+ * update, retry) touches ONLY the staged fields. Always 'admin-download' — the
+ * compose-ensure writer is the supervisor-plane reconcile script, not this function.
+ * Clears last_install_error so a retry gets a clean slate.
+ */
+export async function updateExternalModuleStaging(
+  scopedDb: DataContextDb,
+  input: UpdateExternalModuleStagingInput,
+  writeAudit: ExternalModuleAuditWriter
+): Promise<void> {
+  assertDataContextDb(scopedDb);
+  await scopedDb.db
+    .insertInto("app.external_modules")
+    .values({
+      id: input.id,
+      status: "disabled",
+      // NOT NULL hash sentinels, same rationale as writeExternalModuleDisabledRow: a
+      // disabled row is never active regardless of hash; the reconcile records the real
+      // hashes when it accepts the staged package.
+      manifest_hash: "",
+      package_hash: "",
+      disabled_reason: null,
+      enabled_by: null,
+      enabled_at: null,
+      staged_version: input.stagedVersion,
+      staged_package_hash: input.stagedPackageHash,
+      staged_at: new Date(),
+      staged_by: input.actorUserId,
+      staged_source: "admin-download",
+      last_install_error: null,
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+    .onConflict((oc) =>
+      oc.column("id").doUpdateSet({
+        staged_version: input.stagedVersion,
+        staged_package_hash: input.stagedPackageHash,
+        staged_at: new Date(),
+        staged_by: input.actorUserId,
+        staged_source: "admin-download",
+        last_install_error: null,
+        updated_at: new Date()
+      })
+    )
+    .execute();
+
+  // Metadata-only audit: { moduleId } ONLY — never the hash, version, or URL (#964).
+  await writeAudit({
+    actorUserId: input.actorUserId,
+    action: "module.external_stage",
+    targetType: "module",
+    targetId: input.id,
+    metadata: { moduleId: input.id },
+    requestId: input.requestId
+  });
+}
+
+export interface SetExternalModulePurgeInput {
+  readonly id: string;
+  readonly requested: boolean;
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
+/**
+ * Mark (or cancel) a data purge for the next boot reconcile (#964, spec §8). Update-only:
+ * a module with no row has no recorded data to purge — returns false so the route can 404.
+ * The mark is executed and cleared by the supervisor-plane reconcile, never here.
+ */
+export async function setExternalModulePurgeRequested(
+  scopedDb: DataContextDb,
+  input: SetExternalModulePurgeInput,
+  writeAudit: ExternalModuleAuditWriter
+): Promise<boolean> {
+  assertDataContextDb(scopedDb);
+  const result = await scopedDb.db
+    .updateTable("app.external_modules")
+    .set({
+      purge_requested_at: input.requested ? new Date() : null,
+      purge_requested_by: input.requested ? input.actorUserId : null,
+      updated_at: new Date()
+    })
+    .where("id", "=", input.id)
+    .executeTakeFirst();
+  if ((result.numUpdatedRows ?? 0n) === 0n) return false;
+
+  await writeAudit({
+    actorUserId: input.actorUserId,
+    action: input.requested ? "module.external_purge_request" : "module.external_purge_cancel",
+    targetType: "module",
+    targetId: input.id,
+    metadata: { moduleId: input.id },
+    requestId: input.requestId
+  });
+  return true;
+}
+
+/** Full admin-facing distribution state per row (#964). Superset of ExternalModuleState. */
+export interface ExternalModuleAdminState {
+  readonly id: string;
+  readonly status: "enabled" | "disabled";
+  readonly packageHash: string | null;
+  readonly disabledReason: string | null;
+  readonly stagedVersion: string | null;
+  readonly stagedPackageHash: string | null;
+  readonly stagedSource: "admin-download" | "compose-ensure" | null;
+  readonly purgeRequestedAt: Date | null;
+  readonly lastInstallError: string | null;
+}
+
+export async function listExternalModuleAdminStates(
+  scopedDb: DataContextDb
+): Promise<ExternalModuleAdminState[]> {
+  assertDataContextDb(scopedDb);
+  const rows = await scopedDb.db
+    .selectFrom("app.external_modules")
+    .select([
+      "id",
+      "status",
+      "package_hash",
+      "disabled_reason",
+      "staged_version",
+      "staged_package_hash",
+      "staged_source",
+      "purge_requested_at",
+      "last_install_error"
+    ])
+    .orderBy("id")
+    .execute();
+  return rows.map((r) => ({
+    id: r.id,
+    status: r.status,
+    packageHash: r.package_hash,
+    disabledReason: r.disabled_reason,
+    stagedVersion: r.staged_version,
+    stagedPackageHash: r.staged_package_hash,
+    stagedSource: r.staged_source,
+    purgeRequestedAt: r.purge_requested_at,
+    lastInstallError: r.last_install_error
+  }));
+}
+
+export interface MarkExternalModuleRemovedInput {
+  readonly id: string;
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
+/**
+ * Admin Remove (#964 spec §9): pin the module off and clear staged intent. Data is
+ * preserved (tables/ledger/KV/credentials untouched) — purge is a separate, explicit
+ * flag consumed at boot. Update-only; returns false when the module has no row yet
+ * (files-only remove still succeeds at the route layer). Audit is METADATA ONLY.
+ */
+export async function markExternalModuleRemoved(
+  scopedDb: DataContextDb,
+  input: MarkExternalModuleRemovedInput,
+  writeAudit: ExternalModuleAuditWriter
+): Promise<boolean> {
+  assertDataContextDb(scopedDb);
+  const result = await scopedDb.db
+    .updateTable("app.external_modules")
+    .set({
+      status: "disabled",
+      disabled_reason: "removed by admin",
+      staged_version: null,
+      staged_package_hash: null,
+      staged_at: null,
+      staged_by: null,
+      staged_source: null,
+      updated_at: new Date()
+    })
+    .where("id", "=", input.id)
+    .executeTakeFirst();
+  if (result.numUpdatedRows === 0n) return false;
+  await writeAudit({
+    actorUserId: input.actorUserId,
+    action: "module.external_remove",
+    targetType: "external_module",
+    targetId: input.id,
+    metadata: { moduleId: input.id },
+    requestId: input.requestId
+  });
+  return true;
+}

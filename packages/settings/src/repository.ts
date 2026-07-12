@@ -299,7 +299,10 @@ export class SettingsRepository {
   // stay as the class's public surface and delegate. Behavior is unchanged — the audit write
   // still routes through this.insertAuditEvent via the closure the impls invoke, preserving
   // the metadata-only invariant. RLS INSERT/UPDATE require current_actor_is_admin().
-  private externalModuleAuditWriter(scopedDb: DataContextDb): ExternalModuleAuditWriter {
+  // Public as of #964 so the distribution routes can call the standalone staging/purge
+  // writers in repository-external-modules.ts directly (repository.ts is at the file-size
+  // cap — no new delegates).
+  externalModuleAuditWriter(scopedDb: DataContextDb): ExternalModuleAuditWriter {
     return (event) => this.insertAuditEvent(scopedDb, event);
   }
 

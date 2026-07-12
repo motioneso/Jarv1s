@@ -173,7 +173,8 @@ import {
   type HasPasswordCredentialPort,
   type OnboardingInstallDependencies,
   type OnboardingLoginDependencies,
-  type ExternalModulesDependencies
+  type ExternalModulesDependencies,
+  type ModuleDistributionDependencies
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -438,6 +439,7 @@ export interface BuiltInRouteDependencies {
    * so every existing registerBuiltInApiRoutes call site keeps compiling unchanged.
    */
   readonly externalModules?: ExternalModulesDependencies;
+  readonly moduleDistribution?: ModuleDistributionDependencies;
   readonly reconcileExternalModuleJobs?: (
     change:
       | { readonly kind: "module"; readonly moduleId: string }
@@ -890,6 +892,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         onboardingInstall: deps.onboardingInstall,
         onboardingLogin: deps.onboardingLogin,
         externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
+        moduleDistribution: deps.moduleDistribution,
         reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
         personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
         preferencesRepository: new PreferencesRepository(),

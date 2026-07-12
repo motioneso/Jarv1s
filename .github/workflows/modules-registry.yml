@@ -1,0 +1,64 @@
+# #964: publishes external modules to the rolling GitHub Release tagged `modules`.
+# The release IS the module registry: index.json + <id>-<version>.tgz assets. Runs on
+# main pushes that touch module sources, and manually. Serialized (no concurrent runs)
+# because the previousVersions merge reads the release's current index.json.
+name: modules-registry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "external-modules/**"
+      - "scripts/publish-module-registry.ts"
+      - ".github/workflows/modules-registry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: modules-registry
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download current index (absent on first publish)
+        run: |
+          mkdir -p /tmp/registry-prev
+          gh release download modules --pattern index.json --dir /tmp/registry-prev \
+            || echo "no existing modules release/index — publishing fresh"
+      - name: Build registry artifacts
+        run: pnpm tsx scripts/publish-module-registry.ts --out dist/registry --previous-index /tmp/registry-prev/index.json
+      - name: Ensure rolling release exists
+        run: |
+          gh release view modules \
+            || gh release create modules --title "Module registry" --latest=false \
+                 --notes "Rolling module-distribution release. Assets are managed by the modules-registry workflow — do not edit by hand."
+      - name: Upload assets (clobber replaces index.json + republished versions)
+        run: gh release upload modules dist/registry/* --clobber
+      - name: Prune assets no longer referenced by the index
+        run: |
+          # Keep exactly: index.json + every artifact the new index names
+          # (current + previousVersions). Retired versions fall off the release here.
+          jq -r '[.modules[] | .artifact, (.previousVersions[]?.artifact)] + ["index.json"] | .[]' \
+            dist/registry/index.json > /tmp/keep.txt
+          gh api "repos/${{ github.repository }}/releases/tags/modules" \
+            --jq '.assets[] | "\(.id)\t\(.name)"' | while IFS=$'\t' read -r id name; do
+            if ! grep -qxF "$name" /tmp/keep.txt; then
+              echo "pruning $name"
+              gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$id"
+            fi
+          done

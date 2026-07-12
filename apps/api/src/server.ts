@@ -57,6 +57,7 @@ import {
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { createModuleAiBridge } from "./external-module-ai-bridge.js";
+import { createModuleDistributionPort } from "./module-distribution-port.js";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
@@ -471,6 +472,8 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           .then((v) => v === true)
           .catch(() => false)
     };
+    // #964/#9.5: factored to module-distribution-port.ts to restore the file-size cap.
+    const moduleDistribution = createModuleDistributionPort(server, apiServerConfig, options);
 
     // #917: externalModuleSnapshot is computed above (before registerPlatformRoutes),
     // because the /api/modules provider closes over it. registerBuiltInApiRoutes reuses
@@ -528,6 +531,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         rejected: externalModuleSnapshot.rejected,
         reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
       },
+      moduleDistribution,
       reconcileExternalModuleJobs: async (change) => {
         if (change.kind === "module") {
           await sendModuleControl(boss, { moduleId: change.moduleId, action: "reconcile" });
