@@ -22,6 +22,7 @@
     "db:up": "docker compose -f infra/docker-compose.yml up -d postgres greenmail --wait",
     "db:down": "docker compose -f infra/docker-compose.yml down -v",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:reconcile": "tsx scripts/module-reconcile.ts",
     "backup:db": "tsx scripts/backup-database.ts",
     "restore:db": "tsx scripts/restore-database.ts",
     "export:user": "tsx scripts/export-user-data.ts",

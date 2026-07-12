@@ -10,16 +10,19 @@ export interface ProcessSpec {
   readonly env: NodeJS.ProcessEnv;
 }
 
-export interface StartupPlan {
-  readonly oneShot: {
-    readonly command: readonly string[];
-    readonly env: NodeJS.ProcessEnv;
-    readonly uid: number;
-    readonly gid: number;
-  };
-  readonly resident: readonly ProcessSpec[];
+interface OneShotSpec {
+  readonly command: readonly string[];
+  readonly env: NodeJS.ProcessEnv;
   readonly uid: number;
   readonly gid: number;
+}
+
+export interface StartupPlan {
+  readonly uid: number;
+  readonly gid: number;
+  /** Run sequentially, in order, before any resident process starts (#964). */
+  readonly oneShots: readonly OneShotSpec[];
+  readonly resident: readonly ProcessSpec[];
 }
 
 const CLI_ENV_KEYS = new Set([
@@ -99,15 +102,25 @@ export function buildChildEnv(
 
 export function buildStartupPlan(env: NodeJS.ProcessEnv = process.env): StartupPlan {
   const { uid, gid } = runtimeUidGid(env);
+  const oneShotEnv = { ...env, NODE_ENV: env.NODE_ENV ?? "production" };
+  const oneShots: OneShotSpec[] = [
+    { command: ["node_modules/.bin/tsx", "scripts/migrate.ts"], env: oneShotEnv, uid, gid }
+  ];
+  // #964: reconcile modules AFTER core migrations (module installs depend on the
+  // platform tables existing) and BEFORE the api/worker boot (they must see the
+  // post-reconcile module set).
+  if (env.JARVIS_ENABLE_EXTERNAL_MODULES === "1" && env.JARVIS_MODULES_DIR) {
+    oneShots.push({
+      command: ["node_modules/.bin/tsx", "scripts/module-reconcile.ts"],
+      env: oneShotEnv,
+      uid,
+      gid
+    });
+  }
   return {
     uid,
     gid,
-    oneShot: {
-      command: ["node_modules/.bin/tsx", "scripts/migrate.ts"],
-      env: { ...env, NODE_ENV: env.NODE_ENV ?? "production" },
-      uid,
-      gid
-    },
+    oneShots,
     resident: [
       {
         role: "cli-runner",
@@ -125,6 +138,7 @@ export function prepareRuntimeDirs(uid: number, gid: number): void {
     "/data/cli-tools",
     "/data/cli-auth",
     "/data/vaults",
+    "/data/modules",
     "/app/.cache/huggingface",
     "/run/jarv1s"
   ]) {
@@ -163,7 +177,9 @@ function spawnResident(spec: ProcessSpec, uid: number, gid: number): ChildProces
 async function main(): Promise<void> {
   const plan = buildStartupPlan();
   prepareRuntimeDirs(plan.uid, plan.gid);
-  await runOneShot(plan.oneShot.command, plan.oneShot.env, plan.oneShot.uid, plan.oneShot.gid);
+  for (const oneShot of plan.oneShots) {
+    await runOneShot(oneShot.command, oneShot.env, oneShot.uid, oneShot.gid);
+  }
 
   const children: { spec: ProcessSpec; child: ChildProcess }[] = [];
   let shuttingDown = false;
