@@ -406,7 +406,7 @@ export async function downloadRegistryModule(
   version?: string
 ): Promise<{ module: ModuleRegistryRowDto }> {
   return requestJson<{ module: ModuleRegistryRowDto }>(
-    `/api/admin/module-registry/${encodeURIComponent(id)}/download`,
+    `/api/admin/external-modules/${encodeURIComponent(id)}/download`,
     { method: "POST", body: version ? { version } : {} }
   );
 }
@@ -417,7 +417,7 @@ export async function removeRegistryModule(
   purgeData: boolean
 ): Promise<{ module: ModuleRegistryRowDto }> {
   return requestJson<{ module: ModuleRegistryRowDto }>(
-    `/api/admin/module-registry/${encodeURIComponent(id)}/remove`,
+    `/api/admin/external-modules/${encodeURIComponent(id)}/remove`,
     { method: "POST", body: { purgeData } }
   );
 }
@@ -425,7 +425,7 @@ export async function removeRegistryModule(
 /** Admin: cancel a pending data purge before it runs at restart (#964). */
 export async function cancelModulePurge(id: string): Promise<{ module: ModuleRegistryRowDto }> {
   return requestJson<{ module: ModuleRegistryRowDto }>(
-    `/api/admin/module-registry/${encodeURIComponent(id)}/purge`,
+    `/api/admin/external-modules/${encodeURIComponent(id)}/purge`,
     { method: "DELETE" }
   );
 }
