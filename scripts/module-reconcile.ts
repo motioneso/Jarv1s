@@ -23,7 +23,6 @@ import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import {
   downloadAndStageModule,
   getExternalModuleRegistrations,
-  ModuleDownloadError,
   parseModulesEnsure,
   sweepStagingDirs
 } from "@jarv1s/module-registry/node";
