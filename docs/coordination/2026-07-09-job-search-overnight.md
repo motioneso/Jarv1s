@@ -4001,3 +4001,11 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   `source_exclude` POST + real-DB route regression (overview removal + image 404 before async
   refresh); no design fork. **RE-COUNCIL REQUIRED on new head** (all 3 lenses) — merge only on
   unanimous. CI monitor `bvwdsc8ri` will be superseded by the fix push.
+- **JS-08 RELAY #4 (2026-07-11):** build 4 (`3b16a1c5`) → **build 5 (pane `w1:pGX`, session
+  `7cfcffba`, Fable 5 verified via pane read `✍️ 39%`, tab agents `t1M`)**. Relayed at Task 6/7
+  boundary (Task 7 too large for remaining ctx). Tasks 1-6 committed on `feat/js-08-opportunity-feed`
+  through `e984d6c4`; relay doc `11e1b2af` carries SOLVED Task 7e confirm-path recipe (gateway
+  callTool + resolveActionRequest + audit poll; real worker execute via
+  `apps/api/src/external-module-tools.ts` pattern — no escalation). Build 4 REAPED (session verified
+  before close). Build 5 resuming Task 7 (REST invoke via app.inject + 7e live-gateway confirm).
+  Tree: only context-meter.log + untracked handoff doc, no uncommitted feature code.
