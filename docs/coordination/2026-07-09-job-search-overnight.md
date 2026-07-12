@@ -4229,3 +4229,41 @@ résumé vs live instance — intrinsic spec gate, steps in PR body) + council. 
 manual-acceptance gate is Ben's own spec requirement, distinct from council authority. Build pane
 `w1:pH1` kept alive until merge to route any QA blocker back. `merges_since_relay` unchanged (no
 merge yet).
+
+## CHECKPOINT 2026-07-12 — JS-09 PR #976 Gemini REJECT + coordinator 70% relay-in-place
+
+**RELAY-IN-PLACE (directive #3):** my meter hit 70%. Flushing manifest + memory, NO successor pane
+(coordinator auto-compacts in place), merge NOTHING. Post-compaction = SAME session `58a78927`
+continues; the Opus QA completion notification will still wake me.
+
+**Council so far on PR #976 (head `2a865de2`):**
+- **Gemini `agy` = REJECT** (posted to PR). Requirement B fell short at
+  `tests/integration/external-module-job-search-acceptance.test.ts:1345`: automated sentinel scan
+  covers (1) pg-boss payloads + (2) worker logs + derived namespaces, but OMITS (3) the rendered
+  evidence artifact — that surface was left as a MANUAL dry-run step, so a sentinel leaked into the
+  artifact would NOT fail the automated suite. Unit test `tests/unit/job-search-acceptance-
+  evidence.test.ts` covers fail-closed validation on bad input + PROVIDER_RE==0, but never scans the
+  rendered artifact string for the privacy sentinels. **Requirements A, C, D, E, F MET** (A: kv-
+  isolation.test.ts:145 & :155 denial + positive controls).
+- **Opus adversarial QA `a38b224a3330660ae` = STILL RUNNING** (will post `[Opus council QA]` to PR +
+  notify this session on completion).
+
+**Finding assessment: REAL, bounded, no scope change.** Fix = add an automated assertion that
+renders the evidence artifact from the seeded-sentinel fixture and asserts sentinel ABSENCE (close
+surface-3 gap). This is exactly the security bar I set at plan approval ("sentinel proof of zero
+private content in payloads/logs/ARTIFACT") — the artifact half wasn't automated.
+
+**NEXT ACTION (post-compaction, in order):**
+1. Await Opus QA verdict (a38b224a). Consolidate Gemini REJECT + any Opus blockers into ONE fix
+   message.
+2. Route to build agent — resolve `JS-09 build*` pane FRESH by label (was `w1:pH1`, may have
+   relayed; kept alive to receive blockers). `herdr pane run <pane> "<consolidated fix>"`. Fix is
+   test-coverage only: add automated evidence-artifact sentinel-absence assertion; re-run targeted
+   suite + `verify:foundation`; push; report new head.
+3. Re-QA the fix (both lenses, or diff-scoped) → both APPROVE + CI green → then HOLD merge for Ben's
+   day-one manual acceptance (intrinsic spec gate) + council. Do NOT auto-merge.
+
+**Fleet:** Coordinator `w1:pE6`/`58a78927` (sole lock). `JS-09 build 4` was `w1:pH1` (idle post-
+wrap-up, alive for blocker routing) — re-resolve by label. Ben's idle Fable `w1:pGV` (#964, main
+tree — don't touch). News S4 #975 queued (Codex uncapped past Jul 12 1:28am). `merges_since_relay`
+unchanged (no merge). Watches: agy done (`b48elisp2`); pH1 liveness `beb21rnad`.
