@@ -4562,3 +4562,12 @@ Relay7 continuation doc `34092b92`.
 Coordinator authority unchanged: `w1:pE6` / `58a78927-385c-4b1d-8fa0-94db20255d6f` (== lock).
 **`merges_since_relay` = 0.** JS-09 #976 unchanged (PARKED). News S4 PR merge gate = named-unanimous
 Opus+Codex+Gemini, NO fallback.
+
+### Relay #8 (News S4) — 2026-07-XX
+
+- **Successor driving:** pane `w1:pHA`, tab `w1:t1P`, label `News S4 relay8`, session `6ad8d89c-22a7…`, **Fable 5** confirmed on status line, bypass-perms on.
+- **Reaped:** spent predecessor pane `w1:pH9`, session `d49fe0bd-7a4b-43e3-802b-9de5f22f1bd3` (`close: ok`). Relay8 re-requested the same reap mid-turn — already done.
+- **Progress:** Tasks 1–6 GREEN (1=migration 0161 `bd8c8241`; 2 repo validation-state; 3 chat-action/repo; 4 revalidation queue/worker/drift+notification `616c34fe`; 5 per-owner daily schedule `eed0142d`, 15/15 integ + 30/30 unit; 6 POST /api/news/revalidation retry `b7f76737`, 7/7 + 32/32). **Task 7 (news.previewSource/confirmSource chat preview/confirm tools) RED starting.** Continuation doc `fcead677`.
+- **Monitor** re-pointed to `w1:pHA` (persistent). **`merges_since_relay` = 0.**
+- Approved conditions unchanged: least-priv column-grants + owner-scoped topics-worker UPDATE RLS (no BYPASSRLS), ONE summary notification, Task 9 Settings wiring in-scope, 6 chat tools. Deviation logged: pg-boss schedule key = bare owner id (colons rejected), payload keeps colon-form idempotencyKey — benign, council reviews at PR.
+- Merge gate: News named-unanimous **Opus + Codex + Gemini, NO fallback** — a refusing/unreachable named provider → HOLD for Ben. JS-09 #976 stays **PARKED** (Ben day-one manual acceptance).
