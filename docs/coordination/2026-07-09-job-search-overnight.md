@@ -4291,3 +4291,28 @@ positive control. Then verify:foundation + push + report head. Lane confirmed pi
 **Merge state: HELD.** Re-QA (diff-scoped) after the lane reports green; then merge still gated on
 Ben's day-one manual acceptance. `merges_since_relay` unchanged. Coordinator authority re-confirmed
 (`pE6`/`58a78927` == lock). Awaiting `w1:pH1` green report.
+
+## UPDATE — JS-09 PR #976 surface-3 fix landed + verified; re-QA in flight
+
+**New head `9316012d`** (was 2a865de2). Build lane `JS-09 build 4` (w1:pH1) closed the gap:
+imports the REAL `renderAcceptanceEvidence`, renders the artifact from the seeded-sentinel run, and
+scans it for all 3 sentinels inside the existing loop (`external-module-job-search-
+acceptance.test.ts:423`), with a NON-VACUOUS positive control (`:416-417` assert artifact contains
+`## Run counts` + this-run's ingested count). Coordinator ground-truthed the diff — closure is real.
+Local VF_EXIT=0, targeted 6/6, trio 0/0/0, rebased atop origin/main. Test-only delta, zero product
+code touched.
+
+**Re-QA (diff-scoped, security tier):**
+- **Gemini re-review** (finding lens) launched via agy (pid 2785908) → out at
+  `scratchpad/pr976-agy-recheck.out`, posts `[Gemini council QA — re-review]` to PR. Confirms only
+  that Requirement B is now met (real renderer + 3-sentinel absence + non-vacuous positive control).
+- **Opus NOT re-run** — its prior GREEN stands on bars 1,3-6 (untouched by a test-only delta); its
+  one error was a false-CREDIT on bar 2 (conflated derivedDump w/ artifact), which the fix now makes
+  true. No missed defect to re-hunt.
+- **CI:** pending on 9316012d (state UNSTABLE = running). Watched by Monitor `b60vprbp4` → fires once
+  on terminal green/red (covers both). Gemini verdict lands before CI, so one wake handles both.
+
+**Merge posture:** on Gemini APPROVE + CI GREEN → PR is merge-ready, but HELD for Ben's spec-defined
+day-one MANUAL acceptance (real résumé, live instance — physically Ben-only, per JS-09 spec merge
+policy + Fable note #5; NOT a coordinator-invented gate). Do NOT auto-merge. `merges_since_relay`
+unchanged. Fleet otherwise idle (News S4 #975 queued, deliberately not started mid-compaction).
