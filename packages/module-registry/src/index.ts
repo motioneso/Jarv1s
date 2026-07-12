@@ -1404,6 +1404,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         ...discovery,
         logger: {
           info: (fields) => deps.logger?.info(fields, "news compilation")
+        },
+        // #975 Slice 4: revalidation summary notification honors quiet hours and the
+        // owner's per-module notification preference like every other module emitter.
+        notificationsRepository: new NotificationsRepository(
+          quietHoursPortImpl,
+          createNotificationPreferencePort()
+        ),
+        revalidationLogger: {
+          info: (fields) => deps.logger?.info(fields, "news revalidation")
         }
       });
     }

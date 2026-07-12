@@ -17,6 +17,8 @@ import type {
 } from "./personalization-repository.js";
 
 // Metadata-only by construction: counts and enum reasons, never domains/labels/bodies.
+// `news_notification_failed` carries only the error class name and a capped message —
+// the notification write is best-effort and must never take the revalidation run down.
 export type NewsRevalidationLogFields =
   | { readonly event: "news_revalidation_skipped"; readonly reason: "no_model" }
   | {
@@ -25,6 +27,11 @@ export type NewsRevalidationLogFields =
       readonly topicsChecked: number;
       readonly sourcesNeedingAttention: number;
       readonly topicsNeedingAttention: number;
+    }
+  | {
+      readonly event: "news_notification_failed";
+      readonly error: string;
+      readonly message: string;
     };
 
 export interface NewsRevalidationLogger {

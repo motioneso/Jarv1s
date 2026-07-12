@@ -1,17 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Kysely } from "kysely";
+import type { PgBoss } from "pg-boss";
+import pg from "pg";
 
-import type { DataContextDb } from "@jarv1s/db";
+import {
+  createDatabase,
+  DataContextRunner,
+  type DataContextDb,
+  type JarvisDatabase
+} from "@jarv1s/db";
+import { assertMetadataOnlyPayload, createPgBossClient } from "@jarv1s/jobs";
+import { NotificationsRepository } from "@jarv1s/notifications";
 
 import type { NewsAiPort, NewsSafeFetchPort } from "../../packages/news/src/discovery/ports.js";
-import type {
-  NewsSourceValidationState,
-  NewsTopicValidationState
+import {
+  enqueueNewsRefresh,
+  enqueueNewsRevalidation,
+  NEWS_REVALIDATE_QUEUE,
+  registerNewsJobWorkers
+} from "../../packages/news/src/jobs.js";
+import {
+  NewsPersonalizationRepository,
+  type NewsSourceValidationState,
+  type NewsTopicValidationState
 } from "../../packages/news/src/personalization-repository.js";
 import {
   revalidateOwnerNews,
   type NewsRevalidationDeps,
   type NewsRevalidationLogFields
 } from "../../packages/news/src/revalidation.js";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+
+const { Client } = pg;
 
 // #975 Slice 4 Task 3 — provider-change revalidation core, exercised with stub ports
 // (pattern: news-refresh-jobs.test.ts). The repository is an in-memory spy so we can
@@ -219,7 +239,10 @@ describe("news revalidation core (#975 Slice 4)", () => {
       topicsNeedingAttention: 1,
       transitionedToAttention: true
     });
-    expect(sources[0]).toMatchObject({ validationStatus: "rejected", validationFingerprint: "fp2" });
+    expect(sources[0]).toMatchObject({
+      validationStatus: "rejected",
+      validationFingerprint: "fp2"
+    });
     expect(topics[0]).toMatchObject({ validationStatus: "rejected", validationFingerprint: "fp2" });
   });
 
@@ -266,5 +289,258 @@ describe("news revalidation core (#975 Slice 4)", () => {
     });
     expect(writes).toEqual([]);
     expect(events).toEqual([{ event: "news_revalidation_skipped", reason: "no_model" }]);
+  });
+});
+
+/**
+ * DB-backed queue/worker coverage (#975 Slice 4 Task 4): the `news.revalidate` queue,
+ * its worker (revalidation + ONE summary notification on transition-to-attention), and
+ * the refresh worker's fingerprint-drift hook that enqueues revalidation.
+ */
+describe("news revalidation jobs (#975 Slice 4)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let workerDb: Kysely<JarvisDatabase>;
+  let appContext: DataContextRunner;
+  let workerContext: DataContextRunner;
+  let appBoss: PgBoss;
+  let workerBoss: PgBoss;
+  let bootstrap: pg.Client;
+  const repository = new NewsPersonalizationRepository();
+  const notifications = new NotificationsRepository();
+
+  beforeEach(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
+    workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 2 });
+    appContext = new DataContextRunner(appDb);
+    workerContext = new DataContextRunner(workerDb);
+    appBoss = createPgBossClient(connectionStrings.app);
+    workerBoss = createPgBossClient(connectionStrings.worker);
+    bootstrap = new Client({ connectionString: connectionStrings.bootstrap });
+    await Promise.all([appBoss.start(), workerBoss.start(), bootstrap.connect()]);
+  });
+
+  afterEach(async () => {
+    await Promise.allSettled([
+      appBoss.stop({ graceful: false }),
+      workerBoss.stop({ graceful: false }),
+      appDb.destroy(),
+      workerDb.destroy(),
+      bootstrap.end()
+    ]);
+  });
+
+  const asActor = <T>(work: (db: DataContextDb) => Promise<T>) =>
+    appContext.withDataContext({ actorUserId: ids.userA, requestId: crypto.randomUUID() }, work);
+
+  /** One approved custom source + topic for userA, validated under `fingerprint`. */
+  async function seedValidationRows(fingerprint: string): Promise<void> {
+    await bootstrap.query(
+      `INSERT INTO app.news_custom_sources
+         (owner_user_id, label, canonical_domain, homepage_url, feed_url, retrieval_method,
+          validation_status, health_status, validation_fingerprint, validated_at, updated_at)
+       VALUES ($1, 'The Example Times', 'news.example.com', 'https://news.example.com',
+               'https://news.example.com/feed', 'feed', 'approved', 'available', $2,
+               now() - interval '1 day', now() - interval '1 day')`,
+      [ids.userA, fingerprint]
+    );
+    await bootstrap.query(
+      `INSERT INTO app.news_custom_topics
+         (owner_user_id, label, guidance, validation_status, validation_fingerprint,
+          validated_at, updated_at)
+       VALUES ($1, 'AI Safety', 'focus on policy', 'approved', $2,
+               now() - interval '1 day', now() - interval '1 day')`,
+      [ids.userA, fingerprint]
+    );
+  }
+
+  async function waitFor<T>(probe: () => Promise<T | null>, what: string): Promise<T> {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const value = await probe();
+      if (value !== null) return value;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`timed out waiting for ${what}`);
+  }
+
+  async function countRevalidateJobs(state?: string): Promise<number> {
+    const result = await bootstrap.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pgboss.job WHERE name = $1` +
+        (state ? ` AND state = $2` : ``),
+      state ? [NEWS_REVALIDATE_QUEUE, state] : [NEWS_REVALIDATE_QUEUE]
+    );
+    return result.rows[0]!.n;
+  }
+
+  /**
+   * Dual-mode stub: policy calls (schema carries `category`) get an allow/deny verdict;
+   * compilation ranking calls get every candidate ranked eligible. One stub serves both
+   * the refresh worker (compile) and the revalidation worker (policy) in the same run.
+   */
+  function makeWorkerAi(opts: { fingerprint: string; allowed: boolean }): NewsAiPort {
+    return {
+      fingerprint: async () => opts.fingerprint,
+      generateJson: async (_db, input) => {
+        const schema = input.schema as {
+          properties?: Record<string, { enum?: readonly string[] }>;
+        };
+        const categoryEnum = schema.properties?.category?.enum;
+        if (categoryEnum) {
+          return { ok: true, object: { allowed: opts.allowed, category: categoryEnum[0] } };
+        }
+        return {
+          ok: true,
+          object: {
+            rankings: [...input.prompt.matchAll(/"id":"(c\d+)"/g)].map((match, index) => ({
+              id: match[1],
+              relevance: 100 - index,
+              eligible: true
+            }))
+          }
+        };
+      }
+    };
+  }
+
+  function registerWorkers(overrides: {
+    ai: NewsAiPort;
+    notificationsRepository?: { create: NotificationsRepository["create"] };
+    revalidationLogger?: { info: (fields: NewsRevalidationLogFields) => void };
+  }) {
+    return registerNewsJobWorkers(workerBoss, workerContext, {
+      fetch: fetchOk,
+      search: { search: async () => ({ results: [] }) },
+      ai: overrides.ai,
+      logger: { info: () => undefined },
+      notificationsRepository: overrides.notificationsRepository ?? notifications,
+      revalidationLogger: overrides.revalidationLogger ?? { info: () => undefined }
+    });
+  }
+
+  it("enqueues a metadata-only, singleton payload", async () => {
+    await enqueueNewsRevalidation(appBoss, ids.userA);
+    await enqueueNewsRevalidation(appBoss, ids.userA);
+
+    const queued = await bootstrap.query<{ data: Record<string, unknown> }>(
+      `SELECT data FROM pgboss.job WHERE name = $1 AND state = 'created'`,
+      [NEWS_REVALIDATE_QUEUE]
+    );
+    expect(queued.rows).toHaveLength(1);
+    const payload = queued.rows[0]!.data;
+    expect(() => assertMetadataOnlyPayload(payload)).not.toThrow();
+    expect(payload).toEqual({
+      actorUserId: ids.userA,
+      kind: "revalidate",
+      idempotencyKey: `news-revalidate:${ids.userA}`
+    });
+  });
+
+  it("revalidates drifted items and writes exactly one counts-only notification", async () => {
+    await seedValidationRows("fp-old");
+    await registerWorkers({ ai: makeWorkerAi({ fingerprint: "fp-new", allowed: false }) });
+    await enqueueNewsRevalidation(appBoss, ids.userA);
+
+    const visible = await waitFor(async () => {
+      const listed = await asActor((db) => notifications.listVisible(db));
+      return listed.notifications.length > 0 ? listed : null;
+    }, "revalidation notification");
+
+    expect(visible.notifications).toHaveLength(1);
+    expect(visible.notifications[0]).toMatchObject({
+      module_id: "news",
+      title: "News sources need attention",
+      body: "Open News settings to retry or remove them.",
+      metadata: { kind: "news_revalidation", sourceCount: 1, topicCount: 1 }
+    });
+    // Counts only — the metadata must never carry labels or domains.
+    expect(Object.keys(visible.notifications[0]!.metadata as object).sort()).toEqual([
+      "kind",
+      "sourceCount",
+      "topicCount"
+    ]);
+
+    const sources = await asActor((db) => repository.listSourceValidationStates(db));
+    const topics = await asActor((db) => repository.listTopicValidationStates(db));
+    expect(sources).toMatchObject([
+      { validationStatus: "rejected", validationFingerprint: "fp-new" }
+    ]);
+    expect(topics).toMatchObject([
+      { validationStatus: "rejected", validationFingerprint: "fp-new" }
+    ]);
+  });
+
+  it("does not notify again when a second run finds the same broken state", async () => {
+    await seedValidationRows("fp-old");
+    await registerWorkers({ ai: makeWorkerAi({ fingerprint: "fp-new", allowed: false }) });
+    await enqueueNewsRevalidation(appBoss, ids.userA);
+    await waitFor(
+      async () => ((await countRevalidateJobs("completed")) >= 1 ? true : null),
+      "first revalidation run"
+    );
+
+    await enqueueNewsRevalidation(appBoss, ids.userA);
+    await waitFor(
+      async () => ((await countRevalidateJobs("completed")) >= 2 ? true : null),
+      "second revalidation run"
+    );
+
+    const listed = await asActor((db) => notifications.listVisible(db));
+    expect(listed.notifications).toHaveLength(1);
+  });
+
+  it("still succeeds and logs when the notification write fails", async () => {
+    await seedValidationRows("fp-old");
+    const events: NewsRevalidationLogFields[] = [];
+    await registerWorkers({
+      ai: makeWorkerAi({ fingerprint: "fp-new", allowed: false }),
+      notificationsRepository: {
+        create: async () => {
+          throw new Error("boom");
+        }
+      },
+      revalidationLogger: { info: (fields) => events.push(fields) }
+    });
+    await enqueueNewsRevalidation(appBoss, ids.userA);
+
+    await waitFor(
+      async () => ((await countRevalidateJobs("completed")) >= 1 ? true : null),
+      "revalidation run despite notification failure"
+    );
+
+    const sources = await asActor((db) => repository.listSourceValidationStates(db));
+    expect(sources).toMatchObject([{ validationStatus: "rejected" }]);
+    expect(events).toContainEqual({
+      event: "news_notification_failed",
+      error: "Error",
+      message: "boom"
+    });
+    const listed = await asActor((db) => notifications.listVisible(db));
+    expect(listed.notifications).toHaveLength(0);
+  });
+
+  it("refresh run enqueues revalidation when stored fingerprints drifted", async () => {
+    await seedValidationRows("fp-old");
+    await registerWorkers({ ai: makeWorkerAi({ fingerprint: "fp", allowed: true }) });
+    await asActor((db) => repository.bumpRefreshRequest(db));
+    await enqueueNewsRefresh(appBoss, ids.userA);
+
+    await waitFor(
+      async () => ((await countRevalidateJobs()) >= 1 ? true : null),
+      "drift-triggered revalidation job"
+    );
+  });
+
+  it("refresh run does not enqueue revalidation when fingerprints match", async () => {
+    await seedValidationRows("fp");
+    await registerWorkers({ ai: makeWorkerAi({ fingerprint: "fp", allowed: true }) });
+    await asActor((db) => repository.bumpRefreshRequest(db));
+    await enqueueNewsRefresh(appBoss, ids.userA);
+
+    await waitFor(async () => {
+      const state = await asActor((db) => repository.readRefreshState(db));
+      return state.state === "idle" || state.state === "failed" ? true : null;
+    }, "refresh run to settle");
+
+    expect(await countRevalidateJobs()).toBe(0);
   });
 });

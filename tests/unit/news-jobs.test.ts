@@ -14,8 +14,9 @@ describe("registerNewsJobWorkers", () => {
     let run: ((jobs: Job<NewsRefreshPayload>[]) => Promise<{ outcome: string }>) | undefined;
     let sendCalls = 0;
     const boss = {
-      work: async (_queue: string, _options: unknown, handler: typeof run) => {
-        run = handler;
+      // Two workers register now (refresh + revalidate) — capture only the refresh handler.
+      work: async (queue: string, _options: unknown, handler: typeof run) => {
+        if (queue === NEWS_REFRESH_QUEUE) run = handler;
         return "work-id";
       },
       send: async () => {
@@ -47,6 +48,10 @@ describe("registerNewsJobWorkers", () => {
       readPolicyVerdict: async () => null,
       upsertPolicyVerdict: async () => undefined,
       updateSourceHealth: async () => undefined,
+      listSourceValidationStates: async () => [],
+      listTopicValidationStates: async () => [],
+      updateSourceValidation: async () => undefined,
+      updateTopicValidation: async () => undefined,
       beginRefreshRun: async () => requestedGeneration,
       failRefreshRunIfCurrent: async () => true,
       publishSnapshotIfCurrent: async (
@@ -131,8 +136,9 @@ describe("registerNewsJobWorkers", () => {
   it("never resurrects a domain excluded while an older compilation is in flight", async () => {
     let run: ((jobs: Job<NewsRefreshPayload>[]) => Promise<{ outcome: string }>) | undefined;
     const boss = {
-      work: async (_queue: string, _options: unknown, handler: typeof run) => {
-        run = handler;
+      // Two workers register now (refresh + revalidate) — capture only the refresh handler.
+      work: async (queue: string, _options: unknown, handler: typeof run) => {
+        if (queue === NEWS_REFRESH_QUEUE) run = handler;
         return "work-id";
       }
     } as unknown as PgBoss;
@@ -166,6 +172,10 @@ describe("registerNewsJobWorkers", () => {
       readPolicyVerdict: async () => null,
       upsertPolicyVerdict: async () => undefined,
       updateSourceHealth: async () => undefined,
+      listSourceValidationStates: async () => [],
+      listTopicValidationStates: async () => [],
+      updateSourceValidation: async () => undefined,
+      updateTopicValidation: async () => undefined,
       beginRefreshRun: async () => requestedGeneration,
       failRefreshRunIfCurrent: async () => true,
       publishSnapshotIfCurrent: async (

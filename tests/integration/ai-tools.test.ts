@@ -479,6 +479,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "briefings-run",
       "wellness-export",
       "news.refresh",
+      "news.revalidate",
       "notes.sync",
       "proactive-scan-source",
       "commitment-extraction",
