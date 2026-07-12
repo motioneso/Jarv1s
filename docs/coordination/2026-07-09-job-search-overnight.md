@@ -4082,3 +4082,33 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   council authority (directive #2, no Ben gate), squash `Closes #937`, bookkeeping, reap build 5
   (pGX) + js-08-build worktree.** Build 5 (Fable, pGX) idle/done — kept alive until merge to route
   any blocker back.
+- **✅ JS-08 #937 PR #974 MERGED 2026-07-11 (squash `ba4ed18050bd811668fe105a00203277b9e3b3ef`).**
+  Security council: Opus adversarial QA GREEN (0 blocking, all 5 invariants have real RLS-backed
+  tests) + Gemini/agy APPROVE, both posted to PR; CI green (VF 15m41s + both smokes + build/publish);
+  session-authority OK; council authority (directive #2, no Ben gate). Codex was CAPPED so 2nd lens =
+  Gemini (allowed for JS tier). #937 CLOSED. Build 5 pane pGX + js-08-build worktree + branch REAPED.
+  `merges_since_relay`: security merge → **relay-in-place executed** (flush + memory, NO successor
+  pane, directive #3).
+- **NEXT LANES (2026-07-11 post-JS-08):**
+  - **JS-09 #938 (epic #913 capstone, acceptance/7-day validation): spec `2026-07-10-job-search-
+    js-09-acceptance.md` STATUS = "Draft — pending Ben's final approval".** Adds NO new product
+    scope (acceptance gates + defect fixes; no migrations/new tables per grep). HARD "spec before
+    build" gate. **Fable adversarial build-readiness review DISPATCHED** (Agent `model:fable`, no
+    code) — on CLEAN → proceed to build under council authority (merge still gated by full security
+    council); on real gaps → surface to Ben. SECURITY tier. Note: JS-09 spec says the 7-day
+    observation starts AFTER merge and does NOT hold a green PR open; epic #913 stays OPEN through
+    observation.
+  - **News Slice 4 #954 (chat actions, revalidation, notifications):** spec section is in the
+    ALREADY-APPROVED News spec `2026-07-11-personalized-news-sources-topics.md` → pre-authorized.
+    Path (News Codex): file task issue (Part of #954) → re-grounded plan → Fable adversarial review →
+    Codex build. SECURITY tier, News named-unanimous NO-fallback gate. **Codex CLI capped until Jul
+    12 1:28am** — matters for that merge gate, not for prep. Task-issue filing in progress.
+  - **Deferred follow-ups (epic #913, not slices):** #971 (takeBudget non-atomic), #960 (description
+    decode-after-strip — JS-08 handled its surface, sanitizer fix still open), #962 (run-now
+    cross-owner denial test + jobKind restrict), #957 (truth-guard-v2 résumé coverage), #965 (run-now
+    dedupe singleton index, SENSITIVE, task #25). Available lanes; most are defect fixes to already-
+    spec'd features.
+- **DIGEST FOR BEN (passive, no ping):** News S3 merged (named-unanimous, 0 fallback, `41a47486`);
+  JS-08 merged (Opus GREEN + Gemini APPROVE, `ba4ed180`); Job Search build epic #913 now has only
+  JS-09 (acceptance) left — **its spec awaits YOUR final approval** (the one thing needing you);
+  running a Fable readiness review meanwhile. decisionReason ruled owner-private (get = only surface).
