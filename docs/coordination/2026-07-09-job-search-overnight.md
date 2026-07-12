@@ -4899,3 +4899,15 @@ tab)** — the wrong-tab relay incident. Moved to agents tab `w1:t1P` before rea
 working Task 6 Step 9 (module-registry BuiltInRouteDependencies gap + test typecheck bugs diagnosed
 in relay-7 handoff c37eb9cf). Fleet monitor re-armed `b5oj9o8su` (mod-dist-964 only; flake-944 lane
 dropped — its pane intentionally reaped, PR is now CI+QA).
+
+---
+
+## 2026-07-12 — #944 flake fix MERGED (main green)
+
+**#978 MERGED** squash `a869f7d9` (routine): fix flaky action_request race in tasks-agency-tools
+(vi.waitFor). All checks green (VF 17m56s, both compose smokes, publish). #944 CLOSED. flake-944
+worktree + local/remote branch removed. **main is green.** merges_since_relay +1 (routine; 1/2 — no
+relay trigger). Sibling flake chat-mcp-transport:258 remains open as **#979** (future routine lane).
+
+**Live fleet:** ONLY **#964 v9** (pHV, Sonnet, agents tab t1P, Task 7 Step 9). Monitors: `b5oj9o8su`
+(#964 HEAD/pane), no #978 monitor (merged). #964 security council (Opus+Codex+Gemini) fires at PR.
