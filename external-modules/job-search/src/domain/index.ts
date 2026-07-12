@@ -135,7 +135,20 @@ export {
 export type { MonitorScheduleState } from "./schedule.js";
 export type { RunRecord, RunSummary } from "./runs.js";
 export { getRunSummary, listRuns, recordRun } from "./runs.js";
-export type { FeedEntry, FeedIndex } from "./feed.js";
-export { readFeed, readFeedOrRebuild, rebuildFeed } from "./feed.js";
+export type {
+  FeedBandCode,
+  FeedConfidenceCode,
+  FeedEntry,
+  FeedGateCode,
+  FeedIndex
+} from "./feed.js";
+export {
+  FEED_BAND_CODES,
+  FEED_CONFIDENCE_CODES,
+  FEED_GATE_CODES,
+  readFeed,
+  readFeedOrRebuild,
+  rebuildFeed
+} from "./feed.js";
 export type { RetentionReport } from "./retention.js";
 export { runRetentionPass } from "./retention.js";
