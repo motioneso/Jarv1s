@@ -4,7 +4,7 @@
 // ModuleRegistryRowDto.state (spec §8) — no client-side state math beyond labels.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { ModuleRegistryRowDto } from "@jarv1s/shared";
+import type { ExternalModuleDto, ModuleRegistryRowDto } from "@jarv1s/shared";
 
 import {
   cancelModulePurge,
@@ -15,7 +15,16 @@ import {
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
-import { Note } from "./settings-ui";
+import { Note, Switch } from "./settings-ui";
+
+// #996/#860: props threaded down from InstanceModulesPane (Task 12) so an installed
+// registry row can reuse the same setExternalModuleEnabled mutation the External-modules
+// group already owns — no new API surface, just a second place to flip the same switch.
+export interface ModuleRegistrySectionProps {
+  readonly externalModules: readonly ExternalModuleDto[] | undefined;
+  readonly onSetEnabled: (id: string, enabled: boolean) => void;
+  readonly settingEnabledPending: boolean;
+}
 
 const STATE_LABELS: Record<ModuleRegistryRowDto["state"], string> = {
   "not-installed": "Not installed",
@@ -54,7 +63,11 @@ function describeCapabilities(row: ModuleRegistryRowDto): string {
   return `${parts.join(" ")} The download applies on the next restart.`;
 }
 
-export function ModuleRegistrySection() {
+export function ModuleRegistrySection({
+  externalModules,
+  onSetEnabled,
+  settingEnabledPending
+}: ModuleRegistrySectionProps) {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
 
@@ -195,6 +208,20 @@ export function ModuleRegistrySection() {
               ) : null}
             </div>
             {row.description ? <p>{row.description}</p> : null}
+            {/* #996/#860 spec §4c: an installed module needs a working switch on its own
+                row, not just Remove/purge — reuses the same setExternalModuleEnabled
+                mutation the External-modules group already owns (id space is shared). */}
+            {row.state === "installed-enabled" || row.state === "installed-disabled" ? (
+              <Switch
+                ariaLabel={`Enable ${row.name}`}
+                checked={
+                  (externalModules?.find((module) => module.id === row.id)?.status ?? null) ===
+                  "enabled"
+                }
+                disabled={settingEnabledPending}
+                onChange={(value) => onSetEnabled(row.id, value)}
+              />
+            ) : null}
             <p>
               {STATE_LABELS[row.state]}
               {row.purgePending ? " · data purge pending — takes effect on restart" : null}
