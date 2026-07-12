@@ -4544,3 +4544,21 @@ Successor pH7/fb625ebf relayed mid-Task-5. Task 5 RED committed `8e2dd24a`; rela
 Coordinator authority unchanged: `w1:pE6` / `58a78927-385c-4b1d-8fa0-94db20255d6f` (== lock).
 **`merges_since_relay` = 0.** JS-09 #976 unchanged (PARKED). News S4 PR merge gate = named-unanimous
 Opus+Codex+Gemini, NO fallback.
+
+## UPDATE — 2026-07-12 — News S4 relay #7 COMPLETE (mid-build), spent reaped
+
+Successor pH8/24fd78ea relayed after Tasks 5+6 green: `eed0142d` (per-owner daily revalidation
+schedule; 15/15 integ + 30/30 unit) and `b7f76737` (POST /api/news/revalidation retry endpoint; 7/7
++ 32/32). **Deviation (benign, in PR body):** pg-boss disallows colons in schedule keys → schedule
+key = bare owner id (owner-scoped metadata); full colon-form idempotencyKey kept in payload.
+Relay7 continuation doc `34092b92`.
+
+- **Live successor:** pane `w1:pH9`, tab `w1:t1P` (agents ✓), label `'News S4 relay7'`, session
+  **d49fe0bd-7a4b-43e3-802b-9de5f22f1bd3**, **Fable 5 confirmed**, bypass-perms on, status working —
+  on **Task 7** (chat preview/confirm tools). Same worktree/branch `news-s4`.
+- **Spent pane `w1:pH8`** (session 24fd78ea-...) REAPED — session-verified before close.
+- **Monitor re-pointed:** `bz5mt3rjb` (pH8) stopped → new **`bh08ws1gg`** watches pH9.
+
+Coordinator authority unchanged: `w1:pE6` / `58a78927-385c-4b1d-8fa0-94db20255d6f` (== lock).
+**`merges_since_relay` = 0.** JS-09 #976 unchanged (PARKED). News S4 PR merge gate = named-unanimous
+Opus+Codex+Gemini, NO fallback.
