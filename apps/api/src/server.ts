@@ -397,10 +397,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       resolveEnabledModules,
       new Set(externalToolManifests.map((manifest) => manifest.id)),
       async (actorUserId) =>
-        (await getActiveExternalModules?.({
+        getActiveExternalModules({
           actorUserId,
           requestId: `external-tools:${randomUUID()}`
-        })) ?? []
+        })
     );
 
     // Connector collaborators for the calendar focus-time write tool. A single shared
@@ -824,9 +824,8 @@ function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | nu
 function registerPlatformRoutes(
   server: FastifyInstance,
   authRuntime: JarvisAuthRuntime,
-  // #917: optional provider of the ACTIVE external modules for the actor. Absent when the
-  // feature is off ⇒ /api/modules stays built-ins only (fail-closed).
-  getActiveExternalModules?: (
+  // #996/#860: always-on provider of the ACTIVE external modules for the actor.
+  getActiveExternalModules: (
     accessContext: AccessContext
   ) => Promise<readonly ReconciledExternalModule[]>
 ): void {
@@ -835,11 +834,9 @@ function registerPlatformRoutes(
       const accessContext = await authRuntime.resolveAccessContext(request);
 
       const builtIns = getBuiltInModuleManifests().map(serializeModule);
-      // #917: append ACTIVE external modules (reconcile already filtered to active === true).
+      // #996/#860: append ACTIVE external modules (reconcile already filtered to active === true).
       // Runs in the actor's own data context, so /api/modules reflects only what is active.
-      const external = getActiveExternalModules
-        ? (await getActiveExternalModules(accessContext)).map(serializeExternalModule)
-        : [];
+      const external = (await getActiveExternalModules(accessContext)).map(serializeExternalModule);
       return {
         modules: [...builtIns, ...external]
       };
