@@ -10,9 +10,10 @@
 //   - run records and response envelopes carry ids, counts, and error CODES
 //     only — external text (titles, descriptions, URLs, transport errors)
 //     never reaches a run record, response, or log line.
-//   - JS-05 never mutates opportunity statuses: stale marking is JS-07
-//     (#936) — OpportunityRecord has no monitorId, so per-monitor staleness
-//     here would cross-contaminate monitors sharing an adapter.
+//   - Freshness (JS-07 #936) mutates opportunities ONLY after a successful
+//     fetch, scoped to this run's (adapterId, board) sourceKey — records have
+//     no monitorId, so absence is only meaningful per board, and fetch
+//     failure never implies stale.
 import type { BoardConfig, NormalizedPosting } from "../../adapters/index.js";
 import {
   JobSearchFetchError,
@@ -33,7 +34,9 @@ import {
   isDue,
   listMonitorIds,
   localDateAndTime,
+  markFreshnessAfterRun,
   opportunityIdentity,
+  rebuildFeed,
   recordRun,
   runRetentionPass,
   saveMonitorCursor,
@@ -42,6 +45,7 @@ import {
   upsertOpportunity
 } from "../../domain/index.js";
 import type { WorkerPorts } from "../ai-port.js";
+import { runEvaluationSweep } from "../evaluate.js";
 import { InputError, readPlainObject, readString } from "../validate.js";
 
 export const SWEEP_JOB_KIND = "job-search.monitor-sweep";
@@ -175,8 +179,13 @@ export async function runMonitorDiscovery(
 
   let ingested = 0;
   let suppressed = 0;
+  const seenIdentityHashes = new Set<string>();
   for (const posting of fetched.postings) {
     const input = postingToOpportunity(adapter.id, boardConfig.board, posting);
+    // Every posting in a successful fetch counts as "seen" for freshness —
+    // including tombstone-suppressed ones (the board still lists them; the
+    // user deleted them, which is a status decision, not a liveness fact).
+    seenIdentityHashes.add(opportunityIdentity(input));
     // upsertOpportunity's `suppressed` flag covers tombstones only; an
     // unchanged re-sighting returns the refreshed record. Counts must
     // distinguish real ingestion (new record or content change) from
@@ -197,14 +206,36 @@ export async function runMonitorDiscovery(
     lastSuccessAt: finishedAt
   });
 
-  // runRetentionPass ends with a feed rebuild — no separate rebuildFeed call.
+  // JS-07 pipeline (order is load-bearing):
+  //  1. Freshness BEFORE retention/gate — absence-from-this-fetch must be
+  //     stamped so retention ages stale records and the gate excludes them
+  //     this run, not next run. Only reached on a successful fetch (failure
+  //     paths returned above), scoped to this board's sourceKey.
+  //  2. Retention BEFORE evaluation — never spend daily AI budget on records
+  //     the retention pass is about to evict.
+  //  3. Evaluation, then one more feed rebuild — runRetentionPass ends with
+  //     its own rebuild, but that one predates this run's evaluations; the
+  //     second rebuild is cheap (in-memory sort over the survivors) and makes
+  //     fresh fit bands rank the feed this run.
+  const freshness = await markFreshnessAfterRun(kv, {
+    sourceKey: sourceKey(adapter.id, boardConfig.board),
+    seenIdentityHashes,
+    now: ports.now()
+  });
   await runRetentionPass(kv, ports.now());
+  const evaluation = await runEvaluationSweep(ports);
+  await rebuildFeed(kv, ports.now());
 
   const counts = {
     fetched: fetched.postings.length,
     ingested,
     suppressed,
-    skipped: fetched.evidence.skippedCount
+    skipped: fetched.evidence.skippedCount,
+    // Counts only — the run record is a metadata surface (no content).
+    staleMarked: freshness.staleMarked,
+    gateExcluded: evaluation.gateExcluded,
+    evaluated: evaluation.evaluated,
+    evalPending: evaluation.evalPending
   };
   await recordRun(kv, {
     schemaVersion: 1,

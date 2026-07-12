@@ -8,6 +8,11 @@ import { describe, expect, it } from "vitest";
 
 import type { AdapterFetch } from "../../external-modules/job-search/src/adapters/index.js";
 import {
+  getEvaluation,
+  readBudgetUsed
+} from "../../external-modules/job-search/src/domain/evaluations.js";
+import { readFeed } from "../../external-modules/job-search/src/domain/feed.js";
+import {
   getMonitor,
   getRunSummary,
   listOpportunities,
@@ -17,7 +22,20 @@ import {
   sourceKey,
   type MonitorConfig
 } from "../../external-modules/job-search/src/domain/index.js";
-import type { WorkerPorts } from "../../external-modules/job-search/src/worker/ai-port.js";
+import {
+  approveProfile,
+  saveProfileRevision
+} from "../../external-modules/job-search/src/domain/profile.js";
+import {
+  approveResume,
+  saveOriginalResume
+} from "../../external-modules/job-search/src/domain/resume.js";
+import type {
+  JobSearchAi,
+  JobSearchAiInput,
+  JobSearchAiResult,
+  WorkerPorts
+} from "../../external-modules/job-search/src/worker/ai-port.js";
 import {
   deriveRunId,
   monitorRunHandler,
@@ -55,8 +73,13 @@ const okFetch: AdapterFetch = async () => ({
 });
 const failFetch: AdapterFetch = async () => ({ status: 500, bodyText: "upstream exploded" });
 
-function makePorts(kv: MemoryKv, fetch: AdapterFetch | null, nowIso: string): WorkerPorts {
-  return { kv, ai: null, fetch, now: () => new Date(nowIso) };
+function makePorts(
+  kv: MemoryKv,
+  fetch: AdapterFetch | null,
+  nowIso: string,
+  ai: JobSearchAi | null = null
+): WorkerPorts {
+  return { kv, ai, fetch, now: () => new Date(nowIso) };
 }
 
 function monitor(overrides: Partial<MonitorConfig> = {}): MonitorConfig {
@@ -363,5 +386,228 @@ describe("postingToOpportunity (JS-07 structured facts)", () => {
     expect(remote?.sourceKey).toBe(sourceKey("greenhouse", "acme"));
     expect(remote?.posting.workMode).toBe("remote");
     expect(remote?.posting.publishedAt).toBe("2026-07-01T00:00:00.000Z");
+  });
+});
+
+// JS-07 (#936) Step 7: the discovery run wires the full pipeline — freshness
+// (this run's seen set, this board's sourceKey) after ingestion, retention,
+// then gate + evaluation, then a feed rebuild so THIS run's evaluations rank
+// this run's feed. Counts stay metadata-only (numbers keyed by fixed names).
+describe("runMonitorDiscovery — JS-07 pipeline wiring", () => {
+  const TODAY = "2026-07-11";
+  const T2 = "2026-07-11T10:00:00.000Z"; // 2h later — greenhouse courtesy (1h) elapsed
+  const T3 = "2026-07-11T12:00:00.000Z";
+
+  // Same board with job 101's content changed (new contentHash → outdated eval).
+  const changedPayload = {
+    jobs: [
+      { ...greenhousePayload.jobs[0], content: "&lt;p&gt;Build the NEW platform.&lt;/p&gt;" },
+      greenhousePayload.jobs[1]
+    ]
+  };
+  // Same board with job 102 absent (freshness: unseen on its own board → stale).
+  const only101Payload = { jobs: [greenhousePayload.jobs[0]] };
+  const fetchOf =
+    (payload: unknown): AdapterFetch =>
+    async () => ({ status: 200, bodyText: JSON.stringify(payload) });
+
+  interface StubAi extends JobSearchAi {
+    readonly calls: JobSearchAiInput[];
+  }
+  function stubAi(respond: (input: JobSearchAiInput) => JobSearchAiResult): StubAi {
+    const calls: JobSearchAiInput[] = [];
+    return {
+      calls,
+      async generateStructured(input) {
+        calls.push(input);
+        return respond(input);
+      }
+    };
+  }
+  function okAi(): StubAi {
+    return stubAi(() => ({
+      ok: true,
+      object: {
+        fitBand: "strong",
+        recommendation: "review",
+        evidence: [{ requirement: "TS", evidence: "8y TS", source: "resume" }],
+        blockers: [],
+        gaps: [],
+        unknowns: [],
+        preferenceMatches: [],
+        preferenceConflicts: [],
+        postingConfidence: "high",
+        overallConfidence: "medium",
+        summary: "Strong match."
+      }
+    }));
+  }
+
+  async function seedProfileAndResume(kv: MemoryKv): Promise<void> {
+    const at = new Date("2026-07-10T00:00:00.000Z");
+    await saveProfileRevision(kv, {
+      schemaVersion: 1,
+      revisionId: "profile-rev-1",
+      createdAt: at.toISOString(),
+      provenance: "user",
+      fields: {}
+    });
+    await approveProfile(kv, "profile-rev-1", at);
+    await saveOriginalResume(kv, "Resume: 8 years TypeScript.", at);
+    await approveResume(kv, "0", at);
+  }
+
+  async function hashOf(kv: MemoryKv, title: string): Promise<string> {
+    const record = (await listOpportunities(kv)).find((r) => r.posting.title === title);
+    if (record === undefined) throw new Error("fixture record missing");
+    return record.identityHash;
+  }
+
+  it("evaluates survivors, spends budget, extends counts, and the feed carries fit bands", async () => {
+    const kv = createMemoryKv();
+    const config = monitor();
+    await saveMonitor(kv, config);
+    await seedProfileAndResume(kv);
+    const ai = okAi();
+    const outcome = await runMonitorDiscovery(makePorts(kv, okFetch, T0, ai), config, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    expect(outcome).toMatchObject({
+      ran: true,
+      counts: { evaluated: 2, evalPending: 0, gateExcluded: 0, staleMarked: 0 }
+    });
+    expect(ai.calls.length).toBe(2);
+    expect(await readBudgetUsed(kv, TODAY)).toBe(2);
+    const evaluation = await getEvaluation(kv, await hashOf(kv, "Platform Engineer"));
+    expect(evaluation).toMatchObject({ fitBand: "strong", recommendation: "review" });
+    // Feed was rebuilt AFTER evaluation: entries carry this run's bands. Tie
+    // on e/b/c/freshness → newest posting first (102 published 07-02).
+    const feed = await readFeed(kv);
+    expect(feed?.entries.map((e) => ({ b: e.b, c: e.c, e: e.e }))).toEqual([
+      { b: "s", c: "m", e: "e" },
+      { b: "s", c: "m", e: "e" }
+    ]);
+    expect(feed?.entries[0]?.h).toBe(await hashOf(kv, "Staff Engineer"));
+  });
+
+  it("run-twice-identical produces exactly one evaluation per job (no AI re-calls)", async () => {
+    const kv = createMemoryKv();
+    const config = monitor();
+    await saveMonitor(kv, config);
+    await seedProfileAndResume(kv);
+    const ai = okAi();
+    await runMonitorDiscovery(makePorts(kv, okFetch, T0, ai), config, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    const second = await runMonitorDiscovery(makePorts(kv, okFetch, T2, ai), config, {
+      runId: "b".repeat(32),
+      consumeSlot: false
+    });
+    expect(second).toMatchObject({ ran: true, counts: { evaluated: 0, evalPending: 0 } });
+    expect(ai.calls.length).toBe(2); // both from the first run
+    expect(await readBudgetUsed(kv, TODAY)).toBe(2);
+  });
+
+  it("changed posting content re-evaluates only the changed job", async () => {
+    const kv = createMemoryKv();
+    const config = monitor();
+    await saveMonitor(kv, config);
+    await seedProfileAndResume(kv);
+    const ai = okAi();
+    await runMonitorDiscovery(makePorts(kv, okFetch, T0, ai), config, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    const hash101 = await hashOf(kv, "Platform Engineer");
+    const before = await getEvaluation(kv, hash101);
+    const second = await runMonitorDiscovery(
+      makePorts(kv, fetchOf(changedPayload), T2, ai),
+      config,
+      { runId: "b".repeat(32), consumeSlot: false }
+    );
+    expect(second).toMatchObject({ ran: true, counts: { ingested: 1, evaluated: 1 } });
+    expect(ai.calls.length).toBe(3);
+    const after = await getEvaluation(kv, hash101);
+    expect(after?.evaluationId).not.toBe(before?.evaluationId);
+    expect(after?.inputs.opportunityContentHash).not.toBe(before?.inputs.opportunityContentHash);
+  });
+
+  it("AI failure leaves the prior evaluation intact and counts the job pending", async () => {
+    const kv = createMemoryKv();
+    const config = monitor();
+    await saveMonitor(kv, config);
+    await seedProfileAndResume(kv);
+    const ai = okAi();
+    await runMonitorDiscovery(makePorts(kv, okFetch, T0, ai), config, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    const hash101 = await hashOf(kv, "Platform Engineer");
+    const before = await getEvaluation(kv, hash101);
+    const failingAi = stubAi(() => ({ ok: false, error: "provider_error" }));
+    const second = await runMonitorDiscovery(
+      makePorts(kv, fetchOf(changedPayload), T2, failingAi),
+      config,
+      { runId: "b".repeat(32), consumeSlot: false }
+    );
+    expect(second).toMatchObject({ ran: true, counts: { evaluated: 0, evalPending: 1 } });
+    // Prior evaluation still stored, byte-for-byte identity fields intact.
+    expect(await getEvaluation(kv, hash101)).toEqual(before);
+  });
+
+  it("absence from this board's fetch marks stale, gate-excludes, and ranks last in the feed", async () => {
+    const kv = createMemoryKv();
+    const config = monitor();
+    await saveMonitor(kv, config);
+    await seedProfileAndResume(kv);
+    const ai = okAi();
+    await runMonitorDiscovery(makePorts(kv, okFetch, T0, ai), config, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    const second = await runMonitorDiscovery(
+      makePorts(kv, fetchOf(only101Payload), T2, ai),
+      config,
+      { runId: "b".repeat(32), consumeSlot: false }
+    );
+    expect(second).toMatchObject({
+      ran: true,
+      counts: { staleMarked: 1, gateExcluded: 1, evaluated: 0, evalPending: 0 }
+    });
+    const hash102 = await hashOf(kv, "Staff Engineer");
+    const record102 = (await listOpportunities(kv)).find((r) => r.identityHash === hash102);
+    expect(record102).toMatchObject({ freshness: "stale", status: "stale" });
+    const feed = await readFeed(kv);
+    expect(feed?.entries.map((e) => e.h)).toEqual([await hashOf(kv, "Platform Engineer"), hash102]);
+    expect(feed?.entries[1]?.e).toBe("x");
+    // Freshness never regresses on a later identical run either: re-seen 101
+    // stays active and stale 102 stays stale without re-counting.
+    const third = await runMonitorDiscovery(
+      makePorts(kv, fetchOf(only101Payload), T3, ai),
+      config,
+      {
+        runId: "c".repeat(32),
+        consumeSlot: false
+      }
+    );
+    expect(third).toMatchObject({ ran: true, counts: { staleMarked: 0 } });
+  });
+
+  it("no AI bridge: survivors stay pending and no budget is spent", async () => {
+    const kv = createMemoryKv();
+    const config = monitor();
+    await saveMonitor(kv, config);
+    await seedProfileAndResume(kv);
+    const outcome = await runMonitorDiscovery(makePorts(kv, okFetch, T0, null), config, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    expect(outcome).toMatchObject({
+      ran: true,
+      counts: { evaluated: 0, evalPending: 2, gateExcluded: 0 }
+    });
+    expect(await readBudgetUsed(kv, TODAY)).toBe(0);
   });
 });
