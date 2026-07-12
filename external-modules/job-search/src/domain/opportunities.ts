@@ -86,7 +86,8 @@ export type UpsertOpportunityResult =
 const HASH_PATTERN = /^[0-9a-f]{32}$/;
 
 /** Guard for identity hashes arriving from callers (they become key material). */
-function assertHash(hash: string): void {
+// Exported for JS-07 evaluations.ts — eval/<h> keys take the same guard.
+export function assertHash(hash: string): void {
   if (!HASH_PATTERN.test(hash)) {
     throw new JobSearchKvError("invalid_record", "identity hash must be 32 lowercase hex chars");
   }

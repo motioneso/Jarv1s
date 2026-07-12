@@ -42,10 +42,31 @@ export { JobSearchKvError } from "./errors.js";
 export type { JobSearchKvErrorCode } from "./errors.js";
 export type { JobSearchKv, JobSearchNamespace } from "./kv-port.js";
 export { NS, kvFromWorkerContext } from "./kv-port.js";
+export type {
+  EvalBudgetRecord,
+  EvaluationConfidence,
+  EvaluationEvidence,
+  EvaluationInputs,
+  EvaluationRecommendation,
+  EvaluationRecord,
+  FitBand
+} from "./evaluations.js";
+export {
+  budgetDateFor,
+  getEvaluation,
+  isOutdated,
+  readBudgetUsed,
+  saveEvaluation,
+  takeBudget
+} from "./evaluations.js";
 export {
   DESCRIPTION_MAX_BYTES,
+  EVAL_BUDGET_RETENTION_DAYS,
+  EVAL_DAILY_CAP,
+  EVALUATION_MAX_BYTES,
   KV_VALUE_MAX_BYTES,
   OPPORTUNITY_TARGET,
+  PER_INVOCATION_EVAL_MAX,
   PASSED_STALE_EVICT_DAYS,
   RESUME_INPUT_MAX_BYTES,
   RESUME_TOO_LARGE_MESSAGE,

@@ -92,6 +92,10 @@ export const keys = {
   monitorSchedule: (monitorId: string) => `schedule/${monitorId}`,
   job: (h: string) => `job/${h}`,
   tombstone: (h: string) => `tombstone/${h}`,
+  /** JS-07 (#936): AI evaluation, keyed by the job's identity hash. */
+  evaluation: (h: string) => `eval/${h}`,
+  /** JS-07 (#936): daily AI budget ledger, keyed by UTC calendar date. */
+  evalBudget: (date: string) => `evalBudget/${date}`,
   run: (monitorId: string, runId: string) => `run/${monitorId}/${runId}`,
   runLatest: (monitorId: string) => `monitor/${monitorId}/latest`,
   feedActive: "active"
