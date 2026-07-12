@@ -4911,3 +4911,31 @@ relay trigger). Sibling flake chat-mcp-transport:258 remains open as **#979** (f
 
 **Live fleet:** ONLY **#964 v9** (pHV, Sonnet, agents tab t1P, Task 7 Step 9). Monitors: `b5oj9o8su`
 (#964 HEAD/pane), no #978 monitor (merged). #964 security council (Opus+Codex+Gemini) fires at PR.
+
+## CHECKPOINT 2026-07-12 (coordinator 70% — auto-compact in place, NO successor pane)
+
+**Ben live-bug answered (news topic-add "Topic checking is unavailable"):** root-caused to a
+CONFIG gap, not code. `validateTopic` → `NewsAiPort.fingerprint` →
+`resolveModelForService(db, "module.news", {capability:"json", tierHint:"economy"})` returns null
+(no economy/json model assigned to the News service) → verdict "unavailable" → 503 at
+`packages/news/src/personalization-routes.ts:340`. Fix = Ben assigns a model to the **News**
+service (json/economy) in AI admin. No issue filed (settings action). Fallback hypothesis if a
+model IS assigned: path-2 provider call failing (`generateJson !ok`) — visible in api/worker logs.
+
+**Fleet state:** #964 module distribution (security tier) is the SOLE live lane — pane pHY
+(v12, Sonnet, agents tab w1:t1P), on **Task 10** (final gate + e2e; e2e was 7/13, diagnosing
+enable-state-flip-on-install + purge role-drop). Monitor `b5oj9o8su` armed (#964 HEAD + pane).
+When Task 10 greens → PR (Part of #964) → **security council fires** (Opus QA + Codex + Gemini,
+named-unanimous). Council MUST re-verify: route auth-allowlist (PLATFORM_UNGUARDED_ROUTES waives
+ONLY the enablement gate, never admin authz — negative authz test per route), tar-extraction
+fail-closed, hash-drift contributes nothing, RLS/no-BYPASSRLS, metadata-only payloads, migration
+0162 (external_module_distribution) in foundation-schema-catalog toEqual.
+
+**Coordinator authority unchanged:** session `58a78927-385c-4b1d-8fa0-94db20255d6f` = label
+`Coordinator` = pane resolved fresh by label+session (never a written pane number).
+
+**Open tasks:** #979 chat-mcp-transport:258 flake (task #31, routine, future lane); #965 run-now
+dedupe (task #25, sensitive, parked).
+
+**Directive reminder:** coordinator auto-compacts in place — do NOT spawn a successor coordinator
+pane; flush manifest + continue; harness auto-compacts. No PushNotifications ("just keep moving").
