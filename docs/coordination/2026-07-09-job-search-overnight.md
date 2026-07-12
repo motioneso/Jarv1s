@@ -4203,3 +4203,29 @@ post-Jul-12-1:28am), verify the two merge bars (paired denial+positive controls/
 sentinel proof of no private content in payloads/logs/artifact), post verdicts to PR. **Then HOLD
 merge for Ben's day-one manual acceptance** (real résumé vs live instance — intrinsic spec gate) +
 council. Surface PR + verdicts + manual-acceptance checklist to Ben's digest.
+
+## CHECKPOINT 2026-07-12 — JS-09 PR #976 OPEN, security council IN FLIGHT
+
+**PR #976** (`feat/js-09-acceptance`, head `2a865de2`, Closes #938): JS-09 acceptance harness +
+counts-only evidence generator. Build-agent evidence: VF_EXIT=0 AUDIT_EXIT=0 (full suite at
+2a865de2), trio 0/0/0, module build 0, targeted suites green (6+4+24+5 integ, 9+9 unit), evidence
+dry-run clean (sentinel 0, PROVIDER_RE 0). **Zero defect fixes needed, zero migrations, zero product
+scope.** Evidence destination = counts-only comment on #938, never committed. PR state: MERGEABLE,
+mergeState UNSTABLE (CI freshly kicked off — pending, not failing). Authority re-confirmed (my
+session `58a78927` == lock).
+
+**Security council (JS tier = Opus adversarial + 1 independent lens; Codex held unless disagreement):**
+- **Opus adversarial QA** — Agent `coordinated-qa` model:opus isolation:worktree, agentId
+  `a38b224a3330660ae`, JARVIS_PGDATABASE=jarvis_qa_09. Hunts non-vacuous proof of 6 bars
+  (owner/admin isolation + positive controls / no BYPASSRLS; 3-surface sentinel scan payloads+logs+
+  artifact; real-hash enable + real spawned worker + drift fail-closed; 2 wire shapes + zero-
+  identifier sweep; evidence counts-only fail-closed never-committed; no new scope). Posts verdict
+  to PR.
+- **Gemini 2nd lens** — `agy` neutral-framed (pid 2646142, out `scratchpad/pr976-agy.out`, watch
+  `b48elisp2`). Same 6 bars. Posts `[Gemini council QA]` verdict to PR.
+
+**Gate:** both APPROVE + CI green → then **HOLD merge for Ben's day-one manual acceptance** (real
+résumé vs live instance — intrinsic spec gate, steps in PR body) + council. NOT auto-merge — the
+manual-acceptance gate is Ben's own spec requirement, distinct from council authority. Build pane
+`w1:pH1` kept alive until merge to route any QA blocker back. `merges_since_relay` unchanged (no
+merge yet).
