@@ -77,9 +77,9 @@ export interface WorkerHandle {
   shutdown(): Promise<void>;
 }
 
-export function resolveExternalWorkerConfig(
-  env: NodeJS.ProcessEnv = process.env
-): { readonly modulesDir: string } {
+export function resolveExternalWorkerConfig(env: NodeJS.ProcessEnv = process.env): {
+  readonly modulesDir: string;
+} {
   return { modulesDir: resolveModulesDir(env) };
 }
 
