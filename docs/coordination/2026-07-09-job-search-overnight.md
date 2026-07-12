@@ -5065,3 +5065,12 @@ No build lanes live. Auto-compact in place — NO successor pane.
 - **#981 root-caused (prod DB):** News json/economy → Haiku on provider 33df431e = anthropic **auth_method=cli** (no API key). generateStructured tries to decrypt+use an API credential a CLI provider lacks → raw AES-GCM error as bare 500 (secret-cipher.ts:178, no catch). Key NOT rotated. See memory mem_mri5sto4.
 - **Ben AI-admin frustration (mid-turn):** capabilities ARE auto-detected (inferModel + "Discover models" btn), but manual "Add model" form defaults caps to ["chat"] only (settings-ai-admin-pane.tsx:167) + CLI providers' discovered models come in inactive/pin-only. Proposed 3 tasks under epic #869: (1) Add-form prefill from inferModel; (2) CLI auto-discover-on-connect+activate; (3) #981 typed decrypt error→actionable msg. **AWAITING Ben's go to file.** See memory mem_mri5snxv.
 - Open parked lanes: #965 dedupe (task #25), #979 flake (task #31). Fleet idle.
+
+## 2026-07-12 continuation — AI-admin (#869/#982) build + module (#860) decisions
+
+- **#869 spec rev2 APPROVED** by Ben (his 4 answers + "bundle lane c"). Committed `d19c7c3d` (coord branch). json now routes through the CLI bridge; Codex models from curated static list; delete-and-rediscover; REST hand-add kept.
+- **Task #982** filed (Part of #869) — all 3 lanes bundled (A discovery/security, B activation+Codex statics/routine, C CLI structured-json/security → fixes #981). Tier: **security**.
+- **Builder: Codex-869** — herdr pane `w1:pJ1`, tab `w1:t1S`, session `019f5862-4aad-7bb0-8d00-06035f2beaeb`, **gpt-5.6-sol/high**, `danger-full-access` (host bwrap can't init — approved). Worktree `.claude/worktrees/ai-admin-869` off origin/main `a3b2b98b`. Spec copied in (Codex commits it first). **Reviewer: Fable** (Ben's directive). **Merge: Ben sign-off** (security tier).
+- **Monitor `bygr8tkh0`** watching the build (PR open / idle / crash).
+- **Module-management (#860):** spec committed `cb2a4d60`. Ben's 3 open Qs — under Ben's away-grant the coordinator resolved **Q1 = no off-switch** (matches no-env-var principle) and **Q3 = one module OK for launch**. **Q2** (core-ifying removes per-user Notes toggle — vault-sync data implications) → **Fable consult `a5388e325b3cca06a`** running. Module build NOT yet spawned (awaiting Q2 verdict, then file module task issue under #860).
+- Ben away; granted autonomy, big decisions double-checked with Fable, report decisions on return.
