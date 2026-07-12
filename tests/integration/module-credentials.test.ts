@@ -79,7 +79,6 @@ beforeAll(async () => {
       host: "0.0.0.0",
       port: 0,
       mcpServerUrl: "http://127.0.0.1:0/api/mcp",
-      enableExternalModules: true,
       externalModulesDir: modulesDir
     }
   });

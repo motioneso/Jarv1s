@@ -52,7 +52,8 @@ import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
 import { SettingsRepository } from "@jarv1s/settings";
 import {
   type ExternalModuleWorkerRuntime,
-  getExternalModuleRegistrations
+  getExternalModuleRegistrations,
+  resolveModulesDir
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
@@ -115,13 +116,12 @@ export interface ApiServerConfig {
   readonly host: string;
   readonly port: number;
   readonly mcpServerUrl: string;
-  // #917: external (non-compiled) trusted-operator modules. Off unless the flag is
-  // exactly "1" AND a read-only mount dir is provided. Fail-closed: any other flag
-  // value disables the whole feature. Discovery runs ONCE at boot (the mount is
-  // read-only and changes only across a redeploy, which restarts the process), so a
-  // package swap requires a container restart to be re-hashed and re-seen.
-  readonly enableExternalModules: boolean;
-  readonly externalModulesDir: string | null;
+  // #996/#860: external (non-compiled) trusted-operator modules are always on — the
+  // JARVIS_ENABLE_EXTERNAL_MODULES flag was removed (previously required exactly "1").
+  // externalModulesDir always resolves to a usable path via resolveModulesDir; it is
+  // never null. Discovery still runs ONCE at boot (the mount is read-only and changes
+  // only across a redeploy), so a package swap still requires a container restart.
+  readonly externalModulesDir: string;
 }
 
 export function hasAuthMaterial(request: FastifyRequest): boolean {
@@ -136,10 +136,6 @@ export function hasAuthMaterial(request: FastifyRequest): boolean {
 export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): ApiServerConfig {
   const port = Number(env.PORT ?? 3000);
   const host = env.HOST ?? "0.0.0.0";
-  // #917: the flag must equal exactly "1" — no truthy coercion, so "true"/"0"/"yes"
-  // all read as OFF. The modules dir is a read-only mount; null when unset.
-  const enableExternalModules = env.JARVIS_ENABLE_EXTERNAL_MODULES === "1";
-  const externalModulesDir = env.JARVIS_MODULES_DIR ?? null;
   return {
     host,
     port,
@@ -150,25 +146,20 @@ export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): Ap
     // set; fall back to the loopback URL for dev/non-container runs. URL source only — this
     // does not change the MCP gateway auth/allowlist/token-mint path.
     mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`,
-    enableExternalModules,
-    externalModulesDir
+    externalModulesDir: resolveModulesDir(env)
   };
 }
 
 /**
- * Discover external modules ONCE at boot (#917). Fail-closed: an empty snapshot when the
- * feature flag is off or no dir is configured, without reading disk. When on, walks the
- * read-only mount and returns validated discoveries + rejections. Rescan requires a
- * process restart (the mount is read-only and changes only across a redeploy). Logs
- * counts + rejection ids/reasons only — never file contents (secrets-never-escape).
+ * Discover external modules ONCE at boot (#996/#860 always-on). Walks the read-only mount
+ * and returns validated discoveries + rejections. Rescan requires a process restart (the
+ * mount is read-only and changes only across a redeploy). Logs counts + rejection
+ * ids/reasons only — never file contents (secrets-never-escape).
  */
 export function discoverExternalModules(
   config: ApiServerConfig,
   log: { info: (o: object, m: string) => void; warn: (o: object, m: string) => void }
 ): ExternalModuleLoadResult {
-  if (!config.enableExternalModules || !config.externalModulesDir) {
-    return { discoveries: [], rejected: [] };
-  }
   const snapshot = getExternalModuleRegistrations({
     modulesDir: config.externalModulesDir,
     coreVersion: CORE_VERSION,
@@ -176,7 +167,7 @@ export function discoverExternalModules(
   });
   log.info(
     { discovered: snapshot.discoveries.length, rejected: snapshot.rejected.length },
-    "external modules discovered (#917)"
+    "external modules discovered (#996 always-on)"
   );
   for (const rejection of snapshot.rejected) {
     log.warn(
@@ -197,17 +188,14 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
   const boss = options.boss ?? createPgBossClient(getJarvisDatabaseUrls().app);
   const ownsAppDb = options.appDb === undefined;
-  const externalRuntimeEnabled =
-    apiServerConfig.enableExternalModules && apiServerConfig.externalModulesDir !== null;
-  const workerDb = externalRuntimeEnabled
-    ? (options.workerDb ??
-      createDatabase({
-        connectionString: getJarvisDatabaseUrls().worker,
-        maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
-      }))
-    : undefined;
-  const ownsWorkerDb = workerDb !== undefined && options.workerDb === undefined;
-  const workerDataContext = workerDb ? new DataContextRunner(workerDb) : undefined;
+  const workerDb =
+    options.workerDb ??
+    createDatabase({
+      connectionString: getJarvisDatabaseUrls().worker,
+      maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
+    });
+  const ownsWorkerDb = options.workerDb === undefined;
+  const workerDataContext = new DataContextRunner(workerDb);
   let externalWorkerRuntime: ExternalModuleWorkerRuntime | undefined;
   const ownsBoss = options.boss === undefined;
   const dataContext = new DataContextRunner(appDb);
@@ -347,7 +335,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
 
     const externalModulesRepository = new SettingsRepository();
     const getActiveExternalModules = createActiveExternalModulesResolverForApi({
-      enabled: apiServerConfig.enableExternalModules,
       appDataContext: dataContext,
       settingsRepository: externalModulesRepository,
       discoveries: externalModuleSnapshot.discoveries
@@ -371,17 +358,14 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       externalModuleSnapshot.discoveries,
       getActiveExternalModules
     );
-    if (apiServerConfig.enableExternalModules) {
-      registerExternalModuleJobRoutes(server, {
-        boss,
-        discoveries: externalModuleSnapshot.discoveries,
-        resolveAccessContext: authRuntime.resolveAccessContext,
-        isModuleActive: async (access, moduleId) =>
-          (await getActiveExternalModules?.(access))?.some((module) => module.id === moduleId) ===
-          true,
-        rateLimitKey: authPrincipalRateLimitKey
-      });
-    }
+    registerExternalModuleJobRoutes(server, {
+      boss,
+      discoveries: externalModuleSnapshot.discoveries,
+      resolveAccessContext: authRuntime.resolveAccessContext,
+      isModuleActive: async (access, moduleId) =>
+        (await getActiveExternalModules(access)).some((module) => module.id === moduleId),
+      rateLimitKey: authPrincipalRateLimitKey
+    });
 
     registerClientErrorsRoute(server, {
       recordClientError: async (event, request) => {
@@ -526,7 +510,11 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       connectorsRepository,
       hostDiagnostics,
       externalModules: {
-        enabled: apiServerConfig.enableExternalModules,
+        // #996/#860: always-on since the JARVIS_ENABLE_EXTERNAL_MODULES flag removal —
+        // packages/settings routes-module-registry.ts / routes-modules.ts gate on this
+        // field with `if (!ext?.enabled) throw 409`; hardcoding true here means those
+        // guards simply never fire, which is correct (verified — no change needed there).
+        enabled: true,
         discoveries: externalModuleSnapshot.discoveries,
         rejected: externalModuleSnapshot.rejected,
         reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
@@ -610,7 +598,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       ownsBoss ? boss.stop({ graceful: false }) : Promise.resolve(),
       ownsAuthRuntime ? authRuntime.close() : Promise.resolve(),
       ownsAppDb ? appDb.destroy() : Promise.resolve(),
-      ownsWorkerDb ? workerDb!.destroy() : Promise.resolve()
+      ownsWorkerDb ? workerDb.destroy() : Promise.resolve()
     ]);
   });
 
