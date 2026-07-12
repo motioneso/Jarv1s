@@ -5040,3 +5040,22 @@ to AGY-first + do-not-use-gemini-cli; codex-sandbox-workaround.md + MEMORY.md ho
 memory cross-model-lens-must-be-agy.md. Skills dirs had zero gemini refs.
 **Other open:** #981 news error-copy bug (routine, packages/news; 500 half needs Ben env+stack);
 #979 flake (task #31); #965 parked (task #25). Auto-compact in place — NO successor pane.
+
+## MERGE — #964 module distribution (security tier) 2026-07-12
+**PR #980 MERGED** (squash, `mergedAt 2026-07-12T18:22:17Z`, head 645069bb). Council merge
+authority (Ben bypass standing): **3/3 lenses APPROVE, 0 blocking** — Opus council QA
+(comment 4952204992), independent Opus critic (4952237958), **AGY Gemini 3.1 Pro High** cross-model
+lens (all 8 acceptance criteria MET, file:line-grounded). CI all-3 green.
+- #964 CLOSED. Board status already **Done** (verified via GraphQL, item PVTI_…zgyg_e0, proj 2).
+- Pane pHY reaped (session 935304ae); worktree `.claude/worktrees/mod-dist-964` removed; branch deleted.
+- **Epic #860 stays OPEN** — 2 unrelated hardening children remain: **#943** (module-storage-rpc
+  SET LOCAL ROLE never RESET in withDataContext txn) + **#942** (module-sql-runner single-statement
+  validator ignores $$ dollar-quotes — latent cross-user policy-injection). Distribution/install
+  slice is the piece that landed.
+- Task #24 → completed. `merges_since_relay` reset (security merge = unconditional relay).
+**Digest line (Ben):** #964 module distribution & install → live on `main` (PR #980, security tier,
+triple-council APPROVE). Users/admins can now fetch + install external modules from a registry with
+hash-verified, path-traversal-safe, RLS-scoped install; admin status surface exposes install errors.
+**Queue now:** #981 news error-copy (routine, packages/news; 500 half needs Ben env+stack) · #979
+flake (task #31) · #965 parked (task #25) · #943/#942 module hardening bugs (unspawned, need triage).
+No build lanes live. Auto-compact in place — NO successor pane.
