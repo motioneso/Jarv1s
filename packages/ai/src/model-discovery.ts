@@ -31,19 +31,27 @@ const ANTHROPIC_STATIC_MODELS: readonly AiProviderDiscoveredModelDto[] = [
   }
 ];
 
-// #870/H5 Slice 1: curated static model lists for installable + loginable CLI providers. A CLI
+// #982/#869 D7: curated static model lists for installable + loginable CLI providers. A CLI
 // provider has no HTTP `/models` endpoint to query, so discovery returns this list (marked
-// fromFallback — it's not from a live API). These concrete ids are inserted INACTIVE / pin-only by
-// the caller: the auto-registered `"default"` sentinel (#367, auto-register.ts) stays the active
-// happy-path chat model, and these statics exist only for an admin to explicitly enable + pin.
+// fromFallback — it's not from a live API). Reconciliation inserts these rows active; resolver
+// ordering keeps the `"default"` sentinel first for unpinned chat while concrete ids serve json and
+// explicit pins. Keeping ids here makes Codex list upkeep a one-file data change.
 //   - anthropic (claude CLI): the same concrete ids as the API fallback.
-//   - openai-compatible (codex CLI): NO concrete shipped model id exists — codex rides its own
-//     server-resolved default (see auto-register.ts), so there is nothing to statically list.
+//   - openai-compatible (codex CLI): current ids from learn.chatgpt.com/docs/models, 2026-07-12.
 //   - google/gemini: intentionally absent — blocked + not loginable (auto-register.ts:75).
-const CLI_STATIC_MODELS: Partial<Record<AiProviderKind, readonly AiProviderDiscoveredModelDto[]>> =
-  {
-    anthropic: ANTHROPIC_STATIC_MODELS
-  };
+export const CLI_STATIC_MODELS: Partial<
+  Record<AiProviderKind, readonly AiProviderDiscoveredModelDto[]>
+> = {
+  anthropic: ANTHROPIC_STATIC_MODELS,
+  "openai-compatible": ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6"].map(
+    (id) => inferModel(id, "openai-compatible")!
+  )
+};
+
+/** #982/#869: only providers backed by curated CLI data are safe to clean-slate reconcile. */
+export function hasCliStaticModels(providerKind: AiProviderKind): boolean {
+  return CLI_STATIC_MODELS[providerKind] !== undefined;
+}
 
 export interface ModelDiscoveryInput {
   readonly providerKind: AiProviderKind;
@@ -196,6 +204,11 @@ function inferTierFromModelId(providerKind: AiProviderKind, modelId: string): Ai
     return "interactive";
   }
   if (providerKind === "openai-compatible") {
+    // #982/#869 D7: Codex's published suffixes express service tier; keep this inference beside
+    // the curated data so feature routing remains provider-agnostic.
+    if (id.includes("-sol")) return "reasoning";
+    if (id.includes("-terra")) return "interactive";
+    if (id.includes("-luna")) return "economy";
     if (/\bo[0-9]/.test(id)) return "reasoning";
     if (id.includes("mini") || id.includes("nano") || id.includes("small")) return "economy";
     if (id.includes("3.5") || id.includes("3-5")) return "economy";

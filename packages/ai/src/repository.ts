@@ -574,6 +574,23 @@ export class AiRepository {
     return inserted;
   }
 
+  /**
+   * #982/#869 D6: CLI reconciliation is a deliberate hard replace. Preserve only the `default`
+   * sentinel so unpinned chat keeps riding the account model; every stale or hand-added concrete
+   * row is removed before current curated statics are inserted active.
+   */
+  async deleteModelsForProviderExceptSentinel(
+    scopedDb: DataContextDb,
+    providerConfigId: string
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .deleteFrom("app.ai_configured_models")
+      .where("provider_config_id", "=", providerConfigId)
+      .where("provider_model_id", "!=", "default")
+      .execute();
+  }
+
   async updateModel(
     scopedDb: DataContextDb,
     modelId: string,
@@ -1198,8 +1215,8 @@ export class AiRepository {
 
   /**
    * #870/H5: provider-scoped tier ladder. Only searches models under `providerId`. Sentinel-aware:
-   * the CLI `"default"` sentinel is inserted `active` so it wins; statically-discovered concrete ids
-   * are inserted `inactive` and can never out-rank it in the `created_at desc` scan.
+   * the CLI `"default"` sentinel is explicitly ordered first so active statics can serve structured
+   * work without changing unpinned chat's account-model behavior (#982/#869 D1).
    */
   private async selectModelInProviderForCapability(
     scopedDb: DataContextDb,
@@ -1221,6 +1238,11 @@ export class AiRepository {
         .where("providers.purpose", "=", "assistant")
         .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
         .where("models.tier", "=", t)
+        // #982/#869 D1: active CLI statics must serve json without outranking the #367 sentinel
+        // for unpinned chat. Clear safeModelQuery's generic newest-first order before applying this
+        // provider-specific contract; explicit model bindings bypass this ladder.
+        .clearOrderBy()
+        .orderBy(sql`CASE WHEN models.provider_model_id = 'default' THEN 0 ELSE 1 END`)
         .orderBy("models.created_at", "desc")
         .orderBy("models.id", "desc")
         .executeTakeFirst();
@@ -1228,15 +1250,20 @@ export class AiRepository {
     }
 
     // Final fallback: any active capable model in this provider (single-model provider setups).
-    return this.safeModelQuery(scopedDb)
-      .where("providers.id", "=", providerId)
-      .where("models.status", "=", "active")
-      .where("providers.status", "=", "active")
-      .where("providers.purpose", "=", "assistant")
-      .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
-      .orderBy("models.created_at", "desc")
-      .orderBy("models.id", "desc")
-      .executeTakeFirst();
+    return (
+      this.safeModelQuery(scopedDb)
+        .where("providers.id", "=", providerId)
+        .where("models.status", "=", "active")
+        .where("providers.status", "=", "active")
+        .where("providers.purpose", "=", "assistant")
+        .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
+        // #982/#869 D1: preserve sentinel-first chat behavior in the single-model fallback too.
+        .clearOrderBy()
+        .orderBy(sql`CASE WHEN models.provider_model_id = 'default' THEN 0 ELSE 1 END`)
+        .orderBy("models.created_at", "desc")
+        .orderBy("models.id", "desc")
+        .executeTakeFirst()
+    );
   }
 
   private async providerIdForModel(

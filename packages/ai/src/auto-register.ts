@@ -15,6 +15,8 @@ import type { AiModelCapability } from "@jarv1s/shared";
 import type { AiModelTier, AiProviderKind, DataContextDb } from "@jarv1s/db";
 
 import type { AiSecretCipher } from "./crypto.js";
+import { discoverAndPersistModels } from "./discover-and-persist-models.js";
+import { ModelDiscoveryService } from "./model-discovery.js";
 import type { AiRepository } from "./repository.js";
 
 /**
@@ -101,10 +103,16 @@ export interface AiAutoRegisterPort {
 export class AiAutoRegisterService implements AiAutoRegisterPort {
   private readonly repository: AiRepository;
   private readonly cipher: AiSecretCipher;
+  private readonly modelDiscovery: ModelDiscoveryService;
 
-  constructor(deps: { readonly repository: AiRepository; readonly cipher: AiSecretCipher }) {
+  constructor(deps: {
+    readonly repository: AiRepository;
+    readonly cipher: AiSecretCipher;
+    readonly modelDiscovery?: ModelDiscoveryService;
+  }) {
     this.repository = deps.repository;
     this.cipher = deps.cipher;
+    this.modelDiscovery = deps.modelDiscovery ?? new ModelDiscoveryService();
   }
 
   async ensureDefaultChatModel(
@@ -114,11 +122,10 @@ export class AiAutoRegisterService implements AiAutoRegisterPort {
     const def = DEFAULT_CHAT_MODELS[providerKind];
     if (!def) return; // no catalog default for this provider — nothing to register.
 
-    // Gate: a chat model already exists for this kind (active OR user-disabled) → leave it untouched.
-    if (await this.repository.hasChatModelForProviderKind(scopedDb, providerKind)) return;
-
-    // Reuse an active config of this kind, else create a cli (no-credential) one.
+    // #982/#869 D2: sentinel creation stays idempotent, but its gate must not skip static discovery.
+    const hasChatModel = await this.repository.hasChatModelForProviderKind(scopedDb, providerKind);
     const existing = await this.repository.findReusableProviderByKind(scopedDb, providerKind);
+    if (hasChatModel && !existing) return;
     const providerConfig =
       existing ??
       (await this.repository.createProvider(scopedDb, {
@@ -131,13 +138,44 @@ export class AiAutoRegisterService implements AiAutoRegisterPort {
         encryptedCredential: this.cipher.encryptJson({ cli: true })
       }));
 
-    await this.repository.createModel(scopedDb, {
-      providerConfigId: providerConfig.id,
-      providerModelId: def.providerModelId,
-      displayName: def.displayName,
-      capabilities: def.capabilities,
-      status: "active",
-      tier: def.tier
-    });
+    if (!hasChatModel) {
+      await this.repository.createModel(scopedDb, {
+        providerConfigId: providerConfig.id,
+        providerModelId: def.providerModelId,
+        displayName: def.displayName,
+        capabilities: def.capabilities,
+        status: "active",
+        tier: def.tier
+      });
+    }
+
+    // #982/#869 D2/D6: login-ready is the founder's real connect path. Replace CLI concrete rows
+    // with current active statics every time; discovery failure never invalidates login readiness.
+    try {
+      await discoverAndPersistModels(
+        scopedDb,
+        {
+          actorUserId: providerConfig.owner_user_id,
+          providerId: providerConfig.id,
+          providerKind: providerConfig.provider_kind,
+          authMethod: providerConfig.auth_method,
+          baseUrl: providerConfig.base_url,
+          credential: { cli: true }
+        },
+        { repository: this.repository, modelDiscovery: this.modelDiscovery }
+      );
+    } catch {
+      // Best-effort by contract: sentinel still provides chat if discovery ever fails.
+    }
+
+    // #982/#869 D5: CLI-login-first instances need the same sole-provider default as admin create.
+    const providers = await this.repository.listProviders(scopedDb);
+    if (
+      providerConfig.status === "active" &&
+      providers.filter((provider) => provider.status === "active").length === 1 &&
+      !providers.some((provider) => provider.is_instance_default)
+    ) {
+      await this.repository.setInstanceDefaultProvider(scopedDb, providerConfig.id);
+    }
   }
 }

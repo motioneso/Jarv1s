@@ -85,6 +85,7 @@ import { registerAiVoiceEndpointRoutes } from "./voice-endpoint-routes.js";
 import { registerActionPolicyRoutes } from "./action-policy-routes.js";
 import { registerProviderVisibilityRoutes } from "./provider-visibility-routes.js";
 import { createAiSecretCipher, type AiSecretCipher } from "./crypto.js";
+import { discoverAndPersistModels } from "./discover-and-persist-models.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
@@ -143,7 +144,7 @@ export function registerAiRoutes(
   const secretCipher = dependencies.secretCipher ?? createAiSecretCipher();
   const modelDiscovery = dependencies.modelDiscovery ?? new ModelDiscoveryService();
 
-  registerProviderVisibilityRoutes(server, dependencies, repository);
+  registerProviderVisibilityRoutes(server, dependencies, repository, secretCipher, modelDiscovery);
 
   server.post(
     "/api/ai/providers",
@@ -171,40 +172,22 @@ export function registerAiRoutes(
               encryptedCredential
             });
 
-            // #870 Slice 1 (Step 4): auto-discover models on connect so setup needs zero manual model
-            // entry. Best-effort — a discovery failure must NEVER block or roll back provider creation
-            // (the admin can still add models by hand).
-            //
-            // We insert ONLY models we can stand behind:
-            //   - CLI providers: the curated static list is the intended seed (H5) — inserted
-            //     `disabled` (pin-only), so it's kept even though it's a fallback.
-            //   - API providers: insert only LIVE-discovered models (`!fromFallback`), inserted
-            //     `active`. We deliberately DO NOT persist the static fallback for an API provider —
-            //     a fallback means we never reached the provider's /models endpoint (bad/expired key,
-            //     network, non-anthropic kind), so fabricating "active" models from a guess would
-            //     wrongly present a mis-configured provider as ready. The admin can Discover/add by
-            //     hand. (This also keeps provider-create deterministic and network-independent: the
-            //     RESULT is identical whether the probe 401s or the host is offline.)
+            // #982/#869 D1/D2/D6: every connect-shaped path uses one reconciler. CLI statics are
+            // active and replace stale/manual concrete rows; API fallback guesses remain unpersisted.
+            // Best-effort keeps provider creation usable during network/provider outages.
             try {
-              const discovered = await modelDiscovery.discoverModels(
-                `${accessContext.actorUserId}:${created.id}`,
+              await discoverAndPersistModels(
+                scopedDb,
                 {
-                  providerKind: body.providerKind,
-                  authMethod,
-                  baseUrl: body.baseUrl ?? null,
+                  actorUserId: accessContext.actorUserId,
+                  providerId: created.id,
+                  providerKind: created.provider_kind,
+                  authMethod: created.auth_method,
+                  baseUrl: created.base_url,
                   credential: authMethod === "cli" ? { cli: true } : (body.credentialPayload ?? {})
-                }
+                },
+                { repository, modelDiscovery }
               );
-              const isCli = authMethod === "cli";
-              const shouldPersist = isCli || !discovered.fromFallback;
-              if (shouldPersist) {
-                const insertStatus = isCli ? "disabled" : "active";
-                await repository.upsertDiscoveredModels(
-                  scopedDb,
-                  created.id,
-                  discovered.models.map((model) => ({ ...model, status: insertStatus }))
-                );
-              }
             } catch {
               // Soft-fail: leave the provider with no auto-discovered models.
             }
@@ -241,14 +224,20 @@ export function registerAiRoutes(
         const accessContext = await dependencies.resolveAccessContext(request);
         const body = parseUpdateProviderBody(request.body);
         const encryptedCredential =
-          body.credentialPayload === undefined
-            ? undefined
-            : secretCipher.encryptJson(body.credentialPayload);
+          body.authMethod === "cli"
+            ? secretCipher.encryptJson({ cli: true })
+            : body.credentialPayload === undefined
+              ? undefined
+              : secretCipher.encryptJson(body.credentialPayload);
+        const reconnectChanged =
+          body.credentialPayload !== undefined ||
+          body.baseUrl !== undefined ||
+          body.authMethod !== undefined;
         const provider = await dependencies.dataContext.withDataContext(
           accessContext,
           async (scopedDb) => {
             await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
-            return repository.updateProvider(scopedDb, request.params.id, {
+            const updated = await repository.updateProvider(scopedDb, request.params.id, {
               providerKind: body.providerKind,
               displayName: body.displayName,
               baseUrl: body.baseUrl,
@@ -257,6 +246,36 @@ export function registerAiRoutes(
               executionMode: body.executionMode,
               encryptedCredential
             });
+            if (!updated || !reconnectChanged) return updated;
+
+            // #982/#869 D2: saving credential/auth/base-url is a connect event. Invalidate before
+            // probing so a corrected key cannot reuse the failed credential's cached result.
+            modelDiscovery.invalidate(accessContext.actorUserId, updated.id);
+            try {
+              const sealed = await repository.selectProviderWithCredential(scopedDb, updated.id);
+              if (sealed) {
+                const credential =
+                  updated.auth_method === "cli"
+                    ? { cli: true }
+                    : (body.credentialPayload ??
+                      secretCipher.decryptJson(sealed.encrypted_credential));
+                await discoverAndPersistModels(
+                  scopedDb,
+                  {
+                    actorUserId: accessContext.actorUserId,
+                    providerId: updated.id,
+                    providerKind: updated.provider_kind,
+                    authMethod: updated.auth_method,
+                    baseUrl: updated.base_url,
+                    credential
+                  },
+                  { repository, modelDiscovery }
+                );
+              }
+            } catch {
+              // #982: discovery/decrypt failures stay internal and never reject a valid settings save.
+            }
+            return updated;
           }
         );
 
@@ -264,7 +283,9 @@ export function registerAiRoutes(
           return reply.code(404).send({ error: "AI provider config not found" });
         }
 
-        modelDiscovery.invalidate(accessContext.actorUserId, request.params.id);
+        if (!reconnectChanged) {
+          modelDiscovery.invalidate(accessContext.actorUserId, request.params.id);
+        }
         return { provider: await serializeProvider(provider) };
       } catch (error) {
         return handleRouteError(error, reply);

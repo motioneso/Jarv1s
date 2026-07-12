@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import type { DataContextDb } from "@jarv1s/db";
 
 import {
   getAiSummaryRouteSchema,
@@ -6,6 +7,9 @@ import {
   listAiProviderConfigsRouteSchema
 } from "@jarv1s/shared";
 
+import type { AiSecretCipher } from "./crypto.js";
+import { discoverAndPersistModels } from "./discover-and-persist-models.js";
+import type { ModelDiscoveryService } from "./model-discovery.js";
 import type { AiRepository } from "./repository.js";
 import type { AiRoutesDependencies } from "./routes.js";
 import {
@@ -18,7 +22,9 @@ import {
 export function registerProviderVisibilityRoutes(
   server: FastifyInstance,
   dependencies: AiRoutesDependencies,
-  repository: AiRepository
+  repository: AiRepository,
+  secretCipher: AiSecretCipher,
+  modelDiscovery: ModelDiscoveryService
 ): void {
   server.get("/api/ai/summary", { schema: getAiSummaryRouteSchema }, async (request, reply) => {
     try {
@@ -52,6 +58,15 @@ export function registerProviderVisibilityRoutes(
           accessContext,
           async (scopedDb) => {
             await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            const providers = await repository.listProviders(scopedDb);
+            await selfHealEmptyProviders(
+              scopedDb,
+              accessContext.actorUserId,
+              providers,
+              repository,
+              secretCipher,
+              modelDiscovery
+            );
             return repository.listProviders(scopedDb);
           }
         );
@@ -73,6 +88,15 @@ export function registerProviderVisibilityRoutes(
           accessContext,
           async (scopedDb) => {
             await assertInstanceAdmin(repository, scopedDb, accessContext.actorUserId);
+            const providers = await repository.listProviders(scopedDb);
+            await selfHealEmptyProviders(
+              scopedDb,
+              accessContext.actorUserId,
+              providers,
+              repository,
+              secretCipher,
+              modelDiscovery
+            );
             return repository.listModels(scopedDb);
           }
         );
@@ -83,4 +107,41 @@ export function registerProviderVisibilityRoutes(
       }
     }
   );
+}
+
+/** #982/#869 D2: settings reads repair active providers whose connect-time probe produced no rows. */
+async function selfHealEmptyProviders(
+  scopedDb: DataContextDb,
+  actorUserId: string,
+  providers: Awaited<ReturnType<AiRepository["listProviders"]>>,
+  repository: AiRepository,
+  secretCipher: AiSecretCipher,
+  modelDiscovery: ModelDiscoveryService
+): Promise<void> {
+  const models = await repository.listModels(scopedDb);
+  const configured = new Set(models.map((model) => model.provider_config_id));
+  for (const provider of providers) {
+    if (provider.status !== "active" || configured.has(provider.id)) continue;
+    try {
+      const sealed = await repository.selectProviderWithCredential(scopedDb, provider.id);
+      if (!sealed) continue;
+      await discoverAndPersistModels(
+        scopedDb,
+        {
+          actorUserId,
+          providerId: provider.id,
+          providerKind: provider.provider_kind,
+          authMethod: provider.auth_method,
+          baseUrl: provider.base_url,
+          credential:
+            provider.auth_method === "cli"
+              ? { cli: true }
+              : secretCipher.decryptJson(sealed.encrypted_credential)
+        },
+        { repository, modelDiscovery }
+      );
+    } catch {
+      // #982: list endpoints are read-shaped UX; discovery failure must never make settings fail.
+    }
+  }
 }

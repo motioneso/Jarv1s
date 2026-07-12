@@ -277,7 +277,9 @@ describe("MVP foundation schema catalog", () => {
         // revalidation worker can persist validation outcomes; RLS keeps writes owner-scoped.
         { version: "0161", name: "0161_news_revalidation.sql" },
         // #964 module distribution — staged-download intent, purge marks, last install error.
-        { version: "0162", name: "0162_external_module_distribution.sql" }
+        { version: "0162", name: "0162_external_module_distribution.sql" },
+        // #982/#869 D6 — admin-only hard reconcile of CLI concrete model rows.
+        { version: "0163", name: "0163_ai_cli_model_reconcile_delete.sql" }
       ]);
     } finally {
       await client.end();
