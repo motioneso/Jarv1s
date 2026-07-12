@@ -4818,3 +4818,32 @@ WAIVED the #964 adversarial-council gate and authorized build directly.
   news-s4 / mod-dist-964 / flake-944 HEADs + pane death. All 3 panes status=working.
 - `merges_since_relay=1`. No News S4 merge until round-2 named-unanimous (Opus+Codex+Gemini, no
   fallback); #964 security council at its PR; #944 auto-merge after green.
+
+---
+
+## 2026-07-12 — News S4 MERGED + epic #954 CLOSED; #964 relay chain
+
+**News Slice 4 (#975) MERGED** — PR #977 squash `0b94c36b`. Security-tier named-unanimous
+council COMPLETE: Opus (APPROVE/GREEN, posted #issuecomment-4951581948), Codex/OpenAI (APPROVE,
+grounded `49ba03a3`), Gemini 3.1 Pro (APPROVE) + CI green (Verify-foundation 17m33s pass, run
+29196190002). No fallback used. Migration `0161_news_revalidation`. Opus flagged one non-blocking
+note (confirmSource echoes owner-approved external label without envelope — rendered literal, no
+Hard-Invariant risk). #975 closed; **epic #954 CLOSED** (all 4 slices S1 `fadef5d3` / S2 `aa7216a6`
+/ S3 `41a47486` / S4 `0b94c36b` merged). news-s4 pane `pHH` reaped + worktree removed.
+
+**Relay accounting:** security-tier merge = relay trigger. Per Ben standing directive (auto-compact
+in place, no successor coordinator pane) → manifest flushed + continue. `merges_since_relay` reset.
+
+**#964 module-distribution — live.** Relay chain `pHJ`→`pHM`(v2)→`pHN`(v3), all **Sonnet**,
+agents tab `w1:t1P`. Task1+2 (`b4af4976`,`02dc9f5c`), Task3 committed `a56a644b`. Migration
+renamed **0161→0162** `external_module_distribution` (News S4 owned 0161; global landing order).
+Continuation doc `bda21569` (docs/superpowers/handoffs/2026-07-12-mod-dist-964-relay-2.md).
+**Decision — ownsTables type fix APPROVED:** Task1's `ownsTables: boolean` was the sole outlier vs
+Task4/6/9 consumers + the "Owns database tables: app.foo" UI, all `readonly string[]`. Aligned
+Task1 to the plan's real intent (internal plan inconsistency, NOT a spec deviation); table names
+are module-declared structural metadata, not secrets. pHN on Task4 (publish script + rolling-release
+workflow). Security-tier council at PR time.
+
+**#944 flake fix** — pane `pHK`, Sonnet, building. Routine tier → auto-merge after green.
+
+**Monitor:** `b6hbwj9mw` stopped; `b1do5sz9w` armed (mod-dist-964 + flake-944 only).
