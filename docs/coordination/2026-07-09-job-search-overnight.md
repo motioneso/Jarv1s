@@ -4571,3 +4571,11 @@ Opus+Codex+Gemini, NO fallback.
 - **Monitor** re-pointed to `w1:pHA` (persistent). **`merges_since_relay` = 0.**
 - Approved conditions unchanged: least-priv column-grants + owner-scoped topics-worker UPDATE RLS (no BYPASSRLS), ONE summary notification, Task 9 Settings wiring in-scope, 6 chat tools. Deviation logged: pg-boss schedule key = bare owner id (colons rejected), payload keeps colon-form idempotencyKey — benign, council reviews at PR.
 - Merge gate: News named-unanimous **Opus + Codex + Gemini, NO fallback** — a refusing/unreachable named provider → HOLD for Ben. JS-09 #976 stays **PARKED** (Ben day-one manual acceptance).
+
+### Relay #9 (News S4) — 2026-07-12
+
+- **Successor driving:** pane `w1:pHB`, tab `w1:t1P`, label `News S4 relay9`, session `25434003-1503…`, **Fable 5** confirmed on status line (`✍️ 36% │ news-s4`), high effort.
+- **Reaped:** spent predecessor pane `w1:pHA`, session `6ad8d89c-22a7-4de7-b5a7-c26d117ed3cb` (session-verified, `close: ok`). Relay7/relay8 panes gone.
+- **Progress:** Task 7 (news.previewSource/confirmSource chat preview/confirm tools) RED committed `afe773ba`; successor resumes Task 7 GREEN. Continuation doc for relay9 committed. Tasks 1–6 GREEN unchanged.
+- **Monitor** re-pointed to `w1:pHB` (task `b4cvgn46j`, persistent). Old Monitor `bwdys1czo` stopped. **`merges_since_relay` = 0.**
+- Gate/conditions unchanged: News named-unanimous Opus+Codex+Gemini no-fallback; JS-09 #976 PARKED.
