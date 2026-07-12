@@ -3714,3 +3714,13 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   Coordinator now owns JS-07 relay respawns: on any relay, kill ALL self-spawned successors, respawn
   ONE coordinator-controlled `--model fable` pane from the committed relay handoff. pGG's bootstrap
   carries the same instruction for its own next relay.
+
+### 2026-07-11 — JS-07 relay #4 (CLEAN Fable→Fable, bootstrap fix held)
+- pGG relayed at 70% mid Step 4 (red test written, uncommitted by design). Step 3 gate committed
+  `abd84bd6`, relay doc `f0315b5a`. Successor spawned CORRECTLY on **Fable** this time (bootstrap
+  "successor MUST be --model fable" held — no Sonnet leak, unlike relay #3).
+- **Sole JS-07 agent = w1:pGJ** (Fable 5, session `052fee8e-b68b-4630-a2c2-41f90659032d`), label
+  "JS-07 build r4", agents tab w1:t1K, branch feat/js-07-freshness-dedup-fit, mid Step 4. Old pane
+  pGG (215d6efc) reaped after verifying committed handoff + red-phase test preserved on disk
+  (tests/unit/external-module-job-search-kv-evaluations.test.ts, untracked, for successor to green).
+- Progress: Steps 0-3 committed; Step 4 in TDD red phase. Zero merges since last relay.
