@@ -4,19 +4,28 @@ import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult, ToolSummarize } from "@jarv1s/module-sdk";
 
 import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "./discovery/ports.js";
+import { validateTopic } from "./discovery/policy-validation.js";
 import { resolveSourceInput, type SourceResolutionResult } from "./discovery/source-resolution.js";
+import { normalizePublisherDomain } from "./personalization-domain.js";
 import {
+  NewsDuplicateSourceError,
+  NewsPersonalizationLimitError
+} from "./personalization-repository.js";
+import {
+  cleanTopic,
   confirmSourceFromPreview,
+  triggerNewsRefresh,
   type NewsPersonalizationStore,
   type NewsSourcePreviewStore
 } from "./personalization-routes.js";
 
 /**
- * Assistant-chat surface for custom news sources (#975 Slice 4). Mirrors the
- * REST preview/confirm pair (`personalization-routes.ts`) over the SAME shared
+ * Assistant-chat surface for news personalization (#975 Slice 4). Mirrors the
+ * REST routes (`personalization-routes.ts`) over the SAME repository and shared
  * preview store, so a source previewed in chat can be confirmed over REST and
- * vice versa. Only preview + confirm exist as chat tools — source edit and
- * exclusion removal stay REST-only per the approved plan.
+ * vice versa. Six tools total: preview/confirm (Task 7) plus removeSource,
+ * addTopic, removeTopic, addExclusion (Task 8) — source edit and exclusion
+ * removal stay REST-only per the approved plan.
  *
  * Deferred-deps seam mirrors `briefing-tool.ts`: the manifest is static
  * import-time data, but the discovery ports/boss/repository only exist once
@@ -171,4 +180,171 @@ export const summarizeNewsConfirmSource: ToolSummarize = (input) => {
   const label = typeof body.label === "string" ? body.label : "custom source";
   const domain = typeof body.domain === "string" ? body.domain : "unknown domain";
   return `Add news source "${label}" (${domain})`;
+};
+
+// ---------------------------------------------------------------------------
+// #975 Task 8 — the remaining personalization write tools. Each mirrors its
+// REST route's write path exactly (same repository calls, same refresh/prune
+// side effects) and maps benign failures to `{data:{error}}` the model can
+// relay. Domain errors the REST layer turns into 400/409 (limit, duplicate)
+// come through as their existing human-readable messages — REST parity.
+// ---------------------------------------------------------------------------
+
+function stringField(input: unknown, key: string): string {
+  const value = (input as Record<string, unknown>)[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Limit/duplicate are benign domain outcomes, not violations — relay as data. */
+function describeBenignWriteError(error: unknown): string | null {
+  if (error instanceof NewsPersonalizationLimitError) return error.message;
+  if (error instanceof NewsDuplicateSourceError) return error.message;
+  return null;
+}
+
+/**
+ * `news.removeSource`: mirrors DELETE /api/news/sources/:id. The list lookup
+ * doubles as the ownership check — RLS hides other owners' rows, so a
+ * cross-owner id is indistinguishable from a nonexistent one (friendly
+ * not-found, no effect) and garbage ids never reach a uuid cast.
+ */
+export const newsRemoveSourceExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const d = requireDeps();
+  const sourceId = stringField(input, "sourceId");
+  if (!sourceId) return { data: { error: "Provide the id of the news source to remove." } };
+  const source = (await d.repository.listCustomSources(scopedDb)).find(
+    (item) => item.id === sourceId
+  );
+  if (!source) return { data: { error: "That news source was not found." } };
+  const removed = await d.repository.deleteCustomSource(scopedDb, sourceId);
+  if (removed) {
+    await triggerNewsRefresh(scopedDb, d.repository, d.boss, ctx.actorUserId, () =>
+      d.repository.pruneSnapshotDomain(scopedDb, source.canonicalDomain)
+    );
+  }
+  return { data: { removed } };
+};
+
+export const summarizeNewsRemoveSource: ToolSummarize = (input) => {
+  const sourceId = stringField(input, "sourceId") || "unknown id";
+  return `Remove followed news source ${sourceId}`;
+};
+
+/**
+ * `news.addTopic`: mirrors POST /api/news/topics — same web-search gate,
+ * policy validation, and fingerprint persistence. Policy/availability
+ * outcomes are benign data errors here (the REST route's 503/422).
+ */
+export const newsAddTopicExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const d = requireDeps();
+  const label = stringField(input, "label");
+  if (!label) return { data: { error: "Provide a topic label to follow." } };
+  const guidanceRaw = (input as { guidance?: unknown }).guidance;
+  const topicInput = cleanTopic({
+    label,
+    guidance: typeof guidanceRaw === "string" ? guidanceRaw : undefined
+  });
+  if (!(await d.availability.hasWebSearch(scopedDb))) {
+    return { data: { error: "Topic discovery requires a configured web search provider." } };
+  }
+  const policy = await validateTopic(scopedDb, { ai: d.discovery.ai }, topicInput);
+  if (policy.verdict === "unavailable") {
+    return { data: { error: "Topic validation is currently unavailable — try again later." } };
+  }
+  if (policy.verdict === "rejected") {
+    return { data: { error: "That topic is not allowed by content policy." } };
+  }
+  try {
+    const topic = await d.repository.createCustomTopic(scopedDb, {
+      ...topicInput,
+      validationFingerprint: policy.fingerprint
+    });
+    await triggerNewsRefresh(scopedDb, d.repository, d.boss, ctx.actorUserId);
+    // Echo display fields only — the validation fingerprint stays server-side.
+    return { data: { topic: { id: topic.id, label: topic.label } } };
+  } catch (error) {
+    const benign = describeBenignWriteError(error);
+    if (benign) return { data: { error: benign } };
+    throw error;
+  }
+};
+
+export const summarizeNewsAddTopic: ToolSummarize = (input) => {
+  const label = stringField(input, "label") || "custom topic";
+  return `Follow news topic "${label}"`;
+};
+
+/** `news.removeTopic`: mirrors DELETE /api/news/topics/:id (same RLS-as-not-found shape as removeSource). */
+export const newsRemoveTopicExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const d = requireDeps();
+  const topicId = stringField(input, "topicId");
+  if (!topicId) return { data: { error: "Provide the id of the news topic to remove." } };
+  const topic = (await d.repository.listCustomTopics(scopedDb)).find((item) => item.id === topicId);
+  if (!topic) return { data: { error: "That news topic was not found." } };
+  const removed = await d.repository.deleteCustomTopic(scopedDb, topicId);
+  if (removed) {
+    await triggerNewsRefresh(scopedDb, d.repository, d.boss, ctx.actorUserId);
+  }
+  return { data: { removed } };
+};
+
+export const summarizeNewsRemoveTopic: ToolSummarize = (input) => {
+  const topicId = stringField(input, "topicId") || "unknown id";
+  return `Remove followed news topic ${topicId}`;
+};
+
+/**
+ * `news.addExclusion`: mirrors POST /api/news/source-exclusions — the same
+ * reject-by-default domain normalization, then create + refresh with the
+ * snapshot prune. Duplicates are idempotent in the repository (returns the
+ * existing row), so only the limit error needs benign mapping.
+ */
+export const newsAddExclusionExecute: ToolExecute = async (
+  scopedDb,
+  input,
+  ctx
+): Promise<ToolResult> => {
+  assertDataContextDb(scopedDb);
+  const d = requireDeps();
+  const raw = stringField(input, "domain");
+  if (!raw) return { data: { error: "Provide a publisher domain to exclude." } };
+  const normalized = normalizePublisherDomain(raw);
+  if (!normalized.ok) {
+    return {
+      data: {
+        error: `That doesn't look like a valid publisher domain (${normalized.reason.replace(/_/g, " ")}).`
+      }
+    };
+  }
+  try {
+    const exclusion = await d.repository.createExclusion(scopedDb, normalized.domain);
+    await triggerNewsRefresh(scopedDb, d.repository, d.boss, ctx.actorUserId, () =>
+      d.repository.pruneSnapshotDomain(scopedDb, normalized.domain)
+    );
+    return { data: { exclusion: { id: exclusion.id, domain: exclusion.canonicalDomain } } };
+  } catch (error) {
+    const benign = describeBenignWriteError(error);
+    if (benign) return { data: { error: benign } };
+    throw error;
+  }
+};
+
+export const summarizeNewsAddExclusion: ToolSummarize = (input) => {
+  const domain = stringField(input, "domain") || "unknown domain";
+  return `Exclude news publisher "${domain}"`;
 };

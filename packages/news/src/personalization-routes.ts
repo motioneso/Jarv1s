@@ -139,7 +139,10 @@ function toSnapshotMeta(record: NewsSnapshotRecord | null): NewsSnapshotMetaDto 
   };
 }
 
-function cleanTopic(input: { label: string; guidance?: string }): {
+// Exported for the news.addTopic chat tool (#975 Task 8) — the single trim/normalize
+// path for topic input, so REST and chat write byte-identical rows. Chat pre-checks
+// the empty label itself (benign tool error), so the HttpError never fires there.
+export function cleanTopic(input: { label: string; guidance?: string }): {
   label: string;
   guidance: string | null;
 } {

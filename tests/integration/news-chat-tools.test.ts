@@ -10,6 +10,9 @@
 // confirmationId replay dies as "expired" (preview store is owner-checked); and
 // no tool output ever leaks provider/model fingerprint material.
 //
+// Task 8 (#975) extends the same harness with the four remaining write tools
+// (removeSource/addTopic/removeTopic/addExclusion) in a nested describe below.
+//
 // Harness skeleton: tests/integration/js08-decide-confirm-audit.test.ts.
 // Discovery/availability stubs: tests/integration/news-personalization-routes.test.ts.
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
@@ -28,7 +31,10 @@ import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/
 import { configureNewsChatTools } from "../../packages/news/src/chat-tools.js";
 import { createPreviewStore } from "../../packages/news/src/discovery/preview-store.js";
 import { newsModuleManifest } from "../../packages/news/src/manifest.js";
-import { NewsPersonalizationRepository } from "../../packages/news/src/personalization-repository.js";
+import {
+  NEWS_MAX_CUSTOM_TOPICS,
+  NewsPersonalizationRepository
+} from "../../packages/news/src/personalization-repository.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -162,14 +168,17 @@ describe("news chat tools — previewSource/confirmSource via assistant gateway 
   async function waitForAudit(where: {
     toolName: string;
     outcome: string;
+    ownerUserId?: string;
   }): Promise<Record<string, unknown>> {
-    // Audit writes are fire-and-forget — poll for the row.
+    // Audit writes are fire-and-forget — poll for the row. The optional owner
+    // filter disambiguates when two actors exercised the same tool in one test.
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const audit = await bootstrap.query(
         `SELECT owner_user_id, approval_mode, outcome, tool_name
          FROM app.jarvis_action_audit_log
-         WHERE tool_name = $1 AND outcome = $2`,
-        [where.toolName, where.outcome]
+         WHERE tool_name = $1 AND outcome = $2
+           AND ($3::uuid IS NULL OR owner_user_id = $3::uuid)`,
+        [where.toolName, where.outcome, where.ownerUserId ?? null]
       );
       if (audit.rowCount) return audit.rows[0] as Record<string, unknown>;
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -292,4 +301,197 @@ describe("news chat tools — previewSource/confirmSource via assistant gateway 
     expect(JSON.stringify(result)).toContain("expired");
     expect(await sourceRowCount()).toBe(before);
   }, 30_000);
+
+  // #975 Task 8 — the four remaining write tools. All confirm-gated (write risk,
+  // no actionFamilyId), all mirroring their REST route's write path exactly.
+  describe("topic/exclusion/removal write tools (#975 Task 8)", () => {
+    const repository = new NewsPersonalizationRepository();
+
+    async function topicRowCount(ownerUserId: string): Promise<number> {
+      const rows = await bootstrap.query(
+        `SELECT count(*)::int AS n FROM app.news_custom_topics WHERE owner_user_id = $1`,
+        [ownerUserId]
+      );
+      return rows.rows[0].n as number;
+    }
+
+    async function exclusionRows(ownerUserId: string): Promise<Array<{ domain: string }>> {
+      const rows = await bootstrap.query(
+        `SELECT canonical_domain AS domain FROM app.news_source_exclusions WHERE owner_user_id = $1`,
+        [ownerUserId]
+      );
+      return rows.rows as Array<{ domain: string }>;
+    }
+
+    async function ownerSourceRows(ownerUserId: string): Promise<Array<{ id: string }>> {
+      const rows = await bootstrap.query(
+        `SELECT id FROM app.news_custom_sources WHERE owner_user_id = $1`,
+        [ownerUserId]
+      );
+      return rows.rows as Array<{ id: string }>;
+    }
+
+    it("addTopic is confirm-gated: no row while pending, then row + confirmed audit", async () => {
+      const { gateway, emitted, mint } = makeGateway();
+      const token = mint(ids.userA, "news-chat-add-topic");
+      const before = await topicRowCount(ids.userA);
+
+      const pending = gateway.callTool(token, "news.addTopic", {
+        label: "Local climate policy",
+        guidance: "prefer municipal coverage"
+      });
+      const request = await waitForActionRequest(emitted, 0);
+      expect(request.toolName).toBe("news.addTopic");
+      // Confirmation card text comes from tool INPUT only (execute hasn't run).
+      expect(request.summary).toContain("Local climate policy");
+      expect(await topicRowCount(ids.userA)).toBe(before);
+
+      await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+      const result = await pending;
+      expect(result).toMatchObject({ ok: true });
+      expect(JSON.stringify(result)).not.toContain("fingerprint");
+      const payload = parseToolText(result);
+      expect(payload.error).toBeUndefined();
+      expect(payload.topic).toMatchObject({ label: "Local climate policy" });
+
+      expect(await topicRowCount(ids.userA)).toBe(before + 1);
+      expect(await waitForAudit({ toolName: "news.addTopic", outcome: "success" })).toMatchObject({
+        owner_user_id: ids.userA,
+        approval_mode: "confirmed"
+      });
+    }, 30_000);
+
+    it("addTopic at the per-user cap returns a friendly error and writes nothing", async () => {
+      const runner = new DataContextRunner(appDb);
+      await runner.withDataContext(
+        { actorUserId: ids.userB, requestId: "seed-topic-limit" },
+        async (db) => {
+          const existing = await topicRowCount(ids.userB);
+          for (let i = existing; i < NEWS_MAX_CUSTOM_TOPICS; i += 1) {
+            await repository.createCustomTopic(db, {
+              label: `Seeded topic ${i}`,
+              guidance: null,
+              validationFingerprint: "opaque-test-fingerprint"
+            });
+          }
+        }
+      );
+
+      const { gateway, emitted, mint } = makeGateway();
+      const token = mint(ids.userB, "news-chat-topic-limit");
+      const pending = gateway.callTool(token, "news.addTopic", { label: "One too many" });
+      const request = await waitForActionRequest(emitted, 0);
+      await gateway.resolveActionRequest(ids.userB, request.actionRequestId, "confirmed");
+      const result = await pending;
+
+      // Benign failure: friendly data error, not a sanitized tool failure.
+      expect(result).toMatchObject({ ok: true });
+      expect(JSON.stringify(result)).toMatch(/limit|at most/i);
+      expect(JSON.stringify(result)).not.toContain("Tool news.addTopic failed");
+      expect(await topicRowCount(ids.userB)).toBe(NEWS_MAX_CUSTOM_TOPICS);
+    }, 30_000);
+
+    it("removeTopic is confirm-gated and deletes the topic only after confirm", async () => {
+      const runner = new DataContextRunner(appDb);
+      const seeded = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "seed-remove-topic" },
+        (db) =>
+          repository.createCustomTopic(db, {
+            label: "Doomed topic",
+            guidance: null,
+            validationFingerprint: "opaque-test-fingerprint"
+          })
+      );
+      const before = await topicRowCount(ids.userA);
+
+      const { gateway, emitted, mint } = makeGateway();
+      const token = mint(ids.userA, "news-chat-remove-topic");
+      const pending = gateway.callTool(token, "news.removeTopic", { topicId: seeded.id });
+      const request = await waitForActionRequest(emitted, 0);
+      expect(await topicRowCount(ids.userA)).toBe(before);
+
+      await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+      const result = await pending;
+      expect(result).toMatchObject({ ok: true });
+      expect(parseToolText(result)).toMatchObject({ removed: true });
+      expect(await topicRowCount(ids.userA)).toBe(before - 1);
+      expect(
+        await waitForAudit({ toolName: "news.removeTopic", outcome: "success" })
+      ).toMatchObject({ owner_user_id: ids.userA, approval_mode: "confirmed" });
+    }, 30_000);
+
+    it("addExclusion is confirm-gated and stores the normalized domain", async () => {
+      const { gateway, emitted, mint } = makeGateway();
+      const token = mint(ids.userA, "news-chat-add-exclusion");
+
+      // Mixed-case input proves the tool routes through normalizePublisherDomain.
+      const pending = gateway.callTool(token, "news.addExclusion", {
+        domain: "Blocked.Example.Com"
+      });
+      const request = await waitForActionRequest(emitted, 0);
+      expect(await exclusionRows(ids.userA)).toHaveLength(0);
+
+      await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+      const result = await pending;
+      expect(result).toMatchObject({ ok: true });
+      expect(parseToolText(result)).toMatchObject({
+        exclusion: { domain: "blocked.example.com" }
+      });
+      expect(await exclusionRows(ids.userA)).toEqual([{ domain: "blocked.example.com" }]);
+      expect(
+        await waitForAudit({ toolName: "news.addExclusion", outcome: "success" })
+      ).toMatchObject({ owner_user_id: ids.userA, approval_mode: "confirmed" });
+    }, 30_000);
+
+    it("removeSource treats a cross-owner id as not-found and removes own sources after confirm", async () => {
+      // B follows example.com through the existing chat preview/confirm flow.
+      const { gateway, emitted, mint } = makeGateway();
+      const tokenB = mint(ids.userB, "news-chat-b-source");
+      const preview = await previewExampleFeed(gateway, tokenB);
+      const candidate = preview.candidates[0]!;
+      let mark = emitted.length;
+      const confirmPending = gateway.callTool(tokenB, "news.confirmSource", {
+        confirmationId: preview.confirmationId,
+        candidateId: candidate.candidateId,
+        label: candidate.label,
+        domain: candidate.domain
+      });
+      const confirmRequest = await waitForActionRequest(emitted, mark);
+      await gateway.resolveActionRequest(ids.userB, confirmRequest.actionRequestId, "confirmed");
+      await confirmPending;
+      const bSources = await ownerSourceRows(ids.userB);
+      expect(bSources).toHaveLength(1);
+      const targetId = bSources[0]!.id;
+
+      // Cross-owner attempt: A confirms removal of B's source id — RLS makes it
+      // invisible, so the tool reports not-found and B's row is untouched.
+      const tokenA = mint(ids.userA, "news-chat-a-remove-foreign");
+      mark = emitted.length;
+      const stealPending = gateway.callTool(tokenA, "news.removeSource", { sourceId: targetId });
+      const stealRequest = await waitForActionRequest(emitted, mark);
+      await gateway.resolveActionRequest(ids.userA, stealRequest.actionRequestId, "confirmed");
+      const stealResult = await stealPending;
+      expect(stealResult).toMatchObject({ ok: true });
+      expect(JSON.stringify(stealResult)).toMatch(/not found/i);
+      expect(await ownerSourceRows(ids.userB)).toHaveLength(1);
+
+      // Positive control: the owner removes it, confirm-gated end to end.
+      mark = emitted.length;
+      const removePending = gateway.callTool(tokenB, "news.removeSource", { sourceId: targetId });
+      const removeRequest = await waitForActionRequest(emitted, mark);
+      expect(await ownerSourceRows(ids.userB)).toHaveLength(1);
+      await gateway.resolveActionRequest(ids.userB, removeRequest.actionRequestId, "confirmed");
+      const removeResult = await removePending;
+      expect(removeResult).toMatchObject({ ok: true });
+      expect(parseToolText(removeResult)).toMatchObject({ removed: true });
+      expect(await ownerSourceRows(ids.userB)).toHaveLength(0);
+      expect(
+        await waitForAudit({
+          toolName: "news.removeSource",
+          outcome: "success",
+          ownerUserId: ids.userB
+        })
+      ).toMatchObject({ owner_user_id: ids.userB, approval_mode: "confirmed" });
+    }, 30_000);
+  });
 });

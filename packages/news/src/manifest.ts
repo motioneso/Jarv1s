@@ -23,9 +23,17 @@ import {
 
 import { newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
 import {
+  newsAddExclusionExecute,
+  newsAddTopicExecute,
   newsConfirmSourceExecute,
   newsPreviewSourceExecute,
-  summarizeNewsConfirmSource
+  newsRemoveSourceExecute,
+  newsRemoveTopicExecute,
+  summarizeNewsAddExclusion,
+  summarizeNewsAddTopic,
+  summarizeNewsConfirmSource,
+  summarizeNewsRemoveSource,
+  summarizeNewsRemoveTopic
 } from "./chat-tools.js";
 import { collectNewsExportSection } from "./data-lifecycle.js";
 import { NEWS_MODULE_ID } from "./module-id.js";
@@ -278,6 +286,79 @@ export const newsModuleManifest = {
       },
       summarize: summarizeNewsConfirmSource,
       execute: newsConfirmSourceExecute
+    },
+    // #975 Task 8 — remaining personalization writes. All four: write risk with NO
+    // actionFamilyId (never auto-approvable — every call blocks on owner confirmation),
+    // summaries derived from tool INPUT only (execute hasn't run at prompt time).
+    {
+      name: "news.removeSource",
+      description:
+        "Stop following a custom news source. Requires the source id (list them via the news personalization surface first). Removal also prunes the source's articles from the current briefing.",
+      permissionId: "news.prefs",
+      risk: "write",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sourceId: { type: "string", description: "Id of the followed custom source to remove" }
+        },
+        required: ["sourceId"]
+      },
+      summarize: summarizeNewsRemoveSource,
+      execute: newsRemoveSourceExecute
+    },
+    {
+      name: "news.addTopic",
+      description:
+        "Follow a custom news topic (e.g. 'local climate policy'). The topic is policy-checked before it is added; optional guidance steers article selection.",
+      permissionId: "news.prefs",
+      risk: "write",
+      inputSchema: {
+        type: "object",
+        properties: {
+          label: { type: "string", description: "Short human-readable topic label" },
+          guidance: {
+            type: "string",
+            description: "Optional steering for article selection within the topic"
+          }
+        },
+        required: ["label"]
+      },
+      summarize: summarizeNewsAddTopic,
+      execute: newsAddTopicExecute
+    },
+    {
+      name: "news.removeTopic",
+      description: "Stop following a custom news topic. Requires the topic id.",
+      permissionId: "news.prefs",
+      risk: "write",
+      inputSchema: {
+        type: "object",
+        properties: {
+          topicId: { type: "string", description: "Id of the followed custom topic to remove" }
+        },
+        required: ["topicId"]
+      },
+      summarize: summarizeNewsRemoveTopic,
+      execute: newsRemoveTopicExecute
+    },
+    {
+      name: "news.addExclusion",
+      description:
+        "Exclude a news publisher domain from the actor's briefing (also hides its subdomains). Excluded articles are pruned from the current briefing immediately.",
+      permissionId: "news.prefs",
+      risk: "write",
+      inputSchema: {
+        type: "object",
+        properties: {
+          domain: {
+            type: "string",
+            description: "Publisher domain to exclude, e.g. example.com"
+          }
+        },
+        required: ["domain"]
+      },
+      summarize: summarizeNewsAddExclusion,
+      execute: newsAddExclusionExecute
     }
   ],
   dataLifecycle: {
