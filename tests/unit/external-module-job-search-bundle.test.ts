@@ -1,6 +1,6 @@
 // tests/unit/external-module-job-search-bundle.test.ts
 import { spawn } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -93,6 +93,24 @@ describe("job-search bundle hygiene (#930)", () => {
       id: "t1",
       result: { status: "error", code: "invalid_input" }
     });
+  });
+
+  it("no provider/model identifier anywhere in package source or built worker", () => {
+    // JS-09 (#938) Task 2, gate item 12 (code half): provider independence
+    // means the PACKAGE never names a vendor — the narrower evaluate.ts grep
+    // in the worker-evaluate suite stays, this sweep supersedes it in breadth
+    // (all of src/ plus the shipped worker bundle).
+    const providerRe =
+      /openai|anthropic|claude|gemini|gpt-|mistral|llama|sonnet|haiku|deepseek|bedrock|vertex/i;
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]
+      );
+    const files = [...walk(join(moduleDir, "src")), join(moduleDir, "dist/worker.js")];
+    expect(files.length).toBeGreaterThan(1);
+    for (const file of files) {
+      expect(readFileSync(file, "utf8"), file).not.toMatch(providerRe);
+    }
   });
 
   it("answers an undeclared handler with -32601 handler_not_found", async () => {
