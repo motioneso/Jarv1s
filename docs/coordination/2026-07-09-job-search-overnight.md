@@ -4970,3 +4970,19 @@ here (#937/#938 merged Opus+Gemini). Gemini fires ONLY after Opus posts APPROVE 
 if Opus REJECTs → back to build agent, no cross-model spend). CI-980 GREEN. Merge authority =
 council (Ben sign-off bypassed).
 Opus QA agent acf7fb777d51e91ce still RUNNING (auto-notifies + posts to PR).
+
+## CONTINUATION NOTE (coordinator 70% auto-compact 2026-07-12)
+**MID-DOING:** awaiting Opus QA agent `acf7fb777d51e91ce` on PR #980 (#964, security). It
+auto-notifies + posts `[Opus council QA] VERDICT: ...` to the PR. NEXT on its return:
+- **Opus APPROVE** → fire Gemini cross-model lens (pointer-style, same 8-item checklist as the Opus
+  prompt; post `[Gemini council QA] VERDICT` to PR). On **Gemini APPROVE** → merge:
+  `gh pr merge 980 --squash --delete-branch` (re-confirm session id 58a78927 == manifest lock
+  FIRST), close #964, check epic #860 exit-criteria, board→Done, reap pane pHY + `git worktree
+  remove .claude/worktrees/mod-dist-964`, task #24→completed. Merge authority = council (Ben
+  bypassed sign-off). CI-980 already GREEN.
+- **Opus REJECT** → relay blocking findings to build pane pHY (w1:t1P, Sonnet), re-open lane, re-QA.
+**Codex DROPPED** (env-broken + mini downgrade); do NOT re-spawn it. Council = Opus + Gemini.
+**Other open:** #981 news error-copy bug filed (routine, packages/news; 500 half needs Ben's env +
+stack); #979 flake (task #31); #965 parked (task #25). No other live build lanes.
+**Coordinator:** session 58a78927-385c-4b1d-8fa0-94db20255d6f = label Coordinator (resolve pane
+fresh). Auto-compact in place — NO successor pane. No PushNotifications.
