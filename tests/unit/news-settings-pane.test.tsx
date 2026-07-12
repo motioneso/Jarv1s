@@ -325,3 +325,63 @@ describe("add-flow error/candidate helpers (#975 Task 9)", () => {
     expect(topicCreateErrorMessage(new Error("boom"))).toBe("Could not add that topic. Try again.");
   });
 });
+
+// #975 council re-run, Req F: user/model-derived strings must render as inert TEXT. The
+// settings pane has NO anchor derived from data — its only <a> anywhere under
+// packages/news/src/settings/** is the static PrereqGate link (index.tsx, renders only when
+// a prerequisite is missing) — so the strongest property holds and is asserted directly:
+// hostile labels/guidance escape to literals, and hostile URLs can never become hrefs
+// because no data-derived href exists at all.
+describe("NewsSettings adversarial content renders as inert text (#975 council re-run)", () => {
+  const adversarialSource = {
+    ...storedSource("approved"),
+    label: '<img src=x onerror=alert(1)>&lt;script&gt;"quoted',
+    homepageUrl: "javascript:alert(document.cookie)",
+    canonicalDomain: 'evil.example"'
+  };
+  const adversarialTopic = {
+    ...storedTopic("approved"),
+    label: "<script>alert(2)</script>",
+    guidance: "data:text/html,<script>alert(3)</script>"
+  };
+
+  it("escapes hostile labels/guidance and renders zero anchors when prerequisites are met", () => {
+    const html = render(
+      personalization({
+        availability: allOn,
+        customSources: [adversarialSource],
+        customTopics: [adversarialTopic]
+      })
+    );
+    // No element injection of any kind — neither from the raw markup in the labels…
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
+    // …instead the hostile strings appear as escaped literal text…
+    expect(html).toContain("&lt;img src=x onerror=");
+    // …and pre-escaped entities in the input are double-escaped, proving there is no
+    // decode-after-strip reordering that could revive `&lt;script&gt;` into markup.
+    expect(html).toContain("&amp;lt;script&amp;gt;");
+    // The label is interpolated into aria-label="Remove …": its raw quote must be
+    // entity-escaped so it cannot break out of the attribute value.
+    expect(html).toContain("&quot;quoted");
+    // With prerequisites met the PrereqGate is absent, so the pane renders NO anchor at
+    // all — the javascript:/data: URLs above can never become hrefs.
+    expect(html).not.toContain("<a ");
+  });
+
+  it("only the static prereq link ever becomes an href, never a hostile scheme", () => {
+    const html = render(
+      personalization({
+        availability: allOff,
+        customSources: [adversarialSource],
+        customTopics: [adversarialTopic]
+      })
+    );
+    const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1] ?? "");
+    // Both PrereqGates (sources + topics sections) render under allOff; every href must be
+    // the one static settings link and nothing else.
+    expect(hrefs.length).toBeGreaterThan(0);
+    expect([...new Set(hrefs)]).toEqual(["/settings?section=assistant"]);
+    expect(hrefs.some((href) => /^(javascript|data):/i.test(href))).toBe(false);
+  });
+});

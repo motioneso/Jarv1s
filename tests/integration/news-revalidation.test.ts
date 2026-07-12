@@ -13,6 +13,7 @@ import {
 import { assertMetadataOnlyPayload, createPgBossClient } from "@jarv1s/jobs";
 import { NotificationsRepository } from "@jarv1s/notifications";
 
+import type { NewsCompilationLogFields } from "../../packages/news/src/compilation/compile.js";
 import type { NewsAiPort, NewsSafeFetchPort } from "../../packages/news/src/discovery/ports.js";
 import {
   enqueueNewsRefresh,
@@ -127,6 +128,27 @@ const fetchOk: NewsSafeFetchPort = async (url) => ({
 });
 
 const fetchFail: NewsSafeFetchPort = async () => ({ ok: false, reason: "network" });
+
+// Req C sentinel scan (#975 council re-run): one distinctive string seeded into EVERY
+// private input — fetched article body, source label, topic label, topic guidance — then
+// asserted absent from every surface that leaves the process (pg-boss rows, process logs,
+// notification rows). Distinctive enough that any occurrence anywhere is a real leak.
+const SENTINEL = "SENTINEL-975-PRIVATE-e5b1c9";
+
+const SENTINEL_FEED_BODY =
+  `<?xml version="1.0"?><rss><channel>` +
+  `<item><title>Example headline ${SENTINEL} about important current events</title>` +
+  `<link>https://news.example.com/story</link></item>` +
+  `</channel></rss>`;
+
+const sentinelFetch: NewsSafeFetchPort = async (url) => ({
+  ok: true,
+  status: 200,
+  finalUrl: url,
+  contentType: "application/rss+xml",
+  body: SENTINEL_FEED_BODY,
+  truncated: false
+});
 
 /** Stub AI: fixed fingerprint, approves/rejects per `allowed`, category read from schema. */
 function makeAi(opts: { fingerprint: string | null; allowed?: boolean }): NewsAiPort {
@@ -335,24 +357,33 @@ describe("news revalidation jobs (#975 Slice 4)", () => {
   const asActor = <T>(work: (db: DataContextDb) => Promise<T>) =>
     appContext.withDataContext({ actorUserId: ids.userA, requestId: crypto.randomUUID() }, work);
 
-  /** One approved custom source + topic for userA, validated under `fingerprint`. */
-  async function seedValidationRows(fingerprint: string): Promise<void> {
+  /**
+   * One approved custom source + topic for userA, validated under `fingerprint`.
+   * Label/guidance are SQL params so the Req C sentinel tests (#975 council re-run) can
+   * push private strings through the exact same seed path; existing callers keep the
+   * original literals via the default.
+   */
+  async function seedValidationRows(
+    fingerprint: string,
+    opts: { sentinel?: string } = {}
+  ): Promise<void> {
+    const suffix = opts.sentinel ? ` ${opts.sentinel}` : "";
     await bootstrap.query(
       `INSERT INTO app.news_custom_sources
          (owner_user_id, label, canonical_domain, homepage_url, feed_url, retrieval_method,
           validation_status, health_status, validation_fingerprint, validated_at, updated_at)
-       VALUES ($1, 'The Example Times', 'news.example.com', 'https://news.example.com',
+       VALUES ($1, $3, 'news.example.com', 'https://news.example.com',
                'https://news.example.com/feed', 'feed', 'approved', 'available', $2,
                now() - interval '1 day', now() - interval '1 day')`,
-      [ids.userA, fingerprint]
+      [ids.userA, fingerprint, `The Example Times${suffix}`]
     );
     await bootstrap.query(
       `INSERT INTO app.news_custom_topics
          (owner_user_id, label, guidance, validation_status, validation_fingerprint,
           validated_at, updated_at)
-       VALUES ($1, 'AI Safety', 'focus on policy', 'approved', $2,
+       VALUES ($1, $3, $4, 'approved', $2,
                now() - interval '1 day', now() - interval '1 day')`,
-      [ids.userA, fingerprint]
+      [ids.userA, fingerprint, `AI Safety${suffix}`, `focus on policy${suffix}`]
     );
   }
 
@@ -406,17 +437,34 @@ describe("news revalidation jobs (#975 Slice 4)", () => {
 
   function registerWorkers(overrides: {
     ai: NewsAiPort;
+    fetch?: NewsSafeFetchPort;
+    logger?: { info(fields: NewsCompilationLogFields): void };
     notificationsRepository?: { create: NotificationsRepository["create"] };
     revalidationLogger?: { info: (fields: NewsRevalidationLogFields) => void };
   }) {
     return registerNewsJobWorkers(workerBoss, workerContext, {
-      fetch: fetchOk,
+      fetch: overrides.fetch ?? fetchOk,
       search: { search: async () => ({ results: [] }) },
       ai: overrides.ai,
-      logger: { info: () => undefined },
+      logger: overrides.logger ?? { info: () => undefined },
       notificationsRepository: overrides.notificationsRepository ?? notifications,
       revalidationLogger: overrides.revalidationLogger ?? { info: () => undefined }
     });
+  }
+
+  /**
+   * Req C leak scan (#975 council re-run): stringify every externally visible surface and
+   * return the names of those containing the sentinel. `jobRows` covers BOTH the pg-boss
+   * payload (`data`) and the worker result (`output` — carries transitionedToAttention in
+   * the real flow, so a regression could smuggle content there too). Callers pass the
+   * captured in-process log arrays and the notification rows they read back.
+   */
+  async function sentinelLeaks(captured: Record<string, unknown>): Promise<string[]> {
+    const jobs = await bootstrap.query(`SELECT data, output FROM pgboss.job`);
+    const surfaces: Record<string, unknown> = { jobRows: jobs.rows, ...captured };
+    return Object.entries(surfaces)
+      .filter(([, value]) => (JSON.stringify(value) ?? "").includes(SENTINEL))
+      .map(([name]) => name);
   }
 
   it("enqueues a metadata-only, singleton payload", async () => {
@@ -544,6 +592,90 @@ describe("news revalidation jobs (#975 Slice 4)", () => {
     }, "refresh run to settle");
 
     expect(await countRevalidateJobs()).toBe(0);
+  });
+
+  it("never leaks seeded private strings into job rows, logs, or notifications (Req C)", async () => {
+    // #975 council re-run, Req C: the sentinel rides EVERY private input through the REAL
+    // pipeline — seeded source label, topic label, topic guidance (seedValidationRows) and
+    // the fetched article body (sentinelFetch) — while the drifted fingerprint + allowed:false
+    // stub forces the maximal-output path: rejection writes AND the attention notification.
+    await seedValidationRows("fp-old", { sentinel: SENTINEL });
+    const workerLogs: unknown[] = [];
+    const revalidationLogs: NewsRevalidationLogFields[] = [];
+    await registerWorkers({
+      ai: makeWorkerAi({ fingerprint: "fp-new", allowed: false }),
+      fetch: sentinelFetch,
+      logger: { info: (fields) => workerLogs.push(fields) },
+      revalidationLogger: { info: (fields) => revalidationLogs.push(fields) }
+    });
+    await enqueueNewsRevalidation(appBoss, ids.userA);
+
+    const visible = await waitFor(async () => {
+      const listed = await asActor((db) => notifications.listVisible(db));
+      return listed.notifications.length > 0 ? listed : null;
+    }, "revalidation notification after sentinel run");
+
+    // Non-vacuity anchors: prove the sentinel really was in the private inputs and the run
+    // really processed them — otherwise an empty pipeline would pass the scan trivially.
+    const sources = await asActor((db) => repository.listSourceValidationStates(db));
+    const topics = await asActor((db) => repository.listTopicValidationStates(db));
+    expect(sources[0]!.label).toContain(SENTINEL);
+    expect(topics[0]!.label).toContain(SENTINEL);
+    expect(topics[0]!.guidance).toContain(SENTINEL);
+    expect(sources[0]!.validationStatus).toBe("rejected");
+    expect(revalidationLogs).toContainEqual({
+      event: "news_revalidation_run",
+      sourcesChecked: 1,
+      topicsChecked: 1,
+      sourcesNeedingAttention: 1,
+      topicsNeedingAttention: 1
+    });
+
+    // The scan proper: pg-boss data+output rows, both captured log streams, and the
+    // owner-visible notification rows must all be sentinel-free.
+    expect(
+      await sentinelLeaks({
+        workerLogs,
+        revalidationLogs,
+        notifications: visible.notifications
+      })
+    ).toEqual([]);
+  });
+
+  it("positive control: a deliberately leaked sentinel is caught on every surface", async () => {
+    // Req C non-vacuity: prove sentinelLeaks actually detects leaks by planting the sentinel
+    // on each surface the negative test scans.
+    // (a) Job payload via raw appBoss.send — this bypasses sendJob's metadata-only guard,
+    // which is exactly the path a regression would take (queues pre-exist via migratePgBoss,
+    // and nothing else is enqueued here so the exclusive queue policy is not in play).
+    await appBoss.send(NEWS_REVALIDATE_QUEUE, {
+      actorUserId: ids.userA,
+      kind: "revalidate",
+      idempotencyKey: `news-revalidate:${ids.userA}`,
+      leakedLabel: `The Example Times ${SENTINEL}`
+    });
+    // (b) A captured log line carrying private content.
+    const revalidationLogs: unknown[] = [{ event: "debug", detail: `checking ${SENTINEL}` }];
+    // (c) A notification whose body echoes the label — written under the worker role, the
+    // same role the production revalidation path uses for its notification insert.
+    await workerContext.withDataContext(
+      { actorUserId: ids.userA, requestId: crypto.randomUUID() },
+      (db) =>
+        notifications.create(db, {
+          moduleId: "news",
+          title: "News sources need attention",
+          body: `Your source "The Example Times ${SENTINEL}" was rejected.`,
+          metadata: { kind: "news_revalidation" },
+          urgency: "normal"
+        })
+    );
+
+    const listed = await asActor((db) => notifications.listVisible(db));
+    expect(await sentinelLeaks({ revalidationLogs, notifications: listed.notifications })).toEqual([
+      "jobRows",
+      "revalidationLogs",
+      "notifications"
+    ]);
   });
 });
 
