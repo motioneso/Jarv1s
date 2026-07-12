@@ -36,11 +36,17 @@ function isRedirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
-async function readCapped(
+async function readBytesCapped(
   response: Response,
   maxBytes: number
-): Promise<{ text: string; truncated: boolean }> {
-  if (!response.body) return { text: await response.text(), truncated: false };
+): Promise<{ body: Uint8Array; truncated: boolean }> {
+  if (!response.body) {
+    const body = new Uint8Array(await response.arrayBuffer());
+    return {
+      body: body.slice(0, maxBytes),
+      truncated: body.byteLength > maxBytes
+    };
+  }
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -58,7 +64,15 @@ async function readCapped(
     total += value.byteLength;
   }
   await reader.cancel().catch(() => {});
-  return { text: new TextDecoder().decode(Buffer.concat(chunks)), truncated };
+  return { body: Buffer.concat(chunks), truncated };
+}
+
+async function readTextCapped(
+  response: Response,
+  maxBytes: number
+): Promise<{ body: string; truncated: boolean }> {
+  const result = await readBytesCapped(response, maxBytes);
+  return { body: new TextDecoder().decode(result.body), truncated: result.truncated };
 }
 
 export function extractReadableText(html: string): { title: string; text: string } {
@@ -142,32 +156,38 @@ export interface FetchWebResourceOptions {
   readonly resolveHost?: HostResolver;
 }
 
-export type FetchWebResourceResult =
-  | {
-      readonly ok: true;
-      readonly status: number;
-      readonly finalUrl: string;
-      readonly contentType: string | null;
-      readonly body: string;
-      readonly truncated: boolean;
-    }
-  | {
-      readonly ok: false;
-      readonly reason:
-        | "blocked"
-        | "robots"
-        | "rate_limited"
-        | "not_https"
-        | "timeout"
-        | "network"
-        | "http_error";
-      readonly status?: number;
-    };
+export interface FetchWebResourceSuccess<TBody> {
+  readonly ok: true;
+  readonly status: number;
+  readonly finalUrl: string;
+  readonly contentType: string | null;
+  readonly body: TBody;
+  readonly truncated: boolean;
+}
 
-export async function fetchWebResource(
+export type FetchWebResourceFailure = {
+  readonly ok: false;
+  readonly reason:
+    | "blocked"
+    | "robots"
+    | "rate_limited"
+    | "not_https"
+    | "timeout"
+    | "network"
+    | "http_error";
+  readonly status?: number;
+};
+
+export type FetchWebResourceResult = FetchWebResourceSuccess<string> | FetchWebResourceFailure;
+export type FetchWebResourceBytesResult =
+  | FetchWebResourceSuccess<Uint8Array>
+  | FetchWebResourceFailure;
+
+async function fetchWebResourceWithBody<TBody>(
   rawUrl: string,
-  options: FetchWebResourceOptions = {}
-): Promise<FetchWebResourceResult> {
+  options: FetchWebResourceOptions,
+  readBody: (response: Response, maxBytes: number) => Promise<{ body: TBody; truncated: boolean }>
+): Promise<FetchWebResourceSuccess<TBody> | FetchWebResourceFailure> {
   let current: URL;
   try {
     current = new URL(rawUrl);
@@ -207,7 +227,7 @@ export async function fetchWebResource(
             );
           }
           const response = await requestCheckedUrl(robotsSafe, controller.signal);
-          const { text: body } = await readCapped(
+          const { body } = await readTextCapped(
             response,
             options.maxBytes ?? DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
           );
@@ -228,7 +248,7 @@ export async function fetchWebResource(
       if (response.status >= 400) {
         return { ok: false, reason: "http_error", status: response.status };
       }
-      const { text: body, truncated } = await readCapped(
+      const { body, truncated } = await readBody(
         response,
         options.maxBytes ?? DEFAULT_WEB_RESEARCH_CONFIG.maxDownloadBytes
       );
@@ -249,6 +269,20 @@ export async function fetchWebResource(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export function fetchWebResource(
+  rawUrl: string,
+  options: FetchWebResourceOptions = {}
+): Promise<FetchWebResourceResult> {
+  return fetchWebResourceWithBody(rawUrl, options, readTextCapped);
+}
+
+export function fetchWebResourceBytes(
+  rawUrl: string,
+  options: FetchWebResourceOptions = {}
+): Promise<FetchWebResourceBytesResult> {
+  return fetchWebResourceWithBody(rawUrl, options, readBytesCapped);
 }
 
 function stripIpv6Brackets(hostname: string): string {

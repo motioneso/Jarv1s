@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createRobotsGate,
   fetchWebResource,
+  fetchWebResourceBytes,
   isBlockedIp,
   RateLimitExceededError,
   readWebPage,
@@ -230,6 +231,59 @@ describe("web.read", () => {
 });
 
 describe("fetchWebResource", () => {
+  it("returns exact bounded bytes without text conversion", async () => {
+    setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
+    setWebHttpTransportForTests(
+      async () => new Response(Uint8Array.from([0, 255, 1, 2]), { status: 200 })
+    );
+
+    const exact = await fetchWebResourceBytes("https://example.com/image");
+    expect(exact.ok).toBe(true);
+    if (exact.ok) {
+      expect([...exact.body]).toEqual([0, 255, 1, 2]);
+      expect(exact.truncated).toBe(false);
+    }
+
+    const capped = await fetchWebResourceBytes("https://example.com/image", { maxBytes: 2 });
+    expect(capped.ok).toBe(true);
+    if (capped.ok) {
+      expect([...capped.body]).toEqual([0, 255]);
+      expect(capped.truncated).toBe(true);
+    }
+  });
+
+  it("keeps HTTPS, redirect validation, and rate limits on the byte path", async () => {
+    const requests: string[] = [];
+    setWebHostResolverForTests(async (hostname) => [
+      {
+        address: hostname === "private-target.example" ? "10.0.0.1" : "93.184.216.34",
+        family: 4
+      }
+    ]);
+    setWebHttpTransportForTests(async (request) => {
+      requests.push(request.connectHost);
+      return new Response("", {
+        status: 302,
+        headers: { location: "https://private-target.example/image" }
+      });
+    });
+
+    await expect(
+      fetchWebResourceBytes("http://good.example/image", { requireHttps: true })
+    ).resolves.toEqual({ ok: false, reason: "not_https" });
+    await expect(fetchWebResourceBytes("https://good.example/image")).resolves.toEqual({
+      ok: false,
+      reason: "blocked"
+    });
+    expect(requests).toEqual(["93.184.216.34"]);
+
+    await expect(
+      fetchWebResourceBytes("https://good.example/image", {
+        rateLimiter: { acquire: async () => Promise.reject(new RateLimitExceededError()) }
+      })
+    ).resolves.toEqual({ ok: false, reason: "rate_limited" });
+  });
+
   it("enforces HTTPS without changing readWebPage compatibility", async () => {
     setWebHostResolverForTests(async () => [{ address: "93.184.216.34", family: 4 }]);
     setWebHttpTransportForTests(async () => new Response("ok", { status: 200 }));
