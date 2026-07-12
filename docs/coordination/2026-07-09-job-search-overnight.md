@@ -4783,3 +4783,38 @@ main (#964 agent). No action from me beyond staying out of its way.
   Old Monitor `bq7q86lg0` stopped.
 - `merges_since_relay=1`. No merge until **round-2 named-unanimous (Opus+Codex+Gemini, NO
   fallback)** APPROVE on #977.
+
+## #964 build spawned + #944 flake-fix spawned (2026-07-12)
+
+**Ben genuine turns:** "964 plan committed" → "we're skipping council, plan is committed" — Ben
+WAIVED the #964 adversarial-council gate and authorized build directly.
+
+### origin/main was RED — diagnosed as known flake (waived, not blocking)
+- Run `29192665985` (merge of #938 `9af57f81`) FAILED on
+  `tests/integration/tasks-agency-tools.test.ts > requires confirmation for destructive task tag
+  deletion` → `expected undefined to match { kind:'action_request' }`.
+- **ci_waiver:** intermittent flake, tracked as **issue #944** (setTimeout(50) race under full-suite
+  load). Proof it's not a real regression: 5 prior main runs all GREEN; #938's diff (job-search
+  acceptance harness) never touched that test path. Waivable per protocol; Ben has standing
+  authority to keep the fleet moving. Real fix dispatched (below) to green main for good.
+
+### Lane: #964 Module Distribution & Install — BUILDING (security tier)
+- Worktree `.claude/worktrees/mod-dist-964`, branch `mod-dist-964` off `9af57f81`. Pane **w1:pHJ**
+  (Sonnet 5), agents tab w1:t1P. Task #24 in_progress.
+- Base has the cherry-picked docs-only commits: spec `2026-07-12-module-distribution-install.md` +
+  10-task plan (Ben's Fable agent authored; commits 89d9bd97/8dd9a2a2 → local `bb5b9274`).
+- Handoff `docs/coordination/handoff-mod-dist-964.md` (committed on branch): council WAIVED, treat
+  spec APPROVED, 3 known spec deviations carried (last_install_error mirror column; db:reconcile
+  script for dev parity; bare-kebab ids), migration+foundation-catalog trap flagged.
+- **Merge gate = SECURITY named council** (Opus adversarial + independent lenses) at PR time.
+  Untrusted registry input / hash-drift fail-closed / RLS-all-actors / metadata-only payloads.
+
+### Lane: #944 flake fix — BUILDING (routine)
+- Worktree `.claude/worktrees/flake-944`, branch `flake-944` off `9af57f81`. Pane **w1:pHK**
+  (Sonnet 5), agents tab w1:t1P. Task #30. Tight test-only vi.waitFor fix; auto-merge after green.
+
+### Fleet monitor
+- Old per-lane monitors stopped; ONE combined liveness monitor `b3tn8heqv` now watches
+  news-s4 / mod-dist-964 / flake-944 HEADs + pane death. All 3 panes status=working.
+- `merges_since_relay=1`. No News S4 merge until round-2 named-unanimous (Opus+Codex+Gemini, no
+  fallback); #964 security council at its PR; #944 auto-merge after green.
