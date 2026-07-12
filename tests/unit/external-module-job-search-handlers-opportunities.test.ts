@@ -44,6 +44,7 @@ import {
   getOpportunityHandler,
   listOpportunitiesHandler
 } from "../../external-modules/job-search/src/worker/handlers/opportunities.js";
+import { HANDLERS } from "../../external-modules/job-search/src/worker/registry.js";
 import { readInt } from "../../external-modules/job-search/src/worker/validate.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
 import { createMemoryKv } from "./helpers/job-search-memory-kv.js";
@@ -690,5 +691,15 @@ describe("opportunity.decide", () => {
     expect(result.code).toBe("invalid_input");
     expect(result.message).toContain("saved");
     expect(result.message).toContain("passed");
+  });
+});
+
+// JS-08 (#937) Task 5: the registry stubs become the real factories — pinned by
+// identity so a refactor can't silently swap a tool back to notImplemented.
+describe("registry wiring (#937 Task 5)", () => {
+  it("the three opportunity tool keys map to the real handler factories", () => {
+    expect(HANDLERS["opportunities.list"]).toBe(listOpportunitiesHandler);
+    expect(HANDLERS["opportunities.get"]).toBe(getOpportunityHandler);
+    expect(HANDLERS["opportunity.decide"]).toBe(decideOpportunityHandler);
   });
 });

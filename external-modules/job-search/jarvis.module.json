@@ -321,7 +321,62 @@
       "description": "List discovered job opportunities",
       "risk": "read",
       "inputSchema": {
-        "type": "object"
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": ["new", "saved", "passed", "stale"]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "question": { "type": "string" },
+          "view": { "type": "string" },
+          "total": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "opportunities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "identityHash": { "type": "string" },
+                "status": { "type": "string" },
+                "title": { "type": "string" },
+                "company": { "type": "string" },
+                "location": { "type": "string" },
+                "workMode": { "type": "string" },
+                "source": { "type": "string" },
+                "publishedAt": { "type": "string" },
+                "firstSeenAt": { "type": "string" },
+                "freshness": { "type": "string" },
+                "eligibility": { "type": "string" },
+                "fitBand": { "type": "string" },
+                "confidence": { "type": "string" },
+                "evaluationPending": { "type": "boolean" },
+                "topEvidence": { "type": "string" },
+                "topGap": { "type": "string" }
+              },
+              "required": ["identityHash", "status", "title", "company", "source"]
+            }
+          }
+        },
+        "required": ["status"]
       },
       "handler": "opportunities.list"
     },
@@ -331,7 +386,94 @@
       "description": "Read one job opportunity",
       "risk": "read",
       "inputSchema": {
-        "type": "object"
+        "type": "object",
+        "properties": {
+          "identityHash": {
+            "type": "string"
+          }
+        },
+        "required": ["identityHash"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "question": { "type": "string" },
+          "opportunity": {
+            "type": "object",
+            "properties": {
+              "identityHash": { "type": "string" },
+              "status": { "type": "string" },
+              "statusAt": { "type": "string" },
+              "decisionReason": { "type": "string" },
+              "firstSeenAt": { "type": "string" },
+              "lastSeenAt": { "type": "string" },
+              "freshness": { "type": "string" },
+              "lastLivenessAt": { "type": "string" },
+              "posting": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "company": { "type": "string" },
+                  "location": { "type": "string" },
+                  "url": { "type": "string" },
+                  "workMode": { "type": "string" },
+                  "employmentType": { "type": "string" },
+                  "compensation": { "type": "string" },
+                  "publishedAt": { "type": "string" },
+                  "description": { "type": "string" },
+                  "descriptionTruncated": { "type": "boolean" },
+                  "descriptionClipped": { "type": "boolean" }
+                },
+                "required": ["title", "company", "description"]
+              },
+              "evaluation": {
+                "type": "object",
+                "properties": {
+                  "fitBand": { "type": "string" },
+                  "recommendation": { "type": "string" },
+                  "postingConfidence": { "type": "string" },
+                  "overallConfidence": { "type": "string" },
+                  "summary": { "type": "string" },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "requirement": { "type": "string" },
+                        "evidence": { "type": "string" },
+                        "source": { "type": "string" }
+                      },
+                      "required": ["requirement", "evidence", "source"]
+                    }
+                  },
+                  "blockers": { "type": "array", "items": { "type": "string" } },
+                  "gaps": { "type": "array", "items": { "type": "string" } },
+                  "unknowns": { "type": "array", "items": { "type": "string" } },
+                  "preferenceMatches": { "type": "array", "items": { "type": "string" } },
+                  "preferenceConflicts": { "type": "array", "items": { "type": "string" } },
+                  "outdated": { "type": "boolean" },
+                  "inputs": {
+                    "type": "object",
+                    "properties": {
+                      "opportunityContentHash": { "type": "string" },
+                      "profileRevisionId": { "type": "string" },
+                      "resumeRevisionId": { "type": "string" }
+                    },
+                    "required": ["opportunityContentHash", "profileRevisionId", "resumeRevisionId"]
+                  },
+                  "createdAt": { "type": "string" }
+                },
+                "required": ["fitBand", "recommendation", "summary", "outdated"]
+              }
+            },
+            "required": ["identityHash", "status", "posting"]
+          }
+        },
+        "required": ["status"]
       },
       "handler": "opportunities.get"
     },
@@ -341,7 +483,35 @@
       "description": "Record the user's decision on a job opportunity",
       "risk": "write",
       "inputSchema": {
-        "type": "object"
+        "type": "object",
+        "properties": {
+          "identityHash": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["saved", "passed"]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": ["identityHash", "decision"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "question": { "type": "string" },
+          "identityHash": { "type": "string" },
+          "decision": { "type": "string" },
+          "statusAt": { "type": "string" }
+        },
+        "required": ["status"]
       },
       "handler": "opportunity.decide"
     }
