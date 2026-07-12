@@ -1,3 +1,4 @@
+import Fastify from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
@@ -24,6 +25,7 @@ import {
   type NewsSourceValidationState,
   type NewsTopicValidationState
 } from "../../packages/news/src/personalization-repository.js";
+import { registerNewsPersonalizationRoutes } from "../../packages/news/src/personalization-routes.js";
 import {
   revalidateOwnerNews,
   type NewsRevalidationDeps,
@@ -542,5 +544,175 @@ describe("news revalidation jobs (#975 Slice 4)", () => {
     }, "refresh run to settle");
 
     expect(await countRevalidateJobs()).toBe(0);
+  });
+});
+
+/**
+ * Per-owner revalidation schedule (#975 Slice 4 Task 5): every personalization write funnels
+ * through triggerNewsRefresh, which must reconcile a daily pgboss.schedule row — present while
+ * the owner has any custom source/topic, absent once the last one is deleted. Assertions read
+ * the real pgboss.schedule table (briefings F12 precedent), not a spy: grant 0002 gives the
+ * app runtime role INSERT/DELETE on it even with the cron scheduler off in this process.
+ */
+describe("news revalidation schedule (#975 Slice 4)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let appBoss: PgBoss;
+  let bootstrap: pg.Client;
+
+  beforeEach(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
+    appBoss = createPgBossClient(connectionStrings.app);
+    bootstrap = new Client({ connectionString: connectionStrings.bootstrap });
+    await Promise.all([appBoss.start(), bootstrap.connect()]);
+  });
+
+  afterEach(async () => {
+    await Promise.allSettled([appBoss.stop({ graceful: false }), appDb.destroy(), bootstrap.end()]);
+  });
+
+  // Preview-by-URL needs a feed with dated items (news-personalization-routes.test.ts feed).
+  const PREVIEW_FEED = `<?xml version="1.0"?><rss><channel><title>Example News</title><item><title>Verified publisher headline</title><link>https://example.com/story</link><pubDate>Fri, 11 Jul 2026 12:00:00 GMT</pubDate></item></channel></rss>`;
+
+  function buildApp() {
+    const app = Fastify();
+    registerNewsPersonalizationRoutes(app, {
+      dataContext: new DataContextRunner(appDb),
+      resolveAccessContext: async (request) => ({
+        actorUserId: String(request.headers["x-user-id"] ?? ids.userA),
+        requestId: crypto.randomUUID()
+      }),
+      availability: { hasJsonModel: async () => true, hasWebSearch: async () => true },
+      discovery: {
+        fetch: async (url) => ({
+          ok: true,
+          status: 200,
+          finalUrl: url,
+          contentType: "application/rss+xml",
+          body: PREVIEW_FEED,
+          truncated: false
+        }),
+        search: { search: async () => ({ results: [] }) },
+        ai: {
+          fingerprint: async () => "fp",
+          generateJson: async (_db, input) => ({
+            ok: true,
+            object: input.prompt.includes("news TOPIC")
+              ? { allowed: true, category: "news_topic" }
+              : { allowed: true, category: "news_publisher" }
+          })
+        }
+      },
+      boss: appBoss,
+      repository: new NewsPersonalizationRepository()
+    });
+    return app;
+  }
+
+  async function createSourceViaApi(app: ReturnType<typeof buildApp>): Promise<string> {
+    const preview = await app.inject({
+      method: "POST",
+      url: "/api/news/sources/preview",
+      payload: { input: "https://example.com/feed.xml" }
+    });
+    expect(preview.statusCode).toBe(200);
+    const confirmed = await app.inject({
+      method: "POST",
+      url: "/api/news/sources",
+      payload: { confirmationId: JSON.parse(preview.body).confirmationId }
+    });
+    expect(confirmed.statusCode).toBe(201);
+    return JSON.parse(confirmed.body).source.id as string;
+  }
+
+  async function createTopicViaApi(app: ReturnType<typeof buildApp>): Promise<string> {
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/news/topics",
+      payload: { label: "AI Safety", guidance: "focus on policy" }
+    });
+    expect(created.statusCode).toBe(201);
+    return JSON.parse(created.body).topic.id as string;
+  }
+
+  async function scheduleRows(): Promise<
+    { key: string; cron: string; timezone: string; data: Record<string, unknown> }[]
+  > {
+    const result = await bootstrap.query<{
+      key: string;
+      cron: string;
+      timezone: string;
+      data: Record<string, unknown>;
+    }>(`SELECT key, cron, timezone, data FROM pgboss.schedule WHERE name = $1 ORDER BY key`, [
+      NEWS_REVALIDATE_QUEUE
+    ]);
+    return result.rows;
+  }
+
+  it("schedules a daily metadata-only revalidation row when the first source is created", async () => {
+    const app = buildApp();
+    await app.ready();
+    try {
+      expect(await scheduleRows()).toHaveLength(0);
+      await createSourceViaApi(app);
+
+      const rows = await scheduleRows();
+      expect(rows).toHaveLength(1);
+      const key = `news-revalidate:${ids.userA}`;
+      expect(rows[0]).toMatchObject({ key, cron: "43 4 * * *", timezone: "UTC" });
+      // The cron payload bypasses sendJob's guard, so prove it is metadata-only here too.
+      expect(() => assertMetadataOnlyPayload(rows[0]!.data)).not.toThrow();
+      expect(rows[0]!.data).toEqual({
+        actorUserId: ids.userA,
+        kind: "revalidate",
+        idempotencyKey: key
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("unschedules only when the last source AND topic are deleted", async () => {
+    const app = buildApp();
+    await app.ready();
+    try {
+      const sourceId = await createSourceViaApi(app);
+      const topicId = await createTopicViaApi(app);
+      expect(await scheduleRows()).toHaveLength(1);
+
+      const topicGone = await app.inject({ method: "DELETE", url: `/api/news/topics/${topicId}` });
+      expect(topicGone.statusCode).toBe(200);
+      // A source remains — the daily check must survive.
+      expect(await scheduleRows()).toHaveLength(1);
+
+      const sourceGone = await app.inject({
+        method: "DELETE",
+        url: `/api/news/sources/${sourceId}`
+      });
+      expect(sourceGone.statusCode).toBe(200);
+      expect(await scheduleRows()).toHaveLength(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("does not fail the write route when boss.schedule throws (best-effort)", async () => {
+    const app = buildApp();
+    await app.ready();
+    const originalSchedule = appBoss.schedule.bind(appBoss);
+    appBoss.schedule = (async () => {
+      throw new Error("pg-boss schedule unavailable");
+    }) as typeof appBoss.schedule;
+    try {
+      await createSourceViaApi(app); // asserts 201 internally
+      // The refresh enqueue after the failed reconcile must still happen.
+      const refreshJobs = await bootstrap.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM pgboss.job WHERE name = 'news.refresh'`
+      );
+      expect(refreshJobs.rows[0]!.n).toBeGreaterThanOrEqual(1);
+    } finally {
+      appBoss.schedule = originalSchedule;
+      await app.close();
+    }
   });
 });
