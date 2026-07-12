@@ -3948,3 +3948,12 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   cache-key digest invariant. News Codex now re-grounds + builds solo on `feat/news-slice3`, `Closes
   #972`. Its own cross-provider council QA + posted verdict gates the merge. **Fleet now: JS-08
   building (Fable pGT) + News S3 building (Codex pEP). Monitor `bx938a3nh` armed.**
+- **JS-08 mid-build RULING (2026-07-11):** agent found plan self-contradiction — decisionReason in
+  `opportunities.get`/web-detail (plan L83/L330) vs my earlier "never echoed to-AI." **Ruled: RETURN
+  it.** decisionReason = owner-private CONTENT (owner's own note on own opportunity, read by owner's
+  own assistant under owner-only isolation), NOT a secret. Correct boundary: never to shared/
+  structured logs, pg-boss payloads, shared-model training, other-owner context, or non-owner export
+  — but owner-own read (incl. owner's assistant) is fine (spec Task 9 wants it on detail screen).
+  Earlier "never echoed" was over-broad. **PR must flag this exposure so the Opus security QA
+  verifies owner-only/no-log/no-payload.** (Supersedes the decide-reason clause in memory
+  `mem_mrh9x5lz`.)
