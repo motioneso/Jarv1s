@@ -4148,3 +4148,26 @@ issue **#975** FILED (Part of #954); its build waits on News Codex + Codex uncap
 watch for done/blocker. On done → security council (Opus adversarial QA + Gemini 2nd lens; Codex if
 uncapped) → post verdicts to PR → hand merge to Ben with the manual-acceptance checklist. `merges_
 since_relay` = 0 (reset after JS-08 relay-in-place).
+
+## CHECKPOINT 2026-07-12 — JS-09 lane self-relay (clean, zero code lost)
+
+Plan APPROVED (stays inside locked decisions; scope-creep grep clean — outputSchema refs are to
+the existing eval schema, not new). Build agent hit 70% meter right after a compaction with ZERO
+code written → clean self-relay. Plan + relay continuation committed `df80ba39`
+(`docs/superpowers/plans/2026-07-11-js-09-acceptance.md` + `docs/superpowers/handoffs/
+2026-07-12-js-09-acceptance-relay.md`).
+
+**Successor verified & adopted:** label `JS-09 build 2`, pane **`w1:pGZ`**, session `f8e2929b`,
+**Fable 5 confirmed**, agents tab `w1:t1N` (correct — not leaked to coordinator tab), driving.
+Spent predecessor (session `e5b4bdfb`, pane `w1:pGY`) **REAPED**. Coordinator lock intact (`w1:pE6`,
+`58a78927`, sole `Coordinator` pane). Liveness watch re-pointed to pGZ (`bi28ropxs`).
+
+**Approved plan = 4 tasks (TDD, zero migration/endpoint/product scope):** (1) E2E acceptance —
+real-hash enable + six checkpoints on real RLS + scheduled sweep through real spawned worker +
+sentinel privacy scan + hash-drift refusal; (2) provider independence — 2 real wire shapes
+(anthropic + openai-compatible) through real HttpApiAdapter + package-wide identifier sweep; (3)
+counts-only evidence renderer + fail-closed validation → destination = comment on issue #938
+(confirmed); (4) full gate + bounded defect fixes. Sentinels: `JS09-ACCEPT-{RESUME,PROFILE,QUERY}-
+SENTINEL-93d1c4` (agent states them in PR body for QA re-run). Merge bars restated to agent: paired
+denial+positive controls / no BYPASSRLS; sentinel proof of zero private content in payloads/logs/
+artifact. Merge still gated by full JS security council + Ben's day-one manual acceptance.
