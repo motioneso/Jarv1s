@@ -425,3 +425,252 @@ describe("news personalization repository (#953 Task 3)", () => {
     expect(read?.compiledAt.toISOString()).toBe("2026-07-11T06:00:00.000Z");
   });
 });
+
+// #975 (epic #954) News Slice 4 — validation-state reads/writes used by the provider-change
+// revalidation worker. Writes run under the WORKER role's DataContext to prove the 0161
+// column-scoped grants plus owner-scoped RLS policies allow exactly the owner's rows and
+// nothing more. Every cross-owner/admin negative is paired with an owner positive control.
+describe("news validation state repository (#975 Slice 4)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let workerDb: Kysely<JarvisDatabase>;
+  let authRuntime: JarvisAuthRuntime;
+  let server: ReturnType<typeof createApiServer>;
+  let dataCtx: DataContextRunner;
+  let workerCtx: DataContextRunner;
+  let bootstrap: pg.Client;
+  const repo = new NewsPersonalizationRepository();
+
+  async function signUp(name: string, email: string): Promise<string> {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/auth/sign-up/email",
+      headers: { "content-type": "application/json" },
+      payload: { name, email, password: "password12345" }
+    });
+    return res.json<{ user: { id: string } }>().user.id;
+  }
+
+  /** First sign-up is the instance admin/owner; RLS must isolate them like anyone else. */
+  async function signUpAdminAliceBob(prefix: string): Promise<[string, string, string]> {
+    const admin = await signUp("Admin", `${prefix}-admin@example.com`);
+    await setInstanceSetting("registration.requires_approval", { value: false });
+    const alice = await signUp("Alice", `${prefix}-alice@example.com`);
+    const bob = await signUp("Bob", `${prefix}-bob@example.com`);
+    return [admin, alice, bob];
+  }
+
+  function asActor<T>(
+    runner: DataContextRunner,
+    actorUserId: string,
+    requestId: string,
+    fn: (scopedDb: Parameters<Parameters<DataContextRunner["withDataContext"]>[1]>[0]) => Promise<T>
+  ): Promise<T> {
+    return runner.withDataContext({ actorUserId, requestId }, fn);
+  }
+
+  /** Seeds one source + one topic for the owner with a stale fingerprint and old timestamps. */
+  async function seedValidationRows(
+    ownerId: string
+  ): Promise<{ sourceId: string; topicId: string }> {
+    const source = await bootstrap.query<{ id: string }>(
+      `INSERT INTO app.news_custom_sources
+         (owner_user_id, label, canonical_domain, homepage_url, feed_url, retrieval_method,
+          validation_status, health_status, validation_fingerprint, validated_at, updated_at)
+       VALUES ($1, 'The Example Times', 'news.example.com', 'https://news.example.com', NULL,
+               'scrape', 'approved', 'available', 'fp-old', now() - interval '1 day',
+               now() - interval '1 day')
+       RETURNING id`,
+      [ownerId]
+    );
+    const topic = await bootstrap.query<{ id: string }>(
+      `INSERT INTO app.news_custom_topics
+         (owner_user_id, label, guidance, validation_status, validation_fingerprint,
+          validated_at, updated_at)
+       VALUES ($1, 'AI Safety', 'focus on policy', 'approved', 'fp-old',
+               now() - interval '1 day', now() - interval '1 day')
+       RETURNING id`,
+      [ownerId]
+    );
+    return { sourceId: source.rows[0]!.id, topicId: topic.rows[0]!.id };
+  }
+
+  beforeEach(async () => {
+    await resetEmptyFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
+    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    server = createApiServer({ appDb, authRuntime, logger: false });
+    await server.ready();
+    dataCtx = new DataContextRunner(appDb);
+    workerCtx = new DataContextRunner(workerDb);
+    bootstrap = new Client({ connectionString: connectionStrings.bootstrap });
+    await bootstrap.connect();
+  });
+
+  afterEach(async () => {
+    await Promise.allSettled([
+      server?.close(),
+      authRuntime?.close(),
+      appDb?.destroy(),
+      workerDb?.destroy(),
+      bootstrap?.end()
+    ]);
+  });
+
+  it("owner lists their own validation states (fingerprint included); others and admin get none", async () => {
+    const [admin, alice, bob] = await signUpAdminAliceBob("nv-list");
+    const { sourceId, topicId } = await seedValidationRows(alice);
+
+    const sources = await asActor(dataCtx, alice, "nv-1a", (scopedDb) =>
+      repo.listSourceValidationStates(scopedDb)
+    );
+    expect(sources).toEqual([
+      {
+        id: sourceId,
+        label: "The Example Times",
+        canonicalDomain: "news.example.com",
+        homepageUrl: "https://news.example.com",
+        feedUrl: null,
+        retrievalMethod: "scrape",
+        validationStatus: "approved",
+        validationFingerprint: "fp-old",
+        healthStatus: "available"
+      }
+    ]);
+
+    const topics = await asActor(dataCtx, alice, "nv-1b", (scopedDb) =>
+      repo.listTopicValidationStates(scopedDb)
+    );
+    expect(topics).toEqual([
+      {
+        id: topicId,
+        label: "AI Safety",
+        guidance: "focus on policy",
+        validationStatus: "approved",
+        validationFingerprint: "fp-old"
+      }
+    ]);
+
+    // Cross-owner and admin reads must both come back empty (RLS applies to admins too).
+    for (const [actor, tag] of [
+      [bob, "nv-1c"],
+      [admin, "nv-1d"]
+    ] as const) {
+      expect(
+        await asActor(dataCtx, actor, tag, (scopedDb) => repo.listSourceValidationStates(scopedDb))
+      ).toEqual([]);
+      expect(
+        await asActor(dataCtx, actor, `${tag}-t`, (scopedDb) =>
+          repo.listTopicValidationStates(scopedDb)
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("worker updates source validation for its own actor and bumps validated_at/updated_at", async () => {
+    const [, alice] = await signUpAdminAliceBob("nv-src");
+    const { sourceId } = await seedValidationRows(alice);
+
+    await asActor(workerCtx, alice, "nv-2a", (scopedDb) =>
+      repo.updateSourceValidation(scopedDb, sourceId, {
+        validationStatus: "needs_revalidation",
+        validationFingerprint: "fp-new"
+      })
+    );
+
+    const row = await bootstrap.query<{
+      validation_status: string;
+      validation_fingerprint: string;
+      validated_recent: boolean;
+      updated_recent: boolean;
+    }>(
+      `SELECT validation_status, validation_fingerprint,
+              validated_at > now() - interval '1 minute' AS validated_recent,
+              updated_at > now() - interval '1 minute' AS updated_recent
+         FROM app.news_custom_sources WHERE id = $1`,
+      [sourceId]
+    );
+    expect(row.rows[0]).toEqual({
+      validation_status: "needs_revalidation",
+      validation_fingerprint: "fp-new",
+      validated_recent: true,
+      updated_recent: true
+    });
+  });
+
+  it("worker updates topic validation for its own actor and bumps validated_at/updated_at", async () => {
+    const [, alice] = await signUpAdminAliceBob("nv-top");
+    const { topicId } = await seedValidationRows(alice);
+
+    await asActor(workerCtx, alice, "nv-3a", (scopedDb) =>
+      repo.updateTopicValidation(scopedDb, topicId, {
+        validationStatus: "rejected",
+        validationFingerprint: "fp-new"
+      })
+    );
+
+    const row = await bootstrap.query<{
+      validation_status: string;
+      validation_fingerprint: string;
+      validated_recent: boolean;
+      updated_recent: boolean;
+    }>(
+      `SELECT validation_status, validation_fingerprint,
+              validated_at > now() - interval '1 minute' AS validated_recent,
+              updated_at > now() - interval '1 minute' AS updated_recent
+         FROM app.news_custom_topics WHERE id = $1`,
+      [topicId]
+    );
+    expect(row.rows[0]).toEqual({
+      validation_status: "rejected",
+      validation_fingerprint: "fp-new",
+      validated_recent: true,
+      updated_recent: true
+    });
+  });
+
+  it("worker writes are owner-scoped: acting as another user leaves the row untouched", async () => {
+    const [, alice, bob] = await signUpAdminAliceBob("nv-cross");
+    const { sourceId, topicId } = await seedValidationRows(alice);
+
+    // Worker running Bob's job must not be able to touch Alice's rows by id.
+    await asActor(workerCtx, bob, "nv-4a", (scopedDb) =>
+      repo.updateSourceValidation(scopedDb, sourceId, {
+        validationStatus: "rejected",
+        validationFingerprint: "fp-evil"
+      })
+    );
+    await asActor(workerCtx, bob, "nv-4b", (scopedDb) =>
+      repo.updateTopicValidation(scopedDb, topicId, {
+        validationStatus: "rejected",
+        validationFingerprint: "fp-evil"
+      })
+    );
+
+    const source = await bootstrap.query<{ validation_status: string; fp: string }>(
+      `SELECT validation_status, validation_fingerprint AS fp
+         FROM app.news_custom_sources WHERE id = $1`,
+      [sourceId]
+    );
+    expect(source.rows[0]).toEqual({ validation_status: "approved", fp: "fp-old" });
+    const topic = await bootstrap.query<{ validation_status: string; fp: string }>(
+      `SELECT validation_status, validation_fingerprint AS fp
+         FROM app.news_custom_topics WHERE id = $1`,
+      [topicId]
+    );
+    expect(topic.rows[0]).toEqual({ validation_status: "approved", fp: "fp-old" });
+
+    // Positive control: the same worker connection acting as Alice CAN update her rows.
+    await asActor(workerCtx, alice, "nv-4c", (scopedDb) =>
+      repo.updateSourceValidation(scopedDb, sourceId, {
+        validationStatus: "approved",
+        validationFingerprint: "fp-new"
+      })
+    );
+    const after = await bootstrap.query<{ fp: string }>(
+      `SELECT validation_fingerprint AS fp FROM app.news_custom_sources WHERE id = $1`,
+      [sourceId]
+    );
+    expect(after.rows[0]?.fp).toBe("fp-new");
+  });
+});
