@@ -16,7 +16,7 @@ import {
   type MetadataLogger
 } from "./compilation/compile.js";
 import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "./discovery/ports.js";
-import { NEWS_MODULE_ID } from "./manifest.js";
+import { NEWS_MODULE_ID } from "./module-id.js";
 import { NewsPersonalizationRepository } from "./personalization-repository.js";
 import { NewsPrefsRepository } from "./repository.js";
 import { revalidateOwnerNews, type NewsRevalidationLogger } from "./revalidation.js";

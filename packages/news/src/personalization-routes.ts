@@ -104,7 +104,10 @@ export interface NewsPersonalizationStore {
   ): Promise<void>;
 }
 
-interface PersonalizationRouteDependencies {
+/** The in-memory preview store shared by the REST routes and the chat tools (#975 Slice 4). */
+export type NewsSourcePreviewStore = ReturnType<typeof createPreviewStore>;
+
+export interface PersonalizationRouteDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly availability: {
@@ -118,6 +121,12 @@ interface PersonalizationRouteDependencies {
   };
   readonly boss: PgBoss | null;
   readonly repository: NewsPersonalizationStore;
+  /**
+   * #975 Slice 4: injected so `routes.ts` can hand the SAME store to
+   * `configureNewsChatTools` — a source previewed in chat is confirmable over
+   * REST and vice versa. Defaults to a private store for existing callers.
+   */
+  readonly previews?: NewsSourcePreviewStore;
 }
 
 function toSnapshotMeta(record: NewsSnapshotRecord | null): NewsSnapshotMetaDto | null {
@@ -165,12 +174,99 @@ export async function triggerNewsRefresh(
   return enqueueNewsRefresh(boss, actorUserId);
 }
 
+export type ConfirmSourceFromPreviewResult =
+  | { ok: true; source: NewsCustomSourceDto }
+  | { ok: false; reason: "expired" | "ambiguous" | "duplicate" | "limit"; message: string };
+
+/**
+ * Confirm-from-preview write path shared by the REST route and the
+ * `news.confirmSource` chat tool (#975 Slice 4). Benign outcomes return
+ * `{ok:false, reason, message}` so each caller maps them to its own surface
+ * (REST → HttpError status, chat tool → error text the model can relay).
+ *
+ * `expected` is the chat-tool tamper check: the display fields the owner
+ * approved in the confirmation prompt must match the STORED candidate. A
+ * mismatch means the model/client swapped the write target after approval —
+ * a security violation, so it THROWS (the gateway sanitizes the message and
+ * audits the call as failed) rather than returning a benign failure.
+ */
+export async function confirmSourceFromPreview(
+  scopedDb: DataContextDb,
+  deps: {
+    previews: NewsSourcePreviewStore;
+    repository: NewsPersonalizationStore;
+    boss: PgBoss | null;
+  },
+  actorUserId: string,
+  input: {
+    confirmationId: string;
+    candidateId?: string;
+    expected?: { label: string; domain: string };
+  }
+): Promise<ConfirmSourceFromPreviewResult> {
+  // take() is owner-checked — another actor's confirmationId reads as expired.
+  const preview = deps.previews.take(actorUserId, input.confirmationId);
+  if (!preview) {
+    return { ok: false, reason: "expired", message: "Source preview expired or was not found" };
+  }
+  if (preview.candidates.length > 1 && !input.candidateId) {
+    return { ok: false, reason: "ambiguous", message: "Choose a publisher candidate" };
+  }
+  const candidate = input.candidateId
+    ? preview.candidates.find((item) => item.candidateId === input.candidateId)
+    : preview.candidates[0];
+  if (!candidate) {
+    return { ok: false, reason: "ambiguous", message: "Publisher candidate is invalid" };
+  }
+  if (
+    input.expected &&
+    (candidate.label !== input.expected.label ||
+      candidate.canonicalDomain !== input.expected.domain)
+  ) {
+    throw new Error("Confirmed source does not match the previewed candidate");
+  }
+  try {
+    const write = {
+      label: candidate.label,
+      canonicalDomain: candidate.canonicalDomain,
+      homepageUrl: candidate.homepageUrl,
+      feedUrl: candidate.feedUrl,
+      retrievalMethod: candidate.retrievalMethod,
+      validationFingerprint: candidate.validationFingerprint
+    };
+    const created = preview.replaceSourceId
+      ? await deps.repository.replaceCustomSource(scopedDb, preview.replaceSourceId, write)
+      : await deps.repository.createCustomSource(scopedDb, write);
+    if (!created) {
+      return { ok: false, reason: "expired", message: "Source to replace was not found" };
+    }
+    await triggerNewsRefresh(scopedDb, deps.repository, deps.boss, actorUserId);
+    return { ok: true, source: created };
+  } catch (error) {
+    if (error instanceof NewsPersonalizationLimitError) {
+      return { ok: false, reason: "limit", message: error.message };
+    }
+    if (error instanceof NewsDuplicateSourceError) {
+      return { ok: false, reason: "duplicate", message: error.message };
+    }
+    throw error;
+  }
+}
+
+/** REST status mapping preserves the pre-extraction route behavior exactly. */
+const confirmFailureStatus: Record<"expired" | "ambiguous" | "duplicate" | "limit", number> = {
+  expired: 409,
+  ambiguous: 400,
+  duplicate: 409,
+  limit: 400
+};
+
 export function registerNewsPersonalizationRoutes(
   server: FastifyInstance,
   dependencies: PersonalizationRouteDependencies
 ): void {
   const repository = dependencies.repository;
-  const previews = createPreviewStore();
+  const previews = dependencies.previews ?? createPreviewStore();
 
   server.get(
     "/api/news/personalization",
@@ -289,33 +385,18 @@ export function registerNewsPersonalizationRoutes(
       const accessContext = await dependencies.resolveAccessContext(request);
       const input = request.body as ConfirmNewsSourceRequest;
       const source = await dependencies.dataContext.withDataContext(accessContext, async (db) => {
-        const preview = previews.take(accessContext.actorUserId, input.confirmationId);
-        if (!preview) throw new HttpError(409, "Source preview expired or was not found");
-        if (preview.candidates.length > 1 && !input.candidateId) {
-          throw new HttpError(400, "Choose a publisher candidate");
+        // No `expected` here: the REST client resubmits only IDs, so there are
+        // no display fields to tamper-check (that guard is chat-tool-specific).
+        const outcome = await confirmSourceFromPreview(
+          db,
+          { previews, repository, boss: dependencies.boss },
+          accessContext.actorUserId,
+          { confirmationId: input.confirmationId, candidateId: input.candidateId }
+        );
+        if (!outcome.ok) {
+          throw new HttpError(confirmFailureStatus[outcome.reason], outcome.message);
         }
-        const candidate = input.candidateId
-          ? preview.candidates.find((item) => item.candidateId === input.candidateId)
-          : preview.candidates[0];
-        if (!candidate) throw new HttpError(400, "Publisher candidate is invalid");
-        try {
-          const write = {
-            label: candidate.label,
-            canonicalDomain: candidate.canonicalDomain,
-            homepageUrl: candidate.homepageUrl,
-            feedUrl: candidate.feedUrl,
-            retrievalMethod: candidate.retrievalMethod,
-            validationFingerprint: candidate.validationFingerprint
-          };
-          const created = preview.replaceSourceId
-            ? await repository.replaceCustomSource(db, preview.replaceSourceId, write)
-            : await repository.createCustomSource(db, write);
-          if (!created) throw new HttpError(409, "Source to replace was not found");
-          await triggerNewsRefresh(db, repository, dependencies.boss, accessContext.actorUserId);
-          return created;
-        } catch (error) {
-          return mapWriteError(error);
-        }
+        return outcome.source;
       });
       reply.code(201);
       return { source };

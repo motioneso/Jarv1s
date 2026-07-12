@@ -22,10 +22,16 @@ import {
 } from "@jarv1s/shared";
 
 import { newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
+import {
+  newsConfirmSourceExecute,
+  newsPreviewSourceExecute,
+  summarizeNewsConfirmSource
+} from "./chat-tools.js";
 import { collectNewsExportSection } from "./data-lifecycle.js";
+import { NEWS_MODULE_ID } from "./module-id.js";
 import { NEWS_FETCH_HOSTS, NEWS_IMAGE_HOSTS } from "./source/catalog.js";
 
-export const NEWS_MODULE_ID = "news";
+export { NEWS_MODULE_ID } from "./module-id.js";
 
 // Publisher front pages churn on roughly this cadence; matches sports' standings/headlines TTL
 // (docs/superpowers/specs/2026-07-08-news-module.md "Caching").
@@ -225,6 +231,53 @@ export const newsModuleManifest = {
       risk: "read",
       inputSchema: { type: "object", properties: {} },
       execute: newsTopHeadlinesTodayExecute
+    },
+    // #975 Slice 4 — chat preview/confirm for custom sources. Same two-phase shape as the
+    // REST settings flow: preview verifies and stores candidates server-side; confirm writes.
+    {
+      name: "news.previewSource",
+      description:
+        "Verify a news publisher (URL or name) the actor wants to follow. Returns a confirmationId plus verified candidates (label + domain) for news.confirmSource. Read-only: verifies and caches candidates server-side, writes nothing.",
+      permissionId: "news.prefs",
+      risk: "read",
+      // Candidate labels are derived from fetched publisher pages/feeds — untrusted
+      // external text, so the gateway wraps output in the trust envelope.
+      externalContent: true,
+      inputSchema: {
+        type: "object",
+        properties: {
+          source: {
+            type: "string",
+            description: "Publisher homepage/feed URL, bare domain, or publisher name"
+          }
+        },
+        required: ["source"]
+      },
+      execute: newsPreviewSourceExecute
+    },
+    {
+      name: "news.confirmSource",
+      description:
+        "Add a previously previewed publisher as a followed custom news source. Requires the confirmationId from news.previewSource plus the chosen candidate's label and domain exactly as previewed.",
+      permissionId: "news.prefs",
+      // Write risk with NO actionFamilyId: this tool can never be promoted to
+      // auto-approve — every call goes through the blocking owner confirmation.
+      risk: "write",
+      inputSchema: {
+        type: "object",
+        properties: {
+          confirmationId: { type: "string" },
+          candidateId: {
+            type: "string",
+            description: "Required when the preview returned more than one candidate"
+          },
+          label: { type: "string", description: "Candidate label exactly as previewed" },
+          domain: { type: "string", description: "Candidate domain exactly as previewed" }
+        },
+        required: ["confirmationId", "label", "domain"]
+      },
+      summarize: summarizeNewsConfirmSource,
+      execute: newsConfirmSourceExecute
     }
   ],
   dataLifecycle: {
