@@ -4,7 +4,7 @@
 **Date:** 2026-07-12
 **Grounded on:** `origin/main` @ `a3b2b98bfb4b20d2118371d794f65c737f31bcb8` (verified via detached
 read-only worktree; the coordination worktree was 63 commits behind and was not used for grounding).
-**Tier:** Lane A security · Lane B routine (see Slicing)
+**Tier:** Lane A security · Lane B routine · Lane C security/high-risk (see Slicing)
 **Builds on:** Slice 1 of epic #869 (task #870, PR #876, merged `ce3892fc`) — spec
 `docs/superpowers/specs/2026-07-08-assistant-ai-admin-slice1.md`; Voice/STT split (#874, PR #886);
 `#367` auto-register (`packages/ai/src/auto-register.ts`); module service bindings (#915 D6,
@@ -46,14 +46,18 @@ subscriptions, no API key):
    call anywhere in the file), and it does NOT re-fire when an admin fixes a bad API key
    (`PATCH /api/ai/providers/:id` only invalidates the cache, `routes.ts:267` — the admin must then
    press "Discover" by hand).
-5. **The failure path is hostile (#981).** Ben bound News's json work to a model on a CLI-auth
-   provider; `generateStructured` decrypts the provider credential with no guard
-   (`packages/ai/src/structured/generate-structured.ts:83-86`) and a throwing decrypt
-   (`packages/db/src/secret-cipher.ts:175-178`, `keyId` branch — `tryKey(key)` has no try/catch)
-   surfaces as a raw AES-GCM error / bare 500. Nothing prevented binding a json-requiring service
-   to a provider that cannot execute json in the first place
-   (`capability-route-routes.ts:120-136` validates capability + active status, but not
-   `auth_method`).
+5. **json/economy work does not run on a CLI-only instance, and fails ugly (#981).** News binds
+   its json work to `module.news`; `generateStructured`
+   (`packages/ai/src/structured/generate-structured.ts:62-171`) resolves a model, then hard-wires
+   the **direct-API** `HttpApiAdapter` (`:101-105`) and decrypts an API credential
+   (`:83-85`). A CLI provider carries only the sealed `{ cli: true }` marker (no API key), so the
+   decrypt throws; the throw is unguarded here and in `secret-cipher.ts:175-178` (`keyId` branch,
+   `tryKey(key)` has no try/catch) → a raw AES-GCM error surfaces as a bare 500. The real gap:
+   **there is no CLI-bridge execution path for `generateStructured`/`generateJson` at all** — even
+   though chat already executes structured turns over the CLI (tmux/herdr) engine every day. Ben:
+   _"Yes it [CLI] can [run json]... why would you think CLI couldn't run? It just runs through tmux
+   or herdr."_ The fix is to **route json through the CLI bridge for CLI providers**, not to block
+   json to API-key providers.
 
 ## Current state — what #870/#874 already shipped (do not re-build)
 
@@ -89,22 +93,27 @@ Already shipped and reused as-is:
    change, CLI login-ready) and lazily self-heals — never behind a button.
 3. Delete the manual surfaces: `AddModelForm`, the "Discover" button, the discovered-models
    checkbox picker, and the "add one to bring this provider online" empty state.
-4. Per-service defaults resolve automatically from whatever is connected; a service that
-   **cannot** be served (json on a CLI-only instance) shows an actionable needs-config state, never
-   a raw 500.
-5. Bindings that can never work are rejected at write time with an actionable message (#981
-   prevention), and the credential-decrypt path can no longer leak a raw AES-GCM error (#981
-   ride-along, ai-package half).
+4. **json/economy work runs on a CLI-only instance with zero API keys** — News topic validation,
+   ranking, and other structured work execute over the CLI bridge for CLI providers, the same way
+   chat already does. #981 becomes "route, don't block".
+5. Codex/OpenAI CLI providers get auto-discovered models too (not sentinel-only), from a concrete
+   static source, so the provider card is populated the moment Codex connects.
+6. The credential-decrypt path can no longer leak a raw AES-GCM error (defense-in-depth; the
+   primary #981 fix is routing, this is the belt-and-suspenders for a genuinely corrupt API key).
 
 ## Non-goals / Guardrails
 
-- **No execution-transport change.** Chat stays on the CLI bridge (M-A3); structured json stays
-  direct-HTTP (`HttpApiAdapter`). Making CLI providers execute structured json is a separate epic.
+- **API-key structured execution is unchanged.** When a provider has an API key, json keeps
+  running over `HttpApiAdapter` direct-HTTP. This slice ADDS a CLI-bridge execution path for
+  CLI providers; it does not remove or alter the API path.
 - **No new admin knobs.** This slice only removes surface. No per-service binding UI is added;
   automatic resolution (not persisted bindings) delivers "sensible default per service".
 - **Voice untouched** (#874 dedicated endpoint; discovery never emits `transcription`).
 - **Natural-language control is Slice 2** of #869 — not here.
-- **No gemini CLI entry, no `/model` TTY enumeration** (non-blocking spike per #869).
+- **No gemini CLI entry** (blocked + not loginable in the cli-runner catalog). **No `/model` TTY
+  picker enumeration** — Codex models come from a curated static source (D7), not from scraping the
+  interactive picker (which is itself buggy/incomplete — it omits the gpt-5.6 ids, confirmed on
+  Codex CLI v0.143.0). This matches #869's non-blocking-spike stance on `/model`.
 - **Provider-agnostic invariant holds:** the only hardcoded model ids remain the static lists in
   `model-discovery.ts` (`ANTHROPIC_STATIC_MODELS`, `CLI_STATIC_MODELS`) and the data map in
   `auto-register.ts`. No new code path names a provider or model.
@@ -126,16 +135,11 @@ Already shipped and reused as-is:
   existing `created_at desc`. Result: an unbound/mode-bound **chat** resolution inside a CLI provider always
   picks the sentinel (rides the account model, never stale, no `--model` passed); concrete statics
   win only via an explicit pin — exactly the #367 contract.
-- Statics keep their full inferred capability sets (json/tool-use/vision/summarization). They do
-  **not** contaminate worker routing because of D3. Rationale for keeping the caps rather than
-  stripping to `["chat"]`: when a CLI structured-execution path lands later, the rows are already
-  correctly tagged; and capability display in the admin pane stays truthful to what the model can
-  do, while D3 encodes what the **provider connection** can execute.
+- Statics keep their full inferred capability sets (json/tool-use/vision/summarization) — and those
+  caps are now **real**, because D3 makes CLI providers execute json over the bridge. A static
+  `claude-opus` row tagged `json` genuinely serves json work.
 - Staleness: static ids live in exactly one data file (`model-discovery.ts:13-46`); refreshing them
-  is a one-file data edit, same as today.
-- Codex note: `CLI_STATIC_MODELS` intentionally has no `openai-compatible` entry
-  (`model-discovery.ts:40-41` — codex has no concrete shipped ids). A Codex CLI provider therefore
-  remains sentinel-only. That is correct, not a gap: the sentinel IS the working chat model.
+  is a one-file data edit, same as today. D7 adds the Codex/openai-compatible entry.
 
 ### D2 — discovery fires on every connect event; the buttons die
 
@@ -170,41 +174,65 @@ Already shipped and reused as-is:
   (`provider-validation-routes.ts:95`) — the latter becomes an internal/self-heal + Slice-2 surface
   with no UI caller. Deleting them is pure churn with no UX payoff; the spec explicitly keeps them.
 
-### D3 — execution-transport-aware resolution: json never resolves to a CLI provider
+### D3 — route json through the CLI bridge for CLI providers (the real #981 fix)
 
-Structured json executes over direct HTTP with an API key (`generate-structured.ts:101-105`);
-a CLI provider's credential is the sealed `{ cli: true }` marker (`auto-register.ts:128-132`) —
-it can never serve it. Encode that at resolution and at binding write:
+**Investigation result (grounded):**
 
-- Add a single predicate, e.g. `capabilityRequiresApiExecution(capability)` returning `true` for
-  `"json"` (data-driven set in `packages/ai/src`, extensible; NOT provider-specific — it describes
-  the transport, preserving provider-agnosticism).
-- Where the predicate holds, model-selection queries add
-  `.where("providers.auth_method", "=", "api_key")`:
-  `selectAutomaticModelForCapability` (`repository.ts:1278`), `selectModelInProviderForCapability`
-  (`repository.ts:1204`, covers the admin-pin-provider branch), the pinned-model query
-  (`repository.ts:1037-1044`), the service-binding model queries (`repository.ts:1116-1123` and
-  `:1174-1180`). Misses flow into the existing `logNeedsConfig` observability (`repository.ts:1258`).
-- `PUT /api/ai/services/:service/binding` validation (`capability-route-routes.ts:120-136`): when
-  `requiredCapability` requires API execution, also require the model's provider
-  `auth_method === "api_key"`; otherwise reject 400 with actionable copy:
-  `"this model's provider signs in via CLI and has no API credential for json generation — pick a model on an API-key provider"`.
-- Net effect on Ben's instance: with only CLI providers, News json resolves `needs_config`
-  (observable, actionable) instead of a raw 500; the moment any API-key provider is added, worker
-  json starts flowing to it automatically with zero binding writes.
+- `generateStructured` today hard-wires the direct-API adapter: it decrypts an API credential
+  (`generate-structured.ts:83-85`) and constructs `HttpApiAdapter` (`:101-105`). **There is no
+  CLI-execution path for `generate*` today** — this is net-new work.
+- But it is NOT greenfield. The retry/parse loop is already **adapter-agnostic**: the loop
+  (`generate-structured.ts:113-168`) only calls `adapter.generateStructured(input)` and works on
+  the returned `rawObject`/`rawText` (`http-api-structured.ts:24-30`) — it validates against the
+  schema (Ajv, `:107-108,152`) and reprompts on invalid output (`:129-138,166-167`). That IS
+  "prompt for json + parse with a retry"; a CLI adapter only needs to return `rawText`.
+- The one-shot CLI execution machinery **already exists and is proven daily by chat**:
+  `ClaudePrintChatEngine` (claude `--print`, `packages/chat/src/live/claude-print-chat-engine.ts`)
+  and `CodexExecSession` (`codex exec --json`, `packages/chat/src/live/codex-exec-session.ts:96-100`)
+  launch a non-interactive one-shot, submit a prompt, and read the assistant's final text from the
+  parsed transcript. Both ride the `DEFAULT_MODEL_SENTINEL` (no stale `--model`).
+- The low-level primitives those engines use — the multiplexer (`TmuxMultiplexer`/herdr),
+  `parseTranscript`, `transcriptGlobDir`, `redactSecrets`, `DEFAULT_MODEL_SENTINEL` — **live in and
+  are exported from `packages/ai`** (`packages/ai/src/index.ts:24-27`; the chat engines import them
+  from `@jarv1s/ai`). So the port belongs in `ai` and the transport is already ai-owned.
 
-### D4 — credential decrypt can never surface a raw AES-GCM error
+**Design — dependency-injected CLI adapter (respects module isolation):**
 
-- Wrap `deps.cipher.decryptJson(provider.encrypted_credential)` in
-  `generate-structured.ts:83-85` in try/catch: on throw, `logger.warn` an internal summary (no
-  secret material, no ciphertext) and return `{ ok: false, error: "needs_config" }` — the same
-  contract callers already handle. `secret-cipher.ts` itself is untouched (its throw-on-corruption
-  behavior is correct for other callers, #114).
-- Sweep the ai package for other unguarded `decryptJson` calls on runtime request paths and apply
-  the same guard (discovery's create-path already soft-fails via its outer try, `routes.ts:208`).
-- The News-side user-facing 503 copy ("News needs an AI model…") remains issue #981's own scope in
-  `packages/news`; this spec delivers the ai-package half #981 depends on (stable `needs_config`
-  instead of an exploding 500).
+- The `StructuredProviderAdapter` port already exists in `ai`
+  (`generate-structured.ts:28-30`) and `generateStructured` already accepts a `deps.createAdapter?`
+  seam (`:39-44,101-104`).
+- `generateStructured` branches on the resolved provider's `auth_method` (the row carries it,
+  `repository.ts:80`, exposed via `selectProviderWithCredential`): `api_key` → existing
+  `HttpApiAdapter` (decrypt + direct HTTP, unchanged); `cli` → a **CLI structured adapter** obtained
+  from a new injected port (e.g. `deps.createCliStructuredAdapter(providerKind)`). For the CLI
+  branch, NO credential decrypt runs (the sealed `{ cli: true }` marker has no key) — so the raw
+  AES-GCM 500 disappears by construction, not by a guard.
+- The CLI adapter is **implemented in `@jarv1s/chat`** (it owns the print/exec one-shot launch
+  scaffolding — persona/neutral dirs, token-env sourcing, permission hooks, transcript paths) and
+  **wired at the composition root** (`packages/module-registry/src/index.ts`, which already imports
+  BOTH `@jarv1s/ai` line 36 and `@jarv1s/chat` line 91, and already builds the `generateJson` deps
+  at `:513-524` passing only `{ repository, cipher, logger }` today). Adding `createCliStructuredAdapter`
+  to those deps is a one-site wiring change. `ai` never imports `chat` (no isolation break); `ai`
+  defines the port, `chat` implements it, `module-registry` injects it.
+- The CLI adapter's `generateStructured(input)`: build a json-mode prompt (persona-free, schema
+  embedded, "respond with ONLY a JSON object matching this schema"), run the provider's one-shot
+  engine, read the assistant's final text via `parseTranscript`, return it as `rawText` with a
+  best-effort token `usage` (or zeros). The existing loop handles extraction, validation, and up to
+  `STRUCTURED_MAX_REPAIR_RETRIES` reprompts — no JSON parsing lives in the adapter.
+- Net effect on Ben's instance: News topic validation / ranking run over the Claude (or Codex) CLI
+  with zero API keys. Adding an API key later transparently switches that provider's json to the
+  faster direct-HTTP path. Provider-agnostic: the branch keys on `auth_method`, never a provider
+  name.
+
+### D4 — decrypt guard (secondary defense-in-depth)
+
+With D3, CLI providers no longer reach `decryptJson`, so the #981 raw-500 is fixed at the source.
+Keep a narrow guard anyway for a genuinely corrupt **API-key** credential: wrap the decrypt in
+`generate-structured.ts:83-85` in try/catch → `logger.warn` an internal summary (no secret, no
+ciphertext) → return `{ ok: false, error: "needs_config" }` (a contract callers already handle).
+`secret-cipher.ts` is untouched (its throw-on-corruption is correct for other callers, #114). The
+News-side user-facing 503 copy rewrite stays issue #981's own `packages/news` scope; this spec
+delivers the routing + guard the ai package owes it.
 
 ### D5 — instance default and per-service defaults are automatic on every creation path
 
@@ -215,18 +243,70 @@ it can never serve it. Encode that at resolution and at binding write:
 - "Auto-pick a sensible default model per service" is delivered by **resolution, not persisted
   bindings**: unbound chat already walks the instance-default provider's ladder
   (`repository.ts:1127-1140`, sentinel-first per D1); unbound worker/module json picks
-  cross-provider automatically (`repository.ts:1105-1111`, api_key-filtered per D3). No writes
-  means no competing defaults, nothing to migrate, and adding/removing providers self-adjusts.
+  cross-provider automatically (`repository.ts:1105-1111`). No writes means no competing defaults,
+  nothing to migrate, and adding/removing providers self-adjusts.
 
-### D6 — existing-install reconcile (lazy, no SQL)
+### D6 — clean-slate reconcile: delete manual rows, rediscover fresh (Ben's (a) directive)
 
-Ben's live instance already has CLI statics sitting `disabled` from #870. `upsertDiscoveredModels`
-is `doNothing`-on-conflict, so D1 alone won't heal them. During the D2 helper's upsert step, for
-CLI providers only: flip rows to `active` where `status = 'disabled'` AND
-`updated_at = created_at` (never touched since system insert) AND the row's `provider_model_id`
-is in the current static list. Any admin edit (including an explicit disable) goes through
-`updateModel`, which bumps `updated_at` — so genuinely admin-disabled models are never resurrected,
-preserving #870's "never resurrect" rule. Covered by an integration test either way.
+Ben: _"auto-detect the correct models fresh, and DELETE any manually-created model rows for Claude
+AND Codex providers. Clean slate → only auto-detected models remain."_ No never-edited heuristic.
+
+- In the D2 discover helper, for CLI providers (claude + codex) only, run a **replace**, not a
+  merge: inside the same scoped transaction, **hard-delete every existing model row for the
+  provider EXCEPT the `DEFAULT_MODEL_SENTINEL` chat model** (`auto-register.ts:27`; the sentinel is
+  the chat happy-path and must survive), then insert the current static list `active`. Net result:
+  the provider holds exactly the sentinel + the freshly auto-detected static models — every
+  hand-added row (and every stale static from a prior list) is gone.
+- This intentionally **overrides #870's "never hard-delete / never resurrect" rule for CLI
+  providers**, because Ben's explicit intent is a clean slate. The kept REST `POST /api/ai/models`
+  endpoint (per (b)) remains the escape hatch to re-add a model discovery genuinely missed.
+- Idempotent: re-running produces the same sentinel + current static set. A one-time run on Ben's
+  live instance clears the #870-era `disabled` statics and the manual rows he ticked, leaving only
+  auto-detected models. Add `deleteModelsForProviderExceptSentinel(scopedDb, providerConfigId)` to
+  `AiRepository`. Covered by an integration test (manual row + stale static both gone; sentinel and
+  current statics present, active).
+- API-key providers are NOT delete-and-replaced (their live `/models` list is authoritative and
+  `upsertDiscoveredModels`' `onConflict doNothing` already keeps them correct); the clean-slate is
+  a CLI-provider behavior, matching Ben's "Claude AND Codex" wording.
+
+### D7 — Codex/OpenAI model discovery from a concrete static source (Ben's (d) directive)
+
+Ben: _"figure out how to get codex models. Surely we can grab info from a static url or something."_
+
+**Investigation result (grounded + web-verified):**
+
+- Codex (ChatGPT-subscription auth) has **no machine-readable model-list endpoint**. OpenAI's
+  `/v1/models` requires platform **API-key** auth, which a ChatGPT-subscription Codex login does not
+  carry. OpenAI's own Codex models page (`developers.openai.com/codex/models` → redirects to
+  `learn.chatgpt.com/docs/models`) is human-readable HTML with no JSON/enumeration API (confirmed by
+  fetch). The interactive `/model` picker is a TTY (already ruled out by #869) AND is buggy — it
+  omits the current gpt-5.6 ids (confirmed on Codex CLI v0.143.0). So there is no live source to
+  probe for a CLI Codex provider.
+- Therefore the concrete source is a **curated static list**, exactly like the existing anthropic
+  CLI path — the same reliable-baseline decision #869/H5 already made, now extended to codex.
+
+**Design:**
+
+- Add an `"openai-compatible"` entry to `CLI_STATIC_MODELS` (`model-discovery.ts:43-46`) with the
+  current Codex model ids, sourced from OpenAI's published Codex models doc
+  (`learn.chatgpt.com/docs/models`), verified 2026-07-12:
+  `gpt-5.6-sol` (reasoning), `gpt-5.6-terra` (interactive), `gpt-5.6-luna` (economy), plus the
+  `gpt-5.6` alias; `gpt-5.4` / `gpt-5.4-mini` / `gpt-5.3-codex-spark` optional. Exclude
+  ChatGPT-deprecated ids (`gpt-5.2`, `gpt-5.3-codex`).
+- Run these through the existing `inferModel(id, "openai-compatible")` (`model-discovery.ts:210`)
+  so capabilities + tier come from the same inference path as api_key discovery — no parallel
+  logic. **Extend `inferTierFromModelId`** (`model-discovery.ts:198-202`): the current
+  openai-compatible branch keys on `o[0-9]` / `mini` / `3.5` and would mis-tier the gpt-5.6 named
+  variants — add sol→reasoning, terra→interactive, luna→economy (data-driven suffix map, still no
+  hardcoded provider CODE path — it's the same static-data file the invariant already allows).
+- Codex statics are inserted `active` (D1) and delete-and-replaced on each pass (D6); chat still
+  rides the sentinel (D1 ordering). With D3, these ids also serve json over `codex exec` on a
+  CLI-only instance.
+- Staleness reality (state it plainly): a curated list drifts as OpenAI ships models. Mitigations:
+  it lives in one data file; the sentinel (not a concrete id) is the chat default so drift never
+  breaks chat; and the kept REST endpoints let an admin add a brand-new id by hand. A live
+  enumeration would only be possible via an API-key OpenAI provider (`/v1/models`, already handled
+  by the api_key discovery path) — which is the honest upgrade path if Ben adds an OpenAI key.
 
 ## UX walkthrough — before / after
 
@@ -236,10 +316,12 @@ model rows; News topic-add → _"Topic checking is unavailable right now"_ (a li
 gap) or a raw 500; the "fix" is: enable a model → open Edit → tick json/economy checkboxes → bind →
 raw AES-GCM 500 anyway, because the provider has no API credential.
 After: sign in via Claude CLI → provider card appears with the sentinel ("Claude — default model")
-plus the statics, all active, capabilities + tiers inferred, read-only. Chat behavior unchanged
-(sentinel). News json shows one honest, actionable state: _"needs an API-key provider"_ — and the
-moment an API key is added to any provider, it starts working with zero clicks. No Add. No
-Discover. No checkboxes.
+plus the auto-detected statics, all active, capabilities + tiers inferred, read-only. Chat behavior
+unchanged (sentinel). **News topic validation now works** — the json request routes through the
+Claude CLI bridge (D3), the same tmux/herdr transport chat already uses, so `generateStructured`
+returns valid JSON with zero API keys. Adding Codex later populates a second card the same way (D7).
+Add an API key to any provider and its json transparently switches to the faster direct-HTTP path.
+No Add. No Discover. No checkboxes.
 
 **API-key provider.**
 Before: create with key → models appear active (shipped) — but a typo'd key meant an empty
@@ -253,19 +335,43 @@ failed probe, the existing soft "couldn't reach the provider's model list — ch
 
 ## Slicing
 
-**Lane A — backend (packages/ai): discovery triggers, activation, transport filter, error guard.**
-D1 + D2(a-d server side) + D3 + D4 + D5 + D6. One shared `discoverAndPersistModels` helper; resolver
-query changes; binding-write validation; decrypt guard; reconcile. Integration tests per acceptance
-criteria. **Tier: security** — this changes which backend receives private prompts (routing) and
-touches the credential-decrypt path; independent security-lens review before merge per project
-rules. Estimated: ~1 agent build day.
+Three lanes. Lane A and Lane B are the frictionless-discovery core and can ship first; **Lane C is a
+separable, higher-risk follow-on** — the spec is usable if Lane C is deferred, at the cost of json
+staying needs-config on a CLI-only instance until it lands.
+
+**Lane A — backend (packages/ai): discovery triggers, activation, clean-slate reconcile, Codex
+statics, error guard.** D1 + D2(a–d server side) + D4 + D5 + D6 + D7. One shared
+`discoverAndPersistModels` helper; sentinel-first resolver ordering;
+`deleteModelsForProviderExceptSentinel`; `CLI_STATIC_MODELS` openai-compatible entry +
+`inferTierFromModelId` extension; decrypt guard. Integration tests per acceptance criteria.
+**Tier: security** — changes activation/routing and touches the credential-decrypt path; independent
+security-lens review before merge per project rules. Estimated: ~1 agent build day.
 
 **Lane B — frontend (apps/web): delete the manual surfaces.**
-UI deletions + empty-state copy + (if any json-capable model picker exists in service/binding UI)
-filter to API-provider models. Net-negative diff (~250 lines removed from
+UI deletions (`AddModelForm`, discover button/`discoverMutation`, discovered-models picker, "add
+one" empty-state copy) + honest empty-state copy. Net-negative diff (~250 lines removed from
 `settings-ai-admin-pane.tsx`). Depends on Lane A being merged (so the empty state is truthful).
 **Tier: routine.** Estimated: ~half agent day. Frontend-only QA gate (no PG suite) per
 multi-agent-contention rule.
+
+**Lane C — CLI structured-generation adapter (packages/ai port + packages/chat impl + wiring).**
+Delivers D3: route `generateStructured`/`generateJson` through the CLI bridge for `auth_method='cli'`
+providers so json works with zero API keys. **This is net-new — no CLI execution path exists for
+`generate*` today** (verified: `generate-structured.ts:101-105` hard-wires `HttpApiAdapter`; chat's
+one-shot engines `claude-print-chat-engine.ts` / `codex-exec-session.ts` only serve chat turns).
+The pieces exist to assemble it cleanly, so it is not greenfield: (1) the retry/validation loop
+(`generate-structured.ts:113-168`) is already adapter-agnostic — it only needs an adapter returning
+`rawText`; (2) a `deps.createAdapter?` seam already exists (`:39-44`); (3) the tmux/herdr multiplexer
+primitives are exported from `@jarv1s/ai` (`index.ts:24-27`). Work: define a `CliStructuredAdapter`
+port in `packages/ai`, implement it in `packages/chat` (reuse the print/exec engines to run a
+one-shot prompt-for-JSON, feed `rawText` back into the existing Ajv loop — reprompt-on-invalid comes
+free), branch on `auth_method` at the `packages/module-registry` injection site
+(`index.ts:513-524`), respecting the module-isolation invariant (ai can't import chat). Because CLI
+turns run through the multiplexer, add a bounded timeout + concurrency guard so background json can't
+starve interactive chat. **Tier: security/high-risk** — new transport for private prompts + new
+execution surface; needs its own independent review, and arguably its own `task` issue since it is
+materially larger than A/B. Estimated: **~2 agent days**, the dominant cost and risk of the whole
+effort. Depends on Lane A (activation) but not Lane B.
 
 ## Acceptance criteria
 
@@ -284,38 +390,47 @@ multi-agent-contention rule.
    active statics + instance-default flag (when it's the sole active provider) — extend the
    existing auto-register integration tests; re-login remains idempotent (no duplicates, no
    resurrection of admin-disabled rows).
-5. `resolveModelForService(scopedDb, "module.news", { capability: "json" })` on an instance with
-   only CLI providers returns `{ model: null, reason: "needs-config" }` and logs to
-   `jarvis_error_log` — never selects a CLI-provider model, even one tagged `json`. With an
-   additional API-key provider, it selects that provider's model automatically with no binding
-   rows.
-6. `PUT /api/ai/services/module.news/binding` with a model on a CLI-auth provider returns 400 with
-   copy naming the cause + fix (test asserts the message mentions the missing API credential).
-7. `generateStructured` with an undecryptable provider credential (wrong-key envelope fixture)
-   returns `{ ok: false, error: "needs_config" }` and logs a warning — the AES-GCM error string
-   never reaches the result or an HTTP response (regression test for #981's raw-500).
+5. **(Lane C) json routes through the CLI, not blocked.**
+   `resolveModelForService(scopedDb, "module.news", { capability: "json" })` on a CLI-only instance
+   returns a usable CLI-provider model (not `needs-config`); `generateStructured` against it executes
+   via the injected `CliStructuredAdapter` and returns valid parsed JSON. Integration test with a
+   stubbed CLI adapter returning a JSON string → `{ ok: true }`; a second test where the adapter
+   returns malformed JSON first, valid second → the Ajv reprompt loop recovers.
+6. **(Lane C) binding to a CLI-auth provider is allowed.** `PUT /api/ai/services/module.news/binding`
+   with a model on a CLI-auth provider **succeeds** (no 400) and subsequent json calls route through
+   the CLI bridge — the old block direction is explicitly removed. Test asserts a 2xx and a working
+   resolution.
+7. `generateStructured` against an **API-key** provider with an undecryptable credential (wrong-key
+   envelope fixture) returns `{ ok: false, error: "needs_config" }` and logs a warning — the AES-GCM
+   error string never reaches the result or an HTTP response (regression test for #981's raw-500).
+   The CLI path never decrypts, so it cannot raise this at all.
 8. `apps/web/src/settings/settings-ai-admin-pane.tsx` contains no `AddModelForm`, no
    `discoverMutation`/discover button, no discovered-models checkbox picker, no "add one to bring
    this provider online" copy; `EditModelForm`, disable toggle, and override switch remain.
    Existing pane e2e/screens updated.
-9. Existing-install reconcile: a fixture with #870-era `disabled` CLI statics
-   (`updated_at = created_at`) flips to active on the next discovery pass; a row disabled via
-   `updateModel` (bumped `updated_at`) stays disabled.
-10. No new migration files; full gate green (`pnpm verify:foundation`), including the unchanged
+9. **(D6) Clean-slate reconcile.** A fixture CLI provider holding the sentinel + a #870-era stale
+   static + a manually-added row, after one discovery pass, holds exactly the sentinel + the current
+   static list (all `active`); the manual row and the stale static are hard-deleted; the sentinel
+   survives. Re-running is idempotent (same set, no duplicates).
+10. **(D7) Codex/openai-compatible statics.** `CLI_STATIC_MODELS` has an `openai-compatible` entry;
+    creating a codex CLI provider yields active, tier-inferred models (`gpt-5.6-sol`→reasoning,
+    `-terra`→interactive, `-luna`→economy via the extended `inferTierFromModelId`). Unit test on the
+    tier map + integration test on codex-provider creation.
+11. No new migration files; full gate green (`pnpm verify:foundation`), including the unchanged
     `foundation.test.ts` migration list.
 
-## Open questions for Ben
+## Open questions for Ben (residual)
 
-1. **Reconcile heuristic (D6):** auto-activating the #870-era disabled statics on your existing
-   install relies on "never edited ⇒ system state". If you ever hand-disabled one of those three
-   Claude rows through Edit, it stays off (correct); if you hand-disabled it some way that didn't
-   bump `updated_at`, it would come back on. Acceptable?
-2. **Keep the hidden REST escape hatches?** The spec keeps `POST /api/ai/models` +
-   `POST …/models/discover` endpoints (no UI) for tests and Slice-2 NL control. If you want "no add
-   model" to mean the API too, say so and Lane A deletes them.
-3. **CLI-only instance + json services:** with no API key anywhere, News/json stays an honest
-   needs-config forever. Is a follow-up spike on structured-json-over-the-CLI-bridge worth filing
-   (separate epic per the transport guardrail), or is "add one API key for background json work"
-   the intended steady state?
-4. **Codex stays sentinel-only** (no concrete static ids exist to list). Fine, or do you want a
-   minimal curated codex list added to `CLI_STATIC_MODELS` as data?
+1. **Lane C scope & sequencing.** The CLI structured-json adapter (D3/Lane C) is net-new and the
+   single largest, highest-risk piece (~2 agent days, new execution surface for private prompts). It
+   is cleanly separable: Lanes A+B deliver frictionless discovery/activation immediately, with
+   CLI-only json staying needs-config until C lands. Ship A+B first and file Lane C as its own `task`
+   issue, or hold the whole thing until C is done so News "just works" from day one?
+2. **CLI json concurrency budget.** Background json over the CLI bridge shares the tmux/herdr
+   multiplexer with interactive chat. Spec assumes a bounded timeout + a low concurrency cap so a
+   News-refresh burst can't stall your chat. Is a hard "chat always wins, json queues" priority the
+   behavior you want, or is best-effort fair-share fine?
+3. **Codex static-list upkeep.** The curated codex ids (D7) will drift as OpenAI ships models; the
+   sentinel keeps chat safe and the REST endpoint lets you hand-add, but the static file needs
+   occasional manual sync from `learn.chatgpt.com/docs/models`. Acceptable as a known maintenance
+   chore, or do you want a periodic check that warns when the list looks stale?
