@@ -236,6 +236,10 @@ export interface TriggerNewsRefreshResponse {
   readonly state: NewsRefreshStateDto["state"];
 }
 
+export interface TriggerNewsRevalidationResponse {
+  readonly queued: boolean;
+}
+
 export interface CreateNewsSourceExclusionRequest {
   /** Raw user input (bare domain or HTTPS URL); the backend canonicalizes it. */
   readonly source: string;
@@ -768,6 +772,18 @@ export const triggerNewsRefreshSchema = {
         queued: { type: "boolean" },
         state: { type: "string", enum: ["idle", "queued", "running", "failed"] }
       }
+    },
+    401: errorResponseSchema
+  }
+} as const;
+
+export const triggerNewsRevalidationSchema = {
+  response: {
+    202: {
+      type: "object",
+      additionalProperties: false,
+      required: ["queued"],
+      properties: { queued: { type: "boolean" } }
     },
     401: errorResponseSchema
   }

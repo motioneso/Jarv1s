@@ -1,9 +1,13 @@
 import Fastify from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
+import type { PgBoss } from "pg-boss";
+import pg from "pg";
 
 import type { DatasetClient } from "@jarv1s/datasets";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient } from "@jarv1s/jobs";
+import { HttpError } from "@jarv1s/module-sdk";
 
 import type { NewsImageFetchPort } from "../../packages/news/src/discovery/ports.js";
 import { NewsPersonalizationRepository } from "../../packages/news/src/personalization-repository.js";
@@ -26,15 +30,19 @@ describe("news personalization routes", () => {
 
   function buildApp(
     topicAllowed = true,
-    image: NewsImageFetchPort = async () => ({ ok: false, reason: "network" })
+    image: NewsImageFetchPort = async () => ({ ok: false, reason: "network" }),
+    boss: PgBoss | null = null
   ) {
     const app = Fastify();
     registerNewsRoutes(app, {
       dataContext: new DataContextRunner(appDb),
-      resolveAccessContext: async (request) => ({
-        actorUserId: String(request.headers["x-user-id"] ?? ids.userA),
-        requestId: crypto.randomUUID()
-      }),
+      resolveAccessContext: async (request) => {
+        if (request.headers.authorization === "none") throw new HttpError(401, "Unauthorized");
+        return {
+          actorUserId: String(request.headers["x-user-id"] ?? ids.userA),
+          requestId: crypto.randomUUID()
+        };
+      },
       datasetClient: {
         getDataset: async (_key, _params, options) => ({
           data: options.fallback,
@@ -67,7 +75,7 @@ describe("news personalization routes", () => {
           })
         }
       },
-      boss: null
+      boss
     });
     return app;
   }
@@ -270,5 +278,61 @@ describe("news personalization routes", () => {
     ).toBe(404);
     expect(fetches).toBe(1);
     await app.close();
+  });
+
+  // #975 Slice 4 Task 6 — manual retry endpoint for owners whose sources need attention.
+  describe("manual revalidation retry", () => {
+    const { Client } = pg;
+    let appBoss: PgBoss;
+    let bootstrap: pg.Client;
+
+    beforeEach(async () => {
+      appBoss = createPgBossClient(connectionStrings.app);
+      bootstrap = new Client({ connectionString: connectionStrings.bootstrap });
+      await Promise.all([appBoss.start(), bootstrap.connect()]);
+    });
+
+    afterEach(async () => {
+      await Promise.allSettled([appBoss.stop({ graceful: false }), bootstrap.end()]);
+    });
+
+    it("rejects unauthenticated requests with 401", async () => {
+      const app = buildApp(true, undefined, appBoss);
+      await app.ready();
+      try {
+        const res = await app.inject({
+          method: "POST",
+          url: "/api/news/revalidation",
+          headers: { authorization: "none" }
+        });
+        expect(res.statusCode).toBe(401);
+      } finally {
+        await app.close();
+      }
+    });
+
+    it("enqueues a revalidation job and reports queued=true through serialization", async () => {
+      const app = buildApp(true, undefined, appBoss);
+      await app.ready();
+      try {
+        const res = await app.inject({ method: "POST", url: "/api/news/revalidation" });
+        expect(res.statusCode).toBe(202);
+        // Full-body equality doubles as the schema-strip check: fast-json-stringify would
+        // silently drop `queued` if the response schema didn't declare it.
+        expect(JSON.parse(res.body)).toEqual({ queued: true });
+
+        const jobs = await bootstrap.query<{ data: Record<string, unknown> }>(
+          `SELECT data FROM pgboss.job WHERE name = 'news.revalidate'`
+        );
+        expect(jobs.rows).toHaveLength(1);
+        expect(jobs.rows[0]!.data).toEqual({
+          actorUserId: ids.userA,
+          kind: "revalidate",
+          idempotencyKey: `news-revalidate:${ids.userA}`
+        });
+      } finally {
+        await app.close();
+      }
+    });
   });
 });

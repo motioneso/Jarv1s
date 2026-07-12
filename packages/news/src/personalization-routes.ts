@@ -13,6 +13,7 @@ import {
   getNewsPersonalizationSchema,
   previewNewsSourceSchema,
   triggerNewsRefreshSchema,
+  triggerNewsRevalidationSchema,
   updateNewsTopicSchema,
   type ConfirmNewsSourceRequest,
   type CreateNewsSourceExclusionRequest,
@@ -31,7 +32,7 @@ import { resolveSourceInput } from "./discovery/source-resolution.js";
 import { validateTopic } from "./discovery/policy-validation.js";
 import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "./discovery/ports.js";
 import { createPreviewStore } from "./discovery/preview-store.js";
-import { enqueueNewsRefresh } from "./jobs.js";
+import { enqueueNewsRefresh, enqueueNewsRevalidation } from "./jobs.js";
 import { normalizePublisherDomain } from "./personalization-domain.js";
 import {
   NewsDuplicateSourceError,
@@ -502,6 +503,25 @@ export function registerNewsPersonalizationRoutes(
           return removed;
         });
         return { ok };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // Manual retry for owners whose sources/topics need attention (#975 Slice 4). No
+  // bump/reconcile here — revalidation reads current items, it doesn't change them.
+  server.post(
+    "/api/news/revalidation",
+    { schema: triggerNewsRevalidationSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const queued = dependencies.boss
+          ? await enqueueNewsRevalidation(dependencies.boss, accessContext.actorUserId)
+          : false;
+        reply.code(202);
+        return { queued };
       } catch (error) {
         return handleRouteError(error, reply);
       }

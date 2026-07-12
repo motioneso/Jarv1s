@@ -17,6 +17,7 @@ import {
   newsPrefsResponseSchema,
   previewNewsSourceSchema,
   triggerNewsRefreshSchema,
+  triggerNewsRevalidationSchema,
   updateNewsTopicSchema
 } from "@jarv1s/shared";
 
@@ -201,6 +202,12 @@ export const newsModuleManifest = {
       method: "POST",
       path: "/api/news/refresh",
       responseSchema: triggerNewsRefreshSchema,
+      permissionId: "news.prefs"
+    },
+    {
+      method: "POST",
+      path: "/api/news/revalidation",
+      responseSchema: triggerNewsRevalidationSchema,
       permissionId: "news.prefs"
     },
     {

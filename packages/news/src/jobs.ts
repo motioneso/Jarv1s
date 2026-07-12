@@ -78,14 +78,15 @@ export async function enqueueNewsRefresh(boss: PgBoss, actorUserId: string): Pro
   return id !== null;
 }
 
-export async function enqueueNewsRevalidation(boss: PgBoss, actorUserId: string): Promise<void> {
+export async function enqueueNewsRevalidation(boss: PgBoss, actorUserId: string): Promise<boolean> {
   const idempotencyKey = `news-revalidate:${actorUserId}`;
-  await sendJob(
+  const id = await sendJob(
     boss,
     NEWS_REVALIDATE_QUEUE,
     { actorUserId, kind: "revalidate", idempotencyKey },
     { singletonKey: actorUserId }
   );
+  return id !== null;
 }
 
 export async function registerNewsJobWorkers(
