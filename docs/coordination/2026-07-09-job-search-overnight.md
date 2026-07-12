@@ -4034,3 +4034,13 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   (added `topStories` positive-control + post-disable assertions to same regression, focused 5/5
   green, one file explicit-path, unpushed) and is holding for Opus consolidation → single push →
   **round 3 all-3-lenses on final head** required (named-unanimous must be on the SAME head).
+- **ROUND 3 IN FLIGHT on FINAL head `a676070f99301e30c78a79968e55e1b76f6be1cf`** (pushed by News
+  Codex). Verified `8eccd902..a676070f` = ONE test file (`news-personalization-routes.test.ts`
+  +10/-8), ZERO production change → Opus rd2 GREEN legitimately CARRIED (it pre-blessed this exact
+  additive-test commit: "mark ALREADY-FIXED ... MERGE-READY: YES (production code)"). Fresh lenses on
+  final head: independent Codex `bbdna1b3v` (must clear its own rd2 REJECT), Gemini/agy neutral
+  `b1vfid7jb`. CI monitor `b8xzqnkbg`. **MERGE when Codex rd3 APPROVE + Gemini rd3 APPROVE + Opus
+  carried-GREEN + CI green** → `gh pr merge 973 --squash --delete-branch` (Closes #972 + #969) →
+  bookkeeping (close #972/#969, epic #954 exit check, board Done) → reap pEP + worktree → coordinator
+  relay-in-place (directive #3). Opus non-blocking FYI (NOT a gate): `web-research/src/reader.ts`
+  no-body branch buffers full arrayBuffer before slice (unreachable for real undici; oversized->502).
