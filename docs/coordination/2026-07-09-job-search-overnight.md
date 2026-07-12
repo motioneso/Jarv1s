@@ -4603,3 +4603,12 @@ Opus+Codex+Gemini, NO fallback.
 - **Council (JS security tier, 2-provider substitution permitted):** Opus council QA **APPROVE** (08:26) + Gemini council QA **re-review APPROVE** (08:50, covers final head `9316012d`). Gemini's initial REJECT (Requirement B — evidence artifact unscanned) was fixed by `9316012d` (+55/-4, one test file, additive sentinel scan) and re-approved. Only post-Opus commit was that additive test hardening — no product-logic change. CI 4/4 green, mergeStateStatus CLEAN. Session authority re-confirmed == lock.
 - **Epic #913:** all core slices JS-01..09 merged. Remaining open children are FOLLOW-UPS/tech-debt, not capstone blockers: #971 (takeBudget ledger), #960 (render source description as text), #962 (JS-05 handler-level cross-owner run-now), #957 (truth-guard-v2), #965 (run-now dedupe — task #25). Epic left open pending follow-up triage.
 - **`merges_since_relay` → 1** (security-tier merge). Coordinator compacts in place (directive #3), no successor pane. News S4 lane (pHD, Task 9) unaffected — separate worktree, no collision.
+
+### Relay #12 (News S4) — 2026-07-12 (coordinator-spawned successor)
+
+- **Coordinator spawned** the Fable successor this time (relay11 asked rather than self-spawning): pane `w1:pHE`, tab `w1:t1P`, label `News S4 relay12`, session `3cdc736f-e89a…`, **Fable 5** confirmed, bypass-perms on, driving.
+- **Reaped:** spent predecessor pane `w1:pHD`, session `d7ee6fd2-6cf6-45e0-be51-98c3b7d7fee5` (session-verified, `close: ok`).
+- **Progress:** Task 9 GREEN committed `6018805b` (Settings add/remove/Retry flows, 15/15 tests, all gates 0). **Task 10 (FINAL) = full gates (`pnpm verify:foundation`) + open PR via coordinated-wrap-up.** Handoff doc `3d2e9511`. Tasks 1–9 GREEN — build content COMPLETE; only gate-run + PR remain.
+- **WATCH:** pHE status line shows **Fable usage at 77%** — possible rate-limit stall on Task 10. If pHE stalls mid-gate, escalate/respawn Fable (news policy) — Task 10 is light (gates+PR), low risk.
+- **Monitor** re-pointed to `w1:pHE` (task `b2bcxgvqi`). Old Monitor `b9hbhrl4w` stopped. **`merges_since_relay` = 1** (carries the JS-09 security merge).
+- Gate unchanged: News named-unanimous Opus+Codex+Gemini no-fallback. **Next milestone: PR-open → convene council.** JS-09 done.
