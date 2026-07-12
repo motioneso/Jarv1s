@@ -4612,3 +4612,25 @@ Opus+Codex+Gemini, NO fallback.
 - **WATCH:** pHE status line shows **Fable usage at 77%** — possible rate-limit stall on Task 10. If pHE stalls mid-gate, escalate/respawn Fable (news policy) — Task 10 is light (gates+PR), low risk.
 - **Monitor** re-pointed to `w1:pHE` (task `b2bcxgvqi`). Old Monitor `b9hbhrl4w` stopped. **`merges_since_relay` = 1** (carries the JS-09 security merge).
 - Gate unchanged: News named-unanimous Opus+Codex+Gemini no-fallback. **Next milestone: PR-open → convene council.** JS-09 done.
+
+### Checkpoint (71% meter) — compact-in-place
+
+**Ben Q resolved — Codex-vs-Fable provenance:** News S4 lane is **Fable throughout** (all
+relays Fable 5; all `news-s4` commits = hive-agent identity; NO Codex pane, NO Codex commits).
+The Codex agent Ben saw at bedtime was `w1:pCK` "Codex: Job Search Spec" (session `019f49ed`) on
+the #913 Job Search **spec** lane — a different, real lane. Conflation of the two side-by-side
+lanes. Ben's instruction ("if almost finished let it run") satisfied: News S4 on Task 10/10.
+
+**News S4 (#975) status:** Task 10/10 (final: full gates + PR-open). Tasks 1–9 GREEN. pHE (Fable,
+session `3cdc736f`, pane `w1:pHE`/tab `w1:t1P`) progressing on Task 10 — landed `4d63b18f`
+(module-manifest-scannable + news->notifications edge sanction), `01461bd9` prettier, past the
+relay12 handoff. Monitor `b2bcxgvqi` armed on pHE. Backstop wakeup ~06:06.
+**On PR-open → News named-unanimous council (Opus + Codex + Gemini, NO fallback).** If any named
+provider refuses/unreachable and neutral-reframe fails → HOLD for Ben.
+
+**JS lane:** JS-09 #976 MERGED (squash `9af57f81`), #938 closed, task #29 done, worktree+branch
+cleaned. ALL Job Search work merged per Ben's lifted hold. Ben runs module-download acceptance
+live post-merge — offer to watch the `:edge` publish run so he can `docker compose pull`.
+
+`merges_since_relay=1` (carries JS-09 security merge). Coordinator staying resident (compact in
+place per Ben directive — no successor pane spawned).
