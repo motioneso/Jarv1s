@@ -9,6 +9,9 @@ import { ModuleLink } from "../router";
 import { useToolQuery } from "../store";
 import { EmptyState, ErrorState, outcomeGate } from "../states";
 import { whenLabel } from "../format";
+// Value import one way only: opportunity-detail imports just `type Bucket`
+// back from this file, so there is no runtime module cycle.
+import { OpportunityDetailScreen } from "./opportunity-detail";
 
 const BUCKETS = ["new", "saved", "passed", "stale"] as const;
 export type Bucket = (typeof BUCKETS)[number];
@@ -23,6 +26,12 @@ const BUCKET_LABELS: Record<Bucket, string> = {
 export function bucketFromPath(path: string): Bucket {
   const segment = path.split("/")[2] ?? "new";
   return (BUCKETS as readonly string[]).includes(segment) ? (segment as Bucket) : "new";
+}
+
+// /opportunities/<bucket>/<identityHash> — the third segment, when present,
+// routes to the detail screen for that captured posting.
+export function hashFromPath(path: string): string | null {
+  return path.split("/")[3] || null;
 }
 
 // Exported so tests can pin that the bucket route drives the tool input.
@@ -160,6 +169,15 @@ export function OpportunitiesView(props: {
 
 export function OpportunitiesScreen(props: { path: string }): ReactNodeLike {
   const bucket = bucketFromPath(props.path);
+  const hash = hashFromPath(props.path);
+  if (hash) return <OpportunityDetailScreen bucket={bucket} identityHash={hash} />;
+  return <OpportunitiesListScreen bucket={bucket} />;
+}
+
+// Split so the list hooks below never run on the detail route (hooks cannot
+// sit after a conditional return in one component).
+function OpportunitiesListScreen(props: { bucket: Bucket }): ReactNodeLike {
+  const bucket = props.bucket;
   const list = useToolQuery<OpportunityListResult>(
     "job-search.opportunities.list",
     listInputForBucket(bucket)

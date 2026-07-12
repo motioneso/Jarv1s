@@ -17,4 +17,7 @@ export const MODULE_STYLES = `
 .jsm-steps { display: flex; flex-direction: column; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
 .jsm-step { display: flex; align-items: baseline; gap: 0.75rem; }
 .jsm-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.jsm-prewrap { white-space: pre-wrap; }
+.jsm-table { width: 100%; border-collapse: collapse; }
+.jsm-table th, .jsm-table td { text-align: left; vertical-align: top; padding: 0.25rem 0.75rem 0.25rem 0; }
 `;
