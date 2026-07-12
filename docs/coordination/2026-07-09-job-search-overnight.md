@@ -4587,3 +4587,11 @@ Opus+Codex+Gemini, NO fallback.
 - **Progress:** Task 7 GREEN committed `b0cdfa87` (chat preview/confirm tools, 4/4 + 7/7 REST regression). **Task 8 (remaining chat tools) RED starting.** Handoff doc `8bea8c9d`. Tasks 1–7 GREEN; Task 9 (Settings wiring) remains.
 - **Monitor** re-pointed to `w1:pHC` (task `b5y8ns73a`, persistent). Old Monitor `b4cvgn46j` stopped (GONE event = the reap, expected). **`merges_since_relay` = 0.**
 - Gate/conditions unchanged: News named-unanimous Opus+Codex+Gemini no-fallback; JS-09 #976 PARKED.
+
+### Relay #11 (News S4) — 2026-07-12
+
+- **Successor driving:** pane `w1:pHD`, tab `w1:t1P`, label `News S4 relay11`, session `d7ee6fd2-6cf6…`, **Fable 5** confirmed (high effort).
+- **Reaped:** spent predecessor pane `w1:pHC`, session `e3370515-a254-49dc-bf9f-94dd1dd2e13b` (session-verified, `close: ok`).
+- **Progress:** Task 8 GREEN committed `8527f3b9` (assistant topic/exclusion/removal chat tools, 9/9 chat + 7/7 REST, lint/typecheck clean). **Task 9 (Settings add/delete/Retry UI wiring) starting — LAST task, then PR.** Handoff doc `2b810e74`. Tasks 1–8 GREEN.
+- **Monitor** re-pointed to `w1:pHD` (task `b9hbhrl4w`, persistent). Old Monitor `b5y8ns73a` stopped. **`merges_since_relay` = 0.**
+- Gate/conditions unchanged: News named-unanimous Opus+Codex+Gemini no-fallback; JS-09 #976 PARKED. **Next milestone: PR-open → convene council.**
