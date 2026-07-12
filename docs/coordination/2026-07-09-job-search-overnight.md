@@ -4878,3 +4878,24 @@ reset.
 **Standing gates:** #964 security council = Opus+Codex+Gemini named (Ben waived spec DRAFT gate, NOT
 the merge council). #944 routine auto-merge. No PushNotifications (Ben directive). No successor
 coordinator pane on 70% — auto-compact in place.
+
+---
+
+## 2026-07-12 — #978 (flake-944) QA-RED fixed + #964 v8 tab-fix
+
+**#978 flake-944 (routine):** QA RED for two reasons, both resolved:
+1. Leaked `docs/coordination/handoff-flake-944.md` committed into the PR (own commit 9a411b10) —
+   coordinator-plane, out of routine test-only scope. Stripped via `git rm` + removal commit; pushed
+   `7f4032dc`. Squash-merge nets add+remove to zero → merged diff = test file alone. Confirmed:
+   `gh pr diff 978 --name-only` now shows only tests/integration/tasks-agency-tools.test.ts.
+2. CI red was NOT the #944 target (that test PASSED, 1612 passed) — an *unrelated* sibling flake
+   `chat-mcp-transport.test.ts:258` (same action_request-race class, different file, correctly
+   untouched by #944's tight scope). Filed as **bug #979** (same `vi.waitFor` fix, future routine
+   lane). New CI run 29198294373 re-running; monitor `b7l01gjoh` on VF terminal → merge on green.
+   If the sibling flake recurs red, it's the CI-waiver call (pre-existing flake, not introduced here).
+
+**#964 v8 relay (pHT, session 36b5f645, Sonnet):** successor landed in tab **w1:t15 (coordinator
+tab)** — the wrong-tab relay incident. Moved to agents tab `w1:t1P` before reaping v7 (pHS). v8 now
+working Task 6 Step 9 (module-registry BuiltInRouteDependencies gap + test typecheck bugs diagnosed
+in relay-7 handoff c37eb9cf). Fleet monitor re-armed `b5oj9o8su` (mod-dist-964 only; flake-944 lane
+dropped — its pane intentionally reaped, PR is now CI+QA).
