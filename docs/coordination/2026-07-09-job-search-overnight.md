@@ -3883,3 +3883,19 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   assignment, isolated read-only Fable reviewer running: label `News S3 Plan Review`, pane `w1:pGR`,
   session `00c5f784`, branch `review/news-slice3-plan`. NO builder yet; folds blockers → verdict
   before build. (News lane self-drives its own council; Coordinator tracks only.)
+
+### 2026-07-11 — JS-08 relay #2 + PLAN under Opus adjudication
+- **JS-08 relay #2 DONE.** Predecessor session 476a95b4 delivered plan
+  `docs/superpowers/plans/2026-07-11-js-08-opportunity-feed.md` (`4117c1b9`; relay-doc update
+  `12750d1b`) THEN relayed. Successor verified: **pane `w1:pGT`, tab `t1M`, session `9e0edf10`, Fable
+  5** ✓; tree clean. Reaped predecessor pGS. **Successor HOLDING — will NOT write code until
+  Coordinator plan approval.**
+- **6 plan flags under independent Opus adjudication** (agent a4318de6, pointer-style: plan+spec+
+  handoff, verify grounded claims). Flags: (1) decisionReason 500B owner-private never-logged; (2)
+  reuse monitor.list/get for health summary (no new tool); (3) NO web write path — REST decide can't
+  execute (no confirm-waiter routes.ts:576-686), decisions via assistant chat only, UI read-only
+  state; (4) "saved" view = active+saved buckets; (5) response byte budgets 14000B + list≤15 + field
+  caps (eval 24576B + desc 16384B exceed 16000-char render cap → clip w/ flag); (6) outputSchema
+  allow-list on 3 tools (sanitizeAssistantToolResult/output-validation.ts), invocation.result open →
+  NO packages/shared change. Flag 3 + 6 = the load-bearing forks (scope-drift + schema-trap locus).
+- Ruling routes to label `JS-08 build 2` (successor inherits) via herdr-pane-message once Opus lands.
