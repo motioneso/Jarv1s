@@ -148,13 +148,21 @@ export function registerNewsRoutes(
             `Unknown ${input.kind === "topic" ? "topic" : "source"}: ${input.key}`
           );
         }
+        const disabledSource = input.kind === "source_exclude" ? sourceEntry(input.key) : undefined;
         const pref = await dependencies.dataContext.withDataContext(accessContext, (db) =>
           repository.create(db, input).then(async (created) => {
             await triggerNewsRefresh(
               db,
               personalization,
               dependencies.boss,
-              accessContext.actorUserId
+              accessContext.actorUserId,
+              disabledSource
+                ? () =>
+                    personalization.pruneSnapshotDomain(
+                      db,
+                      new URL(disabledSource.homepageUrl).hostname
+                    )
+                : undefined
             );
             return created;
           })

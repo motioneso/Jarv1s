@@ -203,4 +203,70 @@ describe("news personalization routes", () => {
     expect(fetches).toBe(1);
     await app.close();
   });
+
+  it("removes a disabled curated source from overview and image routes before refresh", async () => {
+    const repository = new NewsPersonalizationRepository();
+    const dataContext = new DataContextRunner(appDb);
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "seed-disabled-source" },
+      (db) =>
+        repository.replaceLatestSnapshot(db, {
+          compiledAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+          payload: {
+            articles: [
+              {
+                id: "bbc-story",
+                publisher: "BBC News",
+                canonicalDomain: "www.bbc.com",
+                headline: "Story removed on disable",
+                url: "https://www.bbc.com/news/articles/test",
+                publishedAt: new Date(Date.now() - 60_000).toISOString(),
+                excerpt: null,
+                imageUrl: "https://ichef.bbci.co.uk/test.png",
+                topics: [],
+                preferred: true,
+                rank: 1
+              }
+            ]
+          }
+        })
+    );
+    let fetches = 0;
+    const app = buildApp(true, async () => {
+      fetches += 1;
+      return {
+        ok: true,
+        contentType: "image/png",
+        body: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        truncated: false
+      };
+    });
+    await app.ready();
+
+    expect(
+      (await app.inject({ method: "GET", url: "/api/news/images/bbc-story" })).statusCode
+    ).toBe(200);
+    expect(
+      JSON.parse((await app.inject({ method: "GET", url: "/api/news/overview" })).body)
+        .rankedStories
+    ).toHaveLength(1);
+
+    const disabled = await app.inject({
+      method: "POST",
+      url: "/api/news/prefs",
+      payload: { kind: "source_exclude", key: "bbc" }
+    });
+
+    expect(disabled.statusCode).toBe(200);
+    expect(
+      JSON.parse((await app.inject({ method: "GET", url: "/api/news/overview" })).body)
+        .rankedStories
+    ).toEqual([]);
+    expect(
+      (await app.inject({ method: "GET", url: "/api/news/images/bbc-story" })).statusCode
+    ).toBe(404);
+    expect(fetches).toBe(1);
+    await app.close();
+  });
 });
