@@ -9,12 +9,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jarv1s/ai": "workspace:*",
     "@jarv1s/auth": "workspace:*",
     "@jarv1s/connectors": "workspace:*",
     "@jarv1s/db": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/module-registry": "workspace:*",
     "@jarv1s/module-sdk": "workspace:*",
+    "@jarv1s/settings": "workspace:*",
     "@jarv1s/shared": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2",

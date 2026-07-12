@@ -55,7 +55,7 @@ interface PackageDescriptor {
 
 interface Violation {
   readonly package: string;
-  readonly kind: "undeclared" | "unused";
+  readonly kind: "undeclared" | "unused" | "cycle";
   readonly detail: string;
 }
 
@@ -96,6 +96,24 @@ async function main(): Promise<void> {
         });
       }
     }
+  }
+
+  const dependencyGraph = new Map<string, Set<string>>();
+  for (const packageDirectory of packageDirectories) {
+    const descriptor = await loadPackageDescriptor(packageDirectory);
+    if (!descriptor) continue;
+    const workspaceDeps = new Set(
+      [...descriptor.declaredDependencyNames].filter((name) => name.startsWith("@jarv1s/"))
+    );
+    dependencyGraph.set(descriptor.name, workspaceDeps);
+  }
+
+  for (const cyclePath of detectDependencyCycles(dependencyGraph)) {
+    violations.push({
+      package: cyclePath[0]!,
+      kind: "cycle",
+      detail: cyclePath.join(" -> ")
+    });
   }
 
   if (violations.length > 0) {
@@ -146,6 +164,65 @@ async function loadPackageDescriptor(packageDirectory: string): Promise<PackageD
     dependencies: declaredDependencyNames,
     declaredDependencyNames: new Set(Object.keys(manifest.dependencies ?? {}))
   };
+}
+
+/**
+ * DFS cycle detection over the declared `@jarv1s/*` dependency graph (#834 — jobs, settings,
+ * and proactive-monitoring formed a cycle because a package.json-declared dependency doesn't
+ * show up any other way; `check:package-deps`'s existing undeclared/unused checks don't catch
+ * cycles, so this is a separate pass over the same descriptors).
+ */
+export function detectDependencyCycles(
+  graph: ReadonlyMap<string, ReadonlySet<string>>
+): string[][] {
+  const cycles: string[][] = [];
+  const seenCycleKeys = new Set<string>();
+  const visited = new Set<string>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+
+  function visit(node: string): void {
+    if (onStack.has(node)) {
+      const start = stack.indexOf(node);
+      const cyclePath = [...stack.slice(start), node];
+      const key = canonicalCycleKey(cyclePath);
+      if (!seenCycleKeys.has(key)) {
+        seenCycleKeys.add(key);
+        cycles.push(cyclePath);
+      }
+      return;
+    }
+    if (visited.has(node)) return;
+
+    visited.add(node);
+    stack.push(node);
+    onStack.add(node);
+
+    for (const dependency of graph.get(node) ?? []) {
+      visit(dependency);
+    }
+
+    stack.pop();
+    onStack.delete(node);
+  }
+
+  for (const node of graph.keys()) {
+    visit(node);
+  }
+
+  return cycles;
+}
+
+/** Rotates a cycle path to start at its lexicographically smallest node, so the same cycle
+ *  discovered from different entry points dedupes to one report. */
+function canonicalCycleKey(cyclePath: string[]): string {
+  const withoutRepeat = cyclePath.slice(0, -1);
+  const minIndex = withoutRepeat.reduce(
+    (best, _, index) => (withoutRepeat[index]! < withoutRepeat[best]! ? index : best),
+    0
+  );
+  const rotated = [...withoutRepeat.slice(minIndex), ...withoutRepeat.slice(0, minIndex)];
+  return rotated.join(">");
 }
 
 async function scanReferencedPackages(descriptor: PackageDescriptor): Promise<Set<string>> {

@@ -11,6 +11,7 @@ import {
   idParamsSchema,
   jsonObjectSchema,
   aestheticThemeTokensSchema,
+  listChatThreadsResponseSchema,
   taskListParamsSchema,
   taskParamsSchema,
   updateTaskPreferencesRequestSchema,
@@ -169,6 +170,26 @@ describe("shared schema fragments", () => {
     });
     expect(status).toBe(200);
     expect(body).toEqual({ blob: { anything: [1, 2, 3], nested: { ok: true } } });
+  });
+});
+
+describe("chat response schemas", () => {
+  it("listChatThreadsResponseSchema keeps the incognito flag", async () => {
+    const { status, body } = await parseBody(listChatThreadsResponseSchema, {
+      threads: [
+        {
+          id: "thread-1",
+          ownerUserId: "user-1",
+          title: "Private",
+          incognito: true,
+          createdAt: "2026-07-08T00:00:00.000Z",
+          updatedAt: "2026-07-08T00:00:00.000Z"
+        }
+      ]
+    });
+
+    expect(status).toBe(200);
+    expect(body?.threads).toEqual([expect.objectContaining({ incognito: true })]);
   });
 });
 

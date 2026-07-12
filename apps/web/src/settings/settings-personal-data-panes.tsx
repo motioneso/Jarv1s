@@ -15,6 +15,7 @@ import {
   Lock,
   Mail,
   MessagesSquare,
+  Newspaper,
   NotebookText,
   Plus,
   RefreshCw,
@@ -92,6 +93,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   knowledge: BrainCircuit,
   wellness: HeartPulse,
   sports: Trophy,
+  news: Newspaper,
   notifications: Bell,
   finance: Wallet,
   email: Mail

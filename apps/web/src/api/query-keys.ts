@@ -14,6 +14,10 @@ export const queryKeys = {
     adminAuditEvents: ["settings", "admin", "audit-events"] as const,
     adminUsers: ["settings", "admin", "users"] as const,
     adminModules: ["settings", "admin", "modules"] as const,
+    // #917: admin external-module list. Sibling of adminModules (flat convention).
+    adminExternalModules: ["settings", "admin", "external-modules"] as const,
+    // #964: registry-backed distribution rows (superset of adminExternalModules info).
+    adminModuleRegistry: ["settings", "admin", "module-registry"] as const,
     locale: ["settings", "locale"] as const,
     sessions: ["settings", "sessions"] as const,
     persona: ["settings", "persona"] as const,
@@ -27,6 +31,7 @@ export const queryKeys = {
     notesSource: ["settings", "notes-source"] as const,
     quietHours: ["settings", "quiet-hours"] as const,
     notificationPreferences: ["settings", "notification-preferences"] as const,
+    notificationDigest: ["settings", "notification-digest"] as const,
     notesSourceDirectories: (path: string | null) =>
       ["settings", "notes-source", "directories", path] as const,
     notesLastSync: ["settings", "notes-last-sync"] as const
@@ -42,10 +47,13 @@ export const queryKeys = {
     models: ["ai", "models"] as const,
     chatModelOverride: ["ai", "chat-model-override"] as const,
     adminUserAiPin: (userId: string) => ["ai", "admin", "users", userId, "pin"] as const,
-    capabilityRoutes: ["ai", "capability-routes"] as const,
+    // #870 Slice 1: per-service bindings replace the old capability routes / tier prefs. #874: Chat
+    // is the only bindable service now; Voice (STT) is its own dedicated endpoint (voiceEndpoint).
+    serviceBindings: ["ai", "service-bindings"] as const,
+    // #874: the single instance-wide Voice (STT) endpoint config.
+    voiceEndpoint: ["ai", "voice-endpoint"] as const,
     capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
-    tierPreferences: ["ai", "tier-preferences"] as const,
     assistantTools: ["ai", "assistant-tools"] as const,
     webSearchKey: ["ai", "web-search-key"] as const,
     runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const,
@@ -69,7 +77,8 @@ export const queryKeys = {
     messages: (threadId: string) => ["chat", "threads", threadId, "messages"] as const,
     memorySettings: ["chat", "memory-settings"] as const,
     memoryFacts: ["chat", "memory-facts"] as const,
-    memoryCorrections: ["chat", "memory-corrections"] as const
+    memoryCorrections: ["chat", "memory-corrections"] as const,
+    skills: ["chat", "skills"] as const
   },
   email: {
     list: ["email", "list"] as const,

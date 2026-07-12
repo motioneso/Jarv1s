@@ -137,4 +137,16 @@ describe("module web browser safety (#799)", () => {
       expect(violations, `module "${moduleId}"`).toEqual([]);
     }
   });
+
+  it("never reaches a node builtin or backend-only package from the job-search external web entry", () => {
+    // External modules live outside packages/* so scanModuleWeb never sees them,
+    // but their web bundle ships to the browser all the same (JS-06, #935). Walk
+    // the source entry directly so a stray node/backend import via domain/ or
+    // lib/ can't creep into the browser graph unnoticed.
+    const entry = resolve(REPO_ROOT, "external-modules/job-search/src/web/index.ts");
+    expect(existsSync(entry), "job-search external web entry exists").toBe(true);
+    const { visited, violations } = walkImportGraph(entry);
+    expect(visited.size).toBeGreaterThan(1); // sanity: the walk actually traversed imports
+    expect(violations).toEqual([]);
+  });
 });

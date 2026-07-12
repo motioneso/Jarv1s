@@ -189,6 +189,7 @@ describe("AI provider foundation", () => {
       "wellness",
       "weather",
       "sports",
+      "news",
       "notes",
       "proactive-monitoring",
       "jarvis.commitments",
@@ -198,7 +199,8 @@ describe("AI provider foundation", () => {
       "app.ai_provider_configs",
       "app.ai_configured_models",
       "app.ai_assistant_action_requests",
-      "app.jarvis_action_audit_log"
+      "app.jarvis_action_audit_log",
+      "app.jarvis_error_log"
     ]);
     expect(manifest?.settings?.[0]).toMatchObject({
       id: "ai.user-settings",
@@ -497,6 +499,16 @@ describe("AI provider foundation", () => {
       }
     });
     const model = modelResponse.json<{ model: { id: string } }>().model;
+    // #870 D2/D3: chat is a user-facing service — it resolves INSIDE the instance-default provider,
+    // not by picking any active capable model (the retired pre-#870 behaviour). Earlier tests in this
+    // file leave several admin-owned providers active, so auto-default is ambiguous (>1, none flagged);
+    // explicitly flag this provider as the instance default so chat resolves to its model.
+    const setDefaultResponse = await server.inject({
+      method: "PUT",
+      url: `/api/ai/providers/${providerId}/default`,
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(setDefaultResponse.statusCode).toBe(200);
     const routeResponse = await server.inject({
       method: "GET",
       url: "/api/ai/capability-route/chat",

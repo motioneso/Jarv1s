@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createEspnDatasetAdapter } from "../../packages/sports/src/source/espn-source.js";
+import {
+  createEspnDatasetAdapter,
+  sanitizeArticleBody
+} from "../../packages/sports/src/source/espn-source.js";
 
 function fixture(name: string): unknown {
   return JSON.parse(
@@ -87,6 +90,27 @@ describe("EspnDatasetAdapter", () => {
     expect((table.sections[0]?.rows[1] as { qualifies: boolean }).qualifies).toBe(false);
   });
 
+  it("repairs ESPN's malformed note colors and nulls unparseable ones (mrb4sa8y)", async () => {
+    // ESPN's live Premier League feed ships the Europa League note color as "##B5E7CE"
+    // (double hash, seen 2026-07-07). Raw, it invalidates the row's color-mix() tint, so the
+    // Europa zone silently rendered with no highlight at all. The adapter must normalize the
+    // hash and reject anything that still isn't a hex color (inline-style safety too).
+    const base = fixture("eng1-standings.json") as {
+      children: { standings: { entries: { note?: unknown }[] } }[];
+    };
+    const doctored = structuredClone(base);
+    const entries = doctored.children[0]!.standings.entries;
+    entries[0]!.note = { description: "Europa League", color: "##B5E7CE" };
+    entries[1]!.note = { description: "Relegation", color: "url(javascript:alert(1))" };
+    const table = (await fetchDataset(
+      "standings",
+      { competitionKey: "eng.1" },
+      okFetch(doctored)
+    )) as { sections: { rows: { qualificationColor: string | null }[] }[] };
+    expect(table.sections[0]?.rows[0]?.qualificationColor).toBe("#B5E7CE");
+    expect(table.sections[0]?.rows[1]?.qualificationColor).toBeNull();
+  });
+
   it("keeps every tournament group as its own section", async () => {
     const table = (await fetchDataset(
       "standings",
@@ -116,6 +140,51 @@ describe("EspnDatasetAdapter", () => {
       winPercent: 0.833,
       points: null
     });
+  });
+
+  // Live ?level=3 division entries carry no "rank" stat but arrive standings-sorted; the
+  // parser must fall back to the entry order or every US-league row ranks 0 and the web
+  // guard hides the whole standing line (live feedback mraxrdxr, mraz6m43).
+  it("falls back to entry order for rank when the rank stat is absent", async () => {
+    const division = (wins: number) => ({
+      stats: [
+        { name: "wins", value: wins },
+        { name: "losses", value: 12 - wins },
+        { name: "winPercent", value: wins / 12 }
+      ]
+    });
+    const payload = {
+      name: "National Football League",
+      children: [
+        {
+          name: "American Football Conference",
+          children: [
+            {
+              name: "AFC East",
+              standings: {
+                entries: [
+                  {
+                    team: { abbreviation: "NE", displayName: "New England Patriots" },
+                    ...division(10)
+                  },
+                  { team: { abbreviation: "BUF", displayName: "Buffalo Bills" }, ...division(8) }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+    const table = (await fetchDataset(
+      "standings",
+      { competitionKey: "nfl" },
+      okFetch(payload)
+    )) as {
+      sections: { label: string | null; conference: string | null; rows: { rank: number }[] }[];
+    };
+    expect(table.sections[0]?.label).toBe("AFC East");
+    expect(table.sections[0]?.conference).toBe("American Football Conference");
+    expect(table.sections[0]?.rows.map((r) => r.rank)).toEqual([1, 2]);
   });
 
   it("parses news into Headline[]", async () => {
@@ -185,5 +254,139 @@ describe("EspnDatasetAdapter", () => {
     )) as { competitionKey: string }[];
     expect(games.length).toBeGreaterThan(0);
     expect(games[0]?.competitionKey).toBe("nfl");
+  });
+
+  // Soccer schedule URLs only resolve numeric team ids — the abbreviation slug returns an
+  // empty payload, which nulled form/next-match on every soccer card (live feedback mrawhx9c).
+  it("prefers sourceTeamId over teamKey in the schedule URL when present", async () => {
+    const urls: string[] = [];
+    const spyFetch = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify({ events: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    await fetchDataset(
+      "schedule",
+      { teamKey: "sd", competitionKey: "usa.1", sourceTeamId: "22529" },
+      spyFetch
+    );
+    await fetchDataset("schedule", { teamKey: "dal", competitionKey: "nfl" }, spyFetch);
+    expect(urls[0]).toContain("/teams/22529/schedule");
+    expect(urls[1]).toContain("/teams/dal/schedule"); // no id → abbreviation fallback
+  });
+
+  // The /schedule endpoint wraps score in { value, displayValue } (the scoreboard sends a plain
+  // string); Number({...}) is NaN, which nulled schedule scores and made soccer draws read as
+  // losses in the form pips (live feedback mrawhx9c).
+  it("parses object-shaped schedule scores", async () => {
+    const drawEvent = {
+      events: [
+        {
+          id: "1",
+          date: "2026-07-01T00:00Z",
+          competitions: [
+            {
+              status: { type: { state: "post", detail: "FT" } },
+              competitors: [
+                {
+                  homeAway: "home",
+                  winner: false,
+                  score: { value: 2, displayValue: "2" },
+                  team: { abbreviation: "SD", displayName: "San Diego FC" }
+                },
+                {
+                  homeAway: "away",
+                  winner: false,
+                  score: { value: 2, displayValue: "2" },
+                  team: {
+                    abbreviation: "LAFC",
+                    displayName: "LAFC",
+                    // schedule payloads carry a `logos` array, not the scoreboard's flat
+                    // `logo` — the crest must still come through (live feedback mrawvc48)
+                    logos: [{ href: "https://a.espncdn.com/i/teamlogos/soccer/500/lafc.png" }]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+    const games = (await fetchDataset(
+      "schedule",
+      { teamKey: "sd", competitionKey: "usa.1", sourceTeamId: "22529" },
+      okFetch(drawEvent)
+    )) as {
+      home: { score: number | null };
+      away: { score: number | null; crestUrl: string | null };
+    }[];
+    expect(games[0]?.home.score).toBe(2);
+    expect(games[0]?.away.score).toBe(2);
+    expect(games[0]?.away.crestUrl).toBe("https://a.espncdn.com/i/teamlogos/soccer/500/lafc.png");
+  });
+
+  // --- Featured-article body (#857) --------------------------------------------------------
+
+  it("sanitizes ESPN story HTML down to plaintext with zero surviving markup", () => {
+    // The core injection mitigation: after sanitize there must be NO tags and NO `<photoN>`
+    // tokens left, and entities must be decoded — because the web tier renders this as text.
+    const body = sanitizeArticleBody(
+      (fixture("nfl-article.json") as { headlines: { story: string }[] }).headlines[0]!.story
+    );
+    expect(body).not.toMatch(/[<>]/); // no tags, no <photo1> token survives
+    expect(body).not.toContain("photo1");
+    expect(body).toContain("Cowboys");
+    expect(body).toContain("27–17 win"); // &ndash; decoded
+    expect(body).toContain("“We earned this,”"); // &ldquo;/&rdquo; decoded
+    expect(body).toContain("ESPN’s"); // &#39; decoded
+    // First few <p> blocks joined on blank lines — the client splits on these.
+    expect(body.split("\n\n").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("caps an over-long body at a word boundary with an ellipsis", () => {
+    const longStory = `<p>${"word ".repeat(400).trim()}</p>`;
+    const body = sanitizeArticleBody(longStory);
+    expect(body.length).toBeLessThanOrEqual(901); // ~900 cap + the ellipsis char
+    expect(body.endsWith("…")).toBe(true);
+    // Clipped on a word boundary: the token before the ellipsis is a whole "word", never a
+    // fragment like "wor…" — so dropping the ellipsis leaves complete words.
+    expect(body.slice(0, -1).trimEnd().endsWith("word")).toBe(true);
+  });
+
+  it("returns empty string for absent/empty story", () => {
+    expect(sanitizeArticleBody(undefined)).toBe("");
+    expect(sanitizeArticleBody("")).toBe("");
+    expect(sanitizeArticleBody("<photo1>")).toBe(""); // token-only body → nothing to show
+  });
+
+  it("fetches the featured article body from a URL derived from the numeric id", async () => {
+    const urls: string[] = [];
+    const spyFetch = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify(fixture("nfl-article.json")), { status: 200 });
+    }) as unknown as typeof fetch;
+    const body = (await fetchDataset("articleBody", { articleId: "4567" }, spyFetch)) as string;
+    // URL is built from the id on the content host — never from a response-supplied href (SSRF).
+    expect(urls[0]).toBe("https://content.core.api.espn.com/v1/sports/news/4567");
+    expect(body).toContain("Cowboys");
+  });
+
+  it("rejects a non-numeric or too-short article id without fetching (SSRF/index-fallback guard)", async () => {
+    for (const badId of ["", "3", "12", "abc", "45x", "../secrets", "4567?x=1"]) {
+      let called = false;
+      const spyFetch = (async () => {
+        called = true;
+        return new Response("{}", { status: 200 });
+      }) as unknown as typeof fetch;
+      const body = (await fetchDataset("articleBody", { articleId: badId }, spyFetch)) as string;
+      expect(body).toBe("");
+      expect(called).toBe(false);
+    }
+  });
+
+  it("degrades to empty string when the body fetch fails (never blocks the overview)", async () => {
+    const failFetch = (async () =>
+      new Response("nope", { status: 404 })) as unknown as typeof fetch;
+    const body = (await fetchDataset("articleBody", { articleId: "9999999" }, failFetch)) as string;
+    expect(body).toBe("");
   });
 });

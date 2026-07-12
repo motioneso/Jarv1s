@@ -1,6 +1,6 @@
 # Skill integration for Jarvis chat (#760)
 
-**Status:** Proposed — decisions recorded, pending final read-through
+**Status:** Approved (2026-07-07, Ben)
 **Date:** 2026-07-05
 **Tier:** `security-sensitive` — this introduces the first user-authored content that is deliberately
 fed back to the model as instructions (not just data the model reads). Ben's decision is that a skill

@@ -18,7 +18,7 @@
   letter-spacing: -0.01em;
 }
 .prof__email {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12.5px;
   color: var(--text-subtle);
   margin-top: 2px;
@@ -78,7 +78,7 @@
   overflow: hidden;
 }
 .provpick__hd {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -223,7 +223,7 @@
   color: var(--text-faint);
 }
 .acct__scopes {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
   margin-top: 4px;
@@ -387,7 +387,7 @@
   white-space: nowrap;
 }
 .ppl__you {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -398,7 +398,7 @@
   padding: 2px 6px;
 }
 .ppl__email {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-subtle);
   margin-top: 2px;
@@ -551,7 +551,7 @@
   margin-top: 2px;
 }
 .pend__sub .em {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 .pend__actions {
   display: flex;
@@ -576,7 +576,7 @@
   border-top: none;
 }
 .aud__when {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--text-faint);
 }
@@ -621,7 +621,7 @@
   min-width: 0;
 }
 .cono__meta {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: var(--text-subtle);
   flex: none;
@@ -770,7 +770,7 @@
   margin-bottom: 4px;
 }
 .memory-count {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 600;
   color: var(--text);
 }
@@ -798,7 +798,7 @@
   min-width: 0;
 }
 .vault__path {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--text);
   white-space: nowrap;

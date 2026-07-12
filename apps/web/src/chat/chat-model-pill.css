@@ -1,0 +1,93 @@
+.chatd__modelrow {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 8px;
+}
+.chatd-model {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.chatd-model--muted,
+.chatd-model--locked,
+.chatd-model__trigger {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-subtle);
+}
+.chatd-model__trigger {
+  cursor: pointer;
+  list-style: none;
+}
+.chatd-model__trigger::-webkit-details-marker {
+  display: none;
+}
+.chatd-model__trigger span,
+.chatd-model__menu b,
+.chatd-model__menu small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatd-model[open] .chatd-model__trigger,
+.chatd-model__trigger:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.chatd-model__menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 7px);
+  z-index: 25;
+  width: min(320px, calc(100vw - 48px));
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.chatd-model__menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px;
+  text-align: left;
+}
+.chatd-model__menu button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.chatd-model__menu button:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+.chatd-model__menu b,
+.chatd-model__menu small {
+  display: block;
+}
+.chatd-model__menu b {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.chatd-model__menu small {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 11px;
+}

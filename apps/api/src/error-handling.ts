@@ -21,7 +21,7 @@
  * `request.headers`, or `request.cookies`, and never forward a stack trace to
  * the client. Unknown error fields are simply never included.
  */
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
 /**
  * Maximum characters of a client stack trace retained in a log line. Caps log
@@ -46,6 +46,30 @@ export interface ClientErrorPayload {
   readonly message: string;
   /** Optional stack trace; truncated before logging. */
   readonly stack?: string;
+}
+
+export interface PersistableErrorEvent {
+  readonly feature: string;
+  readonly operation: string;
+  readonly errorCategory: string;
+  readonly retryable: boolean;
+  readonly userMessage: string;
+  readonly internalSummary: string;
+  readonly requestId: string | null;
+}
+
+export interface ClientErrorsRouteOptions {
+  readonly recordClientError?: (
+    event: PersistableErrorEvent,
+    request: FastifyRequest
+  ) => Promise<void>;
+}
+
+export interface JarvisErrorHandlerOptions {
+  readonly recordRequestError?: (
+    event: PersistableErrorEvent,
+    request: FastifyRequest
+  ) => Promise<void>;
 }
 
 /**
@@ -96,7 +120,10 @@ export function parseClientErrorPayload(body: unknown): ClientErrorPayload | nul
  * Register the `POST /api/errors` sink. Must be called inside the server's
  * plugin/after() context so the route lands in the final route tree.
  */
-export function registerClientErrorsRoute(server: FastifyInstance): void {
+export function registerClientErrorsRoute(
+  server: FastifyInstance,
+  options: ClientErrorsRouteOptions = {}
+): void {
   server.post("/api/errors", async (request, reply) => {
     const payload = parseClientErrorPayload(request.body);
 
@@ -121,6 +148,26 @@ export function registerClientErrorsRoute(server: FastifyInstance): void {
       "client error"
     );
 
+    await options
+      .recordClientError?.(
+        {
+          feature: "client",
+          operation: "POST /api/errors",
+          errorCategory: "client_error",
+          retryable: false,
+          userMessage: payload.message.slice(0, MAX_CLIENT_MESSAGE_CHARS),
+          internalSummary: `Client reported ${payload.type}`,
+          requestId: request.id
+        },
+        request
+      )
+      .catch((recordError) => {
+        request.log.error(
+          { err: String(recordError), reqId: request.id },
+          "failed to persist client error"
+        );
+      });
+
     return reply.code(204).send();
   });
 }
@@ -130,8 +177,11 @@ export function registerClientErrorsRoute(server: FastifyInstance): void {
  * registered. The handler is the single place every unhandled request error
  * flows through; it logs a structured line and returns a safe client response.
  */
-export function setJarvisErrorHandler(server: FastifyInstance): void {
-  server.setErrorHandler((error: unknown, request, reply) => {
+export function setJarvisErrorHandler(
+  server: FastifyInstance,
+  options: JarvisErrorHandlerOptions = {}
+): void {
+  server.setErrorHandler(async (error: unknown, request, reply) => {
     // Narrow defensively. Fastify 5 types the handler error as `unknown`; a real
     // error here is virtually always an Error (often with statusCode/code), but
     // we never assume — extract each field with a guard so a non-Error throw
@@ -165,6 +215,29 @@ export function setJarvisErrorHandler(server: FastifyInstance): void {
     // Safe response: 5xx returns a fixed string (no stack/internal detail); 4xx
     // returns the application-authored message (safe to show by construction).
     const clientMessage = statusCode < 500 ? message : "Internal Server Error";
+    const operation = `${request.method} ${
+      request.routeOptions.url ?? request.url.split("?")[0] ?? request.url
+    }`;
+    await options
+      .recordRequestError?.(
+        {
+          feature: "api",
+          operation,
+          errorCategory: statusCode >= 500 ? "http_5xx" : "http_4xx",
+          retryable: statusCode >= 500,
+          userMessage: clientMessage,
+          internalSummary: `Request failed with status ${statusCode}`,
+          requestId: request.id
+        },
+        request
+      )
+      .catch((recordError) => {
+        request.log.error(
+          { err: String(recordError), reqId: request.id },
+          "failed to persist request error"
+        );
+      });
+
     return reply.status(statusCode).send({ error: clientMessage });
   });
 }

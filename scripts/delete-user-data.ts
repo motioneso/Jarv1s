@@ -116,7 +116,11 @@ const userScopedCountQueries: ReadonlyArray<readonly [table: string, predicate: 
   // ON DELETE SET NULL — retained/anonymized, not counted here).
   ["app.module_enablement", "scope = 'user' AND user_id = $1::uuid"],
   // Per-member onboarding state (0079).
-  ["app.member_onboarding", "user_id = $1::uuid"]
+  ["app.member_onboarding", "user_id = $1::uuid"],
+  // Module platform tables (#918): user-scope rows cascade via owner FK; instance
+  // rows have owner_user_id IS NULL so these predicates can never match them.
+  ["app.module_credentials", "owner_user_id = $1::uuid"],
+  ["app.module_kv", "scope = 'user' AND owner_user_id = $1::uuid"]
 ];
 
 export async function deleteUserData(

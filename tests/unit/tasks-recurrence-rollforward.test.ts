@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { PgBoss } from "pg-boss";
 
+import type { DataContextDb } from "@jarv1s/db";
 import {
   computeNextOccurrenceDate,
   advanceDate,
   nextOccurrenceAtOrAfter,
   recurrenceCronExpr,
   reconcileRecurrenceSchedule,
-  parseRecurrenceSpec
+  parseRecurrenceSpec,
+  rollForwardRecurringSeries,
+  rollForwardOwnedSeries
 } from "@jarv1s/tasks";
 
 describe("recurrence date helpers", () => {
@@ -53,6 +56,37 @@ describe("nextOccurrenceAtOrAfter (roll-forward date math)", () => {
 
   it("does not roll an occurrence that equals today (boundary)", () => {
     expect(nextOccurrenceAtOrAfter(spec, "2026-06-01")).toBe("2026-06-01");
+  });
+
+  it("#877 finding 2: a series still due on the actor's local day is not rolled forward, even when the UTC calendar day has already advanced", () => {
+    // Scenario: it's 2026-07-08 in America/Los_Angeles (5 PM+ PT) but already
+    // 2026-07-09 UTC. A daily series with occurrence_date 2026-07-08 must stay put
+    // when the CALLER correctly derives `today` from the actor's tz ("2026-07-08"),
+    // not from `new Date().toISOString().slice(0, 10)` (which would yield "2026-07-09"
+    // and wrongly roll a still-due task to tomorrow). This pins the contract that made
+    // `today` a required param on rollForwardRecurringSeries/rollForwardOwnedSeries.
+    const dailySpec = { freq: "daily", interval: 1, occurrence_date: "2026-07-08" } as const;
+    expect(nextOccurrenceAtOrAfter(dailySpec, "2026-07-08")).toBe("2026-07-08");
+    // The buggy UTC-default day would have rolled it forward instead:
+    expect(nextOccurrenceAtOrAfter(dailySpec, "2026-07-09")).toBe("2026-07-09");
+  });
+});
+
+describe("rollForwardRecurringSeries / rollForwardOwnedSeries — `today` is a required param (#877 finding 2, type-level)", () => {
+  it("does not compile with a zero-arg day (no UTC-default fallback)", () => {
+    // Never invoked at runtime — this function exists purely so tsc type-checks the
+    // calls below. Both roll-forward functions used to default `today` to the
+    // server's UTC day, which every real caller silently relied on. Deleting that
+    // default was the fix; these @ts-expect-error lines fail `pnpm typecheck` if the
+    // default (or an optional `today?`) is ever reintroduced.
+    const assertTodayIsRequired = (db: DataContextDb): void => {
+      // @ts-expect-error `today` is required on rollForwardRecurringSeries.
+      void rollForwardRecurringSeries(db, "11111111-1111-1111-1111-111111111111");
+      // @ts-expect-error `today` is required on rollForwardOwnedSeries.
+      void rollForwardOwnedSeries(db);
+    };
+    void assertTodayIsRequired;
+    expect(true).toBe(true);
   });
 });
 

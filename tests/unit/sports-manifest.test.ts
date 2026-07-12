@@ -21,10 +21,13 @@ describe("sports manifest", () => {
     const [espn] = sportsModuleManifest.externalSources ?? [];
     expect(espn?.id).toBe("espn");
     expect(espn?.credential).toBe("none");
-    expect(espn?.fetchHosts).toEqual(["site.api.espn.com"]);
+    // content.core host is the per-article body endpoint (#857); site.api serves the list feeds.
+    expect(espn?.fetchHosts).toEqual(["site.api.espn.com", "content.core.api.espn.com"]);
     expect(espn?.imageHosts).toEqual(["a.espncdn.com", "s.secure.espncdn.com"]);
+    // articleBody (#857) MUST be listed — the service requests it, and an undeclared dataset makes
+    // the real DatasetClient throw before its fallback path, 500ing the overview on every load.
     expect(espn?.datasets.map((d) => d.key).sort()).toEqual(
-      ["headlines", "schedule", "scoreboard", "standings", "teams"].sort()
+      ["articleBody", "headlines", "schedule", "scoreboard", "standings", "teams"].sort()
     );
     expect(espn?.datasets.every((d) => d.staleness === "degrade-empty")).toBe(true);
   });

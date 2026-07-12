@@ -8,10 +8,20 @@ import type { ModuleWebContribution } from "@jarv1s/module-web-sdk";
  * does, without every consuming test needing its own `vi.mock("virtual:jarvis-module-web", ...)`.
  *
  * Mirrors exactly what `packages/settings-ui/src/scanner.ts`'s `scanModuleWeb` would emit for the
- * current Phase A migration (sports is the only module with a `./web` export) — keep this in sync
- * if a future phase docks another module's `./web` contribution.
+ * modules with a `./web` export (sports, news) — keep this in sync if a future phase docks
+ * another module's `./web` contribution.
  */
 export const MODULE_WEB_ROUTES = [
+  {
+    moduleId: "news",
+    moduleName: "News",
+    id: "news",
+    label: "News",
+    path: "/news",
+    icon: "newspaper",
+    order: 34,
+    permissionId: "news.view"
+  },
   {
     moduleId: "sports",
     moduleName: "Sports",
@@ -27,4 +37,7 @@ export const MODULE_WEB_ROUTES = [
 export const MODULE_WEB_CONTRIBUTIONS: ReadonlyArray<{
   readonly moduleId: string;
   readonly load: () => Promise<{ readonly default: ModuleWebContribution }>;
-}> = [{ moduleId: "sports", load: () => import("@jarv1s/sports/web") }];
+}> = [
+  { moduleId: "news", load: () => import("@jarv1s/news/web") },
+  { moduleId: "sports", load: () => import("@jarv1s/sports/web") }
+];

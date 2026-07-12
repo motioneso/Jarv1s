@@ -1,6 +1,6 @@
 # Notification email digest delivery (#742)
 
-**Status:** Proposed — decisions recorded, pending final read-through
+**Status:** Approved (2026-07-07, Ben)
 **Date:** 2026-07-05
 **Tier:** routine (delivery mechanism, content-redaction discipline required)
 **Builds on:** #14, #735, docs/superpowers/specs/2026-07-04-module-notification-preferences.md, docs/superpowers/specs/2026-07-04-quiet-hours-settings-persistence.md

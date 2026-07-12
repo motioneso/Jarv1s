@@ -19,7 +19,7 @@ export type SettingsModuleControlModel =
       readonly canOpenSettings: boolean;
     };
 
-const USER_TOGGLEABLE_MODULE_IDS = new Set(["wellness", "sports", "finance"]);
+const USER_TOGGLEABLE_MODULE_IDS = new Set(["wellness", "sports", "news", "finance"]);
 
 export function visibleUserToggleModules(
   modules: readonly SettingsModule[]

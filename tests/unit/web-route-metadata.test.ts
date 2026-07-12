@@ -41,6 +41,7 @@ describe("web route metadata", () => {
       "/notifications",
       "/calendar",
       "/wellness",
+      "/news",
       "/sports",
       "/settings"
     ]);

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { compareJarvisVersions } from "@jarv1s/module-sdk/core-version";
 import {
+  AlertTriangle,
   KeyRound,
   LogOut,
   MoreHorizontal,
@@ -25,13 +26,15 @@ import {
   listAdminConnectorAccounts,
   listAdminModules,
   listAdminUsers,
+  listExternalModules,
   promoteUser,
   putRegistrationSettings,
   reactivateUser,
   revokeAdminUserSessions,
   rejectUser,
   setChatMultiplexerSettings,
-  setAdminModuleDisabled
+  setAdminModuleDisabled,
+  setExternalModuleEnabled
 } from "../api/client";
 import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
@@ -42,6 +45,8 @@ import {
 } from "./settings-admin-policy";
 import { getConnectorAccountHealth } from "./settings-connector-sync";
 import { useFeedback } from "./settings-feedback";
+import { ModuleCredentialsSection } from "./module-credentials-section";
+import { ModuleRegistrySection } from "./settings-module-registry-section";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import { MarkdownMessage } from "../chat/markdown-message";
 import {
@@ -61,6 +66,7 @@ import {
 import type {
   ChatMultiplexerChoice,
   HostDiagnosticStatus,
+  PutAiAdminUserPinRequest,
   RegistrationSettingsDto,
   UserDto
 } from "@jarv1s/shared";
@@ -219,47 +225,82 @@ function AiPinRow(props: { readonly user: UserDto }) {
     queryFn: () => getAdminUserAiPin(props.user.id),
     retry: false
   });
+  // #870/M4a Slice 1: an admin can pin this user to either a PROVIDER (hard-locks ALL their
+  // traffic — chat, voice, workers — to that provider; no capable model => visible needs-config,
+  // no cross-provider escape) OR a specific MODEL (exact model for chat/voice, workers routed
+  // inside that model's provider). The two are mutually exclusive; the backend clears the sibling
+  // pin, so the UI just sends whichever was chosen (or clears both).
   const mutation = useMutation({
-    mutationFn: (modelId: string | null) => putAdminUserAiPin(props.user.id, { modelId }),
+    mutationFn: (input: PutAiAdminUserPinRequest) => putAdminUserAiPin(props.user.id, input),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data);
-      toast(data.pin.pinnedModelId ? "AI provider pinned" : "AI provider pin cleared", {
-        icon: <ServerCog size={17} />
-      });
+      const label =
+        data.pin.pinnedModelId || data.pin.pinnedProviderId ? "AI pin updated" : "AI pin cleared";
+      toast(label, { icon: <ServerCog size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
   const pin = pinQuery.data?.pin;
   const models = pin?.availableModels ?? [];
-  const value = pin?.pinnedModelId ?? "";
+  const providers = pin?.availableProviders ?? [];
+  // Encode the current pin into the single <select> value: `provider:<id>`, `model:<id>`, or "".
+  const value = pin?.pinnedProviderId
+    ? `provider:${pin.pinnedProviderId}`
+    : pin?.pinnedModelId
+      ? `model:${pin.pinnedModelId}`
+      : "";
   const busy = pinQuery.isLoading || mutation.isPending;
-  const disabled = busy || models.length === 0;
+  const disabled = busy || (models.length === 0 && providers.length === 0);
   const effective = pin?.effectiveChatModel
     ? `${pin.effectiveChatModel.displayName} (${pin.effectiveChatReason})`
     : "No active model";
 
+  const onChange = (raw: string) => {
+    if (raw.startsWith("provider:")) {
+      mutation.mutate({ providerId: raw.slice("provider:".length) });
+    } else if (raw.startsWith("model:")) {
+      mutation.mutate({ modelId: raw.slice("model:".length) });
+    } else {
+      // Clear both pins — send an empty request; the backend treats absent ids as "clear".
+      mutation.mutate({});
+    }
+  };
+
   return (
     <div className="ppl__ai">
       <Row
-        name="AI provider"
+        name="AI pin"
         desc={
-          models.length
-            ? `Effective chat model: ${effective}. Pinning forces this model for all AI features.`
-            : "No active models configured by this user."
+          models.length || providers.length
+            ? `Effective chat model: ${effective}. A provider pin locks all of this user's AI to that provider; a model pin forces the exact model.`
+            : "No active providers or models available to pin for this user."
         }
         control={
           <Select
-            aria-label={`Pinned AI provider for ${props.user.name || props.user.email}`}
+            aria-label={`AI pin for ${props.user.name || props.user.email}`}
             value={value}
             disabled={disabled}
-            onChange={(event) => mutation.mutate(event.currentTarget.value || null)}
+            onChange={(event) => onChange(event.currentTarget.value)}
           >
-            <option value="">Clear pin</option>
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.displayName}
-              </option>
-            ))}
+            <option value="">No pin (follow instance routing)</option>
+            {providers.length ? (
+              <optgroup label="Pin a provider (locks all AI to it)">
+                {providers.map((provider) => (
+                  <option key={provider.id} value={`provider:${provider.id}`}>
+                    {provider.displayName}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {models.length ? (
+              <optgroup label="Pin a specific model">
+                {models.map((model) => (
+                  <option key={model.id} value={`model:${model.id}`}>
+                    {model.displayName}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </Select>
         }
       />
@@ -531,6 +572,27 @@ export function InstanceModulesPane() {
       ]),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  // #917: external (user-authored) modules discovered on the box. This query 404s /
+  // returns `enabled:false` when JARVIS_ENABLE_EXTERNAL_MODULES is unset, so the whole
+  // section stays hidden by default (fail-closed). retry:false mirrors the built-in query.
+  const externalModulesQuery = useQuery({
+    queryKey: queryKeys.settings.adminExternalModules,
+    queryFn: listExternalModules,
+    retry: false
+  });
+  const setExternalEnabled = useMutation({
+    mutationFn: (input: { id: string; enabled: boolean }) =>
+      setExternalModuleEnabled(input.id, input.enabled),
+    // Enabling an external module changes what /api/modules reconciles as active, so
+    // refresh both the admin list AND the shell module list (#917 corrections).
+    onSuccess: () =>
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings.adminExternalModules }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.modules })
+      ]),
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const external = externalModulesQuery.data;
   // Only optional modules are shown — required ones are always on and can't be
   // toggled, so there's nothing for the admin to do with them.
   const modules = (modulesQuery.data?.modules ?? []).filter((module) => !module.required);
@@ -568,6 +630,62 @@ export function InstanceModulesPane() {
         Disabling a module hides it for everyone and stops it collecting new data. Existing data is
         kept.
       </Note>
+      {/* #917: External modules only surface when the operator opted in via
+          JARVIS_ENABLE_EXTERNAL_MODULES=1 (server reports `enabled`). While the query is
+          loading or the flag is off, `external` is undefined/`enabled:false` and the whole
+          section is hidden — the fail-closed default. */}
+      {external?.enabled ? (
+        <Group
+          title="External modules"
+          desc="User-authored modules discovered in this instance's modules directory. Off by default."
+        >
+          {/* #917: trusted-operator warning — enabling runs third-party code on the box with
+              the same access as built-in features. Uses the authored <Note> primitive (no `tone`
+              prop exists) with a warning icon. */}
+          <Note icon={<AlertTriangle size={13} aria-hidden="true" />}>
+            External modules are not reviewed by Jarvis. Only enable modules you authored or fully
+            trust — an enabled module runs with the same access as built-in features.
+          </Note>
+          {external.modules.length ? (
+            external.modules.map((module) => {
+              // #917: surface WHY a module is inactive. Drift auto-disable (package changed
+              // after it was enabled) wins; otherwise any server-provided disabledReason.
+              const reason = module.drifted
+                ? "disabled: package changed since it was enabled"
+                : (module.disabledReason ?? null);
+              return (
+                <div key={module.id}>
+                  <Row
+                    name={module.name}
+                    desc={`${module.publisher} · v${module.version}${reason ? ` · ${reason}` : ""}`}
+                    control={
+                      <Switch
+                        ariaLabel={`Enable ${module.name}`}
+                        checked={module.status === "enabled"}
+                        disabled={setExternalEnabled.isPending}
+                        onChange={(value) =>
+                          setExternalEnabled.mutate({ id: module.id, enabled: value })
+                        }
+                      />
+                    }
+                  />
+                  {/* #918: instance-scope credential slots declared by this module's
+                      manifest, if any — renders nothing when the module has none. */}
+                  <ModuleCredentialsSection moduleId={module.id} surface="admin" />
+                </div>
+              );
+            })
+          ) : (
+            // The section is gated on `enabled` (data already loaded), so this is the
+            // genuinely-empty case, not a loading placeholder.
+            <Row
+              name="No external modules"
+              desc="No external modules are present in the modules directory."
+            />
+          )}
+        </Group>
+      ) : null}
+      <ModuleRegistrySection />
     </>
   );
 }
@@ -673,6 +791,82 @@ export function HostPane() {
   const herdrDesc = herdrAvailable
     ? "Herdr is usable on this host."
     : "Herdr is not usable on this host.";
+
+  function attachHintNote() {
+    if (!mux) return null;
+    if (mux.envOverride !== null) {
+      return (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          The <code>JARVIS_MULTIPLEXER</code> environment variable pins this host to{" "}
+          <strong>{mux.envOverride}</strong>, overriding the setting above. From your deployment
+          directory, use{" "}
+          {mux.envOverride === "herdr" ? (
+            <>
+              <code>{"herdr pane list"}</code> and <code>{"herdr pane attach <pane-id>"}</code>
+            </>
+          ) : (
+            <>
+              <code>{"docker compose exec jarv1s tmux ls"}</code> and{" "}
+              <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>
+            </>
+          )}
+          .
+        </Note>
+      );
+    }
+    // Primary note reflects what's actually active. "herdr installed but broken" is NOT
+    // mutually exclusive with an active mux, so it's appended separately below — otherwise a
+    // working tmux host with a half-installed herdr would hide the tmux attach command the
+    // operator actually needs.
+    const primaryNote =
+      mux.active === "herdr" ? (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Prefer the terminal? Chat sessions run in Herdr on this host. List panes with{" "}
+          <code>{"herdr pane list"}</code>, attach with <code>{"herdr pane attach <pane-id>"}</code>
+          , or read output non-interactively with <code>{"herdr pane read <pane-id>"}</code>.
+        </Note>
+      ) : mux.active === "tmux" ? (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Prefer the terminal? Chat sessions run in tmux inside the container. From your deployment
+          directory, list them with <code>{"docker compose exec jarv1s tmux ls"}</code>, then attach
+          with <code>{"docker compose exec jarv1s tmux attach -t jarv1s-live-<thread>"}</code>.
+        </Note>
+      ) : (
+        // active === null: nothing is usable. Don't hand out tmux commands that would fail.
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          No chat multiplexer is usable on this host yet. Install or configure tmux or Herdr, then
+          refresh this page.
+        </Note>
+      );
+
+    const herdrBrokenNote =
+      mux.herdrInstalled && !mux.available.herdr && mux.active !== "herdr" ? (
+        <Note icon={<Terminal size={13} aria-hidden="true" />}>
+          Herdr is installed but has no root pane available, so it isn&apos;t usable yet. Set{" "}
+          <code>JARVIS_HERDR_ROOT_PANE</code> (or run the API inside a Herdr pane so{" "}
+          <code>HERDR_PANE_ID</code> is set), then restart.
+        </Note>
+      ) : null;
+
+    return (
+      <>
+        {primaryNote}
+        {herdrBrokenNote}
+      </>
+    );
+  }
+
+  function installGuidanceNote() {
+    if (!mux || mux.herdrInstalled) return null;
+    return (
+      <Note icon={<Terminal size={13} aria-hidden="true" />}>
+        Herdr is not installed on this host. An operator can install it from the deployment
+        directory with <code>{"docker compose exec jarv1s scripts/install-herdr.sh"}</code>, then
+        refresh this page.
+      </Note>
+    );
+  }
+
   return (
     <>
       <PaneHead
@@ -714,6 +908,8 @@ export function HostPane() {
             </Badge>
           }
         />
+        {attachHintNote()}
+        {installGuidanceNote()}
       </Group>
       <Group
         title="Diagnostics"

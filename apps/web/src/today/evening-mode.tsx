@@ -9,6 +9,7 @@ import {
 import { MessageSquareText } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { useAssistantName } from "../api/use-assistant-name";
 import { targetTimeFor } from "../briefings/briefing-settings-model";
 import {
   DEFAULT_LOCALE,
@@ -20,6 +21,7 @@ import {
 } from "../locale/locale-format";
 import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
 import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
+import { joinClauses } from "./today-labels";
 
 export type TodayMode = "day" | "evening";
 
@@ -109,7 +111,9 @@ export function buildEveningLede(
   if (tomorrowEvents > 0) {
     parts.push(`${tomorrowEvents} ${tomorrowEvents === 1 ? "event" : "events"} tomorrow`);
   }
-  return `${parts.join(", and ")}.`;
+  // Oxford join, not `parts.join(", and ")` — the latter double-printed "and" between
+  // every clause ("complete, and carrying, and events"); Ben 2026-07-07: drop the first "and".
+  return `${joinClauses(parts)}.`;
 }
 
 export function EveningReviewSection(props: {
@@ -117,9 +121,7 @@ export function EveningReviewSection(props: {
   readonly run: BriefingRunDto | null;
   readonly locale: LocaleSettingsDto;
   readonly targetTime: string;
-  readonly interviewPending: boolean;
   readonly onFeedbackChanged: () => void;
-  readonly onPrep: () => void;
 }) {
   const content = (
     <>
@@ -145,7 +147,13 @@ export function EveningReviewSection(props: {
           {props.kind === "compact" ? (
             <p className="cmd-empty">{compactSummary(props.run.summaryText)}</p>
           ) : null}
-          <BriefingFeedbackMenu targetRef={props.run.id} onChanged={props.onFeedbackChanged} />
+          {/* Compact tiles keep the terse "…" feedback menu inline; the primary
+              recap is read-only prose. The "Prep for tomorrow" CTA now lives in
+              the right rail as its own evening-only card (Ben: the button wasn't
+              in the right spot on the recap card). */}
+          {props.kind === "compact" ? (
+            <BriefingFeedbackMenu targetRef={props.run.id} onChanged={props.onFeedbackChanged} />
+          ) : null}
         </>
       ) : (
         <div className="agenda-clear">
@@ -154,15 +162,6 @@ export function EveningReviewSection(props: {
             : "No evening review yet."}
         </div>
       )}
-      <button
-        type="button"
-        className="primary-button"
-        disabled={props.interviewPending}
-        onClick={props.onPrep}
-      >
-        <MessageSquareText size={14} aria-hidden="true" />
-        Prep for tomorrow
-      </button>
     </>
   );
 
@@ -170,6 +169,36 @@ export function EveningReviewSection(props: {
     <section className="jds-brief">{content}</section>
   ) : (
     <div className="inst">{content}</div>
+  );
+}
+
+// Evening-only right-rail CTA. Split out of the recap card so "Prep for
+// tomorrow" reads as its own action in the rail instead of hanging off the
+// bottom of the "What happened today" recap (Ben: the button wasn't in the
+// right spot). Rendered only in evening mode, so the action is time-bound.
+export function EveningPrepCard(props: {
+  readonly interviewPending: boolean;
+  readonly onPrep: () => void;
+}) {
+  // Button opens the evening interview chat, so it's labelled by the assistant
+  // (Ben: "Chat with {assistantName}") rather than the generic "Prep for tomorrow".
+  const assistantName = useAssistantName();
+  return (
+    <div className="inst">
+      <div className="inst__head">
+        <span className="inst__title">Prep for tomorrow</span>
+      </div>
+      <p className="cmd-empty">Close out today and set up tomorrow in a quick chat.</p>
+      <button
+        type="button"
+        className="primary-button evening-prep__btn"
+        disabled={props.interviewPending}
+        onClick={props.onPrep}
+      >
+        <MessageSquareText size={14} aria-hidden="true" />
+        Chat with {assistantName}
+      </button>
+    </div>
   );
 }
 

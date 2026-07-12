@@ -7,6 +7,7 @@ import {
   MessageSquareText,
   MoreHorizontal,
   Play,
+  ShieldOff,
   SquarePen,
   ThumbsDown,
   ThumbsUp,
@@ -20,7 +21,9 @@ import { BrandMark } from "../shell/brand-mark";
 import { maybeCapturePageContext } from "./page-context";
 import {
   cancelChatTurn,
+  beaconEndPrivateChat,
   clearChat,
+  endPrivateChat,
   getOnboardingStatus,
   listCalendarEvents,
   listChatThreadMessages,
@@ -43,13 +46,18 @@ import type {
 } from "@jarv1s/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { ActionRequestCard } from "./action-request-card";
+import { ChatModelPill } from "./chat-model-pill";
 import { Composer } from "./composer";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import { MarkdownMessage } from "./markdown-message";
 import { buildChatSeeds } from "./seeds";
 import { hasConnectedProvider, isNoActiveChatModelError } from "../onboarding/chat-availability";
 import type { SourceFreshnessEntry, SourceFreshnessV1 } from "@jarv1s/shared";
-import type { ChatRecordKind, TranscriptRecord } from "./use-chat-stream";
+import {
+  shouldEndPrivateChatOnStreamDisconnect,
+  type ChatRecordKind,
+  type TranscriptRecord
+} from "./use-chat-stream";
 import "../styles/kit-chat.css";
 
 /**
@@ -67,6 +75,7 @@ export function ChatDrawer(props: {
   readonly onClose: () => void;
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
+  readonly streamErrorCount: number;
   /** #369: the founder set the instance up — tailors the empty-chat connect copy. */
   readonly isFounder: boolean;
   /**
@@ -78,6 +87,8 @@ export function ChatDrawer(props: {
   const queryClient = useQueryClient();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [privateMode, setPrivateMode] = useState(false);
+  const [privateEnded, setPrivateEnded] = useState(false);
 
   // #633: autoscroll to the newest message by default; pause it the moment the user scrolls
   // away from the bottom, and resume (jumping straight to the latest record) on demand.
@@ -121,6 +132,13 @@ export function ChatDrawer(props: {
   // Optimistic user record — shown immediately on send until the SSE stream confirms (#399).
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
   const [fallbackRecords, setFallbackRecords] = useState<readonly TranscriptRecord[]>([]);
+
+  useEffect(() => {
+    if (!privateMode) return;
+    const endPrivate = () => beaconEndPrivateChat();
+    window.addEventListener("beforeunload", endPrivate);
+    return () => window.removeEventListener("beforeunload", endPrivate);
+  }, [privateMode]);
 
   // #399: clear the optimistic record once the SSE stream delivers the matching user record.
   // Text-based check handles the case where SSE events pre-arrive before send (count stays equal).
@@ -181,7 +199,7 @@ export function ChatDrawer(props: {
   const sendMessage = useCallback(
     (text: string): void => {
       const trimmed = text.trim();
-      if (!trimmed || isSending) return;
+      if (!trimmed || isSending || privateEnded) return;
       setSendError(null);
       setNeedsProvider(false);
       setIsSending(true);
@@ -217,7 +235,7 @@ export function ChatDrawer(props: {
         }
       })();
     },
-    [isSending, props.records, queryClient]
+    [isSending, privateEnded, props.records, queryClient]
   );
 
   useEffect(() => {
@@ -248,6 +266,21 @@ export function ChatDrawer(props: {
       ];
 
   const isWaiting = !reviewing && (isSending || pendingUserText !== null);
+
+  useEffect(() => {
+    if (
+      shouldEndPrivateChatOnStreamDisconnect({
+        privateMode,
+        privateEnded,
+        streamErrorCount: props.streamErrorCount
+      })
+    ) {
+      setPrivateEnded(true);
+      setIsSending(false);
+      setPendingUserText(null);
+      setDrainAfterStopText(null);
+    }
+  }, [privateEnded, privateMode, props.streamErrorCount]);
 
   // #633: switching what's displayed (new chat, opening a history row, toggling the history
   // list, or the drawer itself (re)opening — #638) always re-pins to the bottom of the
@@ -283,9 +316,39 @@ export function ChatDrawer(props: {
     setDrainAfterStopText(null);
     setPendingUserText(null);
     setFallbackRecords([]);
+    setPrivateMode(false);
+    setPrivateEnded(false);
     void clearChat();
     props.clearRecords();
     void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+  };
+
+  const switchToNewModelChat = () => {
+    startNewChat();
+  };
+
+  const startPrivateChat = () => {
+    setReviewThreadId(null);
+    setShowHistory(false);
+    setIsSending(false);
+    setSendError(null);
+    setNeedsProvider(false);
+    setDrainAfterStopText(null);
+    setPendingUserText(null);
+    setFallbackRecords([]);
+    setPrivateMode(true);
+    setPrivateEnded(false);
+    void clearChat({ incognito: true });
+    props.clearRecords();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+  };
+
+  const closePrivateChat = () => {
+    setPrivateMode(false);
+    setPrivateEnded(false);
+    props.clearRecords();
+    setFallbackRecords([]);
+    void endPrivateChat();
   };
 
   /** #456 — stop the in-flight turn. The backend kills the engine + emits 'Stopped by user.' over
@@ -321,6 +384,16 @@ export function ChatDrawer(props: {
           onClick={startNewChat}
         >
           <SquarePen size={16} aria-hidden="true" />
+        </button>
+        <button
+          aria-label="Start private chat"
+          aria-pressed={privateMode}
+          className={`chatd__hbtn${privateMode ? " is-on" : ""}`}
+          title="Private chat"
+          type="button"
+          onClick={startPrivateChat}
+        >
+          <ShieldOff size={16} aria-hidden="true" />
         </button>
         <button
           aria-label={showHistory ? "Hide chat history" : "Show chat history"}
@@ -365,6 +438,18 @@ export function ChatDrawer(props: {
               >
                 <Play size={13} aria-hidden="true" />
                 Resume this conversation
+              </button>
+            </div>
+          ) : null}
+          {privateMode && !reviewing ? (
+            <div className={`chatd-private${privateEnded ? " is-ended" : ""}`}>
+              <span>
+                {privateEnded
+                  ? "Private chat ended. Start a new chat to continue."
+                  : "Private chat: not saved to history. Approved actions still keep records."}
+              </span>
+              <button type="button" onClick={closePrivateChat}>
+                End
               </button>
             </div>
           ) : null}
@@ -448,11 +533,18 @@ export function ChatDrawer(props: {
       </div>
 
       <Composer
-        readOnly={reviewing}
+        modelSelector={
+          <ChatModelPill
+            disabled={reviewing || privateEnded || isSending}
+            privateMode={privateMode}
+            onCrossProviderSwitch={switchToNewModelChat}
+          />
+        }
+        readOnly={reviewing || privateEnded}
         isFounder={props.isFounder}
         initialText={props.initialText}
         isSending={isSending}
-        sendError={sendError}
+        sendError={privateEnded ? "Private chat ended. Start a new chat to continue." : sendError}
         needsProvider={needsProvider}
         lockedModelUnavailable={lockedModelUnavailable}
         onSend={sendMessage}

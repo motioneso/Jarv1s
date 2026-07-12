@@ -188,10 +188,13 @@ describe("AI admin per-user model pin", () => {
     ]);
   });
 
-  it("non-chat capability with unavailable pin falls through to instance route", async () => {
-    const providerId = await seedProvider(ids.userB, "Fallthrough Provider");
-    const pinnedId = await seedModel(ids.userB, providerId, "fallthrough-pinned", ["json"]);
-    const fallbackId = await seedModel(ids.userB, providerId, "fallthrough-fallback", ["json"]);
+  // #870 locked decision #2: a model pin is a HARD routing constraint on ALL of the user's traffic.
+  // When the pinned model can't serve a WORKER capability, the resolver routes the worker INSIDE the
+  // pinned model's provider (never cross-provider) — there is no escape to the instance-wide route.
+  it("worker capability with unavailable model pin routes inside the pinned provider (hard-lock)", async () => {
+    const providerId = await seedProvider(ids.userB, "Hard-lock Provider");
+    const pinnedId = await seedModel(ids.userB, providerId, "hardlock-pinned", ["json"]);
+    const siblingId = await seedModel(ids.userB, providerId, "hardlock-sibling", ["json"]);
 
     await server.inject({
       method: "PUT",
@@ -201,13 +204,27 @@ describe("AI admin per-user model pin", () => {
     });
     await setModelStatus(pinnedId, "disabled");
 
-    const resolution = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+    // A capable sibling exists in the SAME provider → the worker resolves to it, still reason
+    // "admin-pin" (traffic stays on the mandated backend).
+    const resolvedInProvider = await dataContext.withDataContext(userBContext(), (scopedDb) =>
       repository.resolveModelForCapability(scopedDb, "json", "interactive")
     );
 
-    expect(resolution).toMatchObject({
-      reason: "admin-pin-unavailable-fallback"
+    expect(resolvedInProvider).toMatchObject({
+      reason: "admin-pin",
+      model: { id: siblingId }
     });
+
+    // Disable the sibling too → no capable model in the pinned provider → needs-config, NO
+    // cross-provider escape even though another provider CAN serve json (proves the hard-lock).
+    const escapeProviderId = await seedProvider(ids.userB, "Escape Provider (must not be used)");
+    await seedModel(ids.userB, escapeProviderId, "escape-json", ["json"]);
+    await setModelStatus(siblingId, "disabled");
+    const resolvedNeedsConfig = await dataContext.withDataContext(userBContext(), (scopedDb) =>
+      repository.resolveModelForCapability(scopedDb, "json", "interactive")
+    );
+
+    expect(resolvedNeedsConfig).toMatchObject({ reason: "needs-config", model: null });
 
     await server.inject({
       method: "PUT",
@@ -215,7 +232,89 @@ describe("AI admin per-user model pin", () => {
       headers: { authorization: `Bearer ${ids.sessionAdmin}` },
       payload: { modelId: null }
     });
-    void fallbackId;
+  });
+
+  // #870/M4b (Fable HIGH-2): a PROVIDER pin hard-locks ALL of the user's traffic — chat, voice, and
+  // workers — to that one provider, resolving each capability INSIDE it.
+  it("provider pin resolves chat, voice and worker capabilities inside the pinned provider", async () => {
+    const providerId = await seedProvider(ids.userB, "Provider-pin Backend");
+    const chatId = await seedModel(ids.userB, providerId, "ppin-chat", ["chat"]);
+    const voiceId = await seedModel(ids.userB, providerId, "ppin-voice", ["transcription"]);
+    const workerId = await seedModel(ids.userB, providerId, "ppin-json", ["json"]);
+
+    const setPin = await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { providerId }
+    });
+    const getPin = await server.inject({
+      method: "GET",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` }
+    });
+
+    const resolved = await dataContext.withDataContext(userBContext(), async (scopedDb) => ({
+      chat: await repository.resolveModelForCapability(scopedDb, "chat", "interactive"),
+      voice: await repository.resolveModelForCapability(scopedDb, "transcription", "interactive"),
+      worker: await repository.resolveModelForCapability(scopedDb, "json", "interactive")
+    }));
+
+    expect(setPin.statusCode).toBe(200);
+    // Provider pin is stored as provider, not model (mutually exclusive, M4a).
+    expect(getPin.json()).toMatchObject({
+      pin: { pinnedProviderId: providerId, pinnedModelId: null }
+    });
+    expect(resolved.chat).toMatchObject({ reason: "admin-pin", model: { id: chatId } });
+    expect(resolved.voice).toMatchObject({ reason: "admin-pin", model: { id: voiceId } });
+    expect(resolved.worker).toMatchObject({ reason: "admin-pin", model: { id: workerId } });
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { providerId: null, modelId: null }
+    });
+  });
+
+  // #870/M4b + Fable MED-1: a wedged pinned provider (its capable models disabled) is a SYMMETRIC
+  // hard-lock. User-facing → "admin-pin-unavailable" (the reason the chat lock UI matches); worker →
+  // "needs-config". NEITHER escapes cross-provider even when another provider could serve the call.
+  it("wedged provider pin locks user-facing to admin-pin-unavailable and workers to needs-config, no escape", async () => {
+    const providerId = await seedProvider(ids.userB, "Wedged Provider");
+    const chatId = await seedModel(ids.userB, providerId, "wedge-chat", ["chat"]);
+    const workerId = await seedModel(ids.userB, providerId, "wedge-json", ["json"]);
+
+    // A fully-capable ESCAPE provider that must never be used while the pin holds.
+    const escapeProviderId = await seedProvider(ids.userB, "Escape Provider (must not be used)");
+    await seedModel(ids.userB, escapeProviderId, "escape-chat", ["chat"]);
+    await seedModel(ids.userB, escapeProviderId, "escape-json", ["json"]);
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { providerId }
+    });
+
+    // Wedge the pinned provider: disable its only capable models (provider itself stays active).
+    await setModelStatus(chatId, "disabled");
+    await setModelStatus(workerId, "disabled");
+
+    const resolved = await dataContext.withDataContext(userBContext(), async (scopedDb) => ({
+      chat: await repository.resolveModelForCapability(scopedDb, "chat", "interactive"),
+      worker: await repository.resolveModelForCapability(scopedDb, "json", "interactive")
+    }));
+
+    expect(resolved.chat).toMatchObject({ reason: "admin-pin-unavailable", model: null });
+    expect(resolved.worker).toMatchObject({ reason: "needs-config", model: null });
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/admin/users/${ids.userB}/ai-pin`,
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { providerId: null, modelId: null }
+    });
   });
 
   it("pinned user's direct API call uses the pinned model at the HTTP perimeter", async () => {
@@ -288,7 +387,7 @@ describe("AI admin per-user model pin", () => {
     ownerUserId: string,
     providerConfigId: string,
     providerModelId: string,
-    capabilities: readonly ("chat" | "json")[]
+    capabilities: readonly ("chat" | "json" | "transcription" | "summarization")[]
   ): Promise<string> {
     const id = randomUUID();
     const client = new Client({ connectionString: connectionStrings.bootstrap });

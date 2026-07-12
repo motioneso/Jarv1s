@@ -56,7 +56,7 @@ function followedCard(overrides: Partial<FollowedTeamCard> = {}): FollowedTeamCa
     crestUrl: null,
     status: "live",
     primary: "MIN 21 – 14 DAL",
-    news: null,
+    stories: [],
     form: ["W", "W", "L"],
     standing: "1st · NFC North",
     nextMatch: {
@@ -165,8 +165,11 @@ function render(overview: SportsOverviewResponse): string {
 describe("SportsPage", () => {
   it("renders the broadsheet masthead", () => {
     const html = render(makeOverview());
-    expect(html).toContain("sp-masthead");
-    expect(html).toContain("sp-masthead__title");
+    // Masthead pared to a section-nav + live-event line — the nameplate/brand strip was cut
+    // (Ben 2026-07-07: drop the YOLO nameplate + palette chrome from the sports header).
+    expect(html).toContain("sp-mast");
+    expect(html).toContain("sp-mast__nav");
+    expect(html).toContain("sp-mast__navlink");
   });
 
   it("renders the gameday hero without rationale text, with both teams and scores", () => {
@@ -180,9 +183,9 @@ describe("SportsPage", () => {
     // live score is a scoped aria-live region so screen readers hear updates
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('aria-atomic="true"');
-    // competitionLabel must render on every game surface, including the live hero
+    // competitionLabel must render on every game surface, including the featured score bar
     // (must-not-regress: live badge does not replace the competition label)
-    expect(html).toContain('<span class="sp-hero__comp">NFL</span>');
+    expect(html).toContain('<span class="sp-scorebar__comp">NFL</span>');
   });
 
   it("does not announce the hero score via aria-live when the game is not live", () => {
@@ -225,22 +228,27 @@ describe("SportsPage", () => {
     );
 
     expect(html).not.toContain("SOURCE_PREGAME_STRING");
-    expect(html).toContain('<span class="sp-hero__phase">16:20</span>');
+    expect(html).toContain('<span class="sp-scorebar__clock">16:20</span>');
   });
 
-  it("renders the followed-team ticker block with form pips and next match", () => {
+  it("renders the followed-team ticker block with form pips in the header sub-row", () => {
     const html = render(makeOverview());
     expect(html).toContain("sp-ticker");
     expect(html).toContain("MIN 21 – 14 DAL");
     expect(html).toContain("sp-formpip");
-    expect(html).toContain("vs Green Bay Packers");
+    // #963: the fixture card is live — the footer strip carries the live score + LIVE token
+    // (supersedes mrawrk0e's hidden-footer rule); body/next-game specifics live in the
+    // ticker's own suite.
+    expect(html).toContain("sp-next__livetag");
   });
 
-  it("renders the 2-up Latest column without the RANKED eyebrow or explainer dek", () => {
+  it("renders the Top-stories column on gameday without the RANKED eyebrow or explainer dek", () => {
+    // Default makeOverview is a gameday (live hero), so the carousel yields to the
+    // combined Top-stories list in the main column (mrb4w77y).
     const html = render(makeOverview());
     expect(html).toContain("sp-grid");
     expect(html).toContain("sp-latest");
-    expect(html).toContain("Latest");
+    expect(html).toContain("Top stories");
     expect(html).not.toContain("RANKED");
   });
 
@@ -251,7 +259,14 @@ describe("SportsPage", () => {
           followedCard({
             status: "news",
             primary: "",
-            news: { title: "Cowboys clinch the division", url: "https://example.com/h1" }
+            stories: [
+              {
+                title: "Cowboys clinch the division",
+                url: "https://example.com/h1",
+                publishedAt: "2026-07-01T12:00:00Z",
+                imageUrl: null
+              }
+            ]
           })
         ]
       })
@@ -260,7 +275,7 @@ describe("SportsPage", () => {
     expect(html).toContain("Cowboys clinch the division");
   });
 
-  it("renders the around-the-leagues scores strip with one label per league group", () => {
+  it("renders the around-the-leagues board in the main column, with the top strip hidden (mrb4w77y)", () => {
     const html = render(
       makeOverview({
         scoreboard: [
@@ -281,8 +296,11 @@ describe("SportsPage", () => {
         ]
       })
     );
-    expect(html).toContain("sp-around");
-    expect(html).toContain("sp-around__league"); // league label rendered once per group
+    // mrb4w77y: scores moved into the main column as a broader board; the old top
+    // strip is hidden behind SHOW_AROUND_STRIP (kept in code in case we bring it back).
+    expect(html).toContain("sp-board");
+    expect(html).toContain("sp-board__league"); // league label rendered once per group
+    expect(html).not.toContain("sp-around__scroll");
     expect(html).toContain("Scroll left");
     expect(html).toContain("Scroll right");
     // #841 fix: live and final games surface the source statusDetail (clock/period, "Final"),
@@ -395,14 +413,20 @@ describe("SportsPage", () => {
         ]
       })
     );
-    expect(html).toContain("AL East");
+    // Non-tournament leagues open on "All": one merged league-wide table, best to worst,
+    // renumbered so per-section ranks can't collide (live feedback mra33whr + mra50mfr).
+    // The old one-section-at-a-time pager (sp-standings__count / Next standings) is gone;
+    // sections are reachable through the view <select> instead.
     expect(html).toContain("New York Yankees");
+    expect(html).toContain("Houston Astros");
     expect(html).toContain("Select standings league");
-    expect(html).toContain("<option");
-    expect(html).toContain("sp-standings__count");
-    expect(html).toContain("Next standings");
-    expect(html).not.toContain("AL West");
-    expect(html).not.toContain("Houston Astros");
+    expect(html).toContain("Select standings view");
+    expect(html).toContain('<option value="all" selected');
+    expect(html).toContain("AL East");
+    expect(html).toContain("AL West");
+    expect(html).toContain('<td class="pos">2</td>');
+    expect(html).not.toContain("sp-standings__count");
+    expect(html).not.toContain("Next standings");
   });
 
   it("offers all catalog leagues in the standings selector, not only ones with data", () => {
@@ -493,18 +517,23 @@ describe("SportsPage", () => {
         ]
       })
     );
-    // both notes get their own legend entry with a distinct numeral marker
+    // Both notes get their own legend entry; the marker is a miniature-row swatch painted
+    // with ESPN's per-note color (PL-site-style tint + edge bar — the color pass shipped in
+    // the broadsheet redesign, superseding the numeral markers).
     expect(html).toContain("UEFA Champions League");
     expect(html).toContain("Relegation");
-    const markerMatches = [...html.matchAll(/sp-legend__marker[^>]*>(\d+)</g)].map((m) => m[1]);
-    expect(markerMatches).toEqual(["1", "2"]);
-    // qualificationColor is carried by the API but the color treatment is a deferred design
-    // pass — the fix must not paint it, so the hex values must not leak into rendered markup.
-    expect(html).not.toContain("#2a66d1");
-    expect(html).not.toContain("#c1272d");
+    const markerCount = [...html.matchAll(/sp-legend__marker/g)].length;
+    expect(markerCount).toBe(2);
+    expect(html).toContain("#2a66d1");
+    expect(html).toContain("#c1272d");
   });
 
-  it("shows an image for only the first headline in a news-band league group (#841)", () => {
+  it("tiers the news-band mosaic: feature, double-column majors with art, standards (mrb5reqq)", () => {
+    // Supersedes the mrb0wd68 one-column-per-league sections: stories now flatten into one
+    // weight-ranked mosaic. Weights (art +2, dek +1, followed +2, league-front editorial +2):
+    // nb1 (art+dek+front) = 5 → wins the full-width feature; nb2/nb3 (art, 2) take the two
+    // double-column major slots; nb4 (art, 2) flows as a single-column standard — its art
+    // stays, only the brief rail suppresses art, and nothing overflows into it here.
     const html = render(
       makeOverview({
         leagueNews: [
@@ -513,21 +542,67 @@ describe("SportsPage", () => {
             competitionLabel: "NFL",
             headlines: [
               headline("nb1", "nfl", "Cowboys sign veteran lineman", {
-                imageUrl: "https://a.espncdn.com/photo/nb1.jpg"
+                imageUrl: "https://a.espncdn.com/photo/nb1.jpg",
+                summary: "A five-year deal shores up the right side."
               }),
               headline("nb2", "nfl", "Giants extend head coach", {
                 imageUrl: "https://a.espncdn.com/photo/nb2.jpg"
+              }),
+              headline("nb3", "nfl", "Bears trade up in the draft", {
+                imageUrl: "https://a.espncdn.com/photo/nb3.jpg"
+              }),
+              headline("nb4", "nfl", "Injury report roundup", {
+                imageUrl: "https://a.espncdn.com/photo/nb4.jpg"
               })
             ]
           }
         ]
       })
     );
-    // both headlines carry an imageUrl from the source, but only the group's lead story gets
-    // a thumbnail in the band (spec: "at most one lead thumbnail per group").
+    expect(html).toContain("sp-newsband__feature");
     expect(html).toContain('src="https://a.espncdn.com/photo/nb1.jpg"');
-    expect(html).not.toContain('src="https://a.espncdn.com/photo/nb2.jpg"');
-    expect(html.match(/sp-newsband__img/g)).toHaveLength(1);
+    const majorCount = [...html.matchAll(/sp-newsband__art--major/g)].length;
+    expect(majorCount).toBe(2);
+    expect(html).toContain('src="https://a.espncdn.com/photo/nb4.jpg"');
+    // 4 stories fit the mosaic caps — no overflow, so no brief rail.
+    expect(html).not.toContain("In brief");
+  });
+
+  it("promotes the heaviest story to the feature slot and majors need art (mrb47x3h + mrb5reqq)", () => {
+    // Weight = art (+2) + dek (+1) + followed team (+2) + league-front editorial (+2);
+    // the fixture follows nfl/min. nbf2 (5) wins the full-width feature even though the feed
+    // buried it last; it leaves the mosaic so it renders exactly once. nbf3 (4, followed +
+    // art) takes a double-column major slot; plain nbf1 (2, front bonus but no art) can't be
+    // a major and flows as a standard despite arriving first.
+    const html = render(
+      makeOverview({
+        leagueNews: [
+          {
+            competitionKey: "nfl",
+            competitionLabel: "NFL",
+            headlines: [
+              headline("nbf1", "nfl", "League schedule notes"),
+              headline("nbf3", "nfl", "Vikings lock up their left tackle", {
+                imageUrl: "https://a.espncdn.com/photo/nbf3.jpg",
+                teamKeys: ["min"]
+              }),
+              headline("nbf2", "nfl", "Vikings stun Cowboys at the horn", {
+                imageUrl: "https://a.espncdn.com/photo/nbf2.jpg",
+                summary: "A 60-yard walk-off field goal flips the division race.",
+                teamKeys: ["min"]
+              })
+            ]
+          }
+        ]
+      })
+    );
+    expect(html).toContain("sp-newsband__feature");
+    expect(html).toContain("sp-newsband__title--feature");
+    expect(html.split("Vikings stun Cowboys at the horn").length - 1).toBe(1);
+    const majorCount = [...html.matchAll(/sp-newsband__art--major/g)].length;
+    expect(majorCount).toBe(1);
+    expect(html).toContain("Vikings lock up their left tackle");
+    expect(html).toContain("League schedule notes");
   });
 
   it("renders the empty state with a follow CTA when nothing is followed", () => {
@@ -561,12 +636,14 @@ describe("SportsPage", () => {
     );
     expect(html).not.toContain("Follow your teams");
     expect(html).not.toContain("Choose teams to follow");
-    expect(html).toContain("sp-tk--league");
-    expect(html).toContain("Following");
-    expect(html).toContain("1 league");
+    // Header redesign pass: whole-league follows no longer get a ticker block — the league's
+    // content lives in the grouped news/standings sections, so no Followed strip renders at all.
+    expect(html).not.toContain('aria-label="Followed"');
+    expect(html).not.toContain("sp-tk--league");
     expect(html).toContain("Premier League");
-    // standings/headlines still render for league-only followers
-    expect(html).toContain("Latest");
+    // standings/scores still render for league-only followers (board replaced the
+    // Latest column as the always-on main-column block — mrb4w77y)
+    expect(html).toContain("Around the leagues");
   });
 
   // #764: a genuine zero-follow user (no teams, no leagues) previously saw a blank page because
@@ -587,14 +664,18 @@ describe("SportsPage", () => {
     );
     expect(html).toContain("Follow your teams");
     expect(html).toContain("Choose teams to follow");
-    // the default slate (latest/standings/league news) renders alongside the CTA, not a
-    // blank page (H4/#764)
-    expect(html).toContain("Latest");
+    // the default slate (top stories/standings/league news) renders alongside the CTA, not
+    // a blank page (H4/#764). Zero-follow users get no hero carousel, so the combined
+    // Top-stories list is their only route to topStories (mrb4w77y).
+    expect(html).toContain("Top stories");
     expect(html).toContain("Vikings clinch division on late field goal");
     expect(html).toContain("Cowboys sign veteran lineman");
   });
 
-  it("still renders the story hero and headlines on a quiet day", () => {
+  it("renders the top-stories hero carousel on a quiet day (mrb4w77y)", () => {
+    // The carousel consumes data.topStories (not hero.headline), so the quiet-day
+    // fixture must put the lead story into topStories — mirroring the server, where
+    // the story-mode hero headline IS topStories[0].
     const html = render(
       makeOverview({
         hero: {
@@ -602,20 +683,28 @@ describe("SportsPage", () => {
           headline: headline("lead", "epl", "The transfer window is heating up", {
             imageUrl: "https://a.espncdn.com/photo/2026/story.jpg"
           })
-        }
+        },
+        topStories: [
+          headline("lead", "epl", "The transfer window is heating up", {
+            imageUrl: "https://a.espncdn.com/photo/2026/story.jpg"
+          }),
+          headline("h1", "nfl", "Vikings clinch division on late field goal")
+        ]
       })
     );
+    expect(html).toContain('aria-roledescription="carousel"');
     expect(html).toContain("The transfer window is heating up");
+    // second top story renders as another slide, not a Latest column (quiet day = no list)
     expect(html).toContain("Vikings clinch division on late field goal");
     expect(html).toContain("NFL");
     expect(html).toContain('src="https://a.espncdn.com/photo/2026/story.jpg"');
-    expect(html).toContain('href="https://example.test/lead"'); // hero title links out
-    expect(html).not.toContain("No followed team is playing right now");
+    expect(html).toContain('href="https://example.test/lead"'); // slide title links out
+    expect(html).not.toContain("No followed game today");
   });
 
-  it("renders the latest column and league news grid", () => {
+  it("renders the top-stories column and league news grid on gameday", () => {
     const html = render(makeOverview());
-    expect(html).toContain("Latest");
+    expect(html).toContain("Top stories");
     expect(html).toContain("League news");
     expect(html).toContain("Cowboys sign veteran lineman");
   });
@@ -653,13 +742,14 @@ describe("SportsPage", () => {
     expect(html).toContain("sp-skel--hero");
   });
 
-  it("renders a skeleton matching the new composition (two tickers + grid)", () => {
+  it("renders a skeleton matching the composition (ticker + hero + grid, no around strip)", () => {
     const client = new QueryClient(); // nothing primed → loading branch
     const html = renderToString(
       createElement(QueryClientProvider, { client }, createElement(SportsPage))
     );
     expect(html).toContain("sp-skel--ticker");
-    expect(html).toContain("sp-skel--around");
+    // sp-skel--around dropped with the strip (hidden behind SHOW_AROUND_STRIP, mrb4w77y)
+    expect(html).not.toContain("sp-skel--around");
     expect(html).toContain("sp-skel--hero");
     expect(html).toContain("sp-skel--grid");
   });

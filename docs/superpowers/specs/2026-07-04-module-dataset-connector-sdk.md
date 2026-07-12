@@ -125,6 +125,15 @@ deps)` returning `getDataset(key, params)`:
    decrypt only inside the runtime, never logged / in job payloads / in responses; absent key ⇒
    permanently `degraded`, never an error page) transfer to that future spec as constraints.
 
+   **Cache-key user-scoping constraint (#836):** `DatasetClient`'s cache is instance-level, keyed
+   `sourceId:datasetKey:params` with no separate user dimension (see the `buildCacheKey` doc
+   comment, `packages/datasets/src/client.ts`). This is correct only because every source shipped
+   so far is `credential: "none"` — public, non-personalized data. The keyed-credential slice this
+   section defers MUST ensure any per-user dataset's `params` carries the user's identity (e.g. a
+   `userId` field), or the instance-level cache will serve one user's cached response to another
+   by key collision. This note and #833's PR-body traceability note both cover this constraint; no
+   code change is required until a per-user source actually exists.
+
 5. **Sports migration (the proof):** `SportsSource`'s five methods become five dataset keys
    (`teams`, `scoreboard`, `schedule`, `standings`, `headlines`); `EspnSportsSource` becomes the
    `espn` adapter (payload mapping unchanged); `SportsCache` is deleted in favor of the runtime

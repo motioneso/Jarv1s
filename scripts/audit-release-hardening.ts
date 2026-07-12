@@ -40,6 +40,7 @@ const protectedTables = [
   "chat_threads",
   "connector_accounts",
   "email_messages",
+  "module_credentials",
   "notification_reads",
   "notifications",
   "task_activity",
@@ -73,6 +74,13 @@ const forceRlsExemptions = new Map<string, string>([
   // Migration runner bookkeeping (applied filename + hash + timestamp). Instance
   // infra written only by jarvis_migration_owner; holds no per-user rows.
   ["schema_migrations", "migration-runner bookkeeping: instance infra, no per-user data"],
+  // Per-module migration-runner bookkeeping (#914). Instance infra written only by the
+  // per-module installer role; holds no per-user data — same posture as schema_migrations.
+  [
+    "module_schema_migrations",
+    "per-module migration-runner bookkeeping (#914): instance infra, no per-user data — same " +
+      "posture as schema_migrations"
+  ],
   // users has ENABLE (not FORCE) so jarvis_migration_owner can bypass for SECURITY DEFINER
   // auth functions. Checked explicitly in the authOwnerTable block above.
   ["users", "ENABLE-only: SECURITY DEFINER auth functions need owner bypass; checked separately"]

@@ -107,7 +107,7 @@
   }
 }
 .set2__navgroup {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.09em;
@@ -325,4 +325,15 @@
 .set2-note b {
   color: var(--text);
   font-weight: 600;
+}
+/* Inline command styling for footnotes (e.g. the terminal-attach hint, Ben 2026-07-08).
+   Mirrors the chat markdown `code` treatment so commands read consistently app-wide. */
+.set2-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text);
 }

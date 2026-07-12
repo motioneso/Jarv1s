@@ -5,6 +5,7 @@ import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
   assertModuleRegistryConsistency,
   getBuiltInModuleRegistrations,
+  getExternalModuleDeletionTables,
   type BuiltInModuleRegistration
 } from "@jarv1s/module-registry";
 
@@ -181,5 +182,52 @@ describe("assertModuleRegistryConsistency", () => {
         ])
       ).not.toThrow();
     });
+  });
+});
+
+describe("getExternalModuleDeletionTables (#914)", () => {
+  it("resolves owned tables from an installed external module's manifest, same shape as built-ins", () => {
+    const externalManifest = manifest({
+      id: "acme-widgets",
+      database: { migrations: [], ownedTables: ["app.acme_widgets"] },
+      dataLifecycle: {
+        exportSections: [],
+        deletion: {
+          strategy: "cascade",
+          tables: [{ table: "app.acme_widgets", countPredicate: "owner_user_id = $1::uuid" }]
+        }
+      }
+    });
+
+    expect(getExternalModuleDeletionTables([externalManifest])).toEqual([
+      { table: "app.acme_widgets", countPredicate: "owner_user_id = $1::uuid" }
+    ]);
+  });
+
+  it("applies the default count predicate when a table omits one", () => {
+    const externalManifest = manifest({
+      id: "acme-widgets",
+      database: { migrations: [], ownedTables: ["app.acme_widgets"] },
+      dataLifecycle: {
+        exportSections: [],
+        deletion: { strategy: "cascade", tables: [{ table: "app.acme_widgets" }] }
+      }
+    });
+
+    expect(getExternalModuleDeletionTables([externalManifest])).toEqual([
+      { table: "app.acme_widgets", countPredicate: "owner_user_id = $1::uuid" }
+    ]);
+  });
+
+  it("derives coverage from ownedTables alone — no dataLifecycle declaration required (spec D6: external modules carry no module code)", () => {
+    const externalManifest = manifest({
+      id: "acme-widgets",
+      database: { migrations: [], ownedTables: ["app.acme_widgets", "app.acme_gadgets"] }
+    });
+
+    expect(getExternalModuleDeletionTables([externalManifest])).toEqual([
+      { table: "app.acme_widgets", countPredicate: "owner_user_id = $1::uuid" },
+      { table: "app.acme_gadgets", countPredicate: "owner_user_id = $1::uuid" }
+    ]);
   });
 });

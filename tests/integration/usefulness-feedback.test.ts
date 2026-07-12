@@ -336,12 +336,12 @@ describe("usefulness feedback routes", () => {
 
   it("verifies chat messages through the chat-owned verifier and rejects other owners/incognito remember", async () => {
     const chatRepository = new ChatRepository();
-    const userAMessages = await createStoredChatTurn(chatRepository, false, userAContext());
-    const userBMessages = await createStoredChatTurn(chatRepository, false, {
+    const userAMessages = await createStoredChatTurn(chatRepository, userAContext());
+    const userBMessages = await createStoredChatTurn(chatRepository, {
       actorUserId: ids.userB,
       requestId: "req:feedback-b"
     });
-    const incognitoMessages = await createStoredChatTurn(chatRepository, true, userAContext());
+    const incognitoThread = await createIncognitoThread(chatRepository, userAContext());
     const { server } = await buildFeedbackTestServer(
       appDb,
       createChatFeedbackTargetVerifier(chatRepository)
@@ -379,12 +379,12 @@ describe("usefulness feedback routes", () => {
         headers: userAHeaders(),
         payload: {
           targetKind: "chat_message",
-          targetRef: incognitoMessages.userMessage.id,
+          targetRef: incognitoThread.id,
           surface: "chat",
           kind: "remember_this"
         }
       });
-      expect(incognitoRemember.statusCode).toBe(400);
+      expect(incognitoRemember.statusCode).toBe(404);
     } finally {
       await server.close();
     }
@@ -830,14 +830,10 @@ function rememberableVerifier(excerpt: string): FeedbackTargetVerifier {
   });
 }
 
-async function createStoredChatTurn(
-  repository: ChatRepository,
-  incognito: boolean,
-  access: AccessContext
-) {
+async function createStoredChatTurn(repository: ChatRepository, access: AccessContext) {
   const dataContext = new DataContextRunner(appDb);
   return dataContext.withDataContext(access, async (scopedDb) => {
-    const thread = await repository.openNewThread(scopedDb, { title: "Feedback chat", incognito });
+    const thread = await repository.openNewThread(scopedDb, { title: "Feedback chat" });
     const messages = await repository.recordCompletedTurn(
       scopedDb,
       thread.id,
@@ -848,4 +844,11 @@ async function createStoredChatTurn(
     if (!messages) throw new Error("chat test turn was not stored");
     return messages;
   });
+}
+
+async function createIncognitoThread(repository: ChatRepository, access: AccessContext) {
+  const dataContext = new DataContextRunner(appDb);
+  return dataContext.withDataContext(access, (scopedDb) =>
+    repository.openNewThread(scopedDb, { title: "Feedback private", incognito: true })
+  );
 }

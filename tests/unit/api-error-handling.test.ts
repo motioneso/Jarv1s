@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   MAX_CLIENT_STACK_CHARS,
+  type ClientErrorsRouteOptions,
+  type JarvisErrorHandlerOptions,
   registerClientErrorsRoute,
   setJarvisErrorHandler
 } from "../../apps/api/src/error-handling.js";
@@ -20,10 +22,15 @@ import {
 
 const SECRET_MARKERS = ["hunter2", "postgres://u:p@host/db", "BETTER_AUTH_SECRET"];
 
-function makeServer(): FastifyInstance {
+function makeServer(
+  options: {
+    readonly clientErrors?: ClientErrorsRouteOptions;
+    readonly errorHandler?: JarvisErrorHandlerOptions;
+  } = {}
+): FastifyInstance {
   const server = Fastify({ logger: false });
-  registerClientErrorsRoute(server);
-  setJarvisErrorHandler(server);
+  registerClientErrorsRoute(server, options.clientErrors);
+  setJarvisErrorHandler(server, options.errorHandler);
   return server;
 }
 
@@ -180,5 +187,73 @@ describe("central error handler (setJarvisErrorHandler)", () => {
       payload: { type: "react_error", message: "m", stack: longStack }
     });
     expect(res.statusCode).toBe(204);
+  });
+
+  it("records client errors without passing stack to persistence", async () => {
+    const recorded: unknown[] = [];
+    server = makeServer({
+      clientErrors: {
+        recordClientError: async (event) => {
+          recorded.push(event);
+        }
+      }
+    });
+
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/errors",
+      headers: { "content-type": "application/json" },
+      payload: { type: "react_error", message: "boom", stack: "Error: secret stack" }
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(recorded).toEqual([
+      expect.objectContaining({
+        feature: "client",
+        operation: "POST /api/errors",
+        errorCategory: "client_error",
+        retryable: false,
+        userMessage: "boom",
+        internalSummary: "Client reported react_error"
+      })
+    ]);
+    expect(JSON.stringify(recorded)).not.toContain("stack");
+    expect(JSON.stringify(recorded)).not.toContain("secret stack");
+  });
+
+  it("records request errors without passing raw stack or secret fields", async () => {
+    const recorded: unknown[] = [];
+    server = Fastify({ logger: false });
+    server.get("/boom", async () => {
+      const err = Object.assign(new Error("db password=hunter2"), {
+        statusCode: 503,
+        stack: "secret stack",
+        headers: "cookie"
+      });
+      throw err;
+    });
+    setJarvisErrorHandler(server, {
+      recordRequestError: async (event) => {
+        recorded.push(event);
+      }
+    });
+
+    const res = await server.inject({ method: "GET", url: "/boom" });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ error: "Internal Server Error" });
+    expect(recorded).toEqual([
+      expect.objectContaining({
+        feature: "api",
+        operation: "GET /boom",
+        errorCategory: "http_5xx",
+        retryable: true,
+        userMessage: "Internal Server Error",
+        internalSummary: "Request failed with status 503",
+        requestId: expect.any(String)
+      })
+    ]);
+    expect(JSON.stringify(recorded)).not.toContain("secret stack");
+    expect(JSON.stringify(recorded)).not.toContain("headers");
   });
 });

@@ -43,6 +43,7 @@ const PLATFORM_PACKAGES = new Set([
   "@jarv1s/auth",
   "@jarv1s/datasets", // dataset connector SDK runtime host (host pinning, cache, TTL) — infra, not a product domain
   "@jarv1s/db",
+  "@jarv1s/host-fetch", // shared server-only outbound network policy/transport
   "@jarv1s/jobs",
   "@jarv1s/memory",
   "@jarv1s/module-registry", // composition root; wires every module together
@@ -68,6 +69,7 @@ const FEATURE_PACKAGES = new Set([
   "@jarv1s/connectors",
   "@jarv1s/email",
   "@jarv1s/goals",
+  "@jarv1s/news",
   "@jarv1s/notes",
   "@jarv1s/notifications",
   "@jarv1s/people",
@@ -93,7 +95,10 @@ const SANCTIONED_FEATURE_COUPLINGS = [
   "@jarv1s/chat -> @jarv1s/tasks",
   "@jarv1s/cli-runner -> @jarv1s/chat",
   "@jarv1s/connectors -> @jarv1s/calendar",
-  "@jarv1s/connectors -> @jarv1s/email"
+  "@jarv1s/connectors -> @jarv1s/email",
+  // #975 Slice 4: revalidation writes its one owner-facing summary through the
+  // Notifications public boundary (same shape as briefings -> notifications above).
+  "@jarv1s/news -> @jarv1s/notifications"
 ].sort();
 
 interface PackageManifest {

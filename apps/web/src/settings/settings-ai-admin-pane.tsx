@@ -18,14 +18,15 @@ import {
   createAiModel,
   createAiProvider,
   discoverAiModels,
-  getCapabilityTierPreferences,
   getChatModelOverrideSettings,
   listAiModels,
   listAiProviders,
+  listAiServiceBindings,
   lookupAiCapabilityRoute,
-  patchCapabilityTierPreference,
   putAdminChatModelOverrideEnabled,
+  putAiServiceBinding,
   revokeAiProvider,
+  setInstanceDefaultProvider,
   testAiProvider,
   updateAiModel,
   updateAiProvider
@@ -39,6 +40,7 @@ import { EditModelForm } from "./settings-ai-edit-model-form";
 import { ChatLockGroup } from "./settings-ai-chat-lock-group";
 import { YoloAdminGroup } from "./settings-yolo-admin-group";
 import { WebSearchKeyGroup } from "./settings-web-search-key-group";
+import { VoiceConfigGroup } from "./settings-voice-config-group";
 import {
   AI_MODEL_CAPABILITIES,
   type AiAuthMethod,
@@ -49,7 +51,8 @@ import {
   type AiModelTier,
   type AiProviderConfigDto,
   type AiProviderExecutionMode,
-  type AiProviderKind
+  type AiProviderKind,
+  type AiServiceBinding
 } from "@jarv1s/shared";
 
 const PROVIDER_CATALOG: readonly { readonly label: string; readonly kind: AiProviderKind }[] = [
@@ -80,24 +83,17 @@ const TIERS: Record<AiModelTier, { label: string; hint: string }> = {
 
 const MODEL_TIERS: readonly AiModelTier[] = ["reasoning", "interactive", "economy"];
 
-const ROUTER_CAPABILITIES: readonly { k: AiModelCapability; name: string; desc: string }[] = [
+// #870 Slice 1 / #874 HIGH-2: Chat is the only bindable user-facing service here. Voice (STT) moved
+// to its own dedicated endpoint (see VoiceConfigGroup) and is NO longer a per-service binding.
+// Worker capabilities (tool-use / json / vision / summarization) stay cross-provider automatic and
+// are not surfaced as knobs; embeddings are out of scope (M3). Chat binds to EITHER a "mode" (a tier
+// resolved inside the instance-default provider) OR a specific model.
+const SERVICE_ROWS: readonly { k: AiModelCapability; name: string; desc: string }[] = [
   {
     k: "chat",
     name: "Chat & briefing",
     desc: "Everyday conversation and the daily reading voice."
-  },
-  {
-    k: "tool-use",
-    name: "Tool use",
-    desc: "Calling tools — calendar, tasks, search — and acting."
-  },
-  {
-    k: "json",
-    name: "Structured output",
-    desc: "Reliable JSON for commitments, parsing and extraction."
-  },
-  { k: "vision", name: "Vision", desc: "Reading screenshots, photos and scanned documents." },
-  { k: "summarization", name: "Summarization", desc: "Condensing long threads, notes and context." }
+  }
 ];
 
 /* ----------------------------------------------------------- Provider card */
@@ -195,7 +191,8 @@ function AddModelForm(props: { readonly providerConfigId: string; readonly onClo
   return (
     <form className="ai-model-form" onSubmit={submit}>
       <Note icon={<GitCommitHorizontal size={13} />}>
-        Auto-detecting a provider's models on connect is coming. For now, register them here.
+        Jarvis reads a provider's models automatically on connect. Use this only to add a model
+        discovery missed.
       </Note>
       <Field label="Model id">
         <input
@@ -266,6 +263,10 @@ function ProviderCard(props: {
     model: AiConfiguredModelDto,
     status: "active" | "disabled"
   ) => void;
+  // #870/H1 Slice 1: instance-default flag + setter. The default provider is the one that resolves
+  // the model for every mode-bound service; exactly one provider carries it instance-wide.
+  readonly isInstanceDefault: boolean;
+  readonly onSetInstanceDefault: () => void;
   readonly onRemove: () => void;
 }) {
   const { provider } = props;
@@ -329,6 +330,20 @@ function ProviderCard(props: {
             <Badge tone="pine" dot>
               Connected
             </Badge>
+            {/* #870/H1: one provider is the instance default that feeds mode-bound services. */}
+            {props.isInstanceDefault ? (
+              <Badge tone="amber" dot>
+                Default
+              </Badge>
+            ) : (
+              <button
+                type="button"
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                onClick={props.onSetInstanceDefault}
+              >
+                Set as default
+              </button>
+            )}
           </div>
           <div className="prov__auth">
             {provider.authMethod === "cli" ? (
@@ -578,60 +593,105 @@ function ProviderCard(props: {
   );
 }
 
-/* ---------------------------------------------------------- Capability router */
+/* ---------------------------------------------------------- Service bindings */
 
-function RouterRow(props: {
-  readonly capability: { k: AiModelCapability; name: string; desc: string };
-  readonly tierPreference: AiModelTier | undefined;
+// #870 Slice 1: one row per user-facing service (Chat / Voice). A binding is either a "mode" (tier,
+// resolved inside the instance-default provider) or a specific model. The row shows the resolved
+// model id — or an explicit "needs configuration" prompt when the resolver returns `needs-config`.
+function ServiceRow(props: {
+  readonly service: { k: AiModelCapability; name: string; desc: string };
+  readonly binding: AiServiceBinding | undefined;
+  readonly models: readonly AiConfiguredModelDto[];
 }) {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
   const routeQuery = useQuery({
-    queryKey: queryKeys.ai.capability(props.capability.k),
-    queryFn: () => lookupAiCapabilityRoute(props.capability.k),
+    queryKey: queryKeys.ai.capability(props.service.k),
+    queryFn: () => lookupAiCapabilityRoute(props.service.k),
     retry: false
   });
-  const tierMutation = useMutation({
-    mutationFn: (tier: AiModelTier) =>
-      patchCapabilityTierPreference({ capability: props.capability.k, tier }),
+
+  const mutation = useMutation({
+    mutationFn: (binding: AiServiceBinding) => putAiServiceBinding(props.service.k, { binding }),
     onSuccess: () => {
       void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.tierPreferences }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.capability.k) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.serviceBindings }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.service.k) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
-      toast("Tier updated", { icon: <GitCommitHorizontal size={17} /> });
+      toast("Service updated", { icon: <GitCommitHorizontal size={17} /> });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  const resolvedModel = routeQuery.data?.route?.model ?? null;
-  const currentTier: AiModelTier = props.tierPreference ?? "interactive";
+
+  // Active models that can actually serve this service (a "model" binding must be capability-valid).
+  const capableModels = props.models.filter(
+    (model) =>
+      model.status === "active" &&
+      model.providerStatus === "active" &&
+      model.capabilities.includes(props.service.k)
+  );
+
+  // The <select> value encodes the binding kind: `mode:<tier>` or `model:<id>`.
+  const binding = props.binding;
+  const currentValue =
+    binding?.kind === "model"
+      ? `model:${binding.modelId}`
+      : `mode:${binding?.tier ?? "interactive"}`;
+
+  const onChange = (raw: string) => {
+    if (raw.startsWith("model:")) {
+      mutation.mutate({ kind: "model", modelId: raw.slice("model:".length) });
+    } else {
+      mutation.mutate({ kind: "mode", tier: raw.slice("mode:".length) as AiModelTier });
+    }
+  };
+
+  const route = routeQuery.data?.route;
+  const needsConfig = route ? route.reason === "needs-config" : false;
+  const resolvedModel = route?.model ?? null;
 
   return (
     <div className="rt">
       <div className="rt__main">
-        <div className="rt__name">{props.capability.name}</div>
-        <div className="rt__desc">{props.capability.desc}</div>
+        <div className="rt__name">{props.service.name}</div>
+        <div className="rt__desc">{props.service.desc}</div>
       </div>
       <div className="rt__pick">
         <Select
-          value={currentTier}
-          aria-label={`Tier for ${props.capability.name}`}
-          disabled={tierMutation.isPending}
-          onChange={(event) => tierMutation.mutate(event.target.value as AiModelTier)}
+          value={currentValue}
+          aria-label={`Binding for ${props.service.name}`}
+          disabled={mutation.isPending}
+          onChange={(event) => onChange(event.target.value)}
         >
-          {MODEL_TIERS.map((tier) => (
-            <option key={tier} value={tier}>
-              {TIERS[tier].label}
-            </option>
-          ))}
+          <optgroup label="Mode (uses the default provider)">
+            {MODEL_TIERS.map((tier) => (
+              <option key={tier} value={`mode:${tier}`}>
+                {TIERS[tier].label}
+              </option>
+            ))}
+          </optgroup>
+          {capableModels.length ? (
+            <optgroup label="Specific model">
+              {capableModels.map((model) => (
+                <option key={model.id} value={`model:${model.id}`}>
+                  {model.displayName}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </Select>
-        {resolvedModel ? (
+        {needsConfig ? (
+          <span className="rt__none">
+            <MinusCircle size={13} aria-hidden="true" />
+            Needs configuration
+          </span>
+        ) : resolvedModel ? (
           <div className="rt__resolved">{resolvedModel.providerModelId}</div>
         ) : (
           <span className="rt__none">
             <MinusCircle size={13} aria-hidden="true" />
-            No model for this tier
+            No model resolved
           </span>
         )}
       </div>
@@ -658,9 +718,9 @@ export function AiProvidersPane() {
     queryFn: listAiModels,
     retry: false
   });
-  const tierPrefsQuery = useQuery({
-    queryKey: queryKeys.ai.tierPreferences,
-    queryFn: getCapabilityTierPreferences,
+  const serviceBindingsQuery = useQuery({
+    queryKey: queryKeys.ai.serviceBindings,
+    queryFn: listAiServiceBindings,
     retry: false
   });
   const overrideQuery = useQuery({
@@ -677,7 +737,7 @@ export function AiProvidersPane() {
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.providers }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chatModelOverride }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.ai.tierPreferences }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.serviceBindings }),
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
     ]);
 
@@ -741,6 +801,18 @@ export function AiProvidersPane() {
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  // #870/H1 Slice 1: the instance-default provider supplies the model for every mode-bound service
+  // (Chat/Voice on a tier). Exactly one provider holds the flag instance-wide — the backend clears
+  // any prior default in the same statement (partial unique index enforces the singleton), so the
+  // UI just fires the set and re-reads.
+  const instanceDefaultMutation = useMutation({
+    mutationFn: (providerId: string) => setInstanceDefaultProvider(providerId),
+    onSuccess: () => {
+      void invalidate();
+      toast("Default provider updated", { icon: <GitCommitHorizontal size={17} /> });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
 
   return (
     <>
@@ -767,7 +839,7 @@ export function AiProvidersPane() {
       </Group>
       <Group
         title="Providers"
-        desc="Add provider accounts for the whole instance. Jarvis reads each one's models — registered here until auto-detect on connect lands."
+        desc="Add provider accounts for the whole instance. Jarvis reads each one's models automatically the moment it connects."
         action={
           <button
             type="button"
@@ -825,6 +897,8 @@ export function AiProvidersPane() {
                 onModelStatusChange={(model, status) =>
                   modelStatusMutation.mutate({ model, status })
                 }
+                isInstanceDefault={provider.isInstanceDefault}
+                onSetInstanceDefault={() => instanceDefaultMutation.mutate(provider.id)}
                 onRemove={() =>
                   confirm({
                     title: `Remove ${provider.displayName}?`,
@@ -861,8 +935,7 @@ export function AiProvidersPane() {
               })}
             </div>
             <div className="provpick__foot">
-              Jarvis will read the available models from the provider once auto-detect lands — for
-              now, register them on the provider card.
+              Jarvis reads the available models from the provider automatically when it connects.
             </div>
           </div>
         ) : null}
@@ -870,25 +943,28 @@ export function AiProvidersPane() {
 
       {providers.length ? (
         <Group
-          title="Capability routing"
-          desc="Send each kind of work to the model that's best for it — the right tool for the job, instead of one model for everything. This applies instance-wide."
+          title="Services"
+          desc="Bind each person-facing service to a mode (the default provider picks the model for that tier) or to a specific model. Everything else — tools, structured output, vision, summaries — is routed automatically."
         >
-          {ROUTER_CAPABILITIES.map((capability) => (
-            <RouterRow
-              key={capability.k}
-              capability={capability}
-              tierPreference={tierPrefsQuery.data?.preferences[capability.k]}
+          {SERVICE_ROWS.map((service) => (
+            <ServiceRow
+              key={service.k}
+              service={service}
+              binding={serviceBindingsQuery.data?.bindings[service.k]}
+              models={models}
             />
           ))}
         </Group>
       ) : null}
+      {/* #874: Voice (STT) is its own dedicated admin section, independent of the chat providers. */}
+      <VoiceConfigGroup />
       <ChatLockGroup />
       <EmbeddingConfigGroup />
       <WebSearchKeyGroup />
       <YoloAdminGroup />
       <Note icon={<GitCommitHorizontal size={13} />}>
         Each person can override which model powers their own chat under{" "}
-        <b>Personal → Assistant &amp; AI</b>. Everything else follows the routing above.
+        <b>Personal → Assistant &amp; AI</b>. Everything else follows the services above.
       </Note>
     </>
   );

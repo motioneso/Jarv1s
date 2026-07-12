@@ -1,6 +1,6 @@
 # Private chat mode without memory writes (#744)
 
-**Status:** Proposed — decisions recorded, pending final read-through
+**Status:** Approved (2026-07-07, Ben)
 **Date:** 2026-07-05
 **Tier:** security-sensitive (privacy/data-retention surface)
 **Builds on:** #737 (chat settings split), `packages/chat/src/jobs.ts` (embed-turn / extract-facts

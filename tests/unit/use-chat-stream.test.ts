@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseRecord } from "../../apps/web/src/chat/use-chat-stream.js";
+import {
+  parseRecord,
+  shouldEndPrivateChatOnStreamDisconnect
+} from "../../apps/web/src/chat/use-chat-stream.js";
 
 describe("parseRecord", () => {
   it("parses a plain reply record", () => {
@@ -48,5 +51,37 @@ describe("parseRecord", () => {
     const data = JSON.stringify({ kind: "action_result", text: "x", outcome: "unknown-value" });
     const record = parseRecord(data);
     expect(record?.outcome).toBeUndefined();
+  });
+});
+
+describe("shouldEndPrivateChatOnStreamDisconnect", () => {
+  it("marks an active private transcript ended when the SSE stream disconnects", () => {
+    expect(
+      shouldEndPrivateChatOnStreamDisconnect({
+        privateMode: true,
+        privateEnded: false,
+        streamErrorCount: 1
+      })
+    ).toBe(true);
+  });
+
+  it("does not mark ordinary chats ended", () => {
+    expect(
+      shouldEndPrivateChatOnStreamDisconnect({
+        privateMode: false,
+        privateEnded: false,
+        streamErrorCount: 1
+      })
+    ).toBe(false);
+  });
+
+  it("marks an empty private transcript ended after stream failure", () => {
+    expect(
+      shouldEndPrivateChatOnStreamDisconnect({
+        privateMode: true,
+        privateEnded: false,
+        streamErrorCount: 1
+      })
+    ).toBe(true);
   });
 });

@@ -130,9 +130,22 @@
   /* ============ TYPOGRAPHY ============ */
   /* INTERIM: Helvetica system stack stands in for self-hosted Neue Haas Grotesk
      (licensed woff2 wiring is a follow-up under epic #726). */
-  --font-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-sans: "Helvetica Neue", Helvetica, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Display MUST share the exact fallback chain of --font-sans (Ben 2026-07-08, /sports
+     annotations #1 + #4). Both previously led with "Helvetica Neue", Helvetica but DIVERGED
+     in fallback (display→Arial, sans→system-ui); on any device lacking both Helvetica faces
+     — e.g. Ben QA'ing over LAN from a non-Mac — the two tokens rendered as *different* fonts,
+     so the FeaturedTeamCard score (sans) looked "out of place" beside the name (display) and
+     the ticker head showed "two different fonts" on one line. Alias to the single source so
+     they can never drift again. (var() forward-reference resolves lazily; declaration order safe.) */
+  --font-display: var(--font-sans);
+  /* --font-mono retired 2026-07-08 (Ben: "kill mono anywhere in the app, I'm not a fan").
+     All former mono surfaces now use --font-sans; numeric columns hold alignment via
+     font-variant-numeric: tabular-nums rather than a fixed-width face. Genuine code blocks
+     (chat CLI output) keep a literal monospace stack locally, not this token. */
+  /* Nameplate-only serif (Ben 2026-07-07, live feedback mrb0n3j3): the no-serif rule stands
+     everywhere except the sports masthead brand, where a serif carries the newspaper read. */
+  --font-serif: Georgia, "Times New Roman", Times, serif;
 
   --text-2xs: 11px;
   --text-xs: 12px;

@@ -80,6 +80,15 @@ export function greeting(): string {
   return "Good evening";
 }
 
+// Oxford-style list join: "A", "A and B", "A, B, and C". Commas between every clause with a
+// single "and" before the last — the old `parts.join(", and ")` double-printed the conjunction
+// ("complete, and carrying, and events"); Ben 2026-07-07: drop the first "and".
+export function joinClauses(parts: readonly string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
 export function buildLede(priorities: number, atRisk: number, events: number): string {
   const parts: string[] = [];
   parts.push(
@@ -92,7 +101,7 @@ export function buildLede(priorities: number, atRisk: number, events: number): s
     parts.push(
       `${atRisk} ${atRisk === 1 ? "thing has" : "things have"} slipped: we can reset without rushing`
     );
-  return `${parts.join(", and ")}.`;
+  return `${joinClauses(parts)}.`;
 }
 
 /** Drift bucket, day-classified in the user's persisted timezone (#579): the due date

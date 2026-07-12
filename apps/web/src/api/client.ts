@@ -11,6 +11,11 @@ import type {
   AddTaskActivityResponse,
   AiModelCapability,
   BootstrapStatusResponse,
+  ChatSkillResponse,
+  CreateChatSkillRequest,
+  ListChatSkillsResponse,
+  SetChatSkillEnabledRequest,
+  UpdateChatSkillRequest,
   GetChatSettingsResponse,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
@@ -22,6 +27,7 @@ import type {
   PutYoloUserRequest,
   DeleteWebSearchKeyResponse,
   GetLocaleSettingsResponse,
+  GetNotificationDigestPreferenceResponse,
   ListNotificationPreferencesResponse,
   GetQuietHoursSettingsResponse,
   GetAiSummaryResponse,
@@ -29,8 +35,14 @@ import type {
   RevokeMyOtherSessionsResponse,
   RevokeMySessionResponse,
   PreviewPersonaRequest,
-  AiCapabilityTierPreferencesResponse,
-  PatchAiCapabilityTierPreferenceRequest,
+  ListAiServiceBindingsResponse,
+  PutAiServiceBindingRequest,
+  PutAiServiceBindingResponse,
+  GetVoiceEndpointResponse,
+  PutVoiceEndpointRequest,
+  PutVoiceEndpointResponse,
+  GetModuleRegistryResponse,
+  ModuleRegistryRowDto,
   PreviewPersonaResponse,
   PutChatSettingsRequest,
   PutChatSettingsResponse,
@@ -40,6 +52,8 @@ import type {
   PutLocaleSettingsResponse,
   PutNotificationPreferenceRequest,
   PutNotificationPreferenceResponse,
+  PutNotificationDigestPreferenceRequest,
+  PutNotificationDigestPreferenceResponse,
   PutQuietHoursSettingsRequest,
   PutQuietHoursSettingsResponse,
   PutPersonaSettingsRequest,
@@ -83,9 +97,13 @@ import type {
   ListConnectorAccountsResponse,
   ListMedicationsResponse,
   ListAdminModulesResponse,
+  ExternalModuleDto,
+  ListExternalModulesResponse,
+  ListModuleCredentialsResponse,
   ListModulesResponse,
   ListMyModulesResponse,
   ListSourceBehaviorsResponse,
+  ModuleCredentialStatusDto,
   MyModuleDto,
   ListNotificationsResponse,
   ListTaskActivityResponse,
@@ -230,6 +248,24 @@ export async function getNotificationPreferences(): Promise<ListNotificationPref
   return requestJson<ListNotificationPreferencesResponse>("/api/me/notification-preferences");
 }
 
+export async function getNotificationDigestPreference(): Promise<GetNotificationDigestPreferenceResponse> {
+  return requestJson<GetNotificationDigestPreferenceResponse>(
+    "/api/me/notification-digest-preference"
+  );
+}
+
+export async function putNotificationDigestPreference(
+  body: PutNotificationDigestPreferenceRequest
+): Promise<PutNotificationDigestPreferenceResponse> {
+  return requestJson<PutNotificationDigestPreferenceResponse>(
+    "/api/me/notification-digest-preference",
+    {
+      method: "PUT",
+      body
+    }
+  );
+}
+
 export async function putNotificationPreference(
   moduleId: string,
   body: PutNotificationPreferenceRequest
@@ -339,6 +375,96 @@ export async function setAdminModuleDisabled(
     method: "PATCH",
     body: { disabled }
   });
+}
+
+/** Admin: list discovered external modules with reconciled activation state (#917). */
+export async function listExternalModules(): Promise<ListExternalModulesResponse> {
+  return requestJson<ListExternalModulesResponse>("/api/admin/external-modules");
+}
+
+/** Admin: enable/disable a single external module (#917). */
+export async function setExternalModuleEnabled(
+  id: string,
+  enabled: boolean
+): Promise<{ module: ExternalModuleDto }> {
+  return requestJson<{ module: ExternalModuleDto }>(
+    `/api/admin/external-modules/${encodeURIComponent(id)}`,
+    { method: "POST", body: { enabled } }
+  );
+}
+
+/** Admin: registry-backed module list — install/update/remove states (#964). */
+export async function getModuleRegistry(refresh: boolean): Promise<GetModuleRegistryResponse> {
+  return requestJson<GetModuleRegistryResponse>(
+    `/api/admin/module-registry${refresh ? "?refresh=1" : ""}`
+  );
+}
+
+/** Admin: download+stage a module from the registry; applies on next restart (#964). */
+export async function downloadRegistryModule(
+  id: string,
+  version?: string
+): Promise<{ module: ModuleRegistryRowDto }> {
+  return requestJson<{ module: ModuleRegistryRowDto }>(
+    `/api/admin/external-modules/${encodeURIComponent(id)}/download`,
+    { method: "POST", body: version ? { version } : {} }
+  );
+}
+
+/** Admin: remove a module (disable + delete files); purge destroys data on restart (#964). */
+export async function removeRegistryModule(
+  id: string,
+  purgeData: boolean
+): Promise<{ module: ModuleRegistryRowDto }> {
+  return requestJson<{ module: ModuleRegistryRowDto }>(
+    `/api/admin/external-modules/${encodeURIComponent(id)}/remove`,
+    { method: "POST", body: { purgeData } }
+  );
+}
+
+/** Admin: cancel a pending data purge before it runs at restart (#964). */
+export async function cancelModulePurge(id: string): Promise<{ module: ModuleRegistryRowDto }> {
+  return requestJson<{ module: ModuleRegistryRowDto }>(
+    `/api/admin/external-modules/${encodeURIComponent(id)}/purge`,
+    { method: "DELETE" }
+  );
+}
+
+/**
+ * Module credential settings (#918). `surface` picks the admin (instance-scope slots) or
+ * self-service (`me`, user-scope slots) route family — both share the same DTO shape.
+ * `value` is write-only: the server never returns it back (metadata-only responses).
+ */
+export async function listModuleCredentials(
+  surface: "admin" | "me",
+  moduleId: string
+): Promise<ListModuleCredentialsResponse> {
+  return requestJson<ListModuleCredentialsResponse>(
+    `/api/${surface}/modules/${encodeURIComponent(moduleId)}/credentials`
+  );
+}
+
+export async function setModuleCredential(
+  surface: "admin" | "me",
+  moduleId: string,
+  credentialId: string,
+  value: string
+): Promise<{ credential: ModuleCredentialStatusDto }> {
+  return requestJson<{ credential: ModuleCredentialStatusDto }>(
+    `/api/${surface}/modules/${encodeURIComponent(moduleId)}/credentials/${encodeURIComponent(credentialId)}`,
+    { method: "PUT", body: { value } }
+  );
+}
+
+export async function revokeModuleCredential(
+  surface: "admin" | "me",
+  moduleId: string,
+  credentialId: string
+): Promise<{ credential: ModuleCredentialStatusDto }> {
+  return requestJson<{ credential: ModuleCredentialStatusDto }>(
+    `/api/${surface}/modules/${encodeURIComponent(moduleId)}/credentials/${encodeURIComponent(credentialId)}`,
+    { method: "DELETE" }
+  );
 }
 
 /** Bounded so a hung status read can never trap the founder before the app shell (Codex R2 #2). */
@@ -635,6 +761,65 @@ export async function putChatSettings(
   });
 }
 
+export async function listChatSkills(): Promise<ListChatSkillsResponse> {
+  return requestJson<ListChatSkillsResponse>("/api/chat/skills");
+}
+
+export async function getChatSkill(id: string): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>(`/api/chat/skills/${encodeURIComponent(id)}`);
+}
+
+export async function createChatSkill(input: CreateChatSkillRequest): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>("/api/chat/skills", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function updateChatSkill(
+  id: string,
+  input: UpdateChatSkillRequest
+): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>(`/api/chat/skills/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: input
+  });
+}
+
+export async function setChatSkillEnabled(
+  id: string,
+  input: SetChatSkillEnabledRequest
+): Promise<ChatSkillResponse> {
+  return requestJson<ChatSkillResponse>(`/api/chat/skills/${encodeURIComponent(id)}/enabled`, {
+    method: "PATCH",
+    body: input
+  });
+}
+
+export async function deleteChatSkill(id: string): Promise<void> {
+  await requestJson<void>(`/api/chat/skills/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/**
+ * Uploads a skill file (standard frontmatter + markdown body) for import. Goes around
+ * `requestJson` like `transcribeAudio()` — the body is the raw file text, not JSON.
+ */
+export async function importChatSkill(file: File): Promise<ChatSkillResponse> {
+  const response = await fetch("/api/chat/skills/import", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "text/markdown" },
+    body: await file.text()
+  });
+
+  if (!response.ok) {
+    const { message, code } = await readErrorBody(response);
+    throw new ApiError(response.status, message, code);
+  }
+
+  return response.json() as Promise<ChatSkillResponse>;
+}
+
 /**
  * #679 — `pageContext` is a bounded, redacted snapshot of what the user currently sees
  * (see apps/web/src/chat/page-context.ts), attached ONLY when the caller decides the
@@ -666,6 +851,14 @@ export async function cancelChatTurn(): Promise<void> {
 export async function clearChat(options?: { incognito?: boolean }): Promise<void> {
   const url = options?.incognito ? "/api/chat/clear?incognito=true" : "/api/chat/clear";
   await requestJson<unknown>(url, { method: "POST" });
+}
+
+export async function endPrivateChat(): Promise<void> {
+  await requestJson<unknown>("/api/chat/private/end", { method: "POST" });
+}
+
+export function beaconEndPrivateChat(): void {
+  navigator.sendBeacon?.("/api/chat/private/end", "");
 }
 
 export async function resumeChat(threadId: string): Promise<void> {
@@ -775,6 +968,13 @@ export async function lookupAiCapabilityRoute(
   );
 }
 
+// Merge-up (#876): #759's `putAiCapabilityRoute` client wrapper is dropped here. #870 Slice-1
+// retired the manual capability-route knob (removed PutAiCapabilityRoute{Request,Response} from
+// @jarv1s/shared) in favour of per-service bindings (`putAiServiceBinding`), and #759's only
+// caller — the admin-pane RouterRow pin — is likewise superseded by Slice-1's ServiceRow
+// "Specific model" option. The in-chat model selector (#759's headline surface) is unaffected:
+// it routes through `putChatModelOverride`, which remains.
+
 /**
  * Uploads a recorded audio clip for transcription and returns the transcript text only.
  * Goes around `requestJson` (which always JSON-encodes) because the body here is the raw
@@ -796,17 +996,44 @@ export async function transcribeAudio(audio: Blob): Promise<TranscribeAudioRespo
   return response.json() as Promise<TranscribeAudioResponse>;
 }
 
-export async function getCapabilityTierPreferences(): Promise<AiCapabilityTierPreferencesResponse> {
-  return requestJson<AiCapabilityTierPreferencesResponse>("/api/ai/capability-tier-preferences");
+// #870 Slice 1: unified per-service bindings (Chat + Voice) replace the old per-user tier preference.
+export async function listAiServiceBindings(): Promise<ListAiServiceBindingsResponse> {
+  return requestJson<ListAiServiceBindingsResponse>("/api/ai/service-bindings");
 }
 
-export async function patchCapabilityTierPreference(
-  input: PatchAiCapabilityTierPreferenceRequest
-): Promise<void> {
-  await requestJson<void>("/api/ai/capability-tier-preferences", {
-    method: "PATCH",
+export async function putAiServiceBinding(
+  service: AiModelCapability,
+  input: PutAiServiceBindingRequest
+): Promise<PutAiServiceBindingResponse> {
+  return requestJson<PutAiServiceBindingResponse>(
+    `/api/ai/services/${encodeURIComponent(service)}/binding`,
+    { method: "PUT", body: input }
+  );
+}
+
+// #874: the dedicated Voice (STT) admin endpoint. GET returns the config DTO (never the API key —
+// only `hasKey`); PUT is an admin-only upsert. On PUT, omit `apiKey` to keep the stored key.
+export async function getVoiceEndpoint(): Promise<GetVoiceEndpointResponse> {
+  return requestJson<GetVoiceEndpointResponse>("/api/ai/voice-endpoint");
+}
+
+export async function putVoiceEndpoint(
+  input: PutVoiceEndpointRequest
+): Promise<PutVoiceEndpointResponse> {
+  return requestJson<PutVoiceEndpointResponse>("/api/ai/voice-endpoint", {
+    method: "PUT",
     body: input
   });
+}
+
+// #870/H1: promote a provider to the single instance-default.
+export async function setInstanceDefaultProvider(
+  providerId: string
+): Promise<CreateAiProviderConfigResponse> {
+  return requestJson<CreateAiProviderConfigResponse>(
+    `/api/ai/providers/${encodeURIComponent(providerId)}/default`,
+    { method: "PUT" }
+  );
 }
 
 export async function getChatModelOverrideSettings(): Promise<GetChatModelOverrideSettingsResponse> {
@@ -820,6 +1047,10 @@ export async function putChatModelOverride(
     method: "PUT",
     body: input
   });
+}
+
+export async function switchChatProvider(): Promise<void> {
+  await requestJson<{ ok: true }>("/api/chat/switch", { method: "POST" });
 }
 
 export async function putAdminChatModelOverrideEnabled(

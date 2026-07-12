@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { lazy, Suspense, useMemo, type ComponentType, type ReactNode } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 import { MODULE_WEB_CONTRIBUTIONS, MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
 
 import {
@@ -14,9 +14,20 @@ import {
 import { webRoutePath } from "./app-route-metadata";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
+import {
+  installModuleHostRuntime,
+  loadExternalModuleContribution,
+  type ExternalWebContributionProps
+} from "./external-modules/loader";
+import { createModuleHostActions } from "./external-modules/host-actions";
 import { shouldShowOnboarding } from "./onboarding/resume";
 import { OnboardingWizard } from "./onboarding/onboarding-wizard";
 import { AppShell } from "./shell/app-shell";
+import { useChatControls } from "./shell/chat-controls-context";
+
+// #918: install the host React runtime before any external module bundle can ever be
+// imported (module scope — runs once at app boot, well before the first lazy() fires).
+installModuleHostRuntime();
 
 const CalendarPage = lazy(() =>
   import("./calendar/calendar-page").then((module) => ({ default: module.CalendarPage }))
@@ -76,6 +87,30 @@ export function App() {
     queryFn: () => getModules(),
     retry: false
   });
+  /**
+   * External-module web routes (#918). Distinct from the built-in `moduleRoutes` const
+   * above: external bundles are untrusted at build time, so each Component is loaded via
+   * `loadExternalModuleContribution` (host-runtime pinning + contract-version gate,
+   * fails closed to a no-op component) rather than a static `import()`. Recomputed only
+   * when the modules list changes so each route keeps a stable `lazy()` identity.
+   */
+  const externalModuleRoutes = useMemo(
+    () =>
+      (modulesQuery.data?.modules ?? [])
+        .filter((m) => m.external === true && m.web !== undefined)
+        .map((m) => ({
+          moduleId: m.id,
+          path: `/m/${m.id}/*`,
+          Component: lazy(async () => ({
+            default: await loadExternalModuleContribution({
+              moduleId: m.id,
+              entrypoint: m.web!.entrypoint,
+              contractVersion: m.web!.contractVersion
+            })
+          }))
+        })),
+    [modulesQuery.data]
+  );
   // Phase 4: onboarding is no longer founder-only. Any ACTIVE authenticated user fetches their
   // role-appropriate status (founder = instance-global; member = per-user). Pending/deactivated
   // identities never reach here (handled by the error branches below before the shell renders).
@@ -237,8 +272,20 @@ export function App() {
                 }
               />
             ))}
+            {externalModuleRoutes.map((route) => (
+              <Route
+                key={`ext:${route.moduleId}`}
+                path={route.path}
+                element={
+                  <ExternalModuleMount moduleId={route.moduleId} Component={route.Component} />
+                }
+              />
+            ))}
             <Route path={webRoutePath("settings")} element={<SettingsPage me={meQuery.data} />} />
-            <Route path="*" element={<Navigate to={webRoutePath("today")} replace />} />
+            <Route
+              path="*"
+              element={<NotFoundRedirect modulesLoading={modulesQuery.isLoading} />}
+            />
           </Routes>
         </Suspense>
       </AppShell>
@@ -252,6 +299,22 @@ export function App() {
  * state request errored — fail closed) → redirect to /tasks so the gated UI never mounts;
  * "enabled" → render the children.
  */
+/**
+ * #916 — the catch-all "*" route. External module routes are only added to the tree once
+ * `modulesQuery` resolves (Task 4's `externalModuleRoutes` is derived from its data), so on a
+ * hard navigation/deep link to `/m/:id` the module's specific Route doesn't exist yet for the
+ * first render(s) and would otherwise fall through here and get redirected to Today before the
+ * query ever has a chance to add it. Hold on a loading screen for `/m/*` paths while modules are
+ * still loading; only redirect once we know the path truly isn't a module (or isn't external).
+ */
+function NotFoundRedirect(props: { readonly modulesLoading: boolean }) {
+  const location = useLocation();
+  if (props.modulesLoading && location.pathname.startsWith("/m/")) {
+    return <LoadingScreen />;
+  }
+  return <Navigate to={webRoutePath("today")} replace />;
+}
+
 function ModuleGatedRoute(props: {
   readonly gate: "loading" | "enabled" | "denied";
   readonly children: ReactNode;
@@ -259,6 +322,25 @@ function ModuleGatedRoute(props: {
   if (props.gate === "loading") return <LoadingScreen />;
   if (props.gate === "denied") return <Navigate to="/tasks" replace />;
   return <>{props.children}</>;
+}
+
+/**
+ * #916 — mount point for one external module's web Root. Rendered inside AppShell, so it can read
+ * the shell's chat controls from context and build `hostActions` bound to THIS module id (closure
+ * at a host-controlled call site — the module never supplies its own id). Recomputed only when the
+ * id or the callback identity changes.
+ */
+function ExternalModuleMount(props: {
+  readonly moduleId: string;
+  readonly Component: ComponentType<ExternalWebContributionProps>;
+}) {
+  const { openAssistantWithDraft } = useChatControls();
+  const hostActions = useMemo(
+    () => createModuleHostActions(props.moduleId, openAssistantWithDraft),
+    [props.moduleId, openAssistantWithDraft]
+  );
+  const Component = props.Component;
+  return <Component hostActions={hostActions} />;
 }
 
 function LoadingScreen() {

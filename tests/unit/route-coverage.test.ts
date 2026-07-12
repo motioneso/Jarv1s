@@ -48,6 +48,7 @@ describe("manifest routes[] reconciliation", () => {
       { method: "POST", path: "/api/chat/turn/cancel" },
       { method: "GET", path: "/api/chat/stream" },
       { method: "POST", path: "/api/chat/clear" },
+      { method: "POST", path: "/api/chat/private/end" },
       { method: "POST", path: "/api/chat/switch" },
       { method: "GET", path: "/api/chat/threads" },
       { method: "GET", path: "/api/chat/memory/settings" },

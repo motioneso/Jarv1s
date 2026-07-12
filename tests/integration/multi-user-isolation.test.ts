@@ -597,6 +597,74 @@ describe("multi-user isolation", () => {
     expect(adminSees).toEqual([]);
   });
 
+  it("per-user chat skill: a SEEDED Alice-owned skill cannot be selected, updated, toggled, or deleted by member B or the admin", async () => {
+    const admin = await signUp("Admin", "iso5c-admin@example.com");
+    await disableApproval();
+    const alice = await signUp("Alice", "iso5c-alice@example.com");
+    const bob = await signUp("Bob", "iso5c-bob@example.com");
+
+    // Seed an Alice-owned skill (cross-RLS bootstrap write). Schema:
+    // packages/chat/sql/0149_chat_skills.sql — app.chat_skills(id default, owner_user_id, name,
+    // description, frontmatter, body, enabled, source). owner_user_id = alice.id is load-bearing.
+    const aliceSkillId = await seedAsBootstrap(
+      `INSERT INTO app.chat_skills (owner_user_id, name, body, source)
+         VALUES ($1, 'Alice private skill', 'do the thing', 'authored')
+         RETURNING id`,
+      [alice.id]
+    );
+    expect(aliceSkillId).not.toBe("");
+
+    const dataCtx = new DataContextRunner(appDb);
+
+    for (const [label, actorId] of [
+      ["bob", bob.id],
+      ["admin", admin.id]
+    ] as const) {
+      const sees = await dataCtx.withDataContext(
+        { actorUserId: actorId, requestId: `iso-5c-select-${label}` },
+        (scopedDb) =>
+          scopedDb.db
+            .selectFrom("app.chat_skills")
+            .select("id")
+            .where("id", "=", aliceSkillId)
+            .execute()
+      );
+      expect(sees).toEqual([]);
+
+      const updateResult = await dataCtx.withDataContext(
+        { actorUserId: actorId, requestId: `iso-5c-update-${label}` },
+        (scopedDb) =>
+          scopedDb.db
+            .updateTable("app.chat_skills")
+            .set({ enabled: false })
+            .where("id", "=", aliceSkillId)
+            .executeTakeFirst()
+      );
+      expect(Number(updateResult.numUpdatedRows)).toBe(0);
+
+      const deleteResult = await dataCtx.withDataContext(
+        { actorUserId: actorId, requestId: `iso-5c-delete-${label}` },
+        (scopedDb) =>
+          scopedDb.db
+            .deleteFrom("app.chat_skills")
+            .where("id", "=", aliceSkillId)
+            .executeTakeFirst()
+      );
+      expect(Number(deleteResult.numDeletedRows)).toBe(0);
+    }
+
+    const aliceSees = await dataCtx.withDataContext(
+      { actorUserId: alice.id, requestId: "iso-5c-select-alice" },
+      (scopedDb) =>
+        scopedDb.db
+          .selectFrom("app.chat_skills")
+          .select("id")
+          .where("id", "=", aliceSkillId)
+          .execute()
+    );
+    expect(aliceSees).toEqual([{ id: aliceSkillId }]);
+  });
+
   it("per-user memory: SEEDED Alice-owned memory_chunks AND chat_memory_facts are invisible to member B and the admin", async () => {
     const admin = await signUp("Admin", "iso6-admin@example.com");
     await disableApproval();

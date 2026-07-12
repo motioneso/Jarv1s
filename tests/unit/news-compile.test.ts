@@ -1,0 +1,159 @@
+import { describe, expect, it } from "vitest";
+
+import type { DataContextDb } from "@jarv1s/db";
+
+import { compilePersonalizedNews } from "../../packages/news/src/compilation/compile.js";
+import type { NewsSnapshotPayload } from "../../packages/news/src/personalization-domain.js";
+
+const db = {} as DataContextDb;
+const now = new Date("2026-07-11T12:00:00.000Z");
+
+function source(index = 1) {
+  return {
+    id: `source-${index}`,
+    label: `Publisher ${index}`,
+    canonicalDomain: `publisher-${index}.example.com`,
+    homepageUrl: `https://publisher-${index}.example.com`,
+    feedUrl: `https://publisher-${index}.example.com/feed.xml`,
+    retrievalMethod: "feed" as const,
+    validationStatus: "approved" as const,
+    healthStatus: "available" as const,
+    createdAt: now.toISOString()
+  };
+}
+
+function feed(domain: string, count = 1): string {
+  return `<?xml version="1.0"?><rss><channel>${Array.from(
+    { length: count },
+    (_, index) =>
+      `<item><title>Headline ${index} from ${domain}</title><link>https://${domain}/story-${index}</link><pubDate>Fri, 11 Jul 2026 11:00:00 GMT</pubDate></item>`
+  ).join("")}</channel></rss>`;
+}
+
+function makeRepo(
+  options: {
+    sources?: ReturnType<typeof source>[];
+    publish?: boolean;
+    payloads?: NewsSnapshotPayload[];
+    unavailable?: string[];
+  } = {}
+) {
+  return {
+    listCustomSources: async () => options.sources ?? [],
+    listCustomTopics: async () => [],
+    listExclusions: async () => [],
+    readPolicyVerdict: async () => null,
+    upsertPolicyVerdict: async () => undefined,
+    updateSourceHealth: async (_db: DataContextDb, sourceId: string) => {
+      options.unavailable?.push(sourceId);
+    },
+    publishSnapshotIfCurrent: async (
+      _db: DataContextDb,
+      _generation: number,
+      input: { payload: unknown }
+    ) => {
+      options.payloads?.push(input.payload as NewsSnapshotPayload);
+      return options.publish ?? true;
+    }
+  };
+}
+
+function dependencies(
+  options: {
+    sources?: ReturnType<typeof source>[];
+    fetchFailure?: boolean;
+    aiFailure?: boolean;
+    publish?: boolean;
+    payloads?: NewsSnapshotPayload[];
+    unavailable?: string[];
+  } = {}
+) {
+  return {
+    fetch: async (url: string) => {
+      if (options.fetchFailure) return { ok: false as const, reason: "network" as const };
+      const domain = new URL(url).hostname;
+      return {
+        ok: true as const,
+        status: 200,
+        finalUrl: url,
+        contentType: "application/rss+xml",
+        body: feed(domain, 15),
+        truncated: false
+      };
+    },
+    search: { search: async () => ({ results: [] }) },
+    ai: {
+      fingerprint: async () => "fp",
+      generateJson: async (_db: DataContextDb, input: { prompt: string }) => {
+        if (options.aiFailure) return { ok: false as const, error: "provider_error" as const };
+        const ids = [...input.prompt.matchAll(/"id":"(c\d+)"/g)].map((match) => match[1]);
+        return {
+          ok: true as const,
+          object: {
+            rankings: ids.map((id, index) => ({ id, relevance: 100 - index, eligible: true }))
+          }
+        };
+      }
+    },
+    repo: makeRepo(options),
+    prefs: { list: async () => [] },
+    catalog: [],
+    logger: { info: () => undefined }
+  };
+}
+
+describe("compilePersonalizedNews", () => {
+  it("publishes a bounded validated snapshot through the generation CAS", async () => {
+    const payloads: NewsSnapshotPayload[] = [];
+    const result = await compilePersonalizedNews(
+      db,
+      dependencies({ sources: [source(1), source(2), source(3)], payloads }),
+      { now, generation: 7 }
+    );
+    expect(result).toEqual({ outcome: "replaced" });
+    expect(payloads[0]?.articles).toHaveLength(40);
+    expect(payloads[0]?.articles.every((article) => article.publishedAt.endsWith("Z"))).toBe(true);
+    expect(JSON.stringify(payloads[0])).not.toContain("fingerprint");
+  });
+
+  it("keeps the last good snapshot when AI fails", async () => {
+    const payloads: NewsSnapshotPayload[] = [];
+    await expect(
+      compilePersonalizedNews(
+        db,
+        dependencies({ sources: [source()], aiFailure: true, payloads }),
+        { now, generation: 1 }
+      )
+    ).resolves.toEqual({ outcome: "kept_last_good", failureKind: "ai" });
+    expect(payloads).toEqual([]);
+  });
+
+  it("keeps the last good snapshot and marks a failed source unavailable", async () => {
+    const unavailable: string[] = [];
+    await expect(
+      compilePersonalizedNews(
+        db,
+        dependencies({ sources: [source()], fetchFailure: true, unavailable }),
+        { now, generation: 1 }
+      )
+    ).resolves.toEqual({ outcome: "kept_last_good", failureKind: "fetch" });
+    expect(unavailable).toEqual(["source-1"]);
+  });
+
+  it("publishes an empty snapshot after a successful collection with no candidates", async () => {
+    const payloads: NewsSnapshotPayload[] = [];
+    await expect(
+      compilePersonalizedNews(db, dependencies({ payloads }), { now, generation: 1 })
+    ).resolves.toEqual({ outcome: "replaced" });
+    expect(payloads).toEqual([{ articles: [] }]);
+  });
+
+  it("reports stale when the generation CAS rejects publication", async () => {
+    await expect(
+      compilePersonalizedNews(db, dependencies({ sources: [source()], publish: false }), {
+        now,
+        generation: 1
+      })
+    ).resolves.toEqual({ outcome: "stale" });
+  });
+});

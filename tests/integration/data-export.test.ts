@@ -263,6 +263,263 @@ describe("Data export", () => {
     });
   });
 
+  // #953 Task 6: News personalization export. User-authored preferences (custom sources,
+  // custom topics, source exclusions) must appear in the account export; derived compilation
+  // snapshots and opaque validation fingerprints must NOT. A real snapshot row is seeded so
+  // the omission assertions are non-vacuous, and a second user's exclusion proves the export
+  // is actor-isolated (RLS + collector predicate).
+  describe("news personalization export (#953 Task 6)", () => {
+    const sourceId = "99999999-0000-4000-8000-000000000101";
+    const topicId = "99999999-0000-4000-8000-000000000102";
+    const exclusionId = "99999999-0000-4000-8000-000000000103";
+    const userBExclusionId = "99999999-0000-4000-8000-000000000104";
+    // Marker strings: if any of these appear anywhere in an export payload, private/derived
+    // data leaked. Chosen to be greppable and impossible to collide with fixture prose.
+    const sourceFingerprint = "NEWS-FP-MARKER-SOURCE-A";
+    const topicFingerprint = "NEWS-FP-MARKER-TOPIC-A";
+    const snapshotMarker = "NEWS-SNAPSHOT-MARKER-A";
+    const userBDomain = "userb-secret-publisher.example";
+
+    const expectedSource = {
+      id: sourceId,
+      ownerUserId: ids.userA,
+      label: "The Example Gazette",
+      canonicalDomain: "gazette.example",
+      homepageUrl: "https://gazette.example",
+      feedUrl: "https://gazette.example/feed.xml",
+      retrievalMethod: "feed",
+      validationStatus: "approved",
+      healthStatus: "available",
+      validatedAt: "2026-02-01T08:00:00.000Z",
+      createdAt: "2026-02-01T08:00:01.000Z",
+      updatedAt: "2026-02-01T08:00:02.000Z"
+    };
+
+    const expectedTopic = {
+      id: topicId,
+      ownerUserId: ids.userA,
+      label: "Fusion energy progress",
+      guidance: "Focus on grid-scale milestones",
+      validationStatus: "approved",
+      validatedAt: "2026-02-02T08:00:00.000Z",
+      createdAt: "2026-02-02T08:00:01.000Z",
+      updatedAt: "2026-02-02T08:00:02.000Z"
+    };
+
+    const expectedExclusion = {
+      id: exclusionId,
+      ownerUserId: ids.userA,
+      canonicalDomain: "excluded-publisher.example",
+      createdAt: "2026-02-03T08:00:00.000Z"
+    };
+
+    beforeAll(async () => {
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        await client.query(
+          `INSERT INTO app.news_custom_sources
+            (id, owner_user_id, label, canonical_domain, homepage_url, feed_url,
+             retrieval_method, validation_status, health_status, validation_fingerprint,
+             validated_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, 'feed', 'approved', 'available', $7, $8, $9, $10)`,
+          [
+            sourceId,
+            ids.userA,
+            expectedSource.label,
+            expectedSource.canonicalDomain,
+            expectedSource.homepageUrl,
+            expectedSource.feedUrl,
+            sourceFingerprint,
+            expectedSource.validatedAt,
+            expectedSource.createdAt,
+            expectedSource.updatedAt
+          ]
+        );
+        await client.query(
+          `INSERT INTO app.news_custom_topics
+            (id, owner_user_id, label, guidance, validation_status, validation_fingerprint,
+             validated_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, 'approved', $5, $6, $7, $8)`,
+          [
+            topicId,
+            ids.userA,
+            expectedTopic.label,
+            expectedTopic.guidance,
+            topicFingerprint,
+            expectedTopic.validatedAt,
+            expectedTopic.createdAt,
+            expectedTopic.updatedAt
+          ]
+        );
+        await client.query(
+          `INSERT INTO app.news_source_exclusions (id, owner_user_id, canonical_domain, created_at)
+           VALUES ($1, $2, $3, $4)`,
+          [exclusionId, ids.userA, expectedExclusion.canonicalDomain, expectedExclusion.createdAt]
+        );
+        // Actor-isolation fixture: userB's exclusion must never surface in userA's export.
+        await client.query(
+          `INSERT INTO app.news_source_exclusions (id, owner_user_id, canonical_domain, created_at)
+           VALUES ($1, $2, $3, now())`,
+          [userBExclusionId, ids.userB, userBDomain]
+        );
+        // Real snapshot row (derived data) so the "snapshots are absent" assertions cannot
+        // pass vacuously against an empty table.
+        await client.query(
+          `INSERT INTO app.news_compilation_snapshots
+            (owner_user_id, compiled_at, expires_at, payload)
+           VALUES ($1, now(), now() + interval '1 hour', $2::jsonb)`,
+          [ids.userA, JSON.stringify({ headlines: [{ title: snapshotMarker }] })]
+        );
+      } finally {
+        await client.end();
+      }
+    });
+
+    afterAll(async () => {
+      const client = new Client({ connectionString: connectionStrings.bootstrap });
+      await client.connect();
+      try {
+        await client.query("DELETE FROM app.news_compilation_snapshots WHERE owner_user_id = $1", [
+          ids.userA
+        ]);
+        await client.query("DELETE FROM app.news_source_exclusions WHERE id = ANY($1::uuid[])", [
+          [exclusionId, userBExclusionId]
+        ]);
+        await client.query("DELETE FROM app.news_custom_topics WHERE id = $1", [topicId]);
+        await client.query("DELETE FROM app.news_custom_sources WHERE id = $1", [sourceId]);
+      } finally {
+        await client.end();
+      }
+    });
+
+    it("flat tables surface exports authored preferences, omits snapshots + fingerprints, isolates actors", async () => {
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/settings/me/data-export",
+        headers: { authorization: `Bearer ${ids.sessionA}` }
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as {
+        tables: {
+          newsPersonalization: {
+            custom_sources: unknown[];
+            custom_topics: unknown[];
+            source_exclusions: unknown[];
+          };
+        };
+      };
+
+      const section = body.tables.newsPersonalization;
+      expect(section).toBeDefined();
+      // Exactly the three authored-preference lists — no snapshot key can sneak in.
+      expect(Object.keys(section).sort()).toEqual([
+        "custom_sources",
+        "custom_topics",
+        "source_exclusions"
+      ]);
+      // toEqual pins the full row shape: an extra validationFingerprint key would fail here.
+      expect(section.custom_sources.find((row) => (row as { id: string }).id === sourceId)).toEqual(
+        expectedSource
+      );
+      expect(section.custom_topics.find((row) => (row as { id: string }).id === topicId)).toEqual(
+        expectedTopic
+      );
+      expect(
+        section.source_exclusions.find((row) => (row as { id: string }).id === exclusionId)
+      ).toEqual(expectedExclusion);
+
+      // Leak sweep over the entire export payload, not just the news section.
+      expect(res.payload).not.toContain(sourceFingerprint);
+      expect(res.payload).not.toContain(topicFingerprint);
+      expect(res.payload).not.toContain("validationFingerprint");
+      expect(res.payload).not.toContain("validation_fingerprint");
+      expect(res.payload).not.toContain(snapshotMarker);
+      // Actor isolation: userB's exclusion domain/id must not appear in userA's export.
+      expect(res.payload).not.toContain(userBDomain);
+      expect(res.payload).not.toContain(userBExclusionId);
+    });
+
+    it("async nested-archive surface (sections.newsPersonalization) matches and leaks nothing", async () => {
+      const vaultRoot = await mkdtemp(join(tmpdir(), "jarvis-export-news-"));
+      const originalVaultRoot = process.env.JARVIS_VAULT_ROOT;
+      process.env.JARVIS_VAULT_ROOT = vaultRoot;
+      try {
+        const { handleExportBuildJob } =
+          await import("../../packages/settings/src/data-export-jobs.js");
+        const repository = new (
+          await import("../../packages/settings/src/data-export-repository.js")
+        ).DataExportRepository();
+        const dataContext = new DataContextRunner(appDb);
+        const jobRecord = await dataContext.withDataContext(
+          { actorUserId: ids.userA, requestId: "req:test" },
+          (scopedDb) => repository.createJob(scopedDb, ids.userA)
+        );
+
+        await dataContext.withDataContext(
+          { actorUserId: ids.userA, requestId: "req:test" },
+          (scopedDb) => {
+            const jobPayload = {
+              data: {
+                actorUserId: ids.userA,
+                jobId: jobRecord.id,
+                kind: "export.build" as const
+              }
+            } as Job<ExportBuildJobPayload>;
+            return handleExportBuildJob(jobPayload, scopedDb, () => getBuiltInModuleManifests());
+          }
+        );
+
+        const vaultRunner = new VaultContextRunner(vaultRoot);
+        const archiveJson = await vaultRunner.withVaultContext(
+          { actorUserId: ids.userA },
+          (vaultCtx) => readVaultFile(vaultCtx, `exports/${jobRecord.id}.json`)
+        );
+        const archive = JSON.parse(archiveJson) as {
+          sections: {
+            newsPersonalization: {
+              custom_sources: unknown[];
+              custom_topics: unknown[];
+              source_exclusions: unknown[];
+            };
+          };
+        };
+
+        const section = archive.sections.newsPersonalization;
+        expect(section).toBeDefined();
+        expect(
+          section.custom_sources.find((row) => (row as { id: string }).id === sourceId)
+        ).toEqual(expectedSource);
+        expect(section.custom_topics.find((row) => (row as { id: string }).id === topicId)).toEqual(
+          expectedTopic
+        );
+        expect(
+          section.source_exclusions.find((row) => (row as { id: string }).id === exclusionId)
+        ).toEqual(expectedExclusion);
+
+        expect(archiveJson).not.toContain(sourceFingerprint);
+        expect(archiveJson).not.toContain(topicFingerprint);
+        expect(archiveJson).not.toContain(snapshotMarker);
+        expect(archiveJson).not.toContain(userBDomain);
+      } finally {
+        if (originalVaultRoot === undefined) delete process.env.JARVIS_VAULT_ROOT;
+        else process.env.JARVIS_VAULT_ROOT = originalVaultRoot;
+        await rm(vaultRoot, { recursive: true, force: true });
+      }
+    });
+
+    it("news manifest declares the newsPersonalization export section backed by collectNewsExportSection", async () => {
+      const { collectNewsExportSection } =
+        await import("../../packages/news/src/data-lifecycle.js");
+      const newsManifest = getBuiltInModuleManifests().find((manifest) => manifest.id === "news");
+      const sections = newsManifest?.dataLifecycle?.exportSections ?? [];
+      expect(sections).toHaveLength(1);
+      expect(sections[0]?.key).toBe("newsPersonalization");
+      expect(sections[0]?.collect).toBe(collectNewsExportSection);
+    });
+  });
+
   it("requires authentication", async () => {
     const res = await server.inject({
       method: "GET",

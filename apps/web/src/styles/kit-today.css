@@ -73,7 +73,7 @@
   margin-top: 10px;
 }
 .coming-note {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-subtle);
   letter-spacing: 0.03em;
@@ -192,6 +192,14 @@
   padding: 0;
 }
 
+/* Evening-only "Prep for tomorrow" rail CTA: full-width button under a short
+   one-liner so it reads as the card's primary action in the narrow rail. */
+.evening-prep__btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 10px;
+}
+
 /* Reading-column briefing surface */
 .brief-wrap {
   max-width: 760px;
@@ -209,7 +217,7 @@
   line-height: 1.08;
 }
 .brief-sub {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--text-subtle);
   letter-spacing: 0.04em;
@@ -396,7 +404,7 @@
   color: var(--text-subtle);
 }
 .stat .v {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 500;
   margin-top: 4px;
@@ -408,31 +416,51 @@
 /* ===== Command-center Morning briefing ===== */
 .cmd-wrap {
   max-width: 1220px;
-  margin: 0 auto;
-  padding: 30px 40px 80px;
+  /* Own bottom padding dropped, AND the shared .content-surface's var(--space-7)=32px bottom
+     padding cancelled with a negative bottom margin — scoped to /today only (.cmd-wrap is
+     today-exclusive) so the grid + aside keyline run flush to the surface bottom without
+     changing any other route (Ben 2026-07-08: still a gap keeping it off the bottom). */
+  margin: 0 auto calc(-1 * var(--space-7));
+  padding: 30px 40px 0;
 }
 .cmd-masthead {
   border-bottom: 3px solid var(--ink);
   padding-bottom: 26px;
 }
 .cmd-dateline {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--ink);
-  padding-bottom: 18px;
+  /* Ben 2026-07-09 (/today): folio line at the top of the aside column now, not a standalone
+     line above the whole masthead — so it right-aligns over the clock and the old 18px bottom
+     pad (which pushed the title down) is gone. */
+  text-align: right;
 }
 .cmd-masthead__row {
   display: flex;
-  align-items: flex-end;
+  /* stretch (was flex-end) so the aside spans the main column's full height — that lets it pin
+     the dateline to the top and the clock to the bottom (Ben 2026-07-09). */
+  align-items: stretch;
   justify-content: space-between;
   gap: 32px;
 }
 .cmd-masthead__main {
   max-width: 72ch;
   min-width: 0;
+}
+/* Right-hand folio column: dateline pinned top, clock pinned bottom (Ben 2026-07-09 /today).
+   space-between spreads them across the main column's height so the date reads as a top-right
+   folio and the clock keeps its original bottom-aligned position. */
+.cmd-masthead__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 12px;
 }
 .cmd-title {
   margin: 12px 0 0;
@@ -456,19 +484,25 @@
   font-variant-numeric: tabular-nums;
 }
 .cmd-clock__time {
-  font-family: var(--font-mono);
+  position: relative;
+  font-family: var(--font-sans);
   font-size: 38px;
   font-weight: 400;
   line-height: 1;
   color: var(--text);
 }
-.cmd-clock__ap {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--text-subtle);
-  margin-top: 6px;
+/* PM marker: an accent dot floating in the left margin of the first digit — replaces the old
+   "am/pm" suffix (Ben 2026-07-08). Rendered only for data-pm="true" (times past 11:59am); AM
+   has no dot. Absolute so it sits left of the digits without shifting the right-aligned clock. */
+.cmd-clock__pm {
+  position: absolute;
+  /* Status-light placement: high and tight to the first digit's top-left corner (Ben 2026-07-08). */
+  top: 0.21em;
+  left: -0.28em;
+  width: 0.17em;
+  height: 0.17em;
+  border-radius: 50%;
+  background: var(--accent);
 }
 @media (max-width: 720px) {
   .cmd-clock {
@@ -476,7 +510,7 @@
   }
 }
 .cmd-eyebrow {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -502,14 +536,14 @@
   padding: 18px 18px 16px;
 }
 .cmd-next__k {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--rail-fg-muted);
 }
 .cmd-next__v {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 44px;
   line-height: 1;
   margin-top: 10px;
@@ -527,7 +561,7 @@
 }
 
 .cmd-glance__title {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
@@ -556,7 +590,7 @@
   gap: 6px;
 }
 .cmd-stat .v {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 23px;
   font-weight: 500;
   margin-top: 5px;
@@ -599,12 +633,25 @@
   }
 }
 
+/* The rail stretches to the full grid-row height (overriding .cmd-grid's align-items:start)
+   so the column keyline it carries reaches the main column's bottom instead of stopping where
+   the cards end (Ben 2026-07-07: left border stopped mid-scroll). */
 .cmd-aside {
+  align-self: stretch;
+}
+/* Sticky content wrapper: cards stay pinned near the top and follow scroll, while the parent
+   rail grows below them — "content stays where it is, just grow the bottom" (Ben 2026-07-07). */
+.cmd-aside__inner {
   display: flex;
   flex-direction: column;
   gap: 14px;
   position: sticky;
-  top: 20px;
+  /* Lock just below the sticky .topbar (--topbar-h), not 20px behind it (Ben 2026-07-09:
+     "lock earlier when scrolling — the separator line should just disappear and then the rail
+     locks"). The old topbar-aware offset lived on .cmd-aside, which isn't the positioned/sticky
+     element, so `top` there was dead and the rail actually pinned at 20px — behind the topbar.
+     Moving it here makes the rail lock flush under the bar right as the masthead rule scrolls off. */
+  top: calc(var(--topbar-h) + 1rem);
 }
 .inst {
   background: var(--surface);
@@ -626,7 +673,7 @@
   color: var(--text-subtle);
 }
 .inst__meta {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
 }
@@ -638,7 +685,7 @@
   gap: 12px;
 }
 .sched-row__t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-subtle);
   text-align: right;
@@ -720,7 +767,7 @@
 }
 .inst-row__r {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-subtle);
 }
@@ -798,7 +845,7 @@
   display: inline-flex;
 }
 .wx__t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -859,7 +906,7 @@
   border-top: none;
 }
 .day-ev__t {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -881,7 +928,7 @@
   margin-top: 2px;
 }
 .day-ev__who {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
   white-space: nowrap;

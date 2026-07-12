@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { createDatasetClient } from "@jarv1s/datasets";
+import { createDatasetClient, HostPinningViolationError } from "@jarv1s/datasets";
+import type { DatasetLogger } from "@jarv1s/datasets";
 import type {
   ExternalSourceAdapter,
   ExternalSourceAdapterContext,
   ModuleExternalSourceManifest
 } from "@jarv1s/module-sdk";
+
+function fakeLogger(): {
+  logger: DatasetLogger;
+  warnings: Array<[Record<string, unknown>, string]>;
+} {
+  const warnings: Array<[Record<string, unknown>, string]> = [];
+  return { logger: { warn: (data, message) => warnings.push([data, message]) }, warnings };
+}
 
 function source(
   overrides: Partial<ModuleExternalSourceManifest> = {}
@@ -25,6 +34,15 @@ function adapterFrom(
 ): ExternalSourceAdapter {
   return {
     fetchDataset: (datasetKey, params, _ctx: ExternalSourceAdapterContext) => fn(datasetKey, params)
+  };
+}
+
+function adapterCallingFetch(url: string): ExternalSourceAdapter {
+  return {
+    fetchDataset: async (_datasetKey, _params, ctx: ExternalSourceAdapterContext) => {
+      const res = await ctx.fetchFn(url);
+      return res.json();
+    }
   };
 }
 
@@ -209,5 +227,135 @@ describe("createDatasetClient", () => {
     await client.getDataset("b", {}, { fallback: null });
     const elapsed = performance.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(35);
+  });
+
+  it("logs a host-pinning violation with source id + blocked host, still returns degraded", async () => {
+    const { logger, warnings } = fakeLogger();
+    const client = createDatasetClient(
+      source({ fetchHosts: ["site.api.espn.com"] }),
+      adapterFrom(async (_key, _params) => {
+        throw new HostPinningViolationError(
+          "evil.example.com",
+          'Dataset runtime host pinning: host "evil.example.com" is not in the allowed list'
+        );
+      }),
+      { logger }
+    );
+    const envelope = await client.getDataset("widgets", {}, { fallback: { empty: true } });
+    expect(envelope).toEqual({
+      data: { empty: true },
+      degraded: true,
+      fetchedAt: expect.any(String)
+    });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.[0]).toMatchObject({ sourceId: "fixture", host: "evil.example.com" });
+  });
+
+  it("does not log ordinary (non-pinning) fetch errors — stays silent-degrade", async () => {
+    const { logger, warnings } = fakeLogger();
+    const client = createDatasetClient(
+      source(),
+      adapterFrom(async () => {
+        throw new Error("upstream down");
+      }),
+      { logger }
+    );
+    const envelope = await client.getDataset("widgets", {}, { fallback: { empty: true } });
+    expect(envelope).toMatchObject({ data: { empty: true }, degraded: true });
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("threads fetchTimeoutMs through to the underlying pinned fetch (#858)", async () => {
+    const hangingFetch = (async (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response("{}", { status: 200 })), 200);
+        init?.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      })) as unknown as typeof fetch;
+
+    const client = createDatasetClient(
+      source({ fetchHosts: ["example.com"] }),
+      adapterCallingFetch("https://example.com/widgets"),
+      { fetchFn: hangingFetch, fetchTimeoutMs: 20 }
+    );
+    const start = performance.now();
+    const envelope = await client.getDataset("widgets", {}, { fallback: { empty: true } });
+    const elapsed = performance.now() - start;
+    expect(envelope).toMatchObject({ data: { empty: true }, degraded: true });
+    expect(elapsed).toBeLessThan(150); // well under the 200ms hang → the 20ms timeout fired
+  });
+
+  describe("cacheOnly peek (#907)", () => {
+    it("returns cacheMiss without calling the adapter on a cold cache", async () => {
+      let calls = 0;
+      const client = createDatasetClient(
+        source(),
+        adapterFrom(async () => {
+          calls += 1;
+          return { n: calls };
+        })
+      );
+      const result = await client.getDataset<string[]>(
+        "widgets",
+        { competitionKey: "eng.1" },
+        { fallback: [], cacheOnly: true }
+      );
+      expect(result.cacheMiss).toBe(true);
+      expect(result.data).toEqual([]);
+      expect(result.degraded).toBe(false);
+      expect(calls).toBe(0);
+    });
+
+    it("serves a fresh cached value without refetching", async () => {
+      let calls = 0;
+      const client = createDatasetClient(
+        source(),
+        adapterFrom(async () => {
+          calls += 1;
+          return { n: calls };
+        })
+      );
+      await client.getDataset("widgets", { competitionKey: "eng.1" }, { fallback: null }); // warm (1 call)
+      const result = await client.getDataset(
+        "widgets",
+        { competitionKey: "eng.1" },
+        { fallback: null, cacheOnly: true }
+      );
+      expect(result.cacheMiss).toBeUndefined();
+      expect(result.degraded).toBe(false);
+      expect(calls).toBe(1); // no second adapter call
+    });
+
+    it("serves a stale-but-retained hit as degraded: true, still without calling the adapter", async () => {
+      let now = 0;
+      let calls = 0;
+      const client = createDatasetClient(
+        source({
+          datasets: [
+            {
+              key: "widgets",
+              ttlMs: 1_000,
+              staleness: "serve-stale-on-error",
+              staleRetentionMs: 10_000
+            }
+          ]
+        }),
+        adapterFrom(async () => {
+          calls += 1;
+          return { n: calls };
+        }),
+        { now: () => new Date(now) }
+      );
+      await client.getDataset("widgets", {}, { fallback: null }); // warm (1 call)
+
+      now = 5_000; // past ttl (1_000) but within staleRetentionMs (10_000 after expiry)
+      const result = await client.getDataset("widgets", {}, { fallback: null, cacheOnly: true });
+      expect(result.cacheMiss).toBeUndefined();
+      expect(result.degraded).toBe(true);
+      expect(result.data).toEqual({ n: 1 });
+      expect(calls).toBe(1); // cacheOnly never triggers a live fetch, even on stale entries
+    });
   });
 });

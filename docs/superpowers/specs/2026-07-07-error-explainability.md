@@ -46,7 +46,7 @@ the codebase.
   decision (D2): log persistence is ephemeral (`docker compose logs api` only); DB persistence was
   explicitly deferred to "admin diagnostics (#255)."
 - #255 is closed, but its actual scope (confirmed by reading `packages/settings/src/
-  host-diagnostics.ts`) was wiring the settings-admin `HostPane` UI placeholders — live
+host-diagnostics.ts`) was wiring the settings-admin `HostPane` UI placeholders — live
   connectivity checks (DB/pg-boss/multiplexer), not an error-event table. No DB persistence of
   errors was ever built.
 - Conclusion: **no structured, queryable error store exists today.** The only error trail is
@@ -76,8 +76,8 @@ the codebase.
 ## Resolved Decisions
 
 - **D1 — New table, not a reuse of `jarvis_action_audit_log`.** `packages/ai/sql/
-  0127_jarvis_action_audit_log.sql` audits *tool-call outcomes* (approval mode, action family) —
-  a different concept from *unhandled request/client errors*. Reusing it would conflate action
+0127_jarvis_action_audit_log.sql` audits _tool-call outcomes_ (approval mode, action family) —
+  a different concept from _unhandled request/client errors_. Reusing it would conflate action
   auditing with error diagnostics and violate its existing CHECK constraints (`outcome`,
   `approval_mode` don't fit an arbitrary API error). New table: `app.jarvis_error_log`.
 - **D2 — Ownership: the existing `packages/ai` module, not a new module.** (Revised 2026-07-07 per
@@ -89,7 +89,7 @@ the codebase.
     reuses.
   - It already owns the assistant-tool surface that is this data's only consumer
     (`packages/ai/src/assistant-tools.ts` aggregates every manifest's `assistantTools`; the tool
-    invocation route lives in `packages/ai/src/routes.ts`). The error-explanation feature *is* an
+    invocation route lives in `packages/ai/src/routes.ts`). The error-explanation feature _is_ an
     AI/chat capability, so the consumer module owning the store is coherent.
   - It is `lifecycle: "required"` / always-enabled, so `apps/api`'s central error handler can
     depend on its public API unconditionally.
@@ -104,12 +104,12 @@ the codebase.
     entry, no new cross-module API surface, and no new trust boundary** — the only new attack
     surface is one table (RLS-forced) and one tool (owner-scoped). Fewer new boundaries means
     less for the security-tier QA to get wrong.
-  `packages/settings` (home of #255's diagnostics) remains wrong for the same reason as before:
-  admin/host config, not an event-data plane.
+    `packages/settings` (home of #255's diagnostics) remains wrong for the same reason as before:
+    admin/host config, not an event-data plane.
 - **D3 — Schema mirrors the `jarvis_action_audit_log` RLS/retention pattern, in the same module.**
   Owner-scoped `FORCE ROW LEVEL SECURITY`, `SELECT`+`INSERT` only granted to the app runtime role,
   a `SECURITY DEFINER` purge function for retention (mirrors `packages/ai/sql/
-  0127_jarvis_action_audit_log.sql`, now a sibling file). Migration lands at
+0127_jarvis_action_audit_log.sql`, now a sibling file). Migration lands at
   `packages/ai/sql/0145_jarvis_error_log.sql` — 0145 verified free at spec time (highest landed
   migration across `infra/postgres/migrations/` and all `packages/*/sql/` is 0144; no other open
   spec claims 0145), but **the build agent must reconfirm the number at build time** since
@@ -118,20 +118,20 @@ the codebase.
   `database.ownedTables` in `packages/ai/src/manifest.ts`. Fields adapted from #817's suggested
   shape:
   `id, owner_user_id, occurred_at, feature, operation, error_category, retryable, user_message,
-  internal_summary, request_id`. `owner_user_id` is nullable for errors that occur before auth is
+internal_summary, request_id`. `owner_user_id` is nullable for errors that occur before auth is
   established (matches the existing unauthenticated `/api/errors` sink) — unauthenticated errors
   are visible only via a maintenance/service path, never surfaced to any user's chat tool.
 - **D4 — Write path taps the two existing call sites, but narrows their fields before persisting.**
   `setJarvisErrorHandler` (`apps/api/src/error-handling.ts:133`) and `registerClientErrorsRoute`
   (`apps/api/src/error-handling.ts:99`) already construct allowlisted, secret-free structured
-  objects before *logging* (`err: {message, code, statusCode}` / `clientError: {type, message,
-  stack}`). That log-line allowlist is **not** the same as the DB-persistence allowlist — it was
+  objects before _logging_ (`err: {message, code, statusCode}` / `clientError: {type, message,
+stack}`). That log-line allowlist is **not** the same as the DB-persistence allowlist — it was
   designed for the existing `docker compose logs api` trust boundary (host-only, trusted-operator
   access), and `clientError.stack` is part of it. The new write path is a materially different
-  trust boundary: rows land in a table a chat tool the *end user themselves* can invoke reads from.
+  trust boundary: rows land in a table a chat tool the _end user themselves_ can invoke reads from.
   **`recordError(scopedDb, {...})` (`packages/ai/src/error-log-repository.ts`) therefore accepts only
   `{message, code/type, statusCode, feature, operation, error_category, retryable, user_message,
-  internal_summary, request_id}` — `stack` is dropped at this call boundary and is never a
+internal_summary, request_id}` — `stack` is dropped at this call boundary and is never a
   parameter `recordError` accepts, let alone a column `0145_jarvis_error_log.sql` defines.** The
   existing log-line behavior (which does include `stack`, reaching only `docker compose logs`) is
   unchanged and out of scope for this spec. `feature`/`operation` are derived from route metadata

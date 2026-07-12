@@ -1,19 +1,23 @@
 import type { Page, Route } from "@playwright/test";
 import type {
   AiAssistantToolDto,
-  AiCapabilityRouteMapDto,
   AiConfiguredModelDto,
   AiModelCapability,
   AiProviderConfigDto,
+  AiServiceBinding,
+  AiServiceBindingMapDto,
   CreateAiConfiguredModelRequest,
   CreateAiProviderConfigRequest,
-  PutAiCapabilityRouteRequest,
+  PutAiServiceBindingRequest,
   UpdateAiConfiguredModelRequest,
   UpdateAiProviderConfigRequest
 } from "@jarv1s/shared";
 
+// #870 Slice 1: the admin AI surface now models per-service bindings (Chat + Voice) instead of the
+// old per-capability manual routes / tier preferences. A binding is either a "mode" (tier resolved
+// inside the instance-default provider) or a specific model.
 export interface MockAiApiState {
-  aiCapabilityRoutes?: AiCapabilityRouteMapDto;
+  aiServiceBindings?: AiServiceBindingMapDto;
   aiModels?: AiConfiguredModelDto[];
   aiProviders?: AiProviderConfigDto[];
 }
@@ -55,6 +59,11 @@ export async function registerMockAiRoutes(page: Page, state: MockAiApiState): P
   await page.route(/\/api\/ai\/providers\/[^/]+\/revoke$/, (route) =>
     handleAiProviderRevokeRoute(route, state)
   );
+  // #870/H1: mark a provider the instance default. Register before the detail route so the more
+  // specific `/default` path wins.
+  await page.route(/\/api\/ai\/providers\/[^/]+\/default$/, (route) =>
+    handleAiProviderSetDefaultRoute(route, state)
+  );
   await page.route(/\/api\/ai\/providers\/[^/]+$/, (route) =>
     handleAiProviderDetailRoute(route, state)
   );
@@ -64,14 +73,9 @@ export async function registerMockAiRoutes(page: Page, state: MockAiApiState): P
   await page.route(/\/api\/ai\/capability-route\/[^/]+$/, (route) =>
     handleAiCapabilityRoute(route, state)
   );
-  await page.route("**/api/ai/capability-routes", (route) =>
-    handleAiCapabilityRoutes(route, state)
-  );
-  await page.route(/\/api\/ai\/capability-routes\/[^/]+$/, (route) =>
-    handleAiCapabilityRouteDetail(route, state)
-  );
-  await page.route("**/api/ai/capability-tier-preferences", (route) =>
-    handleAiCapabilityTierPreferences(route, state)
+  await page.route("**/api/ai/service-bindings", (route) => handleAiServiceBindings(route, state));
+  await page.route(/\/api\/ai\/services\/[^/]+\/binding$/, (route) =>
+    handleAiServiceBinding(route, state)
   );
   await page.route("**/api/ai/chat-model-override", (route) =>
     fulfillJson(route, 200, {
@@ -236,6 +240,9 @@ async function handleAiModelDetailRoute(route: Route, state: MockAiApiState): Pr
   return fulfillJson(route, 200, { model: updatedModel });
 }
 
+// #870 Slice 1: the lookup endpoint resolves a user-facing service to its effective model. A model
+// binding names an exact model; a mode binding (or no binding) resolves an active compatible model
+// inside the instance-default provider. An unresolved user-facing service reports `needs-config`.
 async function handleAiCapabilityRoute(route: Route, state: MockAiApiState): Promise<void> {
   if (route.request().method() !== "GET") {
     return fulfillJson(route, 405, { error: "Method not allowed" });
@@ -244,76 +251,92 @@ async function handleAiCapabilityRoute(route: Route, state: MockAiApiState): Pro
   const capability = decodeURIComponent(
     new URL(route.request().url()).pathname.split("/").pop() ?? ""
   ) as AiModelCapability;
-  const manualModelId = state.aiCapabilityRoutes?.[capability] ?? null;
-  const manualModel = manualModelId
-    ? findCompatibleModel(state, capability, manualModelId)
-    : undefined;
-  if (manualModel) {
+  const binding = state.aiServiceBindings?.[capability];
+
+  if (binding?.kind === "model") {
+    const model = findCompatibleModel(state, capability, binding.modelId);
     return fulfillJson(route, 200, {
       route: {
         capability,
-        available: true,
-        reason: "manual-route",
-        model: manualModel
+        available: Boolean(model),
+        reason: model ? "matched-active-model" : "needs-config",
+        model: model ?? null
       }
     });
   }
+
+  // Mode binding (or unbound): resolve inside the instance-default provider.
+  const defaultProvider = (state.aiProviders ?? []).find(
+    (p) => p.isInstanceDefault && p.status === "active"
+  );
   const model =
-    (state.aiModels ?? []).find((item) => findCompatibleModel(state, capability, item.id)) ?? null;
+    (state.aiModels ?? []).find(
+      (item) =>
+        item.status === "active" &&
+        item.capabilities.includes(capability) &&
+        (defaultProvider ? item.providerConfigId === defaultProvider.id : true) &&
+        (state.aiProviders ?? []).some(
+          (p) => p.id === item.providerConfigId && p.status === "active"
+        )
+    ) ?? null;
 
   return fulfillJson(route, 200, {
     route: {
       capability,
       available: Boolean(model),
-      reason: manualModelId
-        ? "manual-route-unavailable-fallback"
-        : model
-          ? "matched-active-model"
-          : "no-active-model",
+      reason: model ? "matched-active-model" : "needs-config",
       model
     }
   });
 }
 
-async function handleAiCapabilityRoutes(route: Route, state: MockAiApiState): Promise<void> {
+async function handleAiServiceBindings(route: Route, state: MockAiApiState): Promise<void> {
   if (route.request().method() !== "GET") {
     return fulfillJson(route, 405, { error: "Method not allowed" });
   }
-
-  return fulfillJson(route, 200, { routes: state.aiCapabilityRoutes ?? {} });
+  return fulfillJson(route, 200, { bindings: state.aiServiceBindings ?? {} });
 }
 
-async function handleAiCapabilityRouteDetail(route: Route, state: MockAiApiState): Promise<void> {
+async function handleAiServiceBinding(route: Route, state: MockAiApiState): Promise<void> {
   const request = route.request();
   if (request.method() !== "PUT") {
     return fulfillJson(route, 405, { error: "Method not allowed" });
   }
 
-  const capability = decodeURIComponent(new URL(request.url()).pathname.split("/").pop() ?? "");
-  const input = request.postDataJSON() as PutAiCapabilityRouteRequest;
-  state.aiCapabilityRoutes = {
-    ...(state.aiCapabilityRoutes ?? {}),
-    [capability]: input.modelId
+  // Path: /api/ai/services/:service/binding
+  const service = decodeURIComponent(
+    new URL(request.url()).pathname.split("/").slice(-2, -1)[0] ?? ""
+  ) as AiModelCapability;
+  const input = request.postDataJSON() as PutAiServiceBindingRequest;
+  const binding: AiServiceBinding = input.binding;
+  state.aiServiceBindings = {
+    ...(state.aiServiceBindings ?? {}),
+    [service]: binding
   };
 
-  return fulfillJson(route, 200, { route: { capability, modelId: input.modelId } });
+  return fulfillJson(route, 200, { service, binding });
 }
 
-async function handleAiCapabilityTierPreferences(
-  route: Route,
-  state: MockAiApiState
-): Promise<void> {
+// #870/H1: setting a provider as the instance default clears the flag on every other provider
+// (globally single-valued) and returns the freshly-flagged provider.
+async function handleAiProviderSetDefaultRoute(route: Route, state: MockAiApiState): Promise<void> {
   const request = route.request();
-
-  if (request.method() === "GET") {
-    return fulfillJson(route, 200, { preferences: state.aiCapabilityRoutes ?? {} });
+  if (request.method() !== "PUT") {
+    return fulfillJson(route, 405, { error: "Method not allowed" });
   }
 
-  if (request.method() === "PATCH") {
-    return fulfillJson(route, 204, {});
-  }
+  const providerId = decodeURIComponent(
+    new URL(request.url()).pathname.split("/").slice(-2, -1)[0] ?? ""
+  );
+  let flagged: AiProviderConfigDto | null = null;
+  state.aiProviders = (state.aiProviders ?? []).map((provider) => {
+    const isDefault = provider.id === providerId;
+    const next = { ...provider, isInstanceDefault: isDefault };
+    if (isDefault) flagged = next;
+    return next;
+  });
 
-  return fulfillJson(route, 405, { error: "Method not allowed" });
+  return fulfillJson(route, 200, { provider: flagged });
 }
 
 function findCompatibleModel(
@@ -349,6 +372,8 @@ export function createMockAiProvider(
     executionMode: "interactive",
     hasCredential: true,
     cliAvailable: false,
+    // #870/H1: default provider flag; specs opt a provider in explicitly.
+    isInstanceDefault: false,
     revokedAt: null,
     createdAt: "2026-06-06T12:00:00.000Z",
     updatedAt: "2026-06-06T12:00:00.000Z",

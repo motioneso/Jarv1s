@@ -1,6 +1,6 @@
 # Chat model selector in chat (#759)
 
-**Status:** Proposed — decisions recorded, pending final read-through
+**Status:** Approved (2026-07-07, Ben)
 **Date:** 2026-07-05
 **Tier:** routine
 **Builds on:** the existing chat model override feature — `packages/ai/src/chat-model-override.ts`

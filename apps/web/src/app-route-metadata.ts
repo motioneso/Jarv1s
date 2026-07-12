@@ -9,7 +9,8 @@ const SECTION_OF: Record<string, string> = {
   tasks: "Plan",
   calendar: "Plan",
   wellness: "You",
-  sports: "You"
+  sports: "You",
+  news: "You"
 };
 const HIDDEN_NAV_IDS = new Set(["chat", "briefings", "settings", "notifications"]);
 

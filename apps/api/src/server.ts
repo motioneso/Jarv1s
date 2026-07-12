@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
+import { AiRepository } from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import {
   ConnectorsRepository,
@@ -19,20 +20,24 @@ import {
   DataContextRunner,
   createDatabase,
   getJarvisDatabaseUrls,
+  type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { createPgBossClient, sendModuleControl } from "@jarv1s/jobs";
 import {
   aggregateFocusSignals,
   createActiveModulesResolver,
   focusSignalProvidersFor,
+  getAllQueueDefinitions,
   getBuiltInModuleManifests,
+  reconcileExternalModules,
   registerBuiltInApiRoutes,
   registerRouteEnablementGuard,
   assertRouteCoverage,
   PLATFORM_UNGUARDED_ROUTES,
   type ChatEngineFactory,
-  type JarvisModuleManifest
+  type JarvisModuleManifest,
+  type ReconciledExternalModule
 } from "@jarv1s/module-registry";
 import {
   listModulesRouteSchema,
@@ -41,10 +46,30 @@ import {
   type HostDiagnosticsInfo,
   type ModuleDto
 } from "@jarv1s/shared";
-import { createModuleLogger } from "@jarv1s/module-sdk";
+import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
+// #917: /api/modules reads enablement through the public settings API; this is legitimate
+// composition-root wiring, not a module cross-import.
+import { SettingsRepository } from "@jarv1s/settings";
+import {
+  type ExternalModuleWorkerRuntime,
+  getExternalModuleRegistrations
+} from "@jarv1s/module-registry/node";
+import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
+import { createModuleAiBridge } from "./external-module-ai-bridge.js";
+import { createModuleDistributionPort } from "./module-distribution-port.js";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
+import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
+import {
+  reconcileExternalModuleUserJobs,
+  registerExternalModuleJobRoutes
+} from "./external-module-jobs.js";
+import {
+  createActiveExternalModulesResolverForApi,
+  createExternalActiveModulesResolver,
+  createExternalModuleTools
+} from "./external-module-tools.js";
 
 // `FastifyRequest.timeZone` is declared in `@jarv1s/module-registry` (#801 Phase A),
 // not here: module-registry is the composition root that both the writer (this
@@ -56,6 +81,7 @@ import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handli
 
 export interface CreateApiServerOptions {
   readonly appDb?: Kysely<JarvisDatabase>;
+  readonly workerDb?: Kysely<JarvisDatabase>;
   readonly boss?: PgBoss;
   readonly authRuntime?: JarvisAuthRuntime;
   readonly logger?: boolean;
@@ -89,11 +115,31 @@ export interface ApiServerConfig {
   readonly host: string;
   readonly port: number;
   readonly mcpServerUrl: string;
+  // #917: external (non-compiled) trusted-operator modules. Off unless the flag is
+  // exactly "1" AND a read-only mount dir is provided. Fail-closed: any other flag
+  // value disables the whole feature. Discovery runs ONCE at boot (the mount is
+  // read-only and changes only across a redeploy, which restarts the process), so a
+  // package swap requires a container restart to be re-hashed and re-seen.
+  readonly enableExternalModules: boolean;
+  readonly externalModulesDir: string | null;
+}
+
+export function hasAuthMaterial(request: FastifyRequest): boolean {
+  const authorization = request.headers.authorization;
+  const cookie = request.headers.cookie;
+  return (
+    (typeof authorization === "string" && authorization.trim().length > 0) ||
+    (typeof cookie === "string" && cookie.trim().length > 0)
+  );
 }
 
 export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): ApiServerConfig {
   const port = Number(env.PORT ?? 3000);
   const host = env.HOST ?? "0.0.0.0";
+  // #917: the flag must equal exactly "1" — no truthy coercion, so "true"/"0"/"yes"
+  // all read as OFF. The modules dir is a read-only mount; null when unset.
+  const enableExternalModules = env.JARVIS_ENABLE_EXTERNAL_MODULES === "1";
+  const externalModulesDir = env.JARVIS_MODULES_DIR ?? null;
   return {
     host,
     port,
@@ -103,8 +149,42 @@ export function resolveApiServerConfig(env: NodeJS.ProcessEnv = process.env): Ap
     // compose-provided service DNS (JARVIS_MCP_SERVER_URL, e.g. http://api:3000/api/mcp) when
     // set; fall back to the loopback URL for dev/non-container runs. URL source only — this
     // does not change the MCP gateway auth/allowlist/token-mint path.
-    mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`
+    mcpServerUrl: env.JARVIS_MCP_SERVER_URL ?? `http://127.0.0.1:${port}/api/mcp`,
+    enableExternalModules,
+    externalModulesDir
   };
+}
+
+/**
+ * Discover external modules ONCE at boot (#917). Fail-closed: an empty snapshot when the
+ * feature flag is off or no dir is configured, without reading disk. When on, walks the
+ * read-only mount and returns validated discoveries + rejections. Rescan requires a
+ * process restart (the mount is read-only and changes only across a redeploy). Logs
+ * counts + rejection ids/reasons only — never file contents (secrets-never-escape).
+ */
+export function discoverExternalModules(
+  config: ApiServerConfig,
+  log: { info: (o: object, m: string) => void; warn: (o: object, m: string) => void }
+): ExternalModuleLoadResult {
+  if (!config.enableExternalModules || !config.externalModulesDir) {
+    return { discoveries: [], rejected: [] };
+  }
+  const snapshot = getExternalModuleRegistrations({
+    modulesDir: config.externalModulesDir,
+    coreVersion: CORE_VERSION,
+    reservedQueueNames: new Set(getAllQueueDefinitions().map((queue) => queue.name))
+  });
+  log.info(
+    { discovered: snapshot.discoveries.length, rejected: snapshot.rejected.length },
+    "external modules discovered (#917)"
+  );
+  for (const rejection of snapshot.rejected) {
+    log.warn(
+      { moduleId: rejection.id, reason: rejection.reason },
+      "external module rejected (#917)"
+    );
+  }
+  return snapshot;
 }
 
 export function createApiServer(options: CreateApiServerOptions = {}) {
@@ -117,8 +197,21 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
   const boss = options.boss ?? createPgBossClient(getJarvisDatabaseUrls().app);
   const ownsAppDb = options.appDb === undefined;
+  const externalRuntimeEnabled =
+    apiServerConfig.enableExternalModules && apiServerConfig.externalModulesDir !== null;
+  const workerDb = externalRuntimeEnabled
+    ? (options.workerDb ??
+      createDatabase({
+        connectionString: getJarvisDatabaseUrls().worker,
+        maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
+      }))
+    : undefined;
+  const ownsWorkerDb = workerDb !== undefined && options.workerDb === undefined;
+  const workerDataContext = workerDb ? new DataContextRunner(workerDb) : undefined;
+  let externalWorkerRuntime: ExternalModuleWorkerRuntime | undefined;
   const ownsBoss = options.boss === undefined;
   const dataContext = new DataContextRunner(appDb);
+  const aiRepository = new AiRepository();
   const server = Fastify({
     logger: options.logger ?? true,
     // Honor XFF only when an explicit opt-in confirms a trusted reverse proxy is in
@@ -249,18 +342,82 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     });
 
     registerBetterAuthRoutes(server, authRuntime, AUTH_MAX);
-    registerPlatformRoutes(server, authRuntime);
 
-    // Observability sink (#413): POST /api/errors. Platform infra (no auth, no
-    // module ownership) — listed in PLATFORM_UNGUARDED_ROUTES so the route guard
-    // does not 404 it. Registered before the guard + static web so it lands in
-    // the final route tree. Safe by construction (see error-handling.ts).
-    registerClientErrorsRoute(server);
+    const externalModuleSnapshot = discoverExternalModules(apiServerConfig, server.log);
 
-    const resolveActiveModules = createActiveModulesResolver({
-      dataContext,
-      manifests: getBuiltInModuleManifests()
+    const externalModulesRepository = new SettingsRepository();
+    const getActiveExternalModules = createActiveExternalModulesResolverForApi({
+      enabled: apiServerConfig.enableExternalModules,
+      appDataContext: dataContext,
+      settingsRepository: externalModulesRepository,
+      discoveries: externalModuleSnapshot.discoveries
     });
+
+    const externalTools = createExternalModuleTools({
+      discoveries: externalModuleSnapshot.discoveries,
+      workerDataContext,
+      appDataContext: dataContext,
+      settingsRepository: externalModulesRepository,
+      logger: { warn: (data, message) => server.log.warn(data, message) },
+      // ctx.ai bridge for module workers (#932, spec D6).
+      ai: createModuleAiBridge({ aiRepository, logger: server.log })
+    });
+    externalWorkerRuntime = externalTools.runtime;
+    const externalToolManifests = externalTools.manifests;
+    registerPlatformRoutes(server, authRuntime, getActiveExternalModules);
+    registerExternalModuleWebAssetRoute(
+      server,
+      authRuntime,
+      externalModuleSnapshot.discoveries,
+      getActiveExternalModules
+    );
+    if (apiServerConfig.enableExternalModules) {
+      registerExternalModuleJobRoutes(server, {
+        boss,
+        discoveries: externalModuleSnapshot.discoveries,
+        resolveAccessContext: authRuntime.resolveAccessContext,
+        isModuleActive: async (access, moduleId) =>
+          (await getActiveExternalModules?.(access))?.some((module) => module.id === moduleId) ===
+          true,
+        rateLimitKey: authPrincipalRateLimitKey
+      });
+    }
+
+    registerClientErrorsRoute(server, {
+      recordClientError: async (event, request) => {
+        const input = { id: randomUUID(), ...event };
+        if (!hasAuthMaterial(request)) {
+          await aiRepository.recordAnonymousError(appDb, input);
+          return;
+        }
+
+        try {
+          const accessContext = await authRuntime.resolveAccessContext(request);
+          await dataContext.withDataContext(accessContext, (scopedDb) =>
+            aiRepository.recordError(scopedDb, input)
+          );
+        } catch {
+          request.log.warn(
+            { reqId: request.id },
+            "skipped error persistence after auth resolution failed"
+          );
+        }
+      }
+    });
+
+    const resolveEnabledModules = createActiveModulesResolver({
+      dataContext,
+      manifests: [...getBuiltInModuleManifests(), ...externalToolManifests]
+    });
+    const resolveActiveModules = createExternalActiveModulesResolver(
+      resolveEnabledModules,
+      new Set(externalToolManifests.map((manifest) => manifest.id)),
+      async (actorUserId) =>
+        (await getActiveExternalModules?.({
+          actorUserId,
+          requestId: `external-tools:${randomUUID()}`
+        })) ?? []
+    );
 
     // Connector collaborators for the calendar focus-time write tool. A single shared
     // repository + cipher; the service is per-call-scoped via scopedDb, so one instance
@@ -315,7 +472,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           .then((v) => v === true)
           .catch(() => false)
     };
+    // #964/#9.5: factored to module-distribution-port.ts to restore the file-size cap.
+    const moduleDistribution = createModuleDistributionPort(server, apiServerConfig, options);
 
+    // #917: externalModuleSnapshot is computed above (before registerPlatformRoutes),
+    // because the /api/modules provider closes over it. registerBuiltInApiRoutes reuses
+    // the same const for the settings module's external-module deps below.
     registerBuiltInApiRoutes(server, {
       rootDb: appDb,
       resolveAccessContext: authRuntime.resolveAccessContext,
@@ -363,14 +525,27 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleApiClient,
       connectorsRepository,
       hostDiagnostics,
+      externalModules: {
+        enabled: apiServerConfig.enableExternalModules,
+        discoveries: externalModuleSnapshot.discoveries,
+        rejected: externalModuleSnapshot.rejected,
+        reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
+      },
+      moduleDistribution,
+      reconcileExternalModuleJobs: async (change) => {
+        if (change.kind === "module") {
+          await sendModuleControl(boss, { moduleId: change.moduleId, action: "reconcile" });
+          return;
+        }
+        await reconcileExternalModuleUserJobs(
+          boss,
+          externalModuleSnapshot.discoveries,
+          change.userId
+        );
+      },
       fetchFn: options.fetchFn
     });
 
-    // Test-only seam (ADR 0009 §4 verification): register synthetic guarded routes on a
-    // throwaway INACTIVE manifest so a test can prove the REAL server's guard 404s an
-    // inactive module's route. Ignored in production (option is undefined). The synthetic
-    // manifests are appended to the guard's manifest set; the resolver (built-ins only)
-    // never returns them as active, so the guard 404s their routes.
     const guardManifests = [
       ...getBuiltInModuleManifests(),
       ...(options.__testExtraGuardedRoutes?.manifests ?? [])
@@ -381,9 +556,6 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       }
     }
 
-    // Register the route-enablement guard AFTER all routes exist so the onRequest hook
-    // can read request.routeOptions.url (the matched pattern). The guard 404s a request
-    // whose owning module is not active for the actor (never 403 — no existence leak).
     registerRouteEnablementGuard(server, {
       manifests: guardManifests,
       resolveActiveModules,
@@ -397,7 +569,20 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // here. Logs a structured allowlisted line and returns a safe body (fixed
   // "Internal Server Error" on 5xx — no stack/internal detail). See
   // error-handling.ts for the secrets-never-escape invariant.
-  setJarvisErrorHandler(server);
+  setJarvisErrorHandler(server, {
+    recordRequestError: async (event, request) => {
+      const input = { id: randomUUID(), ...event };
+      if (!hasAuthMaterial(request)) {
+        await aiRepository.recordAnonymousError(appDb, input);
+        return;
+      }
+
+      const accessContext = await authRuntime.resolveAccessContext(request);
+      await dataContext.withDataContext(accessContext, (scopedDb) =>
+        aiRepository.recordError(scopedDb, input)
+      );
+    }
+  });
 
   server.addHook("onReady", async () => {
     // Coverage assertion (ADR 0009 §4) runs once the route tree is final. Throws if any
@@ -420,10 +605,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
 
   server.addHook("onClose", async () => {
+    await externalWorkerRuntime?.close();
     await Promise.allSettled([
       ownsBoss ? boss.stop({ graceful: false }) : Promise.resolve(),
       ownsAuthRuntime ? authRuntime.close() : Promise.resolve(),
-      ownsAppDb ? appDb.destroy() : Promise.resolve()
+      ownsAppDb ? appDb.destroy() : Promise.resolve(),
+      ownsWorkerDb ? workerDb!.destroy() : Promise.resolve()
     ]);
   });
 
@@ -646,13 +833,27 @@ function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | nu
   }
 }
 
-function registerPlatformRoutes(server: FastifyInstance, authRuntime: JarvisAuthRuntime): void {
+function registerPlatformRoutes(
+  server: FastifyInstance,
+  authRuntime: JarvisAuthRuntime,
+  // #917: optional provider of the ACTIVE external modules for the actor. Absent when the
+  // feature is off ⇒ /api/modules stays built-ins only (fail-closed).
+  getActiveExternalModules?: (
+    accessContext: AccessContext
+  ) => Promise<readonly ReconciledExternalModule[]>
+): void {
   server.get("/api/modules", { schema: listModulesRouteSchema }, async (request, reply) => {
     try {
-      await authRuntime.resolveAccessContext(request);
+      const accessContext = await authRuntime.resolveAccessContext(request);
 
+      const builtIns = getBuiltInModuleManifests().map(serializeModule);
+      // #917: append ACTIVE external modules (reconcile already filtered to active === true).
+      // Runs in the actor's own data context, so /api/modules reflects only what is active.
+      const external = getActiveExternalModules
+        ? (await getActiveExternalModules(accessContext)).map(serializeExternalModule)
+        : [];
       return {
-        modules: getBuiltInModuleManifests().map(serializeModule)
+        modules: [...builtIns, ...external]
       };
     } catch (error) {
       const code =
@@ -684,7 +885,29 @@ function serializeModule(module: ReturnType<typeof getBuiltInModuleManifests>[nu
       path: surface.path,
       scope: surface.scope,
       order: surface.order ?? null
-    }))
+    })),
+    // #917: built-ins are never external. Emitted explicitly so the field survives the
+    // fast-json-stringify schema (undeclared/absent fields are dropped) and the shell can
+    // rely on it being present for built-ins.
+    external: false
+  };
+}
+
+// #917: an ACTIVE external module surfaces on /api/modules as metadata only — no
+// navigation, no settings surfaces (Slice 1 modules declare none). external:true lets
+// the shell tag it without loading any of its code.
+function serializeExternalModule(m: ReconciledExternalModule): ModuleDto {
+  return {
+    id: m.id,
+    name: m.name,
+    version: m.version,
+    lifecycle: "optional",
+    navigation: [],
+    settings: [],
+    external: true,
+    // #918: ModuleDto.web is optional — omit rather than emit null when the module
+    // declares no web surface (ReconciledExternalModule.web itself IS nullable).
+    ...(m.web ? { web: m.web } : {})
   };
 }
 

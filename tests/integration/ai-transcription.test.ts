@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import { AiRepository } from "@jarv1s/ai";
 import {
   DataContextRunner,
   createDatabase,
@@ -14,14 +14,14 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
-// #738 — Chat voice input capture and transcription.
+// #738 — Chat voice input capture and transcription. #874 — routing rewired to the dedicated
+// Voice (STT) endpoint.
 //
-// Covers: (1) transcription routes through the SAME provider-agnostic capability mechanism as
-// every other AI capability (no hardcoded provider/model — a configured "transcription"-capable
-// model is what makes the route available); (2) raw audio bytes are never persisted, logged, or
-// echoed back anywhere in the pipeline (defense in depth, since this route uniquely accepts a
-// raw binary body — a naive implementation could easily leak it into an error message or log
-// line).
+// Covers: (1) transcription routes through the dedicated `purpose='voice'` endpoint (#874) — no
+// hardcoded provider/model, and NOT an assistant provider; configuring the voice endpoint is what
+// makes the route available; (2) raw audio bytes are never persisted, logged, or echoed back
+// anywhere in the pipeline (defense in depth, since this route uniquely accepts a raw binary body —
+// a naive implementation could easily leak it into an error message or log line).
 describe("AI voice transcription route (#738)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
@@ -83,9 +83,10 @@ describe("AI voice transcription route (#738)", () => {
     expect(response.statusCode).toBe(422);
   });
 
-  it("routes through the configured model's provider (not a hardcoded provider) and returns only the transcript", async () => {
-    const providerId = await createOpenAiCompatibleProvider("Voice provider", "voice-secret-key");
-    await createModel(providerId, "self-hosted-parakeet", ["transcription"]);
+  it("routes through the configured voice endpoint (not a hardcoded provider) and returns only the transcript", async () => {
+    // #874: transcription now resolves through the dedicated `purpose='voice'` endpoint, not a
+    // generic assistant provider + transcription model. Configure it via the admin PUT route.
+    await configureVoiceEndpoint("self-hosted-parakeet", "voice-secret-key");
 
     let capturedAuth: string | null = null;
     let capturedModelId: string | null = null;
@@ -130,11 +131,9 @@ describe("AI voice transcription route (#738)", () => {
   });
 
   it("never logs or persists the raw audio bytes, even on an upstream failure", async () => {
-    const providerId = await createOpenAiCompatibleProvider(
-      "Voice provider 2",
-      "voice-secret-key-2"
-    );
-    await createModel(providerId, "self-hosted-parakeet-2", ["transcription"]);
+    // #874: re-point the single voice endpoint (upsert) so the request reaches the mocked upstream
+    // that this test drives to a 500 — no instance-default juggling; voice has its own dedicated row.
+    await configureVoiceEndpoint("self-hosted-parakeet-2", "voice-secret-key-2");
 
     originalFetch = globalThis.fetch;
     globalThis.fetch = (async () =>
@@ -191,39 +190,17 @@ describe("AI voice transcription route (#738)", () => {
     expect(JSON.stringify(models)).not.toContain("second-canary-do-not-log-4e21b");
   });
 
-  async function createOpenAiCompatibleProvider(
-    displayName: string,
-    apiKey: string
-  ): Promise<string> {
-    const provider = await dataContext.withDataContext(userAContext(), (scopedDb) =>
-      repository.createProvider(scopedDb, {
-        providerKind: "openai-compatible",
-        displayName,
-        encryptedCredential: createAiSecretCipher().encryptJson({ apiKey })
-      })
-    );
-    return provider.id;
-  }
-
-  async function createModel(
-    providerConfigId: string,
-    providerModelId: string,
-    capabilities: readonly string[]
-  ) {
+  // #874: configure (upsert) the single instance-wide Voice (STT) endpoint via the admin PUT route.
+  // This replaces the old "assistant provider + transcription model" setup — transcription now
+  // resolves ONLY through the dedicated `purpose='voice'` endpoint.
+  async function configureVoiceEndpoint(modelName: string, apiKey: string): Promise<void> {
     const response = await server.inject({
-      method: "POST",
-      url: "/api/ai/models",
+      method: "PUT",
+      url: "/api/ai/voice-endpoint",
       headers: { authorization: `Bearer ${ids.sessionA}` },
-      payload: {
-        providerConfigId,
-        providerModelId,
-        displayName: providerModelId,
-        capabilities,
-        tier: "interactive"
-      }
+      payload: { baseUrl: "https://voice.example", modelName, apiKey }
     });
-    expect(response.statusCode).toBe(201);
-    return response.json<{ model: { id: string } }>().model.id;
+    expect(response.statusCode).toBe(200);
   }
 });
 

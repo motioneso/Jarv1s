@@ -185,6 +185,7 @@ test("clicking a history row renders stored messages read-only", async ({ page }
         id: "thread-old",
         ownerUserId: "user-1",
         title: "Planning notes",
+        incognito: false,
         createdAt: "2026-06-05T12:00:00.000Z",
         updatedAt: "2026-06-05T12:00:00.000Z"
       }
@@ -248,6 +249,7 @@ test("reviewing an empty history row does not expose send suggestions", async ({
         id: "thread-empty",
         ownerUserId: "user-1",
         title: "Empty review",
+        incognito: false,
         createdAt: "2026-06-05T12:00:00.000Z",
         updatedAt: "2026-06-05T12:00:00.000Z"
       }

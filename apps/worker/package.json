@@ -17,6 +17,8 @@
     "@jarv1s/jobs": "workspace:*",
     "@jarv1s/memory": "workspace:*",
     "@jarv1s/module-registry": "workspace:*",
+    "@jarv1s/settings": "workspace:*",
+    "kysely": "^0.29.2",
     "pino": "^10.3.1"
   }
 }

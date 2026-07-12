@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bell, MessageSquare, MessagesSquare, MoonStar, Sunrise } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import type { ChatResponseStyle } from "@jarv1s/shared";
+import type { ChatResponseStyle, NotificationDigestCadenceDto } from "@jarv1s/shared";
 
 import {
   DEFAULT_NOTIFICATIONS,
@@ -12,6 +12,7 @@ import {
 import {
   createBriefingDefinition,
   getChatSettings,
+  getNotificationDigestPreference,
   getNotificationPreferences,
   getLocaleSettings,
   listSourceBehaviors,
@@ -19,6 +20,7 @@ import {
   listBriefingDefinitions,
   lookupAiCapabilityRoute,
   putChatSettings,
+  putNotificationDigestPreference,
   putNotificationPreference,
   putSourceBehavior,
   updateBriefingDefinition
@@ -33,7 +35,18 @@ import {
   targetTimeFor,
   updateDefinitionRequest
 } from "../briefings/briefing-settings-model";
-import { Badge, Choice, Field, Group, NotWired, Note, Row, Segmented, Switch } from "./settings-ui";
+import {
+  Badge,
+  Choice,
+  Field,
+  Group,
+  NotWired,
+  Note,
+  Row,
+  Segmented,
+  Select,
+  Switch
+} from "./settings-ui";
 import {
   BRIEFING_SOURCE_BEHAVIORS,
   findSourceBehaviorEnabled,
@@ -41,6 +54,16 @@ import {
 } from "./settings-source-behaviors";
 
 // BACKEND-TODO: persist + apply Notifications sensitivity.
+
+const DIGEST_WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
+];
 
 /* Shared takeover chrome for a settings-only module. */
 function ModuleSub(props: {
@@ -317,6 +340,20 @@ export function NotificationSettings(props: {
     queryFn: getNotificationPreferences,
     retry: false
   });
+  const digestQuery = useQuery({
+    queryKey: queryKeys.settings.notificationDigest,
+    queryFn: getNotificationDigestPreference,
+    retry: false
+  });
+  // #877 finding 4: the digest schedule save used to read the browser-ambient
+  // Intl-resolved runtime zone, which can differ from the user's persisted
+  // locale. Fetch it the same way the briefings pane above does
+  // (BriefingSettings' localeQuery, ~117).
+  const localeQuery = useQuery({
+    queryKey: queryKeys.settings.locale,
+    queryFn: getLocaleSettings
+  });
+  const localTimezone = localeQuery.data?.locale.timezone;
   const mutation = useMutation({
     mutationFn: (input: {
       readonly moduleId: string;
@@ -343,12 +380,62 @@ export function NotificationSettings(props: {
     },
     onError: (err) => setError(readError(err))
   });
+  const digestMutation = useMutation({
+    mutationFn: putNotificationDigestPreference,
+    onSuccess: (data) => {
+      setError(null);
+      queryClient.setQueryData(queryKeys.settings.notificationDigest, data);
+    },
+    onError: (err) => setError(readError(err))
+  });
   const toggleModule = (moduleId: string, enabled: boolean) => {
     const clearUnread =
       !enabled && window.confirm("Mark existing unread notifications from this module as read?");
     mutation.mutate({ moduleId, enabled, clearUnread });
   };
   const preferences = preferencesQuery.data?.preferences ?? [];
+  const digest = digestQuery.data?.digest;
+  const digestBusy = digestQuery.isLoading || digestMutation.isPending;
+  const updateDigest = (
+    patch: Partial<{
+      enabled: boolean;
+      cadence: NotificationDigestCadenceDto;
+      targetTime: string;
+      dayOfWeek: number;
+    }>
+  ) => {
+    const current = digest ?? {
+      enabled: false,
+      cadence: "daily" as const,
+      scheduleMetadata: {
+        targetTime: "07:00",
+        // #877 finding 4: use the persisted locale tz (matching the briefings
+        // pane's ~148 pattern), not the browser-ambient runtime zone — falls
+        // back to UTC only until /api/me/locale resolves.
+        timezone: localTimezone ?? "UTC",
+        dayOfWeek: undefined
+      }
+    };
+    digestMutation.mutate({
+      digest: {
+        enabled: patch.enabled ?? current.enabled,
+        cadence: patch.cadence ?? current.cadence,
+        scheduleMetadata: {
+          targetTime: patch.targetTime ?? current.scheduleMetadata.targetTime,
+          // #877 finding 4: a digest saved before this fix (or created by the
+          // server's own "UTC" default) has scheduleMetadata.timezone stuck at
+          // "UTC". Upgrade only that default to the persisted locale on the
+          // next save; an explicit prior choice (anything else) is the user's
+          // and must be preserved, not silently overwritten.
+          timezone:
+            current.scheduleMetadata.timezone === "UTC"
+              ? (localTimezone ?? current.scheduleMetadata.timezone)
+              : current.scheduleMetadata.timezone,
+          dayOfWeek: patch.dayOfWeek ?? current.scheduleMetadata.dayOfWeek
+        }
+      }
+    });
+  };
 
   return (
     <ModuleSub
@@ -382,9 +469,63 @@ export function NotificationSettings(props: {
         <Row name="Push" desc="System notifications on this device. Tracked in #743." coming />
         <Row
           name="Email digest"
-          desc="A once-daily summary, instead of live alerts. Tracked in #742."
-          coming
+          desc={
+            digest?.available === false
+              ? digest.unavailableReason === "no_enabled_modules"
+                ? "Enable at least one module first."
+                : "Connect Google or IMAP email first."
+              : "A scheduled summary sent through your connected email account."
+          }
+          control={
+            <Switch
+              ariaLabel="Email digest"
+              checked={digest?.enabled ?? false}
+              disabled={digestBusy || digest?.available !== true}
+              onChange={(enabled) => updateDigest({ enabled })}
+            />
+          }
         />
+        {digest?.enabled ? (
+          <>
+            <Field label="Digest cadence">
+              <Segmented<NotificationDigestCadenceDto>
+                value={digest.cadence}
+                options={[
+                  { value: "daily", label: "Daily" },
+                  { value: "weekly", label: "Weekly" }
+                ]}
+                ariaLabel="Digest cadence"
+                onChange={(cadence) => updateDigest({ cadence })}
+              />
+            </Field>
+            <Field label="Send time">
+              <input
+                className="jds-input"
+                type="time"
+                value={digest.scheduleMetadata.targetTime}
+                disabled={digestBusy}
+                onChange={(event) => updateDigest({ targetTime: event.target.value })}
+                aria-label="Digest send time"
+              />
+            </Field>
+            {digest.cadence === "weekly" ? (
+              <Field label="Send day">
+                <Select
+                  value={String(digest.scheduleMetadata.dayOfWeek ?? 1)}
+                  disabled={digestBusy}
+                  aria-label="Digest send day"
+                  onChange={(event) => updateDigest({ dayOfWeek: Number(event.target.value) })}
+                >
+                  {DIGEST_WEEKDAYS.map((day, index) => (
+                    <option key={day} value={index}>
+                      {day}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+          </>
+        ) : null}
       </Group>
 
       <Group title="Modules" desc="Mute a module without changing its own settings.">

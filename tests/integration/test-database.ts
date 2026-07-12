@@ -1,7 +1,12 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getJarvisDatabaseUrls, runSqlFiles, runSqlMigrations } from "@jarv1s/db";
+import {
+  DEFAULT_JARVIS_DATABASE_NAME,
+  getJarvisDatabaseUrls,
+  runSqlFiles,
+  runSqlMigrations
+} from "@jarv1s/db";
 import { migratePgBoss } from "@jarv1s/jobs";
 import { getAllQueueDefinitions, getBuiltInSqlMigrationDirectories } from "@jarv1s/module-registry";
 import pg from "pg";
@@ -34,12 +39,33 @@ export const ids = {
   itemBSecondPrivate: "10000000-0000-4000-8000-000000000004"
 } as const;
 
+/**
+ * Defense-in-depth: catches any direct `vitest run tests/integration` invocation that
+ * bypasses `scripts/test-integration.ts` (which is the thing that actually provisions an
+ * isolated database and sets JARVIS_PGDATABASE before vitest ever loads this module). Without
+ * this, a reset silently drops+reseeds the shared dev database (#854).
+ */
+export function assertIsolatedTestDatabase(connectionString: string): void {
+  const { pathname } = new URL(connectionString);
+  const databaseName = pathname.replace(/^\//, "");
+
+  if (databaseName === DEFAULT_JARVIS_DATABASE_NAME) {
+    throw new Error(
+      `Refusing to reset the shared "${DEFAULT_JARVIS_DATABASE_NAME}" database from an ` +
+        "integration test. Run via `pnpm test:integration` (or the matching per-suite script), " +
+        "which provisions an isolated database automatically, or set JARVIS_PGDATABASE yourself."
+    );
+  }
+}
+
 export async function resetFoundationDatabase(): Promise<void> {
+  assertIsolatedTestDatabase(connectionStrings.bootstrap);
   await resetEmptyFoundationDatabase();
   await seedProbeData();
 }
 
 export async function resetEmptyFoundationDatabase(): Promise<void> {
+  assertIsolatedTestDatabase(connectionStrings.bootstrap);
   await dropApplicationSchemas();
   await runSqlFiles(connectionStrings.bootstrap, join(root, "infra/postgres/bootstrap"));
   await runSqlMigrations({

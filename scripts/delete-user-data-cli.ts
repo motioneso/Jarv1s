@@ -27,9 +27,15 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getModuleDeletionTables } from "@jarv1s/module-registry";
+import { getExternalModuleDeletionTables, getModuleDeletionTables } from "@jarv1s/module-registry";
 
 import { deleteUserData } from "./delete-user-data.js";
+
+// External (post-deploy-installed) module manifests are not yet loadable at CLI run time — the
+// #860 pluggable-modules loader that will list them hasn't landed. getExternalModuleDeletionTables
+// is wired here with an empty list so the merge point exists and needs no further change once that
+// loader ships; MODULE_DELETION_TABLES sweep coverage is unaffected either way (#914 spec D6).
+const installedExternalManifests: Parameters<typeof getExternalModuleDeletionTables>[0] = [];
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -45,7 +51,10 @@ async function main(): Promise<void> {
     confirmUserId: args.confirmUserId,
     dryRun: !args.execute,
     userId: args.userId,
-    moduleDeletionTables: getModuleDeletionTables()
+    moduleDeletionTables: [
+      ...getModuleDeletionTables(),
+      ...getExternalModuleDeletionTables(installedExternalManifests)
+    ]
   });
 
   console.log(JSON.stringify(result, null, 2));

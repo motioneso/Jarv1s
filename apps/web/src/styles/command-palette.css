@@ -78,7 +78,7 @@
 }
 
 .kbar__esc {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   color: var(--text-subtle);
   border: 1px solid var(--border);
@@ -154,7 +154,7 @@
 }
 
 .kbar__item .sc {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-faint);
   flex: none;
@@ -184,7 +184,7 @@
 }
 
 .kbar__foot kbd {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   padding: 2px 5px;
   border-radius: 4px;

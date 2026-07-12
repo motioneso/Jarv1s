@@ -61,6 +61,23 @@ export default tseslint.config(
     }
   },
   {
+    // JS-06 (#935): external-module web surfaces compile JSX through the classic pragma
+    // (esbuild jsxFactory `h` / jsxFragment `Fragment`, resolved off the host runtime
+    // global — see scripts/build-external-module.ts). No react eslint plugin is loaded
+    // for this tree, so JSX-only `h`/`Fragment` imports look unused to no-unused-vars.
+    files: ["external-modules/*/src/web/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          args: "none",
+          ignoreRestSiblings: true,
+          varsIgnorePattern: "^(h|Fragment)$"
+        }
+      ]
+    }
+  },
+  {
     files: ["**/*.test.ts", "vitest.config.ts"],
     languageOptions: {
       globals: {

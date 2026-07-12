@@ -1,0 +1,6 @@
+{
+  "name": "job-search",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Jarvis Job Search external module (epic #913). Prebuilt artifact package: jarvis.module.json + dist/worker.js + dist/web/index.js."
+}

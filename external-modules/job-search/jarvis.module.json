@@ -1,0 +1,543 @@
+{
+  "schemaVersion": 1,
+  "id": "job-search",
+  "name": "Job Search",
+  "version": "0.1.0",
+  "publisher": "Jarvis Project",
+  "lifecycle": "optional",
+  "compatibility": {
+    "jarv1s": ">=0.1.0"
+  },
+  "storage": [
+    {
+      "namespace": "job-search.onboarding",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.profile",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.resume",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.monitors",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.opportunities",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.runs",
+      "scopes": ["user"]
+    },
+    {
+      "namespace": "job-search.feed",
+      "scopes": ["user"]
+    }
+  ],
+  "web": {
+    "entrypoint": "dist/web/index.js",
+    "contractVersion": 1
+  },
+  "runtime": {
+    "workerEntrypoint": "dist/worker.js",
+    "workerContractVersion": 1
+  },
+  "assistantTools": [
+    {
+      "name": "job-search.onboarding.get-state",
+      "permissionId": "job-search.onboarding.get-state",
+      "description": "Read the user's job-search onboarding progress",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "handler": "onboarding.get-state"
+    },
+    {
+      "name": "job-search.profile.get",
+      "permissionId": "job-search.profile.get",
+      "description": "Read the user's job-search profile",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "handler": "profile.get"
+    },
+    {
+      "name": "job-search.profile.save-draft",
+      "permissionId": "job-search.profile.save-draft",
+      "description": "Save a draft of the user's job-search profile",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "provenance": {
+            "type": "string",
+            "enum": ["user", "inferred"]
+          },
+          "fields": {
+            "type": "object"
+          }
+        },
+        "required": ["provenance", "fields"],
+        "additionalProperties": false
+      },
+      "handler": "profile.save-draft"
+    },
+    {
+      "name": "job-search.profile.approve",
+      "permissionId": "job-search.profile.approve",
+      "description": "Approve the drafted job-search profile",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": ["revisionId"],
+        "additionalProperties": false
+      },
+      "handler": "profile.approve"
+    },
+    {
+      "name": "job-search.resume.get",
+      "permissionId": "job-search.resume.get",
+      "description": "Read the user's structured resume",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          },
+          "includeDiff": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "handler": "resume.get"
+    },
+    {
+      "name": "job-search.resume.save-draft",
+      "permissionId": "job-search.resume.save-draft",
+      "description": "Save a draft of the user's structured resume",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["manual", "critique"]
+          },
+          "content": {
+            "type": "string"
+          },
+          "parentRevisionId": {
+            "type": "string"
+          },
+          "baseRevisionId": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "confirmedClaims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["employer", "role", "date", "skill", "credential", "metric", "outcome"]
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": ["kind", "text"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["mode"],
+        "additionalProperties": false
+      },
+      "handler": "resume.save-draft"
+    },
+    {
+      "name": "job-search.resume.approve",
+      "permissionId": "job-search.resume.approve",
+      "description": "Approve the drafted structured resume",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": ["revisionId"],
+        "additionalProperties": false
+      },
+      "handler": "resume.approve"
+    },
+    {
+      "name": "job-search.monitor.list",
+      "permissionId": "job-search.monitor.list",
+      "description": "List the user's job monitors",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "handler": "monitor.list"
+    },
+    {
+      "name": "job-search.monitor.get",
+      "permissionId": "job-search.monitor.get",
+      "description": "Read one job monitor",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "monitorId": {
+            "type": "string"
+          }
+        },
+        "required": ["monitorId"],
+        "additionalProperties": false
+      },
+      "handler": "monitor.get"
+    },
+    {
+      "name": "job-search.monitor.save",
+      "permissionId": "job-search.monitor.save",
+      "description": "Create or update a job monitor",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "monitorId": {
+            "type": "string"
+          },
+          "adapterId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA time zone for the daily discovery run (default UTC)"
+          },
+          "dueTime": {
+            "type": "string",
+            "description": "Local due time, HH:MM 24-hour (default 07:00)"
+          }
+        },
+        "required": ["monitorId", "adapterId", "query"],
+        "additionalProperties": false
+      },
+      "handler": "monitor.save"
+    },
+    {
+      "name": "job-search.sources.list",
+      "permissionId": "job-search.sources.list",
+      "description": "List the supported job-board sources with their compliance metadata",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "handler": "sources.list"
+    },
+    {
+      "name": "job-search.capture.paste",
+      "permissionId": "job-search.capture.paste",
+      "description": "Store a job description the user pasted into the conversation",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": ["title", "company", "description"],
+        "additionalProperties": false
+      },
+      "handler": "capture.paste"
+    },
+    {
+      "name": "job-search.capture.url",
+      "permissionId": "job-search.capture.url",
+      "description": "Store a job description already retrieved via the assistant's governed web.read flow; the module never fetches the URL itself",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "extractedText": {
+            "type": "string"
+          }
+        },
+        "required": ["url", "title", "company", "extractedText"],
+        "additionalProperties": false
+      },
+      "handler": "capture.url"
+    },
+    {
+      "name": "job-search.opportunities.list",
+      "permissionId": "job-search.opportunities.list",
+      "description": "List discovered job opportunities",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": ["new", "saved", "passed", "stale"]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "question": { "type": "string" },
+          "view": { "type": "string" },
+          "total": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "opportunities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "identityHash": { "type": "string" },
+                "status": { "type": "string" },
+                "title": { "type": "string" },
+                "company": { "type": "string" },
+                "location": { "type": "string" },
+                "workMode": { "type": "string" },
+                "source": { "type": "string" },
+                "publishedAt": { "type": "string" },
+                "firstSeenAt": { "type": "string" },
+                "freshness": { "type": "string" },
+                "eligibility": { "type": "string" },
+                "fitBand": { "type": "string" },
+                "confidence": { "type": "string" },
+                "evaluationPending": { "type": "boolean" },
+                "topEvidence": { "type": "string" },
+                "topGap": { "type": "string" }
+              },
+              "required": ["identityHash", "status", "title", "company", "source"]
+            }
+          }
+        },
+        "required": ["status"]
+      },
+      "handler": "opportunities.list"
+    },
+    {
+      "name": "job-search.opportunities.get",
+      "permissionId": "job-search.opportunities.get",
+      "description": "Read one job opportunity",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "identityHash": {
+            "type": "string"
+          }
+        },
+        "required": ["identityHash"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "question": { "type": "string" },
+          "opportunity": {
+            "type": "object",
+            "properties": {
+              "identityHash": { "type": "string" },
+              "status": { "type": "string" },
+              "statusAt": { "type": "string" },
+              "decisionReason": { "type": "string" },
+              "firstSeenAt": { "type": "string" },
+              "lastSeenAt": { "type": "string" },
+              "freshness": { "type": "string" },
+              "lastLivenessAt": { "type": "string" },
+              "posting": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "company": { "type": "string" },
+                  "location": { "type": "string" },
+                  "url": { "type": "string" },
+                  "workMode": { "type": "string" },
+                  "employmentType": { "type": "string" },
+                  "compensation": { "type": "string" },
+                  "publishedAt": { "type": "string" },
+                  "description": { "type": "string" },
+                  "descriptionTruncated": { "type": "boolean" },
+                  "descriptionClipped": { "type": "boolean" }
+                },
+                "required": ["title", "company", "description"]
+              },
+              "evaluation": {
+                "type": "object",
+                "properties": {
+                  "fitBand": { "type": "string" },
+                  "recommendation": { "type": "string" },
+                  "postingConfidence": { "type": "string" },
+                  "overallConfidence": { "type": "string" },
+                  "summary": { "type": "string" },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "requirement": { "type": "string" },
+                        "evidence": { "type": "string" },
+                        "source": { "type": "string" }
+                      },
+                      "required": ["requirement", "evidence", "source"]
+                    }
+                  },
+                  "blockers": { "type": "array", "items": { "type": "string" } },
+                  "gaps": { "type": "array", "items": { "type": "string" } },
+                  "unknowns": { "type": "array", "items": { "type": "string" } },
+                  "preferenceMatches": { "type": "array", "items": { "type": "string" } },
+                  "preferenceConflicts": { "type": "array", "items": { "type": "string" } },
+                  "outdated": { "type": "boolean" },
+                  "inputs": {
+                    "type": "object",
+                    "properties": {
+                      "opportunityContentHash": { "type": "string" },
+                      "profileRevisionId": { "type": "string" },
+                      "resumeRevisionId": { "type": "string" }
+                    },
+                    "required": ["opportunityContentHash", "profileRevisionId", "resumeRevisionId"]
+                  },
+                  "createdAt": { "type": "string" }
+                },
+                "required": ["fitBand", "recommendation", "summary", "outdated"]
+              }
+            },
+            "required": ["identityHash", "status", "posting"]
+          }
+        },
+        "required": ["status"]
+      },
+      "handler": "opportunities.get"
+    },
+    {
+      "name": "job-search.opportunity.decide",
+      "permissionId": "job-search.opportunity.decide",
+      "description": "Record the user's decision on a job opportunity",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "identityHash": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["saved", "passed"]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": ["identityHash", "decision"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "question": { "type": "string" },
+          "identityHash": { "type": "string" },
+          "decision": { "type": "string" },
+          "statusAt": { "type": "string" }
+        },
+        "required": ["status"]
+      },
+      "handler": "opportunity.decide"
+    }
+  ],
+  "worker": {
+    "queues": [
+      {
+        "name": "job-search.monitor-run",
+        "handler": "monitor.run",
+        "retryLimit": 3,
+        "allowManualRun": true,
+        "paramsSchema": {
+          "type": "object",
+          "fields": { "monitorId": { "type": "identifier" } }
+        }
+      }
+    ],
+    "schedules": [
+      {
+        "id": "job-search.monitor-sweep",
+        "cron": "0 * * * *",
+        "scope": "user",
+        "jobKind": "job-search.monitor-sweep",
+        "queue": "job-search.monitor-run"
+      }
+    ]
+  },
+  "fetchHosts": ["boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com"]
+}

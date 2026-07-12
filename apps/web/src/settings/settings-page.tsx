@@ -7,6 +7,7 @@ import {
   Activity,
   Boxes,
   Brain,
+  Command,
   Database,
   Fingerprint,
   Link2,
@@ -56,7 +57,8 @@ type PersonalSectionId =
   | "modules"
   | "appearance"
   | "general"
-  | "activity";
+  | "activity"
+  | "skills";
 
 type AdminSectionId =
   | "people"
@@ -95,6 +97,9 @@ const AppearancePane = lazyPane(() =>
 const ActivityPane = lazyPane(() =>
   import("./settings-activity-pane").then((module) => ({ default: module.ActivityPane }))
 );
+const SkillsPane = lazyPane(() =>
+  import("./settings-skills-pane").then((module) => ({ default: module.SettingsSkillsPane }))
+);
 
 function PrioritiesPane(_props: PaneProps) {
   return <PrioritySettings />;
@@ -130,6 +135,7 @@ const PERSONAL_SECTIONS = [
   { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
   { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },
   { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
+  { id: "skills", icon: Command, label: "Skills", Pane: SkillsPane },
   { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane },
   { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane },
   { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
