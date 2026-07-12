@@ -52,9 +52,17 @@ import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
 import { SettingsRepository } from "@jarv1s/settings";
 import {
   type ExternalModuleWorkerRuntime,
-  getExternalModuleRegistrations
+  getExternalModuleRegistrations,
+  downloadAndStageModule,
+  fetchRegistryIndex,
+  ModuleDownloadError,
+  parseModulesEnsure
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
+import type { ModuleRegistryEntryLike } from "@jarv1s/settings";
+
+import { readdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 
 import { createModuleAiBridge } from "./external-module-ai-bridge.js";
 import { registerStaticWeb } from "./static-web.js";
@@ -472,6 +480,83 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
           .catch(() => false)
     };
 
+    // #964: module-distribution port for the settings registry routes. The index cache
+    // is per-process (10 min, spec §6); a failed refetch returns null (degrade) and
+    // leaves any previous cache untouched so the next request can retry.
+    const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000;
+    let registryCache: { at: number; entries: readonly ModuleRegistryEntryLike[] } | null = null;
+    const moduleDistribution =
+      externalRuntimeEnabled && apiServerConfig.externalModulesDir !== null
+        ? {
+            fetchRegistryEntries: async ({ refresh }: { refresh: boolean }) => {
+              if (
+                !refresh &&
+                registryCache &&
+                Date.now() - registryCache.at < REGISTRY_CACHE_TTL_MS
+              ) {
+                return registryCache.entries;
+              }
+              const { index, errors } = await fetchRegistryIndex({
+                env: process.env,
+                fetchFn: options.fetchFn
+              });
+              if (!index) {
+                server.log.warn({ errors }, "module registry index unavailable (#964)");
+                return null;
+              }
+              registryCache = { at: Date.now(), entries: index.modules };
+              return index.modules;
+            },
+            download: async (input: { moduleId: string; version?: string }) => {
+              try {
+                const result = await downloadAndStageModule({
+                  moduleId: input.moduleId,
+                  version: input.version,
+                  modulesDir: apiServerConfig.externalModulesDir!,
+                  env: process.env,
+                  fetchFn: options.fetchFn
+                });
+                return {
+                  ok: true as const,
+                  version: result.version,
+                  packageHash: result.packageHash
+                };
+              } catch (error) {
+                if (error instanceof ModuleDownloadError) {
+                  return { ok: false as const, code: error.code, message: error.message };
+                }
+                server.log.error(
+                  { moduleId: input.moduleId, errorName: (error as Error).name },
+                  "module download failed (#964)"
+                );
+                return { ok: false as const, code: "download-failed", message: "Download failed" };
+              }
+            },
+            removeModuleFiles: async (moduleId: string) => {
+              // Path-safety: moduleId came from a URL param. This makes traversal
+              // structurally impossible regardless of route-layer validation.
+              if (!/^[a-z][a-z0-9-]*$/.test(moduleId) || moduleId.includes("..")) {
+                return;
+              }
+              await rm(join(apiServerConfig.externalModulesDir!, moduleId), {
+                recursive: true,
+                force: true
+              });
+            },
+            listOnDiskModuleIds: async () => {
+              const dirents = await readdir(apiServerConfig.externalModulesDir!, {
+                withFileTypes: true
+              }).catch(() => []);
+              return dirents
+                .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+                .map((d) => d.name);
+            },
+            ensureIds: parseModulesEnsure(process.env.JARVIS_MODULES_ENSURE).entries.map(
+              (e) => e.id
+            )
+          }
+        : undefined;
+
     // #917: externalModuleSnapshot is computed above (before registerPlatformRoutes),
     // because the /api/modules provider closes over it. registerBuiltInApiRoutes reuses
     // the same const for the settings module's external-module deps below.
@@ -528,6 +613,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         rejected: externalModuleSnapshot.rejected,
         reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
       },
+      moduleDistribution,
       reconcileExternalModuleJobs: async (change) => {
         if (change.kind === "module") {
           await sendModuleControl(boss, { moduleId: change.moduleId, action: "reconcile" });

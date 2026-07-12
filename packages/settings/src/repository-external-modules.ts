@@ -346,3 +346,47 @@ export async function listExternalModuleAdminStates(
     lastInstallError: r.last_install_error
   }));
 }
+
+export interface MarkExternalModuleRemovedInput {
+  readonly id: string;
+  readonly actorUserId: string;
+  readonly requestId: string;
+}
+
+/**
+ * Admin Remove (#964 spec §9): pin the module off and clear staged intent. Data is
+ * preserved (tables/ledger/KV/credentials untouched) — purge is a separate, explicit
+ * flag consumed at boot. Update-only; returns false when the module has no row yet
+ * (files-only remove still succeeds at the route layer). Audit is METADATA ONLY.
+ */
+export async function markExternalModuleRemoved(
+  scopedDb: DataContextDb,
+  input: MarkExternalModuleRemovedInput,
+  writeAudit: ExternalModuleAuditWriter
+): Promise<boolean> {
+  assertDataContextDb(scopedDb);
+  const result = await scopedDb.db
+    .updateTable("app.external_modules")
+    .set({
+      status: "disabled",
+      disabled_reason: "removed by admin",
+      staged_version: null,
+      staged_package_hash: null,
+      staged_at: null,
+      staged_by: null,
+      staged_source: null,
+      updated_at: new Date()
+    })
+    .where("id", "=", input.id)
+    .executeTakeFirst();
+  if (result.numUpdatedRows === 0n) return false;
+  await writeAudit({
+    actorUserId: input.actorUserId,
+    action: "module.external_remove",
+    targetType: "external_module",
+    targetId: input.id,
+    metadata: { moduleId: input.id },
+    requestId: input.requestId
+  });
+  return true;
+}

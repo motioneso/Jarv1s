@@ -381,3 +381,195 @@ export const revokeModuleCredentialRouteSchema = {
     404: errorResponseSchema
   }
 } as const;
+
+// ── Module registry / distribution (#964) ───────────────────────────────────
+// Admin surface for the pinned module registry. States mirror spec §8 exactly.
+
+export const MODULE_REGISTRY_LIFECYCLE_STATES = [
+  "not-installed",
+  "pending-restart",
+  "installed-enabled",
+  "installed-disabled",
+  "update-available",
+  "update-pending-restart",
+  "install-failed",
+  "declared-not-present",
+  "incompatible"
+] as const;
+
+export type ModuleRegistryLifecycleState = (typeof MODULE_REGISTRY_LIFECYCLE_STATES)[number];
+
+export interface ModuleRegistryToolDto {
+  readonly name: string;
+  readonly risk: string;
+}
+
+/** Capability block shown in the pre-download confirm dialog (spec §8). */
+export interface ModuleRegistryCapabilitiesDto {
+  readonly permissions: readonly string[];
+  readonly fetchHosts: readonly string[];
+  readonly tools: readonly ModuleRegistryToolDto[];
+  readonly ownsTables: readonly string[];
+}
+
+export interface ModuleRegistryRowDto {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly state: ModuleRegistryLifecycleState;
+  /** Version loaded at boot (null when not installed or not yet loaded). */
+  readonly installedVersion: string | null;
+  /** Latest version in the registry index (null when the id is local-only). */
+  readonly latestVersion: string | null;
+  readonly stagedVersion: string | null;
+  /** Index compat range, for the "requires Jarvis ≥ X" copy on incompatible rows. */
+  readonly requiresCore: string | null;
+  /** null when the module is not in the registry index. */
+  readonly capabilities: ModuleRegistryCapabilitiesDto | null;
+  readonly lastInstallError: string | null;
+  /** True while a purge is pending next boot; the UI hides Download and offers Cancel. */
+  readonly purgePending: boolean;
+}
+
+export interface GetModuleRegistryResponse {
+  readonly enabled: boolean;
+  readonly registryUnavailable: boolean;
+  readonly modules: readonly ModuleRegistryRowDto[];
+}
+
+export interface DownloadExternalModuleRequest {
+  readonly version?: string;
+}
+
+export interface RemoveExternalModuleRequest {
+  readonly purgeData: boolean;
+}
+
+const moduleRegistryToolSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "risk"],
+  properties: { name: { type: "string" }, risk: { type: "string" } }
+} as const;
+
+const moduleRegistryCapabilitiesSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["permissions", "fetchHosts", "tools", "ownsTables"],
+  properties: {
+    permissions: { type: "array", items: { type: "string" } },
+    fetchHosts: { type: "array", items: { type: "string" } },
+    tools: { type: "array", items: moduleRegistryToolSchema },
+    ownsTables: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+const moduleRegistryRowSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "name",
+    "description",
+    "state",
+    "installedVersion",
+    "latestVersion",
+    "stagedVersion",
+    "requiresCore",
+    "capabilities",
+    "lastInstallError",
+    "purgePending"
+  ],
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    description: { type: ["string", "null"] },
+    state: { type: "string", enum: MODULE_REGISTRY_LIFECYCLE_STATES },
+    installedVersion: { type: ["string", "null"] },
+    latestVersion: { type: ["string", "null"] },
+    stagedVersion: { type: ["string", "null"] },
+    requiresCore: { type: ["string", "null"] },
+    // Nullable via type array, same pattern as externalModuleSchema.web (#918).
+    capabilities: { ...moduleRegistryCapabilitiesSchema, type: ["object", "null"] },
+    lastInstallError: { type: ["string", "null"] },
+    purgePending: { type: "boolean" }
+  }
+} as const;
+
+export const getModuleRegistryRouteSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: { refresh: { type: "string", enum: ["1"] } }
+  },
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["enabled", "registryUnavailable", "modules"],
+      properties: {
+        enabled: { type: "boolean" },
+        registryUnavailable: { type: "boolean" },
+        modules: { type: "array", items: moduleRegistryRowSchema }
+      }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+const moduleRegistryRowResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["module"],
+  properties: { module: { ...moduleRegistryRowSchema } }
+} as const;
+
+export const downloadExternalModuleRouteSchema = {
+  params: adminModuleParamsSchema,
+  body: {
+    type: "object",
+    additionalProperties: false,
+    properties: { version: { type: "string", minLength: 1, maxLength: 100 } }
+  },
+  response: {
+    200: moduleRegistryRowResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema,
+    422: errorResponseSchema,
+    502: errorResponseSchema,
+    503: errorResponseSchema
+  }
+} as const;
+
+export const removeExternalModuleRouteSchema = {
+  params: adminModuleParamsSchema,
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["purgeData"],
+    properties: { purgeData: { type: "boolean" } }
+  },
+  response: {
+    200: moduleRegistryRowResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema
+  }
+} as const;
+
+export const cancelExternalModulePurgeRouteSchema = {
+  params: adminModuleParamsSchema,
+  response: {
+    200: moduleRegistryRowResponseSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    404: errorResponseSchema,
+    409: errorResponseSchema
+  }
+} as const;
