@@ -177,9 +177,13 @@ export async function reconcileModules(options: ReconcileModulesOptions): Promis
         // a compose-ensured module may have no external_modules row yet; new rows are
         // born disabled (fail-closed) and phase 5 enables them via the hash match.
         await client.query(
+          // manifest_hash/package_hash are NOT NULL columns — '' sentinels for a disabled,
+          // never-enabled row, matching updateExternalModuleStaging's admin-download
+          // convention (repository-external-modules.ts): a disabled row is never active
+          // regardless of hash; the real hashes land when reconcile accepts the package.
           `INSERT INTO app.external_modules
-             (id, status, package_hash, staged_version, staged_package_hash, staged_at, staged_by, staged_source, created_at, updated_at)
-           VALUES ($1, 'disabled', NULL, $2, $3, now(), NULL, 'compose-ensure', now(), now())
+             (id, status, manifest_hash, package_hash, staged_version, staged_package_hash, staged_at, staged_by, staged_source, created_at, updated_at)
+           VALUES ($1, 'disabled', '', '', $2, $3, now(), NULL, 'compose-ensure', now(), now())
            ON CONFLICT (id) DO UPDATE SET
              staged_version = EXCLUDED.staged_version,
              staged_package_hash = EXCLUDED.staged_package_hash,
