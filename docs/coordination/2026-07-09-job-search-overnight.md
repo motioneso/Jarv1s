@@ -4267,3 +4267,27 @@ private content in payloads/logs/ARTIFACT") — the artifact half wasn't automat
 wrap-up, alive for blocker routing) — re-resolve by label. Ben's idle Fable `w1:pGV` (#964, main
 tree — don't touch). News S4 #975 queued (Codex uncapped past Jul 12 1:28am). `merges_since_relay`
 unchanged (no merge). Watches: agy done (`b48elisp2`); pH1 liveness `beb21rnad`.
+
+## UPDATE — JS-09 PR #976 council split ADJUDICATED against merge; fix routed
+
+**Opus QA `a38b224a` landed = GREEN / MERGE-READY** (posted PR comment #4950520496). But it CONFLICTS
+with Gemini's REJECT on the exact bar-2 point. Opus claimed "sentinel scan across all 3 surfaces
+(payload / logs / counts-only artifact)" — WRONG: it conflated `derivedDump` (derived-namespace
+rows) with the rendered evidence artifact.
+
+**Ground-truth adjudication (bounded grep, source `2a865de2`):**
+- `external-module-job-search-acceptance.test.ts:370-372` scans exactly payloadJson + logDump +
+  derivedDump — **no artifact render anywhere in the file.**
+- `job-search-acceptance-evidence.test.ts:48-55` renders `out`, asserts sections + `!PROVIDER_RE`,
+  plus a fail-closed test feeding a sentinel as BAD INPUT to prove the renderer throws — **never
+  scans a legit rendered artifact for the three privacy sentinels.**
+→ **Gemini REJECT UPHELD. Opus GREEN overturned on bar 2.** Split council + ground truth = HOLD.
+
+**Fix routed to `JS-09 build 4` (`w1:pH1`, session `9cd6a1f5`, Fable 5, working).** Bounded,
+test-coverage only: render the counts-only artifact from the seeded-sentinel run via the real
+`evidence:job-search` renderer, assert all 3 sentinels absent (mirror :370-372) + non-vacuous
+positive control. Then verify:foundation + push + report head. Lane confirmed picked it up.
+
+**Merge state: HELD.** Re-QA (diff-scoped) after the lane reports green; then merge still gated on
+Ben's day-one manual acceptance. `merges_since_relay` unchanged. Coordinator authority re-confirmed
+(`pE6`/`58a78927` == lock). Awaiting `w1:pH1` green report.
