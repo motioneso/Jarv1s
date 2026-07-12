@@ -4595,3 +4595,11 @@ Opus+Codex+Gemini, NO fallback.
 - **Progress:** Task 8 GREEN committed `8527f3b9` (assistant topic/exclusion/removal chat tools, 9/9 chat + 7/7 REST, lint/typecheck clean). **Task 9 (Settings add/delete/Retry UI wiring) starting — LAST task, then PR.** Handoff doc `2b810e74`. Tasks 1–8 GREEN.
 - **Monitor** re-pointed to `w1:pHD` (task `b9hbhrl4w`, persistent). Old Monitor `b5y8ns73a` stopped. **`merges_since_relay` = 0.**
 - Gate/conditions unchanged: News named-unanimous Opus+Codex+Gemini no-fallback; JS-09 #976 PARKED. **Next milestone: PR-open → convene council.**
+
+### JS-09 #976 MERGED — 2026-07-12 (Ben lifted the hold)
+
+- **Ben authorized merge** of all remaining JS work; he runs the module-download acceptance live post-merge (replaces the day-one manual-acceptance hold).
+- **PR #976 → squash `9af57f81`**, `feat/js-09-acceptance` deleted, worktree removed. #938 closed.
+- **Council (JS security tier, 2-provider substitution permitted):** Opus council QA **APPROVE** (08:26) + Gemini council QA **re-review APPROVE** (08:50, covers final head `9316012d`). Gemini's initial REJECT (Requirement B — evidence artifact unscanned) was fixed by `9316012d` (+55/-4, one test file, additive sentinel scan) and re-approved. Only post-Opus commit was that additive test hardening — no product-logic change. CI 4/4 green, mergeStateStatus CLEAN. Session authority re-confirmed == lock.
+- **Epic #913:** all core slices JS-01..09 merged. Remaining open children are FOLLOW-UPS/tech-debt, not capstone blockers: #971 (takeBudget ledger), #960 (render source description as text), #962 (JS-05 handler-level cross-owner run-now), #957 (truth-guard-v2), #965 (run-now dedupe — task #25). Epic left open pending follow-up triage.
+- **`merges_since_relay` → 1** (security-tier merge). Coordinator compacts in place (directive #3), no successor pane. News S4 lane (pHD, Task 9) unaffected — separate worktree, no collision.
