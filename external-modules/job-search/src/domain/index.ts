@@ -13,6 +13,8 @@ export {
 } from "./confirmations.js";
 export type { DiffHunk } from "./diff.js";
 export { diffLines } from "./diff.js";
+export type { Freshness, FreshnessCounts, FreshnessRunContext } from "./freshness.js";
+export { freshnessOf, markFreshnessAfterRun, transitionFreshness } from "./freshness.js";
 export type {
   MarkdownCoverageVerdict,
   MaterialClaim,

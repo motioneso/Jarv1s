@@ -41,6 +41,10 @@ export interface OpportunityRecord {
   // because pre-JS-07 records lack it; they stay freshness-"uncertain" until
   // re-seen by a monitor that stamps it.
   sourceKey?: string;
+  // JS-07: absence means "uncertain" (freshnessOf) — never default "active".
+  freshness?: "active" | "uncertain" | "stale";
+  // Last time a successful fetch of this record's own board included it.
+  lastLivenessAt?: string;
   posting: PostingFacts & {
     title: string;
     company: string;
