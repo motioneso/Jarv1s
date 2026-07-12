@@ -3749,3 +3749,10 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
 - Remaining JS-07: Steps 6-8 (Step 8 = #962 items 1-2 cross-owner denial + schedule-clobber tests).
   On DONE → coordinated-wrap-up PR Closes #936 → SECURITY council QA (Opus adversarial + posted
   verdict) → council authority merge (no Ben gate) → numbered v* tag + verify .dockerignore.
+
+### 2026-07-11 — JS-07 relay #6 COMPLETE (clean, Fable held)
+- Successor **pGM** label `JS-07 build r6`, session `a65ed1c5-d021-45d1-9f47-5cd7dca80b82`,
+  **Fable 5** confirmed, tab w1:t1K, status working. Exactly one pane on branch (no Sonnet leak).
+- Reaped pGK (r5, session `c14ab1eb-…`) after verifying Step 5 `baf81efa` + relay doc `ca304786`
+  committed and tree clean. Branch head `ca304786` on `feat/js-07-freshness-dedup-fit`.
+- Steps 0-5 landed; pGM resumes at **Step 6** (design settled). Steps 6-8 remain. Zero merges.
