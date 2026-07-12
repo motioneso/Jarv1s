@@ -4751,3 +4751,20 @@ Ben-owned lane. Coordinator does NOT spawn a #964 builder or touch that tree. Wh
 Ben approves, #964 becomes the unblock for Job Search user-reachability (per the prod-blocker comment
 filed on #964). Three isolated worktrees, no shared-tree collision: coord (mine), news-s4 (relay13),
 main (#964 agent). No action from me beyond staying out of its way.
+
+## Checkpoint (compact-in-place) — relay13→14 reaped, News S4 fix round live
+
+- **Reaped relay13** (pane w1:pHF, session `c207203a-ea3a-4f09-af5c-f74d1eb7601f`) — successor
+  **relay14** verified driving: pane `w1:pHG`, session `4ab3ada3-2453-45c2-a07b-d5f01a4ebb58`,
+  Fable 5, agents tab `w1:t1P` (NOT coordinator tab). Both confirmed via `herdr pane list` before close.
+- **Liveness Monitor re-armed** on relay14 pane `w1:pHG` (watches news-s4 HEAD advance past
+  `9a160d8c` = relay14's real code fix, + pane death). Old Monitor `bp6cqu7jy` stopped.
+- **news-s4 HEAD** = `9a160d8c` (relay13 handoff+test-DESIGN only; code pending under relay14).
+- **Open lane:** News S4 #977 fix round. relay14 to land GAP1 (worker-LOG sentinel scan in
+  `tests/integration/news-revalidation.test.ts`) + GAP2 (external-content adversarial test at
+  `packages/news/src/settings/index.tsx:451/507`), update PR #977 body w/ sentinel approach,
+  re-notify Coordinator for **round-2 named-unanimous council (Opus+Codex+Gemini, NO fallback)**.
+- `merges_since_relay=1`. No merge until clean round-2 unanimous APPROVE.
+- **PARKED:** #964 (Ben's Fable agent, main tree — do not touch); #965 run-now dedupe (task #25);
+  red-main flake `tests/integration/tasks-agency-tools.test.ts` (`vi.waitFor`, separate small PR).
+- Ben decisions still in force: Job Search held for #964 install flow; no pings; compact in place.
