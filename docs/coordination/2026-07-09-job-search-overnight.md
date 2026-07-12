@@ -4698,3 +4698,18 @@ pHE:** seed ONE sentinel in the revalidation fixture (FEED_BODY / source label /
 its absence across all 3 surfaces — critically adding the worker-LOG scan — so Req C is explicit +
 re-runnable. Keep the existing exact-shape assertions. Awaiting Codex (3rd lens, same Req C) before
 one consolidated relay. NOT merged.
+
+### News S4 #977 council R1 COMPLETE → fix round relayed to pHE
+
+Final R1 tally: **Codex REJECT (Req C + Req F) · Gemini REJECT (Req C) · Opus GREEN (0 blocking;
+its non-blocking #3 = Codex's Req F).** Two lenses reject → unanimous-no-fallback NOT met → NO merge.
+Both gaps are TEST-COVERAGE only (Opus confirmed all Hard Invariants hold; code correct, tests don't
+prove it). Consolidated findings relayed to pHE (herdr pane run + Enter; pHE now working, 70% ctx —
+may auto-compact/relay to Fable successor):
+- **GAP1 Req C** (news-revalidation.test.ts:422/440): seed sentinel in article body/source label/
+  query, assert absent across payload + worker/process LOGS (the missing surface) + notification;
+  non-vacuous. Surfaces 1+3 already strong (keep assertMetadataOnlyPayload + exact toEqual).
+- **GAP2 Req F** (packages/news/src/settings/index.tsx:451/507): adversarial test — script-y/
+  entity label + javascript:/data: URL → renders literal text, link scheme dropped.
+pHE to state sentinel approach in PR body, wrap-up when green, re-notify Coordinator for re-council.
+Monitor bn3o28o20 stopped (both bg verdicts landed). NOT merged. `merges_since_relay=1`.
