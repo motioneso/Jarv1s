@@ -245,6 +245,12 @@ describe("news image route", () => {
         contentType: "image/jpeg",
         body: png,
         truncated: false
+      },
+      {
+        ok: true as const,
+        contentType: "image/png",
+        body: new Uint8Array(NEWS_IMAGE_MAX_BYTES + 1),
+        truncated: false
       }
     ];
     for (const failure of failures) {

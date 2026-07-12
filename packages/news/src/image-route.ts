@@ -146,7 +146,7 @@ export function registerNewsImageRoute(
         if (fromCache) return sendImage(reply, fromCache);
 
         const fetched = await dependencies.fetchImage(article.imageUrl, NEWS_IMAGE_MAX_BYTES);
-        if (!fetched.ok || fetched.truncated) {
+        if (!fetched.ok || fetched.truncated || fetched.body.byteLength > NEWS_IMAGE_MAX_BYTES) {
           throw new HttpError(502, "News image is unavailable");
         }
         const contentType = validatedNewsImageType(fetched.contentType, fetched.body);
