@@ -3802,3 +3802,19 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   → concurrent same-user sweeps could under-count `used`, over-spend 25/day cap. Cost bound only
   (host cap AI_CALLS_PER_INVOCATION_CAP=8), no security boundary. File issue post-merge.
 - Awaiting: 2nd Opus lens (aa742614) + CI "Verify foundation and app". Merge on dual-APPROVE+CI green.
+
+### 2026-07-11 — JS-07 PR #970 council DUAL-APPROVE (merge on CI green)
+- **2nd Opus lens (aa742614): APPROVE**, grounded `835ee73e`, 0 CRIT/HIGH. All 3 high-risk surfaces
+  PROVEN clean: (1) LLM-field/prompt exfiltration — multi-layer output validation (schema
+  additionalProperties:false + field-by-field rebuild + 24576-byte cap; unknown-key/oversize/
+  injection tests), prompt inputs owner-own + UNTRUSTED-fenced posting, bridge strips model/provider/
+  token ids; (2) KV-cap ABI — 510 regression throws at write, old readers {h,r,s}-only unaffected,
+  codes no PII, freshness computed not stored; (3) owner isolation FULL surface — every namespace
+  (job/eval/evalBudget/feed/monitor/schedule/runs) has cross-owner denial + positive control + admin
+  denial + worker-role 0-rows over REAL RLS; budget ledger per-owner NOT global.
+- **COUNCIL = DUAL-APPROVE.** 3 LOW non-blocking (per-field cap belt-braces; 510-test seeds 3-char
+  status not worst-case 6-char but headroom absorbs; takeBudget concurrency — SAME as primary's).
+- **Merge authority: council dual-APPROVE (no Ben gate, standing directive).** Gated ONLY on CI
+  "Verify foundation and app" (2 compose smokes already pass). Monitor b3dzf1vqs armed.
+- POST-MERGE: file follow-up issue for takeBudget non-atomic budget ledger (both lenses flagged);
+  close #936; epic #913 exit-criteria; numbered v* tag + verify .dockerignore external-modules line.
