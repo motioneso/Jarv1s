@@ -3768,3 +3768,9 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   single-char codes carry no secret/PII and computed freshness matches stored semantics.
 - Relay #7: pGM (session a65ed1c5) relaying at 70%. Detector armed (excl a65ed1c5); verify
   successor = Fable 5, tab w1:t1K, confirm 2e20a6b0 + relay doc committed before reaping pGM.
+
+### 2026-07-11 — JS-07 relay #7 COMPLETE (clean, Fable held)
+- Successor **pGN** label `JS-07 build r7`, session `36707ce9-0b49-4ae0-8a4a-f79140e94ff6`,
+  **Fable 5**, tab w1:t1K, working. One pane on branch. Reaped pGM (r6, `a65ed1c5-…`) after
+  verifying Step 6 `2e20a6b0` + relay doc `1bbaf073` committed, tree clean.
+- Steps 0-6 landed (head `1bbaf073`). pGN resumes at **Step 7**. Steps 7-8 remain. Zero merges.
