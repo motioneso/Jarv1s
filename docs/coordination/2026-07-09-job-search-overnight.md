@@ -3774,3 +3774,11 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   **Fable 5**, tab w1:t1K, working. One pane on branch. Reaped pGM (r6, `a65ed1c5-…`) after
   verifying Step 6 `2e20a6b0` + relay doc `1bbaf073` committed, tree clean.
 - Steps 0-6 landed (head `1bbaf073`). pGN resumes at **Step 7**. Steps 7-8 remain. Zero merges.
+
+### 2026-07-11 — JS-07 relay #8 COMPLETE (clean, Fable held; self-relay caught via Monitor)
+- Successor **pGP** label `JS-07 build r8`, session `3db9af64-9be2-41ab-a213-7d34ec125639`,
+  **Fable 5**, tab w1:t1K, working. Caught proactively via fleet Monitor (no relay msg yet);
+  verified before reap. Reaped pGN (r7, `36707ce9-…`) after Step 7 `1ffa33fd` + relay doc
+  `84fd6787` committed, tree clean.
+- Steps 0-7 landed (head `84fd6787`). pGP resumes at **Step 8** (FINAL — #962 items 1-2:
+  cross-owner denial + schedule-clobber tests). On DONE → coordinated-wrap-up PR `Closes #936`.
