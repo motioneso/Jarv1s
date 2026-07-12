@@ -45,11 +45,13 @@ then S4 (compose, independent, can be done any time after S1).
 ## Task 1: `resolveModulesDir(env)` shared helper
 
 **Files:**
+
 - Create: `packages/module-registry/src/resolve-modules-dir.ts`
 - Modify: `packages/module-registry/src/node.ts` (add one re-export line)
 - Test: `tests/unit/resolve-modules-dir.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing (leaf helper — `node:fs`, `node:path`, `node:url` only).
 - Produces: `resolveModulesDir(env?: NodeJS.ProcessEnv): string`, exported from
   `@jarv1s/module-registry/node` — every later S1 task imports this.
@@ -166,6 +168,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 2: `apps/api/src/server.ts` — delete the gate from `ApiServerConfig`
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts:114-125` (`ApiServerConfig`), `:136-156`
   (`resolveApiServerConfig`), `:165-188` (`discoverExternalModules`), `:200-209`
   (`externalRuntimeEnabled`/`workerDb`), `:349-354` (resolver call), `:374-384` (job-routes guard),
@@ -173,6 +176,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - Test: `tests/unit/api-server-config.test.ts:31-55` (replace the whole describe block)
 
 **Interfaces:**
+
 - Consumes: `resolveModulesDir` from Task 1 (`@jarv1s/module-registry/node` — already imported in
   `server.ts` for other symbols, add `resolveModulesDir` to the existing import list).
 - Produces: `ApiServerConfig.externalModulesDir: string` (non-nullable — Task 3/4/9 consume this).
@@ -271,14 +275,14 @@ export function discoverExternalModules(
 Replace the `externalRuntimeEnabled`/`workerDb` block (`:200-209`) — always create `workerDb`:
 
 ```typescript
-  const workerDb =
-    options.workerDb ??
-    createDatabase({
-      connectionString: getJarvisDatabaseUrls().worker,
-      maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
-    });
-  const ownsWorkerDb = options.workerDb === undefined;
-  const workerDataContext = new DataContextRunner(workerDb);
+const workerDb =
+  options.workerDb ??
+  createDatabase({
+    connectionString: getJarvisDatabaseUrls().worker,
+    maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
+  });
+const ownsWorkerDb = options.workerDb === undefined;
+const workerDataContext = new DataContextRunner(workerDb);
 ```
 
 (This changes `workerDataContext` from `DataContextRunner | undefined` to always-defined —
@@ -290,24 +294,24 @@ is a compile-time-safe narrowing, never a break.)
 Replace the resolver call (`:349-354`) — drop `enabled`:
 
 ```typescript
-    const getActiveExternalModules = createActiveExternalModulesResolverForApi({
-      appDataContext: dataContext,
-      settingsRepository: externalModulesRepository,
-      discoveries: externalModuleSnapshot.discoveries
-    });
+const getActiveExternalModules = createActiveExternalModulesResolverForApi({
+  appDataContext: dataContext,
+  settingsRepository: externalModulesRepository,
+  discoveries: externalModuleSnapshot.discoveries
+});
 ```
 
 Delete the job-routes guard (`:374-384`) — always register:
 
 ```typescript
-    registerExternalModuleJobRoutes(server, {
-      boss,
-      discoveries: externalModuleSnapshot.discoveries,
-      resolveAccessContext: authRuntime.resolveAccessContext,
-      isModuleActive: async (access, moduleId) =>
-        (await getActiveExternalModules(access)).some((module) => module.id === moduleId),
-      rateLimitKey: authPrincipalRateLimitKey
-    });
+registerExternalModuleJobRoutes(server, {
+  boss,
+  discoveries: externalModuleSnapshot.discoveries,
+  resolveAccessContext: authRuntime.resolveAccessContext,
+  isModuleActive: async (access, moduleId) =>
+    (await getActiveExternalModules(access)).some((module) => module.id === moduleId),
+  rateLimitKey: authPrincipalRateLimitKey
+});
 ```
 
 (Note `getActiveExternalModules` is no longer optional after Task 3 — drop the `?.` and the
@@ -357,14 +361,16 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 3: `apps/api/src/external-module-tools.ts` — drop `enabled` from the resolver factory
 
 **Files:**
+
 - Modify: `apps/api/src/external-module-tools.ts:70-89`
 - Test: none new (covered by existing integration coverage of `/api/modules`; this is a pure
   signature simplification with no behavior change for the always-true case)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `createActiveExternalModulesResolverForApi(input: { appDataContext, settingsRepository,
-  discoveries }): (accessContext: AccessContext) => Promise<readonly ReconciledExternalModule[]>`
+discoveries }): (accessContext: AccessContext) => Promise<readonly ReconciledExternalModule[]>`
   — always-defined return (drops the `| undefined` union). Task 2's call site already matches this.
 
 - [ ] **Step 1: Write the failing test**
@@ -412,6 +418,7 @@ export function createActiveExternalModulesResolverForApi(input: {
 Also update the two consumers whose param type was `getActiveExternalModules?: (...) => ...`
 (optional, to accommodate the old possibly-undefined resolver) — narrow them to required now that
 the factory never returns undefined:
+
 - `apps/api/src/server.ts:836-844` (`registerPlatformRoutes`): change
   `getActiveExternalModules?: (...)` to `getActiveExternalModules: (...)` (drop the `?`), and at
   its one call site (`:852-854`) drop the `getActiveExternalModules ? ... : []` ternary down to a
@@ -443,11 +450,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 4: `apps/api/src/module-distribution-port.ts` — drop the gate
 
 **Files:**
+
 - Modify: `apps/api/src/module-distribution-port.ts:26-34`
 - Test: none new (pure branch deletion; existing `/api/admin/module-registry` integration coverage
   exercises the always-defined path going forward)
 
 **Interfaces:**
+
 - Consumes: `ApiServerConfig.externalModulesDir` (now non-nullable, from Task 2).
 - Produces: `createModuleDistributionPort(...): ModuleDistributionDependencies` (drops the
   `| undefined` union — its one call site at `server.ts:476` already tolerates either shape since
@@ -509,11 +518,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 5: `apps/worker/src/worker.ts` — always-on external worker config
 
 **Files:**
+
 - Modify: `apps/worker/src/worker.ts:79-84` (`resolveExternalWorkerConfig`), and its call site
   around `:205-209`
 - Test: `tests/integration/worker-lifecycle.test.ts:138-153` (rewrite the describe block)
 
 **Interfaces:**
+
 - Consumes: `resolveModulesDir` from Task 1.
 - Produces: `resolveExternalWorkerConfig(env?): { readonly modulesDir: string }` (drops
   `| null` — the one call site's `if (externalConfig)` guard becomes always-true; simplify it away).
@@ -543,9 +554,9 @@ Expected: FAIL — old `resolveExternalWorkerConfig` returns `null` for the no-e
 
 ```typescript
 // apps/worker/src/worker.ts:74-84, replace:
-export function resolveExternalWorkerConfig(
-  env: NodeJS.ProcessEnv = process.env
-): { readonly modulesDir: string } {
+export function resolveExternalWorkerConfig(env: NodeJS.ProcessEnv = process.env): {
+  readonly modulesDir: string;
+} {
   return { modulesDir: resolveModulesDir(env) };
 }
 ```
@@ -577,11 +588,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 6: `scripts/start-jarv1s.ts` — always push the reconcile oneShot
 
 **Files:**
+
 - Modify: `scripts/start-jarv1s.ts:109-119`
 - Test: `tests/unit/start-jarv1s-plan.test.ts:28-42` (simplify — drop the flag env, assert
   unconditional)
 
 **Interfaces:**
+
 - Consumes: nothing new (doesn't need `resolveModulesDir` — it just always pushes the oneShot;
   `module-reconcile.ts` itself resolves the dir when it runs, per Task 7).
 - Produces: `buildStartupPlan(env).oneShots` always includes the `module-reconcile.ts` oneShot
@@ -654,6 +667,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 7: `scripts/module-reconcile.ts` — CLI entrypoint always runs
 
 **Files:**
+
 - Modify: `scripts/module-reconcile.ts:386-395`
 - Test: none new (this file's CLI entrypoint guard has no existing unit test — it's an
   `if (process.argv[1] === ...)` main-module guard exercised only by actually running the script,
@@ -661,6 +675,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
   test plus manual confirmation the script no-ops-to-success when run, see Step 4)
 
 **Interfaces:**
+
 - Consumes: `resolveModulesDir` from Task 1.
 - Produces: the CLI always calls `reconcileModules({ modulesDir })` — no more "disabled" no-op path.
 
@@ -727,9 +742,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 8: `tests/e2e/mock-modules.ts` — drop the stale flag comment
 
 **Files:**
+
 - Modify: `tests/e2e/mock-modules.ts:188-201`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: nothing new — comment/doc accuracy only, no behavior change (the mock already always
   seeds `enabled:true`-shaped responses; only its comment referenced the now-deleted flag).
@@ -771,6 +788,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 9: `infra/docker-compose.prod.yml` + `.gitignore` — S4
 
 **Files:**
+
 - Modify: `infra/docker-compose.prod.yml:68`, `:107`
 - Modify: `.gitignore` (add `/data/`)
 
@@ -815,6 +833,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 10: manifest flip — Commitments/People/Goals/Notes become `required`
 
 **Files:**
+
 - Modify: `packages/commitments/src/manifest.ts`, `packages/people/src/manifest.ts`,
   `packages/goals/src/manifest.ts`, `packages/notes/src/manifest.ts`
 - Test: `tests/unit/active-modules-resolver.test.ts` (add 4 cases — create the file if it does not
@@ -823,6 +842,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
   structure at build time before adding, to match its existing patterns rather than diverging)
 
 **Interfaces:**
+
 - Consumes: nothing new — `packages/module-registry/src/active-modules-resolver.ts:40-41`'s
   existing `if (availability?.required === true) return true;` short-circuit is UNCHANGED, this
   task only flips manifest data feeding it.
@@ -910,10 +930,12 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 11: `settings-module-view-model.ts` — drop the stale toggleable-ids set
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-module-view-model.ts:22-28`
 - Test: create `tests/unit/settings-module-view-model.test.ts` (none exists yet — grep confirmed)
 
 **Interfaces:**
+
 - Consumes: `MyModuleDto.required: boolean` (`packages/shared/src/platform-api-modules.ts:27`,
   unchanged).
 - Produces: `visibleUserToggleModules(modules): readonly SettingsModule[]` — same signature, new
@@ -994,6 +1016,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 12: `settings-admin-panes.tsx` — de-dup the external group against the registry
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-admin-panes.tsx:554-691` (`InstanceModulesPane`)
 - Test: create `tests/unit/instance-modules-dedup.test.ts` (pure function extracted for
   testability — see Step 3) OR, if this repo's convention for React-heavy files is
@@ -1003,6 +1026,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
   match its location and naming)
 
 **Interfaces:**
+
 - Consumes: `queryKeys.settings.adminModuleRegistry`, `getModuleRegistry` (both already imported by
   `settings-module-registry-section.tsx`, add the same imports here — React Query dedupes by
   queryKey, so this is not a second network call).
@@ -1080,15 +1104,15 @@ helper to filter the external group's render list, and thread the enable/disable
 `ModuleRegistrySection` (finished in Task 13):
 
 ```typescript
-  // #996/#860: subscribe to the SAME registry query ModuleRegistrySection uses
-  // (identical queryKey+queryFn -> React Query serves one cached fetch to both) so this
-  // pane can filter registry-known modules out of the "External modules" group below.
-  const registryQuery = useQuery({
-    queryKey: queryKeys.settings.adminModuleRegistry,
-    queryFn: () => getModuleRegistry(false),
-    retry: false
-  });
-  const registryIds = new Set((registryQuery.data?.modules ?? []).map((row) => row.id));
+// #996/#860: subscribe to the SAME registry query ModuleRegistrySection uses
+// (identical queryKey+queryFn -> React Query serves one cached fetch to both) so this
+// pane can filter registry-known modules out of the "External modules" group below.
+const registryQuery = useQuery({
+  queryKey: queryKeys.settings.adminModuleRegistry,
+  queryFn: () => getModuleRegistry(false),
+  retry: false
+});
+const registryIds = new Set((registryQuery.data?.modules ?? []).map((row) => row.id));
 ```
 
 Change the external group's render source (`external.modules.map(...)` at the current line 650)
@@ -1142,6 +1166,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 13: `settings-module-registry-section.tsx` — enable/disable Switch for installed rows
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-module-registry-section.tsx` (whole file — add a props
   interface, thread 3 new props, render a `Switch` for `installed-enabled`/`installed-disabled` rows)
 - Test: `tests/e2e/settings-modules.spec.ts` (create if no such spec exists yet — grep
@@ -1150,6 +1175,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
   and `tests/e2e/mock-api.ts`)
 
 **Interfaces:**
+
 - Consumes: `ExternalModuleDto` from `@jarv1s/shared` (already used elsewhere in
   `settings-admin-panes.tsx`), the 3 props Task 12 now passes:
   `externalModules: readonly ExternalModuleDto[] | undefined`,
@@ -1278,16 +1304,16 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Files:** none (verification only).
 
 - [ ] **Step 1:** Pre-push trio: `pnpm format:check && pnpm lint && pnpm typecheck` — fix until
-  green.
+      green.
 - [ ] **Step 2:** `git fetch origin main && git rebase origin/main` — resolve any conflicts
-  (unlikely given the collision-boundary lane split with Codex-869).
+      (unlikely given the collision-boundary lane split with Codex-869).
 - [ ] **Step 3:** Full gate: `pnpm verify:foundation`. Record the exit code.
 - [ ] **Step 4:** `pnpm test:integration`. Record the exit code.
 - [ ] **Step 5:** Invoke `coordinated-wrap-up` — open PR (base `main`, body `Part of #996` +
-  `Part of #860`, "What's new": "Admin settings now lists downloadable modules in one place with a
-  working on/off switch; only Wellness/Sports/News are toggleable — Commitments/People/Goals/Notes
-  and other core modules are always on."). Report the PR number to the Coordinator pane. Do not
-  merge, close, or touch the board.
+      `Part of #860`, "What's new": "Admin settings now lists downloadable modules in one place with a
+      working on/off switch; only Wellness/Sports/News are toggleable — Commitments/People/Goals/Notes
+      and other core modules are always on."). Report the PR number to the Coordinator pane. Do not
+      merge, close, or touch the board.
 
 ---
 
