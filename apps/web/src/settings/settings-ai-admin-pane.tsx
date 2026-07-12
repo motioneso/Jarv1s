@@ -12,12 +12,10 @@ import {
   Unlink,
   X
 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 
 import {
-  createAiModel,
   createAiProvider,
-  discoverAiModels,
   getChatModelOverrideSettings,
   listAiModels,
   listAiProviders,
@@ -42,11 +40,8 @@ import { YoloAdminGroup } from "./settings-yolo-admin-group";
 import { WebSearchKeyGroup } from "./settings-web-search-key-group";
 import { VoiceConfigGroup } from "./settings-voice-config-group";
 import {
-  AI_MODEL_CAPABILITIES,
   type AiAuthMethod,
   type AiConfiguredModelDto,
-  type AiDiscoverModelsItemDto,
-  type AiDiscoverModelsResponse,
   type AiModelCapability,
   type AiModelTier,
   type AiProviderConfigDto,
@@ -72,8 +67,6 @@ const CAP_SHORT: Record<AiModelCapability, string> = {
   summarization: "Summary",
   transcription: "Voice"
 };
-
-const ALL_CAPABILITIES: readonly AiModelCapability[] = AI_MODEL_CAPABILITIES;
 
 const TIERS: Record<AiModelTier, { label: string; hint: string }> = {
   reasoning: { label: "Reasoning", hint: "Deepest and slowest. Hard planning and judgment." },
@@ -154,102 +147,6 @@ function ModelLine(props: {
   );
 }
 
-function AddModelForm(props: { readonly providerConfigId: string; readonly onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const { toast } = useFeedback();
-  const [providerModelId, setProviderModelId] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [tier, setTier] = useState<AiModelTier>("interactive");
-  const [capabilities, setCapabilities] = useState<readonly AiModelCapability[]>(["chat"]);
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createAiModel({
-        providerConfigId: props.providerConfigId,
-        providerModelId,
-        displayName,
-        tier,
-        capabilities
-      }),
-    onSuccess: () => {
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]);
-      toast("Model added", { icon: <GitCommitHorizontal size={17} /> });
-      props.onClose();
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!providerModelId.trim() || !displayName.trim()) return;
-    createMutation.mutate();
-  };
-
-  return (
-    <form className="ai-model-form" onSubmit={submit}>
-      <Note icon={<GitCommitHorizontal size={13} />}>
-        Jarvis reads a provider's models automatically on connect. Use this only to add a model
-        discovery missed.
-      </Note>
-      <Field label="Model id">
-        <input
-          className="jds-input"
-          value={providerModelId}
-          onChange={(e) => setProviderModelId(e.target.value)}
-          placeholder="provider-model-id"
-          aria-label="Model id"
-        />
-      </Field>
-      <Field label="Display name">
-        <input
-          className="jds-input"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Claude Sonnet"
-          aria-label="Display name"
-        />
-      </Field>
-      <Field label="Tier">
-        <Segmented<AiModelTier>
-          value={tier}
-          options={MODEL_TIERS}
-          ariaLabel="Model tier"
-          onChange={setTier}
-        />
-      </Field>
-      <div className="cap-list" aria-label="Model capabilities">
-        {ALL_CAPABILITIES.map((capability) => (
-          <label className="cap-list__item" key={capability}>
-            <input
-              type="checkbox"
-              checked={capabilities.includes(capability)}
-              onChange={(e) =>
-                setCapabilities((cur) =>
-                  e.target.checked ? [...cur, capability] : cur.filter((x) => x !== capability)
-                )
-              }
-            />
-            {CAP_SHORT[capability]}
-          </label>
-        ))}
-      </div>
-      <button
-        type="submit"
-        className="jds-btn jds-btn--primary jds-btn--sm"
-        disabled={!providerModelId.trim() || !displayName.trim()}
-      >
-        <span className="jds-btn__icon">
-          <Plus size={15} />
-        </span>
-        Add model
-      </button>
-    </form>
-  );
-}
-
 function ProviderCard(props: {
   readonly provider: AiProviderConfigDto;
   readonly models: readonly AiConfiguredModelDto[];
@@ -271,11 +168,7 @@ function ProviderCard(props: {
 }) {
   const { provider } = props;
   const { toast } = useFeedback();
-  const queryClient = useQueryClient();
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const [discovered, setDiscovered] = useState<AiDiscoverModelsResponse | null>(null);
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl ?? "");
   const [apiKey, setApiKey] = useState("");
   const testMutation = useMutation({
@@ -287,39 +180,6 @@ function ProviderCard(props: {
       }),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  const discoverMutation = useMutation({
-    mutationFn: () => discoverAiModels(provider.id),
-    onSuccess: (response) => {
-      setDiscovered(response);
-      setSelectedIds(new Set());
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const addSelectedMutation = useMutation({
-    mutationFn: (models: readonly AiDiscoverModelsItemDto[]) =>
-      Promise.all(
-        models.map((model) =>
-          createAiModel({
-            providerConfigId: provider.id,
-            providerModelId: model.providerModelId,
-            displayName: model.displayName,
-            capabilities: model.capabilities,
-            tier: model.tier
-          })
-        )
-      ),
-    onSuccess: () => {
-      setSelectedIds(new Set());
-      setDiscovered(null);
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.models }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
-      ]);
-      toast("Models added", { icon: <GitCommitHorizontal size={17} /> });
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-
   return (
     <div className="prov">
       <div className="prov__head">
@@ -481,21 +341,6 @@ function ProviderCard(props: {
       <div className="prov__models">
         <div className="prov__modelshd">
           <span>Models · {props.models.length}</span>
-          <div className="prov__acts">
-            <button
-              type="button"
-              className="prov__sync"
-              disabled={discoverMutation.isPending}
-              onClick={() => discoverMutation.mutate()}
-            >
-              <RefreshCw size={12} aria-hidden="true" />
-              {discoverMutation.isPending ? "Discovering" : discovered ? "Re-discover" : "Discover"}
-            </button>
-            <button type="button" className="prov__sync" onClick={() => setAddOpen((o) => !o)}>
-              <Plus size={12} aria-hidden="true" />
-              {addOpen ? "Close" : "Add"}
-            </button>
-          </div>
         </div>
         <div className="prov__modellist">
           {props.models.length ? (
@@ -515,73 +360,11 @@ function ProviderCard(props: {
             ))
           ) : (
             <div className="prov__synced" style={{ marginTop: 0 }}>
-              No models registered yet — add one to bring this provider online.
+              Models appear here automatically when the provider connects.
             </div>
           )}
         </div>
-        {discovered ? (
-          <div className="prov__discover" aria-label="Discovered models">
-            {discovered.fromFallback ? (
-              <div className="prov__discover-warn">
-                Could not reach the provider&apos;s model list — showing known models. Check your
-                API key.
-              </div>
-            ) : null}
-            <div className="prov__modellist">
-              {discovered.models.map((model) => {
-                const alreadyConfigured = props.models.some(
-                  (m) => m.providerModelId === model.providerModelId
-                );
-                const isChecked = alreadyConfigured || selectedIds.has(model.providerModelId);
-                return (
-                  <label className="mdl mdl--discover" key={model.providerModelId}>
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      disabled={alreadyConfigured || addSelectedMutation.isPending}
-                      onChange={(e) =>
-                        setSelectedIds((cur) => {
-                          const next = new Set(cur);
-                          if (e.target.checked) next.add(model.providerModelId);
-                          else next.delete(model.providerModelId);
-                          return next;
-                        })
-                      }
-                    />
-                    <div className="mdl__id">{model.providerModelId}</div>
-                    <span className={`tier tier--${model.tier}`}>{TIERS[model.tier].label}</span>
-                    <div className="mdl__caps">
-                      {model.capabilities.map((capability) => (
-                        <span className="cap" key={capability}>
-                          {CAP_SHORT[capability] ?? capability}
-                        </span>
-                      ))}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-            {selectedIds.size > 0 ? (
-              <button
-                type="button"
-                className="jds-btn jds-btn--primary jds-btn--sm"
-                disabled={addSelectedMutation.isPending}
-                onClick={() => {
-                  const toAdd = discovered.models.filter((m) => selectedIds.has(m.providerModelId));
-                  addSelectedMutation.mutate(toAdd);
-                }}
-              >
-                <span className="jds-btn__icon">
-                  <Plus size={15} />
-                </span>
-                {addSelectedMutation.isPending ? "Adding…" : `Add selected (${selectedIds.size})`}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {addOpen ? (
-          <AddModelForm providerConfigId={provider.id} onClose={() => setAddOpen(false)} />
-        ) : null}
+        {/* #982/#869 Lane B: discovery is automatic; manual REST escape hatches remain server-side. */}
         {props.models.length ? (
           <div className="prov__synced">
             <RefreshCw size={11} aria-hidden="true" />
