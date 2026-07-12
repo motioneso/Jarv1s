@@ -4735,3 +4735,10 @@ fail-closed empty). JS-06 (`d8544793`) built the module's own screens, never wir
 Self-service detect→download→install = #964 (spec-gated, unbuilt). Offered Ben: wire the manual
 external-module path into JarvisProd for testing (set 2 env vars + build bundle + admin-enable) OR
 hold for #964. AWAITING Ben's choice.
+
+### Ben decision: HOLD for #964 (no manual external-module wire)
+
+Ben: "hold for 964." Do NOT wire the manual external-module test path into JarvisProd. Job Search
+stays unreachable-by-user until #964 (detect→download→install) ships. #964 is spec-gated (task #24,
+no approved spec yet → no builder). Grounded #964 with the concrete prod-blocker comment. No further
+action on Job Search reachability this run.
