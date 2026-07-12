@@ -247,10 +247,11 @@ describe("news personalization routes", () => {
     expect(
       (await app.inject({ method: "GET", url: "/api/news/images/bbc-story" })).statusCode
     ).toBe(200);
-    expect(
-      JSON.parse((await app.inject({ method: "GET", url: "/api/news/overview" })).body)
-        .rankedStories
-    ).toHaveLength(1);
+    const beforeDisable = JSON.parse(
+      (await app.inject({ method: "GET", url: "/api/news/overview" })).body
+    );
+    expect(beforeDisable.rankedStories).toHaveLength(1);
+    expect(beforeDisable.topStories).toHaveLength(1);
 
     const disabled = await app.inject({
       method: "POST",
@@ -259,10 +260,11 @@ describe("news personalization routes", () => {
     });
 
     expect(disabled.statusCode).toBe(200);
-    expect(
-      JSON.parse((await app.inject({ method: "GET", url: "/api/news/overview" })).body)
-        .rankedStories
-    ).toEqual([]);
+    const afterDisable = JSON.parse(
+      (await app.inject({ method: "GET", url: "/api/news/overview" })).body
+    );
+    expect(afterDisable.rankedStories).toEqual([]);
+    expect(afterDisable.topStories).toEqual([]);
     expect(
       (await app.inject({ method: "GET", url: "/api/news/images/bbc-story" })).statusCode
     ).toBe(404);
