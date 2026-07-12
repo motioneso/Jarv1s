@@ -4986,3 +4986,16 @@ auto-notifies + posts `[Opus council QA] VERDICT: ...` to the PR. NEXT on its re
 stack); #979 flake (task #31); #965 parked (task #25). No other live build lanes.
 **Coordinator:** session 58a78927-385c-4b1d-8fa0-94db20255d6f = label Coordinator (resolve pane
 fresh). Auto-compact in place — NO successor pane. No PushNotifications.
+
+## #964 OPUS COUNCIL VERDICT: APPROVE (2026-07-12)
+Opus adversarial QA (agent acf7fb77) posted **[Opus council QA] VERDICT: APPROVE — all requirements
+met** to PR #980 (comment 4952204992). MERGE-READY: YES, 0 blocking / 0 non-blocking. All 8
+re-verify items confirmed with file:line (route-guard waives only enablement not admin authz;
+zip-slip two-pass fail-closed + hash-drift persists nothing; module roles NOSUPERUSER NOBYPASSRLS,
+admin GET reads last_install_error mirror; metadata-only audits; response-schema declared; 0162 in
+foundation catalog toEqual; both fixes ab73d8d9 + 107ff202 real+tested). CI: all 3 checks GREEN
+(Verify foundation 18m36s + compose + prod smoke).
+**Gemini cross-model lens FIRED** (bg task bir4jw909, gemini-3-pro-preview -y) — posts
+`[Gemini council QA] VERDICT` to PR. On Gemini APPROVE → MERGE (council authority, CI green). On
+Gemini REJECT → adjudicate the specific finding (Opus already cleared it 0-blocking; a Gemini-only
+finding gets a targeted re-check before honoring).
