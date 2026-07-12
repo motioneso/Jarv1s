@@ -658,14 +658,15 @@ describe("news revalidation schedule (#975 Slice 4)", () => {
 
       const rows = await scheduleRows();
       expect(rows).toHaveLength(1);
-      const key = `news-revalidate:${ids.userA}`;
-      expect(rows[0]).toMatchObject({ key, cron: "43 4 * * *", timezone: "UTC" });
+      // Schedule key is the bare owner id — pg-boss rejects colons in schedule keys
+      // (attorney assertKey: [alnum_.-/] only), so the colon form lives in the payload only.
+      expect(rows[0]).toMatchObject({ key: ids.userA, cron: "43 4 * * *", timezone: "UTC" });
       // The cron payload bypasses sendJob's guard, so prove it is metadata-only here too.
       expect(() => assertMetadataOnlyPayload(rows[0]!.data)).not.toThrow();
       expect(rows[0]!.data).toEqual({
         actorUserId: ids.userA,
         kind: "revalidate",
-        idempotencyKey: key
+        idempotencyKey: `news-revalidate:${ids.userA}`
       });
     } finally {
       await app.close();

@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
@@ -39,6 +39,7 @@ import {
   type NewsSnapshotRecord
 } from "./personalization-repository.js";
 import { isNewsSnapshotFresh } from "./news-service.js";
+import { reconcileNewsRevalidationSchedule } from "./schedule.js";
 
 export interface NewsPersonalizationStore {
   listCustomSources(scopedDb: DataContextDb): Promise<NewsCustomSourceDto[]>;
@@ -66,6 +67,8 @@ export interface NewsPersonalizationStore {
     }
   ): Promise<NewsCustomSourceDto | null>;
   deleteCustomSource(scopedDb: DataContextDb, sourceId: string): Promise<boolean>;
+  countCustomSources(scopedDb: DataContextDb): Promise<number>;
+  countCustomTopics(scopedDb: DataContextDb): Promise<number>;
   listCustomTopics(scopedDb: DataContextDb): Promise<NewsCustomTopicDto[]>;
   createCustomTopic(
     scopedDb: DataContextDb,
@@ -143,14 +146,22 @@ function mapWriteError(error: unknown): never {
 
 export async function triggerNewsRefresh(
   scopedDb: DataContextDb,
-  repository: Pick<NewsPersonalizationStore, "bumpRefreshRequest">,
+  repository: Pick<
+    NewsPersonalizationStore,
+    "bumpRefreshRequest" | "countCustomSources" | "countCustomTopics"
+  >,
   boss: PgBoss | null,
   actorUserId: string,
-  afterBump?: () => Promise<void>
+  afterBump?: () => Promise<void>,
+  logger?: Pick<FastifyBaseLogger, "error">
 ): Promise<boolean> {
   await repository.bumpRefreshRequest(scopedDb);
   await afterBump?.();
-  return boss ? enqueueNewsRefresh(boss, actorUserId) : false;
+  if (!boss) return false;
+  // Every personalization write funnels through here, so the per-owner daily
+  // revalidation schedule stays reconciled as a side effect (best-effort inside).
+  await reconcileNewsRevalidationSchedule(boss, scopedDb, repository, actorUserId, logger);
+  return enqueueNewsRefresh(boss, actorUserId);
 }
 
 export function registerNewsPersonalizationRoutes(
@@ -178,8 +189,25 @@ export function registerNewsPersonalizationRoutes(
             ]);
           let refresh = await repository.readRefreshState(db);
           if (!isNewsSnapshotFresh(snapshot)) {
-            await triggerNewsRefresh(db, repository, dependencies.boss, accessContext.actorUserId);
+            await triggerNewsRefresh(
+              db,
+              repository,
+              dependencies.boss,
+              accessContext.actorUserId,
+              undefined,
+              request.log
+            );
             refresh = await repository.readRefreshState(db);
+          } else if (dependencies.boss) {
+            // Self-heal the daily revalidation schedule on reads too — a failed
+            // reconcile during a past write must not leave the owner unscheduled.
+            await reconcileNewsRevalidationSchedule(
+              dependencies.boss,
+              db,
+              repository,
+              accessContext.actorUserId,
+              request.log
+            );
           }
           const response: GetNewsPersonalizationResponse = {
             availability: {
