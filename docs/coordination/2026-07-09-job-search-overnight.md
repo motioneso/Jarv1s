@@ -4959,3 +4959,14 @@ Re-verify checklist delivered to both lenses: route-allowlist-not-authz (negativ
 tar/zip-slip fail-closed, hash-drift persists nothing, RLS/no-BYPASSRLS (mirror col not journal),
 metadata-only payloads, response-schema declared, migration 0162 + last_install_error in foundation
 toEqual, provider-agnostic, module isolation, both fixes tested.
+
+## #964 COUNCIL RESHAPE 2026-07-12 — Codex dropped, Gemini substituted
+Codex lens (pane w3:p2) stood down: broken environment (cwd /home/ben not the repo; insisted on
+non-existent ref `origin/pr-980`; auto-downgraded to gpt-5.4-mini) + repeated approval stalls —
+marginal value below babysitting cost. Stood down cleanly (told not to post). All 4 stale Codex
+monitors stopped.
+**Council reshaped to Opus (authority) + Gemini (cross-model)** — established security-tier shape
+here (#937/#938 merged Opus+Gemini). Gemini fires ONLY after Opus posts APPROVE (token economy;
+if Opus REJECTs → back to build agent, no cross-model spend). CI-980 GREEN. Merge authority =
+council (Ben sign-off bypassed).
+Opus QA agent acf7fb777d51e91ce still RUNNING (auto-notifies + posts to PR).
