@@ -10,16 +10,10 @@
 // module-worker-rpc.test.ts and drives the domain through
 // createExternalModuleRpcHandler with the REAL parsed jarvis.module.json,
 // so a declared-namespace drift fails here, not in production.
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
-import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
-import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
 
 import { deleteUserData } from "../../scripts/delete-user-data.js";
@@ -77,32 +71,18 @@ import {
   monitorRunHandler,
   runMonitorDiscovery
 } from "../../external-modules/job-search/src/worker/handlers/run.js";
+import {
+  bootstrapJobSearchRows as harnessBootstrapRows,
+  kvForActor as harnessKvForActor,
+  loadJobSearchModule,
+  workerQuery,
+  type KvActorOptions
+} from "./job-search-rpc-harness.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 let bootstrap: pg.Client;
 let workerDb: Kysely<JarvisDatabase>;
-
-const manifestPath = fileURLToPath(
-  new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
-);
-
-// Parse the SHIPPED manifest through the real validator so this suite's
-// declared namespaces cannot drift from what production would enforce.
-function loadJobSearchModule() {
-  const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
-  const result = validateExternalModuleManifest(raw, "job-search", "0.1.0");
-  if (!result.ok) {
-    throw new Error(`shipped manifest failed validation: ${JSON.stringify(result.errors)}`);
-  }
-  return {
-    id: "job-search",
-    dir: "/unused",
-    manifest: result.manifest,
-    manifestHash: "sha256:job-search",
-    packageHash: "sha256:job-search"
-  };
-}
 
 const jobSearchModule = loadJobSearchModule();
 
@@ -115,67 +95,16 @@ const OPPORTUNITY: OpportunityInput = {
 };
 const OPPORTUNITY_HASH = opportunityIdentity(OPPORTUNITY);
 
-/** Domain KV port over the real RPC handler — scope pinned to "user". */
-function kvForActor(
-  actorUserId: string,
-  options?: { toolRisk?: "read" | "write"; admin?: boolean }
-): JobSearchKv {
-  const rpc = createExternalModuleRpcHandler({
-    module: jobSearchModule,
-    toolRisk: options?.toolRisk ?? "write",
+// Thin aliases over the shared harness so the suite's call sites stay
+// unchanged; workerDb/bootstrap are bound lazily (assigned in beforeAll).
+const kvForActor = (actorUserId: string, options?: KvActorOptions): JobSearchKv =>
+  harnessKvForActor(
+    { module: jobSearchModule, workerDb, requestIdPrefix: "kv-isolation" },
     actorUserId,
-    requestId: `kv-isolation-${actorUserId.slice(-4)}`,
-    workerDataContext: new DataContextRunner(workerDb),
-    cipher: createModuleCredentialSecretCipher(),
-    isActorAdmin: async () => options?.admin ?? false
-  });
-  const noSecret = (): void => undefined;
-  return {
-    get: (namespace, key) =>
-      rpc("kv.get", { scope: "user", namespace, key }, noSecret) as Promise<Record<
-        string,
-        unknown
-      > | null>,
-    set: (namespace, key, value) =>
-      rpc("kv.set", { scope: "user", namespace, key, value }, noSecret) as Promise<void>,
-    delete: (namespace, key) =>
-      rpc("kv.delete", { scope: "user", namespace, key }, noSecret) as Promise<boolean>,
-    list: (namespace) =>
-      rpc("kv.list", { scope: "user", namespace }, noSecret) as Promise<readonly string[]>
-  };
-}
-
-/** Worker-role SQL with actor/module GUCs set — the RLS path modules run under. */
-async function workerQuery<T>(actorUserId: string, moduleId: string, query: string): Promise<T[]> {
-  const client = new Client({ connectionString: connectionStrings.worker });
-  await client.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT set_config('app.actor_user_id', $1, true)", [actorUserId]);
-    await client.query("SELECT set_config('app.current_module_id', $1, true)", [moduleId]);
-    const result = await client.query(query);
-    await client.query("ROLLBACK");
-    return result.rows as T[];
-  } finally {
-    await client.end();
-  }
-}
-
-async function bootstrapJobSearchRows(): Promise<
-  Array<{ owner_user_id: string; namespace: string; key: string; value: string }>
-> {
-  const result = await bootstrap.query<{
-    owner_user_id: string;
-    namespace: string;
-    key: string;
-    value: string;
-  }>(
-    `SELECT owner_user_id, namespace, key, value::text AS value
-     FROM app.module_kv WHERE module_id = 'job-search'
-     ORDER BY owner_user_id, namespace, key`
+    options
   );
-  return result.rows;
-}
+const bootstrapJobSearchRows = (): ReturnType<typeof harnessBootstrapRows> =>
+  harnessBootstrapRows(bootstrap);
 
 beforeAll(async () => {
   await resetFoundationDatabase();
