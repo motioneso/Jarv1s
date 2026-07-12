@@ -3957,3 +3957,11 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   Earlier "never echoed" was over-broad. **PR must flag this exposure so the Opus security QA
   verifies owner-only/no-log/no-payload.** (Supersedes the decide-reason clause in memory
   `mem_mrh9x5lz`.)
+- **JS-08 RELAY #3 (2026-07-11):** build 3 (`9e0edf10`) → **build 4 (pane `w1:pGW`, session
+  `3b16a1c5`, Fable 5 verified, tab agents)**. Tasks 1-4 committed on `feat/js-08-opportunity-feed`:
+  `5122c2c2` decideOpportunity domain, `56df47c0` opportunities.list, `9d215ce5` opportunities.get
+  (incl. decisionReason per ruling), `6e2824ea` opportunity.decide handler; 27 unit tests green.
+  Relay doc `64fe5c20`. Build 3 REAPED (verified session before close). Successor resuming Task 5
+  (registry factories + manifest schemas). Tree clean (only context-meter.log + untracked coord
+  handoff). **Also (not a lane): Ben authoring #964 spec on his own Fable agent (`pGV`, main tree) —
+  relayed clean-branch + explicit-path-add guidance; #964 unblocks its spec gate.**
