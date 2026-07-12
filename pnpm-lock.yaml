@@ -746,6 +746,9 @@ importers:
       '@jarv1s/module-web-sdk':
         specifier: workspace:*
         version: link:../module-web-sdk
+      '@jarv1s/notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@jarv1s/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui

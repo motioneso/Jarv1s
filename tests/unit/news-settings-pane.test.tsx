@@ -10,7 +10,13 @@ import type {
   NewsPrefsResponse
 } from "@jarv1s/shared";
 
-import NewsSettings from "../../packages/news/src/settings/index.js";
+import { ApiError } from "@jarv1s/module-web-sdk";
+
+import NewsSettings, { topicCreateErrorMessage } from "../../packages/news/src/settings/index.js";
+import {
+  previewOutcomeMessage,
+  zipPreviewCandidates
+} from "../../packages/news/src/settings/add-source.js";
 import { newsQueryKeys } from "../../packages/news/src/web/query-keys.js";
 
 // #953 Task 5: the personalization sections must never present a false affordance —
@@ -66,7 +72,36 @@ function personalization(
     customTopics: [],
     sourceExclusions: [],
     snapshot: null,
+    refresh: { state: "idle", updatedAt: null },
     ...overrides
+  };
+}
+
+/** A stored custom source in the given validation/health state (Task 9 Retry fixtures). */
+function storedSource(
+  validationStatus: "approved" | "needs_revalidation" | "rejected",
+  healthStatus: "available" | "unavailable" = "available"
+) {
+  return {
+    id: "11111111-1111-1111-1111-111111111111",
+    label: "The Atlantic",
+    canonicalDomain: "theatlantic.com",
+    homepageUrl: "https://www.theatlantic.com",
+    feedUrl: null,
+    retrievalMethod: "scrape" as const,
+    validationStatus,
+    healthStatus,
+    createdAt: "2026-07-11T00:00:00.000Z"
+  };
+}
+
+function storedTopic(validationStatus: "approved" | "needs_revalidation" | "rejected") {
+  return {
+    id: "22222222-2222-2222-2222-222222222222",
+    label: "Watches",
+    guidance: null,
+    validationStatus,
+    createdAt: "2026-07-11T00:00:00.000Z"
   };
 }
 
@@ -103,12 +138,12 @@ describe("NewsSettings personalization sections (#953)", () => {
     expect(html).not.toContain('class="jds-btn jds-btn--sm nw-set__exadd" disabled=""');
   });
 
-  it("prerequisites met: custom add controls STAY disabled in Slice 1 (no write APIs yet)", () => {
+  it("prerequisites met: add-source and add-topic forms are live (#975 Task 9 opens the writes)", () => {
     const html = render(personalization({ availability: allOn }));
-    expect(html).toContain(
-      'class="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn" disabled=""'
-    );
-    expect(html).toContain("Coming soon");
+    // The Slice-1 closed-write placeholders are gone — real forms render instead.
+    expect(html).not.toContain("Coming soon");
+    expect(html).toContain('id="nw-addsource-input"');
+    expect(html).toContain('id="nw-addtopic-label"');
     // With prerequisites satisfied there is nothing to set up.
     expect(html).not.toContain("/settings?section=assistant");
   });
@@ -182,5 +217,171 @@ describe("NewsSettings personalization sections (#953)", () => {
     expect(html).toContain("Excluded</span>");
     // The other curated tile still shows its true On/Off state.
     expect(html).toContain('aria-pressed="false"');
+  });
+});
+
+// #975 Task 9: the Slice-2/4 write APIs exist now, so Settings wires the scaffolds live —
+// add-source preview/confirm, add-topic, per-row Remove, and a Retry validation button that
+// enqueues owner-wide revalidation when any stored item needs attention.
+describe("NewsSettings write flows (#975 Task 9)", () => {
+  it("shows Remove buttons on stored source and topic rows", () => {
+    const html = render(
+      personalization({
+        availability: allOn,
+        customSources: [storedSource("approved")],
+        customTopics: [storedTopic("approved")]
+      })
+    );
+    expect(html).toContain('aria-label="Remove The Atlantic"');
+    expect(html).toContain('aria-label="Remove Watches"');
+  });
+
+  it("keeps Remove available even when prerequisites are missing (deletes are never gated)", () => {
+    const html = render(
+      personalization({
+        availability: allOff,
+        customSources: [storedSource("approved")]
+      })
+    );
+    expect(html).toContain('aria-label="Remove The Atlantic"');
+  });
+
+  it("shows Retry validation when a source needs revalidation", () => {
+    const html = render(
+      personalization({ availability: allOn, customSources: [storedSource("needs_revalidation")] })
+    );
+    expect(html).toContain("Retry validation");
+  });
+
+  it("shows Retry validation when an approved source is unavailable", () => {
+    const html = render(
+      personalization({
+        availability: allOn,
+        customSources: [storedSource("approved", "unavailable")]
+      })
+    );
+    expect(html).toContain("Retry validation");
+  });
+
+  it("shows Retry validation when a described topic needs revalidation", () => {
+    const html = render(
+      personalization({ availability: allOn, customTopics: [storedTopic("needs_revalidation")] })
+    );
+    expect(html).toContain("Retry validation");
+  });
+
+  it("hides Retry validation when every stored item is approved and available", () => {
+    const html = render(
+      personalization({
+        availability: allOn,
+        customSources: [storedSource("approved")],
+        customTopics: [storedTopic("approved")]
+      })
+    );
+    expect(html).not.toContain("Retry validation");
+  });
+});
+
+// Pure helpers behind the add flows — the interactive states (preview results, mutation
+// errors) can't be reached through renderToString, so their copy mapping is tested directly.
+describe("add-flow error/candidate helpers (#975 Task 9)", () => {
+  it("maps preview failure statuses to fixed human copy, never echoing the machine key", () => {
+    expect(previewOutcomeMessage({ status: "unavailable" })).toContain("AI model");
+    expect(previewOutcomeMessage({ status: "rejected", reason: "not_https" })).toContain("HTTPS");
+    expect(previewOutcomeMessage({ status: "rejected", reason: "unreachable" })).toContain("reach");
+    // Unknown reason keys fall back to generic copy instead of leaking the key.
+    const unknown = previewOutcomeMessage({ status: "rejected", reason: "brand_new_reason" });
+    expect(unknown).not.toContain("brand_new_reason");
+    expect(previewOutcomeMessage({ status: "ok", confirmationId: "c1" })).toBeNull();
+    expect(previewOutcomeMessage({ status: "ambiguous", confirmationId: "c1" })).toBeNull();
+  });
+
+  it("zips parallel candidate/candidateId arrays and drops entries without an id", () => {
+    const candidate = {
+      label: "The Atlantic",
+      canonicalDomain: "theatlantic.com",
+      homepageUrl: "https://www.theatlantic.com",
+      retrievalMethod: "feed" as const,
+      sampleCount: 5
+    };
+    const zipped = zipPreviewCandidates({
+      status: "ambiguous",
+      confirmationId: "c1",
+      candidates: [candidate, { ...candidate, label: "Orphan" }],
+      candidateIds: ["cand-1"]
+    });
+    expect(zipped).toHaveLength(1);
+    expect(zipped[0]).toEqual({ candidate, candidateId: "cand-1" });
+  });
+
+  it("maps topic-create failures: 422 policy, 503 unavailable, server copy otherwise", () => {
+    expect(topicCreateErrorMessage(new ApiError(422, "Topic is not allowed"))).toContain(
+      "content policy"
+    );
+    expect(topicCreateErrorMessage(new ApiError(503, "unavailable"))).toContain("unavailable");
+    expect(topicCreateErrorMessage(new ApiError(400, "Custom topic limit reached"))).toBe(
+      "Custom topic limit reached"
+    );
+    expect(topicCreateErrorMessage(new Error("boom"))).toBe("Could not add that topic. Try again.");
+  });
+});
+
+// #975 council re-run, Req F: user/model-derived strings must render as inert TEXT. The
+// settings pane has NO anchor derived from data — its only <a> anywhere under
+// packages/news/src/settings/** is the static PrereqGate link (index.tsx, renders only when
+// a prerequisite is missing) — so the strongest property holds and is asserted directly:
+// hostile labels/guidance escape to literals, and hostile URLs can never become hrefs
+// because no data-derived href exists at all.
+describe("NewsSettings adversarial content renders as inert text (#975 council re-run)", () => {
+  const adversarialSource = {
+    ...storedSource("approved"),
+    label: '<img src=x onerror=alert(1)>&lt;script&gt;"quoted',
+    homepageUrl: "javascript:alert(document.cookie)",
+    canonicalDomain: 'evil.example"'
+  };
+  const adversarialTopic = {
+    ...storedTopic("approved"),
+    label: "<script>alert(2)</script>",
+    guidance: "data:text/html,<script>alert(3)</script>"
+  };
+
+  it("escapes hostile labels/guidance and renders zero anchors when prerequisites are met", () => {
+    const html = render(
+      personalization({
+        availability: allOn,
+        customSources: [adversarialSource],
+        customTopics: [adversarialTopic]
+      })
+    );
+    // No element injection of any kind — neither from the raw markup in the labels…
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
+    // …instead the hostile strings appear as escaped literal text…
+    expect(html).toContain("&lt;img src=x onerror=");
+    // …and pre-escaped entities in the input are double-escaped, proving there is no
+    // decode-after-strip reordering that could revive `&lt;script&gt;` into markup.
+    expect(html).toContain("&amp;lt;script&amp;gt;");
+    // The label is interpolated into aria-label="Remove …": its raw quote must be
+    // entity-escaped so it cannot break out of the attribute value.
+    expect(html).toContain("&quot;quoted");
+    // With prerequisites met the PrereqGate is absent, so the pane renders NO anchor at
+    // all — the javascript:/data: URLs above can never become hrefs.
+    expect(html).not.toContain("<a ");
+  });
+
+  it("only the static prereq link ever becomes an href, never a hostile scheme", () => {
+    const html = render(
+      personalization({
+        availability: allOff,
+        customSources: [adversarialSource],
+        customTopics: [adversarialTopic]
+      })
+    );
+    const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1] ?? "");
+    // Both PrereqGates (sources + topics sections) render under allOff; every href must be
+    // the one static settings link and nothing else.
+    expect(hrefs.length).toBeGreaterThan(0);
+    expect([...new Set(hrefs)]).toEqual(["/settings?section=assistant"]);
+    expect(hrefs.some((href) => /^(javascript|data):/i.test(href))).toBe(false);
   });
 });

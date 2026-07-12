@@ -272,7 +272,10 @@ describe("MVP foundation schema catalog", () => {
         // #953 (epic #954) News Slice 1 — personalization tables (custom sources/topics,
         // domain exclusions, compilation snapshot); owner-only FORCE RLS, no worker grants.
         { version: "0159", name: "0159_news_personalization.sql" },
-        { version: "0160", name: "0160_news_discovery.sql" }
+        { version: "0160", name: "0160_news_discovery.sql" },
+        // #975 (epic #954) News Slice 4 — column-scoped worker UPDATE grants so the
+        // revalidation worker can persist validation outcomes; RLS keeps writes owner-scoped.
+        { version: "0161", name: "0161_news_revalidation.sql" }
       ]);
     } finally {
       await client.end();

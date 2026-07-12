@@ -1,13 +1,22 @@
 import type {
+  ConfirmNewsSourceRequest,
+  ConfirmNewsSourceResponse,
   CreateNewsPrefRequest,
   CreateNewsSourceExclusionRequest,
   CreateNewsSourceExclusionResponse,
+  CreateNewsTopicRequest,
+  CreateNewsTopicResponse,
+  DeleteNewsCustomSourceResponse,
   DeleteNewsSourceExclusionResponse,
+  DeleteNewsTopicResponse,
   GetNewsPersonalizationResponse,
   NewsCatalogResponse,
   NewsOverviewResponse,
   NewsPrefDto,
-  NewsPrefsResponse
+  NewsPrefsResponse,
+  NewsSourcePreviewRequest,
+  NewsSourcePreviewResponse,
+  TriggerNewsRevalidationResponse
 } from "@jarv1s/shared";
 
 import { requestJson } from "@jarv1s/module-web-sdk";
@@ -59,4 +68,52 @@ export async function deleteNewsSourceExclusion(
     `/api/news/source-exclusions/${encodeURIComponent(id)}`,
     { method: "DELETE" }
   );
+}
+
+// --- #975 Slice 4 (Task 9): custom source/topic writes + revalidation retry --------------
+
+export async function previewNewsSource(
+  input: NewsSourcePreviewRequest
+): Promise<NewsSourcePreviewResponse> {
+  return requestJson<NewsSourcePreviewResponse>("/api/news/sources/preview", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function confirmNewsSource(
+  input: ConfirmNewsSourceRequest
+): Promise<ConfirmNewsSourceResponse> {
+  return requestJson<ConfirmNewsSourceResponse>("/api/news/sources", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function deleteNewsCustomSource(id: string): Promise<DeleteNewsCustomSourceResponse> {
+  return requestJson<DeleteNewsCustomSourceResponse>(
+    `/api/news/sources/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}
+
+export async function createNewsTopic(
+  input: CreateNewsTopicRequest
+): Promise<CreateNewsTopicResponse> {
+  return requestJson<CreateNewsTopicResponse>("/api/news/topics", {
+    method: "POST",
+    body: input
+  });
+}
+
+export async function deleteNewsTopic(id: string): Promise<DeleteNewsTopicResponse> {
+  return requestJson<DeleteNewsTopicResponse>(`/api/news/topics/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function triggerNewsRevalidation(): Promise<TriggerNewsRevalidationResponse> {
+  return requestJson<TriggerNewsRevalidationResponse>("/api/news/revalidation", {
+    method: "POST"
+  });
 }

@@ -14,6 +14,8 @@ import {
   type NewsPrefDto
 } from "@jarv1s/shared";
 
+import { configureNewsChatTools } from "./chat-tools.js";
+import { createPreviewStore } from "./discovery/preview-store.js";
 import { NewsPrefsRepository } from "./repository.js";
 import { NewsService, type NewsPrefsReader } from "./news-service.js";
 import type {
@@ -200,13 +202,28 @@ export function registerNewsRoutes(
     }
   );
 
+  // #975 Slice 4: ONE preview store shared by the REST routes and the chat tools,
+  // so a source previewed in chat can be confirmed in Settings and vice versa.
+  const previews = createPreviewStore();
+  configureNewsChatTools({
+    previews,
+    discovery: {
+      fetch: dependencies.discovery.fetch,
+      search: dependencies.discovery.search,
+      ai: dependencies.discovery.ai
+    },
+    availability: dependencies.availability,
+    boss: dependencies.boss,
+    repository: personalization
+  });
   registerNewsPersonalizationRoutes(server, {
     dataContext: dependencies.dataContext,
     resolveAccessContext: dependencies.resolveAccessContext,
     availability: dependencies.availability,
     discovery: dependencies.discovery,
     boss: dependencies.boss,
-    repository: personalization
+    repository: personalization,
+    previews
   });
   registerNewsImageRoute(server, {
     dataContext: dependencies.dataContext,

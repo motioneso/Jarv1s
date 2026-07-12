@@ -276,7 +276,11 @@ describe("news discovery repository", () => {
     expect(result.rows).toEqual([{ owner_user_id: ids.userA, key: "bbc" }]);
   });
 
-  it("worker column grant permits health only on same-owner source rows", async () => {
+  // Since migration 0161 (#975 Slice 4) the worker's UPDATE grant is health_status plus the
+  // revalidation columns (validation_status, validation_fingerprint, validated_at, updated_at)
+  // — those are positively covered owner-scoped in news-personalization-repository.test.ts.
+  // This test keeps the negative controls: identity columns stay worker-unwritable.
+  it("worker column grant permits health but never identity columns on same-owner source rows", async () => {
     const created = await asActor(ids.userA, (db) => repo.createCustomSource(db, sourceInput(1)));
     await bootstrap.query("SET ROLE jarvis_worker_runtime");
     await bootstrap.query("SELECT set_config('app.actor_user_id', $1, false)", [ids.userA]);
@@ -289,7 +293,7 @@ describe("news discovery repository", () => {
       "label = 'Changed'",
       "homepage_url = 'https://changed.example'",
       "feed_url = 'https://changed.example/feed'",
-      "validation_fingerprint = 'changed'"
+      "owner_user_id = owner_user_id"
     ]) {
       await expect(
         bootstrap.query(`UPDATE app.news_custom_sources SET ${statement} WHERE id = $1`, [

@@ -78,6 +78,35 @@ interface CustomTopicInput {
   readonly validationFingerprint: string;
 }
 
+// #975 Slice 4 — module-internal revalidation views. These carry validation_fingerprint
+// (the opaque provider/model marker) for drift comparison inside the worker, so they must
+// never be mapped onto route DTOs; the shared contract deliberately has no fingerprint field.
+export interface NewsSourceValidationState {
+  readonly id: string;
+  readonly label: string;
+  readonly canonicalDomain: string;
+  readonly homepageUrl: string;
+  readonly feedUrl: string | null;
+  readonly retrievalMethod: "feed" | "scrape";
+  readonly validationStatus: "approved" | "needs_revalidation" | "rejected";
+  readonly validationFingerprint: string | null;
+  readonly healthStatus: "available" | "unavailable";
+}
+
+export interface NewsTopicValidationState {
+  readonly id: string;
+  readonly label: string;
+  readonly guidance: string | null;
+  readonly validationStatus: "approved" | "needs_revalidation" | "rejected";
+  readonly validationFingerprint: string | null;
+}
+
+export interface NewsValidationUpdateInput {
+  readonly validationStatus: "approved" | "needs_revalidation" | "rejected";
+  /** null = keep the stored fingerprint (the column is NOT NULL by schema). */
+  readonly validationFingerprint: string | null;
+}
+
 export class NewsPersonalizationRepository {
   async listCustomSources(scopedDb: DataContextDb): Promise<NewsCustomSourceDto[]> {
     assertDataContextDb(scopedDb);
@@ -213,6 +242,96 @@ export class NewsPersonalizationRepository {
       .updateTable("app.news_custom_sources")
       .set({ health_status: health })
       .where("id", "=", sourceId)
+      .execute();
+  }
+
+  // #975 Slice 4 — revalidation state reads/writes. These run under the app OR the worker
+  // data context: migration 0161 grants the worker UPDATE on exactly
+  // (validation_status, validation_fingerprint, validated_at, updated_at) with an
+  // owner-scoped policy, so a cross-owner update matches 0 rows instead of erroring.
+  async listSourceValidationStates(scopedDb: DataContextDb): Promise<NewsSourceValidationState[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.news_custom_sources")
+      .select([
+        "id",
+        "label",
+        "canonical_domain",
+        "homepage_url",
+        "feed_url",
+        "retrieval_method",
+        "validation_status",
+        "validation_fingerprint",
+        "health_status"
+      ])
+      .orderBy("created_at", "desc")
+      .execute();
+    return rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      canonicalDomain: row.canonical_domain,
+      homepageUrl: row.homepage_url,
+      feedUrl: row.feed_url,
+      retrievalMethod: row.retrieval_method,
+      validationStatus: row.validation_status,
+      validationFingerprint: row.validation_fingerprint,
+      healthStatus: row.health_status
+    }));
+  }
+
+  async listTopicValidationStates(scopedDb: DataContextDb): Promise<NewsTopicValidationState[]> {
+    assertDataContextDb(scopedDb);
+    const rows = await scopedDb.db
+      .selectFrom("app.news_custom_topics")
+      .select(["id", "label", "guidance", "validation_status", "validation_fingerprint"])
+      .orderBy("created_at", "desc")
+      .execute();
+    return rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      guidance: row.guidance,
+      validationStatus: row.validation_status,
+      validationFingerprint: row.validation_fingerprint
+    }));
+  }
+
+  async updateSourceValidation(
+    scopedDb: DataContextDb,
+    sourceId: string,
+    input: NewsValidationUpdateInput
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .updateTable("app.news_custom_sources")
+      .set({
+        validation_status: input.validationStatus,
+        ...(input.validationFingerprint === null
+          ? {}
+          : { validation_fingerprint: input.validationFingerprint }),
+        validated_at: sql`now()`,
+        updated_at: sql`now()`
+      })
+      .where("id", "=", sourceId)
+      .execute();
+  }
+
+  async updateTopicValidation(
+    scopedDb: DataContextDb,
+    topicId: string,
+    input: NewsValidationUpdateInput
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .updateTable("app.news_custom_topics")
+      .set({
+        validation_status: input.validationStatus,
+        ...(input.validationFingerprint === null
+          ? {}
+          : { validation_fingerprint: input.validationFingerprint }),
+        validated_at: sql`now()`,
+        updated_at: sql`now()`
+      })
+      .where("id", "=", topicId)
       .execute();
   }
 

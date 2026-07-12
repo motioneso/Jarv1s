@@ -181,6 +181,9 @@ function makePersonalization(overrides: Partial<FakePersonalization> = {}): Fake
       createdAt: "2026-07-11T00:00:00.000Z"
     }),
     deleteCustomSource: async () => true,
+    // Interface members only — unit apps run with boss: null, so schedule reconcile never fires.
+    countCustomSources: async () => 1,
+    countCustomTopics: async () => 0,
     createCustomTopic: async (_db, input) => ({
       id: "88888888-8888-8888-8888-888888888888",
       label: input.label,
