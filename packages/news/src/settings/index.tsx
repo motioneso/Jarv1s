@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, ComingSoon, Note, PaneHead } from "@jarv1s/settings-ui";
+import { Badge, Note, PaneHead } from "@jarv1s/settings-ui";
+import { ApiError } from "@jarv1s/module-web-sdk";
 import type {
   NewsCatalogSource,
   NewsPersonalizationAvailabilityDto,
@@ -18,13 +19,18 @@ import {
 import {
   createNewsPref,
   createNewsSourceExclusion,
+  createNewsTopic,
+  deleteNewsCustomSource,
   deleteNewsPref,
   deleteNewsSourceExclusion,
+  deleteNewsTopic,
   getNewsCatalog,
   getNewsPersonalization,
-  listNewsPrefs
+  listNewsPrefs,
+  triggerNewsRevalidation
 } from "../web/news-client.js";
 import { newsQueryKeys } from "../web/query-keys.js";
+import { AddSourceFlow } from "./add-source.js";
 import "./news-settings.css";
 
 /* ----- Pure toggle planners (unit-tested). These must mirror the server's
@@ -172,28 +178,36 @@ async function runOps(ops: readonly PrefOp[]): Promise<void> {
 }
 
 /**
- * Prerequisite gate copy for the closed-write sections. Slice 1 ships NO custom-source/topic
- * write APIs (preview/confirm arrive in Slice 2), so the Add buttons are ALWAYS disabled here —
- * the availability booleans only decide WHICH explanation is truthful: "set up the missing
- * prerequisite" vs "the feature itself hasn't shipped yet" (spec §Prerequisites and availability).
+ * #975 Task 9 flipped the writes live, so the Slice-1 "coming soon" branch is gone: this gate
+ * now renders ONLY when a prerequisite is missing, pointing at Assistant settings. Sections
+ * with satisfied prerequisites render the real add forms instead.
  */
-function ClosedWriteGate(props: { readonly ready: boolean; readonly requirement: string }) {
-  if (!props.ready) {
-    return (
-      <span className="nw-set__gate">
-        {props.requirement}{" "}
-        <a className="nw-set__gatelink" href="/settings?section=assistant">
-          Set it up in Assistant settings
-        </a>
-        .
-      </span>
-    );
-  }
+function PrereqGate(props: { readonly requirement: string }) {
   return (
     <span className="nw-set__gate">
-      <ComingSoon /> Ready to go — adding arrives in an upcoming update.
+      {props.requirement}{" "}
+      <a className="nw-set__gatelink" href="/settings?section=assistant">
+        Set it up in Assistant settings
+      </a>
+      .
     </span>
   );
+}
+
+/**
+ * Human copy for a failed topic create. 422/503 are the route's deliberate policy/availability
+ * signals (fixed copy, never model output); other ApiErrors carry friendly server messages
+ * (limit/duplicate) that are safe to surface verbatim.
+ */
+export function topicCreateErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 422) return "That topic isn't allowed by the content policy.";
+    if (error.status === 503) {
+      return "Topic checking is unavailable right now — try again shortly.";
+    }
+    if (error.message) return error.message;
+  }
+  return "Could not add that topic. Try again.";
 }
 
 export default function NewsSettings() {
@@ -217,9 +231,9 @@ export default function NewsSettings() {
     }
   });
 
-  // Exclusion changes reshape both the personalization pane AND the composed front page
-  // (server drops excluded publishers pre-fetch), so both caches must refetch immediately.
-  const invalidateAfterExclusionChange = () => {
+  // Personalization writes (exclusions, custom sources/topics) reshape both the pane AND the
+  // composed front page (server drops/adds publishers pre-fetch), so both caches must refetch.
+  const invalidateAfterPersonalizationChange = () => {
     void queryClient.invalidateQueries({ queryKey: newsQueryKeys.personalization });
     void queryClient.invalidateQueries({ queryKey: newsQueryKeys.overview });
   };
@@ -227,13 +241,37 @@ export default function NewsSettings() {
     mutationFn: createNewsSourceExclusion,
     onSuccess: () => {
       setExclusionInput("");
-      invalidateAfterExclusionChange();
+      invalidateAfterPersonalizationChange();
     }
   });
   const removeExclusionMutation = useMutation({
     mutationFn: deleteNewsSourceExclusion,
-    onSuccess: invalidateAfterExclusionChange
+    onSuccess: invalidateAfterPersonalizationChange
   });
+
+  // --- #975 Task 9: custom source/topic removal, topic creation, revalidation retry ---
+  const [topicLabel, setTopicLabel] = useState("");
+  const [topicGuidance, setTopicGuidance] = useState("");
+
+  const removeSourceMutation = useMutation({
+    mutationFn: deleteNewsCustomSource,
+    onSuccess: invalidateAfterPersonalizationChange
+  });
+  const removeTopicMutation = useMutation({
+    mutationFn: deleteNewsTopic,
+    onSuccess: invalidateAfterPersonalizationChange
+  });
+  const addTopicMutation = useMutation({
+    mutationFn: createNewsTopic,
+    onSuccess: () => {
+      setTopicLabel("");
+      setTopicGuidance("");
+      invalidateAfterPersonalizationChange();
+    }
+  });
+  // Owner-wide re-check; no cache invalidation on success — the job runs async and statuses
+  // only change after the worker finishes, so an immediate refetch would show nothing new.
+  const revalidateMutation = useMutation({ mutationFn: triggerNewsRevalidation });
 
   const sources = catalogQuery.data?.sources ?? [];
   const topics = catalogQuery.data?.topics ?? [];
@@ -275,6 +313,45 @@ export default function NewsSettings() {
     (addExclusionMutation.isError
       ? (addExclusionMutation.error?.message ?? "Could not exclude that publisher.")
       : null);
+
+  const sourcesNeedAttention = customSources.some(
+    (source) => source.validationStatus !== "approved" || source.healthStatus === "unavailable"
+  );
+  const topicsNeedAttention = customTopics.some((topic) => topic.validationStatus !== "approved");
+
+  function submitTopic(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const label = topicLabel.trim();
+    if (!label) return;
+    const guidance = topicGuidance.trim();
+    // Omit empty guidance entirely — the route treats absent and blank differently (cleanTopic
+    // rejects an empty string but tolerates a missing field).
+    addTopicMutation.mutate(guidance ? { label, guidance } : { label });
+  }
+
+  // One owner-wide revalidation job covers sources AND topics, but the button renders inside
+  // whichever section is actually showing amber/red badges so the action sits next to the
+  // problem it fixes. Both sections may show it; either click queues the same job.
+  const retryRow = () => (
+    <div className="nw-set__addrow">
+      <button
+        type="button"
+        className="jds-btn jds-btn--sm jds-btn--secondary"
+        disabled={revalidateMutation.isPending}
+        onClick={() => revalidateMutation.mutate()}
+      >
+        {revalidateMutation.isPending ? "Queuing…" : "Retry validation"}
+      </button>
+      {revalidateMutation.isSuccess ? (
+        <span className="nw-set__gate">
+          Revalidation queued — statuses update after the next check.
+        </span>
+      ) : null}
+      {revalidateMutation.isError ? (
+        <span className="nw-set__exerr">Could not queue revalidation. Try again.</span>
+      ) : null}
+    </div>
+  );
 
   return (
     <>
@@ -366,34 +443,52 @@ export default function NewsSettings() {
         ) : null}
         {customSources.length > 0 ? (
           <ul className="nw-set__list">
-            {customSources.map((source) => (
-              <li key={source.id} className="nw-set__item">
-                <span className="nw-set__item-label">{source.label}</span>
-                <span className="nw-set__item-meta">{source.canonicalDomain}</span>
-                {source.validationStatus !== "approved" ? (
-                  <Badge tone="amber">Needs revalidation</Badge>
-                ) : source.healthStatus === "unavailable" ? (
-                  <Badge tone="red">Unavailable</Badge>
-                ) : null}
-              </li>
-            ))}
+            {customSources.map((source) => {
+              const removing =
+                removeSourceMutation.isPending && removeSourceMutation.variables === source.id;
+              return (
+                <li key={source.id} className="nw-set__item">
+                  <span className="nw-set__item-label">{source.label}</span>
+                  <span className="nw-set__item-meta">{source.canonicalDomain}</span>
+                  {source.validationStatus !== "approved" ? (
+                    <Badge tone="amber">Needs revalidation</Badge>
+                  ) : source.healthStatus === "unavailable" ? (
+                    <Badge tone="red">Unavailable</Badge>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="jds-btn jds-btn--sm jds-btn--secondary"
+                    aria-label={`Remove ${source.label}`}
+                    disabled={removing}
+                    onClick={() => removeSourceMutation.mutate(source.id)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
-        <div className="nw-set__addrow">
-          <button
-            type="button"
-            className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
-            disabled
-          >
-            Add source
-          </button>
-          {availability ? (
-            <ClosedWriteGate
-              ready={availability.customSourceByUrlEnabled}
-              requirement="Adding sources needs an AI model with structured output."
-            />
-          ) : null}
-        </div>
+        {removeSourceMutation.isError ? (
+          <Note>Could not remove that source. Try again.</Note>
+        ) : null}
+        {sourcesNeedAttention ? retryRow() : null}
+        {availability?.customSourceByUrlEnabled ? (
+          <AddSourceFlow />
+        ) : (
+          <div className="nw-set__addrow">
+            <button
+              type="button"
+              className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
+              disabled
+            >
+              Add source
+            </button>
+            {availability ? (
+              <PrereqGate requirement="Adding sources needs an AI model with structured output." />
+            ) : null}
+          </div>
+        )}
       </section>
 
       <section className="nw-set" aria-label="Topics you describe">
@@ -404,34 +499,91 @@ export default function NewsSettings() {
         </p>
         {customTopics.length > 0 ? (
           <ul className="nw-set__list">
-            {customTopics.map((topic) => (
-              <li key={topic.id} className="nw-set__item">
-                <span className="nw-set__item-label">{topic.label}</span>
-                {topic.guidance ? (
-                  <span className="nw-set__item-meta">{topic.guidance}</span>
-                ) : null}
-                {topic.validationStatus !== "approved" ? (
-                  <Badge tone="amber">Needs revalidation</Badge>
-                ) : null}
-              </li>
-            ))}
+            {customTopics.map((topic) => {
+              const removing =
+                removeTopicMutation.isPending && removeTopicMutation.variables === topic.id;
+              return (
+                <li key={topic.id} className="nw-set__item">
+                  <span className="nw-set__item-label">{topic.label}</span>
+                  {topic.guidance ? (
+                    <span className="nw-set__item-meta">{topic.guidance}</span>
+                  ) : null}
+                  {topic.validationStatus !== "approved" ? (
+                    <Badge tone="amber">Needs revalidation</Badge>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="jds-btn jds-btn--sm jds-btn--secondary"
+                    aria-label={`Remove ${topic.label}`}
+                    disabled={removing}
+                    onClick={() => removeTopicMutation.mutate(topic.id)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
-        <div className="nw-set__addrow">
-          <button
-            type="button"
-            className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
-            disabled
-          >
-            Add topic
-          </button>
-          {availability ? (
-            <ClosedWriteGate
-              ready={availability.freeformTopicsEnabled}
-              requirement="Described topics need an AI model and web search."
-            />
-          ) : null}
-        </div>
+        {removeTopicMutation.isError ? <Note>Could not remove that topic. Try again.</Note> : null}
+        {topicsNeedAttention ? retryRow() : null}
+        {availability?.freeformTopicsEnabled ? (
+          <form className="nw-set__exform" onSubmit={submitTopic}>
+            <label className="nw-set__exlabel" htmlFor="nw-addtopic-label">
+              Topic in your own words
+            </label>
+            <div className="nw-set__exrow">
+              <input
+                id="nw-addtopic-label"
+                className="jds-input"
+                type="text"
+                value={topicLabel}
+                placeholder="mechanical watches"
+                disabled={addTopicMutation.isPending}
+                onChange={(event) => setTopicLabel(event.target.value)}
+              />
+            </div>
+            <label className="nw-set__exlabel" htmlFor="nw-addtopic-guidance">
+              Optional guidance — what to include or leave out
+            </label>
+            <div className="nw-set__exrow">
+              <input
+                id="nw-addtopic-guidance"
+                className="jds-input"
+                type="text"
+                value={topicGuidance}
+                placeholder="not smartwatches"
+                disabled={addTopicMutation.isPending}
+                onChange={(event) => setTopicGuidance(event.target.value)}
+              />
+              <button
+                type="submit"
+                className="jds-btn jds-btn--sm"
+                disabled={addTopicMutation.isPending || !topicLabel.trim()}
+              >
+                {addTopicMutation.isPending ? "Checking…" : "Add topic"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="nw-set__addrow">
+            <button
+              type="button"
+              className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
+              disabled
+            >
+              Add topic
+            </button>
+            {availability ? (
+              <PrereqGate requirement="Described topics need an AI model and web search." />
+            ) : null}
+          </div>
+        )}
+        {addTopicMutation.isError ? (
+          <p className="nw-set__exerr" role="alert">
+            {topicCreateErrorMessage(addTopicMutation.error)}
+          </p>
+        ) : null}
       </section>
 
       <section className="nw-set" aria-label="Excluded publishers">

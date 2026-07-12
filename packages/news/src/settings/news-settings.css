@@ -211,3 +211,25 @@
   font-size: var(--text-xs);
   color: var(--danger, var(--text));
 }
+
+/* ----- #975 Task 9: add-source/topic write flows ----- */
+
+/* Stacked label/row pairs inside one form (topic label + guidance) need breathing room
+   between the first row and the next label. */
+.nw-set__exrow + .nw-set__exlabel {
+  margin-top: var(--space-2);
+}
+
+.nw-set__addflow {
+  margin-top: var(--space-2);
+}
+
+.nw-set__candidates {
+  margin: var(--space-2) 0 0;
+}
+
+/* Candidate radios sit inline with the flex row items. */
+.nw-set__item > input[type="radio"] {
+  margin: 0;
+  accent-color: var(--accent);
+}
