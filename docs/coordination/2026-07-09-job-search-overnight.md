@@ -3899,3 +3899,24 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   allow-list on 3 tools (sanitizeAssistantToolResult/output-validation.ts), invocation.result open →
   NO packages/shared change. Flag 3 + 6 = the load-bearing forks (scope-drift + schema-trap locus).
 - Ruling routes to label `JS-08 build 2` (successor inherits) via herdr-pane-message once Opus lands.
+
+### 2026-07-11 — JS-08 PLAN APPROVED (Opus adjudication) → build cleared
+- **Opus adjudication (a4318de6) = APPROVE-WITH-CHANGES**, grounded on `12750d1b`. Both load-bearing
+  claims **CONFIRMED against source**: flag3 REST decide fail-closed 403 at `packages/ai/src/
+  routes.ts:602-627` (execute reachable for read tools only — no confirm-waiter → write can't mutate
+  over REST); flag6 `packages/ai/src/gateway/output-validation.ts:44-68,129-149`
+  sanitizeAssistantToolResult allow-lists to outputSchema (undeclared dropped; no schema = no
+  protection) + `invocation.result` open (`ai-api.ts:274` nullableJsonObject → additionalProperties
+  true) → **no packages/shared change needed** for tool fields. All 6 flags APPROVED. Security
+  invariants PLANNED w/ real tests (T6 cross-owner denial+positive+admin; T8/T9 #960 text-as-text no
+  decode; zero migration KV-only additive `decisionReason`).
+- **COORDINATOR RULING sent to `JS-08 build 3` (pane w1:pGT):** APPROVED, start TDD build.
+  - **Decide-reason shape = OPTIONAL FREE TEXT** (500B cap, owner-private, never echoed/logged/to-AI).
+    Spec:49-52 explicitly deferred this shape to Ben — ruled via **council authority** per standing
+    keep-moving directive (additive-optional + reversible; Opus approved the envelope either way).
+    **→ Ben digest: JS-08 decide-reason = free text; flag if you want enum/omit — cheap reversible.**
+  - **2 REQUIRED build additions** (from adjudication SHOULD-FIX, promoted to must): (A) DIRECT test
+    that a CONFIRMED decision writes an owner-attributed AUDIT record + survives module
+    disable/re-enable (don't lean on T7c REST-403 alone; spec verification requires confirm+audit+
+    survive). (B) Cosmetic: fix flag-3 citation to routes.ts:602-627 (not gateway.ts:281-299).
+- JS-08 now BUILDING. At wrap-up → PR `Closes #937` → SECURITY-tier council QA (2 Opus lenses).
