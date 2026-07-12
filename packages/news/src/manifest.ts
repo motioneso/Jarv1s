@@ -200,6 +200,11 @@ export const newsModuleManifest = {
       path: "/api/news/refresh",
       responseSchema: triggerNewsRefreshSchema,
       permissionId: "news.prefs"
+    },
+    {
+      method: "GET",
+      path: "/api/news/images/:articleId",
+      permissionId: "news.view"
     }
   ],
   assistantTools: [

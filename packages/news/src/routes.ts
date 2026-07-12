@@ -16,7 +16,13 @@ import {
 
 import { NewsPrefsRepository } from "./repository.js";
 import { NewsService, type NewsPrefsReader } from "./news-service.js";
-import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "./discovery/ports.js";
+import type {
+  NewsAiPort,
+  NewsImageFetchPort,
+  NewsSafeFetchPort,
+  NewsWebSearchPort
+} from "./discovery/ports.js";
+import { registerNewsImageRoute } from "./image-route.js";
 import {
   registerNewsPersonalizationRoutes,
   triggerNewsRefresh,
@@ -57,6 +63,7 @@ export interface NewsRoutesDependencies {
   readonly availability: NewsPersonalizationAvailabilityPort;
   readonly discovery: {
     readonly fetch: NewsSafeFetchPort;
+    readonly image: NewsImageFetchPort;
     readonly search: NewsWebSearchPort;
     readonly ai: NewsAiPort;
   };
@@ -185,5 +192,11 @@ export function registerNewsRoutes(
     discovery: dependencies.discovery,
     boss: dependencies.boss,
     repository: personalization
+  });
+  registerNewsImageRoute(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    repository: personalization,
+    fetchImage: dependencies.discovery.image
   });
 }

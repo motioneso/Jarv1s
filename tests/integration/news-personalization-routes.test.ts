@@ -5,6 +5,8 @@ import type { Kysely } from "kysely";
 import type { DatasetClient } from "@jarv1s/datasets";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 
+import type { NewsImageFetchPort } from "../../packages/news/src/discovery/ports.js";
+import { NewsPersonalizationRepository } from "../../packages/news/src/personalization-repository.js";
 import { registerNewsRoutes } from "../../packages/news/src/routes.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -22,7 +24,10 @@ describe("news personalization routes", () => {
     await appDb.destroy();
   });
 
-  function buildApp(topicAllowed = true) {
+  function buildApp(
+    topicAllowed = true,
+    image: NewsImageFetchPort = async () => ({ ok: false, reason: "network" })
+  ) {
     const app = Fastify();
     registerNewsRoutes(app, {
       dataContext: new DataContextRunner(appDb),
@@ -50,6 +55,7 @@ describe("news personalization routes", () => {
           body: feed,
           truncated: false
         }),
+        image,
         search: { search: async () => ({ results: [] }) },
         ai: {
           fingerprint: async () => "opaque-test-fingerprint",
@@ -122,6 +128,79 @@ describe("news personalization routes", () => {
     expect(create.statusCode).toBe(422);
     const listed = await app.inject({ method: "GET", url: "/api/news/personalization" });
     expect(JSON.parse(listed.body).customTopics).toEqual([]);
+    await app.close();
+  });
+
+  it("authorizes cached images only through the current owner's snapshot", async () => {
+    const repository = new NewsPersonalizationRepository();
+    const dataContext = new DataContextRunner(appDb);
+    const publishedAt = new Date(Date.now() - 60 * 60 * 1_000).toISOString();
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "seed-news-image" },
+      (db) =>
+        repository.replaceLatestSnapshot(db, {
+          compiledAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+          payload: {
+            articles: [
+              {
+                id: "article-a",
+                publisher: "Example News",
+                canonicalDomain: "example.com",
+                headline: "Owner A headline",
+                url: "https://example.com/story",
+                publishedAt,
+                excerpt: null,
+                imageUrl: "https://images.example/lead.png",
+                topics: [],
+                preferred: true,
+                rank: 1
+              }
+            ]
+          }
+        })
+    );
+    let fetches = 0;
+    const app = buildApp(true, async () => {
+      fetches += 1;
+      return {
+        ok: true,
+        contentType: "image/png",
+        body: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        truncated: false
+      };
+    });
+    await app.ready();
+
+    const owner = await app.inject({
+      method: "GET",
+      url: "/api/news/images/article-a",
+      headers: { "x-user-id": ids.userA }
+    });
+    expect(owner.statusCode).toBe(200);
+    expect(fetches).toBe(1);
+
+    for (const actorUserId of [ids.userB, ids.adminUser]) {
+      const denied = await app.inject({
+        method: "GET",
+        url: "/api/news/images/article-a",
+        headers: { "x-user-id": actorUserId }
+      });
+      expect(denied.statusCode).toBe(404);
+    }
+    expect(fetches).toBe(1);
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "prune-news-image" },
+      (db) => repository.pruneSnapshotDomain(db, "example.com")
+    );
+    const pruned = await app.inject({
+      method: "GET",
+      url: "/api/news/images/article-a",
+      headers: { "x-user-id": ids.userA }
+    });
+    expect(pruned.statusCode).toBe(404);
+    expect(fetches).toBe(1);
     await app.close();
   });
 });
