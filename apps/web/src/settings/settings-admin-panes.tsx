@@ -22,6 +22,7 @@ import {
   demoteUser,
   getChatMultiplexerSettings,
   getHostDiagnostics,
+  getModuleRegistry,
   getRegistrationSettings,
   listAdminConnectorAccounts,
   listAdminModules,
@@ -65,6 +66,7 @@ import {
 } from "./settings-ui";
 import type {
   ChatMultiplexerChoice,
+  ExternalModuleDto,
   HostDiagnosticStatus,
   PutAiAdminUserPinRequest,
   RegistrationSettingsDto,
@@ -551,6 +553,19 @@ export function IdentityPane() {
 
 /* ----------------------------------------------------------- Instance modules */
 
+// #996/#860: a module downloaded via the registry (Task 12/13) is BOTH a registry row
+// (installed-enabled/installed-disabled) AND a discovered external module (#917's
+// scan of the modules dir) — before this, it rendered in BOTH the "External modules"
+// group AND the "Available modules" registry list. Filter the external group down to
+// modules the registry index doesn't know about (declared-not-present / truly
+// local-only modules never published to the registry).
+export function filterUndeclaredExternalModules(
+  externalModules: readonly ExternalModuleDto[],
+  registryIds: ReadonlySet<string>
+): readonly ExternalModuleDto[] {
+  return externalModules.filter((module) => !registryIds.has(module.id));
+}
+
 export function InstanceModulesPane() {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
@@ -572,14 +587,21 @@ export function InstanceModulesPane() {
       ]),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
-  // #917: external (user-authored) modules discovered on the box. This query 404s /
-  // returns `enabled:false` when JARVIS_ENABLE_EXTERNAL_MODULES is unset, so the whole
-  // section stays hidden by default (fail-closed). retry:false mirrors the built-in query.
+  // #917: external (user-authored) modules discovered on the box.
   const externalModulesQuery = useQuery({
     queryKey: queryKeys.settings.adminExternalModules,
     queryFn: listExternalModules,
     retry: false
   });
+  // #996/#860: subscribe to the SAME registry query ModuleRegistrySection uses
+  // (identical queryKey+queryFn -> React Query serves one cached fetch to both) so this
+  // pane can filter registry-known modules out of the "External modules" group below.
+  const registryQuery = useQuery({
+    queryKey: queryKeys.settings.adminModuleRegistry,
+    queryFn: () => getModuleRegistry(false),
+    retry: false
+  });
+  const registryIds = new Set((registryQuery.data?.modules ?? []).map((row) => row.id));
   const setExternalEnabled = useMutation({
     mutationFn: (input: { id: string; enabled: boolean }) =>
       setExternalModuleEnabled(input.id, input.enabled),
@@ -630,10 +652,8 @@ export function InstanceModulesPane() {
         Disabling a module hides it for everyone and stops it collecting new data. Existing data is
         kept.
       </Note>
-      {/* #917: External modules only surface when the operator opted in via
-          JARVIS_ENABLE_EXTERNAL_MODULES=1 (server reports `enabled`). While the query is
-          loading or the flag is off, `external` is undefined/`enabled:false` and the whole
-          section is hidden — the fail-closed default. */}
+      {/* #917/#996: external modules are always-on now (no JARVIS_ENABLE_EXTERNAL_MODULES
+          gate); `external` is only undefined while the query is loading. */}
       {external?.enabled ? (
         <Group
           title="External modules"
@@ -646,8 +666,11 @@ export function InstanceModulesPane() {
             External modules are not reviewed by Jarvis. Only enable modules you authored or fully
             trust — an enabled module runs with the same access as built-in features.
           </Note>
-          {external.modules.length ? (
-            external.modules.map((module) => {
+          {/* #996/#860: a module downloaded via the registry is also a discovered external
+              module — filter those out here so it doesn't render twice (once below, once in
+              "Available modules"). */}
+          {filterUndeclaredExternalModules(external.modules, registryIds).length ? (
+            filterUndeclaredExternalModules(external.modules, registryIds).map((module) => {
               // #917: surface WHY a module is inactive. Drift auto-disable (package changed
               // after it was enabled) wins; otherwise any server-provided disabledReason.
               const reason = module.drifted
@@ -685,7 +708,11 @@ export function InstanceModulesPane() {
           )}
         </Group>
       ) : null}
-      <ModuleRegistrySection />
+      <ModuleRegistrySection
+        externalModules={external?.modules}
+        onSetEnabled={(id, enabled) => setExternalEnabled.mutate({ id, enabled })}
+        settingEnabledPending={setExternalEnabled.isPending}
+      />
     </>
   );
 }
