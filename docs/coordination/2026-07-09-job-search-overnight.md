@@ -4662,3 +4662,15 @@ council LAUNCHED:** Opus QA subagent (`a3caf275f25bc8137`, posts gh pr comment) 
 VERDICT:` to PR #977. NO 2-provider fallback: all three must APPROVE or HOLD for Ben. pHE (relay12,
 w1:pHE) DONE + KEPT ALIVE for fix-back until #977 merges. Monitor b2bcxgvqi stopped.
 `merges_since_relay=1`.
+
+### News S4 #977 council — Gemini REJECT (first verdict in)
+
+Gemini (3.1 Pro High): **REJECT** — Requirement C (sentinel privacy scan) UNTESTED: no sentinel
+strings seeded / asserted-absent in `tests/integration/news-revalidation.*` across pg-boss payloads,
+worker logs, notification bodies. Named-unanimous + NO fallback → **merge BLOCKED** regardless of the
+other two lenses. This is a substantive test-coverage gap on a security-tier invariant ("secrets
+never escape — verify in tests, not prose"), NOT a provider-refusal → route back to pHE for a fix
+round (do NOT HOLD-for-Ben). Codex (pid 3858387) + Opus (`a3caf275f25bc8137`) still running — will
+consolidate all three findings into ONE relay to pHE. pHE alive+idle, correctly self-blocked
+awaiting council direction (Fable, 69% ctx — may relay to a Fable successor mid-fix). news-s4 HEAD
+`089020a9`. NOT merged. `merges_since_relay=1`.
