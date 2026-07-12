@@ -4391,3 +4391,27 @@ last slice, one-in-flight ✓.
 
 **JS-09 #976 unchanged** — still PARKED/held for Ben's manual acceptance. `merges_since_relay`
 unchanged (0 merges this window). Coordinator `pE6`/`58a78927` authoritative.
+
+## UPDATE — 2026-07-12 — News S4 build agent RELAYED at 70% (grounded, no code)
+
+Original News S4 agent (pane w1:pH2, session c18afef7) relayed at its 70% meter. **Grounding done:**
+preflight green on `ba4ed180`, Slice-4 spec section verified current, integration surfaces mapped.
+**No code written.** Its Fable successor (same worktree) writes the plan from the continuation doc and
+will send a plan-ready message. **Pending: confirm successor driving + Fable + in agents tab (w1:t1P),
+then reap pH2, re-point Monitor.** (As of this write pH2 still up/working — successor not yet visible.)
+
+**TWO ITEMS FLAGGED FOR PLAN REVIEW (both security-sensitive — scrutinize hard, likely Opus
+adjudication at plan-ready):**
+1. **Narrow column-grant migration on `news_custom_sources` / `news_custom_topics`.** Revalidation
+   worker currently has UPDATE limited to `health_status` on sources only; topics are SELECT-only.
+   Worker needs to write revalidation bookkeeping columns. **Adjudication frame:** "revalidation of
+   curated sources" IS explicitly in the Slice-4 scope → a narrow grant is plausibly spec-aligned
+   (NOT scope creep), BUT it touches grants/RLS on owner-private shared tables → require LEAST-PRIVILEGE
+   (grant only the specific columns the worker writes, never table-wide UPDATE), worker role stays
+   RLS-bound, NO BYPASSRLS. Plan must name the exact columns + justify each against the spec.
+2. **Provider-change detection (no provider-change event exists in AI module).** Agent proposes
+   per-owner fingerprint-drift detection (refresh-time check + per-owner cron via the briefings
+   reconcile pattern) to stay RLS-clean. **Adjudication frame:** must hold the provider-agnostic
+   invariant — fingerprint the *router-resolved* config, never hardcode a provider/model; per-owner
+   keeps it RLS-clean. Verify the briefings reconcile pattern is the right reuse (not net-new cron
+   machinery). Likely Opus adjudication when the plan lands.
