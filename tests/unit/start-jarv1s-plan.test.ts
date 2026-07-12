@@ -9,7 +9,7 @@ import {
 } from "../../scripts/start-jarv1s.js";
 
 describe("start-jarv1s startup plan", () => {
-  it("runs migrate before resident processes", () => {
+  it("runs migrate then module reconcile before resident processes", () => {
     const plan = buildStartupPlan({
       NODE_ENV: "production",
       JARVIS_HOST_UID: "1234",
@@ -18,21 +18,20 @@ describe("start-jarv1s startup plan", () => {
     } as NodeJS.ProcessEnv);
 
     expect(plan.oneShots.map((oneShot) => oneShot.command)).toEqual([
-      ["node_modules/.bin/tsx", "scripts/migrate.ts"]
+      ["node_modules/.bin/tsx", "scripts/migrate.ts"],
+      ["node_modules/.bin/tsx", "scripts/module-reconcile.ts"]
     ]);
     expect(plan.oneShots[0]!.uid).toBe(1234);
     expect(plan.oneShots[0]!.gid).toBe(1235);
     expect(plan.resident.map((p) => p.role)).toEqual(["cli-runner", "worker", "api"]);
   });
 
-  it("appends module reconcile after migrate when external modules are enabled", () => {
+  it("always appends module reconcile after migrate (#996 always-on)", () => {
     const plan = buildStartupPlan({
       NODE_ENV: "production",
       JARVIS_HOST_UID: "1234",
       JARVIS_HOST_GID: "1235",
-      JARVIS_CLI_RUNNER_RPC_SECRET: "rpc-secret",
-      JARVIS_ENABLE_EXTERNAL_MODULES: "1",
-      JARVIS_MODULES_DIR: "/data/modules"
+      JARVIS_CLI_RUNNER_RPC_SECRET: "rpc-secret"
     } as NodeJS.ProcessEnv);
 
     expect(plan.oneShots.map((oneShot) => oneShot.command)).toEqual([
