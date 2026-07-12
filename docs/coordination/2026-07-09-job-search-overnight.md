@@ -4009,3 +4009,12 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   `apps/api/src/external-module-tools.ts` pattern — no escalation). Build 4 REAPED (session verified
   before close). Build 5 resuming Task 7 (REST invoke via app.inject + 7e live-gateway confirm).
   Tree: only context-meter.log + untracked handoff doc, no uncommitted feature code.
+- **NEWS S3 COUNCIL ROUND 2 (2026-07-11, IN FLIGHT):** author pushed fix `8eccd902` (synchronous
+  curated-domain prune via `triggerNewsRefresh` afterBump on `source_exclude` POST + real-DB route
+  regression 5/5 proving overview removal + image 404 before async refresh; focused/lint/typecheck
+  green; PR MERGEABLE, still Closes #972+#969). Round-1 Opus (old head `a5b3b527`) STOPPED as
+  redundant. **Re-fired all 3 lenses on `8eccd902`, top-priority = re-verify the immediate-removal
+  fix is synchronous + fail-safe + real-DB tested:** Opus agent `abfdbb0bdc569ba2e` (worktree),
+  Gemini/agy bg `blna3io5c`, indep Codex bg `btnj86p9p` — each posts `[…rd2] VERDICT` to PR. CI
+  monitor `b4940vggf`. MERGE on unanimous rd2 APPROVE + CI green → squash under council authority,
+  then bookkeeping + reap pEP + coordinator self-relay-in-place (directive #3).
