@@ -4579,3 +4579,11 @@ Opus+Codex+Gemini, NO fallback.
 - **Progress:** Task 7 (news.previewSource/confirmSource chat preview/confirm tools) RED committed `afe773ba`; successor resumes Task 7 GREEN. Continuation doc for relay9 committed. Tasks 1–6 GREEN unchanged.
 - **Monitor** re-pointed to `w1:pHB` (task `b4cvgn46j`, persistent). Old Monitor `bwdys1czo` stopped. **`merges_since_relay` = 0.**
 - Gate/conditions unchanged: News named-unanimous Opus+Codex+Gemini no-fallback; JS-09 #976 PARKED.
+
+### Relay #10 (News S4) — 2026-07-12
+
+- **Successor driving:** pane `w1:pHC`, tab `w1:t1P`, label `News S4 relay10`, session `e3370515-a254-49dc-bf9f-94dd1dd2e13b`, **Fable 5** confirmed (high effort).
+- **Reaped:** spent predecessor pane `w1:pHB`, session `25434003-1503-4650-9fe8-f4cc6eb1126b` (session-verified, `close: ok`).
+- **Progress:** Task 7 GREEN committed `b0cdfa87` (chat preview/confirm tools, 4/4 + 7/7 REST regression). **Task 8 (remaining chat tools) RED starting.** Handoff doc `8bea8c9d`. Tasks 1–7 GREEN; Task 9 (Settings wiring) remains.
+- **Monitor** re-pointed to `w1:pHC` (task `b5y8ns73a`, persistent). Old Monitor `b4cvgn46j` stopped (GONE event = the reap, expected). **`merges_since_relay` = 0.**
+- Gate/conditions unchanged: News named-unanimous Opus+Codex+Gemini no-fallback; JS-09 #976 PARKED.
