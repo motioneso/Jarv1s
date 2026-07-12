@@ -4455,3 +4455,29 @@ security council's job at PR time (named-unanimous Opus+Codex+Gemini, no fallbac
 **2nd relay in progress** (pH3/238c21dd hit 70% while grounding, compaction occurred) → fresh Fable
 successor, same worktree/branch, SAME label 'News S4 relay'. Plan file carries full state; successor
 holds for my approval before code. Routing approval to the live 'News S4 relay' pane below.
+
+## UPDATE — 2026-07-12 — News S4 approval DELIVERED, 2nd-relay housekeeping complete
+
+Approved plan (all 4 conditions verbatim: migration 0161 least-privilege column-grants +
+owner-scoped topics-worker UPDATE RLS / no BYPASSRLS; one summary notification to spec; Settings
+add/delete/Retry Task 9 in-scope; 6 chat tools) DELIVERED to the live successor and is queued on the
+working Fable pane. Successor now BUILDING the approved plan.
+
+- **Live successor:** pane `w1:pH4`, tab `w1:t1P` (agents ✓), label `'News S4 relay'`, session
+  **d704dc45-d938-41c9-a1c3-cfdab5ec19ed**, **Fable 5 confirmed**, status working. Same worktree/
+  branch `news-s4`.
+- **Spent pane `w1:pH3`** (session 238c21dd-6842-40c8-8ab5-49f7c72846f4) REAPED — session-verified
+  before close, confirmed GONE by monitor.
+- **Liveness Monitor re-pointed:** old `b5gyr5neu` (pH3) stopped → new **`bsrtvtv03`** watches pH4
+  (persistent; idle=PR-ready/blocked/relay, GONE=death).
+- Merge gate reaffirmed on delivery: **News named-unanimous Opus+Codex+Gemini, NO fallback**;
+  successor told to state migration RLS approach + notification privacy test in the PR body.
+
+**Coordinator authority re-confirmed:** pane `w1:pE6`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`
+(matches lock line). **`merges_since_relay` = 0** (zero merges this entire window).
+**JS-09 #976 unchanged** — PARKED/held for Ben's day-one manual acceptance; do NOT auto-merge.
+
+**On resume:** watch Monitor `bsrtvtv03` — successor idle→PR-open triggers the News named-unanimous
+council (Opus lens via coordinated-qa subagent + Codex `codex exec` + Gemini `agy` neutral framing),
+another relay = reap+re-point, GONE-without-PR = investigate. Check for any Ben JS-09 acceptance
+signal.
