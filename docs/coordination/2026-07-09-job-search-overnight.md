@@ -4713,3 +4713,25 @@ may auto-compact/relay to Fable successor):
   entity label + javascript:/data: URL → renders literal text, link scheme dropped.
 pHE to state sentinel approach in PR body, wrap-up when green, re-notify Coordinator for re-council.
 Monitor bn3o28o20 stopped (both bg verdicts landed). NOT merged. `merges_since_relay=1`.
+
+### News S4 #977 — relay12→relay13 (Fable), fix round underway
+
+pHE relay12 (session 3cdc736f) hit 71% → relayed to **News S4 relay13** (Fable 5, session
+`c207203a-ea3a-4f09-af5c-f74d1eb7601f`, pane w1:pHF, agents tab w1:t1P — verified NOT coordinator
+tab). relay13 confirmed driving; relay12 reaped (session verified before close). Relay13 handoff
+`docs/superpowers/handoffs/2026-07-12-news-s4-relay13.md` (`a8116437`) carries GAP1 (sentinel/log
+scan) + GAP2 (external-content adversarial test). No code fix yet — a8116437 is the handoff doc.
+relay13 fixes both, re-gates, updates #977 body with sentinel approach, re-notifies Coordinator for
+re-council. Same named-unanimous gate (Opus+Codex+Gemini, no fallback). NOT merged.
+
+### Ben Q — Job Search NOT in Settings→Modules (answered)
+
+Ben (prod test): no Job Search toggle in Settings→Modules — correct + by design. Traced on deployed
+`9af57f81`: Job Search is an EXTERNAL module (`external-modules/job-search/jarvis.module.json`,
+id `job-search`, lifecycle optional), NOT a built-in. Settings→Modules `/api/me/modules` lists
+static `BUILT_IN_MODULES` only → job-search absent. External modules = admin-only surface gated on
+env `JARVIS_ENABLE_EXTERNAL_MODULES=1` + `JARVIS_MODULES_DIR` (both UNSET in prod+dev compose →
+fail-closed empty). JS-06 (`d8544793`) built the module's own screens, never wired registration.
+Self-service detect→download→install = #964 (spec-gated, unbuilt). Offered Ben: wire the manual
+external-module path into JarvisProd for testing (set 2 env vars + build bundle + admin-enable) OR
+hold for #964. AWAITING Ben's choice.
