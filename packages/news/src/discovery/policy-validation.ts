@@ -93,7 +93,7 @@ export async function validateTopic(
   if (!fingerprint) return { verdict: "unavailable" };
   const data = {
     label: sanitizeFeedText(input.label, 80),
-    guidance: sanitizeFeedText(input.guidance, 300)
+    guidance: sanitizeFeedText(input.guidance, 1_000)
   };
   const generated = await deps.ai.generateJson(scopedDb, {
     schema: topicSchema,

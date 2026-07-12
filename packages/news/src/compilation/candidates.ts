@@ -303,9 +303,8 @@ export async function collectCandidates(
     for (const result of results.results.slice(0, 5)) {
       const url = httpsUrl(result.url);
       const domain = url ? articleDomain(url) : null;
-      const publishedAt = publicationTime(result.publishedAt, opts.now);
       const headline = sanitizeFeedText(result.title, TITLE_CHAR_CAP);
-      if (!url || !domain || !publishedAt || !headline || excluded(domain, exclusions)) continue;
+      if (!url || !domain || !headline || excluded(domain, exclusions)) continue;
       const policy = await decideSourcePolicy(
         scopedDb,
         { ai: deps.ai, repo: deps.repo },
@@ -316,14 +315,36 @@ export async function collectCandidates(
         }
       );
       if (policy.verdict !== "approved") continue;
+
+      let articleUrl = url;
+      let publishedAt = publicationTime(result.publishedAt, opts.now);
+      let excerpt = sanitizeFeedText(result.snippet, SUMMARY_CHAR_CAP) || null;
+      let imageUrl: string | null = null;
+      const article = await deps.fetch(url);
+      if (article.ok) {
+        const finalDomain = articleDomain(article.finalUrl);
+        if (
+          !finalDomain ||
+          excluded(finalDomain, exclusions) ||
+          !samePublisher(domain, finalDomain)
+        ) {
+          continue;
+        }
+        const metadata = articleMetadata(article.body);
+        articleUrl = article.finalUrl;
+        publishedAt ??= publicationTime(metadata.publishedAt, opts.now);
+        excerpt ??= sanitizeFeedText(metadata.excerpt, SUMMARY_CHAR_CAP) || null;
+        imageUrl = httpsUrl(metadata.imageUrl);
+      }
+      if (!publishedAt) continue;
       collected.push({
         publisher: domain,
         canonicalDomain: domain,
         headline,
-        url,
+        url: articleUrl,
         publishedAt,
-        excerpt: sanitizeFeedText(result.snippet, SUMMARY_CHAR_CAP) || null,
-        imageUrl: null,
+        excerpt,
+        imageUrl,
         origin: "topic_search",
         matchedTopics: [topic.label]
       });

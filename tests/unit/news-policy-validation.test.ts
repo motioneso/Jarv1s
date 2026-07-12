@@ -176,4 +176,15 @@ describe("news discovery policy validation", () => {
       expect(prompt).toContain("UNTRUSTED DATA");
     }
   });
+
+  it("validates all accepted topic-guidance characters", async () => {
+    const ai = aiReturning({ allowed: true, category: "news_topic" });
+    const guidance = `${"a".repeat(700)}policy-tail-sentinel`;
+
+    await validateTopic(db, { ai }, { label: "Watches", guidance });
+
+    const prompt = vi.mocked(ai.generateJson).mock.calls[0]?.[1].prompt ?? "";
+    expect(prompt).toContain("policy-tail-sentinel");
+    expect(prompt).toContain(guidance);
+  });
 });
