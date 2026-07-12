@@ -12,8 +12,11 @@ export const peopleModuleManifest: JarvisModuleManifest = {
   name: "People & Context",
   publisher: "jarv1s",
   version: PEOPLE_MODULE_VERSION,
-  lifecycle: "user-toggleable",
-  availability: { defaultEnabled: true },
+  // #996/#860: Commitments (and People/Goals) moved from user-toggleable to required —
+  // spec 2026-07-12-module-management-admin-ux.md decided core productivity modules
+  // should never be turned off; only Wellness/Sports/News stay user-toggleable.
+  lifecycle: "required",
+  availability: { defaultEnabled: true, required: true },
   compatibility: { jarv1s: ">=0.0.0" },
   database: {
     migrations: ["0128_person_context.sql"],
