@@ -17,7 +17,12 @@ const goodEntry = {
   sha256: "a".repeat(64),
   sizeBytes: 1024,
   requiresCore: ">=0.1.0",
-  capabilities: { permissions: ["storage"], fetchHosts: [], tools: [], ownsTables: true },
+  capabilities: {
+    permissions: ["storage"],
+    fetchHosts: [],
+    tools: [],
+    ownsTables: ["app.job_search_listings"]
+  },
   signature: null,
   previousVersions: [
     { version: "1.1.0", artifact: "job-search-1.1.0.tgz", sha256: "b".repeat(64), sizeBytes: 900 }

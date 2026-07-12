@@ -28,7 +28,11 @@ export interface ModuleRegistryCapabilities {
   readonly permissions: readonly string[];
   readonly fetchHosts: readonly string[];
   readonly tools: readonly ModuleRegistryToolRef[];
-  readonly ownsTables: boolean;
+  // #964: table names, not a flag — Task 6's admin DTO/UI and Task 9's confirm dialog
+  // render these directly ("Owns database tables: app.foo"). Table names are
+  // module-declared structural metadata, not secrets or user data, so surfacing them
+  // in the public registry index is fine.
+  readonly ownsTables: readonly string[];
 }
 
 export interface ModuleRegistryEntry extends ModuleRegistryArtifactRef {
@@ -113,13 +117,9 @@ function validateCapabilities(
   }
   const permissions = stringArray(raw.permissions);
   const fetchHosts = stringArray(raw.fetchHosts);
-  if (
-    !permissions ||
-    !fetchHosts ||
-    typeof raw.ownsTables !== "boolean" ||
-    !Array.isArray(raw.tools)
-  ) {
-    errors.push(`${where}: capabilities requires permissions[], fetchHosts[], tools[], ownsTables`);
+  const ownsTables = stringArray(raw.ownsTables);
+  if (!permissions || !fetchHosts || !ownsTables || !Array.isArray(raw.tools)) {
+    errors.push(`${where}: capabilities requires permissions[], fetchHosts[], tools[], ownsTables[]`);
     return null;
   }
   const tools: ModuleRegistryToolRef[] = [];
@@ -130,7 +130,7 @@ function validateCapabilities(
     }
     tools.push({ name: tool.name, risk: tool.risk });
   }
-  return { permissions, fetchHosts, tools, ownsTables: raw.ownsTables };
+  return { permissions, fetchHosts, tools, ownsTables };
 }
 
 function validateEntry(
