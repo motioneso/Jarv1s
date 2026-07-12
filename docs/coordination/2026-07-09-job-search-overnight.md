@@ -5019,3 +5019,24 @@ it). Invocation: `agy --dangerously-skip-permissions --model "Gemini 3.1 Pro (Hi
 VERDICT` to PR #980. (Fallback independent-Opus critic a083c5d4 also still running — corroborating
 same-model lens, not the binding cross-model gate.) On AGY APPROVE → MERGE (re-confirm session
 58a78927 first). Council for security tier henceforth = Opus authority + **AGY** cross-model.
+
+## CONTINUATION NOTE (coordinator 70% auto-compact 2026-07-12 #2)
+**#964 / PR #980 gate — 2 of 3 lenses in, all GREEN:**
+- CI: all 3 checks GREEN (Verify foundation + compose + prod smoke). mergeable=MERGEABLE.
+- Opus council lens: APPROVE (comment 4952204992). Independent Opus critic a083c5d4: APPROVE
+  (comment 4952237958). Both 0-blocking, file:line-grounded.
+- **AGY cross-model lens (Gemini 3.1 Pro High): RUNNING as bg task b0vlp9qk4** — conformance-framed
+  reworded prompt (first AGY run refused on safety-filter; reworded prompt in scratchpad
+  pr980-agy.txt). Posts `[AGY Gemini 3.1 Pro council QA] VERDICT` to PR. **Do NOT use gemini-cli —
+  Ben: must be AGY** (`agy --dangerously-skip-permissions --model "Gemini 3.1 Pro (High)"
+  --print-timeout 18m --add-dir <repo> -p …`).
+**NEXT:** on AGY APPROVE → MERGE #980 (re-confirm session 58a78927 == lock FIRST):
+`gh pr merge 980 --squash --delete-branch`, close #964, check epic #860 exit-criteria, board→Done,
+reap pane pHY (w1:pHY, "Mod-Dist #964 v12", session 935304ae) + `git worktree remove
+.claude/worktrees/mod-dist-964`, task #24→completed. On AGY REJECT → adjudicate the specific finding
+vs the 2 Opus APPROVEs (targeted re-check, not auto-honor) before deciding.
+**Ben ask DONE this window:** swept memory for gemini-cli refs → cli-adversarial-review.md rewritten
+to AGY-first + do-not-use-gemini-cli; codex-sandbox-workaround.md + MEMORY.md hooks updated; new
+memory cross-model-lens-must-be-agy.md. Skills dirs had zero gemini refs.
+**Other open:** #981 news error-copy bug (routine, packages/news; 500 half needs Ben env+stack);
+#979 flake (task #31); #965 parked (task #25). Auto-compact in place — NO successor pane.
