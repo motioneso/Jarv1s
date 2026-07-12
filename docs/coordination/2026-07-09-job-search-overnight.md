@@ -4634,3 +4634,31 @@ live post-merge — offer to watch the `:edge` publish run so he can `docker com
 
 `merges_since_relay=1` (carries JS-09 security merge). Coordinator staying resident (compact in
 place per Ben directive — no successor pane spawned).
+
+### Prod deploy + News S4 PR-open (2026-07-12 ~afternoon)
+
+**JarvisProd deploy DONE (Ben asked me to pull `:edge` myself):** pulled `:edge` = `ba4ed180`
+build → digest `e6d4a17c` (was `d56d63d5`, 46h old). Boot crash-looped: new module work makes
+`JARVIS_MODULE_CREDENTIAL_SECRET_KEY` a REQUIRED prod secret (module-credential AES-256-GCM keyring,
+`resolveKeyring`, ≥32-byte utf8). Ben's `env.production.local` predates the feature. Fixed forward:
+backed up env → `.bak.pre-module-cred-key`, generated 64-byte hex key, appended w/ inline doc,
+`--force-recreate`. Prod now UP (`/health/ready`→200, docker healthcheck healthy). Only ONE var was
+missing (AI+CONNECTOR keyrings already set). **DEPLOY-UX GAP (Ben's Q "how would users do this
+without you"):** fresh installs COVERED (`infra/env.production.example:33` + `setup-prod.ts`
+auto-gens); UPGRADES NOT — no reconcile of newly-required vars into an existing env → crash-loop w/
+cryptic one-var-at-a-time error. Worth filing: env-upgrade preflight (diff required vars, auto-gen
+missing secret keys, actionable fail). Not yet filed — offered to Ben.
+
+**Red main (JS-09 `9af57f81`) diagnosed:** `Verify foundation` failed → publish SKIPPED (why `:edge`
+stayed at ba4ed180). Triage verdict: PRE-EXISTING FLAKE in `tests/integration/tasks-agency-tools.test.ts`
+(single-tick race on action_request emit), NOT a JS-09 regression, product untouched. Fix =
+`vi.waitFor`. Follow-up, not a blocker. **File a fix issue.**
+
+**News S4 #977 OPEN, gates green** (VF_EXIT=0 AUDIT_EXIT=0; unit 3092 / integration 1611 pass;
+rebased on `9af57f81`). 2 gate fixes on branch (manifest id same-file literal for settings-ui
+scanner; S3 worker negative-control updated for 0161 fingerprint grant). **News named-unanimous
+council LAUNCHED:** Opus QA subagent (`a3caf275f25bc8137`, posts gh pr comment) + Codex (pid 3858387,
+`news977-codex.out`) + Gemini (pid 3858388, `news977-gemini.out`) — all post `[<LENS> council QA]
+VERDICT:` to PR #977. NO 2-provider fallback: all three must APPROVE or HOLD for Ben. pHE (relay12,
+w1:pHE) DONE + KEPT ALIVE for fix-back until #977 merges. Monitor b2bcxgvqi stopped.
+`merges_since_relay=1`.
