@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filterUndeclaredExternalModules } from "../../apps/web/src/settings/settings-admin-panes.js";
+import { filterUndeclaredExternalModules } from "../../apps/web/src/settings/settings-instance-modules-pane.js";
 import type { ExternalModuleDto } from "@jarv1s/shared";
 
 function ext(id: string): ExternalModuleDto {

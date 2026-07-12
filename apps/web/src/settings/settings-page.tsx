@@ -115,7 +115,9 @@ const IdentityPane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.IdentityPane }))
 );
 const InstanceModulesPane = lazyPane(() =>
-  import("./settings-admin-panes").then((module) => ({ default: module.InstanceModulesPane }))
+  import("./settings-instance-modules-pane").then((module) => ({
+    default: module.InstanceModulesPane
+  }))
 );
 const AuditPane = lazyPane(() =>
   import("./settings-audit-pane").then((module) => ({ default: module.AuditPane }))
