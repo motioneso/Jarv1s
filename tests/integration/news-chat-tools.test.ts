@@ -1,0 +1,295 @@
+// tests/integration/news-chat-tools.test.ts
+//
+// News Slice 4 Task 7 (#975): news.previewSource / news.confirmSource drive the
+// SAME machinery assistant chat uses (AssistantToolGateway), not the REST route —
+// the REST invoke path can only 403 a write tool. Proven here end-to-end:
+// preview runs unconfirmed (read risk) and returns verified candidates; confirm
+// is always gated (no actionFamilyId → never promoted), nothing executes until
+// the owner resolves the pending action; a tampered resubmitted domain is a
+// security violation (execute throws, sanitized error, no row); a cross-owner
+// confirmationId replay dies as "expired" (preview store is owner-checked); and
+// no tool output ever leaks provider/model fingerprint material.
+//
+// Harness skeleton: tests/integration/js08-decide-confirm-audit.test.ts.
+// Discovery/availability stubs: tests/integration/news-personalization-routes.test.ts.
+import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import pg from "pg";
+import type { Kysely } from "kysely";
+
+import {
+  AiRepository,
+  AssistantToolGateway,
+  ConfirmationRegistry,
+  SessionTokenRegistry,
+  type GatewaySessionRecord
+} from "@jarv1s/ai";
+import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+
+import { configureNewsChatTools } from "../../packages/news/src/chat-tools.js";
+import { createPreviewStore } from "../../packages/news/src/discovery/preview-store.js";
+import { newsModuleManifest } from "../../packages/news/src/manifest.js";
+import { NewsPersonalizationRepository } from "../../packages/news/src/personalization-repository.js";
+import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+
+const { Client } = pg;
+
+const feed = `<?xml version="1.0"?><rss><channel><title>Example News</title><item><title>Verified publisher headline</title><link>https://example.com/story</link><pubDate>Fri, 11 Jul 2026 12:00:00 GMT</pubDate></item></channel></rss>`;
+
+/**
+ * Gateway output is always `{ text }` (renderAndCap). For `externalContent`
+ * tools the rendered JSON additionally sits HTML-escaped inside a
+ * `<tool_result source="…">` trust envelope — strip + unescape + parse to get
+ * the structured payload back for follow-up calls.
+ */
+function parseToolText(result: unknown): Record<string, unknown> {
+  const text = (result as { data?: { text?: string } }).data?.text;
+  if (typeof text !== "string")
+    throw new Error(`tool result has no text: ${JSON.stringify(result)}`);
+  const inner = text
+    .replace(/^<tool_result[^>]*>\n/, "")
+    .replace(/\n<\/tool_result>$/, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+  return JSON.parse(inner) as Record<string, unknown>;
+}
+
+type PreviewPayload = {
+  confirmationId: string;
+  candidates: Array<{ candidateId: string; label: string; domain: string }>;
+};
+
+describe("news chat tools — previewSource/confirmSource via assistant gateway (#975)", () => {
+  let bootstrap: pg.Client;
+  let appDb: Kysely<JarvisDatabase>;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    bootstrap = new Client({ connectionString: connectionStrings.bootstrap });
+    await bootstrap.connect();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
+
+    // Same deferred-deps seam routes.ts uses at composition time: one shared
+    // preview store, stubbed discovery/availability, boss=null (refresh
+    // trigger degrades to a no-op exactly like the REST confirm route).
+    configureNewsChatTools({
+      previews: createPreviewStore(),
+      discovery: {
+        fetch: async (url: string) => ({
+          ok: true as const,
+          status: 200,
+          finalUrl: url,
+          contentType: "application/rss+xml",
+          body: feed,
+          truncated: false
+        }),
+        search: { search: async () => ({ results: [] }) },
+        ai: {
+          fingerprint: async () => "opaque-test-fingerprint",
+          generateJson: async (_db: unknown, input: { prompt: string }) => ({
+            ok: true as const,
+            object: input.prompt.includes("news TOPIC")
+              ? { allowed: true, category: "news_topic" }
+              : { allowed: true, category: "news_publisher" }
+          })
+        }
+      },
+      availability: {
+        hasJsonModel: async () => true,
+        hasWebSearch: async () => true
+      },
+      boss: null,
+      repository: new NewsPersonalizationRepository()
+    });
+  }, 60_000);
+
+  afterAll(async () => Promise.allSettled([bootstrap?.end(), appDb?.destroy()]));
+
+  function makeGateway() {
+    const tokens = new SessionTokenRegistry();
+    const emitted: GatewaySessionRecord[] = [];
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [newsModuleManifest],
+      repository: new AiRepository(),
+      runner: new DataContextRunner(appDb),
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: (_session, record) => emitted.push(record) },
+      confirmTimeoutMs: 5_000
+    });
+    const mint = (actorUserId: string, chatSessionId: string) =>
+      tokens.mint({ actorUserId, chatSessionId, allowedToolNames: null });
+    return { gateway, emitted, mint };
+  }
+
+  async function previewExampleFeed(
+    gateway: AssistantToolGateway,
+    token: string
+  ): Promise<PreviewPayload> {
+    const result = await gateway.callTool(token, "news.previewSource", {
+      source: "https://example.com/feed.xml"
+    });
+    expect(result).toMatchObject({ ok: true });
+    const payload = parseToolText(result) as unknown as PreviewPayload;
+    expect(typeof payload.confirmationId).toBe("string");
+    expect(payload.candidates.length).toBeGreaterThan(0);
+    return payload;
+  }
+
+  async function waitForActionRequest(
+    emitted: GatewaySessionRecord[],
+    from: number
+  ): Promise<Extract<GatewaySessionRecord, { kind: "action_request" }>> {
+    for (let attempt = 0; attempt < 1_000; attempt += 1) {
+      const record = emitted
+        .slice(from)
+        .find((entry): entry is Extract<GatewaySessionRecord, { kind: "action_request" }> => {
+          return entry.kind === "action_request";
+        });
+      if (record) return record;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error("action request never emitted");
+  }
+
+  async function sourceRowCount(): Promise<number> {
+    const rows = await bootstrap.query(`SELECT count(*)::int AS n FROM app.news_custom_sources`);
+    return rows.rows[0].n as number;
+  }
+
+  async function waitForAudit(where: {
+    toolName: string;
+    outcome: string;
+  }): Promise<Record<string, unknown>> {
+    // Audit writes are fire-and-forget — poll for the row.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const audit = await bootstrap.query(
+        `SELECT owner_user_id, approval_mode, outcome, tool_name
+         FROM app.jarvis_action_audit_log
+         WHERE tool_name = $1 AND outcome = $2`,
+        [where.toolName, where.outcome]
+      );
+      if (audit.rowCount) return audit.rows[0] as Record<string, unknown>;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error(`audit row not written for ${where.toolName}/${where.outcome}`);
+  }
+
+  it("previewSource runs unconfirmed (read risk) and returns verified candidates", async () => {
+    const { gateway, emitted, mint } = makeGateway();
+    const token = mint(ids.userA, "news-chat-preview");
+
+    const result = await gateway.callTool(token, "news.previewSource", {
+      source: "https://example.com/feed.xml"
+    });
+    expect(result).toMatchObject({ ok: true });
+    // Read-risk tool: no confirmation round-trip happened.
+    expect(emitted.filter((entry) => entry.kind === "action_request")).toHaveLength(0);
+
+    const payload = parseToolText(result) as unknown as PreviewPayload;
+    expect(typeof payload.confirmationId).toBe("string");
+    expect(payload.candidates[0]).toMatchObject({ domain: "example.com" });
+    // Validation fingerprints are provider/model-derived — never in tool output.
+    expect(JSON.stringify(result)).not.toContain("fingerprint");
+  }, 30_000);
+
+  it("confirmSource is confirm-gated: nothing executes until the owner confirms, then row + audit", async () => {
+    const { gateway, emitted, mint } = makeGateway();
+    const token = mint(ids.userA, "news-chat-confirm");
+    const preview = await previewExampleFeed(gateway, token);
+    const candidate = preview.candidates[0]!;
+    const before = await sourceRowCount();
+
+    const pending = gateway.callTool(token, "news.confirmSource", {
+      confirmationId: preview.confirmationId,
+      candidateId: candidate.candidateId,
+      label: candidate.label,
+      domain: candidate.domain
+    });
+    const request = await waitForActionRequest(emitted, 0);
+
+    // Blocking confirmation: no source row while the action sits pending.
+    expect(await sourceRowCount()).toBe(before);
+
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+    const result = await pending;
+    expect(result).toMatchObject({ ok: true });
+    expect(JSON.stringify(result)).not.toContain("fingerprint");
+
+    expect(await sourceRowCount()).toBe(before + 1);
+    const row = await bootstrap.query(
+      `SELECT owner_user_id, canonical_domain FROM app.news_custom_sources ORDER BY created_at DESC LIMIT 1`
+    );
+    expect(row.rows[0]).toMatchObject({
+      owner_user_id: ids.userA,
+      canonical_domain: "example.com"
+    });
+
+    expect(
+      await waitForAudit({ toolName: "news.confirmSource", outcome: "success" })
+    ).toMatchObject({
+      owner_user_id: ids.userA,
+      approval_mode: "confirmed",
+      outcome: "success",
+      tool_name: "news.confirmSource"
+    });
+  }, 30_000);
+
+  it("confirmSource with a tampered domain fails closed: sanitized error, no row", async () => {
+    const { gateway, emitted, mint } = makeGateway();
+    const token = mint(ids.userA, "news-chat-tamper");
+    const preview = await previewExampleFeed(gateway, token);
+    const candidate = preview.candidates[0]!;
+    const before = await sourceRowCount();
+
+    // Resubmitted display fields must match the STORED candidate — a mismatch is
+    // a security violation (LLM/client tried to swap the write target).
+    const pending = gateway.callTool(token, "news.confirmSource", {
+      confirmationId: preview.confirmationId,
+      candidateId: candidate.candidateId,
+      label: candidate.label,
+      domain: "evil.example.net"
+    });
+    const request = await waitForActionRequest(emitted, 0);
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+    const result = await pending;
+
+    expect(result).toMatchObject({ ok: false });
+    expect(JSON.stringify(result)).toContain("Tool news.confirmSource failed");
+    expect(await sourceRowCount()).toBe(before);
+    expect(await waitForAudit({ toolName: "news.confirmSource", outcome: "failed" })).toMatchObject(
+      {
+        owner_user_id: ids.userA,
+        approval_mode: "confirmed",
+        outcome: "failed"
+      }
+    );
+  }, 30_000);
+
+  it("rejects a cross-owner confirmationId replay as expired without writing", async () => {
+    const { gateway, emitted, mint } = makeGateway();
+    const tokenA = mint(ids.userA, "news-chat-owner-a");
+    const tokenB = mint(ids.userB, "news-chat-owner-b");
+    const preview = await previewExampleFeed(gateway, tokenA);
+    const candidate = preview.candidates[0]!;
+    const before = await sourceRowCount();
+
+    const pending = gateway.callTool(tokenB, "news.confirmSource", {
+      confirmationId: preview.confirmationId,
+      candidateId: candidate.candidateId,
+      label: candidate.label,
+      domain: candidate.domain
+    });
+    const request = await waitForActionRequest(emitted, 0);
+    await gateway.resolveActionRequest(ids.userB, request.actionRequestId, "confirmed");
+    const result = await pending;
+
+    // Benign failure: owner-checked preview store yields nothing for B, the
+    // tool reports "expired" as data (no throw), and nothing was written.
+    expect(result).toMatchObject({ ok: true });
+    expect(JSON.stringify(result)).toContain("expired");
+    expect(await sourceRowCount()).toBe(before);
+  }, 30_000);
+});
