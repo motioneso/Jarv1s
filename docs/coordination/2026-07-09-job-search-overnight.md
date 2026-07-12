@@ -4339,3 +4339,31 @@ merged). If Ben's acceptance surfaces a harness tweak, spawn fresh Fable.
 **Ben digest add:** JS-09 (#938, epic #913 capstone) PR #976 GREEN + council-unanimous; awaiting your
 day-one manual acceptance (real résumé, live instance) → then I merge. Epic #913 stays OPEN through
 acceptance + 7-day observation.
+
+## CONTINUATION NOTE — 2026-07-12 ~09:10Z — coordinator compact-in-place at clean seam
+
+**Fleet EMPTY** (JS-09 build lane reaped; no live agents but Coordinator `pE6`/`58a78927`). main CI
+GREEN. Relay trigger fired long ago → flushing + compacting in place (directive #3, NO successor pane).
+
+**JS-09 #976 = PARKED, terminal autonomous state.** MERGE-READY on head `9316012d` (council unanimous
+APPROVE + CI green, durable PR verdicts). HELD for Ben's day-one manual acceptance (real résumé, live
+instance — Ben-only). No further autonomous action possible; rides standing digest; do NOT ping.
+Epic #913 open through acceptance + 7-day observation.
+
+**NEXT LANE — News S4 (#975, Part of epic #954) — NOT launched (readiness gate UNMET):**
+- ✅ task issue #975 OPEN ("JS/News S4: chat actions, revalidation, notifications"); ✅ main green;
+  ✅ no collision (News touches `packages/news/*` only); ✅ no open News PR; ✅ fleet free.
+- ❌ **SPEC NOT CONFIRMED** — no `docs/superpowers/specs/*news*` filename; content grep inconclusive.
+  S1–S3 shipped, so a #954 epic spec almost certainly exists under a topic-named file. **STEP 1 before
+  any spawn: locate the approved #954 spec + confirm it covers S4 scope. If none covers S4 → STOP,
+  escalate to Ben (spec-before-build hard gate); do NOT build.**
+- Builder model: NOT Sonnet for the plan (no-Sonnet-plans policy) → Fable planning lane. Coding tier
+  per coordinate skill.
+- **Merge gate (News rule, distinct from JS tier): named-unanimous Opus + Codex + Gemini, NO
+  2-provider fallback** — a refusing/unreachable named provider → HOLD for Ben. Codex uncapped past
+  Jul 12 1:28am.
+- Launch path: confirm spec → worktree off origin/main → handoff doc → Fable planning lane
+  (`coordinated-build`: verify spec → plan → my approval → build) → wrap-up → named-unanimous council.
+
+**Also on resume:** check for Ben activity / any JS-09 manual-acceptance signal. `merges_since_relay`
+unchanged. Scheduled a resume wake to relaunch this from a compacted context.
