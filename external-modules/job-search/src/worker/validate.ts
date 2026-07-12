@@ -78,6 +78,43 @@ export function readBool(
   return value;
 }
 
+// JS-08 (#937): pagination inputs. Same discipline as the other readers —
+// errors name the key and OUR constraint values, never the submitted value.
+export function readInt(
+  input: Record<string, unknown>,
+  key: string,
+  opts: { required: true; min?: number; max?: number }
+): number;
+export function readInt(
+  input: Record<string, unknown>,
+  key: string,
+  opts?: { required?: boolean; min?: number; max?: number }
+): number | undefined;
+export function readInt(
+  input: Record<string, unknown>,
+  key: string,
+  opts: { required?: boolean; min?: number; max?: number } = {}
+): number | undefined {
+  const value = input[key];
+  if (value === undefined || value === null) {
+    if (opts.required) {
+      throw new InputError(`${key} is required`);
+    }
+    return undefined;
+  }
+  // Number.isInteger rejects NaN, Infinity, and fractional values in one check.
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new InputError(`${key} must be an integer`);
+  }
+  if (opts.min !== undefined && value < opts.min) {
+    throw new InputError(`${key} must be at least ${opts.min}`);
+  }
+  if (opts.max !== undefined && value > opts.max) {
+    throw new InputError(`${key} must be at most ${opts.max}`);
+  }
+  return value;
+}
+
 export function readPlainObject(
   input: Record<string, unknown>,
   key: string,
