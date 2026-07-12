@@ -4529,3 +4529,18 @@ Successor pH6/93d5f3e7 relayed. **Task 4 DONE** — commit `616c34fe` (revalidat
 Coordinator authority unchanged: `w1:pE6` / `58a78927-385c-4b1d-8fa0-94db20255d6f` (== lock).
 **`merges_since_relay` = 0.** JS-09 #976 unchanged (PARKED). News S4 PR merge gate = named-unanimous
 Opus+Codex+Gemini, NO fallback.
+
+## UPDATE — 2026-07-12 — News S4 relay #6 COMPLETE (mid-build), spent reaped
+
+Successor pH7/fb625ebf relayed mid-Task-5. Task 5 RED committed `8e2dd24a`; relay6 continuation doc
+`d87ae83a`. Successor resumes Task 5 GREEN.
+
+- **Live successor:** pane `w1:pH8`, tab `w1:t1P` (agents ✓), label `'News S4 relay6'`, session
+  **24fd78ea-967e-4401-a31e-abc3706f8af1**, **Fable 5 confirmed**, bypass-perms on, status working.
+  Same worktree/branch `news-s4`.
+- **Spent pane `w1:pH7`** (session fb625ebf-...) REAPED — session-verified before close.
+- **Monitor re-pointed:** `bbs18jr4b` (pH7) stopped → new **`bz5mt3rjb`** watches pH8.
+
+Coordinator authority unchanged: `w1:pE6` / `58a78927-385c-4b1d-8fa0-94db20255d6f` (== lock).
+**`merges_since_relay` = 0.** JS-09 #976 unchanged (PARKED). News S4 PR merge gate = named-unanimous
+Opus+Codex+Gemini, NO fallback.
