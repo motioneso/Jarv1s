@@ -3690,3 +3690,17 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
 - **Successor pane w1:pGE** session `e4f5b905-0f5d-4a6d-8a5f-8c00a095882b`, agents tab **w1:t1K**,
   **Fable 5**, branch `feat/js-07-freshness-dedup-fit`. Old pane pGD REAPED. Lane `building`
   (Steps 1-8). Still zero merges since last relay.
+
+### 2026-07-11 — JS-07 relay #3 + MODEL-LEAK RECOVERY (Sonnet→Fable)
+- Steps 1-2 DONE+committed (`7773be1e` facts+sourceKey, `9fcc1b41` freshness). Relay handoff
+  committed `16e21653` → `docs/superpowers/handoffs/2026-07-11-js-07-relay.md` (tracked; Steps 0-2
+  done, resume Step 3).
+- **LEAK:** builder's self-relay successor pGF booted **Sonnet 5**, NOT Fable — JS-07 is the Fable
+  lane (Job Search scoped exception; successors MUST be Fable). CAUGHT via the standing model-verify
+  on every relay successor. Killed pGF. **Coordinator-controlled respawn** pGG with explicit
+  `--model fable` into agents tab w1:t1K, bootstrapped to the committed relay handoff → confirmed
+  **Fable 5**, resuming Step 3. Old pane pGE reaped.
+- **Successor pane w1:pGG**, agents tab **w1:t1K**, Fable, branch `feat/js-07-freshness-dedup-fit`,
+  building Step 3+. Bootstrap explicitly instructs: if it relays, successor MUST be `--model fable`.
+- LESSON: JS-07/Job-Search self-relays can leak to Sonnet — verify model on EVERY relay successor;
+  respawn coordinator-controlled with --model fable if wrong.
