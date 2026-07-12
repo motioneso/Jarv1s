@@ -4415,3 +4415,13 @@ adjudication at plan-ready):**
    invariant — fingerprint the *router-resolved* config, never hardcode a provider/model; per-owner
    keeps it RLS-clean. Verify the briefings reconcile pattern is the right reuse (not net-new cron
    machinery). Likely Opus adjudication when the plan lands.
+
+## UPDATE — 2026-07-12 — News S4 relay COMPLETE, spent pane reaped
+
+Successor driving: **pane w1:pH3**, tab w1:t1P (agents ✓, self-relay landed correctly), label
+'News S4 relay', **session 238c21dd-6842-40c8-8ab5-49f7c72846f4**, **Fable 5 confirmed** (status
+line), bypass-perms on, status building. Same worktree/branch news-s4. Relay continuation doc
+`docs/superpowers/handoffs/2026-07-12-news-s4-relay.md` (558b8ed9, on branch).
+Spent pane w1:pH2 (session c18afef7) reaped (session-verified before close). Liveness Monitor
+re-pointed to pH3. Successor will send plan-ready with the migration escalation + a notification-scope
+flag (added to the 2 flags already recorded above). No plan to approve yet. merges_since_relay=0.
