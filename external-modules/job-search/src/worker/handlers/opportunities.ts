@@ -26,6 +26,7 @@ import type {
   OpportunityStatus
 } from "../../domain/index.js";
 import {
+  DECISION_REASON_MAX_BYTES,
   DETAIL_EVIDENCE_MAX_ITEMS,
   DETAIL_SUMMARY_MAX_BYTES,
   DETAIL_TEXT_MAX_BYTES,
@@ -36,7 +37,9 @@ import {
   LIST_LIMIT_DEFAULT,
   LIST_LIMIT_MAX,
   LIST_TEXT_MAX_BYTES,
+  OPPORTUNITY_DECISIONS,
   RESPONSE_BUDGET_BYTES,
+  decideOpportunity,
   freshnessOf,
   getActiveProfile,
   getActiveResume,
@@ -319,5 +322,29 @@ export function getOpportunityHandler(ports: WorkerPorts): ToolHandler {
     const response: Record<string, unknown> = { status: "ok", opportunity };
     fitDescription(response, posting, job.posting.description);
     return response;
+  };
+}
+
+/**
+ * opportunity.decide — the module's ONLY write tool. It never executes via
+ * the REST invoke route (write tools fail closed to a pending confirmation
+ * there); it runs solely after the owner confirms in assistant chat. The
+ * reason is validated at the input boundary (key + cap in the error, never
+ * the text) and is NOT echoed in the response: the assistant already has it
+ * in conversation, and re-emitting it through the tool-result path would
+ * spread owner-private content into surfaces that don't need it.
+ */
+export function decideOpportunityHandler(ports: WorkerPorts): ToolHandler {
+  return async (input) => {
+    const identityHash = readString(input, "identityHash", { required: true });
+    const decision = readEnum(input, "decision", OPPORTUNITY_DECISIONS, { required: true });
+    const reason = readString(input, "reason", { maxBytes: DECISION_REASON_MAX_BYTES });
+    const record = await decideOpportunity(ports.kv, identityHash, decision, reason, ports.now());
+    return {
+      status: "ok",
+      identityHash: record.identityHash,
+      decision,
+      statusAt: record.statusAt
+    };
   };
 }

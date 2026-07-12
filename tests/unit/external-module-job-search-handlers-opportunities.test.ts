@@ -16,6 +16,7 @@ import {
   approveProfile,
   approveResume,
   decideOpportunity,
+  DECISION_REASON_MAX_BYTES,
   DETAIL_EVIDENCE_MAX_ITEMS,
   DETAIL_SUMMARY_MAX_BYTES,
   DETAIL_TEXT_MAX_BYTES,
@@ -24,6 +25,8 @@ import {
   LIST_TEXT_MAX_BYTES,
   RESPONSE_BUDGET_BYTES,
   evaluationIdentity,
+  getOpportunity,
+  readFeed,
   opportunityIdentity,
   saveEvaluation,
   saveOriginalResume,
@@ -37,6 +40,7 @@ import type {
 } from "../../external-modules/job-search/src/domain/index.js";
 import type { WorkerPorts } from "../../external-modules/job-search/src/worker/ai-port.js";
 import {
+  decideOpportunityHandler,
   getOpportunityHandler,
   listOpportunitiesHandler
 } from "../../external-modules/job-search/src/worker/handlers/opportunities.js";
@@ -584,5 +588,107 @@ describe("opportunities.get", () => {
       descriptionTruncated: false,
       descriptionClipped: false
     });
+  });
+});
+
+// Task 4 (#937): opportunity.decide — the confirm-gated write. The handler
+// only reaches execution through the assistant confirm flow, but its OWN
+// discipline still matters: the reason is owner-private content that must
+// never echo back through the response or an error message.
+describe("opportunity.decide", () => {
+  it("persists a saved decision with reason and rebuilds the feed", async () => {
+    const kv = createMemoryKv();
+    const ports = portsAt(kv, NOW);
+    await upsertOpportunity(kv, input("dec-1", { title: "Staff Engineer" }), NOW);
+    const identityHash = hashOf("dec-1");
+
+    const response = await decideOpportunityHandler(ports)({
+      identityHash,
+      decision: "saved",
+      reason: "Comp fits the target band"
+    });
+
+    expect(response).toEqual({
+      status: "ok",
+      identityHash,
+      decision: "saved",
+      statusAt: NOW.toISOString()
+    });
+    const record = await getOpportunity(kv, identityHash);
+    expect(record?.status).toBe("saved");
+    expect(record?.decisionReason).toBe("Comp fits the target band");
+    // Feed index rebuilt in the same call — readers see the new status
+    // without waiting for a monitor run.
+    const feed = await readFeed(kv);
+    const entry = feed?.entries.find((candidate) => candidate.h === identityHash);
+    expect(entry?.s).toBe("saved");
+  });
+
+  it("never echoes the reason in the response", async () => {
+    const kv = createMemoryKv();
+    const ports = portsAt(kv, NOW);
+    await upsertOpportunity(kv, input("dec-2", { title: "Staff Engineer" }), NOW);
+
+    const secret = "private-rationale-marker-9f2c";
+    const response = await decideOpportunityHandler(ports)({
+      identityHash: hashOf("dec-2"),
+      decision: "passed",
+      reason: secret
+    });
+
+    expect(JSON.stringify(response)).not.toContain(secret);
+  });
+
+  it("rejects an oversized reason naming key and cap only, without writing", async () => {
+    const kv = createMemoryKv();
+    const ports = portsAt(kv, NOW);
+    await upsertOpportunity(kv, input("dec-3", { title: "Staff Engineer" }), NOW);
+
+    const oversized = "z".repeat(DECISION_REASON_MAX_BYTES + 1);
+    const result = await wrap(decideOpportunityHandler(ports))({
+      identityHash: hashOf("dec-3"),
+      decision: "saved",
+      reason: oversized
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    expect(result.message).toContain("reason");
+    expect(result.message).toContain(String(DECISION_REASON_MAX_BYTES));
+    // The submitted text never appears in the error surface.
+    expect(result.message).not.toContain(oversized);
+    // Validation failed BEFORE any write — the decision must not half-apply.
+    const record = await getOpportunity(kv, hashOf("dec-3"));
+    expect(record?.status).toBe("new");
+    expect(record?.decisionReason).toBeUndefined();
+  });
+
+  it("returns missing_record for an unknown hash", async () => {
+    const kv = createMemoryKv();
+    const ports = portsAt(kv, NOW);
+
+    const result = await wrap(decideOpportunityHandler(ports))({
+      identityHash: "0123456789abcdef0123456789abcdef",
+      decision: "saved"
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("missing_record");
+  });
+
+  it("rejects an unknown decision value listing the allowed values", async () => {
+    const kv = createMemoryKv();
+    const ports = portsAt(kv, NOW);
+    await upsertOpportunity(kv, input("dec-4", { title: "Staff Engineer" }), NOW);
+
+    const result = await wrap(decideOpportunityHandler(ports))({
+      identityHash: hashOf("dec-4"),
+      decision: "archived"
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    expect(result.message).toContain("saved");
+    expect(result.message).toContain("passed");
   });
 });
