@@ -14,7 +14,6 @@ import {
   handleUpgradeCheckJob,
   registerUpgradeNotifyWorker,
   assertModuleControlPayload,
-  assertModuleJobPayload,
   PLATFORM_MODULE_CONTROL_QUEUE,
   type ExternalModuleJobPayload,
   type ModuleControlPayload,
@@ -30,13 +29,16 @@ import {
   registerBuiltInModuleWorkers
 } from "@jarv1s/module-registry";
 import {
-  createExternalModuleRpcHandler,
   ExternalModuleJobReconciler,
   ExternalModuleWorkerRuntime,
   getExternalModuleRegistrations
 } from "@jarv1s/module-registry/node";
+import { AiRepository } from "@jarv1s/ai";
 import { NotificationsRepository } from "@jarv1s/notifications";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+
+import { createModuleWorkerAiBridge } from "./external-module-ai-bridge.js";
+import { createExternalModuleJobHandler } from "./external-module-job-handler.js";
 
 // ---------------------------------------------------------------------------
 // Bounded graceful-shutdown timeout (ms). On SIGINT/SIGTERM the worker waits
@@ -210,6 +212,15 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
     const runtime = externalRuntime;
     const cipher = createModuleCredentialSecretCipher();
+    // ctx.ai for queued module jobs (JS-07 Step 0, spec D6): one repository and
+    // one bridge at composition time — the bridge's AiSecretCipher is a separate
+    // key domain (JARVIS_AI_SECRET_KEY) from the ModuleCredentialCipher above.
+    // Only the module-job registration below receives it; every other handler
+    // path stays without an ai dep and fails closed in the rpc host.
+    const moduleAiBridge = createModuleWorkerAiBridge({
+      aiRepository: new AiRepository(),
+      logger: workerLogger as unknown as FastifyBaseLogger
+    });
     const discoveryById = new Map(discoveries.map((module) => [module.id, module]));
     const listActiveUserIds = async (moduleId: string): Promise<readonly string[]> =>
       (
@@ -238,60 +249,23 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
       },
       listActiveUserIds,
       registerWorker: async (module, queue) => {
+        // Handler body extracted to external-module-job-handler.ts (JS-07
+        // Step 0) so the queue path is integration-testable with real deps.
         await registerDataContextWorker<ExternalModuleJobPayload, unknown>(
           boss,
           queue.name,
           dataContext,
-          async (job) => {
-            assertModuleJobPayload(queue, job.data);
-            if (!(await listActiveUserIds(module.id)).includes(job.data.actorUserId)) return;
-            const current = discoveryById.get(module.id);
-            if (!current) return;
-            const state = await workerDb
-              .selectFrom("app.external_modules")
-              .select(["status", "manifest_hash", "package_hash"])
-              .where("id", "=", module.id)
-              .executeTakeFirst();
-            if (
-              state?.status !== "enabled" ||
-              state.manifest_hash !== current.manifestHash ||
-              state.package_hash !== current.packageHash
-            ) {
-              return;
-            }
-            const requestId = `module-job:${job.id}`;
-            const rpc = createExternalModuleRpcHandler({
-              module: current,
-              toolRisk: "write",
-              actorUserId: job.data.actorUserId,
-              requestId,
-              workerDataContext: dataContext,
-              cipher,
-              isActorAdmin: () =>
-                dataContext.withDataContext(
-                  { actorUserId: job.data.actorUserId, requestId },
-                  async (scopedDb) =>
-                    (
-                      await scopedDb.db
-                        .selectFrom("app.users")
-                        .select("is_instance_admin")
-                        .where("id", "=", job.data.actorUserId)
-                        .executeTakeFirst()
-                    )?.is_instance_admin === true
-                )
-            });
-            return runtime.invoke(
-              current,
-              queue.handler,
-              {
-                actorUserId: job.data.actorUserId,
-                jobKind: job.data.jobKind,
-                idempotencyKey: `${job.data.moduleId}:${job.data.jobKind}:${job.id}`,
-                params: job.data.params ?? {}
-              },
-              rpc
-            );
-          }
+          createExternalModuleJobHandler({
+            module,
+            queue,
+            runtime,
+            workerDb,
+            dataContext,
+            cipher,
+            discoveryById,
+            listActiveUserIds,
+            ai: moduleAiBridge
+          })
         );
       },
       logger: workerLogger
