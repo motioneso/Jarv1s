@@ -112,7 +112,7 @@ versions per module) bounds asset growth.
   "generatedAt": "2026-07-12T00:00:00Z",
   "modules": [
     {
-      "id": "jarv1s.job-search",
+      "id": "job-search",
       "name": "Job search",
       "version": "0.3.0",
       "description": "…",
@@ -248,7 +248,7 @@ reconcile so behavior matches prod.
 ### 7b. Declarative compose modules
 
 ```yaml
-JARVIS_MODULES_ENSURE: "jarv1s.job-search, jarv1s.recipes@0.2.0"
+JARVIS_MODULES_ENSURE: "job-search, recipes@0.2.0"
 ```
 
 - Comma-separated; bare `id` = latest compatible version, `id@version` = exact pin.
