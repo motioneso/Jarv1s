@@ -3818,3 +3818,21 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   "Verify foundation and app" (2 compose smokes already pass). Monitor b3dzf1vqs armed.
 - POST-MERGE: file follow-up issue for takeBudget non-atomic budget ledger (both lenses flagged);
   close #936; epic #913 exit-criteria; numbered v* tag + verify .dockerignore external-modules line.
+
+### 2026-07-11 — JS-07 #936 MERGED ✅ (security-tier, council dual-APPROVE)
+- **MERGED squash `c23a93b8`** (PR #970, Closes #936). Required CI all green (Verify foundation
+  14m41s + 2 compose smokes); "Build and publish images" post-merge publish ran non-blocking
+  (UNSTABLE≠BLOCKED). Council dual-APPROVE (2 Opus lenses, both posted/returned; primary verdict on
+  PR issuecomment-4949694446). Authority re-confirmed 58a78927=lock pre-merge.
+- Reaped pGP (r8), removed js-07-build worktree, deleted branch. #936 CLOSED.
+- Follow-up **#971** filed (takeBudget non-atomic budget ledger — both lenses flagged, cost-only).
+- `.dockerignore` line 9 `external-modules` CONFIRMED on merged main → job-search stays downloadable
+  module (NOT baked). Numbered v* tag DEFERRED — epic #913 incomplete (JS-08 #937, JS-09 #938 open).
+- **merges_since_relay reset. SECURITY-merge relay-in-place done (directive #3, no successor pane).**
+
+### CONTINUATION — next: JS-08 (#937) lane
+- Epic #913 open: **JS-08 #937** (feed/decisions/assistant reads — depends on JS-07 ✅ now merged),
+  **JS-09 #938** (acceptance/7-day validation — LAST), follow-ups #960 #962 #957 #965 #971.
+- JS-08 = FABLE lane (Job Search builder). BEFORE spawn: confirm approved JS-08 plan exists (Fable
+  drafts if not) + write handoff doc. Tier: likely SECURITY (assistant reads over owner feed).
+- Fleet Monitor b54y9f2eg persistent. Agents tab w1:t1K. Coordinator lock 58a78927.
