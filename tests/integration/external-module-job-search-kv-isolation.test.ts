@@ -24,9 +24,12 @@ import type { Kysely } from "kysely";
 
 import { deleteUserData } from "../../scripts/delete-user-data.js";
 import { exportUserData } from "../../scripts/export-user-data.js";
+import type { AdapterFetch } from "../../external-modules/job-search/src/adapters/index.js";
 import type {
   ConfirmationRecord,
+  EvaluationRecord,
   JobSearchKv,
+  MonitorConfig,
   OpportunityInput
 } from "../../external-modules/job-search/src/domain/index.js";
 import {
@@ -35,25 +38,40 @@ import {
   approveResume,
   confirmationIdFor,
   contentHash,
+  evaluationIdentity,
   getActiveProfile,
   getActiveResume,
+  getEvaluation,
   getOpportunity,
   getScheduleState,
   keys,
+  listOpportunities,
   opportunityIdentity,
+  readBudgetUsed,
   rebuildFeed,
   readFeed,
   saveConfirmation,
+  saveEvaluation,
+  saveMonitor,
   saveOriginalResume,
   saveProfileRevision,
   saveScheduleState,
+  takeBudget,
   upsertOpportunity
 } from "../../external-modules/job-search/src/domain/index.js";
-import type { JobSearchAi } from "../../external-modules/job-search/src/worker/ai-port.js";
+import type {
+  JobSearchAi,
+  JobSearchAiInput,
+  WorkerPorts
+} from "../../external-modules/job-search/src/worker/ai-port.js";
 import {
   getResumeHandler,
   saveResumeDraftHandler
 } from "../../external-modules/job-search/src/worker/handlers/resume.js";
+import {
+  monitorRunHandler,
+  runMonitorDiscovery
+} from "../../external-modules/job-search/src/worker/handlers/run.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -474,5 +492,346 @@ describe("job-search schedule-state isolation (#934)", () => {
     expect(await getScheduleState(kvA, "mon-iso")).toMatchObject({
       lastCompletedLocalDate: "2026-07-11"
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JS-07 (#936) Step 8 — integration + security proof for the freshness/dedup/
+// fit slice, over the SAME real-RLS harness. Queue-path ctx.ai end-to-end is
+// covered by tests/integration/module-worker-queue-ai.test.ts (Step 0) — not
+// duplicated here. Suite order note: userA exists (re-created by the #932
+// describe) with resume revision 0 + approved profile p2; the #934 describe
+// left schedule/mon-iso rows for A, which #962-item-2 below extends.
+// ---------------------------------------------------------------------------
+
+const EVAL_TARGET_HASH = contentHash("js-07 eval isolation target");
+const EVAL_BUDGET_DATE = "2026-07-09"; // distinct from the pipeline's UTC day
+const EVALUATION_A: EvaluationRecord = {
+  schemaVersion: 1,
+  evaluationId: evaluationIdentity({
+    opportunityContentHash: EVAL_TARGET_HASH,
+    profileRevisionId: "p2",
+    resumeRevisionId: "0"
+  }),
+  identityHash: EVAL_TARGET_HASH,
+  fitBand: "strong",
+  recommendation: "review",
+  evidence: [{ requirement: "TypeScript", evidence: "8y TypeScript", source: "resume" }],
+  blockers: [],
+  gaps: [],
+  unknowns: [],
+  preferenceMatches: [],
+  preferenceConflicts: [],
+  postingConfidence: "high",
+  overallConfidence: "medium",
+  summary: "UserA private fit summary — must never cross owners.",
+  inputs: {
+    opportunityContentHash: EVAL_TARGET_HASH,
+    profileRevisionId: "p2",
+    resumeRevisionId: "0"
+  },
+  createdAt: NOW.toISOString()
+};
+
+// JS-07 (#936) Step 8 item 1 — the slice's NEW record families (eval/<h> and
+// evalBudget/<date>, both in NS.opportunities) are owner-only under real RLS.
+// SECURITY tier: denial is proven as 0-rows/null with a positive control (A
+// sees the rows through the very same probes), never as absence-of-error.
+describe("job-search evaluation + budget-ledger isolation (#936)", () => {
+  it("userA writes an evaluation and spends budget through the RPC kv", async () => {
+    const kvA = kvForActor(ids.userA);
+    await saveEvaluation(kvA, EVALUATION_A);
+    expect(await takeBudget(kvA, EVAL_BUDGET_DATE, 3)).toBe(3);
+    // Positive control for every denial probe below: the owner sees both rows.
+    expect(await getEvaluation(kvA, EVAL_TARGET_HASH)).toMatchObject({
+      fitBand: "strong",
+      summary: EVALUATION_A.summary
+    });
+    expect(await readBudgetUsed(kvA, EVAL_BUDGET_DATE)).toBe(3);
+    const rows = await workerQuery<{ key: string }>(
+      ids.userA,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND (key LIKE 'eval/%' OR key LIKE 'evalBudget/%')`
+    );
+    // Sort in JS — the DB collation orders 'evalBudget/' vs 'eval/' by locale.
+    expect(rows.map((r) => r.key).sort()).toEqual(
+      [keys.evaluation(EVAL_TARGET_HASH), keys.evalBudget(EVAL_BUDGET_DATE)].sort()
+    );
+  });
+
+  it("userB sees neither A's evaluation nor A's budget ledger", async () => {
+    const kvB = kvForActor(ids.userB);
+    expect(await getEvaluation(kvB, EVAL_TARGET_HASH)).toBeNull();
+    expect(await kvB.get(NS.opportunities, keys.evaluation(EVAL_TARGET_HASH))).toBeNull();
+    expect(await kvB.get(NS.opportunities, keys.evalBudget(EVAL_BUDGET_DATE))).toBeNull();
+    // A fresh day for B: A's spend must not count against B's budget.
+    expect(await readBudgetUsed(kvB, EVAL_BUDGET_DATE)).toBe(0);
+    // B's own opportunity rows (earlier describes) may list — A's eval keys must not.
+    const listed = await kvB.list(NS.opportunities);
+    expect(listed).not.toContain(keys.evaluation(EVAL_TARGET_HASH));
+    expect(listed).not.toContain(keys.evalBudget(EVAL_BUDGET_DATE));
+    // One layer down: worker-role SQL as B over the eval key families → 0 rows.
+    const rows = await workerQuery(
+      ids.userB,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND (key LIKE 'eval/%' OR key LIKE 'evalBudget/%')`
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it("admin actor is denied the same way — no private-data bypass", async () => {
+    const kvAdmin = kvForActor(ids.adminUser, { admin: true });
+    expect(await getEvaluation(kvAdmin, EVAL_TARGET_HASH)).toBeNull();
+    expect(await kvAdmin.get(NS.opportunities, keys.evalBudget(EVAL_BUDGET_DATE))).toBeNull();
+    expect(await readBudgetUsed(kvAdmin, EVAL_BUDGET_DATE)).toBe(0);
+    expect(await kvAdmin.list(NS.opportunities)).toEqual([]);
+    const rows = await workerQuery(
+      ids.adminUser,
+      "job-search",
+      `SELECT key FROM app.module_kv WHERE module_id = 'job-search'
+       AND (key LIKE 'eval/%' OR key LIKE 'evalBudget/%')`
+    );
+    expect(rows).toEqual([]);
+  });
+});
+
+// JS-07 (#936) Step 8 items 2–3 — the full discovery pipeline (ingest →
+// freshness → retention → gate → evaluate → feed rebuild) runs at module
+// level over the REAL RPC kv, mirroring the unit fixture in
+// tests/unit/external-module-job-search-handlers-run.test.ts. Proves the
+// pipeline's KV traffic (batched reads, eval writes, budget ledger, feed
+// index) all survive the RPC + RLS path, and that dedup holds against real
+// Postgres, not just the in-memory fake.
+const GREENHOUSE_PAYLOAD = {
+  jobs: [
+    {
+      id: 101,
+      absolute_url: "https://boards.greenhouse.io/acme/jobs/101",
+      title: "Platform Engineer",
+      location: { name: "Remote" },
+      content: "&lt;p&gt;Build the platform.&lt;/p&gt;",
+      first_published: "2026-07-01T00:00:00Z"
+    },
+    {
+      id: 102,
+      absolute_url: "https://boards.greenhouse.io/acme/jobs/102",
+      title: "Staff Engineer",
+      location: { name: "New York" },
+      content: "&lt;p&gt;Lead things.&lt;/p&gt;",
+      first_published: "2026-07-02T00:00:00Z"
+    }
+  ]
+};
+const okFetch: AdapterFetch = async () => ({
+  status: 200,
+  bodyText: JSON.stringify(GREENHOUSE_PAYLOAD)
+});
+const T_RUN1 = "2026-07-11T12:00:00.000Z";
+const T_RUN2 = "2026-07-11T14:00:00.000Z"; // greenhouse courtesy (1h) elapsed
+const PIPELINE_BUDGET_DATE = "2026-07-11"; // budgetDateFor(T_RUN1/T_RUN2), UTC
+
+interface StubAi extends JobSearchAi {
+  readonly calls: JobSearchAiInput[];
+}
+function okAi(): StubAi {
+  const calls: JobSearchAiInput[] = [];
+  return {
+    calls,
+    async generateStructured(input) {
+      calls.push(input);
+      return {
+        ok: true,
+        object: {
+          fitBand: "strong",
+          recommendation: "review",
+          evidence: [{ requirement: "TS", evidence: "8y TS", source: "resume" }],
+          blockers: [],
+          gaps: [],
+          unknowns: [],
+          preferenceMatches: [],
+          preferenceConflicts: [],
+          postingConfidence: "high",
+          overallConfidence: "medium",
+          summary: "Strong match."
+        }
+      };
+    }
+  };
+}
+
+function makePorts(kv: JobSearchKv, ai: JobSearchAi | null, nowIso: string): WorkerPorts {
+  return { kv, ai, fetch: okFetch, now: () => new Date(nowIso) };
+}
+
+const MONITOR_A: MonitorConfig = {
+  schemaVersion: 1,
+  monitorId: "mon-a",
+  adapterId: "greenhouse",
+  enabled: true,
+  query: { board: "acme" },
+  timezone: "UTC",
+  dueTime: "07:00",
+  createdAt: "2026-07-01T00:00:00.000Z",
+  updatedAt: "2026-07-01T00:00:00.000Z"
+};
+
+async function hashOf(kv: JobSearchKv, title: string): Promise<string> {
+  const record = (await listOpportunities(kv)).find((r) => r.posting.title === title);
+  if (record === undefined) throw new Error("fixture record missing");
+  return record.identityHash;
+}
+
+describe("job-search discovery pipeline over the real RPC kv (#936)", () => {
+  const ai = okAi();
+
+  beforeAll(async () => {
+    const kvA = kvForActor(ids.userA);
+    // A's resume revision 0 exists from the #932 describe but was never
+    // approved (that describe only approved the profile). The evaluator
+    // requires BOTH approvals; approve rev 0 and a fresh empty-fields profile
+    // p3 so the gate excludes nothing (deterministic verdicts, mirroring the
+    // unit fixture).
+    await approveResume(kvA, "0", NOW);
+    await saveProfileRevision(kvA, {
+      schemaVersion: 1,
+      revisionId: "p3",
+      createdAt: NOW.toISOString(),
+      provenance: "user",
+      fields: {}
+    });
+    await approveProfile(kvA, "p3", NOW);
+    await saveMonitor(kvA, MONITOR_A);
+  });
+
+  it("full run: gate verdicts, evaluations persisted, feed order + e/b/c codes", async () => {
+    const kvA = kvForActor(ids.userA);
+    const outcome = await runMonitorDiscovery(makePorts(kvA, ai, T_RUN1), MONITOR_A, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    expect(outcome).toMatchObject({
+      ran: true,
+      counts: {
+        fetched: 2,
+        ingested: 2,
+        gateExcluded: 0,
+        evaluated: 2,
+        evalPending: 0,
+        staleMarked: 0
+      }
+    });
+    expect(ai.calls.length).toBe(2);
+    expect(await readBudgetUsed(kvA, PIPELINE_BUDGET_DATE)).toBe(2);
+
+    // Evaluations persisted through the RPC kv, bound to THIS run's inputs.
+    const evaluation = await getEvaluation(kvA, await hashOf(kvA, "Platform Engineer"));
+    expect(evaluation).toMatchObject({
+      fitBand: "strong",
+      recommendation: "review",
+      inputs: { profileRevisionId: "p3", resumeRevisionId: "0" }
+    });
+
+    // Feed rebuilt AFTER evaluation: single-char codes present, eligible +
+    // strong + medium on both; tie broken by newest publishedAt (job 102).
+    const feed = await readFeed(kvA);
+    expect(feed?.entries.map((e) => ({ e: e.e, b: e.b, c: e.c }))).toEqual([
+      { e: "e", b: "s", c: "m" },
+      { e: "e", b: "s", c: "m" }
+    ]);
+    expect(feed?.entries[0]?.h).toBe(await hashOf(kvA, "Staff Engineer"));
+
+    // Pipeline-produced records stay owner-only too.
+    const kvB = kvForActor(ids.userB);
+    expect(await getEvaluation(kvB, await hashOf(kvA, "Platform Engineer"))).toBeNull();
+    expect(await kvB.get(NS.feed, keys.feedActive)).toBeNull();
+  });
+
+  it("run-twice-identical dedups at module level: no re-evaluation, no AI calls, budget unchanged", async () => {
+    const kvA = kvForActor(ids.userA);
+    const budgetBefore = await readBudgetUsed(kvA, PIPELINE_BUDGET_DATE);
+    const outcome = await runMonitorDiscovery(makePorts(kvA, ai, T_RUN2), MONITOR_A, {
+      runId: "b".repeat(32),
+      consumeSlot: false
+    });
+    expect(outcome).toMatchObject({
+      ran: true,
+      counts: { fetched: 2, ingested: 0, suppressed: 2, evaluated: 0, evalPending: 0 }
+    });
+    expect(ai.calls.length).toBe(2); // both from the first run
+    expect(await readBudgetUsed(kvA, PIPELINE_BUDGET_DATE)).toBe(budgetBefore);
+  });
+});
+
+// #962 item 1 (folded into JS-07 Step 8) — handler-level cross-owner run-now
+// denial: B invoking the run-now tool with A's monitorId must get the same
+// fixed `monitor_not_found` an unknown id gets (RLS hides A's monitor from
+// B's kv), and the denied invocation must write NOTHING — proven by a
+// byte-identical snapshot of the whole module_kv table, both owners.
+describe("job-search run-now cross-owner denial (#962)", () => {
+  it("actor B running A's monitor gets monitor_not_found and writes nothing", async () => {
+    const before = await bootstrapJobSearchRows();
+    // Sanity: A's monitor row is really there for RLS to hide.
+    expect(
+      before.some((r) => r.owner_user_id === ids.userA && r.key === keys.monitor("mon-a"))
+    ).toBe(true);
+
+    const handler = monitorRunHandler(makePorts(kvForActor(ids.userB), null, T_RUN2));
+    const result = await handler({
+      actorUserId: ids.userB,
+      jobKind: "job-search.monitor-run-now",
+      idempotencyKey: "manual-b:1",
+      params: { monitorId: "mon-a" }
+    });
+    expect(result).toMatchObject({ status: "error", code: "monitor_not_found" });
+
+    // Nothing written against A — or anyone: the table is byte-identical.
+    expect(await bootstrapJobSearchRows()).toEqual(before);
+  });
+});
+
+// #962 item 2 (folded into JS-07 Step 8) — UPDATE-side cross-owner clobber
+// guard, extending the #934 read-denial pattern: B writing schedule state for
+// the SAME monitorId A uses must land on B's own row (insert, then update)
+// and leave A's row byte-identical. Guards the RLS UPDATE policy, not just
+// SELECT.
+describe("job-search schedule-state cross-owner clobber guard (#962)", () => {
+  it("B's insert+update on A's schedule id never touches A's row", async () => {
+    const rowBytesFor = async (owner: string): Promise<string | undefined> =>
+      (await bootstrapJobSearchRows()).find(
+        (r) => r.owner_user_id === owner && r.key === keys.monitorSchedule("mon-iso")
+      )?.value;
+
+    // A's row exists from the #934 describe above.
+    const aBefore = await rowBytesFor(ids.userA);
+    expect(aBefore).toBeDefined();
+
+    const kvB = kvForActor(ids.userB);
+    // INSERT side: B's first write creates B's own row for the same key…
+    await saveScheduleState(kvB, {
+      schemaVersion: 1,
+      monitorId: "mon-iso",
+      lastCompletedLocalDate: "2026-07-09"
+    });
+    // …UPDATE side: B's second write must update B's row, not A's.
+    await saveScheduleState(kvB, {
+      schemaVersion: 1,
+      monitorId: "mon-iso",
+      lastCompletedLocalDate: "2026-07-10"
+    });
+
+    expect(await rowBytesFor(ids.userA)).toBe(aBefore);
+    expect(await getScheduleState(kvForActor(ids.userA), "mon-iso")).toMatchObject({
+      lastCompletedLocalDate: "2026-07-11"
+    });
+    expect(await getScheduleState(kvB, "mon-iso")).toMatchObject({
+      lastCompletedLocalDate: "2026-07-10"
+    });
+    // Two rows share the key, split by owner.
+    const sameKey = (await bootstrapJobSearchRows()).filter(
+      (r) => r.key === keys.monitorSchedule("mon-iso")
+    );
+    expect(sameKey.map((r) => r.owner_user_id).sort()).toEqual([ids.userA, ids.userB].sort());
   });
 });
