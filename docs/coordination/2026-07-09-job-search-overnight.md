@@ -4316,3 +4316,26 @@ code touched.
 day-one MANUAL acceptance (real résumé, live instance — physically Ben-only, per JS-09 spec merge
 policy + Fable note #5; NOT a coordinator-invented gate). Do NOT auto-merge. `merges_since_relay`
 unchanged. Fleet otherwise idle (News S4 #975 queued, deliberately not started mid-compaction).
+
+## RESOLVED — JS-09 PR #976 MERGE-READY (council unanimous APPROVE + CI green); HELD for Ben
+
+Head `9316012d`. Security council now UNANIMOUS on this head:
+- **Gemini re-review = APPROVE** (PR comment) — "Requirement B now met at
+  external-module-job-search-acceptance.test.ts:1377-1411" (REJECT→APPROVE, finding lens satisfied).
+- **Opus = GREEN** (prior, PR comment #4950520496) — stands on bars 1,3-6; fix makes bar-2 true.
+- **CI GREEN** on 9316012d (Monitor b60vprbp4: all required checks passed).
+
+**MERGE HELD — intentional, not a stall.** Per JS-09 spec merge policy + handoff Fable note #5, merge
+awaits Ben's day-one MANUAL acceptance (real résumé on a live instance — physically Ben-only). Council
+green was the precondition, not a trigger to drop the manual step. This is the posture committed in
+every prior checkpoint + the build handoff; not reversing it unilaterally to save hours. Run does not
+stall — fleet advances (News S4) while this one PR waits on Ben. `merges_since_relay` unchanged (no
+merge). Do NOT auto-merge; do NOT ping Ben (directive #4) — it rides the standing digest.
+
+**Build lane `JS-09 build 4` (w1:pH1) REAPED** — its only remaining job (route QA blockers) is
+discharged; re-QA is APPROVE, branch pushed, PR complete. Worktree left in place (branch not yet
+merged). If Ben's acceptance surfaces a harness tweak, spawn fresh Fable.
+
+**Ben digest add:** JS-09 (#938, epic #913 capstone) PR #976 GREEN + council-unanimous; awaiting your
+day-one manual acceptance (real résumé, live instance) → then I merge. Epic #913 stays OPEN through
+acceptance + 7-day observation.
