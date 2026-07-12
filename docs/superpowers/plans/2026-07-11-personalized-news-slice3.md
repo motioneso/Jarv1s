@@ -74,6 +74,10 @@ Slice 3 deliberately excludes:
   module-registry composition root; only public types/bytes cross the seam.
 - Image authorization happens before every cache lookup. A warm cache must never turn an article
   ID into a cross-owner oracle.
+- Key cached bytes by the exact validated upstream image URL string (or a strong digest of that
+  string), never by the 32-bit snapshot article ID. The article ID remains a collision-tolerant UI
+  key, not a cache or security identity. If more than one current snapshot article matches a
+  requested ID, fail closed with 404 and perform no fetch/cache lookup.
 - The route accepts only an opaque article ID. It never accepts a client-supplied upstream URL.
 - Reject missing/expired snapshots, missing articles/images, truncated responses, unsupported or
   mismatched media types, SVG/HTML, upstream failures, and private/redirect-denied URLs. Never
@@ -91,6 +95,10 @@ Slice 3 deliberately excludes:
 - Opening News or Today with no snapshot or one older than 30 minutes serves the last good usable
   result immediately and requests the existing coalesced refresh. A snapshot past `expiresAt` is
   not served and its image route is closed.
+- Apply the seven-day hard age limit again at read time. A stale-but-unexpired snapshot may contain
+  an article that aged past seven days after compilation; omit it from overview composition and
+  refuse its image route. If this leaves zero articles, preserve the valid empty personalized
+  result rather than substituting V1 filler.
 - External text is untrusted and capped. Topic article reads extract metadata only; no article body
   enters snapshots, prompts, logs, jobs, responses, or account export.
 - Never log URLs, article IDs, topics, headlines, excerpts, image bytes, content bodies, prompts,
@@ -242,10 +250,14 @@ schema; its params schema accepts a non-empty bounded opaque ID only.
 - [ ] Unit-test cache behavior: repeat authorized request fetches upstream once; 33rd entry evicts
       the oldest; total cached bytes never exceed 16 MiB. Authorization/read-current-snapshot runs
       before lookup on every request.
+- [ ] Add the review-blocker regression: two authorized snapshots use the same 32-bit article ID
+      but different upstream image URLs; warming the first must not satisfy the second. Key the LRU
+      by exact upstream image URL (or its strong digest). If one snapshot itself contains two
+      articles with that ID, return 404 with zero upstream/cache access.
 - [ ] Integration-test with real owner-only snapshot rows: owner A can load A's current article;
       owner B gets 404 for A's ID even after A warmed the cache; an admin actor gets no bypass;
-      replacing/pruning A's snapshot immediately closes the old ID. Keep the fake byte port local
-      so the test performs no network request.
+      replacing/pruning A's snapshot and an article crossing the seven-day age limit immediately
+      close the old ID. Keep the fake byte port local so the test performs no network request.
 - [ ] Implement native magic-byte detection and a route-local bounded `Map` LRU. Cache only after
       authorization, safe fetch success, non-truncation, allowed normalized MIME, and signature
       match. Re-authorize on every hit. Do not cache failures.
@@ -276,7 +288,10 @@ schema; its params schema accepts a non-empty bounded opaque ID only.
       order.
 - [ ] Prove an empty successful snapshot remains an empty personalized result (no filler/V1
       substitution), a stale-but-unexpired snapshot is served, an expired or structurally invalid
-      snapshot is not served, and no snapshot uses the unchanged curated V1 composer.
+      snapshot is not served, and no snapshot uses the unchanged curated V1 composer. Pin the
+      read-time age boundary: articles at seven days survive, older articles are omitted from the
+      overview and image authorization, and an all-aged-out snapshot remains a valid empty
+      personalized result while refresh is queued.
 - [ ] Build `enabledSources` from effective curated prefs plus approved/available custom preferred
       sources after domain exclusions, so a valid empty snapshot says “Nothing on the wire,” not
       “Choose your sources.”
@@ -352,6 +367,8 @@ schema; its params schema accepts a non-empty bounded opaque ID only.
 - Today renders the same feed's top four, not an independent compilation or query.
 - Personalized image URLs never reach the browser. Authorized same-origin image requests are
   owner-scoped to an unexpired current snapshot and fail closed on every unsupported/upstream case.
+- Image cache identity is the validated upstream image URL (or strong digest), never the
+  collision-tolerant article ID; ambiguous same-ID snapshot lookups fail closed before cache/fetch.
 - Dynamic image retrieval reuses Web Research's resolve-and-pin safe path per redirect with HTTPS,
   robots, rate, timeout, and size controls; no CSP host expansion exists.
 - Only JPEG/PNG/WebP/GIF with matching signatures are served, with `nosniff` and private cache
@@ -368,14 +385,16 @@ schema; its params schema accepts a non-empty bounded opaque ID only.
 ## Plan-time adversarial checklist
 
 - **Cross-owner cached-byte attack:** route re-reads current owner snapshot before cache access;
-  warmed cache never grants possession.
+  warmed cache never grants possession, and cache keys are upstream image URLs/strong URL digests,
+  never 32-bit article IDs. Same-ID ambiguity inside one snapshot fails closed.
 - **Client URL injection:** route accepts article ID only; upstream URL comes from validated stored
   payload.
 - **DNS rebinding/private redirect:** byte path shares Slice 2's resolve-and-pin loop at every hop.
 - **Content-type spoofing:** MIME allowlist and native magic-byte match are both required; SVG/HTML
   never served.
 - **Oversize/partial image:** `truncated` is rejection, not a partial successful response.
-- **Expired archive:** expired snapshot neither composes cards nor authorizes images.
+- **Expired archive:** expired snapshots and individual articles older than seven days neither
+  compose cards nor authorize images.
 - **Neutral-story disappearance:** `rankedStories` carries the whole snapshot independently of
   truthful preferred-only source groups.
 - **Image editorial bias:** stored rank order is copied; layout may use art, ordering may not.
