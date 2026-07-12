@@ -2,6 +2,8 @@ import type { DatasetClient } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import type {
   NewsCatalogResponse,
+  NewsCustomSourceDto,
+  NewsCustomTopicDto,
   NewsHeadline,
   NewsOverviewResponse,
   NewsPrefDto,
@@ -10,7 +12,12 @@ import type {
   NewsTopicKey
 } from "@jarv1s/shared";
 
-import { publisherDomainMatches } from "./personalization-domain.js";
+import {
+  assertSnapshotPayload,
+  publisherDomainMatches,
+  type NewsSnapshotArticle
+} from "./personalization-domain.js";
+import type { NewsSnapshotRecord } from "./personalization-repository.js";
 import { rankStories, type RankInput } from "./ranking.js";
 import { NEWS_CATALOG, NEWS_TOPICS, topicOption, type NewsSourceEntry } from "./source/catalog.js";
 import type { RssFeedItem } from "./source/rss-source.js";
@@ -29,8 +36,11 @@ export interface NewsPrefsReader {
 }
 
 /** The subset of `NewsPersonalizationRepository` the service reads (#953 Slice 1). */
-export interface NewsExclusionsReader {
+export interface NewsPersonalizationReader {
   listExclusions(scopedDb: DataContextDb): Promise<NewsSourceExclusionDto[]>;
+  listCustomSources(scopedDb: DataContextDb): Promise<NewsCustomSourceDto[]>;
+  listCustomTopics(scopedDb: DataContextDb): Promise<NewsCustomTopicDto[]>;
+  readLatestSnapshot(scopedDb: DataContextDb): Promise<NewsSnapshotRecord | null>;
 }
 
 export interface NewsServiceDependencies {
@@ -42,11 +52,25 @@ export interface NewsServiceDependencies {
   readonly datasetClient: DatasetClient;
   readonly dataContext: NewsDataContext;
   readonly repository: NewsPrefsReader;
-  readonly personalization: NewsExclusionsReader;
+  readonly personalization: NewsPersonalizationReader;
+  readonly now?: () => Date;
 }
 
 const TOP_STORIES_CAP = 6; // spec: cross-source ranked selection
 const GROUP_HEADLINES_CAP = 12; // per-source rail depth; keeps the payload bounded
+const NEWS_ARTICLE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1_000;
+export const NEWS_SNAPSHOT_FRESH_MS = 30 * 60 * 1_000;
+
+export function isNewsSnapshotFresh(
+  snapshot: NewsSnapshotRecord | null,
+  now: Date = new Date()
+): boolean {
+  return Boolean(
+    snapshot &&
+    snapshot.expiresAt.getTime() > now.getTime() &&
+    now.getTime() - snapshot.compiledAt.getTime() <= NEWS_SNAPSHOT_FRESH_MS
+  );
+}
 
 /** Mutable degraded flag threaded through a single composition pass. */
 interface DegradeState {
@@ -68,13 +92,15 @@ export class NewsService {
   private readonly datasetClient: DatasetClient;
   private readonly dataContext: NewsDataContext;
   private readonly repository: NewsPrefsReader;
-  private readonly personalization: NewsExclusionsReader;
+  private readonly personalization: NewsPersonalizationReader;
+  private readonly now: () => Date;
 
   constructor(deps: NewsServiceDependencies) {
     this.datasetClient = deps.datasetClient;
     this.dataContext = deps.dataContext;
     this.repository = deps.repository;
     this.personalization = deps.personalization;
+    this.now = deps.now ?? (() => new Date());
   }
 
   /** Static catalog for the settings pane — no network. */
@@ -91,24 +117,113 @@ export class NewsService {
     };
   }
 
-  async getOverview(accessContext: AccessContext): Promise<NewsOverviewResponse> {
-    const { prefs, exclusions } = await this.dataContext.withDataContext(
-      accessContext,
-      async (db) => ({
-        prefs: await this.repository.list(db),
-        exclusions: await this.personalization.listExclusions(db)
-      })
-    );
-    return this.composeOverview(prefs, exclusions);
+  async getOverview(
+    accessContext: AccessContext,
+    onStale?: (scopedDb: DataContextDb) => Promise<void>
+  ): Promise<NewsOverviewResponse> {
+    return this.dataContext.withDataContext(accessContext, async (db) => {
+      const [prefs, exclusions, customSources, customTopics, snapshot] = await Promise.all([
+        this.repository.list(db),
+        this.personalization.listExclusions(db),
+        this.personalization.listCustomSources(db),
+        this.personalization.listCustomTopics(db),
+        this.personalization.readLatestSnapshot(db)
+      ]);
+      const now = this.now();
+      const personalized = this.composePersonalized(
+        snapshot,
+        prefs,
+        exclusions,
+        customSources,
+        customTopics,
+        now
+      );
+      if (!isNewsSnapshotFresh(snapshot, now) || personalized === null) {
+        await onStale?.(db);
+      }
+      return personalized ?? this.composeOverview(prefs, exclusions);
+    });
   }
 
   /** Briefing facts: one compact "Title — Source" line per top story, capped at 5. */
   async getTopHeadlinesForToday(scopedDb: DataContextDb): Promise<{ facts: string[] }> {
-    const prefs = await this.repository.list(scopedDb);
-    const exclusions = await this.personalization.listExclusions(scopedDb);
-    const overview = await this.composeOverview(prefs, exclusions);
+    const [prefs, exclusions, customSources, customTopics, snapshot] = await Promise.all([
+      this.repository.list(scopedDb),
+      this.personalization.listExclusions(scopedDb),
+      this.personalization.listCustomSources(scopedDb),
+      this.personalization.listCustomTopics(scopedDb),
+      this.personalization.readLatestSnapshot(scopedDb)
+    ]);
+    const overview =
+      this.composePersonalized(
+        snapshot,
+        prefs,
+        exclusions,
+        customSources,
+        customTopics,
+        this.now()
+      ) ?? (await this.composeOverview(prefs, exclusions));
     return {
       facts: overview.topStories.slice(0, 5).map((h) => `${h.title} — ${h.sourceLabel}`)
+    };
+  }
+
+  private composePersonalized(
+    snapshot: NewsSnapshotRecord | null,
+    prefs: readonly NewsPrefDto[],
+    exclusions: readonly NewsSourceExclusionDto[],
+    customSources: readonly NewsCustomSourceDto[],
+    customTopics: readonly NewsCustomTopicDto[],
+    now: Date
+  ): NewsOverviewResponse | null {
+    if (!snapshot || snapshot.expiresAt.getTime() <= now.getTime()) return null;
+    try {
+      assertSnapshotPayload(snapshot.payload);
+    } catch {
+      return null;
+    }
+
+    const excludedDomains = exclusions.map((item) => item.canonicalDomain);
+    const cutoff = now.getTime() - NEWS_ARTICLE_MAX_AGE_MS;
+    const seen = new Set<string>();
+    const articles = snapshot.payload.articles.filter((article) => {
+      if (Date.parse(article.publishedAt) < cutoff) return false;
+      if (hostnameIsExcluded(article.canonicalDomain, excludedDomains)) return false;
+      if (seen.has(article.url)) return false;
+      seen.add(article.url);
+      return true;
+    });
+    const headlines = articles.map(toPersonalizedHeadline);
+    const configuredSources = personalizedSources(prefs, customSources, excludedDomains);
+    const configuredByDomain = new Map(configuredSources.map((source) => [source.domain, source]));
+    const preferredGroups = new Map<string, NewsSnapshotArticle[]>();
+    for (const article of articles) {
+      if (!article.preferred) continue;
+      const group = preferredGroups.get(article.canonicalDomain) ?? [];
+      group.push(article);
+      preferredGroups.set(article.canonicalDomain, group);
+    }
+
+    return {
+      topStories: headlines.slice(0, TOP_STORIES_CAP),
+      rankedStories: headlines,
+      sourceGroups: [...preferredGroups].map(([domain, group]) => {
+        const source = configuredByDomain.get(domain);
+        return {
+          sourceKey: source?.sourceKey ?? domain,
+          sourceLabel: source?.label ?? group[0]!.publisher,
+          homepageUrl: source?.homepageUrl ?? `https://${domain}`,
+          headlines: group.map(toPersonalizedHeadline).slice(0, GROUP_HEADLINES_CAP)
+        };
+      }),
+      activeTopics: [
+        ...resolveEffectivePrefs(prefs).topics,
+        ...customTopics
+          .filter((topic) => topic.validationStatus === "approved")
+          .map((topic) => topic.label)
+      ],
+      enabledSources: configuredSources.map(({ sourceKey, label }) => ({ sourceKey, label })),
+      degraded: false
     };
   }
 
@@ -197,6 +312,62 @@ export class NewsService {
     if (result.degraded) state.degraded = true;
     return result.data;
   }
+}
+
+function toPersonalizedHeadline(article: NewsSnapshotArticle): NewsHeadline {
+  const topicLabels = article.topics.slice(0, 3);
+  return {
+    id: article.id,
+    sourceKey: article.canonicalDomain,
+    sourceLabel: article.publisher,
+    topicKey: null,
+    topicLabel: topicLabels[0] ?? null,
+    topicLabels,
+    title: article.headline,
+    url: article.url,
+    publishedAt: article.publishedAt,
+    imageUrl: article.imageUrl ? `/api/news/images/${encodeURIComponent(article.id)}` : null,
+    summary: article.excerpt ?? ""
+  };
+}
+
+interface PersonalizedSource {
+  readonly sourceKey: string;
+  readonly label: string;
+  readonly homepageUrl: string;
+  readonly domain: string;
+}
+
+function personalizedSources(
+  prefs: readonly NewsPrefDto[],
+  customSources: readonly NewsCustomSourceDto[],
+  excludedDomains: readonly string[]
+): PersonalizedSource[] {
+  const curated = resolveEffectivePrefs(prefs)
+    .sources.map((source) => ({
+      sourceKey: source.sourceKey,
+      label: source.label,
+      homepageUrl: source.homepageUrl,
+      domain: urlHostname(source.homepageUrl)
+    }))
+    .filter(
+      (source): source is PersonalizedSource =>
+        source.domain !== null && !hostnameIsExcluded(source.domain, excludedDomains)
+    );
+  const custom = customSources
+    .filter(
+      (source) =>
+        source.validationStatus === "approved" &&
+        source.healthStatus === "available" &&
+        !hostnameIsExcluded(source.canonicalDomain, excludedDomains)
+    )
+    .map((source) => ({
+      sourceKey: source.id,
+      label: source.label,
+      homepageUrl: source.homepageUrl,
+      domain: source.canonicalDomain
+    }));
+  return [...curated, ...custom];
 }
 
 /**

@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type { NewsPrefDto, NewsSourceExclusionDto } from "@jarv1s/shared";
+import type {
+  NewsCustomSourceDto,
+  NewsCustomTopicDto,
+  NewsPrefDto,
+  NewsSourceExclusionDto
+} from "@jarv1s/shared";
 
 import {
   NewsService,
@@ -10,6 +15,8 @@ import {
   type NewsServiceDependencies
 } from "../../packages/news/src/news-service.js";
 import type { RssFeedItem } from "../../packages/news/src/source/rss-source.js";
+import type { NewsSnapshotRecord } from "../../packages/news/src/personalization-repository.js";
+import type { NewsSnapshotArticle } from "../../packages/news/src/personalization-domain.js";
 
 /**
  * Fake `DatasetClient` dispatching by (sourceKey, topicKey). Mirrors the sports-service stub's
@@ -86,6 +93,10 @@ function makeDeps(
     getFeed?: FeedHandler;
     prefs?: NewsPrefDto[];
     exclusions?: NewsSourceExclusionDto[];
+    customSources?: NewsCustomSourceDto[];
+    customTopics?: NewsCustomTopicDto[];
+    snapshot?: NewsSnapshotRecord | null;
+    now?: Date;
   } = {}
 ): NewsServiceDependencies {
   const prefs = overrides.prefs ?? [];
@@ -100,10 +111,149 @@ function makeDeps(
       list: async () => prefs
     },
     personalization: {
-      listExclusions: async () => exclusions
-    }
+      listExclusions: async () => exclusions,
+      listCustomSources: async () => overrides.customSources ?? [],
+      listCustomTopics: async () => overrides.customTopics ?? [],
+      readLatestSnapshot: async () => overrides.snapshot ?? null
+    },
+    now: () => overrides.now ?? new Date("2026-07-11T12:00:00.000Z")
   };
 }
+
+function snapshot(
+  articles: NewsSnapshotArticle[] = [],
+  overrides: Partial<NewsSnapshotRecord> = {}
+): NewsSnapshotRecord {
+  return {
+    compiledAt: new Date("2026-07-11T11:45:00.000Z"),
+    expiresAt: new Date("2026-07-12T12:00:00.000Z"),
+    payload: { articles },
+    ...overrides
+  };
+}
+
+function snapshotArticle(
+  id: string,
+  overrides: Partial<NewsSnapshotArticle> = {}
+): NewsSnapshotArticle {
+  return {
+    id,
+    publisher: "Preferred Wire",
+    canonicalDomain: "preferred.example",
+    headline: `Headline ${id}`,
+    url: `https://preferred.example/${id}`,
+    publishedAt: "2026-07-11T10:00:00.000Z",
+    excerpt: "Plain summary",
+    imageUrl: `https://images.example/${id}.png`,
+    topics: ["AI", "Watches", "3D printing", "ignored"],
+    preferred: true,
+    rank: 1,
+    ...overrides
+  };
+}
+
+describe("NewsService personalized snapshot overview", () => {
+  it("preserves the full rank, hides publisher image URLs, and groups preferred stories only", async () => {
+    const articles = [
+      snapshotArticle("one"),
+      snapshotArticle("two", {
+        publisher: "Neutral Journal",
+        canonicalDomain: "neutral.example",
+        url: "https://neutral.example/two",
+        preferred: false,
+        imageUrl: null,
+        topics: ["AI"],
+        rank: 2
+      }),
+      snapshotArticle("three", { rank: 3, imageUrl: null, topics: [] })
+    ];
+    const service = new NewsService(
+      makeDeps({
+        snapshot: snapshot(articles),
+        customSources: [
+          {
+            id: "source-1",
+            label: "Preferred Wire",
+            canonicalDomain: "preferred.example",
+            homepageUrl: "https://preferred.example",
+            feedUrl: null,
+            retrievalMethod: "scrape",
+            validationStatus: "approved",
+            healthStatus: "available",
+            createdAt: "2026-07-11T00:00:00.000Z"
+          }
+        ],
+        customTopics: [
+          {
+            id: "topic-1",
+            label: "AI",
+            guidance: null,
+            validationStatus: "approved",
+            createdAt: "2026-07-11T00:00:00.000Z"
+          }
+        ]
+      })
+    );
+
+    const overview = await service.getOverview(userA);
+
+    expect(overview.rankedStories?.map((story) => story.id)).toEqual(["one", "two", "three"]);
+    expect(overview.topStories).toEqual(overview.rankedStories);
+    expect(overview.rankedStories?.[0]).toMatchObject({
+      imageUrl: "/api/news/images/one",
+      topicLabels: ["AI", "Watches", "3D printing"]
+    });
+    expect(JSON.stringify(overview)).not.toContain("images.example");
+    expect(overview.sourceGroups).toHaveLength(1);
+    expect(overview.sourceGroups[0]?.headlines.map((story) => story.id)).toEqual(["one", "three"]);
+    expect(overview.enabledSources).toContainEqual({
+      sourceKey: "source-1",
+      label: "Preferred Wire"
+    });
+    expect(overview.activeTopics).toContain("AI");
+  });
+
+  it("keeps valid empty and all-aged-out snapshots personalized", async () => {
+    for (const record of [
+      snapshot([]),
+      snapshot([snapshotArticle("old", { publishedAt: "2026-07-04T11:59:59.999Z" })])
+    ]) {
+      const overview = await new NewsService(makeDeps({ snapshot: record })).getOverview(userA);
+      expect(overview.rankedStories).toEqual([]);
+      expect(overview.topStories).toEqual([]);
+    }
+  });
+
+  it("keeps the seven-day boundary and falls back for expired or invalid snapshots", async () => {
+    const atBoundary = await new NewsService(
+      makeDeps({
+        snapshot: snapshot([
+          snapshotArticle("boundary", { publishedAt: "2026-07-04T12:00:00.000Z" })
+        ])
+      })
+    ).getOverview(userA);
+    expect(atBoundary.rankedStories?.map((story) => story.id)).toEqual(["boundary"]);
+
+    for (const record of [
+      snapshot([], { expiresAt: new Date("2026-07-11T12:00:00.000Z") }),
+      snapshot([], { payload: { articles: [{ title: "invalid" }] } })
+    ]) {
+      const overview = await new NewsService(makeDeps({ snapshot: record })).getOverview(userA);
+      expect(overview.rankedStories).toBeUndefined();
+      expect(overview.topStories.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("uses the same personalized snapshot for briefing facts", async () => {
+    const service = new NewsService(
+      makeDeps({
+        snapshot: snapshot([snapshotArticle("one"), snapshotArticle("two", { rank: 2 })])
+      })
+    );
+    const { facts } = await service.getTopHeadlinesForToday({} as DataContextDb);
+    expect(facts).toEqual(["Headline one — Preferred Wire", "Headline two — Preferred Wire"]);
+  });
+});
 
 describe("resolveEffectivePrefs (#897)", () => {
   it("with no prefs, serves the catalog defaults (bbc, guardian, npr)", () => {

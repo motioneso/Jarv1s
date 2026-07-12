@@ -109,7 +109,14 @@ export function registerNewsRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
-        return await service.getOverview(accessContext);
+        return await service.getOverview(accessContext, async (db) => {
+          await triggerNewsRefresh(
+            db,
+            personalization,
+            dependencies.boss,
+            accessContext.actorUserId
+          );
+        });
       } catch (error) {
         return handleRouteError(error, reply);
       }
