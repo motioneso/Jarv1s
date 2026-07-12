@@ -38,8 +38,7 @@ import {
   NewsPersonalizationLimitError,
   type NewsSnapshotRecord
 } from "./personalization-repository.js";
-
-const SNAPSHOT_FRESH_MS = 30 * 60 * 1_000;
+import { isNewsSnapshotFresh } from "./news-service.js";
 
 export interface NewsPersonalizationStore {
   listCustomSources(scopedDb: DataContextDb): Promise<NewsCustomSourceDto[]>;
@@ -178,7 +177,7 @@ export function registerNewsPersonalizationRoutes(
               dependencies.availability.hasWebSearch(db)
             ]);
           let refresh = await repository.readRefreshState(db);
-          if (!snapshot || Date.now() - snapshot.compiledAt.getTime() > SNAPSHOT_FRESH_MS) {
+          if (!isNewsSnapshotFresh(snapshot)) {
             await triggerNewsRefresh(db, repository, dependencies.boss, accessContext.actorUserId);
             refresh = await repository.readRefreshState(db);
           }

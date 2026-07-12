@@ -69,8 +69,13 @@ const CAROUSEL_CAP = 5;
 const CAROUSEL_ADVANCE_MS = 7000;
 
 function kicker(headline: NewsHeadline): string {
-  return headline.topicLabel
-    ? `${headline.sourceLabel} · ${headline.topicLabel}`
+  const topics = headline.topicLabels?.length
+    ? headline.topicLabels
+    : headline.topicLabel
+      ? [headline.topicLabel]
+      : [];
+  return topics.length > 0
+    ? `${headline.sourceLabel} · ${topics.join(" · ")}`
     : headline.sourceLabel;
 }
 

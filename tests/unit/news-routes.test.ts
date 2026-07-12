@@ -247,6 +247,7 @@ function buildApp(
     },
     discovery: overrides.discovery ?? {
       fetch: async () => ({ ok: false, reason: "network" }),
+      image: async () => ({ ok: false, reason: "network" }),
       search: { search: async () => ({ results: [] }) },
       ai: {
         generateJson: async () => ({
@@ -645,6 +646,7 @@ describe("news personalization routes (#958 Slice 2)", () => {
           body: feed,
           truncated: false
         }),
+        image: async () => ({ ok: false, reason: "network" }),
         search: { search: async () => ({ results: [] }) },
         ai: {
           generateJson: async () => ({
@@ -684,6 +686,7 @@ describe("news personalization routes (#958 Slice 2)", () => {
     const { app, personalization } = buildApp({
       discovery: {
         fetch: async () => ({ ok: false, reason: "network" }),
+        image: async () => ({ ok: false, reason: "network" }),
         search: { search: async () => ({ results: [] }) },
         ai: {
           generateJson: async () => ({
@@ -783,5 +786,63 @@ describe("news personalization routes (#958 Slice 2)", () => {
     await staleApp.inject({ method: "GET", url: "/api/news/personalization" });
     expect(stale.refreshBumps).toEqual([1]);
     await staleApp.close();
+  });
+
+  it("serves a stale personalized overview immediately and coalesces a replacement refresh", async () => {
+    const article = {
+      id: "snapshot-story",
+      publisher: "Example News",
+      canonicalDomain: "example.com",
+      headline: "Personalized headline",
+      url: "https://example.com/story",
+      publishedAt: new Date(Date.now() - 60_000).toISOString(),
+      excerpt: "Personalized summary",
+      imageUrl: "https://images.example/story.png",
+      topics: ["AI"],
+      preferred: true,
+      rank: 1
+    };
+    const stale = makePersonalization({
+      readLatestSnapshot: async () => ({
+        compiledAt: new Date(Date.now() - 31 * 60_000),
+        expiresAt: new Date(Date.now() + 60_000),
+        payload: { articles: [article] }
+      })
+    });
+    const { app } = buildApp({ personalization: stale });
+    await app.ready();
+
+    const response = await app.inject({ method: "GET", url: "/api/news/overview" });
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(200);
+    expect(body.rankedStories).toHaveLength(1);
+    expect(body.rankedStories[0]).toMatchObject({
+      id: "snapshot-story",
+      imageUrl: "/api/news/images/snapshot-story",
+      topicLabels: ["AI"]
+    });
+    expect(response.body).not.toContain("images.example");
+    expect(stale.refreshBumps).toEqual([1]);
+    await app.close();
+  });
+
+  it("does not refresh a five-minute personalized overview", async () => {
+    const fresh = makePersonalization({
+      readLatestSnapshot: async () => ({
+        compiledAt: new Date(Date.now() - 5 * 60_000),
+        expiresAt: new Date(Date.now() + 60_000),
+        payload: { articles: [] }
+      })
+    });
+    const { app } = buildApp({ personalization: fresh });
+    await app.ready();
+
+    const response = await app.inject({ method: "GET", url: "/api/news/overview" });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).rankedStories).toEqual([]);
+    expect(fresh.refreshBumps).toEqual([]);
+    await app.close();
   });
 });

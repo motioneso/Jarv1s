@@ -199,6 +199,7 @@ import {
   createHostRateLimiter,
   createRobotsGate,
   fetchWebResource,
+  fetchWebResourceBytes,
   invalidateWebSearchProviderCache,
   resolveWebSearchProvider,
   setWebSearchKeyResolver,
@@ -484,6 +485,13 @@ function buildNewsDiscoveryPorts(logger?: Pick<FastifyBaseLogger, "info" | "warn
         requireHttps: true,
         robots: newsRobotsGate,
         rateLimiter: newsHostRateLimiter
+      }),
+    image: (url: string, maxBytes: number) =>
+      fetchWebResourceBytes(url, {
+        requireHttps: true,
+        robots: newsRobotsGate,
+        rateLimiter: newsHostRateLimiter,
+        maxBytes
       }),
     search: {
       async search(

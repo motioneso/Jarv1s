@@ -27,6 +27,29 @@ export type NewsSafeFetchPort = (
   url: string
 ) => Promise<NewsSafeFetchResult | NewsSafeFetchFailure>;
 
+export type NewsImageFetchPort = (
+  url: string,
+  maxBytes: number
+) => Promise<
+  | {
+      readonly ok: true;
+      readonly contentType: string | null;
+      readonly body: Uint8Array;
+      readonly truncated: boolean;
+    }
+  | {
+      readonly ok: false;
+      readonly reason:
+        | "blocked"
+        | "robots"
+        | "rate_limited"
+        | "http_error"
+        | "timeout"
+        | "network"
+        | "not_https";
+    }
+>;
+
 export interface NewsWebSearchPort {
   search(
     scopedDb: DataContextDb,

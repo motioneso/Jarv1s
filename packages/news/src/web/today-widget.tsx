@@ -7,9 +7,8 @@ import type { ReactNode } from "react";
 import { getNewsOverview } from "./news-client.js";
 import { newsQueryKeys } from "./query-keys.js";
 
-// One lead + four brief lines = a compact front page. Bumped from 4 to 5 (Ben 2026-07-09
-// "more newspaper style") so the lead's photo earns its space without starving the brief column.
-const WIDGET_CAP = 5;
+// One lead + three brief lines keeps Today compact while sharing News' exact ranking.
+const WIDGET_CAP = 4;
 
 /**
  * Today "News desk" widget. Reuses the same `getNewsOverview()` query as the `/news` page

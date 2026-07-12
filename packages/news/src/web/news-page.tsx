@@ -3,8 +3,7 @@ import "./styles/news-2.css";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Newspaper } from "lucide-react";
-import { NEWS_TOPIC_KEYS } from "@jarv1s/shared";
-import type { NewsHeadline, NewsOverviewResponse, NewsTopicKey } from "@jarv1s/shared";
+import type { NewsHeadline, NewsOverviewResponse } from "@jarv1s/shared";
 
 import { getNewsOverview } from "./news-client.js";
 import { newsQueryKeys } from "./query-keys.js";
@@ -19,11 +18,27 @@ import {
 
 const SETTINGS_HREF = "/settings?section=modules&module=news";
 
-type TopicFilter = NewsTopicKey | "all";
+type TopicFilter = string | null;
 
-function matchesTopic(headline: NewsHeadline, filter: TopicFilter): boolean {
-  return filter === "all" || headline.topicKey === filter;
+export function matchesTopic(headline: NewsHeadline, filter: TopicFilter): boolean {
+  return (
+    filter === null ||
+    headline.topicLabels?.includes(filter) === true ||
+    headline.topicKey === filter ||
+    headline.topicLabel === filter
+  );
 }
+
+const TOPIC_LABELS: Readonly<Record<string, string>> = {
+  world: "World",
+  us: "U.S.",
+  politics: "Politics",
+  business: "Business",
+  technology: "Technology",
+  science: "Science",
+  health: "Health",
+  culture: "Culture"
+};
 
 export function NewsPage() {
   const overviewQuery = useQuery({
@@ -33,12 +48,12 @@ export function NewsPage() {
     // faster than that only re-reads the cache. Default window-focus refetch is enough.
   });
   const data = overviewQuery.data;
-  const [topicFilter, setTopicFilter] = useState<TopicFilter>("all");
+  const [topicFilter, setTopicFilter] = useState<TopicFilter>(null);
 
   if (!data) {
     return (
       <div className="nw-wrap">
-        <Masthead activeTopics={[]} filter="all" onFilter={setTopicFilter} />
+        <Masthead activeTopics={[]} filter={null} onFilter={setTopicFilter} />
         {overviewQuery.isError ? (
           <p className="nw-lede" role="status">
             News is unavailable right now.
@@ -50,17 +65,15 @@ export function NewsPage() {
     );
   }
 
-  const hasStories = data.sourceGroups.length > 0 || data.topStories.length > 0;
-  // The wire type for activeTopics is string[] (JSON schema output); narrow it once at the
-  // boundary so the masthead's label lookup stays keyed by NewsTopicKey.
-  const activeTopics = data.activeTopics.filter((topic): topic is NewsTopicKey =>
-    (NEWS_TOPIC_KEYS as readonly string[]).includes(topic)
-  );
+  const hasStories =
+    data.sourceGroups.length > 0 ||
+    data.topStories.length > 0 ||
+    Boolean(data.rankedStories?.length);
+  const activeTopics = data.activeTopics;
   // The chip row only offers topics the user actually follows — in top-front-page mode every
   // headline's topicKey is null, so topic chips would filter everything out and lie.
-  const filter: TopicFilter = activeTopics.includes(topicFilter as NewsTopicKey)
-    ? topicFilter
-    : "all";
+  const filter: TopicFilter =
+    topicFilter !== null && activeTopics.includes(topicFilter) ? topicFilter : null;
 
   const topStories = data.topStories.filter((h) => matchesTopic(h, filter));
   const groups = data.sourceGroups
@@ -71,7 +84,10 @@ export function NewsPage() {
     .filter((group) => group.headlines.length > 0);
   // The mosaic pool excludes the carousel's slides so no story renders twice on one page.
   const carouselIds = new Set(topStories.slice(0, 5).map((h) => h.id));
-  const pool = interleaveGroups(groups).filter((h) => !carouselIds.has(h.id));
+  const rankedPool = (data.rankedStories ?? interleaveGroups(groups)).filter((headline) =>
+    matchesTopic(headline, filter)
+  );
+  const pool = rankedPool.filter((h) => !carouselIds.has(h.id));
   // Compose once here so the mosaic and the rail's "In brief" tail share one plan — the tail was
   // moved out of the mosaic column into the rail (Ben 2026-07-09 /news).
   const plan = composeMosaic(pool);
@@ -110,20 +126,10 @@ export function NewsPage() {
 // nav is an inert preview, these chips are functional topic filters over the loaded page.
 // "All" + one chip per followed topic; hidden entirely in top-front-page mode (no topics).
 function Masthead(props: {
-  activeTopics: readonly NewsTopicKey[];
+  activeTopics: readonly string[];
   filter: TopicFilter;
   onFilter: (filter: TopicFilter) => void;
 }) {
-  const labels: Record<NewsTopicKey, string> = {
-    world: "World",
-    us: "U.S.",
-    politics: "Politics",
-    business: "Business",
-    technology: "Technology",
-    science: "Science",
-    health: "Health",
-    culture: "Culture"
-  };
   return (
     <header className="nw-mast">
       {props.activeTopics.length > 0 ? (
@@ -131,8 +137,8 @@ function Masthead(props: {
           <button
             type="button"
             className="nw-mast__chip"
-            aria-pressed={props.filter === "all"}
-            onClick={() => props.onFilter("all")}
+            aria-pressed={props.filter === null}
+            onClick={() => props.onFilter(null)}
           >
             All
           </button>
@@ -144,7 +150,7 @@ function Masthead(props: {
               aria-pressed={props.filter === topicKey}
               onClick={() => props.onFilter(topicKey)}
             >
-              {labels[topicKey]}
+              {TOPIC_LABELS[topicKey] ?? topicKey}
             </button>
           ))}
         </nav>

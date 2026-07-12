@@ -171,4 +171,145 @@ describe("collectCandidates", () => {
     );
     expect(result.candidates).toEqual([]);
   });
+
+  it("enriches an approved topic result with bounded article metadata", async () => {
+    let fetchedUrl: string | null = null;
+    const result = await collectCandidates(
+      db,
+      {
+        fetch: async (url) => {
+          fetchedUrl = url;
+          return {
+            ok: true,
+            status: 200,
+            finalUrl: url,
+            contentType: "text/html",
+            body:
+              '<html><head><meta property="article:published_time" content="2026-07-11T10:00:00Z">' +
+              '<meta property="og:description" content="Metadata excerpt">' +
+              '<meta property="og:image" content="https://images.neutral.example/lead.jpg"></head>' +
+              "<body>Article body must not become candidate data.</body></html>",
+            truncated: false
+          };
+        },
+        search: {
+          search: async () => ({
+            results: [
+              {
+                title: "A relevant headline",
+                url: "https://neutral.example/story",
+                snippet: ""
+              }
+            ]
+          })
+        },
+        ai: aiReturningApproved(),
+        repo: repo({
+          readPolicyVerdict: async () => "approved",
+          listCustomTopics: async () => [approvedTopic()]
+        }),
+        prefs: { list: async () => [] },
+        catalog: emptyCatalog
+      },
+      { now }
+    );
+
+    expect(fetchedUrl).toBe("https://neutral.example/story");
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toMatchObject({
+      publishedAt: "2026-07-11T10:00:00.000Z",
+      excerpt: "Metadata excerpt",
+      imageUrl: "https://images.neutral.example/lead.jpg"
+    });
+    expect(JSON.stringify(result.candidates[0])).not.toContain("Article body");
+  });
+
+  it("keeps trustworthy search metadata when optional article enrichment fails", async () => {
+    const result = await collectCandidates(
+      db,
+      {
+        fetch: async () => ({ ok: false, reason: "robots" }),
+        search: {
+          search: async () => ({
+            results: [
+              {
+                title: "A relevant headline",
+                url: "https://neutral.example/story",
+                snippet: "Search excerpt",
+                publishedAt: "2026-07-11T10:00:00Z"
+              }
+            ]
+          })
+        },
+        ai: aiReturningApproved(),
+        repo: repo({
+          readPolicyVerdict: async () => "approved",
+          listCustomTopics: async () => [approvedTopic()]
+        }),
+        prefs: { list: async () => [] },
+        catalog: emptyCatalog
+      },
+      { now }
+    );
+
+    expect(result.candidates[0]).toMatchObject({ excerpt: "Search excerpt", imageUrl: null });
+  });
+
+  it("drops topic results whose metadata read redirects to another publisher", async () => {
+    const result = await collectCandidates(
+      db,
+      {
+        fetch: async () => ({
+          ok: true,
+          status: 200,
+          finalUrl: "https://different.example/story",
+          contentType: "text/html",
+          body: '<meta property="og:image" content="https://different.example/image.jpg">',
+          truncated: false
+        }),
+        search: {
+          search: async () => ({
+            results: [
+              {
+                title: "A relevant headline",
+                url: "https://neutral.example/story",
+                snippet: "Search excerpt",
+                publishedAt: "2026-07-11T10:00:00Z"
+              }
+            ]
+          })
+        },
+        ai: aiReturningApproved(),
+        repo: repo({
+          readPolicyVerdict: async () => "approved",
+          listCustomTopics: async () => [approvedTopic()]
+        }),
+        prefs: { list: async () => [] },
+        catalog: emptyCatalog
+      },
+      { now }
+    );
+
+    expect(result.candidates).toEqual([]);
+  });
 });
+
+function approvedTopic() {
+  return {
+    id: "topic-1",
+    label: "Watches",
+    guidance: null,
+    validationStatus: "approved" as const,
+    createdAt: now.toISOString()
+  };
+}
+
+function aiReturningApproved() {
+  return {
+    fingerprint: async () => "fp",
+    generateJson: async () => ({
+      ok: true as const,
+      object: { allowed: true, category: "news_publisher" }
+    })
+  };
+}

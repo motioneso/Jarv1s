@@ -51,10 +51,12 @@ export interface NewsHeadline {
   /** Topic feed the item came from; null when it came from a source's top feed. */
   readonly topicKey: string | null;
   readonly topicLabel: string | null;
+  /** Matched personalized topics, in compiler order (at most three). */
+  readonly topicLabels?: readonly string[];
   readonly title: string;
   readonly url: string;
   readonly publishedAt: string | null; // ISO instant; null when the feed omitted/garbled it
-  readonly imageUrl: string | null; // https + allow-listed host only, else null
+  readonly imageUrl: string | null; // curated allow-listed HTTPS URL or authenticated same-origin path
   readonly summary: string; // sanitized plaintext, "" when absent
 }
 
@@ -68,6 +70,8 @@ export interface NewsSourceGroup {
 export interface NewsOverviewResponse {
   /** Cross-source ranked selection (weight then recency; see packages/news/src/ranking.ts). */
   readonly topStories: readonly NewsHeadline[];
+  /** Full personalized rank order; absent for the curated V1 fallback. */
+  readonly rankedStories?: readonly NewsHeadline[];
   /** One group per effective source, in catalog order. */
   readonly sourceGroups: readonly NewsSourceGroup[];
   /** Effective topic restriction ([] = "top" front-page mode). */
@@ -295,6 +299,7 @@ const newsHeadlineSchema = {
     sourceLabel: { type: "string" },
     topicKey: { type: ["string", "null"] },
     topicLabel: { type: ["string", "null"] },
+    topicLabels: { type: "array", items: { type: "string" }, maxItems: 3 },
     title: { type: "string" },
     url: { type: "string" },
     publishedAt: { type: ["string", "null"] },
@@ -350,6 +355,7 @@ export const newsOverviewResponseSchema = {
       required: ["topStories", "sourceGroups", "activeTopics", "enabledSources", "degraded"],
       properties: {
         topStories: { type: "array", items: newsHeadlineSchema },
+        rankedStories: { type: "array", items: newsHeadlineSchema },
         sourceGroups: { type: "array", items: newsSourceGroupSchema },
         activeTopics: { type: "array", items: { type: "string" } },
         enabledSources: {
