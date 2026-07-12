@@ -3724,3 +3724,10 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   pGG (215d6efc) reaped after verifying committed handoff + red-phase test preserved on disk
   (tests/unit/external-module-job-search-kv-evaluations.test.ts, untracked, for successor to green).
 - Progress: Steps 0-3 committed; Step 4 in TDD red phase. Zero merges since last relay.
+
+### 2026-07-11 — JS-07 relay #5 (CLEAN Fable→Fable)
+- pGJ relayed after Step 4 done. Step 4 committed `cfe7cb2f` (evaluation records + daily AI budget
+  ledger), relay doc `ba48bfef`. Successor pGK on **Fable** (clean, no leak). Tree clean at relay.
+- **Sole JS-07 agent = w1:pGK** (Fable 5, session `c14ab1eb-3482-4fe5-a38b-1a26fad758ed`), label
+  "JS-07 build r5", agents tab w1:t1K, next Step 5. Old pane pGJ (052fee8e) reaped (handoff
+  committed, tree clean). Steps 0-4 committed. Zero merges since last relay.
