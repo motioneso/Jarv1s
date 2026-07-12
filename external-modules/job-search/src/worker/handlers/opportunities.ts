@@ -26,21 +26,29 @@ import type {
   OpportunityStatus
 } from "../../domain/index.js";
 import {
+  DETAIL_EVIDENCE_MAX_ITEMS,
+  DETAIL_SUMMARY_MAX_BYTES,
+  DETAIL_TEXT_MAX_BYTES,
   FEED_BAND_CODES,
   FEED_CONFIDENCE_CODES,
   FEED_GATE_CODES,
+  JobSearchKvError,
   LIST_LIMIT_DEFAULT,
   LIST_LIMIT_MAX,
   LIST_TEXT_MAX_BYTES,
   RESPONSE_BUDGET_BYTES,
   freshnessOf,
+  getActiveProfile,
+  getActiveResume,
   getEvaluation,
   getOpportunity,
+  isOutdated,
   readFeedOrRebuild,
   truncateUtf8
 } from "../../domain/index.js";
+import type { EvaluationRecord, OpportunityRecord } from "../../domain/index.js";
 import type { WorkerPorts } from "../ai-port.js";
-import { readEnum, readInt } from "../validate.js";
+import { readEnum, readInt, readString } from "../validate.js";
 import type { ToolHandler } from "../wrap.js";
 
 // "active" is deliberately NOT a view: the saved view covers it (an active
@@ -170,6 +178,146 @@ export function listOpportunitiesHandler(ports: WorkerPorts): ToolHandler {
       opportunities: cards
     };
     enforceBudget(response, cards);
+    return response;
+  };
+}
+
+/** Detail-cap a string list: at most 6 items, each on a 240B UTF-8 boundary. */
+function capList(items: readonly string[]): string[] {
+  return items.slice(0, DETAIL_EVIDENCE_MAX_ITEMS).map((item) => cap(item, DETAIL_TEXT_MAX_BYTES));
+}
+
+/**
+ * Detail evaluation block: stored records are capped at EVALUATION_MAX_BYTES
+ * (24,576) which is bigger than the whole response budget, so every field is
+ * re-capped to the detail limits here. `outdated` is computed, never stored:
+ * a missing active profile OR resume pointer means the evaluation can no
+ * longer be checked against reality, so it is outdated by definition.
+ */
+async function buildEvaluationBlock(
+  ports: WorkerPorts,
+  job: OpportunityRecord,
+  evaluation: EvaluationRecord
+): Promise<Record<string, unknown>> {
+  const profile = await getActiveProfile(ports.kv);
+  const resume = await getActiveResume(ports.kv);
+  const outdated =
+    profile === null || resume === null
+      ? true
+      : isOutdated(evaluation, {
+          opportunityContentHash: job.contentHash,
+          profileRevisionId: profile.revisionId,
+          resumeRevisionId: resume.revisionId
+        });
+  return {
+    fitBand: evaluation.fitBand,
+    recommendation: evaluation.recommendation,
+    postingConfidence: evaluation.postingConfidence,
+    overallConfidence: evaluation.overallConfidence,
+    summary: cap(evaluation.summary, DETAIL_SUMMARY_MAX_BYTES),
+    evidence: evaluation.evidence.slice(0, DETAIL_EVIDENCE_MAX_ITEMS).map((item) => ({
+      requirement: cap(item.requirement, DETAIL_TEXT_MAX_BYTES),
+      evidence: cap(item.evidence, DETAIL_TEXT_MAX_BYTES),
+      source: cap(item.source, DETAIL_TEXT_MAX_BYTES)
+    })),
+    blockers: capList(evaluation.blockers),
+    gaps: capList(evaluation.gaps),
+    unknowns: capList(evaluation.unknowns),
+    preferenceMatches: capList(evaluation.preferenceMatches),
+    preferenceConflicts: capList(evaluation.preferenceConflicts),
+    outdated,
+    // Hashes/revision ids only — provenance for the UI's "evaluated against
+    // revision X" footnote, no private content.
+    inputs: {
+      opportunityContentHash: evaluation.inputs.opportunityContentHash,
+      profileRevisionId: evaluation.inputs.profileRevisionId,
+      resumeRevisionId: evaluation.inputs.resumeRevisionId
+    },
+    createdAt: evaluation.createdAt
+  };
+}
+
+/**
+ * Plan byte-budget rule, escape-aware: measure the response with the
+ * description EMPTY, give the description the remaining raw-byte allowance
+ * via truncateUtf8 — then re-measure and shrink further while JSON escaping
+ * (quotes, newlines: 1 raw byte → 2+ serialized) pushes the total over
+ * budget. Each pass cuts the allowance by the exact overshoot, and removing
+ * N raw bytes removes ≥ N serialized bytes, so this converges in a couple of
+ * iterations instead of degrading the whole response to {text} downstream.
+ */
+function fitDescription(
+  response: Record<string, unknown>,
+  posting: Record<string, unknown>,
+  stored: string
+): void {
+  const storedBytes = Buffer.byteLength(stored, "utf8");
+  let allowance = Math.max(
+    0,
+    RESPONSE_BUDGET_BYTES - Buffer.byteLength(JSON.stringify(response), "utf8")
+  );
+  let clip = truncateUtf8(stored, Math.min(storedBytes, allowance));
+  posting.description = clip.text;
+  posting.descriptionClipped = clip.truncated;
+  let bytes = Buffer.byteLength(JSON.stringify(response), "utf8");
+  while (bytes > RESPONSE_BUDGET_BYTES && allowance > 0) {
+    allowance = Math.max(0, allowance - (bytes - RESPONSE_BUDGET_BYTES));
+    clip = truncateUtf8(stored, allowance);
+    posting.description = clip.text;
+    posting.descriptionClipped = clip.truncated;
+    bytes = Buffer.byteLength(JSON.stringify(response), "utf8");
+  }
+}
+
+export function getOpportunityHandler(ports: WorkerPorts): ToolHandler {
+  return async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const identityHash = readString(input, "identityHash", { required: true });
+    // getOpportunity assertHash-guards the key material (malformed → typed
+    // invalid_record, value never echoed).
+    const job = await getOpportunity(ports.kv, identityHash);
+    if (job === null) {
+      throw new JobSearchKvError("missing_record", "opportunity not found");
+    }
+
+    const evaluation = await getEvaluation(ports.kv, identityHash);
+
+    // Description starts EMPTY so the budget rule can measure everything else.
+    const posting: Record<string, unknown> = {
+      title: job.posting.title,
+      company: job.posting.company,
+      ...(job.posting.location !== undefined ? { location: job.posting.location } : {}),
+      ...(job.posting.url !== undefined ? { url: job.posting.url } : {}),
+      ...(job.posting.workMode !== undefined ? { workMode: job.posting.workMode } : {}),
+      ...(job.posting.employmentType !== undefined
+        ? { employmentType: job.posting.employmentType }
+        : {}),
+      ...(job.posting.compensation !== undefined ? { compensation: job.posting.compensation } : {}),
+      ...(job.posting.publishedAt !== undefined ? { publishedAt: job.posting.publishedAt } : {}),
+      description: "",
+      descriptionTruncated: job.posting.descriptionTruncated,
+      descriptionClipped: false
+    };
+
+    const opportunity: Record<string, unknown> = {
+      identityHash: job.identityHash,
+      status: job.status,
+      statusAt: job.statusAt,
+      // Owner-own content read back by the owner (Coordinator ruling
+      // 2026-07-11 on plan Flag 1): fine here under KV isolation; still
+      // NEVER in errors, logs, or job payloads.
+      ...(job.decisionReason !== undefined ? { decisionReason: job.decisionReason } : {}),
+      firstSeenAt: job.firstSeenAt,
+      lastSeenAt: job.lastSeenAt,
+      freshness: freshnessOf(job),
+      ...(job.lastLivenessAt !== undefined ? { lastLivenessAt: job.lastLivenessAt } : {}),
+      posting,
+      ...(evaluation !== null
+        ? { evaluation: await buildEvaluationBlock(ports, job, evaluation) }
+        : {})
+    };
+
+    const response: Record<string, unknown> = { status: "ok", opportunity };
+    fitDescription(response, posting, job.posting.description);
     return response;
   };
 }

@@ -16,6 +16,9 @@ import {
   approveProfile,
   approveResume,
   decideOpportunity,
+  DETAIL_EVIDENCE_MAX_ITEMS,
+  DETAIL_SUMMARY_MAX_BYTES,
+  DETAIL_TEXT_MAX_BYTES,
   LIST_LIMIT_DEFAULT,
   LIST_LIMIT_MAX,
   LIST_TEXT_MAX_BYTES,
@@ -33,7 +36,10 @@ import type {
   OpportunityInput
 } from "../../external-modules/job-search/src/domain/index.js";
 import type { WorkerPorts } from "../../external-modules/job-search/src/worker/ai-port.js";
-import { listOpportunitiesHandler } from "../../external-modules/job-search/src/worker/handlers/opportunities.js";
+import {
+  getOpportunityHandler,
+  listOpportunitiesHandler
+} from "../../external-modules/job-search/src/worker/handlers/opportunities.js";
 import { readInt } from "../../external-modules/job-search/src/worker/validate.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
 import { createMemoryKv } from "./helpers/job-search-memory-kv.js";
@@ -97,7 +103,7 @@ function evalFor(
     evaluationId: evaluationIdentity(inputs),
     identityHash,
     fitBand: "strong",
-    recommendation: "pursue",
+    recommendation: "review",
     evidence: [{ requirement: "TypeScript", evidence: "Shipped TS services", source: "resume" }],
     blockers: [],
     gaps: ["No Rust exposure"],
@@ -334,5 +340,249 @@ describe("opportunities.list", () => {
       bogus: "yes"
     });
     expect(result.status).toBe("ok");
+  });
+});
+
+// JS-08 Task 3: opportunities.get — the ONE surface that carries the posting
+// description, under a deterministic byte budget. decisionReason exposure is
+// per the Coordinator ruling of 2026-07-11: owner-own content, returned by
+// get (owner-only read via KV isolation), still barred from logs, errors,
+// job payloads, and any non-owner surface.
+describe("opportunities.get", () => {
+  it("returns the full bounded detail shape, incl. the owner's decisionReason", async () => {
+    const kv = createMemoryKv();
+    await approveBoth(kv);
+    const upserted = await upsertOpportunity(
+      kv,
+      input("job-a", {
+        location: "Remote, US",
+        url: "https://example.com/job-a",
+        workMode: "remote",
+        employmentType: "full-time",
+        compensation: "$200k",
+        publishedAt: "2026-07-01T00:00:00.000Z",
+        description: "Own the platform."
+      }),
+      NOW
+    );
+    if (upserted.suppressed) throw new Error("unexpected tombstone");
+    await saveEvaluation(kv, evalFor(hashOf("job-a"), upserted.record.contentHash));
+    await decideOpportunity(kv, hashOf("job-a"), "saved", "Comp fits the target band", NOW);
+
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    expect(result.status).toBe("ok");
+    const opportunity = result.opportunity as Record<string, unknown>;
+    expect(opportunity).toMatchObject({
+      identityHash: hashOf("job-a"),
+      status: "saved",
+      statusAt: NOW.toISOString(),
+      decisionReason: "Comp fits the target band",
+      firstSeenAt: NOW.toISOString(),
+      lastSeenAt: NOW.toISOString(),
+      freshness: "uncertain"
+    });
+    expect(opportunity.posting).toMatchObject({
+      title: "Engineer",
+      company: "Acme",
+      location: "Remote, US",
+      url: "https://example.com/job-a",
+      workMode: "remote",
+      employmentType: "full-time",
+      compensation: "$200k",
+      publishedAt: "2026-07-01T00:00:00.000Z",
+      description: "Own the platform.",
+      descriptionTruncated: false,
+      descriptionClipped: false
+    });
+    expect(opportunity.evaluation).toMatchObject({
+      fitBand: "strong",
+      recommendation: "review",
+      postingConfidence: "high",
+      overallConfidence: "high",
+      summary: "Strong match.",
+      outdated: false,
+      createdAt: NOW.toISOString(),
+      inputs: {
+        opportunityContentHash: upserted.record.contentHash,
+        profileRevisionId: "p1",
+        resumeRevisionId: "0"
+      }
+    });
+    expect((opportunity.evaluation as { evidence: unknown }).evidence).toEqual([
+      { requirement: "TypeScript", evidence: "Shipped TS services", source: "resume" }
+    ]);
+  });
+
+  it("omits decisionReason when no reason was ever recorded", async () => {
+    const kv = createMemoryKv();
+    await upsertOpportunity(kv, input("job-a"), NOW);
+    await decideOpportunity(kv, hashOf("job-a"), "passed", undefined, NOW);
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    const opportunity = result.opportunity as Record<string, unknown>;
+    expect(opportunity.status).toBe("passed");
+    expect("decisionReason" in opportunity).toBe(false);
+  });
+
+  it("unknown/malformed/missing identityHash → typed error envelopes", async () => {
+    const kv = createMemoryKv();
+    const handler = wrap(getOpportunityHandler(portsAt(kv, NOW)));
+    expect(await handler({ identityHash: "a".repeat(32) })).toMatchObject({
+      status: "error",
+      code: "missing_record"
+    });
+    const malformed = await handler({ identityHash: "NOT-A-HASH" });
+    expect(malformed).toMatchObject({ status: "error", code: "invalid_record" });
+    // Scrubbed: the submitted value never appears in the error.
+    expect(String(malformed.message)).not.toContain("NOT-A-HASH");
+    expect(await handler({})).toMatchObject({ status: "error", code: "invalid_input" });
+  });
+
+  it("no evaluation record ⇒ evaluation key absent", async () => {
+    const kv = createMemoryKv();
+    await upsertOpportunity(kv, input("job-a"), NOW);
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    expect("evaluation" in (result.opportunity as Record<string, unknown>)).toBe(false);
+  });
+
+  it("marks the evaluation outdated when the profile revision moves", async () => {
+    const kv = createMemoryKv();
+    await approveBoth(kv);
+    const upserted = await upsertOpportunity(kv, input("job-a"), NOW);
+    if (upserted.suppressed) throw new Error("unexpected tombstone");
+    await saveEvaluation(kv, evalFor(hashOf("job-a"), upserted.record.contentHash));
+    await saveProfileRevision(kv, {
+      schemaVersion: 1,
+      revisionId: "p2",
+      createdAt: NOW.toISOString(),
+      provenance: "user",
+      fields: { targetTitles: ["Principal Engineer"] }
+    });
+    await approveProfile(kv, "p2", NOW);
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    expect((result.opportunity as { evaluation: { outdated: boolean } }).evaluation.outdated).toBe(
+      true
+    );
+  });
+
+  it("marks the evaluation outdated when no resume is active", async () => {
+    const kv = createMemoryKv();
+    // Profile approved, but no resume ever saved — missing pointer ⇒ outdated.
+    await saveProfileRevision(kv, {
+      schemaVersion: 1,
+      revisionId: "p1",
+      createdAt: NOW.toISOString(),
+      provenance: "user",
+      fields: { targetTitles: ["Staff Engineer"] }
+    });
+    await approveProfile(kv, "p1", NOW);
+    const upserted = await upsertOpportunity(kv, input("job-a"), NOW);
+    if (upserted.suppressed) throw new Error("unexpected tombstone");
+    await saveEvaluation(kv, evalFor(hashOf("job-a"), upserted.record.contentHash));
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    expect((result.opportunity as { evaluation: { outdated: boolean } }).evaluation.outdated).toBe(
+      true
+    );
+  });
+
+  it("worst-case detail (16 KB description + maxed evaluation) fits the budget", async () => {
+    const kv = createMemoryKv();
+    await approveBoth(kv);
+    const upserted = await upsertOpportunity(
+      kv,
+      // Over DESCRIPTION_MAX_BYTES so the STORED flag is exercised too.
+      input("job-a", { description: "D".repeat(20_000) }),
+      NOW
+    );
+    if (upserted.suppressed) throw new Error("unexpected tombstone");
+    // As large as saveEvaluation allows (~21 KB < EVALUATION_MAX_BYTES) while
+    // exceeding every detail cap: 8 items × 300-char fields, 1,200-char summary.
+    const big = (n: number) => Array.from({ length: 8 }, () => "X".repeat(n));
+    await saveEvaluation(
+      kv,
+      evalFor(hashOf("job-a"), upserted.record.contentHash, {
+        evidence: Array.from({ length: 8 }, () => ({
+          requirement: "R".repeat(300),
+          evidence: "E".repeat(300),
+          source: "S".repeat(300)
+        })),
+        blockers: big(300),
+        gaps: big(300),
+        unknowns: big(300),
+        preferenceMatches: big(300),
+        preferenceConflicts: big(300),
+        summary: "S".repeat(1_200)
+      })
+    );
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    expect(Buffer.byteLength(JSON.stringify(result), "utf8")).toBeLessThanOrEqual(
+      RESPONSE_BUDGET_BYTES
+    );
+    const opportunity = result.opportunity as {
+      posting: { description: string; descriptionTruncated: boolean; descriptionClipped: boolean };
+      evaluation: {
+        summary: string;
+        evidence: Array<{ requirement: string; evidence: string; source: string }>;
+        gaps: string[];
+      };
+    };
+    expect(opportunity.posting.descriptionTruncated).toBe(true);
+    expect(opportunity.posting.descriptionClipped).toBe(true);
+    expect(opportunity.evaluation.evidence.length).toBeLessThanOrEqual(DETAIL_EVIDENCE_MAX_ITEMS);
+    for (const item of opportunity.evaluation.evidence) {
+      expect(Buffer.byteLength(item.requirement, "utf8")).toBeLessThanOrEqual(
+        DETAIL_TEXT_MAX_BYTES
+      );
+      expect(Buffer.byteLength(item.evidence, "utf8")).toBeLessThanOrEqual(DETAIL_TEXT_MAX_BYTES);
+      expect(Buffer.byteLength(item.source, "utf8")).toBeLessThanOrEqual(DETAIL_TEXT_MAX_BYTES);
+    }
+    expect(opportunity.evaluation.gaps.length).toBeLessThanOrEqual(DETAIL_EVIDENCE_MAX_ITEMS);
+    for (const gap of opportunity.evaluation.gaps) {
+      expect(Buffer.byteLength(gap, "utf8")).toBeLessThanOrEqual(DETAIL_TEXT_MAX_BYTES);
+    }
+    expect(Buffer.byteLength(opportunity.evaluation.summary, "utf8")).toBeLessThanOrEqual(
+      DETAIL_SUMMARY_MAX_BYTES
+    );
+  });
+
+  it("escape-heavy description cannot blow the budget through JSON escaping", async () => {
+    const kv = createMemoryKv();
+    // 12,000 raw bytes that DOUBLE under JSON escaping ('"' → '\\"', '\n' →
+    // '\\n') — the naive plan rule (allowance measured in raw bytes) would
+    // serialize ~24 KB; the escape-aware clip must converge under budget.
+    await upsertOpportunity(kv, input("job-a", { description: '"\n'.repeat(6_000) }), NOW);
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    expect(Buffer.byteLength(JSON.stringify(result), "utf8")).toBeLessThanOrEqual(
+      RESPONSE_BUDGET_BYTES
+    );
+    const posting = (result.opportunity as { posting: Record<string, unknown> }).posting;
+    expect(posting.descriptionClipped).toBe(true);
+    expect((posting.description as string).length).toBeGreaterThan(0);
+  });
+
+  it("small record keeps its description intact with descriptionClipped false", async () => {
+    const kv = createMemoryKv();
+    await upsertOpportunity(kv, input("job-a", { description: "Short and sweet." }), NOW);
+    const result = await getOpportunityHandler(portsAt(kv, NOW))({
+      identityHash: hashOf("job-a")
+    });
+    expect((result.opportunity as { posting: Record<string, unknown> }).posting).toMatchObject({
+      description: "Short and sweet.",
+      descriptionTruncated: false,
+      descriptionClipped: false
+    });
   });
 });
