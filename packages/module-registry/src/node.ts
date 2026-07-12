@@ -16,6 +16,7 @@ import type {
 } from "./external/types.js";
 
 export * from "./external/hash.js";
+export * from "./external/validate.js";
 export * from "./external/web-assets.js";
 export * from "./external/worker-runtime.js";
 export * from "./external/worker-rpc-host.js";

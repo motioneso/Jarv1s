@@ -6,6 +6,7 @@
 import type {
   JsonJarvisModuleManifest,
   ExternalModuleAssistantToolDeclaration,
+  ExternalModuleDatabaseDeclaration,
   ExternalModuleWorkerDeclaration,
   ModuleAuthDeclaration,
   ModuleLifecycle,
@@ -23,6 +24,12 @@ export type ExternalModuleValidation =
 /** Module ids are lowercase kebab slugs; the id also names the package directory. */
 export const MODULE_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
+// #964: owned-table names. Qualified app-schema, lowercase snake, and HARD-PREFIXED by
+// the module's own slug (id with hyphens→underscores) so no downloadable module can
+// declare — and later purge — another module's (or core's) tables. Name part capped at
+// Postgres's 63-char identifier limit.
+export const MODULE_OWNED_TABLE_RE = /^app\.[a-z][a-z0-9_]{0,62}$/;
+
 const LIFECYCLES: readonly ModuleLifecycle[] = [
   "required",
   "optional",
@@ -32,11 +39,10 @@ const LIFECYCLES: readonly ModuleLifecycle[] = [
 
 // Every field of the compiled JarvisModuleManifest that carries executable behavior
 // or a UI/data surface. Presence of ANY of these in an external manifest is a
-// rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2 (validated
-// positively below) and are deliberately absent from this list.
+// rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2 and `database`
+// as of #964 (validated positively below) and are deliberately absent from this list.
 const FORBIDDEN_FIELDS: readonly string[] = [
   "availability",
-  "database",
   "navigation",
   "settings",
   "permissions",
@@ -419,6 +425,43 @@ export function validateExternalModuleManifest(
     }
   }
 
+  // #964: positive validation of the database declaration (previously forbidden).
+  let database: ExternalModuleDatabaseDeclaration | undefined;
+  if (obj.database !== undefined) {
+    if (typeof obj.database !== "object" || obj.database === null || Array.isArray(obj.database)) {
+      errors.push("database must be an object");
+    } else {
+      const databaseObj = obj.database as Record<string, unknown>;
+      const unknownKeys = Object.keys(databaseObj).filter((key) => key !== "ownedTables");
+      if (unknownKeys.length > 0) {
+        errors.push(`database contains unknown fields: ${unknownKeys.join(", ")}`);
+      }
+      const ownedTables = databaseObj.ownedTables;
+      const slugPrefix = `app.${expectedId.replace(/-/g, "_")}_`;
+      if (!Array.isArray(ownedTables) || ownedTables.length === 0 || ownedTables.length > 32) {
+        errors.push("database.ownedTables must be a non-empty array of at most 32 table names");
+      } else {
+        const seen = new Set<string>();
+        const validated: string[] = [];
+        for (const table of ownedTables) {
+          if (typeof table !== "string" || !MODULE_OWNED_TABLE_RE.test(table)) {
+            errors.push(`database.ownedTables entry is not a valid app-schema table name`);
+          } else if (!table.startsWith(slugPrefix)) {
+            errors.push(`database.ownedTables entry must be prefixed "${slugPrefix}": ${table}`);
+          } else if (seen.has(table)) {
+            errors.push(`database.ownedTables contains a duplicate: ${table}`);
+          } else {
+            seen.add(table);
+            validated.push(table);
+          }
+        }
+        if (errors.length === 0 && unknownKeys.length === 0) {
+          database = { ownedTables: validated };
+        }
+      }
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
@@ -444,7 +487,8 @@ export function validateExternalModuleManifest(
       ? { assistantTools: obj.assistantTools as readonly ExternalModuleAssistantToolDeclaration[] }
       : {}),
     ...(worker !== undefined ? { worker } : {}),
-    ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {})
+    ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {}),
+    ...(database !== undefined ? { database } : {})
   };
   return { ok: true, manifest };
 }
