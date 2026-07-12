@@ -4481,3 +4481,21 @@ working Fable pane. Successor now BUILDING the approved plan.
 council (Opus lens via coordinated-qa subagent + Codex `codex exec` + Gemini `agy` neutral framing),
 another relay = reap+re-point, GONE-without-PR = investigate. Check for any Ben JS-09 acceptance
 signal.
+
+## UPDATE — 2026-07-12 — News S4 relay #3 COMPLETE (mid-build), spent reaped
+
+Successor pH4/d704dc45 hit 71% mid-build and relayed. Progress landed on `news-s4` before relay:
+**Task 1 DONE** — commit `bd8c8241` (migration `0161_news_revalidation.sql`: column-scoped worker
+UPDATE grants + owner-scoped topics-worker UPDATE RLS policy — matches approved conditions).
+**Task 2 RED** — commit `decd1725` (4 repo validation-state tests failing, verified correct-failure
+TDD red).
+
+- **Live successor:** pane `w1:pH5`, tab `w1:t1P` (agents ✓, self-relay landed correct), label
+  `'News S4 relay3'`, session **e03ed5fc-b8ad**, **Fable 5 confirmed**, bypass-perms on, status
+  working — resuming **Task 2 GREEN**. Same worktree/branch `news-s4`.
+- **Spent pane `w1:pH4`** (session d704dc45-d938-...) REAPED — session-verified before close.
+- **Monitor re-pointed:** `bsrtvtv03` (pH4) stopped → new **`bo9fwkayo`** watches pH5 (persistent).
+
+Coordinator authority unchanged: `w1:pE6` / `58a78927-385c-4b1d-8fa0-94db20255d6f` (== lock).
+**`merges_since_relay` = 0.** JS-09 #976 unchanged (PARKED, Ben manual acceptance). Merge gate on
+News S4 PR = named-unanimous Opus+Codex+Gemini, NO fallback.
