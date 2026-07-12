@@ -4044,3 +4044,10 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   bookkeeping (close #972/#969, epic #954 exit check, board Done) → reap pEP + worktree → coordinator
   relay-in-place (directive #3). Opus non-blocking FYI (NOT a gate): `web-research/src/reader.ts`
   no-body branch buffers full arrayBuffer before slice (unreachable for real undici; oversized->502).
+- **✅ ROUND-3 NAMED-UNANIMOUS COMPLETE on `a676070f`:** Gemini rd3 **APPROVE** (`b1vfid7jb`, all
+  A–G) + Codex rd3 **APPROVE** (`bbdna1b3v`, rd2 topStories gap CLOSED, real-DB verified) + Opus
+  **GREEN** carried (verified test-only delta). All three named providers, ZERO fallback — gate met.
+  PR MERGEABLE. **ONLY REMAINING GATE = CI "Verify foundation and app" (still pending; deploy smokes
+  already pass).** Merge monitor `b8xzqnkbg`. **On CI green → merge immediately** (`gh pr merge 973
+  --squash --delete-branch`, Closes #972+#969), then bookkeeping + reap pEP + coordinator
+  relay-in-place. Do NOT merge while state=UNSTABLE/pending.
