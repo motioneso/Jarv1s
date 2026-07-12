@@ -118,8 +118,6 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   // keeps the shared `createPgBossClient` defaults. WORKER_BOSS_OPTIONS +
   // logScheduleMode make the ownership invariant unit-testable + observable.
   const boss = createPgBossClient(connectionString, WORKER_BOSS_OPTIONS);
-  let externalReconciler: ExternalModuleJobReconciler | undefined;
-  let externalRuntime: ExternalModuleWorkerRuntime | undefined;
   const resolveActiveModules = createActiveModulesResolver({
     dataContext,
     manifests: getBuiltInModuleManifests()
@@ -210,7 +208,7 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     modulesDir: externalConfig.modulesDir,
     reservedQueueNames
   }).discoveries;
-  externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
+  const externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
   const runtime = externalRuntime;
   const cipher = createModuleCredentialSecretCipher();
   // ctx.ai for queued module jobs (JS-07 Step 0, spec D6): one repository and
@@ -230,7 +228,7 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
       }>`SELECT user_id FROM app.list_active_external_module_users(${moduleId})`.execute(workerDb)
     ).rows.map((row) => row.user_id);
 
-  externalReconciler = new ExternalModuleJobReconciler({
+  const externalReconciler = new ExternalModuleJobReconciler({
     boss,
     discoveries: () => discoveries,
     reservedQueueNames,
