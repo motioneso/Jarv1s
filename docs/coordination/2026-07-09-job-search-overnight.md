@@ -3704,3 +3704,13 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   building Step 3+. Bootstrap explicitly instructs: if it relays, successor MUST be `--model fable`.
 - LESSON: JS-07/Job-Search self-relays can leak to Sonnet — verify model on EVERY relay successor;
   respawn coordinator-controlled with --model fable if wrong.
+
+### 2026-07-11 — JS-07 SECOND Sonnet leak (pGH) killed; single Fable pGG confirmed
+- After the pGF kill, the self-relay chain had ALSO spawned pGH ("build 4", **Sonnet 5**) → briefly
+  TWO agents on branch feat/js-07-freshness-dedup-fit (both freshly booted from committed state
+  16e21653, no uncommitted divergence). Killed pGH. **Sole JS-07 agent = w1:pGG (Fable 5, session
+  215d6efc)**, agents tab w1:t1K, building Step 3+.
+- CONFIRMED RECURRING TRAP: JS-07 self-relay defaults successor to Sonnet (leaked TWICE: pGF, pGH).
+  Coordinator now owns JS-07 relay respawns: on any relay, kill ALL self-spawned successors, respawn
+  ONE coordinator-controlled `--model fable` pane from the committed relay handoff. pGG's bootstrap
+  carries the same instruction for its own next relay.
