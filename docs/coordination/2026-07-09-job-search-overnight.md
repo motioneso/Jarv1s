@@ -4184,3 +4184,22 @@ Predecessor `JS-09 build 2` (session `f8e2929b`, pane `w1:pGZ`) **REAPED**. Coor
 (`w1:pE6`, `58a78927`). Liveness watch → `b0dy0axw7`. Remaining: Task 2 (2 wire shapes + identifier
 sweep), Task 3 (counts-only evidence → #938 comment), Task 4 (full gate + bounded fixes). This lane
 relays ~1×/task under Fable high-effort compaction; each relay commits, nothing lost.
+
+## CHECKPOINT 2026-07-12 — JS-09 Tasks 2+3 DONE + 3rd relay (final task in flight)
+
+**Task 2 DONE:** provider-independence integration test (2 real wire shapes: anthropic +
+openai-compatible via real HttpApiAdapter) + package-wide identifier sweep, commit `84446cdc`.
+**Task 3 DONE:** counts-only evidence renderer + `evidence:job-search` CLI (destination = comment
+on #938), commit `d6280362`, 4/4 unit green + CLI smoke clean.
+
+**3rd self-relay:** successor `JS-09 build 4`, pane **`w1:pH1`**, session `9cd6a1f5`, **Fable 5**
+confirmed, agents tab `w1:t1N`, driving **Task 4** (full gate `pnpm verify:foundation` +
+`audit:release-hardening` + `build:external:job-search` + evidence dry-run) → then coordinated-
+wrap-up (PR). Predecessor `JS-09 build 3` (session `37fc768e`, pane `w1:pG0`) **REAPED**. Lock intact
+(`w1:pE6`, `58a78927`). Liveness watch → `beb21rnad`. **Next expected event = PR-ready report.**
+
+**On PR ready → security council** (Opus adversarial QA + Gemini 2nd lens; Codex if uncapped
+post-Jul-12-1:28am), verify the two merge bars (paired denial+positive controls/no BYPASSRLS;
+sentinel proof of no private content in payloads/logs/artifact), post verdicts to PR. **Then HOLD
+merge for Ben's day-one manual acceptance** (real résumé vs live instance — intrinsic spec gate) +
+council. Surface PR + verdicts + manual-acceptance checklist to Ben's digest.
