@@ -4847,3 +4847,34 @@ workflow). Security-tier council at PR time.
 **#944 flake fix** — pane `pHK`, Sonnet, building. Routine tier → auto-merge after green.
 
 **Monitor:** `b6hbwj9mw` stopped; `b1do5sz9w` armed (mod-dist-964 + flake-944 only).
+
+---
+
+## 2026-07-12 — CHECKPOINT (coordinator 70%, auto-compact in place per Ben directive)
+
+**Live fleet (2 lanes, agents tab w1:t1P):**
+- **#964 mod-dist** — pane `w1:pHR` label `Mod-Dist #964 v6` session `cbaaeeba`, **Sonnet 5**,
+  53% ctx, working **Task 6** (in-progress). Relay chain so far: pHJ→pHM(v2)→pHN(v3)→pHP(v4)→
+  pHQ(v5)→pHR(v6), all Sonnet, all reaped after successor verified. Commits landed: Task1-2
+  `b4af4976`/`02dc9f5c`, Task3 `a56a644b` (migration **0162** external_module_distribution;
+  News S4 owned 0161), ownsTables boolean→string[] `c0c55a8d` (approved — Task1 outlier vs
+  Task4/6/9 string[] consumers), Task4 `b21bdda2`/`8a784b60`, Task5 extract.ts fail-closed
+  `1394d3fe` (5/5 green). Latest handoff `e53881b1`
+  (docs/superpowers/handoffs/2026-07-12-mod-dist-964-relay-5.md). Remaining: Task6 → Tasks 7-10.
+  **SECURITY tier → named council at PR** (Opus adversarial + Codex + Gemini). Council MUST
+  re-verify: tar-extraction fail-closed (malicious entry throws AND promise rejects, no hang);
+  untrusted registry-index/manifest validation; hash-drift fail-closed; no BYPASSRLS; metadata-only
+  payloads; response-schema declared fields (app.inject); migration 0162 in foundation catalog.
+- **#944 flake** — pane `w1:pHK` label `Flake #944`, Sonnet, building. Test-only vi.waitFor fix
+  for tasks-agency-tools setTimeout(50) race. Routine tier → auto-merge after green.
+
+**DONE this session:** News S4 #977 MERGED `0b94c36b` (Opus+Codex+Gemini APPROVE + CI green);
+#975 closed; epic #954 CLOSED (all 4 slices). news-s4 pane+worktree reaped. merges_since_relay
+reset.
+
+**Monitor:** `b1do5sz9w` armed (mod-dist-964 + flake-944 HEAD advance + label-substring pane-death).
+
+**Coordinator lock:** label `Coordinator`, pane `w1:pE6`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
+**Standing gates:** #964 security council = Opus+Codex+Gemini named (Ben waived spec DRAFT gate, NOT
+the merge council). #944 routine auto-merge. No PushNotifications (Ben directive). No successor
+coordinator pane on 70% — auto-compact in place.
