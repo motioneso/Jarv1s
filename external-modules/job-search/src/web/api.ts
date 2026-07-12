@@ -68,7 +68,7 @@ export async function runMonitorNow(monitorId: string): Promise<RunNowOutcome> {
       method: "POST",
       credentials: "include",
       headers: { "content-type": "application/json" },
-      // Metadata-only job payload (CLAUDE.md hard invariant): the id, nothing else.
+      // Metadata-only job payload (repo-wide hard invariant): the id, nothing else.
       body: JSON.stringify({ jobKind: "job-search.monitor-run-now", params: { monitorId } })
     });
   } catch {
