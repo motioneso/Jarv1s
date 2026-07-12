@@ -3790,3 +3790,15 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
 - Steps 0-8 all landed on branch. SECURITY-tier council QA spawned (Opus adversarial, jarvis_qa_7)
   → posts gh pr comment verdict. Council dual-APPROVE + CI green = merge (no Ben gate, standing dir).
 - Merge blocked until: (a) CI green (currently UNSTABLE=pending), (b) council APPROVE.
+
+### 2026-07-11 — JS-07 PR #970 council: primary Opus QA GREEN
+- **Primary Opus QA: GREEN / MERGE-READY** (conditional CI green). grounded `835ee73e`. 0 blocking.
+  All 7 invariants PROVEN w/ positive controls: owner isolation (userB+admin denied, worker-role
+  0-rows, no BYPASSRLS), provider-agnostic (tierHint, no fingerprint), secrets-never-escape
+  (metadata-only payload toEqual + injection→1 eval no tools), zero-migration, KV-cap Step 6 (510
+  regression + old-reader compat + computed freshness), module isolation (actor-scoped DB).
+  Verdict posted: PR #970 issuecomment-4949694446.
+- **Non-blocking (follow-up, NOT a gate):** evaluations.ts:136 takeBudget read-then-write non-atomic
+  → concurrent same-user sweeps could under-count `used`, over-spend 25/day cap. Cost bound only
+  (host cap AI_CALLS_PER_INVOCATION_CAP=8), no security boundary. File issue post-merge.
+- Awaiting: 2nd Opus lens (aa742614) + CI "Verify foundation and app". Merge on dual-APPROVE+CI green.
