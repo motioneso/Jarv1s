@@ -3731,3 +3731,21 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
 - **Sole JS-07 agent = w1:pGK** (Fable 5, session `c14ab1eb-3482-4fe5-a38b-1a26fad758ed`), label
   "JS-07 build r5", agents tab w1:t1K, next Step 5. Old pane pGJ (052fee8e) reaped (handoff
   committed, tree clean). Steps 0-4 committed. Zero merges since last relay.
+
+### 2026-07-11 — COORDINATOR CHECKPOINT (relay-in-place @ 70%, mid JS-07 relay #6)
+- **Relay-in-place** per Ben standing directive #3 (coordinator auto-compacts in place, NO successor
+  coordinator pane). Manifest flushed + memory saved in-session; supervision continues.
+- **JS-07 lane state:** Steps 0-5 committed on branch feat/js-07-freshness-dedup-fit:
+  `1539fb6a` (Step0 queue path), `7773be1e` (Step1 facts+sourceKey), `9fcc1b41` (Step2 freshness),
+  `abd84bd6` (Step3 eligibility gate), `cfe7cb2f` (Step4 eval records + daily AI budget ledger),
+  `baf81efa` (Step5 worker/evaluate.ts AI fit-band evaluator, 21 tests, trio green). Step 6 design
+  settled, no code. Relay doc `ca304786`.
+- **MID relay #6:** pGK (session c14ab1eb) relaying; detector bhak3alnq watching for Fable successor.
+  ON SUCCESSOR: verify `Fable 5` + agents-tab w1:t1K, then reap pGK (confirm handoff committed +
+  tree clean first). If successor booted Sonnet → kill + coordinator-respawn `--model fable` (relay
+  #3 leaked Sonnet TWICE; relays #4-#5 clean via bootstrap model-force). Scan for >1 pane on branch.
+- Coordinator lock: label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`. Pane number
+  reflows post-compaction — resolve fresh by label+session. Zero merges since last relay.
+- Remaining JS-07: Steps 6-8 (Step 8 = #962 items 1-2 cross-owner denial + schedule-clobber tests).
+  On DONE → coordinated-wrap-up PR Closes #936 → SECURITY council QA (Opus adversarial + posted
+  verdict) → council authority merge (no Ben gate) → numbered v* tag + verify .dockerignore.
