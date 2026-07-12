@@ -50,7 +50,9 @@ export const newsModuleManifest = {
     migrations: [
       "sql/0151_news_prefs.sql",
       "sql/0159_news_personalization.sql",
-      "sql/0160_news_discovery.sql"
+      "sql/0160_news_discovery.sql",
+      // #975 Slice 4 — column-scoped worker UPDATE grants for provider-change revalidation.
+      "sql/0161_news_revalidation.sql"
     ],
     migrationDirectories: ["packages/news/sql"],
     ownedTables: [
