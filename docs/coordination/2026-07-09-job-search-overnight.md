@@ -3920,3 +3920,24 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
     disable/re-enable (don't lean on T7c REST-403 alone; spec verification requires confirm+audit+
     survive). (B) Cosmetic: fix flag-3 citation to routes.ts:602-627 (not gateway.ts:281-299).
 - JS-08 now BUILDING. At wrap-up → PR `Closes #937` → SECURITY-tier council QA (2 Opus lenses).
+
+### 2026-07-11 — CHECKPOINT #2 (70% meter, relay-IN-PLACE, no successor pane)
+- **Fleet monitor id swapped:** old `b54y9f2eg` STOPPED (News-reviewer status oscillation noise) →
+  new **`bx938a3nh`** persistent: fires only on w1 pane births/deaths + JS-08 build-status.
+- **JS-08 #937 BUILDING** on Fable (pane `w1:pGT`, session `9e0edf10`). Plan APPROVED w/ 2 required
+  additions (audit-write test + citation fix); decide-reason=free-text ruled by council. Awaiting its
+  next relay or wrap-up PR.
+- **News lane (Codex `pEP`) — S3 PLAN APPROVAL PENDING:** S3 Fable adversarial review DONE = APPROVE
+  WITH REQUIRED CHANGES, 85%, 1 blocker FOLDED (`bd97bd78`: image cache keyed by upstream URL/strong
+  digest not 32-bit article id + read-time 7-day guard). Plan `docs/superpowers/plans/
+  2026-07-11-personalized-news-slice3.md` (`97c28748`), review `b59e653b`. Also folding **#969**
+  (topic-guidance validated@300 but stored/used@1000 — policy-gate bypass). **Gates:** spec APPROVED
+  on origin/main `docs/superpowers/specs/2026-07-11-personalized-news-sources-topics.md` (epic #954,
+  slices 2-4 in-spec) ✓; **S3 task issue = MISSING (must create Part of #954 before approval —
+  Ben hard rule).** Tier: SECURITY (epic = "serialized security-tier slices", cross-provider council
+  merge gate = News lane's own).
+  - **RESUME (if compaction interrupts): (1) get S3 scope from origin/main spec slice-3 section; (2)
+    `gh issue create` task Part of #954 (ref plan + #969); (3) approve News Codex `pEP` via
+    herdr-pane-message w/ the issue number → it re-grounds + builds solo on feat/news-slice3.**
+    No independent Opus needed at plan stage (News lane already ran adversarial Fable review; SECURITY
+    Opus council fires at PR QA).
