@@ -177,7 +177,11 @@ describe("deriveModuleRegistryRows", () => {
   it("purge pending after remove: dir gone, DB row remains → not-installed + purgePending", () => {
     const rows = derive({
       adminStates: [
-        { ...adminState, status: "disabled", purgeRequestedAt: new Date("2026-07-12T00:00:00.000Z") }
+        {
+          ...adminState,
+          status: "disabled",
+          purgeRequestedAt: new Date("2026-07-12T00:00:00.000Z")
+        }
       ]
     });
     expect(rows[0]!.state).toBe("not-installed");

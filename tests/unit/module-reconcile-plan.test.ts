@@ -3,7 +3,10 @@
 // real Postgres; here we pin the fail-closed guards that protect DROP statements.
 import { describe, expect, it } from "vitest";
 
-import { assertQualifiedModuleTable, decideStagedAcceptance } from "../../scripts/module-reconcile.js";
+import {
+  assertQualifiedModuleTable,
+  decideStagedAcceptance
+} from "../../scripts/module-reconcile.js";
 
 describe("assertQualifiedModuleTable", () => {
   it("accepts app-schema tables owned by the module prefix", () => {

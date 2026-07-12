@@ -37,7 +37,8 @@ const STATE_LABELS: Record<ModuleRegistryRowDto["state"], string> = {
 // `canInstall` still allows a download attempt, so guard rather than assume presence.
 function describeCapabilities(row: ModuleRegistryRowDto): string {
   const caps = row.capabilities;
-  if (!caps) return "No capability information is available yet. The download applies on the next restart.";
+  if (!caps)
+    return "No capability information is available yet. The download applies on the next restart.";
   const parts = [
     caps.permissions.length ? `Permissions: ${caps.permissions.join(", ")}.` : "No permissions.",
     caps.fetchHosts.length

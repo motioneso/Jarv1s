@@ -119,7 +119,9 @@ function validateCapabilities(
   const fetchHosts = stringArray(raw.fetchHosts);
   const ownsTables = stringArray(raw.ownsTables);
   if (!permissions || !fetchHosts || !ownsTables || !Array.isArray(raw.tools)) {
-    errors.push(`${where}: capabilities requires permissions[], fetchHosts[], tools[], ownsTables[]`);
+    errors.push(
+      `${where}: capabilities requires permissions[], fetchHosts[], tools[], ownsTables[]`
+    );
     return null;
   }
   const tools: ModuleRegistryToolRef[] = [];
