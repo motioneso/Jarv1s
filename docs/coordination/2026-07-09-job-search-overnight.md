@@ -4071,3 +4071,14 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   security-QA flags. When PR opens: JS-08 SECURITY-tier council QA = Opus adversarial + independent
   second lens (epic #913 standard security tier — NOT the News no-fallback gate). Feature commits
   through `2f2dcd04` (Task 9). This is the last-but-one Job Search slice; JS-09 #938 unblocks after.
+- **JS-08 #937 PR #974 OPEN — SECURITY council QA IN FLIGHT (2026-07-11).** head `0d487674`,
+  MERGEABLE, VF_EXIT=0 twice (pre+post rebase on origin/main `41a47486`; 3078 unit+1571 integ),
+  audit clean (no BYPASSRLS/superuser runtime). CI (VF+smokes) pending. Standard epic-#913 security
+  tier = Opus adversarial + independent 2nd lens (NOT the News no-fallback gate). Lenses: Opus QA
+  agent `a33a78e18119326e4` (worktree, posts `[Opus council QA]`); Gemini/agy bg `bl3yxo8r1`
+  neutral-framed (posts `[Gemini council QA]`). **Codex CLI CAPPED until Jul 12 1:28am** — if agy
+  refuses/unusable, fall back to a 2nd Opus lens with disjoint focus (isolation/RLS vs
+  decisionReason-exfil+audit), permitted here. **On both-lens APPROVE + CI green → merge under
+  council authority (directive #2, no Ben gate), squash `Closes #937`, bookkeeping, reap build 5
+  (pGX) + js-08-build worktree.** Build 5 (Fable, pGX) idle/done — kept alive until merge to route
+  any blocker back.
