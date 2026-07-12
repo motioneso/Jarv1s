@@ -3941,3 +3941,10 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
     herdr-pane-message w/ the issue number → it re-grounds + builds solo on feat/news-slice3.**
     No independent Opus needed at plan stage (News lane already ran adversarial Fable review; SECURITY
     Opus council fires at PR QA).
+- **RESOLVED (2026-07-11):** S3 task issue **#972** created (Part of #954, "same-origin imagery &
+  page integration"); scope = authenticated safe-image route + bounded cache + `/news`+Today
+  integration + immediate-removal on source delete. Coordinator plan approval SENT to News Codex
+  `w1:pEP` (session `019f4fd0`, working=queued). Required carries confirmed: #969 topic-guidance +
+  cache-key digest invariant. News Codex now re-grounds + builds solo on `feat/news-slice3`, `Closes
+  #972`. Its own cross-provider council QA + posted verdict gates the merge. **Fleet now: JS-08
+  building (Fable pGT) + News S3 building (Codex pEP). Monitor `bx938a3nh` armed.**
