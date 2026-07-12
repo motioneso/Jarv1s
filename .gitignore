@@ -31,3 +31,7 @@ infra/env.production.local
 # Local design-system archive/import
 Jarvis Design System.zip
 Jarvis Design System/
+
+# #996/#860: resolveModulesDir's dev fallback creates <repoRoot>/data/modules the first
+# time a dev runs module-reconcile.ts locally — never commit it.
+/data/
