@@ -3988,3 +3988,16 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   after denied cross-owner decide, reason never in ack/feed-index). Plan's literal "B list→0"
   softened to stronger "only B's own hash, never A's" (B owns a row from #931). Now on Task 7 REST
   invoke tests (app.inject). Coordinator ack'd schema call.
+- **NEWS S3 COUNCIL ROUND 1 → NOT UNANIMOUS (2026-07-11):** **Gemini APPROVE** (no blockers; verified
+  img re-auth via accessContext, SSRF via unified `fetchWebResourceWithBody`, cache-key=imageUrl,
+  topic bounds@1000, sanitizeFeedText, CSP intact). **Codex REJECT** (real, spec-backed blocker on
+  immediate-removal / hunt#8): `news-service.ts:189` filters snapshot stories only by age + DOMAIN
+  exclusions, never removes curated sources disabled via `source_exclude`; `routes.ts:151` only
+  queues async refresh → stale stories stay visible in `/news`+Today+image-route until refresh (or
+  indefinitely if it fails); no e2e test proving source disable→immediate removal. NOT a Gemini
+  contradiction (Gemini spoke to domain path; Codex caught curated-source path). **Opus lens still
+  running on head `a5b3b527`** — will collect (may add findings to same fix round). **Author (pEP)
+  accepted + fixing:** reuse `triggerNewsRefresh` afterBump to prune curated domain SYNCHRONOUSLY on
+  `source_exclude` POST + real-DB route regression (overview removal + image 404 before async
+  refresh); no design fork. **RE-COUNCIL REQUIRED on new head** (all 3 lenses) — merge only on
+  unanimous. CI monitor `bvwdsc8ri` will be superseded by the fix push.
