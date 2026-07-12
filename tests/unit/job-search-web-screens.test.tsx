@@ -9,12 +9,15 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import Contribution from "../../external-modules/job-search/src/web/index.js";
-import { STEP_LABELS } from "../../external-modules/job-search/src/web/format.js";
+import { STEP_LABELS, whenLabel } from "../../external-modules/job-search/src/web/format.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
 import { OnboardingView } from "../../external-modules/job-search/src/web/screens/onboarding.js";
 import {
   bucketFromPath,
-  OpportunitiesScreen
+  listInputForBucket,
+  OpportunitiesScreen,
+  OpportunitiesView,
+  type OpportunityListResult
 } from "../../external-modules/job-search/src/web/screens/opportunities.js";
 import {
   OverviewView,
@@ -282,9 +285,116 @@ describe("job-search opportunities shell (#935)", () => {
     expect(bucketFromPath("/opportunities/bogus")).toBe("new");
   });
 
-  it("renders bucket tabs and the JS-08 empty state", () => {
+  it("renders bucket tabs as focusable anchors and gates the list on loading", () => {
+    // Cold store → server snapshot is "loading"; the nav must render anyway so
+    // buckets stay reachable while the list fetches.
     const html = render(h(OpportunitiesScreen, { path: "/opportunities/saved" }));
     for (const label of ["New", "Saved", "Passed", "Stale"]) expect(html).toContain(label);
-    expect(html).toContain("Opportunities arrive with monitoring runs");
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain('href="/m/job-search/opportunities/saved"');
+    expect(html).toContain("Loading opportunities");
+  });
+});
+
+// JS-08 (#937): feed cards over opportunities.list. Fixture strings are
+// hostile on purpose (#960 pattern): posting titles/evidence are external,
+// adversary-controlled content and must only ever render as literal text.
+const feedFixture: OpportunityListResult = {
+  status: "ok",
+  view: "new",
+  total: 2,
+  limit: 20,
+  offset: 0,
+  opportunities: [
+    {
+      identityHash: "hash-aaa",
+      status: "new",
+      title: "Platform Engineer",
+      company: "Nimbus Labs",
+      location: "Remote, EU",
+      workMode: "remote",
+      source: "greenhouse",
+      publishedAt: "2026-07-09T08:00:00.000Z",
+      firstSeenAt: "2026-07-10T07:00:00.000Z",
+      freshness: "fresh",
+      fitBand: "strong",
+      confidence: "high",
+      topEvidence: "Six years of TypeScript platform work match the posting.",
+      topGap: "Needs <script>alert(1)</script> review."
+    },
+    {
+      identityHash: "hash-bbb",
+      status: "new",
+      title: "<img src=x onerror=alert(1)> Engineer",
+      company: "Acme",
+      source: "lever",
+      firstSeenAt: "2026-07-11T07:00:00.000Z",
+      freshness: "stale",
+      evaluationPending: true
+    }
+  ]
+};
+
+describe("js-08 opportunity feed cards (#937)", () => {
+  it("bucket filter drives the list tool input", () => {
+    expect(listInputForBucket("new")).toEqual({ view: "new" });
+    expect(listInputForBucket("saved")).toEqual({ view: "saved" });
+  });
+
+  it("renders cards with detail links, meta, badges, and evidence lines", () => {
+    const html = render(
+      h(OpportunitiesView, { bucket: "new", result: feedFixture, hasMonitors: true })
+    );
+    // Card title is an anchor into the detail route (keyboard reachable).
+    expect(html).toContain('href="/m/job-search/opportunities/new/hash-aaa"');
+    expect(html).toContain('href="/m/job-search/opportunities/new/hash-bbb"');
+    expect(html).toContain("Platform Engineer");
+    expect(html).toContain("Nimbus Labs");
+    expect(html).toContain("Remote, EU");
+    expect(html).toContain("remote");
+    // Mono eyebrow: source + published/first-seen timestamp.
+    expect(html).toContain("greenhouse");
+    expect(html).toContain(whenLabel("2026-07-09T08:00:00.000Z"));
+    // Evaluated card badges vs the pending card.
+    expect(html).toContain("fresh");
+    expect(html).toContain("Fit: strong");
+    expect(html).toContain("Confidence: high");
+    expect(html).toContain("Evaluation pending");
+    expect(html).toContain("Six years of TypeScript platform work match the posting.");
+    expect(html).toContain("Gap");
+  });
+
+  it("renders hostile posting strings as literal text, never markup (#960)", () => {
+    const html = render(
+      h(OpportunitiesView, { bucket: "new", result: feedFixture, hasMonitors: true })
+    );
+    expect(html).not.toContain("<script");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt; Engineer");
+  });
+
+  it("distinguishes monitors-running emptiness from unconfigured emptiness", () => {
+    const empty: OpportunityListResult = { status: "ok", view: "new", opportunities: [] };
+    const monitored = render(
+      h(OpportunitiesView, { bucket: "new", result: empty, hasMonitors: true })
+    );
+    expect(monitored).toContain("No new opportunities yet");
+    expect(monitored).toContain("monitoring runs");
+    const unconfigured = render(
+      h(OpportunitiesView, { bucket: "new", result: empty, hasMonitors: false })
+    );
+    expect(unconfigured).toContain("Set up monitoring with Jarvis");
+  });
+
+  it("degrades safely when the list result is not ok", () => {
+    const html = render(
+      h(OpportunitiesView, {
+        bucket: "new",
+        result: { status: "error", message: "boom" },
+        hasMonitors: true
+      })
+    );
+    expect(html).toContain('role="alert"');
   });
 });
