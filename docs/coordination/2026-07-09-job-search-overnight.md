@@ -4112,3 +4112,39 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   JS-08 merged (Opus GREEN + Gemini APPROVE, `ba4ed180`); Job Search build epic #913 now has only
   JS-09 (acceptance) left — **its spec awaits YOUR final approval** (the one thing needing you);
   running a Fable readiness review meanwhile. decisionReason ruled owner-private (get = only surface).
+
+## CHECKPOINT 2026-07-11 — JS-09 #938 Fable review CLEAN → build lane LIVE
+
+**Fable JS-09 build-readiness review (`a451f9aab24dfad5d`, model:fable, review-only): VERDICT =
+BUILD-READY, zero blocking gaps.** Confirmed no new product scope (no new tables/migrations/
+endpoints/features) — JS-09 = acceptance harness (tests) + counts-only release-evidence artifact +
+bounded defect fixes against already-merged JS-01..08. 6 non-blocking notes (all "interpret
+existing machinery / re-ground / state sentinel approach in PR"), folded into the handoff as build
+guidance.
+
+**Decision — proceed to build under council authority.** Rationale, explicit: the "spec-before-
+build" HARD gate exists to stop *unspec'd product*; Fable confirmed there is none, so a Draft status
+on an acceptance/test doc does not block authoring tests. The **merge** stays gated by (a) the full
+JS security council AND (b) Ben's day-one MANUAL acceptance — running a real résumé against a live
+instance. (b) is intrinsic to the spec and is a *physical action only Ben can do*; no council/panel
+can substitute it. So there is ZERO risk of autonomously landing something Ben hasn't blessed —
+merge cannot happen without him — while build proceeds now per directive #4 (keep moving,
+especially job-search/fable). This does NOT invent a Ben gate on top of a council gate (directive
+#2): the manual-acceptance gate is Ben's own spec requirement, and I removed the *build* friction,
+not added merge friction.
+
+**Build lane spawned:** Fable agent **`w1:pGY`** ("JS-09 build"), `claude --model fable` high
+effort (pane-confirmed "Fable 5"), branch `feat/js-09-acceptance` off `origin/main` `ba4ed180`,
+worktree `.claude/worktrees/js-09-acceptance`, moved to dedicated **agents tab `w1:t1N`** (off the
+coordinator tab `w1:t15`). Handoff `docs/coordination/handoff-js-09-acceptance.md` written into that
+worktree (uncommitted; agent reads, will not `git add` — it's under docs/coordination). Relay
+successor MUST be Fable.
+
+**Live fleet:** `w1:pE6` Coordinator (me, 58a78927); `w1:pGY` JS-09 build (Fable, working);
+`w1:pGV` Ben's own idle Fable agent (#964 module-dist spec, main tree — do not touch). News S4
+issue **#975** FILED (Part of #954); its build waits on News Codex + Codex uncap (Jul 12 1:28am).
+
+**Supervision plan:** event-driven — build agent pushes plan-approval + escalations to `Coordinator`;
+watch for done/blocker. On done → security council (Opus adversarial QA + Gemini 2nd lens; Codex if
+uncapped) → post verdicts to PR → hand merge to Ben with the manual-acceptance checklist. `merges_
+since_relay` = 0 (reset after JS-08 relay-in-place).
