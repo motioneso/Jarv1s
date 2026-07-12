@@ -4171,3 +4171,16 @@ counts-only evidence renderer + fail-closed validation → destination = comment
 SENTINEL-93d1c4` (agent states them in PR body for QA re-run). Merge bars restated to agent: paired
 denial+positive controls / no BYPASSRLS; sentinel proof of zero private content in payloads/logs/
 artifact. Merge still gated by full JS security council + Ben's day-one manual acceptance.
+
+## CHECKPOINT 2026-07-12 — JS-09 Task 1 DONE + 2nd relay
+
+**Task 1 DONE (on-branch, progress preserved):** `tests/integration/external-module-job-search-
+acceptance.test.ts` committed `26a7ce7f`, 6/6 green — real-hash enable, six checkpoints, real-worker
+sweep, sentinel scan w/ positive controls, hash-drift refusal.
+
+**2nd self-relay (compaction cadence):** successor `JS-09 build 3`, pane **`w1:pG0`**, session
+`37fc768e`, **Fable 5**, agents tab `w1:t1N`, driving on plan **Task 2** (provider independence).
+Predecessor `JS-09 build 2` (session `f8e2929b`, pane `w1:pGZ`) **REAPED**. Coordinator lock intact
+(`w1:pE6`, `58a78927`). Liveness watch → `b0dy0axw7`. Remaining: Task 2 (2 wire shapes + identifier
+sweep), Task 3 (counts-only evidence → #938 comment), Task 4 (full gate + bounded fixes). This lane
+relays ~1×/task under Fable high-effort compaction; each relay commits, nothing lost.
