@@ -41,6 +41,8 @@ import type {
   GetVoiceEndpointResponse,
   PutVoiceEndpointRequest,
   PutVoiceEndpointResponse,
+  GetModuleRegistryResponse,
+  ModuleRegistryRowDto,
   PreviewPersonaResponse,
   PutChatSettingsRequest,
   PutChatSettingsResponse,
@@ -388,6 +390,43 @@ export async function setExternalModuleEnabled(
   return requestJson<{ module: ExternalModuleDto }>(
     `/api/admin/external-modules/${encodeURIComponent(id)}`,
     { method: "POST", body: { enabled } }
+  );
+}
+
+/** Admin: registry-backed module list — install/update/remove states (#964). */
+export async function getModuleRegistry(refresh: boolean): Promise<GetModuleRegistryResponse> {
+  return requestJson<GetModuleRegistryResponse>(
+    `/api/admin/module-registry${refresh ? "?refresh=1" : ""}`
+  );
+}
+
+/** Admin: download+stage a module from the registry; applies on next restart (#964). */
+export async function downloadRegistryModule(
+  id: string,
+  version?: string
+): Promise<{ module: ModuleRegistryRowDto }> {
+  return requestJson<{ module: ModuleRegistryRowDto }>(
+    `/api/admin/module-registry/${encodeURIComponent(id)}/download`,
+    { method: "POST", body: version ? { version } : {} }
+  );
+}
+
+/** Admin: remove a module (disable + delete files); purge destroys data on restart (#964). */
+export async function removeRegistryModule(
+  id: string,
+  purgeData: boolean
+): Promise<{ module: ModuleRegistryRowDto }> {
+  return requestJson<{ module: ModuleRegistryRowDto }>(
+    `/api/admin/module-registry/${encodeURIComponent(id)}/remove`,
+    { method: "POST", body: { purgeData } }
+  );
+}
+
+/** Admin: cancel a pending data purge before it runs at restart (#964). */
+export async function cancelModulePurge(id: string): Promise<{ module: ModuleRegistryRowDto }> {
+  return requestJson<{ module: ModuleRegistryRowDto }>(
+    `/api/admin/module-registry/${encodeURIComponent(id)}/purge`,
+    { method: "DELETE" }
   );
 }
 

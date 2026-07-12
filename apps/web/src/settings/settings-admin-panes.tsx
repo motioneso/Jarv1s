@@ -46,6 +46,7 @@ import {
 import { getConnectorAccountHealth } from "./settings-connector-sync";
 import { useFeedback } from "./settings-feedback";
 import { ModuleCredentialsSection } from "./module-credentials-section";
+import { ModuleRegistrySection } from "./settings-module-registry-section";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import { MarkdownMessage } from "../chat/markdown-message";
 import {
@@ -684,6 +685,7 @@ export function InstanceModulesPane() {
           )}
         </Group>
       ) : null}
+      <ModuleRegistrySection />
     </>
   );
 }
