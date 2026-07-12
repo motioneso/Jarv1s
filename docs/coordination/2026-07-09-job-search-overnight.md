@@ -4051,3 +4051,23 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   already pass).** Merge monitor `b8xzqnkbg`. **On CI green → merge immediately** (`gh pr merge 973
   --squash --delete-branch`, Closes #972+#969), then bookkeeping + reap pEP + coordinator
   relay-in-place. Do NOT merge while state=UNSTABLE/pending.
+- **✅ NEWS S3 #973 MERGED 2026-07-11 (squash `41a4748646a2952a801bad7a422b4a2f91d4ba44`).**
+  CI "Verify foundation and app" PASS; named-unanimous council on final head `a676070f` (Opus GREEN
+  carried on verified test-only delta + independent Codex rd3 APPROVE + Gemini rd3 APPROVE, ZERO
+  fallback); session-authority `58a78927…` == lock; main unprotected (UNSTABLE was only the
+  non-gating image-publish job). **#972 + #969 auto-CLOSED.** `merges_since_relay`→ security merge =
+  relay-in-place NOW (directive #3: flush + save, NO successor pane). Board item for #972 not found
+  on project 1 (issue closed = SoT; skipped). Ben digest += "News S3 merged, unanimous, 0 fallback".
+- **⚠️ EPIC #954 STAYS OPEN — Slice 4 remains.** Spec `2026-07-11-personalized-news-sources-topics.md`
+  §Implementation slices has "### Slice 4 — Chat actions, revalidation, and notifications" as the
+  LAST slice, not yet built. NEXT News lane: file a `task` issue (Part of #954) + adversarially review
+  the Slice-4 spec section BEFORE any build (spec-before-build gate). Do NOT close #954.
+- **CLEANUP PENDING (post-merge, non-blocking):** reap News Codex pane pEP (session `019f4fd0…`) once
+  it confirms no uncommitted work → `git worktree remove .claude/worktrees/news-slice3` (+ the two
+  stale `news-slice3-plan` / `news-slice3-plan-review` worktrees). Local branch `feat/news-slice3`
+  delete failed on merge only because it's checked out in that worktree — benign; clears on reap.
+- **JS-08 #937 (Fable build 5, pane `w1:pGX`, session `7cfcffba…`): Task 10 wrap-up in flight** —
+  full `verify:foundation` + rebase on origin/main + coordinated-wrap-up PR `Closes #937` with 5
+  security-QA flags. When PR opens: JS-08 SECURITY-tier council QA = Opus adversarial + independent
+  second lens (epic #913 standard security tier — NOT the News no-fallback gate). Feature commits
+  through `2f2dcd04` (Task 9). This is the last-but-one Job Search slice; JS-09 #938 unblocks after.
