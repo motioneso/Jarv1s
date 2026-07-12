@@ -72,21 +72,27 @@ describe("job-search bundle hygiene (#930)", () => {
     expect(messages.at(-1)).toMatchObject({ method: "worker.ready", params: { version: 1 } });
   });
 
-  it("answers a declared handler with not-implemented", async () => {
-    // opportunities.list is a JS-05 stub; profile.get was implemented in JS-03
-    // (it now issues kv RPCs to the parent, which this bare harness never answers).
+  it("answers a declared handler through dispatch (input-boundary rejection)", async () => {
+    // JS-08 (#937) implemented the last stub, so every declared handler now
+    // issues kv RPCs on its happy path — which this bare harness never
+    // answers. Malformed input is rejected at the validate.ts boundary BEFORE
+    // any kv traffic, so it still proves declared-handler dispatch + the
+    // wrap.ts error envelope survive bundling, with no parent required.
     const messages = await runWorker(
       [
         {
           jsonrpc: "2.0",
           id: "t1",
           method: "module.invoke",
-          params: { handler: "opportunities.list" }
+          params: { handler: "opportunities.get", input: {} }
         }
       ],
       (m) => m.id === "t1"
     );
-    expect(messages.at(-1)).toMatchObject({ id: "t1", result: { status: "not-implemented" } });
+    expect(messages.at(-1)).toMatchObject({
+      id: "t1",
+      result: { status: "error", code: "invalid_input" }
+    });
   });
 
   it("answers an undeclared handler with -32601 handler_not_found", async () => {

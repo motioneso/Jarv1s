@@ -45,6 +45,11 @@ export interface OpportunityRecord {
   freshness?: "active" | "uncertain" | "stale";
   // Last time a successful fetch of this record's own board included it.
   lastLivenessAt?: string;
+  // JS-08 (#937): owner-private rationale attached by decideOpportunity.
+  // Additive-optional on schemaVersion 1 (same rule as the JS-07 fields);
+  // bounded at DECISION_REASON_MAX_BYTES; never echoed in tool responses,
+  // errors, or logs. Content-refresh upserts preserve it (spread-existing).
+  decisionReason?: string;
   posting: PostingFacts & {
     title: string;
     company: string;

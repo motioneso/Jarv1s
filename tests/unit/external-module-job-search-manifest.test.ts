@@ -125,9 +125,10 @@ describe("job-search manifest contract (#930)", () => {
   });
 });
 
-// JS-03 (#932) Task 11: the 10 implemented tools declare strict input schemas that
+// JS-03 (#932) Task 11: implemented tools declare strict input schemas that
 // mirror their handler validation (additionalProperties:false so the gateway rejects
-// unknown keys before dispatch); the 3 JS-05/06 stubs stay permissive until built.
+// unknown keys before dispatch). JS-08 (#937) implemented the last three, so ALL
+// manifest tools are now strict — the stub-placeholder carve-out is gone.
 describe("job-search manifest strict input schemas (#932)", () => {
   const IMPLEMENTED = [
     "job-search.onboarding.get-state",
@@ -142,9 +143,7 @@ describe("job-search manifest strict input schemas (#932)", () => {
     "job-search.monitor.save",
     "job-search.sources.list",
     "job-search.capture.paste",
-    "job-search.capture.url"
-  ];
-  const STUBS = [
+    "job-search.capture.url",
     "job-search.opportunities.list",
     "job-search.opportunities.get",
     "job-search.opportunity.decide"
@@ -162,12 +161,6 @@ describe("job-search manifest strict input schemas (#932)", () => {
       const schema = schemaFor(name);
       expect(schema.type, name).toBe("object");
       expect(schema.additionalProperties, name).toBe(false);
-    }
-  });
-
-  it("JS-05/06 stubs keep the permissive placeholder schema", () => {
-    for (const name of STUBS) {
-      expect(schemaFor(name)).toEqual({ type: "object" });
     }
   });
 
@@ -253,6 +246,165 @@ describe("job-search manifest strict input schemas (#932)", () => {
     expect(saveProps.enabled?.type).toBe("boolean");
     expect(saveProps.timezone?.type).toBe("string");
     expect(saveProps.dueTime?.type).toBe("string");
+  });
+});
+
+// JS-08 (#937) Task 5: the three opportunity tools go live. Input schemas pin the
+// handler contracts (view/limit/offset, identityHash, decision enum + 500-byte
+// reason). Output schemas matter for SECURITY: sanitizeAssistantToolResult
+// projects results to schema-declared keys only, so (a) every emitted field must
+// be declared or it silently vanishes from assistant/web responses, and (b) the
+// wrap.ts error envelope keys (status/code/message/question) must be declared on
+// every tool or error envelopes get stripped down to nothing.
+describe("job-search manifest opportunity tool schemas (#937)", () => {
+  const toolFor = (toolName: string): Record<string, unknown> => {
+    const tools = loadManifest().assistantTools as Array<Record<string, unknown>>;
+    const tool = tools.find((entry) => entry.name === toolName);
+    expect(tool, toolName).toBeDefined();
+    return tool!;
+  };
+  const propsOf = (schema: unknown): Record<string, Record<string, unknown>> =>
+    (schema as { properties: Record<string, Record<string, unknown>> }).properties;
+
+  it("opportunities.list input pins view enum + limit/offset bounds", () => {
+    const schema = toolFor("job-search.opportunities.list").inputSchema as Record<string, unknown>;
+    const props = propsOf(schema);
+    expect(schema.required).toBeUndefined();
+    expect(Object.keys(props).sort()).toEqual(["limit", "offset", "view"]);
+    expect(props.view?.enum).toEqual(["new", "saved", "passed", "stale"]);
+    expect(props.limit).toMatchObject({ type: "integer", minimum: 1, maximum: 15 });
+    expect(props.offset).toMatchObject({ type: "integer", minimum: 0 });
+  });
+
+  it("opportunities.get input requires identityHash only", () => {
+    const schema = toolFor("job-search.opportunities.get").inputSchema as Record<string, unknown>;
+    expect(schema.required).toEqual(["identityHash"]);
+    expect(Object.keys(propsOf(schema))).toEqual(["identityHash"]);
+  });
+
+  it("opportunity.decide input pins the enum, required keys, and reason cap", () => {
+    const tool = toolFor("job-search.opportunity.decide");
+    expect(tool.risk).toBe("write");
+    const schema = tool.inputSchema as Record<string, unknown>;
+    const props = propsOf(schema);
+    expect(schema.required).toEqual(["identityHash", "decision"]);
+    expect(Object.keys(props).sort()).toEqual(["decision", "identityHash", "reason"]);
+    expect(props.decision?.enum).toEqual(["saved", "passed"]);
+    // Advisory (validator enforces bytes, not chars) — but the cap must be visible
+    // to the model so the assistant doesn't compose an over-long reason.
+    expect(props.reason).toMatchObject({ type: "string", maxLength: 500 });
+  });
+
+  it("all three outputSchemas declare the error-envelope keys with required status only", () => {
+    for (const name of [
+      "job-search.opportunities.list",
+      "job-search.opportunities.get",
+      "job-search.opportunity.decide"
+    ]) {
+      const schema = toolFor(name).outputSchema as Record<string, unknown>;
+      expect(schema, name).toBeDefined();
+      expect(schema.type, name).toBe("object");
+      expect(schema.required, name).toEqual(["status"]);
+      const props = propsOf(schema);
+      for (const key of ["status", "code", "message", "question"]) {
+        expect(props[key]?.type, `${name}.${key}`).toBe("string");
+      }
+    }
+  });
+
+  it("list outputSchema declares every card field (allow-list projection)", () => {
+    const schema = toolFor("job-search.opportunities.list").outputSchema as Record<string, unknown>;
+    const props = propsOf(schema);
+    expect(props.total?.type).toBe("integer");
+    const items = (props.opportunities as { items: Record<string, unknown> }).items;
+    expect(items.type).toBe("object");
+    expect(Object.keys(items.properties as Record<string, unknown>).sort()).toEqual(
+      [
+        "company",
+        "confidence",
+        "eligibility",
+        "evaluationPending",
+        "fitBand",
+        "firstSeenAt",
+        "freshness",
+        "identityHash",
+        "location",
+        "publishedAt",
+        "source",
+        "status",
+        "title",
+        "topEvidence",
+        "topGap",
+        "workMode"
+      ].sort()
+    );
+  });
+
+  it("get outputSchema declares decisionReason + nested posting/evaluation fields", () => {
+    const schema = toolFor("job-search.opportunities.get").outputSchema as Record<string, unknown>;
+    const opportunity = propsOf(schema).opportunity as Record<string, unknown>;
+    const oppProps = propsOf(opportunity);
+    // Coordinator ruling 2026-07-11: decisionReason IS exposed on the owner-only
+    // get read — if it's not declared here the projection strips it silently.
+    expect(oppProps.decisionReason?.type).toBe("string");
+    const posting = oppProps.posting as unknown as Record<string, unknown>;
+    expect(Object.keys(propsOf(posting)).sort()).toEqual([
+      "company",
+      "compensation",
+      "description",
+      "descriptionClipped",
+      "descriptionTruncated",
+      "employmentType",
+      "location",
+      "publishedAt",
+      "title",
+      "url",
+      "workMode"
+    ]);
+    const evaluation = oppProps.evaluation as unknown as Record<string, unknown>;
+    const evalProps = propsOf(evaluation);
+    expect(Object.keys(evalProps).sort()).toEqual([
+      "blockers",
+      "createdAt",
+      "evidence",
+      "fitBand",
+      "gaps",
+      "inputs",
+      "outdated",
+      "overallConfidence",
+      "postingConfidence",
+      "preferenceConflicts",
+      "preferenceMatches",
+      "recommendation",
+      "summary",
+      "unknowns"
+    ]);
+    const evidenceItems = (evalProps.evidence as { items: Record<string, unknown> }).items;
+    expect(Object.keys(evidenceItems.properties as Record<string, unknown>).sort()).toEqual([
+      "evidence",
+      "requirement",
+      "source"
+    ]);
+    expect(
+      Object.keys(propsOf(evalProps.inputs as unknown as Record<string, unknown>)).sort()
+    ).toEqual(["opportunityContentHash", "profileRevisionId", "resumeRevisionId"]);
+  });
+
+  it("decide outputSchema declares the ack fields and NOT the reason", () => {
+    const schema = toolFor("job-search.opportunity.decide").outputSchema as Record<string, unknown>;
+    const props = propsOf(schema);
+    expect(Object.keys(props).sort()).toEqual([
+      "code",
+      "decision",
+      "identityHash",
+      "message",
+      "question",
+      "status",
+      "statusAt"
+    ]);
+    // The reason is deliberately absent: decide responses never echo it, and an
+    // undeclared key is stripped by projection even if a future handler slipped.
+    expect(props.reason).toBeUndefined();
   });
 });
 

@@ -10,16 +10,10 @@
 // module-worker-rpc.test.ts and drives the domain through
 // createExternalModuleRpcHandler with the REAL parsed jarvis.module.json,
 // so a declared-namespace drift fails here, not in production.
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
-import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
-import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { Kysely } from "kysely";
 
 import { deleteUserData } from "../../scripts/delete-user-data.js";
@@ -65,6 +59,11 @@ import type {
   WorkerPorts
 } from "../../external-modules/job-search/src/worker/ai-port.js";
 import {
+  decideOpportunityHandler,
+  getOpportunityHandler,
+  listOpportunitiesHandler
+} from "../../external-modules/job-search/src/worker/handlers/opportunities.js";
+import {
   getResumeHandler,
   saveResumeDraftHandler
 } from "../../external-modules/job-search/src/worker/handlers/resume.js";
@@ -72,32 +71,18 @@ import {
   monitorRunHandler,
   runMonitorDiscovery
 } from "../../external-modules/job-search/src/worker/handlers/run.js";
+import {
+  bootstrapJobSearchRows as harnessBootstrapRows,
+  kvForActor as harnessKvForActor,
+  loadJobSearchModule,
+  workerQuery,
+  type KvActorOptions
+} from "./job-search-rpc-harness.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 let bootstrap: pg.Client;
 let workerDb: Kysely<JarvisDatabase>;
-
-const manifestPath = fileURLToPath(
-  new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
-);
-
-// Parse the SHIPPED manifest through the real validator so this suite's
-// declared namespaces cannot drift from what production would enforce.
-function loadJobSearchModule() {
-  const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
-  const result = validateExternalModuleManifest(raw, "job-search", "0.1.0");
-  if (!result.ok) {
-    throw new Error(`shipped manifest failed validation: ${JSON.stringify(result.errors)}`);
-  }
-  return {
-    id: "job-search",
-    dir: "/unused",
-    manifest: result.manifest,
-    manifestHash: "sha256:job-search",
-    packageHash: "sha256:job-search"
-  };
-}
 
 const jobSearchModule = loadJobSearchModule();
 
@@ -110,67 +95,16 @@ const OPPORTUNITY: OpportunityInput = {
 };
 const OPPORTUNITY_HASH = opportunityIdentity(OPPORTUNITY);
 
-/** Domain KV port over the real RPC handler — scope pinned to "user". */
-function kvForActor(
-  actorUserId: string,
-  options?: { toolRisk?: "read" | "write"; admin?: boolean }
-): JobSearchKv {
-  const rpc = createExternalModuleRpcHandler({
-    module: jobSearchModule,
-    toolRisk: options?.toolRisk ?? "write",
+// Thin aliases over the shared harness so the suite's call sites stay
+// unchanged; workerDb/bootstrap are bound lazily (assigned in beforeAll).
+const kvForActor = (actorUserId: string, options?: KvActorOptions): JobSearchKv =>
+  harnessKvForActor(
+    { module: jobSearchModule, workerDb, requestIdPrefix: "kv-isolation" },
     actorUserId,
-    requestId: `kv-isolation-${actorUserId.slice(-4)}`,
-    workerDataContext: new DataContextRunner(workerDb),
-    cipher: createModuleCredentialSecretCipher(),
-    isActorAdmin: async () => options?.admin ?? false
-  });
-  const noSecret = (): void => undefined;
-  return {
-    get: (namespace, key) =>
-      rpc("kv.get", { scope: "user", namespace, key }, noSecret) as Promise<Record<
-        string,
-        unknown
-      > | null>,
-    set: (namespace, key, value) =>
-      rpc("kv.set", { scope: "user", namespace, key, value }, noSecret) as Promise<void>,
-    delete: (namespace, key) =>
-      rpc("kv.delete", { scope: "user", namespace, key }, noSecret) as Promise<boolean>,
-    list: (namespace) =>
-      rpc("kv.list", { scope: "user", namespace }, noSecret) as Promise<readonly string[]>
-  };
-}
-
-/** Worker-role SQL with actor/module GUCs set — the RLS path modules run under. */
-async function workerQuery<T>(actorUserId: string, moduleId: string, query: string): Promise<T[]> {
-  const client = new Client({ connectionString: connectionStrings.worker });
-  await client.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT set_config('app.actor_user_id', $1, true)", [actorUserId]);
-    await client.query("SELECT set_config('app.current_module_id', $1, true)", [moduleId]);
-    const result = await client.query(query);
-    await client.query("ROLLBACK");
-    return result.rows as T[];
-  } finally {
-    await client.end();
-  }
-}
-
-async function bootstrapJobSearchRows(): Promise<
-  Array<{ owner_user_id: string; namespace: string; key: string; value: string }>
-> {
-  const result = await bootstrap.query<{
-    owner_user_id: string;
-    namespace: string;
-    key: string;
-    value: string;
-  }>(
-    `SELECT owner_user_id, namespace, key, value::text AS value
-     FROM app.module_kv WHERE module_id = 'job-search'
-     ORDER BY owner_user_id, namespace, key`
+    options
   );
-  return result.rows;
-}
+const bootstrapJobSearchRows = (): ReturnType<typeof harnessBootstrapRows> =>
+  harnessBootstrapRows(bootstrap);
 
 beforeAll(async () => {
   await resetFoundationDatabase();
@@ -833,5 +767,184 @@ describe("job-search schedule-state cross-owner clobber guard (#962)", () => {
       (r) => r.key === keys.monitorSchedule("mon-iso")
     );
     expect(sameKey.map((r) => r.owner_user_id).sort()).toEqual([ids.userA, ids.userB].sort());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JS-08 (#937) Task 6 — feed reads and decisions across owners, over the SAME
+// real-RLS harness, now through the actual assistant tool handlers (list /
+// get / decide) rather than raw domain calls. SECURITY tier rule holds:
+// every denial (null / missing_record / absent hash) is paired with a
+// positive control proving the very same probe finds the data for its owner.
+// Suite-state note: userB owns ONE opportunity row (the shared OPPORTUNITY
+// ingested in the #931 cross-owner case), so B's list is asserted as
+// "only B's own hash, never any of A's" — strictly stronger evidence than
+// the empty-world 0 the plan sketched, because it shows the handler filtering
+// a NON-empty table by owner.
+// ---------------------------------------------------------------------------
+
+const FEED_JOB: OpportunityInput = {
+  adapterId: "greenhouse",
+  externalId: "gh-feed-1",
+  posting: {
+    title: "Feed Engineer",
+    company: "Acme",
+    description: "UserA owner-only posting detail — must never cross owners."
+  }
+};
+const FEED_HASH = opportunityIdentity(FEED_JOB);
+const FEED_SUMMARY = "UserA private feed-slice fit summary.";
+
+describe("job-search opportunity feed + decision isolation (#937)", () => {
+  beforeAll(async () => {
+    // Seed A: job + evaluation + feed rebuild. A's active profile is p3 and
+    // active resume is revision 0 (approved in the #936 pipeline describe),
+    // so pinning the evaluation inputs to (p3, 0) keeps `outdated` false.
+    const kvA = kvForActor(ids.userA);
+    await upsertOpportunity(kvA, FEED_JOB, NOW);
+    const record = await getOpportunity(kvA, FEED_HASH);
+    if (record === null) throw new Error("seed record missing");
+    await saveEvaluation(kvA, {
+      schemaVersion: 1,
+      evaluationId: evaluationIdentity({
+        opportunityContentHash: record.contentHash,
+        profileRevisionId: "p3",
+        resumeRevisionId: "0"
+      }),
+      identityHash: FEED_HASH,
+      fitBand: "strong",
+      recommendation: "review",
+      evidence: [{ requirement: "TypeScript", evidence: "8y TypeScript", source: "resume" }],
+      blockers: [],
+      gaps: [],
+      unknowns: [],
+      preferenceMatches: [],
+      preferenceConflicts: [],
+      postingConfidence: "high",
+      overallConfidence: "medium",
+      summary: FEED_SUMMARY,
+      inputs: {
+        opportunityContentHash: record.contentHash,
+        profileRevisionId: "p3",
+        resumeRevisionId: "0"
+      },
+      createdAt: NOW.toISOString()
+    });
+    await rebuildFeed(kvA, NOW);
+  });
+
+  it("positive control: owner A's feed has the entry and A's handlers return it", async () => {
+    const kvA = kvForActor(ids.userA);
+    expect((await readFeed(kvA))?.entries.map((e) => e.h)).toContain(FEED_HASH);
+
+    const ports = makePorts(kvA, null, T_RUN2);
+    const list = await listOpportunitiesHandler(ports)({ view: "new" });
+    expect(list.status).toBe("ok");
+    const cards = list.opportunities as Array<{ identityHash: string }>;
+    expect(cards.map((c) => c.identityHash)).toContain(FEED_HASH);
+
+    const detail = await getOpportunityHandler(ports)({ identityHash: FEED_HASH });
+    expect(detail).toMatchObject({
+      status: "ok",
+      opportunity: {
+        identityHash: FEED_HASH,
+        status: "new",
+        evaluation: { fitBand: "strong", summary: FEED_SUMMARY, outdated: false }
+      }
+    });
+  });
+
+  it("userB sees none of A's feed: readFeed null, list holds only B's own row, get/decide deny", async () => {
+    const kvB = kvForActor(ids.userB);
+    // B never built a feed, and A's feed row is invisible to B — null, not
+    // A's entries. (Asserted BEFORE the list handler below self-heals a feed
+    // for B out of B's own rows.)
+    expect(await readFeed(kvB)).toBeNull();
+    expect(await getOpportunity(kvB, FEED_HASH)).toBeNull();
+    expect((await listOpportunities(kvB)).map((r) => r.identityHash)).toEqual([OPPORTUNITY_HASH]);
+
+    const ports = makePorts(kvB, null, T_RUN2);
+    const list = await listOpportunitiesHandler(ports)({});
+    const hashes = (list.opportunities as Array<{ identityHash: string }>).map(
+      (c) => c.identityHash
+    );
+    expect(hashes).not.toContain(FEED_HASH);
+    expect(hashes.every((h) => h === OPPORTUNITY_HASH)).toBe(true);
+    // A's private evaluation summary appears nowhere in B's page.
+    expect(JSON.stringify(list)).not.toContain("private feed-slice");
+
+    await expect(getOpportunityHandler(ports)({ identityHash: FEED_HASH })).rejects.toMatchObject({
+      code: "missing_record"
+    });
+    await expect(
+      decideOpportunityHandler(ports)({
+        identityHash: FEED_HASH,
+        decision: "passed",
+        reason: "cross-owner probe"
+      })
+    ).rejects.toMatchObject({ code: "missing_record" });
+  });
+
+  it("admin actor gets the same denials — no private-data bypass", async () => {
+    const kvAdmin = kvForActor(ids.adminUser, { admin: true });
+    expect(await readFeed(kvAdmin)).toBeNull();
+    expect(await getOpportunity(kvAdmin, FEED_HASH)).toBeNull();
+
+    const ports = makePorts(kvAdmin, null, T_RUN2);
+    // Admin owns no opportunity rows at all, so the self-healed feed is empty.
+    const list = await listOpportunitiesHandler(ports)({});
+    expect(list).toMatchObject({ status: "ok", total: 0, opportunities: [] });
+    await expect(getOpportunityHandler(ports)({ identityHash: FEED_HASH })).rejects.toMatchObject({
+      code: "missing_record"
+    });
+    await expect(
+      decideOpportunityHandler(ports)({ identityHash: FEED_HASH, decision: "saved" })
+    ).rejects.toMatchObject({ code: "missing_record" });
+  });
+
+  it("userB's denied decide leaves A's record byte-identical; the owner's own decide lands", async () => {
+    const rowFor = async (): Promise<string | undefined> =>
+      (await bootstrapJobSearchRows()).find(
+        (r) => r.owner_user_id === ids.userA && r.key === keys.job(FEED_HASH)
+      )?.value;
+    const before = await rowFor();
+    expect(before).toBeDefined();
+
+    await expect(
+      decideOpportunityHandler(makePorts(kvForActor(ids.userB), null, T_RUN2))({
+        identityHash: FEED_HASH,
+        decision: "passed",
+        reason: "B trying to clobber A's decision"
+      })
+    ).rejects.toMatchObject({ code: "missing_record" });
+
+    // A's stored record is byte-identical after B's attempt — the denial
+    // happened before any write, not by rolling one back.
+    expect(await rowFor()).toBe(before);
+    expect(await getOpportunity(kvForActor(ids.userA), FEED_HASH)).toMatchObject({
+      status: "new"
+    });
+
+    // Positive control: the owner's decide DOES land over the same RPC kv,
+    // the ack never echoes the reason, and the record + rebuilt feed carry
+    // the new status for the owner only.
+    const kvA = kvForActor(ids.userA);
+    const ack = await decideOpportunityHandler(makePorts(kvA, null, T_RUN2))({
+      identityHash: FEED_HASH,
+      decision: "saved",
+      reason: "Great fit for the platform role."
+    });
+    expect(ack).toMatchObject({ status: "ok", identityHash: FEED_HASH, decision: "saved" });
+    expect(JSON.stringify(ack)).not.toContain("Great fit");
+    expect(await getOpportunity(kvA, FEED_HASH)).toMatchObject({
+      status: "saved",
+      decisionReason: "Great fit for the platform role."
+    });
+    expect((await readFeed(kvA))?.entries.find((e) => e.h === FEED_HASH)?.s).toBe("saved");
+    // The owner-private reason stays out of the derived feed index entirely.
+    const feedRow = (await bootstrapJobSearchRows()).find(
+      (r) => r.owner_user_id === ids.userA && r.key === keys.feedActive
+    );
+    expect(feedRow?.value).not.toContain("Great fit");
   });
 });
