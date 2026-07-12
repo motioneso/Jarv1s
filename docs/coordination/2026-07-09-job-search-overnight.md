@@ -3756,3 +3756,15 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
 - Reaped pGK (r5, session `c14ab1eb-…`) after verifying Step 5 `baf81efa` + relay doc `ca304786`
   committed and tree clean. Branch head `ca304786` on `feat/js-07-freshness-dedup-fit`.
 - Steps 0-5 landed; pGM resumes at **Step 6** (design settled). Steps 6-8 remain. Zero merges.
+
+### 2026-07-11 — JS-07 Step 6 landed + plan-ABI amendment (accepted), relay #7 in progress
+- Step 6 (feed ordering) committed `2e20a6b0`, gates green, unit suite 2994 pass.
+- **Plan-ABI amendment ACCEPTED (no objection):** plan's FeedEntry field list overflowed KV
+  65535-byte cap at the 510-protected-record envelope (~69KB). Per plan hard-constraint 4, agent
+  compacted: single-char codes for gate/band/confidence; freshness + postedAt COMPUTED at rebuild,
+  not stored. Sort semantics unchanged, old readers unaffected, 510-entry regression test added.
+  Mechanical serialization fix inside an existing plan constraint — not a scope/security fork, no
+  Opus escalation. **QA council MUST verify:** 510-entry regression + old-reader compat + that
+  single-char codes carry no secret/PII and computed freshness matches stored semantics.
+- Relay #7: pGM (session a65ed1c5) relaying at 70%. Detector armed (excl a65ed1c5); verify
+  successor = Fable 5, tab w1:t1K, confirm 2e20a6b0 + relay doc committed before reaping pGM.
