@@ -4018,3 +4018,19 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   Gemini/agy bg `blna3io5c`, indep Codex bg `btnj86p9p` — each posts `[…rd2] VERDICT` to PR. CI
   monitor `b4940vggf`. MERGE on unanimous rd2 APPROVE + CI green → squash under council authority,
   then bookkeeping + reap pEP + coordinator self-relay-in-place (directive #3).
+- **GATE RULE — NO PROVIDER-SUBSTITUTION FALLBACK for News epic #954 (reconciled #955; News Codex
+  DISSENT accepted 2026-07-11).** Named-unanimous = Opus + INDEPENDENT Codex + Gemini(agy), all
+  three. If a named provider safety-refuses or is unreachable and cannot be obtained via neutral
+  boundary-review reframing → **HOLD this PR for Ben** (surface obtained verdicts + refusal fact);
+  do NOT downgrade to a 2-provider council. Fleet keeps moving; only this one merge waits. My earlier
+  S2-style Opus+Codex fallback intent is STRUCK. (Gemini/agy safety-refuses exploit-hunt framing;
+  reframe as neutral requirement/boundary verification to get its lens — done via `pr973-agy-r2b.txt`.)
+- **rd2 TALLY on `8eccd902`:** Gemini **APPROVE** (neutral-framed retry `bvnfyiz3m`, all A–G met,
+  posted 05:17:23Z). Independent Codex **REJECT** (`btnj86p9p`) — real coverage gap: real-DB
+  regression asserts `rankedStories`(/news)+image-404 but NOT `topStories`(Today widget
+  `today-widget.tsx:32`), so an excluded source could linger in Today; **production fix valid, PROOF
+  incomplete**. Opus (`abfdbb0bdc569ba2e`) still reviewing — asked to report findings NOW (not
+  CI-gated) since author's fix is additive-test-only. **News Codex already fixed** the Codex gap
+  (added `topStories` positive-control + post-disable assertions to same regression, focused 5/5
+  green, one file explicit-path, unpushed) and is holding for Opus consolidation → single push →
+  **round 3 all-3-lenses on final head** required (named-unanimous must be on the SAME head).
