@@ -3965,3 +3965,26 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   (registry factories + manifest schemas). Tree clean (only context-meter.log + untracked coord
   handoff). **Also (not a lane): Ben authoring #964 spec on his own Fable agent (`pGV`, main tree) —
   relayed clean-branch + explicit-path-add guidance; #964 unblocks its spec gate.**
+- **NEWS S3 PR #973 COUNCIL (2026-07-11, IN FLIGHT):** News Codex reported DONE — PR
+  `feat/news-slice3` head `a5b3b527`, +1988/-98, 26 files, rebased on `origin/main@c23a93b8`, Closes
+  #972 + #969, VF_EXIT=0 (374 unit/3026 pass; 145 integ/1561 pass), AUDIT_EXIT=0, no migration/dep/CSP
+  expansion. **SECURITY tier → epic #954 unanimous cross-provider council gate.** 3 lenses launched,
+  each posts verdict via `gh pr comment 973`: (1) **Opus** adversarial agent `aa830ab39d3a2deef`
+  (worktree-isolated); (2) **Gemini/agy** bg `bf4sj0q5b`; (3) **independent Codex** bg `b0t21zc3m`
+  (fresh `codex exec`, NOT author pEP). Shared 8-point hunt list: owner-only isolation (img route +
+  all reads, cross-owner denial+positive control), image-route SSRF/allow-list, cache-key=URL/digest
+  not 32-bit id + 7d guard, #969 300-vs-1000 validate/store closed, external-content-as-text (#960
+  decode-after-strip), CSP intact, no-secret/fields-declared-in-shared, immediate-removal tested.
+  **CI:** 2 smoke PASS, `Verify foundation` pending → monitor `bvwdsc8ri` emits on terminal.
+  **MERGE RULE:** unanimous 3-lens APPROVE + CI green → `gh pr merge 973 --squash --delete-branch`
+  under council authority (no Ben gate, directive #2); then close #972/#969, epic #954 exit check,
+  board Done, reap News Codex `pEP` + worktree, digest Ben. Any REJECT → relay blockers to pEP,
+  re-QA. **Coordinator's OWN relay fires after this security merge (directive #3: flush+save
+  in-place, NO successor pane).**
+- **JS-08 T5/T6 (2026-07-11):** build 4 committed `0f905123` (registry wires 3 opportunity tools;
+  manifest strict input/output schemas — decide outputSchema DELIBERATELY omits `reason`, correct per
+  decisionReason ruling; 3039 unit pass) + `e984d6c4` (KV isolation suite → 24 tests: owner positive
+  controls + userB/admin denials through real list/get/decide over RPC kv, byte-identical record
+  after denied cross-owner decide, reason never in ack/feed-index). Plan's literal "B list→0"
+  softened to stronger "only B's own hash, never A's" (B owns a row from #931). Now on Task 7 REST
+  invoke tests (app.inject). Coordinator ack'd schema call.
