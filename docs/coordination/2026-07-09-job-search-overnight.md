@@ -4425,3 +4425,33 @@ line), bypass-perms on, status building. Same worktree/branch news-s4. Relay con
 Spent pane w1:pH2 (session c18afef7) reaped (session-verified before close). Liveness Monitor
 re-pointed to pH3. Successor will send plan-ready with the migration escalation + a notification-scope
 flag (added to the 2 flags already recorded above). No plan to approve yet. merges_since_relay=0.
+
+## UPDATE — 2026-07-12 — News S4 PLAN APPROVED (with conditions) + 2nd relay
+
+Plan `docs/superpowers/plans/2026-07-12-news-s4-chat-actions-revalidation-notifications.md` (1ab1393b
+on news-s4). **APPROVED to build** — 4 escalations resolved:
+
+1. **D2 migration APPROVED — number = 0161.** `packages/news/sql/0161_news_revalidation.sql` (module
+   SQL in owning module's sql/ dir ✓, NOT infra/). Verified next-free: highest existing = 0160
+   (news_discovery); News S4 is the only in-flight lane → 0161 collision-free. **CONDITIONS (least-
+   privilege, security-council will adversarially verify):** GRANT UPDATE on ONLY the named validation
+   columns of news_custom_sources + news_custom_topics — never table-wide UPDATE; enumerate + justify
+   each column against revalidation bookkeeping in the migration comment. New topics-worker UPDATE
+   **RLS policy must scope to owner rows** (worker writes only the acting owner's own rows — no
+   cross-owner write hole). Worker role stays RLS-bound: NO BYPASSRLS, non-superuser. If a topics
+   SELECT→UPDATE policy is added, pair it with the owner-scope USING/WITH CHECK.
+2. **D4 notification scope → BUILD TO SPEC** (ONE summary notification). My handoff's "new matching
+   items" over-reached beyond the Slice-4 spec — DROP it; spec is source of truth. Good catch.
+3. **Settings add/delete/Retry wiring (Task 9) → CONFIRMED IN-SCOPE.** Spec S4 bullet 4 + manual
+   acceptance require the add-source/add-topic scaffolds (disabled since S2) to be wired, plus Retry.
+   Bounded to wiring EXISTING scaffolds + Retry — no new UI surface beyond what the spec bullet names.
+4. **6 chat tools CONFIRMED** (preview/confirm/remove source; add/remove topic; add exclusion). edit +
+   unexclude stay REST/Settings-only — minimal confirm-gated write surface is the right security
+   posture; defensible boundary consistent with spec's "chat-driven source/topic actions".
+
+No plan-time Opus adjudication needed — decisions are spec-determined; RLS/grant correctness is the
+security council's job at PR time (named-unanimous Opus+Codex+Gemini, no fallback).
+
+**2nd relay in progress** (pH3/238c21dd hit 70% while grounding, compaction occurred) → fresh Fable
+successor, same worktree/branch, SAME label 'News S4 relay'. Plan file carries full state; successor
+holds for my approval before code. Routing approval to the live 'News S4 relay' pane below.
