@@ -4768,3 +4768,18 @@ main (#964 agent). No action from me beyond staying out of its way.
 - **PARKED:** #964 (Ben's Fable agent, main tree — do not touch); #965 run-now dedupe (task #25);
   red-main flake `tests/integration/tasks-agency-tools.test.ts` (`vi.waitFor`, separate small PR).
 - Ben decisions still in force: Job Search held for #964 install flow; no pings; compact in place.
+
+## relay14→15 reaped — News S4 fix green, relay15 finishing gates+PR+re-council
+
+- **Reaped relay14** (pane w1:pHG, session `4ab3ada3-2453-45c2-a07b-d5f01a4ebb58`). Successor
+  **relay15** verified driving: pane `w1:pHH`, session `db9db9fa-b9b4-4666-a8dd-ac62e00cf074`,
+  Fable 5, agents tab `w1:t1P`.
+- **Fix committed:** news-s4 HEAD `6815f526` (council-gap tests: GAP1 worker-log sentinel +
+  GAP2 external-content adversarial). relay14 reported unit 17/17, full integration 1613 pass exit 0.
+  Handoff doc `49ba03a3`.
+- **relay15 owns finish:** full gates → PR #977 body (state sentinel approach for council re-run)
+  → push → coordinated-wrap-up → re-council ping to Coordinator.
+- **Liveness Monitor re-armed** on pane `w1:pHH` (HEAD advance past `49ba03a3` + pane death).
+  Old Monitor `bq7q86lg0` stopped.
+- `merges_since_relay=1`. No merge until **round-2 named-unanimous (Opus+Codex+Gemini, NO
+  fallback)** APPROVE on #977.
