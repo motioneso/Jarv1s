@@ -1,4 +1,4 @@
-# Relay — js-09-acceptance (2026-07-12)
+# Relay — js-09-acceptance (2026-07-12, relay 2: after Task 1)
 
 Successor: continue JS-09 acceptance harness (issue #938, epic #913). You are Fable (hard
 policy: Job Search builder = Fable). Same worktree/branch: `feat/js-09-acceptance` off
@@ -7,87 +7,49 @@ policy: Job Search builder = Fable). Same worktree/branch: `feat/js-09-acceptanc
 
 ## State
 
-- Plan APPROVED by coordinator: `docs/superpowers/plans/2026-07-11-js-09-acceptance.md`
-  (committed). Read it BY TASK, not in full.
-- Mission doc: `docs/coordination/handoff-js-09-acceptance.md` (READ ONLY — never `git add` it
-  or anything under `docs/coordination/`).
-- Recon for plan Task 1 COMPLETE (verified facts below). ZERO test code written yet.
-- Coordinator approval bars (must hold): (a) every cross-owner/admin denial paired with a
-  positive control, no BYPASSRLS; (b) sentinel scan proves no private resume/profile/query
-  content in job payloads, worker logs, or evidence artifact — state sentinel constants + scan
-  pattern in PR body. Evidence destination = counts-only comment on issue #938 (confirmed).
-  Any defect fix needing a migration/new endpoint/new schema → STOP, escalate.
+- Plan APPROVED: `docs/superpowers/plans/2026-07-11-js-09-acceptance.md`. Read it BY TASK,
+  never in full.
+- Mission doc: `docs/coordination/handoff-js-09-acceptance.md` (READ ONLY — never `git add`
+  it or anything under `docs/coordination/`).
+- **Plan Task 1 DONE — commit `26a7ce7f`**: `tests/integration/external-module-job-search-acceptance.test.ts`
+  (455 lines, 6 tests green, format/lint/typecheck clean). Suite: real-hash discovery+enable
+  assert → six-checkpoint walkthrough over real RPC kv (sentinels seeded) → production
+  job-handler sweep with real spawned worker (fixture at the `fetch.request` rpc seam,
+  `checked:1 ran:1`) → sentinel scan with positive controls → same-day second sweep
+  `{ran:0, skipped:1}` + derived-row counts unchanged → drift refusal (tampered
+  `dist/worker.js`, restore in finally).
+- Coordinator was told Task 1 done + relay in progress (2026-07-12 ~00:20).
 
-## Next step (plan Task 1)
+## Next steps (in order)
 
-Write `tests/integration/external-module-job-search-acceptance.test.ts`, run
-`pnpm vitest run tests/integration/external-module-job-search-acceptance.test.ts` to green,
-commit explicit paths (test file only; plan already committed) with message
-`test(job-search): JS-09 acceptance E2E — real-hash enable, six checkpoints, scheduled sweep with sentinel privacy scan, drift refusal (#938)`
-+ `Co-Authored-By: Claude` trailer. Then plan Tasks 2–4.
+1. **Plan Task 2** (~line 305): provider independence. Read that section, implement, commit.
+2. **Plan Task 3** (~line 398): counts-only evidence renderer + CLI.
+3. **Plan Task 4** (~line 509): full gate + bounded defect fixes + evidence dry-run.
+4. Wrap up via `coordinated-wrap-up` (pre-push trio + `git fetch origin main && git rebase
+   origin/main` before push; PR body MUST state sentinel constants + scan pattern; evidence
+   destination = counts-only comment on issue #938).
 
-## Recon-locked facts (verified on branch — do not re-derive)
+## Hard-won facts (do not re-derive)
 
-- **Discovery:** `getExternalModuleRegistrations({modulesDir, coreVersion})`
-  (`packages/module-registry/src/node.ts:32`) → `{discoveries, rejected}`; entries FLAT
-  `{id, dir, manifest, manifestHash, packageHash}`. Pick `id === "job-search"`. modulesDir =
-  `fileURLToPath(new URL("../../external-modules", import.meta.url))`; coreVersion from root
-  package.json.
-- **Payload:** `{actorUserId: ids.userA, moduleId: "job-search", jobKind: "job-search.monitor-sweep", manifestHash: registration.manifestHash}`.
-  `assertModuleJobPayload` (`packages/jobs/src/module-jobs.ts`) enforces
-  `/^sha256:[0-9a-f]{64}$/` — the harness's fake `sha256:job-search` hashes FAIL it; must use
-  real registration hashes end-to-end.
-- **Job handler deps** (`apps/worker/src/external-module-job-handler.ts`): `{module: registration, queue: registration.manifest.worker.queues[0], runtime, workerDb, dataContext, cipher: createModuleCredentialSecretCipher(), discoveryById: new Map([["job-search", registration]]), listActiveUserIds: async () => [ids.userA], ai: async (scopedDb, moduleId, request) => ({ok: true, object: okEvaluation})}`.
-  Flow: assert payload → active user → discoveryById → DB triple check (status enabled +
-  manifest_hash + package_hash match current) else silent return → rpc (toolRisk "write") →
-  `runtime.invoke(...)`.
-- **Fixture fetch:** wrap runtime — intercept rpc method `fetch.request`, return
-  ModuleFetchResponse `{status: 200, headers: {"content-type": "application/json"}, bodyBase64: Buffer.from(body).toString("base64")}`
-  (NOT bodyText — that's the module-internal AdapterFetch shape;
-  `packages/module-registry/src/external/worker-rpc-host.ts:94`). Delegate all other methods to
-  the real rpc. Fixture: `tests/fixtures/job-search/greenhouse-board.json` (real GitLab board →
-  monitor `query: {board: "gitlab"}`, `adapterId: "greenhouse"`).
-- **Clock:** spawned worker uses REAL clock (`now: () => new Date()`,
-  `external-modules/job-search/src/worker/index.ts:35`) — no time injection through the job
-  path. Monitor must use `dueTime: "00:00"`, `timezone: "UTC"` so it is always due. Second
-  same-day sweep → `{ran: 0, skipped: 1}` + kv row counts unchanged (daily slot consumed);
-  greenhouse courtesy interval 1h blocks refetch anyway. Content-dedup is already unit-covered —
-  don't try to re-test it E2E.
-- **Six checkpoints** (sequence copied from
-  `tests/unit/external-module-job-search-handlers-onboarding.test.ts:246`): saveResumeDraft
-  (mode "manual") → critique via ai stub → approveResume({revisionId: critique.revisionId}) →
-  saveProfileDraft({provenance: "user", fields: {...}}) → approveProfile → saveMonitor
-  (disabled, then enabled). Critique-stub `proposedMarkdown` must EQUAL a whole line of the
-  pasted resume (whole-segment coverage guard); stub shape
-  `{critiqueSummary, proposedMarkdown, materialClaims: [{kind, text, quote}]}`.
-  `getStateHandler` → `{status: "ok", step, completed, gates: {resumeApproved, profileApproved, monitorEnabled}, ...}`.
-  Run checkpoints over real RPC kv:
-  `kvForActor({module: registration, workerDb, requestIdPrefix: "js09-accept"}, ids.userA)`
-  from `tests/integration/job-search-rpc-harness.ts`; ports `{kv, ai: stub, now: () => NOW}`.
-- **Valid AI evaluation object** (okAi in
-  `tests/unit/external-module-job-search-handlers-run.test.ts`):
-  `{fitBand: "strong", recommendation: "review", evidence: [{requirement, evidence, source: "resume"}], blockers: [], gaps: [], unknowns: [], preferenceMatches: [], preferenceConflicts: [], postingConfidence: "high", overallConfidence: "medium", summary: "..."}`.
-- **Suite skeleton:** copy `tests/integration/js08-decide-confirm-audit.test.ts` beforeAll —
-  `resetFoundationDatabase()`, `buildExternalModule(jobSearchSourceDir)`, bootstrap `Client`,
-  worker `createDatabase({maxConnections: 1})`, `new ExternalModuleWorkerRuntime({logger})`,
-  enabled-row INSERT
-  `(id,status,manifest_hash,package_hash,enabled_at,enabled_by) VALUES ('job-search','enabled',$1,$2,now(),$3)`
-  with real registration hashes + ids.adminUser; 120s timeout; afterAll Promise.allSettled
-  close/end/destroy. Runtime logger `{warn: (obj, msg) => workerLogs.push(JSON.stringify({obj, msg}))}`
-  captures worker log lines for the sentinel scan.
-- **Sentinels:** `JS09-ACCEPT-RESUME-SENTINEL-93d1c4`, `JS09-ACCEPT-PROFILE-SENTINEL-93d1c4`,
-  `JS09-ACCEPT-QUERY-SENTINEL-93d1c4`. Seed in resume content / profile fields / monitor query
-  extra field (verify saveMonitor input schema tolerates it — else seed query board-name-adjacent
-  field per plan). Assert ABSENT in: sweep job payload JSON, workerLogs, kv rows under
-  `job-search.runs` / opportunities / feed namespaces. Positive control: sentinel IS present in
-  the resume revision kv row.
-- **Drift test:** append junk to `external-modules/job-search/dist/worker.js`, recompute
-  registration (packageHash differs), fresh handler with drifted discoveryById → contributes
-  nothing (0 kv writes, silent return); RESTORE the file in `finally`.
+- **Run integration suites via** `pnpm tsx scripts/test-integration.ts <file>` — bare
+  `pnpm vitest run` refuses the shared DB (assertIsolatedTestDatabase). Suite runs in ~5s.
+- Discovery: `getExternalModuleRegistrations({modulesDir, coreVersion: "0.1.0"})` — root
+  package.json 0.0.0 fails manifest compat. Entries FLAT `{id, dir, manifest, manifestHash,
+  packageHash}`. `manifest.worker?.queues?.[0]` (double optional chain or typecheck fails).
+- Fixture fetch seam: intercept rpc `fetch.request` → `{status, headers, bodyBase64}`.
+- Sentinels: `JS09-ACCEPT-RESUME-SENTINEL-93d1c4` / `-PROFILE-` / `-QUERY-`. QUERY sentinel
+  rides `companyName` of DISABLED monitor m2 (extra query keys dropped by validateConfig;
+  enabled-monitor companyName legitimately becomes posting.company). Positive controls in
+  resume/profile/monitors namespaces.
+- Spawned worker uses REAL clock → monitor `dueTime: "00:00"`, `timezone: "UTC"`.
+- agentmemory has these as `mem_mrhgqq4s_bc77eaa6a5a1` (project jarv1s).
 
-## Cadence rules
+## Approval bars + cadence (unchanged)
 
-- Meter 70% warning or compaction summary → message Coordinator, `relay` skill, successor Fable.
-- Pre-push trio + rebase before every push; full gate at wrap-up (`coordinated-wrap-up`).
-- Explicit-path `git add` only; never touch board/milestones/merge; terse caveman comms to
-  Coordinator; conventional prose in commits/PR.
+- (a) every cross-owner/admin denial paired with positive control, no BYPASSRLS;
+  (b) sentinel scan proves no private content in payloads/logs/evidence — constants + pattern
+  in PR body. Defect fix needing migration/endpoint/schema → STOP, escalate.
+- Zero new migrations; explicit-path `git add` only; never board/milestones/merge; risk tier
+  `security`; terse caveman comms to Coordinator; conventional prose in commits/PR.
+- Meter 70% warning or compaction summary seen → message Coordinator, `relay` skill,
+  successor Fable. Files < 1000 lines (check:file-size).
