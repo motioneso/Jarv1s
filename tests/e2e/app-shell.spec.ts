@@ -8,6 +8,7 @@ import {
   createMockTask,
   mockApi
 } from "./mock-api.js";
+import { createMockAiModel } from "./mock-ai-api.js";
 
 test("signs in and renders shell navigation", async ({ page }) => {
   await mockApi(page, {
@@ -220,12 +221,21 @@ test("connector accounts panel shows existing accounts and supports revoke", asy
   await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
 });
 
-test("configures AI providers and capability routing through settings REST calls", async ({
+test("auto-discovers AI models and configures capability routing through settings REST calls", async ({
   page
 }) => {
   await mockApi(page, {
     authenticated: true,
-    aiModels: [],
+    aiModels: [
+      createMockAiModel("ai-model-auto", {
+        providerConfigId: "ai-provider-1",
+        providerKind: "anthropic",
+        providerDisplayName: "Anthropic",
+        providerModelId: "gpt-4o",
+        displayName: "gpt-4o",
+        capabilities: ["chat", "tool-use", "json", "summarization"]
+      })
+    ],
     aiProviders: [],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
@@ -246,19 +256,14 @@ test("configures AI providers and capability routing through settings REST calls
   await page.getByRole("button", { name: "Test", exact: true }).click();
   await expect(page.getByText("Provider credential is valid.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Discover" }).click();
-  const discoveredModels = page.getByLabel("Discovered models");
-  await expect(discoveredModels.locator(".mdl__id", { hasText: "gpt-4o" })).toBeVisible();
-  await discoveredModels.locator(".mdl--discover", { hasText: "gpt-4o" }).click();
-  await page.getByRole("button", { name: "Add selected (1)" }).click();
+  // #982/#869 Lane B: connecting is the whole setup flow. Models appear automatically and the
+  // manual Discover/Add/picker surfaces no longer exist.
   await expect(page.locator(".mdl__id", { hasText: "gpt-4o" })).toBeVisible();
-
-  // Manual model registration remains available after discovery.
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByLabel("Model id").fill("claude-smoke");
-  await page.getByLabel("Display name").fill("Haiku Smoke");
-  await page.getByRole("button", { name: "Add model" }).click();
-  await expect(page.getByText("claude-smoke", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Discover", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Discovered models")).toHaveCount(0);
+  await expect(page.getByLabel("Model id")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add model", exact: true })).toHaveCount(0);
 
   // #870 Slice 1: services (Chat / Voice) replace the old capability-routing rows.
   // exact:true — the default substring match also hits the footer Note ("…follows the

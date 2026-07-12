@@ -55,11 +55,11 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       engine = activeEngine;
       const stopped = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
-          void activeEngine.kill();
+          void activeEngine.kill().catch(() => undefined);
           reject(new CliChatUnavailableError("CLI structured generation timed out"));
         }, this.timeoutMs);
         abort = () => {
-          void activeEngine.interrupt();
+          void activeEngine.interrupt().catch(() => undefined);
           const error = new Error("aborted");
           error.name = "AbortError";
           reject(error);
