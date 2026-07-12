@@ -4999,3 +4999,13 @@ foundation catalog toEqual; both fixes ab73d8d9 + 107ff202 real+tested). CI: all
 `[Gemini council QA] VERDICT` to PR. On Gemini APPROVE → MERGE (council authority, CI green). On
 Gemini REJECT → adjudicate the specific finding (Opus already cleared it 0-blocking; a Gemini-only
 finding gets a targeted re-check before honoring).
+
+## #964 GEMINI LENS DOWN → FALLBACK CRITIC (2026-07-12)
+Gemini headless wedged on OAuth re-auth prompt (`Opening authentication page… [Y/n]`), can't
+complete unattended — killed the bg run. Cross-model lens is preferred-not-a-gate (skill ladder:
+external model → independent Claude critic → self-review). Opus authority already APPROVED 0-blocking
++ CI all-3-green. Ran the documented fallback: **fresh independent Opus critic** (agent
+a083c5d4, no prior context, coordinated-qa/opus/worktree) as the 2nd lens — posts
+`[Independent Opus critic] VERDICT` to PR #980. On APPROVE → MERGE (dual-lens, CI green, council
+authority; re-confirm session 58a78927 first). PR mergeable=MERGEABLE; UNSTABLE = only non-required
+post-merge "Build and publish images" job pending, not a gate.
