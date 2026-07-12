@@ -3683,3 +3683,10 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   `feat/js-07-freshness-dedup-fit`. Old pane pGC REAPED. Pane-specific liveness monitor retired;
   fleet-liveness monitor covers pGD.
 - JS-07 lane status: `building` (Step 0 isolated commit first). No merges since last relay.
+
+### 2026-07-11 — JS-07 relay #2 (Fable→Fable), Step 0 landed on branch
+- Step 0 (ctx.ai queue path) DONE + committed `1539fb6a`; gates green (unit 2908, full integration
+  1553). Relay doc updated `726b36c5`. Builder relayed at 72% for Steps 1-8.
+- **Successor pane w1:pGE** session `e4f5b905-0f5d-4a6d-8a5f-8c00a095882b`, agents tab **w1:t1K**,
+  **Fable 5**, branch `feat/js-07-freshness-dedup-fit`. Old pane pGD REAPED. Lane `building`
+  (Steps 1-8). Still zero merges since last relay.
