@@ -38,6 +38,7 @@ import {
   runRetentionPass,
   saveMonitorCursor,
   saveScheduleState,
+  sourceKey,
   upsertOpportunity
 } from "../../domain/index.js";
 import type { WorkerPorts } from "../ai-port.js";
@@ -65,15 +66,22 @@ export function deriveRunId(idempotencyKey: string, monitorId: string): string {
   return contentHash(`run ${idempotencyKey} ${monitorId}`);
 }
 
-/** Map a normalized posting into the opportunities repo input shape. */
+/**
+ * Map a normalized posting into the opportunities repo input shape. JS-07:
+ * carries the adapter's structured facts through (already sanitized/capped at
+ * normalize time) and binds the record to its (adapterId, board) sourceKey so
+ * freshness marking can scope absence to the board actually fetched.
+ */
 export function postingToOpportunity(
   adapterId: string,
+  board: string,
   posting: NormalizedPosting
 ): OpportunityInput {
   return {
     adapterId,
     externalId: posting.externalId,
     canonicalUrl: posting.canonicalUrl,
+    sourceKey: sourceKey(adapterId, board),
     posting: {
       title: posting.title,
       company: posting.company,
@@ -81,7 +89,11 @@ export function postingToOpportunity(
         ? { location: sanitizeInlineField(posting.locations.join("; "), LOCATION_MAX_CHARS) }
         : {}),
       url: posting.canonicalUrl,
-      description: posting.description
+      description: posting.description,
+      ...(posting.publishedAt !== undefined ? { publishedAt: posting.publishedAt } : {}),
+      ...(posting.workMode !== undefined ? { workMode: posting.workMode } : {}),
+      ...(posting.employmentType !== undefined ? { employmentType: posting.employmentType } : {}),
+      ...(posting.compensation !== undefined ? { compensation: posting.compensation } : {})
     }
   };
 }
@@ -164,7 +176,7 @@ export async function runMonitorDiscovery(
   let ingested = 0;
   let suppressed = 0;
   for (const posting of fetched.postings) {
-    const input = postingToOpportunity(adapter.id, posting);
+    const input = postingToOpportunity(adapter.id, boardConfig.board, posting);
     // upsertOpportunity's `suppressed` flag covers tombstones only; an
     // unchanged re-sighting returns the refreshed record. Counts must
     // distinguish real ingestion (new record or content change) from

@@ -50,7 +50,14 @@ export {
   TOMBSTONE_TTL_DAYS
 } from "./limits.js";
 export { canonicalJson, readRecord, writeRecord } from "./records.js";
-export { assertId, contentHash, evaluationIdentity, keys, opportunityIdentity } from "./keys.js";
+export {
+  assertId,
+  contentHash,
+  evaluationIdentity,
+  keys,
+  opportunityIdentity,
+  sourceKey
+} from "./keys.js";
 export type { OnboardingState } from "./onboarding.js";
 export { getOnboardingState, saveOnboardingState } from "./onboarding.js";
 export type { ProfileRevision } from "./profile.js";

@@ -155,3 +155,90 @@ describe("opportunities repo", () => {
     expect((error as JobSearchKvError).code).toBe("invalid_record");
   });
 });
+
+// JS-07 (#936) Step 1: structured posting facts (publishedAt/workMode/
+// employmentType/compensation) + top-level sourceKey ride through the upsert
+// as ADDITIVE schemaVersion-1 fields — old records keep reading fine and the
+// content hash still covers the full posting object, so a fact change alone
+// re-triggers change detection.
+describe("opportunities repo — structured posting facts (JS-07)", () => {
+  const SOURCE_KEY = "f".repeat(32);
+
+  function factsInput(): OpportunityInput {
+    return {
+      adapterId: "greenhouse",
+      externalId: "job-42",
+      sourceKey: SOURCE_KEY,
+      posting: {
+        title: "Engineer",
+        company: "Acme",
+        url: "https://example.com/job-42",
+        description: "Build things.",
+        publishedAt: "2026-07-01T00:00:00.000Z",
+        workMode: "remote",
+        employmentType: "Full-time",
+        compensation: "$100k - $150k"
+      }
+    };
+  }
+
+  it("stores the structured facts and sourceKey on a new record", async () => {
+    const kv = createMemoryKv();
+    await upsertOpportunity(kv, factsInput(), T0);
+    const record = await getOpportunity(kv, HASH);
+    expect(record?.sourceKey).toBe(SOURCE_KEY);
+    expect(record?.posting).toMatchObject({
+      publishedAt: "2026-07-01T00:00:00.000Z",
+      workMode: "remote",
+      employmentType: "Full-time",
+      compensation: "$100k - $150k"
+    });
+  });
+
+  it("content hash is stable across identical upserts (facts included)", async () => {
+    const kv = createMemoryKv();
+    await upsertOpportunity(kv, factsInput(), T0);
+    const first = await getOpportunity(kv, HASH);
+    await upsertOpportunity(kv, factsInput(), T1);
+    const second = await getOpportunity(kv, HASH);
+    expect(second?.contentHash).toBe(first?.contentHash);
+    // Idempotent path: only the sighting timestamp moved.
+    expect(second?.statusAt).toBe(T0.toISOString());
+    expect(second?.lastSeenAt).toBe(T1.toISOString());
+  });
+
+  it("a fact-only change (same description) changes contentHash but preserves user status", async () => {
+    const kv = createMemoryKv();
+    await upsertOpportunity(kv, input(), T0); // plain pre-JS-07 shape
+    const before = await getOpportunity(kv, HASH);
+    await setOpportunityStatus(kv, HASH, "saved", T0);
+
+    const withFacts = input();
+    withFacts.posting.workMode = "remote";
+    await upsertOpportunity(kv, withFacts, T1);
+    const after = await getOpportunity(kv, HASH);
+    expect(after?.contentHash).not.toBe(before?.contentHash);
+    expect(after?.posting.workMode).toBe("remote");
+    expect(after?.status).toBe("saved");
+    expect(after?.firstSeenAt).toBe(T0.toISOString());
+  });
+
+  it("old-shape records (no JS-07 fields) read fine and gain sourceKey on unchanged re-sighting", async () => {
+    const kv = createMemoryKv();
+    // Write a pre-JS-07 record via a plain upsert (no facts, no sourceKey).
+    await upsertOpportunity(kv, input(), T0);
+    const old = await getOpportunity(kv, HASH);
+    expect(old?.sourceKey).toBeUndefined();
+    expect(old?.posting.publishedAt).toBeUndefined();
+
+    // Re-seen unchanged, but the monitor now supplies its sourceKey: the
+    // idempotent path must attach it without touching contentHash/status.
+    const reSeen = input();
+    reSeen.sourceKey = SOURCE_KEY;
+    await upsertOpportunity(kv, reSeen, T1);
+    const record = await getOpportunity(kv, HASH);
+    expect(record?.sourceKey).toBe(SOURCE_KEY);
+    expect(record?.contentHash).toBe(old?.contentHash);
+    expect(record?.status).toBe("new");
+  });
+});

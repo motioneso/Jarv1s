@@ -14,12 +14,14 @@ import {
   listRuns,
   saveMonitor,
   saveMonitorCursor,
+  sourceKey,
   type MonitorConfig
 } from "../../external-modules/job-search/src/domain/index.js";
 import type { WorkerPorts } from "../../external-modules/job-search/src/worker/ai-port.js";
 import {
   deriveRunId,
   monitorRunHandler,
+  postingToOpportunity,
   runMonitorDiscovery
 } from "../../external-modules/job-search/src/worker/handlers/run.js";
 import { createMemoryKv, type MemoryKv } from "./helpers/job-search-memory-kv.js";
@@ -301,5 +303,65 @@ describe("monitor.run handler", () => {
     await expect(
       handler({ jobKind: "job-search.other", idempotencyKey: "k1", params: {} })
     ).rejects.toThrow("jobKind is not supported");
+  });
+});
+
+// JS-07 (#936) Step 1: structured posting facts + sourceKey ride from the
+// adapter's NormalizedPosting into the opportunities repo. sourceKey binds a
+// record to (adapterId, board) so later freshness marking can scope
+// absence-from-fetch to the board that was actually fetched.
+describe("postingToOpportunity (JS-07 structured facts)", () => {
+  it("maps publishedAt/workMode/employmentType/compensation and computes sourceKey", () => {
+    const input = postingToOpportunity("greenhouse", "acme", {
+      externalId: "101",
+      canonicalUrl: "https://boards.greenhouse.io/acme/jobs/101",
+      title: "Platform Engineer",
+      company: "acme",
+      locations: ["Remote"],
+      workMode: "remote",
+      employmentType: "Full-time",
+      compensation: "$100k - $150k",
+      publishedAt: "2026-07-01T00:00:00.000Z",
+      description: "Build the platform.",
+      descriptionTruncated: false
+    });
+    expect(input.sourceKey).toBe(sourceKey("greenhouse", "acme"));
+    expect(input.posting).toMatchObject({
+      publishedAt: "2026-07-01T00:00:00.000Z",
+      workMode: "remote",
+      employmentType: "Full-time",
+      compensation: "$100k - $150k"
+    });
+  });
+
+  it("omits absent facts rather than writing undefined placeholders", () => {
+    const input = postingToOpportunity("greenhouse", "acme", {
+      externalId: "102",
+      canonicalUrl: "https://boards.greenhouse.io/acme/jobs/102",
+      title: "Staff Engineer",
+      company: "acme",
+      locations: [],
+      description: "Lead things.",
+      descriptionTruncated: false
+    });
+    expect("publishedAt" in input.posting).toBe(false);
+    expect("workMode" in input.posting).toBe(false);
+    expect("employmentType" in input.posting).toBe(false);
+    expect("compensation" in input.posting).toBe(false);
+  });
+
+  it("discovery run persists facts and sourceKey end-to-end", async () => {
+    const kv = createMemoryKv();
+    const config = monitor();
+    await saveMonitor(kv, config);
+    await runMonitorDiscovery(makePorts(kv, okFetch, T0), config, {
+      runId: "a".repeat(32),
+      consumeSlot: false
+    });
+    const records = await listOpportunities(kv);
+    const remote = records.find((r) => r.posting.title === "Platform Engineer");
+    expect(remote?.sourceKey).toBe(sourceKey("greenhouse", "acme"));
+    expect(remote?.posting.workMode).toBe("remote");
+    expect(remote?.posting.publishedAt).toBe("2026-07-01T00:00:00.000Z");
   });
 });

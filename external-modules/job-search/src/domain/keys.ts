@@ -44,6 +44,16 @@ export function contentHash(text: string): string {
 }
 
 /**
+ * JS-07 (#936): source identity = (adapterId, board). Stored on opportunity
+ * records so absence-from-fetch is judged per board — two monitors on one
+ * adapter watch different boards, and only the board that was actually
+ * fetched may stale its own records. A record field, never key material.
+ */
+export function sourceKey(adapterId: string, board: string): string {
+  return sha256Hex32(`${adapterId}\0${board}`);
+}
+
+/**
  * Identity of one evaluation = (posting content, profile revision, resume
  * revision). Any member changing means the evaluation must be redone.
  */
