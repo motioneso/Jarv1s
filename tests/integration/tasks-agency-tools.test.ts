@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 
 import {
@@ -248,7 +248,9 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const tagId = (createdTag.tag as { id: string }).id;
 
     const call = gateway.callTool(tokenFor(ids.userA), "tasks.deleteTag", { listId, tagId });
-    await tick();
+    await vi.waitFor(() => {
+      expect(emitted.some((entry) => entry.record.kind === "action_request")).toBe(true);
+    });
 
     const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     expect(request).toMatchObject({ kind: "action_request", toolName: "tasks.deleteTag" });
