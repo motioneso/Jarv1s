@@ -4367,3 +4367,27 @@ Epic #913 open through acceptance + 7-day observation.
 
 **Also on resume:** check for Ben activity / any JS-09 manual-acceptance signal. `merges_since_relay`
 unchanged. Scheduled a resume wake to relaunch this from a compacted context.
+
+## UPDATE — 2026-07-12 — News S4 LAUNCHED (spec gate resolved)
+
+**Spec gate SATISFIED** (prior note's ❌ cleared): approved epic #954 spec =
+`docs/superpowers/specs/2026-07-11-personalized-news-sources-topics.md`; #975 body cites its
+**Slice 4 — Chat actions, revalidation, and notifications** section explicitly. S4 is an
+explicitly-scoped slice of an already-approved epic spec → no Ben escalation; Fable lane step-1
+(verify-or-STOP) is the backstop. Serialized after S3 (#972, merged `41a47486`, in main) — S4 is the
+last slice, one-in-flight ✓.
+
+**Lane live:**
+- Worktree `.claude/worktrees/news-s4`, branch `news-s4` off `origin/main` `ba4ed180`.
+- Handoff `docs/coordination/handoff-news-s4.md` committed on branch (`58638ed7`, prettier-clean).
+- Build agent **News S4** = pane `w1:pH2`, tab `w1:t1P` (label "agents"), session
+  `c18afef7-39f4-485d-9dcc-0b598fee3a2c`, **model Fable 5** (confirmed on status line), bypass-perms
+  on, status `building`. Moved out of coordinator tab t15 on spawn (herdr default landed it there).
+- **Tier: SECURITY. Merge gate = News named-unanimous Opus + independent Codex + Gemini, NO
+  2-provider fallback** — refusing/unreachable named provider → HOLD for Ben.
+
+**Collision:** News touches `packages/news/*` only. JS-09 #976 held (separate). Ben's #964 agent
+`w1:pGV` idle in coordinator tab — untouched.
+
+**JS-09 #976 unchanged** — still PARKED/held for Ben's manual acceptance. `merges_since_relay`
+unchanged (0 merges this window). Coordinator `pE6`/`58a78927` authoritative.
