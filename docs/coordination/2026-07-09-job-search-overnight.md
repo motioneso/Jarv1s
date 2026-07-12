@@ -4939,3 +4939,23 @@ dedupe (task #25, sensitive, parked).
 
 **Directive reminder:** coordinator auto-compacts in place — do NOT spawn a successor coordinator
 pane; flush manifest + continue; harness auto-compacts. No PushNotifications ("just keep moving").
+
+## #964 SECURITY COUNCIL FIRED 2026-07-12 — PR #980 (head 645069bb, base main, MERGEABLE)
+
+Build DONE (v12/pHY): VF_EXIT=0 AUDIT_EXIT=0; 384u/3156t + 152i/1631t; all 10 plan tasks incl
+Task 10 e2e (13 scenarios). 2 real bugs fixed this pass: purge role-drop grantor-mismatch
+(ab73d8d9), compose-ensure manifest_hash NOT NULL (107ff202). Flagged for council: route-guard
+allowlist change a43a6c66 (waives ONLY enablement, never admin auth; negative-authz e2e proves
+401/403 non-admin on all 4 routes).
+
+**Council = named-unanimous (Opus + Codex + Gemini).** Merge authority = council (Ben bypassed his
+sign-off). Merge holds until: CI green AND all three APPROVE.
+- Opus adversarial QA: Agent acf7fb777d51e91ce (posts verdict to PR). RUNNING.
+- Codex cross-model lens: pane w3:p2. RUNNING.
+- Gemini: DEFERRED — fires only if Opus+Codex both APPROVE (token economy; still required for merge).
+- CI: PENDING (run 29202568318) — fresh push; not yet green.
+
+Re-verify checklist delivered to both lenses: route-allowlist-not-authz (negative-authz non-vacuous),
+tar/zip-slip fail-closed, hash-drift persists nothing, RLS/no-BYPASSRLS (mirror col not journal),
+metadata-only payloads, response-schema declared, migration 0162 + last_install_error in foundation
+toEqual, provider-agnostic, module isolation, both fixes tested.
