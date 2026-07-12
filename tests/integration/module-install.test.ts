@@ -54,15 +54,10 @@ describe("installModule", () => {
 
     const result = await installModule({
       moduleId,
+      // installModule's manifest param is intentionally structural (#964) and only reads
+      // database.ownedTables — trimmed to that instead of a full JarvisModuleManifest fixture.
       manifest: {
-        id: moduleId,
-        name: "Install Fixture",
-        version: "0.0.1",
-        publisher: "test",
-        lifecycle: "optional",
-        compatibility: { jarv1s: ">=0.0.0" },
-        availability: { defaultEnabled: false },
-        database: { migrations: [], ownedTables: ["app.install_fixture_widgets"] }
+        database: { ownedTables: ["app.install_fixture_widgets"] }
       },
       bootstrapConnectionString: urls.bootstrap,
       migrationConnectionString: urls.migration,
