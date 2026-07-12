@@ -5009,3 +5009,13 @@ a083c5d4, no prior context, coordinated-qa/opus/worktree) as the 2nd lens — po
 `[Independent Opus critic] VERDICT` to PR #980. On APPROVE → MERGE (dual-lens, CI green, council
 authority; re-confirm session 58a78927 first). PR mergeable=MERGEABLE; UNSTABLE = only non-required
 post-merge "Build and publish images" job pending, not a gate.
+
+## CORRECTION — cross-model lens MUST be AGY, not gemini-cli (Ben, 2026-07-12)
+Ben: "Don't use gemini cli, it HAS TO BE AGY." AGY = Google Antigravity (`/home/ben/.local/bin/agy`),
+reaches **Gemini 3.1 Pro** via Google's backend (gemini-cli's OAuth is the wedged path — do NOT use
+it). Invocation: `agy --dangerously-skip-permissions --model "Gemini 3.1 Pro (High)" --print-timeout
+18m --add-dir <repo> -p "<prompt>"` — it runs `gh` itself to read the diff and post the verdict.
+#964 cross-model lens re-fired via AGY (bg task bs0081lra) → posts `[AGY Gemini 3.1 Pro council QA]
+VERDICT` to PR #980. (Fallback independent-Opus critic a083c5d4 also still running — corroborating
+same-model lens, not the binding cross-model gate.) On AGY APPROVE → MERGE (re-confirm session
+58a78927 first). Council for security tier henceforth = Opus authority + **AGY** cross-model.
