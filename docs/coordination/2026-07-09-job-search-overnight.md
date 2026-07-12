@@ -4674,3 +4674,27 @@ round (do NOT HOLD-for-Ben). Codex (pid 3858387) + Opus (`a3caf275f25bc8137`) st
 consolidate all three findings into ONE relay to pHE. pHE alive+idle, correctly self-blocked
 awaiting council direction (Fable, 69% ctx — may relay to a Fable successor mid-fix). news-s4 HEAD
 `089020a9`. NOT merged. `merges_since_relay=1`.
+
+### News S4 #977 council — Opus GREEN + coordinator adjudication of the split
+
+Opus QA (`a3caf275f25bc8137`): **GREEN**, 0 blocking, 3 non-blocking, MERGE-READY once CI green.
+Invariants OK (worker NOSUPERUSER+NOBYPASSRLS 0000_roles.sql:44,49; 0161 grant column-scoped 4 cols
++ owner-RLS; metadata-only payloads asserted; provider-agnostic; 0161 in foundation catalog).
+
+**Adjudicated the Gemini-REJECT vs Opus-GREEN split by reading the actual tests** (repo-root
+`tests/integration/`, not `packages/news/`):
+- Surface 1 (pg-boss payloads): COVERED, stronger than sentinel — `assertMetadataOnlyPayload` +
+  exact `payload.toEqual({counts+ids})` (news-revalidation.test.ts:432-433).
+- Surface 3 (notification bodies): COVERED — `toMatchObject` counts-only, "must never carry labels
+  or domains" (news-revalidation.test.ts:451-457). Exact-shape allowlist ⊃ sentinel-absence.
+- Surface 2 (worker/process LOGS): **NOT scanned** for private-content absence — the genuine gap.
+- Also present: `JSON.stringify(result).not.toContain("fingerprint")` in news-chat-tools.test.ts
+  (204/228/352) — provider fingerprint absence in tool output.
+
+Verdict: Gemini's REJECT is not a factual error but its scope is narrower than stated — 2 of 3
+surfaces are covered MORE rigorously than a sentinel scan; only the log surface + an explicit
+seeded-sentinel (handoff asked for a re-runnable sentinel approach) are missing. **Minimal fix to
+pHE:** seed ONE sentinel in the revalidation fixture (FEED_BODY / source label / query) and assert
+its absence across all 3 surfaces — critically adding the worker-LOG scan — so Req C is explicit +
+re-runnable. Keep the existing exact-shape assertions. Awaiting Codex (3rd lens, same Req C) before
+one consolidated relay. NOT merged.
