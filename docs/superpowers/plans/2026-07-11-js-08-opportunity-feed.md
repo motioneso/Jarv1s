@@ -121,7 +121,7 @@ error/question info is silently stripped.
 2. **"Monitor health summary" tool** (spec Tools list): REUSE existing `monitor.list`/`monitor.get`
    (already expose cursor health timestamps) — no new tool. Recommend: accept.
 3. **No web write path**: REST-initiated writes can never execute (no confirmation waiter — verified
-   `gateway.ts:281-299` fail-closed). UI shows decision state + "decide via assistant" affordance
+   `packages/ai/src/routes.ts:602-627` fail-closed 403). UI shows decision state + "decide via assistant" affordance
    copy; decides happen in assistant chat (confirm + audit). Matches spec's "canonical state comes
    from the confirmed tool result". Recommend: accept.
 4. **`saved` view includes status `active`** records (both are protected user-committed states;
@@ -285,7 +285,14 @@ extends the JS-06 data-plane block) — or a sibling `js08-` file if the JS-06 f
       (c) `opportunity.decide` over REST → 403 `confirmation_required`, and a follow-up list shows
       the status UNCHANGED (write never executed — confirm-gate proof);
       (d) disable module → list invoke 404 (fail-closed), re-enable → data still there
-      (decide/disable/re-enable survival).
+      (decide/disable/re-enable survival);
+      (e) **REQUIRED by adjudication — direct confirm+audit proof, not the 403:** drive the real
+      confirm path for `opportunity.decide` (the same host machinery the assistant chat uses —
+      pending assistant action created, then confirmed/settled), then assert: the decision
+      EXECUTED (status changed to saved/passed), an AUDIT RECORD exists and is attributed to the
+      owner actor, and after module disable → re-enable the decided status (and stored
+      decisionReason) persists. If the confirm settle path proves unreachable from an integration
+      harness, escalate to Coordinator before substituting a weaker proof.
 - [ ] Run that file via `pnpm exec tsx scripts/test-integration.ts ...` → PASS
 - [ ] Commit: `test(job-search): REST invoke surface — declared fields survive, decide stays confirm-gated`
 
@@ -341,7 +348,8 @@ bucket })` behind `outcomeGate` (loading/disabled/blocked/error via authored sta
 
 - Spec coverage: Views ✔ (T2/T8 cards, T3/T9 detail, buckets/stable URLs pre-exist), Tools ✔
   (T2–T5; monitor-health = reuse, flag 2), decisions bind actor/audit/rebuild/protection ✔ (T1,
-  T4; audit+confirm are host machinery, proven in T7c), UI behavior ✔ (T8/T9; optimistic updates
+  T4; confirm + owner-attributed audit + disable/re-enable survival proven DIRECTLY in T7e per
+  Coordinator adjudication — T7c alone only proves the REST 403), UI behavior ✔ (T8/T9; optimistic updates
   = none, presentation only), Verification bullets → T2/T3 (bounded schemas), T3 (description
   detail-only, explicit truncation), T7 (confirm/audit/survival), T6 (cross-owner), retention
   protection (T1 test reuses JS-02 invariants; saved never evicted already pinned in
