@@ -249,9 +249,7 @@ export class NewsPersonalizationRepository {
   // data context: migration 0161 grants the worker UPDATE on exactly
   // (validation_status, validation_fingerprint, validated_at, updated_at) with an
   // owner-scoped policy, so a cross-owner update matches 0 rows instead of erroring.
-  async listSourceValidationStates(
-    scopedDb: DataContextDb
-  ): Promise<NewsSourceValidationState[]> {
+  async listSourceValidationStates(scopedDb: DataContextDb): Promise<NewsSourceValidationState[]> {
     assertDataContextDb(scopedDb);
     const rows = await scopedDb.db
       .selectFrom("app.news_custom_sources")
