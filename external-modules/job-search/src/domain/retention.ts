@@ -13,12 +13,14 @@ import { keys } from "./keys.js";
 import type { JobSearchKv } from "./kv-port.js";
 import { NS } from "./kv-port.js";
 import {
+  EVAL_BUDGET_RETENTION_DAYS,
   OPPORTUNITY_TARGET,
   PASSED_STALE_EVICT_DAYS,
   RUN_RETENTION_DAYS,
   RUN_RETENTION_MAX,
   TOMBSTONE_TTL_DAYS
 } from "./limits.js";
+import { budgetDateFor } from "./evaluations.js";
 import { rebuildFeed } from "./feed.js";
 import type { OpportunityRecord, OpportunityTombstone } from "./opportunities.js";
 import { listOpportunities } from "./opportunities.js";
@@ -30,17 +32,21 @@ export interface RetentionReport {
   evicted: readonly string[];
   expiredTombstones: number;
   prunedRuns: number;
+  prunedBudgets: number;
   protectedOverflow: number;
   targetMet: boolean;
 }
 
 const TOMBSTONE_PREFIX = "tombstone/";
 const RUN_PREFIX = "run/";
+const EVAL_BUDGET_PREFIX = "evalBudget/";
 
 /**
- * Tombstone-first eviction: write the compact tombstone, THEN delete the
- * job key. Interrupted between the two, the job re-qualifies on the next
- * pass and the sequence repeats idempotently.
+ * Tombstone-first eviction: write the compact tombstone, delete the job's
+ * evaluation (JS-07 — an evaluation is meaningless without its job), THEN
+ * delete the job key. Interrupted anywhere between, the still-present job
+ * re-qualifies on the next pass and the whole sequence repeats idempotently
+ * (eval delete of an absent key is a no-op).
  */
 async function evictOpportunity(
   kv: JobSearchKv,
@@ -55,6 +61,7 @@ async function evictOpportunity(
     expiresAt: new Date(now.getTime() + TOMBSTONE_TTL_DAYS * DAY_MS).toISOString()
   };
   await writeRecord(kv, NS.opportunities, keys.tombstone(record.identityHash), tombstone);
+  await kv.delete(NS.opportunities, keys.evaluation(record.identityHash));
   await kv.delete(NS.opportunities, keys.job(record.identityHash));
   evicted.push(record.identityHash);
 }
@@ -119,6 +126,22 @@ export async function runRetentionPass(kv: JobSearchKv, now: Date): Promise<Rete
     }
   }
 
+  // Step 4b (JS-07): prune stale daily budget ledgers. Strictly-older-than
+  // the retention window — the boundary day itself is kept. Date strings are
+  // YYYY-MM-DD so lexicographic < is calendar <; the key suffix IS the date
+  // (assertId-validated at write), no record read needed.
+  const budgetCutoff = budgetDateFor(new Date(now.getTime() - EVAL_BUDGET_RETENTION_DAYS * DAY_MS));
+  let prunedBudgets = 0;
+  for (const key of await kv.list(NS.opportunities)) {
+    if (!key.startsWith(EVAL_BUDGET_PREFIX)) {
+      continue;
+    }
+    if (key.slice(EVAL_BUDGET_PREFIX.length) < budgetCutoff) {
+      await kv.delete(NS.opportunities, key);
+      prunedBudgets += 1;
+    }
+  }
+
   // Step 5: prune run history per monitor to the INTERSECTION of newest-50
   // and the 14-day window. monitor/<id>/latest summaries are never touched —
   // they summarize the last run, they do not reference a retained record.
@@ -160,6 +183,7 @@ export async function runRetentionPass(kv: JobSearchKv, now: Date): Promise<Rete
     evicted,
     expiredTombstones,
     prunedRuns,
+    prunedBudgets,
     protectedOverflow,
     targetMet: feed.entries.length <= OPPORTUNITY_TARGET
   };

@@ -17,6 +17,16 @@ import { canonicalJson, readRecord, writeRecord } from "./records.js";
 
 export type OpportunityStatus = "new" | "saved" | "active" | "passed" | "stale";
 
+// JS-07 (#936): structured posting facts. All additive-optional on
+// schemaVersion 1 — records.ts hard-pins the version, so a bump would brick
+// every existing reader. Absent facts mean "unknown", never a default.
+export interface PostingFacts {
+  publishedAt?: string;
+  workMode?: "remote" | "hybrid" | "onsite";
+  employmentType?: string;
+  compensation?: string;
+}
+
 export interface OpportunityRecord {
   schemaVersion: 1;
   identityHash: string;
@@ -27,7 +37,15 @@ export interface OpportunityRecord {
   firstSeenAt: string;
   lastSeenAt: string;
   contentHash: string;
-  posting: {
+  // JS-07: 32-hex hash of (adapterId, board) — see keys.sourceKey. Optional
+  // because pre-JS-07 records lack it; they stay freshness-"uncertain" until
+  // re-seen by a monitor that stamps it.
+  sourceKey?: string;
+  // JS-07: absence means "uncertain" (freshnessOf) — never default "active".
+  freshness?: "active" | "uncertain" | "stale";
+  // Last time a successful fetch of this record's own board included it.
+  lastLivenessAt?: string;
+  posting: PostingFacts & {
     title: string;
     company: string;
     location?: string;
@@ -49,7 +67,10 @@ export interface OpportunityInput {
   adapterId: string;
   externalId?: string;
   canonicalUrl?: string;
-  posting: {
+  // JS-07: supplied by the monitor run (it knows which board it fetched);
+  // absent for callers with no board context (e.g. manual capture).
+  sourceKey?: string;
+  posting: PostingFacts & {
     title: string;
     company: string;
     location?: string;
@@ -65,7 +86,8 @@ export type UpsertOpportunityResult =
 const HASH_PATTERN = /^[0-9a-f]{32}$/;
 
 /** Guard for identity hashes arriving from callers (they become key material). */
-function assertHash(hash: string): void {
+// Exported for JS-07 evaluations.ts — eval/<h> keys take the same guard.
+export function assertHash(hash: string): void {
   if (!HASH_PATTERN.test(hash)) {
     throw new JobSearchKvError("invalid_record", "identity hash must be 32 lowercase hex chars");
   }
@@ -90,6 +112,27 @@ export function truncateUtf8(text: string, maxBytes: number): { text: string; tr
 }
 
 const JOB_PREFIX = "job/";
+
+/** Stored posting = input posting with the description capped; structured
+ * facts (JS-07) pass through only when present so records never carry
+ * undefined placeholders. */
+function buildStoredPosting(
+  posting: OpportunityInput["posting"],
+  description: { text: string; truncated: boolean }
+): OpportunityRecord["posting"] {
+  return {
+    title: posting.title,
+    company: posting.company,
+    ...(posting.location !== undefined ? { location: posting.location } : {}),
+    ...(posting.url !== undefined ? { url: posting.url } : {}),
+    ...(posting.publishedAt !== undefined ? { publishedAt: posting.publishedAt } : {}),
+    ...(posting.workMode !== undefined ? { workMode: posting.workMode } : {}),
+    ...(posting.employmentType !== undefined ? { employmentType: posting.employmentType } : {}),
+    ...(posting.compensation !== undefined ? { compensation: posting.compensation } : {}),
+    description: description.text,
+    descriptionTruncated: description.truncated
+  };
+}
 
 export async function upsertOpportunity(
   kv: JobSearchKv,
@@ -125,6 +168,11 @@ export async function upsertOpportunity(
     keys.job(identityHash)
   )) as OpportunityRecord | null;
 
+  // JS-07: any sighting refreshes the source binding — pre-JS-07 records
+  // gain their sourceKey the first time a stamping monitor re-sees them.
+  // An input without one (manual capture) preserves whatever is stored.
+  const sourceBinding = input.sourceKey !== undefined ? { sourceKey: input.sourceKey } : {};
+
   let record: OpportunityRecord;
   if (existing === null) {
     record = {
@@ -132,38 +180,26 @@ export async function upsertOpportunity(
       identityHash,
       adapterId: input.adapterId,
       ...(input.externalId !== undefined ? { externalId: input.externalId } : {}),
+      ...sourceBinding,
       status: "new",
       statusAt: nowIso,
       firstSeenAt: nowIso,
       lastSeenAt: nowIso,
       contentHash: hash,
-      posting: {
-        title: input.posting.title,
-        company: input.posting.company,
-        ...(input.posting.location !== undefined ? { location: input.posting.location } : {}),
-        ...(input.posting.url !== undefined ? { url: input.posting.url } : {}),
-        description: description.text,
-        descriptionTruncated: description.truncated
-      }
+      posting: buildStoredPosting(input.posting, description)
     };
   } else if (existing.contentHash === hash) {
-    // Idempotent retry: only the sighting timestamp moves.
-    record = { ...existing, lastSeenAt: nowIso };
+    // Idempotent retry: only the sighting timestamp (and source binding) move.
+    record = { ...existing, ...sourceBinding, lastSeenAt: nowIso };
   } else {
     // Content changed: refresh posting + contentHash, preserve the user's
     // status/statusAt and the original firstSeenAt.
     record = {
       ...existing,
+      ...sourceBinding,
       contentHash: hash,
       lastSeenAt: nowIso,
-      posting: {
-        title: input.posting.title,
-        company: input.posting.company,
-        ...(input.posting.location !== undefined ? { location: input.posting.location } : {}),
-        ...(input.posting.url !== undefined ? { url: input.posting.url } : {}),
-        description: description.text,
-        descriptionTruncated: description.truncated
-      }
+      posting: buildStoredPosting(input.posting, description)
     };
   }
 

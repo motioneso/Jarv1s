@@ -44,6 +44,16 @@ export function contentHash(text: string): string {
 }
 
 /**
+ * JS-07 (#936): source identity = (adapterId, board). Stored on opportunity
+ * records so absence-from-fetch is judged per board — two monitors on one
+ * adapter watch different boards, and only the board that was actually
+ * fetched may stale its own records. A record field, never key material.
+ */
+export function sourceKey(adapterId: string, board: string): string {
+  return sha256Hex32(`${adapterId}\0${board}`);
+}
+
+/**
  * Identity of one evaluation = (posting content, profile revision, resume
  * revision). Any member changing means the evaluation must be redone.
  */
@@ -82,6 +92,10 @@ export const keys = {
   monitorSchedule: (monitorId: string) => `schedule/${monitorId}`,
   job: (h: string) => `job/${h}`,
   tombstone: (h: string) => `tombstone/${h}`,
+  /** JS-07 (#936): AI evaluation, keyed by the job's identity hash. */
+  evaluation: (h: string) => `eval/${h}`,
+  /** JS-07 (#936): daily AI budget ledger, keyed by UTC calendar date. */
+  evalBudget: (date: string) => `evalBudget/${date}`,
   run: (monitorId: string, runId: string) => `run/${monitorId}/${runId}`,
   runLatest: (monitorId: string) => `monitor/${monitorId}/latest`,
   feedActive: "active"

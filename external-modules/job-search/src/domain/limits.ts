@@ -22,6 +22,21 @@ export const TOMBSTONE_TTL_DAYS = 60;
 export const RUN_RETENTION_MAX = 50;
 export const RUN_RETENTION_DAYS = 14;
 
+// JS-07 (#936): evaluation record + AI budget limits (approved plan
+// 2026-07-11-js-07-freshness-dedup-fit).
+// Evaluations live in their own key family (eval/<h>) with a cap well below
+// the KV value limit — a job description alone can be 16 KB, so evaluations
+// must never ride on (or grow like) the job record.
+export const EVALUATION_MAX_BYTES = 24_576;
+// Daily AI evaluation budget per owner. NOTE the platform's
+// AI_CALLS_PER_INVOCATION_CAP is 8 (repairs included) — the per-invocation
+// eval cap stays below it and the daily cap is drained across sweeps.
+export const EVAL_DAILY_CAP = 25;
+export const PER_INVOCATION_EVAL_MAX = 6;
+// evalBudget/<date> ledgers older than this are pruned by retention; the
+// boundary day itself is kept (strictly-older prune).
+export const EVAL_BUDGET_RETENTION_DAYS = 7;
+
 // User-facing rejection copy for oversized resume input — exact wording is
 // part of the spec contract (asserted verbatim in tests; JS-03 surfaces it).
 export const RESUME_TOO_LARGE_MESSAGE =

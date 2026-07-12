@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  EVAL_BUDGET_RETENTION_DAYS,
   OPPORTUNITY_TARGET,
   RUN_RETENTION_MAX,
   TOMBSTONE_TTL_DAYS
@@ -220,5 +221,84 @@ describe("retention engine", () => {
     expect(await kv.get(NS.opportunities, keys.job(hash))).toBeNull();
     expect(await kv.get(NS.opportunities, keys.tombstone(hash))).not.toBeNull();
     expect(report.targetMet).toBe(true);
+  });
+});
+
+// JS-07 (#936) Step 4: evaluations and budget ledgers join the retention
+// pass. An evaluation is meaningless without its job, so eviction deletes
+// eval/<h> too — ordered tombstone → eval → job so an interrupted pass
+// always leaves a state the next pass converges from (job key still present
+// re-qualifies the whole sequence).
+describe("evaluation + budget retention (JS-07)", () => {
+  const budgetDate = (days: number) => daysAgo(days).toISOString().slice(0, 10);
+
+  it("evicting a job deletes its evaluation, eval delete ordered before job delete", async () => {
+    const kv = createMemoryKv();
+    const hash = await seedJob(kv, "old-passed", "passed", daysAgo(31));
+    await kv.set(NS.opportunities, keys.evaluation(hash), {
+      schemaVersion: 1,
+      identityHash: hash
+    });
+    // Record the NS.opportunities delete order to pin the convergence
+    // invariant: eval/<h> must go before job/<h>.
+    const deletions: string[] = [];
+    const rawDelete = kv.delete.bind(kv);
+    kv.delete = async (namespace, key) => {
+      if (namespace === NS.opportunities) {
+        deletions.push(key);
+      }
+      return rawDelete(namespace, key);
+    };
+
+    const report = await runRetentionPass(kv, NOW);
+    expect(report.evicted).toEqual([hash]);
+    expect(await kv.get(NS.opportunities, keys.evaluation(hash))).toBeNull();
+    expect(await kv.get(NS.opportunities, keys.job(hash))).toBeNull();
+    expect(await kv.get(NS.opportunities, keys.tombstone(hash))).not.toBeNull();
+    const evalIndex = deletions.indexOf(keys.evaluation(hash));
+    const jobIndex = deletions.indexOf(keys.job(hash));
+    expect(evalIndex).toBeGreaterThanOrEqual(0);
+    expect(evalIndex).toBeLessThan(jobIndex);
+  });
+
+  it("converges when a prior pass died between eval delete and job delete", async () => {
+    const kv = createMemoryKv();
+    const hash = await seedJob(kv, "old-passed", "passed", daysAgo(31));
+    // Interrupted state: tombstone written, eval already deleted (never
+    // existed here), job key still present.
+    await kv.set(NS.opportunities, keys.tombstone(hash), {
+      schemaVersion: 1,
+      identityHash: hash,
+      adapterId: "greenhouse",
+      expiresAt: new Date(NOW.getTime() + TOMBSTONE_TTL_DAYS * DAY_MS).toISOString()
+    });
+
+    const report = await runRetentionPass(kv, NOW);
+    expect(report.evicted).toEqual([hash]);
+    expect(await kv.get(NS.opportunities, keys.job(hash))).toBeNull();
+  });
+
+  it("prunes budget ledgers older than the retention window, keeps the boundary day", async () => {
+    const kv = createMemoryKv();
+    const seedLedger = (date: string, used: number) =>
+      kv.set(NS.opportunities, keys.evalBudget(date), { schemaVersion: 1, date, used });
+    const prunedDate = budgetDate(EVAL_BUDGET_RETENTION_DAYS + 1);
+    const boundaryDate = budgetDate(EVAL_BUDGET_RETENTION_DAYS); // exactly N days old → kept
+    const recentDate = budgetDate(2);
+    await seedLedger(prunedDate, 25);
+    await seedLedger(boundaryDate, 10);
+    await seedLedger(recentDate, 3);
+
+    const report = await runRetentionPass(kv, NOW);
+    expect(report.prunedBudgets).toBe(1);
+    expect(await kv.get(NS.opportunities, keys.evalBudget(prunedDate))).toBeNull();
+    expect(await kv.get(NS.opportunities, keys.evalBudget(boundaryDate))).not.toBeNull();
+    expect(await kv.get(NS.opportunities, keys.evalBudget(recentDate))).not.toBeNull();
+  });
+
+  it("reports zero pruned budgets when no ledgers exist", async () => {
+    const kv = createMemoryKv();
+    const report = await runRetentionPass(kv, NOW);
+    expect(report.prunedBudgets).toBe(0);
   });
 });

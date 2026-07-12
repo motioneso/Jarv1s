@@ -13,6 +13,10 @@ export {
 } from "./confirmations.js";
 export type { DiffHunk } from "./diff.js";
 export { diffLines } from "./diff.js";
+export type { Freshness, FreshnessCounts, FreshnessRunContext } from "./freshness.js";
+export { freshnessOf, markFreshnessAfterRun, transitionFreshness } from "./freshness.js";
+export type { GateResult, GateVerdict } from "./gate.js";
+export { applyGate } from "./gate.js";
 export type {
   MarkdownCoverageVerdict,
   MaterialClaim,
@@ -38,10 +42,31 @@ export { JobSearchKvError } from "./errors.js";
 export type { JobSearchKvErrorCode } from "./errors.js";
 export type { JobSearchKv, JobSearchNamespace } from "./kv-port.js";
 export { NS, kvFromWorkerContext } from "./kv-port.js";
+export type {
+  EvalBudgetRecord,
+  EvaluationConfidence,
+  EvaluationEvidence,
+  EvaluationInputs,
+  EvaluationRecommendation,
+  EvaluationRecord,
+  FitBand
+} from "./evaluations.js";
+export {
+  budgetDateFor,
+  getEvaluation,
+  isOutdated,
+  readBudgetUsed,
+  saveEvaluation,
+  takeBudget
+} from "./evaluations.js";
 export {
   DESCRIPTION_MAX_BYTES,
+  EVAL_BUDGET_RETENTION_DAYS,
+  EVAL_DAILY_CAP,
+  EVALUATION_MAX_BYTES,
   KV_VALUE_MAX_BYTES,
   OPPORTUNITY_TARGET,
+  PER_INVOCATION_EVAL_MAX,
   PASSED_STALE_EVICT_DAYS,
   RESUME_INPUT_MAX_BYTES,
   RESUME_TOO_LARGE_MESSAGE,
@@ -50,7 +75,14 @@ export {
   TOMBSTONE_TTL_DAYS
 } from "./limits.js";
 export { canonicalJson, readRecord, writeRecord } from "./records.js";
-export { assertId, contentHash, evaluationIdentity, keys, opportunityIdentity } from "./keys.js";
+export {
+  assertId,
+  contentHash,
+  evaluationIdentity,
+  keys,
+  opportunityIdentity,
+  sourceKey
+} from "./keys.js";
 export type { OnboardingState } from "./onboarding.js";
 export { getOnboardingState, saveOnboardingState } from "./onboarding.js";
 export type { ProfileRevision } from "./profile.js";
@@ -103,7 +135,20 @@ export {
 export type { MonitorScheduleState } from "./schedule.js";
 export type { RunRecord, RunSummary } from "./runs.js";
 export { getRunSummary, listRuns, recordRun } from "./runs.js";
-export type { FeedEntry, FeedIndex } from "./feed.js";
-export { readFeed, readFeedOrRebuild, rebuildFeed } from "./feed.js";
+export type {
+  FeedBandCode,
+  FeedConfidenceCode,
+  FeedEntry,
+  FeedGateCode,
+  FeedIndex
+} from "./feed.js";
+export {
+  FEED_BAND_CODES,
+  FEED_CONFIDENCE_CODES,
+  FEED_GATE_CODES,
+  readFeed,
+  readFeedOrRebuild,
+  rebuildFeed
+} from "./feed.js";
 export type { RetentionReport } from "./retention.js";
 export { runRetentionPass } from "./retention.js";
