@@ -3835,4 +3835,28 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   **JS-09 #938** (acceptance/7-day validation — LAST), follow-ups #960 #962 #957 #965 #971.
 - JS-08 = FABLE lane (Job Search builder). BEFORE spawn: confirm approved JS-08 plan exists (Fable
   drafts if not) + write handoff doc. Tier: likely SECURITY (assistant reads over owner feed).
-- Fleet Monitor b54y9f2eg persistent. Agents tab w1:t1K. Coordinator lock 58a78927.
+- Fleet Monitor b54y9f2eg persistent. Coordinator lock 58a78927 (pane w1:pE6, tab w1:t15).
+
+### 2026-07-11 — CHECKPOINT (70% meter, relay-IN-PLACE per directive #3, NO successor pane)
+- **JS-08 (#937) setup DONE, spawn PENDING** (deferred across this compaction so model-line + tab
+  verify don't straddle the boundary). READY:
+  - Worktree `.claude/worktrees/js-08-build`, branch `feat/js-08-opportunity-feed`, rooted
+    origin/main `c23a93b8`. Tier **SECURITY** (assistant reads/decide-tools over owner feed +
+    confirm-gated mutations + audit + external-content-as-text; relates #960).
+  - Handoff doc WRITTEN + on disk: `docs/coordination/2026-07-11-js-08-build-handoff.md` (untracked,
+    coordinator-only — do NOT commit; agent reads from disk). Spec approved:
+    `docs/superpowers/specs/2026-07-10-job-search-js-08-opportunity-feed.md` (merged PR #929). Deps
+    #935 #936 both merged. Task #26.
+- **⚠️ AGENTS TAB w1:t1K IS GONE** — fleet fully idle (only Coordinator w1:pE6/w1:t15 + one `done`
+  pane w1:pEP remain). RESUME STEPS after compaction:
+  1. `herdr pane list` → confirm still idle; pick the agents tab. If none, spawn creates a new tab
+     in **w1** (do NOT land in coordinator tab w1:t15). Use `--tab w1:<agents-tab>` with a FRESH id,
+     or spawn then `herdr pane move … --new-tab --workspace w1 --label agents`.
+  2. Spawn Fable build agent (SAME bootstrap as prior attempt): `herdr agent start "JS-08 build"
+     --tab w1:<agents> --cwd <abs>/.claude/worktrees/js-08-build --no-focus -- claude --model fable
+     --permission-mode bypassPermissions "<bootstrap: [ -d node_modules ] || pnpm install; read
+     docs/coordination/2026-07-11-js-08-build-handoff.md IN FULL; follow via coordinated-build;
+     SECURITY tier; you are FABLE, successor must be --model fable>"`.
+  3. Verify pane booted **Fable 5** (respawn if Sonnet/Opus) + correct tab. Record pane in manifest,
+     task #26 → in_progress. Then supervise via Monitor b54y9f2eg.
+- After JS-08: JS-09 #938 (LAST slice) → numbered v* tag + verify .dockerignore external-modules.
