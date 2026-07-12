@@ -41,6 +41,8 @@ export type GenerateStructuredDeps = {
     apiKey: string,
     baseUrl: string | null
   ) => StructuredProviderAdapter;
+  /** #982/#869/#981: implemented by chat and injected at module-registry; ai never imports chat. */
+  readonly createCliStructuredAdapter?: (kind: ProviderKind) => StructuredProviderAdapter;
 };
 
 export type GenerateStructuredInput = {
@@ -80,11 +82,6 @@ export async function generateStructured(
   );
   if (!provider) return { ok: false, error: "needs_config" };
 
-  const credential = parseAiApiKeyCredential(
-    deps.cipher.decryptJson(provider.encrypted_credential)
-  );
-  if (!credential) return { ok: false, error: "needs_config" };
-
   if (
     model.provider_kind !== "anthropic" &&
     model.provider_kind !== "openai-compatible" &&
@@ -97,12 +94,31 @@ export async function generateStructured(
     return { ok: false, error: "provider_error" };
   }
   const providerKind = model.provider_kind as ProviderKind;
-
-  const createAdapter =
-    deps.createAdapter ??
-    ((kind: ProviderKind, apiKey: string, baseUrl: string | null) =>
-      new HttpApiAdapter(kind, apiKey, baseUrl ? { baseUrl } : {}));
-  const adapter = createAdapter(providerKind, credential.apiKey, provider.base_url ?? null);
+  let adapter: StructuredProviderAdapter;
+  if (provider.auth_method === "cli") {
+    // #982/#869/#981 D3: CLI credentials are sealed markers, not API keys. Route before decrypt so
+    // AES-GCM can never see `{ cli: true }`; composition root supplies chat's CLI implementation.
+    if (!deps.createCliStructuredAdapter) return { ok: false, error: "needs_config" };
+    adapter = deps.createCliStructuredAdapter(providerKind);
+  } else {
+    let credential;
+    try {
+      credential = parseAiApiKeyCredential(deps.cipher.decryptJson(provider.encrypted_credential));
+    } catch {
+      // #981 defense-in-depth: never log ciphertext, credential material, or raw AES-GCM errors.
+      deps.logger?.warn(
+        { service: input.service, providerKind },
+        "ai.structured credential could not be decrypted"
+      );
+      return { ok: false, error: "needs_config" };
+    }
+    if (!credential) return { ok: false, error: "needs_config" };
+    const createAdapter =
+      deps.createAdapter ??
+      ((kind: ProviderKind, apiKey: string, baseUrl: string | null) =>
+        new HttpApiAdapter(kind, apiKey, baseUrl ? { baseUrl } : {}));
+    adapter = createAdapter(providerKind, credential.apiKey, provider.base_url ?? null);
+  }
 
   const ajv = new Ajv({ strict: false, validateFormats: false });
   const validate = ajv.compile(input.schema);
@@ -113,15 +129,28 @@ export async function generateStructured(
   for (let attempt = 0; attempt <= STRUCTURED_MAX_REPAIR_RETRIES; attempt += 1) {
     if (input.signal?.aborted) return { ok: false, error: "aborted" };
 
-    let result: StructuredProviderResult;
+    let result: Extract<StructuredProviderResult, { readonly rawObject: unknown }>;
     try {
-      result = await adapter.generateStructured({
+      const generated = await adapter.generateStructured({
         model: { provider_kind: providerKind, provider_model_id: model.provider_model_id },
         messages,
         schema: input.schema,
         maxOutputTokens,
         signal: input.signal
       });
+      if ("rawText" in generated) {
+        try {
+          result = { rawObject: JSON.parse(generated.rawText), usage: generated.usage };
+        } catch {
+          throw new StructuredOutputParseError(
+            "CLI output is not valid JSON",
+            generated.rawText,
+            generated.usage
+          );
+        }
+      } else {
+        result = generated;
+      }
     } catch (error) {
       if (input.signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
         return { ok: false, error: "aborted" };

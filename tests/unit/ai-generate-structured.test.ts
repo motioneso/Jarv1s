@@ -6,7 +6,8 @@ import { StructuredOutputParseError } from "../../packages/ai/src/adapters/http-
 import {
   STRUCTURED_MAX_REPAIR_RETRIES,
   generateStructured,
-  type GenerateStructuredDeps
+  type GenerateStructuredDeps,
+  type StructuredProviderAdapter
 } from "../../packages/ai/src/structured/generate-structured.js";
 
 const scopedDb = {} as DataContextDb;
@@ -28,6 +29,7 @@ type DepsOverrides = {
   cipher?: GenerateStructuredDeps["cipher"];
   logger?: GenerateStructuredDeps["logger"];
   createAdapter?: GenerateStructuredDeps["createAdapter"];
+  createCliStructuredAdapter?: GenerateStructuredDeps["createCliStructuredAdapter"];
 };
 
 function makeDeps(overrides: DepsOverrides = {}): GenerateStructuredDeps {
@@ -38,13 +40,20 @@ function makeDeps(overrides: DepsOverrides = {}): GenerateStructuredDeps {
         reason: "matched-active-model" as const
       })),
       selectProviderWithCredential: vi.fn(
-        async () => ({ id: "provider-1", base_url: null, encrypted_credential: {} }) as never
+        async () =>
+          ({
+            id: "provider-1",
+            auth_method: "api_key",
+            base_url: null,
+            encrypted_credential: {}
+          }) as never
       ),
       ...overrides.repository
     } as GenerateStructuredDeps["repository"],
     cipher: overrides.cipher ?? { decryptJson: vi.fn(() => ({ apiKey: "sk-test" })) },
     logger: overrides.logger,
-    createAdapter: overrides.createAdapter
+    createAdapter: overrides.createAdapter,
+    createCliStructuredAdapter: overrides.createCliStructuredAdapter
   };
 }
 
@@ -103,6 +112,73 @@ describe("generateStructured", () => {
     });
     expect(generate).toHaveBeenCalledTimes(2);
     expect(generate.mock.calls[1]![0].messages).toHaveLength(3);
+  });
+
+  it("routes CLI providers through the injected adapter without decrypting", async () => {
+    const decryptJson = vi.fn(() => {
+      throw new Error("AES-GCM must not run for CLI");
+    });
+    const createCliStructuredAdapter = vi.fn(() => ({
+      generateStructured: vi.fn(async () => ({
+        rawText: '{"a":"cli"}',
+        usage: { inputTokens: 0, outputTokens: 0 }
+      }))
+    }));
+    const result = await generateStructured(
+      scopedDb,
+      makeInput(),
+      makeDeps({
+        repository: {
+          selectProviderWithCredential: vi.fn(
+            async () =>
+              ({ id: "provider-1", auth_method: "cli", encrypted_credential: {} }) as never
+          )
+        },
+        cipher: { decryptJson },
+        createCliStructuredAdapter
+      })
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      object: { a: "cli" },
+      usage: { inputTokens: 0, outputTokens: 0 }
+    });
+    expect(createCliStructuredAdapter).toHaveBeenCalledWith("anthropic");
+    expect(decryptJson).not.toHaveBeenCalled();
+  });
+
+  it("repairs malformed CLI text through the shared Ajv loop", async () => {
+    const generateStructured = vi
+      .fn()
+      .mockResolvedValueOnce({ rawText: "not-json", usage: { inputTokens: 0, outputTokens: 0 } })
+      .mockResolvedValueOnce({
+        rawText: '{"a":"fixed"}',
+        usage: { inputTokens: 0, outputTokens: 0 }
+      });
+    const result = await generateStructuredResultWithCli(generateStructured);
+
+    expect(result).toMatchObject({ ok: true, object: { a: "fixed" } });
+    expect(generateStructured).toHaveBeenCalledTimes(2);
+    expect(generateStructured.mock.calls[1]![0].messages).toHaveLength(3);
+  });
+
+  it("maps corrupt API credentials to needs_config without exposing cipher errors", async () => {
+    const warn = vi.fn();
+    const result = await generateStructured(
+      scopedDb,
+      makeInput(),
+      makeDeps({
+        cipher: {
+          decryptJson: vi.fn(() => {
+            throw new Error("raw AES-GCM secret");
+          })
+        },
+        logger: { info: vi.fn(), warn }
+      })
+    );
+    expect(result).toEqual({ ok: false, error: "needs_config" });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("AES-GCM");
   });
 
   it("returns validation_failed after bounded retries", async () => {
@@ -246,3 +322,20 @@ describe("generateStructured", () => {
     ).rejects.toThrow(/not allowed/);
   });
 });
+
+function generateStructuredResultWithCli(
+  generate: StructuredProviderAdapter["generateStructured"]
+) {
+  return generateStructured(
+    scopedDb,
+    makeInput(),
+    makeDeps({
+      repository: {
+        selectProviderWithCredential: vi.fn(
+          async () => ({ id: "provider-1", auth_method: "cli", encrypted_credential: {} }) as never
+        )
+      },
+      createCliStructuredAdapter: () => ({ generateStructured: generate })
+    })
+  );
+}

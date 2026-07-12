@@ -414,4 +414,81 @@ describe("generateStructured end-to-end", () => {
     expect(captured.input?.model.provider_model_id).toBe("json-economy");
     expect(captured.input?.messages).toEqual([{ role: "user", content: "Extract the job title." }]);
   });
+
+  it("binds CLI json models and routes generation through the injected CLI adapter", async () => {
+    const create = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: {
+        providerKind: "openai-compatible",
+        displayName: "Codex CLI",
+        authMethod: "cli"
+      }
+    });
+    expect(create.statusCode).toBe(201);
+    const cliProviderId = create.json().provider.id as string;
+    const cliModel = await dataContext.withDataContext(adminContext(), async (db) =>
+      (await repository.listModels(db)).find(
+        (model) =>
+          model.provider_config_id === cliProviderId && model.provider_model_id === "gpt-5.6-luna"
+      )
+    );
+    expect(cliModel).toBeDefined();
+
+    const binding = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.news/binding",
+      headers: { authorization: `Bearer ${ids.sessionAdmin}` },
+      payload: { binding: { kind: "model", modelId: cliModel!.id } }
+    });
+    expect(binding.statusCode).toBe(200);
+
+    const generate = async (outputs: string[]) => {
+      const adapter = {
+        generateStructured: async () => ({
+          rawText: outputs.shift() ?? "{}",
+          usage: { inputTokens: 0, outputTokens: 0 }
+        })
+      };
+      return dataContext.withDataContext(adminContext(), (scopedDb) =>
+        generateStructured(
+          scopedDb,
+          {
+            service: "module.news",
+            prompt: "Return a title.",
+            schema: {
+              type: "object",
+              required: ["title"],
+              properties: { title: { type: "string" } }
+            }
+          },
+          {
+            repository,
+            cipher: {
+              decryptJson: () => {
+                throw new Error("CLI must not decrypt");
+              }
+            },
+            createCliStructuredAdapter: (kind) => {
+              expect(kind).toBe("openai-compatible");
+              return adapter;
+            }
+          }
+        )
+      );
+    };
+
+    expect(await generate(['{"title":"CLI"}'])).toMatchObject({
+      ok: true,
+      object: { title: "CLI" }
+    });
+    expect(await generate(["not-json", '{"title":"Repaired"}'])).toMatchObject({
+      ok: true,
+      object: { title: "Repaired" }
+    });
+    await dataContext.withDataContext(adminContext(), (db) =>
+      repository.deleteModuleServiceBinding(db, "module.news", ids.adminUser)
+    );
+  });
 });
