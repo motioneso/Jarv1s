@@ -3870,3 +3870,16 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   GREEN). Now re-grounding/planning News Slice 3, carrying Fable's 300-vs-1000 topic-guidance policy
   gap as a required S3 fix; will return plan path for Fable adversarial review; NO builder spawn yet.
 - **Epic #913 remaining = JS-08 (#937, live) + JS-09 (#938, LAST).** JS-01..JS-07 all merged.
+
+### 2026-07-11 — JS-08 relay #1 + News S3 plan review
+- **JS-08 relay #1 DONE.** Predecessor (session 3faabad2) grounded (NO code, NO plan yet), committed
+  continuation doc `docs/superpowers/handoffs/2026-07-11-js-08-relay.md` (`96277212`), spawned Fable
+  successor same worktree. Verified: successor **pane `w1:pGS`, tab `t1M`, session `476a95b4`, Fable
+  5** ✓; predecessor tree clean (only untracked coordinator-only handoff + harness log). Reaped
+  predecessor pGQ. **JS-08 still pre-plan** — successor to draft grounded plan → Coordinator approval
+  before code.
+- **News Codex lane — S3 plan ready:** `docs/superpowers/plans/2026-07-11-personalized-news-slice3.md`
+  (`97c28748`, handoff `d136138e`), grounded `c23a93b8` incl S2 `aa7216a6`. Per Ben's Fable-review
+  assignment, isolated read-only Fable reviewer running: label `News S3 Plan Review`, pane `w1:pGR`,
+  session `00c5f784`, branch `review/news-slice3-plan`. NO builder yet; folds blockers → verdict
+  before build. (News lane self-drives its own council; Coordinator tracks only.)
