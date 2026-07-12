@@ -4742,3 +4742,12 @@ Ben: "hold for 964." Do NOT wire the manual external-module test path into Jarvi
 stays unreachable-by-user until #964 (detect→download→install) ships. #964 is spec-gated (task #24,
 no approved spec yet → no builder). Grounded #964 with the concrete prod-blocker comment. No further
 action on Job Search reachability this run.
+
+### #964 now in active planning (Ben's Fable agent)
+
+Ben (2026-07-12): his Fable agent (main tree, session 0c60f7c3, pane pGV) is now WRITING the #964
+plan (module distribution/install — detect→download→install). #964 moved parked → active planning,
+Ben-owned lane. Coordinator does NOT spawn a #964 builder or touch that tree. When the plan lands +
+Ben approves, #964 becomes the unblock for Job Search user-reachability (per the prod-blocker comment
+filed on #964). Three isolated worktrees, no shared-tree collision: coord (mine), news-s4 (relay13),
+main (#964 agent). No action from me beyond staying out of its way.
