@@ -16,9 +16,12 @@
 // a monitor query (companyName of a DISABLED monitor — enabled-monitor
 // companyName legitimately flows into postings, so the query sentinel rides
 // a monitor the sweep must skip; that skip is itself asserted). The scan
-// proves none of the three ever reaches job payloads, worker logs, or the
-// runs/opportunities/feed namespaces, with positive controls proving the
-// scan would catch a leak (each sentinel IS found where it was seeded).
+// proves none of the three ever reaches job payloads, worker logs, the
+// runs/opportunities/feed namespaces, or the rendered counts-only evidence
+// artifact (PR #976 council: the artifact is a named scan surface of
+// security bar #2 — the manual dry-run alone is not evidence), with
+// positive controls proving the scan would catch a leak (each sentinel IS
+// found where it was seeded).
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,11 +45,21 @@ import {
   type ExternalModuleJobHandlerDeps
 } from "../../apps/worker/src/external-module-job-handler.js";
 import { buildExternalModule } from "../../scripts/build-external-module.js";
+// The REAL renderer behind `pnpm evidence:job-search` — the evidence artifact
+// is a named surface of the sentinel privacy scan (security bar #2), so this
+// suite renders it in-process from the same seeded run and scans the result.
+import { renderAcceptanceEvidence } from "../../scripts/job-search-acceptance-evidence.js";
+import {
+  KILL_SWITCHED,
+  SOURCE_ADAPTERS,
+  activeAdapters
+} from "../../external-modules/job-search/src/adapters/registry.js";
 import type { JobSearchKv } from "../../external-modules/job-search/src/domain/index.js";
 import {
   getRunSummary,
   listOpportunities
 } from "../../external-modules/job-search/src/domain/index.js";
+import { EVAL_DAILY_CAP } from "../../external-modules/job-search/src/domain/limits.js";
 import type {
   JobSearchAi,
   WorkerPorts
@@ -355,7 +368,7 @@ describe("js-09 acceptance — real-hash life cycle E2E (#938)", () => {
     expect(rows.some((row) => row.namespace === "job-search.feed")).toBe(true);
   }, 120_000);
 
-  it("keeps every sentinel out of job payloads, worker logs, and derived namespaces — with positive controls", async () => {
+  it("keeps every sentinel out of job payloads, worker logs, derived namespaces, and the rendered evidence artifact — with positive controls", async () => {
     const payloadJson = JSON.stringify(sweepPayload());
     const logDump = workerLogs.join("\n");
     const rows = await bootstrapJobSearchRows(bootstrap);
@@ -366,10 +379,48 @@ describe("js-09 acceptance — real-hash life cycle E2E (#938)", () => {
     // The derived surfaces must be non-empty or the absence scan is vacuous.
     expect(derivedDump.length).toBeGreaterThan(0);
 
+    // Surface (3), PR #976 council: the counts-only evidence artifact,
+    // rendered by the REAL renderer behind `pnpm evidence:job-search` from
+    // this same seeded run's live counts (one sweep has run at this point;
+    // gate outcomes/seven-day are fixed enum inputs the renderer validates).
+    const opportunities = await listOpportunities(kvA);
+    const moduleManifest = JSON.parse(
+      readFileSync(join(jobSearchSourceDir, "jarvis.module.json"), "utf8")
+    ) as { version: string };
+    const artifact = renderAcceptanceEvidence({
+      coreVersion: CORE_VERSION,
+      moduleVersion: moduleManifest.version,
+      nodeVersion: process.version,
+      enabledAdapters: activeAdapters(SOURCE_ADAPTERS, KILL_SWITCHED).map((a) => a.id),
+      runCounts: {
+        scheduledRuns: 1,
+        ingested: opportunities.length,
+        suppressedDuplicates: 0,
+        evaluated: rows.filter((row) => row.namespace === "job-search.feed").length
+      },
+      dedup: { secondRunNewOpportunities: 0, secondRunNewEvaluations: 0 },
+      gates: {
+        verifyFoundation: "pass",
+        releaseHardening: "pass",
+        moduleBuild: "pass",
+        isolationSuite: "pass",
+        failClosedSuite: "pass",
+        lifecycleSuite: "pass"
+      },
+      evalDailyCap: EVAL_DAILY_CAP,
+      sevenDayResult: "pending"
+    });
+    // Non-vacuous: the artifact rendered real content (counts section with
+    // this run's ingested count), so the not.toContain below cannot pass on
+    // an empty or truncated string.
+    expect(artifact).toContain("## Run counts");
+    expect(artifact).toContain(`- Opportunities ingested: ${opportunities.length}`);
+
     for (const sentinel of SENTINELS) {
       expect(payloadJson).not.toContain(sentinel);
       expect(logDump).not.toContain(sentinel);
       expect(derivedDump).not.toContain(sentinel);
+      expect(artifact).not.toContain(sentinel);
     }
 
     // Positive controls: the scan finds each sentinel where it was seeded,
