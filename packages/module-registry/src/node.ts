@@ -24,6 +24,10 @@ export * from "./external/tool-manifests.js";
 export * from "./external/job-reconciler.js";
 export * from "./distribution/index-schema.js";
 export * from "./distribution/ensure-list.js";
+export * from "./distribution/registry-source.js";
+export * from "./distribution/extract.js";
+export * from "./distribution/stage.js";
+export * from "./distribution/pipeline.js";
 
 /**
  * Discover external modules under `modulesDir` (#917). Server-only. Read-only: never
