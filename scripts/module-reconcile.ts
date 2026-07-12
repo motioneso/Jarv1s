@@ -346,8 +346,26 @@ async function purgeModule(client: Client, modulesDir: string, moduleId: string)
   await client.query("DELETE FROM app.module_schema_migrations WHERE module_id = $1", [moduleId]);
   await client.query("DELETE FROM app.module_installs WHERE module_id = $1", [moduleId]);
 
-  // 4. Roles. DROP OWNED first releases grants/objects so DROP ROLE can't fail on
-  // dependencies. Role names are derived, never read from data.
+  // 4. Roles. The install role re-grants schema USAGE + the RLS-predicate function's
+  // EXECUTE onward to the runtime role using its own GRANT OPTION (module-role-broker.ts's
+  // ensureModuleRoles) — those two ACL entries are recorded with grantor = install role, not
+  // this (bootstrap/superuser) connection. A superuser-issued `DROP OWNED BY <runtimeRole>`
+  // only strips ACL entries THIS connection granted; entries granted by a different grantor
+  // survive and block `DROP ROLE` with "some objects depend on it". Revoking the install
+  // role's grant option WITH CASCADE removes those downstream grants first. Must run before
+  // the runtime role is dropped below. Role names are derived, never read from data.
+  const installRole = moduleInstallRoleName(moduleId);
+  await client.query(
+    `DO $$ BEGIN
+       IF EXISTS (SELECT FROM pg_roles WHERE rolname = '${installRole}') THEN
+         EXECUTE format('REVOKE GRANT OPTION FOR USAGE ON SCHEMA app FROM %I CASCADE', '${installRole}');
+         EXECUTE format('REVOKE GRANT OPTION FOR EXECUTE ON FUNCTION app.current_actor_user_id() FROM %I CASCADE', '${installRole}');
+       END IF;
+     END $$`
+  );
+
+  // DROP OWNED first releases any remaining grants/objects so DROP ROLE can't fail on
+  // dependencies.
   for (const role of [moduleRuntimeRoleName(moduleId), moduleInstallRoleName(moduleId)]) {
     await client.query(
       `DO $$ BEGIN
