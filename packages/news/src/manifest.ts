@@ -36,7 +36,7 @@ import {
   summarizeNewsRemoveTopic
 } from "./chat-tools.js";
 import { collectNewsExportSection } from "./data-lifecycle.js";
-import { NEWS_MODULE_ID } from "./module-id.js";
+import type { NEWS_MODULE_ID } from "./module-id.js";
 import { NEWS_FETCH_HOSTS, NEWS_IMAGE_HOSTS } from "./source/catalog.js";
 
 export { NEWS_MODULE_ID } from "./module-id.js";
@@ -48,7 +48,11 @@ const FEED_TTL_MS = 10 * 60 * 1000;
 export const newsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
 export const newsModuleManifest = {
-  id: NEWS_MODULE_ID,
+  // Inline literal, not the imported NEWS_MODULE_ID: the settings-ui scanner reads this
+  // file statically and resolves only same-file constants, so an imported identifier makes
+  // the web scan throw and the settings scan silently drop this module. `satisfies` pins
+  // the literal to module-id.ts at compile time so the two can never drift (#975 Slice 4).
+  id: "news" satisfies typeof NEWS_MODULE_ID,
   name: "News",
   version: "0.1.0",
   publisher: "jarv1s",

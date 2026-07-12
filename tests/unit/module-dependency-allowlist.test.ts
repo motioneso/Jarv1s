@@ -95,7 +95,10 @@ const SANCTIONED_FEATURE_COUPLINGS = [
   "@jarv1s/chat -> @jarv1s/tasks",
   "@jarv1s/cli-runner -> @jarv1s/chat",
   "@jarv1s/connectors -> @jarv1s/calendar",
-  "@jarv1s/connectors -> @jarv1s/email"
+  "@jarv1s/connectors -> @jarv1s/email",
+  // #975 Slice 4: revalidation writes its one owner-facing summary through the
+  // Notifications public boundary (same shape as briefings -> notifications above).
+  "@jarv1s/news -> @jarv1s/notifications"
 ].sort();
 
 interface PackageManifest {
