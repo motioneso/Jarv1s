@@ -3860,3 +3860,13 @@ v5 (pGA/5f7eaa4d) hit 70%, T10 committed 40a11728 (integration guards + browser-
   3. Verify pane booted **Fable 5** (respawn if Sonnet/Opus) + correct tab. Record pane in manifest,
      task #26 → in_progress. Then supervise via Monitor b54y9f2eg.
 - After JS-08: JS-09 #938 (LAST slice) → numbered v* tag + verify .dockerignore external-modules.
+
+### 2026-07-11 — JS-08 SPAWNED + News lane note
+- **JS-08 #937 build agent LIVE:** pane `w1:pGQ`, tab `w1:t1M` (agents), session `3faabad2`, model
+  **Fable 5** confirmed, effort high, branch `feat/js-08-opportunity-feed`. Drafting grounded plan →
+  awaits Coordinator plan approval before code. (Initial spawn mis-landed in coordinator tab t15 →
+  moved out to fresh agents tab t1M; coordinator alone in t15 again.)
+- **Parallel News lane (Codex `pEP`, w1:t1J):** reported **#967 MERGED** (all CI green, Opus+Fable
+  GREEN). Now re-grounding/planning News Slice 3, carrying Fable's 300-vs-1000 topic-guidance policy
+  gap as a required S3 fix; will return plan path for Fable adversarial review; NO builder spawn yet.
+- **Epic #913 remaining = JS-08 (#937, live) + JS-09 (#938, LAST).** JS-01..JS-07 all merged.
