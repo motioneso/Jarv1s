@@ -5593,3 +5593,19 @@ loud) — that one is unanswered and must not be treated as closed.
 
 **Relay counter:** `merges_since_relay` = 1 (unchanged; no merge this window). Checkpoint @70% done:
 manifest flushed + durable memory saved (RLS seed invariant `mem_mrjr1i1d`). Compacting in place.
+
+---
+
+### BEN RULING — #868 capture-fail contract = HARD FAIL (2026-07-13)
+
+Ben (genuine user turn), verbatim: **"868 hard fail. If we cant do a private session then we dont."**
+- **Capture-fail contract RESOLVED** = hard-fail-loud (my rec confirmed). If identity capture can't
+  guarantee a fully-purgeable private session at launch → REFUSE the session (fail-closed launch
+  gate), both Codex + interactive AGY. Relayed to lane `w1:pKY`; lane MAY build the launch gate now.
+- **Marker-preservation fork (A vs B) STILL HELD** pending Opus `af03748d`. Ben's principle injected
+  as a binding constraint on that verdict: chosen mechanism must PROVABLY guarantee the teardown
+  purge; if unprovable → hard-fail at launch rather than risk an un-purgeable transcript.
+
+**Gate impact:** #984/PR #1015 was blocked-by #868. Capture-fail portion now cleared; #984 still
+gated on (1) marker fork resolved (Opus), (2) #1020 input-ready rework landed (GPT-5.6-Sol rev2),
+(3) Fable GREEN sign-off. No #984 merge yet.
