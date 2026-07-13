@@ -5157,3 +5157,22 @@ On GREEN -> Fable security sign-off -> merge. #985 keeps DB slot.
 - **#984/#868 requirements captured (2026-07-13):** Opus durable input-ready-seam requirements posted to #868 (comment #issuecomment-4956944965): runner/RPC-observed input-ready event (never elapsed time), manager awaits consumer seam, first post-resume turn exactly-once. Live-proof exit criteria: fresh isolated stack, no harness wait, 3 reps each asserting 200/ACK + exact prompt retained once. **Scope flagged for Ben:** #868 title is transcript-purge scope; input-ready seam is a distinct cli-runner requirement — Ben decides #868-scope vs dedicated child task; needs approved spec before build.
 
 - **#984 REVERT VERIFIED (2026-07-13):** Failed settle fully absent (manager/runtime/resume/runtime-selection match HEAD; transient settle tests removed; forbidden symbols absent). Focused non-DB gates GREEN (47 unit, drawer 13/13, typecheck/file-size/diff-check). Working tree: only context-meter modified + docs/uat untracked, both unstaged. Run-6 stack/evidence intact, no rerun/cleanup/shared-DB touch. **LANE STABLE + PARKED** — PR #1015 live-path RED, blocked on #868 deterministic runner/RPC input-ready event; do NOT merge/close. No coordinator action until #868 seam exists or Ben rules on scope.
+
+## RELAY CHECKPOINT — 2026-07-13 (post-#1012 security merge, coordinator 58a78927, IN PLACE)
+**Trigger:** security-tier merge (unconditional). Flush + relay in place; no successor spawn (standing directive: coordinator auto-compacts in place).
+**Coordinator lock (unchanged):** label Coordinator, session 58a78927-385c-4b1d-8fa0-94db20255d6f, pane w1:pE6, tab w1:t15. Re-confirmed at merge.
+**merges_since_relay:** reset 0.
+
+### Just landed
+- **#1012 native-YOLO + audit input_summary — MERGED** squash `031eb67e` (security-tier: Opus QA GREEN 0-blocking + Fable APPROVE + 4/4 CI green: VF, 2 compose smokes, image-build). Head reviewed = merged = f22a3cc1 (guarded). Landed **migration 0164** → next migration = **0165**. Closed stop-lines #1016 (fjs anyOf trap) + #1017 (order-sensitive assertion). Non-blocking hardening in **OPEN #1018** (gateway resolve→realpath symlink carve-out; 0164 CHECK type-only). :edge auto-republishes from this merge.
+
+### In flight / handed off
+- **#985 lane reap** — handed to UX Coordinator (w1:pKA, Codex session 019f5adf): release exclusive shared-Postgres DB slot, reap pane w1:pK2 + worktree ux-985-yolo-approvals, assess if issue **#985 stays OPEN** (title broader than native-YOLO — UX's call, I did NOT close it).
+
+### Blocked (not merged/closed)
+- **#984 / PR #1015 (security)** — revert-verified clean, Slices 1-3 code-complete, **BLOCKED-BY #868** (deterministic cli-runner/RPC input-ready event). Opus rejected the blind 600ms settle. Durable #868 requirements posted (issue #868 comment #issuecomment-4956944965): runner/RPC-observed input-ready event (never elapsed time), manager awaits consumer seam, first post-resume turn exactly-once; live-proof = fresh isolated stack, no harness wait, 3 reps each 200/ACK + exact prompt once. **FOR BEN:** #868 title is transcript-purge scope; input-ready seam is a distinct requirement — Ben decides #868-scope vs dedicated child task; needs approved spec before build. PR #1015 held open.
+
+### Open threads for Ben (Phase-4 digest)
+- **#868 seam** is the one item that will NOT self-resolve (gates #984 + Ben's "all queued issues resolved").
+- **Job-search dev-proof (Ben's GOAL crux):** confirm STAGE-2 Playwright end-to-end proof went GREEN before prod repull. PROD CONSTRAINTS still in force: update local image only, do NOT install/download job-search (Ben does that manually); prove in dev first.
+- Deferred lanes: #965 run-now dedupe (SENSITIVE, future), #1000 dev-UAT harness spec, #39 owner-auth delete of quarantined UX #989 test account.
