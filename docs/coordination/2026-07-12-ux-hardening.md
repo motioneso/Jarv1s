@@ -1330,3 +1330,34 @@ resume from this note before taking any merge-sensitive action.
   `UX Coordinator` and reap the outgoing successor-6 pane (label `UX Coordinator`, session
   `4a5526f6-384a-4645-8162-abb1b171845e`, was pane `w1:pM5`) — re-resolved fresh by label+session,
   not by the written pane number above.
+
+## Continuation note — 2026-07-13 UX coordinator handoff to Codex gpt-5.6-sol (Ben's request)
+
+- Ben explicitly asked for the `UX Coordinator` lane to be handed to a **Codex `gpt-5.6-sol`**
+  agent (not another Claude successor). Spawning `codex -s danger-full-access -a never -m
+  gpt-5.6-sol` in the SAME tab as the outgoing Claude pane (never the agents tab), per the
+  `coordinate` skill's self-handoff section and this manifest's standing Codex-only runtime policy
+  (see header).
+- **State at handoff (nothing changed since successor-7's prior note, both asks fully actioned):**
+  - Fleet re-adopted fresh: Primary Coordinator = label `Coordinator`, Claude session
+    `58a78927-385c-4b1d-8fa0-94db20255d6f`, sole merge authority, unchanged. Security lane = label
+    `Security 868+1020 Purge Readiness Codex`, Codex session
+    `019f5ce4-cce4-7a13-be05-cfc3834cc529`, worktree `security-868-engine-purge`, still building
+    the #868/#1020 shared exact-UUID purge primitive, `agent_status: working`.
+  - **Ask 1 (file the Gemini transcript-reader bug): DONE.** Filed as issue #1029 (`bug`,
+    `sev:major`), number already relayed to Primary.
+  - **Ask 2 (report the #868/#1020 PR to Primary the moment it lands): STILL OPEN.** No PR yet on
+    branch `security-868-engine-purge` as of this note (`gh pr list --search
+    "head:security-868-engine-purge"` empty). The outgoing Claude successor-7 had a persistent
+    `Monitor` polling every 60s for this — that monitor dies with the Claude session at handoff.
+    **The Codex successor must re-arm its own watch** (a simple poll loop or periodic `gh pr list
+    --search "head:security-868-engine-purge"` check works) and hand the PR straight to Primary
+    the moment it opens — **do not spawn a QA agent for it**; Primary owns QA (security-tier,
+    Opus-adversarial) + merge for this PR directly per its own standing instruction.
+  - Manifest lock/delegated-lane-owner block at the top of this file must be updated to the new
+    Codex successor's session id once it adopts (it should do this itself per the `coordinate`
+    skill's self-handoff step 1).
+- Next: verify the Codex successor is driving (confirm model = `gpt-5.6-sol`, bounded pane read),
+  then it reaps the outgoing Claude `UX Coordinator` pane (session
+  `b637e03f-267e-493b-acb2-0808bd1a9f49`) — re-resolved fresh by label+session, not by any pane
+  number written here.
