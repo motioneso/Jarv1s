@@ -496,4 +496,8 @@ resume from this note before taking any merge-sensitive action.
   pending actions for Bash/Task/unknown/empty. Canonicalized writes/edits to CLI configuration paths
   (`.claude/settings.json`, `CLAUDE.md`, `.mcp.json`) must also fall back to confirmation unless the
   engine is proved and documented read-only. #985 may edit now but may not run DB-touching work until
-  #984 explicitly releases the exclusive shared-cluster slot; fresh Opus security QA follows repair.
+  #984 explicitly releases the exclusive shared-cluster slot. The hold includes applying migration
+  `0163`, schema-catalog/ledger integration, the persisted-row negative test, and every integration or
+  foundation gate. On release, UX coordination must explicitly assign the slot to #985 and notify
+  primary coordination for cross-fleet serialization; silence is never release. Fresh Opus security
+  QA follows repair. `.claude/context-meter.log` is a coordinator artifact and must never be staged.
