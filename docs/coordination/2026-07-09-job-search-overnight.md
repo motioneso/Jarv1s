@@ -5333,3 +5333,12 @@ Task #41 (#984): now spec-unblocked, build pending UX spawn; still MERGE-blocked
 - UX Coordinator w1:pKA (Codex, sess 019f5adf) — owns #984/#868 security build lane (authorized, spawning) + settings-shell #986 lane. It will report the #984 PR to me for QA→Ben sign-off.
 - No other active build lanes mine. #965/#1000/#39/#1018 still deferred (no lane).
 ### Nothing awaiting Ben right now (both his asks resolved this window).
+
+## GOVERNANCE UPDATE — 2026-07-13 (Ben, direct turn "what can we do so we don't get stuck")
+- **#984 security-tier MERGE sign-off DELEGATED.** Merge authority = **Fable security review GREEN**
+  (fallback: **GPT-5.6-Sol xhigh GREEN** if Fable usage exhausted). No separate Ben wake required for
+  #984 merge. Consent-guard satisfied: this delegation came in a direct Ben user turn. Still requires
+  the full security-QA + dev-UAT gate before that review; delegation is of the *final OK*, not the gate.
+- **#1000 dev-UAT harness (spec 2026-07-12-dev-uat-harness.md) — Ben approving now.** Surfacing §9
+  open questions for resolution → then file child task issues + spawn Phase 1. This harness becomes the
+  dev-UAT exit gate the #984 lane will run in.
