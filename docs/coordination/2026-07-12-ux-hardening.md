@@ -20,8 +20,8 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | building on `ux/984-private-history`; label `UX 984 Private History`, session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`, pane `w1:pJB`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals`, session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`, pane `w1:pJC`; fail-closed criterion locked |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | relay required after compaction tripwire in session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`; plan draft only, no feature code; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | relay handoff committed at `33d9a62f`; successor requested from session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`; no feature code; fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building on `ux/986-settings-build`; label `UX 986 Settings Shell`, session `11054b23-df91-4b09-b001-38ec31951d9d`, pane `w1:pJD` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | building on `ux/989-sports-settings-build`; label `UX 989 Sports Settings`, session `888f3c71-6996-49e1-9dbe-921e829abe55`, pane `w1:pJE` |
@@ -162,9 +162,12 @@ resume from this note before taking any merge-sensitive action.
   Coordinator. Fable approved all four specs and both #987 decisions in a durable PR comment.
 - #986, #989, and #990 are live on Sonnet under the labels/sessions recorded in the queue. #987's
   worktree and handoff are ready but dispatch remains held behind #986's shared pane lock.
-- The primary Coordinator was re-notified before #986 opens shared settings/admin/Playwright paths;
-  its current #1007 builder is label `Module Fix 1006+1007 v2`, session
-  `c9d683b8-ee84-4943-b49d-d3a9db03da0c`.
+- The primary Coordinator verified the live #1007 worktree is collision-clear for #986: no edits to
+  settings admin/page files, shared Playwright fixtures/selectors, or Instance-modules UI. Its UAT
+  script is new and self-contained. #986 was explicitly released to open its owned settings paths.
+- #984 hit the compaction tripwire with only an untracked plan draft; immediate relay was ordered.
+  #985 already committed a relay handoff with no feature code; immediate successor spawn was
+  ordered. Re-adopt both successors by label+session before approving either plan.
 - Next independent work: draft #991, #992, #993, #994, #995, and #1002 specs in collision-safe
   lanes; keep #988 last and #1003 separate.
 - Primary Coordinator owns #1007 QA/merge. Its builder may drive Instance-modules in Playwright but
