@@ -59,6 +59,7 @@ export class TmuxMultiplexer implements Multiplexer {
     const { code, stdout, stderr } = await this.io.run("tmux", [
       "capture-pane",
       "-p",
+      "-e",
       "-t",
       handle
     ]);

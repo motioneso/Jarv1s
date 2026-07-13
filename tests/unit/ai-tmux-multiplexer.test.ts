@@ -54,6 +54,7 @@ describe("TmuxMultiplexer", () => {
     expect(flat.some((c) => c.includes("send-keys") && c.includes("Enter"))).toBe(false);
     expect(flat.some((c) => c.includes("send-keys") && c.includes("C-u"))).toBe(true);
     expect(flat.some((c) => c.includes("capture-pane"))).toBe(true);
+    expect(flat.some((c) => c.includes("capture-pane") && c.includes("-e"))).toBe(true);
     expect(io.writeFile).toHaveBeenCalledTimes(1); // prompt written to a temp file before paste
     expect(flat.some((c) => c.includes("delete-buffer"))).toBe(true);
     expect(flat.some((c) => c.startsWith("rm -f "))).toBe(true);

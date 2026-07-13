@@ -9,6 +9,8 @@ import {
   deriveNeutralDir,
   killMuxSessionByName,
   listLiveMuxSessions,
+  composerHasExactEcho,
+  isComposerEmpty,
   sanitizeSessionKey,
   SESSION_PREFIX
 } from "../../packages/chat/src/live/cli-chat-engine.js";
@@ -24,6 +26,45 @@ function makeIo() {
     writeFile: vi.fn().mockResolvedValue(undefined)
   };
 }
+
+describe("observed composer evidence", () => {
+  const bold = "\u001b[1m";
+  const dim = "\u001b[2m";
+  const reset = "\u001b[0m";
+
+  it("positively recognizes calibrated empty composer signatures", () => {
+    expect(isComposerEmpty("anthropic", `${bold}❯${reset}\u00a0\n`)).toBe(true);
+    expect(
+      isComposerEmpty("openai-compatible", `${bold}›${reset} ${dim}Use /skills${reset}\n`)
+    ).toBe(true);
+    expect(isComposerEmpty("google", ">\n? for shortcuts\n")).toBe(true);
+
+    expect(isComposerEmpty("anthropic", `❯ private text\n`)).toBe(false);
+    expect(isComposerEmpty("openai-compatible", `${bold}›${reset} private text\n`)).toBe(false);
+    expect(isComposerEmpty("google", "> private text\n")).toBe(false);
+  });
+
+  it("matches only the current composer, including wrapped payloads", () => {
+    const payload = "fixed payload across columns";
+    const oldHistory = `› ${payload}\nmodel reply\n`;
+
+    expect(
+      composerHasExactEcho(
+        "openai-compatible",
+        `${oldHistory}${bold}›${reset} ${dim}Use /skills${reset}\n`,
+        payload
+      )
+    ).toBe(false);
+    expect(
+      composerHasExactEcho(
+        "openai-compatible",
+        `${oldHistory}${bold}›${reset} fixed payload across\ncolumns\n`,
+        payload
+      )
+    ).toBe(true);
+    expect(composerHasExactEcho("anthropic", `❯ prefix ${payload} suffix\n`, payload)).toBe(false);
+  });
+});
 
 describe("CliChatEngineImpl — Claude MCP lockdown", () => {
   it("uses --allowedTools mcp__jarvis__* and the mcp-config PATH (token off the launch line)", async () => {
