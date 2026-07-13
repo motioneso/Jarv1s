@@ -669,3 +669,15 @@ resume from this note before taking any merge-sensitive action.
   use, or scope expansion is authorized. Primary has the `[SECURITY][UAT-BLOCKER]` pointer. Opus
   reviewer session `9eb17b9a-4002-4ba2-beef-9f7554daa842` is independently reviewing the smallest
   root fix and verification, read-only.
+
+## Continuation note — 2026-07-13 #984 plan and #989 fresh QA
+
+- #984 grounded a no-expansion plan: forced replay drains during lazy relaunch inside the POST, then
+  real input is submitted before the resumed TUI becomes input-ready. Proposed scope is the shared
+  session manager only, with a replay-only bounded settle and focused regression/UAT proof. The lane
+  remains edit-frozen pending Opus reviewer `9eb17b9a-4002-4ba2-beef-9f7554daa842`'s verdict.
+- #989 reported its bounded QA RED repair at PR #1009 head `a7ba230b`. CI run `29237888859` is
+  independently confirmed fully green. Fresh routine-tier QA session
+  `151e9902-c729-458d-86c1-62e98495b594` is reviewing the repair, invariants, exit criteria, and
+  whether the durable live UAT remains sufficient. It must post its verdict to the PR; Primary alone
+  may merge.
