@@ -7,7 +7,10 @@ import {
   renderSummaryBlock
 } from "../../packages/chat/src/live/chat-session-manager.js";
 import type { EngineLaunchOpts, TranscriptRecord } from "../../packages/chat/src/live/types.js";
-import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
+import {
+  CliChatDeliveryUnknownError,
+  CliChatUnavailableError
+} from "../../packages/chat/src/live/errors.js";
 
 function makeMinimalDeps(
   overrides: Partial<ConstructorParameters<typeof ChatSessionManager>[0]> = {}
@@ -329,6 +332,40 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(engine.submitted).toEqual(["new question"]);
   });
 
+  it("does not submit the first real turn until replay launch has resolved", async () => {
+    let releaseLaunch!: () => void;
+    const launchGate = new Promise<void>((resolve) => {
+      releaseLaunch = resolve;
+    });
+    class GatedLaunchEngine extends FakeEngine {
+      override async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
+        this.launchOpts = opts;
+        this.launchCount += 1;
+        await launchGate;
+        return { offset: 100 };
+      }
+    }
+    const engine = new GatedLaunchEngine(100, [
+      { records: [{ kind: "reply", text: "fresh answer" }], offset: 160, complete: true }
+    ]);
+    const manager = new ChatSessionManager({
+      ...depsWith(
+        engine,
+        { recent: [{ role: "user", content: "replayed" }], oldSummary: null },
+        true
+      ),
+      pollMs: 0
+    });
+
+    const turn = manager.submitTurn("u1", "Ben", "first real turn");
+    await vi.waitFor(() => expect(engine.launchCount).toBe(1));
+    expect(engine.submitted).toEqual([]);
+
+    releaseLaunch();
+    await expect(turn).resolves.toMatchObject({ reply: "fresh answer" });
+    expect(engine.submitted).toEqual(["first real turn"]);
+  });
+
   it("seeds hidden context by submitting and draining without recording a chat turn", async () => {
     const engine = new FakeEngine(0);
     const recordTurn = vi.fn();
@@ -405,6 +442,40 @@ describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
     const second = await manager.submitTurn("u1", "Ben", "second").catch((e: unknown) => e);
     expect(second).not.toBeInstanceOf(ChatTurnInFlightError);
     expect(second).toBeInstanceOf(CliChatUnavailableError);
+  });
+
+  it("invalidates the live session on delivery_unknown and never auto-resends", async () => {
+    class UnknownDeliveryEngine extends FakeEngine {
+      override async submit(text: string): Promise<void> {
+        this.submitted.push(text);
+        throw new CliChatDeliveryUnknownError("chat input delivery is unknown");
+      }
+    }
+    const first = new UnknownDeliveryEngine();
+    const second = new FakeEngine(0, [
+      { records: [{ kind: "reply", text: "second reply" }], offset: 1, complete: true }
+    ]);
+    const engines = [first, second];
+    const engineFactory = vi.fn(() => engines.shift()!);
+    const revokeMcpToken = vi.fn();
+    const manager = new ChatSessionManager({
+      ...rejectingDeps(first),
+      engineFactory,
+      revokeMcpToken,
+      pollMs: 0
+    });
+
+    await expect(manager.submitTurn("u1", "Ben", "first")).rejects.toBeInstanceOf(
+      CliChatDeliveryUnknownError
+    );
+    await expect(manager.submitTurn("u1", "Ben", "second")).resolves.toMatchObject({
+      reply: "second reply"
+    });
+
+    expect(first.submitted).toEqual(["first"]);
+    expect(second.submitted).toEqual(["second"]);
+    expect(engineFactory).toHaveBeenCalledTimes(2);
+    expect(revokeMcpToken).toHaveBeenCalledWith("u1");
   });
 });
 

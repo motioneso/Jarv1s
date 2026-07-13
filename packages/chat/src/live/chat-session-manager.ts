@@ -11,6 +11,7 @@ import type { RecallPort } from "../recall-port.js";
 import { finalizeProvenance, parseAnswerMarkers } from "./answer-provenance.js";
 import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
 import { buildEngineText } from "./engine-text.js";
+import { CliChatDeliveryUnknownError } from "./errors.js";
 import { resolveCachedPageContext, type CachedPageContext } from "./page-context.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { neutralizeSeedFraming } from "./prompt-safety.js";
@@ -466,7 +467,15 @@ export class ChatSessionManager {
         resolvedPageContext
       );
       this.emit(actorUserId, { kind: "user", text });
-      await session.engine.submit(engineText);
+      try {
+        await session.engine.submit(engineText);
+      } catch (err) {
+        if (err instanceof CliChatDeliveryUnknownError) {
+          if (this.sessions.get(actorUserId) === session) this.sessions.delete(actorUserId);
+          this.deps.revokeMcpToken?.(actorUserId);
+        }
+        throw err;
+      }
 
       let reply = "";
       const invokedToolNames = new Set<string>();
