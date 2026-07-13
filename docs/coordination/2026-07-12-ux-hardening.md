@@ -644,3 +644,15 @@ resume from this note before taking any merge-sensitive action.
 - Old UX coordinator session `019f5ab0-8933-7ae0-99c6-c4423a586ddc` is pending reap only after
   this manifest lock is pushed and both old and successor identities are freshly verified by label
   plus immutable session.
+
+## Continuation note — 2026-07-13 #1017 durable ruling
+
+- Primary relayed the durable Fable ruling grounded on `a9260d5a`: #985's stop-line is cleared only
+  for the full-literal `toStrictEqual` test-assertion repair authorized on #1017. Production/schema
+  changes, `objectContaining`, serializer-driven property reordering, and changes to the adjacent
+  `SECRET_BODY` leak tripwire remain forbidden. #985 retains the exclusive DB slot through its full
+  gate, then flags Primary for fresh Opus QA and merge; this UX coordinator never merges.
+- The ruling was routed to verified #985 session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, which is
+  working. Old UX coordinator session `019f5ab0-8933-7ae0-99c6-c4423a586ddc` was freshly resolved
+  by label plus immutable session and reaped; successor `019f5adf-594d-7623-8259-69e1657f4e6b`
+  remains the live `UX Coordinator`.
