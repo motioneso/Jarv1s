@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 repair head `472c2f2d`: focused gates/UAT GREEN, durable evidence comment `4960969019`, CI 3/4 GREEN with image running. Fresh QA R2 session `019f5c9d-8e34-70a0-9bc0-a0d6a39032be` is reviewing; no merge |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 QA R2 RED at comment `4961037190`: clearing stored guidance omits the empty PATCH field, and create/edit errors leak across modes. Relay 5 session `019f5c98-d76b-7a50-83c9-c1454a828b52` reopened for TDD repair; no merge |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -1025,3 +1025,15 @@ resume from this note before taking any merge-sensitive action.
   `QA 1021 News Settings R2`, immutable Codex session
   `019f5c9d-8e34-70a0-9bc0-a0d6a39032be`. It rechecks all four prior blockers and full #990 exit
   criteria but may not post GREEN until CI reaches 4/4. It never edits or merges.
+
+## Continuation note — 2026-07-13 #990 QA R2 RED
+
+- CI reached 4/4 GREEN at repair head `472c2f2d`, including image build in 10m03s, but fresh QA R2
+  posted RED at PR comment `4961037190`: clearing a stored guidance value omits `guidance` from the
+  PATCH so stale text persists despite success, and create/edit mutation errors are not reset across
+  mode transitions so alerts leak into the wrong operation. The prior four blockers and exact-head
+  UAT/evidence chain are verified repaired.
+- Both blockers are routed with exact TDD requirements to verified Relay 5 session
+  `019f5c98-d76b-7a50-83c9-c1454a828b52` for a bounded product fix, new exact-head UAT/evidence,
+  full CI, and another fresh QA. QA R2 session `019f5c9d-8e34-70a0-9bc0-a0d6a39032be` was reaped
+  after its clean detached worktree was removed. UX never merges.
