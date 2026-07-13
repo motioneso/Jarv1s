@@ -46,12 +46,12 @@ take a separate path that always creates a pending confirmation. That is the roo
 
 ## Surface matrix
 
-| Surface | YOLO behavior | Hard boundary retained |
-| --- | --- | --- |
-| MCP/module/skill action gateway | Existing auto-run path | token, allowlist, schema, auth/RLS, tool policy |
+| Surface                              | YOLO behavior                     | Hard boundary retained                                                 |
+| ------------------------------------ | --------------------------------- | ---------------------------------------------------------------------- |
+| MCP/module/skill action gateway      | Existing auto-run path            | token, allowlist, schema, auth/RLS, tool policy                        |
 | Claude native interactive permission | Auto-grant through effective YOLO | authenticated permission token, safe tool parsing, provider capability |
-| Codex/Gemini native tools | No new capability | current sandbox/read-only/disabled behavior |
-| Background/scheduled/briefing work | No change | current non-interactive policy |
+| Codex/Gemini native tools            | No new capability                 | current sandbox/read-only/disabled behavior                            |
+| Background/scheduled/briefing work   | No change                         | current non-interactive policy                                         |
 
 ## Scope and order
 
