@@ -702,3 +702,13 @@ resume from this note before taking any merge-sensitive action.
 - Primary has the verdict and remains sole merge authority. #989 is holding; this UX coordinator did
   not merge. Fresh QA session `151e9902-c729-458d-86c1-62e98495b594` and its clean worktree were
   reaped.
+
+## Continuation note — 2026-07-13 #985 explicit-path closeout
+
+- Primary reports PR #1012 QA-ready: `verify:foundation` is GREEN, #1017's full-literal
+  `toStrictEqual` repair is applied, and no sibling stringify assertion exists. Verified #985
+  session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae` is committing only its touched files by explicit
+  path and pushing the branch; broad staging and `.claude/context-meter.log` remain forbidden.
+- #985 retains the exclusive DB slot and must report the exact pushed head SHA. Primary alone then
+  spawns fresh Opus security QA for both Fable forks, the #1017 repair, and secrets-never-escape;
+  Primary alone may merge after delegated Fable security sign-off. This UX coordinator never merges.
