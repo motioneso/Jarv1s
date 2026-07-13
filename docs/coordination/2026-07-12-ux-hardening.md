@@ -814,3 +814,14 @@ resume from this note before taking any merge-sensitive action.
 - #986 must recover/validate run-9 evidence after its interrupted turn; #990 must finish its existing
   approved plan, open a PR, and record exact-head News Settings live evidence. No UX-lane merge is
   authorized.
+
+## Continuation note — 2026-07-13 #868 launched and #990 inventory
+
+- #868's approved engine-less transcript-purge security lane is building from green main in
+  `security/868-engine-purge`, Sonnet session `c806a7e2-5991-4ddb-88a9-f68d4c278ef2`. Its handoff
+  locks out #984 paths and the separate runner/RPC readiness seam. It must plan first, add real
+  on-disk engine-shape proof, and stop for Opus security QA plus Primary/Fable merge authority.
+- #990 confirmed Task 3 committed at `268c5a32`; Task 4 E2E and plan formatting remain uncommitted.
+  Context-meter and relay handoff stay unstaged. It is finishing only approved #990 acceptance,
+  then explicit-path commits, rebase/push/PR, exact-head isolated UAT/screenshots, and CI. Non-trivial
+  rebase conflict is a stop-line. This UX coordinator never merges.
