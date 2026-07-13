@@ -682,6 +682,11 @@ export class ChatSessionManager {
     await this.cleanupPrivateSession(actorUserId, currentThread.id, this.sessions.get(actorUserId));
   }
 
+  async getPrivacyState(actorUserId: string): Promise<{ readonly incognito: boolean }> {
+    const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
+    return { incognito: currentThread?.incognito ?? false };
+  }
+
   /**
    * Resume a past thread: stop any in-flight turn, kill the current engine (so the
    * next submitTurn replays the resumed thread's messages), then touch the target

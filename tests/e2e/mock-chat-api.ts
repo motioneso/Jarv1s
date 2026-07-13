@@ -17,6 +17,8 @@ export interface MockChatApiState {
   chatThreads?: ChatThreadDto[];
   /** Holds POST /api/chat/clear open until the test releases it (races the private-activation UI). */
   clearGate?: { release: () => void; promise: Promise<void> };
+  /** Server-truth privacy state returned by GET /api/chat/privacy. Defaults to false. */
+  incognito?: boolean;
 }
 
 export async function registerMockChatRoutes(page: Page, state: MockChatApiState): Promise<void> {
@@ -57,6 +59,17 @@ export async function registerMockChatRoutes(page: Page, state: MockChatApiState
         await state.clearGate.promise;
       }
       await route.fulfill({ status: 204, body: "" });
+    }
+  );
+
+  await page.route(
+    (url) => url.pathname.endsWith("/api/chat/privacy"),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ incognito: state.incognito ?? false })
+      });
     }
   );
 }

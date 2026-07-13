@@ -139,6 +139,28 @@ test("private activation blocks send until the server confirms, then allows it",
   await expect(drawer.locator(".chatd-private").filter({ hasText: "not saved" })).toBeVisible();
 });
 
+test("reloading the page restores private-mode indication from server truth", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    incognito: true
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+
+  await expect(drawer.getByRole("button", { name: "Start private chat" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+});
+
 test("stages next message while response is running and sends it after stop", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,

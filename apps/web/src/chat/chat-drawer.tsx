@@ -24,6 +24,7 @@ import {
   beaconEndPrivateChat,
   clearChat,
   endPrivateChat,
+  getChatPrivacyState,
   getOnboardingStatus,
   listCalendarEvents,
   listChatThreadMessages,
@@ -91,6 +92,17 @@ export function ChatDrawer(props: {
   const [privateEnded, setPrivateEnded] = useState(false);
   const [activatingPrivate, setActivatingPrivate] = useState(false);
   const [privateActivationError, setPrivateActivationError] = useState<string | null>(null);
+
+  const privacyStateQuery = useQuery({
+    queryKey: queryKeys.chat.privacy,
+    queryFn: () => getChatPrivacyState(),
+    enabled: props.open
+  });
+
+  useEffect(() => {
+    if (!privacyStateQuery.isSuccess) return;
+    setPrivateMode(privacyStateQuery.data.incognito);
+  }, [privacyStateQuery.isSuccess, privacyStateQuery.data]);
 
   // #633: autoscroll to the newest message by default; pause it the moment the user scrolls
   // away from the bottom, and resume (jumping straight to the latest record) on demand.
