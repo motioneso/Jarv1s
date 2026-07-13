@@ -182,6 +182,35 @@ export async function purgePrivateTranscripts(
   }
 }
 
+export async function purgePrivateTranscriptMarkers(
+  io: Pick<TmuxIo, "run" | "readFile">,
+  neutralBase: string,
+  homeBase?: string
+): Promise<boolean> {
+  const listed = await io.run("ls", ["-A", neutralBase]).catch(() => ({
+    code: 1,
+    stdout: ""
+  }));
+  if (listed.code !== 0) return true;
+  let purged = true;
+  for (const sessionKey of listed.stdout
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    try {
+      sanitizeSessionKey(sessionKey);
+    } catch {
+      continue;
+    }
+    try {
+      await purgePrivateTranscripts(io, neutralBase, sessionKey, homeBase);
+    } catch {
+      purged = false;
+    }
+  }
+  return purged;
+}
+
 function codexSessionsRoot(homeBase: string = homedir()): string {
   return join(homeBase, ".codex", "sessions");
 }

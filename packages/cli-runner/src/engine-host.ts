@@ -21,6 +21,7 @@ import {
   listLiveMuxSessions,
   probeProvider,
   purgePrivateTranscripts,
+  purgePrivateTranscriptMarkers,
   removeNeutralDir,
   sanitizeSessionKey,
   type ProbeProviderResult,
@@ -574,11 +575,12 @@ export class CliChatEngineHost {
   // ─── startup CLEAN-SLATE sweep (§4.1.0a (2) / §6.5) ───────────────────────────
 
   /**
-   * BEFORE accepting connections: kill every `jarv1s-live-*` mux session that exists
-   * AND `rm -rf` every `<sessionKey>` dir directly under the neutral base
-   * UNCONDITIONALLY. A container restart kills the forked tmux server while token dirs
+   * BEFORE accepting connections: kill every `jarv1s-live-*` mux session that exists,
+   * purge every marker-backed private transcript to completion, then clear residual
+   * neutral dirs. A container restart kills the forked tmux server while token dirs
    * persist on the volume, so a mux-only sweep misses them. The gate guarantees ≤1 live
-   * session, so a fresh process legitimately has zero — the base is cleared wholesale.
+   * session, so a fresh process legitimately has zero — the base is cleared wholesale
+   * only after purge succeeds.
    */
   async startupSweep(): Promise<void> {
     // (a) kill any surviving mux sessions (rare after a container restart, but a fast
@@ -587,14 +589,22 @@ export class CliChatEngineHost {
     for (const key of live) {
       await killMuxSessionByName(this.deps.io, key).catch(() => undefined);
     }
-    // (b) unconditionally clear every <sessionKey> dir under the neutral base.
-    await this.clearNeutralBase();
-    // (c) §A.3.2 install-service tools-volume sweep (DISTINCT from the auth-volume sweep
+    // (b) purge every marker-backed private transcript before the neutral dirs are erased.
+    const purged = await purgePrivateTranscriptMarkers(
+      this.deps.io,
+      this.deps.neutralBase,
+      this.deps.homeBase
+    );
+    if (purged) {
+      // (c) once every pointed-to transcript is confirmed purged, remove residual neutral dirs.
+      await this.clearNeutralBase();
+    }
+    // (d) §A.3.2 install-service tools-volume sweep (DISTINCT from the auth-volume sweep
     // above): clear orphaned `.staging/*` AND GC releases not referenced by `current`.
     // Ordered here so it completes BEFORE the server accepts the first installProvider
     // (the server runs startupSweep before listen, server.ts:41).
     await this.deps.installService?.startupSweep().catch(() => undefined);
-    // (d) §L.3.4 login-session sweep: kill every `jarv1s-login-*` mux session (a fast in-place
+    // (e) §L.3.4 login-session sweep: kill every `jarv1s-login-*` mux session (a fast in-place
     // restart can leave one while the in-memory login flow is gone). DISTINCT from (a), which
     // only enumerates `jarv1s-live-*` chat sessions.
     await this.deps.loginService?.startupSweep().catch(() => undefined);
