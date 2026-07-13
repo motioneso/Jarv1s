@@ -28,7 +28,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Tasks 1-3 and partial Task 4 committed through `fd73a7bb`; Task 4 remaining call-site conversions building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Teardown is blocked: no isolated UX compose project exists, `:5175` belongs #985, and the quarantined row is in shared DB `jarv1s`. No teardown occurred. Safe per-agent DB + free-port fallback awaits Fable/primary ruling. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Fable/primary approved the sanctioned per-agent DB path: fresh `jarv1s_ux989_uat`, host API `:3002`, web `:5189`, real-UI owner signup, then Sports UAT/screenshots. Shared `jarv1s` is untouched. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 3 committed at `268c5a32`; Task 4 Playwright is 3/3 green. Foundation is blocked only by the approved plan doc's pre-existing formatting; builder is approved to format that one explicit file and rerun the gate. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -359,4 +359,7 @@ resume from this note before taking any merge-sensitive action.
   default `jarv1s` database. No teardown was performed. The repo-supported safe fallback is a fresh
   `jarv1s_ux989_uat` database in the shared cluster plus host API `:3002` and web `:5189`; this yields
   honest clean-DB UAT but leaves the quarantined shared-DB row for later owner-authenticated deletion.
-  That exact fallback is awaiting Fable/primary ruling under NO-BEN; destructive action remains held.
+  Fable/primary approved this as the sanctioned path under NO-BEN. The builder is released to fresh
+  migration, real-UI owner signup, and Sports UAT/screenshots. No `down -v`, shared-database drop or
+  migration, or direct row edit is allowed. The inert quarantined row remains deferred for
+  owner-authenticated deletion after 8:30am.
