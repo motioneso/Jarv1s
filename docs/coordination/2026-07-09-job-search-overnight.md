@@ -5180,3 +5180,17 @@ On GREEN -> Fable security sign-off -> merge. #985 keeps DB slot.
 ## #985 LANE CLOSEOUT — 2026-07-13 (from UX Coordinator)
 - **Exclusive shared-Postgres DB slot RELEASED** (capacity freed). Build session 019f5a73-f9f4-71e0-bf84-d0b5effe12ae + clean worktree ux-985-yolo-approvals reaped. #1011 closed as delivered. #1018 remains open. UX manifest at f88f8d86.
 - **#985 KEPT OPEN — Ben decision needed (Phase-4):** PR #1012 delivered safe-edit YOLO + truthful outcome + approval UX + 5 popovers, BUT #985 acceptance requires *zero prompts including destructive/external actions*, while the merged security design *intentionally* gates Bash/Task/unknown/config writes (Opus+Fable approved fail-closed). These conflict. Ben reconciles: (a) accept security-gated behavior → relax #985 criterion, or (b) expand YOLO auto-allow scope → requires NEW security spec + review (do NOT widen the allowlist without it). Durable assessment comment posted on #985.
+
+## PROD REPULL #2 + RELAY — 2026-07-13 (~post-#1012, coordinator 58a78927, IN PLACE)
+**Ben directive:** "repull prod, I can install from latest pull."
+- **PROD REPULLED** to latest `:edge` (main CI+publish on 031eb67e = success, carries #1012 native-YOLO + #1009 sports + #1014 module-fix). Digest c13046e4 → **fcb0bdd72d33b958f723585c96ffc8cb8a39f661e6dbf001a7f4b16936688204**. Container jarv1s-prod-jarv1s-1 healthy, /health/ready=200. Scoped project jarv1s-prod / service jarv1s ONLY; no down -v; no sibling-stack/volume touch; **NO job-search install** (Ben installs manually). Ben's GOAL "prod local updated w/ latest image ready to install Job Search" = MET.
+- **Dev-proof clarification for Ben (delivered):** STAGE-2 Playwright DID run (jarvis-uat-1006, port 1545, still healthy; screenshots 01–07 at scratchpad/devproof ~01:03–01:05). Flow: signup→Instance-modules→download→**pending-restart**→job-search route renders. CAVEAT: activation required a **container restart** (enable-in-UI alone didn't trigger in-lifetime DDL install) — flagged so Ben expects one restart after manual install. Manifest recorded "dev-proof condition met via #1007 UAT"; coordinator did NOT re-run second-recreate persistence assertion this session (trusted recorded UAT + healthy stack).
+- **merges_since_relay = 0.** Relay trigger = 70% context meter → flushing in place, no successor spawn (standing directive).
+
+### RESTING STATE (for successor / next turn)
+- **#1012** MERGED (031eb67e), bookkeeping done, #1016/#1017 closed, #1018 open (non-blocking). DB slot freed.
+- **#984 / PR #1015** — held open, BLOCKED-BY #868 (cli-runner input-ready seam). Requirements durable on #868 comment. Ben decision pending on #868 scope.
+- **#985** — OPEN, Ben decision pending (zero-prompt acceptance vs approved fail-closed YOLO design).
+- **Ben put #868-scope (item 1) and #985-reconciliation (item 2) ASIDE** this session — do not re-raise unless he asks.
+- Deferred, no action: #965 dedupe (SENSITIVE), #1000 UAT-harness spec, #39 quarantined UX-#989 test-account delete.
+- Live stacks up: jarv1s-prod (1533), jarvis-uat-1006 (1545), jarvis-devproof-999 (1544), jarv1s-ux984-live-uat, jarv1s-ux986-uat.
