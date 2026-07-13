@@ -287,79 +287,51 @@ test("selecting a History row both opens and activates it — no separate resume
   await expect(drawer.getByLabel("Message Jarvis")).toBeEditable();
 });
 
-test("clicking a history row renders stored messages while activation is pending", async ({
-  page
-}) => {
-  let completeResume: (() => void) | undefined;
+test("History hides the ordinary composer seeds while open", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
     chatThreads: [
       {
         id: "thread-old",
         ownerUserId: "user-1",
-        title: "Planning notes",
+        title: "Old chat",
         incognito: false,
-        createdAt: "2026-06-05T12:00:00.000Z",
-        updatedAt: "2026-06-05T12:00:00.000Z"
+        createdAt: "2026-07-01T00:00:00.000Z",
+        updatedAt: "2026-07-01T00:00:00.000Z"
       }
     ],
-    chatMessages: {
-      "thread-old": [
-        {
-          id: "msg-user",
-          threadId: "thread-old",
-          ownerUserId: "user-1",
-          role: "user",
-          status: "stored",
-          body: "What did we decide?",
-          modelRoute: null,
-          tools: [],
-          activity: [],
-          createdAt: "2026-06-05T12:01:00.000Z",
-          updatedAt: "2026-06-05T12:01:00.000Z"
-        },
-        {
-          id: "msg-assistant",
-          threadId: "thread-old",
-          ownerUserId: "user-1",
-          role: "assistant",
-          status: "stored",
-          body: "We chose the small path.",
-          modelRoute: null,
-          tools: [],
-          activity: [{ kind: "tool", text: "Looked up prior notes" }],
-          createdAt: "2026-06-05T12:02:00.000Z",
-          updatedAt: "2026-06-05T12:02:00.000Z"
-        }
-      ]
-    },
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
     notifications: [],
     tasks: []
   });
-  await page.route("**/api/chat/threads/thread-old/resume", async (route) => {
-    await new Promise<void>((resolve) => {
-      completeResume = resolve;
-    });
-    await route.fulfill({ status: 204, body: "" });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await drawer.getByRole("button", { name: "Show chat history" }).click();
+
+  await expect(drawer.locator(".chatd-empty")).toHaveCount(0);
+  await expect(drawer.locator(".chatd-sess")).toBeVisible();
+});
+
+test("empty History explains that there are no past conversations", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
   });
 
   await page.goto("/");
   await page.getByRole("button", { name: "Chat with Jarvis" }).click();
   const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
-
   await drawer.getByRole("button", { name: "Show chat history" }).click();
-  await drawer.locator("button.chatd-sess__row").filter({ hasText: "Planning notes" }).click();
 
-  await expect(drawer.getByText("What did we decide?")).toBeVisible();
-  await expect(drawer.getByText("We chose the small path.")).toBeVisible();
-  await drawer.getByText("Behind the scenes").click();
-  await expect(drawer.getByText("Looked up prior notes")).toBeVisible();
-  await expect(drawer.getByLabel("Message Jarvis")).toBeEditable();
-
-  completeResume?.();
-  await expect(drawer.getByRole("button", { name: "Show chat history" })).toBeVisible();
+  await expect(drawer.getByText("No past conversations yet.")).toBeVisible();
+  await expect(drawer.locator(".chatd-empty")).toHaveCount(0);
 });
 
 /**

@@ -453,12 +453,12 @@ export function ChatDrawer(props: {
               activating={resumeMutation.isPending}
             />
           ) : null}
-          {activatingPrivate ? (
+          {!showHistory && activatingPrivate ? (
             <div className="chatd-private is-activating">
               <span>Starting private chat…</span>
             </div>
           ) : null}
-          {privateActivationError ? (
+          {!showHistory && privateActivationError ? (
             <div className="chatd-private is-error">
               <span>{privateActivationError}</span>
               <button type="button" onClick={() => setPrivateActivationError(null)}>
@@ -466,7 +466,7 @@ export function ChatDrawer(props: {
               </button>
             </div>
           ) : null}
-          {privateMode && !reviewing ? (
+          {!showHistory && privateMode && !reviewing ? (
             <div className={`chatd-private${privateEnded ? " is-ended" : ""}`}>
               <span>
                 {privateEnded
@@ -478,7 +478,7 @@ export function ChatDrawer(props: {
               </button>
             </div>
           ) : null}
-          {effectiveRecords.length > 0 ? (
+          {showHistory ? null : effectiveRecords.length > 0 ? (
             <Thread records={effectiveRecords} />
           ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
             <ConnectProviderEmpty isFounder={props.isFounder} />
@@ -588,7 +588,9 @@ function HistoryList(props: {
   readonly activating: boolean;
 }) {
   const locale = useUserLocale();
-  if (props.threads.length === 0) return null;
+  if (props.threads.length === 0) {
+    return <div className="chatd-sess chatd-sess--empty">No past conversations yet.</div>;
+  }
   return (
     <div className="chatd-sess">
       <div className="chatd-sess__hd">History</div>
