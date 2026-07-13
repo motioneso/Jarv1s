@@ -9,6 +9,10 @@
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
 **Shared-tree policy:** isolated worktrees; explicit-path staging only; never `git add -A`.
+**Agent runtime policy:** this UX coordinator may spawn only Codex build and QA agents, using
+`codex -s danger-full-access -a never`. This user directive overrides the `coordinate` skill's
+Claude/Sonnet spawn examples. Existing Claude builders must stop at their next safe checkpoint;
+the coordinator replaces them with Codex before another feature task begins.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
 **merges_since_relay:** 0
@@ -22,7 +26,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 1 committed at `a0989815` with E2E green; Task 2 building on `ux/984-private-history`; label `UX 984 Private History v3`, session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`, pane `w1:pJQ`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | approved plan/handoff committed at `0003d1ac`; Task 2 building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v3`, session `159e8723-d2f3-40f8-8d01-c621d537081d`, pane `w1:pJS`; `activityVerb()` released and fail-closed criterion locked |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Tasks 1–3 committed; session `2080b7b0-39cd-418b-869e-369c693972b9` relaying at 70% mid-Task-4 with uncommitted Account-and-preferences merge/test edits preserved; successor spawning in `ux/986-settings-build` |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Claude v4 session `4f7ea499-7243-4415-abef-a159483d0cfe` adopted the Task-4 state, then was stopped before Task 5 for Codex migration; worktree `ux/986-settings-build` preserved |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 QA RED: plan-doc format CI failure plus missing live UI/screenshots proof; owner session `da980b16-d458-4213-ab02-7a34ba852971` ordered to relay at 70% before fixes; not merge-ready |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | amended approved plan committed at `0006fd5a`; TDD building on `ux/990-news-settings-build`; label `UX 990 News Settings v3`, session `4e2afa97-5c55-417c-9bec-a07534cb3c98`, pane `w1:pJR` |
@@ -126,6 +130,7 @@ None.
 - Prior #985 v2 builder, Claude session `1f79649d-8403-4988-a3de-317203fc3aa3`.
 - Prior #986 v2 builder, Claude session `ad66ce73-17b5-462e-b3d2-615038ad39d6`.
 - QA #1009 Sports Settings, Claude session `97854221-7fe3-4c3f-b7b7-e91a9e5d2036`.
+- Prior #986 v3 builder, Claude session `2080b7b0-39cd-418b-869e-369c693972b9`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -236,6 +241,15 @@ resume from this note before taking any merge-sensitive action.
   unformatted plan doc, and live dev UI/screenshots evidence is absent. Code review/spec/invariants
   are otherwise clean. The spent QA pane/worktree was reaped. Owner v3 was reopened, then ordered
   to relay at its 70% trigger before fixing both blockers and requesting re-QA.
+- User directive on 2026-07-13: this UX coordinator's build and QA agents are Codex-only. Do not
+  use `claude` for any new build, relay successor, or QA pane even where `coordinate` says Sonnet.
+  Active Claude-owned UX lanes checkpoint and stop; resume each with Codex full-access/no-approval
+  invocation. The primary Coordinator's separately owned module lane is outside this fleet policy.
+- Codex migration is active for UX-owned Claude sessions #984 `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`,
+  #985 `159e8723-d2f3-40f8-8d01-c621d537081d`, #986 v4
+  `4f7ea499-7243-4415-abef-a159483d0cfe`, #989 `da980b16-d458-4213-ab02-7a34ba852971`, and #990
+  `4e2afa97-5c55-417c-9bec-a07534cb3c98`. Each was ordered to checkpoint, write a durable handoff,
+  stop, and avoid spawning Claude. Spawn Codex successors only after each state report is received.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
