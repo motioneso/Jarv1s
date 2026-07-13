@@ -143,15 +143,45 @@ export function uatComposeInterpolationEnv(input: {
   };
 }
 
-export type UatSeedLevel = "bare";
+export type UatSeedLevel = "bare" | "solo-admin" | "admin+data" | "multi-user";
 
-export type SeedHook = (ctx: { readonly projectName: string }) => Promise<void>;
+export type SeedHook = (ctx: {
+  readonly projectName: string;
+  readonly level: UatSeedLevel;
+  readonly excludeChunks?: readonly string[];
+}) => Promise<void>;
 
 // #1024/#1000: Phase 1 ships zero seed data by design (spec §8.1 acceptance = bare level only).
-// #1025 replaces this with a real seed script that opens its own privileged
-// JARVIS_MIGRATION_DATABASE_URL connection (see the seam above) — this hook point exists so that
-// swap is additive, not a rewrite of the provision/teardown lifecycle.
 export const bareSeedHook: SeedHook = async () => {};
+
+/**
+ * #1025: runs tests/uat/seed/cli.ts as a one-shot `seed` ops-profile compose
+ * service (same network-reachability reason `migrate` runs as a compose
+ * service, not a host script — postgres publishes no host port).
+ *
+ * JARVIS_UAT_SEED_CONFIRM=1 is the entrypoint-side half of the Coordinator's
+ * binding prod-guard: composeSeedHook is the ONLY caller that sets it, so
+ * cli.ts (Task 6) refuses to run for anything else that might invoke the
+ * `seed` service against a non-ephemeral stack.
+ */
+export const composeSeedHook: SeedHook = async ({ projectName, level, excludeChunks }) => {
+  await runCommand(
+    "docker",
+    buildUatComposeArgs(projectName, [
+      "--profile",
+      "ops",
+      "run",
+      "--rm",
+      "-e",
+      `JARVIS_UAT_SEED_LEVEL=${level}`,
+      "-e",
+      `JARVIS_UAT_SEED_EXCLUDE_CHUNKS=${(excludeChunks ?? []).join(",")}`,
+      "-e",
+      "JARVIS_UAT_SEED_CONFIRM=1",
+      "seed"
+    ])
+  );
+};
 
 export interface UatComposeCommand {
   readonly args: readonly string[];
@@ -396,7 +426,8 @@ async function main(): Promise<void> {
         console.log(`[uat] ${step.description}`);
         await runCommand(step.command, step.args);
       }
-      await bareSeedHook({ projectName }); // #1024/#1000: no-op in Phase 1; seam for #1025.
+      const level = (process.env.JARVIS_UAT_SEED_LEVEL ?? "bare") as UatSeedLevel;
+      await composeSeedHook({ projectName, level }); // #1024/#1000 seam, filled by #1025
       const readyUrl = `http://127.0.0.1:${webPort}/health/ready`;
       await waitForReady(readyUrl);
       console.log(`[uat] reachable at ${readyUrl} after ${Date.now() - startedAt}ms`);
