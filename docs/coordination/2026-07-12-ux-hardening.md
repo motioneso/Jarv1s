@@ -24,7 +24,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Live UAT is RED on the dropped first post-resume turn. Held on Ben-approved/merged #1020 plus expanded #868 (including folded AGY acceptance) before fresh no-wait 3x UAT and security QA; no spawn approval |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Ben approved #1020 rev2; serialized expanded #868/#1020 dependency lane is planning under session `019f5ce4-cce4-7a13-be05-cfc3834cc529`. #984 remains held until dependency landing, then fresh no-wait 3x UAT/security QA/Ben sign-off |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
@@ -1089,3 +1089,15 @@ resume from this note before taking any merge-sensitive action.
   provides a direct Ben-approved-spec pointer plus serialized order. Finish-all is not inferred as
   security-spec approval. Four clean local #990 evidence worktrees were removed; their remote
   evidence branches remain for durable PR links.
+
+## Continuation note — 2026-07-13 #1020 approved; security dependency launched
+
+- Ben directly approved #1020 spec rev2 `39dafc29` at durable issue comment `4961635704`; Primary
+  authorized the serialized security build+QA train and retained sole merge authority. #984/PR #1015
+  still requires explicit Ben security sign-off after dependencies land and fresh 3x live UAT.
+- Existing `security-868-engine-purge` worktree was re-adopted by fresh Codex label
+  `Security 868+1020 Purge Readiness Codex`, immutable session
+  `019f5ce4-cce4-7a13-be05-cfc3834cc529`. It combines the approved deterministic runner/RPC input-
+  ready event with expanded #868 AGY crash-surviving per-session identity and graceful/crash purge.
+  It must rebase, update/send its compact plan, and make no feature edit until current main image is
+  GREEN plus UX plan approval. No timers, approximate mtime matching, broad deletion, or merge.
