@@ -1249,4 +1249,32 @@ resume from this note before taking any merge-sensitive action.
   `transcriptGlobDir("google", ...)` now dead/removable; and does this need Ben's product sign-off
   given it changes #868's stated 3-identity framing even though the underlying mechanism converges.
   **Awaiting Opus verdict — do not let the security agent resume TDD on the Gemini identity until
-  it lands; agy-print and Codex/Claude purge paths are unaffected and may proceed.**
+  it lands; agy-print and Codex/Claude purge paths are unaffected and may proceed.** Primary ACK'd
+  the lane handoff and flagged: #984/PR #1015 stays HELD until this settles — #984's privacy
+  guarantee hinges on purging the correct path, so #868 must not land on the stale documented-path
+  assumption. Surface the Opus verdict to Primary the moment it returns.
+- Prior successor (session `1211ffa9-b725-469b-922d-ab4dc0c56436`, pane `w1:pK0`) confirmed reaped
+  and closed. Successor 6's pane renamed `w1:pM5` → label `UX Coordinator`. Exactly one
+  `UX Coordinator` pane live (verified via `herdr pane list`).
+- **Opus adjudication VERDICT (in): CONDITIONAL GO.** (1) Exact-UUID scoping
+  (`rm -rf brain/<UUID>/` where `<UUID>` is captured from the session's OWN pane/log) is safely
+  scoped — never enumerate/glob the shared `brain/` root; capture-miss → log+leave, never fall back
+  to a root glob or time-window scan. (2) Build ONE shared primitive
+  `purgeAgyBrainDir(capturedUuid)` reused by BOTH the interactive-Gemini engine and
+  `AgyPrintChatEngine` — they're byte-identical root+schema, not 3 distinct identities. Additional
+  finding: agy-print currently resolves its OWN transcript via a time-window newest-file scan
+  (`find -newermt`), not exact-UUID — that also needs tightening under the same no-heuristic
+  invariant. (3) `transcriptGlobDir("google", ...)` is dead code in prod — do not build purge on
+  it. (4) TDD may start NOW on the shared primitive. But it collapses #868's stated "3 distinct
+  identities" framing into "2 agy engines + Codex" plus a capture-fail=silent-retention risk that
+  is product-visible — **that scope-reframe + retention contract needs Ben's sign-off before
+  MERGE, not before TDD.** Relayed full verdict + go-ahead to security pane `w1:pKY` (proceed on
+  shared primitive; do NOT touch the separately-discovered broken interactive-Gemini transcript
+  READER — `cli-chat-engine.ts:187`, `CliChatEngineImpl` via `transcriptGlobDir`+`mapGeminiRecord`
+  reads the wrong path/schema today — that's a pre-existing production bug, out of #868 scope,
+  flag only, file as follow-up).
+- **Open for Primary/Ben:** #984/PR #1015 stays held per Primary's standing instruction until this
+  settles at merge time (mechanism is now Opus-cleared; only the scope-reframe wording + the
+  capture-fail retention contract needs Ben's explicit OK, tracked here, gates security-tier merge
+  not TDD). Also open: file a GitHub issue for the broken interactive-Gemini transcript reader
+  (separate bug, not yet filed — successor 6 flagging for Primary/Ben, not fixing).
