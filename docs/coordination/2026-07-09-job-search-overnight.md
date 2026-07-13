@@ -5420,3 +5420,14 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
 
 - **#1024 relay 4:** 1024c→**1024d** (session `6033b289`, pane `w1:pM3`, tab `w1:t1Z`, Sonnet).
   33f24a1c reaped. On task8 (final: reverify + rebase origin/main + `verify:foundation` + open PR).
+
+### Cross-coordinator UPDATE (2026-07-13) — UX successor 6 + #868 purge-target fork
+
+- **UX Coordinator = session `4a5526f6-384a-4645-8162-abb1b171845e`, pane `w1:pM5`** (successor 6;
+  prior `1211ffa9`/`w1:pK0` reaped). Lane doc: `docs/coordination/2026-07-12-ux-hardening.md`
+  (pushed `0d538e0a`). I remain **sole merge executor**; UX not merging, not touching #1000.
+- **#868 REAL blocker (affects #984 purge guarantee):** production `agy --sandbox` writes
+  AGY-native `brain/<UUID>/` records, NOT the documented `~/.gemini/tmp/.../chats` path. Security
+  session `019f5ce4` (pane `w1:pKY`) escalated the **purge-target design-fork to a one-shot Opus
+  adjudication** (correct — data-loss/security consequences). Held cleanly, no product edits.
+  → #984/PR #1015 stays HELD; the purge target must be settled by Opus before #868→#984 can land.
