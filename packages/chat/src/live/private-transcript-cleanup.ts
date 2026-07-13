@@ -1,7 +1,19 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { transcriptGlobDir, type TmuxIo } from "@jarv1s/ai";
+import { agyPrintTranscriptRoot, transcriptGlobDir, type TmuxIo } from "@jarv1s/ai";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function purgeAgyBrainDir(
+  io: Pick<TmuxIo, "run">,
+  capturedUuid: string | null | undefined,
+  homeBase?: string
+): Promise<boolean> {
+  if (!capturedUuid || !UUID_PATTERN.test(capturedUuid)) return false;
+  await io.run("rm", ["-rf", join(agyPrintTranscriptRoot(homeBase), capturedUuid)]);
+  return true;
+}
 
 export async function purgePrivateTranscripts(
   io: Pick<TmuxIo, "run" | "readFile">,
