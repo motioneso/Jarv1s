@@ -258,6 +258,10 @@ resume from this note before taking any merge-sensitive action.
 - #986 stopped clean at `ef716b5d` before Task 5 feature/test edits. Codex session
   `019f5a67-9a38-77e0-814a-bc082b0ce187` was verified driving from
   `docs/superpowers/handoffs/2026-07-13-986-settings-shell-halt-for-codex.md`; Claude v4 was reaped.
+- #986 Task 5 found a handoff/spec contradiction. Ruling: the approved spec and plan govern; remove
+  only the negative auth-provider-configuration note from merged People & access, preserving all
+  real controls, guards, endpoints, and authorization behavior. The handoff's keep instruction is
+  stale and does not override locked decisions.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
