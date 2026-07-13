@@ -569,3 +569,10 @@ resume from this note before taking any merge-sensitive action.
   `tests/integration/action-audit-log.test.ts` including the strip case FIRST; remaining Fork 1/2
   serial work proceeds only after focused GREEN. Merge, waiver, and slot release remain forbidden;
   full GREEN conditions return to fresh Opus security QA.
+- #1016's focused correction is GREEN: `action-audit-log` 8/8 including the `app.inject` strip
+  case. The next serial `chat-mcp-transport` suite failed 1/18 because its positive real effective
+  YOLO state timed out at confirmation; the other 17 passed. This is failure cycle one for a distinct
+  check. #985 retains the DB slot; schema-catalog/foundation have not started. It may diagnose the
+  persisted-state wiring only within the approved Fork 2 route/repository/gateway/transport surface,
+  then rerun the focused chat suite first. Later gates require focused GREEN; a second same-check
+  failure stops the lane. No allowlist weakening, waiver, merge, slot release, or context staging.
