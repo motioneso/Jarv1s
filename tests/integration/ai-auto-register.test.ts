@@ -62,10 +62,14 @@ describe("AI auto-register default chat model on login (#367)", () => {
       service.ensureDefaultChatModel(db, "anthropic")
     );
 
-    const { providers, model } = await dataContext.withDataContext(adminCtx(), async (db) => ({
-      providers: await repository.listProviders(db),
-      model: await repository.selectChatModelForUser(db)
-    }));
+    const { providers, model, models } = await dataContext.withDataContext(
+      adminCtx(),
+      async (db) => ({
+        providers: await repository.listProviders(db),
+        model: await repository.selectChatModelForUser(db),
+        models: await repository.listModels(db)
+      })
+    );
 
     const cli = providers.find((p) => p.provider_kind === "anthropic");
     expect(cli).toBeDefined();
@@ -73,6 +77,13 @@ describe("AI auto-register default chat model on login (#367)", () => {
     expect(model?.provider_model_id).toBe("default");
     expect(model?.capabilities).toContain("chat");
     expect(model?.status).toBe("active");
+    expect(cli?.is_instance_default).toBe(true);
+    expect(models.filter((row) => row.provider_config_id === cli?.id)).toHaveLength(4);
+    expect(
+      models
+        .filter((row) => row.provider_model_id !== "default")
+        .every((row) => row.status === "active")
+    ).toBe(true);
   });
 
   it("registers a default cli provider config + codex chat model on first ready (openai-compatible)", async () => {
@@ -80,10 +91,14 @@ describe("AI auto-register default chat model on login (#367)", () => {
       service.ensureDefaultChatModel(db, "openai-compatible")
     );
 
-    const { providers, model } = await dataContext.withDataContext(adminCtx(), async (db) => ({
-      providers: await repository.listProviders(db),
-      model: await repository.selectChatModelForUser(db)
-    }));
+    const { providers, model, models } = await dataContext.withDataContext(
+      adminCtx(),
+      async (db) => ({
+        providers: await repository.listProviders(db),
+        model: await repository.selectChatModelForUser(db),
+        models: await repository.listModels(db)
+      })
+    );
 
     const cli = providers.find((p) => p.provider_kind === "openai-compatible");
     expect(cli).toBeDefined();
@@ -91,6 +106,13 @@ describe("AI auto-register default chat model on login (#367)", () => {
     expect(model?.provider_model_id).toBe("default");
     expect(model?.capabilities).toContain("chat");
     expect(model?.status).toBe("active");
+    expect(
+      Object.fromEntries(models.map((row) => [row.provider_model_id, row.tier]))
+    ).toMatchObject({
+      "gpt-5.6-sol": "reasoning",
+      "gpt-5.6-terra": "interactive",
+      "gpt-5.6-luna": "economy"
+    });
   });
 
   it("is idempotent across re-login — creates nothing new on a second call", async () => {
@@ -110,6 +132,68 @@ describe("AI auto-register default chat model on login (#367)", () => {
 
     expect(providers).toHaveLength(1);
     expect(models.filter((m) => m.provider_model_id === "default")).toHaveLength(1);
+  });
+
+  it("clean-slate reconcile removes stale/manual concrete rows but preserves sentinel", async () => {
+    await dataContext.withDataContext(adminCtx(), (db) =>
+      service.ensureDefaultChatModel(db, "anthropic")
+    );
+    const provider = await dataContext.withDataContext(adminCtx(), async (db) =>
+      (await repository.listProviders(db)).find((row) => row.provider_kind === "anthropic")
+    );
+    await dataContext.withDataContext(adminCtx(), async (db) => {
+      await repository.createModel(db, {
+        providerConfigId: provider!.id,
+        providerModelId: "stale-static",
+        displayName: "Stale static",
+        capabilities: ["chat"],
+        status: "disabled"
+      });
+      await repository.createModel(db, {
+        providerConfigId: provider!.id,
+        providerModelId: "manual-model",
+        displayName: "Manual model",
+        capabilities: ["json"]
+      });
+      await service.ensureDefaultChatModel(db, "anthropic");
+    });
+
+    const models = await dataContext.withDataContext(adminCtx(), (db) => repository.listModels(db));
+    expect(models.map((row) => row.provider_model_id).sort()).toEqual([
+      "claude-haiku-4-5-20251001",
+      "claude-opus-4-8",
+      "claude-sonnet-4-6",
+      "default"
+    ]);
+    expect(models.find((row) => row.provider_model_id === "default")?.status).toBe("active");
+  });
+
+  it("keeps model deletion admin-only and always preserves the sentinel", async () => {
+    await dataContext.withDataContext(adminCtx(), (db) =>
+      service.ensureDefaultChatModel(db, "anthropic")
+    );
+    const provider = await dataContext.withDataContext(adminCtx(), async (db) =>
+      (await repository.listProviders(db)).find((row) => row.provider_kind === "anthropic")
+    );
+
+    // #982/#869 security boundary: app runtime has DELETE, but FORCE RLS makes a non-admin delete
+    // affect zero rows; repository filtering independently excludes the sentinel for admins too.
+    await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "request:non-admin-reconcile" },
+      (db) => repository.deleteModelsForProviderExceptSentinel(db, provider!.id)
+    );
+    const afterNonAdmin = await dataContext.withDataContext(adminCtx(), (db) =>
+      repository.listModels(db)
+    );
+    expect(afterNonAdmin).toHaveLength(4);
+
+    await dataContext.withDataContext(adminCtx(), (db) =>
+      repository.deleteModelsForProviderExceptSentinel(db, provider!.id)
+    );
+    const afterAdmin = await dataContext.withDataContext(adminCtx(), (db) =>
+      repository.listModels(db)
+    );
+    expect(afterAdmin.map((row) => row.provider_model_id)).toEqual(["default"]);
   });
 
   it("does not recreate a model the user disabled (never resurrect — decision 2)", async () => {

@@ -21,10 +21,9 @@ export type GenerateStructuredProviderInput = {
   readonly signal?: AbortSignal;
 };
 
-export type StructuredProviderResult = {
-  readonly rawObject: unknown;
-  readonly usage: StructuredUsage;
-};
+export type StructuredProviderResult =
+  | { readonly rawObject: unknown; readonly usage: StructuredUsage }
+  | { readonly rawText: string; readonly usage: StructuredUsage };
 
 export class StructuredOutputParseError extends Error {
   readonly rawText: string;

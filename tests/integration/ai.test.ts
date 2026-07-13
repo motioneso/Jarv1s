@@ -694,12 +694,47 @@ describe("AI provider foundation", () => {
 
     expect(createResponse.statusCode).toBe(201);
     const provider = createResponse.json<{
-      provider: { authMethod: string; hasCredential: boolean; cliAvailable: boolean };
+      provider: { id: string; authMethod: string; hasCredential: boolean; cliAvailable: boolean };
     }>().provider;
     expect(provider.authMethod).toBe("cli");
     expect(provider.hasCredential).toBe(false);
     // cliAvailable is a boolean (depends on host having 'claude' binary)
     expect(typeof provider.cliAvailable).toBe("boolean");
+    const cliModels = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.listModels(db)
+    );
+    expect(
+      cliModels
+        .filter((model) => model.provider_config_id === provider.id)
+        .map((model) => [model.provider_model_id, model.status])
+    ).toEqual(
+      expect.arrayContaining([
+        ["claude-opus-4-8", "active"],
+        ["claude-sonnet-4-6", "active"],
+        ["claude-haiku-4-5-20251001", "active"]
+      ])
+    );
+
+    // #982/#869 D7: Codex CLI create uses curated statics instead of remaining sentinel-only.
+    const codexResponse = await server.inject({
+      method: "POST",
+      url: "/api/ai/providers",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        providerKind: "openai-compatible",
+        displayName: "Codex CLI",
+        authMethod: "cli"
+      }
+    });
+    const codexId = codexResponse.json<{ provider: { id: string } }>().provider.id;
+    const codexModels = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.listModels(db)
+    );
+    expect(
+      codexModels
+        .filter((model) => model.provider_config_id === codexId)
+        .map((model) => model.provider_model_id)
+    ).toEqual(expect.arrayContaining(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]));
 
     // Verify api_key default
     const apiKeyResponse = await server.inject({

@@ -53,6 +53,12 @@ const protectedTablesWithWorkerDelete = new Set<string>([
   "calendar_events"
 ]);
 
+const protectedTablesWithAppDelete = new Set<string>([
+  // #982/#869 D6: CLI model reconciliation hard-deletes concrete rows only. Migration 0163 keeps
+  // FORCE RLS, requires an admin actor, and protects the `default` sentinel in policy + code.
+  "ai_configured_models"
+]);
+
 // Transient tables: owner-only RLS required, but runtime DELETE is intentional
 // (rows are cleaned up as part of normal operation, e.g. after OAuth completes).
 const transientTables = ["connector_oauth_pending"] as const;
@@ -422,7 +428,9 @@ function collectFailures(
   for (const table of tableAudits) {
     if (!table.rlsEnabled) failures.push(`app.${table.tableName} does not enable RLS`);
     if (!table.forceRls) failures.push(`app.${table.tableName} does not force RLS`);
-    if (table.appCanDelete) failures.push(`jarvis_app_runtime can DELETE app.${table.tableName}`);
+    if (table.appCanDelete && !protectedTablesWithAppDelete.has(table.tableName)) {
+      failures.push(`jarvis_app_runtime can DELETE app.${table.tableName}`);
+    }
     if (table.workerCanDelete && !protectedTablesWithWorkerDelete.has(table.tableName)) {
       failures.push(`jarvis_worker_runtime can DELETE app.${table.tableName}`);
     }

@@ -31,6 +31,7 @@ import {
   aiModuleSqlMigrationDirectory,
   createAiSecretCipher,
   generateStructured,
+  ModelDiscoveryService,
   registerAiMaintenanceWorkers,
   registerAiRoutes
 } from "@jarv1s/ai";
@@ -83,6 +84,7 @@ import {
   chatCommitmentProvider,
   ChatRepository,
   createChatFeedbackTargetVerifier,
+  createCliStructuredAdapterFactory,
   registerChatJobWorkers,
   registerChatRoutes,
   type ChatEngineFactory,
@@ -478,9 +480,15 @@ export interface BuiltInModuleRegistration {
 const newsRobotsGate = createRobotsGate();
 const newsHostRateLimiter = createHostRateLimiter();
 
-function buildNewsDiscoveryPorts(logger?: Pick<FastifyBaseLogger, "info" | "warn">) {
+function buildNewsDiscoveryPorts(
+  logger?: Pick<FastifyBaseLogger, "info" | "warn">,
+  engineFactory?: ChatEngineFactory
+) {
   const repository = new AiRepository();
   const cipher = createAiSecretCipher();
+  // #982/#869/#981: module-registry is the composition boundary importing both ai's port and chat's
+  // CLI implementation. Resolve one shared transport factory; packages/ai never imports chat.
+  const createCliStructuredAdapter = createCliStructuredAdapterFactory(engineFactory);
   return {
     fetch: (url: string) =>
       fetchWebResource(url, {
@@ -522,7 +530,7 @@ function buildNewsDiscoveryPorts(logger?: Pick<FastifyBaseLogger, "info" | "warn
         generateStructured(
           scopedDb,
           { service: "module.news", ...input },
-          { repository, cipher, logger }
+          { repository, cipher, logger, createCliStructuredAdapter }
         ),
       async fingerprint(scopedDb: DataContextDb) {
         const model = (
@@ -1378,7 +1386,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       // Briefing tool is constructed at import time; it adopts the client late-bound
       // (mirrors LOADER-SEAM(sports) 3).
       configureNewsBriefingService(datasetClient);
-      const discovery = buildNewsDiscoveryPorts(createModuleLogger(server.log, "news"));
+      const discovery = buildNewsDiscoveryPorts(
+        createModuleLogger(server.log, "news"),
+        deps.chatEngineFactory
+      );
       registerNewsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
@@ -1867,7 +1878,9 @@ export function registerBuiltInApiRoutes(
     // entry. Best-effort — a failure is logged here and never fails the login.
     autoRegister: new AiAutoRegisterService({
       repository: new AiRepository(),
-      cipher: createAiSecretCipher()
+      cipher: createAiSecretCipher(),
+      // #982/#869 D2: login-ready uses same discovery service semantics as admin connect paths.
+      modelDiscovery: new ModelDiscoveryService()
     }),
     logger: { warn: (obj, msg) => server.log.warn(obj, msg) }
   });
