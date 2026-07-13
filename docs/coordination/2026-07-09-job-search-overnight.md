@@ -5521,3 +5521,16 @@ GREEN + 4/4 CI). Internal dev-tooling, not user-visible. UAT-harness P1 done; P2
 - **STILL OPEN for Ben:** AGY identity-capture-fail contract — hard-fail-loud vs silent-proceed.
   Coordinator recommendation posted to Ben = **hard-fail-loud** (silent degrade = privacy leak).
   Needed before #868 LANDS (not before build) + gates #984 merge alongside #1020. **UNANSWERED.**
+
+### SPAWNED — P2 #1025 (UAT seed levels.ts), sensitive tier
+- Agent **UAT Seed 1025**, session `e6ad8ae0-b1d3-46b9-826e-b87b0b9e7ff9`, pane `w1:pM7`, **agents
+  tab `w1:t10`** (fresh — old t1Z died with 1024d reap). Model **Sonnet 5** confirmed. Worktree
+  `.claude/worktrees/uat-seed-1025` off `51f468d4` (has P1 provisioner). Status: building.
+- **Tab-placement fix logged:** `herdr agent start --workspace w1` landed it in the COORD tab t15;
+  `herdr pane move w1:pM7 --new-tab --workspace w1 --label agents` → t10. (No --new-tab on `agent
+  start`; must move after spawn. Verify every spawn's tab.)
+- Handoff: scratchpad `handoff-uat-1025.md`. Scope = §4/§8.2 seed: loginable admin (real
+  hashPassword) → solo-admin → admin+data (lived-in, DETERMINISTIC, no wall-clock) → multi-user +
+  job-search toggle; plug into P1 seed hook via privileged migration-owner seam (no BYPASSRLS).
+- **NEXT:** await P2 plan-ready escalation → approve if inside spec's locked decisions → build →
+  PR → sensitive QA + invariant walk → merge → P3 #1026.
