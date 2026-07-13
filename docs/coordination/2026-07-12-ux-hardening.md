@@ -20,8 +20,8 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | relay required after compaction tripwire in session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`; plan draft only, no feature code; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | relay handoff committed at `33d9a62f`; successor requested from session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`; no feature code; fail-closed criterion locked |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | building approved plan on `ux/984-private-history`; label `UX 984 Private History`, session `56deb6ca-252b-4f8e-b9b9-b5f5d819c2ea`, pane `w1:pJH`; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | planning pre-code on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v2`, session `1f79649d-8403-4988-a3de-317203fc3aa3`, pane `w1:pJG`; relay handoff `33d9a62f`; fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building on `ux/986-settings-build`; label `UX 986 Settings Shell`, session `11054b23-df91-4b09-b001-38ec31951d9d`, pane `w1:pJD` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | building on `ux/989-sports-settings-build`; label `UX 989 Sports Settings`, session `888f3c71-6996-49e1-9dbe-921e829abe55`, pane `w1:pJE` |
@@ -115,6 +115,8 @@ None.
 ## Reaped sessions
 
 - Prior `UX Coordinator`, Codex session `019f57d6-8fff-7783-974a-f40333a52632`.
+- Prior #985 builder, Claude session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`.
+- Prior #984 builder, Claude session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -168,6 +170,14 @@ resume from this note before taking any merge-sensitive action.
 - #984 hit the compaction tripwire with only an untracked plan draft; immediate relay was ordered.
   #985 already committed a relay handoff with no feature code; immediate successor spawn was
   ordered. Re-adopt both successors by label+session before approving either plan.
+- #984's six-task plan was approved pre-code: private activation race, owner-scoped server truth,
+  one-shot bounded resume replay, unified History resume, exclusive History presentation, and gate.
+  The successor may build after it reports its immutable session; Slice 4/#868 stays excluded.
+- #985 successor `UX 985 YOLO Approvals v2` session
+  `1f79649d-8403-4988-a3de-317203fc3aa3` was verified driving the same worktree on Sonnet; its
+  predecessor was identity-checked and reaped. Await the v2 plan before feature edits.
+- #984 successor session `56deb6ca-252b-4f8e-b9b9-b5f5d819c2ea` was verified driving the approved
+  plan in the same worktree on Sonnet; its predecessor was identity-checked and reaped.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
