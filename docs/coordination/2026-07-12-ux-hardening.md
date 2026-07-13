@@ -22,9 +22,9 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 1 committed at `a0989815` with E2E green; Task 2 building on `ux/984-private-history`; label `UX 984 Private History v3`, session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`, pane `w1:pJQ`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | approved plan/handoff committed at `0003d1ac`; Task 2 building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v3`, session `159e8723-d2f3-40f8-8d01-c621d537081d`, pane `w1:pJS`; `activityVerb()` released and fail-closed criterion locked |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Tasks 1–3 committed at `f67cf52b`, `56e8cb3d`, `51f092a4`; Task 4 resumed from handoff `bf96e51f` on `ux/986-settings-build`; label `UX 986 Settings Shell v3`, session `2080b7b0-39cd-418b-869e-369c693972b9`, pane `w1:pJT` |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Tasks 1–3 committed; session `2080b7b0-39cd-418b-869e-369c693972b9` relaying at 70% mid-Task-4 with uncommitted Account-and-preferences merge/test edits preserved; successor spawning in `ux/986-settings-build` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | code complete in PR #1009 at `702a329f`; CI in progress; independent QA label `QA 1009 Sports Settings`, session `97854221-7fe3-4c3f-b7b7-e91a9e5d2036`, pane `w1:pJV`; live-path proof not yet posted, so not merge-ready |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 QA RED: plan-doc format CI failure plus missing live UI/screenshots proof; owner session `da980b16-d458-4213-ab02-7a34ba852971` ordered to relay at 70% before fixes; not merge-ready |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | amended approved plan committed at `0006fd5a`; TDD building on `ux/990-news-settings-build`; label `UX 990 News Settings v3`, session `4e2afa97-5c55-417c-9bec-a07534cb3c98`, pane `w1:pJR` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -125,6 +125,7 @@ None.
 - Prior #990 v2 builder, Claude session `5663beab-07c4-4691-9dc8-2b1b94869ea2`.
 - Prior #985 v2 builder, Claude session `1f79649d-8403-4988-a3de-317203fc3aa3`.
 - Prior #986 v2 builder, Claude session `ad66ce73-17b5-462e-b3d2-615038ad39d6`.
+- QA #1009 Sports Settings, Claude session `97854221-7fe3-4c3f-b7b7-e91a9e5d2036`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -227,9 +228,14 @@ resume from this note before taking any merge-sensitive action.
 - #986 committed its Task-4 continuation at `bf96e51f`. V3 session
   `2080b7b0-39cd-418b-869e-369c693972b9` was verified resuming Task 4 in the same worktree on
   Sonnet; v2 was identity-checked and reaped.
-- #989 opened PR #1009 at `702a329f` with its reported local gate green. Required CI is still in
-  progress. Routine independent QA session `97854221-7fe3-4c3f-b7b7-e91a9e5d2036` is reviewing in
-  a detached worktree. The user-facing live-path proof/comment is absent, so the PR cannot merge yet.
+- #986 v3 hit 70% mid-Task-4 after completing the Profile merge and surgical `general` removal.
+  Its uncommitted test/verification work is preserved while it writes a continuation and spawns a
+  successor. Do not reap v3 until that successor reports its immutable session.
+- #989 QA verdict is RED at
+  `https://github.com/motioneso/Jarv1s/pull/1009#issuecomment-4955504323`: required CI fails on the
+  unformatted plan doc, and live dev UI/screenshots evidence is absent. Code review/spec/invariants
+  are otherwise clean. The spent QA pane/worktree was reaped. Owner v3 was reopened, then ordered
+  to relay at its 70% trigger before fixing both blockers and requesting re-QA.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
