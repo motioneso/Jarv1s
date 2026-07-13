@@ -799,3 +799,18 @@ resume from this note before taking any merge-sensitive action.
   real Settings UI UAT/screenshots for the exact pushed head before reporting. Its interrupted prior
   turn already left run-9 screenshots, which must be validated against the eventual pushed head
   rather than treated as proof automatically. No merge or issue closure is authorized.
+
+## Continuation note — 2026-07-13 finish-all directive
+
+- Ben directed all remaining UX lanes fixed and merged, with notification after image builds. Primary
+  remains sole merge authority. Main CI is GREEN at `031eb67e`. Verified #986 session
+  `019f5a67-9a38-77e0-814a-bc082b0ce187` and #990 session
+  `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` are driving toward exact pushed heads, real live-path UAT,
+  CI, and independent QA.
+- #868's approved RFA is the distinct engine-less transcript-purge scope required by #984 acceptance.
+  The runner/RPC input-readiness requirement is only a durable seed and explicitly needs its own
+  approved security spec. Primary has Ben's finish-all direction as the scope call and was asked to
+  create/approve that child. Both dependencies serialize ahead of #984's final no-wait 3x UAT.
+- #986 must recover/validate run-9 evidence after its interrupted turn; #990 must finish its existing
+  approved plan, open a PR, and record exact-head News Settings live evidence. No UX-lane merge is
+  authorized.
