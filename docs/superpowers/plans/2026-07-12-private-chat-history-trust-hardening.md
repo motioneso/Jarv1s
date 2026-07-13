@@ -36,12 +36,14 @@ integration via `app.inject`), Playwright (e2e via `tests/e2e/mock-chat-api.ts`)
 ### Task 1: Fix the private-activation race (Slice 1)
 
 **Files:**
+
 - Modify: `apps/web/src/chat/chat-drawer.tsx:90` (state), `:202` (sendMessage guard),
   `:330-344` (`startPrivateChat`), `:444` (render — add activating/error banners)
 - Test: `tests/e2e/chat-drawer.spec.ts` (new test), `tests/e2e/mock-chat-api.ts` (controllable
   `/api/chat/clear` delay)
 
 **Interfaces:**
+
 - Consumes: `clearChat(options?: {incognito?: boolean}): Promise<void>` (existing,
   `apps/web/src/api/client.ts:851`) — already awaits full server-side incognito-thread creation.
 - Produces: `activatingPrivate: boolean` and `privateActivationError: string | null` local state,
@@ -191,19 +193,23 @@ Add `activatingPrivate` to the `useCallback` dependency array (line 238).
 Right before the existing `{privateMode && !reviewing ? (...) : null}` block (line 444), add:
 
 ```tsx
-{activatingPrivate ? (
-  <div className="chatd-private is-activating">
-    <span>Starting private chat…</span>
-  </div>
-) : null}
-{privateActivationError ? (
-  <div className="chatd-private is-error">
-    <span>{privateActivationError}</span>
-    <button type="button" onClick={() => setPrivateActivationError(null)}>
-      Dismiss
-    </button>
-  </div>
-) : null}
+{
+  activatingPrivate ? (
+    <div className="chatd-private is-activating">
+      <span>Starting private chat…</span>
+    </div>
+  ) : null;
+}
+{
+  privateActivationError ? (
+    <div className="chatd-private is-error">
+      <span>{privateActivationError}</span>
+      <button type="button" onClick={() => setPrivateActivationError(null)}>
+        Dismiss
+      </button>
+    </div>
+  ) : null;
+}
 ```
 
 - [ ] **Step 8: Run the e2e test to confirm it passes**
@@ -223,6 +229,7 @@ git commit -m "fix(chat): block send until private activation is server-confirme
 ### Task 2: Server-confirmed privacy-state restore endpoint (Slice 1)
 
 **Files:**
+
 - Modify: `packages/shared/src/chat-api.ts` (new DTO + schema)
 - Modify: `packages/chat/src/live/chat-session-manager.ts` (new public method)
 - Modify: `packages/chat/src/live-routes.ts` (new GET handler)
@@ -233,6 +240,7 @@ git commit -m "fix(chat): block send until private activation is server-confirme
 - Test: `tests/integration/chat-live-api.test.ts` (new case)
 
 **Interfaces:**
+
 - Consumes: `ChatPersistencePort.getCurrentThreadState(actorUserId): Promise<{id, incognito} | undefined>`
   (already exists, `packages/chat/src/live/persistence.ts:285-292`).
 - Produces: `GET /api/chat/privacy` → `{ incognito: boolean }`; `getChatPrivacyState(): Promise<{incognito: boolean}>` in `client.ts`.
@@ -446,11 +454,13 @@ git commit -m "feat(chat): add server-confirmed privacy-state restore endpoint"
 ### Task 3: Force bounded replay on explicit resume (Slice 2)
 
 **Files:**
+
 - Modify: `packages/chat/src/live/chat-session-manager.ts:227` (field), `:446` (`runTurn`),
   `:673-695` (`resumeThread`)
 - Test: `tests/unit/chat-session-manager-resume.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ensureSession(actorUserId, userName, opts?: {forceReplay?: boolean})` (existing).
 - Produces: no new public API — `resumeThread` now guarantees the NEXT `runTurn`'s relaunch
   passes `forceReplay: true`, exactly like `switchProvider` already does.
@@ -589,6 +599,7 @@ git commit -m "fix(chat): force bounded replay on the turn after an explicit res
 ### Task 4: Unify History row selection with resume (Slice 2 UX + Slice 3 setup)
 
 **Files:**
+
 - Modify: `apps/web/src/chat/chat-drawer.tsx:116-124` (`resumeMutation`), `:421-443` (render),
   `:557-605` (`HistoryList`), remove `ReviewEmptyState`/`reviewing`-only composer readOnly gate
 - Modify: `apps/web/src/styles/kit-chat.css` (remove `.chatd-review` styles, drop
@@ -596,6 +607,7 @@ git commit -m "fix(chat): force bounded replay on the turn after an explicit res
 - Test: `tests/e2e/chat-drawer.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `resumeChat(threadId): Promise<void>` (existing, `client.ts:864`).
 - Produces: selecting a History row now both displays the thread AND activates it as the live
   thread in one action — no `reviewing`/read-only intermediate state remains for later tasks to
@@ -616,7 +628,14 @@ test("selecting a History row both opens and activates it — no separate resume
   await mockApi(page, {
     authenticated: true,
     chatThreads: [
-      { id: "t1", ownerUserId: "u1", title: "Old chat", incognito: false, createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" }
+      {
+        id: "t1",
+        ownerUserId: "u1",
+        title: "Old chat",
+        incognito: false,
+        createdAt: "2026-07-01T00:00:00Z",
+        updatedAt: "2026-07-01T00:00:00Z"
+      }
     ],
     chatMessages: { t1: [] },
     connectorAccounts: [],
@@ -652,17 +671,19 @@ Change the `HistoryList` render call (lines 421-428) to drop the separate `onRes
 props and pass a single combined handler:
 
 ```tsx
-{showHistory ? (
-  <HistoryList
-    selectedThreadId={reviewThreadId}
-    threads={threadsQuery.data?.threads ?? []}
-    onSelect={(id) => {
-      setReviewThreadId(id);
-      resumeMutation.mutate(id);
-    }}
-    activating={resumeMutation.isPending}
-  />
-) : null}
+{
+  showHistory ? (
+    <HistoryList
+      selectedThreadId={reviewThreadId}
+      threads={threadsQuery.data?.threads ?? []}
+      onSelect={(id) => {
+        setReviewThreadId(id);
+        resumeMutation.mutate(id);
+      }}
+      activating={resumeMutation.isPending}
+    />
+  ) : null;
+}
 ```
 
 Remove the entire `{reviewing ? (<div className="chatd-review">...</div>) : null}` block
@@ -775,10 +796,12 @@ git commit -m "feat(chat): unify History row selection with resume — one actio
 ### Task 5: Make History an exclusive surface (Slice 3)
 
 **Files:**
+
 - Modify: `apps/web/src/chat/chat-drawer.tsx:456-468` (render tree)
 - Test: `tests/e2e/chat-drawer.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `showHistory: boolean`, `threadsQuery` (existing).
 - Produces: none — leaf UI change.
 
@@ -789,7 +812,14 @@ test("History hides the ordinary composer seeds while open", async ({ page }) =>
   await mockApi(page, {
     authenticated: true,
     chatThreads: [
-      { id: "t1", ownerUserId: "u1", title: "Old chat", incognito: false, createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z" }
+      {
+        id: "t1",
+        ownerUserId: "u1",
+        title: "Old chat",
+        incognito: false,
+        createdAt: "2026-07-01T00:00:00Z",
+        updatedAt: "2026-07-01T00:00:00Z"
+      }
     ],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
@@ -821,17 +851,19 @@ Replace the render block (lines 456-468, the `effectiveRecords.length > 0 ? ... 
 it is skipped entirely while History is open:
 
 ```tsx
-{showHistory ? null : effectiveRecords.length > 0 ? (
-  <Thread records={effectiveRecords} />
-) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
-  <ConnectProviderEmpty isFounder={props.isFounder} />
-) : (
-  <EmptyState
-    onSend={sendMessage}
-    isSending={isSending}
-    lockedModelUnavailable={lockedModelUnavailable}
-  />
-)}
+{
+  showHistory ? null : effectiveRecords.length > 0 ? (
+    <Thread records={effectiveRecords} />
+  ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
+    <ConnectProviderEmpty isFounder={props.isFounder} />
+  ) : (
+    <EmptyState
+      onSend={sendMessage}
+      isSending={isSending}
+      lockedModelUnavailable={lockedModelUnavailable}
+    />
+  );
+}
 ```
 
 Also guard the private/activating/error banners (all now above this block, from Task 1/existing
@@ -877,10 +909,12 @@ for any reason, record the local commands/exit codes used instead per CLAUDE.md.
 - [ ] **Step 2: Pre-push trio + rebase**
 
 Run:
+
 ```bash
 pnpm format:check && pnpm lint && pnpm typecheck
 git fetch origin main && git rebase origin/main
 ```
+
 Expected: all green, rebase clean (resolve conflicts if any — none expected given the path locks).
 
 - [ ] **Step 3: Hand off to `coordinated-wrap-up`**
@@ -894,6 +928,7 @@ Coordinator.
 ## Self-Review
 
 **Spec coverage (Slices 1-3 only):**
+
 - Server-confirmed private-session truth, no send-race → Task 1.
 - Private state restores from server truth after remount, never silently downgrades → Task 2.
 - Reliable bounded continuation on resume, proof independent of `JARVIS_CHAT_REPLAY_K` → Task 3.
