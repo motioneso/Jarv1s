@@ -3,9 +3,9 @@
 **Date:** 2026-07-12
 **Merge-authority lock:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`.
-**Delegated lane owner:** label `UX Coordinator`, Claude session
-`b637e03f-267e-493b-acb2-0808bd1a9f49` (successor 7, adopted 2026-07-13, worktree
-`coord-983-ux`, pane `w1:pM6` prior to rename).
+**Delegated lane owner:** label `UX Coordinator`, Codex session
+`019f5dc2-8bd9-78b2-827f-67bd9a99e6c9` (successor 8, adopted 2026-07-13, worktree
+`coord-983-ux`).
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
