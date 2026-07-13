@@ -118,7 +118,9 @@ export class AgyPrintChatEngine implements CliChatEngine {
       if (this.hasSubmitted) throw new Error("AGY conversation identity unavailable for purge");
       return;
     }
-    await purgeAgyBrainDir(this.io, uuid, this.homeBase);
+    if (!(await purgeAgyBrainDir(this.io, uuid, this.homeBase))) {
+      throw new Error("Could not purge AGY conversation transcript");
+    }
   }
 
   private async resolveTranscriptPath(): Promise<string | null> {

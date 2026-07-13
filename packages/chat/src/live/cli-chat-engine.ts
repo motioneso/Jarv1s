@@ -48,8 +48,14 @@ import { writeClaudePermissionHook } from "./claude-permission-hook.js";
 import {
   AGY_SESSION_LOG_FILENAME,
   captureAgyConversationIdentity,
+  codexTranscriptMatchesIdentity,
   codexTranscriptMatchesCwd,
+  codexTranscriptPath,
+  parseCodexSessionUuid,
+  persistCodexSessionIdentity,
   purgeAgyBrainDir,
+  purgeCodexTranscript,
+  readCodexSessionIdentity,
   readAgyConversationIdentity
 } from "./private-transcript-cleanup.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
@@ -218,6 +224,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly executionMode: AiProviderExecutionMode;
   private codexExec: CodexExecSession | null = null;
   private codexExecLogicalAlive = false;
+  private codexSessionUuid: string | null = null;
   private agyConversationUuid: string | null = null;
   private agyHasSubmitted = false;
 
@@ -248,6 +255,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     const sessionId = randomUUID();
     this.neutralDir = opts.neutralDir;
     this.launchEpoch = Date.now();
+    this.codexSessionUuid = null;
     this.agyConversationUuid = null;
     this.agyHasSubmitted = false;
 
@@ -376,6 +384,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     let pasted = false;
     let entered = false;
     try {
+      await this.ensureCodexSessionIdentity(handle, opts.signal);
       const ack = await this.captureUserAckCursor(opts.signal);
       this.throwIfCanceled(opts.signal);
 
@@ -517,14 +526,18 @@ export class CliChatEngineImpl implements CliChatEngine {
           throw new Error("AGY conversation identity unavailable for purge");
         return;
       }
-      await purgeAgyBrainDir(this.io, uuid, this.homeBase);
+      if (!(await purgeAgyBrainDir(this.io, uuid, this.homeBase))) {
+        throw new Error("Could not purge AGY conversation transcript");
+      }
       return;
     }
 
-    const path = await this.resolveTranscriptPath();
-    if (path !== null) {
-      await this.io.run("rm", ["-f", path]);
-    }
+    const uuid =
+      this.codexSessionUuid ??
+      (this.neutralDir ? await readCodexSessionIdentity(this.io, this.neutralDir) : null);
+    if (uuid === null || this.neutralDir === null) return;
+    if (!(await purgeCodexTranscript(this.io, this.neutralDir, uuid, this.homeBase)))
+      throw new Error("Codex transcript identity mismatch");
   }
 
   // ─── introspection (used by tests / callers needing the pinned path) ─────────
@@ -560,6 +573,25 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.throwIfCanceled(signal);
     if (this.storedTranscriptPath !== null) return this.storedTranscriptPath;
     if (this.transcriptDir === null) return null;
+
+    if (
+      this.provider === "openai-compatible" &&
+      this.codexSessionUuid !== null &&
+      this.neutralDir !== null
+    ) {
+      const path = codexTranscriptPath(this.codexSessionUuid, this.homeBase);
+      try {
+        const jsonl = await this.io.readFile(path);
+        this.throwIfCanceled(signal);
+        if (!codexTranscriptMatchesIdentity(jsonl, this.codexSessionUuid, this.neutralDir))
+          return null;
+        this.storedTranscriptPath = path;
+        return path;
+      } catch {
+        this.throwIfCanceled(signal);
+        return null;
+      }
+    }
 
     // `ls -t` sorts by mtime, newest first; tolerate a not-yet-created dir (nonzero exit).
     const listed = await this.io.run("ls", ["-t", this.transcriptDir]);
@@ -614,6 +646,60 @@ export class CliChatEngineImpl implements CliChatEngine {
       throw new Error("CliChatEngineImpl.submit called before launch()");
     }
     return this.handle;
+  }
+
+  private async ensureCodexSessionIdentity(handle: MuxHandle, signal: AbortSignal): Promise<void> {
+    if (this.provider !== "openai-compatible" || this.codexSessionUuid !== null) return;
+    if (this.neutralDir === null) throw new VerifiedSubmitError("unavailable");
+
+    let entered = false;
+    try {
+      await this.mux.clearComposer(handle);
+      this.throwIfCanceled(signal);
+      const empty = await this.observePane(
+        handle,
+        (pane) => isComposerEmpty(this.provider, pane),
+        signal
+      );
+      if (!empty) throw new VerifiedSubmitError("unavailable");
+
+      await this.mux.paste(handle, "/status");
+      this.throwIfCanceled(signal);
+      const echoed = await this.observePane(
+        handle,
+        (pane) => composerHasExactEcho(this.provider, pane, "/status"),
+        signal
+      );
+      if (!echoed) throw new VerifiedSubmitError("unavailable");
+
+      entered = true;
+      await this.mux.pressEnter(handle);
+      this.throwIfCanceled(signal);
+      let uuid: string | null = null;
+      const observed = await this.observePane(
+        handle,
+        (pane) => {
+          uuid = parseCodexSessionUuid(pane);
+          return uuid !== null;
+        },
+        signal
+      );
+      if (!observed || uuid === null) throw new VerifiedSubmitError("unavailable");
+      await persistCodexSessionIdentity(this.io, this.neutralDir, uuid);
+      this.throwIfCanceled(signal);
+      this.codexSessionUuid = uuid;
+    } catch {
+      if (entered) {
+        await this.killAndRemoveNeutralDirQuietly();
+        throw new VerifiedSubmitError("unavailable", true);
+      }
+      const cleared = await this.clearPastedComposer(handle);
+      if (!cleared) {
+        await this.killAndRemoveNeutralDirQuietly();
+        throw new VerifiedSubmitError("unavailable", true);
+      }
+      throw new VerifiedSubmitError("unavailable");
+    }
   }
 
   private async captureUserAckCursor(signal?: AbortSignal): Promise<{

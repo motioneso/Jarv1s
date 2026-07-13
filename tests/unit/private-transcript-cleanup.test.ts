@@ -1,12 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
+import { createRealTmuxIo } from "@jarv1s/ai";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AGY_IDENTITY_FILENAME,
   AGY_SESSION_LOG_FILENAME,
+  CODEX_IDENTITY_FILENAME,
   captureAgyConversationIdentity,
+  codexTranscriptPath,
+  parseCodexSessionUuid,
   parseAgyConversationUuid,
+  persistCodexSessionIdentity,
   purgeAgyBrainDir,
   purgePrivateTranscripts,
+  readCodexSessionIdentity,
   readAgyConversationIdentity
 } from "../../packages/chat/src/live/private-transcript-cleanup.js";
 
@@ -19,45 +29,130 @@ function makeIo() {
 }
 
 describe("purgePrivateTranscripts", () => {
-  it("removes derived private transcripts without an engine object", async () => {
+  const roots: string[] = [];
+  afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true }))));
+
+  async function fixture() {
+    const root = await mkdtemp(join(tmpdir(), "jarvis-private-purge-"));
+    roots.push(root);
+    const neutralBase = join(root, "neutral");
+    const neutralDir = join(neutralBase, "user-1");
+    const homeBase = join(root, "home");
+    await mkdir(neutralDir, { recursive: true });
+    return { io: createRealTmuxIo(), neutralBase, neutralDir, homeBase };
+  }
+
+  it("deletes only the exact marker-named Codex rollout", async () => {
+    const { io, neutralBase, neutralDir, homeBase } = await fixture();
+    const mine = "019f5af9-3c61-7f72-af47-09514db9892c";
+    const sibling = "019f5af9-3c61-7f72-af47-09514db9892d";
+    const minePath = codexTranscriptPath(mine, homeBase);
+    const siblingPath = codexTranscriptPath(sibling, homeBase);
+    await mkdir(dirname(minePath), { recursive: true });
+    await writeFile(
+      minePath,
+      `${JSON.stringify({ type: "session_meta", payload: { id: mine, cwd: neutralDir } })}\n`
+    );
+    await writeFile(
+      siblingPath,
+      `${JSON.stringify({ type: "session_meta", payload: { id: sibling, cwd: neutralDir } })}\n`
+    );
+    await persistCodexSessionIdentity(io, neutralDir, mine);
+
+    await purgePrivateTranscripts(io, neutralBase, "user-1", homeBase);
+
+    await expect(access(minePath)).rejects.toThrow();
+    await expect(readFile(siblingPath, "utf8")).resolves.toContain(sibling);
+    await expect(stat(join(neutralDir, CODEX_IDENTITY_FILENAME))).rejects.toThrow();
+  });
+
+  it.each(["missing", "corrupt"])("retains every Codex rollout with a %s marker", async (kind) => {
+    const { io, neutralBase, neutralDir, homeBase } = await fixture();
+    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+    const path = codexTranscriptPath(uuid, homeBase);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(
+      path,
+      `${JSON.stringify({ type: "session_meta", payload: { id: uuid, cwd: neutralDir } })}\n`
+    );
+    if (kind === "corrupt")
+      await writeFile(join(neutralDir, CODEX_IDENTITY_FILENAME), "../../shared-root\n");
+
+    await purgePrivateTranscripts(io, neutralBase, "user-1", homeBase);
+
+    await expect(readFile(path, "utf8")).resolves.toContain(uuid);
+  });
+
+  it("rejects same-id/different-cwd and deletes codex-exec only inside the exact neutral dir", async () => {
+    const { io, neutralBase, neutralDir, homeBase } = await fixture();
+    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+    const path = codexTranscriptPath(uuid, homeBase);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(
+      path,
+      `${JSON.stringify({ type: "session_meta", payload: { id: uuid, cwd: `${neutralDir}-other` } })}\n`
+    );
+    await persistCodexSessionIdentity(io, neutralDir, uuid);
+    await writeFile(join(neutralDir, "codex-exec-transcript.jsonl"), "private\n");
+    const otherNeutral = `${neutralDir}-other`;
+    await mkdir(otherNeutral, { recursive: true });
+    await writeFile(join(otherNeutral, "codex-exec-transcript.jsonl"), "sibling\n");
+
+    await expect(purgePrivateTranscripts(io, neutralBase, "user-1", homeBase)).rejects.toThrow(
+      "identity mismatch"
+    );
+
+    await expect(readFile(path, "utf8")).resolves.toContain(uuid);
+    await expect(access(join(neutralDir, "codex-exec-transcript.jsonl"))).rejects.toThrow();
+    await expect(readFile(join(otherNeutral, "codex-exec-transcript.jsonl"), "utf8")).resolves.toBe(
+      "sibling\n"
+    );
+  });
+
+  it("purges only the exact AGY marker directory engine-less", async () => {
+    const { io, neutralBase, neutralDir, homeBase } = await fixture();
+    const mine = "e099f770-a55c-432f-a9be-8cf254fd2d54";
+    const sibling = "922f315d-bff5-4d42-86a5-a96a8620350c";
+    const brain = join(homeBase, ".gemini", "antigravity-cli", "brain");
+    await mkdir(join(brain, mine), { recursive: true });
+    await mkdir(join(brain, sibling), { recursive: true });
+    await writeFile(join(brain, mine, "private"), "mine");
+    await writeFile(join(brain, sibling, "private"), "sibling");
+    await writeFile(join(neutralDir, AGY_IDENTITY_FILENAME), `${mine}\n`);
+
+    await purgePrivateTranscripts(io, neutralBase, "user-1", homeBase);
+
+    await expect(access(join(brain, mine))).rejects.toThrow();
+    await expect(readFile(join(brain, sibling, "private"), "utf8")).resolves.toBe("sibling");
+  });
+});
+
+describe("Codex session identity", () => {
+  const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+
+  it("accepts one exact /status Session UUID and rejects missing or ambiguous panes", () => {
+    expect(parseCodexSessionUuid(`│  Session:  ${uuid}  │`)).toBe(uuid);
+    expect(parseCodexSessionUuid("Session: unavailable")).toBeNull();
+    expect(
+      parseCodexSessionUuid(`Session: ${uuid}\nSession: 019f5acf-ba87-7553-872c-41572e6d0c49`)
+    ).toBeNull();
+  });
+
+  it("atomically persists and validates a 0600 marker", async () => {
     const io = makeIo();
-    io.run.mockImplementation(async (cmd: string, args: string[]) => {
-      if (cmd === "find" && args[0]?.includes(".codex")) {
-        return {
-          code: 0,
-          stdout:
-            "/host-home/.codex/sessions/2026/07/08/rollout-mine.jsonl\n/host-home/.codex/sessions/2026/07/08/rollout-other.jsonl\n",
-          stderr: ""
-        };
-      }
-      if (cmd === "find" && args[0]?.includes(".gemini")) {
-        return { code: 0, stdout: "", stderr: "" };
-      }
-      return { code: 0, stdout: "", stderr: "" };
-    });
-    io.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("rollout-mine.jsonl")) {
-        return JSON.stringify({
-          type: "session_meta",
-          payload: { cwd: "/data/cli-auth/chat/user-1", timestamp: new Date().toISOString() }
-        });
-      }
-      return JSON.stringify({
-        type: "session_meta",
-        payload: { cwd: "/data/cli-auth/chat/other", timestamp: new Date().toISOString() }
-      });
-    });
+    const neutralDir = "/data/cli-auth/chat/user-1";
 
-    await purgePrivateTranscripts(io, "/data/cli-auth/chat", "user-1", "/host-home");
+    await persistCodexSessionIdentity(io, neutralDir, uuid);
 
-    expect(io.run).toHaveBeenCalledWith("rm", [
-      "-rf",
-      "/host-home/.claude/projects/-data-cli-auth-chat-user-1"
-    ]);
-    const rmCalls = io.run.mock.calls.filter((call: unknown[]) => call[0] === "rm");
-    expect(rmCalls).toContainEqual(["rm", ["-f", expect.stringContaining("rollout-mine.jsonl")]]);
-    expect(JSON.stringify(rmCalls)).not.toContain("rollout-other.jsonl");
-    expect(JSON.stringify(io.run.mock.calls)).not.toContain(".gemini");
+    const marker = `${neutralDir}/${CODEX_IDENTITY_FILENAME}`;
+    expect(io.writeFile).toHaveBeenCalledWith(`${marker}.tmp`, `${uuid}\n`);
+    expect(io.run.mock.calls).toContainEqual(["chmod", ["600", `${marker}.tmp`]]);
+    expect(io.run.mock.calls).toContainEqual(["mv", ["-f", `${marker}.tmp`, marker]]);
+
+    io.readFile.mockResolvedValue(`${uuid}\n`);
+    await expect(readCodexSessionIdentity(io, neutralDir)).resolves.toBe(uuid);
+    io.readFile.mockResolvedValue("../../shared-root\n");
+    await expect(readCodexSessionIdentity(io, neutralDir)).resolves.toBeNull();
   });
 });
 

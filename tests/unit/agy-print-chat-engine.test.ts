@@ -165,6 +165,28 @@ describe("AgyPrintChatEngine", () => {
     expect(io.runs).toContain(`rm -rf /home/test/.gemini/antigravity-cli/brain/${uuid}`);
     expect(io.runs).not.toContain("rm -rf /home/test/.gemini/antigravity-cli/brain");
   });
+
+  it("fails closed when the exact AGY directory cannot be removed", async () => {
+    const uuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
+    const io = fakeIo({
+      [`/tmp/jarvis-neutral/${AGY_SESSION_LOG_FILENAME}`]: `Created conversation ${uuid}\n`
+    });
+    const engine = new AgyPrintChatEngine("user-1", io, {
+      mux: fakeMux(),
+      homeBase: "/home/test"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md"
+    });
+    await engine.readNew(0);
+    io.run = async (cmd, args) => {
+      io.runs.push([cmd, ...args].join(" "));
+      return { code: cmd === "rm" ? 1 : 0, stdout: "" };
+    };
+
+    await expect(engine.purgeTranscripts()).rejects.toThrow("purge AGY");
+  });
 });
 
 describe("AgyPrintChatEngine Runtime Routing", () => {

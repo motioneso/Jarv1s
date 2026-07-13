@@ -4,11 +4,15 @@ import { join } from "node:path";
 import { agyPrintTranscriptRoot, transcriptGlobDir, type TmuxIo } from "@jarv1s/ai";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CODEX_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CREATED_CONVERSATION_PATTERN =
   /\bCreated conversation ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=\s|$)/gi;
+const CODEX_STATUS_SESSION_PATTERN =
+  /\bSession:\s+([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?=\s|$|│)/gi;
 
 export const AGY_SESSION_LOG_FILENAME = ".jarvis-agy-session.log";
 export const AGY_IDENTITY_FILENAME = ".jarvis-agy-conversation-id";
+export const CODEX_IDENTITY_FILENAME = ".jarvis-codex-session-id";
 
 export function parseAgyConversationUuid(log: string): string | null {
   const ids = new Set<string>();
@@ -30,20 +34,7 @@ export async function captureAgyConversationIdentity(
   }
   const uuid = parseAgyConversationUuid(log);
   if (uuid === null) return null;
-
-  const marker = join(neutralDir, AGY_IDENTITY_FILENAME);
-  const temp = `${marker}.tmp`;
-  await io.writeFile(temp, `${uuid}\n`);
-  const chmod = await io.run("chmod", ["600", temp]);
-  if (chmod.code !== 0) {
-    await io.run("rm", ["-f", temp]);
-    throw new Error("Could not lock down AGY conversation identity marker");
-  }
-  const moved = await io.run("mv", ["-f", temp, marker]);
-  if (moved.code !== 0) {
-    await io.run("rm", ["-f", temp]);
-    throw new Error("Could not persist AGY conversation identity marker");
-  }
+  await persistIdentity(io, neutralDir, AGY_IDENTITY_FILENAME, uuid, "AGY conversation");
   return uuid;
 }
 
@@ -65,8 +56,104 @@ export async function purgeAgyBrainDir(
   homeBase?: string
 ): Promise<boolean> {
   if (!capturedUuid || !UUID_PATTERN.test(capturedUuid)) return false;
-  await io.run("rm", ["-rf", join(agyPrintTranscriptRoot(homeBase), capturedUuid)]);
-  return true;
+  const removed = await io.run("rm", [
+    "-rf",
+    join(agyPrintTranscriptRoot(homeBase), capturedUuid.toLowerCase())
+  ]);
+  return removed.code === 0;
+}
+
+export function parseCodexSessionUuid(pane: string): string | null {
+  const ids = new Set<string>();
+  for (const match of pane.matchAll(CODEX_STATUS_SESSION_PATTERN)) {
+    if (match[1]) ids.add(match[1].toLowerCase());
+  }
+  return ids.size === 1 ? [...ids][0]! : null;
+}
+
+export async function persistCodexSessionIdentity(
+  io: Pick<TmuxIo, "writeFile" | "run">,
+  neutralDir: string,
+  uuid: string
+): Promise<void> {
+  if (!CODEX_UUID_PATTERN.test(uuid)) throw new Error("invalid Codex session identity");
+  await persistIdentity(
+    io,
+    neutralDir,
+    CODEX_IDENTITY_FILENAME,
+    uuid.toLowerCase(),
+    "Codex session"
+  );
+}
+
+export async function readCodexSessionIdentity(
+  io: Pick<TmuxIo, "readFile">,
+  neutralDir: string
+): Promise<string | null> {
+  try {
+    const uuid = (await io.readFile(join(neutralDir, CODEX_IDENTITY_FILENAME))).trim();
+    return CODEX_UUID_PATTERN.test(uuid) ? uuid.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function codexTranscriptPath(uuid: string, homeBase: string = homedir()): string {
+  if (!CODEX_UUID_PATTERN.test(uuid)) throw new Error("invalid Codex session identity");
+  const timestamp = Number(BigInt(`0x${uuid.replaceAll("-", "").slice(0, 12)}`));
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) throw new Error("invalid Codex session identity");
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return join(
+    codexSessionsRoot(homeBase),
+    year,
+    month,
+    day,
+    `rollout-${year}-${month}-${day}T${hour}-${minute}-${second}-${uuid.toLowerCase()}.jsonl`
+  );
+}
+
+export function codexTranscriptMatchesIdentity(
+  jsonl: string,
+  expectedUuid: string,
+  expectedCwd: string
+): boolean {
+  for (const line of jsonl.split("\n").slice(0, 50)) {
+    if (!line.trim()) continue;
+    let record: Record<string, unknown>;
+    try {
+      record = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (record["type"] !== "session_meta") continue;
+    const payload = record["payload"];
+    if (!isRecord(payload)) continue;
+    return payload["id"] === expectedUuid && payload["cwd"] === expectedCwd;
+  }
+  return false;
+}
+
+export async function purgeCodexTranscript(
+  io: Pick<TmuxIo, "run" | "readFile">,
+  neutralDir: string,
+  capturedUuid: string | null | undefined,
+  homeBase?: string
+): Promise<boolean> {
+  if (!capturedUuid || !CODEX_UUID_PATTERN.test(capturedUuid)) return false;
+  const uuid = capturedUuid.toLowerCase();
+  const path = codexTranscriptPath(uuid, homeBase);
+  const exists = await io.run("test", ["-e", path]);
+  if (exists.code !== 0) return true;
+  const jsonl = await io.readFile(path);
+  if (!codexTranscriptMatchesIdentity(jsonl, uuid, neutralDir)) return false;
+  const removed = await io.run("rm", ["-f", path]);
+  return removed.code === 0;
 }
 
 export async function purgePrivateTranscripts(
@@ -76,10 +163,23 @@ export async function purgePrivateTranscripts(
   homeBase?: string
 ): Promise<void> {
   const neutralDir = deriveNeutralDir(neutralBase, sessionKey);
-  await io.run("rm", ["-rf", transcriptGlobDir("anthropic", neutralDir, homeBase)]);
-  // Private transcript cleanup is intentionally scoped to Claude + interactive Codex.
-  // Gemini, agy-print, and codex-exec paths stay inert here until #868 lands.
-  await purgeMatchingJsonl(io, codexSessionsRoot(homeBase), neutralDir);
+  await removeChecked(io, ["-rf", transcriptGlobDir("anthropic", neutralDir, homeBase)]);
+  await removeChecked(io, ["-f", join(neutralDir, "codex-exec-transcript.jsonl")]);
+
+  const codexUuid = await readCodexSessionIdentity(io, neutralDir);
+  if (codexUuid !== null) {
+    if (!(await purgeCodexTranscript(io, neutralDir, codexUuid, homeBase)))
+      throw new Error("Codex transcript identity mismatch");
+    await removeChecked(io, ["-f", join(neutralDir, CODEX_IDENTITY_FILENAME)]);
+  }
+
+  const agyUuid = await readAgyConversationIdentity(io, neutralDir);
+  if (agyUuid !== null) {
+    if (!(await purgeAgyBrainDir(io, agyUuid, homeBase))) {
+      throw new Error("Could not purge AGY conversation transcript");
+    }
+    await removeChecked(io, ["-f", join(neutralDir, AGY_IDENTITY_FILENAME)]);
+  }
 }
 
 export function codexTranscriptMatchesCwd(jsonl: string, expectedCwd: string): boolean {
@@ -122,25 +222,31 @@ function sanitizeSessionKey(sessionKey: string): string {
   return sessionKey;
 }
 
-async function purgeMatchingJsonl(
-  io: Pick<TmuxIo, "run" | "readFile">,
-  dir: string,
-  expectedCwd: string
+async function persistIdentity(
+  io: Pick<TmuxIo, "writeFile" | "run">,
+  neutralDir: string,
+  filename: string,
+  uuid: string,
+  label: string
 ): Promise<void> {
-  const listed = await io.run("find", [dir, "-type", "f", "-name", "*.jsonl"]);
-  if (listed.code !== 0) return;
-  const candidates = listed.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  for (const path of candidates) {
-    try {
-      const jsonl = await io.readFile(path);
-      if (codexTranscriptMatchesCwd(jsonl, expectedCwd)) await io.run("rm", ["-f", path]);
-    } catch {
-      // best-effort: the next sweep retries any unreadable file.
-    }
+  const marker = join(neutralDir, filename);
+  const temp = `${marker}.tmp`;
+  await io.writeFile(temp, `${uuid}\n`);
+  const chmod = await io.run("chmod", ["600", temp]);
+  if (chmod.code !== 0) {
+    await io.run("rm", ["-f", temp]);
+    throw new Error(`Could not lock down ${label} identity marker`);
   }
+  const moved = await io.run("mv", ["-f", temp, marker]);
+  if (moved.code !== 0) {
+    await io.run("rm", ["-f", temp]);
+    throw new Error(`Could not persist ${label} identity marker`);
+  }
+}
+
+async function removeChecked(io: Pick<TmuxIo, "run">, args: readonly string[]): Promise<void> {
+  const result = await io.run("rm", args);
+  if (result.code !== 0) throw new Error("Could not purge private transcript");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

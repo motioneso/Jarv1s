@@ -16,7 +16,11 @@ import {
   SESSION_PREFIX
 } from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
-import { AGY_SESSION_LOG_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
+import {
+  AGY_SESSION_LOG_FILENAME,
+  CODEX_IDENTITY_FILENAME,
+  codexTranscriptPath
+} from "../../packages/chat/src/live/private-transcript-cleanup.js";
 import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js";
 
 function makeIo() {
@@ -161,14 +165,29 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
 
   it("accepts an exact post-cursor Codex user_message on a launch-valid rollout", async () => {
     const neutralDir = "/tmp/verified-codex";
+    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
     let transcript =
       JSON.stringify({
         type: "session_meta",
-        payload: { cwd: neutralDir, timestamp: new Date().toISOString() }
+        payload: { id: uuid, cwd: neutralDir, timestamp: new Date().toISOString() }
       }) + "\n";
+    let enters = 0;
+    let markerPersistedBeforeUserEnter = false;
+    const io = makeIo();
     const mux = stateMachineMux({
-      panes: ["\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n", "› exact payload\n"],
+      panes: [
+        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+        "› /status\n",
+        `│  Session:  ${uuid}  │\n`,
+        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+        "› exact payload\n"
+      ],
       onEnter: () => {
+        enters += 1;
+        if (enters === 1) return;
+        markerPersistedBeforeUserEnter = io.writeFile.mock.calls.some((call: unknown[]) =>
+          String(call[0]).endsWith(`${CODEX_IDENTITY_FILENAME}.tmp`)
+        );
         transcript +=
           JSON.stringify({
             type: "event_msg",
@@ -176,12 +195,6 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
           }) + "\n";
       }
     });
-    const io = makeIo();
-    io.run.mockImplementation(async (cmd: string) =>
-      cmd === "ls"
-        ? { code: 0, stdout: "rollout-exact.jsonl\n", stderr: "" }
-        : { code: 0, stdout: "", stderr: "" }
-    );
     io.readFile.mockImplementation(async () => transcript);
     const engine = new CliChatEngineImpl("openai-compatible", "verified-codex", io, {
       mux,
@@ -195,7 +208,9 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
       signal: new AbortController().signal
     });
 
-    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+    expect(mux.pressEnter).toHaveBeenCalledTimes(2);
+    expect(markerPersistedBeforeUserEnter).toBe(true);
+    expect(io.run.mock.calls.some((call: unknown[]) => call[0] === "ls")).toBe(false);
   });
 
   it("fails before paste without killing when empty composer cannot be observed", async () => {
@@ -367,40 +382,33 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     ]);
   });
 
-  it("purgeTranscripts removes only the resolved Codex session file from the shared day directory", async () => {
+  it("purgeTranscripts removes only the exact marker-named Codex session", async () => {
     const io = makeIo();
+    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+    const neutralDir = "/tmp/private-neutral";
+    const transcriptPath = codexTranscriptPath(uuid, "/host-home");
     const engine = new CliChatEngineImpl("openai-compatible", "private-codex", io, {
       homeBase: "/host-home"
     });
     await engine.launch({
-      neutralDir: "/tmp/private-neutral",
+      neutralDir,
       personaPath: "/tmp/persona.txt"
     });
 
-    io.run.mockImplementation(async (cmd: string) => {
-      if (cmd === "ls")
-        return { code: 0, stdout: "rollout-mine.jsonl\nrollout-other.jsonl\n", stderr: "" };
-      return { code: 0, stdout: "", stderr: "" };
-    });
+    io.run.mockResolvedValue({ code: 0, stdout: "", stderr: "" });
     io.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("rollout-mine.jsonl")) {
-        return JSON.stringify({
-          type: "session_meta",
-          payload: { cwd: "/tmp/private-neutral", timestamp: new Date().toISOString() }
-        });
-      }
+      if (path.endsWith(CODEX_IDENTITY_FILENAME)) return `${uuid}\n`;
       return JSON.stringify({
         type: "session_meta",
-        payload: { cwd: "/tmp/other-neutral", timestamp: new Date().toISOString() }
+        payload: { id: uuid, cwd: neutralDir, timestamp: new Date().toISOString() }
       });
     });
 
-    await engine.readNew(0);
     await engine.purgeTranscripts();
 
     const rmCalls = io.run.mock.calls.filter((call: unknown[]) => call[0] === "rm");
-    expect(rmCalls).toContainEqual(["rm", ["-f", expect.stringContaining("rollout-mine.jsonl")]]);
-    expect(JSON.stringify(rmCalls)).not.toContain("rollout-other.jsonl");
+    expect(rmCalls).toContainEqual(["rm", ["-f", transcriptPath]]);
+    expect(io.run.mock.calls.some((call: unknown[]) => call[0] === "ls")).toBe(false);
   });
 
   it("passes --model <id> on the claude launch line for a concrete model override (#367)", async () => {
