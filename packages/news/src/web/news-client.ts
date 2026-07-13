@@ -16,7 +16,9 @@ import type {
   NewsPrefsResponse,
   NewsSourcePreviewRequest,
   NewsSourcePreviewResponse,
-  TriggerNewsRevalidationResponse
+  TriggerNewsRevalidationResponse,
+  UpdateNewsTopicRequest,
+  UpdateNewsTopicResponse
 } from "@jarv1s/shared";
 
 import { requestJson } from "@jarv1s/module-web-sdk";
@@ -109,6 +111,16 @@ export async function createNewsTopic(
 export async function deleteNewsTopic(id: string): Promise<DeleteNewsTopicResponse> {
   return requestJson<DeleteNewsTopicResponse>(`/api/news/topics/${encodeURIComponent(id)}`, {
     method: "DELETE"
+  });
+}
+
+export async function updateNewsTopic(
+  id: string,
+  input: UpdateNewsTopicRequest
+): Promise<UpdateNewsTopicResponse> {
+  return requestJson<UpdateNewsTopicResponse>(`/api/news/topics/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: input
   });
 }
 
