@@ -25,7 +25,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building approved plan on `ux/986-settings-build`; label `UX 986 Settings Shell v2`, session `ad66ce73-17b5-462e-b3d2-615038ad39d6`, pane `w1:pJM` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | Task 1 committed at `827d37fe` with 24 tests green; Task 2 building on `ux/989-sports-settings-build`; label `UX 989 Sports Settings v3`, session `da980b16-d458-4213-ab02-7a34ba852971`, pane `w1:pJP` |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | planning pre-code on `ux/990-news-settings-build`; label `UX 990 News Settings v2`, session `5663beab-07c4-4691-9dc8-2b1b94869ea2`, pane `w1:pJK`; grounded with clean #981 rebase on `3ca138eb` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | four-task plan approved with required revalidation E2E assertion at `docs/superpowers/plans/2026-07-12-news-settings-dogfood-hardening.md`; session `5663beab-07c4-4691-9dc8-2b1b94869ea2` checkpoint-relaying pre-code in `ux/990-news-settings-build` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -199,6 +199,10 @@ resume from this note before taking any merge-sensitive action.
   70% relay is in progress.
 - #989 v3 session `da980b16-d458-4213-ab02-7a34ba852971` was verified driving Task 2 in the same
   worktree on Sonnet; v2 was identity-checked and reaped.
+- #990's four-task plan was approved with one required acceptance-only change: its local stateful
+  Playwright mock must prove existing Retry validation queues revalidation and exposes queued/error
+  feedback. No shared retry code or new unit suite is needed. V2 was checkpoint-relayed pre-code at
+  67%; re-adopt the Sonnet successor before Task 1.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
