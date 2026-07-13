@@ -1,0 +1,15 @@
+step 0 action: verified local HEAD and pushed branch head=44c624744b26cd0ec8b4ec478324408836faf5e0; isolated Vite URL=http://127.0.0.1:45990; API responses deterministic browser interceptions
+step 1 action: opened exact-head desktop News Settings; verified honest empty state and adjacent topic/guidance fields
+step 2 action: pressed Enter to add topic; POST payload={"guidance": "not smartwatches", "label": "Mechanical watches"}; compact Edit/Remove row and Topic added status visible
+step 3 action: edited topic; PATCH payload={"guidance": "mechanical only", "label": "Mechanical watches"}; Changes saved status and updated guidance visible
+step 4 action: removed topic; DELETE observed; Topic removed status and honest empty state visible
+step 5 action: forced deterministic 422; actionable content-policy alert visible and Banned topic input retained
+step 6 action: clicked Retry validation; POST observed; queued feedback visible
+step 7 action: clicked Retry validation again; deterministic 500 returned; safe retryable error visible
+step 8 action: held personalization request; authored loading state visible and false empty/form UI absent
+step 9 action: returned deterministic personalization 500; authored error visible and false empty/form UI absent
+step 10 action: opened 390x844 narrow viewport; full saved guidance plus compact Edit/Remove controls visible with style={'overflow': 'visible', 'whiteSpace': 'normal'}; no horizontal overflow widths={'scrollWidth': 390, 'clientWidth': 390}
+step 11 action: cleared stored guidance; PATCH payload={"guidance": "", "label": "Mechanical watches"}; refreshed row removed old guidance before Changes saved
+step 12 action: forced create 422 then entered edit with no leaked alert; forced edit 422 then canceled to add mode with no leaked alert
+
+FINAL_RESPONSE: PASS — add/edit/remove/clear-guidance/operation-local-errors/loading/error and narrow full-guidance News Settings UAT complete on pushed SHA 44c624744b26cd0ec8b4ec478324408836faf5e0
