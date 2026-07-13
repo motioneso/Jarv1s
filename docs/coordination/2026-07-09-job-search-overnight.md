@@ -5317,3 +5317,19 @@ Fable (a522161b, Ben's delegated spec authority) re-verified rev 2 (39dafc29) ag
 ## MERGED PR #1021 (#990) — 2026-07-13, routine, sole-authority
 Squash SHA **b205f1c7** (branch deleted). UX Coordinator (Codex gpt-5.6-sol, pane w1:pKA/sess 019f5adf) delegated merge; I ran Phase-3 gate: session-id 58a78927 authoritative; head 44c62474 behind_by=0 (integrated=current main → R3 GREEN is integrated result, no re-QA); CI 4/4 pass incl image (run 29273395628); MERGEABLE/CLEAN; 0 findings; all 6 prior blockers repaired; UAT+evidence chain verified. Routine → auto-merge, no Ben sign-off. SHA relayed to w1:pKA — UX owns reap/close #990 + post-merge image verify. Digest: settings-guidance CRUD fix (clear-omits-PATCH stale value + cross-mode error leak repaired).
 **merges_since_relay: 0 → 1** (routine). Relay at 2 routine/sensitive; not yet. No meter warning since the in-place compact. Continue.
+
+## FLUSH / IN-PLACE COMPACT — 2026-07-13 (70% meter + merges_since_relay=2)
+Coordinator lock UNCHANGED: label Coordinator, session 58a78927-385c-4b1d-8fa0-94db20255d6f, tab w1:t15. Compact in place (no successor spawn). **merges_since_relay reset 2 → 0.**
+
+### Landed this window (both = my sole-authority merges, gate-verified)
+- **PR #1021 (#990) MERGED b205f1c7** (routine). UX Coordinator delegated; closed #990 their side; post-merge image run 29275470092. Digest: settings-guidance CRUD fix (clear-omits-PATCH stale value + cross-mode error leak).
+- **PR #1023 (#1019) MERGED cdf66df0** (sensitive). #1019 auto-CLOSED. Gate: session-id 58a78927; disjoint-file check vs #1021 (ZERO overlap → integrated==CI-tested, no re-QA); MERGEABLE/CLEAN; CI 4/4. Relay 7 (w1:pKT) reaped + worktree ext-nav-1019 force-removed+pruned. Digest: downloaded modules now appear in nav after install (job-search reachable by click, not URL).
+
+### #1020 — BEN APPROVED (2026-07-13, direct: "ok to unblock")
+Spec rev 2 (39dafc29) Ben-approved. Durable #1020 issuecomment-4961635704. Arc: Sol REJECT→rework→rev2; Fable rev-2 APPROVE 0-blocking. **Security BUILD lane AUTHORIZED** — order handed to UX Coordinator (w1:pKA, Codex gpt-5.6-sol) to spawn serialized #984/#868 lane against approved spec + expanded #868 (AGY purge by crash-surviving per-session identity). **HARD CONSTRAINT: PR #1015/#984 MERGE still returns to Ben for explicit security sign-off — build+QA only, no merge. Serialize behind #868 landing.**
+Task #41 (#984): now spec-unblocked, build pending UX spawn; still MERGE-blocked on Ben sign-off. Task #42 (#1019): DONE/merged.
+
+### Live fleet after flush
+- UX Coordinator w1:pKA (Codex, sess 019f5adf) — owns #984/#868 security build lane (authorized, spawning) + settings-shell #986 lane. It will report the #984 PR to me for QA→Ben sign-off.
+- No other active build lanes mine. #965/#1000/#39/#1018 still deferred (no lane).
+### Nothing awaiting Ben right now (both his asks resolved this window).
