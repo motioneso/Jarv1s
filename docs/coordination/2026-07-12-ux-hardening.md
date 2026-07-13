@@ -489,15 +489,21 @@ resume from this note before taking any merge-sensitive action.
   `https://github.com/motioneso/Jarv1s/pull/1012#issuecomment-4956195357`. #985 is unfrozen into
   remediation only, never merge. `summarizeAssistantToolInput()` must cap model-controlled key-name
   length/count and remain the sole feeder; `inputSummary` must be a typed closed shared object with
-  `app.inject` strip coverage, explicit export projection, new AI migration `0163` plus schema-ledger
+  `app.inject` strip coverage, explicit export projection, new AI migration `0164` plus schema-ledger
   row, and persisted-row proof excluding raw values. No generic metadata framework.
 - Native YOLO must use the exact fail-closed allowlist `Edit`/`Write`/`NotebookEdit`; `Read`, `Bash`,
   `Grep`, `Glob`, `Task`, empty, and unknown/future names remain confirmation-gated. Tests must pin
   pending actions for Bash/Task/unknown/empty. Canonicalized writes/edits to CLI configuration paths
   (`.claude/settings.json`, `CLAUDE.md`, `.mcp.json`) must also fall back to confirmation unless the
-  engine is proved and documented read-only. #985 may edit now but may not run DB-touching work until
-  #984 explicitly releases the exclusive shared-cluster slot. The hold includes applying migration
-  `0163`, schema-catalog/ledger integration, the persisted-row negative test, and every integration or
-  foundation gate. On release, UX coordination must explicitly assign the slot to #985 and notify
-  primary coordination for cross-fleet serialization; silence is never release. Fresh Opus security
-  QA follows repair. `.claude/context-meter.log` is a coordinator artifact and must never be staged.
+  engine is proved and documented read-only. Fable's `0163` instruction was stale: fetched
+  `origin/main` `3ca138eb` already contains applied `0163_ai_cli_model_reconcile_delete.sql` from
+  `daa91518` and its ledger row. No `0164` existed on any ref or live worktree, so UX coordination
+  reserved `0164_action_audit_input_summary.sql` and ledger version `0164` for #985.
+- #984's final full foundation run is GREEN on fresh database
+  `jarv1s_ux984_gate_019f5a73`: exit 0; unit 390 files with 3173 passed/2 skipped; integration 152
+  files with 1635 passed/2 skipped; focused notes precheck 16/16. The exact database was dropped;
+  no sibling database was touched and no second DB run started. #984's exclusive shared-cluster slot
+  is released and assigned to #985 for migration `0164`, schema-catalog/ledger integration, the
+  persisted-row negative test, and required integration/foundation gates. Primary coordination was
+  notified for cross-fleet serialization; silence is never release. Fresh Opus security QA follows
+  repair. `.claude/context-meter.log` is a coordinator artifact and must never be staged.
