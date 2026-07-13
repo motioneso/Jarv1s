@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 rebased cleanly onto merged #986/main and force-pushed with lease at exact head `36a06394`; final new-head CI and exact-head UAT are running. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `36a06394`: foundation plus both compose smokes GREEN, image build running, rebased exact-head UAT GREEN at comment `4960344279`. Fresh routine QA session `019f5c5f-446a-78e0-85dc-ce9a01ddfeae` is reviewing and must hold verdict for 4/4 CI |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -958,3 +958,15 @@ resume from this note before taking any merge-sensitive action.
 - Verified build session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` is running final new-head CI and
   exact-head isolated UAT. Protected `.claude/context-meter.log` and untracked relay handoff remain
   unstaged; this UX lane never merges.
+
+## Continuation note — 2026-07-13 #990 UAT GREEN and fresh QA
+
+- Rebased exact-head #990 UAT is GREEN and durable at PR comment `4960344279`. Evidence-only commit
+  `7896efb27b63749bef2fd504ed142d2767412904` has exact PR head
+  `36a0639433a2cbb592716d2df21931fb7f63160b` as its parent, preserving the CI-tested product head
+  while publishing the full log and eight desktop/narrow screenshots.
+- Final exact-head CI run `29266428822` has foundation GREEN in 18m41s plus both compose smokes
+  GREEN; image build is running. Fresh routine QA is active in a detached exact-head worktree under
+  label `QA 1021 News Settings R1`, Codex session
+  `019f5c5f-446a-78e0-85dc-ce9a01ddfeae`. It reviews now but may not post GREEN until CI is 4/4;
+  it never edits or merges.
