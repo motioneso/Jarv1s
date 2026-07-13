@@ -34,13 +34,9 @@ import {
 } from "virtual:jarvis-module-settings";
 
 import {
-  getLocaleSettings,
   getModules,
   getMyModules,
-  getQuietHoursSettings,
   listConnectorAccounts,
-  putLocaleSettings,
-  putQuietHoursSettings,
   revokeConnectorAccount,
   setMyModuleDisabled
 } from "../api/client";
@@ -62,7 +58,11 @@ import {
 } from "./settings-module-subviews";
 import { useFeedback } from "./settings-feedback";
 import { resolveModuleSettingsDeepLink } from "./module-settings-deep-link";
-import { settingsModuleControlModel, visibleUserToggleModules } from "./settings-module-view-model";
+import {
+  settingsModuleControlModel,
+  visibleConfigurableModules,
+  type SettingsModule
+} from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
   Badge,
@@ -74,16 +74,10 @@ import {
   Note,
   PaneHead,
   Row,
-  Select,
   Switch
 } from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
-import {
-  type ConnectorAccountDto,
-  type LocaleSettingsDto,
-  type QuietHoursSettingsDto,
-  type PutNotesSourceRequest
-} from "@jarv1s/shared";
+import { type ConnectorAccountDto, type PutNotesSourceRequest } from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
@@ -98,23 +92,6 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   finance: Wallet,
   email: Mail
 };
-
-const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
-  timezone: "America/Los_Angeles",
-  region: "en-US",
-  dateFormat: "24"
-};
-
-const DEFAULT_QUIET_HOURS: QuietHoursSettingsDto = {
-  enabled: false,
-  start: "22:00",
-  end: "07:00",
-  timezone: null
-};
-
-export function isValidQuietHoursTime(value: string): boolean {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-}
 
 function moduleIcon(id: string): LucideIcon {
   return MODULE_ICONS[id] ?? Boxes;
@@ -589,11 +566,23 @@ const CONTRIBUTED_SETTINGS_MODULE_IDS = new Set(
 type ModuleSub = "briefings" | "chat" | "notifications";
 type ModuleSettingsView = ModuleSub | { readonly moduleId: string };
 
+function hasImplementedModuleSettings(module: SettingsModule): boolean {
+  if (CONFIG_IDS.has(module.id)) return true;
+  if (CAT_BY_ID[module.id]) return true;
+  return (
+    CONTRIBUTED_SETTINGS_MODULE_IDS.has(module.id) &&
+    Boolean(findModuleSettingsEntrySurface(module.id, MODULE_SETTINGS_SURFACES))
+  );
+}
+
 function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [view, setView] = useState<ModuleSettingsView | null>(null);
+  const view: ModuleSettingsView | null = resolveModuleSettingsDeepLink(
+    searchParams.get("module"),
+    (moduleId) => Boolean(findModuleSettingsEntrySurface(moduleId, MODULE_SETTINGS_SURFACES))
+  );
   const myQuery = useQuery({ queryKey: queryKeys.myModules, queryFn: getMyModules, retry: false });
   const modulesQuery = useQuery({ queryKey: queryKeys.modules, queryFn: getModules, retry: false });
   const toggleMutation = useMutation({
@@ -603,26 +592,25 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
-  useEffect(() => {
-    const requested = resolveModuleSettingsDeepLink(searchParams.get("module"), (moduleId) =>
-      Boolean(findModuleSettingsEntrySurface(moduleId, MODULE_SETTINGS_SURFACES))
-    );
-    if (!requested) return;
-    setView(requested);
+  const openModule = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("module", id);
+    setSearchParams(next);
+  };
+  const closeModule = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("module");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  };
 
-  if (view === "briefings") return <BriefingSettings onBack={() => setView(null)} />;
-  if (view === "chat")
-    return <ChatSettingsView onBack={() => setView(null)} onCat={onSelectSection} />;
+  if (view === "briefings") return <BriefingSettings onBack={closeModule} />;
+  if (view === "chat") return <ChatSettingsView onBack={closeModule} onCat={onSelectSection} />;
   if (view === "notifications")
     return (
       <NotificationSettings
-        onBack={() => setView(null)}
+        onBack={closeModule}
         onCat={onSelectSection}
-        onModuleSettings={(id) => setView(id)}
+        onModuleSettings={openModule}
       />
     );
   if (view && typeof view === "object") {
@@ -631,14 +619,17 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
         moduleId={view.moduleId}
         surfaces={MODULE_SETTINGS_SURFACES}
         components={MODULE_SETTINGS_COMPONENTS}
-        onBack={() => setView(null)}
+        onBack={closeModule}
         onSelectSection={onSelectSection}
         onNavigate={onNavigate}
       />
     );
   }
 
-  const modules = visibleUserToggleModules(myQuery.data?.modules ?? []);
+  const modules = visibleConfigurableModules(
+    myQuery.data?.modules ?? [],
+    hasImplementedModuleSettings
+  );
   const pathFor = (id: string): string | null =>
     modulesQuery.data?.modules.find((m) => m.id === id)?.navigation[0]?.path ?? null;
 
@@ -654,10 +645,11 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     const cat = CAT_BY_ID[module.id];
     const path = pathFor(module.id);
 
-    // Core modules are all required/always-on, so no status tag — only optional
-    // (toggleable) modules show an Enabled badge, and instance-off ones show Unavailable.
+    // Required modules stay distinct from optional modules without offering a toggle.
     const badge = locked ? (
       <Badge tone="neutral">Unavailable</Badge>
+    ) : control.kind === "required" ? (
+      <Badge tone="neutral">Required</Badge>
     ) : control.kind === "toggle" && module.active ? (
       <Badge tone="pine" dot>
         Enabled
@@ -679,7 +671,8 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
         <button
           type="button"
           className="modrow__link"
-          onClick={() => setView(module.id as ModuleSub)}
+          aria-label={`Configure ${module.name}`}
+          onClick={() => openModule(module.id)}
         >
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
@@ -689,14 +682,20 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
         <button
           type="button"
           className="modrow__link"
-          onClick={() => setView({ moduleId: module.id })}
+          aria-label={`Configure ${module.name}`}
+          onClick={() => openModule(module.id)}
         >
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
       );
     } else if (cat) {
       action = (
-        <button type="button" className="modrow__link" onClick={() => onSelectSection?.(cat)}>
+        <button
+          type="button"
+          className="modrow__link"
+          aria-label={`Configure ${module.name}`}
+          onClick={() => onSelectSection?.(cat)}
+        >
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
       );
@@ -740,8 +739,11 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
 
   return (
     <>
-      <PaneHead title="Modules" desc="Additional parts of Jarvis you can turn on or off." />
-      <Group title="Additional modules" desc="Switch on the extras you want to use.">
+      <PaneHead title="Modules" desc="Choose which parts of Jarvis to use and configure." />
+      <Group
+        title="Available modules"
+        desc="Required modules stay available; optional modules can be turned on or off."
+      >
         {modules.length ? (
           modules.map(renderRow)
         ) : (
@@ -759,148 +761,4 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   );
 }
 
-/* ------------------------------------------------------------- General */
-
-function GeneralPane() {
-  const queryClient = useQueryClient();
-  const { toast } = useFeedback();
-  const localeQuery = useQuery({
-    queryKey: queryKeys.settings.locale,
-    queryFn: getLocaleSettings,
-    retry: false
-  });
-  const locale = localeQuery.data?.locale ?? DEFAULT_LOCALE_SETTINGS;
-  const localeMutation = useMutation({
-    mutationFn: (next: LocaleSettingsDto) => putLocaleSettings({ locale: next }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.settings.locale, data);
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const quietHoursQuery = useQuery({
-    queryKey: queryKeys.settings.quietHours,
-    queryFn: getQuietHoursSettings,
-    retry: false
-  });
-  const quietHours = quietHoursQuery.data?.quietHours ?? DEFAULT_QUIET_HOURS;
-  const quietHoursMutation = useMutation({
-    mutationFn: (next: QuietHoursSettingsDto) => putQuietHoursSettings({ quietHours: next }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.settings.quietHours, data);
-    },
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const updateLocale = (patch: Partial<LocaleSettingsDto>) => {
-    localeMutation.mutate({ ...locale, ...patch });
-  };
-  const updateQuietHours = (patch: Partial<QuietHoursSettingsDto>) => {
-    quietHoursMutation.mutate({ ...quietHours, ...patch });
-  };
-
-  return (
-    <>
-      <PaneHead title="General" desc="The few things that apply across all of Jarvis." />
-      <Group title="Locale">
-        <div className="fld">
-          <div className="fld__lbl">Time zone</div>
-          <div className="fld__row">
-            <Select
-              value={locale.timezone}
-              aria-label="Time zone"
-              disabled={localeQuery.isLoading || localeMutation.isPending}
-              onChange={(event) => updateLocale({ timezone: event.currentTarget.value })}
-            >
-              <option value="America/Los_Angeles">Pacific — America/Los_Angeles</option>
-              <option value="America/New_York">Eastern — America/New_York</option>
-              <option value="Europe/London">GMT — Europe/London</option>
-              <option value="Europe/Berlin">CET — Europe/Berlin</option>
-            </Select>
-          </div>
-        </div>
-        <div className="fld">
-          <div className="fld__lbl">Language &amp; region</div>
-          <div className="fld__row">
-            <Select
-              value={locale.region}
-              aria-label="Language & region"
-              disabled={localeQuery.isLoading || localeMutation.isPending}
-              onChange={(event) => updateLocale({ region: event.currentTarget.value })}
-            >
-              <option value="en-US">English (United States)</option>
-              <option value="en-GB">English (United Kingdom)</option>
-              <option value="fr-FR">Français (France)</option>
-              <option value="de-DE">Deutsch (Deutschland)</option>
-            </Select>
-          </div>
-        </div>
-        <div className="fld">
-          <div className="fld__lbl">Date &amp; time format</div>
-          <div className="fld__row">
-            <Select
-              value={locale.dateFormat}
-              aria-label="Date and time format"
-              disabled={localeQuery.isLoading || localeMutation.isPending}
-              onChange={(event) =>
-                updateLocale({
-                  dateFormat: event.currentTarget.value as LocaleSettingsDto["dateFormat"]
-                })
-              }
-            >
-              <option value="24">13 Jun · 24-hour</option>
-              <option value="12">Jun 13 · 12-hour</option>
-            </Select>
-          </div>
-        </div>
-      </Group>
-
-      <Group
-        title="Quiet hours"
-        desc="Jarvis stays silent during these hours — no nudges unless something is genuinely urgent."
-      >
-        <Row
-          name="Enable quiet hours"
-          control={
-            <Switch
-              ariaLabel="Enable quiet hours"
-              checked={quietHours.enabled}
-              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
-              onChange={(enabled) => updateQuietHours({ enabled })}
-            />
-          }
-        />
-        <div className="fld">
-          <div className="fld__lbl">From / to</div>
-          <div className="fld__row">
-            <input
-              className="jds-input"
-              type="time"
-              value={quietHours.start}
-              aria-label="Quiet hours from"
-              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                if (isValidQuietHoursTime(value)) updateQuietHours({ start: value });
-              }}
-              style={{ flex: "0 0 130px", minWidth: 0 }}
-            />
-            <span style={{ color: "var(--text-faint)" }}>→</span>
-            <input
-              className="jds-input"
-              type="time"
-              value={quietHours.end}
-              aria-label="Quiet hours to"
-              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                if (isValidQuietHoursTime(value)) updateQuietHours({ end: value });
-              }}
-              style={{ flex: "0 0 130px", minWidth: 0 }}
-            />
-          </div>
-        </div>
-      </Group>
-    </>
-  );
-}
-
-export { ConnectedPane, SourcesPane, ModulesPane, GeneralPane };
+export { ConnectedPane, SourcesPane, ModulesPane };

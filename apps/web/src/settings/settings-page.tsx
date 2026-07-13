@@ -9,7 +9,6 @@ import {
   Brain,
   Command,
   Database,
-  Fingerprint,
   Link2,
   ListChecks,
   Package,
@@ -17,18 +16,21 @@ import {
   ScrollText,
   ServerCog,
   ShieldCheck,
-  SlidersHorizontal,
   GitCommitHorizontal,
   UserRound,
   Users,
   type LucideIcon
 } from "lucide-react";
-import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
+import { Fragment, lazy, Suspense, useEffect, useState, type ComponentType } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { FeedbackProvider } from "./settings-feedback";
 import { ProfilePane } from "./settings-personal-panes";
-import { coerceSettingsSectionId } from "./settings-navigation";
+import {
+  coerceSettingsSectionId,
+  flattenSettingsGroups,
+  type SettingsSectionGroup
+} from "./settings-navigation";
 import {
   browserSettingsStorage,
   readSettingsStorage,
@@ -56,18 +58,10 @@ type PersonalSectionId =
   | "sources"
   | "modules"
   | "appearance"
-  | "general"
   | "activity"
   | "skills";
 
-type AdminSectionId =
-  | "people"
-  | "identity"
-  | "aiproviders"
-  | "instmods"
-  | "audit"
-  | "oversight"
-  | "host";
+type AdminSectionId = "people" | "aiproviders" | "instmods" | "audit" | "oversight" | "host";
 
 function lazyPane(loader: () => Promise<{ default: SettingsPane }>) {
   return lazy(loader);
@@ -87,9 +81,6 @@ const SourcesPane = lazyPane(() =>
 );
 const ModulesPane = lazyPane(() =>
   import("./settings-personal-data-panes").then((module) => ({ default: module.ModulesPane }))
-);
-const GeneralPane = lazyPane(() =>
-  import("./settings-personal-data-panes").then((module) => ({ default: module.GeneralPane }))
 );
 const AppearancePane = lazyPane(() =>
   import("./settings-appearance-pane").then((module) => ({ default: module.AppearancePane }))
@@ -111,9 +102,6 @@ const PeoplePane = lazyPane(() =>
 const AiProvidersPane = lazyPane(() =>
   import("./settings-ai-admin-pane").then((module) => ({ default: module.AiProvidersPane }))
 );
-const IdentityPane = lazyPane(() =>
-  import("./settings-admin-panes").then((module) => ({ default: module.IdentityPane }))
-);
 const InstanceModulesPane = lazyPane(() =>
   import("./settings-instance-modules-pane").then((module) => ({
     default: module.InstanceModulesPane
@@ -129,29 +117,68 @@ const HostPane = lazyPane(() =>
   import("./settings-admin-panes").then((module) => ({ default: module.HostPane }))
 );
 
-const PERSONAL_SECTIONS = [
-  { id: "profile", icon: UserRound, label: "Profile & account", Pane: ProfilePane },
-  { id: "assistant", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AssistantPane },
-  { id: "priorities", icon: ListChecks, label: "Priorities", Pane: PrioritiesPane },
-  { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
-  { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
-  { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane },
-  { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
-  { id: "skills", icon: Command, label: "Skills", Pane: SkillsPane },
-  { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane },
-  { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane },
-  { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
-] as const satisfies readonly SettingsSection<PersonalSectionId>[];
+const PERSONAL_GROUPS = [
+  {
+    label: "Your account",
+    sections: [
+      { id: "profile", icon: UserRound, label: "Account & preferences", Pane: ProfilePane },
+      { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane }
+    ]
+  },
+  {
+    label: "Jarvis",
+    sections: [
+      { id: "assistant", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AssistantPane },
+      { id: "priorities", icon: ListChecks, label: "Priorities", Pane: PrioritiesPane },
+      { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
+      { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane }
+    ]
+  },
+  {
+    label: "Connections",
+    sections: [
+      { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
+      { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane }
+    ]
+  },
+  {
+    label: "Extensions",
+    sections: [
+      { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
+      { id: "skills", icon: Command, label: "Skills", Pane: SkillsPane }
+    ]
+  }
+] as const satisfies readonly SettingsSectionGroup<SettingsSection<PersonalSectionId>>[];
+const PERSONAL_SECTIONS =
+  flattenSettingsGroups<SettingsSection<PersonalSectionId>>(PERSONAL_GROUPS);
 
-const ADMIN_SECTIONS = [
-  { id: "people", icon: Users, label: "People & access", Pane: PeoplePane },
-  { id: "identity", icon: Fingerprint, label: "Identity & registration", Pane: IdentityPane },
-  { id: "aiproviders", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AiProvidersPane },
-  { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane },
-  { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
-  { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
-  { id: "host", icon: ServerCog, label: "Advanced host setup", Pane: HostPane }
-] as const satisfies readonly SettingsSection<AdminSectionId>[];
+const ADMIN_GROUPS = [
+  {
+    label: "Access",
+    sections: [{ id: "people", icon: Users, label: "People & access", Pane: PeoplePane }]
+  },
+  {
+    label: "AI & extensions",
+    sections: [
+      {
+        id: "aiproviders",
+        icon: GitCommitHorizontal,
+        label: "Assistant & AI",
+        Pane: AiProvidersPane
+      },
+      { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane }
+    ]
+  },
+  {
+    label: "Operations",
+    sections: [
+      { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
+      { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
+      { id: "host", icon: ServerCog, label: "Advanced host setup", Pane: HostPane }
+    ]
+  }
+] as const satisfies readonly SettingsSectionGroup<SettingsSection<AdminSectionId>>[];
+const ADMIN_SECTIONS = flattenSettingsGroups<SettingsSection<AdminSectionId>>(ADMIN_GROUPS);
 
 interface SettingsPageProps {
   readonly me: MeResponse;
@@ -183,35 +210,40 @@ export function SettingsPage({ me }: SettingsPageProps) {
     [categoryAdmin, storage]
   );
 
-  // #369: honor a `?section=` deep link (e.g. /settings?section=assistant from the empty-chat
-  // explainer) so the link lands on the right pane instead of the default Profile. Applied once,
-  // then the param is cleared so it does not pin the pane on later manual navigation.
-  useEffect(() => {
-    const requested = searchParams.get("section");
-    if (!requested) return;
-    if (PERSONAL_SECTIONS.some((section) => section.id === requested)) {
-      setCategoryPersonal(requested as PersonalSectionId);
-    } else if (isAdmin && ADMIN_SECTIONS.some((section) => section.id === requested)) {
-      setMode("admin");
-      setCategoryAdmin(requested as AdminSectionId);
-    }
-    const next = new URLSearchParams(searchParams);
-    next.delete("section");
-    setSearchParams(next, { replace: true });
-  }, [searchParams, isAdmin, setSearchParams]);
+  const requested = searchParams.get("section");
+  const requestedPersonal = PERSONAL_SECTIONS.find((section) => section.id === requested);
+  const requestedAdmin = isAdmin
+    ? ADMIN_SECTIONS.find((section) => section.id === requested)
+    : undefined;
 
-  const adminMode = isAdmin && mode === "admin";
+  useEffect(() => {
+    if (requestedPersonal) {
+      setMode("personal");
+      setCategoryPersonal(requestedPersonal.id);
+    } else if (requestedAdmin) {
+      setMode("admin");
+      setCategoryAdmin(requestedAdmin.id);
+    }
+  }, [requestedAdmin, requestedPersonal]);
+
+  const adminMode = requestedAdmin ? true : requestedPersonal ? false : isAdmin && mode === "admin";
+  const groups = adminMode ? ADMIN_GROUPS : PERSONAL_GROUPS;
   const sections = adminMode ? ADMIN_SECTIONS : PERSONAL_SECTIONS;
-  const active = adminMode ? categoryAdmin : categoryPersonal;
+  const active =
+    requestedAdmin?.id ?? requestedPersonal?.id ?? (adminMode ? categoryAdmin : categoryPersonal);
   const activeSection = sections.find((section) => section.id === active) ?? sections[0]!;
   const Pane = activeSection.Pane;
 
   const setActiveSection = (id: PersonalSectionId | AdminSectionId) => {
-    if (adminMode) {
-      setCategoryAdmin(coerceSettingsSectionId(ADMIN_SECTIONS, id));
-    } else {
-      setCategoryPersonal(coerceSettingsSectionId(PERSONAL_SECTIONS, id));
-    }
+    const next = adminMode
+      ? coerceSettingsSectionId(ADMIN_SECTIONS, id)
+      : coerceSettingsSectionId(PERSONAL_SECTIONS, id);
+    setSearchParams({ section: next });
+  };
+
+  const setActiveMode = (nextMode: "personal" | "admin") => {
+    setMode(nextMode);
+    setSearchParams({ section: nextMode === "admin" ? categoryAdmin : categoryPersonal });
   };
 
   return (
@@ -226,7 +258,7 @@ export function SettingsPage({ me }: SettingsPageProps) {
                 { value: "admin", label: "Admin / Setup" }
               ]}
               ariaLabel="Settings mode"
-              onChange={(value) => setMode(value)}
+              onChange={setActiveMode}
             />
           ) : (
             <span />
@@ -235,26 +267,28 @@ export function SettingsPage({ me }: SettingsPageProps) {
 
         <div className="set2__grid">
           <nav className="set2__nav" aria-label="Settings categories">
-            <div className="set2__navgroup">
-              {adminMode ? "Admin / Setup" : "Personal settings"}
-            </div>
-            {sections.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`set2__navitem${active === item.id ? " is-active" : ""}`}
-                  aria-current={active === item.id}
-                  onClick={() => setActiveSection(item.id)}
-                >
-                  <span className="ic">
-                    <Icon size={17} aria-hidden="true" />
-                  </span>
-                  <span className="lbl">{item.label}</span>
-                </button>
-              );
-            })}
+            {groups.map((group) => (
+              <Fragment key={group.label}>
+                <div className="set2__navgroup">{group.label}</div>
+                {group.sections.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`set2__navitem${active === item.id ? " is-active" : ""}`}
+                      aria-current={active === item.id}
+                      onClick={() => setActiveSection(item.id)}
+                    >
+                      <span className="ic">
+                        <Icon size={17} aria-hidden="true" />
+                      </span>
+                      <span className="lbl">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </Fragment>
+            ))}
             {adminMode ? (
               <div className="set2__navnote">
                 <ShieldCheck size={13} aria-hidden="true" /> You have owner access

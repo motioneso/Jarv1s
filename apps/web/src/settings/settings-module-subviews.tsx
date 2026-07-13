@@ -77,7 +77,7 @@ function ModuleSub(props: {
     <div className="gflow">
       <button type="button" className="gflow__back" onClick={props.onBack}>
         <ArrowLeft size={15} aria-hidden="true" />
-        All modules
+        Back to modules
       </button>
       <div className="gflow__intro">
         <span className="msub__mark">{props.icon}</span>

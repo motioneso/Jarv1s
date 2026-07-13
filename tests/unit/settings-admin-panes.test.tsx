@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
-import { HostPane, IdentityPane } from "../../apps/web/src/settings/settings-admin-panes.js";
+import { HostPane, PeoplePane } from "../../apps/web/src/settings/settings-admin-panes.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
 
 function renderWithQuery(
@@ -19,13 +19,38 @@ function renderWithQuery(
 }
 
 describe("settings admin panes", () => {
-  it("hides sign-in methods until alternate methods are wired", () => {
-    const html = renderWithQuery(createElement(IdentityPane));
+  it("shows registration controls in People & access without operator auth copy", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.adminUsers, { users: [] });
+    client.setQueryData(queryKeys.settings.registrationSettings, {
+      registrationEnabled: true,
+      requiresApproval: true
+    });
+    const html = renderWithQuery(
+      createElement(PeoplePane, {
+        me: {
+          user: {
+            id: "u1",
+            email: "u@example.test",
+            emailVerified: true,
+            name: "U",
+            status: "active",
+            isInstanceAdmin: true,
+            isBootstrapOwner: false,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z"
+          },
+          profilePrefs: { addressed: null },
+          hasPasswordCredential: true
+        }
+      }),
+      client
+    );
 
-    expect(html).toContain("Identity &amp; registration");
+    expect(html).toContain("People &amp; access");
     expect(html).toContain("Registration");
-    expect(html).not.toContain("Sign-in methods");
-    expect(html).not.toContain("No sign-in methods configured");
+    expect(html).toContain("Allow new registrations");
+    expect(html).not.toContain("Auth provider configuration");
   });
 
   it("shows herdr availability as a status badge, with no install action", () => {

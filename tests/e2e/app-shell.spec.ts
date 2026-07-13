@@ -69,7 +69,7 @@ test("hides admin-only settings sections for a non-admin user", async ({ page })
 
   await page.goto("/settings");
 
-  await expect(page.getByRole("heading", { name: "Profile & account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Account & preferences" })).toBeVisible();
   await expect(page.getByText("Member of this instance.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Admin / Setup" })).toHaveCount(0);
   await expect(page.getByText("People & access")).toHaveCount(0);

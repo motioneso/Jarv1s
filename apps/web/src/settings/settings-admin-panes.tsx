@@ -354,6 +354,16 @@ interface ActionVars {
 export function PeoplePane({ me }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const regQuery = useQuery({
+    queryKey: queryKeys.settings.registrationSettings,
+    queryFn: getRegistrationSettings,
+    retry: false
+  });
+  const putMutation = useMutation({
+    mutationFn: (next: RegistrationSettingsDto) => putRegistrationSettings(next),
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.registrationSettings, data),
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
   const usersQuery = useQuery({
     queryKey: queryKeys.settings.adminUsers,
     queryFn: listAdminUsers,
@@ -438,6 +448,7 @@ export function PeoplePane({ me }: PaneProps) {
   const pending = users.filter((user) => user.status === "pending");
   const members = users.filter((user) => user.status !== "pending");
   const policy = createAdminUserPolicyContext(members);
+  const reg = regQuery.data;
 
   return (
     <>
@@ -445,6 +456,32 @@ export function PeoplePane({ me }: PaneProps) {
         title="People & access"
         desc="Everyone with access to this instance — their role, their status, and what they can reach."
       />
+      <Group title="Registration">
+        <Row
+          name="Allow new registrations"
+          desc="Let people create accounts on this instance."
+          control={
+            <Switch
+              ariaLabel="Allow new registrations"
+              checked={reg?.registrationEnabled ?? false}
+              onChange={(value) =>
+                reg && putMutation.mutate({ ...reg, registrationEnabled: value })
+              }
+            />
+          }
+        />
+        <Row
+          name="Require approval"
+          desc="New sign-ups wait in a queue until an admin lets them in."
+          control={
+            <Switch
+              ariaLabel="Require approval"
+              checked={reg?.requiresApproval ?? true}
+              onChange={(value) => reg && putMutation.mutate({ ...reg, requiresApproval: value })}
+            />
+          }
+        />
+      </Group>
       {pending.length ? (
         <Group title="Pending approval" desc="New sign-ups waiting for you to let them in.">
           {pending.map((user) => (
@@ -489,63 +526,6 @@ export function PeoplePane({ me }: PaneProps) {
       </Group>
       <Note icon={<KeyRound size={13} />}>
         Deactivating someone keeps their history but ends all their sessions immediately.
-      </Note>
-    </>
-  );
-}
-
-/* ---------------------------------------------------- Identity & registration */
-
-export function IdentityPane() {
-  const queryClient = useQueryClient();
-  const { toast } = useFeedback();
-  const regQuery = useQuery({
-    queryKey: queryKeys.settings.registrationSettings,
-    queryFn: getRegistrationSettings,
-    retry: false
-  });
-  const putMutation = useMutation({
-    mutationFn: (next: RegistrationSettingsDto) => putRegistrationSettings(next),
-    onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.registrationSettings, data),
-    onError: (error) => toast(readError(error), { tone: "drift" })
-  });
-  const reg = regQuery.data;
-
-  return (
-    <>
-      <PaneHead
-        title="Identity & registration"
-        desc="Who can join this instance, and how they sign in."
-      />
-      <Group title="Registration">
-        <Row
-          name="Allow new registrations"
-          desc="Let people create accounts on this instance."
-          control={
-            <Switch
-              ariaLabel="Allow new registrations"
-              checked={reg?.registrationEnabled ?? false}
-              onChange={(value) =>
-                reg && putMutation.mutate({ ...reg, registrationEnabled: value })
-              }
-            />
-          }
-        />
-        <Row
-          name="Require approval"
-          desc="New sign-ups wait in a queue until an admin lets them in."
-          control={
-            <Switch
-              ariaLabel="Require approval"
-              checked={reg?.requiresApproval ?? true}
-              onChange={(value) => reg && putMutation.mutate({ ...reg, requiresApproval: value })}
-            />
-          }
-        />
-      </Group>
-      <Note icon={<Terminal size={13} />}>
-        Auth provider configuration — client IDs, secrets, callback URLs — is handled in operator
-        setup as environment config, not on this screen.
       </Note>
     </>
   );

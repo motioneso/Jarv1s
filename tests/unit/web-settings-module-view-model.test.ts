@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  visibleUserToggleModules,
+  visibleConfigurableModules,
   settingsModuleControlModel,
   type SettingsModule
 } from "../../apps/web/src/settings/settings-module-view-model.js";
@@ -58,20 +58,17 @@ describe("settings module view model", () => {
     });
   });
 
-  it("keeps the personal module switcher to additional modules only", () => {
-    // #996/#860 Task 10/11: visibleUserToggleModules now derives purely from
-    // module.required (server-computed from the manifest), not a hardcoded id set —
-    // goals/notes/commitments/people flipped to required, so they're excluded here
-    // the same way any other required module would be.
-    const visible = visibleUserToggleModules([
-      moduleRow({ id: "goals", name: "Goals", required: true }),
-      moduleRow({ id: "notes", name: "Notes", required: true }),
-      moduleRow({ id: "commitments", name: "Commitments", required: true }),
-      moduleRow({ id: "people", name: "People & Context", required: true }),
-      moduleRow({ id: "sports", name: "Sports" }),
-      moduleRow({ id: "finance", name: "Finance" })
-    ]);
-
-    expect(visible.map((module) => module.name)).toEqual(["Sports", "Finance"]);
+  it("shows toggleable rows plus required rows with an implemented settings destination", () => {
+    const hasSettings = (m: SettingsModule) => m.id === "briefings";
+    const visible = visibleConfigurableModules(
+      [
+        moduleRow({ id: "briefings", name: "Briefings", required: true }),
+        moduleRow({ id: "chat", name: "Chat", required: true }),
+        moduleRow({ id: "sports", name: "Sports" }),
+        moduleRow({ id: "finance", name: "Finance" })
+      ],
+      hasSettings
+    );
+    expect(visible.map((m) => m.name)).toEqual(["Briefings", "Sports", "Finance"]);
   });
 });

@@ -60,6 +60,22 @@ describe("ModuleSettingsRouter", () => {
     expect(markup).toContain("can navigate");
   });
 
+  it("renders the shared back control on the loaded-surface path", () => {
+    const FixtureSettings: ModuleSettingsComponent = () => <div>Fixture settings body</div>;
+
+    const markup = renderToStaticMarkup(
+      <ModuleSettingsRouter
+        moduleId="fixture"
+        surfaces={surfaces}
+        components={{ fixture: FixtureSettings }}
+        onBack={() => undefined}
+      />
+    );
+
+    expect(markup).toContain("Fixture settings body");
+    expect(markup).toContain(">Back to modules<");
+  });
+
   it("renders an installed-code fallback when metadata has no component", () => {
     const markup = renderToStaticMarkup(
       <ModuleSettingsRouter

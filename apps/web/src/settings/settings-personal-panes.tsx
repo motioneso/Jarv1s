@@ -1,14 +1,38 @@
-import { useQueryClient } from "@tanstack/react-query";
-import type { MeResponse } from "@jarv1s/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { LocaleSettingsDto, MeResponse, QuietHoursSettingsDto } from "@jarv1s/shared";
 import { Check, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { updateMyProfile } from "../api/client";
+import {
+  getLocaleSettings,
+  getQuietHoursSettings,
+  putLocaleSettings,
+  putQuietHoursSettings,
+  updateMyProfile
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { DeleteAccount } from "./delete-account";
+import { useFeedback } from "./settings-feedback";
 import { DataExport, Sessions } from "./settings-profile-subviews";
-import type { PaneProps } from "./settings-types";
-import { Avatar, Badge, Field, Group, PaneHead, Row } from "./settings-ui";
+import { readError, type PaneProps } from "./settings-types";
+import { Avatar, Badge, Field, Group, PaneHead, Row, Select, Switch } from "./settings-ui";
+
+const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
+  timezone: "America/Los_Angeles",
+  region: "en-US",
+  dateFormat: "24"
+};
+
+const DEFAULT_QUIET_HOURS: QuietHoursSettingsDto = {
+  enabled: false,
+  start: "22:00",
+  end: "07:00",
+  timezone: null
+};
+
+export function isValidQuietHoursTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -92,11 +116,45 @@ export function ProfilePane({ me }: PaneProps) {
     name: user.name ?? "",
     addressed: me.profilePrefs.addressed ?? firstName
   });
+  const queryClient = useQueryClient();
+  const { toast } = useFeedback();
+  const localeQuery = useQuery({
+    queryKey: queryKeys.settings.locale,
+    queryFn: getLocaleSettings,
+    retry: false
+  });
+  const locale = localeQuery.data?.locale ?? DEFAULT_LOCALE_SETTINGS;
+  const localeMutation = useMutation({
+    mutationFn: (next: LocaleSettingsDto) => putLocaleSettings({ locale: next }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.locale, data);
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const quietHoursQuery = useQuery({
+    queryKey: queryKeys.settings.quietHours,
+    queryFn: getQuietHoursSettings,
+    retry: false
+  });
+  const quietHours = quietHoursQuery.data?.quietHours ?? DEFAULT_QUIET_HOURS;
+  const quietHoursMutation = useMutation({
+    mutationFn: (next: QuietHoursSettingsDto) => putQuietHoursSettings({ quietHours: next }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.settings.quietHours, data);
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
+  const updateLocale = (patch: Partial<LocaleSettingsDto>) => {
+    localeMutation.mutate({ ...locale, ...patch });
+  };
+  const updateQuietHours = (patch: Partial<QuietHoursSettingsDto>) => {
+    quietHoursMutation.mutate({ ...quietHours, ...patch });
+  };
 
   return (
     <>
       <PaneHead
-        title="Profile & account"
+        title="Account & preferences"
         desc="Who you are to Jarvis — your identity and account status. How Jarvis sounds and behaves lives in Assistant & AI."
       />
       <Group title="Identity" action={<SaveStatusChip status={status} />}>
@@ -154,6 +212,106 @@ export function ProfilePane({ me }: PaneProps) {
           }
           control={<Badge tone="neutral">{role}</Badge>}
         />
+      </Group>
+
+      <Group title="Locale">
+        <div className="fld">
+          <div className="fld__lbl">Time zone</div>
+          <div className="fld__row">
+            <Select
+              value={locale.timezone}
+              aria-label="Time zone"
+              disabled={localeQuery.isLoading || localeMutation.isPending}
+              onChange={(event) => updateLocale({ timezone: event.currentTarget.value })}
+            >
+              <option value="America/Los_Angeles">Pacific — America/Los_Angeles</option>
+              <option value="America/New_York">Eastern — America/New_York</option>
+              <option value="Europe/London">GMT — Europe/London</option>
+              <option value="Europe/Berlin">CET — Europe/Berlin</option>
+            </Select>
+          </div>
+        </div>
+        <div className="fld">
+          <div className="fld__lbl">Language &amp; region</div>
+          <div className="fld__row">
+            <Select
+              value={locale.region}
+              aria-label="Language & region"
+              disabled={localeQuery.isLoading || localeMutation.isPending}
+              onChange={(event) => updateLocale({ region: event.currentTarget.value })}
+            >
+              <option value="en-US">English (United States)</option>
+              <option value="en-GB">English (United Kingdom)</option>
+              <option value="fr-FR">Français (France)</option>
+              <option value="de-DE">Deutsch (Deutschland)</option>
+            </Select>
+          </div>
+        </div>
+        <div className="fld">
+          <div className="fld__lbl">Date &amp; time format</div>
+          <div className="fld__row">
+            <Select
+              value={locale.dateFormat}
+              aria-label="Date and time format"
+              disabled={localeQuery.isLoading || localeMutation.isPending}
+              onChange={(event) =>
+                updateLocale({
+                  dateFormat: event.currentTarget.value as LocaleSettingsDto["dateFormat"]
+                })
+              }
+            >
+              <option value="24">13 Jun · 24-hour</option>
+              <option value="12">Jun 13 · 12-hour</option>
+            </Select>
+          </div>
+        </div>
+      </Group>
+
+      <Group
+        title="Quiet hours"
+        desc="Jarvis stays silent during these hours — no nudges unless something is genuinely urgent."
+      >
+        <Row
+          name="Enable quiet hours"
+          control={
+            <Switch
+              ariaLabel="Enable quiet hours"
+              checked={quietHours.enabled}
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(enabled) => updateQuietHours({ enabled })}
+            />
+          }
+        />
+        <div className="fld">
+          <div className="fld__lbl">From / to</div>
+          <div className="fld__row">
+            <input
+              className="jds-input"
+              type="time"
+              value={quietHours.start}
+              aria-label="Quiet hours from"
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (isValidQuietHoursTime(value)) updateQuietHours({ start: value });
+              }}
+              style={{ flex: "0 0 130px", minWidth: 0 }}
+            />
+            <span style={{ color: "var(--text-faint)" }}>→</span>
+            <input
+              className="jds-input"
+              type="time"
+              value={quietHours.end}
+              aria-label="Quiet hours to"
+              disabled={quietHoursQuery.isLoading || quietHoursMutation.isPending}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (isValidQuietHoursTime(value)) updateQuietHours({ end: value });
+              }}
+              style={{ flex: "0 0 130px", minWidth: 0 }}
+            />
+          </div>
+        </div>
       </Group>
 
       <Sessions />

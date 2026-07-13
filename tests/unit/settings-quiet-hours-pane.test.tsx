@@ -3,9 +3,9 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { GetQuietHoursSettingsResponse } from "@jarv1s/shared";
+import type { GetQuietHoursSettingsResponse, MeResponse } from "@jarv1s/shared";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
-import { isValidQuietHoursTime } from "../../apps/web/src/settings/settings-personal-data-panes.js";
+import { isValidQuietHoursTime } from "../../apps/web/src/settings/settings-personal-panes.js";
 
 vi.mock("virtual:jarvis-module-settings", () => ({
   MODULE_SETTINGS_SURFACES: [],
@@ -68,7 +68,7 @@ describe("isValidQuietHoursTime", () => {
   });
 });
 
-describe("GeneralPane quiet-hours controls", () => {
+describe("ProfilePane quiet-hours controls", () => {
   it("renders backend quiet-hours values and removes coming-soon copy", async () => {
     const html = await renderPane((client) => {
       client.setQueryData(queryKeys.settings.locale, {
@@ -86,17 +86,36 @@ describe("GeneralPane quiet-hours controls", () => {
   });
 });
 
+const me: MeResponse = {
+  user: {
+    id: "u1",
+    email: "u@example.test",
+    emailVerified: true,
+    name: "U",
+    status: "active",
+    isInstanceAdmin: false,
+    isBootstrapOwner: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  profilePrefs: { addressed: null },
+  hasPasswordCredential: true
+};
+
 async function renderPane(seed: (client: QueryClient) => void): Promise<string> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seed(client);
   const { FeedbackProvider } = await import("../../apps/web/src/settings/settings-feedback.js");
-  const { GeneralPane } =
-    await import("../../apps/web/src/settings/settings-personal-data-panes.js");
+  const { ProfilePane } = await import("../../apps/web/src/settings/settings-personal-panes.js");
   return renderToString(
     createElement(
       FeedbackProvider,
       null,
-      createElement(QueryClientProvider, { client }, createElement(GeneralPane) as ReactElement)
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(ProfilePane, { me, onNavigate: () => {} }) as ReactElement
+      )
     )
   );
 }
