@@ -477,5 +477,5 @@ resume from this note before taking any merge-sensitive action.
   `Bash` and `Task` always gated. #985 gateway and schema paths remain frozen at pushed checkpoint
   `7b017508` until that verdict is durable and relayed.
 - The prior `UX Coordinator` Codex session `019f5a70-28e9-7600-a132-64ab2eca669c` was resolved
-  fresh by label plus immutable session and marked for reaping only after this successor claimed the
-  routing label and recorded the authority handoff.
+  fresh by label plus immutable session and reaped only after this successor claimed the routing
+  label and recorded the authority handoff.
