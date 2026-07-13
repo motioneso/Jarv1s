@@ -5693,3 +5693,6 @@ Tier sensitive → coordinator QA + no-BYPASSRLS invariant walk before merge. Bu
 - **Deferred/no lane:** #1030 multi-user seed, #965 run-now dedupe (task #25), #39 owner-auth delete of UX #989 acct, #1018 gateway realpath, #1029 gemini-transcript-reader, provisioner.ts:252 network leak-check.
 
 **Counters:** merges_since_relay=1 (no merge this window). Liveness Monitor `bmhs9hwgc` persistent, armed over P2 (e6ad8ae0) + #868 (019f5ce4). Standing: no PushNotifications; build=Sonnet, security-QA=Opus, council/approval=Fable/AGY.
+
+## P2 relay — 2026-07-13 ~17:55
+P2 #1025 self-relayed at 70%. Predecessor session e6ad8ae0 (pane w1:pM7) REAPED. Successor **`UAT Seed 1025 v2`, session 025f1d1e-21e, pane w1:pM8, tab w1:t10, Sonnet** — confirmed driving. Commits so far: 522a91a6 (Task 2 done) + c68dd572 (relay doc). **Open blocker for successor to resolve:** Task 3 better-auth/crypto root-resolution (loginable-admin real hashPassword path — likely bundled-path-resolution-trap territory; 2 fix options documented in the relay doc). Watch for escalation if it needs a decision.
