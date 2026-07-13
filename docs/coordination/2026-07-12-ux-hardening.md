@@ -741,3 +741,13 @@ resume from this note before taking any merge-sensitive action.
   rerun, cleanup, shared-DB use, merge, or scope expansion. Run-6 isolated evidence is preserved.
   Primary has the stop-line. Fresh Opus reviewer `28a373a6-56a2-44f1-a213-4954ed266edc` is deciding
   whether a deterministic readiness fix requires the #868 runner/engine seam.
+
+## Continuation note — 2026-07-13 #984 Opus UAT ruling
+
+- Opus rejected the blind replay settle. Deterministic input-readiness truth belongs at the
+  `cli-runner`/RPC boundary owned by #868; #984 owns only the future consumer seam. No timer increase,
+  replacement timer, or #868 path expansion is authorized in this lane.
+- #984 may only revert its settle changes in the session manager and runtime plus the two
+  settle-specific tests, while preserving Slices 1–3 and run-6 evidence. PR #1015 is live-path
+  blocked/code-complete-unproven on #868 and must not merge or close. Primary has the ruling; Opus
+  reviewer `28a373a6-56a2-44f1-a213-4954ed266edc` is spent and pending reap.
