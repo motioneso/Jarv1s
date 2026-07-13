@@ -18,7 +18,7 @@ export interface TranscriptRecord {
   readonly actionRequestId?: string;
   readonly toolName?: string;
   readonly summary?: string;
-  readonly outcome?: "executed" | "denied" | "error";
+  readonly outcome?: "executed" | "denied" | "error" | "allowed";
   readonly sourceFreshness?: SourceFreshnessV1 | null;
   /**
    * Optional rich, server-derived Approve/Deny card preview (email reply recipient/subject/body).

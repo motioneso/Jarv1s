@@ -687,7 +687,11 @@ function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) 
 
 function activityVerb(record: TranscriptRecord): string {
   if (record.kind === "action_result") {
-    return record.outcome === "executed" ? "Executed" : "Denied";
+    return record.outcome === "allowed"
+      ? "Allowed by YOLO"
+      : record.outcome === "executed"
+        ? "Executed"
+        : "Denied";
   }
   return `${record.kind} ·`;
 }

@@ -68,4 +68,17 @@ describe("parseRecord preview parsing", () => {
     );
     expect(record?.preview).toBeUndefined();
   });
+
+  it("accepts an allowed outcome on an action_result record", () => {
+    const record = parseRecord(
+      JSON.stringify({
+        kind: "action_result",
+        text: "Allowed by YOLO: Read",
+        actionRequestId: "ar_1",
+        toolName: "Read",
+        outcome: "allowed"
+      })
+    );
+    expect(record?.outcome).toBe("allowed");
+  });
 });
