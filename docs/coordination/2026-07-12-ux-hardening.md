@@ -789,3 +789,13 @@ resume from this note before taking any merge-sensitive action.
   local/unpushed and live UAT is still required. #990 stays open: its branch is incomplete/dirty,
   ahead of main with no PR. The remaining #983 children are unstarted or specification-stage.
 - #1011, #1016, and #1017 are closed; non-blocking #1018 remains open. Parent #983 remains open.
+
+## Continuation note — 2026-07-13 #986 resumed for push and live proof
+
+- Primary confirms no pending merge and will security-gate #986 once PR #1010 has an exact pushed
+  head plus durable live UAT. Verified #986 session `019f5a67-9a38-77e0-814a-bc082b0ce187` is driving
+  again from local repair `6fdfc11c`; remote PR head remains stale `6a88c8c5` until it rebases/pushes.
+- The lane must preserve `.claude/context-meter.log`, stop on non-trivial rebase conflict, and post
+  real Settings UI UAT/screenshots for the exact pushed head before reporting. Its interrupted prior
+  turn already left run-9 screenshots, which must be validated against the eventual pushed head
+  rather than treated as proof automatically. No merge or issue closure is authorized.
