@@ -5232,3 +5232,12 @@ merges_since_relay = 0. Flushing; auto-compact in place, NO successor spawn (sta
 ### CONSENT GUARD (carry forward)
 - The #984/#868 scope direction arrived as a TEAMMATE RELAY, not directly from Ben. Issues/specs created (reversible) but **NO security-tier merge without Ben's explicit sign-off**. #1019 was Ben-approved directly (spec + icon rec).
 - Prod: on :edge digest fcb0bdd7, healthy; Ben installs job-search manually; activation needs one container restart.
+
+## STATE UPDATE — 2026-07-13 (post-relay, no merges since)
+- **#1020** spec committed (docs/superpowers/specs/2026-07-13-cli-runner-input-ready-event.md, 188L, grounded 0b5e58ef). AWAITING BEN approval. Security tier.
+- **#1022** NEW security child filed (AGY crash-surviving per-session identity + graceful/crash purge). Opus found #868 engine-less scope can't safely purge AGY (host-wide transcript root shared w/ council → cross-council data-loss AND missed-private). AWAITING BEN scope decision (expand #868 vs new child spec).
+- **#984 / PR #1015** now blocked-by THREE: #1020 + #868-original + #1022. Cannot ship as "history purged" until all land + Ben sign-off. Surfaced to Ben honestly (he believed it fixed; it isn't for AGY).
+- **#868** held pre-edit. NO security lane (868/1020/1022) spawns before Ben rules.
+- **#986 / PR #1010** (settings-shell, exact head 6eef4170) — tier SENSITIVE. CI watch ARMED (Monitor task b8woz0a09, 30min) → on foundation-CI-green spawn ephemeral QA; UX also fresh-QAs; both + integrated re-QA before merge.
+- **#1019 / Ext-Nav** — self-relayed to "Ext-Nav 1019 Relay 2" (pane resolves by label, session 95d1c099, Sonnet, tab w1:t1Y). Task 1 committed 14ac4047; Tasks 2-8 building. D7 divergence approved (leave compatibility/CORE_VERSION at 0.1.0; fail-closed FORBIDDEN_FIELDS is the real old-core guard, test must stay). Sensitive → Opus/Fable + click-nav dev-UAT before I merge.
+- **#990** gate GREEN (VF retry 0, audit 0); slot released; UX pushing PR → will hand merge-ready verdict.
