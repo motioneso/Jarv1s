@@ -5720,3 +5720,11 @@ Opus QA (a723ef12) VERDICT: **RED, MERGE-READY NO**. Verdict posted durably: PR 
 
 ## P2 relay v5→v6 — 2026-07-13 ~18:55
 Predecessor v5 (e502adc5, pane w1:pMB) REAPED. Successor **`UAT Seed 1025 v6`, session 132c48f9, pane w1:pMC, Sonnet** — driving. Tasks 1-7 ALL committed: job-search chunk ba6bb516, level composition+CLI e41b6481, provisioner wiring+compose seed service c5cf0597. **Only Task 8 remains: verify:foundation + PR + report PR# (no merge).** Handoff: docs/superpowers/handoffs/2026-07-13-uat-seed-levels-relay-2.md. 5 clean self-relays. On PR → sensitive QA + invariant walk (no-BYPASSRLS, dual-connection real write path).
+
+## CHECKPOINT — 2026-07-13 ~19:05 (70% context, in-place per standing directive)
+Coordinator lock: label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`. No successor spawn.
+**Live state:**
+- **P2 #1025** (sensitive): v6 (132c48f9, pane w1:pMC, Sonnet) — Tasks 1-7 committed (ba6bb516 job-search, e41b6481 level+CLI, c5cf0597 provisioner+compose-seed); ONLY Task 8 (gate+PR) remains. On PR → sensitive QA + no-BYPASSRLS/dual-connection invariant walk → auto-merge+digest → release P3 #1026.
+- **#1031 #868+#1020** (security): Opus QA RED cycle 1/2 (boot-sweep marker-wipe orphan, Codex/AGY — banked as durable invariant). Fix IN PROGRESS in owning Codex lane (019f5ce4, pane w1:pKY, status=working); NOT yet pushed (head still 65227092). CI on 65227092 = Verify-foundation+both-smokes GREEN but STALE (pre-fix, the code Opus flagged); image-publish job in progress. On fix push → re-QA (Opus) → GREEN → surface to Ben for EXPLICIT merge sign-off (never auto-merge).
+- **#984/PR #1015** (task #41): held behind #1031 landing.
+**Counters:** merges_since_relay=1 (no merge this window). Monitor bmhs9hwgc persistent over pKY + P2. Standing: no PushNotifications; build=Sonnet, security-QA=Opus, council=Fable/AGY. Failure budget #1031 = cycle 1/2.
