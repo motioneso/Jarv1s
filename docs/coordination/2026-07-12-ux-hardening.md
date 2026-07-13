@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `44d1cd49`; foundation and release-hardening gates GREEN, assigned DB slot released, exact-head CI has foundation plus both compose smokes GREEN with image build still running. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 rebased cleanly onto merged #986/main and force-pushed with lease at exact head `36a06394`; final new-head CI and exact-head UAT are running. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -948,3 +948,13 @@ resume from this note before taking any merge-sensitive action.
 - #990 must rebase onto `7d852092` before its final CI and exact-head UAT. The instruction is queued
   to verified build session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`; any non-trivial settings
   collision is a stop-line. The pre-rebase `44d1cd49` checks/evidence are no longer final.
+
+## Continuation note — 2026-07-13 #990 rebased and pushed
+
+- #990 rebased cleanly onto `7d852092` without a settings collision and was force-pushed with an
+  exact lease from old PR head `44d1cd490b19136034d6c660e39371b819d16cb5` to new exact head
+  `36a0639433a2cbb592716d2df21931fb7f63160b`. The old-head image build did finish GREEN but is
+  superseded and is not final evidence.
+- Verified build session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` is running final new-head CI and
+  exact-head isolated UAT. Protected `.claude/context-meter.log` and untracked relay handoff remain
+  unstaged; this UX lane never merges.
