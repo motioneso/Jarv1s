@@ -766,3 +766,15 @@ resume from this note before taking any merge-sensitive action.
   `docs/uat/` untracked; neither is staged. Run-6 isolated stack/evidence remains preserved without
   rerun or cleanup. PR #1015 remains live-path RED and blocked—not done—on #868 deterministic
   runner/RPC input readiness; it must not merge or close.
+
+## Continuation note — 2026-07-13 PR #1012 merged and #985 reaped
+
+- Primary merged PR #1012 as squash `031eb67e` after Opus security QA GREEN, delegated Fable
+  approval, and all four CI checks GREEN. The exclusive shared-Postgres DB slot is released.
+  Verified #985 session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae` and its clean worktree were reaped.
+- Issue #985 remains open. PR #1012 delivered truthful YOLO outcomes, the approved safe native-edit
+  allowlist, approval-card UX, and all five menu conversions, but #985 still says YOLO must request
+  no per-action approval including destructive/external actions. The merged security design
+  intentionally keeps Bash, Task, unknown tools, and config writes gated. A durable issue comment
+  requests either acceptance revision or a separately approved mechanism.
+- #1011 was closed as delivered by PR #1012. Non-blocking security hardening #1018 remains open.
