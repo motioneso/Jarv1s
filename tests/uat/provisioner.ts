@@ -3,7 +3,8 @@ import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface UatRunId {
   readonly projectName: string;
@@ -228,4 +229,159 @@ export async function assertNoLeakedResources(projectName: string): Promise<void
       )} volumes=${JSON.stringify(leakedVolumes)}`
     );
   }
+}
+
+// #1024/#1000: thrown only when a command's failure looks like a lost port-bind race (see
+// runCommand below) so main()'s retry loop can distinguish "retry with next port" from every
+// other failure mode, which should abort the run instead of masking a real error.
+class PortBindConflictError extends Error {}
+
+const PORT_BIND_CONFLICT_PATTERN = /port is already allocated|address already in use|bind.*failed/i;
+
+function runCommand(command: string, args: readonly string[]): Promise<void> {
+  return new Promise((resolvePromise, reject) => {
+    let stderr = "";
+    // #1024/#1000: stdout stays "inherit" for live operator visibility; stderr is piped so we can
+    // inspect it for the port-bind-conflict signature, but every chunk is still forwarded to the
+    // real stderr as it arrives so nothing is lost from the operator's view.
+    const child = spawn(command, args, { stdio: ["inherit", "inherit", "pipe"] });
+    child.stderr.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stderr += text;
+      process.stderr.write(text);
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolvePromise();
+        return;
+      }
+      if (PORT_BIND_CONFLICT_PATTERN.test(stderr)) {
+        reject(new PortBindConflictError(`${command} ${args.join(" ")} exited ${code ?? "unknown"}`));
+        return;
+      }
+      reject(new Error(`${command} ${args.join(" ")} exited with status ${code ?? "unknown"}`));
+    });
+  });
+}
+
+async function waitForReady(url: string, timeoutMs = 120_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        const body = (await response.json()) as {
+          readonly ok?: unknown;
+          readonly db?: unknown;
+          readonly pgboss?: unknown;
+        };
+        // #1024/#1000: same readiness contract as scripts/smoke-compose.ts's waitForHealth
+        // (#171) — /health/ready, not /health, and assert db+pgboss individually so a payload
+        // change can't silently let a DB-down bare instance read as "reachable".
+        if (body.ok === true && body.db === "ok" && body.pgboss === "ok") {
+          return;
+        }
+        lastError = new Error(
+          `readiness not satisfied: ${JSON.stringify({ db: body.db, pgboss: body.pgboss })}`
+        );
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 1_000));
+  }
+  throw new Error(`Timed out waiting for ${url}: ${String(lastError ?? "health check failed")}`);
+}
+
+async function main(): Promise<void> {
+  const overallStart = Date.now();
+  // #1024/#1000: bounded by the reserved range itself (100 candidates) — never an unbounded
+  // retry. Each failed-on-bind attempt removes its port from the pool; exhausting the pool means
+  // the whole reserved range is hostile, which should fail loudly, not spin forever.
+  let remainingCandidates = Array.from(
+    { length: UAT_PORT_RANGE_SIZE },
+    (_, i) => UAT_PORT_RANGE_START + i
+  );
+  let imageBuilt = false; // build once; a port-bind retry shouldn't rebuild the image
+
+  while (remainingCandidates.length > 0) {
+    const startedAt = Date.now();
+    const { projectName } = generateUatRunId();
+    const webPort = await findAvailablePort(remainingCandidates);
+    const envFile = writeUatEnvFile({ webPort });
+    process.env.JARVIS_ENV_FILE = envFile.path;
+    process.env.JARVIS_IMAGE_TAG ??= "uat-smoke";
+
+    // #1024/#1000: teardown MUST run even if provisioning throws partway through (crashed migrate,
+    // failed health poll, lost port-bind race, etc.) — this is the "trap/finally" the spec's §3.5
+    // calls for, translated to Node's try/finally plus SIGINT/SIGTERM handlers so an operator
+    // Ctrl-C doesn't skip it.
+    const teardown = () =>
+      runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch((error) => {
+        console.error(`teardown failed for ${projectName}:`, error);
+      });
+    const onSignal = () => {
+      void teardown().finally(() => process.exit(1));
+    };
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+
+    try {
+      console.log(`[uat] provisioning ${projectName} on port ${webPort}`);
+      if (process.env.JARVIS_UAT_BUILD !== "0" && !imageBuilt) {
+        await runCommand("docker", [
+          "build",
+          "-t",
+          `ghcr.io/motioneso/jarv1s:${process.env.JARVIS_IMAGE_TAG}`,
+          "-f",
+          "Dockerfile",
+          "."
+        ]);
+        imageBuilt = true;
+      }
+      const plan = createUatProvisionPlan({ projectName, seedHook: bareSeedHook });
+      for (const step of plan.slice(0, -1)) {
+        // #1024/#1000: the plan's LAST entry is always `down -v` (Task 4) — deliberately excluded
+        // from this loop and run once, from `finally`, below. Running it here too would double-run
+        // teardown on the success path.
+        console.log(`[uat] ${step.description}`);
+        await runCommand(step.command, step.args);
+      }
+      await bareSeedHook({ projectName }); // #1024/#1000: no-op in Phase 1; seam for #1025.
+      const readyUrl = `http://127.0.0.1:${webPort}/health/ready`;
+      await waitForReady(readyUrl);
+      console.log(`[uat] reachable at ${readyUrl} after ${Date.now() - startedAt}ms`);
+      return;
+    } catch (error) {
+      if (error instanceof PortBindConflictError) {
+        // #1024/#1000: Coordinator condition 1 — findAvailablePort (Task 2) only proved this port
+        // free at probe time; docker just told us another process won the bind race. Retry with
+        // the next untried candidate instead of flaking the whole gate.
+        console.warn(
+          `[uat] port ${webPort} lost the bind race after probing free; retrying with next candidate (#1024)`
+        );
+        remainingCandidates = remainingCandidates.filter((port) => port !== webPort);
+        continue;
+      }
+      throw error;
+    } finally {
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+      await teardown();
+      await assertNoLeakedResources(projectName);
+      envFile.cleanup();
+      console.log(`[uat] provision+teardown wall-clock: ${Date.now() - overallStart}ms`);
+    }
+  }
+  throw new Error(
+    `exhausted all ${UAT_PORT_RANGE_SIZE} reserved UAT ports (${UAT_PORT_RANGE_START}-${
+      UAT_PORT_RANGE_START + UAT_PORT_RANGE_SIZE - 1
+    }) without a successful bind`
+  );
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  await main();
 }
