@@ -5298,3 +5298,6 @@ Coordinator lock UNCHANGED: label Coordinator, session 58a78927-385c-4b1d-8fa0-9
 - main tip still 7d852092 (= merge-base; no new siblings; no re-QA needed). Session-id reconfirmed 58a78927 this turn.
 Steps: session-id recheck → wait publish job (or merge now, publish not required) → `gh pr merge 1023 --squash --delete-branch` → close #1019 + board Done + epic check → reap "Ext-Nav 1019 Relay 7" (sess 630440e0, tab w1:t1Y) + `git worktree remove .claude/worktrees/ext-nav-1019` → merges_since_relay=1 → add to Ben digest.
 **#1020 spec: AWAITING BEN.** Both Sol(REJECT) + Fable(APPROVE-W-CHANGES) converged on 4 shared defects. I recommended: task spec author to revise vs the 4 findings → one more Fable pass → Ben approves. Asked Ben "Want me to kick that off?" — DO NOT start revision without his go-ahead. #984/PR#1015 hard-blocked on #1020 + expanded #868.
+
+## FYI (UX lane, no action for me) — 2026-07-13
+PR #1021 (#990) QA R2 RED despite 4/4 CI: (a) clearing stored guidance omits PATCH → stale value persists; (b) create/edit errors leak across modes. UX Coordinator routed to Relay 5 for TDD repair + new UAT/CI. NOT merge-ready; no merge request to me. Do not QA/merge from coordinator side.
