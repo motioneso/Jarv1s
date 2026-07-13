@@ -14,14 +14,15 @@
   `settings-page.tsx`, shared Playwright fixtures, settings selectors.
 - 10-task plan written and committed (`60b8cfae`), covering all 4 build slices with exact file
   paths, code, and commit messages.
-- Plan-ready message sent + **queued** (busy agent) to UX Coordinator via `herdr-pane-message`.
-- **No code written yet.** No plan approval received yet.
+- **PLAN APPROVED** by UX Coordinator, no fork: "Execute the grouped IA/URL state, approved pane
+  merges, module list/detail URL+shared back control, and bounded responsive rail exactly within
+  #986. Preserve stable IDs, non-admin regression coverage, InstanceModulesPane/install/run/#1000
+  exclusions, and the primary Coordinator's confirmed path boundary."
+- **No code written yet.**
 
 ## Next action
 
-1. Poll/wait for UX Coordinator's reply (re-resolve pane by label `UX Coordinator` fresh, `herdr
-   pane read <pane> --source recent --lines 12`).
-2. On approval: execute the plan Task 1 → Task 10 via `superpowers:test-driven-development`
+1. Execute the plan Task 1 → Task 10 via `superpowers:test-driven-development`
    (self-driven — `executing-plans`/`subagent-driven-development` disabled in this repo). Commit
    per task, `Co-Authored-By: Claude` trailer, stage only each task's explicit files (never
    `git add -A`).
