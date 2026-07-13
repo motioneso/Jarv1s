@@ -1110,3 +1110,13 @@ resume from this note before taking any merge-sensitive action.
 - The GREEN main gate is routed to security build session
   `019f5ce4-cce4-7a13-be05-cfc3834cc529`. It remains plan-only until its compact combined
   #868/#1020 plan is approved; main CI no longer blocks that approval.
+
+## Continuation note — 2026-07-13 security plan approved; current-main hold
+
+- Security session `019f5ce4-cce4-7a13-be05-cfc3834cc529` rebased cleanly on current main
+  `cdf66df0` and produced `docs/superpowers/plans/2026-07-13-engine-less-transcript-purge-plan.md`.
+  UX approved its exact serialized design: #1020 ECHO/ACK plus idempotent cancel, manager await seam
+  only after runner green, then expanded #868 exact Gemini/Codex/AGY identities and deterministic
+  graceful/crash purge. Calibration failure hard-stops; timers and heuristic deletion stay banned.
+- Current main CI run `29277401769` at `cdf66df0` is still active. The agent may commit only the
+  approved plan and must hold all TDD/product edits until UX sends the exact-main GREEN release.
