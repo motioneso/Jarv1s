@@ -829,3 +829,15 @@ resume from this note before taking any merge-sensitive action.
   before closeout and was reaped after successor verification. Sonnet successor
   `5a2f1b65-74fe-4a49-8081-22380b388ce0` is driving the same worktree toward pushed PR head,
   exact-head UAT/screenshots, and CI; no state was discarded.
+
+## Continuation note — 2026-07-13 #1020 scope split and #990 gate hold
+
+- Primary created security child #1020 for deterministic runner/RPC input readiness; Fable is
+  drafting `docs/superpowers/specs/2026-07-13-cli-runner-input-ready-event.md`. #1020 and #868-original
+  are serialized security lanes and both must merge before #984/PR #1015 may resume. #868 session
+  `c806a7e2-5991-4ddb-88a9-f68d4c278ef2` is held before feature edits pending spec approval and
+  explicit serialized release.
+- #990 is focused GREEN and cleanly rebased on main at head `44d1cd49` (Task 3 `10d8a948`, Task 4
+  `44d1cd49`). It needs full foundation plus release-hardening before push, but no DB gate has
+  started. The lane is held while Primary confirms the global shared-cluster slot and isolated name
+  `jarvis_ux990_gate`; no concurrent DB gate is authorized.
