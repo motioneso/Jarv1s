@@ -5696,3 +5696,6 @@ Tier sensitive → coordinator QA + no-BYPASSRLS invariant walk before merge. Bu
 
 ## P2 relay — 2026-07-13 ~17:55
 P2 #1025 self-relayed at 70%. Predecessor session e6ad8ae0 (pane w1:pM7) REAPED. Successor **`UAT Seed 1025 v2`, session 025f1d1e-21e, pane w1:pM8, tab w1:t10, Sonnet** — confirmed driving. Commits so far: 522a91a6 (Task 2 done) + c68dd572 (relay doc). **Open blocker for successor to resolve:** Task 3 better-auth/crypto root-resolution (loginable-admin real hashPassword path — likely bundled-path-resolution-trap territory; 2 fix options documented in the relay doc). Watch for escalation if it needs a decision.
+
+## P2 relay v2→v3 — 2026-07-13 ~18:05
+Predecessor v2 (session 025f1d1e, pane w1:pM8) REAPED. Successor **`UAT Seed 1025 v3`, session 4eba79f3-913, pane w1:pM9, tab w1:t10, Sonnet** — driving. Progress: Task 3 solo-admin DONE (0173b42a). Task 4 in flight — agent found the plan's DRAFT ai.ts had wrong field/table names, grounded against real schema + documented corrected findings in relay doc (b92356e5). No escalation needed — agent self-corrected within lane.
