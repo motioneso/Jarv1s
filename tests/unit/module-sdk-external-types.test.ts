@@ -44,6 +44,20 @@ describe("external module manifest types (#917)", () => {
     expect(pkg.manifest.compatibility.jarv1s).toBe(">=0.1.0");
   });
 
+  it("accepts a manifest whose navigation field type-checks (module-sdk ABI shape)", () => {
+    const manifest: JsonJarvisModuleManifest = {
+      schemaVersion: 1,
+      id: "acme-widgets",
+      name: "Acme Widgets",
+      version: "0.1.0",
+      publisher: "Acme, Inc.",
+      lifecycle: "optional",
+      compatibility: { jarv1s: ">=0.1.0" },
+      navigation: [{ id: "acme-widgets", label: "Acme Widgets", path: "/" }]
+    };
+    expect(manifest.navigation?.[0]?.id).toBe("acme-widgets");
+  });
+
   it("preserves a validated worker declaration and fetch hosts", () => {
     const result = validateExternalModuleManifest(
       {
