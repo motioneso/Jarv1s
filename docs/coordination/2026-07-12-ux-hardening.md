@@ -841,3 +841,14 @@ resume from this note before taking any merge-sensitive action.
   `44d1cd49`). It needs full foundation plus release-hardening before push, but no DB gate has
   started. The lane is held while Primary confirms the global shared-cluster slot and isolated name
   `jarvis_ux990_gate`; no concurrent DB gate is authorized.
+
+## Continuation note — 2026-07-13 #990 DB gate released
+
+- Primary granted #990 exclusive shared-cluster gate database `jarvis_ux990_gate` on
+  `jarv1s-postgres` at `127.0.0.1:55433`; global load is low and no other gate is running. Verified
+  #990 session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` is running foundation then release-hardening
+  serially with true exit-code capture.
+- A Postgres crash/recovery-mode/connection-reset signature is classified as shared-instance
+  contention: hold, preserve logs, and escalate to Primary before retry; never patch #990 for that
+  infrastructure signature. On genuine GREEN, #990 proceeds to explicit-path push/PR, exact-head
+  isolated UAT/screenshots, CI, and independent QA. No merge is authorized here.
