@@ -26,10 +26,10 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 5 committed at `c579e8d2` with chat-drawer E2E 12/12, targeted Prettier, and typecheck green; Task 6 gate/closeout active on `ux/984-private-history`; label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Tasks 1-3 and partial Task 4 committed through `fd73a7bb`; Task 4 remaining call-site conversions building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Fable/primary approved the sanctioned per-agent DB path: fresh `jarv1s_ux989_uat`, host API `:3002`, web `:5189`, real-UI owner signup, then Sports UAT/screenshots. Shared `jarv1s` is untouched. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 3 committed at `268c5a32`; Task 4 Playwright is 3/3 green. Foundation is blocked only by the approved plan doc's pre-existing formatting; builder is approved to format that one explicit file and rerun the gate. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 4 Playwright is 3/3 green. Foundation reached 151/152 integration suites and failed during `ai-tools` DB reset amid sibling shared-DB resets; no waiver/code change. Builder is rerunning the full gate on a fresh dedicated `jarv1s_ux990_gate*` database. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -363,3 +363,11 @@ resume from this note before taking any merge-sensitive action.
   migration, real-UI owner signup, and Sports UAT/screenshots. No `down -v`, shared-database drop or
   migration, or direct row edit is allowed. The inert quarantined row remains deferred for
   owner-authenticated deletion after 8:30am.
+- #986 is DONE on PR #1010. Builder-reported verification is foundation/audit exit 0 and Chromium
+  5/5. Independent routine QA is active as Codex session
+  `019f5a91-13fa-7950-b4f2-96ea2ebf9c00` in a detached PR worktree; it must post a durable PR
+  verdict and explicitly enforce the live-path UAT/screenshots gate. This UX lane will not merge.
+- #990's first post-format foundation rerun reached 151/152 integration suites before `ai-tools`
+  failed during a DB reset while sibling worktrees reset shared integration state. No waiver or code
+  change applies. The builder was directed to create a fresh dedicated `jarv1s_ux990_gate*` database
+  and rerun the entire foundation gate with that exact `JARVIS_PGDATABASE`.
