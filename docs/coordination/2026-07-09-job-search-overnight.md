@@ -5534,3 +5534,20 @@ GREEN + 4/4 CI). Internal dev-tooling, not user-visible. UAT-harness P1 done; P2
   job-search toggle; plug into P1 seed hook via privileged migration-owner seam (no BYPASSRLS).
 - **NEXT:** await P2 plan-ready escalation → approve if inside spec's locked decisions → build →
   PR → sensitive QA + invariant walk → merge → P3 #1026.
+
+### DESIGN-FORK (security) — P2 #1025 seed role, spec §4.1 WRONG
+- P2 caught: spec §4.1 assumed `jarvis_migration_owner` has DML on module tables. FALSE — module
+  tables (tasks/news/sports/notes/calendar/external_modules) FORCE RLS, INSERT policies grant only
+  app_runtime/worker_runtime; migration_owner = NOBYPASSRLS + member of auth_runtime ONLY. Raw
+  INSERT as migration_owner → RLS-denied. (Auth tables work only bc auth_runtime USING(true) +
+  existing membership.)
+- **Option A** (agent leans): bootstrap/0000_roles.sql GRANT migration_owner IN app_runtime (idempotent,
+  no migration, no BYPASSRLS); seed `SET LOCAL ROLE app_runtime` + actor GUC per chunk → passes real
+  RLS. **Option B:** seed as superuser (postgres), bypasses RLS; precedent release-hardening.test.ts.
+- **ESCALATED to Opus** (security-invariant fork + spec wrong → not ruled from agent summary). Opus
+  verifying mechanism (does SET ROLE+GUC satisfy the INSERT policy predicate?) + invariant blast
+  radius + seed fidelity against actual role SQL @ 51f468d4. P2 HOLDING (told not to touch
+  bootstrap/0000_roles.sql or write plan until I relay the verdict).
+- Coordinator lean (pre-Opus): A — keeps invariant literal (no BYPASSRLS), mirrors existing
+  auth_runtime grant, seeds data provably reachable via the real runtime RLS path (B's superuser
+  bypass can seed app-impossible states → less faithful UAT).
