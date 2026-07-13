@@ -20,7 +20,7 @@
  * module re-declares none of them.
  */
 
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { connect, type Socket } from "node:net";
 import { realpath } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
@@ -29,7 +29,7 @@ import type { ProviderKind } from "@jarv1s/ai";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
-import { CliChatUnavailableError } from "./errors.js";
+import { CliChatDeliveryUnknownError, CliChatUnavailableError } from "./errors.js";
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
 import type {
   RpcBeginLoginParams,
@@ -47,12 +47,15 @@ import {
   HELLO_PROOF_TAG_CLIENT,
   HELLO_PROOF_TAG_SERVER,
   type FrameDecodeResult,
+  type RpcCancelSubmitParams,
+  type RpcCancelSubmitResult,
   type RpcErr,
   type RpcErrorCode,
   type RpcFrame,
   type RpcHelloChallenge,
   type RpcInterruptResult,
   type RpcIsAliveResult,
+  type RpcKillParams,
   type RpcKillResult,
   type RpcLaunchParams,
   type RpcLaunchResult,
@@ -67,7 +70,7 @@ import {
   type RpcSubmitParams,
   type RpcSubmitResult
 } from "./rpc-contract.js";
-import type { CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import type { CliChatEngine, EngineKillOpts, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 
 /** The directory the socket MUST resolve under (§3.1 client-side realpath guard). */
 export const SOCKET_ALLOWED_DIR = "/run/jarv1s";
@@ -131,7 +134,7 @@ export interface RpcReconcileDriver {
   /** §4.6 reconciliation primitive — the authoritative live-key enumeration. Bypasses the gate. */
   listLiveSessions(): Promise<RpcListLiveSessionsResult>;
   /** §4.5 kill-by-mux-name for an orphaned live session. Bypasses the gate. */
-  kill(sessionKey: string): Promise<RpcKillResult>;
+  kill(sessionKey: string, opts?: RpcKillParams): Promise<RpcKillResult>;
 }
 
 export interface RpcConnectionOpts {
@@ -178,6 +181,7 @@ type ConnState = "idle" | "connecting" | "handshaking" | "ready" | "closed";
  * (→ 500). The message is already redacted server-side (§6.4), so it is safe to surface/log.
  */
 export function mapRpcError(code: RpcErrorCode, message: string): Error {
+  if (code === "delivery_unknown") return new CliChatDeliveryUnknownError(message);
   if (code === "unavailable" || code === "not_launched") {
     return new CliChatUnavailableError(message);
   }
@@ -238,6 +242,7 @@ export class RpcConnection {
     if (this.turnTimeoutMs <= 0) return 0;
     switch (method) {
       case "submit":
+      case "cancelSubmit":
       case "readNew":
       case "isAlive":
       case "interrupt":
@@ -263,8 +268,17 @@ export class RpcConnection {
     return this.call<RpcLaunchResult>("launch", sessionKey, params);
   }
 
-  submit(sessionKey: string, params: RpcSubmitParams): Promise<RpcSubmitResult> {
-    return this.call<RpcSubmitResult>("submit", sessionKey, params);
+  async submit(sessionKey: string, params: RpcSubmitParams): Promise<RpcSubmitResult> {
+    try {
+      return await this.call<RpcSubmitResult>("submit", sessionKey, params);
+    } catch (err) {
+      void this.cancelSubmit(sessionKey, { attemptId: params.attemptId }).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  cancelSubmit(sessionKey: string, params: RpcCancelSubmitParams): Promise<RpcCancelSubmitResult> {
+    return this.call<RpcCancelSubmitResult>("cancelSubmit", sessionKey, params);
   }
 
   readNew(sessionKey: string, params: RpcReadNewParams): Promise<RpcReadNewResult> {
@@ -275,8 +289,8 @@ export class RpcConnection {
     return this.call<RpcIsAliveResult>("isAlive", sessionKey, {});
   }
 
-  kill(sessionKey: string): Promise<RpcKillResult> {
-    return this.call<RpcKillResult>("kill", sessionKey, {});
+  kill(sessionKey: string, opts: RpcKillParams = {}): Promise<RpcKillResult> {
+    return this.call<RpcKillResult>("kill", sessionKey, opts);
   }
 
   // #744 — private-chat transcript purge over RPC. Runs server-side (the api can't reach the
@@ -763,7 +777,8 @@ export class RpcConnection {
     const driver: RpcReconcileDriver = {
       listLiveSessions: () =>
         this.call<RpcListLiveSessionsResult>("listLiveSessions", undefined, {}, true),
-      kill: (sessionKey: string) => this.call<RpcKillResult>("kill", sessionKey, {}, true)
+      kill: (sessionKey: string, opts: RpcKillParams = {}) =>
+        this.call<RpcKillResult>("kill", sessionKey, opts, true)
     };
     try {
       await this.onReconcile(driver);
@@ -801,6 +816,7 @@ export class ChatEngineRpcClient implements CliChatEngine {
       ...(opts.mcpToken !== undefined ? { mcpToken: opts.mcpToken } : {}),
       ...(opts.mcpServerUrl !== undefined ? { mcpServerUrl: opts.mcpServerUrl } : {}),
       ...(opts.replayBatch !== undefined ? { replayBatch: opts.replayBatch } : {}),
+      ...(opts.replayBatch ? { replayAttemptId: opts.replayAttemptId ?? randomUUID() } : {}),
       ...(opts.model !== undefined ? { model: opts.model } : {})
     };
     const result = await this.conn.launch(this.sessionKey, params);
@@ -808,7 +824,7 @@ export class ChatEngineRpcClient implements CliChatEngine {
   }
 
   async submit(text: string): Promise<void> {
-    await this.conn.submit(this.sessionKey, { text });
+    await this.conn.submit(this.sessionKey, { attemptId: randomUUID(), text });
   }
 
   async readNew(
@@ -823,14 +839,13 @@ export class ChatEngineRpcClient implements CliChatEngine {
     return result.alive;
   }
 
-  async kill(): Promise<void> {
-    await this.conn.kill(this.sessionKey);
+  async kill(opts?: EngineKillOpts): Promise<void> {
+    await this.conn.kill(this.sessionKey, opts);
   }
 
   /**
-   * #744 — purge this private session's transcripts server-side. The engine has already been
-   * killed by the manager (kill deletes the server-side engine), so the cli-runner host purges
-   * by directory. Rejects if the RPC fails, so the manager keeps the bookkeeping row.
+   * #744 — purge this private session's transcripts server-side before kill removes its exact
+   * identity marker. Rejects if the RPC fails, so kill preserves the marker for the boot sweep.
    */
   async purgeTranscripts(): Promise<void> {
     await this.conn.purgeTranscripts(this.sessionKey);

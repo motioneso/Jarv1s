@@ -145,11 +145,12 @@ export const HELLO_PROOF_TAG_CLIENT = "C";
 export type RpcMethod =
   | "launch"
   | "submit"
+  | "cancelSubmit"
   | "readNew"
   | "isAlive"
   | "interrupt"
-  | "kill" // per-session (sessionKey required)
   | "purgeTranscripts" // per-session (sessionKey required) — #744 private-chat transcript purge over RPC
+  | "kill" // per-session (sessionKey required); private cleanup purges before kill
   | "listLiveSessions" // non-session (reconciliation, §4.6)
   | "probeProvider" // non-session (onboarding, §4.8)
   | "installProvider" // non-session (on-demand installer, install-contract §A.2 — ADDITIVE)
@@ -160,6 +161,7 @@ export type RpcMethod =
 
 export type RpcErrorCode =
   | "unavailable" // engine could not launch / multiplexer down / NOT_LAUNCHED → CliChatUnavailableError (retryable HTTP 503)
+  | "delivery_unknown" // Enter was sent but exact ACK was not observed; never auto-retry
   | "not_launched" // submit/readNew/isAlive called before a successful launch — maps to RETRYABLE 503 (§4.7)
   | "bad_request" // semantically-invalid params (bad offset, missing sessionKey) — does NOT close the connection
   | "internal"; // unexpected server-side failure (already redacted)
@@ -243,6 +245,8 @@ export interface RpcLaunchParams {
    * so the first real turn starts from a clean offset.
    */
   readonly replayBatch?: string;
+  /** Required exactly when replayBatch is non-empty; stable across transport retry. */
+  readonly replayAttemptId?: string;
   /**
    * #367: the resolved provider model id from the active chat model row. For the `"default"`
    * sentinel (the auto-registered default) cli-runner OMITS `--model` so the CLI rides its own
@@ -264,10 +268,18 @@ export interface RpcLaunchResult {
 
 /** params for method "submit" (§4.2). */
 export interface RpcSubmitParams {
+  readonly attemptId: string;
   readonly text: string;
 }
 /** result for method "submit" (§4.2). */
 export interface RpcSubmitResult {
+  readonly ok: true;
+}
+
+export interface RpcCancelSubmitParams {
+  readonly attemptId: string;
+}
+export interface RpcCancelSubmitResult {
   readonly ok: true;
 }
 
@@ -296,8 +308,10 @@ export interface RpcReadNewResult {
   readonly complete: boolean;
 }
 
-/** params for method "kill" (§4.5) — empty. */
-export type RpcKillParams = Record<string, never>;
+/** params for method "kill" (§4.5). Failed private purge preserves its exact retry marker. */
+export interface RpcKillParams {
+  readonly preserveNeutralDir?: boolean;
+}
 /** result for method "kill" (§4.5). */
 export interface RpcKillResult {
   readonly ok: true;

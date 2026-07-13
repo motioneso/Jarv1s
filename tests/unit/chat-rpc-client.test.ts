@@ -16,7 +16,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   decodeFrame,
@@ -28,11 +28,19 @@ import {
   type RpcFrame
 } from "../../packages/chat/src/live/rpc-contract.js";
 import {
+  ChatEngineRpcClient,
   RpcConnection,
   mapRpcError,
   SOCKET_ALLOWED_DIR
 } from "../../packages/chat/src/live/chat-engine-rpc-client.js";
-import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
+import {
+  CliChatDeliveryUnknownError,
+  CliChatUnavailableError
+} from "../../packages/chat/src/live/errors.js";
+
+function submitParams(text: string) {
+  return { attemptId: "99999999-9999-4999-8999-999999999999", text };
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // §3.2 framing encode/decode
@@ -117,6 +125,52 @@ describe("rpc framing (§3.2)", () => {
     expect(() =>
       encodeFrame({ t: "submit", id: 1, bootId: "b", result: { huge } } as unknown as RpcFrame)
     ).toThrow();
+  });
+});
+
+describe("verified-submit RPC client", () => {
+  it("maps delivery_unknown to a distinct non-retryable error", () => {
+    expect(mapRpcError("delivery_unknown", "unknown")).toBeInstanceOf(CliChatDeliveryUnknownError);
+  });
+
+  it("generates an attempt UUID above transport for each logical engine submit", async () => {
+    const submit = vi.fn().mockResolvedValue({ ok: true });
+    const client = new ChatEngineRpcClient("anthropic", "u1", {
+      submit
+    } as unknown as RpcConnection);
+
+    await client.submit("hello");
+
+    expect(submit).toHaveBeenCalledWith("u1", {
+      attemptId: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      ),
+      text: "hello"
+    });
+  });
+
+  it("generates a replay attempt UUID exactly when launch carries replay", async () => {
+    const launch = vi.fn().mockResolvedValue({ offset: 4 });
+    const client = new ChatEngineRpcClient("anthropic", "u1", {
+      launch
+    } as unknown as RpcConnection);
+
+    await client.launch({
+      neutralDir: "/unused",
+      personaPath: "/unused/persona.md",
+      personaText: "persona",
+      replayBatch: "history"
+    });
+
+    expect(launch).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({
+        replayBatch: "history",
+        replayAttemptId: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+        )
+      })
+    );
   });
 });
 
@@ -295,7 +349,10 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     const server = await startFakeServer(socketPath, secret, {
       onRequest: ({ method, params }) => {
         if (method === "submit") {
-          expect((params as { text: string }).text).toBe("hello");
+          expect((params as { attemptId: string; text: string }).text).toBe("hello");
+          expect((params as { attemptId: string }).attemptId).toMatch(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+          );
           return { ok: true };
         }
         return { ok: true };
@@ -310,7 +367,10 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     });
     conns.push(conn);
 
-    const res = await conn.submit("u1", { text: "hello" });
+    const res = await conn.submit("u1", {
+      attemptId: "33333333-3333-4333-8333-333333333333",
+      text: "hello"
+    });
     expect(res).toEqual({ ok: true });
   });
 
@@ -470,7 +530,11 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     });
     conns.push(conn);
 
-    await expect(conn.submit("u1", { text: "x" })).rejects.toBeInstanceOf(CliChatUnavailableError);
+    const params = submitParams("x");
+    const cancel = vi.spyOn(conn, "cancelSubmit").mockResolvedValue({ ok: true });
+    await expect(conn.submit("u1", params)).rejects.toBeInstanceOf(CliChatUnavailableError);
+    await Promise.resolve();
+    expect(cancel).toHaveBeenCalledWith("u1", { attemptId: params.attemptId });
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -579,7 +643,7 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     });
     conns.push(conn);
 
-    const err = await conn.submit("u1", { text: "x" }).catch((e: unknown) => e);
+    const err = await conn.submit("u1", submitParams("x")).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(CliChatUnavailableError);
     expect((err as Error).message).toMatch(/submit timed out after 60ms/);
   });
@@ -602,7 +666,7 @@ describe("RpcConnection hello + id-matching + bootId (in-process socket)", () =>
     // comfortably longer than the would-be deadline, mirroring the imposter-hello "pending" check.
     const settled = await Promise.race([
       conn
-        .submit("u1", { text: "x" })
+        .submit("u1", submitParams("x"))
         .then(() => "resolved")
         .catch(() => "rejected"),
       new Promise<string>((r) => setTimeout(() => r("pending"), 150))

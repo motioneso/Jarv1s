@@ -9,10 +9,8 @@
  *
  * This test refuses that mask: it stands up a REAL Unix-socket server running the production
  * `serveConnection` + `CliChatEngineHost`, and a REAL `RpcConnection` + `ChatEngineRpcClient`
- * client. It drives the manager's real sequence — kill (deletes the server-side engine), then
- * purgeTranscripts (which therefore arrives ENGINE-LESS, the normal path) — and asserts the
- * cli-runner actually `rm -rf`'d the anthropic transcript directory for the session. Before the
- * verb existed the purge RPC could not even be sent; this pins that it now reaches disk.
+ * client. It drives the manager's real sequence — purge while the server-side engine still owns
+ * its exact identity, then kill — and asserts the cli-runner purges before removing neutral state.
  */
 import { createServer, type Server } from "node:net";
 import { mkdtempSync } from "node:fs";
@@ -38,12 +36,23 @@ const BOOT_ID = "boot-purge";
  * `find` returns nothing (no codex jsonl candidates), so the ONLY rm from purgePrivateTranscripts
  * is the anthropic `rm -rf <transcriptGlobDir>`.
  */
-function makeFakeIo(): { io: TmuxIo; removedDirs: string[] } {
+function makeFakeIo(failTranscriptPurge = false): {
+  io: TmuxIo;
+  removedDirs: string[];
+  state: { failTranscriptPurge: boolean; markerIntact: boolean };
+} {
   const removedDirs: string[] = [];
+  const state = { failTranscriptPurge, markerIntact: true };
   const run = vi.fn(async (cmd: string, args: readonly string[]) => {
     if (cmd === "rm") {
       removedDirs.push(args[args.length - 1]!);
-      return { code: 0, stdout: "", stderr: "" };
+      const target = args[args.length - 1]!;
+      if (target === `${NEUTRAL_BASE}/u1`) state.markerIntact = false;
+      return {
+        code: state.failTranscriptPurge && target.includes("/.claude/projects/") ? 1 : 0,
+        stdout: "",
+        stderr: ""
+      };
     }
     if (cmd === "find") return { code: 0, stdout: "", stderr: "" };
     // tmux (kill-session/has-session), mkdir, ls → benign ok/no-op.
@@ -55,7 +64,7 @@ function makeFakeIo(): { io: TmuxIo; removedDirs: string[] } {
     writeFile: vi.fn().mockResolvedValue(undefined),
     sleep: vi.fn().mockResolvedValue(undefined)
   };
-  return { io, removedDirs };
+  return { io, removedDirs, state };
 }
 
 /** Subclass to relax the §3.1 realpath-under-/run/jarv1s guard (not writable in the sandbox). */
@@ -78,7 +87,7 @@ describe("#744 purgeTranscripts over the real RPC path", () => {
     await Promise.all(servers.splice(0).map((s) => new Promise<void>((r) => s.close(() => r()))));
   });
 
-  it("purges the anthropic transcript dir engine-less after kill (split-topology regression)", async () => {
+  it("purges through the resident RPC engine before kill removes neutral state", async () => {
     const { io, removedDirs } = makeFakeIo();
     const host = new CliChatEngineHost({
       io,
@@ -111,11 +120,14 @@ describe("#744 purgeTranscripts over the real RPC path", () => {
     });
     conns.push(conn);
     const engine = new ChatEngineRpcClient("anthropic", "u1", conn);
+    await engine.launch({
+      neutralDir: "/api-path-ignored",
+      personaPath: "/api-path-ignored/persona.md",
+      personaText: "persona"
+    });
 
-    // Mirror the manager's real private-cleanup order: kill first (deletes the server-side
-    // engine), then purge — so the purge is handled by the ENGINE-LESS dir-based path.
-    await engine.kill();
     await engine.purgeTranscripts();
+    await engine.kill();
 
     // Claude encodes the neutral cwd /data/cli-auth/chat/u1 → -data-cli-auth-chat-u1 and stores
     // transcripts under ~/.claude/projects/<encoded>. The purge MUST have rm -rf'd exactly that.
@@ -123,5 +135,54 @@ describe("#744 purgeTranscripts over the real RPC path", () => {
       dir.endsWith("/.claude/projects/-data-cli-auth-chat-u1")
     );
     expect(purgedTranscriptDir).toBe(true);
+    expect(removedDirs.findIndex((dir) => dir.includes("/.claude/projects/"))).toBeLessThan(
+      removedDirs.findIndex((dir) => dir === `${NEUTRAL_BASE}/u1`)
+    );
+  });
+
+  it("preserves neutral markers over RPC when purge fails", async () => {
+    const { io, removedDirs, state } = makeFakeIo(true);
+    const host = new CliChatEngineHost({
+      io,
+      neutralBase: NEUTRAL_BASE,
+      singleUser: true,
+      cliPresent: async () => true,
+      launchTimeoutMs: 2_000
+    });
+    const socketPath = tmpSocket();
+    const server = createServer((socket) => {
+      socket.on("error", () => {});
+      serveConnection(socket as unknown as ByteChannel, {
+        host,
+        bootId: BOOT_ID,
+        secret: RPC_SECRET
+      });
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.on("error", reject);
+      server.listen(socketPath, () => resolve());
+    });
+    servers.push(server);
+    const conn = new TestConn({ socketPath, rpcSecret: RPC_SECRET });
+    conns.push(conn);
+    const engine = new ChatEngineRpcClient("anthropic", "u1", conn);
+    await engine.launch({
+      neutralDir: "/api-path-ignored",
+      personaPath: "/api-path-ignored/persona.md",
+      personaText: "persona"
+    });
+
+    await expect(engine.purgeTranscripts()).rejects.toThrow();
+    await engine.kill({ preserveNeutralDir: true });
+
+    expect(removedDirs).not.toContain(`${NEUTRAL_BASE}/u1`);
+    expect(state.markerIntact).toBe(true);
+
+    // Simulate next boot: engine is gone, original marker dir survives, exact engine-less purge
+    // succeeds, and only then may ordinary kill remove the neutral directory.
+    state.failTranscriptPurge = false;
+    await host.purgeTranscripts("u1");
+    await host.kill("u1");
+    expect(state.markerIntact).toBe(false);
   });
 });

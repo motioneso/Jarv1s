@@ -27,6 +27,7 @@ import {
   type ConnectionDeps
 } from "../../packages/cli-runner/src/connection.js";
 import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+import { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
 
 const SECRET = "test-rpc-secret";
 const BOOT = "boot-uuid-1";
@@ -233,6 +234,104 @@ describe("serveConnection (§3.4/§3.7)", () => {
     const err = channel.decodeAll().find((f) => (f as RpcErr).id === 11) as RpcErr;
     expect(err.error.code).toBe("bad_request");
     expect(channel.closed).toBe(false);
+  });
+
+  it("rejects submit without a stable attemptId but keeps the connection open", async () => {
+    const channel = new FakeChannel();
+    serveConnection(channel, deps());
+    authenticate(channel);
+
+    channel.feed(
+      encodeFrame({ t: "req", id: 12, method: "submit", sessionKey: "u1", params: { text: "hi" } })
+    );
+    await new Promise((r) => setTimeout(r, 5));
+
+    const err = channel.decodeAll().find((f) => (f as RpcErr).id === 12) as RpcErr;
+    expect(err.error.code).toBe("bad_request");
+    expect(channel.closed).toBe(false);
+  });
+
+  it("dispatches cancelSubmit outside host serialization and returns ok", async () => {
+    const host = fakeHost();
+    const cancel = vi.spyOn(host, "cancelSubmit").mockResolvedValue(undefined);
+    const channel = new FakeChannel();
+    serveConnection(channel, deps(host));
+    authenticate(channel);
+    const attemptId = "11111111-1111-4111-8111-111111111111";
+
+    channel.feed(
+      encodeFrame({
+        t: "req",
+        id: 13,
+        method: "cancelSubmit",
+        sessionKey: "u1",
+        params: { attemptId }
+      })
+    );
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(cancel).toHaveBeenCalledWith("u1", { attemptId });
+    const ok = channel.decodeAll().find((f) => (f as RpcOk).id === 13) as RpcOk;
+    expect(ok.result).toEqual({ ok: true });
+  });
+
+  it("maps a post-Enter verified submit failure to delivery_unknown", async () => {
+    const host = fakeHost();
+    vi.spyOn(host, "submit").mockRejectedValue(new VerifiedSubmitError("delivery_unknown", true));
+    const channel = new FakeChannel();
+    serveConnection(channel, deps(host));
+    authenticate(channel);
+
+    channel.feed(
+      encodeFrame({
+        t: "req",
+        id: 14,
+        method: "submit",
+        sessionKey: "u1",
+        params: {
+          attemptId: "22222222-2222-4222-8222-222222222222",
+          text: "hi"
+        }
+      })
+    );
+    await new Promise((r) => setTimeout(r, 5));
+
+    const err = channel.decodeAll().find((f) => (f as RpcErr).id === 14) as RpcErr;
+    expect(err.error.code).toBe("delivery_unknown");
+  });
+
+  it("requires replayAttemptId exactly when launch carries non-empty replay", async () => {
+    const channel = new FakeChannel();
+    serveConnection(channel, deps());
+    authenticate(channel);
+
+    channel.feed(
+      encodeFrame({
+        t: "req",
+        id: 15,
+        method: "launch",
+        sessionKey: "u1",
+        params: { provider: "anthropic", personaText: "persona", replayBatch: "history" }
+      })
+    );
+    channel.feed(
+      encodeFrame({
+        t: "req",
+        id: 16,
+        method: "launch",
+        sessionKey: "u1",
+        params: {
+          provider: "anthropic",
+          personaText: "persona",
+          replayAttemptId: "33333333-3333-4333-8333-333333333333"
+        }
+      })
+    );
+    await new Promise((r) => setTimeout(r, 5));
+
+    const frames = channel.decodeAll() as RpcErr[];
+    expect(frames.find((frame) => frame.id === 15)?.error.code).toBe("bad_request");
+    expect(frames.find((frame) => frame.id === 16)?.error.code).toBe("bad_request");
   });
 
   it("an unauthenticated request frame (no hello) closes the connection", () => {

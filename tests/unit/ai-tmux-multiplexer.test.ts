@@ -35,18 +35,49 @@ describe("TmuxMultiplexer", () => {
     ).toBe(true);
   });
 
-  it("submit() loads+pastes a buffer then sends Enter as a separate step", async () => {
+  it("exposes clear, capture, paste, and Enter as separate observed-submit primitives", async () => {
     const io = makeIo();
+    io.run.mockImplementation(async (_cmd: string, args: string[]) => ({
+      code: 0,
+      stdout: args[0] === "capture-pane" ? "pane snapshot" : "",
+      stderr: ""
+    }));
     const mux = new TmuxMultiplexer(io);
-    await mux.submit("jarv1s-live-x", "hello");
+
+    await mux.clearComposer("jarv1s-live-x");
+    await expect(mux.capturePane("jarv1s-live-x")).resolves.toBe("pane snapshot");
+    await mux.paste("jarv1s-live-x", "hello");
 
     const flat = calls(io);
     const pasteIdx = flat.findIndex((c) => c.includes("paste-buffer"));
-    const enterIdx = flat.findIndex((c) => c.includes("send-keys") && c.includes("Enter"));
     expect(pasteIdx).toBeGreaterThanOrEqual(0);
-    expect(enterIdx).toBeGreaterThan(pasteIdx);
-    expect(io.sleep).toHaveBeenCalledWith(2_000);
+    expect(flat.some((c) => c.includes("send-keys") && c.includes("Enter"))).toBe(false);
+    expect(flat.some((c) => c.includes("send-keys") && c.includes("C-u"))).toBe(true);
+    expect(flat.some((c) => c.includes("capture-pane"))).toBe(true);
+    expect(flat.some((c) => c.includes("capture-pane") && c.includes("-e"))).toBe(true);
     expect(io.writeFile).toHaveBeenCalledTimes(1); // prompt written to a temp file before paste
+    expect(flat.some((c) => c.includes("delete-buffer"))).toBe(true);
+    expect(flat.some((c) => c.startsWith("rm -f "))).toBe(true);
+    expect(io.sleep).not.toHaveBeenCalled();
+
+    await mux.pressEnter("jarv1s-live-x");
+    expect(calls(io).some((c) => c.includes("send-keys") && c.includes("Enter"))).toBe(true);
+  });
+
+  it("cleans the tmux buffer and prompt file when paste fails", async () => {
+    const io = makeIo();
+    io.run.mockImplementation(async (_cmd: string, args: string[]) => ({
+      code: args[0] === "paste-buffer" ? 1 : 0,
+      stdout: "",
+      stderr: "paste failed"
+    }));
+    const mux = new TmuxMultiplexer(io);
+
+    await expect(mux.paste("jarv1s-live-x", "hello")).rejects.toThrow(/paste-buffer.*failed/);
+
+    const flat = calls(io);
+    expect(flat.some((c) => c.includes("delete-buffer"))).toBe(true);
+    expect(flat.some((c) => c.startsWith("rm -f "))).toBe(true);
   });
 
   it("isAlive() maps has-session exit code to a boolean", async () => {

@@ -1,0 +1,97 @@
+import type { ProviderKind, TmuxIo } from "@jarv1s/ai";
+
+export type ProbeProviderStatus =
+  | "ready"
+  | "needs_login"
+  | "not_installed"
+  | "multiplexer_unavailable"
+  | "error";
+
+export interface ProbeProviderResult {
+  readonly status: ProbeProviderStatus;
+  readonly message?: string;
+}
+
+const PROBE_TIMEOUT_MS = 25_000;
+
+export async function probeProvider(
+  provider: ProviderKind,
+  deps: {
+    readonly io: Pick<TmuxIo, "run">;
+    readonly cliPresent: (provider: ProviderKind) => Promise<boolean>;
+    readonly multiplexerUsable?: () => Promise<boolean>;
+    readonly credentialEnv?: NodeJS.ProcessEnv;
+  }
+): Promise<ProbeProviderResult> {
+  if (deps.multiplexerUsable && !(await deps.multiplexerUsable())) {
+    return { status: "multiplexer_unavailable" };
+  }
+  try {
+    if (!(await deps.cliPresent(provider))) return { status: "not_installed" };
+    switch (provider) {
+      case "anthropic":
+        return await probeClaudeAuth(deps.io, deps.credentialEnv);
+      case "openai-compatible":
+        return await probeCodexAuth(deps.io);
+      case "google":
+        return await probeGeminiAuth(deps.io);
+    }
+  } catch {
+    return { status: "error" };
+  }
+}
+
+async function probeClaudeAuth(
+  io: Pick<TmuxIo, "run">,
+  credentialEnv?: NodeJS.ProcessEnv
+): Promise<ProbeProviderResult> {
+  const result = await probeWithTimeout(
+    io.run("claude", ["auth", "status"], credentialEnv ? { env: credentialEnv } : undefined)
+  );
+  try {
+    const parsed = JSON.parse(result.stdout) as { loggedIn?: unknown };
+    if (typeof parsed.loggedIn === "boolean") {
+      return parsed.loggedIn ? { status: "ready" } : { status: "needs_login" };
+    }
+  } catch {
+    // Not JSON; use exit status and auth text below.
+  }
+  if (result.code !== 0) {
+    return /\b(auth|authentication|authorization|login|sign in)\b/i.test(
+      `${result.stdout}\n${result.stderr ?? ""}`
+    )
+      ? { status: "needs_login" }
+      : { status: "error" };
+  }
+  return { status: "error" };
+}
+
+async function probeCodexAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {
+  const result = await probeWithTimeout(io.run("codex", ["login", "status"]));
+  return result.code === 0 && /\blogged in\b/i.test(`${result.stdout}\n${result.stderr ?? ""}`)
+    ? { status: "ready" }
+    : { status: "needs_login" };
+}
+
+async function probeGeminiAuth(io: Pick<TmuxIo, "run">): Promise<ProbeProviderResult> {
+  const result = await probeWithTimeout(io.run("agy", ["--print", "Reply with exactly OK."]));
+  return result.code === 0 && result.stdout.trim().toUpperCase() === "OK"
+    ? { status: "ready" }
+    : { status: "needs_login" };
+}
+
+async function probeWithTimeout<T extends { code: number; stdout: string; stderr?: string }>(
+  promise: Promise<T>
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("provider probe timed out")), PROBE_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}

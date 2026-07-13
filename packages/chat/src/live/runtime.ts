@@ -47,7 +47,7 @@ export type {
 import { ChatSessionManager } from "./chat-session-manager.js";
 import { createRealPersonaFs } from "./persona.js";
 import { DataContextChatPersistence } from "./persistence.js";
-import type { CliChatEngine } from "./types.js";
+import type { CliChatEngine, EngineKillOpts } from "./types.js";
 import { ChatRepository } from "../repository.js";
 
 // Re-exported so the live route and integration tests can reference the
@@ -392,7 +392,7 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
     // connection method otherwise. Undefined on the in-process/host path (no separate cli-runner holds
     // orphans — reconcile step 4 no-ops there).
     killSession: connection
-      ? (sessionKey) => killOrphan(activeReconcileDriver, connection!, sessionKey)
+      ? (sessionKey, opts) => killOrphan(activeReconcileDriver, connection!, sessionKey, opts)
       : undefined,
     purgePrivateTranscripts: (sessionKey) =>
       purgePrivateTranscripts(
@@ -462,13 +462,14 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
 async function killOrphan(
   driver: RpcReconcileDriver | null,
   connection: RpcConnection,
-  sessionKey: string
+  sessionKey: string,
+  opts?: EngineKillOpts
 ): Promise<void> {
   try {
     if (driver) {
-      await driver.kill(sessionKey);
+      await driver.kill(sessionKey, opts);
     } else {
-      await connection.kill(sessionKey);
+      await connection.kill(sessionKey, opts);
     }
   } catch {
     // best-effort: reconciliation must not wedge on a single orphan-kill failure.

@@ -12,16 +12,19 @@ import { redactSecrets } from "@jarv1s/ai";
 
 import {
   CliChatUnavailableError,
+  VerifiedSubmitError,
   decodeFrame,
   encodeFrame,
   MAX_FRAME_BYTES,
   type RpcBeginLoginParams,
   type RpcCancelLoginParams,
+  type RpcCancelSubmitParams,
   type RpcErr,
   type RpcErrorCode,
   type RpcFrame,
   type RpcHandshakeFrame,
   type RpcInstallProviderParams,
+  type RpcKillParams,
   type RpcLaunchParams,
   type RpcOk,
   type RpcPollLoginParams,
@@ -32,7 +35,7 @@ import {
   type RpcSubmitLoginTokenParams
 } from "@jarv1s/chat/live";
 
-import { NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
+import { BadSubmitAttemptError, NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
 import { InstallBadRequestError } from "./install-service.js";
 import { LoginBadRequestError } from "./login-service.js";
 import { isHandshakeFrame, stepHelloServer, type HelloServerState } from "./hello.js";
@@ -188,13 +191,36 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
   switch (req.method) {
     case "launch": {
       const key = requireSessionKey(req);
-      return host.launch(key, req.params as RpcLaunchParams);
+      const params = (isRecord(req.params) ? req.params : {}) as Partial<RpcLaunchParams>;
+      const hasReplay = typeof params.replayBatch === "string" && params.replayBatch.length > 0;
+      if (
+        (hasReplay && !isAttemptId(params.replayAttemptId)) ||
+        (!hasReplay && params.replayAttemptId !== undefined)
+      ) {
+        throw new BadRequestError(
+          "replayAttemptId is required exactly when replayBatch is present"
+        );
+      }
+      return host.launch(key, params as RpcLaunchParams);
     }
     case "submit": {
       const key = requireSessionKey(req);
-      const text = (req.params as { text?: unknown }).text;
+      const params = isRecord(req.params) ? req.params : {};
+      const text = params.text;
       if (typeof text !== "string") throw new BadRequestError("submit.text must be a string");
-      await host.submit(key, text);
+      if (!isAttemptId(params.attemptId)) {
+        throw new BadRequestError("submit.attemptId must be a UUID");
+      }
+      await host.submit(key, { attemptId: params.attemptId, text });
+      return { ok: true };
+    }
+    case "cancelSubmit": {
+      const key = requireSessionKey(req);
+      const params = (isRecord(req.params) ? req.params : {}) as Partial<RpcCancelSubmitParams>;
+      if (!isAttemptId(params.attemptId)) {
+        throw new BadRequestError("cancelSubmit.attemptId must be a UUID");
+      }
+      await host.cancelSubmit(key, { attemptId: params.attemptId });
       return { ok: true };
     }
     case "readNew": {
@@ -217,13 +243,19 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
     }
     case "kill": {
       const key = requireSessionKey(req);
-      await host.kill(key);
+      const params = (isRecord(req.params) ? req.params : {}) as Partial<RpcKillParams>;
+      if (
+        params.preserveNeutralDir !== undefined &&
+        typeof params.preserveNeutralDir !== "boolean"
+      ) {
+        throw new BadRequestError("kill.preserveNeutralDir must be a boolean");
+      }
+      await host.kill(key, params);
       return { ok: true };
     }
     case "purgeTranscripts": {
-      // #744 — private-chat transcript purge. Same per-session dispatch shape as kill; the host
-      // purges by directory when the engine is already gone (kill runs first). A throw here maps
-      // to an RPC error and keeps the api's bookkeeping row for the next boot sweep.
+      // #744 — private-chat transcript purge. Manager calls this before kill so a resident engine
+      // uses exact identity. A throw keeps the row and makes kill preserve the marker for boot sweep.
       const key = requireSessionKey(req);
       await host.purgeTranscripts(key);
       return { ok: true };
@@ -320,6 +352,8 @@ function errorCode(err: unknown): RpcErrorCode {
   // §L.2.4 catalog/adapter-blocked / stale-loginId / no-login-on-build ⇒ bad_request (does NOT close).
   if (err instanceof LoginBadRequestError) return "bad_request";
   if (err instanceof NotLaunchedError) return "not_launched";
+  if (err instanceof BadSubmitAttemptError) return "bad_request";
+  if (err instanceof VerifiedSubmitError) return err.code;
   if (err instanceof CliChatUnavailableError) return "unavailable";
   return "internal";
 }
@@ -342,6 +376,16 @@ function isRequest(value: unknown): value is RpcRequest {
 
 function isProviderKind(value: unknown): value is RpcProviderKind {
   return value === "anthropic" || value === "openai-compatible" || value === "google";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isAttemptId(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
 /** Semantically-invalid request value ⇒ RpcErr bad_request WITHOUT closing (§3.7). */

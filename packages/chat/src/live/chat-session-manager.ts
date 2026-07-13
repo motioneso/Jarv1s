@@ -9,14 +9,21 @@ import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { RecallPort } from "../recall-port.js";
 import { finalizeProvenance, parseAnswerMarkers } from "./answer-provenance.js";
+import { renderReplayBlock, renderSummaryBlock } from "./chat-context-blocks.js";
 import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
 import { buildEngineText } from "./engine-text.js";
+import { CliChatDeliveryUnknownError, CliChatUnavailableError } from "./errors.js";
 import { resolveCachedPageContext, type CachedPageContext } from "./page-context.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
-import { neutralizeSeedFraming } from "./prompt-safety.js";
-import { estimateTokens, renderMemorySeedBlock } from "./recall-seed.js";
-import type { CliChatEngine, TranscriptRecord } from "./types.js";
+import { renderMemorySeedBlock } from "./recall-seed.js";
+import type { CliChatEngine, EngineKillOpts, TranscriptRecord } from "./types.js";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+
+export {
+  combineHiddenContextBlocks,
+  renderReplayBlock,
+  renderSummaryBlock
+} from "./chat-context-blocks.js";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
 export interface Clock {
@@ -141,7 +148,7 @@ export interface ChatSessionManagerDeps {
    * separate cli-runner to hold orphans). Idempotent. Absent ⇒ orphan-by-name reaping is
    * skipped (only Map-known sessions are killed via their engine).
    */
-  readonly killSession?: (sessionKey: string) => Promise<void>;
+  readonly killSession?: (sessionKey: string, opts?: EngineKillOpts) => Promise<void>;
   readonly purgePrivateTranscripts?: (sessionKey: string) => Promise<void>;
   /** Phase 3: optional recall service — injects <memory> seed before replay. */
   readonly recall?: RecallPort;
@@ -315,7 +322,6 @@ export class ChatSessionManager {
 
     const sessionKey = actorUserId;
     const engine = this.deps.engineFactory(provider, sessionKey, { executionMode });
-    const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
 
     // Build the replay batch BEFORE launch so it can be shipped to the cli-runner in the
     // launch RPC (§4.1). It is REBUILT from live state on every launch — never cached —
@@ -337,6 +343,10 @@ export class ChatSessionManager {
       this.deps.persistence.getCurrentThreadState?.(actorUserId),
       this.deps.persistence.listPriorTurns(actorUserId, { forceReplay: opts?.forceReplay })
     ]);
+    if (threadState?.incognito && !engine.purgeTranscripts) {
+      throw new CliChatUnavailableError("private session unavailable");
+    }
+    const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
     const replayParts: string[] = [];
     if (memorySeed) replayParts.push(memorySeed);
     if (oldSummary) replayParts.push(renderSummaryBlock(oldSummary));
@@ -466,7 +476,15 @@ export class ChatSessionManager {
         resolvedPageContext
       );
       this.emit(actorUserId, { kind: "user", text });
-      await session.engine.submit(engineText);
+      try {
+        await session.engine.submit(engineText);
+      } catch (err) {
+        if (err instanceof CliChatDeliveryUnknownError) {
+          if (this.sessions.get(actorUserId) === session) this.sessions.delete(actorUserId);
+          this.deps.revokeMcpToken?.(actorUserId);
+        }
+        throw err;
+      }
 
       let reply = "";
       const invokedToolNames = new Set<string>();
@@ -887,11 +905,6 @@ export class ChatSessionManager {
     let purged = false;
     if (session) {
       try {
-        await (this.deps.killSession ? this.deps.killSession(actorUserId) : session.engine.kill());
-      } catch {
-        /* best-effort private kill */
-      }
-      try {
         if (session.engine.purgeTranscripts) {
           await session.engine.purgeTranscripts();
           purged = true;
@@ -899,7 +912,16 @@ export class ChatSessionManager {
       } catch {
         /* best-effort purge; purged stays false so we keep the row for the sweep */
       }
-      // Teardown is unconditional; only the row-delete below is gated on purge success.
+      try {
+        const killArgs: [EngineKillOpts?] = purged ? [] : [{ preserveNeutralDir: true }];
+        await (this.deps.killSession
+          ? this.deps.killSession(actorUserId, ...killArgs)
+          : session.engine.kill(...killArgs));
+      } catch {
+        /* best-effort private kill */
+      }
+      // Process teardown is unconditional. Neutral-dir removal and row deletion require a
+      // confirmed purge; failed purge leaves the exact marker for the boot sweep.
       this.sessions.delete(actorUserId);
       this.clearPrivateDetachTimer(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
@@ -937,60 +959,6 @@ export class ChatSessionManager {
     }
     return offset;
   }
-}
-
-/**
- * Render prior turns as a compact <conversation> seed block so a freshly-spawned
- * or switched engine continues the conversation with full context.
- *
- * Exported for unit testing of the prompt-injection neutralization (#123).
- */
-export function renderReplayBlock(
-  priorTurns: readonly { role: "user" | "assistant"; content: string }[]
-): string {
-  // Prior turn content is user-authored — neutralize any seed-framing delimiter
-  // so a turn can't break out of the <conversation> block and inject instructions
-  // into a freshly-spawned engine (#123).
-  const lines = priorTurns.map(
-    (t) => `${t.role === "user" ? "User" : "Assistant"}: ${neutralizeSeedFraming(t.content)}`
-  );
-  return [
-    "<conversation>",
-    "The following is the prior conversation so far. Continue it; do not respond to this message.",
-    ...lines,
-    "</conversation>"
-  ].join("\n");
-}
-
-// Exported for unit testing of the prompt-injection neutralization (#123).
-export function renderSummaryBlock(summary: string): string {
-  // The rolling summary is a verbatim concatenation of stored assistant message
-  // bodies (see persistence.ts buildRollingSummary), which are attacker-steerable
-  // — a user can ask the model to echo a `</prior-context>` delimiter that then
-  // gets persisted and replayed here. Route it through the same chokepoint as
-  // every other untrusted seed surface so it cannot break out of the block (#123).
-  return `<prior-context>\n${neutralizeSeedFraming(summary)}\n</prior-context>`;
-}
-
-/**
- * Combine the passive retrieval block and the cross-tool context block under a
- * 2000-token cap. The passive block has priority: if combined tokens exceed the
- * cap, the cross-tool block is dropped entirely (never truncated mid-block).
- * Exported for unit testing.
- */
-export function combineHiddenContextBlocks(passiveBlock: string, crossToolBlock: string): string {
-  const COMBINED_CAP = 2000;
-  const passiveTokens = passiveBlock ? estimateTokens(passiveBlock) : 0;
-  const crossTokens = crossToolBlock ? estimateTokens(crossToolBlock) : 0;
-  if (!passiveBlock && !crossToolBlock) return "";
-  if (!crossToolBlock) return passiveBlock;
-  if (!passiveBlock) {
-    return crossTokens <= COMBINED_CAP ? crossToolBlock : "";
-  }
-  if (passiveTokens + crossTokens <= COMBINED_CAP) {
-    return `${passiveBlock}\n\n${crossToolBlock}`;
-  }
-  return passiveBlock;
 }
 
 function delay(ms: number): Promise<void> {

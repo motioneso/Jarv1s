@@ -8,18 +8,32 @@
  * live-session set so the gate's liveKeys = (mux ∪ reservations) is exercised end to end.
  */
 import { createHmac, randomBytes } from "node:crypto";
+import { join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
-import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+import {
+  BadSubmitAttemptError,
+  CliChatEngineHost,
+  VERIFIED_SUBMIT_DEADLINE_MS
+} from "../../packages/cli-runner/src/engine-host.js";
 import {
   serveConnection,
   type ByteChannel,
   type ConnectionDeps
 } from "../../packages/cli-runner/src/connection.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
-import { SESSION_PREFIX } from "../../packages/chat/src/live/cli-chat-engine.js";
+import {
+  AGY_IDENTITY_FILENAME,
+  CODEX_IDENTITY_FILENAME,
+  codexTranscriptPath
+} from "../../packages/chat/src/live/private-transcript-cleanup.js";
+import {
+  CliChatEngineImpl,
+  SESSION_PREFIX,
+  VerifiedSubmitError
+} from "../../packages/chat/src/live/cli-chat-engine.js";
 import {
   decodeFrame,
   encodeFrame,
@@ -30,6 +44,8 @@ import {
 } from "../../packages/chat/src/live/rpc-contract.js";
 
 const NEUTRAL_BASE = "/data/cli-auth/chat";
+
+afterEach(() => vi.restoreAllMocks());
 
 /**
  * A fake TmuxIo that models a live-session Set. `tmux new-session` adds a session;
@@ -107,6 +123,80 @@ function makeHost(io: TmuxIo, singleUser = true): CliChatEngineHost {
     // The fake mux's open() is the default TmuxMultiplexer over `io`; no real tmux runs.
     launchTimeoutMs: 2_000
   });
+}
+
+function makeBootSweepIo(opts: { codexMismatch?: boolean } = {}): {
+  io: TmuxIo;
+  calls: string[];
+  neutralBase: string;
+  neutralDir: string;
+  homeBase: string;
+  codexPath: string;
+  brainDir: string;
+} {
+  const calls: string[] = [];
+  const neutralBase = "/data/cli-auth/chat";
+  const neutralDir = `${neutralBase}/stale-user`;
+  const homeBase = "/home/ben";
+  const codexUuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+  const agyUuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
+  const codexPath = codexTranscriptPath(codexUuid, homeBase);
+  const brainDir = join(homeBase, ".gemini", "antigravity-cli", "brain", agyUuid);
+
+  const markerValues = new Map<string, string>([
+    [`${neutralDir}/${CODEX_IDENTITY_FILENAME}`, `${codexUuid}\n`],
+    [`${neutralDir}/${AGY_IDENTITY_FILENAME}`, `${agyUuid}\n`],
+    [
+      codexPath,
+      `${JSON.stringify({
+        type: "session_meta",
+        payload: {
+          id: codexUuid,
+          cwd: opts.codexMismatch ? `${neutralDir}-other` : neutralDir
+        }
+      })}\n`
+    ]
+  ]);
+
+  const run = vi.fn(async (cmd: string, args: readonly string[]) => {
+    calls.push([cmd, ...args].join(" "));
+    if (cmd === "tmux") {
+      if (args[0] === "list-sessions") return { code: 0, stdout: "", stderr: "" };
+      return { code: 0, stdout: "", stderr: "" };
+    }
+    if (cmd === "ls") {
+      if (args[1] === neutralBase) return { code: 0, stdout: "stale-user\n", stderr: "" };
+      return { code: 1, stdout: "", stderr: "" };
+    }
+    if (cmd === "test") {
+      return args[1] === codexPath
+        ? { code: 0, stdout: "", stderr: "" }
+        : { code: 1, stdout: "", stderr: "" };
+    }
+    if (cmd === "rm") return { code: 0, stdout: "", stderr: "" };
+    return { code: 0, stdout: "", stderr: "" };
+  });
+
+  const readFile = vi.fn(async (path: string) => {
+    const value = markerValues.get(path);
+    if (value === undefined) throw new Error("ENOENT");
+    return value;
+  });
+
+  return {
+    io: {
+      run: run as unknown as TmuxIo["run"],
+      readFile: readFile as unknown as TmuxIo["readFile"],
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      sleep: vi.fn().mockResolvedValue(undefined)
+    },
+    calls,
+    neutralBase,
+    neutralDir,
+    homeBase,
+    codexPath,
+    brainDir
+  };
 }
 
 const launchParams = (provider: "anthropic" = "anthropic") => ({
@@ -199,6 +289,134 @@ describe("§4.5 kill-by-mux-name + §4.6 listLiveSessions", () => {
   });
 });
 
+describe("verified submit attempt ledger", () => {
+  it("uses the approved 35 second failure-only deadline", () => {
+    expect(VERIFIED_SUBMIT_DEADLINE_MS).toBe(35_000);
+  });
+
+  it("joins and caches duplicate same-ID/same-payload attempts", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    const verified = vi
+      .spyOn(CliChatEngineImpl.prototype, "verifiedSubmit")
+      .mockResolvedValue(undefined);
+    const attempt = {
+      attemptId: "11111111-1111-4111-8111-111111111111",
+      text: "private payload"
+    };
+
+    await Promise.all([host.submit("alice", attempt), host.submit("alice", attempt)]);
+    await host.submit("alice", attempt);
+
+    expect(verified).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects same-ID/different-payload without executing a second submit", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    const verified = vi
+      .spyOn(CliChatEngineImpl.prototype, "verifiedSubmit")
+      .mockResolvedValue(undefined);
+    const attemptId = "22222222-2222-4222-8222-222222222222";
+
+    await host.submit("alice", { attemptId, text: "first" });
+    await expect(host.submit("alice", { attemptId, text: "second" })).rejects.toBeInstanceOf(
+      BadSubmitAttemptError
+    );
+    expect(verified).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels an active submit outside the queue and releases a queued kill", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    vi.spyOn(CliChatEngineImpl.prototype, "verifiedSubmit").mockImplementation(
+      async ({ signal }) =>
+        new Promise<void>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new VerifiedSubmitError("unavailable")), {
+            once: true
+          });
+        })
+    );
+    const attempt = {
+      attemptId: "33333333-3333-4333-8333-333333333333",
+      text: "private payload"
+    };
+
+    const submit = host.submit("alice", attempt);
+    const kill = host.kill("alice");
+    await host.cancelSubmit("alice", { attemptId: attempt.attemptId });
+
+    await expect(submit).rejects.toMatchObject({ code: "unavailable" });
+    await expect(kill).resolves.toBeUndefined();
+  });
+
+  it("retains a canceled-before-start tombstone and never executes that attempt", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    const verified = vi
+      .spyOn(CliChatEngineImpl.prototype, "verifiedSubmit")
+      .mockResolvedValue(undefined);
+    const attemptId = "44444444-4444-4444-8444-444444444444";
+
+    await host.cancelSubmit("alice", { attemptId });
+    await expect(
+      host.submit("alice", { attemptId, text: "private payload" })
+    ).rejects.toMatchObject({ code: "unavailable" });
+
+    expect(verified).not.toHaveBeenCalled();
+  });
+});
+
+describe("replay launch attempt ledger", () => {
+  it("joins and caches duplicate replay launch frames by replayAttemptId", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    const launch = vi
+      .spyOn(CliChatEngineImpl.prototype, "launch")
+      .mockResolvedValue({ offset: 42 });
+    const params = {
+      ...launchParams(),
+      replayBatch: "history",
+      replayAttemptId: "55555555-5555-4555-8555-555555555555"
+    };
+
+    const [first, duplicate] = await Promise.all([
+      host.launch("alice", params),
+      host.launch("alice", params)
+    ]);
+    const cached = await host.launch("alice", params);
+
+    expect(first).toEqual({ offset: 42 });
+    expect(duplicate).toEqual(first);
+    expect(cached).toEqual(first);
+    expect(launch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects one replayAttemptId reused for different replay text", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    vi.spyOn(CliChatEngineImpl.prototype, "launch").mockResolvedValue({ offset: 42 });
+    const replayAttemptId = "66666666-6666-4666-8666-666666666666";
+
+    await host.launch("alice", {
+      ...launchParams(),
+      replayBatch: "first history",
+      replayAttemptId
+    });
+    await expect(
+      host.launch("alice", {
+        ...launchParams(),
+        replayBatch: "different history",
+        replayAttemptId
+      })
+    ).rejects.toBeInstanceOf(BadSubmitAttemptError);
+  });
+});
+
 describe("§6.5 startup CLEAN-SLATE sweep", () => {
   it("kills surviving mux sessions AND unconditionally clears the neutral base before launches", async () => {
     const { io, live, removedDirs } = makeFakeIo();
@@ -240,6 +458,43 @@ describe("§6.5 startup CLEAN-SLATE sweep", () => {
     // (b) EVERY persisted dir under the base was removed unconditionally (§6.5).
     expect(removedDirs).toContain(`${NEUTRAL_BASE}/stale`);
     expect(removedDirs).toContain(`${NEUTRAL_BASE}/other-user`);
+  });
+
+  it("purges private transcript markers before clearing the neutral base, and leaves the base intact on purge failure", async () => {
+    const success = makeBootSweepIo();
+    const host = new CliChatEngineHost({
+      io: success.io,
+      neutralBase: success.neutralBase,
+      homeBase: success.homeBase,
+      singleUser: true,
+      cliPresent: async () => true,
+      launchTimeoutMs: 2_000
+    });
+
+    await host.startupSweep();
+
+    expect(success.calls).toContain(`rm -f ${success.codexPath}`);
+    expect(success.calls).toContain(`rm -rf ${success.brainDir}`);
+    expect(success.calls.indexOf(`rm -f ${success.codexPath}`)).toBeLessThan(
+      success.calls.indexOf(`rm -rf ${success.neutralDir}`)
+    );
+    expect(success.calls.indexOf(`rm -rf ${success.brainDir}`)).toBeLessThan(
+      success.calls.indexOf(`rm -rf ${success.neutralDir}`)
+    );
+
+    const failure = makeBootSweepIo({ codexMismatch: true });
+    const failedHost = new CliChatEngineHost({
+      io: failure.io,
+      neutralBase: failure.neutralBase,
+      homeBase: failure.homeBase,
+      singleUser: true,
+      cliPresent: async () => true,
+      launchTimeoutMs: 2_000
+    });
+
+    await failedHost.startupSweep();
+
+    expect(failure.calls).not.toContain(`rm -rf ${failure.neutralDir}`);
   });
 
   it("after the sweep clears a foreign token dir, the gate's liveKeys start empty (a launch is admitted)", async () => {

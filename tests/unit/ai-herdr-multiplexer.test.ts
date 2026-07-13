@@ -104,17 +104,33 @@ describe("HerdrMultiplexer", () => {
     expect(flat.some((c) => c.startsWith("herdr pane close p_77"))).toBe(true);
   });
 
-  it("submit() sends text then Enter to the pane handle, checking exit codes", async () => {
+  it("exposes clear, capture, paste, and Enter as separate observed-submit primitives", async () => {
     const io = makeIo();
+    io.run.mockImplementation(async (cmd: string, args: readonly string[]) => ({
+      code: 0,
+      stdout: cmd === "herdr" && args[0] === "pane" && args[1] === "read" ? "pane snapshot" : "",
+      stderr: ""
+    }));
     const mux = new HerdrMultiplexer(io, { rootPane: "p_51" });
-    await mux.submit("p_77", "hello");
+
+    await mux.clearComposer("p_77");
+    await expect(mux.capturePane("p_77")).resolves.toBe("pane snapshot");
+    await mux.paste("p_77", "hello");
+
     const flat = io.run.mock.calls.map((c: unknown[]) => [c[0], ...(c[1] as string[])].join(" "));
     const textIdx = flat.findIndex((c) => c.startsWith("herdr pane send-text p_77"));
-    const enterIdx = flat.findIndex(
-      (c) => c.startsWith("herdr pane send-keys p_77") && c.includes("Enter")
-    );
     expect(textIdx).toBeGreaterThanOrEqual(0);
-    expect(enterIdx).toBeGreaterThan(textIdx);
+    expect(flat.some((c) => c.startsWith("herdr pane read p_77"))).toBe(true);
+    expect(flat.some((c) => c.includes("send-keys p_77 C-u"))).toBe(true);
+    expect(flat.some((c) => c.includes("send-keys p_77 Enter"))).toBe(false);
+
+    await mux.pressEnter("p_77");
+    expect(
+      io.run.mock.calls.some(
+        (c: unknown[]) =>
+          [c[0], ...(c[1] as string[])].join(" ") === "herdr pane send-keys p_77 Enter"
+      )
+    ).toBe(true);
   });
 
   it("submit() throws when send-text exits non-zero", async () => {

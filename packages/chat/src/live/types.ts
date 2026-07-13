@@ -28,6 +28,11 @@ export interface TranscriptRecord {
   readonly preview?: ActionRequestPreview;
 }
 
+export interface EngineKillOpts {
+  /** Terminate the process but retain the exact neutral-dir purge marker for a later boot sweep. */
+  readonly preserveNeutralDir?: boolean;
+}
+
 export interface EngineLaunchOpts {
   readonly neutralDir: string;
   readonly personaPath: string; // rendered persona context file in neutralDir
@@ -49,6 +54,8 @@ export interface EngineLaunchOpts {
    * manager keeps its own post-launch drain). See rpc-contract.ts RpcLaunchParams.replayBatch.
    */
   readonly replayBatch?: string;
+  /** Stable logical attempt ID for a replay submit; wire validation is added with RPC task 5. */
+  readonly replayAttemptId?: string;
   /**
    * NEW (#367) — the resolved provider model id from the active chat model row. The auto-registered
    * default is the `"default"` sentinel, for which the launch OMITS `--model` so the CLI rides its
@@ -81,7 +88,7 @@ export interface CliChatEngine {
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
   isAlive(): Promise<boolean>;
-  kill(): Promise<void>;
+  kill(opts?: EngineKillOpts): Promise<void>;
   purgeTranscripts?(): Promise<void>;
   /**
    * #456 — re-arm the response deadline for any in-flight turn verb of this engine's session.

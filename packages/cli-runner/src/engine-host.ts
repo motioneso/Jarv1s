@@ -10,14 +10,18 @@
  * argument.
  */
 
+import { createHash } from "node:crypto";
+
 import {
   CliChatEngineImpl,
   CliChatUnavailableError,
+  VerifiedSubmitError,
   deriveNeutralDir,
   killMuxSessionByName,
   listLiveMuxSessions,
   probeProvider,
   purgePrivateTranscripts,
+  purgePrivateTranscriptMarkers,
   removeNeutralDir,
   sanitizeSessionKey,
   type ProbeProviderResult,
@@ -26,10 +30,13 @@ import {
   type RpcInstallProviderResult,
   type RpcLaunchParams,
   type RpcLaunchResult,
+  type RpcKillParams,
   type RpcPollLoginResult,
   type RpcProbeProviderResult,
   type RpcProviderKind,
   type RpcReadNewResult,
+  type RpcCancelSubmitParams,
+  type RpcSubmitParams,
   type RpcSubmitLoginTokenResult
 } from "@jarv1s/chat/live";
 import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
@@ -74,6 +81,8 @@ export interface EngineHostDeps {
    * Defaults to a generous boot budget.
    */
   readonly launchTimeoutMs?: number;
+  /** Failure-only total bound for queued + active verified submit. */
+  readonly verifiedSubmitTimeoutMs?: number;
   /**
    * The §A.3 on-demand install service. The host's `installProvider` (§A.2.4) delegates
    * to it; it carries its OWN per-provider lock (§A.3.1), distinct from the §4.1.0a
@@ -90,7 +99,19 @@ export interface EngineHostDeps {
   readonly loginService?: LoginService;
 }
 
-const DEFAULT_LAUNCH_TIMEOUT_MS = 40_000;
+const DEFAULT_LAUNCH_TIMEOUT_MS = 70_000;
+export const VERIFIED_SUBMIT_DEADLINE_MS = 35_000;
+
+interface SubmitAttempt {
+  digest: string | null;
+  readonly controller: AbortController;
+  promise?: Promise<void>;
+}
+
+interface ReplayLaunchAttempt {
+  readonly digest: string;
+  readonly promise: Promise<RpcLaunchResult>;
+}
 
 export class CliChatEngineHost {
   private readonly engines = new Map<string, CliChatEngineImpl>();
@@ -101,9 +122,13 @@ export class CliChatEngineHost {
   /** §4.1.0a admission critical section (a SERVER-WIDE mutex, not the per-key queue). */
   private readonly admissionMutex = new Mutex();
   private readonly launchTimeoutMs: number;
+  private readonly verifiedSubmitTimeoutMs: number;
+  private readonly submitAttempts = new Map<string, Map<string, SubmitAttempt>>();
+  private readonly replayLaunches = new Map<string, Map<string, ReplayLaunchAttempt>>();
 
   constructor(private readonly deps: EngineHostDeps) {
     this.launchTimeoutMs = deps.launchTimeoutMs ?? DEFAULT_LAUNCH_TIMEOUT_MS;
+    this.verifiedSubmitTimeoutMs = deps.verifiedSubmitTimeoutMs ?? VERIFIED_SUBMIT_DEADLINE_MS;
   }
 
   // ─── per-sessionKey serialization (§4.0) ──────────────────────────────────────
@@ -126,6 +151,27 @@ export class CliChatEngineHost {
   // ─── launch (§4.1 + §4.1.0a single-active-user gate) ──────────────────────────
 
   async launch(sessionKey: string, params: RpcLaunchParams): Promise<RpcLaunchResult> {
+    if (!params.replayBatch || !params.replayAttemptId) {
+      return this.launchOnce(sessionKey, params);
+    }
+    const key = sanitizeSessionKey(sessionKey);
+    const digest = createHash("sha256").update(params.replayBatch).digest("hex");
+    let ledger = this.replayLaunches.get(key);
+    if (!ledger) {
+      ledger = new Map();
+      this.replayLaunches.set(key, ledger);
+    }
+    const existing = ledger.get(params.replayAttemptId);
+    if (existing) {
+      if (existing.digest !== digest) throw new BadSubmitAttemptError();
+      return existing.promise;
+    }
+    const promise = this.launchOnce(key, params);
+    ledger.set(params.replayAttemptId, { digest, promise });
+    return promise;
+  }
+
+  private async launchOnce(sessionKey: string, params: RpcLaunchParams): Promise<RpcLaunchResult> {
     const key = sanitizeSessionKey(sessionKey);
 
     // (1) ADMISSION under the server-wide mutex. Compute liveKeys = mux ∪ reservations
@@ -219,6 +265,7 @@ export class CliChatEngineHost {
       mcpToken: params.mcpToken,
       mcpServerUrl: params.mcpServerUrl,
       replayBatch: params.replayBatch,
+      replayAttemptId: params.replayAttemptId,
       // #367: forward the resolved model id so buildClaudeCommand emits `--model <id>`.
       model: params.model
     });
@@ -230,6 +277,7 @@ export class CliChatEngineHost {
       });
       // mux-create SUCCEEDED in time: register the engine so submit/readNew/kill route here.
       this.engines.set(key, engine);
+      this.submitAttempts.delete(key);
       return { offset: result.offset };
     } catch (err) {
       // POST-mux-create failure handling is done inside engine.launch (it kills the mux
@@ -274,13 +322,73 @@ export class CliChatEngineHost {
 
   // ─── submit / readNew / isAlive (per-sessionKey serialized) ───────────────────
 
-  submit(sessionKey: string, text: string): Promise<void> {
+  async submit(sessionKey: string, params: RpcSubmitParams): Promise<void> {
     const key = sanitizeSessionKey(sessionKey);
-    return this.enqueue(key, async () => {
-      const engine = this.engines.get(key);
-      if (!engine) throw new NotLaunchedError();
-      await engine.submit(text);
+    const digest = createHash("sha256").update(params.text).digest("hex");
+    let ledger = this.submitAttempts.get(key);
+    if (!ledger) {
+      ledger = new Map();
+      this.submitAttempts.set(key, ledger);
+    }
+    const existing = ledger.get(params.attemptId);
+    if (existing) {
+      if (existing.digest !== null && existing.digest !== digest) {
+        throw new BadSubmitAttemptError();
+      }
+      if (existing.digest === null) {
+        existing.digest = digest;
+        return Promise.reject(new VerifiedSubmitError("unavailable"));
+      }
+      return existing.promise ?? Promise.reject(new VerifiedSubmitError("unavailable"));
+    }
+
+    const attempt: SubmitAttempt = { digest, controller: new AbortController() };
+    ledger.set(params.attemptId, attempt);
+    const timer = setTimeout(() => attempt.controller.abort(), this.verifiedSubmitTimeoutMs);
+    timer.unref?.();
+    attempt.promise = this.enqueue(key, async () => {
+      try {
+        if (attempt.controller.signal.aborted) throw new VerifiedSubmitError("unavailable");
+        const engine = this.engines.get(key);
+        if (!engine) throw new NotLaunchedError();
+        if (engine.provider === "google") {
+          // AGY's real transcript schema cannot use the out-of-scope Gemini CLI ACK reader.
+          // Ledger idempotency still prevents duplicate RPC paste/Enter for this legacy seam.
+          await engine.submit(params.text);
+          if (attempt.controller.signal.aborted) throw new VerifiedSubmitError("unavailable");
+        } else {
+          await engine.verifiedSubmit({
+            attemptId: params.attemptId,
+            text: params.text,
+            signal: attempt.controller.signal
+          });
+        }
+      } catch (err) {
+        if (err instanceof VerifiedSubmitError && err.engineInvalidated) {
+          this.engines.delete(key);
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
     });
+    return attempt.promise;
+  }
+
+  /** Out-of-queue cancellation: aborts queued/active attempts immediately and idempotently. */
+  async cancelSubmit(sessionKey: string, params: RpcCancelSubmitParams): Promise<void> {
+    const key = sanitizeSessionKey(sessionKey);
+    let ledger = this.submitAttempts.get(key);
+    if (!ledger) {
+      ledger = new Map();
+      this.submitAttempts.set(key, ledger);
+    }
+    let attempt = ledger.get(params.attemptId);
+    if (!attempt) {
+      attempt = { digest: null, controller: new AbortController() };
+      ledger.set(params.attemptId, attempt);
+    }
+    attempt.controller.abort();
   }
 
   readNew(sessionKey: string, afterOffset: number): Promise<RpcReadNewResult> {
@@ -314,30 +422,34 @@ export class CliChatEngineHost {
 
   // ─── kill (§4.5) — works WITHOUT an engine object (kill-by-mux-name) ───────────
 
-  kill(sessionKey: string): Promise<void> {
+  kill(sessionKey: string, opts: RpcKillParams = {}): Promise<void> {
     const key = sanitizeSessionKey(sessionKey);
     return this.enqueue(key, async () => {
       const engine = this.engines.get(key);
       if (engine) {
-        // engine.kill() kills the mux session AND rm -rf's the per-session dir (§6.5).
-        await engine.kill();
+        // Failed private purge kills the process but retains its exact marker for the boot sweep.
+        await engine.kill(opts);
         this.engines.delete(key);
+        this.submitAttempts.delete(key);
+        this.replayLaunches.delete(key);
         return;
       }
       // Post-restart orphan: no engine object, but a live jarv1s-live-<key> mux session
-      // may still exist. Kill by canonical name and remove the neutral dir (§4.5/§6.5).
+      // may still exist. Kill by canonical name; preserve a failed-purge marker when requested.
       await killMuxSessionByName(this.deps.io, key);
-      await removeNeutralDir(this.deps.io, this.deps.neutralBase, key);
+      if (!opts.preserveNeutralDir) {
+        await removeNeutralDir(this.deps.io, this.deps.neutralBase, key);
+      }
+      this.submitAttempts.delete(key);
+      this.replayLaunches.delete(key);
     });
   }
 
   // ─── purgeTranscripts (#744) — private-chat transcript purge; engine-less is NORMAL ──
   //
-  // The manager kills BEFORE it purges, and kill() deletes the server-side engine, so over
-  // RPC this verb almost always arrives engine-less. That is NOT an error: purge by directory
-  // (purgePrivateTranscripts covers Claude + interactive Codex; Gemini/agy/codex-exec are #868).
-  // Only when the engine is somehow still resident do we delegate to it. Serialized on the
-  // per-key queue so a purge never interleaves a launch/submit for the same session.
+  // Private cleanup purges BEFORE kill so the resident engine can use its exact in-memory identity.
+  // Engine-less purge remains the boot-sweep recovery path after a crash. Serialized on the per-key
+  // queue so a purge never interleaves a launch/submit for the same session.
   purgeTranscripts(sessionKey: string): Promise<void> {
     const key = sanitizeSessionKey(sessionKey);
     return this.enqueue(key, async () => {
@@ -463,11 +575,12 @@ export class CliChatEngineHost {
   // ─── startup CLEAN-SLATE sweep (§4.1.0a (2) / §6.5) ───────────────────────────
 
   /**
-   * BEFORE accepting connections: kill every `jarv1s-live-*` mux session that exists
-   * AND `rm -rf` every `<sessionKey>` dir directly under the neutral base
-   * UNCONDITIONALLY. A container restart kills the forked tmux server while token dirs
+   * BEFORE accepting connections: kill every `jarv1s-live-*` mux session that exists,
+   * purge every marker-backed private transcript to completion, then clear residual
+   * neutral dirs. A container restart kills the forked tmux server while token dirs
    * persist on the volume, so a mux-only sweep misses them. The gate guarantees ≤1 live
-   * session, so a fresh process legitimately has zero — the base is cleared wholesale.
+   * session, so a fresh process legitimately has zero — the base is cleared wholesale
+   * only after purge succeeds.
    */
   async startupSweep(): Promise<void> {
     // (a) kill any surviving mux sessions (rare after a container restart, but a fast
@@ -476,14 +589,22 @@ export class CliChatEngineHost {
     for (const key of live) {
       await killMuxSessionByName(this.deps.io, key).catch(() => undefined);
     }
-    // (b) unconditionally clear every <sessionKey> dir under the neutral base.
-    await this.clearNeutralBase();
-    // (c) §A.3.2 install-service tools-volume sweep (DISTINCT from the auth-volume sweep
+    // (b) purge every marker-backed private transcript before the neutral dirs are erased.
+    const purged = await purgePrivateTranscriptMarkers(
+      this.deps.io,
+      this.deps.neutralBase,
+      this.deps.homeBase
+    );
+    if (purged) {
+      // (c) once every pointed-to transcript is confirmed purged, remove residual neutral dirs.
+      await this.clearNeutralBase();
+    }
+    // (d) §A.3.2 install-service tools-volume sweep (DISTINCT from the auth-volume sweep
     // above): clear orphaned `.staging/*` AND GC releases not referenced by `current`.
     // Ordered here so it completes BEFORE the server accepts the first installProvider
     // (the server runs startupSweep before listen, server.ts:41).
     await this.deps.installService?.startupSweep().catch(() => undefined);
-    // (d) §L.3.4 login-session sweep: kill every `jarv1s-login-*` mux session (a fast in-place
+    // (e) §L.3.4 login-session sweep: kill every `jarv1s-login-*` mux session (a fast in-place
     // restart can leave one while the in-memory login flow is gone). DISTINCT from (a), which
     // only enumerates `jarv1s-live-*` chat sessions.
     await this.deps.loginService?.startupSweep().catch(() => undefined);
@@ -545,5 +666,12 @@ export class NotLaunchedError extends Error {
   constructor() {
     super("no live session for this sessionKey");
     this.name = "NotLaunchedError";
+  }
+}
+
+export class BadSubmitAttemptError extends Error {
+  constructor() {
+    super("attemptId was already used with a different payload");
+    this.name = "BadSubmitAttemptError";
   }
 }

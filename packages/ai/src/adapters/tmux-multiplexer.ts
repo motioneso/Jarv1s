@@ -11,21 +11,10 @@ import type { TmuxIo } from "./tmux-bridge.js";
 import type { Multiplexer, MuxHandle, MuxOpenOpts } from "./multiplexer.js";
 import { redactSecrets } from "./redact.js";
 
-export interface TmuxMultiplexerOpts {
-  /** ms to let a bracketed paste settle before sending Enter. */
-  readonly submitMs?: number;
-}
-
 export class TmuxMultiplexer implements Multiplexer {
   readonly kind = "tmux" as const;
-  private readonly submitMs: number;
 
-  constructor(
-    private readonly io: TmuxIo,
-    opts: TmuxMultiplexerOpts = {}
-  ) {
-    this.submitMs = opts.submitMs ?? 2_000;
-  }
+  constructor(private readonly io: TmuxIo) {}
 
   async open(opts: MuxOpenOpts): Promise<MuxHandle> {
     const created = await this.io.run("tmux", [
@@ -62,14 +51,46 @@ export class TmuxMultiplexer implements Multiplexer {
     return opts.name;
   }
 
-  async submit(handle: MuxHandle, text: string): Promise<void> {
+  async clearComposer(handle: MuxHandle): Promise<void> {
+    await this.runChecked(["send-keys", "-t", handle, "C-u"]);
+  }
+
+  async capturePane(handle: MuxHandle): Promise<string> {
+    const { code, stdout, stderr } = await this.io.run("tmux", [
+      "capture-pane",
+      "-p",
+      "-e",
+      "-t",
+      handle
+    ]);
+    if (code !== 0) {
+      throw new Error(
+        `TmuxMultiplexer: \`tmux capture-pane\` failed (code ${code}): ${redactSecrets(stderr)}`
+      );
+    }
+    return stdout;
+  }
+
+  async paste(handle: MuxHandle, text: string): Promise<void> {
     const promptFile = join(tmpdir(), `jarv1s-live-prompt-${handle}.txt`);
     const bufferName = handle;
     await this.io.writeFile(promptFile, text);
-    await this.runChecked(["load-buffer", "-b", bufferName, promptFile]);
-    await this.runChecked(["paste-buffer", "-b", bufferName, "-t", handle]);
-    await this.io.sleep(this.submitMs);
+    try {
+      await this.runChecked(["load-buffer", "-b", bufferName, promptFile]);
+      await this.runChecked(["paste-buffer", "-b", bufferName, "-t", handle]);
+    } finally {
+      await this.io.run("tmux", ["delete-buffer", "-b", bufferName]);
+      await this.io.run("rm", ["-f", promptFile]);
+    }
+  }
+
+  async pressEnter(handle: MuxHandle): Promise<void> {
     await this.runChecked(["send-keys", "-t", handle, "Enter"]);
+  }
+
+  async submit(handle: MuxHandle, text: string): Promise<void> {
+    await this.paste(handle, text);
+    await this.pressEnter(handle);
   }
 
   async interrupt(handle: MuxHandle): Promise<void> {
