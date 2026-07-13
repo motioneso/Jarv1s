@@ -130,12 +130,12 @@ export function ChatDrawer(props: {
     mutationFn: (threadId: string) => resumeChat(threadId),
     onSuccess: () => {
       props.clearRecords();
-      setReviewThreadId(null);
       setShowHistory(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
     },
     onError: () => {
       setReviewThreadId(null);
+      setShowHistory(true);
     }
   });
 
@@ -206,6 +206,8 @@ export function ChatDrawer(props: {
     queryFn: () => listChatThreadMessages(reviewThreadId ?? ""),
     enabled: props.open && reviewThreadId !== null
   });
+  const historyActivationPending =
+    reviewThreadId !== null && (resumeMutation.isPending || !messagesQuery.isSuccess);
 
   /**
    * Unified send path for both the seed buttons and the manual composer (#400).
@@ -215,7 +217,13 @@ export function ChatDrawer(props: {
   const sendMessage = useCallback(
     (text: string): void => {
       const trimmed = text.trim();
-      if (!trimmed || isSending || privateEnded || activatingPrivate) return;
+      if (!trimmed || isSending || privateEnded || activatingPrivate || historyActivationPending) {
+        return;
+      }
+      if (reviewThreadId !== null) {
+        setFallbackRecords(recordsFromMessages(messagesQuery.data?.messages ?? []));
+        setReviewThreadId(null);
+      }
       setSendError(null);
       setNeedsProvider(false);
       setIsSending(true);
@@ -251,7 +259,16 @@ export function ChatDrawer(props: {
         }
       })();
     },
-    [activatingPrivate, isSending, privateEnded, props.records, queryClient]
+    [
+      activatingPrivate,
+      historyActivationPending,
+      isSending,
+      messagesQuery.data?.messages,
+      privateEnded,
+      props.records,
+      queryClient,
+      reviewThreadId
+    ]
   );
 
   useEffect(() => {
@@ -448,6 +465,7 @@ export function ChatDrawer(props: {
               threads={threadsQuery.data?.threads ?? []}
               onSelect={(id) => {
                 setReviewThreadId(id);
+                setShowHistory(false);
                 resumeMutation.mutate(id);
               }}
               activating={resumeMutation.isPending}
@@ -558,12 +576,12 @@ export function ChatDrawer(props: {
       <Composer
         modelSelector={
           <ChatModelPill
-            disabled={privateEnded || isSending}
+            disabled={privateEnded || isSending || historyActivationPending}
             privateMode={privateMode}
             onCrossProviderSwitch={switchToNewModelChat}
           />
         }
-        readOnly={privateEnded}
+        readOnly={privateEnded || historyActivationPending}
         isFounder={props.isFounder}
         initialText={props.initialText}
         isSending={isSending}

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { createMockAiModel } from "./mock-ai-api.js";
+import { createMockChatMessage, createMockChatThread } from "./mock-chat-api.js";
 import { createMockConnectorProviders, mockApi } from "./mock-api.js";
 
 /**
@@ -252,19 +254,107 @@ test("stages next message while response is running and sends it after stop", as
 test("selecting a History row both opens and activates it — no separate resume step", async ({
   page
 }) => {
+  const model = createMockAiModel("model-1");
+  const thread = createMockChatThread("thread-old", "Old chat");
+  const storedMessage = createMockChatMessage("message-old", thread.id, "Earlier context");
   let resumeCalledWith: string | null = null;
+  let resumeFinished = false;
+  let releaseResume: (() => void) | undefined;
+  const resumeGate = new Promise<void>((resolve) => {
+    releaseResume = resolve;
+  });
+  let messagesFinished = false;
+  let releaseMessages: (() => void) | undefined;
+  const messagesGate = new Promise<void>((resolve) => {
+    releaseMessages = resolve;
+  });
   await mockApi(page, {
     authenticated: true,
-    chatThreads: [
-      {
-        id: "thread-old",
-        ownerUserId: "user-1",
-        title: "Old chat",
-        incognito: false,
-        createdAt: "2026-07-01T00:00:00.000Z",
-        updatedAt: "2026-07-01T00:00:00.000Z"
-      }
-    ],
+    aiModels: [model],
+    chatThreads: [thread],
+    chatMessages: { [thread.id]: [storedMessage] },
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+  await page.route("**/api/ai/chat-model-override", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        settings: {
+          overrideEnabled: true,
+          currentOverrideModelId: null,
+          effectiveOverrideModelId: null,
+          defaultModel: model,
+          selectedModel: model,
+          selectableOverrideModels: [model]
+        }
+      })
+    });
+  });
+  await page.route("**/api/chat/threads/thread-old/messages", async (route) => {
+    await messagesGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ messages: [storedMessage] })
+    });
+    messagesFinished = true;
+  });
+  await page.route("**/api/chat/threads/thread-old/resume", async (route) => {
+    resumeCalledWith = "thread-old";
+    await resumeGate;
+    await route.fulfill({ status: 204, body: "" });
+    resumeFinished = true;
+  });
+  await page.route("**/api/chat/turn", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ reply: "Continued" })
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const composer = drawer.getByLabel("Message Jarvis");
+  const modelMenu = drawer.locator("details.chatd-model");
+  await expect(modelMenu).toBeVisible();
+  await drawer.getByRole("button", { name: "Show chat history" }).click();
+  await drawer.getByText("Old chat").click();
+
+  await expect.poll(() => resumeCalledWith).toBe("thread-old");
+  await expect(drawer.locator(".chatd-sess")).toHaveCount(0);
+  await expect(drawer.locator(".chatd-review")).toHaveCount(0);
+  await expect(composer).toBeDisabled();
+  await modelMenu.locator("summary").click();
+  const modelChoice = modelMenu.locator(".chatd-model__menu button").first();
+  await expect(modelChoice).toBeDisabled();
+
+  releaseResume?.();
+  await expect.poll(() => resumeFinished).toBe(true);
+  await expect(composer).toBeDisabled();
+  await expect(modelChoice).toBeDisabled();
+
+  releaseMessages?.();
+  await expect.poll(() => messagesFinished).toBe(true);
+  await expect(drawer.getByText("Earlier context")).toBeVisible();
+  await expect(composer).toBeEditable();
+  await expect(modelChoice).toBeEnabled();
+
+  await composer.fill("Continue here");
+  await composer.press("Enter");
+  await expect(drawer.getByText("Earlier context")).toBeVisible();
+  await expect(drawer.getByText("Continue here")).toBeVisible();
+});
+
+test("resume failure clears selection and reopens History", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [createMockChatThread("thread-old", "Old chat")],
     chatMessages: { "thread-old": [] },
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
@@ -272,8 +362,11 @@ test("selecting a History row both opens and activates it — no separate resume
     tasks: []
   });
   await page.route("**/api/chat/threads/thread-old/resume", async (route) => {
-    resumeCalledWith = "thread-old";
-    await route.fulfill({ status: 204, body: "" });
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Chat thread not found" })
+    });
   });
 
   await page.goto("/");
@@ -282,9 +375,8 @@ test("selecting a History row both opens and activates it — no separate resume
   await drawer.getByRole("button", { name: "Show chat history" }).click();
   await drawer.getByText("Old chat").click();
 
-  await expect.poll(() => resumeCalledWith).toBe("thread-old");
-  await expect(drawer.locator(".chatd-review")).toHaveCount(0);
-  await expect(drawer.getByLabel("Message Jarvis")).toBeEditable();
+  await expect(drawer.locator(".chatd-sess")).toBeVisible();
+  await expect(drawer.locator(".chatd-sess__row.is-selected")).toHaveCount(0);
 });
 
 test("History hides the ordinary composer seeds while open", async ({ page }) => {
