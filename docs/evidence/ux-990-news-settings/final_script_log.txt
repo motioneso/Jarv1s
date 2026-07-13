@@ -1,0 +1,11 @@
+step 0 action: verified local HEAD and pushed branch head=36a0639433a2cbb592716d2df21931fb7f63160b; isolated Vite URL=http://127.0.0.1:45990; API responses deterministic browser interceptions
+step 1 action: opened exact-head desktop News Settings; verified honest empty state and adjacent topic/guidance fields
+step 2 action: pressed Enter to add topic; POST payload={"guidance": "not smartwatches", "label": "Mechanical watches"}; compact Edit/Remove row and Topic added status visible
+step 3 action: edited topic; PATCH payload={"guidance": "mechanical only", "label": "Mechanical watches"}; Changes saved status and updated guidance visible
+step 4 action: removed topic; DELETE observed; Topic removed status and honest empty state visible
+step 5 action: forced deterministic 422; actionable content-policy alert visible and Banned topic input retained
+step 6 action: clicked Retry validation; POST observed; queued feedback visible
+step 7 action: clicked Retry validation again; deterministic 500 returned; safe retryable error visible
+step 8 action: opened 390x844 narrow viewport; topic/guidance plus compact Edit/Remove controls visible; no horizontal overflow widths={'scrollWidth': 390, 'clientWidth': 390}
+
+FINAL_RESPONSE: PASS — add/edit/remove/empty/policy/revalidation and narrow News Settings UAT complete on pushed SHA 36a0639433a2cbb592716d2df21931fb7f63160b
