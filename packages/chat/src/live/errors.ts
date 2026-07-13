@@ -10,3 +10,11 @@ export class CliChatUnavailableError extends Error {
     this.name = "CliChatUnavailableError";
   }
 }
+
+/** Enter may have reached provider, but exact transcript ACK was not observed. Never auto-retry. */
+export class CliChatDeliveryUnknownError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CliChatDeliveryUnknownError";
+  }
+}

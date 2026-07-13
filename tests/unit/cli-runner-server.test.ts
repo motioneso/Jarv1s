@@ -9,17 +9,25 @@
  */
 import { createHmac, randomBytes } from "node:crypto";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
-import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+import {
+  BadSubmitAttemptError,
+  CliChatEngineHost,
+  VERIFIED_SUBMIT_DEADLINE_MS
+} from "../../packages/cli-runner/src/engine-host.js";
 import {
   serveConnection,
   type ByteChannel,
   type ConnectionDeps
 } from "../../packages/cli-runner/src/connection.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
-import { SESSION_PREFIX } from "../../packages/chat/src/live/cli-chat-engine.js";
+import {
+  CliChatEngineImpl,
+  SESSION_PREFIX,
+  VerifiedSubmitError
+} from "../../packages/chat/src/live/cli-chat-engine.js";
 import {
   decodeFrame,
   encodeFrame,
@@ -30,6 +38,8 @@ import {
 } from "../../packages/chat/src/live/rpc-contract.js";
 
 const NEUTRAL_BASE = "/data/cli-auth/chat";
+
+afterEach(() => vi.restoreAllMocks());
 
 /**
  * A fake TmuxIo that models a live-session Set. `tmux new-session` adds a session;
@@ -196,6 +206,134 @@ describe("§4.5 kill-by-mux-name + §4.6 listLiveSessions", () => {
     const { io } = makeFakeIo();
     const host = makeHost(io);
     await expect(host.kill("nobody")).resolves.toBeUndefined();
+  });
+});
+
+describe("verified submit attempt ledger", () => {
+  it("uses the approved 35 second failure-only deadline", () => {
+    expect(VERIFIED_SUBMIT_DEADLINE_MS).toBe(35_000);
+  });
+
+  it("joins and caches duplicate same-ID/same-payload attempts", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    const verified = vi
+      .spyOn(CliChatEngineImpl.prototype, "verifiedSubmit")
+      .mockResolvedValue(undefined);
+    const attempt = {
+      attemptId: "11111111-1111-4111-8111-111111111111",
+      text: "private payload"
+    };
+
+    await Promise.all([host.submit("alice", attempt), host.submit("alice", attempt)]);
+    await host.submit("alice", attempt);
+
+    expect(verified).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects same-ID/different-payload without executing a second submit", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    const verified = vi
+      .spyOn(CliChatEngineImpl.prototype, "verifiedSubmit")
+      .mockResolvedValue(undefined);
+    const attemptId = "22222222-2222-4222-8222-222222222222";
+
+    await host.submit("alice", { attemptId, text: "first" });
+    await expect(host.submit("alice", { attemptId, text: "second" })).rejects.toBeInstanceOf(
+      BadSubmitAttemptError
+    );
+    expect(verified).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels an active submit outside the queue and releases a queued kill", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    vi.spyOn(CliChatEngineImpl.prototype, "verifiedSubmit").mockImplementation(
+      async ({ signal }) =>
+        new Promise<void>((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new VerifiedSubmitError("unavailable")), {
+            once: true
+          });
+        })
+    );
+    const attempt = {
+      attemptId: "33333333-3333-4333-8333-333333333333",
+      text: "private payload"
+    };
+
+    const submit = host.submit("alice", attempt);
+    const kill = host.kill("alice");
+    await host.cancelSubmit("alice", { attemptId: attempt.attemptId });
+
+    await expect(submit).rejects.toMatchObject({ code: "unavailable" });
+    await expect(kill).resolves.toBeUndefined();
+  });
+
+  it("retains a canceled-before-start tombstone and never executes that attempt", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    await host.launch("alice", launchParams());
+    const verified = vi
+      .spyOn(CliChatEngineImpl.prototype, "verifiedSubmit")
+      .mockResolvedValue(undefined);
+    const attemptId = "44444444-4444-4444-8444-444444444444";
+
+    await host.cancelSubmit("alice", { attemptId });
+    await expect(
+      host.submit("alice", { attemptId, text: "private payload" })
+    ).rejects.toMatchObject({ code: "unavailable" });
+
+    expect(verified).not.toHaveBeenCalled();
+  });
+});
+
+describe("replay launch attempt ledger", () => {
+  it("joins and caches duplicate replay launch frames by replayAttemptId", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    const launch = vi
+      .spyOn(CliChatEngineImpl.prototype, "launch")
+      .mockResolvedValue({ offset: 42 });
+    const params = {
+      ...launchParams(),
+      replayBatch: "history",
+      replayAttemptId: "55555555-5555-4555-8555-555555555555"
+    };
+
+    const [first, duplicate] = await Promise.all([
+      host.launch("alice", params),
+      host.launch("alice", params)
+    ]);
+    const cached = await host.launch("alice", params);
+
+    expect(first).toEqual({ offset: 42 });
+    expect(duplicate).toEqual(first);
+    expect(cached).toEqual(first);
+    expect(launch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects one replayAttemptId reused for different replay text", async () => {
+    const { io } = makeFakeIo();
+    const host = makeHost(io);
+    vi.spyOn(CliChatEngineImpl.prototype, "launch").mockResolvedValue({ offset: 42 });
+    const replayAttemptId = "66666666-6666-4666-8666-666666666666";
+
+    await host.launch("alice", {
+      ...launchParams(),
+      replayBatch: "first history",
+      replayAttemptId
+    });
+    await expect(
+      host.launch("alice", {
+        ...launchParams(),
+        replayBatch: "different history",
+        replayAttemptId
+      })
+    ).rejects.toBeInstanceOf(BadSubmitAttemptError);
   });
 });
 

@@ -20,7 +20,7 @@
  * module re-declares none of them.
  */
 
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { connect, type Socket } from "node:net";
 import { realpath } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
@@ -29,7 +29,7 @@ import type { ProviderKind } from "@jarv1s/ai";
 import { parsePositiveIntEnv } from "@jarv1s/shared";
 import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
-import { CliChatUnavailableError } from "./errors.js";
+import { CliChatDeliveryUnknownError, CliChatUnavailableError } from "./errors.js";
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
 import type {
   RpcBeginLoginParams,
@@ -47,6 +47,8 @@ import {
   HELLO_PROOF_TAG_CLIENT,
   HELLO_PROOF_TAG_SERVER,
   type FrameDecodeResult,
+  type RpcCancelSubmitParams,
+  type RpcCancelSubmitResult,
   type RpcErr,
   type RpcErrorCode,
   type RpcFrame,
@@ -178,6 +180,7 @@ type ConnState = "idle" | "connecting" | "handshaking" | "ready" | "closed";
  * (→ 500). The message is already redacted server-side (§6.4), so it is safe to surface/log.
  */
 export function mapRpcError(code: RpcErrorCode, message: string): Error {
+  if (code === "delivery_unknown") return new CliChatDeliveryUnknownError(message);
   if (code === "unavailable" || code === "not_launched") {
     return new CliChatUnavailableError(message);
   }
@@ -238,6 +241,7 @@ export class RpcConnection {
     if (this.turnTimeoutMs <= 0) return 0;
     switch (method) {
       case "submit":
+      case "cancelSubmit":
       case "readNew":
       case "isAlive":
       case "interrupt":
@@ -263,8 +267,17 @@ export class RpcConnection {
     return this.call<RpcLaunchResult>("launch", sessionKey, params);
   }
 
-  submit(sessionKey: string, params: RpcSubmitParams): Promise<RpcSubmitResult> {
-    return this.call<RpcSubmitResult>("submit", sessionKey, params);
+  async submit(sessionKey: string, params: RpcSubmitParams): Promise<RpcSubmitResult> {
+    try {
+      return await this.call<RpcSubmitResult>("submit", sessionKey, params);
+    } catch (err) {
+      void this.cancelSubmit(sessionKey, { attemptId: params.attemptId }).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  cancelSubmit(sessionKey: string, params: RpcCancelSubmitParams): Promise<RpcCancelSubmitResult> {
+    return this.call<RpcCancelSubmitResult>("cancelSubmit", sessionKey, params);
   }
 
   readNew(sessionKey: string, params: RpcReadNewParams): Promise<RpcReadNewResult> {
@@ -801,6 +814,7 @@ export class ChatEngineRpcClient implements CliChatEngine {
       ...(opts.mcpToken !== undefined ? { mcpToken: opts.mcpToken } : {}),
       ...(opts.mcpServerUrl !== undefined ? { mcpServerUrl: opts.mcpServerUrl } : {}),
       ...(opts.replayBatch !== undefined ? { replayBatch: opts.replayBatch } : {}),
+      ...(opts.replayBatch ? { replayAttemptId: opts.replayAttemptId ?? randomUUID() } : {}),
       ...(opts.model !== undefined ? { model: opts.model } : {})
     };
     const result = await this.conn.launch(this.sessionKey, params);
@@ -808,7 +822,7 @@ export class ChatEngineRpcClient implements CliChatEngine {
   }
 
   async submit(text: string): Promise<void> {
-    await this.conn.submit(this.sessionKey, { text });
+    await this.conn.submit(this.sessionKey, { attemptId: randomUUID(), text });
   }
 
   async readNew(

@@ -101,7 +101,10 @@ export interface VerifiedSubmitOpts {
 }
 
 export class VerifiedSubmitError extends Error {
-  constructor(readonly code: "unavailable" | "delivery_unknown") {
+  constructor(
+    readonly code: "unavailable" | "delivery_unknown",
+    readonly engineInvalidated = false
+  ) {
     super(
       code === "delivery_unknown" ? "chat input delivery is unknown" : "chat input unavailable"
     );
@@ -407,11 +410,14 @@ export class CliChatEngineImpl implements CliChatEngine {
     } catch (err) {
       if (entered) {
         await this.killAndRemoveNeutralDirQuietly();
-        throw new VerifiedSubmitError("delivery_unknown");
+        throw new VerifiedSubmitError("delivery_unknown", true);
       }
       if (pasted) {
         const cleared = await this.clearPastedComposer(handle);
-        if (!cleared) await this.killAndRemoveNeutralDirQuietly();
+        if (!cleared) {
+          await this.killAndRemoveNeutralDirQuietly();
+          throw new VerifiedSubmitError("unavailable", true);
+        }
       }
       if (err instanceof VerifiedSubmitError) throw err;
       throw new VerifiedSubmitError("unavailable");

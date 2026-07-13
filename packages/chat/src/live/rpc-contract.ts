@@ -145,6 +145,7 @@ export const HELLO_PROOF_TAG_CLIENT = "C";
 export type RpcMethod =
   | "launch"
   | "submit"
+  | "cancelSubmit"
   | "readNew"
   | "isAlive"
   | "interrupt"
@@ -160,6 +161,7 @@ export type RpcMethod =
 
 export type RpcErrorCode =
   | "unavailable" // engine could not launch / multiplexer down / NOT_LAUNCHED → CliChatUnavailableError (retryable HTTP 503)
+  | "delivery_unknown" // Enter was sent but exact ACK was not observed; never auto-retry
   | "not_launched" // submit/readNew/isAlive called before a successful launch — maps to RETRYABLE 503 (§4.7)
   | "bad_request" // semantically-invalid params (bad offset, missing sessionKey) — does NOT close the connection
   | "internal"; // unexpected server-side failure (already redacted)
@@ -243,6 +245,8 @@ export interface RpcLaunchParams {
    * so the first real turn starts from a clean offset.
    */
   readonly replayBatch?: string;
+  /** Required exactly when replayBatch is non-empty; stable across transport retry. */
+  readonly replayAttemptId?: string;
   /**
    * #367: the resolved provider model id from the active chat model row. For the `"default"`
    * sentinel (the auto-registered default) cli-runner OMITS `--model` so the CLI rides its own
@@ -264,10 +268,18 @@ export interface RpcLaunchResult {
 
 /** params for method "submit" (§4.2). */
 export interface RpcSubmitParams {
+  readonly attemptId: string;
   readonly text: string;
 }
 /** result for method "submit" (§4.2). */
 export interface RpcSubmitResult {
+  readonly ok: true;
+}
+
+export interface RpcCancelSubmitParams {
+  readonly attemptId: string;
+}
+export interface RpcCancelSubmitResult {
   readonly ok: true;
 }
 
