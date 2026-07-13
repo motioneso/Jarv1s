@@ -5204,3 +5204,16 @@ Inbound audit (teammate, NOT Ben). UX epic #983 children state:
 - **#1011/#1016/#1017 closed; #1018 stays open** (matches my books).
 - **#984/PR #1015** remains MY held item, BLOCKED-BY #868 — unchanged; Ben-scope decision still parked.
 merges_since_relay unchanged (no merge). Books now agree with UX Coordinator.
+
+## #1019 BUILD LANE SPAWNED + #984/#868 SCOPE SPLIT — 2026-07-13
+### #1019 external-module navigation ABI (Option B, Ben-approved)
+- Spec `docs/superpowers/specs/2026-07-13-external-module-navigation-abi.md` (Fable-drafted, Ben APPROVED incl. slug-icon+fallback rec). Committed on coordinator branch AND on build branch (rides PR to main).
+- Bug #1019. Tier **sensitive** (module ABI/isolation + supply-chain). Task #42.
+- Build lane: label **Ext-Nav 1019**, pane **w1:pKH**, tab w1:t1Y (agents), session **a179fe52-1a43-4996-9c20-9f5584327ab0**, worktree `.claude/worktrees/ext-nav-1019` off 031eb67e. Sonnet 5 confirmed, bypass-perms, building. Handoff `docs/coordination/handoff-1019-external-module-nav.md`.
+- Exit gate: dev-UAT must CLICK the nav (never page.goto). Merge = sensitive → Opus/Fable review + dev-UAT; Primary merges.
+
+### #984/#868 scope split (Ben direction, relayed via UX Coordinator)
+- Direction: fix + merge all remaining lanes. #984 acceptance requires the cli-runner/RPC input-ready seam, which #868's own comment says is DISTINCT and needs its own spec.
+- Created dedicated **security child #1020** — deterministic runner/RPC input-ready event (manager consumer seam, exactly-once first resume turn, NO timers). Rejected settle (JARVIS_CHAT_REPLAY_SETTLE_MS) stays rejected.
+- **#984 / PR #1015 stays HELD** until BOTH land: #1020 (input-ready) AND #868 original (engine-less transcript purge). Task #41 blocked-by both.
+- Fable drafting #1020 spec now → Ben/Fable approval → UX Coordinator spawns serialized security build lanes → security QA → **Primary merges w/ Ben sign-off** (security tier). Relay caveat: scope direction was a teammate relay; NO security-tier merge without Ben's explicit sign-off.
