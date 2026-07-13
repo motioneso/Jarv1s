@@ -28,9 +28,9 @@ Ben settled the design in the epic body 2026-07-12. Restated here so the rest of
 as mechanics, not proposal:
 
 1. **On-demand ephemeral Compose instance per run** — `docker compose -p uat-<id> up` with fresh DB
-   + volumes → seed → run Playwright → `down -v`. Must be faithful to the real
-   container/modules-volume/boot-reconcile path (the path install actually uses), which means the
-   **prod-shaped compose** (`infra/docker-compose.prod.yml`), not the dev compose.
+   - volumes → seed → run Playwright → `down -v`. Must be faithful to the real
+     container/modules-volume/boot-reconcile path (the path install actually uses), which means the
+     **prod-shaped compose** (`infra/docker-compose.prod.yml`), not the dev compose.
 2. **Tiered seed levels**, a ladder: `bare` → `solo-admin` → `admin+data` → `multi-user`. Composed
    from per-feature chunks (news, sports, notes, tasks, calendar, per-external-module data). A script
    can subtract a chunk from a level (e.g. `admin+data` minus job-search installed).
@@ -62,7 +62,7 @@ publish→download→extract→install→activate against a real artifact.
   shared dev Postgres). UAT is heavier and slower by design — full container boot, real registry
   fetch — so it is reserved for the class of bug integration tests can't see (container boot,
   module-volume reconcile, real HTTP egress to GitHub releases).
-- **No CI wiring in this phase** — Phase 4 (below) wires the coordinate e2e-UAT *step*, which is a
+- **No CI wiring in this phase** — Phase 4 (below) wires the coordinate e2e-UAT _step_, which is a
   local/coordinator-invoked gate, not a GitHub Actions job. Whether it ever becomes a CI job is an
   open question (§8).
 - **No parallel-run scheduler.** This spec assumes one UAT run at a time locally; concurrent runs are
@@ -79,11 +79,12 @@ publish→download→extract→install→activate against a real artifact.
 bind-mounted `node_modules` — it never exercises `scripts/start-jarv1s.ts`, so it never runs
 `scripts/module-reconcile.ts` at boot. `infra/docker-compose.prod.yml` is the one real path: the
 `jarv1s` service's `start-jarv1s.ts` entrypoint runs `migrate.ts` → `module-reconcile.ts` → cli-runner
-+ worker + API, in that order (`scripts/start-jarv1s.ts:107-111`). Module install/activation *only*
-happens through that reconcile pass. The UAT harness **must** build/run against
-`docker-compose.prod.yml`, matching the existing `pnpm smoke:compose:prod` pattern
-(`scripts/smoke-compose.ts`, `--build` flag builds the image locally and tags it
-`ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG}`).
+
+- worker + API, in that order (`scripts/start-jarv1s.ts:107-111`). Module install/activation _only_
+  happens through that reconcile pass. The UAT harness **must** build/run against
+  `docker-compose.prod.yml`, matching the existing `pnpm smoke:compose:prod` pattern
+  (`scripts/smoke-compose.ts`, `--build` flag builds the image locally and tags it
+  `ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG}`).
 
 `scripts/smoke-compose.ts` is the closest existing precedent and should be the direct ancestor of the
 new provisioner — it already knows how to: build the image locally, write a throwaway
@@ -91,7 +92,7 @@ new provisioner — it already knows how to: build the image locally, write a th
 `/health/ready` (not `/health` — the readiness probe, which checks DB + pg-boss, per the existing
 `#171` comment at `scripts/smoke-compose.ts` `waitForHealth`). The UAT provisioner reuses this
 shape but adds: a unique `-p` project name, an ephemeral env file with seed-controlled contents, an
-explicit module-reconcile step *after* seeding but *before* the first Playwright navigation for
+explicit module-reconcile step _after_ seeding but _before_ the first Playwright navigation for
 levels that pre-install modules, and teardown via `down -v`.
 
 ### 3.2 Exact invocation shape
@@ -140,7 +141,7 @@ Dev uses `:5173` (web) / `:3000` (api) via `docker-compose.yml`; prod uses `:153
 UAT harness must never hardcode `1533` or any dev port. Two viable strategies, in order of
 preference:
 
-1. **OS-assigned ephemeral port**: set `JARVIS_WEB_PORT=0` is *not* supported by Docker's classic
+1. **OS-assigned ephemeral port**: set `JARVIS_WEB_PORT=0` is _not_ supported by Docker's classic
    port-publish syntax the way it is for raw sockets — Compose requires a concrete host port or a
    fixed range. Use a **narrow reserved UAT range** instead, e.g. `JARVIS_WEB_PORT` picked from
    `2000x`–`2009x` by a simple "bind, if `EADDRINUSE` retry next" probe in the provisioner (same
@@ -235,16 +236,16 @@ directly, though with a sentinel non-real password since those tests never log i
 
 ### 4.3 The level ladder
 
-| Level | Contents | Primary purpose |
-| --- | --- | --- |
-| `bare` | Migrated DB, zero users, zero data | Boot/reconcile smoke only (no login target) |
-| `solo-admin` | + one loginable admin (§4.2), no other data | Auth flow, admin-only settings surfaces |
+| Level        | Contents                                                            | Primary purpose                                                   |
+| ------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `bare`       | Migrated DB, zero users, zero data                                  | Boot/reconcile smoke only (no login target)                       |
+| `solo-admin` | + one loginable admin (§4.2), no other data                         | Auth flow, admin-only settings surfaces                           |
 | `admin+data` | + normal per-feature chunks (§4.4) enabled/populated for that admin | Default level for feature UAT — "an admin who's used the product" |
-| `multi-user` | + a second non-admin user, cross-user share/RLS fixtures | Sharing, RLS, recipient-only surfaces |
+| `multi-user` | + a second non-admin user, cross-user share/RLS fixtures            | Sharing, RLS, recipient-only surfaces                             |
 
 Levels are **additive and scripted as composition**, not four independent SQL files: `solo-admin` =
 `bare` + admin-seed function; `admin+data` = `solo-admin` + the selected chunk set; `multi-user` =
-`admin+data` + a second-user chunk. A test requesting a level with chunks *subtracted* (the epic's
+`admin+data` + a second-user chunk. A test requesting a level with chunks _subtracted_ (the epic's
 job-search example: "`admin+data` minus job-search installed") composes `admin+data`'s chunk list
 minus the named chunk(s), not a fifth hardcoded level.
 
@@ -264,32 +265,33 @@ as new UAT specs need them):
 - **`sports`** — followed team(s) (per the epic's own chunk list).
 - **`notes`**, **`tasks`**, **`calendar`** — baseline rows per module (exact shape = build-phase task,
   each module owns its own seed data; keep it minimal — see Open Questions on seed volume).
-- **`job-search` (external module)** — the interesting case: this chunk is *absence* by default in
+- **`job-search` (external module)** — the interesting case: this chunk is _absence_ by default in
   `admin+data` (job-search is not core, not required) and its presence/absence is exactly what the
   first UAT spec toggles. "Installed" here means: the module's DB-side install phase has run
   (per-module tables exist, `app.external_modules` / registry-state row shows
-  `installed-enabled`) — which for a *fresh* ephemeral instance the chunk can either (a) skip
+  `installed-enabled`) — which for a _fresh_ ephemeral instance the chunk can either (a) skip
   entirely, leaving the module truly "not-installed" for the UAT to exercise the real
   download-through-reconcile path (this is what the first spec needs), or (b) pre-install by running
-  the same install code path non-interactively, for tests that need job-search *already present* as
+  the same install code path non-interactively, for tests that need job-search _already present_ as
   a precondition for something else.
 
 ### 4.5 Template-DB clone — feasibility, not adopted for Phase 1
 
-`scripts/test-integration.ts`'s `createDatabaseIsolationPlan` today does a **plain `CREATE DATABASE`
-+ full migration run** per isolated test invocation (`ensureDatabaseExists`, no `TEMPLATE` clause,
-`getMaintenanceConnectionString` connects to the `postgres` maintenance DB the same way a
-`CREATE DATABASE ... TEMPLATE tmpl` would need to). There is **no existing template-clone
-infrastructure to reuse** — this would be new. It's viable: `CREATE DATABASE uat_run_<id> TEMPLATE
+`scripts/test-integration.ts`'s `createDatabaseIsolationPlan` today does a \*\*plain `CREATE DATABASE`
+
+- full migration run** per isolated test invocation (`ensureDatabaseExists`, no `TEMPLATE` clause,
+  `getMaintenanceConnectionString` connects to the `postgres` maintenance DB the same way a
+  `CREATE DATABASE ... TEMPLATE tmpl` would need to). There is **no existing template-clone
+  infrastructure to reuse** — this would be new. It's viable: `CREATE DATABASE uat_run_<id> TEMPLATE
 uat_seed_<level>` is a standard Postgres feature, requires no other session connected to the template
-DB at clone time (a real constraint for a long-lived warm template — the provisioner would need to
-hold the template DB unused/idle, or `pg_terminate_backend` stragglers before cloning), and would
-skip re-running `migrate.ts` + the seed script's DDL/DML on every run — only the fast `CREATE DATABASE
+  DB at clone time (a real constraint for a long-lived warm template — the provisioner would need to
+  hold the template DB unused/idle, or `pg_terminate_backend` stragglers before cloning), and would
+  skip re-running `migrate.ts` + the seed script's DDL/DML on every run — only the fast `CREATE DATABASE
 ... TEMPLATE` copy. This is a genuine speed win **if** the ephemeral-compose-per-run overhead (image
-build/pull, container boot, module-reconcile) turns out to dominate anyway, in which case the DB seed
-time isn't the bottleneck and template-cloning buys little. Recommendation: **build Phase 1 without
-it, measure wall-clock per run, and revisit only if seeding (not container boot) is the dominant
-cost** — this is one of the Open Questions for Ben (§8).
+  build/pull, container boot, module-reconcile) turns out to dominate anyway, in which case the DB seed
+  time isn't the bottleneck and template-cloning buys little. Recommendation: **build Phase 1 without
+  it, measure wall-clock per run, and revisit only if seeding (not container boot) is the dominant
+  cost\*\* — this is one of the Open Questions for Ben (§8).
 
 ## 5. Playwright harness layout
 
@@ -319,9 +321,9 @@ before running the file, e.g.:
 export const uatLevel = { level: "admin+data", without: ["job-search"] } as const;
 ```
 
-The provisioner (a thin CLI, not a Playwright global-setup hook — global-setup runs *inside* the
+The provisioner (a thin CLI, not a Playwright global-setup hook — global-setup runs _inside_ the
 Playwright process after `webServer` would already be up, which is backwards here since the
-provisioner must exist *before* Playwright even has a `baseURL`) reads this export via a static
+provisioner must exist _before_ Playwright even has a `baseURL`) reads this export via a static
 import or a lightweight manifest step, provisions accordingly, injects the resolved `baseURL` as an
 env var Playwright's config reads, runs `playwright test tests/uat/specs/<file>`, then tears down.
 One provisioner invocation = one spec file = one ephemeral instance, matching "each test script
@@ -365,7 +367,7 @@ hits the real ephemeral instance.
    registry fetch to have succeeded** — `resolveRegistryIndexUrl` refuses any override when
    `NODE_ENV=production` (`packages/module-registry/src/distribution/registry-source.ts:23-27`), so
    the ephemeral instance genuinely hits `https://github.com/motioneso/jarv1s/releases/download/
-   modules/index.json` over real network egress. This is intentional and is the whole point — it's
+modules/index.json` over real network egress. This is intentional and is the whole point — it's
    the "real artifact" #999 slipped through review without ever touching. Requires: (a) network
    egress from the container to `github.com` / `objects.githubusercontent.com` /
    `release-assets.githubusercontent.com`, and (b) job-search actually present in the published
@@ -376,10 +378,10 @@ hits the real ephemeral instance.
    (`onInstall`, `settings-module-registry-section.tsx:126-134`).
 6. Assert the download completes: state label transitions away from `"Not installed"` to a
    pending-restart state, and the pending-restart `Note` becomes visible (`"Downloaded modules apply
-   on the next restart..."`, `settings-module-registry-section.tsx:183-187`). Assert **no**
+on the next restart..."`, `settings-module-registry-section.tsx:183-187`). Assert **no**
    `"install-failed"` state and no `lastInstallError` text.
 7. **Trigger the real activation path**: `docker compose -p uat-<runId> -f
-   infra/docker-compose.prod.yml restart jarv1s` (or an `up -d jarv1s` recreate) — this re-runs
+infra/docker-compose.prod.yml restart jarv1s` (or an `up -d jarv1s` recreate) — this re-runs
    `start-jarv1s.ts`'s boot sequence, which runs `migrate.ts` then `module-reconcile.ts`
    (`scripts/start-jarv1s.ts:107-111`), the exact step whose 4× extract-guard bug (#999) shipped
    unreviewed. Wait for `/health/ready` again before continuing (same readiness contract as
@@ -447,7 +449,7 @@ chunks; Phase 4 depends on Phase 3's working spec.
    kept deliberately minimal (fast provisioning, narrow assertions) or should `admin+data` aim to look
    like a genuinely lived-in account (more realistic, slower, harder to keep deterministic)? This
    materially changes Phase 2 scope.
-3. **CI vs. local-only execution.** This spec's Phase 4 wires UAT into the *coordinate* flow
+3. **CI vs. local-only execution.** This spec's Phase 4 wires UAT into the _coordinate_ flow
    (coordinator/QA-agent-invoked), not GitHub Actions. Should UAT ever run in CI (needs a Docker-in-
    Docker or privileged runner, network egress to GitHub releases from the CI network, and materially
    longer PR turnaround), or does it stay a local/coordinator-only gate permanently?
@@ -457,8 +459,8 @@ chunks; Phase 4 depends on Phase 3's working spec.
    migrate + seed, likely tens of seconds to a couple minutes) acceptable for the advisory gate's
    expected call frequency, or is fast iteration important enough to prioritize the template-DB
    optimization (and, separately, an image-build cache strategy) into an earlier phase than Phase 4?
-5. *(Secondary, surfaced during grounding, not in the original prompt's required list but worth a
-   yes/no)*: is it acceptable for the first UAT spec to depend on live network egress to
+5. _(Secondary, surfaced during grounding, not in the original prompt's required list but worth a
+   yes/no)_: is it acceptable for the first UAT spec to depend on live network egress to
    `github.com`/`githubusercontent.com` at test-run time (real registry, no local mock, per
    `registry-source.ts`'s production-mode override refusal), including in whatever environment
    eventually runs this (local dev box vs. CI, tying back to Q3)?
