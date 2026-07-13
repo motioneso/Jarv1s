@@ -755,3 +755,14 @@ resume from this note before taking any merge-sensitive action.
   consumer seam before submitting the first post-resume turn, which must be delivered exactly once.
   Elapsed time is never readiness. Future live proof is a fresh isolated, no-harness-wait run with
   three post-resume repetitions, each returning 200/ACK with the exact prompt retained once.
+
+## Continuation note — 2026-07-13 #984 settle reverted
+
+- #984 fully reverted the rejected settle. The manager/runtime/resume/runtime-selection paths match
+  HEAD, transient settle tests are removed, and scoped search finds no settle symbol or environment
+  variable. Focused non-DB checks are GREEN: 47 manager/resume/runtime tests, 13 drawer Chromium
+  tests, typecheck, file-size (manager 996 lines), and diff check.
+- Independent status verification found only `.claude/context-meter.log` modified and preserved
+  `docs/uat/` untracked; neither is staged. Run-6 isolated stack/evidence remains preserved without
+  rerun or cleanup. PR #1015 remains live-path RED and blocked—not done—on #868 deterministic
+  runner/RPC input readiness; it must not merge or close.
