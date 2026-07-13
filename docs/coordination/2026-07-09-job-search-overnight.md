@@ -5609,3 +5609,23 @@ Ben (genuine user turn), verbatim: **"868 hard fail. If we cant do a private ses
 **Gate impact:** #984/PR #1015 was blocked-by #868. Capture-fail portion now cleared; #984 still
 gated on (1) marker fork resolved (Opus), (2) #1020 input-ready rework landed (GPT-5.6-Sol rev2),
 (3) Fable GREEN sign-off. No #984 merge yet.
+
+---
+
+### RESOLVED — #868 marker fork = OPTION B (Opus af03748d, 2026-07-13)
+
+Opus verdict (grounded branch tip `241b4242`): **APPROVE B (reorder purge-before-kill), REJECT A.**
+- A is UNSAFE, not just weaker: `neutralDir = join(chatHome, userId)` (`persona.ts:69`) is per-user
+  REUSED across sessions; a preserved marker gets overwritten by the next session's
+  `ensureCodexSessionIdentity` (`cli-chat-engine.ts:450`) → prior UUID lost → transcript never purged
+  = #1020 stale-identity class. Marker = UUID-only/0600/atomic ("no content/secrets" VERIFIED true)
+  but still names a private session id → must not survive.
+- B guards (relayed): purge-before-kill in BOTH in-process manager (`chat-session-manager.ts:895-905`)
+  AND api/RPC kill+purge orchestration; keep `codexTranscriptMatchesIdentity` (id+cwd) un-weakened;
+  whole neutralDir `rm -rf` AFTER purge. No launch-epoch/TOCTOU needed. BOTH engines (AGY needs it
+  more — lazy UUID capture + legacy submit → in-memory uuid often null).
+- Composes with Ben's hard-fail launch gate: B provably guarantees teardown purge. Lane `w1:pKY`
+  cleared to build B + the capture-fail gate. Tier=security → Opus QA + Ben sign-off before merge.
+
+**#868 now fully ruled:** capture-fail = hard-fail (Ben); marker fork = B (Opus + Ben's bar). Both
+relayed to `w1:pKY`. #984 gate remaining: this lands + #1020 rework + Fable GREEN.
