@@ -20,7 +20,7 @@ export function registerExternalModuleWebAssetRoute(
   server: FastifyInstance,
   authRuntime: JarvisAuthRuntime,
   discoveries: readonly ExternalModuleDiscovery[],
-  getActiveExternalModules?: (
+  getActiveExternalModules: (
     accessContext: AccessContext
   ) => Promise<readonly ReconciledExternalModule[]>
 ): void {
@@ -35,7 +35,7 @@ export function registerExternalModuleWebAssetRoute(
     const relPath = (request.params as Record<string, string>)["*"] ?? "";
 
     const discovery = discoveries.find((d) => d.id === moduleId);
-    if (!getActiveExternalModules || !discovery?.manifest.web) {
+    if (!discovery?.manifest.web) {
       return reply.code(404).send({ error: "Not found" });
     }
     let active: readonly ReconciledExternalModule[];

@@ -25,11 +25,15 @@ export const notesModuleManifest = {
   name: "Notes",
   version: "0.0.0",
   publisher: "jarv1s",
-  lifecycle: "user-toggleable",
+  // #996/#860: Notes moves to required (same rationale as commitments/people/goals).
+  // supportsUserDisable stays true — harmless: active-modules-resolver.ts's
+  // `required === true` short-circuit runs BEFORE this field is ever read, so it has
+  // no effect once required flips; leaving it avoids an unrelated schema-shape edit.
+  lifecycle: "required",
   compatibility: { jarv1s: ">=0.0.0" },
   availability: {
     defaultEnabled: true,
-    required: false,
+    required: true,
     supportsUserDisable: true
   },
   database: {

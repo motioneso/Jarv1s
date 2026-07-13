@@ -65,15 +65,14 @@ export function createExternalModuleTools(input: {
 /**
  * Per-actor active-module resolver: instance-enabled minus the actor's deny
  * rows. Extracted from server.ts composition (#932) — behavior unchanged.
- * Returns undefined when external modules are disabled by config.
+ * #996/#860: always-defined now — external modules are always-on, so there is
+ * no "disabled by config" case to return undefined for.
  */
 export function createActiveExternalModulesResolverForApi(input: {
-  readonly enabled: boolean;
   readonly appDataContext: DataContextRunner;
   readonly settingsRepository: SettingsRepository;
   readonly discoveries: readonly ExternalModuleDiscovery[];
-}): ((accessContext: AccessContext) => Promise<readonly ReconciledExternalModule[]>) | undefined {
-  if (!input.enabled) return undefined;
+}): (accessContext: AccessContext) => Promise<readonly ReconciledExternalModule[]> {
   return async (accessContext) => {
     const { states, denyRows } = await input.appDataContext.withDataContext(
       accessContext,

@@ -135,20 +135,11 @@ describe("shutdown ordering (#165 MED)", () => {
   });
 });
 
-describe("external module job reconciliation", () => {
-  it("enables external worker discovery only for exact opt-in plus a modules directory", () => {
+describe("external module job reconciliation (#996, #860)", () => {
+  it("always resolves a modulesDir (never null — the flag was removed)", () => {
+    expect(resolveExternalWorkerConfig({} as NodeJS.ProcessEnv).modulesDir).toBeTruthy();
     expect(
-      resolveExternalWorkerConfig({
-        JARVIS_ENABLE_EXTERNAL_MODULES: "true",
-        JARVIS_MODULES_DIR: "/modules"
-      })
-    ).toBeNull();
-    expect(resolveExternalWorkerConfig({ JARVIS_ENABLE_EXTERNAL_MODULES: "1" })).toBeNull();
-    expect(
-      resolveExternalWorkerConfig({
-        JARVIS_ENABLE_EXTERNAL_MODULES: "1",
-        JARVIS_MODULES_DIR: "/modules"
-      })
+      resolveExternalWorkerConfig({ JARVIS_MODULES_DIR: "/modules" } as NodeJS.ProcessEnv)
     ).toEqual({ modulesDir: "/modules" });
   });
 

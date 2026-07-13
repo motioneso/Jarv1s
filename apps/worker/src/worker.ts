@@ -31,7 +31,8 @@ import {
 import {
   ExternalModuleJobReconciler,
   ExternalModuleWorkerRuntime,
-  getExternalModuleRegistrations
+  getExternalModuleRegistrations,
+  resolveModulesDir
 } from "@jarv1s/module-registry/node";
 import { AiRepository } from "@jarv1s/ai";
 import { NotificationsRepository } from "@jarv1s/notifications";
@@ -76,12 +77,10 @@ export interface WorkerHandle {
   shutdown(): Promise<void>;
 }
 
-export function resolveExternalWorkerConfig(
-  env: NodeJS.ProcessEnv = process.env
-): { readonly modulesDir: string } | null {
-  return env.JARVIS_ENABLE_EXTERNAL_MODULES === "1" && env.JARVIS_MODULES_DIR
-    ? { modulesDir: env.JARVIS_MODULES_DIR }
-    : null;
+export function resolveExternalWorkerConfig(env: NodeJS.ProcessEnv = process.env): {
+  readonly modulesDir: string;
+} {
+  return { modulesDir: resolveModulesDir(env) };
 }
 
 /**
@@ -119,8 +118,6 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   // keeps the shared `createPgBossClient` defaults. WORKER_BOSS_OPTIONS +
   // logScheduleMode make the ownership invariant unit-testable + observable.
   const boss = createPgBossClient(connectionString, WORKER_BOSS_OPTIONS);
-  let externalReconciler: ExternalModuleJobReconciler | undefined;
-  let externalRuntime: ExternalModuleWorkerRuntime | undefined;
   const resolveActiveModules = createActiveModulesResolver({
     dataContext,
     manifests: getBuiltInModuleManifests()
@@ -202,82 +199,83 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     logger: workerLogger as unknown as FastifyBaseLogger
   });
 
+  // #996/#860: external-module job reconciliation is always-on now (the
+  // JARVIS_ENABLE_EXTERNAL_MODULES gate was removed) — resolveExternalWorkerConfig
+  // always resolves a modulesDir, so this block runs unconditionally.
   const externalConfig = resolveExternalWorkerConfig();
-  if (externalConfig) {
-    const reservedQueueNames = new Set(getAllQueueDefinitions().map((queue) => queue.name));
-    const discoveries = getExternalModuleRegistrations({
-      modulesDir: externalConfig.modulesDir,
-      reservedQueueNames
-    }).discoveries;
-    externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
-    const runtime = externalRuntime;
-    const cipher = createModuleCredentialSecretCipher();
-    // ctx.ai for queued module jobs (JS-07 Step 0, spec D6): one repository and
-    // one bridge at composition time — the bridge's AiSecretCipher is a separate
-    // key domain (JARVIS_AI_SECRET_KEY) from the ModuleCredentialCipher above.
-    // Only the module-job registration below receives it; every other handler
-    // path stays without an ai dep and fails closed in the rpc host.
-    const moduleAiBridge = createModuleWorkerAiBridge({
-      aiRepository: new AiRepository(),
-      logger: workerLogger as unknown as FastifyBaseLogger
-    });
-    const discoveryById = new Map(discoveries.map((module) => [module.id, module]));
-    const listActiveUserIds = async (moduleId: string): Promise<readonly string[]> =>
-      (
-        await sql<{
-          user_id: string;
-        }>`SELECT user_id FROM app.list_active_external_module_users(${moduleId})`.execute(workerDb)
-      ).rows.map((row) => row.user_id);
+  const reservedQueueNames = new Set(getAllQueueDefinitions().map((queue) => queue.name));
+  const discoveries = getExternalModuleRegistrations({
+    modulesDir: externalConfig.modulesDir,
+    reservedQueueNames
+  }).discoveries;
+  const externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
+  const runtime = externalRuntime;
+  const cipher = createModuleCredentialSecretCipher();
+  // ctx.ai for queued module jobs (JS-07 Step 0, spec D6): one repository and
+  // one bridge at composition time — the bridge's AiSecretCipher is a separate
+  // key domain (JARVIS_AI_SECRET_KEY) from the ModuleCredentialCipher above.
+  // Only the module-job registration below receives it; every other handler
+  // path stays without an ai dep and fails closed in the rpc host.
+  const moduleAiBridge = createModuleWorkerAiBridge({
+    aiRepository: new AiRepository(),
+    logger: workerLogger as unknown as FastifyBaseLogger
+  });
+  const discoveryById = new Map(discoveries.map((module) => [module.id, module]));
+  const listActiveUserIds = async (moduleId: string): Promise<readonly string[]> =>
+    (
+      await sql<{
+        user_id: string;
+      }>`SELECT user_id FROM app.list_active_external_module_users(${moduleId})`.execute(workerDb)
+    ).rows.map((row) => row.user_id);
 
-    externalReconciler = new ExternalModuleJobReconciler({
-      boss,
-      discoveries: () => discoveries,
-      reservedQueueNames,
-      isModuleEnabled: async (moduleId) => {
-        const module = discoveryById.get(moduleId);
-        if (!module) return false;
-        const state = await workerDb
-          .selectFrom("app.external_modules")
-          .select(["status", "manifest_hash", "package_hash"])
-          .where("id", "=", moduleId)
-          .executeTakeFirst();
-        return (
-          state?.status === "enabled" &&
-          state.manifest_hash === module.manifestHash &&
-          state.package_hash === module.packageHash
-        );
-      },
-      listActiveUserIds,
-      registerWorker: async (module, queue) => {
-        // Handler body extracted to external-module-job-handler.ts (JS-07
-        // Step 0) so the queue path is integration-testable with real deps.
-        await registerDataContextWorker<ExternalModuleJobPayload, unknown>(
-          boss,
-          queue.name,
+  const externalReconciler = new ExternalModuleJobReconciler({
+    boss,
+    discoveries: () => discoveries,
+    reservedQueueNames,
+    isModuleEnabled: async (moduleId) => {
+      const module = discoveryById.get(moduleId);
+      if (!module) return false;
+      const state = await workerDb
+        .selectFrom("app.external_modules")
+        .select(["status", "manifest_hash", "package_hash"])
+        .where("id", "=", moduleId)
+        .executeTakeFirst();
+      return (
+        state?.status === "enabled" &&
+        state.manifest_hash === module.manifestHash &&
+        state.package_hash === module.packageHash
+      );
+    },
+    listActiveUserIds,
+    registerWorker: async (module, queue) => {
+      // Handler body extracted to external-module-job-handler.ts (JS-07
+      // Step 0) so the queue path is integration-testable with real deps.
+      await registerDataContextWorker<ExternalModuleJobPayload, unknown>(
+        boss,
+        queue.name,
+        dataContext,
+        createExternalModuleJobHandler({
+          module,
+          queue,
+          runtime,
+          workerDb,
           dataContext,
-          createExternalModuleJobHandler({
-            module,
-            queue,
-            runtime,
-            workerDb,
-            dataContext,
-            cipher,
-            discoveryById,
-            listActiveUserIds,
-            ai: moduleAiBridge
-          })
-        );
-      },
-      logger: workerLogger
-    });
-    const reconciler = externalReconciler;
-    await boss.work<ModuleControlPayload>(PLATFORM_MODULE_CONTROL_QUEUE, async ([job]) => {
-      if (!job) throw new Error("module control worker received no job");
-      assertModuleControlPayload(job.data);
-      await reconciler.reconcileModule(job.data.moduleId);
-    });
-    await externalReconciler.reconcileAll();
-  }
+          cipher,
+          discoveryById,
+          listActiveUserIds,
+          ai: moduleAiBridge
+        })
+      );
+    },
+    logger: workerLogger
+  });
+  const reconciler = externalReconciler;
+  await boss.work<ModuleControlPayload>(PLATFORM_MODULE_CONTROL_QUEUE, async ([job]) => {
+    if (!job) throw new Error("module control worker received no job");
+    assertModuleControlPayload(job.data);
+    await reconciler.reconcileModule(job.data.moduleId);
+  });
+  await externalReconciler.reconcileAll();
 
   // -------------------------------------------------------------------------
   // Graceful-shutdown (#165 MED)

@@ -28,28 +28,22 @@ describe("resolveApiServerConfig MCP server URL", () => {
   });
 });
 
-describe("resolveApiServerConfig external-module flags (#917)", () => {
-  it("enables external modules only when the flag is exactly '1' and a dir is set", () => {
+describe("resolveApiServerConfig external modules dir (#996, #860)", () => {
+  it("honors JARVIS_MODULES_DIR when set", () => {
     const config = resolveApiServerConfig({
-      JARVIS_ENABLE_EXTERNAL_MODULES: "1",
       JARVIS_MODULES_DIR: "/srv/modules"
     } as NodeJS.ProcessEnv);
-    expect(config.enableExternalModules).toBe(true);
     expect(config.externalModulesDir).toBe("/srv/modules");
   });
 
-  it("treats any flag value other than '1' as disabled (fail-closed)", () => {
-    for (const value of ["0", "true", "yes", "", undefined]) {
-      const config = resolveApiServerConfig({
-        JARVIS_ENABLE_EXTERNAL_MODULES: value,
-        JARVIS_MODULES_DIR: "/srv/modules"
-      } as NodeJS.ProcessEnv);
-      expect(config.enableExternalModules).toBe(false);
-    }
+  it("falls back to a resolved dev default when unset (never null)", () => {
+    const config = resolveApiServerConfig({} as NodeJS.ProcessEnv);
+    expect(typeof config.externalModulesDir).toBe("string");
+    expect(config.externalModulesDir.length).toBeGreaterThan(0);
   });
 
-  it("defaults the modules dir to null when unset", () => {
+  it("no longer exposes enableExternalModules", () => {
     const config = resolveApiServerConfig({} as NodeJS.ProcessEnv);
-    expect(config.externalModulesDir).toBeNull();
+    expect((config as unknown as Record<string, unknown>).enableExternalModules).toBeUndefined();
   });
 });

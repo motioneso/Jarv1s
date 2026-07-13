@@ -65,7 +65,6 @@ services:
     # purge → ensure-present → accept-staged → DB install → drift, same script boot runs.
     command: ["node_modules/.bin/tsx", "scripts/module-reconcile.ts"]
     environment:
-      JARVIS_ENABLE_EXTERNAL_MODULES: "${JARVIS_ENABLE_EXTERNAL_MODULES:-1}"
       JARVIS_MODULES_DIR: /data/modules
     volumes:
       - jarv1s-modules:/data/modules
@@ -104,7 +103,6 @@ services:
       JARVIS_MCP_SERVER_URL: ${JARVIS_MCP_SERVER_URL:-http://127.0.0.1:3000/api/mcp}
       JARVIS_EMBED_PROVIDER: ${JARVIS_EMBED_PROVIDER:-local}
       JARVIS_EMBED_MODEL: ${JARVIS_EMBED_MODEL:-}
-      JARVIS_ENABLE_EXTERNAL_MODULES: "${JARVIS_ENABLE_EXTERNAL_MODULES:-1}"
       JARVIS_MODULES_DIR: /data/modules
     restart: unless-stopped
     healthcheck:

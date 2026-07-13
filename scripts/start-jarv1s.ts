@@ -104,19 +104,12 @@ export function buildStartupPlan(env: NodeJS.ProcessEnv = process.env): StartupP
   const { uid, gid } = runtimeUidGid(env);
   const oneShotEnv = { ...env, NODE_ENV: env.NODE_ENV ?? "production" };
   const oneShots: OneShotSpec[] = [
-    { command: ["node_modules/.bin/tsx", "scripts/migrate.ts"], env: oneShotEnv, uid, gid }
+    { command: ["node_modules/.bin/tsx", "scripts/migrate.ts"], env: oneShotEnv, uid, gid },
+    // #996/#860: reconcile modules AFTER core migrations (module installs depend on the
+    // platform tables existing) and BEFORE the api/worker boot (they must see the
+    // post-reconcile module set). Always runs now — external modules are always-on.
+    { command: ["node_modules/.bin/tsx", "scripts/module-reconcile.ts"], env: oneShotEnv, uid, gid }
   ];
-  // #964: reconcile modules AFTER core migrations (module installs depend on the
-  // platform tables existing) and BEFORE the api/worker boot (they must see the
-  // post-reconcile module set).
-  if (env.JARVIS_ENABLE_EXTERNAL_MODULES === "1" && env.JARVIS_MODULES_DIR) {
-    oneShots.push({
-      command: ["node_modules/.bin/tsx", "scripts/module-reconcile.ts"],
-      env: oneShotEnv,
-      uid,
-      gid
-    });
-  }
   return {
     uid,
     gid,

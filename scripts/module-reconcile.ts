@@ -24,6 +24,7 @@ import {
   downloadAndStageModule,
   getExternalModuleRegistrations,
   parseModulesEnsure,
+  resolveModulesDir,
   sweepStagingDirs
 } from "@jarv1s/module-registry/node";
 
@@ -383,16 +384,11 @@ async function purgeModule(client: Client, modulesDir: string, moduleId: string)
   await client.query("DELETE FROM app.external_modules WHERE id = $1", [moduleId]);
 }
 
-// CLI: `tsx scripts/module-reconcile.ts` (Task 8 wires this into container boot after
-// migrate.ts and into the root `db:reconcile` script for dev parity). No-op unless
-// external modules are enabled — mirrors apps/api/src/server.ts:140-141 gating.
+// CLI: `tsx scripts/module-reconcile.ts` (wired into container boot after migrate.ts and
+// into the root `db:reconcile` script for dev parity). #996/#860: always runs now — the
+// JARVIS_ENABLE_EXTERNAL_MODULES flag is gone, external modules are always-on.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const enabled = process.env.JARVIS_ENABLE_EXTERNAL_MODULES === "1";
-  const modulesDir = process.env.JARVIS_MODULES_DIR ?? null;
-  if (!enabled || modulesDir === null) {
-    console.log("[module-reconcile] external modules disabled — nothing to do");
-    process.exit(0);
-  }
+  const modulesDir = resolveModulesDir(process.env);
   reconcileModules({ modulesDir })
     .then((report) => {
       console.log(

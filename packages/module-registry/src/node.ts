@@ -28,6 +28,7 @@ export * from "./distribution/registry-source.js";
 export * from "./distribution/extract.js";
 export * from "./distribution/stage.js";
 export * from "./distribution/pipeline.js";
+export * from "./resolve-modules-dir.js";
 
 /**
  * Discover external modules under `modulesDir` (#917). Server-only. Read-only: never

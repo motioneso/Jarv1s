@@ -19,12 +19,15 @@ export type SettingsModuleControlModel =
       readonly canOpenSettings: boolean;
     };
 
-const USER_TOGGLEABLE_MODULE_IDS = new Set(["wellness", "sports", "news", "finance"]);
-
+// #996/#860: previously a hardcoded USER_TOGGLEABLE_MODULE_IDS set (including a stale
+// "finance" id — no such module exists) had to be kept in sync by hand with every
+// module's manifest lifecycle. Now derived directly from MyModuleDto.required, which
+// the server already computes from each module's manifest (Task 10 flips
+// commitments/people/goals/notes to required, so they drop out of this list for free).
 export function visibleUserToggleModules(
   modules: readonly SettingsModule[]
 ): readonly SettingsModule[] {
-  return modules.filter((module) => USER_TOGGLEABLE_MODULE_IDS.has(module.id));
+  return modules.filter((module) => !module.required);
 }
 
 export function settingsModuleControlModel(module: SettingsModule): SettingsModuleControlModel {

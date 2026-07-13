@@ -14,24 +14,21 @@ import type { ModuleDistributionDependencies, ModuleRegistryEntryLike } from "@j
 import type { ApiServerConfig, CreateApiServerOptions } from "./server.js";
 
 /**
- * #964 — module-distribution port for the settings registry routes, extracted from
+ * #964/#996 — module-distribution port for the settings registry routes, extracted from
  * server.ts (Task 6 pushed server.ts over the 1000-line file-size cap; #9.5 restores
  * it). Network + filesystem composition only; DB writes stay in @jarv1s/settings, so
  * this file never needs a database handle (module-isolation invariant). The index
  * cache is per-process (10 min, spec §6); a failed refetch returns null (degrade) and
- * leaves any previous cache untouched so the next request can retry. `enabled` mirrors
- * the `externalRuntimeEnabled` condition server.ts computes for the worker/discovery
- * paths — recomputed here from apiServerConfig so this file stays a single call site.
+ * leaves any previous cache untouched so the next request can retry. Always-on since
+ * #996 removed the JARVIS_ENABLE_EXTERNAL_MODULES gate — externalModulesDir is never
+ * null (resolveModulesDir always resolves a path), so this always constructs the port.
  */
 export function createModuleDistributionPort(
   server: Pick<FastifyInstance, "log">,
   apiServerConfig: ApiServerConfig,
   options: Pick<CreateApiServerOptions, "fetchFn">
-): ModuleDistributionDependencies | undefined {
+): ModuleDistributionDependencies {
   const externalModulesDir = apiServerConfig.externalModulesDir;
-  if (!apiServerConfig.enableExternalModules || externalModulesDir === null) {
-    return undefined;
-  }
   const fetchFn = options.fetchFn;
 
   const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000;
