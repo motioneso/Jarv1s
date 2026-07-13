@@ -8,6 +8,7 @@ import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js"
 import { createRealTmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
 import { CliChatEngineImpl, probeProvider } from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
+import { AGY_SESSION_LOG_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
 
 function makeIo() {
   return {
@@ -16,6 +17,60 @@ function makeIo() {
     readFile: vi.fn().mockResolvedValue(""),
     writeFile: vi.fn().mockResolvedValue(undefined)
   };
+}
+
+function makeAgyIo() {
+  const io = makeIo();
+  io.run.mockImplementation(async (cmd: string, args: string[]) =>
+    cmd === "tmux" && args[0] === "capture-pane"
+      ? { code: 0, stdout: ">\n? for shortcuts\n", stderr: "" }
+      : { code: 0, stdout: "", stderr: "" }
+  );
+  io.readFile.mockImplementation(async (path: string) =>
+    path.endsWith(AGY_SESSION_LOG_FILENAME)
+      ? "Created conversation e099f770-a55c-432f-a9be-8cf254fd2d54\n"
+      : ""
+  );
+  return io;
+}
+
+const CODEX_TEST_UUID = "019f5af9-3c61-7f72-af47-09514db9892c";
+
+function codexIdentityMux(): Multiplexer {
+  const panes = [
+    "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+    "› /status\n",
+    `│  Session:  ${CODEX_TEST_UUID}  │\n`
+  ];
+  return {
+    kind: "tmux",
+    open: async () => "handle",
+    submit: async () => undefined,
+    clearComposer: async () => undefined,
+    capturePane: async () => panes.shift() ?? panes.at(-1)!,
+    paste: async () => undefined,
+    pressEnter: async () => undefined,
+    isAlive: async () => true,
+    kill: async () => undefined,
+    interrupt: async () => undefined,
+    attachCommand: () => ""
+  };
+}
+
+function makeCodexIo() {
+  const io = makeIo();
+  const panes = [
+    "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+    "› /status\n",
+    `│  Session:  ${CODEX_TEST_UUID}  │\n`
+  ];
+  let captures = 0;
+  io.run.mockImplementation(async (cmd: string, args: string[]) =>
+    cmd === "tmux" && args[0] === "capture-pane"
+      ? { code: 0, stdout: panes[captures++] ?? panes.at(-1)!, stderr: "" }
+      : { code: 0, stdout: "", stderr: "" }
+  );
+  return io;
 }
 
 // ─── #342 probeProvider (§4.8) — no token, no replay ─────────────────────────────
@@ -97,19 +152,7 @@ describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regre
       const io = createRealTmuxIo();
       const engine = new CliChatEngineImpl("openai-compatible", "same-uid", io, {
         // No mux.open → use a fake mux so we don't need a real tmux for this file check.
-        mux: {
-          kind: "tmux",
-          open: async () => "handle",
-          submit: async () => undefined,
-          clearComposer: async () => undefined,
-          capturePane: async () => "",
-          paste: async () => undefined,
-          pressEnter: async () => undefined,
-          isAlive: async () => true,
-          kill: async () => undefined,
-          interrupt: async () => undefined,
-          attachCommand: () => ""
-        }
+        mux: codexIdentityMux()
       });
       await engine.launch({
         neutralDir: dir,
@@ -184,7 +227,7 @@ describe("CliChatEngineImpl — §6.7 no secret on launch line / argv / tmux env
   });
 
   it("Codex: launch line / argv carry no jst_/Bearer/Authorization and no tmux set-environment (§6.7 new)", async () => {
-    const io = makeIo();
+    const io = makeCodexIo();
     const engine = new CliChatEngineImpl("openai-compatible", "codex-secret", io);
     await engine.launch({
       neutralDir: "/tmp/neutral",
@@ -202,7 +245,7 @@ describe("CliChatEngineImpl — §6.7 no secret on launch line / argv / tmux env
   });
 
   it("Gemini: launch line / argv carry no jst_/Bearer/Authorization and no tmux set-environment (§6.7 new)", async () => {
-    const io = makeIo();
+    const io = makeAgyIo();
     const engine = new CliChatEngineImpl("google", "gemini-secret", io);
     await engine.launch({
       neutralDir: "/tmp/neutral",

@@ -143,7 +143,7 @@ describe("AgyPrintChatEngine", () => {
     expect(mux.opened[0]).not.toContain("--continue");
   });
 
-  it("purges only its captured brain directory after graceful kill", async () => {
+  it("purges only its captured brain directory before graceful kill", async () => {
     const uuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
     const path = `/home/test/.gemini/antigravity-cli/brain/${uuid}/.system_generated/logs/transcript_full.jsonl`;
     const io = fakeIo({
@@ -159,8 +159,8 @@ describe("AgyPrintChatEngine", () => {
     await engine.submit("go");
     await engine.readNew(0);
 
-    await engine.kill();
     await engine.purgeTranscripts();
+    await engine.kill();
 
     expect(io.runs).toContain(`rm -rf /home/test/.gemini/antigravity-cli/brain/${uuid}`);
     expect(io.runs).not.toContain("rm -rf /home/test/.gemini/antigravity-cli/brain");

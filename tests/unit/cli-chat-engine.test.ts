@@ -14,7 +14,6 @@ import {
   sanitizeSessionKey,
   SESSION_PREFIX
 } from "../../packages/chat/src/live/cli-chat-engine.js";
-import type { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import {
   AGY_SESSION_LOG_FILENAME,
@@ -30,6 +29,39 @@ function makeIo() {
     readFile: vi.fn().mockResolvedValue(""),
     writeFile: vi.fn().mockResolvedValue(undefined)
   };
+}
+
+const AGY_TEST_UUID = "e099f770-a55c-432f-a9be-8cf254fd2d54";
+
+function makeAgyIo() {
+  const io = makeIo();
+  io.run.mockImplementation(async (cmd: string, args: string[]) =>
+    cmd === "tmux" && args[0] === "capture-pane"
+      ? { code: 0, stdout: ">\n? for shortcuts\n", stderr: "" }
+      : { code: 0, stdout: "", stderr: "" }
+  );
+  io.readFile.mockImplementation(async (path: string) =>
+    path.endsWith(AGY_SESSION_LOG_FILENAME) ? `Created conversation ${AGY_TEST_UUID}\n` : ""
+  );
+  return io;
+}
+
+const CODEX_TEST_UUID = "019f5af9-3c61-7f72-af47-09514db9892c";
+
+function makeCodexIo(uuid = CODEX_TEST_UUID) {
+  const io = makeIo();
+  const panes = [
+    "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+    "› /status\n",
+    `│  Session:  ${uuid}  │\n`
+  ];
+  let captures = 0;
+  io.run.mockImplementation(async (cmd: string, args: string[]) =>
+    cmd === "tmux" && args[0] === "capture-pane"
+      ? { code: 0, stdout: panes[captures++] ?? panes.at(-1)!, stderr: "" }
+      : { code: 0, stdout: "", stderr: "" }
+  );
+  return io;
 }
 
 describe("observed composer evidence", () => {
@@ -105,193 +137,34 @@ function claudeUser(text: string): string {
   return JSON.stringify({ type: "user", message: { role: "user", content: text } }) + "\n";
 }
 
-describe("CliChatEngineImpl — verified interactive submit", () => {
-  const empty = "\u001b[1m❯\u001b[0m\u00a0\n";
-
-  it("presses Enter once only after exact ECHO and exact post-cursor ACK", async () => {
-    let transcript = claudeUser("older turn");
-    const mux = stateMachineMux({
-      panes: [empty, "❯ exact payload\n"],
-      onEnter: () => {
-        transcript += claudeUser("exact payload");
-      }
-    });
-    const io = makeIo();
-    io.readFile.mockImplementation(async () => transcript);
-    const engine = new CliChatEngineImpl("anthropic", "verified-success", io, {
+describe("CliChatEngineImpl — purgeable identity launch gate", () => {
+  it("refuses Codex launch when exact /status UUID capture fails", async () => {
+    const empty = "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n";
+    const mux = stateMachineMux({ panes: [empty, "› /status\n", "Session: unavailable\n"] });
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-no-identity", makeIo(), {
       mux,
       echoMs: 0
     });
-    await engine.launch({ neutralDir: "/tmp/verified-success", personaPath: "/p.md" });
 
-    await engine.verifiedSubmit({
-      attemptId: "11111111-1111-4111-8111-111111111111",
-      text: "exact payload",
-      signal: new AbortController().signal
-    });
-
-    expect(mux.clearComposer).toHaveBeenCalledTimes(1);
-    expect(mux.paste).toHaveBeenCalledTimes(1);
-    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
-    expect(mux.kill).not.toHaveBeenCalled();
+    await expect(
+      engine.launch({ neutralDir: "/tmp/codex-no-identity", personaPath: "/p.md" })
+    ).rejects.toBeInstanceOf(CliChatUnavailableError);
+    expect(mux.kill).toHaveBeenCalled();
   });
 
-  it("allows one clear-first re-paste, then still presses Enter only once", async () => {
-    let transcript = "";
-    const mux = stateMachineMux({
-      panes: [empty, "❯ wrong\n", empty, "❯ exact payload\n"],
-      onEnter: () => {
-        transcript += claudeUser("exact payload");
-      }
-    });
+  it("refuses interactive AGY launch when its exact own-log UUID is unavailable", async () => {
+    const mux = stateMachineMux({ panes: [">\n? for shortcuts\n"] });
     const io = makeIo();
-    io.readFile.mockImplementation(async () => transcript);
-    const engine = new CliChatEngineImpl("anthropic", "verified-repaste", io, {
+    io.readFile.mockRejectedValue(new Error("missing"));
+    const engine = new CliChatEngineImpl("google", "agy-no-identity", io, {
       mux,
       echoMs: 0
     });
-    await engine.launch({ neutralDir: "/tmp/verified-repaste", personaPath: "/p.md" });
 
-    await engine.verifiedSubmit({
-      attemptId: "22222222-2222-4222-8222-222222222222",
-      text: "exact payload",
-      signal: new AbortController().signal
-    });
-
-    expect(mux.clearComposer).toHaveBeenCalledTimes(2);
-    expect(mux.paste).toHaveBeenCalledTimes(2);
-    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
-  });
-
-  it("accepts an exact post-cursor Codex user_message on a launch-valid rollout", async () => {
-    const neutralDir = "/tmp/verified-codex";
-    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
-    let transcript =
-      JSON.stringify({
-        type: "session_meta",
-        payload: { id: uuid, cwd: neutralDir, timestamp: new Date().toISOString() }
-      }) + "\n";
-    let enters = 0;
-    let markerPersistedBeforeUserEnter = false;
-    const io = makeIo();
-    const mux = stateMachineMux({
-      panes: [
-        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
-        "› /status\n",
-        `│  Session:  ${uuid}  │\n`,
-        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
-        "› exact payload\n"
-      ],
-      onEnter: () => {
-        enters += 1;
-        if (enters === 1) return;
-        markerPersistedBeforeUserEnter = io.writeFile.mock.calls.some((call: unknown[]) =>
-          String(call[0]).endsWith(`${CODEX_IDENTITY_FILENAME}.tmp`)
-        );
-        transcript +=
-          JSON.stringify({
-            type: "event_msg",
-            payload: { type: "user_message", message: "exact payload" }
-          }) + "\n";
-      }
-    });
-    io.readFile.mockImplementation(async () => transcript);
-    const engine = new CliChatEngineImpl("openai-compatible", "verified-codex", io, {
-      mux,
-      echoMs: 0
-    });
-    await engine.launch({ neutralDir, personaPath: "/p.md" });
-
-    await engine.verifiedSubmit({
-      attemptId: "88888888-8888-4888-8888-888888888888",
-      text: "exact payload",
-      signal: new AbortController().signal
-    });
-
-    expect(mux.pressEnter).toHaveBeenCalledTimes(2);
-    expect(markerPersistedBeforeUserEnter).toBe(true);
-    expect(io.run.mock.calls.some((call: unknown[]) => call[0] === "ls")).toBe(false);
-  });
-
-  it("fails before paste without killing when empty composer cannot be observed", async () => {
-    const mux = stateMachineMux({ panes: ["❯ private draft\n"] });
-    const io = makeIo();
-    const engine = new CliChatEngineImpl("anthropic", "verified-no-empty", io, {
-      mux,
-      echoMs: 0
-    });
-    await engine.launch({ neutralDir: "/tmp/verified-no-empty", personaPath: "/p.md" });
-
-    const error = await engine
-      .verifiedSubmit({
-        attemptId: "33333333-3333-4333-8333-333333333333",
-        text: "payload",
-        signal: new AbortController().signal
-      })
-      .catch((err: unknown) => err);
-
-    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "unavailable" });
-    expect(mux.paste).not.toHaveBeenCalled();
-    expect(mux.pressEnter).not.toHaveBeenCalled();
-    expect(mux.kill).not.toHaveBeenCalled();
-  });
-
-  it("clears a canceled pasted payload before failing unavailable", async () => {
-    const controller = new AbortController();
-    const mux = stateMachineMux({
-      panes: [empty, empty],
-      onPaste: () => controller.abort()
-    });
-    const io = makeIo();
-    const engine = new CliChatEngineImpl("anthropic", "verified-cancel-paste", io, {
-      mux,
-      echoMs: 0
-    });
-    await engine.launch({ neutralDir: "/tmp/verified-cancel-paste", personaPath: "/p.md" });
-
-    const error = await engine
-      .verifiedSubmit({
-        attemptId: "44444444-4444-4444-8444-444444444444",
-        text: "private payload",
-        signal: controller.signal
-      })
-      .catch((err: unknown) => err);
-
-    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "unavailable" });
-    expect(mux.clearComposer).toHaveBeenCalledTimes(2);
-    expect(mux.pressEnter).not.toHaveBeenCalled();
-    expect(mux.kill).not.toHaveBeenCalled();
-  });
-
-  it("kills and returns delivery_unknown when canceled after Enter, despite a late ACK", async () => {
-    let transcript = "";
-    const controller = new AbortController();
-    const mux = stateMachineMux({
-      panes: [empty, "❯ exact payload\n"],
-      onEnter: () => {
-        transcript += claudeUser("exact payload");
-        controller.abort();
-      }
-    });
-    const io = makeIo();
-    io.readFile.mockImplementation(async () => transcript);
-    const engine = new CliChatEngineImpl("anthropic", "verified-entered", io, {
-      mux,
-      echoMs: 0
-    });
-    await engine.launch({ neutralDir: "/tmp/verified-entered", personaPath: "/p.md" });
-
-    const error = await engine
-      .verifiedSubmit({
-        attemptId: "55555555-5555-4555-8555-555555555555",
-        text: "exact payload",
-        signal: controller.signal
-      })
-      .catch((err: unknown) => err);
-
-    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "delivery_unknown" });
-    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
-    expect(mux.kill).toHaveBeenCalledTimes(1);
+    await expect(
+      engine.launch({ neutralDir: "/tmp/agy-no-identity", personaPath: "/p.md" })
+    ).rejects.toBeInstanceOf(CliChatUnavailableError);
+    expect(mux.kill).toHaveBeenCalled();
   });
 });
 
@@ -383,8 +256,8 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
   });
 
   it("purgeTranscripts removes only the exact marker-named Codex session", async () => {
-    const io = makeIo();
     const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+    const io = makeCodexIo(uuid);
     const neutralDir = "/tmp/private-neutral";
     const transcriptPath = codexTranscriptPath(uuid, "/host-home");
     const engine = new CliChatEngineImpl("openai-compatible", "private-codex", io, {
@@ -459,7 +332,7 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
   it.each(["openai-compatible", "google"] as const)(
     "passes --model for a concrete override on %s (#367)",
     async (provider) => {
-      const io = makeIo();
+      const io = provider === "google" ? makeAgyIo() : makeCodexIo();
       const engine = new CliChatEngineImpl(provider, `${provider}-concrete-session`, io);
       await engine.launch({
         neutralDir: "/tmp/neutral",
@@ -478,7 +351,7 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
   it.each(["openai-compatible", "google"] as const)(
     "omits --model for the 'default' sentinel on %s (#367)",
     async (provider) => {
-      const io = makeIo();
+      const io = provider === "google" ? makeAgyIo() : makeCodexIo();
       const engine = new CliChatEngineImpl(provider, `${provider}-default-session`, io);
       await engine.launch({
         neutralDir: "/tmp/neutral",
@@ -686,7 +559,7 @@ describe("CliChatEngineImpl — claude OAuth token injection (#363)", () => {
 
 describe("CliChatEngineImpl — Codex launch", () => {
   it("launches codex with MCP config -c flags and a sourced token file", async () => {
-    const io = makeIo();
+    const io = makeCodexIo();
     const engine = new CliChatEngineImpl("openai-compatible", "codex-session", io);
     await engine.launch({
       neutralDir: "/tmp/neutral",
@@ -731,7 +604,7 @@ describe("CliChatEngineImpl — Codex launch", () => {
 
 describe("CliChatEngineImpl — Gemini launch", () => {
   it("writes .gemini/settings.json and launches agy with supported flags", async () => {
-    const io = makeIo();
+    const io = makeAgyIo();
     const engine = new CliChatEngineImpl("google", "gemini-session", io);
     await engine.launch({
       neutralDir: "/tmp/neutral",
@@ -762,16 +635,11 @@ describe("CliChatEngineImpl — Gemini launch", () => {
     expect(launchLine).not.toContain("browse");
   });
 
-  it("purges only the UUID captured from its own AGY log after kill", async () => {
+  it("purges only the UUID captured from its own AGY log before kill", async () => {
     const uuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
-    const io = makeIo();
+    const io = makeAgyIo();
     io.readFile.mockImplementation(async (path: string) =>
       path.endsWith(AGY_SESSION_LOG_FILENAME) ? `Created conversation ${uuid}\n` : ""
-    );
-    io.run.mockImplementation(async (cmd: string) =>
-      cmd === "ls"
-        ? { code: 1, stdout: "", stderr: "missing" }
-        : { code: 0, stdout: "", stderr: "" }
     );
     const engine = new CliChatEngineImpl("google", "gemini-private", io, {
       homeBase: "/host-home"
@@ -783,8 +651,8 @@ describe("CliChatEngineImpl — Gemini launch", () => {
     await engine.submit("fixed marker");
     await engine.readNew(0);
 
-    await engine.kill();
     await engine.purgeTranscripts();
+    await engine.kill();
 
     expect(io.run.mock.calls).toContainEqual([
       "rm",
@@ -792,30 +660,6 @@ describe("CliChatEngineImpl — Gemini launch", () => {
     ]);
     expect(JSON.stringify(io.run.mock.calls)).not.toContain(
       '["rm",["-rf","/host-home/.gemini/antigravity-cli/brain"]]'
-    );
-  });
-
-  it("retains interactive AGY transcripts when exact UUID capture misses", async () => {
-    const io = makeIo();
-    io.run.mockImplementation(async (cmd: string) =>
-      cmd === "ls"
-        ? { code: 1, stdout: "", stderr: "missing" }
-        : { code: 0, stdout: "", stderr: "" }
-    );
-    const engine = new CliChatEngineImpl("google", "gemini-retain", io, {
-      homeBase: "/host-home"
-    });
-    await engine.launch({
-      neutralDir: "/tmp/gemini-retain",
-      personaPath: "/tmp/persona.txt"
-    });
-    await engine.submit("fixed marker");
-    await engine.readNew(0);
-    await engine.kill();
-
-    await expect(engine.purgeTranscripts()).rejects.toThrow("identity unavailable");
-    expect(JSON.stringify(io.run.mock.calls)).not.toContain(
-      "/host-home/.gemini/antigravity-cli/brain"
     );
   });
 });
@@ -841,12 +685,7 @@ describe("CliChatEngineImpl — homeBase seam (#deployable-stack §6)", () => {
   });
 });
 
-// Branch-review LOW (cli-chat-engine.ts:113): only Claude is launched with
-// `--session-id`, so only Claude's transcript filename is `<sessionId>.jsonl`.
-// Codex/Gemini name their own file (`rollout-…`/`session-…`); pinning
-// `<sessionId>.jsonl` for them would read a file that never exists, so replies could
-// never be read back. readNew() must resolve the NEWEST `.jsonl` under the glob dir.
-describe("CliChatEngineImpl — non-Claude transcript resolution", () => {
+describe("CliChatEngineImpl — provider transcript resolution", () => {
   it("Claude still reads the session-id-pinned transcript path", async () => {
     const io = makeIo();
     const engine = new CliChatEngineImpl("anthropic", "claude-session", io, {
@@ -864,230 +703,8 @@ describe("CliChatEngineImpl — non-Claude transcript resolution", () => {
     expect(readPath).toMatch(/\/host-home\/\.claude\/projects\/.+\/[0-9a-f-]+\.jsonl$/);
   });
 
-  it("Codex resolves the newest .jsonl in the glob dir (not <sessionId>.jsonl)", async () => {
-    const io = makeIo();
-    const engine = new CliChatEngineImpl("openai-compatible", "codex-session", io, {
-      homeBase: "/host-home"
-    });
-    await engine.launch({
-      neutralDir: "/tmp/neutral",
-      personaPath: "/tmp/persona.txt",
-      mcpToken: "jst_codex",
-      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
-    });
-
-    // `ls -t` returns newest-first; the codex CLI named its own file.
-    io.run.mockImplementation(async (cmd: string) => {
-      if (cmd === "ls") {
-        return {
-          code: 0,
-          stdout:
-            "rollout-2026-06-13T10-00-00-abcdef.jsonl\nrollout-2026-06-13T09-00-00-old.jsonl\n",
-          stderr: ""
-        };
-      }
-      return { code: 0, stdout: "", stderr: "" };
-    });
-    io.readFile.mockResolvedValue("");
-
-    await engine.readNew(0);
-
-    const lsCall = io.run.mock.calls.find((c: unknown[]) => c[0] === "ls");
-    expect(lsCall).toBeDefined();
-    // The glob dir is under ~/.codex/sessions, NOT ~/.claude/projects.
-    expect((lsCall![1] as string[])[1]).toContain("/host-home/.codex/sessions/");
-    const readPath = io.readFile.mock.calls[0]?.[0] as string;
-    expect(readPath).toContain("/host-home/.codex/sessions/");
-    expect(readPath.endsWith("rollout-2026-06-13T10-00-00-abcdef.jsonl")).toBe(true);
-  });
-
-  it("Codex skips newer transcripts from other cwd values when resolving provider-check output", async () => {
-    const io = makeIo();
-    const engine = new CliChatEngineImpl("openai-compatible", "codex-session", io, {
-      homeBase: "/host-home"
-    });
-    await engine.launch({
-      neutralDir: "/tmp/jarv1s-provider-check-abc123",
-      personaPath: "/tmp/persona.txt",
-      mcpToken: "jst_codex",
-      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
-    });
-
-    io.run.mockImplementation(async (cmd: string) => {
-      if (cmd === "ls") {
-        return {
-          code: 0,
-          stdout:
-            "rollout-2026-06-13T10-01-00-active-codex-session.jsonl\n" +
-            "rollout-2026-06-13T10-00-00-provider-check.jsonl\n",
-          stderr: ""
-        };
-      }
-      return { code: 0, stdout: "", stderr: "" };
-    });
-    io.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("active-codex-session.jsonl")) {
-        return [
-          JSON.stringify({
-            type: "session_meta",
-            payload: { cwd: "~/Jarv1s" }
-          }),
-          JSON.stringify({
-            type: "event_msg",
-            payload: { type: "agent_message", message: "unrelated" }
-          })
-        ].join("\n");
-      }
-      return [
-        JSON.stringify({
-          type: "session_meta",
-          payload: { cwd: "/tmp/jarv1s-provider-check-abc123" }
-        }),
-        JSON.stringify({
-          type: "event_msg",
-          payload: { type: "task_complete", last_agent_message: "OK" }
-        })
-      ].join("\n");
-    });
-
-    const result = await engine.readNew(0);
-
-    const readPath = io.readFile.mock.calls.at(-1)?.[0] as string;
-    expect(readPath.endsWith("rollout-2026-06-13T10-00-00-provider-check.jsonl")).toBe(true);
-    expect(result.complete).toBe(true);
-    expect(result.records.at(-1)).toEqual({ kind: "reply", text: "OK" });
-  });
-
-  it("Codex readNew tolerates an empty glob dir (no .jsonl yet)", async () => {
-    const io = makeIo();
-    const engine = new CliChatEngineImpl("openai-compatible", "codex-empty", io);
-    await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
-
-    io.run.mockImplementation(async (cmd: string) => {
-      if (cmd === "ls") return { code: 0, stdout: "\n", stderr: "" };
-      return { code: 0, stdout: "", stderr: "" };
-    });
-
-    const res = await engine.readNew(0);
-    expect(res.records).toEqual([]);
-    expect(res.complete).toBe(false);
-    expect(res.offset).toBe(0);
-    // No transcript file was resolved, so readFile is never attempted.
-    expect(io.readFile).not.toHaveBeenCalled();
-  });
-
-  it("Codex readNew does NOT cache a stale transcript from a prior session in the same cwd", async () => {
-    const io = makeIo();
-    const engine = new CliChatEngineImpl("openai-compatible", "codex-stale", io, {
-      homeBase: "/host-home"
-    });
-    await engine.launch({
-      neutralDir: "/tmp/neutral",
-      personaPath: "/tmp/persona.txt",
-      mcpToken: "jst_codex",
-      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
-    });
-
-    // Two files match the cwd, but the stale one has an OLD session_meta timestamp.
-    // The resolver must skip it and pick the fresh one (or return null if neither is
-    // fresh enough), never cache the stale file.
-    const staleTimestamp = new Date(Date.now() - 3600_000).toISOString(); // 1h ago
-    const freshTimestamp = new Date(Date.now() - 1_000).toISOString(); // 1s ago
-    io.run.mockImplementation(async (cmd: string) => {
-      if (cmd === "ls") {
-        return {
-          code: 0,
-          stdout: "rollout-stale.jsonl\nrollout-fresh.jsonl\n",
-          stderr: ""
-        };
-      }
-      return { code: 0, stdout: "", stderr: "" };
-    });
-    io.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith("stale.jsonl")) {
-        return [
-          JSON.stringify({
-            type: "session_meta",
-            payload: { cwd: "/tmp/neutral", timestamp: staleTimestamp }
-          }),
-          JSON.stringify({
-            type: "event_msg",
-            payload: { type: "task_complete", last_agent_message: "STALE-REPLY" }
-          })
-        ].join("\n");
-      }
-      if (path.endsWith("fresh.jsonl")) {
-        return [
-          JSON.stringify({
-            type: "session_meta",
-            payload: { cwd: "/tmp/neutral", timestamp: freshTimestamp }
-          }),
-          JSON.stringify({
-            type: "event_msg",
-            payload: { type: "task_complete", last_agent_message: "FRESH-REPLY" }
-          })
-        ].join("\n");
-      }
-      return "";
-    });
-
-    const result = await engine.readNew(0);
-
-    // The stale file must NOT be the resolved path; the fresh one wins.
-    const readPaths = io.readFile.mock.calls
-      .map((c: unknown[]) => c[0] as string)
-      .filter((p) => p.endsWith(".jsonl"));
-    expect(readPaths.some((p) => p.endsWith("fresh.jsonl"))).toBe(true);
-    expect(result.complete).toBe(true);
-    expect(result.records.at(-1)).toEqual({ kind: "reply", text: "FRESH-REPLY" });
-  });
-
-  it("Codex readNew returns null when only stale transcripts exist (waits for the new session)", async () => {
-    const io = makeIo();
-    const engine = new CliChatEngineImpl("openai-compatible", "codex-stale-only", io, {
-      homeBase: "/host-home"
-    });
-    await engine.launch({
-      neutralDir: "/tmp/neutral",
-      personaPath: "/tmp/persona.txt",
-      mcpToken: "jst_codex",
-      mcpServerUrl: "http://127.0.0.1:3000/api/mcp"
-    });
-
-    const staleTimestamp = new Date(Date.now() - 3600_000).toISOString(); // 1h ago
-    io.run.mockImplementation(async (cmd: string) => {
-      if (cmd === "ls") {
-        return {
-          code: 0,
-          stdout: "rollout-stale.jsonl\n",
-          stderr: ""
-        };
-      }
-      return { code: 0, stdout: "", stderr: "" };
-    });
-    io.readFile.mockResolvedValue(
-      [
-        JSON.stringify({
-          type: "session_meta",
-          payload: { cwd: "/tmp/neutral", timestamp: staleTimestamp }
-        }),
-        JSON.stringify({
-          type: "event_msg",
-          payload: { type: "task_complete", last_agent_message: "STALE" }
-        })
-      ].join("\n")
-    );
-
-    const result = await engine.readNew(0);
-    expect(result.records).toEqual([]);
-    expect(result.complete).toBe(false);
-    // The stale path was NOT cached (storedTranscriptPath stays null), so a later
-    // readNew can still resolve the fresh file when codex writes it.
-    expect(() => engine.transcriptPath()).toThrow();
-  });
-
   it("Gemini resolves the newest .jsonl under the cwd-specific ~/.gemini/tmp project chats dir", async () => {
-    const io = makeIo();
+    const io = makeAgyIo();
     const engine = new CliChatEngineImpl("google", "gemini-session", io, {
       homeBase: "/host-home"
     });

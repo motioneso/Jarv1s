@@ -11,8 +11,7 @@
  * existing surface a declared, package-boundary-respecting entry point.
  *
  * #744 adds `private-transcript-cleanup`: the cli-runner's engine-host needs
- * `purgePrivateTranscripts` for the engine-less purge path (kill deletes the
- * server-side engine before the purge verb arrives, so purge runs by directory).
+ * `purgePrivateTranscripts` for crash recovery when no engine object survives.
  * Collision-safe — that module's local `sanitizeSessionKey`/`deriveNeutralDir`
  * are NOT exported, so they don't clash with cli-chat-engine's public ones.
  */

@@ -29,6 +29,7 @@ import {
   type RpcInstallProviderResult,
   type RpcLaunchParams,
   type RpcLaunchResult,
+  type RpcKillParams,
   type RpcPollLoginResult,
   type RpcProbeProviderResult,
   type RpcProviderKind,
@@ -420,22 +421,24 @@ export class CliChatEngineHost {
 
   // ─── kill (§4.5) — works WITHOUT an engine object (kill-by-mux-name) ───────────
 
-  kill(sessionKey: string): Promise<void> {
+  kill(sessionKey: string, opts: RpcKillParams = {}): Promise<void> {
     const key = sanitizeSessionKey(sessionKey);
     return this.enqueue(key, async () => {
       const engine = this.engines.get(key);
       if (engine) {
-        // engine.kill() kills the mux session AND rm -rf's the per-session dir (§6.5).
-        await engine.kill();
+        // Failed private purge kills the process but retains its exact marker for the boot sweep.
+        await engine.kill(opts);
         this.engines.delete(key);
         this.submitAttempts.delete(key);
         this.replayLaunches.delete(key);
         return;
       }
       // Post-restart orphan: no engine object, but a live jarv1s-live-<key> mux session
-      // may still exist. Kill by canonical name and remove the neutral dir (§4.5/§6.5).
+      // may still exist. Kill by canonical name; preserve a failed-purge marker when requested.
       await killMuxSessionByName(this.deps.io, key);
-      await removeNeutralDir(this.deps.io, this.deps.neutralBase, key);
+      if (!opts.preserveNeutralDir) {
+        await removeNeutralDir(this.deps.io, this.deps.neutralBase, key);
+      }
       this.submitAttempts.delete(key);
       this.replayLaunches.delete(key);
     });
@@ -443,11 +446,9 @@ export class CliChatEngineHost {
 
   // ─── purgeTranscripts (#744) — private-chat transcript purge; engine-less is NORMAL ──
   //
-  // The manager kills BEFORE it purges, and kill() deletes the server-side engine, so over
-  // RPC this verb almost always arrives engine-less. That is NOT an error: purge by directory
-  // (purgePrivateTranscripts covers Claude + interactive Codex; Gemini/agy/codex-exec are #868).
-  // Only when the engine is somehow still resident do we delegate to it. Serialized on the
-  // per-key queue so a purge never interleaves a launch/submit for the same session.
+  // Private cleanup purges BEFORE kill so the resident engine can use its exact in-memory identity.
+  // Engine-less purge remains the boot-sweep recovery path after a crash. Serialized on the per-key
+  // queue so a purge never interleaves a launch/submit for the same session.
   purgeTranscripts(sessionKey: string): Promise<void> {
     const key = sanitizeSessionKey(sessionKey);
     return this.enqueue(key, async () => {

@@ -149,8 +149,8 @@ export type RpcMethod =
   | "readNew"
   | "isAlive"
   | "interrupt"
-  | "kill" // per-session (sessionKey required)
   | "purgeTranscripts" // per-session (sessionKey required) — #744 private-chat transcript purge over RPC
+  | "kill" // per-session (sessionKey required); private cleanup purges before kill
   | "listLiveSessions" // non-session (reconciliation, §4.6)
   | "probeProvider" // non-session (onboarding, §4.8)
   | "installProvider" // non-session (on-demand installer, install-contract §A.2 — ADDITIVE)
@@ -308,8 +308,10 @@ export interface RpcReadNewResult {
   readonly complete: boolean;
 }
 
-/** params for method "kill" (§4.5) — empty. */
-export type RpcKillParams = Record<string, never>;
+/** params for method "kill" (§4.5). Failed private purge preserves its exact retry marker. */
+export interface RpcKillParams {
+  readonly preserveNeutralDir?: boolean;
+}
 /** result for method "kill" (§4.5). */
 export interface RpcKillResult {
   readonly ok: true;

@@ -5,8 +5,10 @@ import type { EngineLaunchOpts, TranscriptRecord } from "../../packages/chat/src
 
 class FakeEngine {
   readonly provider = "anthropic" as const;
+  readonly events: string[] = [];
   killed = false;
   purged = false;
+  preserveNeutralDir = false;
   async launch(_opts: EngineLaunchOpts): Promise<{ offset: number }> {
     return { offset: 0 };
   }
@@ -19,10 +21,13 @@ class FakeEngine {
   async isAlive(): Promise<boolean> {
     return !this.killed;
   }
-  async kill(): Promise<void> {
+  async kill(opts?: { readonly preserveNeutralDir?: boolean }): Promise<void> {
+    this.events.push("kill");
     this.killed = true;
+    this.preserveNeutralDir = opts?.preserveNeutralDir ?? false;
   }
   async purgeTranscripts(): Promise<void> {
+    this.events.push("purge");
     this.purged = true;
   }
   async interrupt(): Promise<void> {}
@@ -65,6 +70,8 @@ describe("ChatSessionManager private cleanup", () => {
 
     expect(engine.killed).toBe(true);
     expect(engine.purged).toBe(true);
+    expect(engine.events).toEqual(["purge", "kill"]);
+    expect(engine.preserveNeutralDir).toBe(false);
     expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
     expect(revoke).toHaveBeenCalledWith("u1");
   });
@@ -74,7 +81,10 @@ describe("ChatSessionManager private cleanup", () => {
   // transcript; the live engine and token are still torn down.
   it("keeps the private bookkeeping row when the engine purge throws", async () => {
     const engine = new FakeEngine();
-    engine.purgeTranscripts = vi.fn().mockRejectedValue(new Error("rpc down"));
+    engine.purgeTranscripts = vi.fn(async () => {
+      engine.events.push("purge");
+      throw new Error("rpc down");
+    });
     const revoke = vi.fn();
     const deps = privateDeps(engine, true);
     const manager = new ChatSessionManager({ ...deps, revokeMcpToken: revoke });
@@ -83,24 +93,22 @@ describe("ChatSessionManager private cleanup", () => {
     await manager.endPrivateSession("u1");
 
     expect(engine.killed).toBe(true);
+    expect(engine.events).toEqual(["purge", "kill"]);
+    expect(engine.preserveNeutralDir).toBe(true);
     expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
     // teardown still happens — a failed purge must not leave a dead engine live.
     expect(revoke).toHaveBeenCalledWith("u1");
   });
 
-  it("keeps the private bookkeeping row when the engine has no purge method", async () => {
+  it("refuses a private launch when the engine has no purge method", async () => {
     const engine = new FakeEngine();
     // Simulate an older RPC client that never implemented purgeTranscripts: the optional-chain
     // no-op that stranded transcripts on the split topology must now count as a FAILED purge.
     (engine as unknown as { purgeTranscripts?: () => Promise<void> }).purgeTranscripts = undefined;
     const deps = privateDeps(engine, true);
     const manager = new ChatSessionManager(deps);
-    await manager.ensureSession("u1", "Ben");
-
-    await manager.endPrivateSession("u1");
-
-    expect(engine.killed).toBe(true);
-    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
+    await expect(manager.ensureSession("u1", "Ben")).rejects.toThrow("private session unavailable");
+    expect(engine.killed).toBe(false);
   });
 
   it("keeps the orphaned private row when the engine-less restart purge throws", async () => {

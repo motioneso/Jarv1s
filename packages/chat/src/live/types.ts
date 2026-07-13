@@ -28,6 +28,11 @@ export interface TranscriptRecord {
   readonly preview?: ActionRequestPreview;
 }
 
+export interface EngineKillOpts {
+  /** Terminate the process but retain the exact neutral-dir purge marker for a later boot sweep. */
+  readonly preserveNeutralDir?: boolean;
+}
+
 export interface EngineLaunchOpts {
   readonly neutralDir: string;
   readonly personaPath: string; // rendered persona context file in neutralDir
@@ -83,7 +88,7 @@ export interface CliChatEngine {
     afterOffset: number
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }>;
   isAlive(): Promise<boolean>;
-  kill(): Promise<void>;
+  kill(opts?: EngineKillOpts): Promise<void>;
   purgeTranscripts?(): Promise<void>;
   /**
    * #456 — re-arm the response deadline for any in-flight turn verb of this engine's session.

@@ -31,15 +31,19 @@ yet on main; restore its exact approved blob from `39dafc29` as first post-appro
 - Interactive Gemini routing is an AGY engine: production launches `agy --sandbox --log-file` and
   writes `brain/<conversation UUID>/.system_generated/logs/transcript_full.jsonl`. Capture the UUID
   only from this session's exact log and reuse `purgeAgyBrainDir(capturedUuid)` with AGY print.
-  Missing/ambiguous capture retains data; never enumerate or glob the shared `brain/` root.
+  Missing/ambiguous capture hard-fails launch before a private turn; never enumerate or glob the
+  shared `brain/` root.
 - `transcriptGlobDir("google", ...)` and the Gemini CLI reader path are dead in production. Do not
   target them for purge. The interactive engine's wrong reader path/schema is a separate finding,
   explicitly out of #868 scope.
 - AGY print resolves and continues only the exact conversation UUID captured from its own log. It
   must not use `find -newermt`, newest-file, or launch-window matching. Graceful and engine-less
   purge consume the same marker and shared primitive as interactive AGY.
-- Neutral-dir identity markers must remain available when engine-less purge follows kill. Do not
-  change manager ordering or marker lifetime without the coordinator's explicit lifecycle ruling.
+- Private teardown purges before kill. Confirmed purge permits ordinary neutral-dir removal; failed
+  purge kills with `preserveNeutralDir` so the original atomic marker survives for the boot sweep.
+  Never delete and recreate a marker in the reused per-user neutral directory.
+- Private launch fails closed when the engine lacks `purgeTranscripts` or exact Codex/AGY identity
+  capture cannot be established. A private payload never proceeds on a retention-only fallback.
 - Preserve SQL bookkeeping, migrations, ordinary-history behavior, idle reaper, and startup sweep.
 - Lock PR #1015/#984 manager/UI/history files until Task 6. At Task 6, touch only the approved
   manager await/invalidation seam if existing `await engine.launch()` ordering is insufficient.

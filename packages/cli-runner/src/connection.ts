@@ -24,6 +24,7 @@ import {
   type RpcFrame,
   type RpcHandshakeFrame,
   type RpcInstallProviderParams,
+  type RpcKillParams,
   type RpcLaunchParams,
   type RpcOk,
   type RpcPollLoginParams,
@@ -242,13 +243,19 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
     }
     case "kill": {
       const key = requireSessionKey(req);
-      await host.kill(key);
+      const params = (isRecord(req.params) ? req.params : {}) as Partial<RpcKillParams>;
+      if (
+        params.preserveNeutralDir !== undefined &&
+        typeof params.preserveNeutralDir !== "boolean"
+      ) {
+        throw new BadRequestError("kill.preserveNeutralDir must be a boolean");
+      }
+      await host.kill(key, params);
       return { ok: true };
     }
     case "purgeTranscripts": {
-      // #744 — private-chat transcript purge. Same per-session dispatch shape as kill; the host
-      // purges by directory when the engine is already gone (kill runs first). A throw here maps
-      // to an RPC error and keeps the api's bookkeeping row for the next boot sweep.
+      // #744 — private-chat transcript purge. Manager calls this before kill so a resident engine
+      // uses exact identity. A throw keeps the row and makes kill preserve the marker for boot sweep.
       const key = requireSessionKey(req);
       await host.purgeTranscripts(key);
       return { ok: true };

@@ -55,6 +55,7 @@ import {
   type RpcHelloChallenge,
   type RpcInterruptResult,
   type RpcIsAliveResult,
+  type RpcKillParams,
   type RpcKillResult,
   type RpcLaunchParams,
   type RpcLaunchResult,
@@ -69,7 +70,7 @@ import {
   type RpcSubmitParams,
   type RpcSubmitResult
 } from "./rpc-contract.js";
-import type { CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import type { CliChatEngine, EngineKillOpts, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 
 /** The directory the socket MUST resolve under (§3.1 client-side realpath guard). */
 export const SOCKET_ALLOWED_DIR = "/run/jarv1s";
@@ -133,7 +134,7 @@ export interface RpcReconcileDriver {
   /** §4.6 reconciliation primitive — the authoritative live-key enumeration. Bypasses the gate. */
   listLiveSessions(): Promise<RpcListLiveSessionsResult>;
   /** §4.5 kill-by-mux-name for an orphaned live session. Bypasses the gate. */
-  kill(sessionKey: string): Promise<RpcKillResult>;
+  kill(sessionKey: string, opts?: RpcKillParams): Promise<RpcKillResult>;
 }
 
 export interface RpcConnectionOpts {
@@ -288,8 +289,8 @@ export class RpcConnection {
     return this.call<RpcIsAliveResult>("isAlive", sessionKey, {});
   }
 
-  kill(sessionKey: string): Promise<RpcKillResult> {
-    return this.call<RpcKillResult>("kill", sessionKey, {});
+  kill(sessionKey: string, opts: RpcKillParams = {}): Promise<RpcKillResult> {
+    return this.call<RpcKillResult>("kill", sessionKey, opts);
   }
 
   // #744 — private-chat transcript purge over RPC. Runs server-side (the api can't reach the
@@ -776,7 +777,8 @@ export class RpcConnection {
     const driver: RpcReconcileDriver = {
       listLiveSessions: () =>
         this.call<RpcListLiveSessionsResult>("listLiveSessions", undefined, {}, true),
-      kill: (sessionKey: string) => this.call<RpcKillResult>("kill", sessionKey, {}, true)
+      kill: (sessionKey: string, opts: RpcKillParams = {}) =>
+        this.call<RpcKillResult>("kill", sessionKey, opts, true)
     };
     try {
       await this.onReconcile(driver);
@@ -837,14 +839,13 @@ export class ChatEngineRpcClient implements CliChatEngine {
     return result.alive;
   }
 
-  async kill(): Promise<void> {
-    await this.conn.kill(this.sessionKey);
+  async kill(opts?: EngineKillOpts): Promise<void> {
+    await this.conn.kill(this.sessionKey, opts);
   }
 
   /**
-   * #744 — purge this private session's transcripts server-side. The engine has already been
-   * killed by the manager (kill deletes the server-side engine), so the cli-runner host purges
-   * by directory. Rejects if the RPC fails, so the manager keeps the bookkeeping row.
+   * #744 — purge this private session's transcripts server-side before kill removes its exact
+   * identity marker. Rejects if the RPC fails, so kill preserves the marker for the boot sweep.
    */
   async purgeTranscripts(): Promise<void> {
     await this.conn.purgeTranscripts(this.sessionKey);

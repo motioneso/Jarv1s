@@ -182,23 +182,6 @@ export async function purgePrivateTranscripts(
   }
 }
 
-export function codexTranscriptMatchesCwd(jsonl: string, expectedCwd: string): boolean {
-  for (const line of jsonl.split("\n").slice(0, 50)) {
-    if (!line.trim()) continue;
-    let record: Record<string, unknown>;
-    try {
-      record = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    if (record["type"] !== "session_meta") continue;
-    const payload = record["payload"];
-    if (!isRecord(payload)) continue;
-    return payload["cwd"] === expectedCwd;
-  }
-  return false;
-}
-
 function codexSessionsRoot(homeBase: string = homedir()): string {
   return join(homeBase, ".codex", "sessions");
 }

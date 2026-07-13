@@ -1,0 +1,281 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js";
+import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
+import type { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
+import { CODEX_IDENTITY_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
+
+function makeIo() {
+  return {
+    run: vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" }),
+    sleep: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(""),
+    writeFile: vi.fn().mockResolvedValue(undefined)
+  };
+}
+
+function stateMachineMux(opts: {
+  readonly panes: readonly string[];
+  readonly onPaste?: () => void;
+  readonly onEnter?: () => void;
+}): Multiplexer & {
+  readonly clearComposer: ReturnType<typeof vi.fn>;
+  readonly capturePane: ReturnType<typeof vi.fn>;
+  readonly paste: ReturnType<typeof vi.fn>;
+  readonly pressEnter: ReturnType<typeof vi.fn>;
+  readonly kill: ReturnType<typeof vi.fn>;
+} {
+  const panes = [...opts.panes];
+  const capturePane = vi.fn(async () => panes.shift() ?? panes.at(-1) ?? "");
+  return {
+    kind: "tmux",
+    open: vi.fn().mockResolvedValue("pane-1"),
+    clearComposer: vi.fn().mockResolvedValue(undefined),
+    capturePane,
+    paste: vi.fn(async () => opts.onPaste?.()),
+    pressEnter: vi.fn(async () => opts.onEnter?.()),
+    submit: vi.fn().mockResolvedValue(undefined),
+    interrupt: vi.fn().mockResolvedValue(undefined),
+    isAlive: vi.fn().mockResolvedValue(true),
+    kill: vi.fn().mockResolvedValue(undefined),
+    attachCommand: vi.fn().mockReturnValue("tmux attach -t pane-1")
+  };
+}
+
+function claudeUser(text: string): string {
+  return JSON.stringify({ type: "user", message: { role: "user", content: text } }) + "\n";
+}
+
+describe("CliChatEngineImpl — verified interactive submit", () => {
+  const empty = "\u001b[1m❯\u001b[0m\u00a0\n";
+
+  it("presses Enter once only after exact ECHO and exact post-cursor ACK", async () => {
+    let transcript = claudeUser("older turn");
+    const mux = stateMachineMux({
+      panes: [empty, "❯ exact payload\n"],
+      onEnter: () => {
+        transcript += claudeUser("exact payload");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "verified-success", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-success", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "11111111-1111-4111-8111-111111111111",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.clearComposer).toHaveBeenCalledTimes(1);
+    expect(mux.paste).toHaveBeenCalledTimes(1);
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("allows one clear-first re-paste, then still presses Enter only once", async () => {
+    let transcript = "";
+    const mux = stateMachineMux({
+      panes: [empty, "❯ wrong\n", empty, "❯ exact payload\n"],
+      onEnter: () => {
+        transcript += claudeUser("exact payload");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "verified-repaste", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-repaste", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "22222222-2222-4222-8222-222222222222",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.clearComposer).toHaveBeenCalledTimes(2);
+    expect(mux.paste).toHaveBeenCalledTimes(2);
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts an exact post-cursor Codex user_message on a launch-valid rollout", async () => {
+    const neutralDir = "/tmp/verified-codex";
+    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+    let transcript =
+      JSON.stringify({
+        type: "session_meta",
+        payload: { id: uuid, cwd: neutralDir, timestamp: new Date().toISOString() }
+      }) + "\n";
+    let enters = 0;
+    let markerPersistedBeforeUserEnter = false;
+    const io = makeIo();
+    const mux = stateMachineMux({
+      panes: [
+        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+        "› /status\n",
+        `│  Session:  ${uuid}  │\n`,
+        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+        "› exact payload\n"
+      ],
+      onEnter: () => {
+        enters += 1;
+        if (enters === 1) return;
+        markerPersistedBeforeUserEnter = io.writeFile.mock.calls.some((call: unknown[]) =>
+          String(call[0]).endsWith(`${CODEX_IDENTITY_FILENAME}.tmp`)
+        );
+        transcript +=
+          JSON.stringify({
+            type: "event_msg",
+            payload: { type: "user_message", message: "exact payload" }
+          }) + "\n";
+      }
+    });
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("openai-compatible", "verified-codex", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir, personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "88888888-8888-4888-8888-888888888888",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.pressEnter).toHaveBeenCalledTimes(2);
+    expect(markerPersistedBeforeUserEnter).toBe(true);
+    expect(io.run.mock.calls.some((call: unknown[]) => call[0] === "ls")).toBe(false);
+  });
+
+  it("fails before paste without killing when empty composer cannot be observed", async () => {
+    const mux = stateMachineMux({ panes: ["❯ private draft\n"] });
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "verified-no-empty", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-no-empty", personaPath: "/p.md" });
+
+    const error = await engine
+      .verifiedSubmit({
+        attemptId: "33333333-3333-4333-8333-333333333333",
+        text: "payload",
+        signal: new AbortController().signal
+      })
+      .catch((err: unknown) => err);
+
+    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "unavailable" });
+    expect(mux.paste).not.toHaveBeenCalled();
+    expect(mux.pressEnter).not.toHaveBeenCalled();
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("clears a canceled pasted payload before failing unavailable", async () => {
+    const controller = new AbortController();
+    const mux = stateMachineMux({
+      panes: [empty, empty],
+      onPaste: () => controller.abort()
+    });
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "verified-cancel-paste", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-cancel-paste", personaPath: "/p.md" });
+
+    const error = await engine
+      .verifiedSubmit({
+        attemptId: "44444444-4444-4444-8444-444444444444",
+        text: "private payload",
+        signal: controller.signal
+      })
+      .catch((err: unknown) => err);
+
+    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "unavailable" });
+    expect(mux.clearComposer).toHaveBeenCalledTimes(2);
+    expect(mux.pressEnter).not.toHaveBeenCalled();
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("kills and returns delivery_unknown when canceled after Enter, despite a late ACK", async () => {
+    let transcript = "";
+    const controller = new AbortController();
+    const mux = stateMachineMux({
+      panes: [empty, "❯ exact payload\n"],
+      onEnter: () => {
+        transcript += claudeUser("exact payload");
+        controller.abort();
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "verified-entered", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-entered", personaPath: "/p.md" });
+
+    const error = await engine
+      .verifiedSubmit({
+        attemptId: "55555555-5555-4555-8555-555555555555",
+        text: "exact payload",
+        signal: controller.signal
+      })
+      .catch((err: unknown) => err);
+
+    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "delivery_unknown" });
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+    expect(mux.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the original Codex marker when invalidation purge cannot prove identity", async () => {
+    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+    const neutralDir = "/tmp/verified-codex-failed-purge";
+    const controller = new AbortController();
+    let enters = 0;
+    const mux = stateMachineMux({
+      panes: [
+        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+        "› /status\n",
+        `│  Session:  ${uuid}  │\n`,
+        "\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n",
+        "› private payload\n"
+      ],
+      onEnter: () => {
+        enters += 1;
+        if (enters === 2) controller.abort();
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockResolvedValue(
+      JSON.stringify({ type: "session_meta", payload: { id: uuid, cwd: "/other/session" } })
+    );
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-failed-purge", io, {
+      mux,
+      echoMs: 0,
+      homeBase: "/host-home"
+    });
+    await engine.launch({ neutralDir, personaPath: "/p.md" });
+
+    await expect(
+      engine.verifiedSubmit({
+        attemptId: "99999999-9999-4999-8999-999999999999",
+        text: "private payload",
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ code: "delivery_unknown" });
+
+    expect(mux.kill).toHaveBeenCalledTimes(1);
+    expect(
+      io.writeFile.mock.calls.some((call) => String(call[0]).includes(CODEX_IDENTITY_FILENAME))
+    ).toBe(true);
+    expect(io.run.mock.calls).not.toContainEqual(["rm", ["-rf", neutralDir]]);
+  });
+});
