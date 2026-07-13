@@ -6,7 +6,15 @@ import { statSync } from "node:fs";
 
 import * as tar from "tar";
 
-export const EXTRACT_MAX_RATIO = 4;
+// #999: a flat 4x ratio rejected the first real published module (job-search 0.1.0, 38,243 B
+// tarball -> 170,118 B extracted = 4.45x) — gzip on JS/JSON routinely compresses 5-8x, so 4x was
+// under-calibrated for legitimate modules, not an extra-safe margin. 10x covers that with headroom.
+export const EXTRACT_MAX_RATIO = 10;
+// #999: absolute floor so small tarballs aren't penalized by ratio math (a 4x cap on a ~40 KB
+// tarball is ~160 KB, far below what a trivial legitimate module needs). The real decompression-
+// bomb defenses are the 50 MiB ARTIFACT_MAX_BYTES download cap (enforced upstream before this
+// function runs) and EXTRACT_MAX_ENTRIES below; this ratio+floor guard is a secondary control.
+export const EXTRACT_MIN_ABSOLUTE = 4 * 1024 * 1024;
 export const EXTRACT_MAX_ENTRIES = 2000;
 
 export type ModuleTarballErrorCode = "entry-type" | "entry-path" | "too-many-entries" | "too-large";
@@ -32,7 +40,11 @@ export async function safeExtractModuleTarball(
   tarballPath: string,
   destDir: string
 ): Promise<void> {
-  const maxTotalBytes = statSync(tarballPath).size * EXTRACT_MAX_RATIO;
+  // #999: floor prevents small legitimate tarballs from being penalized by ratio math alone.
+  const maxTotalBytes = Math.max(
+    statSync(tarballPath).size * EXTRACT_MAX_RATIO,
+    EXTRACT_MIN_ABSOLUTE
+  );
   let entryCount = 0;
   let totalBytes = 0;
   let violation: ModuleTarballError | null = null;
@@ -68,9 +80,11 @@ export async function safeExtractModuleTarball(
       }
       totalBytes += entry.size ?? 0;
       if (totalBytes > maxTotalBytes) {
+        // #999: reference the computed cap, not a stale "4x" literal — it's a max() of a ratio
+        // and an absolute floor, so no single fixed multiplier describes it for every tarball size.
         violation = new ModuleTarballError(
           "too-large",
-          `extracted size exceeds ${EXTRACT_MAX_RATIO}x tarball size`
+          `extracted size exceeds ${maxTotalBytes} byte cap (${EXTRACT_MAX_RATIO}x tarball size, floor ${EXTRACT_MIN_ABSOLUTE} bytes)`
         );
       }
     }

@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,6 +17,7 @@ import { pack } from "tar-stream";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  EXTRACT_MIN_ABSOLUTE,
   ModuleTarballError,
   safeExtractModuleTarball
 } from "../../packages/module-registry/src/node.js";
@@ -96,11 +98,42 @@ describe("safeExtractModuleTarball (#964)", () => {
     );
   });
 
-  it("rejects a decompression bomb (extracted size > 4x tarball size)", async () => {
-    // Highly compressible payload: 10 MiB of zeros gzips to ~10 KiB.
+  it("rejects a decompression bomb (extracted size exceeds ratio and floor caps)", async () => {
+    // Highly compressible payload: 10 MiB of zeros gzips to ~10 KiB, so the ratio cap
+    // (~100 KiB) is dwarfed by 10 MiB — still well over the 4 MiB absolute floor too (#999).
     const tarball = await craftTarball([
       { name: "dist/bomb.js", body: "\0".repeat(10 * 1024 * 1024) }
     ]);
+    await expect(safeExtractModuleTarball(tarball, tmp("dest-"))).rejects.toThrow(
+      ModuleTarballError
+    );
+  });
+
+  it("#999: extracts a legitimate module whose ratio exceeds the old 4x cap", async () => {
+    // Mirrors the real job-search 0.1.0 regression: a small tarball whose gzip ratio is >4x
+    // (would have been rejected pre-#999) but whose total extracted size is comfortably under
+    // the new EXTRACT_MIN_ABSOLUTE floor, so it now installs successfully.
+    const lines = Array.from(
+      { length: 3000 },
+      (_, i) => `export const value_${i} = ${i} + ${i * 2}; // comment for entry ${i}`
+    ).join("\n");
+    const tarball = await craftTarball([{ name: "dist/worker.js", body: lines }]);
+    const tarballSize = statSync(tarball).size;
+    expect(lines.length).toBeGreaterThan(4 * tarballSize);
+    const dest = tmp("dest-");
+    await safeExtractModuleTarball(tarball, dest);
+    expect(readdirSync(dest)).toEqual(["dist"]);
+  });
+
+  it("#999: still rejects a tiny tarball that exceeds the new absolute floor", async () => {
+    // Proves the floor -- not just the ratio -- still bounds a bomb: a highly compressible
+    // payload just over EXTRACT_MIN_ABSOLUTE (4 MiB) gzips to a tiny tarball, so the ratio cap
+    // alone (tarballSize * 10) would be minuscule, but the floor still catches it.
+    const tarball = await craftTarball([
+      { name: "dist/bomb.js", body: "\0".repeat(EXTRACT_MIN_ABSOLUTE + 1024) }
+    ]);
+    const tarballSize = statSync(tarball).size;
+    expect(tarballSize * 10).toBeLessThan(EXTRACT_MIN_ABSOLUTE);
     await expect(safeExtractModuleTarball(tarball, tmp("dest-"))).rejects.toThrow(
       ModuleTarballError
     );
