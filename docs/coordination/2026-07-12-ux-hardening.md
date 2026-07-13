@@ -700,4 +700,5 @@ resume from this note before taking any merge-sensitive action.
   found the existing happy-path live proof sufficient for the bounded client-only pending/error
   repair. Durable verdict: `https://github.com/motioneso/Jarv1s/pull/1009#issuecomment-4956803684`.
 - Primary has the verdict and remains sole merge authority. #989 is holding; this UX coordinator did
-  not merge. Fresh QA session `151e9902-c729-458d-86c1-62e98495b594` is spent and pending reap.
+  not merge. Fresh QA session `151e9902-c729-458d-86c1-62e98495b594` and its clean worktree were
+  reaped.
