@@ -13,6 +13,7 @@ import {
   SESSION_PREFIX
 } from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
+import { AGY_SESSION_LOG_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
 import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js";
 
 function makeIo() {
@@ -491,10 +492,68 @@ describe("CliChatEngineImpl — Gemini launch", () => {
     expect(launchLine).toContain("agy");
     expect(launchLine).not.toContain("gemini");
     expect(launchLine).toContain("--sandbox");
+    expect(launchLine).toContain(`--log-file '/tmp/neutral/${AGY_SESSION_LOG_FILENAME}'`);
     expect(launchLine).not.toContain("--allowed-mcp-server-names");
     expect(launchLine).not.toContain("web_search");
     expect(launchLine).not.toContain("browser");
     expect(launchLine).not.toContain("browse");
+  });
+
+  it("purges only the UUID captured from its own AGY log after kill", async () => {
+    const uuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
+    const io = makeIo();
+    io.readFile.mockImplementation(async (path: string) =>
+      path.endsWith(AGY_SESSION_LOG_FILENAME) ? `Created conversation ${uuid}\n` : ""
+    );
+    io.run.mockImplementation(async (cmd: string) =>
+      cmd === "ls"
+        ? { code: 1, stdout: "", stderr: "missing" }
+        : { code: 0, stdout: "", stderr: "" }
+    );
+    const engine = new CliChatEngineImpl("google", "gemini-private", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/gemini-private",
+      personaPath: "/tmp/persona.txt"
+    });
+    await engine.submit("fixed marker");
+    await engine.readNew(0);
+
+    await engine.kill();
+    await engine.purgeTranscripts();
+
+    expect(io.run.mock.calls).toContainEqual([
+      "rm",
+      ["-rf", `/host-home/.gemini/antigravity-cli/brain/${uuid}`]
+    ]);
+    expect(JSON.stringify(io.run.mock.calls)).not.toContain(
+      '["rm",["-rf","/host-home/.gemini/antigravity-cli/brain"]]'
+    );
+  });
+
+  it("retains interactive AGY transcripts when exact UUID capture misses", async () => {
+    const io = makeIo();
+    io.run.mockImplementation(async (cmd: string) =>
+      cmd === "ls"
+        ? { code: 1, stdout: "", stderr: "missing" }
+        : { code: 0, stdout: "", stderr: "" }
+    );
+    const engine = new CliChatEngineImpl("google", "gemini-retain", io, {
+      homeBase: "/host-home"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/gemini-retain",
+      personaPath: "/tmp/persona.txt"
+    });
+    await engine.submit("fixed marker");
+    await engine.readNew(0);
+    await engine.kill();
+
+    await expect(engine.purgeTranscripts()).rejects.toThrow("identity unavailable");
+    expect(JSON.stringify(io.run.mock.calls)).not.toContain(
+      "/host-home/.gemini/antigravity-cli/brain"
+    );
   });
 });
 
@@ -786,7 +845,9 @@ describe("CliChatEngineImpl — non-Claude transcript resolution", () => {
 
     await engine.readNew(0);
 
-    const readPath = io.readFile.mock.calls[0]?.[0] as string;
+    const readPath = io.readFile.mock.calls.find((call: unknown[]) =>
+      String(call[0]).includes("/.gemini/tmp/")
+    )?.[0] as string;
     expect(readPath).toContain("/host-home/.gemini/tmp/jarv1s-provider-check-abc123/chats/");
     expect(readPath.endsWith("session-2026-06-13T10-00-00-xyz.jsonl")).toBe(true);
   });

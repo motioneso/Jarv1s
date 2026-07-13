@@ -41,7 +41,13 @@ import type { AiProviderExecutionMode } from "@jarv1s/shared";
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
 import { writeClaudePermissionHook } from "./claude-permission-hook.js";
-import { codexTranscriptMatchesCwd } from "./private-transcript-cleanup.js";
+import {
+  AGY_SESSION_LOG_FILENAME,
+  captureAgyConversationIdentity,
+  codexTranscriptMatchesCwd,
+  purgeAgyBrainDir,
+  readAgyConversationIdentity
+} from "./private-transcript-cleanup.js";
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
@@ -131,6 +137,8 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly executionMode: AiProviderExecutionMode;
   private codexExec: CodexExecSession | null = null;
   private codexExecLogicalAlive = false;
+  private agyConversationUuid: string | null = null;
+  private agyHasSubmitted = false;
 
   constructor(
     public readonly provider: ProviderKind,
@@ -158,6 +166,8 @@ export class CliChatEngineImpl implements CliChatEngine {
     const sessionId = randomUUID();
     this.neutralDir = opts.neutralDir;
     this.launchEpoch = Date.now();
+    this.agyConversationUuid = null;
+    this.agyHasSubmitted = false;
 
     // ── PRE-mux-create setup (persona + per-provider secret files) ──────────────
     // Any failure here is a PRE-mux-create failure: no mux session exists yet, so
@@ -268,6 +278,7 @@ export class CliChatEngineImpl implements CliChatEngine {
       return;
     }
     await this.mux.submit(this.requireHandle(), sanitized);
+    if (this.provider === "google") this.agyHasSubmitted = true;
   }
 
   async readNew(
@@ -275,6 +286,14 @@ export class CliChatEngineImpl implements CliChatEngine {
   ): Promise<{ records: TranscriptRecord[]; offset: number; complete: boolean }> {
     if (this.transcriptDir === null) {
       throw new Error("CliChatEngineImpl.readNew called before launch()");
+    }
+
+    if (
+      this.provider === "google" &&
+      this.agyConversationUuid === null &&
+      this.neutralDir !== null
+    ) {
+      this.agyConversationUuid = await captureAgyConversationIdentity(this.io, this.neutralDir);
     }
 
     const path = await this.resolveTranscriptPath();
@@ -343,6 +362,19 @@ export class CliChatEngineImpl implements CliChatEngine {
       if (this.transcriptDir !== null) {
         await this.io.run("rm", ["-rf", this.transcriptDir]);
       }
+      return;
+    }
+
+    if (this.provider === "google") {
+      const uuid =
+        this.agyConversationUuid ??
+        (this.neutralDir ? await readAgyConversationIdentity(this.io, this.neutralDir) : null);
+      if (uuid === null) {
+        if (this.agyHasSubmitted)
+          throw new Error("AGY conversation identity unavailable for purge");
+        return;
+      }
+      await purgeAgyBrainDir(this.io, uuid, this.homeBase);
       return;
     }
 
@@ -537,7 +569,13 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   private buildGeminiCommand(opts: EngineLaunchOpts): string {
     // Token is already injected via .gemini/settings.json Authorization header — no env var needed.
-    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, "agy", "--sandbox"];
+    const parts = [
+      `cd ${shellQuote(opts.neutralDir)} &&`,
+      "agy",
+      "--sandbox",
+      "--log-file",
+      shellQuote(join(opts.neutralDir, AGY_SESSION_LOG_FILENAME))
+    ];
     const modelFlag = modelOverrideFlag(opts); // agy accepts --model
     if (modelFlag) parts.push(modelFlag);
     return parts.join(" ");
