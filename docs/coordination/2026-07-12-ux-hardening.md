@@ -24,7 +24,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Decision 4/Slice 2 repair committed at `57c484ac`; full drawer 13/13 before fixture dedupe, focused 2/2 after, targeted Prettier and typecheck exit 0. Final DB gate remains paused: primary-owned `Module Fix 1006+1007 v5` still owns the global shared-cluster slot; #984 is next after explicit release. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Decision 4/Slice 2 repair committed at `57c484ac`; full drawer 13/13 before fixture dedupe, focused 2/2 after, targeted Prettier and typecheck exit 0. Module lane released the global DB slot; process/Postgres scans were quiet, and #984 now owns one final full gate on fresh `jarv1s_ux984_gate*`. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | DONE on PR #1012 at `419a6f0a`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green, manual CP1-CP5 PASS. Independent security QA is active under label `QA 1012 YOLO Approvals Codex`, session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`, pane `w1:pK7`; #1011 tracks deferred `activityVerb()` falsehood; primary Coordinator alone merges |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
@@ -401,6 +401,10 @@ resume from this note before taking any merge-sensitive action.
   13/13 before fixture dedupe and the focused replacement is 2/2; Prettier/typecheck are green.
   Process and `pg_stat_activity` proof still show the primary module lane executing integration DDL,
   so #984 remains paused on DB work until an explicit global-slot release.
+- `Module Fix 1006+1007` released DB-touching work after two contention-red full gates and a clean
+  isolated four-suite retest plus audit exit 0. A fresh process scan and `pg_stat_activity` showed no
+  DB gate owner or active query. The exclusive global slot is now assigned to #984 for one fresh
+  `jarv1s_ux984_gate_<unique>` full foundation run; #990 remains stopped and no other UX DB work starts.
 - #985 is DONE on PR #1012 at `419a6f0a`. Builder-reported foundation/audit exits are 0, the
   pre-push trio is green, and manual CP1-CP5 pass. #1011 durably tracks the untouched
   `activityVerb()` allowed→Denied falsehood. Independent security-tier QA is active as Codex
