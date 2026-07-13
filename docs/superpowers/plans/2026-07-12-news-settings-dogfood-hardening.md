@@ -60,9 +60,11 @@ Playwright for `tests/e2e/news-settings.spec.ts`.
 ### Task 1: `updateNewsTopic` web-client wrapper
 
 **Files:**
+
 - Modify: `packages/news/src/web/news-client.ts`
 
 **Interfaces:**
+
 - Produces: `updateNewsTopic(id: string, input: UpdateNewsTopicRequest): Promise<UpdateNewsTopicResponse>`
   — consumed by Task 3's `describe-topics.tsx`.
 
@@ -115,6 +117,7 @@ git commit -m "feat(news): add updateNewsTopic PATCH client wrapper"
 ### Task 2: Rename three section kickers in `index.tsx`
 
 **Files:**
+
 - Modify: `packages/news/src/settings/index.tsx`
 
 Renames only the three sections that are NOT being extracted (the fourth, "Topics you
@@ -126,13 +129,13 @@ markup isn't touched twice).
 In the `<section className="nw-set" aria-label="News sources">` block, change:
 
 ```tsx
-        <p className="nw-set__kicker">Sources</p>
+<p className="nw-set__kicker">Sources</p>
 ```
 
 to:
 
 ```tsx
-        <p className="nw-set__kicker">Publications</p>
+<p className="nw-set__kicker">Publications</p>
 ```
 
 - [ ] **Step 2: Rename "Topics" → "Topics from your publications" with narrowing copy**
@@ -162,13 +165,13 @@ to:
 In the `<section className="nw-set" aria-label="Personalized sources">` block, change:
 
 ```tsx
-        <p className="nw-set__kicker">Personalized sources</p>
+<p className="nw-set__kicker">Personalized sources</p>
 ```
 
 to:
 
 ```tsx
-        <p className="nw-set__kicker">Publications you add</p>
+<p className="nw-set__kicker">Publications you add</p>
 ```
 
 - [ ] **Step 4: Update the failing-then-passing unit assertions**
@@ -178,7 +181,7 @@ to:
 Step 3 otherwise):
 
 ```ts
-    expect(html).toContain("Publications you add");
+expect(html).toContain("Publications you add");
 ```
 
 - [ ] **Step 5: Run the unit suite**
@@ -198,12 +201,14 @@ git commit -m "feat(news): rename settings sections to explain publications vs t
 ### Task 3: Extract `describe-topics.tsx` (add/edit/remove + pure helpers)
 
 **Files:**
+
 - Create: `packages/news/src/settings/describe-topics.tsx`
 - Modify: `packages/news/src/settings/index.tsx`
 - Modify: `packages/news/src/settings/news-settings.css`
 - Modify: `tests/unit/news-settings-pane.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `updateNewsTopic(id, input)` from Task 1; `createNewsTopic`, `deleteNewsTopic` from
   `../web/news-client.js` (unchanged signatures); `newsQueryKeys` from `../web/query-keys.js`.
 - Produces: `DescribeTopics(props: { customTopics, availability, needsAttention, retryRow })`
@@ -335,9 +340,10 @@ export function PrereqGate(props: { readonly requirement: string }) {
 }
 
 /** Maps a stored topic (or null for add-mode) to the form's controlled field values. */
-export function describedTopicFormValues(
-  topic: NewsCustomTopicDto | null
-): { readonly label: string; readonly guidance: string } {
+export function describedTopicFormValues(topic: NewsCustomTopicDto | null): {
+  readonly label: string;
+  readonly guidance: string;
+} {
   if (!topic) return { label: "", guidance: "" };
   return { label: topic.label, guidance: topic.guidance ?? "" };
 }
@@ -439,7 +445,9 @@ export function DescribeTopics(props: {
       });
     } else {
       createMutation.mutate(
-        trimmedGuidance ? { label: trimmedLabel, guidance: trimmedGuidance } : { label: trimmedLabel }
+        trimmedGuidance
+          ? { label: trimmedLabel, guidance: trimmedGuidance }
+          : { label: trimmedLabel }
       );
     }
   }
@@ -617,6 +625,7 @@ import { DescribeTopics, PrereqGate } from "./describe-topics.js";
 ```
 
 Remove these now-unused pieces (owned by `DescribeTopics`):
+
 - `const [topicLabel, setTopicLabel] = useState("");`
 - `const [topicGuidance, setTopicGuidance] = useState("");`
 - `const addTopicMutation = useMutation({ mutationFn: createNewsTopic, ... });`
@@ -631,19 +640,19 @@ Replace the entire `<section className="nw-set" aria-label="Topics you describe"
 block (the one containing the old inline form and topic list) with:
 
 ```tsx
-      <section className="nw-set" aria-label="Topics across the web">
-        <p className="nw-set__kicker">Topics across the web</p>
-        <p className="nw-set__hint">
-          Freeform topics in your own words — like &ldquo;mechanical watches, not
-          smartwatches&rdquo; — discovered across the web, not just your publications.
-        </p>
-        <DescribeTopics
-          customTopics={customTopics}
-          availability={availability}
-          needsAttention={topicsNeedAttention}
-          retryRow={retryRow}
-        />
-      </section>
+<section className="nw-set" aria-label="Topics across the web">
+  <p className="nw-set__kicker">Topics across the web</p>
+  <p className="nw-set__hint">
+    Freeform topics in your own words — like &ldquo;mechanical watches, not smartwatches&rdquo; —
+    discovered across the web, not just your publications.
+  </p>
+  <DescribeTopics
+    customTopics={customTopics}
+    availability={availability}
+    needsAttention={topicsNeedAttention}
+    retryRow={retryRow}
+  />
+</section>
 ```
 
 - [ ] **Step 6: Add new render-based unit tests**
@@ -674,9 +683,7 @@ describe("NewsSettings described-topics section (#990)", () => {
       ...storedTopic("approved"),
       label: '<img src=x onerror=alert(1)>&lt;script&gt;"quoted'
     };
-    const html = render(
-      personalization({ availability: allOn, customTopics: [hostileTopic] })
-    );
+    const html = render(personalization({ availability: allOn, customTopics: [hostileTopic] }));
     expect(html).not.toContain("<img");
     expect(html).toMatch(/aria-label="Edit [^"]*&quot;quoted/);
   });
@@ -727,9 +734,11 @@ git commit -m "feat(news): extract described-topics add/edit/remove into its own
 ### Task 4: E2E coverage — `tests/e2e/news-settings.spec.ts`
 
 **Files:**
+
 - Create: `tests/e2e/news-settings.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `mockApi` from `./mock-api.js` (existing baseline auth/notifications/tasks mock, same
   usage as `tests/e2e/wellness.spec.ts`). Drives the real `DescribeTopics` component built in
   Task 3 through its real DOM ids/aria-labels — no shared `mock-*.ts` helper (spec is explicit
@@ -917,9 +926,7 @@ test("described topics: empty state, create via Enter, edit, and remove", async 
   await labelInput.fill("Watches");
   await guidanceInput.fill("not smartwatches");
   const [createRequest] = await Promise.all([
-    page.waitForRequest(
-      (r) => r.url().includes("/api/news/topics") && r.method() === "POST"
-    ),
+    page.waitForRequest((r) => r.url().includes("/api/news/topics") && r.method() === "POST"),
     labelInput.press("Enter")
   ]);
   expect(createRequest.postDataJSON()).toEqual({ label: "Watches", guidance: "not smartwatches" });
@@ -933,9 +940,7 @@ test("described topics: empty state, create via Enter, edit, and remove", async 
   await expect(guidanceInput).toHaveValue("not smartwatches");
   await guidanceInput.fill("mechanical only");
   const [updateRequest] = await Promise.all([
-    page.waitForRequest(
-      (r) => /\/api\/news\/topics\/.+/.test(r.url()) && r.method() === "PATCH"
-    ),
+    page.waitForRequest((r) => /\/api\/news\/topics\/.+/.test(r.url()) && r.method() === "PATCH"),
     page.getByRole("button", { name: "Save changes" }).click()
   ]);
   expect(updateRequest.postDataJSON()).toMatchObject({ guidance: "mechanical only" });
@@ -944,9 +949,7 @@ test("described topics: empty state, create via Enter, edit, and remove", async 
 
   // Remove returns to the honest empty state.
   const [deleteRequest] = await Promise.all([
-    page.waitForRequest(
-      (r) => /\/api\/news\/topics\/.+/.test(r.url()) && r.method() === "DELETE"
-    ),
+    page.waitForRequest((r) => /\/api\/news\/topics\/.+/.test(r.url()) && r.method() === "DELETE"),
     page.getByRole("button", { name: "Remove Watches" }).click()
   ]);
   expect(deleteRequest.method()).toBe("DELETE");
@@ -1071,9 +1074,7 @@ test("retry validation queues owner-wide revalidation and surfaces queued/error 
   await expect(retryButton).toBeVisible();
 
   const [firstRequest] = await Promise.all([
-    page.waitForRequest(
-      (r) => r.url().includes("/api/news/revalidation") && r.method() === "POST"
-    ),
+    page.waitForRequest((r) => r.url().includes("/api/news/revalidation") && r.method() === "POST"),
     retryButton.click()
   ]);
   expect(firstRequest.method()).toBe("POST");
@@ -1082,9 +1083,7 @@ test("retry validation queues owner-wide revalidation and surfaces queued/error 
   ).toBeVisible();
 
   await Promise.all([
-    page.waitForRequest(
-      (r) => r.url().includes("/api/news/revalidation") && r.method() === "POST"
-    ),
+    page.waitForRequest((r) => r.url().includes("/api/news/revalidation") && r.method() === "POST"),
     retryButton.click()
   ]);
   await expect(page.getByText("Could not queue revalidation. Try again.")).toBeVisible();
