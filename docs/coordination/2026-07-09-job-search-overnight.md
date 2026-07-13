@@ -5454,3 +5454,20 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
 
 - **UX Coordinator successor 7 = Claude session `b637e03f-267e-493b-acb2-0808bd1a9f49`** (their lock
   pushed `7162b8e7`); successor-6 reaped. This is the lane that routes #868/#1020 (and #984) PRs to me.
+
+### #1028 (#1024 provisioner) — QA GREEN, spec-fix in flight before merge
+
+- **QA verdict = GREEN / MERGE-READY** (sensitive, grounded `b66e7d85`). 0 blocking, 3 non-blocking.
+  Invariant walk clean: (1) **no BYPASSRLS** — all 4 roles NOSUPERUSER/NOBYPASSRLS
+  (`infra/postgres/bootstrap/0000_roles.sql`), privileged seam = `jarvis_migration_owner` via
+  `JARVIS_MIGRATION_DATABASE_URL` (migration-class, #1025 plugs in without touching app/worker);
+  (2) no migration/schema-catalog change; (3) fidelity — `docker-compose.prod.yml` 0-diff, port/subnet
+  via existing `${JARVIS_WEB_PORT}`/`${JARVIS_DOCKER_SUBNET}`; (4) guards sound (20000-20099+bind-probe
+  +TOCTOU retry, subnet 10.254.0.0/24, teardown try/finally+trap). Exit-criteria met, wall-clock recorded.
+- **PROCESS-GATE FIX (before merge):** approved spec was on my coord branch only (`04dc1996`), absent
+  from build branch → tasked owning agent 1024d (`6033b289`, w1:pM3, alive) to `git cherry-pick
+  04dc1996 && git push` so #1028 lands spec+plan+code atomically (pure docs add, no re-QA). Await new
+  HEAD sha, re-confirm spec present on branch, then merge (my session `58a78927` = lock, confirmed).
+- **Non-blocking follow-ups (not merge-blockers):** `provisioner.ts:252` leak-check omits *networks*
+  though its doc-comment claims it checks them (low risk; `down -v` drops `<project>_default`) —
+  candidate trivial follow-up.
