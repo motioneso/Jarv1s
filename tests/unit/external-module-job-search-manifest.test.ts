@@ -73,6 +73,9 @@ describe("job-search manifest contract (#930)", () => {
         queue: "job-search.monitor-run"
       }
     ]);
+    expect(result.manifest.navigation).toEqual([
+      { id: "job-search", label: "Job Search", path: "/", icon: "briefcase" }
+    ]);
   });
 
   it("rejects the design's original dotted id (spec delta 1)", () => {
