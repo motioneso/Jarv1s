@@ -3,7 +3,10 @@
 // module via the sidebar "Modules" nav section (NOT by typing /m/job-search directly — the
 // whole point of #1019 is that a downloaded external module now appears in navigation).
 import { chromium, type Page } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const BASE_URL = process.env["UAT_BASE_URL"] ?? "http://localhost:47102";
 const SHOT_DIR =
@@ -11,6 +14,16 @@ const SHOT_DIR =
 const OWNER_EMAIL = "uat-owner-1019@example.com";
 const OWNER_PASSWORD = "uat-owner-password-1019";
 const OWNER_NAME = "UAT Owner";
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const RECONCILE_ENV = {
+  ...process.env,
+  JARVIS_PGHOST: "localhost",
+  JARVIS_PGPORT: "55433",
+  JARVIS_PGDATABASE: "jarvis_uat_1019",
+  JARVIS_MODULES_DIR: "/tmp/uat-1019-modules",
+  JARVIS_MODULE_REGISTRY_URL: "http://127.0.0.1:37743/index.json"
+};
 
 mkdirSync(SHOT_DIR, { recursive: true });
 
@@ -63,6 +76,26 @@ async function installJobSearch(page: Page): Promise<void> {
 
   await row.getByText(/restart to apply/i).waitFor({ timeout: 30_000 });
   await shot(page, "05-pending-restart");
+}
+
+// Real boot order (scripts/start-jarv1s.ts) is migrate -> module-reconcile -> server: the
+// supervisor entrypoint always runs module-reconcile.ts, whose phase 5 accepts a staged
+// admin-download (package-hash match) and flips app.external_modules.status straight to
+// 'enabled' — download-and-restart IS the full install+enable flow for an admin-initiated
+// download, no separate toggle involved. This ad hoc dev-UAT harness starts `tsx
+// src/server.ts` directly and skips that entrypoint, so the staged row was never accepted
+// and stayed at lifecycle "update-pending-restart" (no enable control even renders in that
+// state) — that gap, not a routes-modules.ts bug, is why the nav entry never appeared.
+// Running the real reconcile script here closes it without touching product code or the
+// install/enable privilege boundary. Verified manually: after this call,
+// GET /api/modules includes job-search with external:true, no API process restart needed
+// (discovery was already captured at an earlier boot; only DB status was stale).
+function runModuleReconcile(): void {
+  execFileSync("pnpm", ["exec", "tsx", "scripts/module-reconcile.ts"], {
+    cwd: REPO_ROOT,
+    env: RECONCILE_ENV,
+    stdio: "inherit"
+  });
 }
 
 /** The dedicated external-module nav section rendered by app-route-metadata's MODULES_SECTION. */
@@ -120,6 +153,8 @@ export async function resumeAfterRestart(): Promise<void> {
     await page.locator("form.auth-form").getByRole("button", { name: "Sign in" }).click();
     await page.locator("section.auth-panel").waitFor({ state: "hidden", timeout: 15_000 });
 
+    runModuleReconcile();
+    await shot(page, "05b-post-reconcile-enabled");
     await navigateToJobSearchViaNav(page);
   } finally {
     await browser.close();
