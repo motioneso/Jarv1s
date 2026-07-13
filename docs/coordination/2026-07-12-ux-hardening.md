@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally; live UAT blocked on bootstrap-owner session. Invalid directly activated test account `sports-uat-1009-004221@example.test` is quarantined and awaits owner-UI deletion; no evidence from it is valid. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Tasks 1-2 committed (`bf9300f8`, `eacd1644`); Task 3 intentional RED state resumed from `2026-07-13-news-settings-990-relay4.md` on `ux/990-news-settings-build`; label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 3 committed at `268c5a32`; Task 4 Playwright is 3/3 green. Foundation is blocked only by the approved plan doc's pre-existing formatting; builder is approved to format that one explicit file and rerun the gate. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -339,3 +339,7 @@ resume from this note before taking any merge-sensitive action.
   separate Play/review/read-only path was deleted. Chat-drawer E2E is 11/11 and typecheck is green.
   CSS drift was bounded to deleting the existing `.chatd-review`; other plan-named selector blocks
   were already absent. The same session was re-verified and released to Task 5 with locks unchanged.
+- #990 Task 4 Playwright is 3/3 green, but foundation exits 1 on the approved plan document's
+  pre-existing formatting. No CI waiver applies without main-SHA proof. The builder is approved to
+  format only `docs/superpowers/plans/2026-07-12-news-settings-dogfood-hardening.md`, stage that
+  explicit path, and rerun the required gate to green; broad formatting remains forbidden.
