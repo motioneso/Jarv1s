@@ -19,6 +19,7 @@ touched.
 Playwright.
 
 ## Global Constraints (verbatim from spec, all reverified against `origin/main` `3ca138eb` on
+
 this branch before writing this plan)
 
 - Stable IDs: merged personal destination keeps id `profile`; merged admin destination keeps id
@@ -45,30 +46,32 @@ this branch before writing this plan)
 
 ## File Structure
 
-| File | Change |
-| --- | --- |
-| `apps/web/src/settings/settings-navigation.ts` | Add `SettingsSectionGroup<Id>` type + `flattenSettingsGroups` helper (pure, reused by both modes). `coerceSettingsSectionId` unchanged. |
-| `apps/web/src/settings/settings-page.tsx` | Replace flat `PERSONAL_SECTIONS`/`ADMIN_SECTIONS` with `PERSONAL_GROUPS`/`ADMIN_GROUPS` (+ flattened derivations). Drop `general`/`identity` types and imports. Section selection pushes `?section=` via `setSearchParams` (no more consume-and-delete `useEffect`); initial render reads `searchParams.get("section")` directly, falling back to storage, falling back to first section. Non-admin URL to an admin id renders personal fallback (admin pane never mounts). Nav renders one group label + its buttons per group (replacing the single "Personal settings"/"Admin / Setup" heading div). |
-| `apps/web/src/settings/settings-personal-panes.tsx` | Rename pane heading "Profile & account" → "Account & preferences"; append the moved General content (Locale, Quiet hours) after existing Sessions/Export/Delete order per spec's Account & preferences ordering (Identity → Account → Locale → Quiet hours → Sessions/export/delete). |
+| File                                                     | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/web/src/settings/settings-navigation.ts`           | Add `SettingsSectionGroup<Id>` type + `flattenSettingsGroups` helper (pure, reused by both modes). `coerceSettingsSectionId` unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `apps/web/src/settings/settings-page.tsx`                | Replace flat `PERSONAL_SECTIONS`/`ADMIN_SECTIONS` with `PERSONAL_GROUPS`/`ADMIN_GROUPS` (+ flattened derivations). Drop `general`/`identity` types and imports. Section selection pushes `?section=` via `setSearchParams` (no more consume-and-delete `useEffect`); initial render reads `searchParams.get("section")` directly, falling back to storage, falling back to first section. Non-admin URL to an admin id renders personal fallback (admin pane never mounts). Nav renders one group label + its buttons per group (replacing the single "Personal settings"/"Admin / Setup" heading div).                                                                                                                                    |
+| `apps/web/src/settings/settings-personal-panes.tsx`      | Rename pane heading "Profile & account" → "Account & preferences"; append the moved General content (Locale, Quiet hours) after existing Sessions/Export/Delete order per spec's Account & preferences ordering (Identity → Account → Locale → Quiet hours → Sessions/export/delete).                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `apps/web/src/settings/settings-personal-data-panes.tsx` | Remove `GeneralPane` (content moved to `settings-personal-panes.tsx`; delete the export). `ModulesPane`: switch `view` local state to be driven by `?module=` in the URL (push on open, `replace` delete on explicit back, browser Back already restores via popstate since it's a real URL param now); replace `visibleUserToggleModules` call with new `visibleConfigurableModules` + local `hasImplementedSettings` predicate; pass `onBack` through to `ModuleSettingsRouter` unchanged (router now renders the control itself). If this file would cross 1000 lines after moving General content in, split `GeneralPane`'s old body was already deleted (net negative), so no split needed — recheck line count at the end of Task 4. |
-| `apps/web/src/settings/settings-admin-panes.tsx` | `PeoplePane`: append registration controls (from `IdentityPane`) as a new "Registration" `Group` before "Pending approval", update heading if needed (stays "People & access"). Delete `IdentityPane` export and its auth-provider negative note. |
-| `apps/web/src/settings/settings-module-view-model.ts` | Replace `visibleUserToggleModules` with `visibleConfigurableModules(modules, hasImplementedSettings)`. |
-| `packages/settings-ui/src/router.tsx` | Factor `RouterBackButton` call into the successful-surface branch of `ModuleSettingsRouter` (render it above `<Surface>` inside the same wrapper, matching the fallback branches' pattern). |
-| `apps/web/src/styles/settings.css` | Bound `.set2__nav` height with `overflow-y: auto` at desktop widths; keep focus-visible outline reachable inside the scroll container; widen/relax `.pane__desc`/`.fld__hint`/`.fld__row > input` max-widths so they use the detail column instead of a fixed ch-cap well short of `.set2__pane`'s available width. |
-| `tests/unit/web-settings-navigation.test.ts` | Add coverage for grouped flatten helper + URL-truth coercion (non-admin admin-id fallback). |
-| `tests/unit/web-settings-module-view-model.test.ts` | Replace `visibleUserToggleModules` tests with `visibleConfigurableModules` cases: required+implemented visible, required+no-destination hidden, toggle rows unaffected. |
-| `tests/unit/settings-page-priorities.test.tsx` | Update string assertions for new group labels ("Your account" nav group replaces "Personal settings"); keep the two existing admin/non-admin assertions passing. |
-| `tests/e2e/settings-shell.spec.ts` | New file — the five Playwright scenarios from spec §Automated acceptance. |
+| `apps/web/src/settings/settings-admin-panes.tsx`         | `PeoplePane`: append registration controls (from `IdentityPane`) as a new "Registration" `Group` before "Pending approval", update heading if needed (stays "People & access"). Delete `IdentityPane` export and its auth-provider negative note.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/web/src/settings/settings-module-view-model.ts`    | Replace `visibleUserToggleModules` with `visibleConfigurableModules(modules, hasImplementedSettings)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `packages/settings-ui/src/router.tsx`                    | Factor `RouterBackButton` call into the successful-surface branch of `ModuleSettingsRouter` (render it above `<Surface>` inside the same wrapper, matching the fallback branches' pattern).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `apps/web/src/styles/settings.css`                       | Bound `.set2__nav` height with `overflow-y: auto` at desktop widths; keep focus-visible outline reachable inside the scroll container; widen/relax `.pane__desc`/`.fld__hint`/`.fld__row > input` max-widths so they use the detail column instead of a fixed ch-cap well short of `.set2__pane`'s available width.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `tests/unit/web-settings-navigation.test.ts`             | Add coverage for grouped flatten helper + URL-truth coercion (non-admin admin-id fallback).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `tests/unit/web-settings-module-view-model.test.ts`      | Replace `visibleUserToggleModules` tests with `visibleConfigurableModules` cases: required+implemented visible, required+no-destination hidden, toggle rows unaffected.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `tests/unit/settings-page-priorities.test.tsx`           | Update string assertions for new group labels ("Your account" nav group replaces "Personal settings"); keep the two existing admin/non-admin assertions passing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `tests/e2e/settings-shell.spec.ts`                       | New file — the five Playwright scenarios from spec §Automated acceptance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ---
 
 ## Task 1: Grouped registry types + flatten helper
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-navigation.ts`
 - Test: `tests/unit/web-settings-navigation.test.ts`
 
 **Interfaces:**
+
 - Produces: `interface SettingsSectionGroup<Section extends SettingsSectionLike> { readonly label: string; readonly sections: readonly Section[] }` and `function flattenSettingsGroups<Section extends SettingsSectionLike>(groups: readonly SettingsSectionGroup<Section>[]): readonly Section[]`.
 
 - [ ] **Step 1: Write the failing test**
@@ -124,10 +127,12 @@ git commit -m "feat(settings): add grouped-registry flatten helper"
 ## Task 2: Module view-model — configurable visibility
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-module-view-model.ts`
 - Test: `tests/unit/web-settings-module-view-model.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SettingsModule` (existing).
 - Produces: `function visibleConfigurableModules(modules: readonly SettingsModule[], hasImplementedSettings: (module: SettingsModule) => boolean): readonly SettingsModule[]` — replaces `visibleUserToggleModules` (delete it; only ModulesPane and this test import it).
 
@@ -181,6 +186,7 @@ git commit -m "feat(settings): show required modules with implemented settings d
 ## Task 3: Router — shared Back to modules on the success path
 
 **Files:**
+
 - Modify: `packages/settings-ui/src/router.tsx`
 - Test: `tests/unit/module-settings-router.test.tsx` (existing — extend, don't replace)
 
@@ -239,6 +245,7 @@ git commit -m "feat(settings-ui): shared Back to modules control on the loaded-s
 ## Task 4: Merge Account & preferences (personal) and remove General
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-personal-panes.tsx`
 - Modify: `apps/web/src/settings/settings-personal-data-panes.tsx` (delete `GeneralPane` + its now-unused imports: `getLocaleSettings`, `putLocaleSettings`, `getQuietHoursSettings`, `putQuietHoursSettings`, `DEFAULT_LOCALE_SETTINGS`, `DEFAULT_QUIET_HOURS`, `LocaleSettingsDto`, `QuietHoursSettingsDto`, `isValidQuietHoursTime` stays only if still used elsewhere in the file — grep before deleting)
 - Test: `tests/unit/settings-page-priorities.test.tsx` (no change needed yet — group-label rename is Task 6)
@@ -255,7 +262,17 @@ describe("ProfilePane merged Account & preferences", () => {
     const html = renderToString(
       <ProfilePane
         me={{
-          user: { id: "u1", email: "u@example.test", emailVerified: true, name: "U", status: "active", isInstanceAdmin: false, isBootstrapOwner: false, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+          user: {
+            id: "u1",
+            email: "u@example.test",
+            emailVerified: true,
+            name: "U",
+            status: "active",
+            isInstanceAdmin: false,
+            isBootstrapOwner: false,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z"
+          },
           profilePrefs: { addressed: null },
           hasPasswordCredential: true
         }}
@@ -295,6 +312,7 @@ git commit -m "feat(settings): merge General into Account & preferences"
 ## Task 5: Merge People & access (admin) and remove Identity
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-admin-panes.tsx`
 - Test: `tests/unit/settings-admin-panes.test.tsx` (extend existing)
 
@@ -322,6 +340,7 @@ git commit -m "feat(settings): merge Identity registration into People & access"
 ## Task 6: Grouped shell registries + durable URL section state
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-page.tsx`
 - Test: `tests/unit/settings-page-priorities.test.tsx`
 
@@ -331,7 +350,23 @@ git commit -m "feat(settings): merge Identity registration into People & access"
 it("renders the four personal group labels and drops merged/removed ids", () => {
   const html = renderToString(
     <MemoryRouter initialEntries={["/settings"]}>
-      <SettingsPage me={{ user: { /* non-admin, same shape as existing test */ id: "user-1", email: "user@example.test", emailVerified: true, name: "User", status: "active", isInstanceAdmin: false, isBootstrapOwner: false, createdAt: "2026-06-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" }, profilePrefs: { addressed: null }, hasPasswordCredential: false }} />
+      <SettingsPage
+        me={{
+          user: {
+            /* non-admin, same shape as existing test */ id: "user-1",
+            email: "user@example.test",
+            emailVerified: true,
+            name: "User",
+            status: "active",
+            isInstanceAdmin: false,
+            isBootstrapOwner: false,
+            createdAt: "2026-06-01T00:00:00.000Z",
+            updatedAt: "2026-06-01T00:00:00.000Z"
+          },
+          profilePrefs: { addressed: null },
+          hasPasswordCredential: false
+        }}
+      />
     </MemoryRouter>
   );
   expect(html).toContain("Your account");
@@ -357,7 +392,23 @@ it("renders the three admin group labels and drops the Identity destination", ()
 it("falls back to a permitted personal section when a non-admin URL requests an admin id", () => {
   const html = renderToString(
     <MemoryRouter initialEntries={["/settings?section=people"]}>
-      <SettingsPage me={{ user: { id: "user-1", email: "user@example.test", emailVerified: true, name: "User", status: "active", isInstanceAdmin: false, isBootstrapOwner: false, createdAt: "2026-06-01T00:00:00.000Z", updatedAt: "2026-06-01T00:00:00.000Z" }, profilePrefs: { addressed: null }, hasPasswordCredential: false }} />
+      <SettingsPage
+        me={{
+          user: {
+            id: "user-1",
+            email: "user@example.test",
+            emailVerified: true,
+            name: "User",
+            status: "active",
+            isInstanceAdmin: false,
+            isBootstrapOwner: false,
+            createdAt: "2026-06-01T00:00:00.000Z",
+            updatedAt: "2026-06-01T00:00:00.000Z"
+          },
+          profilePrefs: { addressed: null },
+          hasPasswordCredential: false
+        }}
+      />
     </MemoryRouter>
   );
   expect(html).toContain("Account &amp; preferences");
@@ -404,12 +455,13 @@ git commit -m "feat(settings): grouped shell registries with durable URL section
 ## Task 7: Module list/detail URL contract + configurable visibility wiring
 
 **Files:**
+
 - Modify: `apps/web/src/settings/settings-personal-data-panes.tsx`
 - Test: `tests/unit/module-settings-deep-link.test.ts` (existing — extend) + a new focused case in `tests/unit/web-settings-module-view-model.test.ts` is already covered by Task 2; this task is about `ModulesPane` wiring itself, covered by the Playwright spec (Task 9) since it needs full router + query mocking. Add one lean unit case if `ModulesPane` has an existing render test file — check first with `grep -rln "ModulesPane" tests/unit`.
 
 - [ ] **Step 1** (grounding, not a test): confirm whether `ModulesPane` has a dedicated unit test today via
-`grep -rln "ModulesPane" tests/unit`. If none, this task's correctness is verified by Task 9's
-Playwright spec — skip to Step 2.
+      `grep -rln "ModulesPane" tests/unit`. If none, this task's correctness is verified by Task 9's
+      Playwright spec — skip to Step 2.
 
 - [ ] **Step 2: Implement** in `settings-personal-data-panes.tsx`:
   - Add `const CONTRIBUTED_REQUIRED_CHECK` style local `hasImplementedSettings` closure (defined
@@ -441,7 +493,7 @@ Playwright spec — skip to Step 2.
     Modules from nav" clearing `module` via `replace`.
 
 - [ ] **Step 3: Verify** — this task's correctness is exercised by Task 9 Playwright coverage
-(list/detail URL contract scenario). Run existing regression first:
+      (list/detail URL contract scenario). Run existing regression first:
 
 Run: `pnpm test:unit -- tests/unit/module-settings-deep-link.test.ts`
 Expected: PASS (deep-link resolution logic untouched).
@@ -456,11 +508,12 @@ git commit -m "feat(settings): URL-addressable module list/detail with configura
 ## Task 8: Bounded rail + shared detail-width CSS
 
 **Files:**
+
 - Modify: `apps/web/src/styles/settings.css`
 
 - [ ] **Step 1** (no unit test — layout is verified by Task 9 Playwright at 1280x640 and 390x844):
-  read the full current file once more before editing to avoid clobbering unrelated rules already
-  read in this session (lines 1-339 already captured above).
+      read the full current file once more before editing to avoid clobbering unrelated rules already
+      read in this session (lines 1-339 already captured above).
 
 - [ ] **Step 2: Implement**
   - In the `.set2__nav` desktop rule (line ~93), add:
@@ -493,6 +546,7 @@ git commit -m "fix(settings): bound rail scroll and widen shared detail-pane tex
 ## Task 9: Playwright acceptance spec
 
 **Files:**
+
 - Create: `tests/e2e/settings-shell.spec.ts`
 - Reuse: `tests/e2e/mock-api.ts`, `tests/e2e/mock-modules.ts` (read both in full before writing —
   `mockApi`'s `authenticated`/admin-fixture shape and `mockExternalModules`'s module fixture shape
@@ -500,11 +554,11 @@ git commit -m "fix(settings): bound rail scroll and widen shared detail-pane tex
   reference for the `mockApi`/admin-flow pattern).
 
 - [ ] **Step 1: Write the five scenarios from spec §Automated acceptance → Playwright E2E**
-  (desktop 1440x900 nav+merge assertions; short-desktop 1280x640 keyboard rail reachability;
-  narrow 390x844 reachability/no-overflow; permission regression; modules list/detail URL
-  contract with Briefings/Chat/Notifications + one contributed module fixture). Use
-  `page.setViewportSize` per scenario or Playwright `test.use({ viewport })` per `test.describe`
-  block. Assert via `getByRole`/`getByLabel`, never CSS selectors, per spec.
+      (desktop 1440x900 nav+merge assertions; short-desktop 1280x640 keyboard rail reachability;
+      narrow 390x844 reachability/no-overflow; permission regression; modules list/detail URL
+      contract with Briefings/Chat/Notifications + one contributed module fixture). Use
+      `page.setViewportSize` per scenario or Playwright `test.use({ viewport })` per `test.describe`
+      block. Assert via `getByRole`/`getByLabel`, never CSS selectors, per spec.
 
 - [ ] **Step 2: Run against the built app**
 
@@ -535,7 +589,7 @@ pnpm verify:foundation
 ```
 
 - [ ] **Commit** any formatting fixes, then proceed to `coordinated-wrap-up` (open PR, report to
-  UX Coordinator). Never merge.
+      UX Coordinator). Never merge.
 
 ---
 
