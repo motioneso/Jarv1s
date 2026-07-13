@@ -509,20 +509,28 @@ export default function SportsSettings() {
     followedTeamComps.map((key, i) => [key, rosterQueries[i]?.data?.teams ?? []])
   );
 
-  const pending =
-    catalogQuery.isLoading ||
-    followsQuery.isLoading ||
-    followMutation.isPending ||
-    unfollowMutation.isPending;
-  const error =
-    catalogQuery.isError ||
-    followsQuery.isError ||
-    followMutation.isError ||
-    unfollowMutation.isError;
-  function toggle(competitionKey: string, teamKey: string | null) {
+  const [actionState, setActionState] = useState<FollowActionState>(null);
+
+  function toggle(competitionKey: string, teamKey: string | null, label: string) {
     const existing = followsByKey.get(followKey(competitionKey, teamKey));
-    if (existing) unfollowMutation.mutate(existing.id);
-    else followMutation.mutate({ competitionKey, teamKey });
+    if (existing) {
+      setActionState({ competitionKey, teamKey, label, direction: "unfollow", phase: "pending" });
+      unfollowMutation.mutate(existing.id, {
+        onSuccess: () => setActionState(null),
+        onError: () =>
+          setActionState({ competitionKey, teamKey, label, direction: "unfollow", phase: "error" })
+      });
+    } else {
+      setActionState({ competitionKey, teamKey, label, direction: "follow", phase: "pending" });
+      followMutation.mutate(
+        { competitionKey, teamKey },
+        {
+          onSuccess: () => setActionState(null),
+          onError: () =>
+            setActionState({ competitionKey, teamKey, label, direction: "follow", phase: "error" })
+        }
+      );
+    }
   }
 
   return (
@@ -536,7 +544,7 @@ export default function SportsSettings() {
         competitionsByKey={competitionsByKey}
         teamsByCompetition={teamsByCompetition}
         onToggle={toggle}
-        pending={pending}
+        actionState={actionState}
       />
       <div className="sp-search">
         <input
@@ -558,7 +566,7 @@ export default function SportsSettings() {
           competitions={competitions}
           followsByKey={followsByKey}
           onToggle={toggle}
-          pending={pending}
+          actionState={actionState}
         />
       ) : query.length === 1 ? (
         <Note>Search above to find teams or leagues to follow.</Note>
@@ -576,10 +584,18 @@ export default function SportsSettings() {
           expandedDegraded={expandedQuery.data?.degraded === true || expandedQuery.isError}
           onRetryExpanded={() => void expandedQuery.refetch()}
           onToggle={toggle}
-          pending={pending}
+          actionState={actionState}
         />
       )}
-      {error ? <Note>Could not load or save sports follows. Try again.</Note> : null}
+      {catalogQuery.isError || followsQuery.isError ? (
+        <Note>Could not load sports follows. Try again.</Note>
+      ) : null}
+      {actionState?.phase === "error" ? (
+        <Note>
+          Couldn&rsquo;t {actionState.direction === "follow" ? "follow" : "unfollow"}{" "}
+          {actionState.label}. Try again.
+        </Note>
+      ) : null}
     </>
   );
 }
