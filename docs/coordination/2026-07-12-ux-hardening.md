@@ -24,12 +24,12 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Closeout found a Decision 4/Slice 2 interaction gap: Task 5 hid the selected thread after resume. A bounded in-lock fix is approved to retain stored messages through continued live send, block controls until resume+load, and restore History on error. Focus suites were 20/20 green before this repair; final DB gate remains serialized behind #990. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Bounded Decision 4/Slice 2 repair is active in-lock. Focus suites were 20/20 green before repair. Final DB gate remains paused: primary-owned `Module Fix 1006+1007 v5` currently owns the global shared-cluster slot; #984 is next after explicit release. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | DONE on PR #1012 at `419a6f0a`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green, manual CP1-CP5 PASS. Independent security QA is active under label `QA 1012 YOLO Approvals Codex`, session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`, pane `w1:pK7`; #1011 tracks deferred `activityVerb()` falsehood; primary Coordinator alone merges |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Fable/primary approved the sanctioned per-agent DB path: fresh `jarv1s_ux989_uat`, host API `:3002`, web `:5189`, real-UI owner signup, then Sports UAT/screenshots. Shared `jarv1s` is untouched. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 4 Playwright is 3/3 green. Full foundation is active on dedicated `jarv1s_ux990_gate` and owns the UX fleet's exclusive shared-cluster DB gate slot. It must report final exit before #984 is released; no waiver/code change. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 4 Playwright is 3/3 green. Second full foundation attempt exited 1 with 150/152 integration files and 1628 passing tests; two reset suites hit catalog `tuple concurrently updated` while the primary module lane ran foundation concurrently. No third run/waiver. Lane is stop-line pending the global gate queue; infra issue #1013 tracks the root cause. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -388,6 +388,13 @@ resume from this note before taking any merge-sensitive action.
   successful resume; block send/model until resume and stored-message loading both succeed; snapshot
   stored records into existing `fallbackRecords` before the first continued send; reopen History and
   clear selection on resume error. Extend the existing E2E only; no new abstraction, files, or paths.
+- #990 released its UX-local slot after a second red foundation run: unit 390 files/3176 pass;
+  integration 150/152 files and 1628 pass, with only `ai-admin-pin` and
+  `js08-decide-confirm-audit` failing during migration reset on catalog `tuple concurrently updated`.
+  Read-only process proof found primary-owned `Module Fix 1006+1007 v5` simultaneously running full
+  foundation/integration, so the actual global slot was not free. That module lane now owns the
+  cross-fleet slot; #984 remains paused and #990 starts no third run. Issue #1013 tracks a repo-owned
+  cross-process migration lock; no waiver or feature code change applies.
 - #985 is DONE on PR #1012 at `419a6f0a`. Builder-reported foundation/audit exits are 0, the
   pre-push trio is green, and manual CP1-CP5 pass. #1011 durably tracks the untouched
   `activityVerb()` allowed→Denied falsehood. Independent security-tier QA is active as Codex
