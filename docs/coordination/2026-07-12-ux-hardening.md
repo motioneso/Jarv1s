@@ -103,7 +103,7 @@ None.
 
 ## Reaped sessions
 
-- None.
+- Prior `UX Coordinator`, Codex session `019f57d6-8fff-7783-974a-f40333a52632`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -112,6 +112,8 @@ None.
 - Re-adopted primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` and active
   `Module Fix 1006+1007` session `37605c40-a379-418a-9dbd-54ac9142aeea` by label and session.
 - Main CI run `29228378966` is green at the required `3ca138eb`, releasing #984/#985 dispatch.
+- Primary Coordinator acknowledged the successor and retains QA/merge authority for #1007; its
+  builder may drive Instance-modules in Playwright but will not edit settings shell/chrome/nav.
 
 ## Continuation note — 2026-07-12 UX Coordinator relay
 
