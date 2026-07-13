@@ -5568,3 +5568,28 @@ GREEN + 4/4 CI). Internal dev-tooling, not user-visible. UAT-harness P1 done; P2
   NOT superuser-skip the admin gate. (4) single migration_owner conn; leave 4 runtime roles
   NOSUPERUSER/NOBYPASSRLS untouched; guard entrypoint vs non-UAT DB.
 - P2 resumed → writing plan. Await plan-ready.
+
+---
+
+### ESCALATION OPEN — #868 marker-preservation fork (2026-07-13, security-tier)
+
+**From:** `Security 868+1020 Purge Readiness Codex` (session `019f5ce4`, pane `w1:pKY`, tab `w1:t1W`).
+**Fork:** Codex+AGY identity primitives green; engine-less purge consumes only validated neutral-dir
+markers. Manager/RPC kill `rm -rf`s the neutral dir FIRST → destroys the markers the purge needs.
+- **Option A** — preserve only validated 0600 identity markers across kill (rm dir, recreate 0700,
+  atomically rewrite markers). Agent recommends A (existing scope locks the manager); claims no
+  content/secrets retained. Asks to implement for BOTH Codex and interactive AGY crash cleanup.
+- **Option B** — change private cleanup ordering.
+
+**Action:** did NOT rule inline (touches the #868/#984 purge privacy guarantee = hard `[SECURITY]`
+trigger). Spawned one-shot **Opus adjudicator** `af03748d02415316c` (pointer-style; reads the code
+itself: neutral-dir + markers + kill path, marker neutrality/perms/atomic-rename, un-purgeable-
+artifact risk, launch-epoch guard vs #1020 stale-transcript class, both-engines scope). Acked the
+lane to HOLD (no A, no B) pending verdict; told it to keep landed primitives.
+
+**On verdict:** relay to pane `w1:pKY` (re-resolve by label+session, not written pane no.). This is
+distinct from the still-PENDING #868 capture-fail contract ruling owed to Ben (my rec = hard-fail-
+loud) — that one is unanswered and must not be treated as closed.
+
+**Relay counter:** `merges_since_relay` = 1 (unchanged; no merge this window). Checkpoint @70% done:
+manifest flushed + durable memory saved (RLS seed invariant `mem_mrjr1i1d`). Compacting in place.
