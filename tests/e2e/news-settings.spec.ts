@@ -211,6 +211,17 @@ test("described topics: empty state, create via Enter, edit, and remove", async 
   await expect(page.getByRole("status")).toContainText("Changes saved");
   await expect(page.getByText("mechanical only")).toBeVisible();
 
+  // Empty guidance remains explicit in PATCH so stored guidance can be cleared.
+  await page.getByRole("button", { name: "Edit Watches" }).click();
+  await guidanceInput.fill("");
+  const [clearGuidanceRequest] = await Promise.all([
+    page.waitForRequest((r) => /\/api\/news\/topics\/.+/.test(r.url()) && r.method() === "PATCH"),
+    page.getByRole("button", { name: "Save changes" }).click()
+  ]);
+  expect(clearGuidanceRequest.postDataJSON()).toEqual({ label: "Watches", guidance: "" });
+  await expect(page.getByRole("status")).toContainText("Changes saved");
+  await expect(page.getByText("mechanical only", { exact: true })).toHaveCount(0);
+
   // Remove returns to the honest empty state.
   const [deleteRequest] = await Promise.all([
     page.waitForRequest((r) => /\/api\/news\/topics\/.+/.test(r.url()) && r.method() === "DELETE"),
@@ -297,9 +308,7 @@ test("topic success waits for the refreshed row before announcing completion", a
   await expect(page.getByRole("status")).toContainText("Topic added");
 });
 
-test("cancel returns to add mode without writing, and validation failure keeps input", async ({
-  page
-}) => {
+test("create and edit errors stay local when switching modes or canceling", async ({ page }) => {
   await page.route("**/api/news/personalization", (route) =>
     route.fulfill({
       status: 200,
@@ -336,23 +345,36 @@ test("cancel returns to add mode without writing, and validation failure keeps i
       body: JSON.stringify({ message: "Topic is not allowed" })
     });
   });
+  await page.route("**/api/news/topics/*", (route) => {
+    if (route.request().method() !== "PATCH") return route.continue();
+    return route.fulfill({
+      status: 422,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Topic is not allowed" })
+    });
+  });
 
   await page.goto("/settings?section=modules&module=news");
   await expect(page.getByRole("heading", { name: "News" })).toBeVisible();
 
-  // Cancel: edit loads the form, Cancel reverts without a write.
-  await page.getByRole("button", { name: "Edit Politics" }).click();
   const labelInput = page.getByLabel("Topic in your own words");
-  await expect(labelInput).toHaveValue("Politics");
-  await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(labelInput).toHaveValue("");
-  await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
 
-  // Validation failure: input is retained and the alert is actionable, not raw model output.
+  // Failed create retains input, then entering edit clears create-only feedback.
   await labelInput.fill("Banned topic");
   await labelInput.press("Enter");
   await expect(page.getByRole("alert")).toContainText("content policy");
   await expect(labelInput).toHaveValue("Banned topic");
+  await page.getByRole("button", { name: "Edit Politics" }).click();
+  await expect(labelInput).toHaveValue("Politics");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+
+  // Failed edit stays in edit mode, then Cancel clears edit-only feedback in add mode.
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("alert")).toContainText("content policy");
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(labelInput).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
 test("retry validation queues owner-wide revalidation and surfaces queued/error feedback", async ({

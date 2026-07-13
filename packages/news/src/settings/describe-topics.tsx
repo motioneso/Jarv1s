@@ -74,6 +74,10 @@ export function describedTopicSuccessMessage(operation: DescribedTopicOperation)
   return SUCCESS_COPY[operation];
 }
 
+export function describedTopicUpdateInput(id: string, label: string, guidance: string) {
+  return { id, label: label.trim(), guidance: guidance.trim() };
+}
+
 export function DescribeTopics(props: {
   readonly customTopics: readonly NewsCustomTopicDto[];
   readonly availability: NewsPersonalizationAvailabilityDto | null;
@@ -125,6 +129,8 @@ export function DescribeTopics(props: {
   const pending = createMutation.isPending || updateMutation.isPending;
 
   function startEdit(topic: NewsCustomTopicDto) {
+    createMutation.reset();
+    updateMutation.reset();
     setEditingId(topic.id);
     const values = describedTopicFormValues(topic);
     setLabel(values.label);
@@ -133,6 +139,8 @@ export function DescribeTopics(props: {
   }
 
   function cancelEdit() {
+    createMutation.reset();
+    updateMutation.reset();
     resetForm();
     setStatusMessage(null);
   }
@@ -141,15 +149,11 @@ export function DescribeTopics(props: {
     event.preventDefault();
     const trimmedLabel = label.trim();
     if (!trimmedLabel) return;
-    const trimmedGuidance = guidance.trim();
     setStatusMessage(null);
     if (editingId) {
-      updateMutation.mutate({
-        id: editingId,
-        label: trimmedLabel,
-        guidance: trimmedGuidance || undefined
-      });
+      updateMutation.mutate(describedTopicUpdateInput(editingId, label, guidance));
     } else {
+      const trimmedGuidance = guidance.trim();
       createMutation.mutate(
         trimmedGuidance
           ? { label: trimmedLabel, guidance: trimmedGuidance }

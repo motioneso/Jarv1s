@@ -21,6 +21,7 @@ import {
   describedTopicFormValues,
   describedTopicPendingMessage,
   describedTopicSuccessMessage,
+  describedTopicUpdateInput,
   topicCreateErrorMessage
 } from "../../packages/news/src/settings/describe-topics.js";
 import { newsQueryKeys } from "../../packages/news/src/web/query-keys.js";
@@ -396,6 +397,14 @@ describe("add-flow error/candidate helpers (#975 Task 9)", () => {
 });
 
 describe("describe-topics pure helpers (#990)", () => {
+  it("keeps empty guidance in PATCH input so editing can clear it", () => {
+    expect(describedTopicUpdateInput("t1", " Watches ", " ")).toEqual({
+      id: "t1",
+      label: "Watches",
+      guidance: ""
+    });
+  });
+
   it("maps a stored topic to form field values, and null to the empty add-mode form", () => {
     expect(
       describedTopicFormValues({
