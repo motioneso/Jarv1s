@@ -1,4 +1,4 @@
-# Relay — #1025 UAT seed levels (Task 2 done, Task 3 mid-flight)
+# Relay — #1025 UAT seed levels (Task 3 done, Task 4 research done — not yet coded)
 
 Build agent, tier **sensitive**. Coordinator: label `Coordinator`, session
 `58a78927-385c-4b1d-8fa0-94db20255d6f` — report PR number there. Worktree:
@@ -7,79 +7,106 @@ Build agent, tier **sensitive**. Coordinator: label `Coordinator`, session
 ## Authoritative build reference
 
 **`docs/superpowers/plans/2026-07-13-uat-seed-levels.md`** (committed, corrected — read it,
-not any older doc). All architecture forks are **APPROVED, build now** (dual-connection RLS
-design, new `ops`-profile compose `seed` service, determinism scope, notes-via-VaultContext,
-multi-user deferred to **#1030**). No further escalation needed for anything already in that
-plan. This same relay-doc file's git history mentions an older "Option A" ruling — that is
-superseded; ignore it if you see it, this content is the current state.
+not any older doc). All architecture forks are **APPROVED, build now**. Read it **by section**
+for the task you're on only.
 
 ## Done (committed)
 
-- `522a91a6` — Task 2: `tests/uat/seed/{connections,timestamps,types}.ts` +
-  `timestamps.test.ts`. Verified: `getJarvisDatabaseUrls()` returns
-  `{bootstrap,migration,app,auth,worker}` (matches plan); `DataContextRunner` constructor takes
-  `Kysely<JarvisDatabase>`, `.withDataContext({actorUserId, requestId?}, work)` (matches plan
-  exactly — no drift). `npx vitest run tests/uat/seed/timestamps.test.ts` passes.
+- `522a91a6` — Task 2 (connections/timestamps/types).
+- `0173b42a` — Task 3 (`tests/uat/seed/admin.{ts,test.ts}`), green. Two real bugs found+fixed
+  vs the plan's literal draft code, both now baked into the committed implementation:
+  1. `SET LOCAL ROLE` has no effect outside an explicit transaction — the auth_accounts insert
+     (and any read-back of it) must run inside `db.transaction().execute(async trx => {...})`,
+     not as loose `.execute(migrationDb)` calls.
+  2. `auth_accounts`' real unique constraint is `(provider_id, account_id)`, not `id` — the
+     `onConflict` target must be `oc.columns(["provider_id", "account_id"])` or reseeding the
+     fixed UAT admin userId throws a duplicate-key error instead of idempotently no-op'ing.
+  Also re-exported `hashPassword` from `@jarv1s/auth` (`packages/auth/src/index.ts`) so
+  root-level `tests/uat/seed/*` can hash a credential without a new root devDependency
+  (pnpm's strict node_modules blocks `better-auth/crypto` resolution outside `packages/auth`).
 
-## In progress — NOT committed, fix first
+## In progress — Task 4, NOT yet coded (research only, no files written)
 
-`tests/uat/seed/admin.ts` is written on disk (Task 3, matches plan §Task 3 Step 3, plus added
-explicit `image: null` to satisfy `UsersTable`'s non-`Generated<>` nullable column and full
-explicit nullable fields on `auth_accounts` insert — both required, confirmed via
-`packages/db/src/types.ts:37-48` `UsersTable` / `:79-93` `AuthAccountsTable`).
+Plan §Task 4 (line 339) drafts `chunks/ai.ts`, `chunks/news.ts`, `chunks/sports.ts`. Its inline
+code snippets are **known-wrong in multiple places** — confirmed by reading
+`packages/ai/src/repository.ts` and `packages/ai/src/index.ts` directly this session (not yet
+applied to any file):
 
-**Blocker found, not yet fixed:** `import { hashPassword } from "better-auth/crypto"` fails
-`tsc --noEmit -p .`: `Cannot find module 'better-auth/crypto'`. Root cause: `better-auth` is a
-dependency of `packages/auth` only (`packages/auth/package.json:16`), not of the repo root —
-pnpm's strict `node_modules` means a root-level file (`tests/uat/seed/`) can't resolve it, even
-though `packages/auth/src/index.ts:7` imports the same thing fine (it's isolated to that
-package's own node_modules).
+1. **No `app.ai_service_bindings` table exists.** `grep "CREATE TABLE.*service" packages/ai/sql/*.sql`
+   returns nothing. Service bindings are a JSON blob in `app.instance_settings` under key
+   `ai.service_bindings` (`AI_SERVICE_BINDINGS_SETTING_KEY`, `repository.ts:256`), read/written
+   only through `AiRepository` methods — never query the setting row directly. The plan's
+   `ai.test.ts` draft (`.selectFrom("app.ai_service_bindings" as never)`) must be rewritten to call
+   `repo.getModuleServiceBinding(scopedDb, "module.news")` instead (method at `repository.ts:772`,
+   returns `Promise<AiServiceBinding | null>`) — read that method plus `listModuleServiceBindings`
+   (`:762`) before writing the test.
+2. **`CreateAiProviderInput` field names differ from the plan draft** (`repository.ts:130`):
+   `providerKind` (not `providerKey`), `displayName`, `baseUrl?`, `status?`, `authMethod?`,
+   `executionMode?`, `encryptedCredential`. No `providerKey` field exists at all. Need to check
+   what `AiProviderKind` enum values are valid (grep the type) and whether a `purpose` field is
+   required anywhere — `listProviders` filters `.where("purpose", "=", "assistant")` (`:299`), so
+   confirm how `purpose` gets set on create (default vs required param) before finalizing.
+3. **`CreateAiModelInput` field names differ** (`repository.ts:150`): `providerConfigId` (not
+   `providerId`), `providerModelId` (not `modelKey`), `displayName`,
+   `capabilities: readonly AiModelCapability[]`, `status?`, `tier?`, `allowUserOverride?`. Confirm
+   real `AiModelCapability` enum values before using `"json"` (grep the type definition — not
+   verified yet this session).
+4. `setServiceBinding` signature at `repository.ts:721` looks like it matches the plan's draft
+   call shape (`scopedDb, service, binding: AiServiceBinding, actorUserId`) but the
+   `AiServiceBinding` type's `kind: "model" | "mode"` shape needs one more read to confirm the
+   exact field names for the `"model"` variant (`modelId` + what else) before calling it.
+5. Not yet checked: `createAiSecretCipher` export path/signature (plan says
+   `@jarv1s/ai/crypto`, `encryptJson` method) — `packages/ai/src/crypto.js` is barrel-exported from
+   `index.ts` (`export * from "./crypto.js"`), so `import { createAiSecretCipher } from "@jarv1s/ai"`
+   should work (no separate `/crypto` subpath needed) — confirm the exact function name in
+   `packages/ai/src/crypto.ts` before using it.
 
-**Two fix options, not yet decided — pick one and proceed, no need to re-escalate:**
-1. Re-export `hashPassword` from `@jarv1s/auth` (it currently only exports `verifyPassword`,
-   `packages/auth/src/index.ts:7,177`) and import from `@jarv1s/auth` instead — reuses existing
-   machinery, adds zero new root dependencies. **Preferred** — check `packages/auth/src/index.ts`
-   in full first; there may be a reason `hashPassword` wasn't already re-exported (e.g. it's meant
-   to stay a login-time-only concern) — if so, adding a thin export there is still the smallest
-   change.
-2. Add `better-auth` as an explicit root `devDependency` in the top-level `package.json` — heavier
-   (new root dep, `check:package-deps` gate might flag it as redundant with `packages/auth`'s own
-   dependency) — only do this if option 1 turns out to be architecturally wrong.
+**Do not copy the plan's `ai.ts`/`ai.test.ts` code blocks verbatim** — use them only as a shape
+guide; every identifier above must be re-verified against the real files first.
 
-Once fixed: write `tests/uat/seed/admin.test.ts` (plan §Task 3 Step 1, exact code given in plan)
-BEFORE re-verifying `admin.ts` — Task 3 was started out of strict TDD order (implementation
-drafted before the test file existed, reusing an earlier fork's draft); correct that by writing
-the test now, confirming it fails for the right reason, then implementing/fixing until green, per
-normal TDD. Needs a **live dev Postgres** (`JARVIS_MIGRATION_DATABASE_URL` /
-`packages/db/src/urls.ts` defaults) — the standard dev compose stack, not the ephemeral UAT one.
+News/sports chunks (plan lines 444-578) are unstarted; both have their own flagged
+placeholder fields (news pref field name; sports competition/team keys) — plan already says
+where to grep, unchanged from original plan text.
 
 ## Next steps (in order)
 
-1. Fix the `hashPassword` import (option 1 above), write `admin.test.ts`, get Task 3 green, commit
-   (`git add tests/uat/seed/admin.ts tests/uat/seed/admin.test.ts` — exact paths only).
-2. Task 4 (`docs/superpowers/plans/2026-07-13-uat-seed-levels.md` line ~339): news/sports/AI
-   provider chunks. Plan flags two "confirm exact field/table name before finalizing" spots
-   (AI service-binding table name; news pref field name) — grep the real files first, the plan
-   says which.
-3. Task 5 (line ~588): tasks/calendar/notes/job-search chunks. Notes chunk MUST use
+1. Finish Task 4 research: confirm `AiProviderKind`/`AiModelCapability` enum values, `purpose`
+   handling on `createProvider`, `AiServiceBinding` model-variant shape, `createAiSecretCipher`
+   signature (all in `packages/ai/src/repository.ts` and `packages/ai/src/crypto.ts`).
+2. Write `tests/uat/seed/chunks/ai.test.ts` (TDD — fails first), then `chunks/ai.ts` with corrected
+   field names, get green.
+3. Write news chunk test+impl (plan line ~444), confirm real `NewsPrefsRepository` create-input
+   field name against `packages/news/src/repository.ts` first — plan's `value` field is a flagged
+   guess.
+4. Write sports chunk test+impl (plan line ~514), confirm real competition/team keys against
+   `packages/sports/src` before finalizing — plan's `nfl-sf-49ers` etc. are flagged guesses.
+5. Commit Task 4: `git add tests/uat/seed/chunks/ai.ts tests/uat/seed/chunks/ai.test.ts tests/uat/seed/chunks/news.ts tests/uat/seed/chunks/news.test.ts tests/uat/seed/chunks/sports.ts tests/uat/seed/chunks/sports.test.ts` (exact paths only).
+6. Task 5 (plan line ~588): tasks/calendar/notes/job-search chunks. Notes chunk MUST use
    `withVaultContext` from `packages/vault/src/context.ts` (confirm exact export name/signature
-   when you get there — not yet verified) — never raw `fs`, never a DB-proxy substitute. Job-search
-   chunk's `throw` requires reading `packages/settings/src/repository-external-modules.ts` for the
-   real `app.external_modules` row shape first.
-4. Task 6 (line ~801): level composition + CLI entrypoint, incl. the `JARVIS_UAT_SEED_CONFIRM`
-   guard (already drafted in the plan) and the `multi-user` throw referencing #1030.
-5. Task 7 (line ~979): wire into `tests/uat/provisioner.ts` seed hook (only the hook wiring — plan
-   says exactly what) + new `seed` one-shot service in `infra/docker-compose.prod.yml` (profile
-   `ops`, `JARVIS_UAT_SEED_CONFIRM` `:?`-required guard — already drafted in the plan).
-6. Task 8 (line ~1087): `pnpm verify:foundation` green, pre-push trio + rebase, PR (`Part of #1000`,
-   `Closes #1025`, base `main`), report PR number to Coordinator pane, **do not merge**.
+   when you get there) — never raw `fs`, never a DB-proxy substitute. Job-search chunk's `throw`
+   requires reading `packages/settings/src/repository-external-modules.ts` for the real
+   `app.external_modules` row shape first.
+7. Task 6 (line ~801): level composition + CLI entrypoint, incl. `JARVIS_UAT_SEED_CONFIRM` guard
+   (already drafted in plan) and `multi-user` throw referencing #1030.
+8. Task 7 (line ~979): wire into `tests/uat/provisioner.ts` seed hook (hook wiring only) + new
+   `seed` one-shot service in `infra/docker-compose.prod.yml` (profile `ops`,
+   `JARVIS_UAT_SEED_CONFIRM` `:?`-required guard — already drafted in plan).
+9. Task 8 (line ~1087): `pnpm verify:foundation` green, pre-push trio + rebase, PR
+   (`Part of #1000`, `Closes #1025`, base `main`), report PR number to Coordinator, **do not
+   merge**.
+
+## Verified environment notes (don't re-derive)
+
+- Dev Postgres is `jarv1s-postgres` container, host port 55433 — matches `packages/db/src/urls.ts`
+  defaults with no env overrides needed. Confirmed healthy and used for Task 3's live test.
+- Run single test files with `npx vitest run <path>` (not `pnpm --filter @jarv1s/root exec
+  vitest` — that filter matches no project in this worktree).
 
 ## Guardrails (unchanged)
 
 No `git add -A`. Don't touch `docs/coordination/`. No repo-wide `pnpm format` — only
 `prettier --write` files you authored. Don't edit `tests/uat/provisioner.ts` beyond the Task 7
 hook wiring. No new migration. Full CLAUDE.md Hard Invariants apply (no BYPASSRLS on runtime
-roles is the one most load-bearing here — the dual-connection design in the plan is how it's
-satisfied).
+roles is the one most load-bearing here).
 
 Read the plan **by section** for the task you're on — don't front-load the whole 1100-line file.
