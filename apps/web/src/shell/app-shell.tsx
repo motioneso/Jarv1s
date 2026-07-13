@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
+  Briefcase,
   CalendarDays,
   CheckSquare,
   ChevronUp,
@@ -54,6 +55,7 @@ interface AppShellProps {
 const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
   house: House,
   bell: Bell,
+  briefcase: Briefcase,
   "calendar-days": CalendarDays,
   "check-square": CheckSquare,
   "file-text": FileText,
