@@ -233,3 +233,36 @@
   margin: 0;
   accent-color: var(--accent);
 }
+
+/* ----- #990 described-topic add/edit status regions ----- */
+
+.nw-set__exstatus {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.nw-set__exstatus.is-success {
+  color: var(--accent-fg);
+}
+
+@media (max-width: 40rem) {
+  .nw-set__item {
+    flex-wrap: wrap;
+  }
+
+  .nw-set__item-meta {
+    order: 3;
+    flex-basis: 100%;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .nw-set__item > button {
+    margin-left: 0;
+  }
+
+  .nw-set__item > button:first-of-type {
+    margin-left: auto;
+  }
+}
