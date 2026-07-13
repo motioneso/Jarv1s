@@ -4,7 +4,7 @@
 **Merge-authority lock:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`.
 **Delegated lane owner:** label `UX Coordinator`, Codex session
-`019f5a70-28e9-7600-a132-64ab2eca669c`.
+`019f5adf-594d-7623-8259-69e1657f4e6b`.
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
@@ -24,12 +24,12 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Decision 4/Slice 2 repair committed at `57c484ac`; full drawer 13/13 before fixture dedupe, focused 2/2 after, targeted Prettier and typecheck exit 0. Module lane released the global DB slot; process/Postgres scans were quiet, and #984 now owns one final full gate on fresh `jarv1s_ux984_gate*`. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | PR #1012 security QA RED at `issuecomment-4956103194`: five blockers cover native secret/hard-policy ordering, audit persistence/negative coverage, menu trigger/focus, false #1011 deferral, and live UAT evidence. Builder `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`, is reopened for bounded remediation; no merge/sign-off request |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Live UAT is RED on the dropped first post-resume turn. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`; held on approved and merged #1020, #868-original, and #1022 before fresh no-wait 3x UAT and security QA |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | PR #1010 exact head `6eef4170`; all four CI checks and exact-head real isolated UAT GREEN. Primary QA GREEN at comment `4960081630` and fresh independent QA GREEN at `4960123832`; verdict routed for Primary session check, integrated re-QA, and merge |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 head `c1093427`; all four CI checks green. Real-UI isolated Sports UAT is green at desktop + 390px with screenshots in `issuecomment-4955887307`. Independent re-QA active under label `QA 1009 Sports Settings R2 Codex`, session `019f5aa9-de55-7981-99b7-41a576e7e4ff`, pane `w1:pK8`; primary Coordinator alone merges |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 4 Playwright is 3/3 green. Second full foundation attempt exited 1 with 150/152 integration files and 1628 passing tests; two reset suites hit catalog `tuple concurrently updated` while the primary module lane ran foundation concurrently. No third run/waiver. Lane is stop-line pending the global gate queue; infra issue #1013 tracks the root cause. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `44d1cd49`; foundation and release-hardening gates GREEN, assigned DB slot released, exact-head CI has foundation plus both compose smokes GREEN with image build still running. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -912,3 +912,28 @@ resume from this note before taking any merge-sensitive action.
   `48262aa6-8c1e-42cf-bb47-a2679f85b471`. It trusts CI, reviews shared-shell/cross-module truth,
   performs the explicit invariant walk, validates live-path evidence, posts a durable PR verdict,
   and never edits or merges.
+
+## Continuation note — 2026-07-13 UX fleet re-adopted
+
+- `UX Coordinator` Codex session `019f5adf-594d-7623-8259-69e1657f4e6b` re-verified its live
+  label/session pair and is driving. Primary `Coordinator` Claude session
+  `58a78927-385c-4b1d-8fa0-94db20255d6f` remains the sole merge authority and acknowledged this
+  lane's status pointer; UX never merges.
+- Re-adopted fresh #986 QA session `48262aa6-8c1e-42cf-bb47-a2679f85b471`, #990 build session
+  `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, #984 held build session
+  `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, and #868 held security session
+  `c806a7e2-5991-4ddb-88a9-f68d4c278ef2` by label plus immutable session.
+- PR #1021 is open at exact #990 head `44d1cd490b19136034d6c660e39371b819d16cb5` with foundation
+  and both compose smokes GREEN; its image-build job is still running. #984/#868/#1020/#1022 remain
+  frozen pending Ben's direct security-scope/spec approval.
+
+## Continuation note — 2026-07-13 #986 fresh QA GREEN
+
+- Fresh independent SENSITIVE QA for PR #1010 is GREEN and merge-ready at PR comment `4960123832`
+  on exact head `6eef41706e1890332cbe4045853c5f4cddb51646`; CI is 4/4 GREEN and the
+  shared-shell/cross-module invariants plus #986 exit criteria are met. The only non-blocker is a bad
+  evidence comment ID; exact-head real isolated UAT/screenshots remain verified at `4959752508`.
+- The verdict pointer is routed to verified Primary `Coordinator` session
+  `58a78927-385c-4b1d-8fa0-94db20255d6f` for its required authority check, integrated re-QA, and
+  merge. Fresh QA session `48262aa6-8c1e-42cf-bb47-a2679f85b471` is done and ready to reap after
+  Primary consumes the verdict; this UX lane does not merge.
