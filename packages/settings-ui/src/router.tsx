@@ -116,7 +116,7 @@ export function ModuleSettingsErrorFallback(props: {
 function RouterBackButton(props: { readonly onBack: () => void }) {
   return (
     <button type="button" className="modrow__link" onClick={props.onBack}>
-      Back
+      Back to modules
     </button>
   );
 }

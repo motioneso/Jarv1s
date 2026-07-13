@@ -119,7 +119,8 @@
 }
 @media (max-width: 860px) {
   .set2__navgroup {
-    display: none;
+    flex: 0 0 100%;
+    padding: 10px 4px 2px;
   }
 }
 .set2__navitem {

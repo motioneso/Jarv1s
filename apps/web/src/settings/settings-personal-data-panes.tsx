@@ -668,19 +668,34 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
       action = <span className="modrow__disabled">Switch on to set up</span>;
     } else if (config) {
       action = (
-        <button type="button" className="modrow__link" onClick={() => openModule(module.id)}>
+        <button
+          type="button"
+          className="modrow__link"
+          aria-label={`Configure ${module.name}`}
+          onClick={() => openModule(module.id)}
+        >
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
       );
     } else if (contributedSettings) {
       action = (
-        <button type="button" className="modrow__link" onClick={() => openModule(module.id)}>
+        <button
+          type="button"
+          className="modrow__link"
+          aria-label={`Configure ${module.name}`}
+          onClick={() => openModule(module.id)}
+        >
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
       );
     } else if (cat) {
       action = (
-        <button type="button" className="modrow__link" onClick={() => onSelectSection?.(cat)}>
+        <button
+          type="button"
+          className="modrow__link"
+          aria-label={`Configure ${module.name}`}
+          onClick={() => onSelectSection?.(cat)}
+        >
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
       );
