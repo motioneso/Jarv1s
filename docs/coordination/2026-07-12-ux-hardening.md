@@ -20,8 +20,8 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | worktree/handoff ready on `ux/984-private-history` at `860a3594`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | worktree/handoff ready on `ux/985-yolo-approvals` at `c92fccde`; fail-closed criterion locked |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | building on `ux/984-private-history`; label `UX 984 Private History`, session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`, pane `w1:pJB`; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals`, session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`, pane `w1:pJC`; fail-closed criterion locked |
 | #986 | dedicated settings-shell spec required | routine unless permission behavior changes | needs spec; coordinate-first |
 | #987 | dedicated Notes/People UX spec required | sensitive | needs spec |
 | #989 | dedicated Sports UX spec required | routine | needs spec |
@@ -114,6 +114,8 @@ None.
 - Main CI run `29228378966` is green at the required `3ca138eb`, releasing #984/#985 dispatch.
 - Primary Coordinator acknowledged the successor and retains QA/merge authority for #1007; its
   builder may drive Instance-modules in Playwright but will not edit settings shell/chrome/nav.
+- #984 and #985 builders are running on Sonnet in isolated worktrees under the recorded labels and
+  sessions; both await coordinator plan approval before feature edits.
 
 ## Continuation note — 2026-07-12 UX Coordinator relay
 
