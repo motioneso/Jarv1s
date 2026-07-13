@@ -64,10 +64,12 @@ workspaces. No new dependencies.
 ### Task 1: Add `ExternalModuleNavigationEntry` to the module-sdk ABI types
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts`
 - Test: `tests/unit/module-sdk-external-types.test.ts` (existing file, add one case)
 
 **Interfaces:**
+
 - Produces: `ExternalModuleNavigationEntry { id, label, path, icon?, order? }`, and
   `JsonJarvisModuleManifest.navigation?: readonly ExternalModuleNavigationEntry[]` — every later
   task imports `ExternalModuleNavigationEntry` from `@jarv1s/module-sdk`.
@@ -156,10 +158,12 @@ git commit -m "feat(module-sdk): add ExternalModuleNavigationEntry ABI type (#10
 ### Task 2: Validate `navigation` in `validateExternalModuleManifest`
 
 **Files:**
+
 - Modify: `packages/module-registry/src/external/validate.ts`
 - Test: `tests/unit/external-validate.test.ts` (existing file — replace one stale test, add new ones)
 
 **Interfaces:**
+
 - Consumes: `ExternalModuleNavigationEntry` from `@jarv1s/module-sdk` (Task 1).
 - Produces: `validateExternalModuleManifest(...)` now accepts a well-formed `navigation` array and
   returns it on `result.manifest.navigation`; rejects malformed ones with an error string
@@ -174,7 +178,7 @@ In `tests/unit/external-validate.test.ts`, **replace** the existing test (lines 
 unbumped, `FORBIDDEN_FIELDS` unknown-field rejection is now the SOLE fail-closed guard for an old
 core parsing a manifest with fields it doesn't understand yet (an old core must reject the whole
 manifest before it ever reaches a field like `navigation`). Do NOT just delete the only test that
-exercises that rejection path — replace it with an equivalent test against a field that is *still*
+exercises that rejection path — replace it with an equivalent test against a field that is _still_
 forbidden (`"routes"`, unaffected by this change), so `FORBIDDEN_FIELDS` coverage is preserved
 verbatim, not weakened:
 
@@ -255,11 +259,7 @@ it("rejects zero, more than 4, and unknown-key navigation entries", () => {
     tooMany,
     [{ id: "acme-widgets", label: "Widgets", path: "/", permissionId: "acme-widgets.x" }]
   ]) {
-    const result = validateExternalModuleManifest(
-      { ...base, navigation },
-      "acme-widgets",
-      "0.1.0"
-    );
+    const result = validateExternalModuleManifest({ ...base, navigation }, "acme-widgets", "0.1.0");
     expect(result.ok).toBe(false);
   }
 });
@@ -345,110 +345,109 @@ In `packages/module-registry/src/external/validate.ts`:
    currently line 463, before `if (errors.length > 0) return { ok: false, errors };`):
 
 ```ts
-  // #1019: positive validation of the navigation declaration (previously forbidden — see
-  // the FORBIDDEN_FIELDS carve-out above). Caps mirror the #964 database-capability rule:
-  // bounded count, bounded string lengths, unknown keys rejected outright (rather than
-  // silently dropped) so a manifest can't smuggle built-in-only fields like `permissionId`
-  // / `featureFlagId` (ModuleNavigationEntryManifest) through the external ABI.
-  let navigation: readonly ExternalModuleNavigationEntry[] | undefined;
-  if (obj.navigation !== undefined) {
-    if (!Array.isArray(obj.navigation)) {
-      errors.push("navigation must be an array");
-    } else if (obj.navigation.length === 0 || obj.navigation.length > 4) {
-      errors.push("navigation must declare between 1 and 4 entries");
-    } else {
-      const ids = new Set<string>();
-      const validated: ExternalModuleNavigationEntry[] = [];
-      for (const entry of obj.navigation) {
-        if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-          errors.push("navigation entries must be objects");
-          continue;
-        }
-        const navEntry = entry as Record<string, unknown>;
-        const unknownKeys = Object.keys(navEntry).filter(
-          (key) => !["id", "label", "path", "icon", "order"].includes(key)
-        );
-        if (unknownKeys.length > 0) {
-          errors.push(`navigation entry contains unknown fields: ${unknownKeys.join(", ")}`);
-        }
-        const { id, label, path, icon, order } = navEntry;
-        let entryValid = unknownKeys.length === 0;
-
-        // #1019 (D5): anti-spoof — a nav entry id must be prefixed with this module's own
-        // id, mirroring the storage-namespace check above, so an external module can never
-        // collide with a built-in HIDDEN_NAV_IDS / SECTION_OF key
-        // (apps/web/src/app-route-metadata.ts).
-        if (
-          typeof id !== "string" ||
-          id.length === 0 ||
-          id.length > 64 ||
-          (id !== expectedId && !id.startsWith(`${expectedId}.`))
-        ) {
-          errors.push(
-            `navigation entry id must be "${expectedId}" or "${expectedId}.<slug>" (max 64 chars)`
-          );
-          entryValid = false;
-        } else if (ids.has(id)) {
-          errors.push(`navigation entry id must be unique: ${id}`);
-          entryValid = false;
-        } else {
-          ids.add(id);
-        }
-
-        if (typeof label !== "string" || label.length === 0 || label.length > 40) {
-          errors.push("navigation entry label must be a non-empty string (max 40 chars)");
-          entryValid = false;
-        }
-
-        // #1019 (D3): path is validated module-relative here; apps/api/src/server.ts
-        // serializeExternalModule is the ONLY place that turns it into a real route, by
-        // prefixing it with /m/<moduleId>. Rejecting ".." "//" "\" "?" "#" and restricting
-        // segments to [a-z0-9-] means a manifest can never smuggle an absolute or host
-        // route through this field.
-        if (
-          typeof path !== "string" ||
-          path.length === 0 ||
-          path.length > 128 ||
-          !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(path)
-        ) {
-          errors.push(
-            `navigation entry path must be a clean module-relative path (e.g. "/" or "/settings"): ${String(path)}`
-          );
-          entryValid = false;
-        }
-
-        if (
-          icon !== undefined &&
-          (typeof icon !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(icon))
-        ) {
-          errors.push("navigation entry icon must be a lowercase kebab-case slug (max 32 chars)");
-          entryValid = false;
-        }
-
-        if (
-          order !== undefined &&
-          (typeof order !== "number" || !Number.isFinite(order) || Math.abs(order) > 10_000)
-        ) {
-          errors.push("navigation entry order must be a number with absolute value <= 10000");
-          entryValid = false;
-        }
-
-        if (entryValid) {
-          validated.push({
-            id: id as string,
-            label: label as string,
-            path: path as string,
-            ...(icon !== undefined ? { icon: icon as string } : {}),
-            ...(order !== undefined ? { order: order as number } : {})
-          });
-        }
+// #1019: positive validation of the navigation declaration (previously forbidden — see
+// the FORBIDDEN_FIELDS carve-out above). Caps mirror the #964 database-capability rule:
+// bounded count, bounded string lengths, unknown keys rejected outright (rather than
+// silently dropped) so a manifest can't smuggle built-in-only fields like `permissionId`
+// / `featureFlagId` (ModuleNavigationEntryManifest) through the external ABI.
+let navigation: readonly ExternalModuleNavigationEntry[] | undefined;
+if (obj.navigation !== undefined) {
+  if (!Array.isArray(obj.navigation)) {
+    errors.push("navigation must be an array");
+  } else if (obj.navigation.length === 0 || obj.navigation.length > 4) {
+    errors.push("navigation must declare between 1 and 4 entries");
+  } else {
+    const ids = new Set<string>();
+    const validated: ExternalModuleNavigationEntry[] = [];
+    for (const entry of obj.navigation) {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        errors.push("navigation entries must be objects");
+        continue;
       }
-      if (errors.length === 0) {
-        navigation = validated;
+      const navEntry = entry as Record<string, unknown>;
+      const unknownKeys = Object.keys(navEntry).filter(
+        (key) => !["id", "label", "path", "icon", "order"].includes(key)
+      );
+      if (unknownKeys.length > 0) {
+        errors.push(`navigation entry contains unknown fields: ${unknownKeys.join(", ")}`);
+      }
+      const { id, label, path, icon, order } = navEntry;
+      let entryValid = unknownKeys.length === 0;
+
+      // #1019 (D5): anti-spoof — a nav entry id must be prefixed with this module's own
+      // id, mirroring the storage-namespace check above, so an external module can never
+      // collide with a built-in HIDDEN_NAV_IDS / SECTION_OF key
+      // (apps/web/src/app-route-metadata.ts).
+      if (
+        typeof id !== "string" ||
+        id.length === 0 ||
+        id.length > 64 ||
+        (id !== expectedId && !id.startsWith(`${expectedId}.`))
+      ) {
+        errors.push(
+          `navigation entry id must be "${expectedId}" or "${expectedId}.<slug>" (max 64 chars)`
+        );
+        entryValid = false;
+      } else if (ids.has(id)) {
+        errors.push(`navigation entry id must be unique: ${id}`);
+        entryValid = false;
+      } else {
+        ids.add(id);
+      }
+
+      if (typeof label !== "string" || label.length === 0 || label.length > 40) {
+        errors.push("navigation entry label must be a non-empty string (max 40 chars)");
+        entryValid = false;
+      }
+
+      // #1019 (D3): path is validated module-relative here; apps/api/src/server.ts
+      // serializeExternalModule is the ONLY place that turns it into a real route, by
+      // prefixing it with /m/<moduleId>. Rejecting ".." "//" "\" "?" "#" and restricting
+      // segments to [a-z0-9-] means a manifest can never smuggle an absolute or host
+      // route through this field.
+      if (
+        typeof path !== "string" ||
+        path.length === 0 ||
+        path.length > 128 ||
+        !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(path)
+      ) {
+        errors.push(
+          `navigation entry path must be a clean module-relative path (e.g. "/" or "/settings"): ${String(path)}`
+        );
+        entryValid = false;
+      }
+
+      if (
+        icon !== undefined &&
+        (typeof icon !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(icon))
+      ) {
+        errors.push("navigation entry icon must be a lowercase kebab-case slug (max 32 chars)");
+        entryValid = false;
+      }
+
+      if (
+        order !== undefined &&
+        (typeof order !== "number" || !Number.isFinite(order) || Math.abs(order) > 10_000)
+      ) {
+        errors.push("navigation entry order must be a number with absolute value <= 10000");
+        entryValid = false;
+      }
+
+      if (entryValid) {
+        validated.push({
+          id: id as string,
+          label: label as string,
+          path: path as string,
+          ...(icon !== undefined ? { icon: icon as string } : {}),
+          ...(order !== undefined ? { order: order as number } : {})
+        });
       }
     }
+    if (errors.length === 0) {
+      navigation = validated;
+    }
   }
-
+}
 ```
 
 5. Add `navigation` to the final re-shape allowlist (after the `database` line):
@@ -479,11 +478,13 @@ git commit -m "feat(module-registry): positively validate manifest navigation (#
 ### Task 3: Carry `navigation` through `ReconciledExternalModule`
 
 **Files:**
+
 - Modify: `packages/module-registry/src/external/types.ts`
 - Modify: `packages/module-registry/src/external/reconcile.ts`
 - Test: `tests/unit/external-reconcile.test.ts` (existing file, add cases)
 
 **Interfaces:**
+
 - Consumes: `ExternalModuleNavigationEntry` from `@jarv1s/module-sdk` (Task 1).
 - Produces: `ReconciledExternalModule.navigation: readonly ExternalModuleNavigationEntry[]`
   (always present, defaults to `[]`) — Task 5 (`serializeExternalModule`) consumes this.
@@ -580,9 +581,11 @@ git commit -m "feat(module-registry): carry navigation through reconcileExternal
 ### Task 4: Add `briefcase` to the shell icon map
 
 **Files:**
+
 - Modify: `apps/web/src/shell/app-shell.tsx`
 
 **Interfaces:**
+
 - Produces: `iconMap["briefcase"]` resolves to `Briefcase` — Task 7's new test and the job-search
   manifest (Task 8) both depend on this key existing so the icon renders instead of falling back to
   `Layers3`.
@@ -646,10 +649,12 @@ git commit -m "feat(web): add briefcase icon to the shell nav icon map (#1019)"
 ### Task 5: Emit prefixed navigation from `serializeExternalModule`
 
 **Files:**
+
 - Modify: `apps/api/src/server.ts`
 - Test: `tests/integration/external-modules-routes.test.ts` (existing file, extend fixture + add a case)
 
 **Interfaces:**
+
 - Consumes: `ReconciledExternalModule.navigation` (Task 3).
 - Produces: `serializeExternalModule(m).navigation` — `ModuleNavigationEntryDto[]` with `path`
   prefixed `/m/<moduleId>`. This is the field the web shell (Task 7) renders.
@@ -671,13 +676,13 @@ Then add a new assertion inside the existing `"enables the module, then /api/mod
 with external:true"` test, right after the existing `expect(listed).toMatchObject(...)` line:
 
 ```ts
-    expect(listed).toMatchObject({
-      id: "acme-widgets",
-      external: true,
-      navigation: [
-        { id: "acme-widgets", label: "Widgets", path: "/m/acme-widgets", icon: "briefcase", order: 3 }
-      ]
-    });
+expect(listed).toMatchObject({
+  id: "acme-widgets",
+  external: true,
+  navigation: [
+    { id: "acme-widgets", label: "Widgets", path: "/m/acme-widgets", icon: "briefcase", order: 3 }
+  ]
+});
 ```
 
 (This replaces the standalone `expect(listed).toMatchObject({ id: "acme-widgets", external: true
@@ -744,10 +749,12 @@ git commit -m "fix(api): serialize prefixed navigation for external modules (#10
 ### Task 6: Add the "Modules" section to `buildShellNavigation`
 
 **Files:**
+
 - Modify: `apps/web/src/app-route-metadata.ts`
 - Test: `tests/unit/web-route-metadata.test.ts` (existing file, extend helper + add a case)
 
 **Interfaces:**
+
 - Consumes: `ModuleDto.external` (existing field), `ModuleDto.navigation` (existing field).
 - Produces: `buildShellNavigation(modules, disabledModuleIds): NavSection[]` now returns a
   `{ key: "Modules", label: "Modules", items: [...] }` section (appended after `"You"`) whenever
@@ -802,7 +809,9 @@ it("places external-module navigation in a Modules section after You", () => {
 });
 
 it("never lets an external module's entry consult SECTION_OF even if its id collides with a built-in section key", () => {
-  const modules: ModuleDto[] = [moduleWithNav("wellness", "Fake Wellness", "/m/wellness", "briefcase", 0, true)];
+  const modules: ModuleDto[] = [
+    moduleWithNav("wellness", "Fake Wellness", "/m/wellness", "briefcase", 0, true)
+  ];
   const sections = buildShellNavigation(modules, []);
   const you = sections.find((section) => section.key === "You");
   const modulesSection = sections.find((section) => section.key === "Modules");
@@ -886,10 +895,12 @@ git commit -m "feat(web): render external-module nav in a Modules section (#1019
 ### Task 7: Declare navigation in the job-search manifest
 
 **Files:**
+
 - Modify: `external-modules/job-search/jarvis.module.json`
 - Test: `tests/unit/external-module-job-search-manifest.test.ts` (existing file, extend the first test)
 
 **Interfaces:**
+
 - Consumes: the Task 2 validator (the shipped manifest must pass it).
 - Produces: the real on-disk manifest that dev-UAT (D10) installs and clicks through.
 
@@ -964,7 +975,7 @@ Expected: PASS. Record the exact exit code in the wrap-up report (per `coordinat
 exit gate, not part of this plan's tasks) and PR.
 
 - [ ] **Step 3: Commit** (only if Step 1/2 required any follow-up fixes; otherwise skip — nothing to
-  commit from a clean verification pass)
+      commit from a clean verification pass)
 
 ---
 

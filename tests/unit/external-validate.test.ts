@@ -85,7 +85,9 @@ describe("validateExternalModuleManifest (#917)", () => {
     const result = validateExternalModuleManifest(
       {
         ...base,
-        navigation: [{ id: "acme-widgets", label: "Widgets", path: "/", icon: "briefcase", order: 5 }]
+        navigation: [
+          { id: "acme-widgets", label: "Widgets", path: "/", icon: "briefcase", order: 5 }
+        ]
       },
       "acme-widgets",
       "0.1.0"

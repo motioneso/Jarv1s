@@ -46,7 +46,9 @@ beforeAll(async () => {
       publisher: "Acme, Inc.",
       lifecycle: "optional",
       compatibility: { jarv1s: ">=0.1.0" },
-      navigation: [{ id: "acme-widgets", label: "Widgets", path: "/", icon: "briefcase", order: 3 }],
+      navigation: [
+        { id: "acme-widgets", label: "Widgets", path: "/", icon: "briefcase", order: 3 }
+      ],
       runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 },
       worker: {
         queues: [
@@ -133,7 +135,13 @@ describe("external-module admin routes (#917)", () => {
       id: "acme-widgets",
       external: true,
       navigation: [
-        { id: "acme-widgets", label: "Widgets", path: "/m/acme-widgets", icon: "briefcase", order: 3 }
+        {
+          id: "acme-widgets",
+          label: "Widgets",
+          path: "/m/acme-widgets",
+          icon: "briefcase",
+          order: 3
+        }
       ]
     });
 
