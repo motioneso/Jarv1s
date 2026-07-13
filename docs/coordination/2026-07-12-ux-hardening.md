@@ -538,3 +538,10 @@ resume from this note before taking any merge-sensitive action.
   off the shared cluster owned by #985. No code change unless UAT exposes a defect. The optional
   negative-auth test, extra real-DB RLS test, and dead-branch cleanup are skipped. After both blockers
   clear, primary routes Fable/security sign-off and remains sole merge authority.
+- #985 applied migration `0164` successfully, then its first serial DB suite
+  (`action-audit-log`) failed 1/8 because the new `app.inject` audit response returned 500 instead of
+  200; the other seven persistence/RLS cases passed. This is failure cycle one. #985 exclusively
+  retains the shared-cluster slot and no later DB gate has started. It must diagnose the root cause
+  within the approved schema/serializer/route/repository surface, rerun the focused suite first, and
+  continue serial gates only if GREEN. A second failure of the same check stops the lane for explicit
+  escalation; no self-waiver, slot release, merge, or context-meter staging.
