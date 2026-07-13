@@ -4,7 +4,11 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { parseTranscript } from "../../packages/ai/src/adapters/transcript-reader.js";
+import {
+  captureAckCursor,
+  hasExactUserAck,
+  parseTranscript
+} from "../../packages/ai/src/adapters/transcript-reader.js";
 import {
   createRealTmuxIo,
   transcriptGlobDir,
@@ -240,6 +244,39 @@ describe("parseTranscript — openai-compatible (Codex JSONL schema)", () => {
     expect(result.events[1]?.text).toContain("function_call_output");
     expect(result.complete).toBe(true);
     expect(result.reply).toBe("All done, sir.");
+  });
+});
+
+describe("exact user ACK evidence", () => {
+  const claudeUser = (text: string) =>
+    JSON.stringify({ type: "user", message: { role: "user", content: text } });
+  const codexUser = (text: string) =>
+    JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: text } });
+
+  it.each([["anthropic", claudeUser] as const, ["openai-compatible", codexUser] as const])(
+    "requires an exact complete user record after the cursor for %s",
+    (provider, userRecord) => {
+      const old = userRecord("yes") + "\n";
+      const cursor = captureAckCursor(old);
+
+      expect(hasExactUserAck(provider, old, cursor, "yes")).toBe(false);
+      expect(hasExactUserAck(provider, old + userRecord("say yes now") + "\n", cursor, "yes")).toBe(
+        false
+      );
+      expect(hasExactUserAck(provider, old + userRecord("yes"), cursor, "yes")).toBe(false);
+      expect(hasExactUserAck(provider, old + userRecord("yes") + "\n", cursor, "yes")).toBe(true);
+    }
+  );
+
+  it("does not promote a pre-cursor partial record into a current-attempt ACK", () => {
+    const prefix = claudeUser("yes").slice(0, -1);
+    const cursor = captureAckCursor(prefix);
+    const completedOldRecord = prefix + "}\n";
+
+    expect(hasExactUserAck("anthropic", completedOldRecord, cursor, "yes")).toBe(false);
+    expect(
+      hasExactUserAck("anthropic", completedOldRecord + claudeUser("yes") + "\n", cursor, "yes")
+    ).toBe(true);
   });
 });
 

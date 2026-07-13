@@ -65,11 +65,40 @@
 import type { ChatActivityEvent } from "../chat-adapter.js";
 
 export type ProviderKind = "anthropic" | "openai-compatible" | "google";
+export type AckProviderKind = Exclude<ProviderKind, "google">;
+
+export interface AckCursor {
+  readonly offset: number;
+}
 
 export interface TranscriptParseResult {
   readonly events: readonly ChatActivityEvent[];
   readonly reply: string | null;
   readonly complete: boolean;
+}
+
+export function captureAckCursor(jsonl: string): AckCursor {
+  return { offset: jsonl.length };
+}
+
+export function hasExactUserAck(
+  provider: AckProviderKind,
+  jsonl: string,
+  cursor: AckCursor,
+  expectedText: string
+): boolean {
+  for (const line of completeLinesAfter(jsonl, cursor.offset)) {
+    let rec: Record<string, unknown>;
+    try {
+      rec = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+
+    if (provider === "anthropic" && claudeUserText(rec) === expectedText) return true;
+    if (provider === "openai-compatible" && codexUserText(rec) === expectedText) return true;
+  }
+  return false;
 }
 
 /**
@@ -300,4 +329,39 @@ function mapAgyPrintRecord(
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function completeLinesAfter(jsonl: string, offset: number): string[] {
+  let start = Math.max(0, Math.min(offset, jsonl.length));
+  if (start > 0 && jsonl[start - 1] !== "\n") {
+    const nextBoundary = jsonl.indexOf("\n", start);
+    if (nextBoundary < 0) return [];
+    start = nextBoundary + 1;
+  }
+
+  const end = jsonl.lastIndexOf("\n");
+  if (end < start) return [];
+  return jsonl
+    .slice(start, end)
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
+}
+
+function claudeUserText(rec: Record<string, unknown>): string | null {
+  if (rec["type"] !== "user") return null;
+  const message = rec["message"];
+  if (!isRecord(message) || message["role"] !== "user") return null;
+  const content = message["content"];
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content) || content.length !== 1 || !isRecord(content[0])) return null;
+  return content[0]["type"] === "text" && typeof content[0]["text"] === "string"
+    ? content[0]["text"]
+    : null;
+}
+
+function codexUserText(rec: Record<string, unknown>): string | null {
+  if (rec["type"] !== "event_msg") return null;
+  const payload = rec["payload"];
+  if (!isRecord(payload) || payload["type"] !== "user_message") return null;
+  return typeof payload["message"] === "string" ? payload["message"] : null;
 }
