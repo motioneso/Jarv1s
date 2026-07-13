@@ -576,3 +576,10 @@ resume from this note before taking any merge-sensitive action.
   persisted-state wiring only within the approved Fork 2 route/repository/gateway/transport surface,
   then rerun the focused chat suite first. Later gates require focused GREEN; a second same-check
   failure stops the lane. No allowlist weakening, waiver, merge, slot release, or context staging.
+- #985's focused gates are GREEN: action-audit 8/8, chat transport 18/18, and schema catalog 10/10.
+  Its single serial full foundation process is still running: lint/format/static/typecheck are green,
+  unit is 393 files with 3201 passed/2 skipped, and migrations report 155 current. Integration has
+  provisionally reported an unrelated `email-reply-tools` failure in the `draftReply`
+  `ask_each_time` confirmation case, but the process has not exited. #985 retains the slot and may
+  only let that process finish and report the compact final verdict; no diagnosis, edit, rerun,
+  waiver, later work, merge, slot release, or context staging before final exit.
