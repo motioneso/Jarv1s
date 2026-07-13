@@ -5194,3 +5194,13 @@ On GREEN -> Fable security sign-off -> merge. #985 keeps DB slot.
 - **Ben put #868-scope (item 1) and #985-reconciliation (item 2) ASIDE** this session — do not re-raise unless he asks.
 - Deferred, no action: #965 dedupe (SENSITIVE), #1000 UAT-harness spec, #39 quarantined UX-#989 test-account delete.
 - Live stacks up: jarv1s-prod (1533), jarvis-uat-1006 (1545), jarvis-devproof-999 (1544), jarv1s-ux984-live-uat, jarv1s-ux986-uat.
+
+## UX-LANE AUDIT RECONCILED — 2026-07-13 (from UX Coordinator a36a5e79)
+Inbound audit (teammate, NOT Ben). UX epic #983 children state:
+- **#985 CLOSED completed** by UX Coordinator under the merged Fable-approved fail-closed native-YOLO scope. **This resolves the #985 Ben-decision I had flagged** (zero-prompt acceptance vs merged fail-closed) — closed under already-approved scope; the zero-prompt expansion would need a NEW security spec, so not adopted. No action from me; consistent with spec-before-build. Ben had parked this — inform on next status, no urgent ping.
+- **#989 CLOSED** already (UX-#989 quarantined test account #39 delete still an open owner-auth chore).
+- No other delivered-but-open #983 child.
+- **Keep open (UX Coordinator's lane, it owns):** #984 (live-UAT RED, blocked #868); #986 (unpushed repair 6fdfc11c + stale red PR head + live UAT missing); #990 (incomplete, dirty, no PR); remaining #983 children unstarted/spec-stage; #983 parent open.
+- **#1011/#1016/#1017 closed; #1018 stays open** (matches my books).
+- **#984/PR #1015** remains MY held item, BLOCKED-BY #868 — unchanged; Ben-scope decision still parked.
+merges_since_relay unchanged (no merge). Books now agree with UX Coordinator.
