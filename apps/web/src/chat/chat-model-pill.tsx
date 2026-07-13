@@ -38,12 +38,13 @@ export function ChatModelPill(props: {
   const locked = settings ? !settings.overrideEnabled : false;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
   const { ref: menuRef } = useDismissableMenu<HTMLDivElement>({
     open,
-    onClose: () => {
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
+    onClose: closeMenu
   });
   const mutation = useMutation({
     mutationFn: async (choice: ModelChoice) => {
@@ -101,7 +102,7 @@ export function ChatModelPill(props: {
         type="button"
         ref={triggerRef}
         className="chatd-model__trigger"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeMenu() : setOpen(true))}
         aria-expanded={open}
       >
         <GitCommitHorizontal size={13} aria-hidden="true" />
@@ -116,8 +117,8 @@ export function ChatModelPill(props: {
               type="button"
               disabled={props.disabled || mutation.isPending}
               onClick={() => {
+                closeMenu();
                 selectChoice(choice);
-                setOpen(false);
               }}
             >
               <span>

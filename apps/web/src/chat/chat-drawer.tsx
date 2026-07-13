@@ -661,7 +661,7 @@ function sameTranscriptRecord(a: TranscriptRecord, b: TranscriptRecord): boolean
   return a.kind === b.kind && a.text === b.text;
 }
 
-function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) {
+export function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) {
   const count = props.records.length;
   return (
     <details className="chatd-peek">
@@ -685,7 +685,7 @@ function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) 
   );
 }
 
-function activityVerb(record: TranscriptRecord): string {
+export function activityVerb(record: TranscriptRecord): string {
   if (record.kind === "action_result") {
     return record.outcome === "allowed"
       ? "Allowed by YOLO"

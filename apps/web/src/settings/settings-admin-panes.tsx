@@ -102,15 +102,16 @@ function PersonRow(props: {
   const [aiOpen, setAiOpen] = useState(false);
   const off = user.status === "deactivated";
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const { ref: menuPopRef } = useDismissableMenu<HTMLDivElement>({
+  const closeMenu = () => {
+    setMenu(false);
+    menuTriggerRef.current?.focus();
+  };
+  const { ref: menuRef } = useDismissableMenu<HTMLDivElement>({
     open: menu,
-    onClose: () => {
-      setMenu(false);
-      menuTriggerRef.current?.focus();
-    }
+    onClose: closeMenu
   });
   const act = (action: AdminUserAction) => {
-    setMenu(false);
+    closeMenu();
     props.onAction(action, user);
   };
   const canAdmin = props.actions.includes("admin");
@@ -146,19 +147,19 @@ function PersonRow(props: {
       </div>
       <div className="ppl__actions">
         {props.actions.length === 0 ? null : (
-          <div className="ppl__menu">
+          <div className="ppl__menu" ref={menuRef}>
             <button
               type="button"
               ref={menuTriggerRef}
               className="jds-iconbtn jds-iconbtn--sm"
               aria-label={`Actions for ${user.name || user.email}`}
               aria-expanded={menu}
-              onClick={() => setMenu((open) => !open)}
+              onClick={() => (menu ? closeMenu() : setMenu(true))}
             >
               <MoreHorizontal size={16} />
             </button>
             {menu ? (
-              <div className="ppl__menupop" role="menu" ref={menuPopRef}>
+              <div className="ppl__menupop" role="menu">
                 {canAdmin ? (
                   <button className="ppl__menuitem" role="menuitem" onClick={() => act("admin")}>
                     <ShieldCheck size={15} />
@@ -179,7 +180,7 @@ function PersonRow(props: {
                   className="ppl__menuitem"
                   role="menuitem"
                   onClick={() => {
-                    setMenu(false);
+                    closeMenu();
                     setAiOpen((open) => !open);
                   }}
                 >

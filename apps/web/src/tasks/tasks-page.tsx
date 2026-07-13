@@ -523,12 +523,13 @@ function ListFilterMenu(props: {
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
   const { ref } = useDismissableMenu<HTMLDivElement>({
     open,
-    onClose: () => {
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
+    onClose: closeMenu
   });
 
   const excluded = props.lists.filter((list) => props.stateOf(list.id) === "excluded");
@@ -548,7 +549,7 @@ function ListFilterMenu(props: {
         type="button"
         ref={triggerRef}
         className={`tk-listbtn ${open ? "is-open" : ""} ${!clean ? "is-on" : ""}`}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeMenu() : setOpen(true))}
       >
         <Layers size={14} aria-hidden="true" />
         {label}

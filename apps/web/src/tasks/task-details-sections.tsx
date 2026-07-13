@@ -205,12 +205,13 @@ export function TaskStatusControl(props: {
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
   const { ref } = useDismissableMenu<HTMLDivElement>({
     open,
-    onClose: () => {
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
+    onClose: closeMenu
   });
 
   const done = props.status === "done";
@@ -241,7 +242,7 @@ export function TaskStatusControl(props: {
         ref={triggerRef}
         className="tk-statusctl__more"
         aria-label="More status options"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeMenu() : setOpen(true))}
       >
         <ChevronDown size={14} aria-hidden="true" />
       </button>
@@ -255,8 +256,8 @@ export function TaskStatusControl(props: {
                 type="button"
                 className="tk-tagmenu__item"
                 onClick={() => {
+                  closeMenu();
                   props.onChange(item.status);
-                  setOpen(false);
                 }}
               >
                 <Ico size={14} aria-hidden="true" />

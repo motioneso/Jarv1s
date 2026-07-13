@@ -57,17 +57,18 @@ export function BriefingFeedbackMenu(props: {
   const { last, createMutation, undoMutation } = useBriefingFeedback(props);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
   const { ref: menuRef } = useDismissableMenu<HTMLDivElement>({
     open,
-    onClose: () => {
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
+    onClose: closeMenu
   });
 
   const pick = (kind: BriefingRunFeedbackKind) => {
+    closeMenu();
     createMutation.mutate(kind);
-    setOpen(false);
   };
 
   return (
@@ -80,7 +81,7 @@ export function BriefingFeedbackMenu(props: {
           aria-label="Feedback"
           title="Feedback"
           aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => (open ? closeMenu() : setOpen(true))}
         >
           <MoreHorizontal size={14} aria-hidden="true" />
         </button>
