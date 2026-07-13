@@ -434,3 +434,28 @@ resume from this note before taking any merge-sensitive action.
   values and a generic metadata framework are not. This exact fork is pending Fable/primary approval
   under NO-BEN authority. #985 may continue independent menu/activity fixes but must not edit schema
   paths until the ruling is relayed.
+- #1012 has a second security boundary in the same Fable ruling: no existing native-tool
+  hard-policy/input guard can safely be reordered, and Bash/Read path heuristics are bypassable.
+  The builder proposes native-YOLO auto-allow only for the explicit mutation set `Edit`, `Write`, and
+  `NotebookEdit`; `Read`, `Bash`, `Grep`, `Glob`, `Task`, and unknown native tools continue through
+  existing confirmation. This preserves destructive-write YOLO while retaining the secret-read and
+  arbitrary-command boundary. No native gateway edit is approved until Fable accepts this allowlist
+  or supplies an exact alternate guard.
+- PR #1009 re-QA is RED at `c1093427` despite four green CI checks and valid live-path evidence.
+  The failed-mutation Note is rendered once at pane bottom rather than adjacent to the initiating
+  control, violating Decision 3; the named unit and E2E tests also do not exercise a delayed or
+  failed POST/DELETE, so target-local pending/error behavior remains unproved. All other review,
+  invariants, and live-path criteria are met. Reopen the existing #989 Codex owner for this bounded
+  UI/test repair, then run fresh independent re-QA; no merge is authorized.
+- PR #1010 routine QA is RED: CI's Playwright check still asserts the intentionally removed
+  `Profile & account` heading in `tests/e2e/app-shell.spec.ts`, and the PR has no durable real live-dev
+  Settings UAT/screenshots comment. Chromium tests alone do not satisfy the live-path gate. A
+  non-blocking copy issue also describes all Modules rows as optional although required rows exist.
+  Reopen the existing #986 Codex owner for the stale assertion plus honest live-path proof; it may
+  also make the bounded copy correction. Fresh independent re-QA is required; no merge is authorized.
+- #1012 independent remediation checkpoint `7b017508` is pushed. The Settings trigger now lives
+  inside the dismiss boundary, all five menus use the focus-return callback for trigger-close,
+  selection, outside-click, and Escape, and the truthful drawer `allowed` mapping has focused mapping
+  plus ActivityPeek rendering coverage. Targeted ESLint, 18/18 Vitest, and web typecheck are green.
+  Only the context-meter log is unstaged. Schema and native gateway paths remain untouched pending
+  both Fable security rulings.
