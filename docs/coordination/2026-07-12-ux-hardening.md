@@ -1180,3 +1180,43 @@ resume from this note before taking any merge-sensitive action.
 - #984/PR #1015 still held at `57c484ac` pending this #1020/#868 dependency landing, then
   no-wait 3x real UAT plus security QA; sign-off delegated to Fable security-review GREEN
   (fallback Sol xhigh GREEN).
+
+## Continuation note — 2026-07-13 UX coordinator relay 5 (context 70%)
+
+- Successor 5 (Claude session `1211ffa9-b725-469b-922d-ab4dc0c56436`, label `UX Coordinator`)
+  hit the 70% context-meter warning and is relaying now per the non-negotiable trigger. Primary
+  `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge executor
+  (pane `w1:pE6`) and has already ACK'd registering this lane's driver. Successor 6 must record
+  its immutable session at the manifest top, re-adopt by label+session, confirm driving to
+  Primary, then resolve/reap this spent session by label plus this immutable id.
+- Main CI run `29277401769` was exact 4/4 GREEN at sha `cdf66df0782162966a088fbaf25c5756d9640703`
+  (confirmed and recorded in the prior note). Security session `019f5ce4-cce4-7a13-be05-cfc3834cc529`
+  (label `Security 868+1020 Purge Readiness Codex`, pane `w1:pKY`, worktree
+  `security-868-engine-purge`) was released from plan-only hold into TDD per approved #1020 rev2
+  scope (`39dafc29`, Ben approval `4961635704`): exact ECHO/ACK + idempotent cancel first, manager
+  await seam only after runner tests green, then expanded #868 exact Gemini/Codex/AGY identities +
+  deterministic graceful/crash purge. No timers, no heuristic matching, no broad/shared-root
+  deletion, no payload leakage, no merge by the security agent (opens PR, reports to UX Coordinator
+  for QA; Primary merges).
+- **Mid-doing — Gemini calibration blocker resolved, NOT a scope change:** the security session hit
+  a HARD STOP calibrating the "Gemini" identity for #868 (issue text: `packages/chat/src/live/
+  private-transcript-cleanup.ts` engine-less purge, real product feature — end users pick a "Gemini"
+  engine in Jarvis's own private-chat mode, separate from `agy-print`). It tried launching the raw
+  `gemini` CLI directly and hit the known OAuth-browser wedge (same root cause as
+  `[[cross-model-lens-must-be-agy]]`, confirmed via `memory_save` this session). Root cause: that's
+  the WRONG binary — read `packages/chat/src/live/cli-chat-engine.ts:538-542` (`buildGeminiCommand`):
+  Jarvis's own interactive Gemini engine already launches `agy --sandbox [--model ...]` (auth via
+  `.gemini/settings.json`, no OAuth prompt), and agy's Gemini 3.1 Pro backend still writes to the
+  real documented path (`packages/ai/src/adapters/transcript-reader.ts:49-65`,
+  `~/.gemini/tmp/<project>/chats/<session>.jsonl`, `type:"gemini"|"user"` records; also
+  `packages/ai/src/cli-availability.ts:21` `google -> "agy"`). Relayed this exact fix to the
+  security session (accepted, back to working) — it should now run `agy --sandbox` to get a real
+  fixture and calibrate against it. **Not yet confirmed PASS** — successor 6 must check pane
+  `w1:pKY` for the calibration result and either let it proceed into TDD build or re-escalate if the
+  transcript doesn't land at the documented path. #1020's 3-identity scope (Gemini/Codex/AGY) is
+  UNCHANGED — Ben was asked about descoping/dropping Gemini and did NOT choose that; he pointed
+  at the real launch mechanism instead ("gemini is launched with agy").
+- #984/PR #1015 stays held at `57c484ac` pending the #1020/#868 dependency landing, then no-wait 3x
+  real UAT plus security QA. Ben delegated #984 sign-off to Fable security-review GREEN (fallback
+  Sol xhigh GREEN); all other gates still apply.
+- Do not spawn or coordinate #1000 — Primary owns the entire approved harness train (#1024–#1027).
