@@ -116,3 +116,75 @@ export type SeedHook = (ctx: { readonly projectName: string }) => Promise<void>;
 // JARVIS_MIGRATION_DATABASE_URL connection (see the seam above) — this hook point exists so that
 // swap is additive, not a rewrite of the provision/teardown lifecycle.
 export const bareSeedHook: SeedHook = async () => {};
+
+export interface UatComposeCommand {
+  readonly args: readonly string[];
+  readonly command: "docker";
+  readonly description: string;
+}
+
+const UAT_COMPOSE_FILE = "infra/docker-compose.prod.yml";
+
+// #1024/#1000: every docker invocation MUST go through this so project-name scoping (and
+// therefore volume/network isolation, spec §3.3) can never be forgotten at a call site.
+export function buildUatComposeArgs(
+  projectName: string,
+  extra: readonly string[]
+): readonly string[] {
+  return ["compose", "-p", projectName, "-f", UAT_COMPOSE_FILE, ...extra];
+}
+
+/**
+ * #1024/#1000: spec §3.2's exact invocation shape — config validate, postgres up, migrate (ops
+ * profile), seed hook, jarv1s up, teardown. `down -v` is always last so a caller that iterates
+ * this array and stops early on failure still knows what MUST run in its `finally` (Task 6 does
+ * exactly that rather than iterating this array to completion on error).
+ */
+export function createUatProvisionPlan(input: {
+  readonly projectName: string;
+  readonly seedHook: SeedHook;
+}): readonly UatComposeCommand[] {
+  const { projectName } = input;
+  return [
+    {
+      command: "docker",
+      args: buildUatComposeArgs(projectName, ["config", "--quiet"]),
+      description: "Validate Docker Compose configuration"
+    },
+    {
+      command: "docker",
+      args: buildUatComposeArgs(projectName, ["up", "-d", "postgres", "--wait"]),
+      description: "Start Postgres and wait for readiness"
+    },
+    {
+      command: "docker",
+      args: buildUatComposeArgs(projectName, ["--profile", "ops", "run", "--rm", "migrate"]),
+      description: "Run database migrations"
+    },
+    {
+      command: "docker",
+      args: buildUatComposeArgs(projectName, ["up", "-d", "jarv1s", "--wait"]),
+      description: "Start Jarv1s and wait for readiness"
+    },
+    {
+      command: "docker",
+      args: buildUatComposeArgs(projectName, ["down", "-v"]),
+      description: "Tear down the UAT stack and its volumes"
+    }
+  ];
+}
+
+// #1024/#1000: Compose auto-scopes named volumes as `<project>_<volume>` — this list exists so
+// assertNoLeakedResources can positively confirm `down -v` actually removed every one of them,
+// not just that the command exited 0 (spec §3.3's "clean by construction" claim, verified).
+export function expectedUatVolumeNames(projectName: string): readonly string[] {
+  return [
+    "jarv1s-postgres-data",
+    "jarv1s-vault-data",
+    "jarv1s-model-cache",
+    "jarv1s-cli-tools",
+    "jarv1s-cli-auth",
+    "jarv1s-cli-socket",
+    "jarv1s-modules"
+  ].map((volume) => `${projectName}_${volume}`);
+}

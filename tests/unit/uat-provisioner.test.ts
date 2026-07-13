@@ -3,6 +3,9 @@ import { createServer } from "node:net";
 import { describe, expect, it } from "vitest";
 import {
   bareSeedHook,
+  buildUatComposeArgs,
+  createUatProvisionPlan,
+  expectedUatVolumeNames,
   findAvailablePort,
   generateUatRunId,
   UAT_DOCKER_SUBNET,
@@ -81,5 +84,56 @@ describe("writeUatEnvFile", () => {
 describe("bareSeedHook", () => {
   it("is a no-op that resolves without touching the database", async () => {
     await expect(bareSeedHook({ projectName: "uat-test" })).resolves.toBeUndefined();
+  });
+});
+
+describe("buildUatComposeArgs", () => {
+  it("scopes every invocation to the project name and prod-shaped compose file", () => {
+    expect(buildUatComposeArgs("uat-abc", ["up", "-d"])).toEqual([
+      "compose",
+      "-p",
+      "uat-abc",
+      "-f",
+      "infra/docker-compose.prod.yml",
+      "up",
+      "-d"
+    ]);
+  });
+});
+
+describe("createUatProvisionPlan", () => {
+  it("orders config-validate -> postgres up -> migrate -> jarv1s up, with down -v last", () => {
+    const plan = createUatProvisionPlan({ projectName: "uat-abc", seedHook: async () => {} });
+    const descriptions = plan.map((c) => c.description);
+    expect(descriptions[0]).toMatch(/validate/i);
+    expect(descriptions.at(-1)).toMatch(/teardown|down/i);
+    const migrateIndex = plan.findIndex((c) => c.args.includes("migrate"));
+    const jarv1sUpIndex = plan.findIndex(
+      (c) => c.args.includes("up") && c.args.includes("jarv1s")
+    );
+    expect(migrateIndex).toBeGreaterThan(-1);
+    expect(jarv1sUpIndex).toBeGreaterThan(migrateIndex);
+  });
+
+  it("scopes the migrate step to the ops profile (matches docker-compose.prod.yml)", () => {
+    const plan = createUatProvisionPlan({ projectName: "uat-abc", seedHook: async () => {} });
+    const migrateCommand = plan.find((c) => c.args.includes("migrate"));
+    expect(migrateCommand?.args).toEqual(
+      expect.arrayContaining(["--profile", "ops", "run", "--rm", "migrate"])
+    );
+  });
+});
+
+describe("expectedUatVolumeNames", () => {
+  it("derives the compose-scoped volume names for a project", () => {
+    expect(expectedUatVolumeNames("uat-abc")).toEqual([
+      "uat-abc_jarv1s-postgres-data",
+      "uat-abc_jarv1s-vault-data",
+      "uat-abc_jarv1s-model-cache",
+      "uat-abc_jarv1s-cli-tools",
+      "uat-abc_jarv1s-cli-auth",
+      "uat-abc_jarv1s-cli-socket",
+      "uat-abc_jarv1s-modules"
+    ]);
   });
 });
