@@ -739,8 +739,11 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
 
   return (
     <>
-      <PaneHead title="Modules" desc="Additional parts of Jarvis you can turn on or off." />
-      <Group title="Additional modules" desc="Switch on the extras you want to use.">
+      <PaneHead title="Modules" desc="Choose which parts of Jarvis to use and configure." />
+      <Group
+        title="Available modules"
+        desc="Required modules stay available; optional modules can be turned on or off."
+      >
         {modules.length ? (
           modules.map(renderRow)
         ) : (
