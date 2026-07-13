@@ -9,7 +9,8 @@
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
 **Shared-tree policy:** isolated worktrees; explicit-path staging only; never `git add -A`.
-**Grounded on:** `origin/main` `3614ad1e` (preflight green in detached worktree).
+**Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
+smokes green, foundation/app CI still running at first-wave worktree creation.
 **merges_since_relay:** 0
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
@@ -19,8 +20,8 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Fable approved Slices 1–3; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Fable approved with fail-closed criterion incorporated; `Always approve` removed |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | worktree/handoff ready on `ux/984-private-history` at `860a3594`; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | worktree/handoff ready on `ux/985-yolo-approvals` at `c92fccde`; fail-closed criterion locked |
 | #986 | dedicated settings-shell spec required | routine unless permission behavior changes | needs spec; coordinate-first |
 | #987 | dedicated Notes/People UX spec required | sensitive | needs spec |
 | #989 | dedicated Sports UX spec required | routine | needs spec |
@@ -45,9 +46,8 @@ must land before #1000 finalizes selectors. Re-sync before touching the Instance
 
 #984 and #985 may run in parallel only when exact chat path locks do not overlap. Serialize
 `chat-drawer.tsx`, chat route composition, action cards, and chat styles when either lane needs them.
-While #979 is in flight, #985 must not edit
-`tests/integration/chat-mcp-transport.test.ts`; the primary Coordinator will release that lock after
-#979 merges.
+#1005/#979 merged at `3ca138eb`; the `tests/integration/chat-mcp-transport.test.ts` fence is released.
+#985 owns that test and must preserve its deterministic wait.
 
 ## Dependency and merge order
 
@@ -73,20 +73,22 @@ While #979 is in flight, #985 must not edit
 
 - Security: AI gateway native-permission path, chat MCP/route composition, focused gateway/transport
   tests.
-- Temporary exclusion: `tests/integration/chat-mcp-transport.test.ts` remains locked by #979 until
-  its merge ping.
+- `tests/integration/chat-mcp-transport.test.ts` is released to this lane; preserve #979's merged
+  deterministic wait.
 - Routine UI: action-request card/styles; smallest shared menu helper plus inventoried menu call sites.
 - Any need for `chat-drawer.tsx` waits for #984's lock to release.
 
 ## Current gates
 
 - [x] Ownership split confirmed with the primary Coordinator.
-- [x] Detached grounding preflight green at `3614ad1e`.
-- [x] Latest `main` CI run `29225249135` completed green at `3614ad1e`.
+- [x] Specs #1004 and flake fix #1005/#979 merged into `origin/main` at `3ca138eb`.
+- [ ] Post-merge `main` CI run `29228378966` completes green at `3ca138eb`; both deployment smokes
+      are already green.
 - [x] Fable approved #984 Slices 1–3; Slice 4 waits for #868.
 - [x] Fable approved #985 with fail-closed effective-YOLO resolution added before security QA.
 - [x] Fable ruled that per-card `Always approve` remains absent.
-- [ ] Exact builder path locks sent to the primary Coordinator before dispatch.
+- [x] Exact builder path locks sent to the primary Coordinator before dispatch.
+- [x] Isolated worktrees and committed handoffs created for #984 and #985.
 
 ## CI waivers
 
