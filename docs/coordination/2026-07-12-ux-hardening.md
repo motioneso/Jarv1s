@@ -825,3 +825,7 @@ resume from this note before taking any merge-sensitive action.
   Context-meter and relay handoff stay unstaged. It is finishing only approved #990 acceptance,
   then explicit-path commits, rebase/push/PR, exact-head isolated UAT/screenshots, and CI. Non-trivial
   rebase conflict is a stop-line. This UX coordinator never merges.
+- #986's old Codex session `019f5a67-9a38-77e0-814a-bc082b0ce187` repeatedly lost its websocket
+  before closeout and was reaped after successor verification. Sonnet successor
+  `5a2f1b65-74fe-4a49-8081-22380b388ce0` is driving the same worktree toward pushed PR head,
+  exact-head UAT/screenshots, and CI; no state was discarded.
