@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import SportsSettings, {
   BrowseGroups,
+  followControlState,
   leagueMatches,
   searchLeagueRows,
   SearchResults
@@ -223,7 +224,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: followed,
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("is-active");
@@ -241,7 +242,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).not.toContain("is-active");
@@ -258,7 +259,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("ARS");
@@ -276,7 +277,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("No matches yet");
@@ -293,7 +294,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("No teams or leagues match your search.");
@@ -313,7 +314,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).not.toContain("No teams or leagues match your search.");
@@ -334,7 +335,7 @@ describe("BrowseGroups", () => {
         expandedDegraded: false,
         onRetryExpanded: () => {},
         onToggle: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("sp-teamgrid");
@@ -354,7 +355,7 @@ describe("BrowseGroups", () => {
         expandedDegraded: true,
         onRetryExpanded: () => {},
         onToggle: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("Retry");
@@ -372,7 +373,7 @@ describe("BrowseGroups", () => {
         expandedDegraded: false,
         onRetryExpanded: () => {},
         onToggle: () => {},
-        pending: false
+        actionState: null
       })
     );
     // TWO_LEAGUES only populates INTL and UEFA — the other five confederation headings must not
@@ -382,6 +383,45 @@ describe("BrowseGroups", () => {
     expect(html).not.toContain("Asia · AFC");
     expect(html).not.toContain("Africa · CAF");
     expect(html).not.toContain("Oceania · OFC");
+  });
+});
+
+describe("followControlState", () => {
+  it("inactive team: visible and aria-label both read 'Follow {team}'", () => {
+    expect(followControlState("team", "Arsenal", false, null)).toEqual({
+      visible: "Follow Arsenal",
+      ariaLabel: "Follow Arsenal"
+    });
+  });
+  it("active team: visible reads 'Following', aria-label reads 'Unfollow {team}'", () => {
+    expect(followControlState("team", "Arsenal", true, null)).toEqual({
+      visible: "Following",
+      ariaLabel: "Unfollow Arsenal"
+    });
+  });
+  it("inactive league: visible and aria-label both read 'Follow all of {league}'", () => {
+    expect(followControlState("league", "Premier League", false, null)).toEqual({
+      visible: "Follow all of Premier League",
+      ariaLabel: "Follow all of Premier League"
+    });
+  });
+  it("active league: visible reads 'Following all of {league}', aria-label reads 'Unfollow all of {league}'", () => {
+    expect(followControlState("league", "Premier League", true, null)).toEqual({
+      visible: "Following all of Premier League",
+      ariaLabel: "Unfollow all of Premier League"
+    });
+  });
+  it("pending follow (any variant): both read 'Following…'", () => {
+    expect(followControlState("team", "Arsenal", false, "follow")).toEqual({
+      visible: "Following…",
+      ariaLabel: "Following…"
+    });
+  });
+  it("pending unfollow (any variant): both read 'Unfollowing…'", () => {
+    expect(followControlState("league", "Premier League", true, "unfollow")).toEqual({
+      visible: "Unfollowing…",
+      ariaLabel: "Unfollowing…"
+    });
   });
 });
 

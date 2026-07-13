@@ -88,6 +88,44 @@ function followKey(competitionKey: string, teamKey: string | null): string {
   return `${competitionKey}::${teamKey ?? ""}`;
 }
 
+type FollowActionState = {
+  competitionKey: string;
+  teamKey: string | null;
+  label: string;
+  direction: "follow" | "unfollow";
+  phase: "pending" | "error";
+} | null;
+
+function pendingDirectionFor(
+  actionState: FollowActionState,
+  competitionKey: string,
+  teamKey: string | null
+): "follow" | "unfollow" | null {
+  if (actionState?.phase !== "pending") return null;
+  if (actionState.competitionKey !== competitionKey || actionState.teamKey !== teamKey) return null;
+  return actionState.direction;
+}
+
+/** Truthful follow/unfollow control copy — one source of truth for team and whole-league
+    buttons so the visible label and accessible name never diverge (#989 spec Decision 2). */
+export function followControlState(
+  variant: "team" | "league",
+  subjectLabel: string,
+  active: boolean,
+  pending: "follow" | "unfollow" | null
+): { visible: string; ariaLabel: string } {
+  if (pending === "follow") return { visible: "Following…", ariaLabel: "Following…" };
+  if (pending === "unfollow") return { visible: "Unfollowing…", ariaLabel: "Unfollowing…" };
+  const followLabel =
+    variant === "league" ? `Follow all of ${subjectLabel}` : `Follow ${subjectLabel}`;
+  if (!active) return { visible: followLabel, ariaLabel: followLabel };
+  if (variant === "team") return { visible: "Following", ariaLabel: `Unfollow ${subjectLabel}` };
+  return {
+    visible: `Following all of ${subjectLabel}`,
+    ariaLabel: `Unfollow all of ${subjectLabel}`
+  };
+}
+
 /* ----- Sports-local, pure search helpers (unit-tested). No generic picker
    abstraction — scoped to this catalog shape on purpose. ----- */
 
@@ -128,8 +166,8 @@ function FollowedSummary(props: {
   // team's league roster looked up separately (fetched by SportsSettings via getLeagueTeams,
   // #907 spec §4.3).
   teamsByCompetition: Map<string, readonly TeamRef[]>;
-  onToggle: (competitionKey: string, teamKey: string | null) => void;
-  pending: boolean;
+  onToggle: (competitionKey: string, teamKey: string | null, label: string) => void;
+  actionState: FollowActionState;
 }) {
   if (props.follows.length === 0) return null;
   return (
@@ -168,8 +206,11 @@ function FollowedSummary(props: {
               type="button"
               className="sp-chip__remove"
               aria-label={`Unfollow ${label}`}
-              disabled={props.pending}
-              onClick={() => props.onToggle(follow.competitionKey, follow.teamKey)}
+              disabled={
+                pendingDirectionFor(props.actionState, follow.competitionKey, follow.teamKey) !==
+                null
+              }
+              onClick={() => props.onToggle(follow.competitionKey, follow.teamKey, label)}
             >
               ×
             </button>
@@ -188,8 +229,8 @@ export function SearchResults(props: {
   onRetry: () => void;
   competitions: readonly CompetitionRef[];
   followsByKey: Map<string, SportsFollowDto>;
-  onToggle: (competitionKey: string, teamKey: string | null) => void;
-  pending: boolean;
+  onToggle: (competitionKey: string, teamKey: string | null, label: string) => void;
+  actionState: FollowActionState;
 }) {
   // A failed search request must never masquerade as an authoritative "no matches" — that would
   // tell the user their club isn't supported when we simply couldn't ask the server (#907 review
@@ -219,32 +260,44 @@ export function SearchResults(props: {
     <>
       {leagues.map((competition) => {
         const wholeActive = props.followsByKey.has(followKey(competition.competitionKey, null));
+        const pendingHere = pendingDirectionFor(props.actionState, competition.competitionKey, null);
+        const state = followControlState("league", competition.label, wholeActive, pendingHere);
         return (
           <button
             key={`l-${competition.competitionKey}`}
             type="button"
             className={`sp-whole${wholeActive ? " is-active" : ""}`}
-            disabled={props.pending}
-            onClick={() => props.onToggle(competition.competitionKey, null)}
+            aria-pressed={wholeActive}
+            aria-label={state.ariaLabel}
+            disabled={pendingHere !== null}
+            onClick={() => props.onToggle(competition.competitionKey, null, competition.label)}
           >
-            <span className="sp-whole__lbl">Follow all of {competition.label}</span>
-            <span className="sp-whole__state">{wholeActive ? "Following" : "Follow"}</span>
+            <span className="sp-whole__lbl">{state.visible}</span>
           </button>
         );
       })}
       <div className="sp-teamgrid">
         {props.results.map((team) => {
           const active = props.followsByKey.has(followKey(team.competitionKey, team.teamKey));
+          const pendingHere = pendingDirectionFor(
+            props.actionState,
+            team.competitionKey,
+            team.teamKey
+          );
+          const state = followControlState("team", team.name, active, pendingHere);
           return (
             <button
               key={`${team.competitionKey}:${team.teamKey}`}
               type="button"
               className={`sp-team${active ? " is-active" : ""}`}
-              disabled={props.pending}
-              onClick={() => props.onToggle(team.competitionKey, team.teamKey)}
+              aria-pressed={active}
+              aria-label={state.ariaLabel}
+              disabled={pendingHere !== null}
+              onClick={() => props.onToggle(team.competitionKey, team.teamKey, team.name)}
             >
               <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
               <span className="sp-team__name">{team.shortName || team.name}</span>
+              <span className="sp-team__state">{state.visible}</span>
             </button>
           );
         })}
@@ -288,8 +341,8 @@ export function BrowseGroups(props: {
   expandedLoading: boolean;
   expandedDegraded: boolean;
   onRetryExpanded: () => void;
-  onToggle: (competitionKey: string, teamKey: string | null) => void;
-  pending: boolean;
+  onToggle: (competitionKey: string, teamKey: string | null, label: string) => void;
+  actionState: FollowActionState;
 }) {
   const byConfederation = new Map<Confederation, CompetitionRef[]>();
   for (const competition of props.competitions) {
@@ -308,6 +361,17 @@ export function BrowseGroups(props: {
           {(byConfederation.get(conf) ?? []).map((competition) => {
             const expanded = props.expandedKey === competition.competitionKey;
             const wholeActive = props.followsByKey.has(followKey(competition.competitionKey, null));
+            const wholePendingHere = pendingDirectionFor(
+              props.actionState,
+              competition.competitionKey,
+              null
+            );
+            const wholeState = followControlState(
+              "league",
+              competition.label,
+              wholeActive,
+              wholePendingHere
+            );
             return (
               <div key={competition.competitionKey}>
                 <div className="sp-browse__row">
@@ -322,11 +386,14 @@ export function BrowseGroups(props: {
                   <button
                     type="button"
                     className={`sp-whole${wholeActive ? " is-active" : ""}`}
-                    disabled={props.pending}
-                    onClick={() => props.onToggle(competition.competitionKey, null)}
+                    aria-pressed={wholeActive}
+                    aria-label={wholeState.ariaLabel}
+                    disabled={wholePendingHere !== null}
+                    onClick={() =>
+                      props.onToggle(competition.competitionKey, null, competition.label)
+                    }
                   >
-                    <span className="sp-whole__lbl">Follow all of {competition.label}</span>
-                    <span className="sp-whole__state">{wholeActive ? "Following" : "Follow"}</span>
+                    <span className="sp-whole__lbl">{wholeState.visible}</span>
                   </button>
                 </div>
                 {expanded ? (
@@ -349,13 +416,23 @@ export function BrowseGroups(props: {
                         const active = props.followsByKey.has(
                           followKey(team.competitionKey, team.teamKey)
                         );
+                        const pendingHere = pendingDirectionFor(
+                          props.actionState,
+                          team.competitionKey,
+                          team.teamKey
+                        );
+                        const state = followControlState("team", team.name, active, pendingHere);
                         return (
                           <button
                             key={`${team.competitionKey}:${team.teamKey}`}
                             type="button"
                             className={`sp-team${active ? " is-active" : ""}`}
-                            disabled={props.pending}
-                            onClick={() => props.onToggle(team.competitionKey, team.teamKey)}
+                            aria-pressed={active}
+                            aria-label={state.ariaLabel}
+                            disabled={pendingHere !== null}
+                            onClick={() =>
+                              props.onToggle(team.competitionKey, team.teamKey, team.name)
+                            }
                           >
                             <PickCrest
                               name={team.name}
@@ -363,6 +440,7 @@ export function BrowseGroups(props: {
                               crestUrl={team.crestUrl}
                             />
                             <span className="sp-team__name">{team.shortName || team.name}</span>
+                            <span className="sp-team__state">{state.visible}</span>
                           </button>
                         );
                       })}
