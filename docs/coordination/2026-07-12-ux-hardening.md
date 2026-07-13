@@ -25,7 +25,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building on `ux/986-settings-build`; label `UX 986 Settings Shell`, session `11054b23-df91-4b09-b001-38ec31951d9d`, pane `w1:pJD` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | building on `ux/989-sports-settings-build`; label `UX 989 Sports Settings`, session `888f3c71-6996-49e1-9dbe-921e829abe55`, pane `w1:pJE` |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | relaying from session `7fb324d8-38fa-43be-bc2c-8304acd0e725` at 70%; grounded with clean rebase on `3ca138eb`, zero code and no plan yet; successor spawning in `ux/990-news-settings-build` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | planning pre-code on `ux/990-news-settings-build`; label `UX 990 News Settings v2`, session `5663beab-07c4-4691-9dc8-2b1b94869ea2`, pane `w1:pJK`; grounded with clean #981 rebase on `3ca138eb` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -117,6 +117,7 @@ None.
 - Prior `UX Coordinator`, Codex session `019f57d6-8fff-7783-974a-f40333a52632`.
 - Prior #985 builder, Claude session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`.
 - Prior #984 builder, Claude session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`.
+- Prior #990 builder, Claude session `7fb324d8-38fa-43be-bc2c-8304acd0e725`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -181,6 +182,9 @@ resume from this note before taking any merge-sensitive action.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
+- #990 successor `UX 990 News Settings v2` session
+  `5663beab-07c4-4691-9dc8-2b1b94869ea2` was verified driving the same worktree on Sonnet; its
+  predecessor was identity-checked and reaped. Await the v2 plan before feature edits.
 - Next independent work: draft #991, #992, #993, #994, #995, and #1002 specs in collision-safe
   lanes; keep #988 last and #1003 separate.
 - Primary Coordinator owns #1007 QA/merge. Its builder may drive Instance-modules in Playwright but
