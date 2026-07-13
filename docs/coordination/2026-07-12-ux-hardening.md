@@ -4,7 +4,7 @@
 **Merge-authority lock:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`.
 **Delegated lane owner:** label `UX Coordinator`, Codex session
-`019f5a2e-03fd-71c3-95ab-1934cb1de973`.
+`019f5a70-28e9-7600-a132-64ab2eca669c`.
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
@@ -24,12 +24,12 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 1 committed at `a0989815` with E2E green; Task 2 building on `ux/984-private-history`; label `UX 984 Private History v3`, session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`, pane `w1:pJQ`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | approved plan/handoff committed at `0003d1ac`; Task 2 building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v3`, session `159e8723-d2f3-40f8-8d01-c621d537081d`, pane `w1:pJS`; `activityVerb()` released and fail-closed criterion locked |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Tasks 1-2 committed and green through `e67d53f6`; Task 3 building on `ux/984-private-history`; label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Tasks 1-3 and partial Task 4 committed through `fd73a7bb`; Task 4 remaining call-site conversions building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 QA RED fixes resumed from clean `54601bee`; label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY`; plan format and live UI/screenshots proof remain blocking |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Claude checkpoint stopped at `592c83c3`; Tasks 1-2 committed (`bf9300f8`, `eacd1644`), Task 3 has intentional uncommitted RED test state; handoff `2026-07-13-news-settings-990-relay4.md`; Codex replacement pending, then identity-check/reap Claude session `4e2afa97-5c55-417c-9bec-a07534cb3c98` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally; live UAT blocked on bootstrap-owner session. Invalid directly activated test account `sports-uat-1009-004221@example.test` is quarantined and awaits owner-UI deletion; no evidence from it is valid. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Tasks 1-2 committed (`bf9300f8`, `eacd1644`); Task 3 intentional RED state resumed from `2026-07-13-news-settings-990-relay4.md` on `ux/990-news-settings-build`; label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -133,6 +133,10 @@ None.
 - Prior #986 v3 builder, Claude session `2080b7b0-39cd-418b-869e-369c693972b9`.
 - Prior #989 v3 builder, Claude session `da980b16-d458-4213-ab02-7a34ba852971`.
 - Prior #986 v4 builder, Claude session `4f7ea499-7243-4415-abef-a159483d0cfe`.
+- Prior `UX Coordinator`, Codex session `019f5a2e-03fd-71c3-95ab-1934cb1de973`.
+- Prior #990 v3 builder, Claude session `4e2afa97-5c55-417c-9bec-a07534cb3c98`.
+- Prior #984 v3 builder, Claude session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`.
+- Prior #985 v3 builder, Claude session `159e8723-d2f3-40f8-8d01-c621d537081d`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -305,3 +309,26 @@ resume from this note before taking any merge-sensitive action.
   `019f5a67-9a38-77e0-814a-bc082b0ce187` is building; #989 Codex session
   `019f5a67-99f4-7880-b8f4-e4fe04c8af67` is working the QA blockers. The primary Coordinator's
   separately owned module lane is outside the UX Codex-only replacement scope.
+
+## Continuation note — 2026-07-13 Codex successor adopted
+
+- `UX Coordinator` Codex session `019f5a70-28e9-7600-a132-64ab2eca669c` is driving this delegated
+  lane. Primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge
+  authority; this lane will not merge. The prior coordinator session
+  `019f5a2e-03fd-71c3-95ab-1934cb1de973` was verified by label plus immutable session before its
+  pane self-closed and disappeared from the fresh fleet list.
+- The bounded dev-auth search found no standing Jarv1s application-user credential and no
+  sanctioned direct-DB activation recipe. The supported flow is an existing bootstrap-owner
+  session at `http://localhost:5175` → Settings → People & access → Admin Users → Pending
+  Approvals → Approve, backed by authenticated `POST /api/admin/users/:id/approve`.
+- #989 directly activated `sports-uat-1009-004221@example.test` before corrected guidance arrived.
+  The account and all evidence from it are quarantined. No further table mutation is allowed.
+  Primary coordination is routing the required owner-authenticated UI deletion to Ben; #989 may
+  finish non-UAT checks but stays live-UAT blocked until owner cleanup and a fresh supported approval.
+- #990 Codex session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` was verified driving the same worktree
+  from relay4 before stopped Claude session `4e2afa97-5c55-417c-9bec-a07534cb3c98` was
+  identity-checked and reaped.
+- #984 Codex session `019f5a73-fb2a-7e13-9832-54c0503d5bd9` and #985 Codex session
+  `019f5a73-f9f4-71e0-bf84-d0b5effe12ae` were each verified driving their original worktrees from
+  durable handoffs before their stopped Claude predecessors were identity-checked and reaped.
+  All UX-owned build and future QA replacements remain Codex-only.
