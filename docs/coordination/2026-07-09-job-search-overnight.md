@@ -5451,3 +5451,6 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
   `~/.gemini/tmp/...` (transcriptGlobDir) instead of the agy `brain/<UUID>/` path — flag-only per
   Opus, out of #868/#1020 scope. UX Coordinator now **successor 7** (resolve by label at read time);
   will hand the #868/#1020 TDD PR straight to me (I own QA+merge, they spawn no QA).
+
+- **UX Coordinator successor 7 = Claude session `b637e03f-267e-493b-acb2-0808bd1a9f49`** (their lock
+  pushed `7162b8e7`); successor-6 reaped. This is the lane that routes #868/#1020 (and #984) PRs to me.
