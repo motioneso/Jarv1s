@@ -125,10 +125,12 @@ export function assertNoLeakedResources(projectName: string): Promise<void>; // 
 ## Task 1: Run-id / project-name generation + reserved subnet/port constants
 
 **Files:**
+
 - Create: `tests/uat/provisioner.ts`
 - Test: `tests/unit/uat-provisioner.test.ts`
 
 **Interfaces:**
+
 - Produces: `UatRunId`, `generateUatRunId()`, `UAT_DOCKER_SUBNET`, `UAT_PORT_RANGE_START`,
   `UAT_PORT_RANGE_SIZE` (used by every later task).
 
@@ -137,7 +139,12 @@ export function assertNoLeakedResources(projectName: string): Promise<void>; // 
 ```typescript
 // tests/unit/uat-provisioner.test.ts
 import { describe, expect, it } from "vitest";
-import { generateUatRunId, UAT_DOCKER_SUBNET, UAT_PORT_RANGE_START, UAT_PORT_RANGE_SIZE } from "../uat/provisioner.js";
+import {
+  generateUatRunId,
+  UAT_DOCKER_SUBNET,
+  UAT_PORT_RANGE_START,
+  UAT_PORT_RANGE_SIZE
+} from "../uat/provisioner.js";
 
 describe("generateUatRunId", () => {
   it("produces a docker-safe project name prefixed uat-", () => {
@@ -222,10 +229,12 @@ git commit -m "feat(uat): add run-id generation and reserved subnet/port constan
 ## Task 2: Reserved-port bind-probe (`findAvailablePort`)
 
 **Files:**
+
 - Modify: `tests/uat/provisioner.ts`
 - Test: `tests/unit/uat-provisioner.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `findAvailablePort(candidates, probe?)` — used by Task 3 (env-file writer) and
   `main()` (Task 6) to pick `JARVIS_WEB_PORT`.
@@ -326,10 +335,12 @@ git commit -m "feat(uat): add reserved-port bind-probe (#1024)"
 ## Task 3: Env-file writer + privileged-connection seam (no-op seed hook)
 
 **Files:**
+
 - Modify: `tests/uat/provisioner.ts`
 - Test: `tests/unit/uat-provisioner.test.ts`
 
 **Interfaces:**
+
 - Consumes: `UAT_DOCKER_SUBNET` (Task 1).
 - Produces: `writeUatEnvFile(input)`, `UatEnvFile`, `SeedHook`, `bareSeedHook`, `UatSeedLevel`.
 
@@ -448,10 +459,12 @@ git commit -m "feat(uat): add env-file writer and privileged-connection seam (#1
 ## Task 4: Compose plan builder + volume-name/leak verification
 
 **Files:**
+
 - Modify: `tests/uat/provisioner.ts`
 - Test: `tests/unit/uat-provisioner.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SeedHook` (Task 3).
 - Produces: `buildUatComposeArgs`, `createUatProvisionPlan`, `expectedUatVolumeNames`,
   `assertNoLeakedResources` (used by `main()` in Task 6).
@@ -487,9 +500,7 @@ describe("createUatProvisionPlan", () => {
     expect(descriptions[0]).toMatch(/validate/i);
     expect(descriptions.at(-1)).toMatch(/teardown|down/i);
     const migrateIndex = plan.findIndex((c) => c.args.includes("migrate"));
-    const jarv1sUpIndex = plan.findIndex(
-      (c) => c.args.includes("up") && c.args.includes("jarv1s")
-    );
+    const jarv1sUpIndex = plan.findIndex((c) => c.args.includes("up") && c.args.includes("jarv1s"));
     expect(migrateIndex).toBeGreaterThan(-1);
     expect(jarv1sUpIndex).toBeGreaterThan(migrateIndex);
   });
@@ -617,15 +628,17 @@ git commit -m "feat(uat): add compose plan builder and volume-name derivation (#
 ## Task 5: `assertNoLeakedResources` (live Docker check, not unit-tested against a real daemon)
 
 **Files:**
+
 - Modify: `tests/uat/provisioner.ts`
 
 **Interfaces:**
+
 - Consumes: `expectedUatVolumeNames` (Task 4).
 - Produces: `assertNoLeakedResources(projectName)` — called by `main()` after teardown (Task 6).
   Not unit-tested (it shells out to the real `docker` CLI); Task 7's live smoke run is its test.
 
 - [ ] **Step 1: Write the implementation directly** (no unit test — this function's only
-  meaningful behavior is talking to the real Docker daemon; Task 7 exercises it live)
+      meaningful behavior is talking to the real Docker daemon; Task 7 exercises it live)
 
 ```typescript
 // append to tests/uat/provisioner.ts
@@ -658,7 +671,14 @@ function runCapture(command: string, args: readonly string[]): Promise<string> {
 export async function assertNoLeakedResources(projectName: string): Promise<void> {
   const [containers, volumes] = await Promise.all([
     runCapture("docker", ["ps", "-a", "--filter", `name=${projectName}`, "--format", "{{.Names}}"]),
-    runCapture("docker", ["volume", "ls", "--filter", `name=${projectName}`, "--format", "{{.Name}}"])
+    runCapture("docker", [
+      "volume",
+      "ls",
+      "--filter",
+      `name=${projectName}`,
+      "--format",
+      "{{.Name}}"
+    ])
   ]);
   const leakedContainers = containers.split("\n").filter(Boolean);
   const leakedVolumes = volumes.split("\n").filter(Boolean);
@@ -689,10 +709,12 @@ git commit -m "feat(uat): add post-teardown leak verification (#1024)"
 ## Task 6: `main()` live runner — health poll, signal-safe teardown, wall-clock logging
 
 **Files:**
+
 - Modify: `tests/uat/provisioner.ts`
 - Modify: `package.json` (add `uat:provision:smoke` script)
 
 **Interfaces:**
+
 - Consumes: everything from Tasks 1–5.
 - Produces: a runnable CLI (`tsx tests/uat/provisioner.ts`) — no new exports later tasks depend
   on (this is the leaf).
@@ -706,7 +728,7 @@ candidate from the reserved range — bounded by the range itself (100 ports), n
 detector while still streaming it live to the operator.
 
 - [ ] **Step 1: Write the implementation directly** (this is an integration entrypoint, not a
-  unit-testable pure function — Task 7 is its real test, run live against Docker)
+      unit-testable pure function — Task 7 is its real test, run live against Docker)
 
 ```typescript
 // append to tests/uat/provisioner.ts
@@ -739,7 +761,9 @@ function runCommand(command: string, args: readonly string[]): Promise<void> {
         return;
       }
       if (PORT_BIND_CONFLICT_PATTERN.test(stderr)) {
-        reject(new PortBindConflictError(`${command} ${args.join(" ")} exited ${code ?? "unknown"}`));
+        reject(
+          new PortBindConflictError(`${command} ${args.join(" ")} exited ${code ?? "unknown"}`)
+        );
         return;
       }
       reject(new Error(`${command} ${args.join(" ")} exited with status ${code ?? "unknown"}`));
@@ -754,14 +778,20 @@ async function waitForReady(url: string, timeoutMs = 120_000): Promise<void> {
     try {
       const response = await fetch(url);
       if (response.ok) {
-        const body = (await response.json()) as { readonly ok?: unknown; readonly db?: unknown; readonly pgboss?: unknown };
+        const body = (await response.json()) as {
+          readonly ok?: unknown;
+          readonly db?: unknown;
+          readonly pgboss?: unknown;
+        };
         // #1024/#1000: same readiness contract as scripts/smoke-compose.ts's waitForHealth
         // (#171) — /health/ready, not /health, and assert db+pgboss individually so a payload
         // change can't silently let a DB-down bare instance read as "reachable".
         if (body.ok === true && body.db === "ok" && body.pgboss === "ok") {
           return;
         }
-        lastError = new Error(`readiness not satisfied: ${JSON.stringify({ db: body.db, pgboss: body.pgboss })}`);
+        lastError = new Error(
+          `readiness not satisfied: ${JSON.stringify({ db: body.db, pgboss: body.pgboss })}`
+        );
       }
     } catch (error) {
       lastError = error;
@@ -911,9 +941,9 @@ Expected: all three commands print nothing (empty output) — if `main()`'s own
 cheap and it's the actual acceptance criterion from the handoff, so run it explicitly.
 
 - [ ] **Step 3: Re-run once more with `JARVIS_UAT_BUILD=0`** (image already built/tagged from
-  Step 1) to get a provision-only wall-clock number that excludes image-build time — this is the
-  number worth recording for the "measure real wall-clock" locked decision, since the build step
-  will be cached/skipped in most real invocations once an image tag exists.
+      Step 1) to get a provision-only wall-clock number that excludes image-build time — this is the
+      number worth recording for the "measure real wall-clock" locked decision, since the build step
+      will be cached/skipped in most real invocations once an image tag exists.
 
 ```bash
 JARVIS_UAT_BUILD=0 JARVIS_IMAGE_TAG=uat-smoke pnpm uat:provision:smoke
@@ -923,7 +953,7 @@ Record both numbers (with-build and without-build) — this is the evidence for 
 "measured real wall-clock" requirement from the locked decisions.
 
 - [ ] **Step 4: No commit** (this task produces evidence, not code changes) — copy the two
-  wall-clock numbers into your PR body draft now, before you forget them.
+      wall-clock numbers into your PR body draft now, before you forget them.
 
 ---
 
@@ -947,10 +977,10 @@ pnpm verify:foundation
 Record the exit code. If it's non-zero, fix and re-run — do not proceed to PR on red.
 
 - [ ] **Step 3: Invoke `coordinated-wrap-up`** per the handoff: PR title referencing #1024, body
-  `Part of #1000` + `Closes #1024`, base `main`, "What's new" note: *"Internal: adds the ephemeral-
-  instance provisioner that future end-to-end UAT tests run against."* Include the two wall-clock
-  numbers from Task 7 and the gate exit codes. Report the PR number to the `Coordinator` pane.
-  **Do not merge** — tier is `sensitive`.
+      `Part of #1000` + `Closes #1024`, base `main`, "What's new" note: _"Internal: adds the ephemeral-
+      instance provisioner that future end-to-end UAT tests run against."_ Include the two wall-clock
+      numbers from Task 7 and the gate exit codes. Report the PR number to the `Coordinator` pane.
+      **Do not merge** — tier is `sensitive`.
 
 ---
 

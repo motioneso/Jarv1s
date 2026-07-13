@@ -252,7 +252,14 @@ function runCapture(command: string, args: readonly string[]): Promise<string> {
 export async function assertNoLeakedResources(projectName: string): Promise<void> {
   const [containers, volumes] = await Promise.all([
     runCapture("docker", ["ps", "-a", "--filter", `name=${projectName}`, "--format", "{{.Names}}"]),
-    runCapture("docker", ["volume", "ls", "--filter", `name=${projectName}`, "--format", "{{.Name}}"])
+    runCapture("docker", [
+      "volume",
+      "ls",
+      "--filter",
+      `name=${projectName}`,
+      "--format",
+      "{{.Name}}"
+    ])
   ]);
   const leakedContainers = containers.split("\n").filter(Boolean);
   const leakedVolumes = volumes.split("\n").filter(Boolean);
@@ -291,7 +298,9 @@ function runCommand(command: string, args: readonly string[]): Promise<void> {
         return;
       }
       if (PORT_BIND_CONFLICT_PATTERN.test(stderr)) {
-        reject(new PortBindConflictError(`${command} ${args.join(" ")} exited ${code ?? "unknown"}`));
+        reject(
+          new PortBindConflictError(`${command} ${args.join(" ")} exited ${code ?? "unknown"}`)
+        );
         return;
       }
       reject(new Error(`${command} ${args.join(" ")} exited with status ${code ?? "unknown"}`));

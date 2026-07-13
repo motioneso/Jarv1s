@@ -127,9 +127,7 @@ describe("createUatProvisionPlan", () => {
     expect(descriptions[0]).toMatch(/validate/i);
     expect(descriptions.at(-1)).toMatch(/teardown|down/i);
     const migrateIndex = plan.findIndex((c) => c.args.includes("migrate"));
-    const jarv1sUpIndex = plan.findIndex(
-      (c) => c.args.includes("up") && c.args.includes("jarv1s")
-    );
+    const jarv1sUpIndex = plan.findIndex((c) => c.args.includes("up") && c.args.includes("jarv1s"));
     expect(migrateIndex).toBeGreaterThan(-1);
     expect(jarv1sUpIndex).toBeGreaterThan(migrateIndex);
   });
