@@ -5551,3 +5551,20 @@ GREEN + 4/4 CI). Internal dev-tooling, not user-visible. UAT-harness P1 done; P2
 - Coordinator lean (pre-Opus): A — keeps invariant literal (no BYPASSRLS), mirrors existing
   auth_runtime grant, seeds data provably reachable via the real runtime RLS path (B's superuser
   bypass can seed app-impossible states → less faithful UAT).
+
+### RULING relayed — P2 #1025 seed role = OPTION A (Opus-verified @ 51f468d4)
+- **A confirmed.** SET ROLE app_runtime + SET LOCAL app.actor_user_id GUC passes module INSERT
+  policies (tasks_insert WITH CHECK owner_user_id = app.current_actor_user_id(); GUC key
+  `app.actor_user_id`; news/sports identical). No BYPASSRLS, no runtime role weakened. B rejected
+  (superuser bypass = less faithful; its release-hardening precedent is a hermetic throwaway DB).
+  Tempting C (connect as app_runtime directly) rejected: seed must first write app.users/auth_accounts
+  which app_runtime can't — migration_owner has auth_runtime membership, so ONE migration_owner conn
+  SET-LOCAL-ROLE-switching (auth_runtime for identity, app_runtime for module rows) is cleanest.
+- **Binding constraints relayed to P2:** (1) GRANT app_runtime TO migration_owner in
+  bootstrap/0000_roles.sql (idempotent, not a migration, mirror auth_runtime grant ~L80). (2) SET
+  LOCAL ROLE + SET LOCAL GUC in same txn as INSERTs; RESET between owners. (3) **HARDENING Opus
+  caught:** external_modules_insert WITH CHECK = current_actor_is_admin() (not owner GUC) → seed
+  registration under a genuinely is_instance_admin=true actor, created via auth_runtime first; do
+  NOT superuser-skip the admin gate. (4) single migration_owner conn; leave 4 runtime roles
+  NOSUPERUSER/NOBYPASSRLS untouched; guard entrypoint vs non-UAT DB.
+- P2 resumed → writing plan. Await plan-ready.
