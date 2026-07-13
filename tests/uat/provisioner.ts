@@ -1,5 +1,8 @@
 import { randomBytes } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export interface UatRunId {
   readonly projectName: string;
@@ -60,3 +63,56 @@ export async function findAvailablePort(
   }
   throw new Error(`no available port found among candidates: ${candidates.join(", ")}`);
 }
+
+export interface UatEnvFile {
+  readonly path: string;
+  readonly cleanup: () => void;
+}
+
+/**
+ * #1024/#1000: same shape as scripts/smoke-compose.ts's ensureProdSmokeEnv (throwaway
+ * env.production.local + dev-only secrets), but scoped to the UAT subnet/port and pinned to the
+ * `stub` embed provider for the `bare` level (no users → nothing to embed → no reason to pull the
+ * real embedding model into a per-run, per-project model-cache volume; spec §3.3).
+ */
+export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile {
+  const dir = mkdtempSync(join(tmpdir(), "jarv1s-uat-"));
+  const path = join(dir, "env.production.local");
+  writeFileSync(
+    path,
+    [
+      "NODE_ENV=production",
+      `JARVIS_WEB_PORT=${input.webPort}`,
+      `JARVIS_DOCKER_SUBNET=${UAT_DOCKER_SUBNET}`,
+      "POSTGRES_PASSWORD=postgres",
+      "JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s",
+      // #1024/#1000: jarvis_migration_owner is NOSUPERUSER/NOBYPASSRLS but schema-owner + a
+      // member of jarvis_auth_runtime (infra/postgres/bootstrap/0000_roles.sql) — this is the
+      // seam #1025's seed script plugs a privileged connection into. NEVER grant BYPASSRLS to
+      // jarvis_app_runtime / jarvis_worker_runtime — that would violate the project's hard "no
+      // BYPASSRLS on runtime roles" invariant.
+      "JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:uat-migration-pw@postgres:5432/jarv1s",
+      "JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:uat-app-pw@postgres:5432/jarv1s",
+      "JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:uat-auth-pw@postgres:5432/jarv1s",
+      "JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:uat-worker-pw@postgres:5432/jarv1s",
+      "BETTER_AUTH_SECRET=uat-only-not-a-real-secret-00000000000",
+      "JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000",
+      "JARVIS_AI_SECRET_KEY=11111111111111111111111111111111",
+      "JARVIS_CLI_RUNNER_RPC_SECRET=uat-only-not-real",
+      "JARVIS_EMBED_PROVIDER=stub",
+      ""
+    ].join("\n"),
+    { mode: 0o600 }
+  );
+  return { path, cleanup: () => rmSync(dir, { force: true, recursive: true }) };
+}
+
+export type UatSeedLevel = "bare";
+
+export type SeedHook = (ctx: { readonly projectName: string }) => Promise<void>;
+
+// #1024/#1000: Phase 1 ships zero seed data by design (spec §8.1 acceptance = bare level only).
+// #1025 replaces this with a real seed script that opens its own privileged
+// JARVIS_MIGRATION_DATABASE_URL connection (see the seam above) — this hook point exists so that
+// swap is additive, not a rewrite of the provision/teardown lifecycle.
+export const bareSeedHook: SeedHook = async () => {};
