@@ -729,3 +729,15 @@ resume from this note before taking any merge-sensitive action.
 - Primary has the immutable head for fresh Opus security QA across both Fable forks, #1017, and
   secrets-never-escape. #985 still holds the exclusive DB slot. This UX coordinator does not QA,
   merge, release the slot, or touch the board for PR #1012.
+
+## Continuation note — 2026-07-13 #984 required live UAT RED
+
+- #984's approved 600 ms replay settle failed the required fresh isolated live UAT on repetition 1.
+  With `JARVIS_CHAT_REPLAY_SETTLE_MS=600` and no harness wait, storage/private/history/resume passed,
+  but the exact first post-resume prompt was still dropped before the idle Codex TUI became
+  input-ready and the POST remained pending. Green unit/E2E/typecheck/file-size/format checks do not
+  establish live readiness.
+- Verified #984 session `019f5a73-fb2a-7e13-9832-54c0503d5bd9` is frozen: no edit, interval bump,
+  rerun, cleanup, shared-DB use, merge, or scope expansion. Run-6 isolated evidence is preserved.
+  Primary has the stop-line. Fresh Opus reviewer `28a373a6-56a2-44f1-a213-4954ed266edc` is deciding
+  whether a deterministic readiness fix requires the #868 runner/engine seam.
