@@ -1161,3 +1161,22 @@ resume from this note before taking any merge-sensitive action.
   UAT plus security QA. Ben delegated #984 sign-off to Fable security-review GREEN (fallback Sol
   xhigh GREEN); all other gates still apply.
 - Do not spawn or coordinate #1000 — Primary owns the entire approved harness train (#1024–#1027).
+
+## Continuation note — 2026-07-13 security session released from plan-only hold
+
+- Main CI run `29277401769` completed exact 4/4 GREEN (incl. image) at sha
+  `cdf66df0782162966a088fbaf25c5756d9640703`. UX Coordinator (Claude session
+  `1211ffa9-b725-469b-922d-ab4dc0c56436`) sent explicit TDD release to Security
+  `019f5ce4-cce4-7a13-be05-cfc3834cc529` (pane `w1:pKY`, worktree
+  `security-868-engine-purge`), which was correctly holding pending this exact signal.
+  Approved plan-only commit `8f7f2ec40cfe5c938d62f09e24c1e06460340424` stands; tree was
+  clean at hold.
+- Released scope unchanged: exact ECHO/ACK + idempotent cancel first; manager await seam
+  only after runner tests green; then expanded #868 exact Gemini/Codex/AGY identities +
+  deterministic graceful/crash purge. Hard constraints restated: no timers, no heuristic
+  matching, no broad/shared-root deletion, no payload leakage, no merge by the security
+  agent — it opens a PR and reports to `UX Coordinator` for QA; Primary Coordinator
+  (session `58a78927-385c-4b1d-8fa0-94db20255d6f`) remains sole merge executor.
+- #984/PR #1015 still held at `57c484ac` pending this #1020/#868 dependency landing, then
+  no-wait 3x real UAT plus security QA; sign-off delegated to Fable security-review GREEN
+  (fallback Sol xhigh GREEN).
