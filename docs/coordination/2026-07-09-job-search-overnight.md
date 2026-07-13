@@ -5360,3 +5360,9 @@ Rationale: harness must be READY before #984 hits its dev-UAT exit gate — raci
   solely #868/#1020→#984, will relay to a FRESH **Sonnet** successor before its floor (conserves Sol).
 - #984/#868 security lane LIVE under UX Coordinator, tab w1:t1W: "UX 984 Private History" w1:pK3 (idle),
   "Security 868+1020 Purge Readiness" w1:pKY (working). #984 merge = Fable GREEN (Ben-delegated).
+
+### Cross-coordinator UPDATE 2026-07-13 (UX relay complete)
+UX Coordinator relayed Sol→Sonnet. NOW DRIVING #984/#868: **"UX Coordinator Successor 4"**, pane
+w1:pK0, tab w1:t1Q, session **1211ffa9-b725-469b-922d-ab4dc0c56436** (Claude/Sonnet, working),
+re-adopted from UX manifest head 04cd539a. Old session 019f5adf idle → being reaped by successor.
+UX remains no-merge; #984 PR will report to me (Coordinator) → Fable GREEN gate → I merge.
