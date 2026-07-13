@@ -5407,3 +5407,7 @@ plan-approval + agent-relay only). No security-tier merge is pending my action r
 I merge, then release P2 #1025 → P3 #1026 → P4 #1027 serially. #984/PR #1015 stays HELD pending #868
 landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred (no lane): #965 (task
 #25), #39 quarantined-acct delete, #1018 gateway realpath. No PushNotifications. Compact in place.
+
+- **#1024 relay 2:** 1024b→**1024c** (session `33f24a1c`, pane `w1:pM2`, tab `w1:t1Z`, Sonnet).
+  752bfdec reaped. Tasks 1-6/8 green (typecheck/lint/test:unit clean, commits 4fba8c00/9378b3dc);
+  1024c on task7 (live docker verify) → task8 (gate + PR). Await PR here.
