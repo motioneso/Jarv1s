@@ -249,7 +249,48 @@ test("stages next message while response is running and sends it after stop", as
   await expect(drawer.getByText(/Next:/)).toHaveCount(0);
 });
 
-test("clicking a history row renders stored messages read-only", async ({ page }) => {
+test("selecting a History row both opens and activates it — no separate resume step", async ({
+  page
+}) => {
+  let resumeCalledWith: string | null = null;
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [
+      {
+        id: "thread-old",
+        ownerUserId: "user-1",
+        title: "Old chat",
+        incognito: false,
+        createdAt: "2026-07-01T00:00:00.000Z",
+        updatedAt: "2026-07-01T00:00:00.000Z"
+      }
+    ],
+    chatMessages: { "thread-old": [] },
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: []
+  });
+  await page.route("**/api/chat/threads/thread-old/resume", async (route) => {
+    resumeCalledWith = "thread-old";
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await drawer.getByRole("button", { name: "Show chat history" }).click();
+  await drawer.getByText("Old chat").click();
+
+  await expect.poll(() => resumeCalledWith).toBe("thread-old");
+  await expect(drawer.locator(".chatd-review")).toHaveCount(0);
+  await expect(drawer.getByLabel("Message Jarvis")).toBeEditable();
+});
+
+test("clicking a history row renders stored messages while activation is pending", async ({
+  page
+}) => {
+  let completeResume: (() => void) | undefined;
   await mockApi(page, {
     authenticated: true,
     chatThreads: [
@@ -297,78 +338,28 @@ test("clicking a history row renders stored messages read-only", async ({ page }
     notifications: [],
     tasks: []
   });
+  await page.route("**/api/chat/threads/thread-old/resume", async (route) => {
+    await new Promise<void>((resolve) => {
+      completeResume = resolve;
+    });
+    await route.fulfill({ status: 204, body: "" });
+  });
 
   await page.goto("/");
   await page.getByRole("button", { name: "Chat with Jarvis" }).click();
   const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
 
   await drawer.getByRole("button", { name: "Show chat history" }).click();
-  await drawer.locator("button.chatd-sess__row-main").filter({ hasText: "Planning notes" }).click();
+  await drawer.locator("button.chatd-sess__row").filter({ hasText: "Planning notes" }).click();
 
   await expect(drawer.getByText("What did we decide?")).toBeVisible();
   await expect(drawer.getByText("We chose the small path.")).toBeVisible();
   await drawer.getByText("Behind the scenes").click();
   await expect(drawer.getByText("Looked up prior notes")).toBeVisible();
-  await expect(drawer.getByLabel("Message Jarvis")).toBeDisabled();
-});
+  await expect(drawer.getByLabel("Message Jarvis")).toBeEditable();
 
-test("reviewing an empty history row does not expose send suggestions", async ({ page }) => {
-  let turnRequests = 0;
-  await mockApi(page, {
-    authenticated: true,
-    chatThreads: [
-      {
-        id: "thread-empty",
-        ownerUserId: "user-1",
-        title: "Empty review",
-        incognito: false,
-        createdAt: "2026-06-05T12:00:00.000Z",
-        updatedAt: "2026-06-05T12:00:00.000Z"
-      }
-    ],
-    chatMessages: { "thread-empty": [] },
-    connectorAccounts: [],
-    connectorProviders: createMockConnectorProviders(),
-    notifications: [],
-    tasks: [
-      {
-        id: "task-1",
-        ownerUserId: "user-1",
-        listId: "list-1",
-        title: "Call Sam",
-        description: null,
-        status: "todo",
-        priority: null,
-        position: 0,
-        dueAt: null,
-        doAt: null,
-        effort: null,
-        parentTaskId: null,
-        source: "manual",
-        sourceRef: null,
-        completedAt: null,
-        tags: [],
-        createdAt: "2026-06-05T12:00:00.000Z",
-        updatedAt: "2026-06-05T12:00:00.000Z"
-      }
-    ]
-  });
-  await page.route("**/api/chat/turn", (route) => {
-    turnRequests += 1;
-    return route.fulfill({ status: 500, body: "" });
-  });
-
-  await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
-
-  await drawer.getByRole("button", { name: "Show chat history" }).click();
-  await drawer.locator("button.chatd-sess__row-main").filter({ hasText: "Empty review" }).click();
-
-  await expect(drawer.getByLabel("Message Jarvis")).toBeDisabled();
-  await expect(drawer.getByText("What can I help with?")).toHaveCount(0);
-  await expect(drawer.getByRole("button", { name: /Call Sam/ })).toHaveCount(0);
-  expect(turnRequests).toBe(0);
+  completeResume?.();
+  await expect(drawer.getByRole("button", { name: "Show chat history" })).toBeVisible();
 });
 
 /**

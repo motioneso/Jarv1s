@@ -6,7 +6,6 @@ import {
   GitCommitHorizontal,
   MessageSquareText,
   MoreHorizontal,
-  Play,
   ShieldOff,
   SquarePen,
   ThumbsDown,
@@ -134,6 +133,9 @@ export function ChatDrawer(props: {
       setReviewThreadId(null);
       setShowHistory(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+    },
+    onError: () => {
+      setReviewThreadId(null);
     }
   });
 
@@ -388,10 +390,6 @@ export function ChatDrawer(props: {
     });
   };
 
-  const selectedThread = (threadsQuery.data?.threads ?? []).find(
-    (item) => item.id === reviewThreadId
-  );
-
   return (
     <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
       <div className="chatd__head">
@@ -448,24 +446,12 @@ export function ChatDrawer(props: {
             <HistoryList
               selectedThreadId={reviewThreadId}
               threads={threadsQuery.data?.threads ?? []}
-              onSelect={setReviewThreadId}
-              onResume={(id) => resumeMutation.mutate(id)}
-              resuming={resumeMutation.isPending}
+              onSelect={(id) => {
+                setReviewThreadId(id);
+                resumeMutation.mutate(id);
+              }}
+              activating={resumeMutation.isPending}
             />
-          ) : null}
-          {reviewing ? (
-            <div className="chatd-review">
-              <span>Reviewing {selectedThread?.title ?? "past chat"}</span>
-              <button
-                className="chatd-review__resume"
-                disabled={resumeMutation.isPending}
-                type="button"
-                onClick={() => reviewThreadId && resumeMutation.mutate(reviewThreadId)}
-              >
-                <Play size={13} aria-hidden="true" />
-                Resume this conversation
-              </button>
-            </div>
           ) : null}
           {activatingPrivate ? (
             <div className="chatd-private is-activating">
@@ -494,8 +480,6 @@ export function ChatDrawer(props: {
           ) : null}
           {effectiveRecords.length > 0 ? (
             <Thread records={effectiveRecords} />
-          ) : reviewing ? (
-            <ReviewEmptyState />
           ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
             <ConnectProviderEmpty isFounder={props.isFounder} />
           ) : (
@@ -574,12 +558,12 @@ export function ChatDrawer(props: {
       <Composer
         modelSelector={
           <ChatModelPill
-            disabled={reviewing || privateEnded || isSending}
+            disabled={privateEnded || isSending}
             privateMode={privateMode}
             onCrossProviderSwitch={switchToNewModelChat}
           />
         }
-        readOnly={reviewing || privateEnded}
+        readOnly={privateEnded}
         isFounder={props.isFounder}
         initialText={props.initialText}
         isSending={isSending}
@@ -601,8 +585,7 @@ function HistoryList(props: {
   }[];
   readonly selectedThreadId: string | null;
   readonly onSelect: (threadId: string) => void;
-  readonly onResume: (threadId: string) => void;
-  readonly resuming: boolean;
+  readonly activating: boolean;
 }) {
   const locale = useUserLocale();
   if (props.threads.length === 0) return null;
@@ -610,34 +593,21 @@ function HistoryList(props: {
     <div className="chatd-sess">
       <div className="chatd-sess__hd">History</div>
       {props.threads.map((thread) => (
-        <div
+        <button
           className={`chatd-sess__row${props.selectedThreadId === thread.id ? " is-selected" : ""}`}
+          disabled={props.activating}
           key={thread.id}
+          type="button"
+          onClick={() => props.onSelect(thread.id)}
         >
-          <button
-            className="chatd-sess__row-main"
-            type="button"
-            onClick={() => props.onSelect(thread.id)}
-          >
-            <span className="chatd-sess__ic">
-              <MessageSquareText size={14} aria-hidden="true" />
-            </span>
-            <span className="chatd-sess__main">
-              <span className="chatd-sess__title">{thread.title}</span>
-            </span>
-            <span className="chatd-sess__when">{formatShortDate(thread.updatedAt, locale)}</span>
-          </button>
-          <button
-            aria-label={`Resume ${thread.title}`}
-            className="chatd-sess__resume"
-            disabled={props.resuming}
-            title="Resume this conversation"
-            type="button"
-            onClick={() => props.onResume(thread.id)}
-          >
-            <Play size={13} aria-hidden="true" />
-          </button>
-        </div>
+          <span className="chatd-sess__ic">
+            <MessageSquareText size={14} aria-hidden="true" />
+          </span>
+          <span className="chatd-sess__main">
+            <span className="chatd-sess__title">{thread.title}</span>
+          </span>
+          <span className="chatd-sess__when">{formatShortDate(thread.updatedAt, locale)}</span>
+        </button>
       ))}
     </div>
   );
@@ -1003,14 +973,6 @@ function EmptyState(props: {
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ReviewEmptyState() {
-  return (
-    <div className="chatd-empty chatd-empty--review">
-      <div className="chatd-empty__title">No stored messages</div>
     </div>
   );
 }
