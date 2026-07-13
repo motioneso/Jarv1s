@@ -15,6 +15,8 @@ export interface MockChatApiState {
   aiProviders?: AiProviderConfigDto[];
   chatMessages?: Record<string, ChatMessageDto[]>;
   chatThreads?: ChatThreadDto[];
+  /** Holds POST /api/chat/clear open until the test releases it (races the private-activation UI). */
+  clearGate?: { release: () => void; promise: Promise<void> };
 }
 
 export async function registerMockChatRoutes(page: Page, state: MockChatApiState): Promise<void> {
@@ -44,6 +46,19 @@ export async function registerMockChatRoutes(page: Page, state: MockChatApiState
       body: ":\n\n"
     });
   });
+
+  // Default 204 for POST /api/chat/clear, held open by state.clearGate when a test needs to
+  // race the private-activation UI. Tests that register their own /api/chat/clear route
+  // afterwards take precedence (Playwright runs the most-recently-registered handler first).
+  await page.route(
+    (url) => url.pathname.endsWith("/api/chat/clear"),
+    async (route) => {
+      if (state.clearGate) {
+        await state.clearGate.promise;
+      }
+      await route.fulfill({ status: 204, body: "" });
+    }
+  );
 }
 
 export function createMockChatThread(

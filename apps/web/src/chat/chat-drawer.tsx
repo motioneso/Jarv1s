@@ -89,6 +89,8 @@ export function ChatDrawer(props: {
   const [showHistory, setShowHistory] = useState(false);
   const [privateMode, setPrivateMode] = useState(false);
   const [privateEnded, setPrivateEnded] = useState(false);
+  const [activatingPrivate, setActivatingPrivate] = useState(false);
+  const [privateActivationError, setPrivateActivationError] = useState<string | null>(null);
 
   // #633: autoscroll to the newest message by default; pause it the moment the user scrolls
   // away from the bottom, and resume (jumping straight to the latest record) on demand.
@@ -199,7 +201,7 @@ export function ChatDrawer(props: {
   const sendMessage = useCallback(
     (text: string): void => {
       const trimmed = text.trim();
-      if (!trimmed || isSending || privateEnded) return;
+      if (!trimmed || isSending || privateEnded || activatingPrivate) return;
       setSendError(null);
       setNeedsProvider(false);
       setIsSending(true);
@@ -235,7 +237,7 @@ export function ChatDrawer(props: {
         }
       })();
     },
-    [isSending, privateEnded, props.records, queryClient]
+    [activatingPrivate, isSending, privateEnded, props.records, queryClient]
   );
 
   useEffect(() => {
@@ -335,12 +337,24 @@ export function ChatDrawer(props: {
     setNeedsProvider(false);
     setDrainAfterStopText(null);
     setPendingUserText(null);
-    setFallbackRecords([]);
-    setPrivateMode(true);
     setPrivateEnded(false);
-    void clearChat({ incognito: true });
-    props.clearRecords();
-    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+    setPrivateActivationError(null);
+    setActivatingPrivate(true);
+    void (async () => {
+      try {
+        await clearChat({ incognito: true });
+        setFallbackRecords([]);
+        props.clearRecords();
+        setPrivateMode(true);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+      } catch (caught) {
+        setPrivateActivationError(
+          caught instanceof Error ? caught.message : "Could not start a private chat"
+        );
+      } finally {
+        setActivatingPrivate(false);
+      }
+    })();
   };
 
   const closePrivateChat = () => {
@@ -438,6 +452,19 @@ export function ChatDrawer(props: {
               >
                 <Play size={13} aria-hidden="true" />
                 Resume this conversation
+              </button>
+            </div>
+          ) : null}
+          {activatingPrivate ? (
+            <div className="chatd-private is-activating">
+              <span>Starting private chat…</span>
+            </div>
+          ) : null}
+          {privateActivationError ? (
+            <div className="chatd-private is-error">
+              <span>{privateActivationError}</span>
+              <button type="button" onClick={() => setPrivateActivationError(null)}>
+                Dismiss
               </button>
             </div>
           ) : null}

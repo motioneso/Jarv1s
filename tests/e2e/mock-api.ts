@@ -69,6 +69,8 @@ export interface MockApiState
    */
   taskLists?: TaskListDto[];
   taskTags?: TaskTagDto[];
+  /** Holds POST /api/chat/clear open until the test releases it. See MockChatApiState. */
+  clearGate?: { release: () => void; promise: Promise<void> };
 }
 
 function taskListsFor(state: MockApiState): TaskListDto[] {

@@ -89,6 +89,56 @@ test("opens the live chat drawer from the nav and renders the streamed records o
   await expect(drawer.getByText("Hi there")).toHaveCount(0);
 });
 
+test("private activation blocks send until the server confirms, then allows it", async ({
+  page
+}) => {
+  let releaseClear: (() => void) | undefined;
+  const clearGate = {
+    promise: new Promise<void>((resolve) => {
+      releaseClear = resolve;
+    }),
+    release: () => releaseClear?.()
+  };
+
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    clearGate
+  });
+
+  let turnCalled = false;
+  await page.route("**/api/chat/turn", async (route) => {
+    turnCalled = true;
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  // The shared mock's SSE stream closes after one heartbeat, which fires EventSource.onerror
+  // and would end the private session mid-test. Keep it pending — this test doesn't assert
+  // on stream events.
+  await page.route("**/api/chat/stream", () => new Promise<void>(() => {}));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: "Start private chat" }).click();
+
+  // While the server confirmation is held open, the private banner must not show yet,
+  // and attempting to send must not reach POST /api/chat/turn.
+  await expect(drawer.locator(".chatd-private").filter({ hasText: "not saved" })).toHaveCount(0);
+  await drawer.getByLabel("Message Jarvis").fill("secret during race");
+  await drawer.getByLabel("Message Jarvis").press("Enter");
+  await page.waitForTimeout(100);
+  expect(turnCalled).toBe(false);
+
+  clearGate.release();
+
+  await expect(drawer.locator(".chatd-private").filter({ hasText: "not saved" })).toBeVisible();
+});
+
 test("stages next message while response is running and sends it after stop", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
