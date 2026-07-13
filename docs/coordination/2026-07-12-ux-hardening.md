@@ -3,8 +3,8 @@
 **Date:** 2026-07-12
 **Merge-authority lock:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`.
-**Delegated lane owner:** label `UX Coordinator`, Codex session
-`019f5adf-594d-7623-8259-69e1657f4e6b`.
+**Delegated lane owner:** label `UX Coordinator`, Claude session
+`1211ffa9-b725-469b-922d-ab4dc0c56436`.
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
@@ -1141,3 +1141,23 @@ resume from this note before taking any merge-sensitive action.
   including image. Its agents are reaped; dirty protected build worktree was preserved. Primary owns
   the entire approved #1000 harness train (#1024–#1027); UX belayed it before any agent or edit and
   removed the temporary worktree/branch. Do not spawn or coordinate #1000 from this lane.
+
+## Continuation note — 2026-07-13 UX coordinator successor 5 adopted
+
+- Fresh Sonnet successor adopted the `UX Coordinator` lane: label `UX Coordinator`, Claude session
+  `1211ffa9-b725-469b-922d-ab4dc0c56436` (was labeled `UX Coordinator Successor 4` pane `w1:pK0`,
+  now renamed). Verified Primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` live
+  at pane `w1:pE6` — sole merge executor, unchanged. Spent Codex `UX Coordinator` session
+  `019f5adf-594d-7623-8259-69e1657f4e6b` (pane `w1:pKA`) verified and closed after this note lands.
+- Mid-doing (carried forward unchanged): main was `cdf66df0`, CI run `29277401769` had both compose
+  smokes GREEN and foundation running — watching for exact 4/4 GREEN. On green, release security
+  session `019f5ce4-cce4-7a13-be05-cfc3834cc529` (worktree `security-868-engine-purge`) from
+  plan-only hold (`8f7f2ec40cfe5c938d62f09e24c1e06460340424`, tree clean) into TDD implementation
+  per approved #1020 rev2 (`39dafc29`, Ben approval `4961635704`) scope: exact ECHO/ACK + idempotent
+  cancel, manager await seam only after runner green, then expanded #868 exact Gemini/Codex/AGY
+  identities + deterministic graceful/crash purge. No timers, heuristic matching, broad/shared-root
+  deletion, payload leakage, or merge by UX.
+- #984/PR #1015 stays held at `57c484ac` until the #1020/#868 dependency lands, then no-wait 3x real
+  UAT plus security QA. Ben delegated #984 sign-off to Fable security-review GREEN (fallback Sol
+  xhigh GREEN); all other gates still apply.
+- Do not spawn or coordinate #1000 — Primary owns the entire approved harness train (#1024–#1027).
