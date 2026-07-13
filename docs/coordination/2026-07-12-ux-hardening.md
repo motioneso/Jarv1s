@@ -681,3 +681,14 @@ resume from this note before taking any merge-sensitive action.
   `151e9902-c729-458d-86c1-62e98495b594` is reviewing the repair, invariants, exit criteria, and
   whether the durable live UAT remains sufficient. It must post its verdict to the PR; Primary alone
   may merge.
+
+## Continuation note — 2026-07-13 #984 Opus ruling
+
+- Opus reviewer `9eb17b9a-4002-4ba2-beef-9f7554daa842` confirmed #984's post-replay input-readiness
+  timing race and approved a bounded interim fix inside #984 scope. No #868 runner change is
+  authorized. The natural durable engine-readiness seam remains deferred to #868/Slice 4.
+- #984 may implement only with both required corrections: keep `chat-session-manager.ts` at or below
+  the 1,000-line gate, and thread an environment-configurable 600 ms production settle through
+  runtime dependencies while tests use zero. Verification must include focused unit/E2E/typecheck/
+  file-size checks plus fresh isolated resume-first-send live UAT 3–5 times under light load. Primary
+  has the ruling; this UX coordinator never merges.
