@@ -852,3 +852,7 @@ resume from this note before taking any merge-sensitive action.
   contention: hold, preserve logs, and escalate to Primary before retry; never patch #990 for that
   infrastructure signature. On genuine GREEN, #990 proceeds to explicit-path push/PR, exact-head
   isolated UAT/screenshots, CI, and independent QA. No merge is authorized here.
+- #990's first foundation attempt exited 1 before migrations with PostgreSQL `3D000` because the
+  newly assigned database did not exist; unit work was GREEN (3,215 pass/2 skip) and no contention
+  signature appeared. This is slot initialization. The lane may create only `jarvis_ux990_gate` and
+  take one serial foundation retry; release-hardening remains forbidden until `VF_EXIT=0`.
