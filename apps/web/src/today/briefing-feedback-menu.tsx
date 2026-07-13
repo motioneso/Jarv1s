@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, ThumbsDown, ThumbsUp } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@jarv1s/shared";
 
@@ -9,6 +9,7 @@ import {
   createUsefulnessFeedback,
   undoUsefulnessFeedback
 } from "../api/usefulness-feedback-client";
+import { useDismissableMenu } from "../shared/use-dismissable-menu.js";
 
 type BriefingRunFeedbackKind = Extract<
   UsefulnessFeedbackKind,
@@ -54,46 +55,71 @@ export function BriefingFeedbackMenu(props: {
   readonly onChanged: () => void;
 }) {
   const { last, createMutation, undoMutation } = useBriefingFeedback(props);
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+  const { ref: menuRef } = useDismissableMenu<HTMLDivElement>({
+    open,
+    onClose: closeMenu
+  });
+
+  const pick = (kind: BriefingRunFeedbackKind) => {
+    closeMenu();
+    createMutation.mutate(kind);
+  };
 
   return (
     <div className="today-feedback">
-      <details className="today-feedback__details">
-        <summary className="today-feedback__trigger" aria-label="Feedback" title="Feedback">
+      <div className="today-feedback__details" ref={menuRef}>
+        <button
+          type="button"
+          ref={triggerRef}
+          className="today-feedback__trigger"
+          aria-label="Feedback"
+          title="Feedback"
+          aria-expanded={open}
+          onClick={() => (open ? closeMenu() : setOpen(true))}
+        >
           <MoreHorizontal size={14} aria-hidden="true" />
-        </summary>
-        <div className="today-feedback__list">
-          <button
-            type="button"
-            onClick={() => createMutation.mutate("more_like_this")}
-            disabled={createMutation.isPending}
-          >
-            <ThumbsUp size={13} aria-hidden="true" />
-            More like this
-          </button>
-          <button
-            type="button"
-            onClick={() => createMutation.mutate("too_much")}
-            disabled={createMutation.isPending}
-          >
-            Too much
-          </button>
-          <button
-            type="button"
-            onClick={() => createMutation.mutate("not_useful")}
-            disabled={createMutation.isPending}
-          >
-            <ThumbsDown size={13} aria-hidden="true" />
-            Not useful
-          </button>
-          <button
-            type="button"
-            onClick={() => createMutation.mutate("dismiss")}
-            disabled={createMutation.isPending}
-          >
-            Dismiss
-          </button>
-        </div>
-      </details>
+        </button>
+        {open ? (
+          <div className="today-feedback__list">
+            <button
+              type="button"
+              onClick={() => pick("more_like_this")}
+              disabled={createMutation.isPending}
+            >
+              <ThumbsUp size={13} aria-hidden="true" />
+              More like this
+            </button>
+            <button
+              type="button"
+              onClick={() => pick("too_much")}
+              disabled={createMutation.isPending}
+            >
+              Too much
+            </button>
+            <button
+              type="button"
+              onClick={() => pick("not_useful")}
+              disabled={createMutation.isPending}
+            >
+              <ThumbsDown size={13} aria-hidden="true" />
+              Not useful
+            </button>
+            <button
+              type="button"
+              onClick={() => pick("dismiss")}
+              disabled={createMutation.isPending}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+      </div>
       {last ? (
         <span className="today-feedback__status">
           Saved

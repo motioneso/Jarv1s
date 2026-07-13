@@ -33,7 +33,7 @@ export interface TranscriptRecord {
   readonly actionRequestId?: string;
   readonly toolName?: string;
   readonly summary?: string;
-  readonly outcome?: "executed" | "denied" | "error";
+  readonly outcome?: "executed" | "denied" | "error" | "allowed";
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
   readonly sourceFreshness?: SourceFreshnessV1 | null;
@@ -138,7 +138,10 @@ export function parseRecord(data: unknown): TranscriptRecord | null {
       toolName: typeof parsed.toolName === "string" ? parsed.toolName : undefined,
       summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
       outcome:
-        parsed.outcome === "executed" || parsed.outcome === "denied" || parsed.outcome === "error"
+        parsed.outcome === "executed" ||
+        parsed.outcome === "denied" ||
+        parsed.outcome === "error" ||
+        parsed.outcome === "allowed"
           ? parsed.outcome
           : undefined,
       sourceFreshness:

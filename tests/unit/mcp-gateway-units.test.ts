@@ -256,6 +256,193 @@ describe("native Claude tool permission bridge", () => {
       outcome: "denied"
     });
   });
+
+  it.each([
+    ["Edit", { file_path: "src/a.ts", old_string: "a", new_string: "b" }],
+    ["Write", { file_path: "src/a.ts", content: "hello" }],
+    ["NotebookEdit", { notebook_path: "notes/a.ipynb", new_source: "hello" }]
+  ])("auto-grants allowlisted %s when yoloMode is true", async (toolName, toolInput) => {
+    const tokens = new SessionTokenRegistry();
+    const emitted: unknown[] = [];
+    const audits: unknown[] = [];
+    let createPendingCalled = false;
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async () => {
+          createPendingCalled = true;
+          return { id: "pending_1" };
+        },
+        insertActionAuditLog: async (_db: unknown, input: unknown) => {
+          audits.push(input);
+        }
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 50,
+      yoloMode: async () => true
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "c1", allowedToolNames: null });
+
+    const result = await gateway.requestNativeToolPermission(token, {
+      toolName,
+      toolInput,
+      workingDirectory: "/workspace"
+    });
+
+    expect(result).toEqual({ decision: "allow", reason: "Allowed by YOLO." });
+    expect(createPendingCalled).toBe(false);
+    expect(emitted).toEqual([
+      expect.objectContaining({ kind: "action_result", toolName, outcome: "allowed" })
+    ]);
+    await vi.waitFor(() => expect(audits).toHaveLength(1));
+    expect(audits[0]).toMatchObject({
+      approvalMode: "yolo",
+      inputSummary: {
+        inputKeys: Object.keys(toolInput).sort(),
+        inputKeyCount: Object.keys(toolInput).length,
+        truncated: false
+      }
+    });
+  });
+
+  it.each(["Bash", "Task", "Read", "Grep", "Glob", "FutureTool", "", "   "])(
+    "keeps %j behind confirmation under YOLO",
+    async (toolName) => {
+      const tokens = new SessionTokenRegistry();
+      const confirmations = new ConfirmationRegistry();
+      const emitted: unknown[] = [];
+      const gateway = new AssistantToolGateway({
+        resolveActiveModules: async () => [],
+        repository: {
+          createPendingAssistantAction: async () => ({ id: "pending_gated" }),
+          insertActionAuditLog: async () => {}
+        } as never,
+        runner: {
+          withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+            work({})
+        } as never,
+        tokens,
+        confirmations,
+        notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+        confirmTimeoutMs: 50,
+        yoloMode: async () => true
+      });
+      const token = tokens.mint({ actorUserId: "u1", chatSessionId: "c1", allowedToolNames: null });
+
+      const pending = gateway.requestNativeToolPermission(token, {
+        toolName,
+        toolInput: { file_path: "src/a.ts", command: "echo hi" },
+        workingDirectory: "/workspace"
+      });
+      await vi.waitFor(() =>
+        expect(emitted).toContainEqual(
+          expect.objectContaining({
+            kind: "action_request",
+            toolName: toolName.trim() || "Unknown"
+          })
+        )
+      );
+      confirmations.resolve("pending_gated", "rejected");
+      await expect(pending).resolves.toMatchObject({ decision: "deny" });
+    }
+  );
+
+  it.each([
+    ".claude/settings.json",
+    "nested/../CLAUDE.md",
+    ".mcp.json",
+    "settings.local.json",
+    "keybindings.json"
+  ])("keeps config target %s behind confirmation under YOLO", async (filePath) => {
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const emitted: unknown[] = [];
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async () => ({ id: "pending_config" }),
+        insertActionAuditLog: async () => {}
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations,
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 50,
+      yoloMode: async () => true
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "c1", allowedToolNames: null });
+
+    const pending = gateway.requestNativeToolPermission(token, {
+      toolName: "Write",
+      toolInput: { file_path: filePath, content: "unsafe" },
+      workingDirectory: "/workspace"
+    });
+    await vi.waitFor(() =>
+      expect(emitted).toContainEqual(expect.objectContaining({ kind: "action_request" }))
+    );
+    confirmations.resolve("pending_config", "rejected");
+    await expect(pending).resolves.toMatchObject({ decision: "deny" });
+  });
+
+  it.each([
+    ["false", async () => false],
+    ["missing resolver", undefined],
+    [
+      "resolver throws",
+      async () => {
+        throw new Error("boom");
+      }
+    ]
+  ])("falls back to normal confirmation when yoloMode is %s", async (_label, yoloMode) => {
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const emitted: unknown[] = [];
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async () => ({ id: "pending_1" }),
+        insertActionAuditLog: async () => {}
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations,
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 50,
+      yoloMode
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "c1", allowedToolNames: null });
+
+    const pending = gateway.requestNativeToolPermission(token, {
+      toolName: "Write",
+      toolInput: { file_path: "src/a.ts" },
+      workingDirectory: "/workspace"
+    });
+
+    await vi.waitFor(() => expect(emitted).toHaveLength(1));
+    const requestRecord = emitted.find(
+      (r): r is { actionRequestId: string } =>
+        typeof r === "object" && r !== null && (r as { kind?: string }).kind === "action_request"
+    );
+    expect(requestRecord).toBeDefined();
+    confirmations.resolve(requestRecord!.actionRequestId, "confirmed");
+    const result = await pending;
+    expect(result.decision).toBe("allow");
+    expect(emitted).toContainEqual(
+      expect.objectContaining({ kind: "action_result", outcome: "executed" })
+    );
+  });
 });
 
 describe("tool input validation", () => {

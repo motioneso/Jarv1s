@@ -302,9 +302,11 @@ describe("email reply tools — gateway acceptance", () => {
     );
     const persisted = actions.find((a) => a.id === card.actionRequestId);
     expect(persisted).toBeDefined();
-    expect(JSON.stringify(persisted!.input_summary)).toEqual(
-      JSON.stringify({ inputKeys: ["body", "cacheMessageId"], inputKeyCount: 2 })
-    );
+    expect(persisted!.input_summary).toStrictEqual({
+      inputKeys: ["body", "cacheMessageId"],
+      inputKeyCount: 2,
+      truncated: false
+    });
     expect(JSON.stringify(persisted)).not.toContain(SECRET_BODY);
   });
 

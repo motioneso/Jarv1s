@@ -11,7 +11,7 @@ import {
   GitCommitHorizontal,
   Tag
 } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import {
@@ -24,6 +24,7 @@ import {
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { useUserLocale } from "../locale/locale-format";
+import { useDismissableMenu } from "../shared/use-dismissable-menu.js";
 import { FOCUS_LABELS, isTaskFocus } from "./focus";
 import { TaskCapture } from "./task-capture";
 import { TaskDetailsDialog } from "./task-details-dialog";
@@ -521,16 +522,15 @@ function ListFilterMenu(props: {
   readonly onReset: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+  const { ref } = useDismissableMenu<HTMLDivElement>({
+    open,
+    onClose: closeMenu
+  });
 
   const excluded = props.lists.filter((list) => props.stateOf(list.id) === "excluded");
   const anySolo = props.soloIds.length > 0;
@@ -547,8 +547,9 @@ function ListFilterMenu(props: {
     <div className="tk-listfilter" ref={ref}>
       <button
         type="button"
+        ref={triggerRef}
         className={`tk-listbtn ${open ? "is-open" : ""} ${!clean ? "is-on" : ""}`}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeMenu() : setOpen(true))}
       >
         <Layers size={14} aria-hidden="true" />
         {label}

@@ -35,7 +35,7 @@ export type GatewaySessionRecord =
       readonly kind: "action_result";
       readonly actionRequestId: string;
       readonly toolName: string;
-      readonly outcome: "executed" | "denied" | "error";
+      readonly outcome: "executed" | "denied" | "error" | "allowed";
     };
 
 export interface SessionNotifier {

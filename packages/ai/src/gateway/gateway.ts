@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { basename, resolve, sep } from "node:path";
 
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import type {
@@ -9,7 +10,7 @@ import type {
   ToolExecute,
   ToolServices
 } from "@jarv1s/module-sdk";
-import type { AiAssistantToolDto } from "@jarv1s/shared";
+import type { ActionAuditInputSummary, AiAssistantToolDto } from "@jarv1s/shared";
 
 import { summarizeAssistantToolInput } from "../assistant-tools.js";
 import type { AiRepository, InsertAuditLogInput } from "../repository.js";
@@ -72,6 +73,7 @@ interface ExecutableTool {
 export interface NativeToolPermissionRequest {
   readonly toolName: string;
   readonly toolInput: Record<string, unknown>;
+  readonly workingDirectory?: string;
 }
 
 export interface NativeToolPermissionResponse {
@@ -81,6 +83,16 @@ export interface NativeToolPermissionResponse {
 
 const NATIVE_TOOL_MODULE_ID = "claude-native";
 const NATIVE_TOOL_MODULE_NAME = "Claude Native Tools";
+// Bash and Task stay permanently gated: YOLO removes confirmation only for these mutation-only
+// tools, and unknown/future native capabilities fail closed to the normal confirmation path.
+const NATIVE_YOLO_AUTO_ALLOW = new Set(["Edit", "Write", "NotebookEdit"]);
+const NATIVE_CONFIG_FILE_NAMES = new Set([
+  "settings.json",
+  "settings.local.json",
+  "CLAUDE.md",
+  ".mcp.json",
+  "keybindings.json"
+]);
 
 /**
  * The single chokepoint between Jarvis and every module's real operations. Lists
@@ -171,6 +183,49 @@ export class AssistantToolGateway {
     const input = request.toolInput;
     const requestId = `native_${randomUUID()}`;
     const access: AccessContext = { actorUserId, requestId };
+
+    const ctx: ToolContext = {
+      actorUserId,
+      requestId,
+      chatSessionId,
+      localTimezone: (await this.deps.resolveLocalTimezone?.(actorUserId)) ?? undefined
+    };
+
+    const yoloGranted =
+      nativeYoloCanAutoAllow(toolName, input, request.workingDirectory) &&
+      (await (async () => {
+        try {
+          return (await this.deps.yoloMode?.(ctx)) === true;
+        } catch {
+          return false;
+        }
+      })());
+
+    if (yoloGranted) {
+      this.deps.notifier.emit(chatSessionId, {
+        kind: "action_result",
+        actionRequestId: requestId,
+        toolName,
+        outcome: "allowed"
+      });
+      void this.recordAuditRaw(
+        access,
+        {
+          toolModuleId: NATIVE_TOOL_MODULE_ID,
+          toolName,
+          actionFamilyId: null,
+          actionKind: nativeToolRisk(toolName)
+        },
+        {
+          approvalMode: "yolo",
+          outcome: "success",
+          chatSessionId,
+          // Only bounded key metadata may persist. Live tool/card summaries can contain raw values.
+          inputSummary: summarizeAssistantToolInput(input)
+        }
+      );
+      return { decision: "allow", reason: "Allowed by YOLO." };
+    }
 
     const action = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
       this.deps.repository.createPendingAssistantAction(scopedDb, {
@@ -518,6 +573,53 @@ export class AssistantToolGateway {
     return out;
   }
 
+  private async recordAuditRaw(
+    access: AccessContext,
+    fields: {
+      toolModuleId: string;
+      toolName: string;
+      actionFamilyId: string | null;
+      actionKind: "write" | "destructive";
+    },
+    opts: {
+      approvalMode: InsertAuditLogInput["approvalMode"];
+      outcome: InsertAuditLogInput["outcome"];
+      errorClass?: string | null;
+      chatSessionId?: string;
+      inputSummary?: ActionAuditInputSummary | null;
+    }
+  ): Promise<void> {
+    try {
+      await this.deps.runner.withDataContext(access, (scopedDb) =>
+        this.deps.repository.insertActionAuditLog(scopedDb, {
+          id: randomUUID(),
+          ownerUserId: access.actorUserId,
+          toolModuleId: fields.toolModuleId,
+          toolName: fields.toolName,
+          actionFamilyId: fields.actionFamilyId,
+          actionKind: fields.actionKind,
+          approvalMode: opts.approvalMode,
+          outcome: opts.outcome,
+          errorClass: opts.errorClass ?? null,
+          requestId: access.requestId ?? null,
+          chatSessionId: opts.chatSessionId ?? null,
+          sourceSurface: "chat",
+          inputSummary: opts.inputSummary ?? null
+        })
+      );
+    } catch {
+      console.error(
+        JSON.stringify({
+          event: "audit_log_write_failed",
+          toolName: fields.toolName,
+          toolModuleId: fields.toolModuleId,
+          approvalMode: opts.approvalMode,
+          outcome: opts.outcome
+        })
+      );
+    }
+  }
+
   private async recordAudit(
     access: AccessContext,
     found: ExecutableTool,
@@ -528,34 +630,16 @@ export class AssistantToolGateway {
       chatSessionId?: string;
     }
   ): Promise<void> {
-    try {
-      await this.deps.runner.withDataContext(access, (scopedDb) =>
-        this.deps.repository.insertActionAuditLog(scopedDb, {
-          id: randomUUID(),
-          ownerUserId: access.actorUserId,
-          toolModuleId: found.dto.moduleId,
-          toolName: found.dto.name,
-          actionFamilyId: found.tool.actionFamilyId ?? null,
-          actionKind: found.tool.risk as "write" | "destructive",
-          approvalMode: opts.approvalMode,
-          outcome: opts.outcome,
-          errorClass: opts.errorClass ?? null,
-          requestId: access.requestId ?? null,
-          chatSessionId: opts.chatSessionId ?? null,
-          sourceSurface: "chat"
-        })
-      );
-    } catch {
-      console.error(
-        JSON.stringify({
-          event: "audit_log_write_failed",
-          toolName: found.dto.name,
-          toolModuleId: found.dto.moduleId,
-          approvalMode: opts.approvalMode,
-          outcome: opts.outcome
-        })
-      );
-    }
+    return this.recordAuditRaw(
+      access,
+      {
+        toolModuleId: found.dto.moduleId,
+        toolName: found.dto.name,
+        actionFamilyId: found.tool.actionFamilyId ?? null,
+        actionKind: found.tool.risk as "write" | "destructive"
+      },
+      opts
+    );
   }
 }
 
@@ -563,6 +647,27 @@ function safeNativeToolName(toolName: string): string {
   const trimmed = toolName.trim();
   if (trimmed.length === 0) return "Unknown";
   return trimmed.slice(0, 120);
+}
+
+function nativeYoloCanAutoAllow(
+  toolName: string,
+  input: Record<string, unknown>,
+  workingDirectory: string | undefined
+): boolean {
+  if (!NATIVE_YOLO_AUTO_ALLOW.has(toolName)) return false;
+  const target = input[toolName === "NotebookEdit" ? "notebook_path" : "file_path"];
+  if (typeof workingDirectory !== "string" || workingDirectory.trim() === "") return false;
+  if (typeof target !== "string" || target.trim() === "") return false;
+
+  try {
+    const canonicalTarget = resolve(workingDirectory, target);
+    return (
+      !canonicalTarget.split(sep).includes(".claude") &&
+      !NATIVE_CONFIG_FILE_NAMES.has(basename(canonicalTarget))
+    );
+  } catch {
+    return false;
+  }
 }
 
 function nativeToolRisk(toolName: string): "write" | "destructive" {

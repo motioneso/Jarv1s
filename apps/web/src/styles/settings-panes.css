@@ -430,11 +430,6 @@
 .ppl__menu {
   position: relative;
 }
-.ppl__menuscrim {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-}
 .ppl__menupop {
   position: absolute;
   right: 0;

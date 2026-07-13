@@ -31,7 +31,12 @@ function toTranscriptRecord(record: GatewaySessionRecord): TranscriptRecord | nu
     };
   }
   if (record.kind === "action_result") {
-    const verb = record.outcome === "executed" ? "Executed" : "Denied";
+    const verb =
+      record.outcome === "allowed"
+        ? "Allowed by YOLO"
+        : record.outcome === "executed"
+          ? "Executed"
+          : "Denied";
     return {
       kind: "action_result",
       text: `${verb}: ${record.toolName}`,

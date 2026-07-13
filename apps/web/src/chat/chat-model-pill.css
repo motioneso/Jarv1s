@@ -26,10 +26,6 @@
 }
 .chatd-model__trigger {
   cursor: pointer;
-  list-style: none;
-}
-.chatd-model__trigger::-webkit-details-marker {
-  display: none;
 }
 .chatd-model__trigger span,
 .chatd-model__menu b,
@@ -39,7 +35,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chatd-model[open] .chatd-model__trigger,
+.chatd-model__trigger[aria-expanded="true"],
 .chatd-model__trigger:hover {
   border-color: var(--accent);
   color: var(--text);

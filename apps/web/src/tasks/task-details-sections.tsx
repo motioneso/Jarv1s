@@ -1,5 +1,5 @@
 import { Archive, ArrowUp, Check, ChevronDown, Circle, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import type {
   LocaleSettingsDto,
@@ -10,6 +10,7 @@ import type {
 } from "@jarv1s/shared";
 
 import { formatDate, useUserLocale } from "../locale/locale-format";
+import { useDismissableMenu } from "../shared/use-dismissable-menu.js";
 
 const AVA_PALETTE = ["var(--steel)", "var(--amber)", "var(--ink-3)"];
 
@@ -203,15 +204,15 @@ export function TaskStatusControl(props: {
   readonly onChange: (status: TaskApiStatus) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+  const { ref } = useDismissableMenu<HTMLDivElement>({
+    open,
+    onClose: closeMenu
+  });
 
   const done = props.status === "done";
   const archived = props.status === "archived";
@@ -238,9 +239,10 @@ export function TaskStatusControl(props: {
       </button>
       <button
         type="button"
+        ref={triggerRef}
         className="tk-statusctl__more"
         aria-label="More status options"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeMenu() : setOpen(true))}
       >
         <ChevronDown size={14} aria-hidden="true" />
       </button>
@@ -254,8 +256,8 @@ export function TaskStatusControl(props: {
                 type="button"
                 className="tk-tagmenu__item"
                 onClick={() => {
+                  closeMenu();
                   props.onChange(item.status);
-                  setOpen(false);
                 }}
               >
                 <Ico size={14} aria-hidden="true" />

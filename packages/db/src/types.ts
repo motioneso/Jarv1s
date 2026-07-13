@@ -476,6 +476,7 @@ export interface JarvisActionAuditLogTable {
   request_id: string | null;
   chat_session_id: string | null;
   source_surface: string;
+  input_summary: JsonColumn | null;
   occurred_at: TimestampColumn;
 }
 

@@ -12,7 +12,13 @@ import {
   type GatewaySessionRecord
 } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { registerMcpTransportRoute } from "../../packages/chat/src/mcp-transport.js";
+import { SettingsRepository } from "@jarv1s/settings";
+import { PreferencesRepository } from "@jarv1s/structured-state";
+import {
+  registerMcpTransportRoute,
+  registerNativePermissionRoute
+} from "../../packages/chat/src/mcp-transport.js";
+import { resolveYoloMode } from "../../packages/chat/src/routes.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
@@ -435,5 +441,234 @@ describe("HTTP resolve endpoint", () => {
     const body = callRes.json<{ result: { isError: boolean } }>();
     expect(body.result.isError).toBe(true);
     expect(exampleToolCalls).toHaveLength(0);
+  });
+});
+
+describe("native permission YOLO", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let tokens: SessionTokenRegistry;
+  let confirmations: ConfirmationRegistry;
+  let runner: DataContextRunner;
+  let repository: AiRepository;
+  let emitted: { chatSessionId: string; record: GatewaySessionRecord }[];
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+  });
+
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  beforeEach(() => {
+    emitted = [];
+  });
+
+  async function buildApp(yoloGrant: boolean | "effective"): Promise<FastifyInstance> {
+    runner = new DataContextRunner(appDb);
+    repository = new AiRepository();
+    tokens = new SessionTokenRegistry();
+    confirmations = new ConfirmationRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 2_000,
+      yoloMode:
+        yoloGrant === "effective"
+          ? (ctx) =>
+              runner.withDataContext(
+                { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+                resolveYoloMode
+              )
+          : async () => yoloGrant
+    });
+    const app = Fastify({ logger: false });
+    registerNativePermissionRoute(app, { gateway, tokens });
+    await app.ready();
+    return app;
+  }
+
+  async function setEffectiveYoloState(input: {
+    readonly master: boolean;
+    readonly allowed: boolean;
+    readonly enabled: boolean;
+  }): Promise<void> {
+    await runner.withDataContext(
+      { actorUserId: ids.adminUser, requestId: `yolo-master-${randomUUID()}` },
+      (scopedDb) =>
+        new SettingsRepository().upsertInstanceSetting(scopedDb, {
+          key: "yolo.instance_enabled",
+          value: { enabled: input.master },
+          updatedByUserId: ids.adminUser,
+          requestId: `yolo-master-${randomUUID()}`
+        })
+    );
+    const preferences = new PreferencesRepository();
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: `yolo-state-${randomUUID()}` },
+      async (scopedDb) => {
+        await preferences.upsert(scopedDb, "yolo.allowed", input.allowed);
+        await preferences.upsert(scopedDb, "yolo.enabled", input.enabled);
+      }
+    );
+  }
+
+  async function rejectPending(
+    pending: Promise<Awaited<ReturnType<FastifyInstance["inject"]>>>,
+    toolName: string
+  ): Promise<void> {
+    await vi.waitFor(() =>
+      expect(emitted).toContainEqual(
+        expect.objectContaining({
+          record: expect.objectContaining({ kind: "action_request", toolName })
+        })
+      )
+    );
+    const request = emitted.find(
+      (entry) => entry.record.kind === "action_request" && entry.record.toolName === toolName
+    )?.record;
+    if (!request || request.kind !== "action_request") throw new Error("expected action_request");
+    confirmations.resolve(request.actionRequestId, "rejected");
+    const response = await pending;
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ decision: "deny", reason: "Denied by user." });
+  }
+
+  it("auto-grants allowlisted Write only when effective persisted YOLO state is active", async () => {
+    const app = await buildApp("effective");
+    try {
+      await setEffectiveYoloState({ master: true, allowed: true, enabled: true });
+      const chatSessionId = randomUUID();
+      const rawSecret = "never-persist-this-native-input-value";
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId,
+        allowedToolNames: null
+      });
+      const res = await app.inject({
+        method: "POST",
+        url: "/internal/permission",
+        headers: { authorization: `Bearer ${token}` },
+        body: {
+          tool_name: "Write",
+          tool_input: { file_path: "src/safe.ts", content: rawSecret },
+          cwd: "/workspace"
+        }
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ decision: "allow", reason: "Allowed by YOLO." });
+      expect(emitted).toEqual([
+        {
+          chatSessionId,
+          record: expect.objectContaining({
+            kind: "action_result",
+            toolName: "Write",
+            outcome: "allowed"
+          })
+        }
+      ]);
+
+      let persistedAudit:
+        | Awaited<ReturnType<AiRepository["listActionAuditLog"]>>[number]
+        | undefined;
+      await vi.waitFor(async () => {
+        const rows = await runner.withDataContext(
+          { actorUserId: ids.userA, requestId: `audit-check-${randomUUID()}` },
+          (scopedDb) =>
+            repository.listActionAuditLog(scopedDb, {
+              since: new Date(Date.now() - 60_000),
+              limit: 500
+            })
+        );
+        persistedAudit = rows.find((row) => row.chat_session_id === chatSessionId);
+        expect(persistedAudit).toBeDefined();
+      });
+      expect(persistedAudit!.input_summary).toEqual({
+        inputKeys: ["content", "file_path"],
+        inputKeyCount: 2,
+        truncated: false
+      });
+      expect(JSON.stringify(persistedAudit!.input_summary)).not.toContain(rawSecret);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it.each([
+    ["master off", { master: false, allowed: true, enabled: true }],
+    ["account revoked", { master: true, allowed: false, enabled: false }],
+    ["user off", { master: true, allowed: true, enabled: false }]
+  ])("keeps Write behind confirmation when effective state is %s", async (_label, state) => {
+    const app = await buildApp("effective");
+    try {
+      await setEffectiveYoloState(state);
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: randomUUID(),
+        allowedToolNames: null
+      });
+      const pending = app.inject({
+        method: "POST",
+        url: "/internal/permission",
+        headers: { authorization: `Bearer ${token}` },
+        body: {
+          tool_name: "Write",
+          tool_input: { file_path: "src/safe.ts", content: "safe" },
+          cwd: "/workspace"
+        }
+      });
+      await rejectPending(pending, "Write");
+      expect(emitted).not.toContainEqual(
+        expect.objectContaining({ record: expect.objectContaining({ outcome: "allowed" }) })
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("keeps Bash behind confirmation even when effective YOLO state is active", async () => {
+    const app = await buildApp("effective");
+    try {
+      await setEffectiveYoloState({ master: true, allowed: true, enabled: true });
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: randomUUID(),
+        allowedToolNames: null
+      });
+      const pending = app.inject({
+        method: "POST",
+        url: "/internal/permission",
+        headers: { authorization: `Bearer ${token}` },
+        body: { tool_name: "Bash", tool_input: { command: "echo hi" }, cwd: "/workspace" }
+      });
+      await rejectPending(pending, "Bash");
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("rejects invalid native permission authority before evaluating YOLO", async () => {
+    const app = await buildApp(true);
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/internal/permission",
+        headers: { authorization: "Bearer jst_invalid" },
+        body: {
+          tool_name: "Write",
+          tool_input: { file_path: "src/safe.ts", content: "safe" },
+          cwd: "/workspace"
+        }
+      });
+      expect(response.statusCode).toBe(401);
+      expect(emitted).toEqual([]);
+    } finally {
+      await app.close();
+    }
   });
 });

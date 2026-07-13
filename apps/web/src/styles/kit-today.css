@@ -136,13 +136,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  list-style: none;
-}
-.today-feedback__trigger::-webkit-details-marker {
-  display: none;
 }
 .today-feedback__trigger:hover,
-.today-feedback__details[open] .today-feedback__trigger {
+.today-feedback__trigger[aria-expanded="true"] {
   color: var(--text);
   border-color: var(--border);
 }

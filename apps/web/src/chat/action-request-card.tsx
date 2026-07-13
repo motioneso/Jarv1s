@@ -1,5 +1,5 @@
 import { CheckCircle, LoaderCircle, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { resolveActionRequest } from "../api/client";
 import type { ActionRequestPreview } from "./use-chat-stream";
@@ -12,9 +12,21 @@ interface ActionRequestCardProps {
   readonly preview?: ActionRequestPreview;
 }
 
+function humanizeToolName(toolName: string): string {
+  const last = toolName.includes(".") ? toolName.split(".").pop()! : toolName;
+  return last.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+}
+
 export function ActionRequestCard(props: ActionRequestCardProps) {
   const [status, setStatus] = useState<"pending" | "loading" | "done" | "error">("pending");
   const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (status === "done" || status === "error") {
+      rootRef.current?.focus();
+    }
+  }, [status]);
 
   const resolve = async (decision: "confirmed" | "rejected") => {
     setStatus("loading");
@@ -31,7 +43,14 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
   const isLoading = status === "loading";
 
   return (
-    <div className="action-request-card" role="region" aria-label="Action request">
+    <div
+      className="action-request-card"
+      role="region"
+      aria-label="Action request"
+      ref={rootRef}
+      tabIndex={-1}
+    >
+      <div className="action-request-preview__label">{humanizeToolName(props.toolName)}</div>
       <p className="action-request-summary">{props.summary}</p>
 
       {props.preview ? (

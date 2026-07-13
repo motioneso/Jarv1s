@@ -93,4 +93,41 @@ describe("ChatGatewayNotifier", () => {
     expect(record.outcome).toBe("executed");
     expect(record.actionRequestId).toBe("ar_1");
   });
+
+  it("renders an allowed outcome as 'Allowed by YOLO'", () => {
+    const manager = makeManager();
+    const notifier = new ChatGatewayNotifier(manager);
+
+    notifier.emit("u1", {
+      kind: "action_result",
+      actionRequestId: "ar_1",
+      toolName: "Read",
+      outcome: "allowed"
+    });
+
+    const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      TranscriptRecord
+    ];
+    expect(record.outcome).toBe("allowed");
+    expect(record.text).toContain("Allowed by YOLO");
+  });
+
+  it("still renders denied outcomes unchanged", () => {
+    const manager = makeManager();
+    const notifier = new ChatGatewayNotifier(manager);
+
+    notifier.emit("u1", {
+      kind: "action_result",
+      actionRequestId: "ar_1",
+      toolName: "example.write",
+      outcome: "denied"
+    });
+
+    const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      TranscriptRecord
+    ];
+    expect(record.text).toContain("Denied");
+  });
 });

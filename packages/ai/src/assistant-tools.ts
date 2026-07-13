@@ -1,5 +1,8 @@
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import type { AiAssistantToolDto } from "@jarv1s/shared";
+import type { ActionAuditInputSummary, AiAssistantToolDto } from "@jarv1s/shared";
+
+const MAX_INPUT_SUMMARY_KEYS = 32;
+const MAX_INPUT_SUMMARY_KEY_LENGTH = 64;
 
 export function listAssistantToolsFromManifests(
   moduleManifests: readonly JarvisModuleManifest[]
@@ -32,11 +35,17 @@ export function findAssistantToolFromManifests(
  */
 export function summarizeAssistantToolInput(
   input: Record<string, unknown>
-): Record<string, unknown> {
-  const inputKeys = Object.keys(input).sort();
+): ActionAuditInputSummary {
+  const allInputKeys = Object.keys(input).sort();
+  const inputKeys = allInputKeys
+    .slice(0, MAX_INPUT_SUMMARY_KEYS)
+    .map((key) => key.slice(0, MAX_INPUT_SUMMARY_KEY_LENGTH));
 
   return {
     inputKeys,
-    inputKeyCount: inputKeys.length
+    inputKeyCount: allInputKeys.length,
+    truncated:
+      allInputKeys.length > MAX_INPUT_SUMMARY_KEYS ||
+      allInputKeys.some((key) => key.length > MAX_INPUT_SUMMARY_KEY_LENGTH)
   };
 }

@@ -1,3 +1,14 @@
+const actionAuditInputSummarySchema = {
+  type: ["object", "null"],
+  additionalProperties: false,
+  required: ["inputKeys", "inputKeyCount", "truncated"],
+  properties: {
+    inputKeys: { type: "array", items: { type: "string" } },
+    inputKeyCount: { type: "integer", minimum: 0 },
+    truncated: { type: "boolean" }
+  }
+} as const;
+
 const actionAuditLogEntrySchema = {
   type: "object",
   additionalProperties: false,
@@ -14,6 +25,7 @@ const actionAuditLogEntrySchema = {
     "requestId",
     "chatSessionId",
     "sourceSurface",
+    "inputSummary",
     "occurredAt"
   ],
   properties: {
@@ -38,6 +50,7 @@ const actionAuditLogEntrySchema = {
       type: "string",
       enum: ["chat", "proactive", "scheduled", "unknown"]
     },
+    inputSummary: actionAuditInputSummarySchema,
     occurredAt: { type: "string" }
   }
 } as const;
@@ -79,7 +92,14 @@ export type ActionAuditLogEntryDto = {
   readonly requestId: string | null;
   readonly chatSessionId: string | null;
   readonly sourceSurface: "chat" | "proactive" | "scheduled" | "unknown";
+  readonly inputSummary: ActionAuditInputSummary | null;
   readonly occurredAt: string;
+};
+
+export type ActionAuditInputSummary = {
+  readonly inputKeys: readonly string[];
+  readonly inputKeyCount: number;
+  readonly truncated: boolean;
 };
 
 export type ListActionAuditLogResponse = {
