@@ -6,7 +6,8 @@
 **Delegated lane owner:** label `UX Coordinator`, Codex session
 `019f57d6-8fff-7783-974a-f40333a52632`.
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
-remains final merge authority. Security-tier work also needs Ben's explicit sign-off.
+remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
+approval decisions—including security-tier sign-off—to Fable.
 **Shared-tree policy:** isolated worktrees; explicit-path staging only; never `git add -A`.
 **Grounded on:** `origin/main` `3614ad1e` (preflight green in detached worktree).
 **merges_since_relay:** 0
@@ -18,8 +19,8 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | draft awaiting Ben approval; #868 dependency |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | draft awaiting Ben approval |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Fable review in flight at `0d03f501`; #868 dependency |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Fable review in flight at `0d03f501` |
 | #986 | dedicated settings-shell spec required | routine unless permission behavior changes | needs spec; coordinate-first |
 | #987 | dedicated Notes/People UX spec required | sensitive | needs spec |
 | #989 | dedicated Sports UX spec required | routine | needs spec |
@@ -83,8 +84,8 @@ While #979 is in flight, #985 must not edit
 - [x] Detached grounding preflight green at `3614ad1e`.
 - [ ] Latest `main` CI run `29225249135` completes green (deployment-smoke jobs already green;
       foundation/app still running at manifest creation).
-- [ ] Ben approves the two first-wave delta specs and this manifest.
-- [ ] Ben decides whether per-card `Always approve` is removed (recommended) or separately specified.
+- [ ] Fable approves the two first-wave delta specs under Ben's explicit overnight delegation.
+- [ ] Fable rules whether per-card `Always approve` is removed (recommended) or separately specified.
 - [ ] Exact builder path locks sent to the primary Coordinator before dispatch.
 
 ## CI waivers
@@ -93,7 +94,7 @@ None.
 
 ## Outstanding escalations
 
-- [ ] Product decision: remove per-card `Always approve` (recommended), or define a separate granular
+- [ ] Fable verdict: remove per-card `Always approve` (recommended), or define a separate granular
       trust policy; true YOLO itself is already locked.
 
 ## Reaped sessions
