@@ -24,7 +24,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | four-task plan approved pre-code on `ux/985-yolo-approvals`; session `1f79649d-8403-4988-a3de-317203fc3aa3`; Tasks 3–4 clear, Tasks 1–2 await #984's exact `activityVerb()` hunk release; fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building approved plan on `ux/986-settings-build`; label `UX 986 Settings Shell v2`, session `ad66ce73-17b5-462e-b3d2-615038ad39d6`, pane `w1:pJM` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | Task 1 committed at `827d37fe` with 24 tests green; session `40d0423b-3209-43c9-9998-d00e434e9897` relaying at 70% in `ux/989-sports-settings-build` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | Task 1 committed at `827d37fe` with 24 tests green; Task 2 building on `ux/989-sports-settings-build`; label `UX 989 Sports Settings v3`, session `da980b16-d458-4213-ab02-7a34ba852971`, pane `w1:pJP` |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | planning pre-code on `ux/990-news-settings-build`; label `UX 990 News Settings v2`, session `5663beab-07c4-4691-9dc8-2b1b94869ea2`, pane `w1:pJK`; grounded with clean #981 rebase on `3ca138eb` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -120,6 +120,7 @@ None.
 - Prior #990 builder, Claude session `7fb324d8-38fa-43be-bc2c-8304acd0e725`.
 - Prior #989 builder, Claude session `888f3c71-6996-49e1-9dbe-921e829abe55`.
 - Prior #986 builder, Claude session `11054b23-df91-4b09-b001-38ec31951d9d`.
+- Prior #989 v2 builder, Claude session `40d0423b-3209-43c9-9998-d00e434e9897`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -196,6 +197,8 @@ resume from this note before taking any merge-sensitive action.
 - #984 crossed the relay trigger during Task 3; immediate relay was ordered with the hunk-release
   question carried forward. #989 Task 1 landed at `827d37fe` with 24 focused tests green and its
   70% relay is in progress.
+- #989 v3 session `da980b16-d458-4213-ab02-7a34ba852971` was verified driving Task 2 in the same
+  worktree on Sonnet; v2 was identity-checked and reaped.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
