@@ -10,6 +10,12 @@ import {
 } from "@jarv1s/ai";
 
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
+import {
+  AGY_SESSION_LOG_FILENAME,
+  captureAgyConversationIdentity,
+  purgeAgyBrainDir,
+  readAgyConversationIdentity
+} from "./private-transcript-cleanup.js";
 
 const PROMPT_FILENAME = ".jarvis-agy-print-prompt.txt";
 
@@ -23,10 +29,9 @@ export class AgyPrintChatEngine implements CliChatEngine {
   private readonly mux: Multiplexer;
   private readonly homeBase?: string;
   private neutralDir: string | null = null;
-  private transcriptPath: string | null = null;
+  private conversationUuid: string | null = null;
   private currentHandle: MuxHandle | null = null;
   private hasSubmitted = false;
-  private launchEpoch = 0;
 
   constructor(
     private readonly threadKey: string,
@@ -39,7 +44,8 @@ export class AgyPrintChatEngine implements CliChatEngine {
 
   async launch(opts: EngineLaunchOpts): Promise<{ offset: number }> {
     this.neutralDir = opts.neutralDir;
-    this.launchEpoch = Date.now();
+    this.conversationUuid = null;
+    this.hasSubmitted = false;
     if (opts.personaText !== undefined) {
       await this.io.writeFile(join(opts.neutralDir, "persona.md"), opts.personaText);
     }
@@ -51,15 +57,22 @@ export class AgyPrintChatEngine implements CliChatEngine {
       throw new Error("AgyPrintChatEngine.submit called before launch()");
     const promptPath = join(this.neutralDir, PROMPT_FILENAME);
     await this.io.writeFile(promptPath, text.replace(/^(\s*)!+/, "$1"));
-    const continueFlag = this.hasSubmitted ? "--continue " : "";
+    if (this.hasSubmitted && this.conversationUuid === null) {
+      throw new Error("AGY conversation identity unavailable for continuation");
+    }
+    const conversationFlag = this.conversationUuid
+      ? `--conversation ${this.conversationUuid} `
+      : "";
     this.hasSubmitted = true;
+    const logPath = join(this.neutralDir, AGY_SESSION_LOG_FILENAME);
     this.currentHandle = await this.mux.open({
       name: `jarv1s-live-${this.threadKey}`,
       cols: 220,
       rows: 50,
       launchLine:
         `cd ${shellQuote(this.neutralDir)} && ` +
-        `agy --dangerously-skip-permissions ${continueFlag}--print "$(cat ${shellQuote(promptPath)})"`
+        `agy --dangerously-skip-permissions ${conversationFlag}--print ` +
+        `--log-file ${shellQuote(logPath)} "$(cat ${shellQuote(promptPath)})"`
     });
   }
 
@@ -97,27 +110,29 @@ export class AgyPrintChatEngine implements CliChatEngine {
     this.currentHandle = null;
   }
 
+  async purgeTranscripts(): Promise<void> {
+    const uuid =
+      this.conversationUuid ??
+      (this.neutralDir ? await readAgyConversationIdentity(this.io, this.neutralDir) : null);
+    if (uuid === null) {
+      if (this.hasSubmitted) throw new Error("AGY conversation identity unavailable for purge");
+      return;
+    }
+    await purgeAgyBrainDir(this.io, uuid, this.homeBase);
+  }
+
   private async resolveTranscriptPath(): Promise<string | null> {
-    if (this.transcriptPath !== null) return this.transcriptPath;
-    const root = agyPrintTranscriptRoot(this.homeBase);
-    const found = await this.io.run("find", [
-      root,
-      "-name",
-      "transcript_full.jsonl",
-      "-type",
-      "f",
-      "-newermt",
-      new Date(this.launchEpoch - 5000).toISOString(),
-      "-print"
-    ]);
-    if (found.code !== 0) return null;
-    const newest = found.stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .at(-1);
-    this.transcriptPath = newest ?? null;
-    return this.transcriptPath;
+    if (this.neutralDir === null) return null;
+    this.conversationUuid ??= await captureAgyConversationIdentity(this.io, this.neutralDir);
+    return this.conversationUuid
+      ? join(
+          agyPrintTranscriptRoot(this.homeBase),
+          this.conversationUuid,
+          ".system_generated",
+          "logs",
+          "transcript_full.jsonl"
+        )
+      : null;
   }
 }
 
