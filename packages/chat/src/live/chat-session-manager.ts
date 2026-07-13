@@ -254,20 +254,9 @@ export class ChatSessionManager {
   private readonly pollMs: number;
   /** #456 — idle/heartbeat watchdog window; 0 disables (tests only). */
   private readonly idleWatchdogMs: number;
-  /**
-   * #342 (§4.1.2) — true when the ENGINE (RPC server) owns the replay submit+drain, so the
-   * manager must NOT submit/drain the replay itself. Resolved once from deps (default false =
-   * in-process path). See {@link ChatSessionManagerDeps.serverOwnsDrain} for why this replaces
-   * the old `offset === 0` sentinel (which double-submitted the replay on a 0-offset RPC result).
-   */
+  /** #342: RPC engines own replay submit/drain; in-process engines do it here. */
   private readonly serverOwnsDrain: boolean;
-  /**
-   * #342 (§5.4) — the single async mutex SHARED by reconciliation and reapIdle. Both mutate
-   * `sessions` + revoke tokens, so they MUST be mutually exclusive. Implemented as a promise
-   * chain: each critical section awaits the previous one's settlement before running. (A
-   * `submitTurn` does not take this mutex — it is serialized per-user by `turnsInFlight`; the
-   * mutex only orders the two session-map-mutating maintenance paths against each other.)
-   */
+  /** #342: serializes reconciliation and idle reaping, which both mutate sessions/tokens. */
   private maintenanceMutex: Promise<void> = Promise.resolve();
 
   constructor(private readonly deps: ChatSessionManagerDeps) {
