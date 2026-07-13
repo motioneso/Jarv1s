@@ -656,3 +656,16 @@ resume from this note before taking any merge-sensitive action.
   working. Old UX coordinator session `019f5ab0-8933-7ae0-99c6-c4423a586ddc` was freshly resolved
   by label plus immutable session and reaped; successor `019f5adf-594d-7623-8259-69e1657f4e6b`
   remains the live `UX Coordinator`.
+
+## Continuation note — 2026-07-13 #984 live SECURITY UAT blocker
+
+- #984's isolated real stack passes public storage, private omission through real UI/API, History
+  close/resume, and stored-message visibility. Its first real UI send after resume hangs after
+  `POST /api/chat/turn` begins: the exact prompt never enters the idle resumed Codex TUI. The lane
+  reproduced this after 3-second and 15-second waits. This is a live product blocker, not a mock or
+  shared-DB artifact.
+- Verified #984 session `019f5a73-fb2a-7e13-9832-54c0503d5bd9` is diagnosis-only while it grounds
+  the request-lifecycle root cause and path-lock scope; no feature edit, workaround, merge, shared-DB
+  use, or scope expansion is authorized. Primary has the `[SECURITY][UAT-BLOCKER]` pointer. Opus
+  reviewer session `9eb17b9a-4002-4ba2-beef-9f7554daa842` is independently reviewing the smallest
+  root fix and verification, read-only.
