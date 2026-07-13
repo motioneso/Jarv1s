@@ -5737,3 +5737,7 @@ Head 9c8288b8 (boot-order fix: purgePrivateTranscriptMarkers BEFORE clearNeutral
 - F4 regression test: tests/unit/cli-runner-server.test.ts:463 — asserts out-of-base rm index < neutralDir wipe index (fails under OLD ordering); failure-path asserts no `rm -rf <neutralDir>`. REAL, not tautology. PASS
 - F5 no new hole / F6 non-blocking intact: PASS.
 Verdict posted PR #1031 comment 4963820411. **MERGE-READY pending CI green on 9c8288b8.** SECURITY tier → awaiting Ben EXPLICIT sign-off. merges_since_relay=1.
+
+## #1032 (P2 #1025 UAT seed, SENSITIVE) — Sonnet QA GREEN (2026-07-13)
+0 blocking. All 6 invariants proven: (1) NO BYPASSRLS — migration_owner NOBYPASSRLS (0000_roles.sql:41), identity via SET LOCAL ROLE; (2) all chunks via runner.withDataContext + real repos, none touch migrationDb (levels.ts:45-54); (3) external_modules via real admin path (job-search.ts:21, is_instance_admin actor); (4) deterministic fixed-epoch, no Date.now/random (2 randomUUID = dedup-safe surrogate PKs); (5) DataContextDb + VaultContext + fake secrets; (6) scope clean (tests/uat + infra compose profile-gated seed, fail-closed JARVIS_UAT_SEED_CONFIRM). multi-user throw = intentional (#1030). Verdict posted PR #1032.
+3 NON-BLOCKING (fine on fresh UAT DB, out of gate path) → follow-up: tasks.ts:37 re-seed dup (no externalKey); connections.ts:33 app-pool never destroyed; provisioner.ts:430 CLI excludeChunks unreachable. **SENSITIVE → auto-merge on CI green + digest. CI pending, watcher armed.**
