@@ -24,12 +24,12 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 6 repairs committed at `492adadb` and `5d4998d4`; foundation reached 150/152 integration files and 1631 passing tests before concurrent DB-reset failures. Focused sequential checks plus a final full rerun on fresh `jarv1s_ux984_gate*` are active; no waiver. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Tasks 1-3 and partial Task 4 committed through `fd73a7bb`; Task 4 remaining call-site conversions building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 6 repairs committed at `492adadb` and `5d4998d4`; focus suites 20/20 green. Final DB checks are paused behind #990's exclusive shared-cluster gate slot, then retry notes and run full foundation on fresh `jarv1s_ux984_gate*`; no waiver. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Task 4 paths committed at `419a6f0a`; non-DB pre-push checks active on `ux/985-yolo-approvals`. DB-touching verification is held behind the serialized #990 → #984 gate queue. Label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Fable/primary approved the sanctioned per-agent DB path: fresh `jarv1s_ux989_uat`, host API `:3002`, web `:5189`, real-UI owner signup, then Sports UAT/screenshots. Shared `jarv1s` is untouched. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 4 Playwright is 3/3 green. Foundation reached 151/152 integration suites and failed during `ai-tools` DB reset amid sibling shared-DB resets; no waiver/code change. Builder is rerunning the full gate on a fresh dedicated `jarv1s_ux990_gate*` database. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 4 Playwright is 3/3 green. Full foundation is active on dedicated `jarv1s_ux990_gate` and owns the UX fleet's exclusive shared-cluster DB gate slot. It must report final exit before #984 is released; no waiver/code change. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -376,3 +376,8 @@ resume from this note before taking any merge-sensitive action.
   `tuple concurrently updated` DB-reset failures in focus-time and notes-write-tools plus teardown
   cascade. No feature assertion failed, but no waiver applies. After sequential focused checks, the
   final full gate must run against a fresh dedicated `jarv1s_ux984_gate*` database.
+- #984 confirmed the reset failure is cluster-global role/catalog DDL contention: #990's dedicated
+  database run still overlaps bootstrap role work across the shared Postgres cluster. Per-database
+  names prevent data stomps but do not make migrations/full gates concurrent-safe. DB-touching UX
+  work is now serialized: #990 owns the active slot, #984 is next, and #985 remains on non-DB checks
+  until explicitly released. #984 focus suites are 20/20 green; silence never implies slot release.
