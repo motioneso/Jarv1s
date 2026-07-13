@@ -295,8 +295,10 @@ export function SearchResults(props: {
               disabled={pendingHere !== null}
               onClick={() => props.onToggle(team.competitionKey, team.teamKey, team.name)}
             >
-              <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
-              <span className="sp-team__name">{team.shortName || team.name}</span>
+              <span className="sp-team__top">
+                <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
+                <span className="sp-team__name">{team.shortName || team.name}</span>
+              </span>
               <span className="sp-team__state">{state.visible}</span>
             </button>
           );
@@ -434,12 +436,14 @@ export function BrowseGroups(props: {
                               props.onToggle(team.competitionKey, team.teamKey, team.name)
                             }
                           >
-                            <PickCrest
-                              name={team.name}
-                              shortName={team.shortName}
-                              crestUrl={team.crestUrl}
-                            />
-                            <span className="sp-team__name">{team.shortName || team.name}</span>
+                            <span className="sp-team__top">
+                              <PickCrest
+                                name={team.name}
+                                shortName={team.shortName}
+                                crestUrl={team.crestUrl}
+                              />
+                              <span className="sp-team__name">{team.shortName || team.name}</span>
+                            </span>
                             <span className="sp-team__state">{state.visible}</span>
                           </button>
                         );

@@ -32,18 +32,6 @@
 .sp-whole.is-active .sp-whole__lbl {
   color: var(--forest-ink);
 }
-.sp-whole__state {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.sp-whole.is-active .sp-whole__state {
-  color: var(--forest-ink);
-}
-
 .sp-teamgrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -51,8 +39,9 @@
 }
 .sp-team {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   border: 1px solid var(--border-subtle);
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -64,6 +53,22 @@
   color: var(--text-muted);
   transition: var(--transition-control);
   text-align: left;
+}
+.sp-team__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.sp-team__state {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+.sp-team.is-active .sp-team__state {
+  color: var(--forest-ink);
 }
 .sp-team:hover {
   background: var(--surface-2);
@@ -214,9 +219,9 @@
 
 .sp-browse__conf {
   margin: 18px 0 8px;
-  /* Matches the existing .sp-whole__state eyebrow above — NOT --font-mono, which Ben retired
-     app-wide 2026-07-08 ("kill mono anywhere in the app"); --font-sans is the current eyebrow
-     face everywhere else in this file. */
+  /* Matches the .sp-team__state eyebrow above — NOT --font-mono, which Ben retired app-wide
+     2026-07-08 ("kill mono anywhere in the app"); --font-sans is the current eyebrow face
+     everywhere else in this file. */
   font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 700;
@@ -266,4 +271,17 @@
   background: var(--forest-soft);
   border-color: var(--forest-soft-2);
   color: var(--forest-ink);
+}
+
+/* Narrow-width pass (#989 Task 4), scoped to this pane only — not a shell breakpoint. */
+@media (max-width: 420px) {
+  .sp-teamgrid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+  .sp-browse__row {
+    flex-wrap: wrap;
+  }
+  .sp-browse__row .sp-whole {
+    width: 100%;
+  }
 }
