@@ -692,3 +692,12 @@ resume from this note before taking any merge-sensitive action.
   runtime dependencies while tests use zero. Verification must include focused unit/E2E/typecheck/
   file-size checks plus fresh isolated resume-first-send live UAT 3–5 times under light load. Primary
   has the ruling; this UX coordinator never merges.
+
+## Continuation note — 2026-07-13 #989 QA GREEN
+
+- Fresh routine QA on PR #1009 exact head `a7ba230b` is GREEN and merge-ready: all required CI
+  checks pass, zero blocking findings, invariants and #989 exit criteria are met, and the reviewer
+  found the existing happy-path live proof sufficient for the bounded client-only pending/error
+  repair. Durable verdict: `https://github.com/motioneso/Jarv1s/pull/1009#issuecomment-4956803684`.
+- Primary has the verdict and remains sole merge authority. #989 is holding; this UX coordinator did
+  not merge. Fresh QA session `151e9902-c729-458d-86c1-62e98495b594` is spent and pending reap.
