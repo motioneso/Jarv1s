@@ -78,7 +78,7 @@ async function mockSportsSettings(page: Page): Promise<void> {
       const follow: SportsFollowDto = {
         id: `f${nextId++}`,
         competitionKey: body.competitionKey,
-        teamKey: body.teamKey,
+        teamKey: body.teamKey ?? null,
         createdAt: "2026-07-12T00:00:00.000Z"
       };
       follows = [...follows, follow];
