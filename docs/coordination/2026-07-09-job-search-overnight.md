@@ -5366,3 +5366,23 @@ UX Coordinator relayed Sol→Sonnet. NOW DRIVING #984/#868: **"UX Coordinator Su
 w1:pK0, tab w1:t1Q, session **1211ffa9-b725-469b-922d-ab4dc0c56436** (Claude/Sonnet, working),
 re-adopted from UX manifest head 04cd539a. Old session 019f5adf idle → being reaped by successor.
 UX remains no-merge; #984 PR will report to me (Coordinator) → Fable GREEN gate → I merge.
+
+### #1000 P1 (#1024 provisioner) — plan approved (fork resolved)
+
+- **Agent:** UAT Harness 1024, Sonnet 5, pane `w1:pKZ`, tab `w1:t1Z`, session `67ee57b7`, branch
+  `uat-harness-1024` off `origin/main` @ `cdf66df0`. Tier **sensitive**.
+- **Plan:** `docs/superpowers/plans/2026-07-13-uat-harness-provisioner.md` — 8 TDD tasks against
+  `tests/uat/provisioner.ts`.
+- **Fork flagged + APPROVED (within-spec, no Ben/Opus escalation):** port allocation via reserved
+  range 20000-20099 + bind-probe (spec §3.4 **option1**), chosen over the spec's "preferred"
+  option2 (Docker-assigned port). Rationale accepted: option2 would force editing the prod-shaped
+  compose file for test convenience, breaking §3.1 fidelity (run the *real* prod-shaped compose
+  untouched). Option1 outranks the stated preference on the higher spec principle. Subnet
+  `10.254.0.0/24` (avoids dev 10.251 / smoke 10.253).
+- **Two approval conditions given to the agent:** (1) handle probe→bind TOCTOU race — on compose-up
+  port-bind failure, retry next free port in range (+why-comment); (2) inject port via the compose's
+  EXISTING env interpolation, NOT by editing the compose — if no such seam exists, message
+  Coordinator first (that would itself be a fidelity fork).
+- **Next:** supervise build → PR (`Part of #1000`, `Closes #1024`) → Coordinator sensitive-tier QA
+  + invariant walk (no BYPASSRLS on runtime roles at the privileged-connection seam) → I merge.
+  Then release P2 #1025 → P3 #1026 → P4 #1027 serially. Agent does NOT merge.
