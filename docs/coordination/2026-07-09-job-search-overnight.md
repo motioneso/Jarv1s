@@ -5342,3 +5342,21 @@ Task #41 (#984): now spec-unblocked, build pending UX spawn; still MERGE-blocked
 - **#1000 dev-UAT harness (spec 2026-07-12-dev-uat-harness.md) — Ben approving now.** Surfacing §9
   open questions for resolution → then file child task issues + spawn Phase 1. This harness becomes the
   dev-UAT exit gate the #984 lane will run in.
+
+## #1000 DEV-UAT HARNESS — spec approved + lane spawned (2026-07-13)
+Spec `docs/superpowers/specs/2026-07-12-dev-uat-harness.md` APPROVED (Ben, §Status block). 5 decisions:
+BLOCKING gate for runtime-path PRs (fix+re-UAT, never waived) / lived-in-but-DETERMINISTIC seed /
+local-only (no CI-DinD) / provision-per-run-then-measure / real github egress allowed. UAT specs
+must discover+click real nav (page.goto forbidden).
+Child task issues (serialized): **P1 #1024 provisioner → P2 #1025 seed → P3 #1026 Playwright+job-search-install → P4 #1027 wire-into-coordinate.** All tier sensitive.
+**P1 #1024 LANE LIVE (MINE):** label "UAT Harness 1024", pane w1:pKZ, tab w1:t1Z (coord-agents),
+session 67ee57b7-8149-454e-97ab-365c40be64ee, Sonnet 5, building. Worktree
+.claude/worktrees/uat-harness-1024 off origin/main @ cdf66df0. Handoff:
+scratchpad/handoff-uat-1024.md. Reports PR to Coordinator; I QA+merge (sensitive). P2-4 serialize behind.
+Rationale: harness must be READY before #984 hits its dev-UAT exit gate — racing #984/#868.
+
+### Cross-coordinator state
+- UX Coordinator w1:pKA (Codex Sol) at ~20% ctx / 17% weekly Sol → BELAYED #1000 (I own it), focusing
+  solely #868/#1020→#984, will relay to a FRESH **Sonnet** successor before its floor (conserves Sol).
+- #984/#868 security lane LIVE under UX Coordinator, tab w1:t1W: "UX 984 Private History" w1:pK3 (idle),
+  "Security 868+1020 Purge Readiness" w1:pKY (working). #984 merge = Fable GREEN (Ben-delegated).
