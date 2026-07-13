@@ -5074,3 +5074,77 @@ No build lanes live. Auto-compact in place — NO successor pane.
 - **Monitor `bygr8tkh0`** watching the build (PR open / idle / crash).
 - **Module-management (#860):** spec committed `cb2a4d60`. Ben's 3 open Qs — under Ben's away-grant the coordinator resolved **Q1 = no off-switch** (matches no-env-var principle) and **Q3 = one module OK for launch**. **Q2** (core-ifying removes per-user Notes toggle — vault-sync data implications) → **Fable consult `a5388e325b3cca06a`** running. Module build NOT yet spawned (awaiting Q2 verdict, then file module task issue under #860).
 - Ben away; granted autonomy, big decisions double-checked with Fable, report decisions on return.
+
+---
+
+## Continuation note — 2026-07-13 ~09:27 (relay trigger @70% + post-#1014-merge, in-place)
+
+**Merge landed:** PR #1014 (module-activation fix #1007 + persistence #1006) MERGED squash `3c97cb9f`,
+09:24:25Z. Opus QA GREEN 0-findings + Fable APPROVE both durable on PR. #1007/#1006 auto-CLOSED.
+Worktree `module-persist-1006` force-removed (only context-meter.log dirty). `merges_since_relay` → 0.
+
+**In-flight — prod repull (IMMINENT):** background watcher `bb9cax5la` polling main publish run
+`29238974090` (`:edge` rebuild w/ the fix). On `MAIN-PUBLISH-DONE conclusion=success` →
+repull prod on JarvisProd: `docker compose pull` + `up -d` ONLY. **NO job-search install** (Ben: "dont
+install or download job search, I want to do that manually"). Dev-proof condition already met via
+#1007 Playwright UAT. Surface merge+repull to Ben's digest (NO-BEN window expired 08:30).
+
+**Open lane — #1012/#985 (task #40, HELD at merge):** apply Fable-approved #1016 schema
+`inputSummary: {type:["object","null"], additionalProperties:false, required/props...}` in
+`packages/shared/src/ai-audit-api.ts` → rerun `tests/integration/action-audit-log.test.ts` GREEN →
+finish Fork-1 (producer key-cap, single-feeder, migration **0164** + foundation ledger row, negative
+test) + Fork-2 (gateway.ts:182-207 fail-closed allowlist {Edit,Write,NotebookEdit}; Bash/Task/unknown
+gated; config-file write carve-out for .claude/settings.json/CLAUDE.md/.mcp.json) → full gate → flag
+me → fresh Opus QA → merge. #985 owns the shared DB slot.
+
+**Open lane — #984 (task #41, PR #1015):** QA GREEN-WITH-CONDITIONS (0 code blockers). Needs
+(1) verify:foundation CI GREEN, (2) real live-path Playwright UAT + screenshots → Fable sign-off
+(security tier) → me for merge.
+
+**Also open:** #989 Sports UAT running in `jarv1s_ux989_uat`. Task #39 (owner-auth delete of quarantined
+sports-uat test user) + #965 run-now dedupe — deferred, surface to Ben.
+
+**Model policy unchanged:** build=Sonnet, security-QA=Opus, council/approval=Fable/AGY.
+
+**STOP-LINE update (~09:32):** #1012/#985 hit twice-failing focused test → issue **#1017** filed
+(email-reply-tools test compares via JSON.stringify; only object KEY-ORDER differs, values/shapes
+match). Lane STOPPED by UX Coordinator; #985 keeps exclusive DB slot; NO rerun/waiver/diagnosis/
+merge until ruling lands. Routed to Fable (agent aa815778675fc115c) for durable direction:
+structural deep-equality (toStrictEqual, order-insensitive, rejects extra keys) vs exact key-order
+alternative — binding constraint = secrets-never-escape (must still fail on extra key / value leak).
+Relay Fable's verdict to the FRESH UX Coordinator (resolve by label at send time — the prior UX
+Coordinator's compaction tripwire fired, relaying now; its checkpoint = bc122e40).
+
+**PROD REPULL DONE (~09:40):** :edge publish run 29238974090 = success (carries #1014 module-activation
+fix). Repulled JarvisProd: `docker compose -p jarv1s-prod --env-file env.production.local -f
+docker-compose.prod.yml pull jarv1s && up -d jarv1s`. Container jarv1s-prod-jarv1s-1 recreated →
+digest 6c7016916dbe, health=healthy, /health/ready=200. NO job-search install (Ben installs manually).
+Scoped to project jarv1s-prod/service jarv1s only — no sibling UAT stack or volume disturbed. Ben's GOAL
+"Prod local updated with latest image ready for Ben to download/install/use Job Search" = MET.
+
+**#984 UAT-BLOCKER (~09:44):** live-path caught a real defect the mock-e2e/CI missed — storage/private/
+history checks PASS but first real UI send AFTER RESUME hangs (POST /api/chat/turn begins, prompt never
+enters idle resumed Codex TUI; repro'd 3s/15s). UX lane diagnosis-only, no feature edits, isolated stack
+preserved; Opus one-shot scope review routed. NO MERGE. Review must settle: #984 regression vs
+pre-existing chat-engine/TUI resume hang (out of scope). Await UX grounded plan.
+
+**MERGE (~10:09):** PR #1009 (#989 sports follow/discovery settings) MERGED squash `b0d57265` —
+routine tier, UX QA GREEN on head a7ba230b (all 4 CI green), exit criteria met. #989 CLOSED. UX
+Coordinator tasked to reap lane (pane w1:pJY / worktree ux-989-sports-settings-build / stack
+jarv1s_ux989_uat). `merges_since_relay` = 1 (since #1014 relay; relay at 2 routine/sensitive).
+
+**#1012/#985 dispatched (~10:07):** directed explicit-path closeout+push; on pushed SHA I spawn fresh
+Opus security QA vs pushed branch (both forks Fable conditions + toStrictEqual + secrets-never-escape)
+-> Fable sign-off -> merge. Awaiting #985 pushed head SHA. #985 keeps DB slot.
+
+**#989 lane fully reaped (~10:12):** build session 019f5a67-99f4 reaped, worktree removed, jarv1s_ux989_uat
+already empty, prod untouched (UX manifest d286b966). #989 DONE.
+
+**#1012 Opus security QA IN-FLIGHT (~10:12):** spawned vs pushed head f22a3cc1 (both verified by UX +
+me). Review-only (trusts CI, does NOT run DB gate — #985 holds slot). Verifies both forks' Fable
+conditions + #1017 toStrictEqual + secrets-never-escape; posts verdict to PR via gh pr comment.
+On GREEN -> Fable security sign-off -> merge. #985 keeps DB slot.
+
+## Continuation — 2026-07-13 (coordinator 58a78927, in place)
+- **#1012/#985 (task #40, SECURITY):** Opus adversarial security QA = **GREEN (review), 0 blocking, 2 non-blocking** — both forks ALL CONFIRMED; verdict posted durably to PR (#issuecomment-4956873636). 2 non-blocking findings filed as **issue #1018** (gateway.ts:661 resolve→realpath symlink carve-out gap; migration 0164 CHECK jsonb-type-only). Head `f22a3cc1`. CI: compose + prod-compose smokes PASS, **Verify-foundation PENDING** (VF watcher armed, bg `bwicoc2xj`). **Fable security merge sign-off IN FLIGHT** (agent `a68d574c7f9a...`). MERGE-READY: NO — fires only on VF green AND Fable APPROVE. #985 holds exclusive DB slot; UX will NOT merge. Security-tier merge = unconditional relay trigger after merge.
+- **#984 (task #41, PR #1015, SECURITY):** LIVE-UAT **RED** — approved 600ms blind stopgap (`JARVIS_CHAT_REPLAY_SETTLE_MS=600`) FAILED fresh isolated UAT rep-1: exact prompt still dropped before resumed Codex TUI input-ready, POST pending, no harness wait. Gates green (53/53 manager/resume/runtime, 13/13 drawer, typecheck/file-size/Prettier), shared DB untouched, run-6 stack+evidence preserved. **Lane FROZEN** (no bump/edit/rerun). Fresh Opus escalation evaluating: abandon blind settle for **#868 engine-readiness seam / path expansion** (proper fix = wait for TUI input-ready signal, not fixed ms). UX will NOT merge. Coordinator holds for Opus root-cause verdict; do not surface to Ben until verdict returns (band-aid path is dead as expected — the LIVE-PATH GATE working as designed).
