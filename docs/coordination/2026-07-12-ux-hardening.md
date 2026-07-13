@@ -712,3 +712,11 @@ resume from this note before taking any merge-sensitive action.
 - #985 retains the exclusive DB slot and must report the exact pushed head SHA. Primary alone then
   spawns fresh Opus security QA for both Fable forks, the #1017 repair, and secrets-never-escape;
   Primary alone may merge after delegated Fable security sign-off. This UX coordinator never merges.
+
+## Continuation note — 2026-07-13 #989 merged and reaped
+
+- Primary merged PR #1009 as squash `b0d57265` and closed #989. Verified build session
+  `019f5a67-99f4-7880-b8f4-e4fe04c8af67` and its clean `ux-989-sports-settings-build` worktree were
+  reaped.
+- The isolated `jarv1s_ux989_uat` project had no remaining containers, volumes, networks, or Compose
+  entry at cleanup. `jarv1s-prod` was not touched.
