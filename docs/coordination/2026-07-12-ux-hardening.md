@@ -24,7 +24,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 5 committed at `c579e8d2` with chat-drawer E2E 12/12, targeted Prettier, and typecheck green; Task 6 gate/closeout active on `ux/984-private-history`; label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 6 repairs committed at `492adadb` and `5d4998d4`; foundation reached 150/152 integration files and 1631 passing tests before concurrent DB-reset failures. Focused sequential checks plus a final full rerun on fresh `jarv1s_ux984_gate*` are active; no waiver. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Tasks 1-3 and partial Task 4 committed through `fd73a7bb`; Task 4 remaining call-site conversions building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
@@ -371,3 +371,8 @@ resume from this note before taking any merge-sensitive action.
   failed during a DB reset while sibling worktrees reset shared integration state. No waiver or code
   change applies. The builder was directed to create a fresh dedicated `jarv1s_ux990_gate*` database
   and rerun the entire foundation gate with that exact `JARVIS_PGDATABASE`.
+- #984 Task 6 repaired plan formatting at `492adadb` and the manager file-size limit at `5d4998d4`
+  (996 lines). Foundation reached 150/152 integration files and 1631 passing tests before
+  `tuple concurrently updated` DB-reset failures in focus-time and notes-write-tools plus teardown
+  cascade. No feature assertion failed, but no waiver applies. After sequential focused checks, the
+  final full gate must run against a fresh dedicated `jarv1s_ux984_gate*` database.
