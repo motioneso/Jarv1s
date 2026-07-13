@@ -4,7 +4,7 @@
 **Merge-authority lock:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`.
 **Delegated lane owner:** label `UX Coordinator`, Codex session
-`019f57d6-8fff-7783-974a-f40333a52632`.
+`019f5a2e-03fd-71c3-95ab-1934cb1de973`.
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
@@ -82,8 +82,8 @@ must land before #1000 finalizes selectors. Re-sync before touching the Instance
 
 - [x] Ownership split confirmed with the primary Coordinator.
 - [x] Specs #1004 and flake fix #1005/#979 merged into `origin/main` at `3ca138eb`.
-- [ ] Post-merge `main` CI run `29228378966` completes green at `3ca138eb`; both deployment smokes
-      are already green.
+- [x] Post-merge `main` CI run `29228378966` completed green at `3ca138eb`; both deployment smokes
+      are green.
 - [x] Fable approved #984 Slices 1–3; Slice 4 waits for #868.
 - [x] Fable approved #985 with fail-closed effective-YOLO resolution added before security QA.
 - [x] Fable ruled that per-card `Always approve` remains absent.
@@ -104,6 +104,14 @@ None.
 ## Reaped sessions
 
 - None.
+
+## Continuation note — 2026-07-12 UX Coordinator successor adoption
+
+- Successor `UX Coordinator` is driving under Codex session
+  `019f5a2e-03fd-71c3-95ab-1934cb1de973`; the primary `Coordinator` remains sole merge authority.
+- Re-adopted primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` and active
+  `Module Fix 1006+1007` session `37605c40-a379-418a-9dbd-54ac9142aeea` by label and session.
+- Main CI run `29228378966` is green at the required `3ca138eb`, releasing #984/#985 dispatch.
 
 ## Continuation note — 2026-07-12 UX Coordinator relay
 
