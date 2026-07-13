@@ -5710,3 +5710,10 @@ Security Codex lane (019f5ce4, pane w1:pKY, tab w1:t1W) reported BUILD DONE: **P
 
 ## P2 relay v4→v5 — 2026-07-13 ~18:35 (compaction tripwire)
 Predecessor v4 (session c3cdb29d, pane w1:pMA) REAPED. Successor **`UAT Seed 1025 v5`, session e502adc5-5ea, pane w1:pMB, tab w1:t10, Sonnet** — driving. Progress: Task 5 3/4 DONE (0a082a33 — tasks/calendar/notes chunks). Handoff doc bc4f277d (docs/superpowers/handoffs/2026-07-13-uat-seed-levels-relay.md). REMAINING: job-search absence/presence chunk, external_modules admin-path chunk, wire into provisioner seed hook, gate+PR. 4 clean self-relays; lane healthy.
+
+## #1031 Opus security QA — RED (cycle 1/2) — 2026-07-13 ~18:45
+Opus QA (a723ef12) VERDICT: **RED, MERGE-READY NO**. Verdict posted durably: PR #1031 comment 4963612551.
+- **BLOCKING (real privacy hole, Codex/AGY):** engine-host.ts:583-623 clearNeutralBase boot sweep unconditionally rm -rf's neutral-base children (server.ts:60 pre-listen), wiping identity markers BEFORE the marker-driven engine-less purge consumes them. Codex/AGY private transcripts live OUTSIDE neutral base (/data/cli-auth/.codex/sessions, .gemini/.../brain); UUID handle exists only in the wiped marker (incognito row = bool only). Runner-restart-during-active-private-session → null UUID → purge silently SKIPS → purged=true → reclaim row deleted → permanent un-purgeable orphan. Claude safe.
+- Claims 1 (purge→kill) + 3 (capture-fail hard-fail) MET; claim 2 met for graceful+api-restart but NOT runner-restart; claim 4 met Claude+Codex, AGY scoped out.
+- Non-blocking (Opus ruled safe): AckCursor offset-only vs spec (epoch enforced structurally); Gemini/AGY verifiedSubmit exemption (documented, AGY purge uses independent brain UUID).
+- **FIX relayed to owning Codex lane (019f5ce4, pane w1:pKY → status=working):** purge-before-destroy applied to boot (marker-driven purge consumes markers + purges out-of-base transcripts by UUID FIRST, then clearNeutralBase wipes residue) + MANDATORY regression test for the untested runner-restart ordering. Re-QA after fix. Failure budget: cycle 1/2.
