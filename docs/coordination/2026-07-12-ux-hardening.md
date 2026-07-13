@@ -901,3 +901,14 @@ resume from this note before taking any merge-sensitive action.
   purge. #984 is now blocked on approved/merged #1020, #868-original, and #1022. #868 remains held
   pre-edit, and neither #1020 nor #1022 may spawn until Ben directly approves scope/spec. A relayed
   finish-all instruction is not treated as that explicit security-scope approval.
+
+## Continuation note — 2026-07-13 #986 CI GREEN and fresh QA
+
+- PR #1010 exact head `6eef41706e1890332cbe4045853c5f4cddb51646` has all four CI checks
+  GREEN, including image build, plus exact-head real isolated UAT/screenshots. Primary's independent
+  sensitive QA is GREEN at PR comment `4960081630` and awaits UX's separate fresh verdict before
+  integrated re-QA and merge.
+- Fresh sensitive QA is running in a detached exact-head worktree as Sonnet session
+  `48262aa6-8c1e-42cf-bb47-a2679f85b471`. It trusts CI, reviews shared-shell/cross-module truth,
+  performs the explicit invariant walk, validates live-path evidence, posts a durable PR verdict,
+  and never edits or merges.
