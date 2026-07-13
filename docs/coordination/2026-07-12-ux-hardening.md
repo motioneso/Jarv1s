@@ -890,3 +890,14 @@ resume from this note before taking any merge-sensitive action.
   plus graceful/crash purge, touching agy engine/launch wiring outside current scope. Primary was
   asked for a dedicated security child/spec under Ben's finish-all direction. #868 remains held;
   Opus reviewer `5a554221-4230-4fd7-a21e-430c57185b8d` was reaped.
+
+## Continuation note — 2026-07-13 #986 dual QA and #1022 scope gate
+
+- Primary classified PR #1010 as SENSITIVE because it changes the shared settings shell and
+  cross-module navigation-truth surface. After CI green, UX must run fresh sensitive QA and Primary
+  must separately run integrated re-QA; both merge-ready verdicts are required. Primary is already
+  watching exact head `6eef4170` and awaits UX's durable verdict pointer.
+- Primary filed security child #1022 for agy crash-surviving per-session identity plus graceful/crash
+  purge. #984 is now blocked on approved/merged #1020, #868-original, and #1022. #868 remains held
+  pre-edit, and neither #1020 nor #1022 may spawn until Ben directly approves scope/spec. A relayed
+  finish-all instruction is not treated as that explicit security-scope approval.
