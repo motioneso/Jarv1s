@@ -26,7 +26,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 1 committed at `a0989815` with E2E green; Task 2 building on `ux/984-private-history`; label `UX 984 Private History v3`, session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`, pane `w1:pJQ`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | approved plan/handoff committed at `0003d1ac`; Task 2 building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v3`, session `159e8723-d2f3-40f8-8d01-c621d537081d`, pane `w1:pJS`; `activityVerb()` released and fail-closed criterion locked |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Codex resumed Task 5 from handoff `ef716b5d` on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 QA RED fixes resumed from clean `54601bee`; label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY`; plan format and live UI/screenshots proof remain blocking |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | amended approved plan committed at `0006fd5a`; TDD building on `ux/990-news-settings-build`; label `UX 990 News Settings v3`, session `4e2afa97-5c55-417c-9bec-a07534cb3c98`, pane `w1:pJR` |
@@ -262,6 +262,9 @@ resume from this note before taking any merge-sensitive action.
   only the negative auth-provider-configuration note from merged People & access, preserving all
   real controls, guards, endpoints, and authorization behavior. The handoff's keep instruction is
   stale and does not override locked decisions.
+- #986 Task 5 landed at `4bf0b50b`: registration moved into People & access, the Identity
+  destination/export and negative note were removed, focused tests were 10/10, and typecheck plus
+  focused Prettier passed. Codex is continuing Task 6; only the context-meter log is dirty.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
