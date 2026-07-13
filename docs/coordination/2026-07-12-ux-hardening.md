@@ -1120,3 +1120,24 @@ resume from this note before taking any merge-sensitive action.
   graceful/crash purge. Calibration failure hard-stops; timers and heuristic deletion stay banned.
 - Current main CI run `29277401769` at `cdf66df0` is still active. The agent may commit only the
   approved plan and must hold all TDD/product edits until UX sends the exact-main GREEN release.
+
+## Continuation note — 2026-07-13 UX coordinator relay 4
+
+- Spent `UX Coordinator` Codex session `019f5adf-594d-7623-8259-69e1657f4e6b` is relaying now;
+  Primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge executor.
+  Successor must record its immutable session at the manifest top, re-adopt by label+session, confirm
+  driving to Primary, then resolve/reap the spent UX session by label plus this immutable id.
+- Mid-doing: current main is `cdf66df0` after unrelated #1023. CI run `29277401769` has both compose
+  smokes GREEN and foundation running. On exact 4/4 GREEN, immediately release security session
+  `019f5ce4-cce4-7a13-be05-cfc3834cc529` from plan-only hold into TDD implementation. Its approved
+  plan-only commit is `8f7f2ec40cfe5c938d62f09e24c1e06460340424`; tree is clean.
+- Security scope/sequence: approved #1020 rev2 (`39dafc29`, Ben approval comment `4961635704`) exact
+  ECHO/ACK + idempotent cancel; manager await seam only after runner green; then expanded #868 exact
+  Gemini/Codex/AGY identities and deterministic graceful/crash purge. No timers, heuristic matching,
+  broad/shared-root deletion, payload leakage, or merge by UX. #984/PR #1015 stays held at
+  `57c484ac` until dependency landing, then no-wait 3x real UAT plus security QA. Ben delegated #984
+  sign-off to Fable security-review GREEN (fallback Sol xhigh GREEN); all gates still apply.
+- #990/PR #1021 is merged/closed at `b205f1c7` and post-merge main run `29275470092` is 4/4 GREEN
+  including image. Its agents are reaped; dirty protected build worktree was preserved. Primary owns
+  the entire approved #1000 harness train (#1024–#1027); UX belayed it before any agent or edit and
+  removed the temporary worktree/branch. Do not spawn or coordinate #1000 from this lane.
