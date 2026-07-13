@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 QA R2 RED at comment `4961037190`: clearing stored guidance omits the empty PATCH field, and create/edit errors leak across modes. Relay 5 session `019f5c98-d76b-7a50-83c9-c1454a828b52` reopened for TDD repair; no merge |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 QA R2 repair pushed at exact head `44c62474`; unit 24/24, Chromium 4/4, format/type/token checks GREEN. Exact-head UAT/evidence, new CI, and fresh QA R3 are required; no merge |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -1037,3 +1037,13 @@ resume from this note before taking any merge-sensitive action.
   `019f5c98-d76b-7a50-83c9-c1454a828b52` for a bounded product fix, new exact-head UAT/evidence,
   full CI, and another fresh QA. QA R2 session `019f5c9d-8e34-70a0-9bc0-a0d6a39032be` was reaped
   after its clean detached worktree was removed. UX never merges.
+
+## Continuation note — 2026-07-13 #990 QA R2 repair pushed
+
+- Relay 5 session `019f5c98-d76b-7a50-83c9-c1454a828b52` reproduced both blockers with RED tests,
+  then pushed exact repair head `44c624744b26cd0ec8b4ec478324408836faf5e0`. The update sends an
+  explicit empty guidance value and resets create/edit errors at operation transitions. Focused unit
+  is 24/24 GREEN, Chromium is 4/4 GREEN, and format/type/design-token checks are GREEN.
+- Protected context/relay artifacts remain unstaged. The builder is extending exact-head UAT with
+  clear-guidance persistence and create-error→edit / edit-error→cancel isolation proof while new CI
+  runs. Evidence-only packaging and fresh QA R3 follow; UX never merges.
