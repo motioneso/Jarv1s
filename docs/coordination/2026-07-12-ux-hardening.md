@@ -22,10 +22,10 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | building on `ux/984-private-history`; label `UX 984 Private History`, session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`, pane `w1:pJB`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals`, session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`, pane `w1:pJC`; fail-closed criterion locked |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine unless permission behavior changes | draft PR #1008; awaiting Fable approval |
-| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | draft PR #1008; awaiting Fable rulings on manual creation and owner `VaultContext` storage |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | draft PR #1008; awaiting Fable approval |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | draft PR #1008; awaiting Fable approval |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building on `ux/986-settings-build`; label `UX 986 Settings Shell`, session `11054b23-df91-4b09-b001-38ec31951d9d`, pane `w1:pJD` |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | building on `ux/989-sports-settings-build`; label `UX 989 Sports Settings`, session `888f3c71-6996-49e1-9dbe-921e829abe55`, pane `w1:pJE` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | building on `ux/990-news-settings-build`; label `UX 990 News Settings`, session `7fb324d8-38fa-43be-bc2c-8304acd0e725`, pane `w1:pJF`; #981 rebase required before build |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -89,6 +89,10 @@ must land before #1000 finalizes selectors. Re-sync before touching the Instance
 - [x] Fable ruled that per-card `Always approve` remains absent.
 - [x] Exact builder path locks sent to the primary Coordinator before dispatch.
 - [x] Isolated worktrees and committed handoffs created for #984 and #985.
+- [x] Fable approved #986, #987, #989, and #990 on draft PR #1008.
+- [x] Fable approved #987's separate manual note-first creation flow and owner `VaultContext`
+      storage boundary.
+- [x] Isolated worktrees and committed handoffs created for #986, #987, #989, and #990.
 
 ## CI waivers
 
@@ -100,6 +104,13 @@ None.
 - #985: APPROVE WITH CHANGES; resolver error/unavailable/non-`true` must fail closed to normal
   confirmation. The criterion is now incorporated.
 - `Always approve`: remove/do not build; shipped code has no such card control.
+- #986: APPROVE at routine tier; preserve the explicit non-admin deep-link regression.
+- #987: APPROVE at sensitive tier. Keep manual creation separate and note-first; keep canonical
+  People notes in owner `VaultContext`, separate from operator mounts. If a refresh response schema
+  is added, declare all four counters and test through `app.inject`.
+- #989: APPROVE at routine tier.
+- #990: APPROVE at routine tier; fetch/rebase before build because #981's News settings file is a
+  live collision surface.
 
 ## Reaped sessions
 
@@ -148,7 +159,12 @@ resume from this note before taking any merge-sensitive action.
 - #984 and #985 builders are live on Sonnet under the labels/sessions recorded in the queue and
   await plan approval before feature edits. Preserve their path locks.
 - Wave-2 docs are published as draft PR #1008. Fable review was requested through the primary
-  Coordinator, including #987's two explicit approval questions. Do not dispatch those builds yet.
+  Coordinator. Fable approved all four specs and both #987 decisions in a durable PR comment.
+- #986, #989, and #990 are live on Sonnet under the labels/sessions recorded in the queue. #987's
+  worktree and handoff are ready but dispatch remains held behind #986's shared pane lock.
+- The primary Coordinator was re-notified before #986 opens shared settings/admin/Playwright paths;
+  its current #1007 builder is label `Module Fix 1006+1007 v2`, session
+  `c9d683b8-ee84-4943-b49d-d3a9db03da0c`.
 - Next independent work: draft #991, #992, #993, #994, #995, and #1002 specs in collision-safe
   lanes; keep #988 last and #1003 separate.
 - Primary Coordinator owns #1007 QA/merge. Its builder may drive Instance-modules in Playwright but
