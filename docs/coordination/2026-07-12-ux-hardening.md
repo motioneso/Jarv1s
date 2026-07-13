@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `44c62474`: focused gates/UAT GREEN, evidence comment `4961193875`, CI active. Fresh QA R3 session `019f5cb5-2a50-7a51-857b-02ec808c660e` is reviewing and holds GREEN for 4/4 CI; no merge |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `44c62474`: CI 4/4 GREEN incl image, UAT/evidence GREEN, fresh QA R3 GREEN at comment `4961370860`. Verdict routed to Primary for authority/integrated-main check and merge; UX never merges |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -1058,3 +1058,13 @@ resume from this note before taking any merge-sensitive action.
   routine QA R3 is active in a detached exact-head worktree under immutable Codex session
   `019f5cb5-2a50-7a51-857b-02ec808c660e`; it rechecks all six prior blockers and full exit criteria
   but may not post GREEN until CI is 4/4. It never edits or merges.
+
+## Continuation note — 2026-07-13 #990 QA R3 GREEN
+
+- Exact-head CI run `29273395628` is 4/4 GREEN, including image build. Fresh routine QA R3 is GREEN
+  and merge-ready at PR comment `4961370860`: zero findings, all six prior blockers repaired,
+  invariants intact, #990 exit criteria met, and UAT/evidence sole-parent chain verified.
+- The durable verdict is routed to verified Primary `Coordinator` session
+  `58a78927-385c-4b1d-8fa0-94db20255d6f` for its authority and integrated-main check plus merge.
+  QA R3 session `019f5cb5-2a50-7a51-857b-02ec808c660e` was reaped after its clean detached worktree
+  was removed. Relay 5 holds the product branch without further edits; UX never merges.
