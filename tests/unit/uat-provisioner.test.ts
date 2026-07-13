@@ -1,5 +1,7 @@
+import { createServer } from "node:net";
 import { describe, expect, it } from "vitest";
 import {
+  findAvailablePort,
   generateUatRunId,
   UAT_DOCKER_SUBNET,
   UAT_PORT_RANGE_START,
@@ -29,5 +31,29 @@ describe("reserved ranges", () => {
   it("reserves a 100-port UAT range starting at 20000, above the prod default (1533)", () => {
     expect(UAT_PORT_RANGE_START).toBe(20000);
     expect(UAT_PORT_RANGE_SIZE).toBe(100);
+  });
+});
+
+describe("findAvailablePort", () => {
+  it("returns the first candidate that is actually free", async () => {
+    const port = await findAvailablePort([20000, 20001], async (p) => p === 20001);
+    expect(port).toBe(20001);
+  });
+
+  it("skips a port that is really bound (EADDRINUSE) and returns the next", async () => {
+    const server = createServer();
+    await new Promise<void>((resolvePromise) => server.listen(20050, "127.0.0.1", resolvePromise));
+    try {
+      const port = await findAvailablePort([20050, 20051]);
+      expect(port).toBe(20051);
+    } finally {
+      await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
+    }
+  });
+
+  it("throws when no candidate is free", async () => {
+    await expect(findAvailablePort([20060], async () => false)).rejects.toThrow(
+      /no available port/i
+    );
   });
 });
