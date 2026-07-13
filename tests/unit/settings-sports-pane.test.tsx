@@ -74,20 +74,26 @@ const TWO_LEAGUES: readonly CompetitionLite[] = [
 ];
 
 describe("SportsSettings", () => {
-  it("renders search input and browse groups (grouped by confederation) when query is empty", () => {
+  it("renders search input when query is empty, with browse leagues collapsed", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES, degraded: false });
     client.setQueryData(FOLLOWS_KEY, { follows: [] });
     const html = renderWithQuery(client);
     expect(html).toContain("sp-search__input");
-    // Browse mode now owns the empty-query state: confederation groups render...
-    // React escapes "&" to "&amp;" in the SSR string output.
-    expect(html).toContain("US majors &amp; global");
-    expect(html).toContain("Europe · UEFA");
-    expect(html).toContain("NFL");
-    expect(html).toContain("Premier League");
     // ...and the old flat search hint is gone.
     expect(html).not.toContain("Search above to find teams or leagues to follow.");
+  });
+
+  it("empty-query view starts with browse leagues collapsed, not the full catalog", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES, degraded: false });
+    client.setQueryData(FOLLOWS_KEY, { follows: [] });
+    const html = renderWithQuery(client);
+    expect(html).toContain("Browse leagues");
+    expect(html).toContain('aria-expanded="false"');
+    // The confederation catalog itself must not render until expanded.
+    expect(html).not.toContain("US majors &amp; global");
+    expect(html).not.toContain("NFL");
   });
 
   it("shows a target-named retry note (not the generic pane banner) after a failed follow", async () => {

@@ -181,6 +181,33 @@
   cursor: not-allowed;
 }
 
+/* Browse leagues disclosure (#989): collapsed by default so the empty-query view leads with
+   search, not the full catalog — the confederation groups below only render once expanded. */
+.sp-browse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  transition: var(--transition-control);
+}
+.sp-browse-toggle:hover {
+  background: var(--surface-2);
+}
+.sp-browse-toggle[aria-expanded="true"] {
+  color: var(--ink);
+}
+
 /* Confederation-grouped browse mode (#907): shown when the search box is empty, replacing the
    old "Search above…" hint. Reuses .sp-whole/.sp-teamgrid/.sp-team for the follow-all button and
    expanded team grid — only the group heading and the expand/collapse row button are new. */

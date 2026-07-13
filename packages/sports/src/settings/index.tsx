@@ -510,6 +510,7 @@ export default function SportsSettings() {
   );
 
   const [actionState, setActionState] = useState<FollowActionState>(null);
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   function toggle(competitionKey: string, teamKey: string | null, label: string) {
     const existing = followsByKey.get(followKey(competitionKey, teamKey));
@@ -571,21 +572,36 @@ export default function SportsSettings() {
       ) : query.length === 1 ? (
         <Note>Search above to find teams or leagues to follow.</Note>
       ) : (
-        <BrowseGroups
-          competitions={competitions}
-          followsByKey={followsByKey}
-          expandedKey={expandedKey}
-          onExpand={setExpandedKey}
-          expandedTeams={expandedQuery.data?.teams ?? []}
-          expandedLoading={expandedQuery.isLoading}
-          // Transport failures (network/5xx) leave `data` undefined with isLoading false — without
-          // isError here a failed league silently renders as an empty roster grid instead of the
-          // retry note (#907 review Important-2).
-          expandedDegraded={expandedQuery.data?.degraded === true || expandedQuery.isError}
-          onRetryExpanded={() => void expandedQuery.refetch()}
-          onToggle={toggle}
-          actionState={actionState}
-        />
+        <>
+          <button
+            type="button"
+            className="sp-browse-toggle"
+            aria-expanded={browseOpen}
+            aria-controls="sp-browse-panel"
+            onClick={() => setBrowseOpen((open) => !open)}
+          >
+            Browse leagues
+          </button>
+          {browseOpen ? (
+            <div id="sp-browse-panel">
+              <BrowseGroups
+                competitions={competitions}
+                followsByKey={followsByKey}
+                expandedKey={expandedKey}
+                onExpand={setExpandedKey}
+                expandedTeams={expandedQuery.data?.teams ?? []}
+                expandedLoading={expandedQuery.isLoading}
+                // Transport failures (network/5xx) leave `data` undefined with isLoading false —
+                // without isError here a failed league silently renders as an empty roster grid
+                // instead of the retry note (#907 review Important-2).
+                expandedDegraded={expandedQuery.data?.degraded === true || expandedQuery.isError}
+                onRetryExpanded={() => void expandedQuery.refetch()}
+                onToggle={toggle}
+                actionState={actionState}
+              />
+            </div>
+          ) : null}
+        </>
       )}
       {catalogQuery.isError || followsQuery.isError ? (
         <Note>Could not load sports follows. Try again.</Note>
