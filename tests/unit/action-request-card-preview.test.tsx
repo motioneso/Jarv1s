@@ -34,7 +34,25 @@ describe("ActionRequestCard email preview", () => {
   it("renders summary-only (no preview block) when no preview is supplied", () => {
     const html = renderToString(createElement(ActionRequestCard, baseProps));
     expect(html).toContain("Draft a reply to Alice");
-    expect(html).not.toContain("action-request-preview");
+    // The tool-name label reuses the "action-request-preview__label" class (Decision 6),
+    // so we assert on the preview-block-specific containers rather than that shared prefix.
+    expect(html).not.toContain("action-request-preview__meta");
+    expect(html).not.toContain("action-request-preview__value");
+  });
+
+  it("renders the tool name as a distinct, humanized label, not just buried in summary", () => {
+    // humanizeToolName strips the module prefix and splits camelCase: "email.draftReply" -> "Draft Reply".
+    const html = renderToString(createElement(ActionRequestCard, baseProps));
+    expect(html).toContain("action-request-preview__label");
+    expect(html).toContain("Draft Reply");
+  });
+
+  // Focus-return-on-resolve (status → done/error) is verified via manual dev QA;
+  // renderToString has no DOM/focus APIs to assert against here.
+  it("never renders an Always-approve control, and orders Approve before Reject", () => {
+    const html = renderToString(createElement(ActionRequestCard, baseProps));
+    expect(html).not.toMatch(/always approve/i);
+    expect(html.indexOf("Approve")).toBeLessThan(html.indexOf("Reject"));
   });
 });
 
