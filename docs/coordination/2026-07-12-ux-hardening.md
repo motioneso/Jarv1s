@@ -104,3 +104,24 @@ None.
 ## Reaped sessions
 
 - None.
+
+## Continuation note — 2026-07-12 UX Coordinator relay
+
+The prior UX Coordinator context compacted before builder dispatch, so the next UX Coordinator must
+resume from this note before taking any merge-sensitive action.
+
+- Re-resolve all Herdr pane IDs by label. The primary merge authority remains `Coordinator`, Claude
+  session `58a78927-385c-4b1d-8fa0-94db20255d6f`; do not merge from this delegated lane.
+- First recheck `main` CI run `29228378966`. If green, dispatch the already-approved #984 and #985
+  builders from their committed handoffs, using Sonnet and isolated worktrees, then record their
+  labels/panes here as `building`.
+- Wave-2 specs for #986, #987, #989, and #990 are consolidated in
+  `~/Jarv1s/.claude/worktrees/spec-983-ux-wave2` on branch `spec/983-ux-wave2` at `e6c5afc4`.
+  Review them to EOF, push the branch, open one draft docs PR, and request Fable review through the
+  primary Coordinator. #987 has two explicit Fable questions about supported manual person creation
+  and owner `VaultContext` storage for People canonical notes.
+- Then draft #991, #992, #993, #994, #995, and #1002 specs in safe parallel lanes. Keep #988 last
+  and #1003 as a separate future iCloud Mail + Calendar feature.
+- The primary Coordinator's #1006/#1007 lane does not edit settings UI. This lane explicitly replied
+  that it is not mid-edit on Instance-modules and that the #1007 work may proceed. Re-sync only if
+  that lane expands into `InstanceModulesPane` or other settings UI code.
