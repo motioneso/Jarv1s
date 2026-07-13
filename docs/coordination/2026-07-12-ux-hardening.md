@@ -1278,3 +1278,25 @@ resume from this note before taking any merge-sensitive action.
   capture-fail retention contract needs Ben's explicit OK, tracked here, gates security-tier merge
   not TDD). Also open: file a GitHub issue for the broken interactive-Gemini transcript reader
   (separate bug, not yet filed — successor 6 flagging for Primary/Ben, not fixing).
+- Primary ACK'd the verdict (2026-07-13) and is surfacing the scope-reframe + retention contract to
+  Ben directly as the before-MERGE gate; will relay his ruling back to this lane. **Two explicit
+  asks from Primary, both still OPEN — successor 7 must pick these up:**
+  1. **File the pre-existing interactive-Gemini transcript-reader bug** as its own GitHub issue
+     (`gh issue create`, label `bug`; NOT part of #868/#1020 scope) — root cause:
+     `packages/chat/src/live/cli-chat-engine.ts:187` (`CliChatEngineImpl`) sets
+     `transcriptDir = transcriptGlobDir("google", ...)` = `~/.gemini/tmp/.../chats`, parsed by
+     `mapGeminiRecord` (old raw-`gemini` schema) — but production's interactive Gemini engine
+     launches `agy --sandbox`, which writes to `~/.gemini/antigravity-cli/brain/<UUID>/....` The
+     interactive Gemini engine's live activity-stream reader is silently reading the wrong
+     path/schema today. Reference: repo uses labels `bug`/`sev:*`; see `gh issue view 868` for
+     format. **Send the issue number to Primary (label `Coordinator`, re-resolve pane by session
+     `58a78927-385c-4b1d-8fa0-94db20255d6f` fresh) once filed.**
+  2. **Report the #868/#1020 TDD PR to Primary the moment the security lane opens it** (pane
+     currently `w1:pKY`, session `019f5ce4-cce4-7a13-be05-cfc3834cc529`, re-resolve fresh — do not
+     trust the `…-N` pane number). Primary said explicitly: "I QA (security tier) + merge only
+     after Fable GREEN AND Ben's scope ruling" — so successor 7 hands the PR to Primary, does
+     **not** spawn its own QA agent for this one, and does not merge.
+- Successor 6 (session `4a5526f6-384a-4645-8162-abb1b171845e`) hit the 70%-context relay trigger
+  right after Primary's ACK, before either ask above was actioned — relaying now per the
+  non-negotiable rule (flush + relay, no "just one more thing"). Successor 7 must resolve both
+  panes fresh by label+session (never the `…-N` numbers written above) before acting.
