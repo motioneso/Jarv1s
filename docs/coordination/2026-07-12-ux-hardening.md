@@ -25,7 +25,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 6 repairs committed at `492adadb` and `5d4998d4`; focus suites 20/20 green. Final DB checks are paused behind #990's exclusive shared-cluster gate slot, then retry notes and run full foundation on fresh `jarv1s_ux984_gate*`; no waiver. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Task 4 paths committed at `419a6f0a`; non-DB pre-push checks active on `ux/985-yolo-approvals`. DB-touching verification is held behind the serialized #990 → #984 gate queue. Label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | DONE on PR #1012 at `419a6f0a`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green, manual CP1-CP5 PASS. Independent security QA is active under label `QA 1012 YOLO Approvals Codex`, session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`, pane `w1:pK7`; #1011 tracks deferred `activityVerb()` falsehood; primary Coordinator alone merges |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Fable/primary approved the sanctioned per-agent DB path: fresh `jarv1s_ux989_uat`, host API `:3002`, web `:5189`, real-UI owner signup, then Sports UAT/screenshots. Shared `jarv1s` is untouched. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
@@ -379,5 +379,11 @@ resume from this note before taking any merge-sensitive action.
 - #984 confirmed the reset failure is cluster-global role/catalog DDL contention: #990's dedicated
   database run still overlaps bootstrap role work across the shared Postgres cluster. Per-database
   names prevent data stomps but do not make migrations/full gates concurrent-safe. DB-touching UX
-  work is now serialized: #990 owns the active slot, #984 is next, and #985 remains on non-DB checks
-  until explicitly released. #984 focus suites are 20/20 green; silence never implies slot release.
+  work is now serialized: #990 owns the active slot and #984 is next. #984 focus suites are 20/20
+  green; silence never implies slot release. #985 subsequently reported its DB gate had already
+  finished before this lock was established.
+- #985 is DONE on PR #1012 at `419a6f0a`. Builder-reported foundation/audit exits are 0, the
+  pre-push trio is green, and manual CP1-CP5 pass. #1011 durably tracks the untouched
+  `activityVerb()` allowed→Denied falsehood. Independent security-tier QA is active as Codex
+  session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`; it must post a durable PR verdict, perform the
+  adversarial permission/auth review, and enforce live-UI UAT/screenshots. This UX lane will not merge.
