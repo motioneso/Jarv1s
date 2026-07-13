@@ -230,6 +230,14 @@ git commit -m "feat(uat): add run-id generation and reserved subnet/port constan
 - Produces: `findAvailablePort(candidates, probe?)` — used by Task 3 (env-file writer) and
   `main()` (Task 6) to pick `JARVIS_WEB_PORT`.
 
+**Amendment (Coordinator condition 1, plan-approval reply):** `findAvailablePort` itself is
+unchanged — probing tighter can't close a cross-process TOCTOU race (this function proves a
+candidate free at probe time; another process can still bind it before `docker compose up` claims
+it). The retry is designed into Task 6's `main()` instead: on a real compose port-bind failure,
+`main()` re-derives `webPort` from the remaining untried candidates rather than looping inside this
+function. The why-comment on the implementation below documents this division of responsibility so
+a future reader doesn't go looking for retry logic here.
+
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
@@ -689,6 +697,14 @@ git commit -m "feat(uat): add post-teardown leak verification (#1024)"
 - Produces: a runnable CLI (`tsx tests/uat/provisioner.ts`) — no new exports later tasks depend
   on (this is the leaf).
 
+**Amendment (Coordinator condition 1, plan-approval reply):** `findAvailablePort` (Task 2) only
+proves a candidate port free at PROBE time — another process can bind it in the window before
+`docker compose up` actually claims it (TOCTOU). `main()` below closes this by capturing compose's
+stderr, detecting a real bind-conflict exit, and retrying the whole attempt with the next untried
+candidate from the reserved range — bounded by the range itself (100 ports), never unbounded.
+`runCommand` changes from `stdio: "inherit"` to piping stderr through a `PortBindConflictError`
+detector while still streaming it live to the operator.
+
 - [ ] **Step 1: Write the implementation directly** (this is an integration entrypoint, not a
   unit-testable pure function — Task 7 is its real test, run live against Docker)
 
@@ -697,13 +713,33 @@ git commit -m "feat(uat): add post-teardown leak verification (#1024)"
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
+// #1024/#1000: thrown only when a command's failure looks like a lost port-bind race (see
+// runCommand below) so main()'s retry loop can distinguish "retry with next port" from every
+// other failure mode, which should abort the run instead of masking a real error.
+class PortBindConflictError extends Error {}
+
+const PORT_BIND_CONFLICT_PATTERN = /port is already allocated|address already in use|bind.*failed/i;
+
 function runCommand(command: string, args: readonly string[]): Promise<void> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, { stdio: "inherit" });
+    let stderr = "";
+    // #1024/#1000: stdout stays "inherit" for live operator visibility; stderr is piped so we can
+    // inspect it for the port-bind-conflict signature, but every chunk is still forwarded to the
+    // real stderr as it arrives so nothing is lost from the operator's view.
+    const child = spawn(command, args, { stdio: ["inherit", "inherit", "pipe"] });
+    child.stderr.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stderr += text;
+      process.stderr.write(text);
+    });
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) {
         resolvePromise();
+        return;
+      }
+      if (PORT_BIND_CONFLICT_PATTERN.test(stderr)) {
+        reject(new PortBindConflictError(`${command} ${args.join(" ")} exited ${code ?? "unknown"}`));
         return;
       }
       reject(new Error(`${command} ${args.join(" ")} exited with status ${code ?? "unknown"}`));
@@ -736,60 +772,90 @@ async function waitForReady(url: string, timeoutMs = 120_000): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const startedAt = Date.now();
-  const { projectName } = generateUatRunId();
-  const webPort = await findAvailablePort(
-    Array.from({ length: UAT_PORT_RANGE_SIZE }, (_, i) => UAT_PORT_RANGE_START + i)
+  const overallStart = Date.now();
+  // #1024/#1000: bounded by the reserved range itself (100 candidates) — never an unbounded
+  // retry. Each failed-on-bind attempt removes its port from the pool; exhausting the pool means
+  // the whole reserved range is hostile, which should fail loudly, not spin forever.
+  let remainingCandidates = Array.from(
+    { length: UAT_PORT_RANGE_SIZE },
+    (_, i) => UAT_PORT_RANGE_START + i
   );
-  const envFile = writeUatEnvFile({ webPort });
-  process.env.JARVIS_ENV_FILE = envFile.path;
-  process.env.JARVIS_IMAGE_TAG ??= "uat-smoke";
+  let imageBuilt = false; // build once; a port-bind retry shouldn't rebuild the image
 
-  // #1024/#1000: teardown MUST run even if provisioning throws partway through (crashed migrate,
-  // failed health poll, etc.) — this is the "trap/finally" the spec's §3.5 calls for, translated
-  // to Node's try/finally plus SIGINT/SIGTERM handlers so an operator Ctrl-C doesn't skip it.
-  const teardown = () =>
-    runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch((error) => {
-      console.error(`teardown failed for ${projectName}:`, error);
-    });
-  const onSignal = () => {
-    void teardown().finally(() => process.exit(1));
-  };
-  process.on("SIGINT", onSignal);
-  process.on("SIGTERM", onSignal);
+  while (remainingCandidates.length > 0) {
+    const startedAt = Date.now();
+    const { projectName } = generateUatRunId();
+    const webPort = await findAvailablePort(remainingCandidates);
+    const envFile = writeUatEnvFile({ webPort });
+    process.env.JARVIS_ENV_FILE = envFile.path;
+    process.env.JARVIS_IMAGE_TAG ??= "uat-smoke";
 
-  try {
-    console.log(`[uat] provisioning ${projectName} on port ${webPort}`);
-    if (process.env.JARVIS_UAT_BUILD !== "0") {
-      await runCommand("docker", [
-        "build",
-        "-t",
-        `ghcr.io/motioneso/jarv1s:${process.env.JARVIS_IMAGE_TAG}`,
-        "-f",
-        "Dockerfile",
-        "."
-      ]);
+    // #1024/#1000: teardown MUST run even if provisioning throws partway through (crashed migrate,
+    // failed health poll, lost port-bind race, etc.) — this is the "trap/finally" the spec's §3.5
+    // calls for, translated to Node's try/finally plus SIGINT/SIGTERM handlers so an operator
+    // Ctrl-C doesn't skip it.
+    const teardown = () =>
+      runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch((error) => {
+        console.error(`teardown failed for ${projectName}:`, error);
+      });
+    const onSignal = () => {
+      void teardown().finally(() => process.exit(1));
+    };
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+
+    try {
+      console.log(`[uat] provisioning ${projectName} on port ${webPort}`);
+      if (process.env.JARVIS_UAT_BUILD !== "0" && !imageBuilt) {
+        await runCommand("docker", [
+          "build",
+          "-t",
+          `ghcr.io/motioneso/jarv1s:${process.env.JARVIS_IMAGE_TAG}`,
+          "-f",
+          "Dockerfile",
+          "."
+        ]);
+        imageBuilt = true;
+      }
+      const plan = createUatProvisionPlan({ projectName, seedHook: bareSeedHook });
+      for (const step of plan.slice(0, -1)) {
+        // #1024/#1000: the plan's LAST entry is always `down -v` (Task 4) — deliberately excluded
+        // from this loop and run once, from `finally`, below. Running it here too would double-run
+        // teardown on the success path.
+        console.log(`[uat] ${step.description}`);
+        await runCommand(step.command, step.args);
+      }
+      await bareSeedHook({ projectName }); // #1024/#1000: no-op in Phase 1; seam for #1025.
+      const readyUrl = `http://127.0.0.1:${webPort}/health/ready`;
+      await waitForReady(readyUrl);
+      console.log(`[uat] reachable at ${readyUrl} after ${Date.now() - startedAt}ms`);
+      return;
+    } catch (error) {
+      if (error instanceof PortBindConflictError) {
+        // #1024/#1000: Coordinator condition 1 — findAvailablePort (Task 2) only proved this port
+        // free at probe time; docker just told us another process won the bind race. Retry with
+        // the next untried candidate instead of flaking the whole gate.
+        console.warn(
+          `[uat] port ${webPort} lost the bind race after probing free; retrying with next candidate (#1024)`
+        );
+        remainingCandidates = remainingCandidates.filter((port) => port !== webPort);
+        continue;
+      }
+      throw error;
+    } finally {
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+      await teardown();
+      await assertNoLeakedResources(projectName);
+      envFile.cleanup();
+      console.log(`[uat] provision+teardown wall-clock: ${Date.now() - overallStart}ms`);
     }
-    const plan = createUatProvisionPlan({ projectName, seedHook: bareSeedHook });
-    for (const step of plan.slice(0, -1)) {
-      // #1024/#1000: the plan's LAST entry is always `down -v` (Task 4) — deliberately excluded
-      // from this loop and run once, from `finally`, below. Running it here too would double-run
-      // teardown on the success path.
-      console.log(`[uat] ${step.description}`);
-      await runCommand(step.command, step.args);
-    }
-    await bareSeedHook({ projectName }); // #1024/#1000: no-op in Phase 1; seam for #1025.
-    const readyUrl = `http://127.0.0.1:${webPort}/health/ready`;
-    await waitForReady(readyUrl);
-    console.log(`[uat] reachable at ${readyUrl} after ${Date.now() - startedAt}ms`);
-  } finally {
-    process.off("SIGINT", onSignal);
-    process.off("SIGTERM", onSignal);
-    await teardown();
-    await assertNoLeakedResources(projectName);
-    envFile.cleanup();
-    console.log(`[uat] provision+teardown wall-clock: ${Date.now() - startedAt}ms`);
   }
+  throw new Error(
+    `exhausted all ${UAT_PORT_RANGE_SIZE} reserved UAT ports (${UAT_PORT_RANGE_START}-${
+      UAT_PORT_RANGE_START + UAT_PORT_RANGE_SIZE - 1
+    }) without a successful bind`
+  );
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
