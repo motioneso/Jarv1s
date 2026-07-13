@@ -4,7 +4,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
 import { APIError } from "better-auth/api";
-import { verifyPassword } from "better-auth/crypto";
+import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
@@ -26,6 +26,12 @@ import { readBearerToken, toWebHeaders } from "./headers.js";
 import { createMeSessionsService, type MeSessionsRuntimeService } from "./session-service.js";
 
 const { Pool } = pg;
+
+// Re-exported so root-level callers (e.g. tests/uat/seed) can hash a credential
+// password without taking a direct root devDependency on better-auth — pnpm's
+// strict node_modules means only packages that declare the dependency (this one)
+// can resolve "better-auth/crypto" directly (#1025).
+export { hashPassword };
 
 export interface AuthenticatedPrincipal {
   readonly userId: string;
