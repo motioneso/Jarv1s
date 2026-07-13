@@ -5499,3 +5499,25 @@ PENDING** on #868 scope-reframe (3→2 AGY+Codex) + capture-fail contract (I rec
 needed before #984 merge, NOT before TDD. #984 merge = Fable GREEN + that Ben ruling. UX Coordinator =
 Claude sess `b637e03f` (routes PRs to me). #1029 = pre-existing gemini-reader bug (flag-only). No
 PushNotifications. Compact in place.
+
+### MERGED — #1028 dev-UAT provisioner (#1024 P1), sensitive tier
+
+- Squash `51f468d4` on `origin/main`. 4/4 CI green (VF 18m3s, 2 smokes, image-build). QA GREEN
+  (invariants clean, no BYPASSRLS; privileged seam = migration-owner not app_runtime). Session
+  `58a78927` re-confirmed vs lock at merge.
+- #1024 CLOSED. Epic **#1000** children remaining: **P2 #1025** (seed levels.ts) → P3 #1026
+  (Playwright + job-search-install spec) → P4 #1027 (wire into coordinate e2e-UAT gate).
+- Agent 1024d reaped (pane w1:pM3 closed, worktree uat-harness-1024 removed).
+- `merges_since_relay` 0→1 (sensitive; threshold 2 — no relay yet).
+- **Non-blocking follow-up (unfiled):** `tests/uat/provisioner.ts:252` leak-check omits networks
+  though doc-comment claims it — `down -v` drops `<project>_default` so low-risk; fold into P2 or file.
+
+**DIGEST (Ben):** #1028 dev-UAT ephemeral-instance provisioner merged (`51f468d4`, sensitive, QA
+GREEN + 4/4 CI). Internal dev-tooling, not user-visible. UAT-harness P1 done; P2/P3/P4 remain.
+
+### #868 RULING STATE (surfaced to Ben, 2026-07-13)
+- Ben ALREADY ruled (durable on #868): input-ready seam → dedicated child **#1020** (NOT folded);
+  AGY host-shared purge → folded INTO #868 (from #1022). #868 scope settled; TDD not blocked on Ben.
+- **STILL OPEN for Ben:** AGY identity-capture-fail contract — hard-fail-loud vs silent-proceed.
+  Coordinator recommendation posted to Ben = **hard-fail-loud** (silent degrade = privacy leak).
+  Needed before #868 LANDS (not before build) + gates #984 merge alongside #1020. **UNANSWERED.**
