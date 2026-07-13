@@ -5699,3 +5699,6 @@ P2 #1025 self-relayed at 70%. Predecessor session e6ad8ae0 (pane w1:pM7) REAPED.
 
 ## P2 relay v2→v3 — 2026-07-13 ~18:05
 Predecessor v2 (session 025f1d1e, pane w1:pM8) REAPED. Successor **`UAT Seed 1025 v3`, session 4eba79f3-913, pane w1:pM9, tab w1:t10, Sonnet** — driving. Progress: Task 3 solo-admin DONE (0173b42a). Task 4 in flight — agent found the plan's DRAFT ai.ts had wrong field/table names, grounded against real schema + documented corrected findings in relay doc (b92356e5). No escalation needed — agent self-corrected within lane.
+
+## P2 relay v3→v4 — 2026-07-13 ~18:15
+Predecessor v3 (session 4eba79f3, pane w1:pM9) REAPED. Successor **`UAT Seed 1025 v4`, session c3cdb29d-bd4, pane w1:pMA, tab w1:t10, Sonnet** — driving. Progress: Task 4 (ai/news/sports seed chunks) DONE, committed c6be9420 all green. Handoff doc (b5789786) carries corrected field names + 2 infra fixes for v4 (missing @jarv1s/news vitest alias; missing NewsPrefsRepository/SportsFollowsRepository exports). Lane healthy through 3 clean self-relays. Remaining: notes/tasks/calendar chunks, external_modules admin-path chunk, job-search toggle, wire into provisioner seed hook, gate+PR.
