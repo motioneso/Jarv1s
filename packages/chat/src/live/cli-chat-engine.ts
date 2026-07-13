@@ -26,13 +26,17 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  captureAckCursor,
   DEFAULT_MODEL_SENTINEL,
+  hasExactUserAck,
   parseTranscript,
   redactSecrets,
   transcriptGlobDir,
   TmuxMultiplexer,
   type Multiplexer,
   type MuxHandle,
+  type AckCursor,
+  type AckProviderKind,
   type ProviderKind,
   type TmuxIo
 } from "@jarv1s/ai";
@@ -66,8 +70,6 @@ const PERSONA_FILENAME = "persona.md";
 const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
 
 export interface CliChatEngineOpts {
-  /** ms to let the CLI TUI finish booting before the first paste. */
-  readonly launchMs?: number;
   /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
   readonly mux?: Multiplexer;
   /** Base dir whose `.claude`/`.codex`/`.gemini` hold CLI transcripts. */
@@ -85,7 +87,26 @@ export interface CliChatEngineOpts {
   readonly drainMs?: number;
   /** #342: poll interval (ms) used while draining the replay. Default 250ms. */
   readonly drainPollMs?: number;
+  /** Max observation window for each ECHO attempt. Time can only fail; pane evidence succeeds. */
+  readonly echoMs?: number;
+  /** Failure-only bound for replay's verified submit. */
+  readonly verifiedSubmitMs?: number;
   readonly executionMode?: AiProviderExecutionMode;
+}
+
+export interface VerifiedSubmitOpts {
+  readonly attemptId: string;
+  readonly text: string;
+  readonly signal: AbortSignal;
+}
+
+export class VerifiedSubmitError extends Error {
+  constructor(readonly code: "unavailable" | "delivery_unknown") {
+    super(
+      code === "delivery_unknown" ? "chat input delivery is unknown" : "chat input unavailable"
+    );
+    this.name = "VerifiedSubmitError";
+  }
 }
 
 /** Result of a bounded server-side replay-drain (§4.1.2). */
@@ -158,7 +179,6 @@ function normalizeComposerText(text: string): string {
  * google (Gemini).
  */
 export class CliChatEngineImpl implements CliChatEngine {
-  private readonly launchMs: number;
   private readonly mux: Multiplexer;
   /** The opaque session handle returned by mux.open() at launch. */
   private handle: MuxHandle | null = null;
@@ -190,6 +210,8 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly ownsDrain: boolean;
   private readonly drainMs: number;
   private readonly drainPollMs: number;
+  private readonly echoMs: number;
+  private readonly verifiedSubmitMs: number;
   private readonly executionMode: AiProviderExecutionMode;
   private codexExec: CodexExecSession | null = null;
   private codexExecLogicalAlive = false;
@@ -202,13 +224,14 @@ export class CliChatEngineImpl implements CliChatEngine {
     private readonly io: TmuxIo,
     opts: CliChatEngineOpts = {}
   ) {
-    this.launchMs = opts.launchMs ?? 3_000;
     this.mux = opts.mux ?? new TmuxMultiplexer(io);
     this.homeBase = opts.homeBase;
     this.credentialFile = opts.credentialFile;
     this.ownsDrain = opts.ownsDrain ?? false;
     this.drainMs = opts.drainMs ?? 25_000;
     this.drainPollMs = opts.drainPollMs ?? 250;
+    this.echoMs = opts.echoMs ?? 10_000;
+    this.verifiedSubmitMs = opts.verifiedSubmitMs ?? 35_000;
     this.executionMode = opts.executionMode ?? "interactive";
   }
 
@@ -299,15 +322,12 @@ export class CliChatEngineImpl implements CliChatEngine {
       });
     }
 
-    // ── POST-mux-create: boot wait + (server-owned) replay-drain ────────────────
+    // ── POST-mux-create: (server-owned) replay-drain ───────────────────────────
     // From here `jarv1s-live-<threadKey>` EXISTS. Any failure is a POST-mux-create
     // failure: per §6.5 we MUST kill the mux session by canonical name BEFORE
     // removing the dir, else the orphan lingers in listLiveSessions-by-mux and
     // blocks the §4.1.0a single-active-user gate for everyone.
     try {
-      // Let the CLI TUI finish booting before the first prompt is pasted.
-      await this.io.sleep(this.launchMs);
-
       if (!this.ownsDrain) {
         // In-process host path: the manager owns the replay-drain (§4.1.2). Return
         // offset 0 so it keeps overwriting `transcriptOffset` from its own drain.
@@ -316,7 +336,7 @@ export class CliChatEngineImpl implements CliChatEngine {
 
       // cli-runner path: submit the replay batch (if any) and drain to a clean
       // boundary, returning the post-drain offset (§4.1.2).
-      const drained = await this.replayAndDrain(opts.replayBatch);
+      const drained = await this.replayAndDrain(opts.replayBatch, opts.replayAttemptId);
       return { offset: drained.offset };
     } catch (err) {
       await this.killAndRemoveNeutralDirQuietly();
@@ -335,6 +355,67 @@ export class CliChatEngineImpl implements CliChatEngine {
     }
     await this.mux.submit(this.requireHandle(), sanitized);
     if (this.provider === "google") this.agyHasSubmitted = true;
+  }
+
+  async verifiedSubmit(opts: VerifiedSubmitOpts): Promise<void> {
+    const sanitized = sanitizeInput(opts.text);
+    if (this.isCodexExecMode()) {
+      if (!this.codexExec)
+        throw new Error("CliChatEngineImpl.verifiedSubmit called before launch()");
+      await this.codexExec.submit(sanitized);
+      return;
+    }
+    if (this.provider === "google") {
+      throw new VerifiedSubmitError("unavailable");
+    }
+
+    const handle = this.requireHandle();
+    let pasted = false;
+    let entered = false;
+    try {
+      const ack = await this.captureUserAckCursor(opts.signal);
+      this.throwIfCanceled(opts.signal);
+
+      for (let pasteAttempt = 0; pasteAttempt < 2; pasteAttempt += 1) {
+        await this.mux.clearComposer(handle);
+        this.throwIfCanceled(opts.signal);
+        const empty = await this.observePane(
+          handle,
+          (pane) => isComposerEmpty(this.provider, pane),
+          opts.signal
+        );
+        if (!empty) throw new VerifiedSubmitError("unavailable");
+        pasted = false;
+
+        pasted = true;
+        await this.mux.paste(handle, sanitized);
+        this.throwIfCanceled(opts.signal);
+        const echoed = await this.observePane(
+          handle,
+          (pane) => composerHasExactEcho(this.provider, pane, sanitized),
+          opts.signal
+        );
+        if (!echoed) continue;
+
+        entered = true;
+        await this.mux.pressEnter(handle);
+        this.throwIfCanceled(opts.signal);
+        await this.waitForUserAck(ack, sanitized, opts.signal);
+        return;
+      }
+      throw new VerifiedSubmitError("unavailable");
+    } catch (err) {
+      if (entered) {
+        await this.killAndRemoveNeutralDirQuietly();
+        throw new VerifiedSubmitError("delivery_unknown");
+      }
+      if (pasted) {
+        const cleared = await this.clearPastedComposer(handle);
+        if (!cleared) await this.killAndRemoveNeutralDirQuietly();
+      }
+      if (err instanceof VerifiedSubmitError) throw err;
+      throw new VerifiedSubmitError("unavailable");
+    }
   }
 
   async readNew(
@@ -469,12 +550,14 @@ export class CliChatEngineImpl implements CliChatEngine {
    *   once found so a later log-rotation can't switch us to a different file
    *   mid-session. Returns null if no transcript file exists yet.
    */
-  private async resolveTranscriptPath(): Promise<string | null> {
+  private async resolveTranscriptPath(signal?: AbortSignal): Promise<string | null> {
+    this.throwIfCanceled(signal);
     if (this.storedTranscriptPath !== null) return this.storedTranscriptPath;
     if (this.transcriptDir === null) return null;
 
     // `ls -t` sorts by mtime, newest first; tolerate a not-yet-created dir (nonzero exit).
     const listed = await this.io.run("ls", ["-t", this.transcriptDir]);
+    this.throwIfCanceled(signal);
     if (listed.code !== 0) return null;
     const candidates = listed.stdout
       .split("\n")
@@ -483,7 +566,7 @@ export class CliChatEngineImpl implements CliChatEngine {
 
     let newest: string | undefined;
     if (this.provider === "openai-compatible" && this.neutralDir !== null) {
-      newest = await this.findCodexTranscriptForCwd(candidates);
+      newest = await this.findCodexTranscriptForCwd(candidates, signal);
     } else {
       newest = candidates[0];
     }
@@ -494,14 +577,18 @@ export class CliChatEngineImpl implements CliChatEngine {
   }
 
   private async findCodexTranscriptForCwd(
-    candidates: readonly string[]
+    candidates: readonly string[],
+    signal?: AbortSignal
   ): Promise<string | undefined> {
     for (const candidate of candidates.slice(0, 20)) {
+      this.throwIfCanceled(signal);
       const path = join(this.transcriptDir ?? "", candidate);
       let jsonl: string;
       try {
         jsonl = await this.io.readFile(path);
+        this.throwIfCanceled(signal);
       } catch {
+        this.throwIfCanceled(signal);
         continue;
       }
       if (!codexTranscriptMatchesCwd(jsonl, this.neutralDir ?? "")) continue;
@@ -521,6 +608,77 @@ export class CliChatEngineImpl implements CliChatEngine {
       throw new Error("CliChatEngineImpl.submit called before launch()");
     }
     return this.handle;
+  }
+
+  private async captureUserAckCursor(signal?: AbortSignal): Promise<{
+    readonly path: string | null;
+    readonly cursor: AckCursor;
+  }> {
+    this.throwIfCanceled(signal);
+    const path = await this.resolveTranscriptPath(signal);
+    this.throwIfCanceled(signal);
+    if (path === null) return { path: null, cursor: captureAckCursor("") };
+    try {
+      const jsonl = await this.io.readFile(path);
+      this.throwIfCanceled(signal);
+      return { path, cursor: captureAckCursor(jsonl) };
+    } catch {
+      this.throwIfCanceled(signal);
+      return { path, cursor: captureAckCursor("") };
+    }
+  }
+
+  private async waitForUserAck(
+    initial: { readonly path: string | null; readonly cursor: AckCursor },
+    expectedText: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    const provider = this.provider as AckProviderKind;
+    for (;;) {
+      this.throwIfCanceled(signal);
+      const path = initial.path ?? (await this.resolveTranscriptPath(signal));
+      this.throwIfCanceled(signal);
+      if (path !== null) {
+        try {
+          const jsonl = await this.io.readFile(path);
+          this.throwIfCanceled(signal);
+          if (hasExactUserAck(provider, jsonl, initial.cursor, expectedText)) return;
+        } catch {
+          this.throwIfCanceled(signal);
+        }
+      }
+      await this.io.sleep(this.drainPollMs);
+      this.throwIfCanceled(signal);
+    }
+  }
+
+  private async observePane(
+    handle: MuxHandle,
+    predicate: (pane: string) => boolean,
+    signal: AbortSignal
+  ): Promise<boolean> {
+    const deadline = Date.now() + this.echoMs;
+    for (;;) {
+      this.throwIfCanceled(signal);
+      const pane = await this.mux.capturePane(handle);
+      this.throwIfCanceled(signal);
+      if (predicate(pane)) return true;
+      if (Date.now() >= deadline) return false;
+      await this.io.sleep(this.drainPollMs);
+    }
+  }
+
+  private async clearPastedComposer(handle: MuxHandle): Promise<boolean> {
+    try {
+      await this.mux.clearComposer(handle);
+      return isComposerEmpty(this.provider, await this.mux.capturePane(handle));
+    } catch {
+      return false;
+    }
+  }
+
+  private throwIfCanceled(signal?: AbortSignal): void {
+    if (signal?.aborted) throw new VerifiedSubmitError("unavailable");
   }
 
   private isCodexExecMode(): boolean {
@@ -724,18 +882,36 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   /**
    * Bounded server-side replay-drain (§4.1.2). Submits `replayBatch` (if present)
-   * then polls the transcript until the provider signals end-of-turn OR the drain
-   * budget elapses, returning the last safe offset. NEVER throws on a drain timeout
-   * (a slow model must not fail the launch); a `submit` failure DOES surface (the
-   * caller treats it as a POST-mux-create failure and reaps the session).
+   * then polls the transcript until the provider signals end-of-turn. Missing completion fails
+   * launch; elapsed time is never readiness evidence.
    */
-  private async replayAndDrain(replayBatch: string | undefined): Promise<DrainOutcome> {
+  private async replayAndDrain(
+    replayBatch: string | undefined,
+    replayAttemptId: string | undefined
+  ): Promise<DrainOutcome> {
     if (!replayBatch) {
       // Fresh conversation: nothing to replay; the first real readNew starts at 0.
       return { offset: 0 };
     }
 
-    await this.submit(replayBatch);
+    if (this.provider === "google") {
+      // AGY's production transcript schema is not the dead Gemini CLI reader schema. Keep its
+      // existing path until that separately adjudicated reader bug has its own approved scope.
+      await this.submit(replayBatch);
+    } else {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.verifiedSubmitMs);
+      timer.unref?.();
+      try {
+        await this.verifiedSubmit({
+          attemptId: replayAttemptId ?? randomUUID(),
+          text: replayBatch,
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
 
     const deadline = Date.now() + this.drainMs;
     let offset = 0;
@@ -752,8 +928,7 @@ export class CliChatEngineImpl implements CliChatEngine {
       if (result.complete) return { offset };
       await this.io.sleep(this.drainPollMs);
     }
-    // Budget exhausted: return the last safe offset rather than block (§4.1/§5).
-    return { offset };
+    throw new Error("replay completion unavailable");
   }
 
   /** §6.5: remove the ENTIRE per-session neutral dir; best-effort, never throws. */

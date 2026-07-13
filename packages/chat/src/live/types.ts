@@ -49,6 +49,8 @@ export interface EngineLaunchOpts {
    * manager keeps its own post-launch drain). See rpc-contract.ts RpcLaunchParams.replayBatch.
    */
   readonly replayBatch?: string;
+  /** Stable logical attempt ID for a replay submit; wire validation is added with RPC task 5. */
+  readonly replayAttemptId?: string;
   /**
    * NEW (#367) — the resolved provider model id from the active chat model row. The auto-registered
    * default is the `"default"` sentinel, for which the launch OMITS `--model` so the CLI rides its

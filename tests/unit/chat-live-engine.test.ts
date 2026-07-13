@@ -96,7 +96,7 @@ function flat(io: ReturnType<typeof fakeIo>): string {
 describe("CliChatEngineImpl — launch", () => {
   it("launches `claude` with the security-critical flags from the spike matrix", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-launch", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-launch", io);
 
     await engine.launch({
       neutralDir: "/tmp/jarvis/thread-launch",
@@ -123,7 +123,7 @@ describe("CliChatEngineImpl — launch", () => {
 
   it("computes a transcript path under the dash-encoded cwd with the session id (leading dash kept)", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-path", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-path", io);
 
     await engine.launch({
       neutralDir: "/tmp/jarvis/thread-path",
@@ -146,7 +146,6 @@ describe("CliChatEngineImpl — launch", () => {
   it("runs Codex exec JSON as a one-shot turn in non-interactive mode", async () => {
     const io = fakeIo();
     const engine = new CliChatEngineImpl("openai-compatible", "thread-codex-exec", io, {
-      launchMs: 0,
       executionMode: "non_interactive"
     });
 
@@ -188,9 +187,7 @@ describe("CliChatEngineImpl — launch", () => {
 describe("CliChatEngineImpl — submit + readNew", () => {
   it("sanitizes a leading '!' before pasting (no bash-prefix escape hatch)", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-bang", io, {
-      launchMs: 0
-    });
+    const engine = new CliChatEngineImpl("anthropic", "thread-bang", io, {});
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-bang", personaPath: "/p.md" });
 
     io.writeCalls.length = 0;
@@ -204,9 +201,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
 
   it("pastes the prompt buffer then sends Enter as a separate send-keys", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-paste", io, {
-      launchMs: 0
-    });
+    const engine = new CliChatEngineImpl("anthropic", "thread-paste", io, {});
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-paste", personaPath: "/p.md" });
 
     io.runCalls.length = 0;
@@ -221,7 +216,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
 
   it("readNew tolerates a missing transcript (returns empty, not complete)", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-empty", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-empty", io);
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-empty", personaPath: "/p.md" });
 
     // transcript stays null → readFile throws ENOENT.
@@ -233,9 +228,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
 
   it("readNew yields a reply record after the turn completes", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-reply", io, {
-      launchMs: 0
-    });
+    const engine = new CliChatEngineImpl("anthropic", "thread-reply", io, {});
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-reply", personaPath: "/p.md" });
 
     await engine.submit("What is the answer?");
@@ -256,7 +249,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
 
   it("readNew respects afterOffset (skips already-read bytes)", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-offset", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-offset", io);
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-offset", personaPath: "/p.md" });
 
     const first = CLAUDE_THINKING + "\n";
@@ -274,7 +267,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
 describe("CliChatEngineImpl — lifecycle", () => {
   it("isAlive() checks the tmux session via has-session", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-alive", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-alive", io);
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-alive", personaPath: "/p.md" });
 
     io.runCalls.length = 0;
@@ -285,7 +278,7 @@ describe("CliChatEngineImpl — lifecycle", () => {
 
   it("kill() kills the tmux session", async () => {
     const io = fakeIo();
-    const engine = new CliChatEngineImpl("anthropic", "thread-kill", io, { launchMs: 0 });
+    const engine = new CliChatEngineImpl("anthropic", "thread-kill", io);
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-kill", personaPath: "/p.md" });
 
     io.runCalls.length = 0;

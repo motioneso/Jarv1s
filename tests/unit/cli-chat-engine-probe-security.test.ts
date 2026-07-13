@@ -109,8 +109,7 @@ describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regre
           kill: async () => undefined,
           interrupt: async () => undefined,
           attachCommand: () => ""
-        },
-        launchMs: 0
+        }
       });
       await engine.launch({
         neutralDir: dir,
@@ -275,8 +274,8 @@ describe("CliChatEngineImpl — §6.5 POST-mux-create failure ordering (UNPROVEN
       return { code: 0, stdout: "", stderr: "" };
     });
 
-    // A mux that OPENS successfully (so jarv1s-live-<key> exists), but whose submit throws
-    // — driving replayAndDrain's `await this.submit(replayBatch)` to fail, which is a
+    // A mux that OPENS successfully (so jarv1s-live-<key> exists), but whose paste throws
+    // and whose cleanup cannot prove the composer empty — driving verified replay to fail, which is a
     // POST-mux-create failure routed through killAndRemoveNeutralDirQuietly.
     const killSpy = vi.fn().mockImplementation(async () => {
       events.push("mux.kill");
@@ -286,8 +285,8 @@ describe("CliChatEngineImpl — §6.5 POST-mux-create failure ordering (UNPROVEN
       open: vi.fn().mockResolvedValue("jarv1s-live-rpc-post-fail"),
       submit: vi.fn().mockRejectedValue(new Error("paste-buffer failed")),
       clearComposer: vi.fn(),
-      capturePane: vi.fn().mockResolvedValue(""),
-      paste: vi.fn(),
+      capturePane: vi.fn().mockResolvedValueOnce("❯\n").mockResolvedValue("❯ private draft\n"),
+      paste: vi.fn().mockRejectedValue(new Error("paste-buffer failed")),
       pressEnter: vi.fn(),
       isAlive: vi.fn().mockResolvedValue(true),
       kill: killSpy,
@@ -298,9 +297,9 @@ describe("CliChatEngineImpl — §6.5 POST-mux-create failure ordering (UNPROVEN
     const engine = new CliChatEngineImpl("anthropic", "rpc-post-fail", io, {
       mux,
       ownsDrain: true,
-      launchMs: 0,
       drainMs: 50,
-      drainPollMs: 1
+      drainPollMs: 1,
+      echoMs: 0
     });
 
     let caught: unknown;

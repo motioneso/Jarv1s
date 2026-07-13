@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CliChatEngineImpl,
+  VerifiedSubmitError,
   deriveNeutralDir,
   killMuxSessionByName,
   listLiveMuxSessions,
@@ -63,6 +64,219 @@ describe("observed composer evidence", () => {
       )
     ).toBe(true);
     expect(composerHasExactEcho("anthropic", `❯ prefix ${payload} suffix\n`, payload)).toBe(false);
+  });
+});
+
+function stateMachineMux(opts: {
+  readonly panes: readonly string[];
+  readonly onPaste?: () => void;
+  readonly onEnter?: () => void;
+}): Multiplexer & {
+  readonly clearComposer: ReturnType<typeof vi.fn>;
+  readonly capturePane: ReturnType<typeof vi.fn>;
+  readonly paste: ReturnType<typeof vi.fn>;
+  readonly pressEnter: ReturnType<typeof vi.fn>;
+  readonly kill: ReturnType<typeof vi.fn>;
+} {
+  const panes = [...opts.panes];
+  const capturePane = vi.fn(async () => panes.shift() ?? panes.at(-1) ?? "");
+  const paste = vi.fn(async () => opts.onPaste?.());
+  const pressEnter = vi.fn(async () => opts.onEnter?.());
+  return {
+    kind: "tmux",
+    open: vi.fn().mockResolvedValue("pane-1"),
+    clearComposer: vi.fn().mockResolvedValue(undefined),
+    capturePane,
+    paste,
+    pressEnter,
+    submit: vi.fn().mockResolvedValue(undefined),
+    interrupt: vi.fn().mockResolvedValue(undefined),
+    isAlive: vi.fn().mockResolvedValue(true),
+    kill: vi.fn().mockResolvedValue(undefined),
+    attachCommand: vi.fn().mockReturnValue("tmux attach -t pane-1")
+  };
+}
+
+function claudeUser(text: string): string {
+  return JSON.stringify({ type: "user", message: { role: "user", content: text } }) + "\n";
+}
+
+describe("CliChatEngineImpl — verified interactive submit", () => {
+  const empty = "\u001b[1m❯\u001b[0m\u00a0\n";
+
+  it("presses Enter once only after exact ECHO and exact post-cursor ACK", async () => {
+    let transcript = claudeUser("older turn");
+    const mux = stateMachineMux({
+      panes: [empty, "❯ exact payload\n"],
+      onEnter: () => {
+        transcript += claudeUser("exact payload");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "verified-success", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-success", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "11111111-1111-4111-8111-111111111111",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.clearComposer).toHaveBeenCalledTimes(1);
+    expect(mux.paste).toHaveBeenCalledTimes(1);
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("allows one clear-first re-paste, then still presses Enter only once", async () => {
+    let transcript = "";
+    const mux = stateMachineMux({
+      panes: [empty, "❯ wrong\n", empty, "❯ exact payload\n"],
+      onEnter: () => {
+        transcript += claudeUser("exact payload");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "verified-repaste", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-repaste", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "22222222-2222-4222-8222-222222222222",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.clearComposer).toHaveBeenCalledTimes(2);
+    expect(mux.paste).toHaveBeenCalledTimes(2);
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts an exact post-cursor Codex user_message on a launch-valid rollout", async () => {
+    const neutralDir = "/tmp/verified-codex";
+    let transcript =
+      JSON.stringify({
+        type: "session_meta",
+        payload: { cwd: neutralDir, timestamp: new Date().toISOString() }
+      }) + "\n";
+    const mux = stateMachineMux({
+      panes: ["\u001b[1m›\u001b[0m \u001b[2mUse /skills\u001b[0m\n", "› exact payload\n"],
+      onEnter: () => {
+        transcript +=
+          JSON.stringify({
+            type: "event_msg",
+            payload: { type: "user_message", message: "exact payload" }
+          }) + "\n";
+      }
+    });
+    const io = makeIo();
+    io.run.mockImplementation(async (cmd: string) =>
+      cmd === "ls"
+        ? { code: 0, stdout: "rollout-exact.jsonl\n", stderr: "" }
+        : { code: 0, stdout: "", stderr: "" }
+    );
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("openai-compatible", "verified-codex", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir, personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "88888888-8888-4888-8888-888888888888",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails before paste without killing when empty composer cannot be observed", async () => {
+    const mux = stateMachineMux({ panes: ["❯ private draft\n"] });
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "verified-no-empty", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-no-empty", personaPath: "/p.md" });
+
+    const error = await engine
+      .verifiedSubmit({
+        attemptId: "33333333-3333-4333-8333-333333333333",
+        text: "payload",
+        signal: new AbortController().signal
+      })
+      .catch((err: unknown) => err);
+
+    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "unavailable" });
+    expect(mux.paste).not.toHaveBeenCalled();
+    expect(mux.pressEnter).not.toHaveBeenCalled();
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("clears a canceled pasted payload before failing unavailable", async () => {
+    const controller = new AbortController();
+    const mux = stateMachineMux({
+      panes: [empty, empty],
+      onPaste: () => controller.abort()
+    });
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "verified-cancel-paste", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-cancel-paste", personaPath: "/p.md" });
+
+    const error = await engine
+      .verifiedSubmit({
+        attemptId: "44444444-4444-4444-8444-444444444444",
+        text: "private payload",
+        signal: controller.signal
+      })
+      .catch((err: unknown) => err);
+
+    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "unavailable" });
+    expect(mux.clearComposer).toHaveBeenCalledTimes(2);
+    expect(mux.pressEnter).not.toHaveBeenCalled();
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("kills and returns delivery_unknown when canceled after Enter, despite a late ACK", async () => {
+    let transcript = "";
+    const controller = new AbortController();
+    const mux = stateMachineMux({
+      panes: [empty, "❯ exact payload\n"],
+      onEnter: () => {
+        transcript += claudeUser("exact payload");
+        controller.abort();
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "verified-entered", io, {
+      mux,
+      echoMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/verified-entered", personaPath: "/p.md" });
+
+    const error = await engine
+      .verifiedSubmit({
+        attemptId: "55555555-5555-4555-8555-555555555555",
+        text: "exact payload",
+        signal: controller.signal
+      })
+      .catch((err: unknown) => err);
+
+    expect(error).toMatchObject<Partial<VerifiedSubmitError>>({ code: "delivery_unknown" });
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+    expect(mux.kill).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -988,41 +1202,76 @@ describe("CliChatEngineImpl — #342 personaText + server-owned drain", () => {
 
   it("submits the replayBatch and drains to the post-replay offset (§4.1.2)", async () => {
     const io = makeIo();
-    // The transcript grows to a 'complete' turn after the replay is submitted.
-    const transcript = [
-      JSON.stringify({ type: "user", message: { role: "user", content: "history" } }),
-      JSON.stringify({
-        type: "assistant",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text: "ok" }],
-          stop_reason: "end_turn"
-        }
-      })
-    ].join("\n");
-    io.readFile.mockResolvedValue(transcript);
+    let transcript = "";
+    const replay = "prior conversation here";
+    const mux = stateMachineMux({
+      panes: ["❯\n", `❯ ${replay}\n`],
+      onEnter: () => {
+        transcript = [
+          claudeUser(replay).trimEnd(),
+          JSON.stringify({
+            type: "assistant",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: "ok" }],
+              stop_reason: "end_turn"
+            }
+          })
+        ].join("\n");
+      }
+    });
+    io.readFile.mockImplementation(async () => transcript);
 
     const engine = new CliChatEngineImpl("anthropic", "rpc-replay", io, {
       ownsDrain: true,
       drainMs: 2_000,
       drainPollMs: 1,
-      launchMs: 0
+      echoMs: 0,
+      mux
     });
     const res = await engine.launch({
       neutralDir: "/data/cli-auth/chat/user-3",
       personaPath: "/data/cli-auth/chat/user-3/persona.md",
       personaText: "You are Jarvis.",
-      replayBatch: "prior conversation here"
+      replayBatch: replay,
+      replayAttemptId: "66666666-6666-4666-8666-666666666666"
     });
 
-    // The replay was submitted (a prompt file was written + pasted via tmux).
-    const promptWrite = (io.writeFile as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) =>
-      String(c[0]).includes("jarv1s-live-prompt-")
-    );
-    expect(promptWrite![1]).toBe("prior conversation here");
+    expect(mux.paste).toHaveBeenCalledWith("pane-1", replay);
     // Drained to the end of the transcript (non-zero, the replay block consumed).
     expect(res.offset).toBe(transcript.length);
     expect(res.offset).toBeGreaterThan(0);
+  });
+
+  it("fails launch when replay is ACKED but never completes", async () => {
+    const io = makeIo();
+    let transcript = "";
+    const replay = "prior conversation here";
+    const mux = stateMachineMux({
+      panes: ["❯\n", `❯ ${replay}\n`],
+      onEnter: () => {
+        transcript = claudeUser(replay);
+      }
+    });
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "rpc-replay-incomplete", io, {
+      ownsDrain: true,
+      drainMs: 0,
+      echoMs: 0,
+      mux
+    });
+
+    await expect(
+      engine.launch({
+        neutralDir: "/data/cli-auth/chat/user-incomplete",
+        personaPath: "/data/cli-auth/chat/user-incomplete/persona.md",
+        personaText: "You are Jarvis.",
+        replayBatch: replay,
+        replayAttemptId: "77777777-7777-4777-8777-777777777777"
+      })
+    ).rejects.toBeInstanceOf(CliChatUnavailableError);
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+    expect(mux.kill).toHaveBeenCalledTimes(1);
   });
 });
 

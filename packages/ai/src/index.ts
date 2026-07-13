@@ -30,7 +30,11 @@ export * from "./adapters/multiplexer-resolve.js";
 export { redactSecrets, redactExact } from "./adapters/redact.js";
 export * from "./gateway/index.js";
 export {
+  captureAckCursor,
+  hasExactUserAck,
   parseTranscript,
+  type AckCursor,
+  type AckProviderKind,
   type ProviderKind,
   type TranscriptParseResult
 } from "./adapters/transcript-reader.js";
