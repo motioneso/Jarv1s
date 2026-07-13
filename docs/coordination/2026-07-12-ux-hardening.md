@@ -24,7 +24,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Live UAT is RED on the dropped first post-resume turn. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`; held on approved and merged #1020, #868-original, and #1022 before fresh no-wait 3x UAT and security QA |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Live UAT is RED on the dropped first post-resume turn. Held on Ben-approved/merged #1020 plus expanded #868 (including folded AGY acceptance) before fresh no-wait 3x UAT and security QA; no spawn approval |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
@@ -1078,3 +1078,14 @@ resume from this note before taking any merge-sensitive action.
   remains because protected `.claude/context-meter.log` and the relay2 handoff are dirty/unstaged;
   no user-owned state was discarded. Post-merge main CI run `29275470092` is active at the merge
   SHA and must finish its image build GREEN before #990 is reported fully deployed.
+
+## Continuation note — 2026-07-13 security hold clarified
+
+- #1020 spec gate is cleared by Sol rev2 `39dafc29` plus Fable APPROVE at issue comment `4961300011`,
+  but Ben has not explicitly approved the spec. #1022 was folded into #868 and closed standalone as
+  not planned; expanded #868 now carries the AGY purge acceptance but is not itself an approved
+  standalone spec.
+- Primary explicitly ordered no spawn: #984/PR #1015 and expanded #868 remain frozen until Primary
+  provides a direct Ben-approved-spec pointer plus serialized order. Finish-all is not inferred as
+  security-spec approval. Four clean local #990 evidence worktrees were removed; their remote
+  evidence branches remain for durable PR links.
