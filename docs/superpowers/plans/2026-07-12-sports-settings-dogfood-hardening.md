@@ -31,7 +31,7 @@ tests (`renderToString`), Playwright (existing `mockApi`/route-mock conventions)
   or dependency (spec Decision 5).
 - No optimistic storage model or toast framework (spec Decision 5) — truth is the refetched
   follow list.
-- No raw colors outside `apps/web/src/styles/tokens.css`; no new jds-* primitive (spec Slice 2).
+- No raw colors outside `apps/web/src/styles/tokens.css`; no new jds-\* primitive (spec Slice 2).
 - Do not touch Sports routes/service/repository/shared contracts/SQL/providers, and do not touch
   Settings shell files (spec "Expected paths and collision locks").
 - Every competition-scoped follow row stays independently visible/removable — no name-based
@@ -44,12 +44,14 @@ tests (`renderToString`), Playwright (existing `mockApi`/route-mock conventions)
 ### Task 1: Shared control-state helper + aria-pressed labels (team + whole-league)
 
 **Files:**
+
 - Modify: `packages/sports/src/settings/index.tsx` (add `followControlState`, rewrite team button
   in `SearchResults` teamgrid + `BrowseGroups` teamgrid, rewrite whole-league button in both
   `SearchResults` and `BrowseGroups`)
 - Test: `tests/unit/settings-sports-pane.test.tsx`
 
 **Interfaces:**
+
 - Produces: `export function followControlState(variant: "team" | "league", subjectLabel: string, active: boolean, pending: "follow" | "unfollow" | null): { visible: string; ariaLabel: string }`
   - `pending === "follow"` → `{ visible: "Following…", ariaLabel: "Following…" }`
   - `pending === "unfollow"` → `{ visible: "Unfollowing…", ariaLabel: "Unfollowing…" }`
@@ -138,26 +140,28 @@ Team button (both in `SearchResults`'s `.sp-teamgrid` map and `BrowseGroups`'s e
 `.sp-teamgrid` map — same JSX in both, update both occurrences):
 
 ```tsx
-{props.results.map((team) => {
-  const active = props.followsByKey.has(followKey(team.competitionKey, team.teamKey));
-  const pendingHere = pendingDirectionFor(props.actionState, team.competitionKey, team.teamKey);
-  const state = followControlState("team", team.name, active, pendingHere);
-  return (
-    <button
-      key={`${team.competitionKey}:${team.teamKey}`}
-      type="button"
-      className={`sp-team${active ? " is-active" : ""}`}
-      aria-pressed={active}
-      aria-label={state.ariaLabel}
-      disabled={pendingHere !== null}
-      onClick={() => props.onToggle(team.competitionKey, team.teamKey, team.name)}
-    >
-      <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
-      <span className="sp-team__name">{team.shortName || team.name}</span>
-      <span className="sp-team__state">{state.visible}</span>
-    </button>
-  );
-})}
+{
+  props.results.map((team) => {
+    const active = props.followsByKey.has(followKey(team.competitionKey, team.teamKey));
+    const pendingHere = pendingDirectionFor(props.actionState, team.competitionKey, team.teamKey);
+    const state = followControlState("team", team.name, active, pendingHere);
+    return (
+      <button
+        key={`${team.competitionKey}:${team.teamKey}`}
+        type="button"
+        className={`sp-team${active ? " is-active" : ""}`}
+        aria-pressed={active}
+        aria-label={state.ariaLabel}
+        disabled={pendingHere !== null}
+        onClick={() => props.onToggle(team.competitionKey, team.teamKey, team.name)}
+      >
+        <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
+        <span className="sp-team__name">{team.shortName || team.name}</span>
+        <span className="sp-team__state">{state.visible}</span>
+      </button>
+    );
+  });
+}
 ```
 
 Whole-league button (both `SearchResults` and `BrowseGroups`):
@@ -229,10 +233,12 @@ git commit -m "feat(sports): truthful follow/unfollow control labels with aria-p
 ### Task 2: Wire `actionState` into `SportsSettings` (replaces global pending/error)
 
 **Files:**
+
 - Modify: `packages/sports/src/settings/index.tsx` (the `SportsSettings` component body)
 - Test: `tests/unit/settings-sports-pane.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `FollowActionState`, `pendingDirectionFor` from Task 1.
 - Produces: `SportsSettings` no longer passes `pending: boolean`; it passes
   `actionState={actionState}` to `FollowedSummary`/`SearchResults`/`BrowseGroups`, and renders an
@@ -293,20 +299,25 @@ pass `actionState={actionState}` instead of `pending={pending}`, and replace the
 `{error ? <Note>...</Note> : null}` with:
 
 ```tsx
-{actionState?.phase === "error" ? (
-  <Note>
-    Couldn&rsquo;t {actionState.direction === "follow" ? "follow" : "unfollow"} {actionState.label}. Try again.
-  </Note>
-) : null}
+{
+  actionState?.phase === "error" ? (
+    <Note>
+      Couldn&rsquo;t {actionState.direction === "follow" ? "follow" : "unfollow"}{" "}
+      {actionState.label}. Try again.
+    </Note>
+  ) : null;
+}
 ```
 
 Catalog/follows load failure still needs a message (was folded into the old `error` boolean) —
 add a separate, unconditional check ahead of the action-state note:
 
 ```tsx
-{catalogQuery.isError || followsQuery.isError ? (
-  <Note>Could not load sports follows. Try again.</Note>
-) : null}
+{
+  catalogQuery.isError || followsQuery.isError ? (
+    <Note>Could not load sports follows. Try again.</Note>
+  ) : null;
+}
 ```
 
 - [ ] **Step 4: Run to verify pass**
@@ -332,11 +343,13 @@ git commit -m "feat(sports): localize pending/error follow feedback to the initi
 ### Task 3: Collapsed-by-default "Browse leagues" disclosure
 
 **Files:**
+
 - Modify: `packages/sports/src/settings/index.tsx` (`SportsSettings` render — empty-query branch)
 - Modify: `packages/sports/src/settings/sports-2.css` (disclosure trigger style, narrow-width rules)
 - Test: `tests/unit/settings-sports-pane.test.tsx`
 
 **Interfaces:**
+
 - Produces: a `browseOpen` boolean state in `SportsSettings`, default `false`; a
   `<button aria-expanded={browseOpen} aria-controls="sp-browse-panel">Browse leagues</button>`
   trigger; `BrowseGroups` only renders (inside `<div id="sp-browse-panel">`) when
@@ -455,9 +468,11 @@ git commit -m "feat(sports): collapse the full league catalog behind a Browse le
 ### Task 4: Slice 2 responsive pass — team-state span, narrow width, no overflow
 
 **Files:**
+
 - Modify: `packages/sports/src/settings/sports-2.css`
 
 **Interfaces:**
+
 - Consumes: `.sp-team__state`, `.sp-whole__lbl` (single-span now, per Task 1), `.sp-browse-toggle`
   (Task 3) — all already emitted by `index.tsx`.
 - Produces: visual styling only, no new markup.
@@ -543,9 +558,11 @@ git commit -m "style(sports): stacked team-state card and narrow-width wrap for 
 ### Task 5: Playwright acceptance spec
 
 **Files:**
+
 - Create: `tests/e2e/sports-settings.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `mockApi` from `./mock-api.js` (auth + base fixtures), `myModulesResponse`/
   `modulesResponse` pattern from `./mock-modules.js` (to mark `sports` active — mirror
   `registerMockSportsRoutes`'s `/api/me/modules` override in `mock-sports-api.ts:372-394`, but
