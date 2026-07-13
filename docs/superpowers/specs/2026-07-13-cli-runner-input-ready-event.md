@@ -63,10 +63,10 @@ paste attempt without injecting a nonce into the user's model-visible prompt.
 
 **Per-engine correlation:**
 
-| Interactive engine | ECHO correlation | ACK cursor and launch-epoch validation |
-| --- | --- | --- |
-| Claude (`anthropic`) | New full-text/placeholder composer delta after verified-empty baseline | Keep the `--session-id`-pinned path (`cli-chat-engine.ts:153-193`), additionally reject a file/first record older than `launchEpoch`; match an exact `type:"user"` record beginning at/after the captured offset. |
-| Codex (`openai-compatible`) | New full-text/placeholder composer delta after verified-empty baseline | Keep cwd matching plus the existing session timestamp guard (`cli-chat-engine.ts:397-425`); do not cache a candidate until it passes both. Match an exact rollout `user_message` record at/after the captured offset. |
+| Interactive engine                | ECHO correlation                                                       | ACK cursor and launch-epoch validation                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude (`anthropic`)              | New full-text/placeholder composer delta after verified-empty baseline | Keep the `--session-id`-pinned path (`cli-chat-engine.ts:153-193`), additionally reject a file/first record older than `launchEpoch`; match an exact `type:"user"` record beginning at/after the captured offset.                                                                                                       |
+| Codex (`openai-compatible`)       | New full-text/placeholder composer delta after verified-empty baseline | Keep cwd matching plus the existing session timestamp guard (`cli-chat-engine.ts:397-425`); do not cache a candidate until it passes both. Match an exact rollout `user_message` record at/after the captured offset.                                                                                                   |
 | Gemini/AGY interactive (`google`) | New full-text/placeholder composer delta after verified-empty baseline | The directory is stable by neutral-dir basename (`packages/ai/src/adapters/tmux-bridge.ts:113-116`), so reject every candidate whose file/first-record timestamp predates `launchEpoch`; do not cache the prior session while the new file is absent. Match an exact `type:"user"` record at/after the captured offset. |
 
 If the valid launch transcript does not exist when the cursor is captured, the cursor is
@@ -133,13 +133,13 @@ Rules:
 
 Failure-state contract:
 
-| Failure point | Composer / engine state before response | Result |
-| --- | --- | --- |
-| Before paste | No composer mutation; engine remains registered | `unavailable` (retryable with a **new** logical attempt) |
-| After paste, before Enter | Clear and positively verify empty; if that cannot be proved, kill the engine and remove it from the host map | `unavailable`; same `attemptId` remains terminal and cannot re-paste |
-| After Enter, before ACK | Kill the engine, remove it from the host map, and invalidate the manager session so the next deliberate turn must relaunch | `delivery_unknown` (non-retryable; UI must not auto-resend) |
-| ACKED | Engine remains live; next submit still begins with verified clear | `{ok:true}` cached for this `attemptId` |
-| Launch replay failure in any phase | Existing POST-mux-create teardown kills the mux before removing the neutral dir (`cli-chat-engine.ts:255-259,676-692`) | launch `unavailable`; no session is registered |
+| Failure point                      | Composer / engine state before response                                                                                    | Result                                                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Before paste                       | No composer mutation; engine remains registered                                                                            | `unavailable` (retryable with a **new** logical attempt)             |
+| After paste, before Enter          | Clear and positively verify empty; if that cannot be proved, kill the engine and remove it from the host map               | `unavailable`; same `attemptId` remains terminal and cannot re-paste |
+| After Enter, before ACK            | Kill the engine, remove it from the host map, and invalidate the manager session so the next deliberate turn must relaunch | `delivery_unknown` (non-retryable; UI must not auto-resend)          |
+| ACKED                              | Engine remains live; next submit still begins with verified clear                                                          | `{ok:true}` cached for this `attemptId`                              |
+| Launch replay failure in any phase | Existing POST-mux-create teardown kills the mux before removing the neutral dir (`cli-chat-engine.ts:255-259,676-692`)     | launch `unavailable`; no session is registered                       |
 
 This is the precise guarantee available at the CLI boundary: **at most one Enter per attempt ID,
 duplicate-RPC idempotency, and success only after a current-attempt transcript ACK.** Provider-side
@@ -211,13 +211,13 @@ and the first typed message cannot reach submit until the replaying launch has c
 
 ## Decision 5 — Engine coverage
 
-| Engine | Readiness / submit semantics | Completion semantics |
-| --- | --- | --- |
-| Claude interactive (`anthropic`) | attempt-correlated ECHO + exact post-cursor ACK | Claude `end_turn` remains reply/replay completion (`transcript-reader.ts:19-21,146-158`) |
-| Codex interactive (`openai-compatible`) | attempt-correlated ECHO + exact post-cursor `user_message` ACK | `task_complete` remains completion (`transcript-reader.ts:45-47,213-218`) |
-| Gemini/AGY interactive (`google`) | attempt-correlated ECHO + exact post-cursor `type:"user"` ACK on an epoch-valid file | non-empty `type:"gemini"` remains completion (`transcript-reader.ts:49-61,240-257`) |
-| Codex exec (`non_interactive`) | exempt: no persistent composer/pty; process spawn is the submit | run-to-completion exit code (`packages/chat/src/live/codex-exec-session.ts:41-77`) |
-| Claude print / AGY print | exempt: one process per turn (`packages/chat/src/live/runtime.ts:94-105`) | run-to-completion exit code |
+| Engine                                  | Readiness / submit semantics                                                         | Completion semantics                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Claude interactive (`anthropic`)        | attempt-correlated ECHO + exact post-cursor ACK                                      | Claude `end_turn` remains reply/replay completion (`transcript-reader.ts:19-21,146-158`) |
+| Codex interactive (`openai-compatible`) | attempt-correlated ECHO + exact post-cursor `user_message` ACK                       | `task_complete` remains completion (`transcript-reader.ts:45-47,213-218`)                |
+| Gemini/AGY interactive (`google`)       | attempt-correlated ECHO + exact post-cursor `type:"user"` ACK on an epoch-valid file | non-empty `type:"gemini"` remains completion (`transcript-reader.ts:49-61,240-257`)      |
+| Codex exec (`non_interactive`)          | exempt: no persistent composer/pty; process spawn is the submit                      | run-to-completion exit code (`packages/chat/src/live/codex-exec-session.ts:41-77`)       |
+| Claude print / AGY print                | exempt: one process per turn (`packages/chat/src/live/runtime.ts:94-105`)            | run-to-completion exit code                                                              |
 
 Interactive `CliChatEngineImpl` paths use verified submit for replay, normal turns, and manager-owned
 in-process replay. Non-interactive engines retain their existing run-to-completion contract.
