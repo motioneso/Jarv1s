@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `44c62474`: CI 4/4 GREEN incl image, UAT/evidence GREEN, fresh QA R3 GREEN at comment `4961370860`. Verdict routed to Primary for authority/integrated-main check and merge; UX never merges |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` is active and must finish image GREEN before final report |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -1068,3 +1068,13 @@ resume from this note before taking any merge-sensitive action.
   `58a78927-385c-4b1d-8fa0-94db20255d6f` for its authority and integrated-main check plus merge.
   QA R3 session `019f5cb5-2a50-7a51-857b-02ec808c660e` was reaped after its clean detached worktree
   was removed. Relay 5 holds the product branch without further edits; UX never merges.
+
+## Continuation note — 2026-07-13 #990 merged and closed
+
+- Primary merged PR #1021 as squash `b205f1c711c606bc4fa9f26eb43e675368802dad` after its
+  authoritative session and integrated-main check; CI was 4/4 GREEN including image and fresh QA R3
+  was GREEN. Issue #990 is closed.
+- Relay 5 session `019f5c98-d76b-7a50-83c9-c1454a828b52` was re-verified and reaped. Its worktree
+  remains because protected `.claude/context-meter.log` and the relay2 handoff are dirty/unstaged;
+  no user-owned state was discarded. Post-merge main CI run `29275470092` is active at the merge
+  SHA and must finish its image build GREEN before #990 is reported fully deployed.
