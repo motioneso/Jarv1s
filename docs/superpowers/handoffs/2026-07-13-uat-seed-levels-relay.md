@@ -9,30 +9,32 @@ number in this doc, it reflows). Spec: `docs/superpowers/specs/2026-07-12-dev-ua
 Task list has #1 (done), #2 (plan — **your job**), #3 (escalate), #4 (build), #5 (wire
 provisioner hook), #6 (gate+PR).
 
-## Coordinator's BINDING ruling (already approved — do not re-litigate)
+## SUPERSEDED — see below, then the plan doc
 
-A spec §4.1 premise was wrong ("migration_owner has unrestricted DML on every module table" —
-false, FORCE RLS blocks it). Escalated; Coordinator ran Opus adjudication and ruled:
+The "Option A" (single migration_owner connection + `SET LOCAL ROLE jarvis_app_runtime` +
+bootstrap `GRANT`) ruling that was originally recorded here is **DEAD**. A background research
+fork independently rediscovered the same FORCE-RLS blocker, proposed a **dual-connection** design
+instead, and escalated it on its own initiative. The Coordinator's follow-up ruling (2026-07-13,
+same day) **explicitly supersedes Option A**:
 
-> RULING: Option A. Mechanism CONFIRMED: `SET LOCAL ROLE jarvis_app_runtime` + `SET LOCAL
-> app.actor_user_id = <uuid>` GUC passes module INSERT policies. No BYPASSRLS, no runtime role
-> weakened. BINDING constraints:
-> 1. Add `GRANT jarvis_app_runtime TO jarvis_migration_owner;` to
->    `infra/postgres/bootstrap/0000_roles.sql` (idempotent bootstrap, NOT a migration), `#1025`
->    why-comment mirroring the existing `jarvis_auth_runtime` grant at ~line 80.
-> 2. Per-owner txn: `SET LOCAL ROLE jarvis_app_runtime` + `SET LOCAL app.actor_user_id=<uuid>` in
->    the SAME txn as the INSERTs; `RESET ROLE` / end txn between owner chunks so actors never
->    bleed.
-> 3. `external_modules_insert WITH CHECK (app.current_actor_is_admin())` (NOT owner GUC) — seed
->    the admin identity FIRST (via `auth_runtime` role — migration_owner already has that
->    membership), so later admin-gated inserts (external_modules, ai_provider_configs) see a real
->    `is_instance_admin=true` row.
-> 4. ONE migration_owner connection (`JARVIS_MIGRATION_DATABASE_URL`): `SET LOCAL ROLE
->    auth_runtime` for `app.users`/`auth_accounts`/`better_auth_sessions` identity rows,
->    `app_runtime` for module rows. Leave all 4 runtime roles NOSUPERUSER/NOBYPASSRLS untouched.
->    Guard the seed entrypoint against non-UAT DBs.
+> DUAL-CONNECTION: APPROVED, and it SUPERSEDES my earlier Option A. Do NOT add `GRANT
+> jarvis_app_runtime TO jarvis_migration_owner` — not needed. `jarvis_migration_owner` (via its
+> existing `jarvis_auth_runtime` membership) for `app.users`/`auth_accounts` identity rows ONLY; a
+> SEPARATE `jarvis_app_runtime` connection through `DataContextRunner` + the real repository
+> classes for every feature chunk. Real RLS write path, no role privilege grant. TRIPWIRE: any
+> forced RLS carve-out/BYPASSRLS/role widening → STOP and escalate.
 
-Report "plan ready" to Coordinator when the plan is written — do not build before approval.
+Also approved in that same ruling: a new one-shot `seed` compose service (profile-gated +
+prod-target guard), the determinism-scope reading below, notes seeded via `VaultContext` only
+(never a DB-proxy substitute), and `multi-user` deferred to fast-follow **issue #1030**.
+
+**The authoritative build reference is now `docs/superpowers/plans/2026-07-13-uat-seed-levels.md`**
+(committed, corrected to match every ruling above) — a background fork wrote the full task
+breakdown (Tasks 2-8, real code per task) and it has already been corrected in place for: dual-
+connection approval, notes-via-VaultContext, multi-user→#1030, and the `JARVIS_UAT_SEED_CONFIRM`
+prod-guard on the new compose service. **Read that plan file, not the stale ruling text below** —
+this section is kept only as a record of what changed and why. No further escalation is needed;
+Coordinator said "Build now."
 
 ## Schema grounding (all confirmed on this branch @ 51f468d4 — cite file:line in the plan)
 
