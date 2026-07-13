@@ -5678,3 +5678,18 @@ Qs; approved with rulings (relayed to `w1:pM7`):
    job-search toggle; keep explicit throw pointing at #1030.
 
 Tier sensitive → coordinator QA + no-BYPASSRLS invariant walk before merge. Building now.
+
+---
+## CHECKPOINT — 2026-07-13 ~17:50 (70% context, in-place auto-compact per standing directive)
+
+**Coordinator lock (re-affirmed):** label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`, pane `w1:pE6`, tab `w1:t15`. No successor spawn — flush + continue in place.
+
+**WHOLE-BOX DISK BLOCKER — RESOLVED (no merge, no code change).** Root fs `/dev/sdo1` hit 100% (131M free, backs / /home /tmp for the entire fleet); P2's plan-doc Edit failed ENOSPC and paused the lane. Diagnosed: NO in-flight docker pull/build (only idle buildkitd), build cache trivial (6.7MB), all jarvis stacks that matter are RUNNING (prod:edge, uat-1006, devproof-999, dev PG, ux984/986 PGs → images prune-protected). Fix: `docker image prune -f` (DANGLING only) → **reclaimed 103.5GB from 56 <none> images**; root fs 100%→74% (103G free). Did NOT touch tagged images or any volume; did NOT run `image prune -a`/`volume prune` (unsafe on shared homelab). Saved as agentmemory trap. P2 messaged (pane w1:pM7) → context 55%→56% confirms it consumed the resume + is working.
+
+**Lane status (unchanged from pre-blocker):**
+- **P2 #1025** (UAT seed, session e6ad8ae0, pane w1:pM7, Sonnet, tier=sensitive): plan SIGNED OFF (dual-connection seed supersedes Option A; deterministic; no-BYPASSRLS). RESUMED post-disk-clear — applying plan-doc corrections + building. → on PR: sensitive QA + invariant walk → merge → release P3 #1026 → P4 #1027.
+- **#868 purge lane** (session 019f5ce4, pane w1:pKY, security): building provable-B (4 guards: purge-before-kill both engines, gate neutralDir rm on purged===true, capture-fail launch HARD-FAIL per Ben) → Opus QA + Ben sign-off before merge.
+- **#984/PR #1015** (held): gated on #868 landing + #1020 Sol rev2 rework + Fable GREEN.
+- **Deferred/no lane:** #1030 multi-user seed, #965 run-now dedupe (task #25), #39 owner-auth delete of UX #989 acct, #1018 gateway realpath, #1029 gemini-transcript-reader, provisioner.ts:252 network leak-check.
+
+**Counters:** merges_since_relay=1 (no merge this window). Liveness Monitor `bmhs9hwgc` persistent, armed over P2 (e6ad8ae0) + #868 (019f5ce4). Standing: no PushNotifications; build=Sonnet, security-QA=Opus, council/approval=Fable/AGY.
