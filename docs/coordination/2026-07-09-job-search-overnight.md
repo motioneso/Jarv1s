@@ -5652,3 +5652,29 @@ has nothing to re-purge → orphan forever.
 
 Both engines; AGY highest-risk. #868 fully ruled; lane building provable-B + capture-fail gate.
 Security tier → Opus QA + Ben sign-off before merge.
+
+---
+
+### P2 #1025 PLAN SIGNED OFF — GO (2026-07-13); Option A SUPERSEDED
+
+Plan: `docs/superpowers/plans/2026-07-13-uat-seed-levels.md`. Agent surfaced 2 spec gaps + 3 scope
+Qs; approved with rulings (relayed to `w1:pM7`):
+1. **DUAL-CONNECTION — supersedes my Option A.** FORCE RLS blocks migration_owner on ~25 feature
+   tables (it's in auth_runtime, not app_runtime). Do NOT add `GRANT jarvis_app_runtime TO
+   jarvis_migration_owner`. Instead: migration_owner (auth_runtime membership) for
+   app.users/auth_accounts identity rows ONLY; a SEPARATE jarvis_app_runtime connection through
+   DataContextRunner + real repo classes for every feature chunk. Higher fidelity (real RLS path =
+   prod path), smaller blast radius (no role grant). This is Opus's earlier rejected "Option C" +
+   the fix for why it was rejected (identity rows via migration_owner). external_modules via real
+   admin path w/ genuine is_instance_admin actor. TRIPWIRE: any forced RLS carve-out/BYPASSRLS/role
+   widening → STOP + escalate.
+2. **New one-shot `seed` compose service** (prod compose publishes no host PG port): APPROVED scope
+   expansion of `infra/docker-compose.prod.yml`. Clone migrate/module-install; MUST be profile-gated
+   (inert in normal prod up) + entrypoint hard-guards UAT-DB-only + touch only the seed service.
+3. **Determinism** = seed-authored business content only (fixed injected base, not clock); audit
+   columns + crypto salt/IV stay real/random (confirmed agent's read, not stricter).
+4. **Notes** chunk seeds via VaultContext, never raw fs (hard invariant); may be thinner if heavy.
+5. **multi-user DEFERRED** → filed fast-follow **#1030**; this PR = solo-admin + admin+data +
+   job-search toggle; keep explicit throw pointing at #1030.
+
+Tier sensitive → coordinator QA + no-BYPASSRLS invariant walk before merge. Building now.
