@@ -1,4 +1,7 @@
 export { registerNewsRoutes } from "./routes.js";
+// #1025: re-exported so root-level tests/uat/seed/* can write prefs through the real
+// repository (same precedent as @jarv1s/auth's hashPassword re-export for admin.ts).
+export { NewsPrefsRepository } from "./repository.js";
 export type { NewsRoutesDependencies, NewsPrefsWriter } from "./routes.js";
 export {
   NEWS_QUEUE_DEFINITIONS,

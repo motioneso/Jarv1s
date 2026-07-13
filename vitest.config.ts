@@ -178,6 +178,12 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/notes/src/index.ts", import.meta.url))
       },
       {
+        // #1025: root-level tests/uat/seed/chunks/news.ts needs NewsPrefsRepository; this
+        // alias was missing entirely (every other module package has one).
+        find: "@jarv1s/news",
+        replacement: fileURLToPath(new URL("./packages/news/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/proactive-monitoring",
         replacement: fileURLToPath(
           new URL("./packages/proactive-monitoring/src/index.ts", import.meta.url)
