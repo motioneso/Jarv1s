@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 QA repair pushed at exact head `472c2f2d`; focused gates and exact-head run_3 UAT GREEN, CI active. Relay 5 session `019f5c98-d76b-7a50-83c9-c1454a828b52` owns evidence/CI closeout; fresh QA remains required; no merge |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 repair head `472c2f2d`: focused gates/UAT GREEN, durable evidence comment `4960969019`, CI 3/4 GREEN with image running. Fresh QA R2 session `019f5c9d-8e34-70a0-9bc0-a0d6a39032be` is reviewing; no merge |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -1014,3 +1014,14 @@ resume from this note before taking any merge-sensitive action.
   successor label `UX 990 News Settings Relay 5`, immutable session
   `019f5c98-d76b-7a50-83c9-c1454a828b52`, owns evidence-only packaging/PR comment and CI closeout.
   Protected context/relay artifacts remain unstaged; no product edit or merge is authorized.
+
+## Continuation note — 2026-07-13 #990 repaired evidence and QA R2
+
+- Repaired exact-head UAT is durable at PR comment `4960969019`. Evidence-only commit
+  `b494817a` has product head `472c2f2dc7715e3e6bec79bb918fc08d84230fe2` as its sole parent;
+  PR #1021 product head remains unchanged. CI run `29270763113` has foundation and both compose
+  smokes GREEN with image build running.
+- Fresh routine repair QA is active in a detached exact-head worktree under label
+  `QA 1021 News Settings R2`, immutable Codex session
+  `019f5c9d-8e34-70a0-9bc0-a0d6a39032be`. It rechecks all four prior blockers and full #990 exit
+  criteria but may not post GREEN until CI reaches 4/4. It never edits or merges.
