@@ -124,6 +124,7 @@ interface DrainOutcome {
   readonly offset: number;
 }
 
+// eslint-disable-next-line no-control-regex -- terminal panes contain ANSI CSI escapes by design.
 const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 
 export function isComposerEmpty(provider: ProviderKind, pane: string): boolean {

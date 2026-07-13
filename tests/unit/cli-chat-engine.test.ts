@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CliChatEngineImpl,
-  VerifiedSubmitError,
   deriveNeutralDir,
   killMuxSessionByName,
   listLiveMuxSessions,
@@ -15,6 +14,7 @@ import {
   sanitizeSessionKey,
   SESSION_PREFIX
 } from "../../packages/chat/src/live/cli-chat-engine.js";
+import type { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import {
   AGY_SESSION_LOG_FILENAME,
