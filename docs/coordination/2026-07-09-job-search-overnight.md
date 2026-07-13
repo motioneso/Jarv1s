@@ -5281,3 +5281,11 @@ Ext-Nav DONE. PR #1023 (fix module-registry nav), head 6864a067, base main, MERG
 - Opus adversarial QA spawned (subagent ab1d..., jarvis_qa_1023): verifying module→core route-injection boundary — path-prefix choke point can't be escaped, validator rejects traversal/absolute/unknown-key/over-cap, external ids can't spoof HIDDEN_NAV_IDS, fast-json-stringify field declared, no migration, click-nav UAT (no page.goto) exercises real reconcile boot.
 - CI monitor armed (bsi8vbwwp) — checks pending at spawn.
 - Merge gate: QA GREEN **and** CI green **and** session-id recheck. Sensitive tier → auto-merge + digest on GREEN (not security → no Ben sign-off needed). Session-id confirmed 58a78927 at QA spawn.
+
+## #1020 FABLE (clean-room) — VERDICT: APPROVE WITH CHANGES (2026-07-13)
+Clean-room (not shown Sol's review), grounded 9e1007df, posted #1020 issuecomment-4960995637. **Independently converged with Sol on the 4 core defects:**
+- F1≈S2: ACK/ECHO not offset-scoped → replayed history false-ACK = silent drop certified as success.
+- F2≈S3: no runner-side submit deadline → unbounded poll wedges per-key queue incl. kill.
+- F3≈S1: composer corruption on re-paste + RPC-retry → double/concatenated submit.
+- F4≈S5: Gemini stale-transcript on resume, epoch guard only covers Codex.
+**Divergence:** Sol=REJECT, Fable=APPROVE-WITH-CHANGES. Only substantive disagreement = the #1015 `pendingForcedReplay` latch: Sol #6 called it a live blocker; Fable analyzed it and says it composes correctly (failed launch degrades forced→unforced replay, NOT a privacy leak). Both require the SAME 4 fixes before safe. → strong "revise spec" signal. Awaiting Ben's next-step call (task author to revise against the 4 shared findings → re-review → approve). #984 stays hard-blocked.
