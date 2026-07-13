@@ -5248,3 +5248,15 @@ merges_since_relay = 0. Flushing; auto-compact in place, NO successor spawn (sta
 - Nav-truth now from server MyModuleDto (phantom 'finance' id killed). Pure-frontend, no shared-schema field.
 - **merges_since_relay = 1** (sensitive; relay at 2). No meter warning this turn.
 - Ext-Nav #1019 notified to rebase onto 7d852092 — only likely conflict = 1-line heading in tests/e2e/app-shell.spec.ts (lane resolves itself). #990 notified to rebase before final CI.
+
+## RELAY CHECKPOINT (70% meter) — 2026-07-13, coordinator 58a78927, IN PLACE
+Flushing; auto-compact in place, NO successor spawn. merges_since_relay reset to 0 (was 1 post-#986).
+### Live lanes (resolve panes fresh by label+session; numbers below are stale-by-design)
+- **#1019 Ext-Nav** — "Ext-Nav 1019 Relay 6", sess 01e07f43, tab w1:t1Y, Sonnet, worktree ext-nav-1019. Code+VF green through c1665bce. **Dev-UAT surfaced a bug**: external module discovered at api boot (discoverExternalModules discovered:1) but absent from GET /api/modules & /api/me/modules → no sidebar nav. GUARDRAIL SENT: discovered-on-disk ≠ installed+enabled; must NOT auto-surface discovered modules (install/enable gate = hard invariant, #1006/#1007). Relay 6 to: (1) query scratch DB for job-search module_installs row+enabled; (2) if absent → HARNESS bug, fix UAT to run real install+ENABLE click-path; (3) if enabled-but-absent → real product bug in routes-modules.ts requireManifests, fix gated on enabled status only. If fix touches privilege boundary → STOP, escalate to me (Opus). Remaining: fix → click-nav UAT green → cleanup scratch infra (DB jarvis_uat_1019, ports 47101/47102) → rebase onto 7d852092 (known 1-line conflict tests/e2e/app-shell.spec.ts) → coordinated-wrap-up → PR. Handoff doc: docs/superpowers/handoffs/2026-07-13-ext-nav-1019-relay-5.md (HEAD c1665bce). Sensitive tier → Opus/Fable + click-nav UAT before I merge.
+- **#990/PR#1021** — UX-owned; fresh routine QA PROVISIONAL RED (4 UI acceptance blockers, comment 4960441848); routed to builder for TDD repair + new exact-head UAT/CI. UX re-QAs; hands me merge-ready verdict. Must rebase onto 7d852092.
+- **#986/PR#1010** — ✅ MERGED squash 7d852092, issue closed. Dual sensitive QA GREEN. main advanced; :edge republishing.
+### FROZEN at security gate (Ben must rule — NO lane spawn):
+- **#1020** spec committed (docs/superpowers/specs/2026-07-13-cli-runner-input-ready-event.md) — awaiting Ben approval.
+- **#1022** NEW security child (AGY crash-surviving per-session identity + graceful/crash purge) — awaiting Ben scope call (expand #868 vs child).
+- **#984/PR#1015** blocked-by #1020 + #868-original + #1022. NOT shippable as "history purged" until all land + Ben sign-off.
+### Consent guard: #984/#868/#1020/#1022 scope came via UX relay, NOT Ben-direct. No security merge without Ben's explicit sign-off. #1019 + #986 were cleared to move independently.
