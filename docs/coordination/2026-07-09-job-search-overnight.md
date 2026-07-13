@@ -5289,3 +5289,12 @@ Clean-room (not shown Sol's review), grounded 9e1007df, posted #1020 issuecommen
 - F3≈S1: composer corruption on re-paste + RPC-retry → double/concatenated submit.
 - F4≈S5: Gemini stale-transcript on resume, epoch guard only covers Codex.
 **Divergence:** Sol=REJECT, Fable=APPROVE-WITH-CHANGES. Only substantive disagreement = the #1015 `pendingForcedReplay` latch: Sol #6 called it a live blocker; Fable analyzed it and says it composes correctly (failed launch degrades forced→unforced replay, NOT a privacy leak). Both require the SAME 4 fixes before safe. → strong "revise spec" signal. Awaiting Ben's next-step call (task author to revise against the 4 shared findings → re-review → approve). #984 stays hard-blocked.
+
+## RELAY / IN-PLACE COMPACT — 2026-07-13 (70% meter, mid-merge)
+Coordinator lock UNCHANGED: label Coordinator, session 58a78927-385c-4b1d-8fa0-94db20255d6f, pane w1:pE6, tab w1:t15. Compact in place (Ben directive — NO successor spawn). merges_since_relay reset → 0.
+**IMMEDIATE NEXT ACTION (do first in fresh window): MERGE PR #1023.** Gate is GREEN:
+- Opus QA VERDICT: GREEN, MERGE-READY YES, 0 blocking, 1 non-blocking (nav-1019.spec.ts:81-92 harness boots tsx server.ts direct but runs real reconcile — documented, product path covered by integration test). 7-pt trust-boundary walk all pass. Posted durable to PR #1023.
+- CI: Verify-foundation pass, Compose smoke pass, Prod-compose smoke pass. Only "Build and publish images" pending (non-required; UNSTABLE is from that alone). MERGEABLE.
+- main tip still 7d852092 (= merge-base; no new siblings; no re-QA needed). Session-id reconfirmed 58a78927 this turn.
+Steps: session-id recheck → wait publish job (or merge now, publish not required) → `gh pr merge 1023 --squash --delete-branch` → close #1019 + board Done + epic check → reap "Ext-Nav 1019 Relay 7" (sess 630440e0, tab w1:t1Y) + `git worktree remove .claude/worktrees/ext-nav-1019` → merges_since_relay=1 → add to Ben digest.
+**#1020 spec: AWAITING BEN.** Both Sol(REJECT) + Fable(APPROVE-W-CHANGES) converged on 4 shared defects. I recommended: task spec author to revise vs the 4 findings → one more Fable pass → Ben approves. Asked Ben "Want me to kick that off?" — DO NOT start revision without his go-ahead. #984/PR#1015 hard-blocked on #1020 + expanded #868.
