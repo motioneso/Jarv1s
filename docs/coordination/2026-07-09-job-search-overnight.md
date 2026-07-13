@@ -5629,3 +5629,26 @@ Opus verdict (grounded branch tip `241b4242`): **APPROVE B (reorder purge-before
 
 **#868 now fully ruled:** capture-fail = hard-fail (Ben); marker fork = B (Opus + Ben's bar). Both
 relayed to `w1:pKY`. #984 gate remaining: this lands + #1020 rework + Fable GREEN.
+
+---
+
+### REFINEMENT (supersedes naive-B guard above) — #868 Option B under Ben's rule
+
+Opus revised after I injected Ben's hard-fail principle. Still B, but naive B (purge → UNCONDITIONAL
+kill) has a hole: if `purgeTranscripts()` throws (`cli-chat-engine.ts:526,540` identity-mismatch /
+uuid-unavailable) code sets `purged=false` + keeps the incognito row for the boot sweep — but the
+kill already `rm -rf`'d dir+markers, so the engine-less boot sweep (reads markers from neutralDir)
+has nothing to re-purge → orphan forever.
+
+**PROVABLE B — 4 binding guards (relayed to `w1:pKY`, supersedes my earlier "rm -rf after purge"):**
+1. Purge BEFORE kill in BOTH in-process manager (`chat-session-manager.ts:894-905` block swap) AND
+   api/RPC orchestration (`rpc-contract.ts:152` verb ordering).
+2. **GATE neutralDir removal on `purged===true`.** On purge FAILURE do NOT rm -rf — leave dir+markers
+   intact so the boot sweep re-purges from surviving markers. Markers persist by not-being-deleted
+   (atomic-safe), never A's rm+recreate.
+3. Identity assertions un-weakened (`codexTranscriptMatchesIdentity` id+cwd; AGY `UUID_PATTERN`);
+   marker UUID-only/0600/tmp+mv.
+4. Launch-side HARD-FAIL: engine can't guarantee teardown purge → refuse session at launch (Ben's rule).
+
+Both engines; AGY highest-risk. #868 fully ruled; lane building provable-B + capture-fail gate.
+Security tier → Opus QA + Ben sign-off before merge.
