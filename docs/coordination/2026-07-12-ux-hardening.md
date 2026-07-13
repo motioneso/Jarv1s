@@ -459,3 +459,23 @@ resume from this note before taking any merge-sensitive action.
   plus ActivityPeek rendering coverage. Targeted ESLint, 18/18 Vitest, and web typecheck are green.
   Only the context-meter log is unstaged. Schema and native gateway paths remain untouched pending
   both Fable security rulings.
+
+## Continuation note — 2026-07-13 UX coordinator successor 2 adopted
+
+- `UX Coordinator` is now Codex session `019f5ab0-8933-7ae0-99c6-c4423a586ddc`. Primary
+  `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge authority;
+  this delegated UX lane will not merge.
+- The live fleet was re-adopted by label plus immutable session: #984
+  `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, #985
+  `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, #986
+  `019f5a67-9a38-77e0-814a-bc082b0ce187`, #989
+  `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, and #990
+  `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`. #984 retains the exclusive shared-cluster DB slot;
+  #989 and #986 remain reopened on their fresh QA RED findings.
+- Primary confirms one combined durable Fable verdict will cover #1012's `input_summary`
+  persistence and explicit native tool-name allowlist. Unknown/future tools must fail closed, with
+  `Bash` and `Task` always gated. #985 gateway and schema paths remain frozen at pushed checkpoint
+  `7b017508` until that verdict is durable and relayed.
+- The prior `UX Coordinator` Codex session `019f5a70-28e9-7600-a132-64ab2eca669c` was resolved
+  fresh by label plus immutable session and marked for reaping only after this successor claimed the
+  routing label and recorded the authority handoff.
