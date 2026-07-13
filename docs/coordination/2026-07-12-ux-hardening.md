@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 QA R2 repair pushed at exact head `44c62474`; unit 24/24, Chromium 4/4, format/type/token checks GREEN. Exact-head UAT/evidence, new CI, and fresh QA R3 are required; no merge |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `44c62474`: focused gates/UAT GREEN, evidence comment `4961193875`, CI active. Fresh QA R3 session `019f5cb5-2a50-7a51-857b-02ec808c660e` is reviewing and holds GREEN for 4/4 CI; no merge |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -1047,3 +1047,14 @@ resume from this note before taking any merge-sensitive action.
 - Protected context/relay artifacts remain unstaged. The builder is extending exact-head UAT with
   clear-guidance persistence and create-error→edit / edit-error→cancel isolation proof while new CI
   runs. Evidence-only packaging and fresh QA R3 follow; UX never merges.
+
+## Continuation note — 2026-07-13 #990 QA R2 evidence and QA R3
+
+- Exact-head run_4 UAT is GREEN and durable at PR comment `4961193875`. Evidence-only commit
+  `1fb956b358007fcb01707515322f61e80e3a7981` has product head
+  `44c624744b26cd0ec8b4ec478324408836faf5e0` as its sole parent and includes 12 captures proving
+  clear-guidance persistence plus operation-local error recovery. PR product head remains unchanged.
+- CI run `29273395628` has both compose smokes GREEN with foundation/image still running. Fresh
+  routine QA R3 is active in a detached exact-head worktree under immutable Codex session
+  `019f5cb5-2a50-7a51-857b-02ec808c660e`; it rechecks all six prior blockers and full exit criteria
+  but may not post GREEN until CI is 4/4. It never edits or merges.
