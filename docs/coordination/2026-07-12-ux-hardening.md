@@ -529,3 +529,12 @@ resume from this note before taking any merge-sensitive action.
   migration, action-audit/chat-transport/schema-catalog tests, and required foundation gates only
   serially. Any scope expansion must stop for escalation. The slot releases only on an explicit
   COMPLETE or FAILED report; no merge and no staging `.claude/context-meter.log`.
+- PR #1015 SECURITY QA is GREEN-WITH-CONDITIONS with zero code blockers at
+  `https://github.com/motioneso/Jarv1s/pull/1015#issuecomment-4956316872`. Owner scoping, DB-enforced
+  foreign-thread denial, closed-schema stripping, secrets/job-payload safety, and server-truth restore
+  are proven. Merge remains blocked on required verify-foundation CI turning GREEN (currently
+  pending/UNSTABLE, no RED) and durable Playwright UAT plus screenshots against a real dev instance;
+  the existing `mock-chat-api.ts` E2E is not runtime proof. #984 is reopened for evidence only, fully
+  off the shared cluster owned by #985. No code change unless UAT exposes a defect. The optional
+  negative-auth test, extra real-DB RLS test, and dead-branch cleanup are skipped. After both blockers
+  clear, primary routes Fable/security sign-off and remains sole merge authority.
