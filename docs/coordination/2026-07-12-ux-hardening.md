@@ -867,3 +867,13 @@ resume from this note before taking any merge-sensitive action.
   deterministic session-safe agy matcher exists or Task 4 must defer to a dedicated follow-up. No
   plan commit, feature edit, test, gate, or serialized release is authorized before the verdict and
   #1020 spec approval.
+
+## Continuation note — 2026-07-13 #990 gate GREEN
+
+- #990 released `jarvis_ux990_gate` after a genuine serial GREEN gate. Foundation retry exit 0:
+  393 unit files/3,215 pass/2 skip and 152 integration files/1,642 pass/2 skip. Release-hardening
+  exit 0 with no failures. The initial `3D000` initialization log is preserved; no shared-instance
+  contention signature occurred.
+- Verified #990 session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` is proceeding to explicit-path
+  push/PR, exact-pushed-head isolated News Settings UAT/screenshots, CI, and independent QA. The DB
+  slot is free; this UX coordinator never merges.
