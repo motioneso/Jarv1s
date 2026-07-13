@@ -172,6 +172,41 @@ export class AssistantToolGateway {
     const requestId = `native_${randomUUID()}`;
     const access: AccessContext = { actorUserId, requestId };
 
+    const ctx: ToolContext = {
+      actorUserId,
+      requestId,
+      chatSessionId,
+      localTimezone: (await this.deps.resolveLocalTimezone?.(actorUserId)) ?? undefined
+    };
+
+    const yoloGranted = await (async () => {
+      try {
+        return (await this.deps.yoloMode?.(ctx)) === true;
+      } catch {
+        return false;
+      }
+    })();
+
+    if (yoloGranted) {
+      this.deps.notifier.emit(chatSessionId, {
+        kind: "action_result",
+        actionRequestId: requestId,
+        toolName,
+        outcome: "allowed"
+      });
+      void this.recordAuditRaw(
+        access,
+        {
+          toolModuleId: NATIVE_TOOL_MODULE_ID,
+          toolName,
+          actionFamilyId: null,
+          actionKind: nativeToolRisk(toolName)
+        },
+        { approvalMode: "yolo", outcome: "success", chatSessionId }
+      );
+      return { decision: "allow", reason: "Allowed by YOLO." };
+    }
+
     const action = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
       this.deps.repository.createPendingAssistantAction(scopedDb, {
         toolModuleId: NATIVE_TOOL_MODULE_ID,
@@ -518,9 +553,14 @@ export class AssistantToolGateway {
     return out;
   }
 
-  private async recordAudit(
+  private async recordAuditRaw(
     access: AccessContext,
-    found: ExecutableTool,
+    fields: {
+      toolModuleId: string;
+      toolName: string;
+      actionFamilyId: string | null;
+      actionKind: "write" | "destructive";
+    },
     opts: {
       approvalMode: InsertAuditLogInput["approvalMode"];
       outcome: InsertAuditLogInput["outcome"];
@@ -533,10 +573,10 @@ export class AssistantToolGateway {
         this.deps.repository.insertActionAuditLog(scopedDb, {
           id: randomUUID(),
           ownerUserId: access.actorUserId,
-          toolModuleId: found.dto.moduleId,
-          toolName: found.dto.name,
-          actionFamilyId: found.tool.actionFamilyId ?? null,
-          actionKind: found.tool.risk as "write" | "destructive",
+          toolModuleId: fields.toolModuleId,
+          toolName: fields.toolName,
+          actionFamilyId: fields.actionFamilyId,
+          actionKind: fields.actionKind,
           approvalMode: opts.approvalMode,
           outcome: opts.outcome,
           errorClass: opts.errorClass ?? null,
@@ -549,13 +589,35 @@ export class AssistantToolGateway {
       console.error(
         JSON.stringify({
           event: "audit_log_write_failed",
-          toolName: found.dto.name,
-          toolModuleId: found.dto.moduleId,
+          toolName: fields.toolName,
+          toolModuleId: fields.toolModuleId,
           approvalMode: opts.approvalMode,
           outcome: opts.outcome
         })
       );
     }
+  }
+
+  private async recordAudit(
+    access: AccessContext,
+    found: ExecutableTool,
+    opts: {
+      approvalMode: InsertAuditLogInput["approvalMode"];
+      outcome: InsertAuditLogInput["outcome"];
+      errorClass?: string | null;
+      chatSessionId?: string;
+    }
+  ): Promise<void> {
+    return this.recordAuditRaw(
+      access,
+      {
+        toolModuleId: found.dto.moduleId,
+        toolName: found.dto.name,
+        actionFamilyId: found.tool.actionFamilyId ?? null,
+        actionKind: found.tool.risk as "write" | "destructive"
+      },
+      opts
+    );
   }
 }
 

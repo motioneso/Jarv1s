@@ -12,7 +12,10 @@ import {
   type GatewaySessionRecord
 } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { registerMcpTransportRoute } from "../../packages/chat/src/mcp-transport.js";
+import {
+  registerMcpTransportRoute,
+  registerNativePermissionRoute
+} from "../../packages/chat/src/mcp-transport.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
@@ -435,5 +438,103 @@ describe("HTTP resolve endpoint", () => {
     const body = callRes.json<{ result: { isError: boolean } }>();
     expect(body.result.isError).toBe(true);
     expect(exampleToolCalls).toHaveLength(0);
+  });
+});
+
+describe("native permission YOLO", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let tokens: SessionTokenRegistry;
+  let emitted: { chatSessionId: string; record: GatewaySessionRecord }[];
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+  });
+
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  beforeEach(() => {
+    emitted = [];
+  });
+
+  async function buildApp(yoloGrant: boolean): Promise<FastifyInstance> {
+    const runner = new DataContextRunner(appDb);
+    const repository = new AiRepository();
+    tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 2_000,
+      yoloMode: async () => yoloGrant
+    });
+    const app = Fastify({ logger: false });
+    registerNativePermissionRoute(app, { gateway, tokens });
+    await app.ready();
+    return app;
+  }
+
+  it("auto-grants a destructive native tool when yoloMode is true", async () => {
+    const app = await buildApp(true);
+    try {
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: ids.userA,
+        allowedToolNames: null
+      });
+      const res = await app.inject({
+        method: "POST",
+        url: "/internal/permission",
+        headers: { authorization: `Bearer ${token}` },
+        body: { tool_name: "Bash", tool_input: { command: "echo hi" } }
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ decision: "allow", reason: "Allowed by YOLO." });
+      expect(emitted).toEqual([
+        {
+          chatSessionId: ids.userA,
+          record: expect.objectContaining({
+            kind: "action_result",
+            toolName: "Bash",
+            outcome: "allowed"
+          })
+        }
+      ]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("falls through to normal confirmation when yoloMode resolves false (mirrors master-off/revoked)", async () => {
+    const app = await buildApp(false);
+    try {
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: ids.userA,
+        allowedToolNames: null
+      });
+      const pending = app.inject({
+        method: "POST",
+        url: "/internal/permission",
+        headers: { authorization: `Bearer ${token}` },
+        body: { tool_name: "Bash", tool_input: { command: "echo hi" } }
+      });
+      await vi.waitFor(() =>
+        expect(emitted.some((e) => e.record.kind === "action_request")).toBe(true)
+      );
+      const res = await pending;
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { decision: string; reason: string };
+      expect(body.decision).toBe("deny");
+      expect(body.reason).toMatch(/timed out/i);
+    } finally {
+      await app.close();
+    }
   });
 });
