@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -187,4 +188,44 @@ export function expectedUatVolumeNames(projectName: string): readonly string[] {
     "jarv1s-cli-socket",
     "jarv1s-modules"
   ].map((volume) => `${projectName}_${volume}`);
+}
+
+function runCapture(command: string, args: readonly string[]): Promise<string> {
+  return new Promise((resolvePromise, reject) => {
+    let stdout = "";
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "inherit"] });
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolvePromise(stdout);
+        return;
+      }
+      reject(new Error(`${command} ${args.join(" ")} exited with status ${code ?? "unknown"}`));
+    });
+  });
+}
+
+/**
+ * #1024/#1000: positive proof that `down -v` actually left nothing behind — the Phase 1
+ * acceptance criterion is "tears down clean (no leftover containers/volumes/networks)", not just
+ * "the down command exited 0". Throws with the leaked names so a failed run is loud, not a silent
+ * resource leak discovered later by `docker system df` creeping up.
+ */
+export async function assertNoLeakedResources(projectName: string): Promise<void> {
+  const [containers, volumes] = await Promise.all([
+    runCapture("docker", ["ps", "-a", "--filter", `name=${projectName}`, "--format", "{{.Names}}"]),
+    runCapture("docker", ["volume", "ls", "--filter", `name=${projectName}`, "--format", "{{.Name}}"])
+  ]);
+  const leakedContainers = containers.split("\n").filter(Boolean);
+  const leakedVolumes = volumes.split("\n").filter(Boolean);
+  if (leakedContainers.length > 0 || leakedVolumes.length > 0) {
+    throw new Error(
+      `UAT teardown leaked resources for ${projectName}: containers=${JSON.stringify(
+        leakedContainers
+      )} volumes=${JSON.stringify(leakedVolumes)}`
+    );
+  }
 }
