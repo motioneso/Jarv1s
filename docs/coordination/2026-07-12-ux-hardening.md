@@ -26,7 +26,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Live UAT is RED on the dropped first post-resume turn. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`; held on approved and merged #1020, #868-original, and #1022 before fresh no-wait 3x UAT and security QA |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | PR #1010 exact head `6eef4170`; all four CI checks and exact-head real isolated UAT GREEN. Primary QA GREEN at comment `4960081630` and fresh independent QA GREEN at `4960123832`; verdict routed for Primary session check, integrated re-QA, and merge |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `44d1cd49`; foundation and release-hardening gates GREEN, assigned DB slot released, exact-head CI has foundation plus both compose smokes GREEN with image build still running. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` |
@@ -937,3 +937,14 @@ resume from this note before taking any merge-sensitive action.
   `58a78927-385c-4b1d-8fa0-94db20255d6f` for its required authority check, integrated re-QA, and
   merge. Fresh QA session `48262aa6-8c1e-42cf-bb47-a2679f85b471` is done and ready to reap after
   Primary consumes the verdict; this UX lane does not merge.
+
+## Continuation note — 2026-07-13 #986 merged; #990 rebase gate
+
+- Primary merged PR #1010 and closed #986; main is now `7d852092`. Fresh QA session
+  `48262aa6-8c1e-42cf-bb47-a2679f85b471` and build session
+  `5a2f1b65-74fe-4a49-8081-22380b388ce0` were re-verified by label plus immutable session and their
+  panes were reaped. The clean QA worktree was removed. The build worktree remains because protected
+  `.claude/context-meter.log` is dirty; it was not discarded or staged.
+- #990 must rebase onto `7d852092` before its final CI and exact-head UAT. The instruction is queued
+  to verified build session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`; any non-trivial settings
+  collision is a stop-line. The pre-rebase `44d1cd49` checks/evidence are no longer final.
