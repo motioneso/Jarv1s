@@ -24,7 +24,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 6 repairs committed at `492adadb` and `5d4998d4`; focus suites 20/20 green. Final DB checks are paused behind #990's exclusive shared-cluster gate slot, then retry notes and run full foundation on fresh `jarv1s_ux984_gate*`; no waiver. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Closeout found a Decision 4/Slice 2 interaction gap: Task 5 hid the selected thread after resume. A bounded in-lock fix is approved to retain stored messages through continued live send, block controls until resume+load, and restore History on error. Focus suites were 20/20 green before this repair; final DB gate remains serialized behind #990. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | DONE on PR #1012 at `419a6f0a`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green, manual CP1-CP5 PASS. Independent security QA is active under label `QA 1012 YOLO Approvals Codex`, session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`, pane `w1:pK7`; #1011 tracks deferred `activityVerb()` falsehood; primary Coordinator alone merges |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
@@ -382,6 +382,12 @@ resume from this note before taking any merge-sensitive action.
   work is now serialized: #990 owns the active slot and #984 is next. #984 focus suites are 20/20
   green; silence never implies slot release. #985 subsequently reported its DB gate had already
   finished before this lock was established.
+- #984 closeout found Task 4+5 violated Decision 4/Slice 2: History became exclusive, then resume
+  cleared `reviewThreadId`, so the activated thread's stored messages disappeared. Approved bounded
+  root fix in existing locked files: close History on row selection; retain the selected thread after
+  successful resume; block send/model until resume and stored-message loading both succeed; snapshot
+  stored records into existing `fallbackRecords` before the first continued send; reopen History and
+  clear selection on resume error. Extend the existing E2E only; no new abstraction, files, or paths.
 - #985 is DONE on PR #1012 at `419a6f0a`. Builder-reported foundation/audit exits are 0, the
   pre-push trio is green, and manual CP1-CP5 pass. #1011 durably tracks the untouched
   `activityVerb()` allowed→Denied falsehood. Independent security-tier QA is active as Codex
