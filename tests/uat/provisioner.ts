@@ -71,6 +71,14 @@ export interface UatEnvFile {
   readonly cleanup: () => void;
 }
 
+// #1024/#1000: single source of truth for the two dev-only secrets that BOTH get written into the
+// env file (container env, via docker-compose.prod.yml's `env_file:`) AND must be exported as real
+// process.env vars for compose-file `${...:?}` interpolation (see uatComposeInterpolationEnv below)
+// — `env_file:` alone never feeds interpolation, only container env. Same trap as
+// scripts/smoke-compose.ts's ensureProdSmokeEnv.
+const UAT_POSTGRES_PASSWORD = "postgres";
+const UAT_CLI_RUNNER_RPC_SECRET = "uat-only-not-real";
+
 /**
  * #1024/#1000: same shape as scripts/smoke-compose.ts's ensureProdSmokeEnv (throwaway
  * env.production.local + dev-only secrets), but scoped to the UAT subnet/port and pinned to the
@@ -86,7 +94,7 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
       "NODE_ENV=production",
       `JARVIS_WEB_PORT=${input.webPort}`,
       `JARVIS_DOCKER_SUBNET=${UAT_DOCKER_SUBNET}`,
-      "POSTGRES_PASSWORD=postgres",
+      `POSTGRES_PASSWORD=${UAT_POSTGRES_PASSWORD}`,
       "JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s",
       // #1024/#1000: jarvis_migration_owner is NOSUPERUSER/NOBYPASSRLS but schema-owner + a
       // member of jarvis_auth_runtime (infra/postgres/bootstrap/0000_roles.sql) — this is the
@@ -100,13 +108,39 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
       "BETTER_AUTH_SECRET=uat-only-not-a-real-secret-00000000000",
       "JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000",
       "JARVIS_AI_SECRET_KEY=11111111111111111111111111111111",
-      "JARVIS_CLI_RUNNER_RPC_SECRET=uat-only-not-real",
+      // #1024/#1000: required in any non-development/test NODE_ENV since #918 Slice 2
+      // (resolveKeyring enforces >=32 bytes) — matches .github/workflows/ci.yml's convention.
+      // Caught live by Task 7 (this plan predates #918 landing on main).
+      "JARVIS_MODULE_CREDENTIAL_SECRET_KEY=22222222222222222222222222222222",
+      `JARVIS_CLI_RUNNER_RPC_SECRET=${UAT_CLI_RUNNER_RPC_SECRET}`,
       "JARVIS_EMBED_PROVIDER=stub",
       ""
     ].join("\n"),
     { mode: 0o600 }
   );
   return { path, cleanup: () => rmSync(dir, { force: true, recursive: true }) };
+}
+
+/**
+ * #1024/#1000: docker-compose.prod.yml interpolates JARVIS_WEB_PORT/JARVIS_DOCKER_SUBNET (with
+ * defaults that are the PROD port 1533 and PROD subnet 10.251.0.0/24 — silently wrong, not an
+ * error, if left unset) and POSTGRES_PASSWORD/JARVIS_CLI_RUNNER_RPC_SECRET (`:?`-required, hard
+ * error if unset) directly in the compose YAML via `${...}`. `env_file:` (writeUatEnvFile above)
+ * only injects vars into the CONTAINER's env, never into compose-file interpolation — so every one
+ * of these must ALSO be exported as a real process.env var before any `docker compose` invocation,
+ * or `config --quiet` fails hard on the two required ones and would silently collide with a real
+ * prod instance on the other two. Caught live by Task 7's first run (#1024) — the exact
+ * deploy-compose-env-trap this project has hit before.
+ */
+export function uatComposeInterpolationEnv(input: {
+  readonly webPort: number;
+}): Readonly<Record<string, string>> {
+  return {
+    JARVIS_WEB_PORT: String(input.webPort),
+    JARVIS_DOCKER_SUBNET: UAT_DOCKER_SUBNET,
+    POSTGRES_PASSWORD: UAT_POSTGRES_PASSWORD,
+    JARVIS_CLI_RUNNER_RPC_SECRET: UAT_CLI_RUNNER_RPC_SECRET
+  };
 }
 
 export type UatSeedLevel = "bare";
@@ -313,6 +347,10 @@ async function main(): Promise<void> {
     const envFile = writeUatEnvFile({ webPort });
     process.env.JARVIS_ENV_FILE = envFile.path;
     process.env.JARVIS_IMAGE_TAG ??= "uat-smoke";
+    // #1024/#1000: must be exported for every retry iteration, not just the first — a TOCTOU
+    // port-bind retry picks a new webPort, and JARVIS_WEB_PORT must track it or compose would
+    // interpolate the stale (or default/prod) port. See uatComposeInterpolationEnv's doc comment.
+    Object.assign(process.env, uatComposeInterpolationEnv({ webPort }));
 
     // #1024/#1000: teardown MUST run even if provisioning throws partway through (crashed migrate,
     // failed health poll, lost port-bind race, etc.) — this is the "trap/finally" the spec's §3.5

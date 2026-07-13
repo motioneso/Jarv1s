@@ -11,6 +11,7 @@ import {
   UAT_DOCKER_SUBNET,
   UAT_PORT_RANGE_START,
   UAT_PORT_RANGE_SIZE,
+  uatComposeInterpolationEnv,
   writeUatEnvFile
 } from "../uat/provisioner.js";
 
@@ -75,9 +76,27 @@ describe("writeUatEnvFile", () => {
       // unnecessary model download on every ephemeral run (spec §3.3 model-cache-volume note).
       expect(contents).toContain("JARVIS_EMBED_PROVIDER=stub");
       expect(contents).toContain("JARVIS_MIGRATION_DATABASE_URL=");
+      // #1024/#1000: NODE_ENV=production means resolveKeyring enforces this (>=32 bytes) since
+      // #918 Slice 2 — a real boot crash Task 7's live run caught (JARVIS_MODULE_CREDENTIAL_SECRET_KEY
+      // is required in production and any non-development/test NODE_ENV).
+      expect(contents).toContain("JARVIS_MODULE_CREDENTIAL_SECRET_KEY=");
     } finally {
       cleanup();
     }
+  });
+});
+
+describe("uatComposeInterpolationEnv", () => {
+  it("exports the same values the env file carries, for compose-file ${...} interpolation", () => {
+    // #1024/#1000: env_file: never feeds compose YAML interpolation — only container env. Every
+    // key here must match a `${KEY...}` reference in infra/docker-compose.prod.yml or the
+    // provisioner would silently fall back to prod's port/subnet defaults, or hard-fail on the
+    // two `:?`-required secrets (POSTGRES_PASSWORD, JARVIS_CLI_RUNNER_RPC_SECRET).
+    const env = uatComposeInterpolationEnv({ webPort: 20077 });
+    expect(env.JARVIS_WEB_PORT).toBe("20077");
+    expect(env.JARVIS_DOCKER_SUBNET).toBe(UAT_DOCKER_SUBNET);
+    expect(env.POSTGRES_PASSWORD).toBeTruthy();
+    expect(env.JARVIS_CLI_RUNNER_RPC_SECRET).toBeTruthy();
   });
 });
 
