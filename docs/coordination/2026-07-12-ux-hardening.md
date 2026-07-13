@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 exact head `36a06394`: foundation plus both compose smokes GREEN, image build running, rebased exact-head UAT GREEN at comment `4960344279`. Fresh routine QA session `019f5c5f-446a-78e0-85dc-ce9a01ddfeae` is reviewing and must hold verdict for 4/4 CI |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 fresh QA PROVISIONAL RED at comment `4960441848`: four blockers cover narrow guidance readability, stale-success ordering, authored personalization loading/error, and revalidation live semantics. Routed to verified builder session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` for TDD repair; no merge |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -970,3 +970,15 @@ resume from this note before taking any merge-sensitive action.
   label `QA 1021 News Settings R1`, Codex session
   `019f5c5f-446a-78e0-85dc-ce9a01ddfeae`. It reviews now but may not post GREEN until CI is 4/4;
   it never edits or merges.
+
+## Continuation note — 2026-07-13 #990 fresh QA RED
+
+- Fresh routine QA posted PROVISIONAL RED at PR comment `4960441848` on exact head `36a06394`; gate
+  was truthfully 3/4 GREEN with image build pending. Four blockers: 390px saved guidance truncates;
+  mutation success can announce before the personalization row refreshes; query loading/error is
+  coerced into false empty UI; revalidation feedback lacks `status`/`alert` live semantics.
+- The full actionable verdict is routed to verified #990 builder session
+  `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` for TDD repair with explicit-path staging, focused proof,
+  regenerated exact-head narrow UAT/evidence, and new full CI. Any image result on `36a06394` is
+  superseded by the repair head. QA session `019f5c5f-446a-78e0-85dc-ce9a01ddfeae` made no edits;
+  this UX lane never merges.
