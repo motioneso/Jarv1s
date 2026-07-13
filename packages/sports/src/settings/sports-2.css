@@ -32,27 +32,41 @@
 .sp-whole.is-active .sp-whole__lbl {
   color: var(--forest-ink);
 }
-.sp-whole__state {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.sp-whole.is-active .sp-whole__state {
-  color: var(--forest-ink);
-}
-
 .sp-teamgrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 8px;
 }
+.sp-action-target {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.sp-action-target--wide {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.sp-action-target--wide .sp-whole {
+  margin-bottom: 0;
+}
+.sp-teamgrid > .sp-action-target > .sp-team {
+  width: 100%;
+  flex: 1;
+}
+.sp-action-error {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--danger);
+  text-align: left;
+}
 .sp-team {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   border: 1px solid var(--border-subtle);
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -64,6 +78,22 @@
   color: var(--text-muted);
   transition: var(--transition-control);
   text-align: left;
+}
+.sp-team__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.sp-team__state {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+.sp-team.is-active .sp-team__state {
+  color: var(--forest-ink);
 }
 .sp-team:hover {
   background: var(--surface-2);
@@ -144,6 +174,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   border: 1px solid var(--forest-soft-2);
   background: var(--forest-soft);
   border-radius: var(--radius-lg);
@@ -152,6 +183,9 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--forest-ink);
+}
+.sp-chip .sp-action-error {
+  flex-basis: 100%;
 }
 .sp-chip__lbl {
   white-space: nowrap;
@@ -181,15 +215,42 @@
   cursor: not-allowed;
 }
 
+/* Browse leagues disclosure (#989): collapsed by default so the empty-query view leads with
+   search, not the full catalog — the confederation groups below only render once expanded. */
+.sp-browse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  transition: var(--transition-control);
+}
+.sp-browse-toggle:hover {
+  background: var(--surface-2);
+}
+.sp-browse-toggle[aria-expanded="true"] {
+  color: var(--ink);
+}
+
 /* Confederation-grouped browse mode (#907): shown when the search box is empty, replacing the
    old "Search above…" hint. Reuses .sp-whole/.sp-teamgrid/.sp-team for the follow-all button and
    expanded team grid — only the group heading and the expand/collapse row button are new. */
 
 .sp-browse__conf {
   margin: 18px 0 8px;
-  /* Matches the existing .sp-whole__state eyebrow above — NOT --font-mono, which Ben retired
-     app-wide 2026-07-08 ("kill mono anywhere in the app"); --font-sans is the current eyebrow
-     face everywhere else in this file. */
+  /* Matches the .sp-team__state eyebrow above — NOT --font-mono, which Ben retired app-wide
+     2026-07-08 ("kill mono anywhere in the app"); --font-sans is the current eyebrow face
+     everywhere else in this file. */
   font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 700;
@@ -239,4 +300,17 @@
   background: var(--forest-soft);
   border-color: var(--forest-soft-2);
   color: var(--forest-ink);
+}
+
+/* Narrow-width pass (#989 Task 4), scoped to this pane only — not a shell breakpoint. */
+@media (max-width: 420px) {
+  .sp-teamgrid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+  .sp-browse__row {
+    flex-wrap: wrap;
+  }
+  .sp-browse__row .sp-whole {
+    width: 100%;
+  }
 }

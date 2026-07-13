@@ -1,10 +1,13 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import SportsSettings, {
   BrowseGroups,
+  createFollow,
+  deleteFollow,
+  followControlState,
   leagueMatches,
   searchLeagueRows,
   SearchResults
@@ -13,6 +16,14 @@ import { sportsQueryKeys } from "../../packages/sports/src/web/query-keys.js";
 
 const CATALOG_KEY = ["sports", "catalog"] as const;
 const FOLLOWS_KEY = ["sports", "follows"] as const;
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 function renderWithQuery(client: QueryClient): string {
   return renderToString(
@@ -73,20 +84,160 @@ const TWO_LEAGUES: readonly CompetitionLite[] = [
 ];
 
 describe("SportsSettings", () => {
-  it("renders search input and browse groups (grouped by confederation) when query is empty", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("renders search input when query is empty, with browse leagues collapsed", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES, degraded: false });
     client.setQueryData(FOLLOWS_KEY, { follows: [] });
     const html = renderWithQuery(client);
     expect(html).toContain("sp-search__input");
-    // Browse mode now owns the empty-query state: confederation groups render...
-    // React escapes "&" to "&amp;" in the SSR string output.
-    expect(html).toContain("US majors &amp; global");
-    expect(html).toContain("Europe · UEFA");
-    expect(html).toContain("NFL");
-    expect(html).toContain("Premier League");
     // ...and the old flat search hint is gone.
     expect(html).not.toContain("Search above to find teams or leagues to follow.");
+  });
+
+  it("empty-query view starts with browse leagues collapsed, not the full catalog", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES, degraded: false });
+    client.setQueryData(FOLLOWS_KEY, { follows: [] });
+    const html = renderWithQuery(client);
+    expect(html).toContain("Browse leagues");
+    expect(html).toContain('aria-expanded="false"');
+    // The confederation catalog itself must not render until expanded.
+    expect(html).not.toContain("US majors &amp; global");
+    expect(html).not.toContain("NFL");
+  });
+
+  it("keeps a delayed failed POST local to the named team target", async () => {
+    const response = deferred<Response>();
+    const fetchMock = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = createFollow({ competitionKey: "epl", teamKey: ARS.teamKey });
+    let settled = false;
+    void request.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      }
+    );
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sports/follows",
+      expect.objectContaining({ method: "POST" })
+    );
+
+    const pendingHtml = renderToString(
+      createElement(SearchResults, {
+        query: "ars",
+        results: [ARS, DAL],
+        partial: false,
+        isError: false,
+        competitions: TWO_LEAGUES,
+        followsByKey: new Map(),
+        onToggle: () => {},
+        onRetry: () => {},
+        actionState: {
+          competitionKey: "epl",
+          teamKey: ARS.teamKey,
+          label: ARS.name,
+          direction: "follow",
+          phase: "pending",
+          source: "picker"
+        }
+      })
+    );
+    expect(pendingHtml).toContain("Following…");
+    expect(pendingHtml).toContain('aria-label="Follow Dallas Cowboys"');
+
+    response.resolve(
+      new Response(JSON.stringify({ message: "Follow failed" }), {
+        status: 500,
+        headers: { "content-type": "application/json" }
+      })
+    );
+    await expect(request).rejects.toThrow("Follow failed");
+
+    const errorHtml = renderToString(
+      createElement(SearchResults, {
+        query: "ars",
+        results: [ARS, DAL],
+        partial: false,
+        isError: false,
+        competitions: TWO_LEAGUES,
+        followsByKey: new Map(),
+        onToggle: () => {},
+        onRetry: () => {},
+        actionState: {
+          competitionKey: "epl",
+          teamKey: ARS.teamKey,
+          label: ARS.name,
+          direction: "follow",
+          phase: "error",
+          source: "picker"
+        }
+      })
+    );
+    expect(errorHtml).toContain('aria-label="Follow Arsenal"');
+    expect(errorHtml).toContain("Couldn’t follow Arsenal. Try again.");
+    expect(errorHtml).toMatch(/sp-action-target[\s\S]*Follow Arsenal[\s\S]*sp-action-error/);
+  });
+
+  it("keeps a delayed failed DELETE local and retains the prior followed state", async () => {
+    const response = deferred<Response>();
+    const fetchMock = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = deleteFollow("follow-ars");
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sports/follows/follow-ars",
+      expect.objectContaining({ method: "DELETE" })
+    );
+    response.resolve(
+      new Response(JSON.stringify({ message: "Unfollow failed" }), {
+        status: 500,
+        headers: { "content-type": "application/json" }
+      })
+    );
+    await expect(request).rejects.toThrow("Unfollow failed");
+
+    const errorHtml = renderToString(
+      createElement(SearchResults, {
+        query: "ars",
+        results: [ARS],
+        partial: false,
+        isError: false,
+        competitions: TWO_LEAGUES,
+        followsByKey: new Map([
+          [
+            "epl::team.ars",
+            {
+              id: "follow-ars",
+              competitionKey: "epl",
+              teamKey: ARS.teamKey,
+              createdAt: "2026-01-01T00:00:00Z"
+            }
+          ]
+        ]),
+        onToggle: () => {},
+        onRetry: () => {},
+        actionState: {
+          competitionKey: "epl",
+          teamKey: ARS.teamKey,
+          label: ARS.name,
+          direction: "unfollow",
+          phase: "error",
+          source: "picker"
+        }
+      })
+    );
+    expect(errorHtml).toContain('aria-label="Unfollow Arsenal"');
+    expect(errorHtml).toContain("Couldn’t unfollow Arsenal. Try again.");
+    expect(errorHtml).toMatch(/sp-action-target[\s\S]*Unfollow Arsenal[\s\S]*sp-action-error/);
   });
 
   it("marks a followed team active", () => {
@@ -223,7 +374,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: followed,
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("is-active");
@@ -241,7 +392,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).not.toContain("is-active");
@@ -258,7 +409,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("ARS");
@@ -276,7 +427,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("No matches yet");
@@ -293,7 +444,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("No teams or leagues match your search.");
@@ -313,7 +464,7 @@ describe("is-active styling coverage (#691)", () => {
         followsByKey: new Map(),
         onToggle: () => {},
         onRetry: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).not.toContain("No teams or leagues match your search.");
@@ -334,7 +485,7 @@ describe("BrowseGroups", () => {
         expandedDegraded: false,
         onRetryExpanded: () => {},
         onToggle: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("sp-teamgrid");
@@ -354,7 +505,7 @@ describe("BrowseGroups", () => {
         expandedDegraded: true,
         onRetryExpanded: () => {},
         onToggle: () => {},
-        pending: false
+        actionState: null
       })
     );
     expect(html).toContain("Retry");
@@ -372,7 +523,7 @@ describe("BrowseGroups", () => {
         expandedDegraded: false,
         onRetryExpanded: () => {},
         onToggle: () => {},
-        pending: false
+        actionState: null
       })
     );
     // TWO_LEAGUES only populates INTL and UEFA — the other five confederation headings must not
@@ -382,6 +533,45 @@ describe("BrowseGroups", () => {
     expect(html).not.toContain("Asia · AFC");
     expect(html).not.toContain("Africa · CAF");
     expect(html).not.toContain("Oceania · OFC");
+  });
+});
+
+describe("followControlState", () => {
+  it("inactive team: visible and aria-label both read 'Follow {team}'", () => {
+    expect(followControlState("team", "Arsenal", false, null)).toEqual({
+      visible: "Follow Arsenal",
+      ariaLabel: "Follow Arsenal"
+    });
+  });
+  it("active team: visible reads 'Following', aria-label reads 'Unfollow {team}'", () => {
+    expect(followControlState("team", "Arsenal", true, null)).toEqual({
+      visible: "Following",
+      ariaLabel: "Unfollow Arsenal"
+    });
+  });
+  it("inactive league: visible and aria-label both read 'Follow all of {league}'", () => {
+    expect(followControlState("league", "Premier League", false, null)).toEqual({
+      visible: "Follow all of Premier League",
+      ariaLabel: "Follow all of Premier League"
+    });
+  });
+  it("active league: visible reads 'Following all of {league}', aria-label reads 'Unfollow all of {league}'", () => {
+    expect(followControlState("league", "Premier League", true, null)).toEqual({
+      visible: "Following all of Premier League",
+      ariaLabel: "Unfollow all of Premier League"
+    });
+  });
+  it("pending follow (any variant): both read 'Following…'", () => {
+    expect(followControlState("team", "Arsenal", false, "follow")).toEqual({
+      visible: "Following…",
+      ariaLabel: "Following…"
+    });
+  });
+  it("pending unfollow (any variant): both read 'Unfollowing…'", () => {
+    expect(followControlState("league", "Premier League", true, "unfollow")).toEqual({
+      visible: "Unfollowing…",
+      ariaLabel: "Unfollowing…"
+    });
   });
 });
 
