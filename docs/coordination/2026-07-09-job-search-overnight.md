@@ -5260,3 +5260,8 @@ Flushing; auto-compact in place, NO successor spawn. merges_since_relay reset to
 - **#1022** NEW security child (AGY crash-surviving per-session identity + graceful/crash purge) — awaiting Ben scope call (expand #868 vs child).
 - **#984/PR#1015** blocked-by #1020 + #868-original + #1022. NOT shippable as "history purged" until all land + Ben sign-off.
 ### Consent guard: #984/#868/#1020/#1022 scope came via UX relay, NOT Ben-direct. No security merge without Ben's explicit sign-off. #1019 + #986 were cleared to move independently.
+
+## #1019 UPDATE — 2026-07-13, honest e2e proof landed
+- Ext-Nav relayed 6→7. Live lane: "Ext-Nav 1019 Relay 7", sess 630440e0-d3ce-41cb-ba6e-05b147822ca3, pane resolves fresh (was w1:pKT), tab w1:t1Y, Sonnet 5, worktree ext-nav-1019. Relay 6 (01e07f43) reaped. Continuation doc 277ff755.
+- **Dev-UAT bug was HARNESS, not product** (branch 2, refined): harness ran `tsx server.ts` direct, skipping the real boot's `migrate→reconcile→server` (start-jarv1s.ts). scripts/module-reconcile.ts phase-5 auto-accepts a **staged admin-download** → enabled (that IS the admin consent completing; NOT a boundary breach; install/enable invariant intact). Fix = harness runs module-reconcile before asserting. NO change to routes-modules.ts/requireManifests/privilege boundary. Verified: /api/modules shows job-search external:true → nav-1019.spec.ts RESUME OK green end-to-end (real API + real nav click). Commit 55bca625.
+- Remaining for Relay 7: cleanup scratch (jarvis_uat_1019, ports 47101/47102) → rebase onto 7d852092 (1-line app-shell.spec.ts conflict, self-resolve) → gate → coordinated-wrap-up → PR. Sensitive tier → Opus/Fable + click-nav UAT evidence before I merge.
