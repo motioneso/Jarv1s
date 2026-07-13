@@ -40,11 +40,13 @@ Docker Compose, Playwright.
 ### Task 1: ENOENT guard in `loadModuleMigrationFiles`
 
 **Files:**
+
 - Modify: `packages/db/src/migrations/module-sql-runner.ts:130-146`
 - Test: `tests/integration/module-migration-ledger.test.ts` (inside the existing
   `describe("loadModuleMigrationFiles", ...)` block, lines ~33-52)
 
 **Interfaces:**
+
 - Consumes: nothing new — `loadModuleMigrationFiles(directory: string): Promise<ModuleMigrationFile[]>`
   already exists (`module-sql-runner.ts:131`); signature is unchanged.
 - Produces: same signature, now resolving to `[]` instead of rejecting when `directory` doesn't
@@ -58,13 +60,13 @@ Add as the 3rd test inside the existing `describe("loadModuleMigrationFiles", ..
 before the closing `});` at line 52):
 
 ```ts
-  it("returns [] when the directory doesn't exist (DB-less external module)", async () => {
-    dir = mkdtempSync(join(tmpdir(), "module-migrations-"));
-    const missing = join(dir, "sql");
-    // dir itself is real (so afterEach can rmSync it); "sql" under it is never created.
+it("returns [] when the directory doesn't exist (DB-less external module)", async () => {
+  dir = mkdtempSync(join(tmpdir(), "module-migrations-"));
+  const missing = join(dir, "sql");
+  // dir itself is real (so afterEach can rmSync it); "sql" under it is never created.
 
-    await expect(loadModuleMigrationFiles(missing)).resolves.toEqual([]);
-  });
+  await expect(loadModuleMigrationFiles(missing)).resolves.toEqual([]);
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -135,25 +137,27 @@ Run: `pnpm verify:foundation`
 Expected: exit code 0. Record the exit code in the final report to the coordinator.
 
 - [ ] **Step 2: Commit** — nothing to commit (verification-only task); proceed to Task 3 regardless
-  of whether anything changed.
+      of whether anything changed.
 
 ---
 
 ### Task 3: Stage 2 — bring up isolated UAT stack
 
 **Files:**
+
 - Create (ephemeral, not committed): none — the stack uses this worktree's existing
   `infra/docker-compose.prod.yml` unmodified and the reused env file below.
 
 **Interfaces:**
+
 - Consumes: `ghcr.io/motioneso/jarv1s:edge` image (already contains the #1007 fix once CI has
-  republished after this PR merges — for the *proof* run before merge, the fixed code is exercised
+  republished after this PR merges — for the _proof_ run before merge, the fixed code is exercised
   via this worktree's own build, not the published `:edge` tag; see Step 1 note).
 - Produces: a running stack on `http://localhost:1545` (and LAN `http://192.168.50.36:1545`) that
   Task 4's Playwright script drives.
 
 - [ ] **Step 1: Tear down any stale stack, then build and start the isolated stack from this
-  worktree's fixed code**
+      worktree's fixed code**
 
 The original devproof handoff assumed pulling published `:edge`, but that tag won't contain the
 Task 1 fix until this branch merges and CI republishes. Build the image from this worktree instead
@@ -197,14 +201,16 @@ test will re-assert).
 ### Task 4: Stage 2 — Playwright UAT script (owner signup → install → enable → verify route)
 
 **Files:**
+
 - Create: `scripts/uat/job-search-install.spec.ts`
 
 **Interfaces:**
+
 - Consumes: real selectors confirmed by reading the source this session:
   - Owner signup (`apps/web/src/auth/auth-screen.tsx`): first-boot auto-selects sign-up mode
     (`needsBootstrap` true). Fields are `<label>Name<input .../></label>`,
     `<label>Email<input type="email" .../></label>`, `<label>Password<input type="password"
-    minLength={8} .../></label>`. Submit button text: `"Create account"`.
+minLength={8} .../></label>`. Submit button text: `"Create account"`.
   - Settings deep link: `apps/web/src/settings/settings-page.tsx` honors `?section=<id>` once on
     mount then clears it (lines ~178-192) — for an admin section id (`"instmods"`) it also flips
     `mode` to `"admin"` automatically. So `/settings?section=instmods` lands directly on Instance
@@ -215,7 +221,7 @@ test will re-assert).
     constant) and `<code>{row.id}</code>` (expect `job-search`). Install button text `"Install"`;
     clicking opens `role="dialog" aria-modal="true" aria-label="Install ${row.name}?"` with a
     `"Download"` confirm button. After download: toast `"${name} downloaded — restart Jarvis to
-    apply"` and state label becomes `"Downloaded — restart to apply"`. Enable/disable uses a
+apply"` and state label becomes `"Downloaded — restart to apply"`. Enable/disable uses a
     `<Switch ariaLabel="Enable ${row.name}">` once `installed-enabled`/`installed-disabled`.
   - job-search module route (`external-modules/job-search/src/web/root.tsx` +
     `external-modules/job-search/src/web/router.ts`): host base path is `/m/job-search`; the
@@ -269,7 +275,12 @@ async function signUpOwner(page: Page): Promise<void> {
 
 async function skipOnboardingIfPresent(page: Page): Promise<void> {
   const skipAll = page.getByRole("button", { name: /skip/i });
-  if (await skipAll.first().isVisible({ timeout: 5_000 }).catch(() => false)) {
+  if (
+    await skipAll
+      .first()
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false)
+  ) {
     await skipAll.first().click();
   }
 }
@@ -459,11 +470,11 @@ plainly (by-design, per `scripts/start-jarv1s.ts` boot sequence and the Instance
 `<Note>` banner).
 
 - [ ] **Step 3: Invoke `coordinated-wrap-up`** for the PR + report step (not part of this plan's
-  scope — separate skill).
+      scope — separate skill).
 
 - [ ] **Step 4: Final report to Coordinator** covering: VERDICT GREEN/RED; owner login
-  (`http://192.168.50.36:1545` or `http://localhost:1545`, email `uat-owner-1006@example.com`,
-  password `uat-owner-password-1006`); restart-was-required = yes (plain finding); screenshot paths
-  under the scratchpad devproof dir; Playwright script path
-  `scripts/uat/job-search-install.spec.ts`; leave `jarvis-uat-1006` UP if GREEN, tear down
-  (`docker compose -p jarvis-uat-1006 down -v`) if RED.
+      (`http://192.168.50.36:1545` or `http://localhost:1545`, email `uat-owner-1006@example.com`,
+      password `uat-owner-password-1006`); restart-was-required = yes (plain finding); screenshot paths
+      under the scratchpad devproof dir; Playwright script path
+      `scripts/uat/job-search-install.spec.ts`; leave `jarvis-uat-1006` UP if GREEN, tear down
+      (`docker compose -p jarvis-uat-1006 down -v`) if RED.
