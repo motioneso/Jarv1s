@@ -5728,3 +5728,12 @@ Coordinator lock: label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db2025
 - **#1031 #868+#1020** (security): Opus QA RED cycle 1/2 (boot-sweep marker-wipe orphan, Codex/AGY — banked as durable invariant). Fix IN PROGRESS in owning Codex lane (019f5ce4, pane w1:pKY, status=working); NOT yet pushed (head still 65227092). CI on 65227092 = Verify-foundation+both-smokes GREEN but STALE (pre-fix, the code Opus flagged); image-publish job in progress. On fix push → re-QA (Opus) → GREEN → surface to Ben for EXPLICIT merge sign-off (never auto-merge).
 - **#984/PR #1015** (task #41): held behind #1031 landing.
 **Counters:** merges_since_relay=1 (no merge this window). Monitor bmhs9hwgc persistent over pKY + P2. Standing: no PushNotifications; build=Sonnet, security-QA=Opus, council=Fable/AGY. Failure budget #1031 = cycle 1/2.
+
+## #1031 (#868+#1020) — Opus QA cycle 2/2 GREEN (2026-07-13)
+Head 9c8288b8 (boot-order fix: purgePrivateTranscriptMarkers BEFORE clearNeutralBase; clearNeutralBase gated on `if(purged)`; fail-closed = markers survive retry). Opus adversarial re-verify (jarvis_qa_868b): ALL 6 findings PASS w/ file:line proof.
+- F1 ordering reversed: engine-host.ts:585-601 (purge :593 → clearNeutralBase only if purged :598-600); server.ts:60 pre-listen. PASS
+- F2 fail-closed: cleanup.ts:171-179 throws BEFORE marker removal; catch → purged=false → sweep skipped → base+markers survive. PASS
+- F3 out-of-base by UUID: purgeCodexTranscript (.codex/sessions), purgeAgyBrainDir (antigravity brain/<uuid>) reached via marker UUIDs. PASS
+- F4 regression test: tests/unit/cli-runner-server.test.ts:463 — asserts out-of-base rm index < neutralDir wipe index (fails under OLD ordering); failure-path asserts no `rm -rf <neutralDir>`. REAL, not tautology. PASS
+- F5 no new hole / F6 non-blocking intact: PASS.
+Verdict posted PR #1031 comment 4963820411. **MERGE-READY pending CI green on 9c8288b8.** SECURITY tier → awaiting Ben EXPLICIT sign-off. merges_since_relay=1.
