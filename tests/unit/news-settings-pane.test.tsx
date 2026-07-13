@@ -12,11 +12,17 @@ import type {
 
 import { ApiError } from "@jarv1s/module-web-sdk";
 
-import NewsSettings, { topicCreateErrorMessage } from "../../packages/news/src/settings/index.js";
+import NewsSettings from "../../packages/news/src/settings/index.js";
 import {
   previewOutcomeMessage,
   zipPreviewCandidates
 } from "../../packages/news/src/settings/add-source.js";
+import {
+  describedTopicFormValues,
+  describedTopicPendingMessage,
+  describedTopicSuccessMessage,
+  topicCreateErrorMessage
+} from "../../packages/news/src/settings/describe-topics.js";
 import { newsQueryKeys } from "../../packages/news/src/web/query-keys.js";
 
 // #953 Task 5: the personalization sections must never present a false affordance —
@@ -119,7 +125,7 @@ describe("NewsSettings personalization sections (#953)", () => {
   it("renders all three new sections alongside the untouched curated controls", () => {
     const html = render(personalization());
     expect(html).toContain("Publications you add");
-    expect(html).toContain("Topics you describe");
+    expect(html).toContain("Topics across the web");
     expect(html).toContain("Excluded publishers");
     // Curated V1 controls unchanged.
     expect(html).toContain("BBC News");
@@ -217,6 +223,32 @@ describe("NewsSettings personalization sections (#953)", () => {
     expect(html).toContain("Excluded</span>");
     // The other curated tile still shows its true On/Off state.
     expect(html).toContain('aria-pressed="false"');
+  });
+});
+
+describe("NewsSettings described-topics section (#990)", () => {
+  it("renames the section and explains the empty state honestly", () => {
+    const html = render(personalization({ availability: allOn }));
+    expect(html).toContain("Topics across the web");
+    expect(html).toContain("News still uses your selected publications.");
+  });
+
+  it("renders an Edit affordance per stored topic alongside Remove", () => {
+    const html = render(
+      personalization({ availability: allOn, customTopics: [storedTopic("approved")] })
+    );
+    expect(html).toContain('aria-label="Edit Watches"');
+    expect(html).toContain('aria-label="Remove Watches"');
+  });
+
+  it("escapes a hostile topic label in the Edit aria-label the same way Remove does", () => {
+    const hostileTopic = {
+      ...storedTopic("approved"),
+      label: '<img src=x onerror=alert(1)>&lt;script&gt;"quoted'
+    };
+    const html = render(personalization({ availability: allOn, customTopics: [hostileTopic] }));
+    expect(html).not.toContain("<img");
+    expect(html).toMatch(/aria-label="Edit [^"]*&quot;quoted/);
   });
 });
 
@@ -323,6 +355,37 @@ describe("add-flow error/candidate helpers (#975 Task 9)", () => {
       "Custom topic limit reached"
     );
     expect(topicCreateErrorMessage(new Error("boom"))).toBe("Could not add that topic. Try again.");
+  });
+});
+
+describe("describe-topics pure helpers (#990)", () => {
+  it("maps a stored topic to form field values, and null to the empty add-mode form", () => {
+    expect(
+      describedTopicFormValues({
+        id: "t1",
+        label: "Watches",
+        guidance: "not smartwatches",
+        validationStatus: "approved",
+        createdAt: "2026-07-11T00:00:00.000Z"
+      })
+    ).toEqual({ label: "Watches", guidance: "not smartwatches" });
+    expect(
+      describedTopicFormValues({
+        id: "t1",
+        label: "Watches",
+        guidance: null,
+        validationStatus: "approved",
+        createdAt: "2026-07-11T00:00:00.000Z"
+      })
+    ).toEqual({ label: "Watches", guidance: "" });
+    expect(describedTopicFormValues(null)).toEqual({ label: "", guidance: "" });
+  });
+
+  it("gives create and edit distinct pending/success copy", () => {
+    expect(describedTopicPendingMessage("create")).toBe("Checking topic…");
+    expect(describedTopicPendingMessage("edit")).toBe("Saving changes…");
+    expect(describedTopicSuccessMessage("create")).toBe("Topic added");
+    expect(describedTopicSuccessMessage("edit")).toBe("Changes saved");
   });
 });
 
