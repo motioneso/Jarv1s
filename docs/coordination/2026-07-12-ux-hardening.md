@@ -22,10 +22,10 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | building on `ux/984-private-history`; label `UX 984 Private History`, session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`, pane `w1:pJB`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals`, session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`, pane `w1:pJC`; fail-closed criterion locked |
-| #986 | dedicated settings-shell spec required | routine unless permission behavior changes | needs spec; coordinate-first |
-| #987 | dedicated Notes/People UX spec required | sensitive | needs spec |
-| #989 | dedicated Sports UX spec required | routine | needs spec |
-| #990 | dedicated News UX spec required | routine | needs spec |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine unless permission behavior changes | draft PR #1008; awaiting Fable approval |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | draft PR #1008; awaiting Fable rulings on manual creation and owner `VaultContext` storage |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | draft PR #1008; awaiting Fable approval |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | draft PR #1008; awaiting Fable approval |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -137,3 +137,19 @@ resume from this note before taking any merge-sensitive action.
 - The primary Coordinator's #1006/#1007 lane does not edit settings UI. This lane explicitly replied
   that it is not mid-edit on Instance-modules and that the #1007 work may proceed. Re-sync only if
   that lane expands into `InstanceModulesPane` or other settings UI code.
+
+## Continuation note — 2026-07-12 active UX successor
+
+- `UX Coordinator` Codex session `019f5a2e-03fd-71c3-95ab-1934cb1de973` is driving this delegated
+  lane; primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge
+  authority. Never merge from this lane.
+- Prior UX session `019f57d6-8fff-7783-974a-f40333a52632` was verified by label plus session and
+  reaped.
+- #984 and #985 builders are live on Sonnet under the labels/sessions recorded in the queue and
+  await plan approval before feature edits. Preserve their path locks.
+- Wave-2 docs are published as draft PR #1008. Fable review was requested through the primary
+  Coordinator, including #987's two explicit approval questions. Do not dispatch those builds yet.
+- Next independent work: draft #991, #992, #993, #994, #995, and #1002 specs in collision-safe
+  lanes; keep #988 last and #1003 separate.
+- Primary Coordinator owns #1007 QA/merge. Its builder may drive Instance-modules in Playwright but
+  will not edit settings shell/chrome/nav; re-sync if its paths expand.
