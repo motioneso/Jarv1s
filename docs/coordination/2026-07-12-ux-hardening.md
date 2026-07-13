@@ -24,7 +24,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Tasks 1-2 committed and green through `e67d53f6`; Task 3 building on `ux/984-private-history`; label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 3 committed at `598fde88` with focused 5/5 and typecheck green; Task 4 building on `ux/984-private-history`; label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Tasks 1-3 and partial Task 4 committed through `fd73a7bb`; Task 4 remaining call-site conversions building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
@@ -332,3 +332,6 @@ resume from this note before taking any merge-sensitive action.
   `019f5a73-f9f4-71e0-bf84-d0b5effe12ae` were each verified driving their original worktrees from
   durable handoffs before their stopped Claude predecessors were identity-checked and reaped.
   All UX-owned build and future QA replacements remain Codex-only.
+- #984 Task 3 committed at `598fde88`: forced bounded replay is one-shot only after explicit resume;
+  ordinary launches remain unforced. Focused tests are 5/5 and typecheck is green. The same
+  immutable Codex session was re-verified and released to approved Task 4 with locks unchanged.
