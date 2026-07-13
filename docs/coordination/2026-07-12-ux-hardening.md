@@ -625,3 +625,22 @@ resume from this note before taking any merge-sensitive action.
   real-runtime UAT/screenshots and CI on PR #1015; #986 and #989 remain reopened on bounded QA RED
   repair; #990 is spent/done. Re-adopt every live lane by label plus immutable session rather than a
   pane number.
+
+## Continuation note — 2026-07-13 UX coordinator successor 3 adoption
+
+- `UX Coordinator` is now Codex session `019f5adf-594d-7623-8259-69e1657f4e6b`; it verified its
+  live label/session pair and is driving. Primary `Coordinator` session
+  `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge authority; this UX lane never merges.
+- The successor re-adopted the fleet by verified label plus immutable session: #984
+  `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, #985
+  `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, #986
+  `019f5a67-9a38-77e0-814a-bc082b0ce187`, #989
+  `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, and spent #990
+  `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`. Their prior statuses remain unchanged.
+- #985 remains frozen on durable issue #1017 and exclusively holds the shared-cluster DB slot. The
+  successor sent Primary the `[SECURITY][STOP-LINE]` pointer and requested durable Fable direction.
+  Until that direction arrives: no edit, diagnosis, rerun, waiver, later gate, slot release, merge,
+  or `.claude/context-meter.log` staging.
+- Old UX coordinator session `019f5ab0-8933-7ae0-99c6-c4423a586ddc` is pending reap only after
+  this manifest lock is pushed and both old and successor identities are freshly verified by label
+  plus immutable session.
