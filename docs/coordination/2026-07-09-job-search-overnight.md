@@ -5217,3 +5217,18 @@ merges_since_relay unchanged (no merge). Books now agree with UX Coordinator.
 - Created dedicated **security child #1020** — deterministic runner/RPC input-ready event (manager consumer seam, exactly-once first resume turn, NO timers). Rejected settle (JARVIS_CHAT_REPLAY_SETTLE_MS) stays rejected.
 - **#984 / PR #1015 stays HELD** until BOTH land: #1020 (input-ready) AND #868 original (engine-less transcript purge). Task #41 blocked-by both.
 - Fable drafting #1020 spec now → Ben/Fable approval → UX Coordinator spawns serialized security build lanes → security QA → **Primary merges w/ Ben sign-off** (security tier). Relay caveat: scope direction was a teammate relay; NO security-tier merge without Ben's explicit sign-off.
+
+## RELAY CHECKPOINT (70% meter) — 2026-07-13, coordinator 58a78927, IN PLACE
+merges_since_relay = 0. Flushing; auto-compact in place, NO successor spawn (standing directive).
+### DB slot ledger (shared gate cluster jarv1s-postgres :55433, per-agent JARVIS_PGDATABASE)
+- **jarvis_ux990_gate** → APPROVED for UX #990 verify:foundation gate (44d1cd49, focused-GREEN, cleanly rebased). Low concurrent load. Contention crash ≠ regression.
+- Ext-Nav 1019 (#1019) will need its own gate DB when it reaches verify:foundation — allocate then; keep it from overlapping heavy integration with #990 if both hit the gate at once.
+### IN FLIGHT (all report to Coordinator / task-notification)
+- **#1019** Ext-Nav 1019 lane (pane w1:pKH, session a179fe52, Sonnet, worktree ext-nav-1019) BUILDING. Sensitive → Opus/Fable review + click-nav dev-UAT before I merge. Task #42.
+- **#1020** Fable drafting spec (docs/superpowers/specs/2026-07-13-cli-runner-input-ready-event.md) — cli-runner/RPC input-ready seam. Await task-notification → surface pointer to Ben → UX spawns serialized security lane.
+- **#984/PR #1015** HELD, blocked-by BOTH #1020 + #868-original (task #41).
+- **#990** UX-owned; slot approved; UX Coordinator runs the gate; I gate+merge its PR.
+- **#986** UX-owned; needs pushed PR head + live UAT (not yet).
+### CONSENT GUARD (carry forward)
+- The #984/#868 scope direction arrived as a TEAMMATE RELAY, not directly from Ben. Issues/specs created (reversible) but **NO security-tier merge without Ben's explicit sign-off**. #1019 was Ben-approved directly (spec + icon rec).
+- Prod: on :edge digest fcb0bdd7, healthy; Ben installs job-search manually; activation needs one container restart.
