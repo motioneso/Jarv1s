@@ -5417,3 +5417,6 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
   (commit `82eae325`). Task8 remains: lint/typecheck reverify + rebase + `verify:foundation` + PR.
   1024c (33f24a1c) relaying to a fresh successor (same worktree/pane); reap 33f24a1c on its confirm.
   Relay handoff: `docs/superpowers/handoffs/2026-07-13-uat-harness-provisioner-relay-3.md`.
+
+- **#1024 relay 4:** 1024c→**1024d** (session `6033b289`, pane `w1:pM3`, tab `w1:t1Z`, Sonnet).
+  33f24a1c reaped. On task8 (final: reverify + rebase origin/main + `verify:foundation` + open PR).
