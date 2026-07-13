@@ -92,7 +92,13 @@ services:
     environment:
       JARVIS_UAT_SEED_LEVEL: "${JARVIS_UAT_SEED_LEVEL:-bare}"
       JARVIS_UAT_SEED_EXCLUDE_CHUNKS: "${JARVIS_UAT_SEED_EXCLUDE_CHUNKS:-}"
-      JARVIS_UAT_SEED_CONFIRM: "${JARVIS_UAT_SEED_CONFIRM:?refusing to seed: not invoked via the UAT provisioner}"
+      # Deliberately a safe empty default here, NOT :? — Compose interpolates
+      # ${...} for every service BEFORE profile filtering, so a required var
+      # on this ops-profile-only service would break a base `docker compose
+      # up` even though seed never starts in it. The real fail-closed guard
+      # is enforced at the entrypoint (tests/uat/seed/cli.ts:16), which
+      # rejects anything other than exactly "1".
+      JARVIS_UAT_SEED_CONFIRM: "${JARVIS_UAT_SEED_CONFIRM:-}"
     # #1025: the notes chunk writes through VaultContext at its real default
     # (getVaultBaseDir() -> /data/vaults, no env override inside the compose
     # network) — same mount path the jarv1s service uses below, so seeded
