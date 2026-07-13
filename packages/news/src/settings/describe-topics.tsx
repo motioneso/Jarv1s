@@ -81,8 +81,8 @@ export function DescribeTopics(props: {
   readonly retryRow: () => ReactElement;
 }) {
   const queryClient = useQueryClient();
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: newsQueryKeys.personalization });
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: newsQueryKeys.personalization });
     void queryClient.invalidateQueries({ queryKey: newsQueryKeys.overview });
   };
 
@@ -99,26 +99,26 @@ export function DescribeTopics(props: {
 
   const createMutation = useMutation({
     mutationFn: createNewsTopic,
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refresh();
       resetForm();
       setStatusMessage(describedTopicSuccessMessage("create"));
-      invalidate();
     }
   });
   const updateMutation = useMutation({
     mutationFn: (input: { id: string; label: string; guidance?: string }) =>
       updateNewsTopic(input.id, { label: input.label, guidance: input.guidance }),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refresh();
       resetForm();
       setStatusMessage(describedTopicSuccessMessage("edit"));
-      invalidate();
     }
   });
   const removeMutation = useMutation({
     mutationFn: deleteNewsTopic,
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refresh();
       setStatusMessage("Topic removed");
-      invalidate();
     }
   });
 

@@ -121,6 +121,31 @@ function render(data: GetNewsPersonalizationResponse): string {
   );
 }
 
+function renderPersonalizationState(state: "pending" | "error"): string {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } }
+  });
+  client.setQueryData(newsQueryKeys.catalog, catalog);
+  client.setQueryData(newsQueryKeys.prefs, prefs);
+  const query = client.getQueryCache().build(client, {
+    queryKey: newsQueryKeys.personalization,
+    queryFn: async () => personalization()
+  });
+  if (state === "error") {
+    query.setState({
+      ...query.state,
+      data: personalization(),
+      dataUpdatedAt: Date.now(),
+      error: new Error("boom"),
+      fetchStatus: "idle",
+      status: "error"
+    });
+  }
+  return renderToString(
+    createElement(QueryClientProvider, { client }, createElement(NewsSettings))
+  );
+}
+
 describe("NewsSettings personalization sections (#953)", () => {
   it("renders all three new sections alongside the untouched curated controls", () => {
     const html = render(personalization());
@@ -249,6 +274,18 @@ describe("NewsSettings described-topics section (#990)", () => {
     const html = render(personalization({ availability: allOn, customTopics: [hostileTopic] }));
     expect(html).not.toContain("<img");
     expect(html).toMatch(/aria-label="Edit [^"]*&quot;quoted/);
+  });
+
+  it("shows authored personalization loading/error states without false topic UI", () => {
+    const loading = renderPersonalizationState("pending");
+    expect(loading).toContain("Loading personalized news settings");
+    expect(loading).not.toContain("News still uses your selected publications.");
+    expect(loading).not.toContain('id="nw-addtopic-label"');
+
+    const error = renderPersonalizationState("error");
+    expect(error).toContain("Could not load personalized news settings. Try again.");
+    expect(error).not.toContain("News still uses your selected publications.");
+    expect(error).not.toContain('id="nw-addtopic-label"');
   });
 });
 

@@ -185,6 +185,19 @@ test("described topics: empty state, create via Enter, edit, and remove", async 
   await expect(page.getByText("Watches", { exact: true })).toBeVisible();
   await expect(page.getByText("not smartwatches", { exact: true })).toBeVisible();
 
+  await page.setViewportSize({ width: 390, height: 844 });
+  const savedGuidance = page.getByText("not smartwatches", { exact: true });
+  await expect(savedGuidance).toBeVisible();
+  expect(
+    await savedGuidance.evaluate((node) => ({
+      overflow: getComputedStyle(node).overflow,
+      whiteSpace: getComputedStyle(node).whiteSpace
+    }))
+  ).toEqual({ overflow: "visible", whiteSpace: "normal" });
+  await expect(page.getByRole("button", { name: "Edit Watches" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove Watches" })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   // Edit loads the form and PATCHes on save.
   await page.getByRole("button", { name: "Edit Watches" }).click();
   await expect(labelInput).toHaveValue("Watches");
@@ -206,6 +219,82 @@ test("described topics: empty state, create via Enter, edit, and remove", async 
   expect(deleteRequest.method()).toBe("DELETE");
   await expect(page.getByRole("status")).toContainText("Topic removed");
   await expect(page.getByText("News still uses your selected publications.")).toBeVisible();
+});
+
+test("topic success waits for the refreshed row before announcing completion", async ({ page }) => {
+  let topicCreated = false;
+  let releaseRefetch!: () => void;
+  let markRefetchStarted!: () => void;
+  const refetchGate = new Promise<void>((resolve) => {
+    releaseRefetch = resolve;
+  });
+  const refetchStarted = new Promise<void>((resolve) => {
+    markRefetchStarted = resolve;
+  });
+
+  await page.route("**/api/news/personalization", async (route) => {
+    if (topicCreated) {
+      markRefetchStarted();
+      await refetchGate;
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        availability: {
+          aiConfigured: true,
+          webSearchConfigured: true,
+          customSourceByUrlEnabled: true,
+          customSourceByNameEnabled: true,
+          freeformTopicsEnabled: true
+        },
+        customSources: [],
+        customTopics: topicCreated
+          ? [
+              {
+                id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+                label: "Watches",
+                guidance: "mechanical only",
+                validationStatus: "approved",
+                createdAt: "2026-07-12T00:00:00.000Z"
+              }
+            ]
+          : [],
+        sourceExclusions: [],
+        snapshot: null,
+        refresh: { state: "idle", updatedAt: null }
+      })
+    });
+  });
+  await page.route("**/api/news/topics", (route) => {
+    topicCreated = true;
+    return route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        topic: {
+          id: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+          label: "Watches",
+          guidance: "mechanical only",
+          validationStatus: "approved",
+          createdAt: "2026-07-12T00:00:00.000Z"
+        }
+      })
+    });
+  });
+
+  await page.goto("/settings?section=modules&module=news");
+  const labelInput = page.getByLabel("Topic in your own words");
+  await labelInput.fill("Watches");
+  await page.getByLabel("Optional guidance — what to include or leave out").fill("mechanical only");
+  await labelInput.press("Enter");
+  await refetchStarted;
+  await expect(page.getByRole("status")).toContainText("Checking topic…");
+  await expect(page.getByText("Topic added", { exact: true })).toHaveCount(0);
+
+  releaseRefetch();
+  await expect(page.getByText("Watches", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Topic added");
 });
 
 test("cancel returns to add mode without writing, and validation failure keeps input", async ({
@@ -329,13 +418,13 @@ test("retry validation queues owner-wide revalidation and surfaces queued/error 
     retryButton.click()
   ]);
   expect(firstRequest.method()).toBe("POST");
-  await expect(
-    page.getByText("Revalidation queued — statuses update after the next check.")
-  ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    "Revalidation queued — statuses update after the next check."
+  );
 
   await Promise.all([
     page.waitForRequest((r) => r.url().includes("/api/news/revalidation") && r.method() === "POST"),
     retryButton.click()
   ]);
-  await expect(page.getByText("Could not queue revalidation. Try again.")).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("Could not queue revalidation. Try again.");
 });

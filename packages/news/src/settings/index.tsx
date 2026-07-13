@@ -232,6 +232,12 @@ export default function NewsSettings() {
   const customSources = personalization?.customSources ?? [];
   const customTopics = personalization?.customTopics ?? [];
   const exclusions = personalization?.sourceExclusions ?? [];
+  const personalizationReady = personalizationQuery.isSuccess;
+  const personalizationStatus = personalizationQuery.isPending
+    ? "Loading personalized news settings…"
+    : personalizationQuery.isError
+      ? "Could not load personalized news settings. Try again."
+      : null;
   const excludedDomains = exclusions.map((exclusion) => exclusion.canonicalDomain);
   const followedTopics = new Set(
     prefs.filter((pref) => pref.kind === "topic").map((pref) => pref.key)
@@ -283,12 +289,14 @@ export default function NewsSettings() {
         {revalidateMutation.isPending ? "Queuing…" : "Retry validation"}
       </button>
       {revalidateMutation.isSuccess ? (
-        <span className="nw-set__gate">
+        <span className="nw-set__gate" role="status">
           Revalidation queued — statuses update after the next check.
         </span>
       ) : null}
       {revalidateMutation.isError ? (
-        <span className="nw-set__exerr">Could not queue revalidation. Try again.</span>
+        <span className="nw-set__exerr" role="alert">
+          Could not queue revalidation. Try again.
+        </span>
       ) : null}
     </div>
   );
@@ -371,7 +379,8 @@ export default function NewsSettings() {
           Publications you add yourself, verified before they join your feed. Verified sources
           contribute recent headlines to News and briefings.
         </p>
-        {availability ? (
+        {personalizationStatus ? <Note>{personalizationStatus}</Note> : null}
+        {personalizationReady && availability ? (
           <p className="nw-set__prereq">
             <Badge tone={availability.aiConfigured ? "pine" : "amber"} dot>
               AI model {availability.aiConfigured ? "ready" : "needed"}
@@ -381,7 +390,7 @@ export default function NewsSettings() {
             </Badge>
           </p>
         ) : null}
-        {customSources.length > 0 ? (
+        {personalizationReady && customSources.length > 0 ? (
           <ul className="nw-set__list">
             {customSources.map((source) => {
               const removing =
@@ -409,26 +418,28 @@ export default function NewsSettings() {
             })}
           </ul>
         ) : null}
-        {removeSourceMutation.isError ? (
+        {personalizationReady && removeSourceMutation.isError ? (
           <Note>Could not remove that source. Try again.</Note>
         ) : null}
-        {sourcesNeedAttention ? retryRow() : null}
-        {availability?.customSourceByUrlEnabled ? (
-          <AddSourceFlow />
-        ) : (
-          <div className="nw-set__addrow">
-            <button
-              type="button"
-              className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
-              disabled
-            >
-              Add source
-            </button>
-            {availability ? (
-              <PrereqGate requirement="Adding sources needs an AI model with structured output." />
-            ) : null}
-          </div>
-        )}
+        {personalizationReady && sourcesNeedAttention ? retryRow() : null}
+        {personalizationReady ? (
+          availability?.customSourceByUrlEnabled ? (
+            <AddSourceFlow />
+          ) : (
+            <div className="nw-set__addrow">
+              <button
+                type="button"
+                className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
+                disabled
+              >
+                Add source
+              </button>
+              {availability ? (
+                <PrereqGate requirement="Adding sources needs an AI model with structured output." />
+              ) : null}
+            </div>
+          )
+        ) : null}
       </section>
 
       <section className="nw-set" aria-label="Topics across the web">
@@ -437,12 +448,14 @@ export default function NewsSettings() {
           Freeform topics in your own words — like &ldquo;mechanical watches, not
           smartwatches&rdquo; — discovered across the web, not just your publications.
         </p>
-        <DescribeTopics
-          customTopics={customTopics}
-          availability={availability}
-          needsAttention={topicsNeedAttention}
-          retryRow={retryRow}
-        />
+        {personalizationReady ? (
+          <DescribeTopics
+            customTopics={customTopics}
+            availability={availability}
+            needsAttention={topicsNeedAttention}
+            retryRow={retryRow}
+          />
+        ) : null}
       </section>
 
       <section className="nw-set" aria-label="Excluded publishers">
@@ -451,40 +464,42 @@ export default function NewsSettings() {
           Excluded publishers never appear anywhere in News, Today, or briefings — including through
           topics. Removing one returns it to neutral; it may show up again, but is not preferred.
         </p>
-        <form className="nw-set__exform" onSubmit={submitExclusion}>
-          <label className="nw-set__exlabel" htmlFor="nw-exclusion-input">
-            Publisher domain or HTTPS link
-          </label>
-          <div className="nw-set__exrow">
-            <input
-              id="nw-exclusion-input"
-              className="jds-input"
-              type="text"
-              value={exclusionInput}
-              placeholder="example.com"
-              disabled={addExclusionMutation.isPending}
-              aria-describedby={exclusionError ? "nw-exclusion-error" : undefined}
-              onChange={(event) => {
-                setExclusionInput(event.target.value);
-                // Stale validation copy beside fresh input reads as a new failure — clear it.
-                setExclusionValidation(null);
-              }}
-            />
-            <button
-              type="submit"
-              className="jds-btn jds-btn--sm nw-set__exadd"
-              disabled={addExclusionMutation.isPending}
-            >
-              Add
-            </button>
-          </div>
-        </form>
-        {exclusionError ? (
+        {personalizationReady ? (
+          <form className="nw-set__exform" onSubmit={submitExclusion}>
+            <label className="nw-set__exlabel" htmlFor="nw-exclusion-input">
+              Publisher domain or HTTPS link
+            </label>
+            <div className="nw-set__exrow">
+              <input
+                id="nw-exclusion-input"
+                className="jds-input"
+                type="text"
+                value={exclusionInput}
+                placeholder="example.com"
+                disabled={addExclusionMutation.isPending}
+                aria-describedby={exclusionError ? "nw-exclusion-error" : undefined}
+                onChange={(event) => {
+                  setExclusionInput(event.target.value);
+                  // Stale validation copy beside fresh input reads as a new failure — clear it.
+                  setExclusionValidation(null);
+                }}
+              />
+              <button
+                type="submit"
+                className="jds-btn jds-btn--sm nw-set__exadd"
+                disabled={addExclusionMutation.isPending}
+              >
+                Add
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {personalizationReady && exclusionError ? (
           <p id="nw-exclusion-error" className="nw-set__exerr" role="alert">
             {exclusionError}
           </p>
         ) : null}
-        {exclusions.length > 0 ? (
+        {personalizationReady && exclusions.length > 0 ? (
           <ul className="nw-set__list">
             {exclusions.map((exclusion) => {
               const removing =
@@ -507,14 +522,11 @@ export default function NewsSettings() {
             })}
           </ul>
         ) : null}
-        {removeExclusionMutation.isError ? (
+        {personalizationReady && removeExclusionMutation.isError ? (
           <Note>Could not remove that exclusion. Try again.</Note>
         ) : null}
       </section>
 
-      {personalizationQuery.isError ? (
-        <Note>Could not load personalization details. Try again.</Note>
-      ) : null}
       {error ? <Note>Could not load or save news preferences. Try again.</Note> : null}
     </>
   );
