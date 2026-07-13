@@ -5241,3 +5241,10 @@ merges_since_relay = 0. Flushing; auto-compact in place, NO successor spawn (sta
 - **#986 / PR #1010** (settings-shell, exact head 6eef4170) — tier SENSITIVE. CI watch ARMED (Monitor task b8woz0a09, 30min) → on foundation-CI-green spawn ephemeral QA; UX also fresh-QAs; both + integrated re-QA before merge.
 - **#1019 / Ext-Nav** — self-relayed to "Ext-Nav 1019 Relay 2" (pane resolves by label, session 95d1c099, Sonnet, tab w1:t1Y). Task 1 committed 14ac4047; Tasks 2-8 building. D7 divergence approved (leave compatibility/CORE_VERSION at 0.1.0; fail-closed FORBIDDEN_FIELDS is the real old-core guard, test must stay). Sensitive → Opus/Fable + click-nav dev-UAT before I merge.
 - **#990** gate GREEN (VF retry 0, audit 0); slot released; UX pushing PR → will hand merge-ready verdict.
+
+## MERGE — #986/PR#1010 (sensitive) — 2026-07-13
+- Squash **7d852092**; main advanced; :edge republishing. Issue #986 CLOSED.
+- Gate: 2 independent SENSITIVE QAs GREEN (mine PR-comment 4960081630 + UX fresh 4960123832); CI 4/4; merge-base was 031eb67e = then-current main tip (no rebase needed, integrated = as-merged); session-id 58a78927 re-confirmed vs lock.
+- Nav-truth now from server MyModuleDto (phantom 'finance' id killed). Pure-frontend, no shared-schema field.
+- **merges_since_relay = 1** (sensitive; relay at 2). No meter warning this turn.
+- Ext-Nav #1019 notified to rebase onto 7d852092 — only likely conflict = 1-line heading in tests/e2e/app-shell.spec.ts (lane resolves itself). #990 notified to rebase before final CI.
