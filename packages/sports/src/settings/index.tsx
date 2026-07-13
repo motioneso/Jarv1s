@@ -260,7 +260,11 @@ export function SearchResults(props: {
     <>
       {leagues.map((competition) => {
         const wholeActive = props.followsByKey.has(followKey(competition.competitionKey, null));
-        const pendingHere = pendingDirectionFor(props.actionState, competition.competitionKey, null);
+        const pendingHere = pendingDirectionFor(
+          props.actionState,
+          competition.competitionKey,
+          null
+        );
         const state = followControlState("league", competition.label, wholeActive, pendingHere);
         return (
           <button
