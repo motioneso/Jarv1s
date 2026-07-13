@@ -118,7 +118,7 @@ function render(data: GetNewsPersonalizationResponse): string {
 describe("NewsSettings personalization sections (#953)", () => {
   it("renders all three new sections alongside the untouched curated controls", () => {
     const html = render(personalization());
-    expect(html).toContain("Personalized sources");
+    expect(html).toContain("Publications you add");
     expect(html).toContain("Topics you describe");
     expect(html).toContain("Excluded publishers");
     // Curated V1 controls unchanged.

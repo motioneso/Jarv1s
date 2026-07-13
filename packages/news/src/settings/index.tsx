@@ -361,7 +361,7 @@ export default function NewsSettings() {
       />
 
       <section className="nw-set" aria-label="News sources">
-        <p className="nw-set__kicker">Sources</p>
+        <p className="nw-set__kicker">Publications</p>
         <div className="nw-set__grid">
           {sources.map((source) => {
             const state = tileStates.get(source.sourceKey) ?? "off";
@@ -401,10 +401,10 @@ export default function NewsSettings() {
       </section>
 
       <section className="nw-set" aria-label="News topics">
-        <p className="nw-set__kicker">Topics</p>
+        <p className="nw-set__kicker">Topics from your publications</p>
         <p className="nw-set__hint">
-          Follow topics to narrow every source to those desks. With none followed you get each
-          source&rsquo;s general front page.
+          Narrow your enabled publications to these desks. With none followed you get each
+          publication&rsquo;s general front page.
         </p>
         <div className="nw-set__chips">
           {topics.map((topic: NewsTopicOption) => {
@@ -426,7 +426,7 @@ export default function NewsSettings() {
       </section>
 
       <section className="nw-set" aria-label="Personalized sources">
-        <p className="nw-set__kicker">Personalized sources</p>
+        <p className="nw-set__kicker">Publications you add</p>
         <p className="nw-set__hint">
           Publications you add yourself, verified before they join your feed. Verified sources
           contribute recent headlines to News and briefings.
