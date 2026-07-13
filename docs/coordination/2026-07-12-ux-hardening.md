@@ -484,3 +484,16 @@ resume from this note before taking any merge-sensitive action.
   `tests/e2e/app-shell.spec.ts` heading (`Account & preferences`) and Modules copy distinguishing
   required from optional rows. Next: focused tests, isolated real live-dev UAT/screenshots,
   commit/push/evidence, then fresh independent QA. All exclusions remain; this UX lane never merges.
+- Fable's combined #1012 verdict approved both forks with blocking conditions at
+  `https://github.com/motioneso/Jarv1s/pull/1012#issuecomment-4956180113` and
+  `https://github.com/motioneso/Jarv1s/pull/1012#issuecomment-4956195357`. #985 is unfrozen into
+  remediation only, never merge. `summarizeAssistantToolInput()` must cap model-controlled key-name
+  length/count and remain the sole feeder; `inputSummary` must be a typed closed shared object with
+  `app.inject` strip coverage, explicit export projection, new AI migration `0163` plus schema-ledger
+  row, and persisted-row proof excluding raw values. No generic metadata framework.
+- Native YOLO must use the exact fail-closed allowlist `Edit`/`Write`/`NotebookEdit`; `Read`, `Bash`,
+  `Grep`, `Glob`, `Task`, empty, and unknown/future names remain confirmation-gated. Tests must pin
+  pending actions for Bash/Task/unknown/empty. Canonicalized writes/edits to CLI configuration paths
+  (`.claude/settings.json`, `CLAUDE.md`, `.mcp.json`) must also fall back to confirmation unless the
+  engine is proved and documented read-only. #985 may edit now but may not run DB-touching work until
+  #984 explicitly releases the exclusive shared-cluster slot; fresh Opus security QA follows repair.
