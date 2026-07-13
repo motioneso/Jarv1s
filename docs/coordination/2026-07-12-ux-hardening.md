@@ -750,4 +750,4 @@ resume from this note before taking any merge-sensitive action.
 - #984 may only revert its settle changes in the session manager and runtime plus the two
   settle-specific tests, while preserving Slices 1–3 and run-6 evidence. PR #1015 is live-path
   blocked/code-complete-unproven on #868 and must not merge or close. Primary has the ruling; Opus
-  reviewer `28a373a6-56a2-44f1-a213-4954ed266edc` is spent and pending reap.
+  reviewer `28a373a6-56a2-44f1-a213-4954ed266edc` was reaped.
