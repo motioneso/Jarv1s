@@ -127,9 +127,23 @@ export interface ModuleMigrationFile {
   readonly sql: string;
 }
 
-/** Loads every `.sql` file in `directory`, sorted by filename, validating each against the wire contract. */
+/**
+ * Loads every `.sql` file in `directory`, sorted by filename, validating each against the wire
+ * contract. A missing `directory` returns `[]` rather than throwing: external modules with no
+ * database tables (e.g. job-search) ship no `sql/` dir at all, which is a valid, common shape —
+ * not an error. Reconcile (#1007) was pinning every DB-less module `disabled` /
+ * `database install failed` because the raw ENOENT propagated as a hard failure. Any other
+ * readdir error (permissions, not-a-directory, etc.) still rethrows.
+ */
 export async function loadModuleMigrationFiles(directory: string): Promise<ModuleMigrationFile[]> {
-  const entries = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+  let names: string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  const entries = names.filter((name) => name.endsWith(".sql")).sort();
   const files: ModuleMigrationFile[] = [];
   for (const name of entries) {
     const sql = await readFile(join(directory, name), "utf8");
