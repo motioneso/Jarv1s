@@ -58,7 +58,11 @@ import {
 } from "./settings-module-subviews";
 import { useFeedback } from "./settings-feedback";
 import { resolveModuleSettingsDeepLink } from "./module-settings-deep-link";
-import { settingsModuleControlModel, visibleUserToggleModules } from "./settings-module-view-model";
+import {
+  settingsModuleControlModel,
+  visibleConfigurableModules,
+  type SettingsModule
+} from "./settings-module-view-model";
 import { moduleDescription, readError, type PaneProps } from "./settings-types";
 import {
   Badge,
@@ -562,11 +566,23 @@ const CONTRIBUTED_SETTINGS_MODULE_IDS = new Set(
 type ModuleSub = "briefings" | "chat" | "notifications";
 type ModuleSettingsView = ModuleSub | { readonly moduleId: string };
 
+function hasImplementedModuleSettings(module: SettingsModule): boolean {
+  if (CONFIG_IDS.has(module.id)) return true;
+  if (CAT_BY_ID[module.id]) return true;
+  return (
+    CONTRIBUTED_SETTINGS_MODULE_IDS.has(module.id) &&
+    Boolean(findModuleSettingsEntrySurface(module.id, MODULE_SETTINGS_SURFACES))
+  );
+}
+
 function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [view, setView] = useState<ModuleSettingsView | null>(null);
+  const view: ModuleSettingsView | null = resolveModuleSettingsDeepLink(
+    searchParams.get("module"),
+    (moduleId) => Boolean(findModuleSettingsEntrySurface(moduleId, MODULE_SETTINGS_SURFACES))
+  );
   const myQuery = useQuery({ queryKey: queryKeys.myModules, queryFn: getMyModules, retry: false });
   const modulesQuery = useQuery({ queryKey: queryKeys.modules, queryFn: getModules, retry: false });
   const toggleMutation = useMutation({
@@ -576,26 +592,25 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
 
-  useEffect(() => {
-    const requested = resolveModuleSettingsDeepLink(searchParams.get("module"), (moduleId) =>
-      Boolean(findModuleSettingsEntrySurface(moduleId, MODULE_SETTINGS_SURFACES))
-    );
-    if (!requested) return;
-    setView(requested);
+  const openModule = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("module", id);
+    setSearchParams(next);
+  };
+  const closeModule = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("module");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  };
 
-  if (view === "briefings") return <BriefingSettings onBack={() => setView(null)} />;
-  if (view === "chat")
-    return <ChatSettingsView onBack={() => setView(null)} onCat={onSelectSection} />;
+  if (view === "briefings") return <BriefingSettings onBack={closeModule} />;
+  if (view === "chat") return <ChatSettingsView onBack={closeModule} onCat={onSelectSection} />;
   if (view === "notifications")
     return (
       <NotificationSettings
-        onBack={() => setView(null)}
+        onBack={closeModule}
         onCat={onSelectSection}
-        onModuleSettings={(id) => setView(id)}
+        onModuleSettings={openModule}
       />
     );
   if (view && typeof view === "object") {
@@ -604,14 +619,17 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
         moduleId={view.moduleId}
         surfaces={MODULE_SETTINGS_SURFACES}
         components={MODULE_SETTINGS_COMPONENTS}
-        onBack={() => setView(null)}
+        onBack={closeModule}
         onSelectSection={onSelectSection}
         onNavigate={onNavigate}
       />
     );
   }
 
-  const modules = visibleUserToggleModules(myQuery.data?.modules ?? []);
+  const modules = visibleConfigurableModules(
+    myQuery.data?.modules ?? [],
+    hasImplementedModuleSettings
+  );
   const pathFor = (id: string): string | null =>
     modulesQuery.data?.modules.find((m) => m.id === id)?.navigation[0]?.path ?? null;
 
@@ -627,10 +645,11 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     const cat = CAT_BY_ID[module.id];
     const path = pathFor(module.id);
 
-    // Core modules are all required/always-on, so no status tag — only optional
-    // (toggleable) modules show an Enabled badge, and instance-off ones show Unavailable.
+    // Required modules stay distinct from optional modules without offering a toggle.
     const badge = locked ? (
       <Badge tone="neutral">Unavailable</Badge>
+    ) : control.kind === "required" ? (
+      <Badge tone="neutral">Required</Badge>
     ) : control.kind === "toggle" && module.active ? (
       <Badge tone="pine" dot>
         Enabled
@@ -649,21 +668,13 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
       action = <span className="modrow__disabled">Switch on to set up</span>;
     } else if (config) {
       action = (
-        <button
-          type="button"
-          className="modrow__link"
-          onClick={() => setView(module.id as ModuleSub)}
-        >
+        <button type="button" className="modrow__link" onClick={() => openModule(module.id)}>
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
       );
     } else if (contributedSettings) {
       action = (
-        <button
-          type="button"
-          className="modrow__link"
-          onClick={() => setView({ moduleId: module.id })}
-        >
+        <button type="button" className="modrow__link" onClick={() => openModule(module.id)}>
           Configure <ArrowRight size={14} aria-hidden="true" />
         </button>
       );
