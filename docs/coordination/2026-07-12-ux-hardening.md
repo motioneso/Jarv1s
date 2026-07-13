@@ -479,3 +479,7 @@ resume from this note before taking any merge-sensitive action.
 - The prior `UX Coordinator` Codex session `019f5a70-28e9-7600-a132-64ab2eca669c` was resolved
   fresh by label plus immutable session and reaped only after this successor claimed the routing
   label and recorded the authority handoff.
+- #986 reopened QA repair is active in the same immutable session. Its bounded edits are the stale
+  `tests/e2e/app-shell.spec.ts` heading (`Account & preferences`) and Modules copy distinguishing
+  required from optional rows. Next: focused tests, isolated real live-dev UAT/screenshots,
+  commit/push/evidence, then fresh independent QA. All exclusions remain; this UX lane never merges.
