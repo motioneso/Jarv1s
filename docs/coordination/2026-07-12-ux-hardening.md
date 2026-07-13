@@ -751,3 +751,7 @@ resume from this note before taking any merge-sensitive action.
   settle-specific tests, while preserving Slices 1–3 and run-6 evidence. PR #1015 is live-path
   blocked/code-complete-unproven on #868 and must not merge or close. Primary has the ruling; Opus
   reviewer `28a373a6-56a2-44f1-a213-4954ed266edc` was reaped.
+- Durable #868 invariant: runner/RPC must emit observed input readiness; the manager awaits that
+  consumer seam before submitting the first post-resume turn, which must be delivered exactly once.
+  Elapsed time is never readiness. Future live proof is a fresh isolated, no-harness-wait run with
+  three post-resume repetitions, each returning 200/ACK with the exact prompt retained once.
