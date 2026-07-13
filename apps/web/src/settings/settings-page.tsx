@@ -9,7 +9,6 @@ import {
   Brain,
   Command,
   Database,
-  Fingerprint,
   Link2,
   ListChecks,
   Package,
@@ -58,14 +57,7 @@ type PersonalSectionId =
   | "activity"
   | "skills";
 
-type AdminSectionId =
-  | "people"
-  | "identity"
-  | "aiproviders"
-  | "instmods"
-  | "audit"
-  | "oversight"
-  | "host";
+type AdminSectionId = "people" | "aiproviders" | "instmods" | "audit" | "oversight" | "host";
 
 function lazyPane(loader: () => Promise<{ default: SettingsPane }>) {
   return lazy(loader);
@@ -106,9 +98,6 @@ const PeoplePane = lazyPane(() =>
 const AiProvidersPane = lazyPane(() =>
   import("./settings-ai-admin-pane").then((module) => ({ default: module.AiProvidersPane }))
 );
-const IdentityPane = lazyPane(() =>
-  import("./settings-admin-panes").then((module) => ({ default: module.IdentityPane }))
-);
 const InstanceModulesPane = lazyPane(() =>
   import("./settings-instance-modules-pane").then((module) => ({
     default: module.InstanceModulesPane
@@ -139,7 +128,6 @@ const PERSONAL_SECTIONS = [
 
 const ADMIN_SECTIONS = [
   { id: "people", icon: Users, label: "People & access", Pane: PeoplePane },
-  { id: "identity", icon: Fingerprint, label: "Identity & registration", Pane: IdentityPane },
   { id: "aiproviders", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AiProvidersPane },
   { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane },
   { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
