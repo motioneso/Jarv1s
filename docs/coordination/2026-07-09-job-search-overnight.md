@@ -5431,3 +5431,18 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
   session `019f5ce4` (pane `w1:pKY`) escalated the **purge-target design-fork to a one-shot Opus
   adjudication** (correct — data-loss/security consequences). Held cleanly, no product edits.
   → #984/PR #1015 stays HELD; the purge target must be settled by Opus before #868→#984 can land.
+
+### #868 purge-target Opus verdict = CONDITIONAL GO (2026-07-13, ux-hardening.md @ 73fe1a1b)
+
+- **Purge target DECIDED:** exact-UUID-captured-at-session-launch under
+  `~/.gemini/antigravity-cli/brain/<UUID>/`; ONE shared purge primitive for interactive-Gemini +
+  agy-print (byte-identical root+schema). `transcriptGlobDir('google',...)` = dead code, NOT a
+  target. **TDD started** on security pane `w1:pKY` (session `019f5ce4`).
+- **BEFORE-MERGE Ben gate (NEW — not yet ruled):** the fix collapses #868's stated 3-identity
+  framing → **2 agy engines + Codex** (scope reframe), and introduces a **capture-fail = silent
+  retention** risk that is product-visible → needs Ben's explicit sign-off *before merge* (Opus).
+  Aligns with the existing #984/PR #1015 hold. #984 merge still = Fable GREEN (security review) +
+  now ALSO this Ben product-scope ruling. Surfaced to Ben 2026-07-13.
+- **Separate pre-existing bug (NOT #868 scope):** interactive-Gemini transcript READER at
+  `apps/api/.../cli-chat-engine.ts:187` (`CliChatEngineImpl`) reads wrong path/schema in prod today
+  → follow-up issue (UX lane filing; get number). Not fixed in #868.
