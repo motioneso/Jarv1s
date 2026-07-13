@@ -720,3 +720,12 @@ resume from this note before taking any merge-sensitive action.
   reaped.
 - The isolated `jarv1s_ux989_uat` project had no remaining containers, volumes, networks, or Compose
   entry at cleanup. `jarv1s-prod` was not touched.
+
+## Continuation note — 2026-07-13 PR #1012 pushed
+
+- #985 pushed PR #1012 head `f22a3cc104f2168774a8ecf84e9e52fce3263d9c`; both the remote branch
+  and PR head were independently verified. The explicit-path commit contains the approved files and
+  #1017 full-literal `toStrictEqual` repair; context-meter remains unstaged.
+- Primary has the immutable head for fresh Opus security QA across both Fable forks, #1017, and
+  secrets-never-escape. #985 still holds the exclusive DB slot. This UX coordinator does not QA,
+  merge, release the slot, or touch the board for PR #1012.
