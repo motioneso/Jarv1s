@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
@@ -250,10 +250,11 @@ describe("MCP HTTP transport", () => {
       }
     });
 
-    // Give the gateway a tick to create the pending action + emit action_request
-    await new Promise((r) => setTimeout(r, 100));
-
-    expect(emitted).toHaveLength(1);
+    // Deterministic wait for the gateway to create the pending action + emit action_request —
+    // a fixed setTimeout raced this under full-suite CI load (#979, same class as #944).
+    await vi.waitFor(() => {
+      expect(emitted).toHaveLength(1);
+    });
     const req = emitted[0]!.record;
     expect(req.kind).toBe("action_request");
     if (req.kind !== "action_request") throw new Error("unreachable");
