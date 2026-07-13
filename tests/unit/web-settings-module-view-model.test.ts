@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   visibleUserToggleModules,
+  visibleConfigurableModules,
   settingsModuleControlModel,
   type SettingsModule
 } from "../../apps/web/src/settings/settings-module-view-model.js";
@@ -73,5 +74,19 @@ describe("settings module view model", () => {
     ]);
 
     expect(visible.map((module) => module.name)).toEqual(["Sports", "Finance"]);
+  });
+
+  it("shows toggleable rows plus required rows with an implemented settings destination", () => {
+    const hasSettings = (m: SettingsModule) => m.id === "briefings";
+    const visible = visibleConfigurableModules(
+      [
+        moduleRow({ id: "briefings", name: "Briefings", required: true }),
+        moduleRow({ id: "chat", name: "Chat", required: true }),
+        moduleRow({ id: "sports", name: "Sports" }),
+        moduleRow({ id: "finance", name: "Finance" })
+      ],
+      hasSettings
+    );
+    expect(visible.map((m) => m.name)).toEqual(["Briefings", "Sports", "Finance"]);
   });
 });

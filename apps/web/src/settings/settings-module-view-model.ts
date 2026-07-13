@@ -30,6 +30,16 @@ export function visibleUserToggleModules(
   return modules.filter((module) => !module.required);
 }
 
+// #986: required modules with an implemented settings destination (legacy CONFIG_IDS,
+// CAT_BY_ID, or a contributed surface with hasEntry) still need a modules-list row so
+// users can reach that destination; required modules with nowhere to go stay hidden.
+export function visibleConfigurableModules(
+  modules: readonly SettingsModule[],
+  hasImplementedSettings: (module: SettingsModule) => boolean
+): readonly SettingsModule[] {
+  return modules.filter((module) => !module.required || hasImplementedSettings(module));
+}
+
 export function settingsModuleControlModel(module: SettingsModule): SettingsModuleControlModel {
   if (module.required) {
     return {
