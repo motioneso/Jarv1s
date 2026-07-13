@@ -425,3 +425,12 @@ resume from this note before taking any merge-sensitive action.
   `activityVerb()` allowed→Denied falsehood. Independent security-tier QA is active as Codex
   session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`; it must post a durable PR verdict, perform the
   adversarial permission/auth review, and enforce live-UI UAT/screenshots. This UX lane will not merge.
+- #1012 remediation exposed a security-sensitive schema fork: `app.jarvis_action_audit_log` has no
+  durable summary/metadata field, while native YOLO intentionally creates no pending-action row.
+  The minimum proposed repair is an AI-owned `input_summary JSONB` column, nullable for historical
+  rows but mandatory on new native-YOLO audit inserts, populated only with key names via the existing
+  `summarizeAssistantToolInput()` helper. The required DB type/repository, shared audit DTO/schema,
+  route serializer, settings export projection, and real persisted-row test are in scope; raw input
+  values and a generic metadata framework are not. This exact fork is pending Fable/primary approval
+  under NO-BEN authority. #985 may continue independent menu/activity fixes but must not edit schema
+  paths until the ruling is relayed.
