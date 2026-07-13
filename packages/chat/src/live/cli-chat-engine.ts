@@ -68,8 +68,6 @@ const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
 export interface CliChatEngineOpts {
   /** ms to let the CLI TUI finish booting before the first paste. */
   readonly launchMs?: number;
-  /** ms to let a bracketed paste settle before sending Enter (passed to the default tmux backend). */
-  readonly submitMs?: number;
   /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
   readonly mux?: Multiplexer;
   /** Base dir whose `.claude`/`.codex`/`.gemini` hold CLI transcripts. */
@@ -147,7 +145,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     opts: CliChatEngineOpts = {}
   ) {
     this.launchMs = opts.launchMs ?? 3_000;
-    this.mux = opts.mux ?? new TmuxMultiplexer(io, { submitMs: opts.submitMs ?? 600 });
+    this.mux = opts.mux ?? new TmuxMultiplexer(io);
     this.homeBase = opts.homeBase;
     this.credentialFile = opts.credentialFile;
     this.ownsDrain = opts.ownsDrain ?? false;

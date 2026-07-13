@@ -29,7 +29,15 @@ export interface Multiplexer {
   readonly kind: "tmux" | "herdr";
   /** Launch a detached session running `launchLine`; return the handle to store. */
   open(opts: MuxOpenOpts): Promise<MuxHandle>;
-  /** Paste `text` into the session and submit it (Enter). */
+  /** Clear the current composer without submitting it. */
+  clearComposer(handle: MuxHandle): Promise<void>;
+  /** Capture the currently visible pane for positive readiness/ECHO observations. */
+  capturePane(handle: MuxHandle): Promise<string>;
+  /** Paste `text` without pressing Enter. */
+  paste(handle: MuxHandle, text: string): Promise<void>;
+  /** Press Enter exactly once when the caller has observed a correlated ECHO. */
+  pressEnter(handle: MuxHandle): Promise<void>;
+  /** Temporary compatibility composition; verified-submit callers use the primitives above. */
   submit(handle: MuxHandle, text: string): Promise<void>;
   /** Send Escape without terminating the session. */
   interrupt(handle: MuxHandle): Promise<void>;

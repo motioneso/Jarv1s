@@ -88,9 +88,39 @@ export class HerdrMultiplexer implements Multiplexer {
     return paneId;
   }
 
-  async submit(handle: MuxHandle, text: string): Promise<void> {
+  async clearComposer(handle: MuxHandle): Promise<void> {
+    await this.runChecked(["pane", "send-keys", handle, "C-u"], "send-keys");
+  }
+
+  async capturePane(handle: MuxHandle): Promise<string> {
+    const { code, stdout, stderr } = await this.io.run("herdr", [
+      "pane",
+      "read",
+      handle,
+      "--source",
+      "visible",
+      "--lines",
+      "200"
+    ]);
+    if (code !== 0) {
+      throw new Error(
+        `HerdrMultiplexer: herdr pane read failed (code ${code}): ${redactSecrets(stderr)}`
+      );
+    }
+    return stdout;
+  }
+
+  async paste(handle: MuxHandle, text: string): Promise<void> {
     await this.runChecked(["pane", "send-text", handle, text], "send-text");
+  }
+
+  async pressEnter(handle: MuxHandle): Promise<void> {
     await this.runChecked(["pane", "send-keys", handle, "Enter"], "send-keys");
+  }
+
+  async submit(handle: MuxHandle, text: string): Promise<void> {
+    await this.paste(handle, text);
+    await this.pressEnter(handle);
   }
 
   async interrupt(handle: MuxHandle): Promise<void> {

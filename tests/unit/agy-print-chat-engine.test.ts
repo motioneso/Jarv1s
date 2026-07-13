@@ -39,6 +39,12 @@ function fakeMux(): Multiplexer & { opened: string[]; killed: MuxHandle[] } {
     async submit() {
       throw new Error("AgyPrintChatEngine should open per-turn commands, not paste into a REPL");
     },
+    async clearComposer() {},
+    async capturePane() {
+      return "";
+    },
+    async paste() {},
+    async pressEnter() {},
     async isAlive() {
       return true;
     },

@@ -37,6 +37,12 @@ function fakeMux(): Multiplexer & { opened: string[]; killed: MuxHandle[] } {
       return `handle-${this.opened.length}`;
     },
     async submit() {},
+    async clearComposer() {},
+    async capturePane() {
+      return "";
+    },
+    async paste() {},
+    async pressEnter() {},
     async isAlive() {
       return true;
     },

@@ -189,8 +189,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
   it("sanitizes a leading '!' before pasting (no bash-prefix escape hatch)", async () => {
     const io = fakeIo();
     const engine = new CliChatEngineImpl("anthropic", "thread-bang", io, {
-      launchMs: 0,
-      submitMs: 0
+      launchMs: 0
     });
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-bang", personaPath: "/p.md" });
 
@@ -206,8 +205,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
   it("pastes the prompt buffer then sends Enter as a separate send-keys", async () => {
     const io = fakeIo();
     const engine = new CliChatEngineImpl("anthropic", "thread-paste", io, {
-      launchMs: 0,
-      submitMs: 0
+      launchMs: 0
     });
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-paste", personaPath: "/p.md" });
 
@@ -236,8 +234,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
   it("readNew yields a reply record after the turn completes", async () => {
     const io = fakeIo();
     const engine = new CliChatEngineImpl("anthropic", "thread-reply", io, {
-      launchMs: 0,
-      submitMs: 0
+      launchMs: 0
     });
     await engine.launch({ neutralDir: "/tmp/jarvis/thread-reply", personaPath: "/p.md" });
 
