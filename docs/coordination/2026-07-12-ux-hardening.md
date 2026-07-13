@@ -778,3 +778,14 @@ resume from this note before taking any merge-sensitive action.
   intentionally keeps Bash, Task, unknown tools, and config writes gated. A durable issue comment
   requests either acceptance revision or a separately approved mechanism.
 - #1011 was closed as delivered by PR #1012. Non-blocking security hardening #1018 remains open.
+
+## Continuation note — 2026-07-13 delivered-issue closure audit
+
+- #985 is now closed as completed. Its merged Fable-approved fail-closed security boundary
+  supersedes the original blanket no-prompt wording; no authorized #985 slice remains. #989 was
+  already closed. The audit found no other delivered-but-open child under #983.
+- #984 stays open: PR #1015 is live-path RED and blocked on #868 deterministic runner/RPC readiness.
+  #986 stays open: PR #1010 is still on stale red CI head `6a88c8c5`, while repair `6fdfc11c` remains
+  local/unpushed and live UAT is still required. #990 stays open: its branch is incomplete/dirty,
+  ahead of main with no PR. The remaining #983 children are unstarted or specification-stage.
+- #1011, #1016, and #1017 are closed; non-blocking #1018 remains open. Parent #983 remains open.
