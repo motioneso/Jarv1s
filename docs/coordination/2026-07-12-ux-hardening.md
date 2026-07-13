@@ -25,10 +25,10 @@ and its native sub-issues are the product source of truth; this file tracks only
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Decision 4/Slice 2 repair committed at `57c484ac`; full drawer 13/13 before fixture dedupe, focused 2/2 after, targeted Prettier and typecheck exit 0. Module lane released the global DB slot; process/Postgres scans were quiet, and #984 now owns one final full gate on fresh `jarv1s_ux984_gate*`. Label `UX 984 Private History Codex`, session `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, pane `w1:pK3`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | DONE on PR #1012 at `419a6f0a`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, pre-push trio green, manual CP1-CP5 PASS. Independent security QA is active under label `QA 1012 YOLO Approvals Codex`, session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`, pane `w1:pK7`; #1011 tracks deferred `activityVerb()` falsehood; primary Coordinator alone merges |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | PR #1012 security QA RED at `issuecomment-4956103194`: five blockers cover native secret/hard-policy ordering, audit persistence/negative coverage, menu trigger/focus, false #1011 deferral, and live UAT evidence. Builder `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`, is reopened for bounded remediation; no merge/sign-off request |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | DONE on PR #1010 at `6a88c8c5`; builder reports `VF_EXIT=0`, `AUDIT_EXIT=0`, Chromium 5/5. Independent routine QA is active in detached worktree under label `QA 1010 Settings Shell Codex`, session `019f5a91-13fa-7950-b4f2-96ea2ebf9c00`, pane `w1:pK6`; primary Coordinator alone merges |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Fable/primary approved the sanctioned per-agent DB path: fresh `jarv1s_ux989_uat`, host API `:3002`, web `:5189`, real-UI owner signup, then Sports UAT/screenshots. Shared `jarv1s` is untouched. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 head `c1093427`; all four CI checks green. Real-UI isolated Sports UAT is green at desktop + 390px with screenshots in `issuecomment-4955887307`. Independent re-QA active under label `QA 1009 Sports Settings R2 Codex`, session `019f5aa9-de55-7981-99b7-41a576e7e4ff`, pane `w1:pK8`; primary Coordinator alone merges |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 4 Playwright is 3/3 green. Second full foundation attempt exited 1 with 150/152 integration files and 1628 passing tests; two reset suites hit catalog `tuple concurrently updated` while the primary module lane ran foundation concurrently. No third run/waiver. Lane is stop-line pending the global gate queue; infra issue #1013 tracks the root cause. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -137,6 +137,7 @@ None.
 - Prior #990 v3 builder, Claude session `4e2afa97-5c55-417c-9bec-a07534cb3c98`.
 - Prior #984 v3 builder, Claude session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`.
 - Prior #985 v3 builder, Claude session `159e8723-d2f3-40f8-8d01-c621d537081d`.
+- QA #1012 YOLO Approvals, Codex session `019f5a9b-685d-7fa0-9a32-11e83ecd0ef3`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -405,6 +406,20 @@ resume from this note before taking any merge-sensitive action.
   isolated four-suite retest plus audit exit 0. A fresh process scan and `pg_stat_activity` showed no
   DB gate owner or active query. The exclusive global slot is now assigned to #984 for one fresh
   `jarv1s_ux984_gate_<unique>` full foundation run; #990 remains stopped and no other UX DB work starts.
+- Primary coordination agreed the shared-cluster DB lock spans both fleets. Its module lane may
+  continue Playwright only against isolated `jarvis-uat-1006`, but must request and await an explicit
+  handoff before any shared-cluster foundation/integration/migration work. #984 currently owns the
+  slot; UX coordination will notify primary immediately on release.
+- PR #1012 security QA posted RED at
+  `https://github.com/motioneso/Jarv1s/pull/1012#issuecomment-4956103194`: native YOLO can bypass
+  secret/hard-policy guards; audit summary/persistence and real effective-state negatives are absent;
+  menu trigger/focus behavior is broken; the included `activityVerb()` fix contradicts its claimed
+  #1011 deferral; and live UAT/screenshots are missing. Builder reopened with bounded remediation;
+  the spent QA pane/worktree was identity-checked and reaped. No merge or Fable sign-off request.
+- PR #1009 is ready for re-QA at `c1093427`: four CI checks green and real-UI Sports UAT is durable
+  at `https://github.com/motioneso/Jarv1s/pull/1009#issuecomment-4955887307` with desktop and 390px
+  screenshots on isolated `jarv1s_ux989_uat`. Re-QA runs in detached worktree as Codex session
+  `019f5aa9-de55-7981-99b7-41a576e7e4ff`; invalid quarantined-account evidence remains excluded.
 - #985 is DONE on PR #1012 at `419a6f0a`. Builder-reported foundation/audit exits are 0, the
   pre-push trio is green, and manual CP1-CP5 pass. #1011 durably tracks the untouched
   `activityVerb()` allowed→Denied falsehood. Independent security-tier QA is active as Codex
