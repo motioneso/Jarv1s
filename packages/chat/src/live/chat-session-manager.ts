@@ -236,6 +236,8 @@ export class ChatSessionManager {
   private readonly privateDetachTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** In-flight ensureSession promises, keyed by user, to serialize launches. */
   private readonly launching = new Map<string, Promise<UserSession>>();
+  /** Actors whose next relaunch must replay bounded prior context after an explicit resume. */
+  private readonly pendingForcedReplay = new Set<string>();
   /**
    * Users with a turn currently in flight. submitTurn rejects a concurrent turn
    * for the same user (turn-at-a-time, spec §6.5) so two turns can't interleave
@@ -291,7 +293,8 @@ export class ChatSessionManager {
     const inFlight = this.launching.get(actorUserId);
     if (inFlight) return inFlight;
 
-    const launch = this.launchSession(actorUserId, userName, opts);
+    const forceReplay = opts?.forceReplay ?? this.pendingForcedReplay.delete(actorUserId);
+    const launch = this.launchSession(actorUserId, userName, { forceReplay });
     this.launching.set(actorUserId, launch);
     try {
       return await launch;
@@ -715,6 +718,7 @@ export class ChatSessionManager {
       this.sessions.delete(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
     }
+    this.pendingForcedReplay.add(actorUserId);
   }
 
   /**

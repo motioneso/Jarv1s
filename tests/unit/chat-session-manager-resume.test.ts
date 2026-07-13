@@ -73,6 +73,31 @@ describe("ChatSessionManager.resumeThread", () => {
     expect(revokeMcpToken).toHaveBeenCalledWith("u1");
   });
 
+  it("forces a replay on the next turn's relaunch after an explicit resume", async () => {
+    const { deps } = makeResumeDeps(true);
+    const manager = new ChatSessionManager(deps);
+
+    await manager.ensureSession("u1", "Ben");
+    await manager.resumeThread("u1", "thread-abc");
+
+    deps.persistence.listPriorTurns.mockClear();
+    await manager.ensureSession("u1", "Ben");
+
+    expect(deps.persistence.listPriorTurns).toHaveBeenCalledWith("u1", { forceReplay: true });
+  });
+
+  it("does not force replay on an ordinary relaunch with no prior resume", async () => {
+    const { deps } = makeResumeDeps(true);
+    const manager = new ChatSessionManager(deps);
+
+    deps.persistence.listPriorTurns.mockClear();
+    await manager.ensureSession("u1", "Ben");
+
+    expect(deps.persistence.listPriorTurns).toHaveBeenCalledWith("u1", {
+      forceReplay: false
+    });
+  });
+
   it("not-found: touchExistingThread returns false → ChatThreadNotFoundError, active session untouched", async () => {
     const revokeMcpToken = vi.fn() as (chatSessionId: string) => void;
     const { deps, engine } = makeResumeDeps(false, revokeMcpToken);
