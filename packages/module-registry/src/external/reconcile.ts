@@ -26,7 +26,10 @@ export function reconcileExternalModules(
       name: manifest.name,
       version: manifest.version,
       publisher: manifest.publisher,
-      web: manifest.web ?? null
+      web: manifest.web ?? null,
+      // #1019: default to [] so every reconciled module has a navigation array — downstream
+      // code (serializeExternalModule, buildShellNavigation) never needs an undefined check.
+      navigation: manifest.navigation ?? []
     };
     const row = rowsById.get(id);
 

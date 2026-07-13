@@ -1,6 +1,6 @@
 // Node-free shared types for external module discovery (#917). Kept out of node.ts so
 // the browser entry (index.ts) and the pure reconcile step can import them too.
-import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { ExternalModuleNavigationEntry, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 
 /** A validated, on-disk external module: its metadata-only manifest + content hashes. */
 export interface ExternalModuleDiscovery {
@@ -44,6 +44,10 @@ export interface ReconciledExternalModule {
   readonly disabledReason: string | null;
   /** Web contribution declared by the manifest, or null when the module has no web surface (#918). */
   readonly web: { readonly entrypoint: string; readonly contractVersion: number } | null;
+  // #1019: nav-menu entries this module contributes; always present, defaults to [] for a
+  // metadata-only module. apps/api/src/server.ts serializeExternalModule maps + prefixes
+  // these into the wire-shape ModuleNavigationEntryDto.
+  readonly navigation: readonly ExternalModuleNavigationEntry[];
 }
 
 export interface ExternalReconcileResult {
