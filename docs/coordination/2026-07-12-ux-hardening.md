@@ -20,11 +20,11 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | building approved plan on `ux/984-private-history`; label `UX 984 Private History`, session `56deb6ca-252b-4f8e-b9b9-b5f5d819c2ea`, pane `w1:pJH`; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | planning pre-code on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v2`, session `1f79649d-8403-4988-a3de-317203fc3aa3`, pane `w1:pJG`; relay handoff `33d9a62f`; fail-closed criterion locked |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | session `56deb6ca-252b-4f8e-b9b9-b5f5d819c2ea` ordered to relay at 73% during Task 3; successor must answer the `activityVerb()` hunk-release check; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | four-task plan approved pre-code on `ux/985-yolo-approvals`; session `1f79649d-8403-4988-a3de-317203fc3aa3`; Tasks 3–4 clear, Tasks 1–2 await #984's exact `activityVerb()` hunk release; fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building approved plan on `ux/986-settings-build`; label `UX 986 Settings Shell v2`, session `ad66ce73-17b5-462e-b3d2-615038ad39d6`, pane `w1:pJM` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | building approved plan on `ux/989-sports-settings-build`; label `UX 989 Sports Settings v2`, session `40d0423b-3209-43c9-9998-d00e434e9897`, pane `w1:pJN` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | Task 1 committed at `827d37fe` with 24 tests green; session `40d0423b-3209-43c9-9998-d00e434e9897` relaying at 70% in `ux/989-sports-settings-build` |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | planning pre-code on `ux/990-news-settings-build`; label `UX 990 News Settings v2`, session `5663beab-07c4-4691-9dc8-2b1b94869ea2`, pane `w1:pJK`; grounded with clean #981 rebase on `3ca138eb` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -190,6 +190,12 @@ resume from this note before taking any merge-sensitive action.
   `40d0423b-3209-43c9-9998-d00e434e9897` and #986 successor `UX 986 Settings Shell v2` session
   `ad66ce73-17b5-462e-b3d2-615038ad39d6` were verified driving their approved Task 1 on Sonnet;
   both predecessors were identity-checked and reaped.
+- #985's four-task plan is approved. Code graph confirmed `activityVerb()` has one caller and would
+  mislabel the new `allowed` outcome as Denied. #985 owns that exact three-line hunk atomically with
+  Tasks 1–2 after #984 explicitly releases it; Tasks 3–4 are collision-clear now.
+- #984 crossed the relay trigger during Task 3; immediate relay was ordered with the hunk-release
+  question carried forward. #989 Task 1 landed at `827d37fe` with 24 focused tests green and its
+  70% relay is in progress.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
