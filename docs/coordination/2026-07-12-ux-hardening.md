@@ -28,7 +28,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Tasks 1-3 and partial Task 4 committed through `fd73a7bb`; Task 4 remaining call-site conversions building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals Codex`, session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, pane `w1:pK2`; `activityVerb()` release and fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Ben authorized teardown of only the isolated UX compose stack on `:5175`/`:3002`, including volumes, then fresh-owner signup and honest live UAT; clean-slate proof is active. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 format fix `c1093427` green locally. Teardown is blocked: no isolated UX compose project exists, `:5175` belongs #985, and the quarantined row is in shared DB `jarv1s`. No teardown occurred. Safe per-agent DB + free-port fallback awaits Fable/primary ruling. Label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY` |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Task 3 committed at `268c5a32`; Task 4 Playwright is 3/3 green. Foundation is blocked only by the approved plan doc's pre-existing formatting; builder is approved to format that one explicit file and rerun the gate. Label `UX 990 News Settings Codex`, session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`, pane `w1:pK1` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -346,11 +346,17 @@ resume from this note before taking any merge-sensitive action.
 - Ben authorized NO-BEN autonomous operation until 8:30am. Do not escalate to Ben during that
   window. Fable remains delegated approval/sign-off authority; primary `Coordinator` session
   `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge authority, and this UX lane never merges.
-- #989 was released from the owner-session blocker via clean-slate teardown: verify and destroy only
-  the isolated UX compose project serving `:5175`/`:3002` with volumes, recreate it, sign up a fresh
-  owner through the real UI, and repeat honest Sports UAT/screenshots. The quarantined account must
-  disappear with the fresh DB; direct auth/app-table mutation remains forbidden.
+- Ben initially authorized clean-slate teardown only if an isolated UX compose project serving
+  `:5175`/`:3002` existed. The builder was required to prove that identity before destruction;
+  subsequent proof below showed the premise was false, so this authorization was never exercised.
+  Direct auth/app-table mutation remains forbidden.
 - #984 Task 5 committed at `c579e8d2`: History is now exclusive over live/thread/private chrome,
   with nonempty and empty History covered. Chat-drawer E2E is 12/12 and typecheck is green. The
   obsolete pending-review test was removed with its intentionally deleted surface while row resume
   remains covered. The same session was re-verified and released to Task 6 gate/closeout.
+- #989 proved the assumed isolated compose stack does not exist. `:5175` and its API belong to #985;
+  dev Compose hardcodes shared container/ports, and the quarantined email exists once in the shared
+  default `jarv1s` database. No teardown was performed. The repo-supported safe fallback is a fresh
+  `jarv1s_ux989_uat` database in the shared cluster plus host API `:3002` and web `:5189`; this yields
+  honest clean-DB UAT but leaves the quarantined shared-DB row for later owner-authenticated deletion.
+  That exact fallback is awaiting Fable/primary ruling under NO-BEN; destructive action remains held.
