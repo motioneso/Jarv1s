@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Task 5 committed at `4bf0b50b` with focused checks/typecheck/Prettier green; Task 6 building on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 QA RED fixes resumed from clean `54601bee`; label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY`; plan format and live UI/screenshots proof remain blocking |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | amended approved plan committed at `0006fd5a`; TDD building on `ux/990-news-settings-build`; label `UX 990 News Settings v3`, session `4e2afa97-5c55-417c-9bec-a07534cb3c98`, pane `w1:pJR` |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | Claude checkpoint stopped at `592c83c3`; Tasks 1-2 committed (`bf9300f8`, `eacd1644`), Task 3 has intentional uncommitted RED test state; handoff `2026-07-13-news-settings-990-relay4.md`; Codex replacement pending, then identity-check/reap Claude session `4e2afa97-5c55-417c-9bec-a07534cb3c98` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -275,3 +275,33 @@ resume from this note before taking any merge-sensitive action.
   lanes; keep #988 last and #1003 separate.
 - Primary Coordinator owns #1007 QA/merge. Its builder may drive Instance-modules in Playwright but
   will not edit settings shell/chrome/nav; re-sync if its paths expand.
+
+## Continuation note — 2026-07-13 compaction relay
+
+- The coordinator goal was restored for Codex session
+  `019f5a2e-03fd-71c3-95ab-1934cb1de973`: drive this UX fleet with Codex-only build/QA agents,
+  keep this manifest current, hand verified PRs to the primary Coordinator, and never merge here.
+- A context compaction triggered the coordinate skill's mandatory immediate self-relay. Spawn the
+  successor as `UX Coordinator successor` in the coordinator tab with
+  `codex -s danger-full-access -a never`, verify its immutable Codex session, then have it resolve
+  and reap this old coordinator by label plus session id.
+- Immediate #989 blocker: live stack is web `:5175`, API `:3002`, dev Postgres. Fresh signup is
+  pending approval. Existing evidence points to the supported admin approval flow
+  `POST /api/admin/users/:id/approve`, followed by a fresh member sign-in; no standing dev
+  credential or sanctioned direct-DB activation recipe is yet confirmed. The successor must finish
+  the bounded docs/scripts search, prefer real admin UI/API approval, and reply to label
+  `UX 989 Sports Settings Codex`. Do not invent credentials or mutate auth tables directly.
+- #990 Claude session `4e2afa97-5c55-417c-9bec-a07534cb3c98` stopped at the safe checkpoint described
+  in the queue. Spawn a Codex successor in the same worktree/branch from
+  `docs/superpowers/handoffs/2026-07-13-news-settings-990-relay4.md`, preserving the intentional
+  uncommitted RED test and unrelated context-meter/untracked handoff state. Only after the Codex
+  successor reports driving: resolve the old Claude pane fresh by label plus exact session id,
+  verify the match, reap it, and add it to Reaped sessions.
+- Apply that same replacement discipline to #984 and #985: do not reap their stopped Claude panes
+  until their Codex successors are verified driving, then resolve by label plus immutable session
+  id and reap immediately. No new UX builder or QA may use Claude.
+- Current fleet identity snapshot: primary `Coordinator` session
+  `58a78927-385c-4b1d-8fa0-94db20255d6f` remains sole merge authority; #986 Codex session
+  `019f5a67-9a38-77e0-814a-bc082b0ce187` is building; #989 Codex session
+  `019f5a67-99f4-7880-b8f4-e4fe04c8af67` is working the QA blockers. The primary Coordinator's
+  separately owned module lane is outside the UX Codex-only replacement scope.
