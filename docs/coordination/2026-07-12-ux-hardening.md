@@ -20,8 +20,8 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | session `56deb6ca-252b-4f8e-b9b9-b5f5d819c2ea` ordered to relay at 73% during Task 3; successor must answer the `activityVerb()` hunk-release check; Slice 4 blocked on #868 |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | four-task plan approved pre-code on `ux/985-yolo-approvals`; session `1f79649d-8403-4988-a3de-317203fc3aa3`; Tasks 3–4 clear, Tasks 1–2 await #984's exact `activityVerb()` hunk release; fail-closed criterion locked |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 1 committed at `a0989815` with E2E green; Task 2 building on `ux/984-private-history`; label `UX 984 Private History v3`, session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`, pane `w1:pJQ`; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | four-task plan approved and `activityVerb()` hunk released; session `1f79649d-8403-4988-a3de-317203fc3aa3` checkpoint-relaying pre-code at 71% in `ux/985-yolo-approvals`; fail-closed criterion locked |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building approved plan on `ux/986-settings-build`; label `UX 986 Settings Shell v2`, session `ad66ce73-17b5-462e-b3d2-615038ad39d6`, pane `w1:pJM` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | Task 1 committed at `827d37fe` with 24 tests green; Task 2 building on `ux/989-sports-settings-build`; label `UX 989 Sports Settings v3`, session `da980b16-d458-4213-ab02-7a34ba852971`, pane `w1:pJP` |
@@ -121,6 +121,7 @@ None.
 - Prior #989 builder, Claude session `888f3c71-6996-49e1-9dbe-921e829abe55`.
 - Prior #986 builder, Claude session `11054b23-df91-4b09-b001-38ec31951d9d`.
 - Prior #989 v2 builder, Claude session `40d0423b-3209-43c9-9998-d00e434e9897`.
+- Prior #984 v2 builder, Claude session `56deb6ca-252b-4f8e-b9b9-b5f5d819c2ea`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -203,6 +204,12 @@ resume from this note before taking any merge-sensitive action.
   Playwright mock must prove existing Retry validation queues revalidation and exposes queued/error
   feedback. No shared retry code or new unit suite is needed. V2 was checkpoint-relayed pre-code at
   67%; re-adopt the Sonnet successor before Task 1.
+- #984 Task 1 landed at `a0989815` with E2E green. V3 session
+  `9d7e2453-ea7f-4b9c-ac1d-af73e9347197` was verified driving Task 2 on Sonnet; v2 was reaped.
+  #984 explicitly released `activityVerb()` after confirming no overlap in Tasks 1–6.
+- The exact `activityVerb()` release was delivered to #985, clearing Tasks 1–2 atomically with the
+  truthful `allowed` rendering. #985 remained pre-code and hit 71%; checkpoint relay was ordered
+  with plan approval carried forward.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
