@@ -17,7 +17,6 @@ import {
   ScrollText,
   ServerCog,
   ShieldCheck,
-  SlidersHorizontal,
   GitCommitHorizontal,
   UserRound,
   Users,
@@ -56,7 +55,6 @@ type PersonalSectionId =
   | "sources"
   | "modules"
   | "appearance"
-  | "general"
   | "activity"
   | "skills";
 
@@ -87,9 +85,6 @@ const SourcesPane = lazyPane(() =>
 );
 const ModulesPane = lazyPane(() =>
   import("./settings-personal-data-panes").then((module) => ({ default: module.ModulesPane }))
-);
-const GeneralPane = lazyPane(() =>
-  import("./settings-personal-data-panes").then((module) => ({ default: module.GeneralPane }))
 );
 const AppearancePane = lazyPane(() =>
   import("./settings-appearance-pane").then((module) => ({ default: module.AppearancePane }))
@@ -139,8 +134,7 @@ const PERSONAL_SECTIONS = [
   { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
   { id: "skills", icon: Command, label: "Skills", Pane: SkillsPane },
   { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane },
-  { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane },
-  { id: "general", icon: SlidersHorizontal, label: "General", Pane: GeneralPane }
+  { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane }
 ] as const satisfies readonly SettingsSection<PersonalSectionId>[];
 
 const ADMIN_SECTIONS = [
