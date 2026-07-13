@@ -5744,3 +5744,9 @@ Verdict posted PR #1031 comment 4963820411. **MERGE-READY pending CI green on 9c
 
 ## #1031 CI GREEN (2026-07-13) — merge-ready, awaiting Ben sign-off ONLY
 Head 9c8288b8: Verify foundation PASS (18m30s), both compose smokes PASS. "Build and publish images" = post-merge publish (not a gate). Opus QA cycle-2 GREEN + verdict posted (comment 4963820411). SECURITY tier → NO auto-merge; PAUSED on Ben's explicit OK. On merge: squash+delete-branch → close #868 + #1020 → unblocks #984/PR #1015 (task #41). merges_since_relay=1.
+
+## MERGE: #1031 (#868+#1020) LANDED + RELAY (2026-07-13 23:47)
+✅ **PR #1031 MERGED** squash `c27f92c1` (SECURITY tier, Ben explicit sign-off + Opus QA cycle-2 GREEN comment 4963820411 + real regression test cli-runner-server.test.ts:463). #868 + #1020 CLOSED. main CI running on c27f92c1. Lane reaped: pane w1:pKY closed, worktree security-868-engine-purge removed, local branch deleted.
+- **#984/PR #1015 now UNBLOCKED** (task #41). PR #1015 was held open behind #868 → needs REBASE onto main (now includes c27f92c1) + fresh SECURITY re-QA before any merge. Owning pane: "UX 984 Private History Codex" w1:pK3 (idle). Awaiting Ben's call on resume-now vs defer.
+- **merges_since_relay RESET → 0** (was 2; security merge = unconditional relay, done in-place per standing directive — no successor spawn).
+**Still in flight:** #1032 (P2 UAT seed, sensitive) — QA GREEN, CI watcher bjtc3lmr8 armed, auto-merges on green → releases P3 #1026.
