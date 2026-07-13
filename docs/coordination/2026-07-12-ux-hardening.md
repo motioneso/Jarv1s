@@ -44,6 +44,9 @@ must land before #1000 finalizes selectors. Re-sync before touching the Instance
 
 #984 and #985 may run in parallel only when exact chat path locks do not overlap. Serialize
 `chat-drawer.tsx`, chat route composition, action cards, and chat styles when either lane needs them.
+While #979 is in flight, #985 must not edit
+`tests/integration/chat-mcp-transport.test.ts`; the primary Coordinator will release that lock after
+#979 merges.
 
 ## Dependency and merge order
 
@@ -69,6 +72,8 @@ must land before #1000 finalizes selectors. Re-sync before touching the Instance
 
 - Security: AI gateway native-permission path, chat MCP/route composition, focused gateway/transport
   tests.
+- Temporary exclusion: `tests/integration/chat-mcp-transport.test.ts` remains locked by #979 until
+  its merge ping.
 - Routine UI: action-request card/styles; smallest shared menu helper plus inventoried menu call sites.
 - Any need for `chat-drawer.tsx` waits for #984's lock to release.
 
