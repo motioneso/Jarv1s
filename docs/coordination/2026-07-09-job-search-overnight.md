@@ -5411,3 +5411,9 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
 - **#1024 relay 2:** 1024b→**1024c** (session `33f24a1c`, pane `w1:pM2`, tab `w1:t1Z`, Sonnet).
   752bfdec reaped. Tasks 1-6/8 green (typecheck/lint/test:unit clean, commits 4fba8c00/9378b3dc);
   1024c on task7 (live docker verify) → task8 (gate + PR). Await PR here.
+
+- **#1024 relay 3 (pending):** task7 (live docker verify) DONE — found+fixed 2 REAL bugs the unit
+  tests missed: compose `${...}` interpolation gap + missing `JARVIS_MODULE_CREDENTIAL_SECRET_KEY`
+  (commit `82eae325`). Task8 remains: lint/typecheck reverify + rebase + `verify:foundation` + PR.
+  1024c (33f24a1c) relaying to a fresh successor (same worktree/pane); reap 33f24a1c on its confirm.
+  Relay handoff: `docs/superpowers/handoffs/2026-07-13-uat-harness-provisioner-relay-3.md`.
