@@ -1,6 +1,6 @@
 # True YOLO, approval, and menu hardening (#985)
 
-**Status:** Draft for Ben approval
+**Status:** Approved by Fable under Ben's delegated authority (2026-07-12)
 **Date:** 2026-07-12
 **Tier:** security (approval policy and authenticated native-permission surface)
 **Builds on:** #510, #622, #578, #681, `2026-06-29-admin-yolo-auto-approval-mode.md`
@@ -25,6 +25,8 @@ take a separate path that always creates a pending confirmation. That is the roo
 3. **Reuse the existing effective-YOLO resolver.** The Claude native-permission bridge consults the
    same `yoloMode` dependency already used by `AssistantToolGateway.callTool`. Do not add provider
    bypass flags such as `--dangerously-skip-permissions` and do not create a second YOLO state model.
+   Resolution fails closed: an unavailable resolver, thrown error, or any result other than literal
+   `true` follows the normal confirmation path and never auto-grants.
 4. **Background behavior is unchanged.** Scheduled, briefing, and other non-interactive execution
    retain their current policy. This issue fixes interactive parity only.
 5. **Native auto-grants are described truthfully.** The system records that permission was
@@ -34,9 +36,9 @@ take a separate path that always creates a pending confirmation. That is the roo
 6. **YOLO-off approvals explain the consequence.** A visible card names the action, meaningful
    target/consequence, and safe preview where available. Approve is primary; Reject is secondary;
    both are keyboard accessible and restore focus predictably.
-7. **Recommended: remove per-card `Always approve`.** Blanket autonomy belongs to the explicit YOLO
-   setting. Do not add or preserve a hidden per-family trust mutation in the action card. This
-   recommendation is the only open product decision in this draft.
+7. **Remove per-card `Always approve`.** It is not present in shipped code and must not be added.
+   Blanket autonomy belongs to the explicit YOLO setting; a card-level control would create a hidden
+   third trust channel alongside `trusted_auto` and YOLO.
 8. **True menus share dismissal behavior.** A small shared, dependency-free menu helper/primitive
    closes on outside pointer interaction, Escape, and single-shot selection, then returns focus to
    its trigger. Multi-select menus may stay open while selecting. Disclosure panels such as activity
@@ -63,7 +65,7 @@ take a separate path that always creates a pending confirmation. That is the roo
 ### Slice 2 — compact approval card (`routine`)
 
 - Apply the content hierarchy in Decision 6 using existing chat tokens/components.
-- Do not introduce `Always approve` unless Ben rejects Decision 7 and approves its exact policy.
+- Do not introduce `Always approve`.
 
 ### Slice 3 — native true-YOLO parity (`security`)
 
@@ -102,10 +104,12 @@ settings-shell changes with #986. #979 remains test-only unless transport tests 
 - [ ] Effective YOLO remains off by default and enabling it keeps the existing explicit warning.
 - [ ] Effective YOLO produces no per-action approval across every supported interactive surface.
 - [ ] Claude-native permissions use the same effective state as gateway actions.
+- [ ] If effective-YOLO resolution is unavailable, throws, or returns anything other than literal
+      `true`, the native bridge shows the normal confirmation and never auto-grants.
 - [ ] Unauthorized, unavailable, malformed, or hard-policy-rejected actions still fail normally.
 - [ ] Native YOLO records and UI say "allowed" unless final execution is actually observed.
 - [ ] With YOLO off, every approval is visible, compact, readable, and keyboard accessible.
-- [ ] `Always approve` is absent unless Ben explicitly chooses and separately specifies it.
+- [ ] `Always approve` remains absent.
 - [ ] Inventoried menus close on outside interaction, Escape, and selection with correct focus return.
 - [ ] Disclosure panels retain their normal expand/collapse behavior.
 - [ ] Automated checks cover destructive/external YOLO, native parity, denied authority, normal

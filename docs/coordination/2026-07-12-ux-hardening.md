@@ -19,8 +19,8 @@ and its native sub-issues are the product source of truth; this file tracks only
 
 | Issue | Spec / gate | Provisional tier | Status |
 | --- | --- | --- | --- |
-| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Fable review in flight at `0d03f501`; #868 dependency |
-| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Fable review in flight at `0d03f501` |
+| #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Fable approved Slices 1–3; Slice 4 blocked on #868 |
+| #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | Fable approved with fail-closed criterion incorporated; `Always approve` removed |
 | #986 | dedicated settings-shell spec required | routine unless permission behavior changes | needs spec; coordinate-first |
 | #987 | dedicated Notes/People UX spec required | sensitive | needs spec |
 | #989 | dedicated Sports UX spec required | routine | needs spec |
@@ -82,20 +82,22 @@ While #979 is in flight, #985 must not edit
 
 - [x] Ownership split confirmed with the primary Coordinator.
 - [x] Detached grounding preflight green at `3614ad1e`.
-- [ ] Latest `main` CI run `29225249135` completes green (deployment-smoke jobs already green;
-      foundation/app still running at manifest creation).
-- [ ] Fable approves the two first-wave delta specs under Ben's explicit overnight delegation.
-- [ ] Fable rules whether per-card `Always approve` is removed (recommended) or separately specified.
+- [x] Latest `main` CI run `29225249135` completed green at `3614ad1e`.
+- [x] Fable approved #984 Slices 1–3; Slice 4 waits for #868.
+- [x] Fable approved #985 with fail-closed effective-YOLO resolution added before security QA.
+- [x] Fable ruled that per-card `Always approve` remains absent.
 - [ ] Exact builder path locks sent to the primary Coordinator before dispatch.
 
 ## CI waivers
 
 None.
 
-## Outstanding escalations
+## Fable verdict
 
-- [ ] Fable verdict: remove per-card `Always approve` (recommended), or define a separate granular
-      trust policy; true YOLO itself is already locked.
+- #984: APPROVE Slices 1–3 now; Slice 4 waits for #868 and final cross-engine privacy acceptance.
+- #985: APPROVE WITH CHANGES; resolver error/unavailable/non-`true` must fail closed to normal
+  confirmation. The criterion is now incorporated.
+- `Always approve`: remove/do not build; shipped code has no such card control.
 
 ## Reaped sessions
 

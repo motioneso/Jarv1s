@@ -1,6 +1,7 @@
 # Private chat and history trust hardening (#984)
 
-**Status:** Draft for Ben approval
+**Status:** Approved by Fable under Ben's delegated authority (2026-07-12). Slices 1–3 may build;
+Slice 4 waits for #868.
 **Date:** 2026-07-12
 **Tier:** security (privacy, session lifetime, and retained-data claims)
 **Builds on:** #744, #868, #508, `2026-07-05-private-chat-mode.md`
