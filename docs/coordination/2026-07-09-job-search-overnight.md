@@ -5176,3 +5176,7 @@ On GREEN -> Fable security sign-off -> merge. #985 keeps DB slot.
 - **#868 seam** is the one item that will NOT self-resolve (gates #984 + Ben's "all queued issues resolved").
 - **Job-search dev-proof (Ben's GOAL crux):** confirm STAGE-2 Playwright end-to-end proof went GREEN before prod repull. PROD CONSTRAINTS still in force: update local image only, do NOT install/download job-search (Ben does that manually); prove in dev first.
 - Deferred lanes: #965 run-now dedupe (SENSITIVE, future), #1000 dev-UAT harness spec, #39 owner-auth delete of quarantined UX #989 test account.
+
+## #985 LANE CLOSEOUT — 2026-07-13 (from UX Coordinator)
+- **Exclusive shared-Postgres DB slot RELEASED** (capacity freed). Build session 019f5a73-f9f4-71e0-bf84-d0b5effe12ae + clean worktree ux-985-yolo-approvals reaped. #1011 closed as delivered. #1018 remains open. UX manifest at f88f8d86.
+- **#985 KEPT OPEN — Ben decision needed (Phase-4):** PR #1012 delivered safe-edit YOLO + truthful outcome + approval UX + 5 popovers, BUT #985 acceptance requires *zero prompts including destructive/external actions*, while the merged security design *intentionally* gates Bash/Task/unknown/config writes (Opus+Fable approved fail-closed). These conflict. Ben reconciles: (a) accept security-gated behavior → relax #985 criterion, or (b) expand YOLO auto-allow scope → requires NEW security spec + review (do NOT widen the allowlist without it). Durable assessment comment posted on #985.
