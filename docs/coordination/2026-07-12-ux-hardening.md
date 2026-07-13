@@ -591,3 +591,37 @@ resume from this note before taking any merge-sensitive action.
   `truncated: false` to that expected object; production remains untouched. #985 must rerun the
   focused email suite first, then one serial full foundation rerun only if GREEN. Another same-test
   or full-gate failure stops the lane. Slot remains held; no waiver, merge, release, or context staging.
+
+## Continuation note — 2026-07-13 UX coordinator successor 2 compaction relay
+
+- The active `UX Coordinator` remains Codex session
+  `019f5ab0-8933-7ae0-99c6-c4423a586ddc` until its relay successor claims the label and records its
+  own immutable session. Primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f`
+  remains sole merge authority; this UX lane never merges. This session received a compaction
+  summary, so the non-waivable `coordinate` relay tripwire fired: flush state, spawn a successor in
+  the same coordinator tab, verify it is driving, and have it resolve/reap this session by label plus
+  immutable session.
+- #985's authorized `truncated: false` expectation edit did not restore the focused
+  `email-reply-tools` check. Its second run failed the same test 1/4 solely because the assertion
+  compares `JSON.stringify(...)`: expected key order is
+  `inputKeys,inputKeyCount,truncated`, while persisted order is
+  `inputKeys,truncated,inputKeyCount`; values and shapes match. No foundation rerun or later gate
+  started. Mandatory cycle-two stop-line issue #1017 is durable at
+  `https://github.com/motioneso/Jarv1s/issues/1017`. The possible bounded correction is structural
+  object equality rather than serialized-string equality, but it is NOT authorized until Primary
+  relays durable Fable direction. No production/schema change may be made to satisfy object key
+  order.
+- #985 Codex session `019f5a73-f9f4-71e0-bf84-d0b5effe12ae` remains stopped and exclusively holds
+  the shared-cluster DB slot. Until the #1017 ruling is explicit: no edit, further diagnosis, rerun,
+  waiver, later gate, slot release, merge, or `.claude/context-meter.log` staging. Successor's first
+  coordination action is to keep #985 frozen, send Primary the `[SECURITY][STOP-LINE]` pointer to
+  #1017, and request durable Fable direction.
+- Live-fleet identity was freshly re-verified before relay: #984
+  `019f5a73-fb2a-7e13-9832-54c0503d5bd9`, #985
+  `019f5a73-f9f4-71e0-bf84-d0b5effe12ae`, #986
+  `019f5a67-9a38-77e0-814a-bc082b0ce187`, #989
+  `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, and #990
+  `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`. #984 remains SECURITY GREEN-with-conditions pending
+  real-runtime UAT/screenshots and CI on PR #1015; #986 and #989 remain reopened on bounded QA RED
+  repair; #990 is spent/done. Re-adopt every live lane by label plus immutable session rather than a
+  pane number.
