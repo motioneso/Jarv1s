@@ -49,6 +49,14 @@ describe("loadModuleMigrationFiles", () => {
 
     await expect(loadModuleMigrationFiles(dir)).rejects.toThrow(/0001_bad\.sql/);
   });
+
+  it("returns [] when the directory doesn't exist (DB-less external module)", async () => {
+    dir = mkdtempSync(join(tmpdir(), "module-migrations-"));
+    const missing = join(dir, "sql");
+    // dir itself is real (so afterEach can rmSync it); "sql" under it is never created.
+
+    await expect(loadModuleMigrationFiles(missing)).resolves.toEqual([]);
+  });
 });
 
 describe("module migration ledger", () => {
