@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { basename, resolve, sep } from "node:path";
 
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import type {
@@ -9,7 +10,7 @@ import type {
   ToolExecute,
   ToolServices
 } from "@jarv1s/module-sdk";
-import type { AiAssistantToolDto } from "@jarv1s/shared";
+import type { ActionAuditInputSummary, AiAssistantToolDto } from "@jarv1s/shared";
 
 import { summarizeAssistantToolInput } from "../assistant-tools.js";
 import type { AiRepository, InsertAuditLogInput } from "../repository.js";
@@ -72,6 +73,7 @@ interface ExecutableTool {
 export interface NativeToolPermissionRequest {
   readonly toolName: string;
   readonly toolInput: Record<string, unknown>;
+  readonly workingDirectory?: string;
 }
 
 export interface NativeToolPermissionResponse {
@@ -81,6 +83,16 @@ export interface NativeToolPermissionResponse {
 
 const NATIVE_TOOL_MODULE_ID = "claude-native";
 const NATIVE_TOOL_MODULE_NAME = "Claude Native Tools";
+// Bash and Task stay permanently gated: YOLO removes confirmation only for these mutation-only
+// tools, and unknown/future native capabilities fail closed to the normal confirmation path.
+const NATIVE_YOLO_AUTO_ALLOW = new Set(["Edit", "Write", "NotebookEdit"]);
+const NATIVE_CONFIG_FILE_NAMES = new Set([
+  "settings.json",
+  "settings.local.json",
+  "CLAUDE.md",
+  ".mcp.json",
+  "keybindings.json"
+]);
 
 /**
  * The single chokepoint between Jarvis and every module's real operations. Lists
@@ -179,13 +191,15 @@ export class AssistantToolGateway {
       localTimezone: (await this.deps.resolveLocalTimezone?.(actorUserId)) ?? undefined
     };
 
-    const yoloGranted = await (async () => {
-      try {
-        return (await this.deps.yoloMode?.(ctx)) === true;
-      } catch {
-        return false;
-      }
-    })();
+    const yoloGranted =
+      nativeYoloCanAutoAllow(toolName, input, request.workingDirectory) &&
+      (await (async () => {
+        try {
+          return (await this.deps.yoloMode?.(ctx)) === true;
+        } catch {
+          return false;
+        }
+      })());
 
     if (yoloGranted) {
       this.deps.notifier.emit(chatSessionId, {
@@ -202,7 +216,13 @@ export class AssistantToolGateway {
           actionFamilyId: null,
           actionKind: nativeToolRisk(toolName)
         },
-        { approvalMode: "yolo", outcome: "success", chatSessionId }
+        {
+          approvalMode: "yolo",
+          outcome: "success",
+          chatSessionId,
+          // Only bounded key metadata may persist. Live tool/card summaries can contain raw values.
+          inputSummary: summarizeAssistantToolInput(input)
+        }
       );
       return { decision: "allow", reason: "Allowed by YOLO." };
     }
@@ -566,6 +586,7 @@ export class AssistantToolGateway {
       outcome: InsertAuditLogInput["outcome"];
       errorClass?: string | null;
       chatSessionId?: string;
+      inputSummary?: ActionAuditInputSummary | null;
     }
   ): Promise<void> {
     try {
@@ -582,7 +603,8 @@ export class AssistantToolGateway {
           errorClass: opts.errorClass ?? null,
           requestId: access.requestId ?? null,
           chatSessionId: opts.chatSessionId ?? null,
-          sourceSurface: "chat"
+          sourceSurface: "chat",
+          inputSummary: opts.inputSummary ?? null
         })
       );
     } catch {
@@ -625,6 +647,27 @@ function safeNativeToolName(toolName: string): string {
   const trimmed = toolName.trim();
   if (trimmed.length === 0) return "Unknown";
   return trimmed.slice(0, 120);
+}
+
+function nativeYoloCanAutoAllow(
+  toolName: string,
+  input: Record<string, unknown>,
+  workingDirectory: string | undefined
+): boolean {
+  if (!NATIVE_YOLO_AUTO_ALLOW.has(toolName)) return false;
+  const target = input[toolName === "NotebookEdit" ? "notebook_path" : "file_path"];
+  if (typeof workingDirectory !== "string" || workingDirectory.trim() === "") return false;
+  if (typeof target !== "string" || target.trim() === "") return false;
+
+  try {
+    const canonicalTarget = resolve(workingDirectory, target);
+    return (
+      !canonicalTarget.split(sep).includes(".claude") &&
+      !NATIVE_CONFIG_FILE_NAMES.has(basename(canonicalTarget))
+    );
+  } catch {
+    return false;
+  }
 }
 
 function nativeToolRisk(toolName: string): "write" | "destructive" {

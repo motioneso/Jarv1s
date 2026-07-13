@@ -70,7 +70,8 @@ import {
 
 import {
   findAssistantToolFromManifests,
-  listAssistantToolsFromManifests
+  listAssistantToolsFromManifests,
+  summarizeAssistantToolInput
 } from "./assistant-tools.js";
 import {
   sanitizeAssistantToolResult,
@@ -862,15 +863,6 @@ function serializeAssistantAction(action: AiAssistantActionRequestSafeRow): AiAs
   };
 }
 
-function summarizeAssistantToolInput(input: Record<string, unknown>): Record<string, unknown> {
-  const inputKeys = Object.keys(input).sort();
-
-  return {
-    inputKeys,
-    inputKeyCount: inputKeys.length
-  };
-}
-
 export async function serializeProvider(
   provider: AiProviderConfigSafeRow
 ): Promise<AiProviderConfigDto> {
@@ -1132,6 +1124,7 @@ function serializeAuditLogEntry(row: JarvisActionAuditLog): ActionAuditLogEntryD
     requestId: row.request_id ?? null,
     chatSessionId: row.chat_session_id ?? null,
     sourceSurface: row.source_surface as ActionAuditLogEntryDto["sourceSurface"],
+    inputSummary: row.input_summary as ActionAuditLogEntryDto["inputSummary"],
     occurredAt:
       row.occurred_at instanceof Date ? row.occurred_at.toISOString() : String(row.occurred_at)
   };

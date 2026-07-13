@@ -7,6 +7,7 @@ import type {
   AccessContext,
   ChatMessage,
   ChatThread,
+  DataContextDb,
   DataContextRunner,
   JarvisDatabase,
   PreferencesPort
@@ -697,28 +698,7 @@ export function buildChatGatewayDependencies(args: {
     yoloMode: (ctx) =>
       args.runner.withDataContext(
         { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
-        async (scopedDb) => {
-          const master = await scopedDb.db
-            .selectFrom("app.instance_settings")
-            .select("value")
-            .where("key", "=", YOLO_INSTANCE_SETTING_KEY)
-            .executeTakeFirst();
-          if ((master?.value as { enabled?: boolean } | undefined)?.enabled !== true) {
-            return false;
-          }
-          const prefs = await scopedDb.db
-            .selectFrom("app.preferences")
-            .select(["key", "value_json"])
-            .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
-            .where("key", "in", [YOLO_ALLOWED_PREF_KEY, YOLO_ENABLED_PREF_KEY])
-            .execute();
-          const values = new Map(
-            prefs.map((row) => [row.key, (row.value_json as unknown) === true])
-          );
-          return (
-            values.get(YOLO_ALLOWED_PREF_KEY) === true && values.get(YOLO_ENABLED_PREF_KEY) === true
-          );
-        }
+        resolveYoloMode
       ),
     toolServices: buildChatToolServices(args.collaborators),
     readToolServices:
@@ -743,6 +723,24 @@ export function buildChatGatewayDependencies(args: {
           )
       : undefined
   };
+}
+
+export async function resolveYoloMode(scopedDb: DataContextDb): Promise<boolean> {
+  const master = await scopedDb.db
+    .selectFrom("app.instance_settings")
+    .select("value")
+    .where("key", "=", YOLO_INSTANCE_SETTING_KEY)
+    .executeTakeFirst();
+  if ((master?.value as { enabled?: boolean } | undefined)?.enabled !== true) return false;
+
+  const prefs = await scopedDb.db
+    .selectFrom("app.preferences")
+    .select(["key", "value_json"])
+    .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
+    .where("key", "in", [YOLO_ALLOWED_PREF_KEY, YOLO_ENABLED_PREF_KEY])
+    .execute();
+  const values = new Map(prefs.map((row) => [row.key, (row.value_json as unknown) === true]));
+  return values.get(YOLO_ALLOWED_PREF_KEY) === true && values.get(YOLO_ENABLED_PREF_KEY) === true;
 }
 
 function buildActionPolicy(args: {

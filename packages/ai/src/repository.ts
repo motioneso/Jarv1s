@@ -22,6 +22,7 @@ import {
 import {
   MODULE_WORKER_SERVICE_KEY,
   isModuleServiceKey,
+  type ActionAuditInputSummary,
   type AiCapabilityRouteReason,
   type AiModelCapability,
   type AiProviderExecutionMode,
@@ -207,6 +208,7 @@ export interface InsertAuditLogInput {
   readonly requestId: string | null;
   readonly chatSessionId: string | null;
   readonly sourceSurface: "chat" | "proactive" | "scheduled" | "unknown";
+  readonly inputSummary: ActionAuditInputSummary | null;
 }
 
 export interface ListAuditLogOptions {
@@ -1914,7 +1916,8 @@ export class AiRepository {
         error_class: input.errorClass ?? null,
         request_id: input.requestId ?? null,
         chat_session_id: input.chatSessionId ?? null,
-        source_surface: input.sourceSurface
+        source_surface: input.sourceSurface,
+        input_summary: input.inputSummary
       })
       .execute();
   }

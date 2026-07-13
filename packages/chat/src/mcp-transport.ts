@@ -205,11 +205,12 @@ function jsonRpcError(id: string | number | null | undefined, code: number, mess
 interface NativePermissionBody {
   readonly tool_name?: unknown;
   readonly tool_input?: unknown;
+  readonly cwd?: unknown;
 }
 
 function parseNativePermissionBody(body: NativePermissionBody): NativeToolPermissionRequest | null {
   if (!body || typeof body !== "object") return null;
-  if (typeof body.tool_name !== "string" || body.tool_name.trim().length === 0) return null;
+  if (typeof body.tool_name !== "string") return null;
   if (
     body.tool_input !== undefined &&
     (body.tool_input === null ||
@@ -220,6 +221,7 @@ function parseNativePermissionBody(body: NativePermissionBody): NativeToolPermis
   }
   return {
     toolName: body.tool_name,
-    toolInput: (body.tool_input ?? {}) as Record<string, unknown>
+    toolInput: (body.tool_input ?? {}) as Record<string, unknown>,
+    ...(typeof body.cwd === "string" ? { workingDirectory: body.cwd } : {})
   };
 }

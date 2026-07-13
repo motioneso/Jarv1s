@@ -279,7 +279,9 @@ describe("MVP foundation schema catalog", () => {
         // #964 module distribution — staged-download intent, purge marks, last install error.
         { version: "0162", name: "0162_external_module_distribution.sql" },
         // #982/#869 D6 — admin-only hard reconcile of CLI concrete model rows.
-        { version: "0163", name: "0163_ai_cli_model_reconcile_delete.sql" }
+        { version: "0163", name: "0163_ai_cli_model_reconcile_delete.sql" },
+        // #985 — bounded key-name metadata for native-YOLO audit rows.
+        { version: "0164", name: "0164_action_audit_input_summary.sql" }
       ]);
     } finally {
       await client.end();

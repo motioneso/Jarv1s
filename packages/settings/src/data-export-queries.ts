@@ -298,6 +298,7 @@ export function jarvisActionAuditLogQuery(userId: string) {
       request_id AS "requestId",
       chat_session_id AS "chatSessionId",
       source_surface AS "sourceSurface",
+      input_summary AS "inputSummary",
       occurred_at AS "occurredAt"
     FROM app.jarvis_action_audit_log
     WHERE owner_user_id = ${userId}::uuid

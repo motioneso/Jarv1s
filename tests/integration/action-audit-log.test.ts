@@ -1,16 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
+import Fastify, { type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { AiRepository } from "@jarv1s/ai";
+import { AiRepository, registerAiRoutes } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import type { ActionAuditInputSummary, ActionAuditLogEntryDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
 describe("action audit log", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let app: FastifyInstance;
   let dataContext: DataContextRunner;
   let repo: AiRepository;
 
@@ -19,9 +22,18 @@ describe("action audit log", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
     dataContext = new DataContextRunner(appDb);
     repo = new AiRepository();
+    app = Fastify({ logger: false });
+    registerAiRoutes(app, {
+      resolveAccessContext: async () => ({ actorUserId: ids.userA, requestId: "req-api" }),
+      dataContext,
+      resolveActiveModules: async () => [],
+      repository: repo
+    });
+    await app.ready();
   });
 
   afterAll(async () => {
+    await app.close();
     await appDb.destroy();
   });
 
@@ -42,7 +54,12 @@ describe("action audit log", () => {
           errorClass: null,
           requestId: "req-1",
           chatSessionId: null,
-          sourceSurface: "chat"
+          sourceSurface: "chat",
+          inputSummary: {
+            inputKeys: ["file_path"],
+            inputKeyCount: 1,
+            truncated: false
+          }
         });
       }
     );
@@ -62,7 +79,56 @@ describe("action audit log", () => {
     expect(row!.outcome).toBe("success");
     expect(row!.tool_name).toBe("tasks.create");
     expect(row!.action_kind).toBe("write");
-    expect((row as Record<string, unknown>)["input_summary"]).toBeUndefined();
+    expect(row!.input_summary).toEqual({
+      inputKeys: ["file_path"],
+      inputKeyCount: 1,
+      truncated: false
+    });
+  });
+
+  it("serializes inputSummary through app.inject and strips undeclared properties", async () => {
+    const id = randomUUID();
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-schema" },
+      async (scopedDb) => {
+        await repo.insertActionAuditLog(scopedDb, {
+          id,
+          ownerUserId: ids.userA,
+          toolModuleId: "claude-native",
+          toolName: "Write",
+          actionFamilyId: null,
+          actionKind: "write",
+          approvalMode: "yolo",
+          outcome: "success",
+          errorClass: null,
+          requestId: "req-schema",
+          chatSessionId: null,
+          sourceSurface: "chat",
+          inputSummary: {
+            inputKeys: ["content", "file_path"],
+            inputKeyCount: 2,
+            truncated: false,
+            undeclared: "strip-me"
+          } as ActionAuditInputSummary & { undeclared: string }
+        });
+      }
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/ai/action-audit?limit=500"
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    const entry = response
+      .json<{ entries: ActionAuditLogEntryDto[] }>()
+      .entries.find((candidate) => candidate.id === id);
+    expect(entry?.inputSummary).toEqual({
+      inputKeys: ["content", "file_path"],
+      inputKeyCount: 2,
+      truncated: false
+    });
+    expect(response.body).not.toContain("undeclared");
+    expect(response.body).not.toContain("strip-me");
   });
 
   it("enforces RLS: user A cannot see user B rows", async () => {
@@ -82,7 +148,8 @@ describe("action audit log", () => {
           errorClass: null,
           requestId: "req-b",
           chatSessionId: null,
-          sourceSurface: "chat"
+          sourceSurface: "chat",
+          inputSummary: null
         });
       }
     );
@@ -117,7 +184,8 @@ describe("action audit log", () => {
             errorClass: null,
             requestId: null,
             chatSessionId: null,
-            sourceSurface: "chat"
+            sourceSurface: "chat",
+            inputSummary: null
           });
         }
       )
@@ -143,7 +211,8 @@ describe("action audit log", () => {
           errorClass: null,
           requestId: null,
           chatSessionId: null,
-          sourceSurface: "chat"
+          sourceSurface: "chat",
+          inputSummary: null
         });
         await repo.insertActionAuditLog(scopedDb, {
           id: recentId,
@@ -157,7 +226,8 @@ describe("action audit log", () => {
           errorClass: null,
           requestId: null,
           chatSessionId: null,
-          sourceSurface: "chat"
+          sourceSurface: "chat",
+          inputSummary: null
         });
       }
     );
@@ -238,7 +308,8 @@ describe("action audit log", () => {
           errorClass: null,
           requestId: null,
           chatSessionId: null,
-          sourceSurface: "chat"
+          sourceSurface: "chat",
+          inputSummary: null
         });
       }
     );
@@ -266,7 +337,7 @@ describe("action audit log", () => {
     }
   });
 
-  it("audit table has no input_summary or content columns", async () => {
+  it("audit table has input_summary but no raw content columns", async () => {
     const client = new Client({ connectionString: connectionStrings.migration });
     await client.connect();
     try {
@@ -275,7 +346,7 @@ describe("action audit log", () => {
          WHERE table_schema = 'app' AND table_name = 'jarvis_action_audit_log'`
       );
       const colNames = result.rows.map((r) => r.column_name);
-      expect(colNames).not.toContain("input_summary");
+      expect(colNames).toContain("input_summary");
       expect(colNames).not.toContain("content");
       expect(colNames).not.toContain("prompt");
     } finally {
