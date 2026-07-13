@@ -522,3 +522,10 @@ resume from this note before taking any merge-sensitive action.
   escape. PR checks are currently in flight/UNSTABLE. The mock-API drawer E2E is not real-runtime
   proof, so absent durable live-path UAT plus screenshots is a merge-blocking condition. Primary
   holds merge pending GREEN QA, live-path proof, Fable sign-off, and the required security approval.
+- #985 accepted the exclusive shared-cluster DB slot and its remediation surface was approved as:
+  shared audit schema; `summarizeAssistantToolInput()` producer; AI route/repository/gateway; DB type
+  plus `0164` migration and ledger; settings export; required chat transport/route serialization;
+  and the targeted unit/integration coverage required by both durable Fable verdicts. It may run the
+  migration, action-audit/chat-transport/schema-catalog tests, and required foundation gates only
+  serially. Any scope expansion must stop for escalation. The slot releases only on an explicit
+  COMPLETE or FAILED report; no merge and no staging `.claude/context-meter.log`.
