@@ -559,3 +559,13 @@ resume from this note before taking any merge-sensitive action.
   and whether `{ type: object, additionalProperties: false, nullable: true }` both strips undeclared
   properties and serializes null, or to provide an exact safe alternative. All #985 work remains
   frozen and its DB slot held until that ruling is posted to #1016 and explicitly relayed.
+- Fable APPROVED #1016 at
+  `https://github.com/motioneso/Jarv1s/issues/1016#issuecomment-4956410747` after empirical
+  fast-json-stringify 6.4.0/Fastify proof. #985 is resumed with its DB slot retained. The exact
+  preferred schema is `type: ["object", "null"]`, `additionalProperties: false`, required
+  `inputKeys`/`inputKeyCount`/`truncated`, with properties array-of-string, nonnegative integer, and
+  boolean respectively; verified behavior strips undeclared properties with HTTP 200 and preserves
+  null. `nullable: true` is acceptable only if already coded. #985 must apply this fix and rerun
+  `tests/integration/action-audit-log.test.ts` including the strip case FIRST; remaining Fork 1/2
+  serial work proceeds only after focused GREEN. Merge, waiver, and slot release remain forbidden;
+  full GREEN conditions return to fresh Opus security QA.
