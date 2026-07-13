@@ -51,6 +51,7 @@ export function ModuleSettingsRouter(props: ModuleSettingsRouterProps) {
 
   return (
     <ModuleSettingsErrorBoundary surface={surface} onBack={props.onBack}>
+      <RouterBackButton onBack={props.onBack} />
       <Suspense
         fallback={<RouterPaneHead title={`${surface.moduleName} settings`} desc="Loading…" />}
       >
