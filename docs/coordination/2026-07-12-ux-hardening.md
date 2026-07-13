@@ -856,3 +856,14 @@ resume from this note before taking any merge-sensitive action.
   newly assigned database did not exist; unit work was GREEN (3,215 pass/2 skip) and no contention
   signature appeared. This is slot initialization. The lane may create only `jarvis_ux990_gate` and
   take one serial foundation retry; release-hardening remains forbidden until `VF_EXIT=0`.
+
+## Continuation note — 2026-07-13 #868 agy-print design fork
+
+- #868 remains held pre-edit/pre-gate. Its uncommitted plan cleanly covers Gemini, codex-exec, and
+  per-session Codex purge, but agy-print currently has only a home-wide transcript root and proposed
+  approximate mtime matching. Neither over-deletion nor under-deletion is acceptable for private
+  transcript cleanup.
+- Read-only Opus reviewer `5a554221-4230-4fd7-a21e-430c57185b8d` is adjudicating whether a
+  deterministic session-safe agy matcher exists or Task 4 must defer to a dedicated follow-up. No
+  plan commit, feature edit, test, gate, or serialized release is authorized before the verdict and
+  #1020 spec approval.
