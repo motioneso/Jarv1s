@@ -4,7 +4,8 @@
 **Merge-authority lock:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`.
 **Delegated lane owner:** label `UX Coordinator`, Claude session
-`1211ffa9-b725-469b-922d-ab4dc0c56436`.
+`4a5526f6-384a-4645-8162-abb1b171845e` (successor 6, adopted 2026-07-13, worktree
+`coord-983-ux`, pane `w1:pM5` prior to rename).
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
@@ -1220,3 +1221,32 @@ resume from this note before taking any merge-sensitive action.
   real UAT plus security QA. Ben delegated #984 sign-off to Fable security-review GREEN (fallback
   Sol xhigh GREEN); all other gates still apply.
 - Do not spawn or coordinate #1000 — Primary owns the entire approved harness train (#1024–#1027).
+
+## Continuation note — 2026-07-13 UX coordinator successor 6 adopted; Gemini calibration hit a REAL further blocker
+
+- Successor 6 (Claude session `4a5526f6-384a-4645-8162-abb1b171845e`, worktree `coord-983-ux`,
+  pane `w1:pM5` prior to rename) adopted the delegated UX lane. Primary `Coordinator` session
+  `58a78927-385c-4b1d-8fa0-94db20255d6f` (pane `w1:pE6`) reconfirmed idle/sole merge executor.
+- **The prior note's fix guidance was itself wrong — do not re-apply it.** The security session
+  (`019f5ce4-cce4-7a13-be05-cfc3834cc529`, label `Security 868+1020 Purge Readiness Codex`, pane
+  `w1:pKY`) ran the corrected `agy --sandbox` command and got a REAL production fixture, but it does
+  **not** land at `~/.gemini/tmp/<project>/chats/<session>.jsonl` (`type:"gemini"|"user"` records)
+  as `transcript-reader.ts:49-65` documents. Verified fact: `agy --sandbox` writes AGY-native
+  `USER_INPUT`/`PLANNER_RESPONSE` records to
+  `~/.gemini/antigravity-cli/brain/<UUID>/.system_generated/logs/transcript_full.jsonl`, where
+  `<UUID>` is only known after AGY prints "Created conversation `<uuid>`" post-Enter — the EXACT
+  same root/schema `agyPrintTranscriptRoot()` + `mapAgyPrintRecord` already use for the separate
+  `AgyPrintChatEngine` (`packages/chat/src/live/agy-print-chat-engine.ts`, batch `agy --print`).
+  `transcriptGlobDir("google", ...)` (`~/.gemini/tmp/...`) appears to be dead code for production —
+  no engine actually writes there. Security session made **no product edits**, halted cleanly, and
+  proved crash-survival evidence (engine killed, neutral-dir log still maps UUID→exact transcript)
+  while waiting.
+- This is a genuine [DESIGN-FORK] with data-loss/security consequences (a private-data purge
+  feature) — escalated to a one-shot Opus adjudication agent (spawned by successor 6, prompt cites
+  exact files/lines) rather than decided same-lens. Question: should #868's "Gemini" purge target
+  become exact-UUID-capture-at-launch under `~/.gemini/antigravity-cli/brain/`, converging with (or
+  reusing) the agy-print engine's own purge mechanism, since they share root+schema; is
+  `transcriptGlobDir("google", ...)` now dead/removable; and does this need Ben's product sign-off
+  given it changes #868's stated 3-identity framing even though the underlying mechanism converges.
+  **Awaiting Opus verdict — do not let the security agent resume TDD on the Gemini identity until
+  it lands; agy-print and Codex/Claude purge paths are unaffected and may proceed.**
