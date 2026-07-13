@@ -5386,3 +5386,24 @@ UX remains no-merge; #984 PR will report to me (Coordinator) → Fable GREEN gat
 - **Next:** supervise build → PR (`Part of #1000`, `Closes #1024`) → Coordinator sensitive-tier QA
   + invariant walk (no BYPASSRLS on runtime roles at the privileged-connection seam) → I merge.
   Then release P2 #1025 → P3 #1026 → P4 #1027 serially. Agent does NOT merge.
+
+### FLUSH @ 70% (in-place compact — no successor coordinator, standing directive)
+
+**Coordinator lock UNCHANGED:** label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`,
+pane `w1:pE6`, tab `w1:t15`. Sole merge executor. `merges_since_relay = 0` (no merges this window —
+plan-approval + agent-relay only). No security-tier merge is pending my action right now.
+
+**Live fleet snapshot (2026-07-13):**
+- `w1:pM1` **UAT Harness 1024b** — Sonnet 5, session `752bfdec`, tab `w1:t1Z` (agents), branch
+  `uat-harness-1024`, **building TDD** (fresh 21% ctx). Successor of reaped `67ee57b7`. Condition2
+  RESOLVED with zero compose edits: prod compose's only host-port map is app `${JARVIS_WEB_PORT:-1533}:3000`
+  (postgres has none) → port injects via that existing env seam. → will report PR (`Part of #1000`,
+  `Closes #1024`) here; I QA (sensitive: invariant walk = no BYPASSRLS at privileged-conn seam) + merge.
+- `w1:pK0` **UX Coordinator** — Claude/Sonnet, session `1211ffa9`, status done/idle. Owns #984/#868
+  build lane; watching main CI for 4/4 green to release security session into #1020-rev2 TDD.
+- `w1:pK3` **UX 984 Private History Codex** — session `019f5a73`, idle (plan-only hold).
+
+**Continuation note (mid-doing):** P1 #1024 provisioner building; supervise → PR → sensitive QA →
+I merge, then release P2 #1025 → P3 #1026 → P4 #1027 serially. #984/PR #1015 stays HELD pending #868
+landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred (no lane): #965 (task
+#25), #39 quarantined-acct delete, #1018 gateway realpath. No PushNotifications. Compact in place.
