@@ -545,3 +545,12 @@ resume from this note before taking any merge-sensitive action.
   within the approved schema/serializer/route/repository surface, rerun the focused suite first, and
   continue serial gates only if GREEN. A second failure of the same check stops the lane for explicit
   escalation; no self-waiver, slot release, merge, or context-meter staging.
+- #985 hit failure cycle two on the same focused `action-audit-log` `app.inject` check and is now
+  STOPPED; no later DB test/gate ran and it still exclusively holds the shared-cluster slot. Root
+  cause is confirmed: `inputSummary` as `anyOf[closed object, null]` is branch-validated by
+  fast-json-stringify before `additionalProperties: false` stripping, so a row with an undeclared
+  property matches neither branch and returns 500. Issue #1016 tracks the mandatory stop-line:
+  `https://github.com/motioneso/Jarv1s/issues/1016`. The proposed bounded correction is the same
+  typed closed-object schema with `additionalProperties: false` plus `nullable: true`, then a focused
+  restore/rerun before later gates. That correction is not authorized pending explicit primary/Fable
+  direction; no edit, waiver, rerun, gate, slot release, merge, or context-meter staging.
