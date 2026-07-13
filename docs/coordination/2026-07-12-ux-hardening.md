@@ -583,3 +583,11 @@ resume from this note before taking any merge-sensitive action.
   `ask_each_time` confirmation case, but the process has not exited. #985 retains the slot and may
   only let that process finish and report the compact final verdict; no diagnosis, edit, rerun,
   waiver, later work, merge, slot release, or context staging before final exit.
+- #985's full foundation run exited 1: integration 151 files passed/1 failed, with 1640 tests
+  passed/2 skipped/1 failed. The sole failure is the stale expectation at
+  `tests/integration/email-reply-tools.test.ts:305`: expected the new `input_summary` without
+  `truncated`, while production correctly returned the same keys/count plus Fable-required
+  `truncated: false`. This is foundation failure cycle one. The only authorized edit is adding
+  `truncated: false` to that expected object; production remains untouched. #985 must rerun the
+  focused email suite first, then one serial full foundation rerun only if GREEN. Another same-test
+  or full-gate failure stops the lane. Slot remains held; no waiver, merge, release, or context staging.
