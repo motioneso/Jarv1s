@@ -4,6 +4,60 @@ import { join } from "node:path";
 import { agyPrintTranscriptRoot, transcriptGlobDir, type TmuxIo } from "@jarv1s/ai";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CREATED_CONVERSATION_PATTERN =
+  /\bCreated conversation ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=\s|$)/gi;
+
+export const AGY_SESSION_LOG_FILENAME = ".jarvis-agy-session.log";
+export const AGY_IDENTITY_FILENAME = ".jarvis-agy-conversation-id";
+
+export function parseAgyConversationUuid(log: string): string | null {
+  const ids = new Set<string>();
+  for (const match of log.matchAll(CREATED_CONVERSATION_PATTERN)) {
+    if (match[1]) ids.add(match[1].toLowerCase());
+  }
+  return ids.size === 1 ? [...ids][0]! : null;
+}
+
+export async function captureAgyConversationIdentity(
+  io: Pick<TmuxIo, "readFile" | "writeFile" | "run">,
+  neutralDir: string
+): Promise<string | null> {
+  let log: string;
+  try {
+    log = await io.readFile(join(neutralDir, AGY_SESSION_LOG_FILENAME));
+  } catch {
+    return null;
+  }
+  const uuid = parseAgyConversationUuid(log);
+  if (uuid === null) return null;
+
+  const marker = join(neutralDir, AGY_IDENTITY_FILENAME);
+  const temp = `${marker}.tmp`;
+  await io.writeFile(temp, `${uuid}\n`);
+  const chmod = await io.run("chmod", ["600", temp]);
+  if (chmod.code !== 0) {
+    await io.run("rm", ["-f", temp]);
+    throw new Error("Could not lock down AGY conversation identity marker");
+  }
+  const moved = await io.run("mv", ["-f", temp, marker]);
+  if (moved.code !== 0) {
+    await io.run("rm", ["-f", temp]);
+    throw new Error("Could not persist AGY conversation identity marker");
+  }
+  return uuid;
+}
+
+export async function readAgyConversationIdentity(
+  io: Pick<TmuxIo, "readFile">,
+  neutralDir: string
+): Promise<string | null> {
+  try {
+    const uuid = (await io.readFile(join(neutralDir, AGY_IDENTITY_FILENAME))).trim();
+    return UUID_PATTERN.test(uuid) ? uuid.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function purgeAgyBrainDir(
   io: Pick<TmuxIo, "run">,

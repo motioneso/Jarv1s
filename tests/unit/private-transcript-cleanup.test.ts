@@ -1,14 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  AGY_IDENTITY_FILENAME,
+  AGY_SESSION_LOG_FILENAME,
+  captureAgyConversationIdentity,
+  parseAgyConversationUuid,
   purgeAgyBrainDir,
-  purgePrivateTranscripts
+  purgePrivateTranscripts,
+  readAgyConversationIdentity
 } from "../../packages/chat/src/live/private-transcript-cleanup.js";
 
 function makeIo() {
   return {
     run: vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" }),
-    readFile: vi.fn().mockResolvedValue("")
+    readFile: vi.fn().mockResolvedValue(""),
+    writeFile: vi.fn().mockResolvedValue(undefined)
   };
 }
 
@@ -82,4 +88,75 @@ describe("purgeAgyBrainDir", () => {
       expect(io.run).not.toHaveBeenCalled();
     }
   );
+});
+
+describe("AGY conversation identity", () => {
+  const uuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
+  const otherUuid = "922f315d-bff5-4d42-86a5-a96a8620350c";
+  const neutralDir = "/data/cli-auth/chat/user-1";
+
+  it("accepts one unique Created conversation UUID and rejects missing or ambiguous logs", () => {
+    expect(parseAgyConversationUuid(`Created conversation ${uuid}\nSending user message`)).toBe(
+      uuid
+    );
+    expect(
+      parseAgyConversationUuid(`Created conversation ${uuid}\nCreated conversation ${uuid}`)
+    ).toBe(uuid);
+    expect(parseAgyConversationUuid("Sending user message")).toBeNull();
+    expect(
+      parseAgyConversationUuid(`Created conversation ${uuid}\nCreated conversation ${otherUuid}`)
+    ).toBeNull();
+  });
+
+  it("atomically persists a session-owned log identity with mode 0600", async () => {
+    const io = makeIo();
+    io.readFile.mockResolvedValue(`Created conversation ${uuid}\nSending user message`);
+
+    await expect(captureAgyConversationIdentity(io, neutralDir)).resolves.toBe(uuid);
+
+    const marker = `${neutralDir}/${AGY_IDENTITY_FILENAME}`;
+    const temp = `${marker}.tmp`;
+    expect(io.readFile).toHaveBeenCalledWith(`${neutralDir}/${AGY_SESSION_LOG_FILENAME}`);
+    expect(io.writeFile).toHaveBeenCalledWith(temp, `${uuid}\n`);
+    expect(io.run.mock.calls).toContainEqual(["chmod", ["600", temp]]);
+    expect(io.run.mock.calls).toContainEqual(["mv", ["-f", temp, marker]]);
+  });
+
+  it("does not create a marker when capture is missing or ambiguous", async () => {
+    const io = makeIo();
+    io.readFile.mockResolvedValue(
+      `Created conversation ${uuid}\nCreated conversation ${otherUuid}`
+    );
+
+    await expect(captureAgyConversationIdentity(io, neutralDir)).resolves.toBeNull();
+
+    expect(io.writeFile).not.toHaveBeenCalled();
+    expect(io.run).not.toHaveBeenCalled();
+  });
+
+  it.each(["chmod", "mv"])("removes the temporary marker when %s fails", async (failedCmd) => {
+    const io = makeIo();
+    io.readFile.mockResolvedValue(`Created conversation ${uuid}\n`);
+    io.run.mockImplementation(async (cmd: string) => ({
+      code: cmd === failedCmd ? 1 : 0,
+      stdout: "",
+      stderr: ""
+    }));
+
+    await expect(captureAgyConversationIdentity(io, neutralDir)).rejects.toThrow();
+
+    expect(io.run.mock.calls).toContainEqual([
+      "rm",
+      ["-f", `${neutralDir}/${AGY_IDENTITY_FILENAME}.tmp`]
+    ]);
+  });
+
+  it("reads only a validated exact marker", async () => {
+    const io = makeIo();
+    io.readFile.mockResolvedValue(`${uuid}\n`);
+    await expect(readAgyConversationIdentity(io, neutralDir)).resolves.toBe(uuid);
+
+    io.readFile.mockResolvedValue("../../shared-root\n");
+    await expect(readAgyConversationIdentity(io, neutralDir)).resolves.toBeNull();
+  });
 });
