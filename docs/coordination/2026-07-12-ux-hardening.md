@@ -507,3 +507,11 @@ resume from this note before taking any merge-sensitive action.
   persisted-row negative test, and required integration/foundation gates. Primary coordination was
   notified for cross-fleet serialization; silence is never release. Fresh Opus security QA follows
   repair. `.claude/context-meter.log` is a coordinator artifact and must never be staged.
+- #984 is builder-DONE and QA-ready on draft PR #1015
+  (`https://github.com/motioneso/Jarv1s/pull/1015`), branch `ux/984-private-history`, HEAD
+  `57c484ac`, freshly fetched with no `origin/main` commits missing and 13 branch commits. Evidence:
+  foundation exit 0 above; audit exit 0; format-check, lint, and typecheck exit 0; drawer E2E 13/13.
+  Slice 4/cross-engine acceptance remains deferred to #868; `activityVerb()` is untouched/released
+  to #985; context-meter remains unstaged. Primary coordination was handed the PR for fresh
+  independent QA, including the durable real live-path UAT/screenshots gate. The owner pane remains
+  available for RED fixes; this UX lane does not merge.
