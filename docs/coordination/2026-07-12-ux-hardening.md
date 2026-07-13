@@ -4,8 +4,8 @@
 **Merge-authority lock:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`.
 **Delegated lane owner:** label `UX Coordinator`, Claude session
-`4a5526f6-384a-4645-8162-abb1b171845e` (successor 6, adopted 2026-07-13, worktree
-`coord-983-ux`, pane `w1:pM5` prior to rename).
+`b637e03f-267e-493b-acb2-0808bd1a9f49` (successor 7, adopted 2026-07-13, worktree
+`coord-983-ux`, pane `w1:pM6` prior to rename).
 **Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
@@ -1300,3 +1300,33 @@ resume from this note before taking any merge-sensitive action.
   right after Primary's ACK, before either ask above was actioned — relaying now per the
   non-negotiable rule (flush + relay, no "just one more thing"). Successor 7 must resolve both
   panes fresh by label+session (never the `…-N` numbers written above) before acting.
+
+## Continuation note — 2026-07-13 UX coordinator successor 7 adopted; both open asks actioned
+
+- Fresh Sonnet successor adopted the `UX Coordinator` lane: label `UX Coordinator`, Claude session
+  `b637e03f-267e-493b-acb2-0808bd1a9f49` (was labeled `UX Coordinator Successor 7`, pane `w1:pM6`).
+  Re-resolved the fleet fresh via `herdr pane list` (never trusted written pane numbers): Primary
+  Coordinator confirmed at label `Coordinator`, session `58a78927-385c-4b1d-8fa0-94db20255d6f`,
+  pane `w1:pE6`, sole merge executor, unchanged. Security lane confirmed at label
+  `Security 868+1020 Purge Readiness Codex`, session `019f5ce4-cce4-7a13-be05-cfc3834cc529`, pane
+  `w1:pKY`, `agent_status: working` — still building the #868/#1020 shared exact-UUID purge
+  primitive.
+- **Ask 1 done:** filed the pre-existing interactive-Gemini transcript-reader bug as
+  **issue #1029** (`bug`, `sev:major` — significant but non-blocking, not security/data-loss).
+  Root cause documented in the issue: `CliChatEngineImpl` (`cli-chat-engine.ts:187`) reads
+  `~/.gemini/tmp/...` via `transcriptGlobDir`+`mapGeminiRecord` (dead-code path), but production's
+  interactive Gemini engine actually launches `agy --sandbox`, writing to
+  `~/.gemini/antigravity-cli/brain/<UUID>/.system_generated/logs/transcript_full.jsonl` — the same
+  root+schema `AgyPrintChatEngine`/`mapAgyPrintRecord` already parse for batch `agy --print`.
+  Number relayed to Primary via `herdr pane run w1:pE6`.
+- **Ask 2 in progress:** no PR yet on branch `security-868-engine-purge`
+  (`gh pr list --search "head:security-868-engine-purge"` empty as of this note). Armed a
+  persistent `Monitor` polling `gh pr list` every 60s for that branch; will hand the PR number
+  straight to Primary the moment it opens and will **not** spawn a QA agent for it — Primary owns
+  QA (security-tier, Opus-adversarial) + merge for this PR directly per its own standing
+  instruction.
+- Delegated lane owner line at the top of this manifest updated to this session
+  (`b637e03f-267e-493b-acb2-0808bd1a9f49`, see header). Next: rename this pane's label to
+  `UX Coordinator` and reap the outgoing successor-6 pane (label `UX Coordinator`, session
+  `4a5526f6-384a-4645-8162-abb1b171845e`, was pane `w1:pM5`) — re-resolved fresh by label+session,
+  not by the written pane number above.
