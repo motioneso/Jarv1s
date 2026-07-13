@@ -1346,14 +1346,10 @@ resume from this note before taking any merge-sensitive action.
     the #868/#1020 shared exact-UUID purge primitive, `agent_status: working`.
   - **Ask 1 (file the Gemini transcript-reader bug): DONE.** Filed as issue #1029 (`bug`,
     `sev:major`), number already relayed to Primary.
-  - **Ask 2 (report the #868/#1020 PR to Primary the moment it lands): STILL OPEN.** No PR yet on
-    branch `security-868-engine-purge` as of this note (`gh pr list --search
-    "head:security-868-engine-purge"` empty). The outgoing Claude successor-7 had a persistent
-    `Monitor` polling every 60s for this — that monitor dies with the Claude session at handoff.
-    **The Codex successor must re-arm its own watch** (a simple poll loop or periodic `gh pr list
-    --search "head:security-868-engine-purge"` check works) and hand the PR straight to Primary
-    the moment it opens — **do not spawn a QA agent for it**; Primary owns QA (security-tier,
-    Opus-adversarial) + merge for this PR directly per its own standing instruction.
+  - **Ask 2 (report the #868/#1020 PR to Primary the moment it lands): DONE.** PR #1031 opened at
+    head `9c8288b8`; successor 8 reported it directly to Primary with the builder's green
+    `verify:foundation` and `audit:release-hardening` evidence. UX stopped its watch and did not
+    spawn QA or merge; Primary owns security-tier QA + merge.
   - Manifest lock/delegated-lane-owner block at the top of this file must be updated to the new
     Codex successor's session id once it adopts (it should do this itself per the `coordinate`
     skill's self-handoff step 1).
