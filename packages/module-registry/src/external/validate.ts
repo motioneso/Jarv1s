@@ -1,12 +1,14 @@
 // Pure, browser-safe validation of an external module's jarvis.module.json (#917).
-// Slice 1 accepts METADATA ONLY: identity + compatibility. Any executable or
-// surface-contributing field is rejected so an external module can never inject
-// nav/routes/tools/SQL before the slices that safely host those land. No node:*
-// imports here — this is re-exported from @jarv1s/module-registry's browser entry.
+// Slice 1 accepts METADATA ONLY: identity + compatibility, plus a small allow-listed set
+// of surfaces (auth/storage/web/database/navigation) each validated positively below.
+// Any OTHER executable or surface-contributing field is rejected so an external module
+// can never inject routes/tools/SQL before the slices that safely host those land. No
+// node:* imports here — this is re-exported from @jarv1s/module-registry's browser entry.
 import type {
   JsonJarvisModuleManifest,
   ExternalModuleAssistantToolDeclaration,
   ExternalModuleDatabaseDeclaration,
+  ExternalModuleNavigationEntry,
   ExternalModuleWorkerDeclaration,
   ModuleAuthDeclaration,
   ModuleLifecycle,
@@ -39,11 +41,11 @@ const LIFECYCLES: readonly ModuleLifecycle[] = [
 
 // Every field of the compiled JarvisModuleManifest that carries executable behavior
 // or a UI/data surface. Presence of ANY of these in an external manifest is a
-// rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2 and `database`
-// as of #964 (validated positively below) and are deliberately absent from this list.
+// rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2, `database` as
+// of #964, and `navigation` as of #1019 (each validated positively below) and are
+// deliberately absent from this list.
 const FORBIDDEN_FIELDS: readonly string[] = [
   "availability",
-  "navigation",
   "settings",
   "permissions",
   "featureFlags",
@@ -462,6 +464,110 @@ export function validateExternalModuleManifest(
     }
   }
 
+  // #1019: positive validation of the navigation declaration (previously forbidden — see
+  // the FORBIDDEN_FIELDS carve-out above). Caps mirror the #964 database-capability rule:
+  // bounded count, bounded string lengths, unknown keys rejected outright (rather than
+  // silently dropped) so a manifest can't smuggle built-in-only fields like `permissionId`
+  // / `featureFlagId` (ModuleNavigationEntryManifest) through the external ABI.
+  let navigation: readonly ExternalModuleNavigationEntry[] | undefined;
+  if (obj.navigation !== undefined) {
+    if (!Array.isArray(obj.navigation)) {
+      errors.push("navigation must be an array");
+    } else if (obj.navigation.length === 0 || obj.navigation.length > 4) {
+      errors.push("navigation must declare between 1 and 4 entries");
+    } else {
+      const ids = new Set<string>();
+      const validated: ExternalModuleNavigationEntry[] = [];
+      for (const entry of obj.navigation) {
+        if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+          errors.push("navigation entries must be objects");
+          continue;
+        }
+        const navEntry = entry as Record<string, unknown>;
+        const unknownKeys = Object.keys(navEntry).filter(
+          (key) => !["id", "label", "path", "icon", "order"].includes(key)
+        );
+        if (unknownKeys.length > 0) {
+          errors.push(`navigation entry contains unknown fields: ${unknownKeys.join(", ")}`);
+        }
+        const { id, label, path, icon, order } = navEntry;
+        let entryValid = unknownKeys.length === 0;
+
+        // #1019 (D5): anti-spoof — a nav entry id must be prefixed with this module's own
+        // id, mirroring the storage-namespace check above, so an external module can never
+        // collide with a built-in HIDDEN_NAV_IDS / SECTION_OF key
+        // (apps/web/src/app-route-metadata.ts).
+        if (
+          typeof id !== "string" ||
+          id.length === 0 ||
+          id.length > 64 ||
+          (id !== expectedId && !id.startsWith(`${expectedId}.`))
+        ) {
+          errors.push(
+            `navigation entry id must be "${expectedId}" or "${expectedId}.<slug>" (max 64 chars)`
+          );
+          entryValid = false;
+        } else if (ids.has(id)) {
+          errors.push(`navigation entry id must be unique: ${id}`);
+          entryValid = false;
+        } else {
+          ids.add(id);
+        }
+
+        if (typeof label !== "string" || label.length === 0 || label.length > 40) {
+          errors.push("navigation entry label must be a non-empty string (max 40 chars)");
+          entryValid = false;
+        }
+
+        // #1019 (D3): path is validated module-relative here; apps/api/src/server.ts
+        // serializeExternalModule is the ONLY place that turns it into a real route, by
+        // prefixing it with /m/<moduleId>. Rejecting ".." "//" "\" "?" "#" and restricting
+        // segments to [a-z0-9-] means a manifest can never smuggle an absolute or host
+        // route through this field.
+        if (
+          typeof path !== "string" ||
+          path.length === 0 ||
+          path.length > 128 ||
+          !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(path)
+        ) {
+          errors.push(
+            `navigation entry path must be a clean module-relative path (e.g. "/" or "/settings"): ${String(path)}`
+          );
+          entryValid = false;
+        }
+
+        if (
+          icon !== undefined &&
+          (typeof icon !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(icon))
+        ) {
+          errors.push("navigation entry icon must be a lowercase kebab-case slug (max 32 chars)");
+          entryValid = false;
+        }
+
+        if (
+          order !== undefined &&
+          (typeof order !== "number" || !Number.isFinite(order) || Math.abs(order) > 10_000)
+        ) {
+          errors.push("navigation entry order must be a number with absolute value <= 10000");
+          entryValid = false;
+        }
+
+        if (entryValid) {
+          validated.push({
+            id: id as string,
+            label: label as string,
+            path: path as string,
+            ...(icon !== undefined ? { icon: icon as string } : {}),
+            ...(order !== undefined ? { order: order as number } : {})
+          });
+        }
+      }
+      if (errors.length === 0) {
+        navigation = validated;
+      }
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
@@ -488,7 +594,8 @@ export function validateExternalModuleManifest(
       : {}),
     ...(worker !== undefined ? { worker } : {}),
     ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {}),
-    ...(database !== undefined ? { database } : {})
+    ...(database !== undefined ? { database } : {}),
+    ...(navigation !== undefined ? { navigation } : {})
   };
   return { ok: true, manifest };
 }
