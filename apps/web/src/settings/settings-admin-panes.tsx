@@ -12,7 +12,7 @@ import {
   UserCheck,
   UserMinus
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   approveUser,
@@ -33,6 +33,7 @@ import {
 } from "../api/client";
 import { getAdminUserAiPin, putAdminUserAiPin } from "../api/client-admin";
 import { queryKeys } from "../api/query-keys";
+import { useDismissableMenu } from "../shared/use-dismissable-menu.js";
 import {
   adminUserActions,
   createAdminUserPolicyContext,
@@ -100,6 +101,14 @@ function PersonRow(props: {
   const [menu, setMenu] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const off = user.status === "deactivated";
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const { ref: menuPopRef } = useDismissableMenu<HTMLDivElement>({
+    open: menu,
+    onClose: () => {
+      setMenu(false);
+      menuTriggerRef.current?.focus();
+    }
+  });
   const act = (action: AdminUserAction) => {
     setMenu(false);
     props.onAction(action, user);
@@ -140,66 +149,65 @@ function PersonRow(props: {
           <div className="ppl__menu">
             <button
               type="button"
+              ref={menuTriggerRef}
               className="jds-iconbtn jds-iconbtn--sm"
               aria-label={`Actions for ${user.name || user.email}`}
+              aria-expanded={menu}
               onClick={() => setMenu((open) => !open)}
             >
               <MoreHorizontal size={16} />
             </button>
             {menu ? (
-              <>
-                <div className="ppl__menuscrim" onClick={() => setMenu(false)} />
-                <div className="ppl__menupop" role="menu">
-                  {canAdmin ? (
-                    <button className="ppl__menuitem" role="menuitem" onClick={() => act("admin")}>
-                      <ShieldCheck size={15} />
-                      {user.isInstanceAdmin ? "Revoke admin" : "Make admin"}
-                    </button>
-                  ) : null}
-                  {statusAction ? (
-                    <button
-                      className="ppl__menuitem"
-                      role="menuitem"
-                      onClick={() => act(statusAction)}
-                    >
-                      {off ? <UserCheck size={15} /> : <UserMinus size={15} />}
-                      {off ? "Reactivate" : "Deactivate"}
-                    </button>
-                  ) : null}
+              <div className="ppl__menupop" role="menu" ref={menuPopRef}>
+                {canAdmin ? (
+                  <button className="ppl__menuitem" role="menuitem" onClick={() => act("admin")}>
+                    <ShieldCheck size={15} />
+                    {user.isInstanceAdmin ? "Revoke admin" : "Make admin"}
+                  </button>
+                ) : null}
+                {statusAction ? (
                   <button
                     className="ppl__menuitem"
                     role="menuitem"
-                    onClick={() => {
-                      setMenu(false);
-                      setAiOpen((open) => !open);
-                    }}
+                    onClick={() => act(statusAction)}
                   >
-                    <ServerCog size={15} />
-                    AI provider
+                    {off ? <UserCheck size={15} /> : <UserMinus size={15} />}
+                    {off ? "Reactivate" : "Deactivate"}
                   </button>
-                  {canRevokeSessions || canRemove ? <div className="ppl__menusep" /> : null}
-                  {canRevokeSessions ? (
-                    <button
-                      className="ppl__menuitem ppl__menuitem--danger"
-                      role="menuitem"
-                      onClick={() => act("revokeSessions")}
-                    >
-                      <LogOut size={15} />
-                      Sign out everywhere
-                    </button>
-                  ) : null}
-                  {canRemove ? (
-                    <button
-                      className="ppl__menuitem ppl__menuitem--danger"
-                      role="menuitem"
-                      onClick={() => act("remove")}
-                    >
-                      <Trash2 size={15} />
-                      Remove from instance
-                    </button>
-                  ) : null}
-                </div>
-              </>
+                ) : null}
+                <button
+                  className="ppl__menuitem"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    setAiOpen((open) => !open);
+                  }}
+                >
+                  <ServerCog size={15} />
+                  AI provider
+                </button>
+                {canRevokeSessions || canRemove ? <div className="ppl__menusep" /> : null}
+                {canRevokeSessions ? (
+                  <button
+                    className="ppl__menuitem ppl__menuitem--danger"
+                    role="menuitem"
+                    onClick={() => act("revokeSessions")}
+                  >
+                    <LogOut size={15} />
+                    Sign out everywhere
+                  </button>
+                ) : null}
+                {canRemove ? (
+                  <button
+                    className="ppl__menuitem ppl__menuitem--danger"
+                    role="menuitem"
+                    onClick={() => act("remove")}
+                  >
+                    <Trash2 size={15} />
+                    Remove from instance
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         )}

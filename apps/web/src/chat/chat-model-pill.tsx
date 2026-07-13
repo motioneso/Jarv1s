@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, GitCommitHorizontal, Lock } from "lucide-react";
+import { useRef, useState } from "react";
 
 import {
   getChatModelOverrideSettings,
@@ -7,6 +8,7 @@ import {
   switchChatProvider
 } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
+import { useDismissableMenu } from "../shared/use-dismissable-menu.js";
 import type { AiConfiguredModelDto, ChatModelOverrideSettingsDto } from "@jarv1s/shared";
 import "./chat-model-pill.css";
 
@@ -34,6 +36,15 @@ export function ChatModelPill(props: {
   const choices = settings ? buildChatModelChoices(settings) : [];
   const active = activeChatModel(settings ?? null);
   const locked = settings ? !settings.overrideEnabled : false;
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const { ref: menuRef } = useDismissableMenu<HTMLDivElement>({
+    open,
+    onClose: () => {
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+  });
   const mutation = useMutation({
     mutationFn: async (choice: ModelChoice) => {
       const result = await putChatModelOverride({ modelId: choice.modelId });
@@ -85,29 +96,40 @@ export function ChatModelPill(props: {
   };
 
   return (
-    <details className="chatd-model">
-      <summary className="chatd-model__trigger">
+    <div className="chatd-model" ref={menuRef}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className="chatd-model__trigger"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
         <GitCommitHorizontal size={13} aria-hidden="true" />
         <span>{active?.providerModelId ?? "Instance default"}</span>
         <ChevronDown size={13} aria-hidden="true" />
-      </summary>
-      <div className="chatd-model__menu">
-        {choices.map((choice) => (
-          <button
-            key={choice.modelId ?? "default"}
-            type="button"
-            disabled={props.disabled || mutation.isPending}
-            onClick={() => selectChoice(choice)}
-          >
-            <span>
-              <b>{choice.label}</b>
-              <small>{choice.providerLabel}</small>
-            </span>
-            {choice.selected ? <Check size={13} aria-hidden="true" /> : null}
-          </button>
-        ))}
-      </div>
-    </details>
+      </button>
+      {open ? (
+        <div className="chatd-model__menu">
+          {choices.map((choice) => (
+            <button
+              key={choice.modelId ?? "default"}
+              type="button"
+              disabled={props.disabled || mutation.isPending}
+              onClick={() => {
+                selectChoice(choice);
+                setOpen(false);
+              }}
+            >
+              <span>
+                <b>{choice.label}</b>
+                <small>{choice.providerLabel}</small>
+              </span>
+              {choice.selected ? <Check size={13} aria-hidden="true" /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
