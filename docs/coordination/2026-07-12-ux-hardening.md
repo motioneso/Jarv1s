@@ -472,10 +472,11 @@ resume from this note before taking any merge-sensitive action.
   `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, and #990
   `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa`. #984 retains the exclusive shared-cluster DB slot;
   #989 and #986 remain reopened on their fresh QA RED findings.
-- Primary confirms one combined durable Fable verdict will cover #1012's `input_summary`
-  persistence and explicit native tool-name allowlist. Unknown/future tools must fail closed, with
-  `Bash` and `Task` always gated. #985 gateway and schema paths remain frozen at pushed checkpoint
-  `7b017508` until that verdict is durable and relayed.
+- Primary confirms one combined durable Fable verdict is in flight for #1012's `input_summary`
+  persistence and explicit native tool-name allowlist. Only `Edit`, `Write`, and `NotebookEdit`
+  auto-allow; `Read`, `Bash`, `Grep`, `Glob`, `Task`, and unknown/future tools remain gated and
+  fail closed. #985 gateway and schema paths remain frozen at pushed checkpoint `7b017508` until
+  that verdict is durable and relayed.
 - The prior `UX Coordinator` Codex session `019f5a70-28e9-7600-a132-64ab2eca669c` was resolved
   fresh by label plus immutable session and reaped only after this successor claimed the routing
   label and recorded the authority handoff.
