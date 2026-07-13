@@ -554,3 +554,8 @@ resume from this note before taking any merge-sensitive action.
   typed closed-object schema with `additionalProperties: false` plus `nullable: true`, then a focused
   restore/rerun before later gates. That correction is not authorized pending explicit primary/Fable
   direction; no edit, waiver, rerun, gate, slot release, merge, or context-meter staging.
+- Primary acknowledged #1016 as a SECURITY stop-line and routed it to Fable for a durable issue
+  ruling. Fable is grounding on `ux/985-yolo-approvals` to confirm branch-validation-before-strip
+  and whether `{ type: object, additionalProperties: false, nullable: true }` both strips undeclared
+  properties and serializes null, or to provide an exact safe alternative. All #985 work remains
+  frozen and its DB slot held until that ruling is posted to #1016 and explicitly relayed.
