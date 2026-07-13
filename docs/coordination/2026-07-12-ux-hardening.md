@@ -982,3 +982,13 @@ resume from this note before taking any merge-sensitive action.
   regenerated exact-head narrow UAT/evidence, and new full CI. Any image result on `36a06394` is
   superseded by the repair head. QA session `019f5c5f-446a-78e0-85dc-ce9a01ddfeae` made no edits;
   this UX lane never merges.
+
+## Continuation note — 2026-07-13 spent-agent reap sweep
+
+- Re-verified and closed spent QA sessions `019f5a91-13fa-7950-b4f2-96ea2ebf9c00` (#986 first
+  pass), `019f5aa9-de55-7981-99b7-41a576e7e4ff` (#989 R2), and
+  `019f5c5f-446a-78e0-85dc-ce9a01ddfeae` (#990 R1). Their clean detached QA worktrees were removed.
+- Re-verified and closed frozen #868 planning session `c806a7e2-5991-4ddb-88a9-f68d4c278ef2`.
+  Worktree `security-868-engine-purge` and its untracked plan remain intact pending direct security
+  scope/spec approval. #984 stays open because its preserved Run-6 UAT stack/evidence may depend on
+  the live pane. Primary/UX coordinators and active #990/#1019 builders were not reaped.
