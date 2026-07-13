@@ -5717,3 +5717,6 @@ Opus QA (a723ef12) VERDICT: **RED, MERGE-READY NO**. Verdict posted durably: PR 
 - Claims 1 (purge→kill) + 3 (capture-fail hard-fail) MET; claim 2 met for graceful+api-restart but NOT runner-restart; claim 4 met Claude+Codex, AGY scoped out.
 - Non-blocking (Opus ruled safe): AckCursor offset-only vs spec (epoch enforced structurally); Gemini/AGY verifiedSubmit exemption (documented, AGY purge uses independent brain UUID).
 - **FIX relayed to owning Codex lane (019f5ce4, pane w1:pKY → status=working):** purge-before-destroy applied to boot (marker-driven purge consumes markers + purges out-of-base transcripts by UUID FIRST, then clearNeutralBase wipes residue) + MANDATORY regression test for the untested runner-restart ordering. Re-QA after fix. Failure budget: cycle 1/2.
+
+## P2 relay v5→v6 — 2026-07-13 ~18:55
+Predecessor v5 (e502adc5, pane w1:pMB) REAPED. Successor **`UAT Seed 1025 v6`, session 132c48f9, pane w1:pMC, Sonnet** — driving. Tasks 1-7 ALL committed: job-search chunk ba6bb516, level composition+CLI e41b6481, provisioner wiring+compose seed service c5cf0597. **Only Task 8 remains: verify:foundation + PR + report PR# (no merge).** Handoff: docs/superpowers/handoffs/2026-07-13-uat-seed-levels-relay-2.md. 5 clean self-relays. On PR → sensitive QA + invariant walk (no-BYPASSRLS, dual-connection real write path).
