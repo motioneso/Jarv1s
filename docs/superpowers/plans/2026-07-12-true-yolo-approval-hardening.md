@@ -24,11 +24,13 @@
 ### Task 1: Native YOLO parity in the gateway
 
 **Files:**
+
 - Modify: `packages/ai/src/gateway/gateway.ts:165-220` (`requestNativeToolPermission`)
 - Modify: `packages/ai/src/gateway/gateway.ts:521-559` (`recordAudit` → split into `recordAuditRaw` + `recordAudit`)
 - Test: `tests/unit/mcp-gateway-units.test.ts` (extend `describe("native Claude tool permission bridge", ...)`, lines 173-259)
 
 **Interfaces:**
+
 - Consumes: `this.deps.yoloMode?: (ctx: ToolContext) => Promise<boolean>` (already declared, `gateway.ts:34`). `ToolContext` from `@jarv1s/module-sdk`: `{ actorUserId, requestId, chatSessionId, localTimezone? }`.
 - Produces: `notifier.emit(chatSessionId, { kind: "action_result", actionRequestId, toolName, outcome: "allowed" })` — Task 2 must accept this literal in its type unions. `requestNativeToolPermission` still returns `{ decision: "allow" | "deny", reason: string }`.
 
@@ -82,7 +84,12 @@ Expected: FAIL — `yoloMode` unused, `requestNativeToolPermission` always creat
 it.each([
   ["false", async () => false],
   ["missing resolver", undefined],
-  ["resolver throws", async () => { throw new Error("boom"); }]
+  [
+    "resolver throws",
+    async () => {
+      throw new Error("boom");
+    }
+  ]
 ])("falls back to normal confirmation when yoloMode is %s", async (_label, yoloMode) => {
   const emitted: unknown[] = [];
   let createPendingCalled = false;
@@ -303,6 +310,7 @@ EOF
 ### Task 2: Widen the outcome enum to include `"allowed"`
 
 **Files:**
+
 - Modify: `packages/ai/src/gateway/types.ts` (`action_result` outcome union)
 - Modify: `packages/chat/src/live/types.ts:21` (`TranscriptRecord.outcome`)
 - Modify: `packages/chat/src/gateway-notifier.ts:34` (`toTranscriptRecord()` verb mapping)
@@ -311,6 +319,7 @@ EOF
 - Test: extend `tests/unit/action-request-card-preview.test.tsx`'s `parseRecord` describe block
 
 **Interfaces:**
+
 - Produces: `outcome: "executed" | "denied" | "error" | "allowed"` consumed by Task 1's emission and by chat-drawer's `activityVerb()` (escalation, not edited by this lane).
 
 - [ ] **Step 1: Write failing test for `toTranscriptRecord` verb mapping**
@@ -362,10 +371,13 @@ Expected: FAIL — TypeScript error or `outcome: "allowed"` not assignable, or v
 - [ ] **Step 3: Widen `packages/ai/src/gateway/types.ts`**
 
 Change the `action_result` variant's outcome field from:
+
 ```ts
 readonly outcome: "executed" | "denied" | "error";
 ```
+
 to:
+
 ```ts
 readonly outcome: "executed" | "denied" | "error" | "allowed";
 ```
@@ -373,10 +385,13 @@ readonly outcome: "executed" | "denied" | "error" | "allowed";
 - [ ] **Step 4: Widen `packages/chat/src/live/types.ts:21`**
 
 Change:
+
 ```ts
 outcome?: "executed" | "denied" | "error";
 ```
+
 to:
+
 ```ts
 outcome?: "executed" | "denied" | "error" | "allowed";
 ```
@@ -384,10 +399,13 @@ outcome?: "executed" | "denied" | "error" | "allowed";
 - [ ] **Step 5: Update `packages/chat/src/gateway-notifier.ts:34`**
 
 Change:
+
 ```ts
 const verb = record.outcome === "executed" ? "Executed" : "Denied";
 ```
+
 to:
+
 ```ts
 const verb =
   record.outcome === "allowed"
@@ -428,22 +446,28 @@ Expected: FAIL — `record?.outcome` is `undefined` (whitelist drops unknown val
 - [ ] **Step 9: Widen `apps/web/src/chat/use-chat-stream.ts`**
 
 At line 36, change:
+
 ```ts
 readonly outcome?: "executed" | "denied" | "error";
 ```
+
 to:
+
 ```ts
 readonly outcome?: "executed" | "denied" | "error" | "allowed";
 ```
 
 At lines 140-143, change:
+
 ```ts
 outcome:
   parsed.outcome === "executed" || parsed.outcome === "denied" || parsed.outcome === "error"
     ? parsed.outcome
     : undefined,
 ```
+
 to:
+
 ```ts
 outcome:
   parsed.outcome === "executed" ||
@@ -488,10 +512,12 @@ EOF
 ### Task 3: Approval card content hierarchy + focus return (Decision 6)
 
 **Files:**
+
 - Modify: `apps/web/src/chat/action-request-card.tsx` (85 lines)
 - Test: `tests/unit/action-request-card-preview.test.tsx`
 
 **Interfaces:**
+
 - Consumes: existing props `{ actionRequestId, toolName, summary, preview? }`; existing `.action-request-preview__label` CSS class (from locked `kit-chat.css`, read-only reuse, no new/modified CSS).
 - Produces: no change to the component's public prop shape.
 
@@ -525,9 +551,7 @@ Add a small helper above the component (no new CSS, no new dependency):
 ```ts
 function humanizeToolName(toolName: string): string {
   const last = toolName.includes(".") ? toolName.split(".").pop()! : toolName;
-  return last
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/^./, (c) => c.toUpperCase());
+  return last.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
 }
 ```
 
@@ -629,6 +653,7 @@ EOF
 ### Task 4: Shared dismissable-menu hook + 5 call-site conversions
 
 **Files:**
+
 - Create: `apps/web/src/shared/use-dismissable-menu.ts`
 - Modify: `apps/web/src/chat/chat-model-pill.tsx:88-110`
 - Modify: `apps/web/src/today/briefing-feedback-menu.tsx`
@@ -638,6 +663,7 @@ EOF
 - Test: `tests/unit/use-dismissable-menu.test.ts` (new)
 
 **Interfaces:**
+
 - Produces: `useDismissableMenu<T extends HTMLElement>(opts: { open: boolean; onClose: () => void; closeOnSelect?: boolean }): { ref: RefObject<T> }` — a ref to attach to the menu's outer container. Pointerdown-outside and Escape both call `onClose`. Focus-return-to-trigger is the caller's responsibility (the hook doesn't own the trigger element) — document this in the hook's own comment and implement it at each call site by calling `.focus()` on the trigger button ref when `open` transitions from `true` to `false`.
 
 - [ ] **Step 1: Write failing unit tests for the hook**
@@ -700,7 +726,7 @@ import { isOutsideTarget } from "../../apps/web/src/shared/use-dismissable-menu.
 
 describe("isOutsideTarget", () => {
   it("returns true when the container ref is null", () => {
-    expect(isOutsideTarget(null, {} as EventTarget)) .toBe(true);
+    expect(isOutsideTarget(null, {} as EventTarget)).toBe(true);
   });
 
   it("returns true when the target is not a Node", () => {
@@ -770,7 +796,7 @@ const { ref: menuRef } = useDismissableMenu<HTMLDivElement>({
       ))}
     </div>
   ) : null}
-</div>
+</div>;
 ```
 
 Add `import { useRef } from "react";` if not already present. The `<summary>`/`<details>` markup and its default browser styling are gone — check `chat-model-pill.css` (this file's own colocated stylesheet, not the locked `kit-chat.css`) for any `details`/`summary` selectors that need to become plain-class selectors; if present, update them to target `.chatd-model__trigger` and a conditional-render `.chatd-model__menu` instead of `details[open] > .chatd-model__menu` (this stylesheet is owned by this lane, not locked).
