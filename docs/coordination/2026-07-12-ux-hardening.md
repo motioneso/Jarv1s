@@ -877,3 +877,16 @@ resume from this note before taking any merge-sensitive action.
 - Verified #990 session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` is proceeding to explicit-path
   push/PR, exact-pushed-head isolated News Settings UAT/screenshots, CI, and independent QA. The DB
   slot is free; this UX coordinator never merges.
+
+## Continuation note — 2026-07-13 #986 live-proven and #868 agy blocked
+
+- PR #1010 is pushed at exact head `6eef41706e1890332cbe4045853c5f4cddb51646` with durable fresh
+  real-instance Settings UAT/screenshots in PR comment `4959951464`. Focused E2E is GREEN (12/12 +
+  5/5); compose and prod-compose CI checks are GREEN while foundation remains in progress. Primary
+  has the promised security-gate pointer; fresh independent QA waits for all CI green.
+- Opus blocked #868 agy-print Task 4: mtime matching over its host-wide transcript root can delete
+  unrelated in-flight transcripts and still miss the private one. Tasks 1–3 are deterministic but
+  cannot close #868 alone. Safe agy cleanup requires crash-surviving per-session identity at launch
+  plus graceful/crash purge, touching agy engine/launch wiring outside current scope. Primary was
+  asked for a dedicated security child/spec under Ben's finish-all direction. #868 remains held;
+  Opus reviewer `5a554221-4230-4fd7-a21e-430c57185b8d` was reaped.
