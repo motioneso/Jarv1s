@@ -5471,3 +5471,31 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
 - **Non-blocking follow-ups (not merge-blockers):** `provisioner.ts:252` leak-check omits *networks*
   though its doc-comment claims it checks them (low risk; `down -v` drops `<project>_default`) —
   candidate trivial follow-up.
+
+### FLUSH @ 71% (in-place compact) — #1028 one green-CI from merge
+
+**Coordinator lock UNCHANGED:** session `58a78927-385c-4b1d-8fa0-94db20255d6f`, pane `w1:pE6`, tab
+`w1:t15`. Sole merge executor. `merges_since_relay = 0`.
+
+**#1028 (#1024 dev-UAT provisioner) — EXACT STATE:**
+- QA verdict GREEN/MERGE-READY (sensitive, invariants clean incl. no BYPASSRLS). Spec now atomic on
+  branch (cherry-pick `04dc1996` → HEAD `e4b10e11`).
+- CI FAILED on `Verify foundation` = **format:check on the spec .md** (prettier trap — my unformatted
+  spec commit, NOT a code regression; confirmed via `prettier --check`). Code is clean.
+- **Agent 1024d (`6033b289`, pane `w1:pM3`, alive, 4% ctx) is `prettier --write`-ing the ONE spec
+  file + pushing.** → CONTINUATION: await its new HEAD sha → **re-arm CI monitor** (`gh pr checks
+  1028`, exit0=green/1=fail/8=pending) → on green **squash-merge #1028** (`gh pr merge 1028 --squash
+  --delete-branch`), it's **sensitive = auto-merge + digest, NO Ben sign-off**. Re-confirm session id
+  (step 0) first. Then bookkeeping: close #1024, epic #1000 exit-criteria, board→Done, reap 1024d +
+  `git worktree remove .claude/worktrees/uat-harness-1024`, merges_since_relay++.
+- After #1028: release **P2 #1025** (seed levels.ts) → P3 #1026 → P4 #1027 serially (write handoff,
+  spawn Sonnet build agent into agents tab w1:t1Z, `--model sonnet`).
+
+**Non-blocking follow-up:** `provisioner.ts:252` leak-check omits networks though doc-comment claims it.
+
+**Other lanes (not mine to build):** #984/PR #1015 HELD; #868/#1020 TDD running (security pane
+`w1:pKY` sess `019f5ce4`), purge target = `~/.gemini/antigravity-cli/brain/<UUID>/`. **Ben ruling
+PENDING** on #868 scope-reframe (3→2 AGY+Codex) + capture-fail contract (I recommend hard-fail-loud);
+needed before #984 merge, NOT before TDD. #984 merge = Fable GREEN + that Ben ruling. UX Coordinator =
+Claude sess `b637e03f` (routes PRs to me). #1029 = pre-existing gemini-reader bug (flag-only). No
+PushNotifications. Compact in place.
