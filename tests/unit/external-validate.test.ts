@@ -71,14 +71,104 @@ describe("validateExternalModuleManifest (#917)", () => {
     if (!result.ok) expect(result.errors.join(" ")).toContain("compatible");
   });
 
-  it("rejects an executable/surface field (navigation)", () => {
+  it("still rejects an executable/surface field that remains forbidden (routes) — the sole fail-closed guard for old cores now that compatibility.jarv1s is not bumped for this ABI addition", () => {
     const result = validateExternalModuleManifest(
-      { ...base, navigation: [{ id: "x", label: "X", path: "/x" }] },
+      { ...base, routes: [{ path: "/x", handler: "x" }] },
       "acme-widgets",
       "0.1.0"
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.join(" ")).toContain("navigation");
+    if (!result.ok) expect(result.errors.join(" ")).toContain("routes");
+  });
+
+  it("accepts a well-formed navigation declaration", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        navigation: [
+          { id: "acme-widgets", label: "Widgets", path: "/", icon: "briefcase", order: 5 }
+        ]
+      },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.manifest.navigation).toEqual([
+        { id: "acme-widgets", label: "Widgets", path: "/", icon: "briefcase", order: 5 }
+      ]);
+    }
+  });
+
+  it("still accepts a manifest with no navigation block (metadata-only module)", () => {
+    const result = validateExternalModuleManifest(base, "acme-widgets", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.manifest.navigation).toBeUndefined();
+  });
+
+  it("rejects an id that is not prefixed with the module id (anti-spoof)", () => {
+    const result = validateExternalModuleManifest(
+      { ...base, navigation: [{ id: "settings", label: "Settings", path: "/" }] },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("navigation entry id");
+  });
+
+  it("rejects duplicate navigation ids", () => {
+    const entry = { id: "acme-widgets", label: "Widgets", path: "/" };
+    const result = validateExternalModuleManifest(
+      { ...base, navigation: [entry, entry] },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("unique");
+  });
+
+  it("rejects a navigation path that escapes the module (traversal / absolute / host)", () => {
+    for (const path of ["..", "/../x", "//evil.com", "/a//b", "/a\\b", "/a?x=1", "/a#frag", "x"]) {
+      const result = validateExternalModuleManifest(
+        { ...base, navigation: [{ id: "acme-widgets", label: "Widgets", path }] },
+        "acme-widgets",
+        "0.1.0"
+      );
+      expect(result.ok).toBe(false);
+    }
+  });
+
+  it("rejects zero, more than 4, and unknown-key navigation entries", () => {
+    const tooMany = Array.from({ length: 5 }, (_, i) => ({
+      id: `acme-widgets.item-${i}`,
+      label: `Item ${i}`,
+      path: `/item-${i}`
+    }));
+    for (const navigation of [
+      [],
+      tooMany,
+      [{ id: "acme-widgets", label: "Widgets", path: "/", permissionId: "acme-widgets.x" }]
+    ]) {
+      const result = validateExternalModuleManifest(
+        { ...base, navigation },
+        "acme-widgets",
+        "0.1.0"
+      );
+      expect(result.ok).toBe(false);
+    }
+  });
+
+  it("rejects an over-long label and an out-of-range order", () => {
+    const overLongLabel = { id: "acme-widgets", label: "x".repeat(41), path: "/" };
+    const overRangeOrder = { id: "acme-widgets", label: "Widgets", path: "/", order: 10_001 };
+    for (const entry of [overLongLabel, overRangeOrder]) {
+      const result = validateExternalModuleManifest(
+        { ...base, navigation: [entry] },
+        "acme-widgets",
+        "0.1.0"
+      );
+      expect(result.ok).toBe(false);
+    }
   });
 
   it("rejects declared auth in this slice", () => {

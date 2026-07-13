@@ -8,6 +8,7 @@
   "compatibility": {
     "jarv1s": ">=0.1.0"
   },
+  "navigation": [{ "id": "job-search", "label": "Job Search", "path": "/", "icon": "briefcase" }],
   "storage": [
     {
       "namespace": "job-search.onboarding",

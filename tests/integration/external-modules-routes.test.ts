@@ -46,6 +46,9 @@ beforeAll(async () => {
       publisher: "Acme, Inc.",
       lifecycle: "optional",
       compatibility: { jarv1s: ">=0.1.0" },
+      navigation: [
+        { id: "acme-widgets", label: "Widgets", path: "/", icon: "briefcase", order: 3 }
+      ],
       runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 },
       worker: {
         queues: [
@@ -128,7 +131,19 @@ describe("external-module admin routes (#917)", () => {
       headers: { cookie: adminCookie }
     });
     const listed = modulesRes.json().modules.find((m: { id: string }) => m.id === "acme-widgets");
-    expect(listed).toMatchObject({ id: "acme-widgets", external: true });
+    expect(listed).toMatchObject({
+      id: "acme-widgets",
+      external: true,
+      navigation: [
+        {
+          id: "acme-widgets",
+          label: "Widgets",
+          path: "/m/acme-widgets",
+          icon: "briefcase",
+          order: 3
+        }
+      ]
+    });
 
     const migrationBoss = createPgBossClient(connectionStrings.migration);
     await migrationBoss.start();

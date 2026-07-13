@@ -878,16 +878,25 @@ function serializeModule(module: ReturnType<typeof getBuiltInModuleManifests>[nu
   };
 }
 
-// #917: an ACTIVE external module surfaces on /api/modules as metadata only — no
-// navigation, no settings surfaces (Slice 1 modules declare none). external:true lets
-// the shell tag it without loading any of its code.
+// #1019: an ACTIVE external module surfaces on /api/modules with its manifest-declared
+// navigation (validated + capped by validateExternalModuleManifest) — settings surfaces
+// still stay [] (Slice 1 declares none). This is the ONLY place a manifest-relative nav
+// path becomes a real app route: prefixing with /m/<moduleId> is what stops an external
+// module from ever declaring an absolute or host route. external:true lets the shell tag
+// it without loading any of its code.
 function serializeExternalModule(m: ReconciledExternalModule): ModuleDto {
   return {
     id: m.id,
     name: m.name,
     version: m.version,
     lifecycle: "optional",
-    navigation: [],
+    navigation: m.navigation.map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      path: entry.path === "/" ? `/m/${m.id}` : `/m/${m.id}${entry.path}`,
+      icon: entry.icon ?? null,
+      order: entry.order ?? null
+    })),
     settings: [],
     external: true,
     // #918: ModuleDto.web is optional — omit rather than emit null when the module

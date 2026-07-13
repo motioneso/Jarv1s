@@ -628,6 +628,22 @@ export interface ExternalModuleDatabaseDeclaration {
 }
 
 /**
+ * A single nav-menu entry a downloadable module contributes (#1019). Narrower than the
+ * built-in `ModuleNavigationEntryManifest` — deliberately omits `permissionId` /
+ * `featureFlagId` (those gate built-in-only surfaces); an external module cannot declare
+ * either through this ABI. `path` is module-relative; `serializeExternalModule`
+ * (apps/api/src/server.ts) is the ONLY place that turns it into a real route by prefixing
+ * it with `/m/<moduleId>`.
+ */
+export interface ExternalModuleNavigationEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly icon?: string;
+  readonly order?: number;
+}
+
+/**
  * The JSON-serializable subset of {@link JarvisModuleManifest} that an EXTERNAL
  * (non-compiled) module ships as `jarvis.module.json` (#917). It deliberately omits
  * every function-valued or executable-surface field of the compiled manifest —
@@ -660,6 +676,12 @@ export interface JsonJarvisModuleManifest {
   readonly worker?: ExternalModuleWorkerDeclaration;
   readonly fetchHosts?: readonly string[];
   readonly database?: ExternalModuleDatabaseDeclaration;
+  /**
+   * Nav-menu entries this module contributes (#1019). Optional — a metadata-only module
+   * declares none and gets no nav entry, same as before this field existed. 1-4 entries,
+   * validated positively in packages/module-registry/src/external/validate.ts.
+   */
+  readonly navigation?: readonly ExternalModuleNavigationEntry[];
 }
 
 /**

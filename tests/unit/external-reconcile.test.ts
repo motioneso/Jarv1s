@@ -92,4 +92,19 @@ describe("reconcileExternalModules (#917)", () => {
     );
     expect(modules.map((m) => m.id)).toEqual(["a", "b"]);
   });
+
+  it("carries navigation from the manifest through to the reconciled module", () => {
+    const nav = [{ id: "a", label: "A", path: "/" }];
+    const withNav: ExternalModuleDiscovery = {
+      ...discovery("a", "sha256:1"),
+      manifest: { ...discovery("a", "sha256:1").manifest, navigation: nav }
+    };
+    const { modules } = reconcileExternalModules([withNav], []);
+    expect(modules[0]?.navigation).toEqual(nav);
+  });
+
+  it("defaults navigation to an empty array when the manifest declares none", () => {
+    const { modules } = reconcileExternalModules([discovery("a", "sha256:1")], []);
+    expect(modules[0]?.navigation).toEqual([]);
+  });
 });
