@@ -26,9 +26,9 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | Task 1 committed at `a0989815` with E2E green; Task 2 building on `ux/984-private-history`; label `UX 984 Private History v3`, session `9d7e2453-ea7f-4b9c-ac1d-af73e9347197`, pane `w1:pJQ`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | approved plan/handoff committed at `0003d1ac`; Task 2 building on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v3`, session `159e8723-d2f3-40f8-8d01-c621d537081d`, pane `w1:pJS`; `activityVerb()` released and fail-closed criterion locked |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Claude v4 session `4f7ea499-7243-4415-abef-a159483d0cfe` adopted the Task-4 state, then was stopped before Task 5 for Codex migration; worktree `ux/986-settings-build` preserved |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | Codex resumed Task 5 from handoff `ef716b5d` on `ux/986-settings-build`; label `UX 986 Settings Shell Codex`, session `019f5a67-9a38-77e0-814a-bc082b0ce187`, pane `w1:pJZ` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 QA RED: plan-doc format CI failure plus missing live UI/screenshots proof; owner session `da980b16-d458-4213-ab02-7a34ba852971` ordered to relay at 70% before fixes; not merge-ready |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | PR #1009 QA RED fixes resumed from clean `54601bee`; label `UX 989 Sports Settings Codex`, session `019f5a67-99f4-7880-b8f4-e4fe04c8af67`, pane `w1:pJY`; plan format and live UI/screenshots proof remain blocking |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | amended approved plan committed at `0006fd5a`; TDD building on `ux/990-news-settings-build`; label `UX 990 News Settings v3`, session `4e2afa97-5c55-417c-9bec-a07534cb3c98`, pane `w1:pJR` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -131,6 +131,8 @@ None.
 - Prior #986 v2 builder, Claude session `ad66ce73-17b5-462e-b3d2-615038ad39d6`.
 - QA #1009 Sports Settings, Claude session `97854221-7fe3-4c3f-b7b7-e91a9e5d2036`.
 - Prior #986 v3 builder, Claude session `2080b7b0-39cd-418b-869e-369c693972b9`.
+- Prior #989 v3 builder, Claude session `da980b16-d458-4213-ab02-7a34ba852971`.
+- Prior #986 v4 builder, Claude session `4f7ea499-7243-4415-abef-a159483d0cfe`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -250,6 +252,12 @@ resume from this note before taking any merge-sensitive action.
   `4f7ea499-7243-4415-abef-a159483d0cfe`, #989 `da980b16-d458-4213-ab02-7a34ba852971`, and #990
   `4e2afa97-5c55-417c-9bec-a07534cb3c98`. Each was ordered to checkpoint, write a durable handoff,
   stop, and avoid spawning Claude. Spawn Codex successors only after each state report is received.
+- #989 stopped clean at `54601bee`; its just-spawned Claude relay was killed before file access.
+  Codex session `019f5a67-99f4-7880-b8f4-e4fe04c8af67` was verified driving QA blocker fixes from
+  `docs/superpowers/handoffs/2026-07-13-sports-settings-989-relay-4.md`; Claude v3 was reaped.
+- #986 stopped clean at `ef716b5d` before Task 5 feature/test edits. Codex session
+  `019f5a67-9a38-77e0-814a-bc082b0ce187` was verified driving from
+  `docs/superpowers/handoffs/2026-07-13-986-settings-shell-halt-for-codex.md`; Claude v4 was reaped.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
