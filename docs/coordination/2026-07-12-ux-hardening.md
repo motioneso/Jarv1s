@@ -515,3 +515,10 @@ resume from this note before taking any merge-sensitive action.
   to #985; context-meter remains unstaged. Primary coordination was handed the PR for fresh
   independent QA, including the durable real live-path UAT/screenshots gate. The owner pane remains
   available for RED fixes; this UX lane does not merge.
+- Primary re-tiered PR #1015 as SECURITY because private-chat-history hardening touches live routes,
+  the session manager, and shared chat-API owner-scoped access paths. Opus adversarial QA is active
+  at `57c484ac`, off the shared cluster and trusting `gh pr checks`; #985 remains sole DB-slot owner.
+  Review focus is owner scoping, cross-session leakage, fast-json-stringify stripping, and secrets
+  escape. PR checks are currently in flight/UNSTABLE. The mock-API drawer E2E is not real-runtime
+  proof, so absent durable live-path UAT plus screenshots is a merge-blocking condition. Primary
+  holds merge pending GREEN QA, live-path proof, Fable sign-off, and the required security approval.
