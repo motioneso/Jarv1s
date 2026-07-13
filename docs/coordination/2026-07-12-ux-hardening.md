@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` is active and must finish image GREEN before final report |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` completed 4/4 GREEN including image publish |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -1101,3 +1101,12 @@ resume from this note before taking any merge-sensitive action.
   ready event with expanded #868 AGY crash-surviving per-session identity and graceful/crash purge.
   It must rebase, update/send its compact plan, and make no feature edit until current main image is
   GREEN plus UX plan approval. No timers, approximate mtime matching, broad deletion, or merge.
+
+## Continuation note — 2026-07-13 #990 post-merge image GREEN
+
+- Main CI run `29275470092` completed 4/4 GREEN at #990 squash
+  `b205f1c711c606bc4fa9f26eb43e675368802dad`; image publish completed at 19:12:23Z. #990 is fully
+  merged, closed, and post-merge verified.
+- The GREEN main gate is routed to security build session
+  `019f5ce4-cce4-7a13-be05-cfc3834cc529`. It remains plan-only until its compact combined
+  #868/#1020 plan is approved; main CI no longer blocks that approval.
