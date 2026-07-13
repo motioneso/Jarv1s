@@ -22,9 +22,9 @@ and its native sub-issues are the product source of truth; this file tracks only
 | --- | --- | --- | --- |
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | building approved plan on `ux/984-private-history`; label `UX 984 Private History`, session `56deb6ca-252b-4f8e-b9b9-b5f5d819c2ea`, pane `w1:pJH`; Slice 4 blocked on #868 |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | planning pre-code on `ux/985-yolo-approvals`; label `UX 985 YOLO Approvals v2`, session `1f79649d-8403-4988-a3de-317203fc3aa3`, pane `w1:pJG`; relay handoff `33d9a62f`; fail-closed criterion locked |
-| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | plan approved at `docs/superpowers/plans/2026-07-12-settings-shell-navigation.md`; session `11054b23-df91-4b09-b001-38ec31951d9d` relaying pre-code in `ux/986-settings-build` |
+| #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | routine | building approved plan on `ux/986-settings-build`; label `UX 986 Settings Shell v2`, session `ad66ce73-17b5-462e-b3d2-615038ad39d6`, pane `w1:pJM` |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
-| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | plan approved at `docs/superpowers/plans/2026-07-12-sports-settings-dogfood-hardening.md`; session `888f3c71-6996-49e1-9dbe-921e829abe55` relaying pre-code in `ux/989-sports-settings-build` |
+| #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | building approved plan on `ux/989-sports-settings-build`; label `UX 989 Sports Settings v2`, session `40d0423b-3209-43c9-9998-d00e434e9897`, pane `w1:pJN` |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | planning pre-code on `ux/990-news-settings-build`; label `UX 990 News Settings v2`, session `5663beab-07c4-4691-9dc8-2b1b94869ea2`, pane `w1:pJK`; grounded with clean #981 rebase on `3ca138eb` |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
@@ -118,6 +118,8 @@ None.
 - Prior #985 builder, Claude session `341beba2-3ccd-4c88-b0f8-d29c1058d0ca`.
 - Prior #984 builder, Claude session `1a6fcf3b-be9d-4852-b380-2ba84c6e5a1f`.
 - Prior #990 builder, Claude session `7fb324d8-38fa-43be-bc2c-8304acd0e725`.
+- Prior #989 builder, Claude session `888f3c71-6996-49e1-9dbe-921e829abe55`.
+- Prior #986 builder, Claude session `11054b23-df91-4b09-b001-38ec31951d9d`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -184,6 +186,10 @@ resume from this note before taking any merge-sensitive action.
 - #986's ten-task, four-slice Settings plan was approved pre-code after the primary Coordinator's
   live collision clearance; its checkpoint relay is in progress. Re-adopt the Sonnet successor
   before code.
+- #989 successor `UX 989 Sports Settings v2` session
+  `40d0423b-3209-43c9-9998-d00e434e9897` and #986 successor `UX 986 Settings Shell v2` session
+  `ad66ce73-17b5-462e-b3d2-615038ad39d6` were verified driving their approved Task 1 on Sonnet;
+  both predecessors were identity-checked and reaped.
 - #990 voluntarily relayed at the 70% trigger after grounding. It confirmed no #981 rebase conflict,
   the PATCH client wrapper is genuinely absent, and no code or plan exists yet. Re-adopt its Sonnet
   successor and wait for that session's plan.
