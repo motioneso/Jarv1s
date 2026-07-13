@@ -103,6 +103,8 @@ export function webRoutePath(id: WebRouteMeta["id"]): string {
   return route.path;
 }
 
+const MODULES_SECTION = "Modules";
+
 export function buildShellNavigation(
   modules: readonly ModuleDto[],
   disabledModuleIds: readonly string[]
@@ -110,18 +112,25 @@ export function buildShellNavigation(
   const disabled = new Set(disabledModuleIds);
   const entries = modules
     .filter((module) => !disabled.has(module.id))
-    .flatMap((module) => module.navigation)
-    .filter((entry) => !HIDDEN_NAV_IDS.has(entry.id))
+    .flatMap((module) =>
+      module.navigation
+        .filter((entry) => !HIDDEN_NAV_IDS.has(entry.id))
+        .map((entry) => ({ entry, external: module.external === true }))
+    )
     .sort((left, right) => {
-      const leftOrder = left.order ?? Number.MAX_SAFE_INTEGER;
-      const rightOrder = right.order ?? Number.MAX_SAFE_INTEGER;
-      return leftOrder - rightOrder || left.label.localeCompare(right.label);
+      const leftOrder = left.entry.order ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = right.entry.order ?? Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || left.entry.label.localeCompare(right.entry.label);
     });
 
   const bySection = new Map<string, ModuleNavigationEntryDto[]>();
   bySection.set(TOP_SECTION, [todayNavEntry]);
-  for (const entry of entries) {
-    const section = SECTION_OF[entry.id] ?? TOP_SECTION;
+  for (const { entry, external } of entries) {
+    // #1019 (D5): an external module's entries NEVER consult SECTION_OF — they always land
+    // in the dedicated "Modules" tail section, even if the manifest id happens to collide
+    // with a built-in section key (the validator's #1019 id-prefix rule makes a real
+    // collision impossible, but the shell doesn't rely on that alone).
+    const section = external ? MODULES_SECTION : (SECTION_OF[entry.id] ?? TOP_SECTION);
     const bucket = bySection.get(section) ?? [];
     bucket.push(entry);
     bySection.set(section, bucket);
