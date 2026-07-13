@@ -29,7 +29,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
 | #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | approved; worktree/handoff ready on `ux/987-notes-people-build`; held behind #986's `settings-personal-data-panes.tsx` lock |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
-| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 fresh QA PROVISIONAL RED at comment `4960441848`: four blockers cover narrow guidance readability, stale-success ordering, authored personalization loading/error, and revalidation live semantics. Routed to verified builder session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` for TDD repair; no merge |
+| #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | PR #1021 QA repair pushed at exact head `472c2f2d`; unit 23/23, Chromium 4/4, format/lint/typecheck and token checks GREEN. New exact-head CI/UAT/evidence and fresh QA remain required; no merge |
 | #991 | dedicated Assistant/Priorities delta spec required | sensitive | needs spec; after #985/#986 |
 | #992 | dedicated memory-presentation delta spec required | sensitive | needs spec |
 | #993 | dedicated host/account/operator delta spec required | security | needs spec; after #986 |
@@ -992,3 +992,13 @@ resume from this note before taking any merge-sensitive action.
   Worktree `security-868-engine-purge` and its untracked plan remain intact pending direct security
   scope/spec approval. #984 stays open because its preserved Run-6 UAT stack/evidence may depend on
   the live pane. Primary/UX coordinators and active #990/#1019 builders were not reaped.
+
+## Continuation note — 2026-07-13 #990 QA repair pushed
+
+- Verified #990 builder session `019f5a72-b4fb-7c30-8b75-5fc26c4bc9fa` locked all four QA blockers
+  with RED tests, then pushed exact repair head `472c2f2dc7715e3e6bec79bb918fc08d84230fe2` from exactly
+  five owned paths. Focused unit is 23/23 GREEN, Chromium is 4/4 GREEN, and format/lint/typecheck plus
+  design-token checks are GREEN.
+- Protected `.claude/context-meter.log` and the untracked relay handoff remain unstaged. The lane is
+  regenerating exact-head desktop/narrow UAT and durable evidence while new full CI runs; a fresh
+  routine QA must review the repaired head before Primary may merge. UX never merges.
