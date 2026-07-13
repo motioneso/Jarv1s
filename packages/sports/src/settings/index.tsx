@@ -30,10 +30,10 @@ function getCatalog() {
 function getFollows() {
   return requestJson<SportsFollowsResponse>("/api/sports/follows");
 }
-function createFollow(body: CreateSportsFollowRequest) {
+export function createFollow(body: CreateSportsFollowRequest) {
   return requestJson<{ follow: SportsFollowDto }>("/api/sports/follows", { method: "POST", body });
 }
-function deleteFollow(id: string) {
+export function deleteFollow(id: string) {
   return requestJson<{ ok: boolean }>(`/api/sports/follows/${encodeURIComponent(id)}`, {
     method: "DELETE"
   });
@@ -88,22 +88,54 @@ function followKey(competitionKey: string, teamKey: string | null): string {
   return `${competitionKey}::${teamKey ?? ""}`;
 }
 
+type FollowActionSource = "summary" | "picker";
+
 type FollowActionState = {
   competitionKey: string;
   teamKey: string | null;
   label: string;
   direction: "follow" | "unfollow";
   phase: "pending" | "error";
+  source: FollowActionSource;
 } | null;
 
 function pendingDirectionFor(
   actionState: FollowActionState,
   competitionKey: string,
-  teamKey: string | null
+  teamKey: string | null,
+  source: FollowActionSource
 ): "follow" | "unfollow" | null {
   if (actionState?.phase !== "pending") return null;
-  if (actionState.competitionKey !== competitionKey || actionState.teamKey !== teamKey) return null;
+  if (
+    actionState.competitionKey !== competitionKey ||
+    actionState.teamKey !== teamKey ||
+    actionState.source !== source
+  ) {
+    return null;
+  }
   return actionState.direction;
+}
+
+function ActionError(props: {
+  actionState: FollowActionState;
+  competitionKey: string;
+  teamKey: string | null;
+  source: FollowActionSource;
+}) {
+  const action = props.actionState;
+  if (
+    action?.phase !== "error" ||
+    action.competitionKey !== props.competitionKey ||
+    action.teamKey !== props.teamKey ||
+    action.source !== props.source
+  ) {
+    return null;
+  }
+  return (
+    <span className="sp-action-error" role="alert">
+      {`Couldn’t ${action.direction === "follow" ? "follow" : "unfollow"} ${action.label}. Try again.`}
+    </span>
+  );
 }
 
 /** Truthful follow/unfollow control copy — one source of truth for team and whole-league
@@ -166,7 +198,12 @@ function FollowedSummary(props: {
   // team's league roster looked up separately (fetched by SportsSettings via getLeagueTeams,
   // #907 spec §4.3).
   teamsByCompetition: Map<string, readonly TeamRef[]>;
-  onToggle: (competitionKey: string, teamKey: string | null, label: string) => void;
+  onToggle: (
+    competitionKey: string,
+    teamKey: string | null,
+    label: string,
+    source: FollowActionSource
+  ) => void;
   actionState: FollowActionState;
 }) {
   if (props.follows.length === 0) return null;
@@ -207,13 +244,25 @@ function FollowedSummary(props: {
               className="sp-chip__remove"
               aria-label={`Unfollow ${label}`}
               disabled={
-                pendingDirectionFor(props.actionState, follow.competitionKey, follow.teamKey) !==
-                null
+                pendingDirectionFor(
+                  props.actionState,
+                  follow.competitionKey,
+                  follow.teamKey,
+                  "summary"
+                ) !== null
               }
-              onClick={() => props.onToggle(follow.competitionKey, follow.teamKey, label)}
+              onClick={() =>
+                props.onToggle(follow.competitionKey, follow.teamKey, label, "summary")
+              }
             >
               ×
             </button>
+            <ActionError
+              actionState={props.actionState}
+              competitionKey={follow.competitionKey}
+              teamKey={follow.teamKey}
+              source="summary"
+            />
           </span>
         );
       })}
@@ -229,7 +278,12 @@ export function SearchResults(props: {
   onRetry: () => void;
   competitions: readonly CompetitionRef[];
   followsByKey: Map<string, SportsFollowDto>;
-  onToggle: (competitionKey: string, teamKey: string | null, label: string) => void;
+  onToggle: (
+    competitionKey: string,
+    teamKey: string | null,
+    label: string,
+    source: FollowActionSource
+  ) => void;
   actionState: FollowActionState;
 }) {
   // A failed search request must never masquerade as an authoritative "no matches" — that would
@@ -263,21 +317,34 @@ export function SearchResults(props: {
         const pendingHere = pendingDirectionFor(
           props.actionState,
           competition.competitionKey,
-          null
+          null,
+          "picker"
         );
         const state = followControlState("league", competition.label, wholeActive, pendingHere);
         return (
-          <button
+          <span
             key={`l-${competition.competitionKey}`}
-            type="button"
-            className={`sp-whole${wholeActive ? " is-active" : ""}`}
-            aria-pressed={wholeActive}
-            aria-label={state.ariaLabel}
-            disabled={pendingHere !== null}
-            onClick={() => props.onToggle(competition.competitionKey, null, competition.label)}
+            className="sp-action-target sp-action-target--wide"
           >
-            <span className="sp-whole__lbl">{state.visible}</span>
-          </button>
+            <button
+              type="button"
+              className={`sp-whole${wholeActive ? " is-active" : ""}`}
+              aria-pressed={wholeActive}
+              aria-label={state.ariaLabel}
+              disabled={pendingHere !== null}
+              onClick={() =>
+                props.onToggle(competition.competitionKey, null, competition.label, "picker")
+              }
+            >
+              <span className="sp-whole__lbl">{state.visible}</span>
+            </button>
+            <ActionError
+              actionState={props.actionState}
+              competitionKey={competition.competitionKey}
+              teamKey={null}
+              source="picker"
+            />
+          </span>
         );
       })}
       <div className="sp-teamgrid">
@@ -286,25 +353,35 @@ export function SearchResults(props: {
           const pendingHere = pendingDirectionFor(
             props.actionState,
             team.competitionKey,
-            team.teamKey
+            team.teamKey,
+            "picker"
           );
           const state = followControlState("team", team.name, active, pendingHere);
           return (
-            <button
-              key={`${team.competitionKey}:${team.teamKey}`}
-              type="button"
-              className={`sp-team${active ? " is-active" : ""}`}
-              aria-pressed={active}
-              aria-label={state.ariaLabel}
-              disabled={pendingHere !== null}
-              onClick={() => props.onToggle(team.competitionKey, team.teamKey, team.name)}
-            >
-              <span className="sp-team__top">
-                <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
-                <span className="sp-team__name">{team.shortName || team.name}</span>
-              </span>
-              <span className="sp-team__state">{state.visible}</span>
-            </button>
+            <span className="sp-action-target" key={`${team.competitionKey}:${team.teamKey}`}>
+              <button
+                type="button"
+                className={`sp-team${active ? " is-active" : ""}`}
+                aria-pressed={active}
+                aria-label={state.ariaLabel}
+                disabled={pendingHere !== null}
+                onClick={() =>
+                  props.onToggle(team.competitionKey, team.teamKey, team.name, "picker")
+                }
+              >
+                <span className="sp-team__top">
+                  <PickCrest name={team.name} shortName={team.shortName} crestUrl={team.crestUrl} />
+                  <span className="sp-team__name">{team.shortName || team.name}</span>
+                </span>
+                <span className="sp-team__state">{state.visible}</span>
+              </button>
+              <ActionError
+                actionState={props.actionState}
+                competitionKey={team.competitionKey}
+                teamKey={team.teamKey}
+                source="picker"
+              />
+            </span>
           );
         })}
       </div>
@@ -347,7 +424,12 @@ export function BrowseGroups(props: {
   expandedLoading: boolean;
   expandedDegraded: boolean;
   onRetryExpanded: () => void;
-  onToggle: (competitionKey: string, teamKey: string | null, label: string) => void;
+  onToggle: (
+    competitionKey: string,
+    teamKey: string | null,
+    label: string,
+    source: FollowActionSource
+  ) => void;
   actionState: FollowActionState;
 }) {
   const byConfederation = new Map<Confederation, CompetitionRef[]>();
@@ -370,7 +452,8 @@ export function BrowseGroups(props: {
             const wholePendingHere = pendingDirectionFor(
               props.actionState,
               competition.competitionKey,
-              null
+              null,
+              "picker"
             );
             const wholeState = followControlState(
               "league",
@@ -389,18 +472,31 @@ export function BrowseGroups(props: {
                   >
                     {competition.label}
                   </button>
-                  <button
-                    type="button"
-                    className={`sp-whole${wholeActive ? " is-active" : ""}`}
-                    aria-pressed={wholeActive}
-                    aria-label={wholeState.ariaLabel}
-                    disabled={wholePendingHere !== null}
-                    onClick={() =>
-                      props.onToggle(competition.competitionKey, null, competition.label)
-                    }
-                  >
-                    <span className="sp-whole__lbl">{wholeState.visible}</span>
-                  </button>
+                  <span className="sp-action-target">
+                    <button
+                      type="button"
+                      className={`sp-whole${wholeActive ? " is-active" : ""}`}
+                      aria-pressed={wholeActive}
+                      aria-label={wholeState.ariaLabel}
+                      disabled={wholePendingHere !== null}
+                      onClick={() =>
+                        props.onToggle(
+                          competition.competitionKey,
+                          null,
+                          competition.label,
+                          "picker"
+                        )
+                      }
+                    >
+                      <span className="sp-whole__lbl">{wholeState.visible}</span>
+                    </button>
+                    <ActionError
+                      actionState={props.actionState}
+                      competitionKey={competition.competitionKey}
+                      teamKey={null}
+                      source="picker"
+                    />
+                  </span>
                 </div>
                 {expanded ? (
                   props.expandedLoading ? (
@@ -425,31 +521,47 @@ export function BrowseGroups(props: {
                         const pendingHere = pendingDirectionFor(
                           props.actionState,
                           team.competitionKey,
-                          team.teamKey
+                          team.teamKey,
+                          "picker"
                         );
                         const state = followControlState("team", team.name, active, pendingHere);
                         return (
-                          <button
+                          <span
+                            className="sp-action-target"
                             key={`${team.competitionKey}:${team.teamKey}`}
-                            type="button"
-                            className={`sp-team${active ? " is-active" : ""}`}
-                            aria-pressed={active}
-                            aria-label={state.ariaLabel}
-                            disabled={pendingHere !== null}
-                            onClick={() =>
-                              props.onToggle(team.competitionKey, team.teamKey, team.name)
-                            }
                           >
-                            <span className="sp-team__top">
-                              <PickCrest
-                                name={team.name}
-                                shortName={team.shortName}
-                                crestUrl={team.crestUrl}
-                              />
-                              <span className="sp-team__name">{team.shortName || team.name}</span>
-                            </span>
-                            <span className="sp-team__state">{state.visible}</span>
-                          </button>
+                            <button
+                              type="button"
+                              className={`sp-team${active ? " is-active" : ""}`}
+                              aria-pressed={active}
+                              aria-label={state.ariaLabel}
+                              disabled={pendingHere !== null}
+                              onClick={() =>
+                                props.onToggle(
+                                  team.competitionKey,
+                                  team.teamKey,
+                                  team.name,
+                                  "picker"
+                                )
+                              }
+                            >
+                              <span className="sp-team__top">
+                                <PickCrest
+                                  name={team.name}
+                                  shortName={team.shortName}
+                                  crestUrl={team.crestUrl}
+                                />
+                                <span className="sp-team__name">{team.shortName || team.name}</span>
+                              </span>
+                              <span className="sp-team__state">{state.visible}</span>
+                            </button>
+                            <ActionError
+                              actionState={props.actionState}
+                              competitionKey={team.competitionKey}
+                              teamKey={team.teamKey}
+                              source="picker"
+                            />
+                          </span>
                         );
                       })}
                     </div>
@@ -520,23 +632,56 @@ export default function SportsSettings() {
   const [actionState, setActionState] = useState<FollowActionState>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
 
-  function toggle(competitionKey: string, teamKey: string | null, label: string) {
+  function toggle(
+    competitionKey: string,
+    teamKey: string | null,
+    label: string,
+    source: FollowActionSource
+  ) {
     const existing = followsByKey.get(followKey(competitionKey, teamKey));
     if (existing) {
-      setActionState({ competitionKey, teamKey, label, direction: "unfollow", phase: "pending" });
+      setActionState({
+        competitionKey,
+        teamKey,
+        label,
+        direction: "unfollow",
+        phase: "pending",
+        source
+      });
       unfollowMutation.mutate(existing.id, {
         onSuccess: () => setActionState(null),
         onError: () =>
-          setActionState({ competitionKey, teamKey, label, direction: "unfollow", phase: "error" })
+          setActionState({
+            competitionKey,
+            teamKey,
+            label,
+            direction: "unfollow",
+            phase: "error",
+            source
+          })
       });
     } else {
-      setActionState({ competitionKey, teamKey, label, direction: "follow", phase: "pending" });
+      setActionState({
+        competitionKey,
+        teamKey,
+        label,
+        direction: "follow",
+        phase: "pending",
+        source
+      });
       followMutation.mutate(
         { competitionKey, teamKey },
         {
           onSuccess: () => setActionState(null),
           onError: () =>
-            setActionState({ competitionKey, teamKey, label, direction: "follow", phase: "error" })
+            setActionState({
+              competitionKey,
+              teamKey,
+              label,
+              direction: "follow",
+              phase: "error",
+              source
+            })
         }
       );
     }
@@ -613,12 +758,6 @@ export default function SportsSettings() {
       )}
       {catalogQuery.isError || followsQuery.isError ? (
         <Note>Could not load sports follows. Try again.</Note>
-      ) : null}
-      {actionState?.phase === "error" ? (
-        <Note>
-          Couldn&rsquo;t {actionState.direction === "follow" ? "follow" : "unfollow"}{" "}
-          {actionState.label}. Try again.
-        </Note>
       ) : null}
     </>
   );

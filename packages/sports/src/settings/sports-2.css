@@ -37,6 +37,31 @@
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 8px;
 }
+.sp-action-target {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.sp-action-target--wide {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.sp-action-target--wide .sp-whole {
+  margin-bottom: 0;
+}
+.sp-teamgrid > .sp-action-target > .sp-team {
+  width: 100%;
+  flex: 1;
+}
+.sp-action-error {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--danger);
+  text-align: left;
+}
 .sp-team {
   display: flex;
   flex-direction: column;
@@ -149,6 +174,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   border: 1px solid var(--forest-soft-2);
   background: var(--forest-soft);
   border-radius: var(--radius-lg);
@@ -157,6 +183,9 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--forest-ink);
+}
+.sp-chip .sp-action-error {
+  flex-basis: 100%;
 }
 .sp-chip__lbl {
   white-space: nowrap;

@@ -43,9 +43,16 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
+type MutationScenario = {
+  postGate?: Promise<void>;
+  failPost?: boolean;
+  deleteGate?: Promise<void>;
+  failDelete?: boolean;
+};
+
 /** Stateful mock local to this spec (spec Slice 3) — catalog, follows, search, roster, and
     create/delete follow, all in-memory. No ESPN call, no real account. */
-async function mockSportsSettings(page: Page): Promise<void> {
+async function mockSportsSettings(page: Page, scenario: MutationScenario = {}): Promise<void> {
   let follows: SportsFollowDto[] = [];
   let nextId = 1;
 
@@ -71,9 +78,11 @@ async function mockSportsSettings(page: Page): Promise<void> {
     fulfillJson(route, { competitions: [NFL, EPL], degraded: false })
   );
 
-  await page.route("**/api/sports/follows", (route) => {
+  await page.route("**/api/sports/follows", async (route) => {
     if (route.request().method() === "GET") return fulfillJson(route, { follows });
     if (route.request().method() === "POST") {
+      await scenario.postGate;
+      if (scenario.failPost) return fulfillJson(route, { message: "Follow failed" }, 500);
       const body = route.request().postDataJSON() as CreateSportsFollowRequest;
       const follow: SportsFollowDto = {
         id: `f${nextId++}`,
@@ -87,8 +96,10 @@ async function mockSportsSettings(page: Page): Promise<void> {
     return route.continue();
   });
 
-  await page.route("**/api/sports/follows/*", (route) => {
+  await page.route("**/api/sports/follows/*", async (route) => {
     if (route.request().method() !== "DELETE") return route.continue();
+    await scenario.deleteGate;
+    if (scenario.failDelete) return fulfillJson(route, { message: "Unfollow failed" }, 500);
     const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop() ?? "");
     follows = follows.filter((f) => f.id !== id);
     return fulfillJson(route, { ok: true });
@@ -113,6 +124,65 @@ async function gotoSportsSettings(page: Page): Promise<void> {
 }
 
 test.describe("Sports settings follow picker (#989)", () => {
+  test("only the initiating target shows pending and target-local errors for failed POST/DELETE", async ({
+    page
+  }) => {
+    const scenario: MutationScenario = {};
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: [],
+      notifications: [],
+      tasks: []
+    });
+    await mockSportsSettings(page, scenario);
+    await gotoSportsSettings(page);
+
+    await page.getByRole("searchbox", { name: "Find a team or league" }).fill("cowboys");
+    let releasePost!: () => void;
+    scenario.postGate = new Promise<void>((resolve) => {
+      releasePost = resolve;
+    });
+    scenario.failPost = true;
+
+    await page.getByRole("button", { name: "Follow Dallas Cowboys" }).click();
+    const pendingFollow = page.getByRole("button", { name: "Following…" });
+    await expect(pendingFollow).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Follow all of NFL" })).toBeEnabled();
+    releasePost();
+
+    const failedFollow = page.getByRole("button", { name: "Follow Dallas Cowboys" });
+    await expect(failedFollow).toBeVisible();
+    await expect(failedFollow.locator("..").getByRole("alert")).toHaveText(
+      "Couldn’t follow Dallas Cowboys. Try again."
+    );
+
+    scenario.postGate = undefined;
+    scenario.failPost = false;
+    await failedFollow.click();
+    const unfollow = page.getByRole("button", { name: "Unfollow Dallas Cowboys" });
+    await expect(unfollow).toBeVisible();
+
+    let releaseDelete!: () => void;
+    scenario.deleteGate = new Promise<void>((resolve) => {
+      releaseDelete = resolve;
+    });
+    scenario.failDelete = true;
+    await unfollow.click();
+    const pendingUnfollow = page.getByRole("button", { name: "Unfollowing…" });
+    await expect(pendingUnfollow).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Follow all of NFL" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Unfollow DAL" })).toBeEnabled();
+    releaseDelete();
+
+    const retainedUnfollow = page.getByRole("button", { name: "Unfollow Dallas Cowboys" });
+    await expect(retainedUnfollow).toBeVisible();
+    await expect(retainedUnfollow.locator("..").getByRole("alert")).toHaveText(
+      "Couldn’t unfollow Dallas Cowboys. Try again."
+    );
+    await expect(page.getByRole("alert")).toHaveCount(1);
+  });
+
   test("search → follow → Following → unfollow a team; follow-all → unfollow-all a league", async ({
     page
   }) => {

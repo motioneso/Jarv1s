@@ -1,10 +1,12 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import SportsSettings, {
   BrowseGroups,
+  createFollow,
+  deleteFollow,
   followControlState,
   leagueMatches,
   searchLeagueRows,
@@ -14,6 +16,14 @@ import { sportsQueryKeys } from "../../packages/sports/src/web/query-keys.js";
 
 const CATALOG_KEY = ["sports", "catalog"] as const;
 const FOLLOWS_KEY = ["sports", "follows"] as const;
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 function renderWithQuery(client: QueryClient): string {
   return renderToString(
@@ -74,6 +84,8 @@ const TWO_LEAGUES: readonly CompetitionLite[] = [
 ];
 
 describe("SportsSettings", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("renders search input when query is empty, with browse leagues collapsed", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES, degraded: false });
@@ -96,16 +108,136 @@ describe("SportsSettings", () => {
     expect(html).not.toContain("NFL");
   });
 
-  it("shows a target-named retry note (not the generic pane banner) after a failed follow", async () => {
-    // Exercise via toggle() directly is not possible from SSR string tests (no interactivity);
-    // this test asserts the OLD generic banner string is gone from source-level review instead —
-    // covered by the E2E spec (Task 4) for the interactive path. Here we only assert the static
-    // SSR render (no follows, no error) never contains the old banner text.
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData(CATALOG_KEY, { competitions: TWO_LEAGUES, degraded: false });
-    client.setQueryData(FOLLOWS_KEY, { follows: [] });
-    const html = renderWithQuery(client);
-    expect(html).not.toContain("Could not load or save sports follows. Try again.");
+  it("keeps a delayed failed POST local to the named team target", async () => {
+    const response = deferred<Response>();
+    const fetchMock = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = createFollow({ competitionKey: "epl", teamKey: ARS.teamKey });
+    let settled = false;
+    void request.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      }
+    );
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sports/follows",
+      expect.objectContaining({ method: "POST" })
+    );
+
+    const pendingHtml = renderToString(
+      createElement(SearchResults, {
+        query: "ars",
+        results: [ARS, DAL],
+        partial: false,
+        isError: false,
+        competitions: TWO_LEAGUES,
+        followsByKey: new Map(),
+        onToggle: () => {},
+        onRetry: () => {},
+        actionState: {
+          competitionKey: "epl",
+          teamKey: ARS.teamKey,
+          label: ARS.name,
+          direction: "follow",
+          phase: "pending",
+          source: "picker"
+        }
+      })
+    );
+    expect(pendingHtml).toContain("Following…");
+    expect(pendingHtml).toContain('aria-label="Follow Dallas Cowboys"');
+
+    response.resolve(
+      new Response(JSON.stringify({ message: "Follow failed" }), {
+        status: 500,
+        headers: { "content-type": "application/json" }
+      })
+    );
+    await expect(request).rejects.toThrow("Follow failed");
+
+    const errorHtml = renderToString(
+      createElement(SearchResults, {
+        query: "ars",
+        results: [ARS, DAL],
+        partial: false,
+        isError: false,
+        competitions: TWO_LEAGUES,
+        followsByKey: new Map(),
+        onToggle: () => {},
+        onRetry: () => {},
+        actionState: {
+          competitionKey: "epl",
+          teamKey: ARS.teamKey,
+          label: ARS.name,
+          direction: "follow",
+          phase: "error",
+          source: "picker"
+        }
+      })
+    );
+    expect(errorHtml).toContain('aria-label="Follow Arsenal"');
+    expect(errorHtml).toContain("Couldn’t follow Arsenal. Try again.");
+    expect(errorHtml).toMatch(/sp-action-target[\s\S]*Follow Arsenal[\s\S]*sp-action-error/);
+  });
+
+  it("keeps a delayed failed DELETE local and retains the prior followed state", async () => {
+    const response = deferred<Response>();
+    const fetchMock = vi.fn(() => response.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = deleteFollow("follow-ars");
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sports/follows/follow-ars",
+      expect.objectContaining({ method: "DELETE" })
+    );
+    response.resolve(
+      new Response(JSON.stringify({ message: "Unfollow failed" }), {
+        status: 500,
+        headers: { "content-type": "application/json" }
+      })
+    );
+    await expect(request).rejects.toThrow("Unfollow failed");
+
+    const errorHtml = renderToString(
+      createElement(SearchResults, {
+        query: "ars",
+        results: [ARS],
+        partial: false,
+        isError: false,
+        competitions: TWO_LEAGUES,
+        followsByKey: new Map([
+          [
+            "epl::team.ars",
+            {
+              id: "follow-ars",
+              competitionKey: "epl",
+              teamKey: ARS.teamKey,
+              createdAt: "2026-01-01T00:00:00Z"
+            }
+          ]
+        ]),
+        onToggle: () => {},
+        onRetry: () => {},
+        actionState: {
+          competitionKey: "epl",
+          teamKey: ARS.teamKey,
+          label: ARS.name,
+          direction: "unfollow",
+          phase: "error",
+          source: "picker"
+        }
+      })
+    );
+    expect(errorHtml).toContain('aria-label="Unfollow Arsenal"');
+    expect(errorHtml).toContain("Couldn’t unfollow Arsenal. Try again.");
+    expect(errorHtml).toMatch(/sp-action-target[\s\S]*Unfollow Arsenal[\s\S]*sp-action-error/);
   });
 
   it("marks a followed team active", () => {
