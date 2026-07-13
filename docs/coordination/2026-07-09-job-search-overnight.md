@@ -5446,3 +5446,8 @@ landing; #984 merge = Fable GREEN (fallback Sol xhigh), Ben-delegated. Deferred 
 - **Separate pre-existing bug (NOT #868 scope):** interactive-Gemini transcript READER at
   `apps/api/.../cli-chat-engine.ts:187` (`CliChatEngineImpl`) reads wrong path/schema in prod today
   → follow-up issue (UX lane filing; get number). Not fixed in #868.
+
+- **#1029 filed** (bug, sev:major): pre-existing interactive-Gemini transcript-READER points at
+  `~/.gemini/tmp/...` (transcriptGlobDir) instead of the agy `brain/<UUID>/` path — flag-only per
+  Opus, out of #868/#1020 scope. UX Coordinator now **successor 7** (resolve by label at read time);
+  will hand the #868/#1020 TDD PR straight to me (I own QA+merge, they spawn no QA).
