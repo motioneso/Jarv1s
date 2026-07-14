@@ -1571,3 +1571,13 @@ resume from this note before taking any merge-sensitive action.
   provider probe/preview. A connected provider row, curated models, or copied host `auth.json` is
   not execution proof. Luna is frozen idle; the protected primary Coordinator was sent the blocker
   for environment/credential-plumbing ownership. PR #1050 remains draft and unmerged.
+- Primary Coordinator confirmed #1050's live-proof blocker owner is Ben and parked it in
+  `docs/coordination/AWAITING-BEN.md`. No product edit or retry is allowed. Options are: real CLI
+  auth inside UAT (credential-handling risk), split proof with the app leg in-container and the
+  authenticated CLI-transport leg host-side (coordinator lean), or a stubbed UAT provider port
+  (insufficient real-auth fidelity). The authored/guided and corrected Discard app/UI evidence is
+  banked while Ben decides.
+- PR #1045 is already rebased zero-behind onto the #1043 merge at current head
+  `8a65743903eeb4c56d2c1360aad9c6963bc1087b`; both Compose smokes are green and foundation/app is
+  running. The prior Opus verdict is stale after this integration. Fresh Opus QA and then Ben's
+  explicit security-tier sign-off remain required.
