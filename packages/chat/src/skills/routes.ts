@@ -80,6 +80,8 @@ export function registerChatSkillsRoutes(
       try {
         const access = await dependencies.resolveAccessContext(request);
         const body = request.body as CreateChatSkillRequest;
+        requireSkillText(body.name, "Skill name is required");
+        requireSkillText(body.body, "Skill instructions are required");
         const skill = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
           repository.create(scopedDb, {
             name: body.name,
@@ -103,6 +105,8 @@ export function registerChatSkillsRoutes(
       try {
         const access = await dependencies.resolveAccessContext(request);
         const body = request.body as UpdateChatSkillRequest;
+        if (body.name !== undefined) requireSkillText(body.name, "Skill name is required");
+        if (body.body !== undefined) requireSkillText(body.body, "Skill instructions are required");
         const skill = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
           repository.update(scopedDb, request.params.id, body)
         );
@@ -156,6 +160,8 @@ export function registerChatSkillsRoutes(
       try {
         const raw = requireSkillFileBody(request);
         const parsed = parseSkillFile(raw);
+        requireSkillText(parsed.name, "Skill name is required");
+        requireSkillText(parsed.body, "Skill instructions are required");
         const access = await dependencies.resolveAccessContext(request);
         const skill = await dependencies.dataContext.withDataContext(access, (scopedDb) =>
           repository.create(scopedDb, {
@@ -180,6 +186,10 @@ function requireSkillFileBody(request: FastifyRequest): string {
     throw new HttpError(400, "Expected a non-empty text/markdown or text/plain request body");
   }
   return body;
+}
+
+function requireSkillText(value: string | undefined, message: string): void {
+  if (typeof value !== "string" || value.trim() === "") throw new HttpError(400, message);
 }
 
 function serializeSkill(skill: ChatSkill): ChatSkillDto {

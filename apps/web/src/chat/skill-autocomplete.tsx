@@ -14,13 +14,26 @@ export function activeSlashQuery(text: string): string | null {
   return match ? (match[1] ?? "") : null;
 }
 
+export function skillCommandName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+export function moveSkillActiveIndex(index: number, delta: number, count: number): number {
+  if (count === 0) return -1;
+  return (index + delta + count) % count;
+}
+
 export function filterEnabledSkills(
   skills: readonly ChatSkillDto[],
   query: string
 ): readonly ChatSkillDto[] {
-  const needle = query.trim().toLowerCase();
+  const needle = skillCommandName(query);
   return skills.filter(
-    (s) => s.enabled && (needle === "" || s.name.toLowerCase().includes(needle))
+    (s) =>
+      s.enabled &&
+      (needle === "" ||
+        skillCommandName(s.name).includes(needle) ||
+        s.name.toLowerCase().includes(query.trim().toLowerCase()))
   );
 }
 
@@ -30,8 +43,8 @@ export function resolveSkillByName(
   skills: readonly ChatSkillDto[],
   name: string
 ): ChatSkillDto | undefined {
-  const needle = name.trim().toLowerCase();
-  return needle ? skills.find((s) => s.enabled && s.name.toLowerCase() === needle) : undefined;
+  const needle = skillCommandName(name);
+  return needle ? skills.find((s) => s.enabled && skillCommandName(s.name) === needle) : undefined;
 }
 
 export function resolveBoundSkill(
@@ -77,23 +90,26 @@ export function composeTurnText(skill: ChatSkillDto | undefined, remainder: stri
 export function SkillAutocomplete(props: {
   readonly skills: readonly ChatSkillDto[];
   readonly query: string;
+  readonly activeIndex: number;
+  readonly listboxId: string;
   readonly onSelect: (skill: ChatSkillDto) => void;
 }) {
   const matches = filterEnabledSkills(props.skills, props.query);
   if (matches.length === 0) return null;
 
   return (
-    <div className="chatd-skillac" role="listbox" aria-label="Skills">
-      {matches.map((skill) => (
+    <div id={props.listboxId} className="chatd-skillac" role="listbox" aria-label="Skills">
+      {matches.map((skill, index) => (
         <button
           key={skill.id}
+          id={`${props.listboxId}-option-${skill.id}`}
           type="button"
           role="option"
-          aria-selected={false}
-          className="chatd-skillac__option"
+          aria-selected={index === props.activeIndex}
+          className={`chatd-skillac__option${index === props.activeIndex ? " is-active" : ""}`}
           onClick={() => props.onSelect(skill)}
         >
-          <span className="chatd-skillac__name">/{skill.name}</span>
+          <span className="chatd-skillac__name">/{skillCommandName(skill.name)}</span>
           {skill.description ? (
             <span className="chatd-skillac__desc">{skill.description}</span>
           ) : null}

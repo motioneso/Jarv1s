@@ -4,9 +4,11 @@ import {
   activeSlashQuery,
   composeTurnText,
   filterEnabledSkills,
+  moveSkillActiveIndex,
   resolveBoundSkill,
   resolveSkillByName,
   resolveTurnInvocation,
+  skillCommandName,
   splitBareNameToken
 } from "../../apps/web/src/chat/skill-autocomplete.js";
 import type { ChatSkillDto } from "@jarv1s/shared";
@@ -49,6 +51,17 @@ describe("activeSlashQuery", () => {
   });
 });
 
+describe("skillCommandName", () => {
+  it.each([
+    [" Daily   standup ", "daily-standup"],
+    ["Review\t\nNotes", "review-notes"],
+    [" Café! ", "café!"],
+    ["", ""]
+  ])("derives %j as %j", (name, expected) => {
+    expect(skillCommandName(name)).toBe(expected);
+  });
+});
+
 describe("filterEnabledSkills", () => {
   it("excludes disabled skills", () => {
     const skills = [skill({ id: "a", enabled: true }), skill({ id: "b", enabled: false })];
@@ -56,10 +69,10 @@ describe("filterEnabledSkills", () => {
     expect(result.map((s) => s.id)).toEqual(["a"]);
   });
 
-  it("filters case-insensitively by substring match on name", () => {
+  it("filters case-insensitively by derived command and stored name", () => {
     const skills = [skill({ id: "a", name: "Daily Standup" }), skill({ id: "b", name: "Retro" })];
-    const result = filterEnabledSkills(skills, "STAND");
-    expect(result.map((s) => s.id)).toEqual(["a"]);
+    expect(filterEnabledSkills(skills, "STAND").map((s) => s.id)).toEqual(["a"]);
+    expect(filterEnabledSkills(skills, "daily-stand").map((s) => s.id)).toEqual(["a"]);
   });
 
   it("returns all enabled skills for an empty query", () => {
@@ -75,21 +88,32 @@ describe("filterEnabledSkills", () => {
   });
 });
 
+describe("moveSkillActiveIndex", () => {
+  it.each([
+    [0, 1, 3, 1],
+    [0, -1, 3, 2],
+    [2, 1, 3, 0],
+    [0, 1, 0, -1]
+  ])("moves %j by %j in %j items to %j", (index, delta, count, expected) => {
+    expect(moveSkillActiveIndex(index, delta, count)).toBe(expected);
+  });
+});
+
 describe("resolveSkillByName", () => {
-  it("resolves the first enabled match by exact case-insensitive name", () => {
+  it("resolves first enabled duplicate derived command in API order", () => {
     const skills = [
-      skill({ id: "a", name: "Standup", enabled: true }),
-      skill({ id: "b", name: "Standup", enabled: true })
+      skill({ id: "a", name: "Daily   Standup", enabled: true }),
+      skill({ id: "b", name: "daily standup", enabled: true })
     ];
-    expect(resolveSkillByName(skills, "standup")?.id).toBe("a");
+    expect(resolveSkillByName(skills, "DAILY-STANDUP")?.id).toBe("a");
   });
 
   it("skips disabled skills even on exact name match", () => {
     const skills = [
-      skill({ id: "a", name: "Standup", enabled: false }),
-      skill({ id: "b", name: "Standup", enabled: true })
+      skill({ id: "a", name: "Daily Standup", enabled: false }),
+      skill({ id: "b", name: "Daily Standup", enabled: true })
     ];
-    expect(resolveSkillByName(skills, "standup")?.id).toBe("b");
+    expect(resolveSkillByName(skills, "daily-standup")?.id).toBe("b");
   });
 
   it("returns undefined when no enabled skill matches", () => {
@@ -162,8 +186,8 @@ describe("resolveTurnInvocation", () => {
   });
 
   it("resolves by bare-name text when nothing is bound", () => {
-    const skills = [skill({ id: "a", name: "standup" })];
-    const result = resolveTurnInvocation("/standup how are things", null, skills);
+    const skills = [skill({ id: "a", name: "Daily Standup" })];
+    const result = resolveTurnInvocation("/daily-standup how are things", null, skills);
     expect(result.skill?.id).toBe("a");
     expect(result.remainder).toBe("how are things");
   });

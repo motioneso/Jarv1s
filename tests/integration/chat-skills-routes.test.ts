@@ -181,6 +181,42 @@ describe("chat skills routes", () => {
     expect(deleteNotOwned.statusCode).toBe(404);
   });
 
+  it("rejects blank required text without writing or mutating a skill", async () => {
+    const blankCreate = await server.inject({
+      method: "POST",
+      url: "/api/chat/skills",
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: { name: "   ", body: "   " }
+    });
+    expect(blankCreate.statusCode).toBe(400);
+
+    const create = await server.inject({
+      method: "POST",
+      url: "/api/chat/skills",
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: { name: "Validation target", body: "Original instructions" }
+    });
+    const id = create.json<ChatSkillResponse>().skill.id;
+
+    const blankUpdate = await server.inject({
+      method: "PATCH",
+      url: `/api/chat/skills/${id}`,
+      headers: { cookie: ownerCookie, "content-type": "application/json" },
+      payload: { body: "\n  " }
+    });
+    expect(blankUpdate.statusCode).toBe(400);
+
+    const unchanged = await server.inject({
+      method: "GET",
+      url: `/api/chat/skills/${id}`,
+      headers: { cookie: ownerCookie }
+    });
+    expect(unchanged.json<ChatSkillResponse>().skill).toMatchObject({
+      name: "Validation target",
+      body: "Original instructions"
+    });
+  });
+
   it("imports a skill file, byte-identical body, source:'uploaded'", async () => {
     const raw = "---\nname: Imported Skill\ndescription: From a file\n---\nLine one\nLine two\n";
 
@@ -248,6 +284,21 @@ describe("chat skills routes", () => {
     });
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
     expect(res.statusCode).toBeLessThan(500);
+  });
+
+  it.each([
+    ["   ", "Body", "Skill name is required"],
+    ["Name", "  \n", "Skill instructions are required"]
+  ])("rejects an import with blank required text", async (name, body, message) => {
+    const raw = `---\nname: ${name}\n---\n${body}`;
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/chat/skills/import",
+      headers: { cookie: ownerCookie, "content-type": "text/markdown" },
+      payload: raw
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json<{ error: string }>().error).toContain(message);
   });
 
   it("rejects an oversized import body with an explicit cap", async () => {

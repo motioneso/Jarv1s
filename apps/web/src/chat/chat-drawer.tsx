@@ -59,6 +59,7 @@ import {
   type TranscriptRecord
 } from "./use-chat-stream";
 import "../styles/kit-chat.css";
+import "../styles/kit-chat-skills.css";
 
 /**
  * Live chat drawer, styled to the Jarvis Design System (`chatd-*`). A global slide-out

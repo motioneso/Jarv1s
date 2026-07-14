@@ -44,7 +44,7 @@ export function parseSkillFile(raw: string): ParsedSkillFile {
   }
 
   const name = frontmatter["name"];
-  if (!name) {
+  if (name === undefined) {
     throw new HttpError(400, "Skill file frontmatter must include a 'name' field");
   }
 
