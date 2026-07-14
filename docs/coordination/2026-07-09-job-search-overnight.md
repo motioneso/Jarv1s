@@ -5753,3 +5753,9 @@ Head 9c8288b8: Verify foundation PASS (18m30s), both compose smokes PASS. "Build
 
 ## #1032 CI RED — prod-compose-smoke (2026-07-13) — NOT merged, fix relayed
 Head 2e991064: Verify-foundation PASS + regular compose smoke PASS, but **Prod compose deployment smoke FAIL**. Main's prior runs green on this check → #1032-introduced (NOT a waiver candidate). Cause hypothesis (deploy-compose-env-trap): fail-closed `${JARVIS_UAT_SEED_CONFIRM:?}` on the profiled seed service breaks base `docker compose up` — interpolation precedes profile filtering, so the unset required var errors the whole invocation even though seed (profiles:[ops]) never starts. Relayed to owning lane pMC (v6, 132c48f9, now working): move hard-stop out of compose interpolation (`${...:-}` default + enforce confirm in cli.ts:16 entrypoint), reproduce via `pnpm smoke:compose:prod`, push. QA was GREEN (review clean) — this is a CI/compose-config defect, first failure (not stop-the-line yet). On new push → re-check CI → sensitive re-QA scope = the compose delta only → auto-merge on green.
+
+---
+### Continuation — 70% checkpoint (in place, no successor) + Ben ask
+- **AWAITING-BEN.md parking lot created** (Ben directive "set those aside" after he missed #984). Rule: pending-Ben decisions go there immediately; Coordinator leads status with it. Memory saved (coordinator-awaiting-ben-parkinglot).
+- **#984 / PR #1015** (`ux/984-private-history`, security, task #41): Ben said GO → resume. Files disjoint from #868 (chat-session-manager/live-routes/manifest/chat-api + web, NOT engine-host/cleanup) → clean unblock. Lane: rebase onto main → push → Opus security re-QA → Ben sign-off.
+- **#1032 (P2 #1025 seed, task #36, sensitive): CI RED #2** — "Prod compose deployment smoke" failed AGAIN on fix head `97b393c8` (compose-interp fix did NOT clear it). **STOP-THE-LINE** per waiver protocol (twice-failing). NOT merging. Diagnosing root cause next.
