@@ -1420,3 +1420,19 @@ resume from this note before taking any merge-sensitive action.
 - PR #1046 is the only merge since the last relay (`merges_since_relay: 1`). No merge occurred in
   this compaction-triggered session. The successor may merge only after all gates above; the next
   routine/sensitive merge reaches the two-merge relay threshold and requires immediate relay.
+
+## Continuation note — 2026-07-13 UX successor adoption
+
+- `UX Coordinator` authority is Codex session
+  `019f5ee8-8a0a-7da2-a186-8170ea85e76a`; authority commit `0a601c05` is pushed. The spent
+  `UX Coordinator Relay Old` session `019f5dc2-8bd9-78b2-827f-67bd9a99e6c9` was resolved from a
+  fresh pane list by label plus session id and closed.
+- PR #1049 is code-frozen at `63ccf923f09efa4a015be386d06e045deabf452f`; CI run
+  `29308090668` is fully green after the minimal composer textbox-role correction.
+- PR #1050 is code-frozen at `0b280f51943bbfeb514eb06a0b945e8fc6556935`; CI run
+  `29307615983` is fully green after rebasing onto `origin/main` `8f9da394` with no feature edits.
+- The primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` has the combined #1000
+  UAT trigger for both frozen heads. Await PR-linked desktop+narrow evidence plus the separate #1050
+  CLI transcript/log, then launch independent routine QA for #1049 and sensitive invariant-walk QA
+  for #1050. Both verdicts must be durable PR comments. No QA or merge has occurred yet.
+- `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
