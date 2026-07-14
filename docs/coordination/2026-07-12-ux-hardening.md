@@ -27,7 +27,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Ben approved #1020 rev2; serialized expanded #868/#1020 dependency lane is planning under session `019f5ce4-cce4-7a13-be05-cfc3834cc529`. #984 remains held until dependency landing, then fresh no-wait 3x UAT/security QA/Ben sign-off |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
-| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | product PR #1058 at `d0344d21`; zero behind, CI/live desktop+narrow/independent sensitive QA pending |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | PR #1058 fix candidate `d2405781`; zero behind, fresh CI/live desktop+narrow/independent sensitive QA pending |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` completed 4/4 GREEN including image publish |
 | #991 | `2026-07-13-991-assistant-priorities-dogfood-hardening.md` | sensitive | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/991-assistant-priorities-build`, session `019f5ed2-b01a-7610-95d6-da3024b4b82f` |
@@ -1684,3 +1684,17 @@ resume from this note before taking any merge-sensitive action.
   exact-head worktree `~/Jarv1s/.claude/worktrees/uat-1058-notes-people` for Notes, People, four
   refresh counters, and stable-ID delete-card focus. Fresh independent sensitive QA waits for CI
   green. No merge or issue closure is allowed before both durable gates pass.
+- Exact-head Webwright UAT hard-blocked before UI because the real prod-shaped app crashes route
+  coverage: `GET /api/people/notes-directories` is registered in `packages/people/src/routes.ts`
+  but absent from `peopleModuleManifest.routes`. GitHub CI independently reports both deployment
+  smokes RED on run `29357630990`; no waiver applies and sensitive QA did not start. Builder session
+  `019f61cb-e119-7d41-ac45-390878fe72ff` is reopened to fix the manifest source within its approved
+  lock and add the smallest focused regression check. A new head requires fresh CI, live UAT, and
+  independent QA; the current UAT task is posting durable BLOCKED evidence.
+- Builder fixed the STOP-THE-LINE defect at new exact head
+  `d24057818f6b44d273c8e28ae3cb595e7e7e0349` by composing the People manifest once with the missing
+  `GET /api/people/notes-directories` claim inside the already-approved module-registry lock; no
+  other path changed. Existing route-coverage/route-guard tests pass (13 tests) and module-registry
+  typecheck/diff-check pass. GitHub confirms the branch remains zero behind with the same 17-file
+  scope; fresh CI run `29358529658` is running. The old-head BLOCKED UAT remains valid evidence,
+  while new-head CI, UAT, and independent sensitive QA must all run from scratch.
