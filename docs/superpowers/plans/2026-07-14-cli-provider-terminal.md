@@ -19,6 +19,11 @@
 - **Secrets never escape.** Only a password _hash_ is persisted (better-auth scrypt). The plaintext terminal password is never stored, logged, or returned.
 - **File-size gate:** all source ≤ 1000 lines (`check:file-size`). Full local gate before each commit: `pnpm verify:foundation` (or the scoped lint+typecheck+test for the touched package).
 - **Comment density:** generous why-comments citing #1059 on every non-obvious block.
+- **Test placement (repo convention — OVERRIDES every per-task `Test:`/`Run:`/`git add` path below).** This repo has no per-package `test` script and the root `vitest.config.ts` `test.include` is only `tests/**`, `spikes/**`, `packages/people/src/__tests__/**`. `verify:foundation` runs `pnpm test:unit` (`vitest run tests/unit`) and `pnpm test:integration` (`scripts/test-integration.ts tests/integration`). A `*.test.ts` placed under `packages/*/src` or `apps/web/src` therefore runs in **no gate** (silent exit 0). So:
+  - **Pure logic / type / mock-only tests → `tests/unit/<name>.test.ts`.** Import package internals via relative path with `.js` extension (e.g. `../../packages/chat/src/live/rpc-contract.js`), matching existing `cli-runner-protocol.test.ts` / `chat-rpc-client.test.ts`. React/`.tsx` render tests also go here (add `// @vitest-environment jsdom` docblock if needed). Run: `pnpm vitest run tests/unit/<name>.test.ts`.
+  - **Tests needing Postgres, the app instance (`app.inject`), or a live socket → `tests/integration/<name>.test.ts`.** Run: `pnpm test:integration` (or scope with `JARVIS_PGDATABASE=<db> pnpm vitest run tests/integration/<name>.test.ts`). `foundation.test.ts` already lives in `tests/integration/`.
+  - **Playwright e2e → the Playwright `testDir`** (`pnpm test:e2e`), not a package dir.
+  - Name files by feature, not the source path: e.g. `chat-terminal-rpc.test.ts`, `cli-runner-terminal-session.test.ts`, `terminal-password-repository.test.ts`, `ai-terminal-routes.test.ts`, `web-terminal-modal.test.tsx`.
 
 ---
 
