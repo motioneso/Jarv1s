@@ -6559,3 +6559,26 @@ Codex's own final wrap-up report (verified against GitHub, matches):
 **Run status: this run's sole active thread (job-search-nav bug) is CLOSED.** Run
 2026-07-09-job-search-overnight is now fully idle — no build lanes, no open Codex work under this
 coordinator's tracking. #1050 remains parked per Ben (unchanged). Awaiting Ben's next direction.
+
+## RUN WRAP-UP — 2026-07-14 (clean-slate close, Ben's request)
+
+Ben asked to wrap this run up for a clean slate. Confirmed scope with him: **this run only** —
+UX Coordinator (`019f6186`, `w1:pNC`) and its active lanes (#987/PR #1058 UAT still pending,
+#991 mid-build) are explicitly OUT of scope and untouched; that's a separate coordinator's
+boundary per CLAUDE.md.
+
+Actions taken:
+- Messaged Codex (`019f619a`, `w1:pNE`) to stand down — its lane (job-search-nav / PR #1056) is
+  fully closed, nothing further needed from it.
+- Removed its scratch worktree `/tmp/jarv1s-job-search-011-docs` (branch
+  `fix/job-search-0.1.1-docs`) after confirming `git status` clean and PR #1056 `MERGED` via
+  `gh pr view` (squash-merged, so local HEAD isn't a literal ancestor of `origin/main` — expected
+  for squash; GitHub API state is the authority here, not `merge-base`).
+- Reaped pane `w1:pNE` after its acknowledgment.
+- This coordinator's own pane (`w1:pNF`, session `eb173f3a`) and worktree
+  (`.claude/worktrees/coord-2026-06-30-rfa-fleet`) are left live at Ben's discretion — he is
+  mid-conversation with this session.
+
+**Final state:** run 2026-07-09-job-search-overnight has zero open items under this coordinator.
+#1050 stays parked (owner: Ben, tracked in AWAITING-BEN.md). All other fleet activity
+(UX Coordinator + its lanes) is out of scope and continues independently.
