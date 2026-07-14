@@ -28,14 +28,24 @@ export const REGISTRY_RETAINED_VERSIONS = 5;
 
 /**
  * Fold the previous index entry's current version into previousVersions, newest first,
- * capped so current + previous ≤ REGISTRY_RETAINED_VERSIONS. Republishing the same
- * version replaces it in place instead of duplicating it.
+ * capped so current + previous ≤ REGISTRY_RETAINED_VERSIONS. An identical same-version
+ * rerun is idempotent; a changed artifact identity requires a version bump.
  */
 export function mergePreviousVersions(
   existing: ModuleRegistryEntry | undefined,
   next: ModuleRegistryArtifactRef
 ): readonly ModuleRegistryArtifactRef[] {
   if (!existing) return [];
+  if (
+    existing.version === next.version &&
+    (existing.artifact !== next.artifact ||
+      existing.sha256 !== next.sha256 ||
+      existing.sizeBytes !== next.sizeBytes)
+  ) {
+    throw new Error(
+      `refusing to republish ${next.version} with a different artifact, sha256, or sizeBytes; bump the module version`
+    );
+  }
   const chain: ModuleRegistryArtifactRef[] = [
     {
       version: existing.version,

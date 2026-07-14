@@ -45,9 +45,22 @@ describe("mergePreviousVersions", () => {
     expect(merged.map((r) => r.version)).toEqual(["1.5.0", "1.4.0", "1.3.0", "1.2.0"]);
   });
 
-  it("republishing the same version does not duplicate it in previousVersions", () => {
+  it("allows an identical same-version rerun without duplicating it", () => {
     const merged = mergePreviousVersions(entry("1.0.0", [ref("0.9.0")]), ref("1.0.0"));
     expect(merged.map((r) => r.version)).toEqual(["0.9.0"]);
+  });
+
+  it.each([
+    ["artifact", { artifact: "job-search-1.0.0-rebuilt.tgz" }],
+    ["sha256", { sha256: "b".repeat(64) }],
+    ["sizeBytes", { sizeBytes: 11 }]
+  ])("rejects same-version republishing when %s differs", (_field, changed) => {
+    expect(() =>
+      mergePreviousVersions(entry("1.0.0", [ref("0.9.0")]), {
+        ...ref("1.0.0"),
+        ...changed
+      })
+    ).toThrow(/bump the module version/);
   });
 
   it("first publish (no existing entry) has empty previousVersions", () => {

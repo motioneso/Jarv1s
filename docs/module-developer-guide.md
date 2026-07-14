@@ -4,13 +4,22 @@ How to build a module for Jarvis: a self-contained feature (its own tables, rout
 frontend surfaces, and external data sources) that docks into the platform through declared
 seams instead of hand-wired edits across the app.
 
-**Current state (read this first).** In-tree modules are compiled into the app as a workspace
-package under `packages/` and registered in the composition root
-(`packages/module-registry/src/index.ts`). There is no runtime loading of arbitrary code and no
-marketplace, but external modules CAN now be distributed as signed GitHub Release artifacts and
-installed into a running instance without a rebuild — see [§13 Distribution](#13-distribution).
-The docking seams (manifest, data lifecycle, dataset connector, web registry) are the stable
-contract for both paths; only how the module reaches the instance differs.
+**Current state (read this first).** Jarvis has one product concept: **Modules**. Bundled modules
+ship with core as workspace packages under `packages/` and are registered in the composition root
+(`packages/module-registry/src/index.ts`). Downloaded modules are distributed as hash-verified GitHub
+Release artifacts and installed separately without rebuilding core — see
+[§13 Distribution](#13-distribution). The docking seams (manifest, data lifecycle, dataset
+connector, web registry) are the stable contract for both paths; only delivery differs. `external`
+remains an internal name for the downloaded-module loader and its security boundary, not a second
+kind of module in the product.
+
+**Parity status.** Navigation, runtime web UI, assistant tools, queued jobs, credentials, and
+platform KV work for downloaded modules today. Per-user module toggles, module-contributed settings,
+notifications, briefings, host-diagnostics counts, and account export/delete for downloaded
+module-owned database tables are not unified yet. Job Search is KV-only, so its current user data is
+already covered by the generic module-KV export/delete path. Do not design a downloaded module that
+depends on the remaining surfaces until the sensitive parity work under epic #860 has an approved
+spec; the target is for delivery to be the only product-level difference.
 
 Authoritative deep references: the four seam specs under `docs/superpowers/specs/`
 (`2026-07-04-module-boundary-enforcement.md`, `-data-lifecycle-ports.md`,
@@ -329,7 +338,7 @@ capabilities and let the user's configured router decide.
 
 ## 12. Registration (composition root)
 
-Until dynamic loading exists, a module is activated by one entry in `BUILT_IN_MODULES`
+A bundled module is activated by one entry in `BUILT_IN_MODULES`
 (`packages/module-registry/src/index.ts`):
 
 ```ts
@@ -353,32 +362,40 @@ will replace — keep your entry to the same shape.
 
 ## 13. Distribution
 
-External modules ship as GitHub Release artifacts and install into a running instance without a
-rebuild. This section covers only the distribution-specific surface — manifest authoring, RLS,
-and the web entry are unchanged from the rest of this guide.
+Downloaded modules ship as GitHub Release artifacts and install separately without rebuilding
+core. Once installed, they use the same product model and the host contracts exposed by the
+downloaded-module ABI. This section covers only the distribution-specific surface — manifest
+authoring, RLS, and the web entry are unchanged from the rest of this guide. Internal source paths,
+loader APIs, and security checks retain the name `external`.
 
 **Publishing.** `scripts/publish-module-registry.ts` builds the publication set: for each module
-directory under `external-modules/` (dockerignored — the core image never ships it), it runs the
-JS-01 bundler, validates the manifest, and packs a portable gzip tarball of exactly the on-disk
-trust set (`jarvis.module.json` + `dist/**` + `sql/**`) as `<id>-<version>.tgz` (a bare filename,
-never a URL — `ARTIFACT_FILENAME_RE` in
+source directory under the internal `external-modules/` path (dockerignored — the core image never
+ships it), it runs the JS-01 bundler, validates the manifest, and packs a portable gzip tarball of
+exactly the on-disk trust set (`jarvis.module.json` + `dist/**` + `sql/**`) as
+`<id>-<version>.tgz` (a bare filename, never a URL — `ARTIFACT_FILENAME_RE` in
 `packages/module-registry/src/distribution/index-schema.ts` rejects anything else and the whole
 registry entry is dropped, fail-closed). It also emits `index.json`, retaining the current version
 plus the 4 previous per module (`REGISTRY_RETAINED_VERSIONS = 5`). `.github/workflows/
 modules-registry.yml` runs this in CI on release; run the script locally to test a publish before
-tagging.
+tagging. **Bump the manifest and package version for every trust-set change.** Update detection is
+version-based, and the publisher rejects a same-version artifact when its filename, SHA-256, or size
+differs; only an identical idempotent rerun is allowed.
 
 **Declaring owned tables and migrations.** No distribution-specific syntax beyond what §4 already
 covers: `database.ownedTables` in the manifest plus a `sql/` migrations directory is exactly what
-both the in-tree and external install paths consume.
+both the bundled and downloaded install paths consume.
 
-**Install lifecycle.** Admins install/enable/disable/remove/purge from Settings
-(`ModuleRegistrySection`, `apps/web/src/settings/settings-module-registry-section.tsx`), which
-drives the same admin routes documented for `routes-module-registry.ts` — download stages the
-package to disk, boot reconcile applies migrations and creates the module's Postgres roles
+**Install lifecycle.** Downloaded-module discovery is always on; do not set
+`JARVIS_ENABLE_EXTERNAL_MODULES`. Admins use **Settings → Instance modules** to download and stage a
+package, then restart Jarvis so boot reconciliation validates and installs it. The same settings
+surface handles enable/disable/remove/purge
+(`ModuleRegistrySection`, `apps/web/src/settings/settings-module-registry-section.tsx`) through the
+admin routes documented for `routes-module-registry.ts`. Boot reconcile applies migrations and
+creates the module's Postgres roles
 (`jarvis_mod_<slug>_runtime`, `jarvis_mod_<slug>_install`), remove disables without touching data,
 purge drops owned tables and roles. The admin registry list reflects a boot-time-only discovery
-snapshot of `external-modules/` (`discoverExternalModules` in `apps/api/src/server.ts`) — a
+snapshot of the downloaded package directory (`discoverExternalModules` is the internal function
+name in `apps/api/src/server.ts`) — a
 process restart is required to see on-disk changes; this is a deliberate startup-only design, not
 a bug.
 

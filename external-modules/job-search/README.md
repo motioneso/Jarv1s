@@ -1,9 +1,11 @@
-# Job Search external module
+# Job Search module
 
-Issue #930 (epic #913). This directory is the source of the Job Search **external** module
-package. It is not part of the pnpm workspace, is excluded from the default Jarvis image via
-`.dockerignore`, and never appears in `BUILT_IN_MODULES` — the core build must not compile, copy,
-or register anything here.
+Issue #930 (epic #913). This directory is the source of the downloadable Job Search module package.
+Jarvis has one Module concept: bundled modules ship with core, while downloaded modules are
+installed separately. `external` remains the internal loader/security term and directory name. This
+package is not part of the pnpm workspace, is excluded from the default Jarvis image via
+`.dockerignore`, and never appears in `BUILT_IN_MODULES` — the core build must not compile, copy, or
+register anything here.
 
 ## Package artifact
 
@@ -17,9 +19,15 @@ job-search/
   dist/web/index.js   # ESM browser bundle; default export {contractVersion: 1, Root}
 ```
 
-Install = place that directory under the host's `JARVIS_MODULES_DIR` (directory name must equal
-the module id `job-search`) with `JARVIS_ENABLE_EXTERNAL_MODULES=1`. The host hashes
+Standard install: open **Settings → Instance modules**, download/install Job Search, then restart
+Jarvis so boot reconciliation validates and activates the staged package. Downloaded-module
+discovery is always on; `JARVIS_ENABLE_EXTERNAL_MODULES` is not required. The host installs under
+`JARVIS_MODULES_DIR` using the module id `job-search` as the directory name and hashes
 `jarvis.module.json`, `dist/worker.js`, and `dist/web/**` (`package.json` is not hashed).
+
+Every change to that trust set must bump the version in both `package.json` and
+`jarvis.module.json`. Update detection is version-based, and the registry publisher rejects changed
+same-version artifacts while allowing identical idempotent reruns.
 
 ## Contract summary
 
