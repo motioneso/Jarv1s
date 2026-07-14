@@ -5826,3 +5826,12 @@ Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item clear
   signal, reproduce with the local Playwright smoke, not unit tests), new PR 'Part of #984'.
 - **#984 stays OPEN.** Bookkeeping (close/reap) cancelled — nothing to close; lane pK3 continues.
 - On #1035 merge: verify main VF green, then this lane is back to "awaiting fix-forward PR".
+
+### #984 — revert LANDED (main green), lane back to fix-forward
+- Revert PR #1035 MERGED **939e2159**, directly atop d56ba688 (no intervening merges → clean return
+  to pre-#1015 known-good tree). Compose smokes green; VF expected-green (same tree that everything
+  built on). revert-1015 worktree + branch reaped.
+- Steady state: pK3 UX-984 (Codex) building #984 fix-forward (stabilize headless-CI model-menu
+  assertion) → new PR 'Part of #984' → Opus re-QA + manual merge on VF green.
+- v3 (pMG, Sonnet) building #1026 UAT Playwright on approved plan.
+- No active watches; both lanes push their PR#. #984 stays OPEN.
