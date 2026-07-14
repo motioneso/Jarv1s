@@ -299,7 +299,7 @@ export class PeopleNotesService {
   ): Promise<LoadedPeopleNote> {
     const { folder } = await this.getSettings(scopedDb, ownerUserId);
     if (!folder) throw new Error("People notes folder is not configured");
-    const matches = (await this.loadPeopleNotes(vaultCtx, folder)).filter(
+    const matches = (await this.loadPeopleNotes(vaultCtx, folder)).notes.filter(
       (note) => note.parsed.frontmatter.jarvisPersonId === personId
     );
     if (matches.length !== 1) throw new CanonicalNoteNotFoundError(personId);

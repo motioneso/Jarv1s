@@ -169,10 +169,11 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
     ignored: Type.Number(),
     candidates: Type.Number()
   });
+  const safeErrorSchema = Type.Object({ error: Type.String() });
 
   app.get(
     "/api/people/notes-directories",
-    { schema: { response: { 200: directoriesSchema } } },
+    { schema: { response: { 200: directoriesSchema, 400: safeErrorSchema } } },
     async (request, reply) => {
       const ac = await deps.resolveAccessContext(request);
       if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
@@ -208,7 +209,12 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
 
   app.put(
     "/api/people/notes-settings",
-    { schema: { body: notesSettingsSchema, response: { 200: notesSettingsSchema } } },
+    {
+      schema: {
+        body: notesSettingsSchema,
+        response: { 200: notesSettingsSchema, 400: safeErrorSchema }
+      }
+    },
     async (request, reply) => {
       const ac = await deps.resolveAccessContext(request);
       const body = request.body as { folder: string | null };
@@ -249,7 +255,7 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
 
   app.post(
     "/api/people/notes/refresh",
-    { schema: { response: { 200: peopleRefreshSchema } } },
+    { schema: { response: { 200: peopleRefreshSchema, 400: safeErrorSchema } } },
     async (request, reply) => {
       const ac = await deps.resolveAccessContext(request);
       if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
