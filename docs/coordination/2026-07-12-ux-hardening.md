@@ -1442,8 +1442,9 @@ resume from this note before taking any merge-sensitive action.
   `https://github.com/motioneso/Jarv1s/pull/1050#issuecomment-4966075807`; no sensitive QA may start.
   Independent #1049 routine QA session `019f5f54-d396-7812-9dfb-5e14646a6200` returned RED and was
   reaped; durable verdict `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966124185`.
-  Builder `UX 994 Build Luna`, session `019f5ed2-b0ed-7cf0-ba53-f956f4185b81`, is reopened for the
-  composer-state and visible-required-marker blockers. The coordinator must remove the leaked
-  `docs/coordination/handoff-994-skills-build.md`, then require green CI, fresh stable narrow UAT,
-  and independent re-QA. No merge has occurred yet.
+  Builder `UX 994 Build Luna`, session `019f5ed2-b0ed-7cf0-ba53-f956f4185b81`, fixed the
+  composer-state and visible-required-marker blockers at `f2760d1f`; the coordinator removed the
+  leaked `docs/coordination/handoff-994-skills-build.md`. PR #1049 head is now
+  `110bba3b3654f0522a15a19458cc1493ba4ba4b1`; require green CI, fresh stable narrow UAT, and
+  independent re-QA. No merge has occurred yet.
 - `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
