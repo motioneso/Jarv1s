@@ -6226,3 +6226,11 @@ Done (UX-owned merge). UX gave explicit reap ping → removed held worktree
 qa-1049-ground). Durable UAT+QA evidence lives on the PR. Left /tmp/jarv1s-uat-1050-0b280f51 +
 pr1009-evidence (not mine; #1050 stays blocked under UX). Two-coordinator boundary reaffirmed — UX
 session 019f5ee8 NOT reaped.
+
+## UX Coordinator RELAY — 2026-07-14
+UX Coordinator relayed to a fresh session: authority now **`019f5fc7-4cac-7760-8e3a-9f5d766c5862`**
+(supersedes spent `019f5ee8-8a0a-...`, authority commit `30ea3c79` pushed). Dual-coordinator
+boundary unchanged: I do NOT reap UX; UX closes only spent `019f5ee8` and does NOT touch primary
+Coordinator `58a78927-385c-4b1d-8fa0-94db20255d6f`. Resolve UX by label at send time (session id
+churns on their relays). No effect on my lanes: Lane A PR #1052 mid-QA (agent a6307b5c) + CI-waiter
+bo0202w70; Lane B #1030 releases on that merge.
