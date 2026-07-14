@@ -6144,3 +6144,50 @@ Fable cross-model QA (agent fable-qa-1051) = **GREEN, MERGE-READY: YES, 0 blocki
 - **My standing task:** after the corrected #1049 head is CI-green, re-task the UAT lane for a **fresh stable unobscured desktop+narrow capture** against the NEW head. **DO NOT rerun yet** — wait for UX's explicit go. Worktree `.claude/worktrees/uat-1049-1050-combined` + pMZ lane remain HELD.
 - #1050 unchanged: blocked, no QA.
 - #1040/PR#1051 unchanged: held for Ben sign-off.
+
+---
+
+## Checkpoint 13l — 2026-07-14 — OVERNIGHT AUTONOMOUS RUN (Ben asleep)
+
+**AUTHORITY GRANT (Ben, verbatim):** "You are the captain, you make decisions dont hold for me."
++ "Aim to impress me by morning." → NO hold-for-Ben gates overnight. Merge on council-green per
+the recorded sign-off model (Opus adversarial security QA → Fable cross-model review; both GREEN =
+the sign-off; coordinator merges + digests, no manual Ben gate). AWAITING-BEN effectively moot
+overnight. NO PushNotifications.
+
+**Sign-off model (in force, mem_mrkb2468):** security-tier merge = Opus QA GREEN + Fable review
+GREEN = sign-off. AGY (Antigravity→Gemini 3.1 Pro) is the cross-model fallback if Fable exhausted.
+
+**Epic #1000 CLOSED core-complete.** 4 children left as independent trackers; Ben: "keep those
+separate, but execute now too."
+
+**LANE PLAN (all touch tests/uat/ + provisioner.ts → SERIALIZE, no parallel):**
+- **Lane A (routine, Codex gpt-5.6-sol):** #1047 (run-uat.ts ignores spec filter + hardcodes
+  admin+data seed/job-search exclusion; job-search spec lacks uatLevel export) + #1034 COMBINED
+  (3 seed cleanups: tasks.ts:37 dup rows on re-seed, connections.ts:33 pool-not-closed err path,
+  provisioner.ts:430 unreachable --excludeChunks branch; PLUS move admin.test.ts DB-free describe
+  → tests/unit). Spec-covered (harness spec §5 uatLevel convention line 319).
+- **Lane B (SECURITY tier, serialize AFTER A lands):** #1030 multi-user seed tier — second
+  non-admin user + cross-user share/RLS fixtures. Spec-covered (harness spec §4.3 lines 34/243/
+  245-247/305/319 — CONFIRMED). Depends on A's fixed level plumbing. Opus QA → Fable review.
+- **#1042** (module-install docker-pull no-op) = **UX-owned** — DO NOT build; leave to UX.
+
+**CONTINUATION (post-compact pickup — do this next, in order):**
+1. Main CI was `in_progress` (run for #1040 merge `313c194c`). WAIT for green (`gh run list
+   --branch main --limit 1`), never spawn onto red main.
+2. On green: `git fetch origin main`; `git worktree add .claude/worktrees/uat-plumbing-1047-1034
+   -b uat-plumbing-1047-1034 origin/main`; write handoff (coordinator-only ban + no git add -A +
+   no docs/coordination edits); spawn Codex gpt-5.6-sol into a w1 agents tab (NOT t21 = UX's; NOT
+   t15 = my coordinator tab — make/reuse a build agents tab in w1), confirm sol model line.
+3. Serialize Lane B (#1030) behind A's merge.
+4. Merge each on council-green (routine A: Sonnet QA; security B: Opus QA + Fable). Digest to
+   AWAITING-BEN Cleared log, don't wake Ben.
+
+**Backlog after children (gpt-5.6-sol lanes, if capacity):** #965 (run-now dedupe, SENSITIVE,
+task #25), #1018 (realpath symlink hardening).
+
+**HELD (do not touch):** `.claude/worktrees/uat-1049-1050-combined` + pMZ lane (session 019f5f46,
+idle) — #1049 recapture waits on UX's corrected-head CI-green + explicit UX go; frozen 63ccf923
+superseded. #1050 blocked. Reap only on UX's explicit ping.
+
+**Lock:** Coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f` (unchanged; in-place compact).
