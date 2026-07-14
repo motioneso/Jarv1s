@@ -1638,3 +1638,9 @@ resume from this note before taking any merge-sensitive action.
   blocker is resolved and existing owner `UX 987 Plan Sol` session
   `019f5e9b-c003-7350-acba-258a601e308b` is revising the docs-only draft for fresh independent QA;
   product implementation and merge remain gated. PR #1050 remains parked with Ben.
+- PR #1044's revised docs-only head is `fedf3d24a68b6732cd0f5baec51f6f54ab8054bd`, rebased onto
+  `0b6aa71c88ed53b3abe29b8d4226701f0737ab77`. Owner docs checks are green and the three required
+  checks in run `29352947263` are running. After CI green, fresh independent sensitive QA must
+  verify the public People error barrel export and exact AppShell -> ChatControls -> ChatDrawer ->
+  matching ActionRequestCard stable-ID focus path, including the explicit no-chat-redesign and
+  no-resolver-expansion boundary. Owner `UX 987 Plan Sol` is done pending that gate.
