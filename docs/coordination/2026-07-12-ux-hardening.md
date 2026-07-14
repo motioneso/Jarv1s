@@ -1657,3 +1657,11 @@ resume from this note before taking any merge-sensitive action.
   `UX 987 Build Luna` session `019f61cb-e119-7d41-ac45-390878fe72ff` is verified working on
   `gpt-5.6-luna` at medium reasoning. Its product PR remains sensitive and requires independent QA
   plus live desktop+narrow proof before merge.
+- Primary `Coordinator` session `eb173f3a-c671-40c7-9bd2-78cbec597433` confirmed no collision with
+  #987; its only tracked PR #1056 is disjoint and it will flag any change. The builder's exact locks
+  are `packages/people/src/index.ts`, `settings-vault-chooser.tsx`,
+  `settings-personal-data-panes.tsx`, `chat-controls-context.ts`, `app-shell.tsx`, `chat-drawer.tsx`,
+  `action-request-card.tsx`, and the focused action-card/chooser unit tests. The merged plan was
+  explicitly approved to immutable builder session `019f61cb-e119-7d41-ac45-390878fe72ff`; Task 5
+  is active with no `docs/coordination/**`, `tests/uat/**`, chat policy/routes/styles, approval store,
+  or broader redesign scope.
