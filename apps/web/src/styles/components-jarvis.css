@@ -90,6 +90,25 @@
   padding: var(--space-5) var(--space-6);
 }
 
+/* #1059 — owner-gated CLI-provider terminal modal. Widened past the 460px default dialog
+   so an 80-col xterm session isn't cramped; the host div sizing is otherwise plain — no
+   new raw colors, just the existing surface/border tokens. */
+.terminal-modal {
+  max-width: 720px;
+}
+.term-modal__prompt {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+.term-modal__host {
+  background: var(--surface-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  min-height: 360px;
+}
+
 /* ---------------------------------------------------------------
    PROGRESS LINE — thin, calm
    --------------------------------------------------------------- */
