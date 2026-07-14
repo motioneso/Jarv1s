@@ -281,7 +281,9 @@ describe("MVP foundation schema catalog", () => {
         // #982/#869 D6 — admin-only hard reconcile of CLI concrete model rows.
         { version: "0163", name: "0163_ai_cli_model_reconcile_delete.sql" },
         // #985 — bounded key-name metadata for native-YOLO audit rows.
-        { version: "0164", name: "0164_action_audit_input_summary.sql" }
+        { version: "0164", name: "0164_action_audit_input_summary.sql" },
+        // #1059 — owner-terminal step-up password (scrypt hash only), admin-only FORCE RLS.
+        { version: "0165", name: "0165_ai_terminal_password.sql" }
       ]);
     } finally {
       await client.end();

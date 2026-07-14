@@ -16,6 +16,7 @@ export * from "./model-discovery.js";
 export * from "./provider-validation-routes.js";
 export * from "./provider-validation.js";
 export * from "./repository.js";
+export * from "./terminal-password-repository.js";
 export * from "./routes.js";
 export * from "./structured/schema-bounds.js";
 export * from "./structured/generate-structured.js";
