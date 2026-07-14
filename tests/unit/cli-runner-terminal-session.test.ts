@@ -23,4 +23,24 @@ describe("TerminalSession (#1059)", () => {
     session.kill();
     expect(chunks.join("")).toContain("hello_1059");
   });
+
+  it("passes raw non-UTF-8 bytes through unmodified (#1059 encoding:null)", async () => {
+    // Bytes 0xFF/0xFE are not valid standalone UTF-8. Under node-pty's old default
+    // 'utf8' encoding they'd be lossily decoded to U+FFFD before we ever see them
+    // (0xFF absent from the stream); under `encoding: null` the exact bytes survive.
+    const session = new TerminalSession({
+      id: "t-test-binary",
+      cols: 80,
+      rows: 24,
+      homeBase: "/tmp",
+      toolsBinDir: "/usr/bin"
+    });
+    const chunks: Buffer[] = [];
+    session.onData((c) => chunks.push(c));
+    session.write(Buffer.from("printf '\\377\\376'\n"));
+    await new Promise((r) => setTimeout(r, 800));
+    session.kill();
+    expect(chunks.every((c) => Buffer.isBuffer(c))).toBe(true);
+    expect(Buffer.concat(chunks).includes(0xff)).toBe(true);
+  });
 });
