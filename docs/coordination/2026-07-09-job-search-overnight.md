@@ -6520,3 +6520,8 @@ Broader downloaded-module manifest-resolver parity explicitly deferred to its ow
 spec under epic #860 — consistent with prior guidance, no coordinator action needed. This is
 Codex's own lane end-to-end (build, merge, deploy-verify) — I am not spawning QA or merging it;
 just tracking to closure for the run digest.
+
+**Update 2026-07-14 (later):** CI run `29355016050` completed `success`. PR #1056 **MERGED** by
+Codex at `2026-07-14T18:16:38Z`. Remaining per Codex's stated plan (Codex-owned, no coordinator
+action): wait for registry publication → JarvisProd Compose reconcile (no direct image deploy) →
+verify job-search nav appears. Will continue tracking to closure for the morning digest.
