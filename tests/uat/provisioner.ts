@@ -5,6 +5,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
 
 export interface UatRunId {
   readonly projectName: string;
@@ -93,6 +94,13 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
     [
       "NODE_ENV=production",
       `JARVIS_WEB_PORT=${input.webPort}`,
+      // #1026: Playwright drives this instance at http://127.0.0.1:<webPort> (see baseURL
+      // below), which is a DIFFERENT origin than better-auth's "http://localhost:<port>"
+      // default (readTrustedOrigins, packages/auth/src/index.ts) — 127.0.0.1 and localhost
+      // are distinct origins for its exact-string check, so login was rejected with
+      // "Invalid origin" until this was added. Reuses the same deriveTrustedOrigins helper
+      // scripts/setup-prod.ts uses for real deploys (#379) rather than hand-rolling the list.
+      `JARVIS_AUTH_TRUSTED_ORIGINS=${deriveTrustedOrigins({ webPort: String(input.webPort), publicOrigin: "127.0.0.1" })}`,
       `JARVIS_DOCKER_SUBNET=${UAT_DOCKER_SUBNET}`,
       `POSTGRES_PASSWORD=${UAT_POSTGRES_PASSWORD}`,
       "JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s",
@@ -377,12 +385,20 @@ export function buildSeedHookInput(
 }
 
 export async function restartUatStack(projectName: string, baseURL: string): Promise<void> {
-  // #1026/#999: the module registry has no in-UI restart action by design
-  // (settings-module-registry-section.tsx's "Downloaded — restart to apply" note) — an operator
-  // re-runs `docker compose up -d`, which re-triggers scripts/module-reconcile.ts on boot. The UAT
-  // spec mirrors that real operator action instead of faking the state transition, since #999 was
-  // specifically a restart+reconcile bug a faked transition would not have caught.
-  await runCommand("docker", buildUatComposeArgs(projectName, ["up", "-d", "jarv1s"]));
+  // #1026/#999: found live — `docker compose up -d jarv1s` is a documented Compose no-op when the
+  // service's computed config (image digest/env/volumes) is unchanged, which it always is here: a
+  // module "Download" only writes into the jarv1s-modules volume + a DB row
+  // (packages/module-registry/src/distribution/pipeline.ts's downloadAndStageModule), never the
+  // image or compose config `up -d` diffs against. scripts/module-reconcile.ts only runs as a
+  // boot-time one-shot (scripts/start-jarv1s.ts), so a no-op `up -d` means it never reruns and the
+  // module never leaves "Downloaded — restart to apply". `docker compose restart` kills+restarts
+  // the SAME container (unlike `up -d`, it is not gated on a config diff), which reruns
+  // start-jarv1s.ts's CMD from scratch — including migrate + module-reconcile — every time. This is
+  // a harness fix only: settings-module-registry-section.tsx's operator-facing copy still tells
+  // real operators to run `docker compose pull && docker compose up -d`, which hits this exact
+  // no-op when no new image tag was pulled — that product-level UX gap is out of scope for #1026
+  // and must be flagged as its own issue, not silently routed around here.
+  await runCommand("docker", buildUatComposeArgs(projectName, ["restart", "jarv1s"]));
   await waitForReady(`${baseURL}/health/ready`);
 }
 
