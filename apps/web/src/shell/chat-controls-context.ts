@@ -10,6 +10,11 @@ export interface ChatControls {
    * auto-sends; the user reviews and submits. Distinct from `openChatWith`, which auto-sends.
    */
   readonly openAssistantWithDraft: (draft: string) => void;
+  readonly pendingNotesDelete?: {
+    readonly actionRequestId: string;
+    readonly summary: string;
+  } | null;
+  readonly openActionRequest?: (actionRequestId: string) => void;
 }
 
 const ChatControlsContext = createContext<ChatControls | null>(null);

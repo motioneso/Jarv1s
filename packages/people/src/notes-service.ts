@@ -29,6 +29,13 @@ export class CanonicalNoteNotFoundError extends Error {
   }
 }
 
+export class PeopleNotesFolderUnavailableError extends Error {
+  constructor() {
+    super("People notes folder is unavailable");
+    this.name = "PeopleNotesFolderUnavailableError";
+  }
+}
+
 export interface PeopleNotesServiceDeps {
   readonly preferencesRepository?: PreferencesRepository;
   readonly peopleRepository?: PeopleRepository;

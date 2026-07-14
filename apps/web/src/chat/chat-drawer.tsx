@@ -84,6 +84,8 @@ export function ChatDrawer(props: {
    * Seeds the input on mount only; it is NEVER auto-sent — the user reviews and presses send.
    */
   readonly initialText?: string;
+  readonly focusActionRequestId?: string | null;
+  readonly onActionRequestFocused?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
@@ -498,7 +500,11 @@ export function ChatDrawer(props: {
             </div>
           ) : null}
           {showHistory ? null : effectiveRecords.length > 0 ? (
-            <Thread records={effectiveRecords} />
+            <Thread
+              records={effectiveRecords}
+              focusActionRequestId={props.focusActionRequestId}
+              onActionRequestFocused={props.onActionRequestFocused}
+            />
           ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
             <ConnectProviderEmpty isFounder={props.isFounder} />
           ) : (
@@ -637,14 +643,23 @@ function HistoryList(props: {
 /** The live conversation. Consecutive behind-the-scenes records (thinking/tool/status and
  *  resolved action results) collapse into one peek; replies and pending action requests
  *  stay front-and-centre. */
-function Thread(props: { readonly records: readonly TranscriptRecord[] }) {
+function Thread(props: {
+  readonly records: readonly TranscriptRecord[];
+  readonly focusActionRequestId?: string | null;
+  readonly onActionRequestFocused?: () => void;
+}) {
   return (
     <div className="chatd-thread" aria-live="polite">
       {groupRecords(props.records).map((item, index) =>
         item.type === "activity" ? (
           <ActivityPeek key={index} records={item.records} />
         ) : (
-          <RecordRow key={index} record={item.record} />
+          <RecordRow
+            key={index}
+            record={item.record}
+            focusActionRequestId={props.focusActionRequestId}
+            onActionRequestFocused={props.onActionRequestFocused}
+          />
         )
       )}
     </div>
@@ -726,7 +741,11 @@ export function activityVerb(record: TranscriptRecord): string {
   return `${record.kind} ·`;
 }
 
-function RecordRow(props: { readonly record: TranscriptRecord }) {
+function RecordRow(props: {
+  readonly record: TranscriptRecord;
+  readonly focusActionRequestId?: string | null;
+  readonly onActionRequestFocused?: () => void;
+}) {
   const { kind, text } = props.record;
 
   if (kind === "action_request" && props.record.actionRequestId) {
@@ -736,6 +755,8 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
         summary={props.record.summary ?? text}
         toolName={props.record.toolName ?? kind}
         preview={props.record.preview}
+        focusRequested={props.record.actionRequestId === props.focusActionRequestId}
+        onFocusComplete={props.onActionRequestFocused}
       />
     );
   }

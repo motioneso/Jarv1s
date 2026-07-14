@@ -81,6 +81,7 @@ export function AppShell(props: AppShellProps) {
   // #916 — a module-authored starter draft handed up via ChatControls.openAssistantWithDraft. One-
   // shot, mirrors #368's askJarvisStarter: seeds the composer on drawer open, cleared on close.
   const [moduleDraft, setModuleDraft] = useState<string | undefined>(undefined);
+  const [focusActionRequestId, setFocusActionRequestId] = useState<string | null>(null);
   const [theme] = useState<ShellTheme>(() => loadShellTheme());
   useEffect(() => {
     if (consumeAskJarvis()) {
@@ -103,6 +104,28 @@ export function AppShell(props: AppShellProps) {
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords, streamErrorCount } = useChatStream();
+  const pendingNotesDelete = useMemo(() => {
+    const results = new Set(
+      records
+        .filter((record) => record.kind === "action_result" && record.actionRequestId)
+        .map((record) => record.actionRequestId)
+    );
+    return (
+      [...records]
+        .reverse()
+        .find(
+          (record) =>
+            record.kind === "action_request" &&
+            record.toolName === "notes.delete" &&
+            Boolean(record.actionRequestId) &&
+            !results.has(record.actionRequestId)
+        ) ?? null
+    );
+  }, [records]);
+  const openActionRequest = useCallback((actionRequestId: string) => {
+    setFocusActionRequestId(actionRequestId);
+    setChatOpen(true);
+  }, []);
   const navSections = useMemo(
     () => buildShellNavigation(props.modules, props.disabledModuleIds ?? []),
     [props.modules, props.disabledModuleIds]
@@ -226,7 +249,20 @@ export function AppShell(props: AppShellProps) {
         </header>
 
         <main className="content-surface">
-          <ChatControlsProvider value={{ openChat, openChatWith, openAssistantWithDraft }}>
+          <ChatControlsProvider
+            value={{
+              openChat,
+              openChatWith,
+              openAssistantWithDraft,
+              pendingNotesDelete: pendingNotesDelete
+                ? {
+                    actionRequestId: pendingNotesDelete.actionRequestId!,
+                    summary: pendingNotesDelete.summary ?? pendingNotesDelete.text
+                  }
+                : null,
+              openActionRequest
+            }}
+          >
             {props.children}
           </ChatControlsProvider>
         </main>
@@ -243,6 +279,7 @@ export function AppShell(props: AppShellProps) {
         open={chatOpen}
         onClose={() => {
           setChatOpen(false);
+          setFocusActionRequestId(null);
           // #368: the starter is a one-shot — once the drawer closes, a later manual open starts
           // from a blank composer, not the setup-check chip.
           setAskJarvisStarter(undefined);
@@ -254,6 +291,8 @@ export function AppShell(props: AppShellProps) {
         streamErrorCount={streamErrorCount}
         isFounder={props.me.user.isBootstrapOwner}
         initialText={moduleDraft ?? askJarvisStarter}
+        focusActionRequestId={focusActionRequestId}
+        onActionRequestFocused={() => setFocusActionRequestId(null)}
       />
     </div>
   );

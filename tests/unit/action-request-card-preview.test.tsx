@@ -34,6 +34,7 @@ describe("ActionRequestCard email preview", () => {
   it("renders summary-only (no preview block) when no preview is supplied", () => {
     const html = renderToString(createElement(ActionRequestCard, baseProps));
     expect(html).toContain("Draft a reply to Alice");
+    expect(html).toContain('data-action-request-id="ar_1"');
     // The tool-name label reuses the "action-request-preview__label" class (Decision 6),
     // so we assert on the preview-block-specific containers rather than that shared prefix.
     expect(html).not.toContain("action-request-preview__meta");

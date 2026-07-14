@@ -10,6 +10,8 @@ interface ActionRequestCardProps {
   readonly summary: string;
   /** Rich server-derived preview (email reply recipient/subject/body); live-stream only. */
   readonly preview?: ActionRequestPreview;
+  readonly focusRequested?: boolean;
+  readonly onFocusComplete?: () => void;
 }
 
 function humanizeToolName(toolName: string): string {
@@ -27,6 +29,13 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
       rootRef.current?.focus();
     }
   }, [status]);
+
+  useEffect(() => {
+    if (!props.focusRequested) return;
+    rootRef.current?.scrollIntoView({ block: "center" });
+    rootRef.current?.focus();
+    props.onFocusComplete?.();
+  }, [props.focusRequested, props.onFocusComplete]);
 
   const resolve = async (decision: "confirmed" | "rejected") => {
     setStatus("loading");
@@ -47,6 +56,7 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
       className="action-request-card"
       role="region"
       aria-label="Action request"
+      data-action-request-id={props.actionRequestId}
       ref={rootRef}
       tabIndex={-1}
     >
