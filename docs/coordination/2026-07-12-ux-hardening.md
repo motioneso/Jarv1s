@@ -1436,7 +1436,10 @@ resume from this note before taking any merge-sensitive action.
   `019f5f2a-c957-7b61-9a26-47ec6abde474` was reaped after #1049 passed and it committed durable
   handoff `2d324f09`. Successor label `UAT 1049+1050 Relay Sol`, Codex session
   `019f5f46-b0cf-7b73-997e-ea00262651ce`, is working on `gpt-5.6-sol` in the same worktree/tab.
-  Await #1050 execution and PR-linked desktop+narrow evidence plus its separate CLI transcript/log,
-  then launch independent routine QA for #1049 and sensitive invariant-walk QA for #1050. Both
-  verdicts must be durable PR comments. No QA or merge has occurred yet.
+  #1049 UAT passed with durable PR comment
+  `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966075818`. #1050 is `BLOCKED / NOT
+  EXERCISED` after the evidence-driver cap, with durable PR comment
+  `https://github.com/motioneso/Jarv1s/pull/1050#issuecomment-4966075807`; no sensitive QA may start.
+  Independent #1049 routine QA label `QA 1049 Routine Sol`, Codex session
+  `019f5f54-d396-7812-9dfb-5e14646a6200`, is working on `gpt-5.6-sol`. No merge has occurred yet.
 - `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
