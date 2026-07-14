@@ -55,10 +55,6 @@ export interface ListChatThreadsResponse {
   readonly threads: readonly ChatThreadDto[];
 }
 
-export interface GetChatPrivacyStateResponse {
-  readonly incognito: boolean;
-}
-
 export interface ListChatThreadMessagesResponse {
   readonly messages: readonly ChatMessageDto[];
 }
@@ -350,22 +346,6 @@ export const listChatThreadsResponseSchema = {
 export const listChatThreadsRouteSchema = {
   response: {
     200: listChatThreadsResponseSchema,
-    401: errorResponseSchema
-  }
-} as const;
-
-export const getChatPrivacyStateResponseSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["incognito"],
-  properties: {
-    incognito: { type: "boolean" }
-  }
-} as const;
-
-export const getChatPrivacyStateRouteSchema = {
-  response: {
-    200: getChatPrivacyStateResponseSchema,
     401: errorResponseSchema
   }
 } as const;

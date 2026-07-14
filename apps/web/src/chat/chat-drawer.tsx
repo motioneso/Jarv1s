@@ -6,6 +6,7 @@ import {
   GitCommitHorizontal,
   MessageSquareText,
   MoreHorizontal,
+  Play,
   ShieldOff,
   SquarePen,
   ThumbsDown,
@@ -23,7 +24,6 @@ import {
   beaconEndPrivateChat,
   clearChat,
   endPrivateChat,
-  getChatPrivacyState,
   getOnboardingStatus,
   listCalendarEvents,
   listChatThreadMessages,
@@ -89,19 +89,6 @@ export function ChatDrawer(props: {
   const [showHistory, setShowHistory] = useState(false);
   const [privateMode, setPrivateMode] = useState(false);
   const [privateEnded, setPrivateEnded] = useState(false);
-  const [activatingPrivate, setActivatingPrivate] = useState(false);
-  const [privateActivationError, setPrivateActivationError] = useState<string | null>(null);
-
-  const privacyStateQuery = useQuery({
-    queryKey: queryKeys.chat.privacy,
-    queryFn: () => getChatPrivacyState(),
-    enabled: props.open
-  });
-
-  useEffect(() => {
-    if (!privacyStateQuery.isSuccess) return;
-    setPrivateMode(privacyStateQuery.data.incognito);
-  }, [privacyStateQuery.isSuccess, privacyStateQuery.data]);
 
   // #633: autoscroll to the newest message by default; pause it the moment the user scrolls
   // away from the bottom, and resume (jumping straight to the latest record) on demand.
@@ -130,12 +117,9 @@ export function ChatDrawer(props: {
     mutationFn: (threadId: string) => resumeChat(threadId),
     onSuccess: () => {
       props.clearRecords();
+      setReviewThreadId(null);
       setShowHistory(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
-    },
-    onError: () => {
-      setReviewThreadId(null);
-      setShowHistory(true);
     }
   });
 
@@ -206,8 +190,6 @@ export function ChatDrawer(props: {
     queryFn: () => listChatThreadMessages(reviewThreadId ?? ""),
     enabled: props.open && reviewThreadId !== null
   });
-  const historyActivationPending =
-    reviewThreadId !== null && (resumeMutation.isPending || !messagesQuery.isSuccess);
 
   /**
    * Unified send path for both the seed buttons and the manual composer (#400).
@@ -217,13 +199,7 @@ export function ChatDrawer(props: {
   const sendMessage = useCallback(
     (text: string): void => {
       const trimmed = text.trim();
-      if (!trimmed || isSending || privateEnded || activatingPrivate || historyActivationPending) {
-        return;
-      }
-      if (reviewThreadId !== null) {
-        setFallbackRecords(recordsFromMessages(messagesQuery.data?.messages ?? []));
-        setReviewThreadId(null);
-      }
+      if (!trimmed || isSending || privateEnded) return;
       setSendError(null);
       setNeedsProvider(false);
       setIsSending(true);
@@ -259,16 +235,7 @@ export function ChatDrawer(props: {
         }
       })();
     },
-    [
-      activatingPrivate,
-      historyActivationPending,
-      isSending,
-      messagesQuery.data?.messages,
-      privateEnded,
-      props.records,
-      queryClient,
-      reviewThreadId
-    ]
+    [isSending, privateEnded, props.records, queryClient]
   );
 
   useEffect(() => {
@@ -368,24 +335,12 @@ export function ChatDrawer(props: {
     setNeedsProvider(false);
     setDrainAfterStopText(null);
     setPendingUserText(null);
+    setFallbackRecords([]);
+    setPrivateMode(true);
     setPrivateEnded(false);
-    setPrivateActivationError(null);
-    setActivatingPrivate(true);
-    void (async () => {
-      try {
-        await clearChat({ incognito: true });
-        setFallbackRecords([]);
-        props.clearRecords();
-        setPrivateMode(true);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
-      } catch (caught) {
-        setPrivateActivationError(
-          caught instanceof Error ? caught.message : "Could not start a private chat"
-        );
-      } finally {
-        setActivatingPrivate(false);
-      }
-    })();
+    void clearChat({ incognito: true });
+    props.clearRecords();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
   };
 
   const closePrivateChat = () => {
@@ -406,6 +361,10 @@ export function ChatDrawer(props: {
       // best-effort: the turn ends server-side regardless; a network error here just clears isSending.
     });
   };
+
+  const selectedThread = (threadsQuery.data?.threads ?? []).find(
+    (item) => item.id === reviewThreadId
+  );
 
   return (
     <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
@@ -463,28 +422,26 @@ export function ChatDrawer(props: {
             <HistoryList
               selectedThreadId={reviewThreadId}
               threads={threadsQuery.data?.threads ?? []}
-              onSelect={(id) => {
-                setReviewThreadId(id);
-                setShowHistory(false);
-                resumeMutation.mutate(id);
-              }}
-              activating={resumeMutation.isPending}
+              onSelect={setReviewThreadId}
+              onResume={(id) => resumeMutation.mutate(id)}
+              resuming={resumeMutation.isPending}
             />
           ) : null}
-          {!showHistory && activatingPrivate ? (
-            <div className="chatd-private is-activating">
-              <span>Starting private chat…</span>
-            </div>
-          ) : null}
-          {!showHistory && privateActivationError ? (
-            <div className="chatd-private is-error">
-              <span>{privateActivationError}</span>
-              <button type="button" onClick={() => setPrivateActivationError(null)}>
-                Dismiss
+          {reviewing ? (
+            <div className="chatd-review">
+              <span>Reviewing {selectedThread?.title ?? "past chat"}</span>
+              <button
+                className="chatd-review__resume"
+                disabled={resumeMutation.isPending}
+                type="button"
+                onClick={() => reviewThreadId && resumeMutation.mutate(reviewThreadId)}
+              >
+                <Play size={13} aria-hidden="true" />
+                Resume this conversation
               </button>
             </div>
           ) : null}
-          {!showHistory && privateMode && !reviewing ? (
+          {privateMode && !reviewing ? (
             <div className={`chatd-private${privateEnded ? " is-ended" : ""}`}>
               <span>
                 {privateEnded
@@ -496,8 +453,10 @@ export function ChatDrawer(props: {
               </button>
             </div>
           ) : null}
-          {showHistory ? null : effectiveRecords.length > 0 ? (
+          {effectiveRecords.length > 0 ? (
             <Thread records={effectiveRecords} />
+          ) : reviewing ? (
+            <ReviewEmptyState />
           ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
             <ConnectProviderEmpty isFounder={props.isFounder} />
           ) : (
@@ -576,12 +535,12 @@ export function ChatDrawer(props: {
       <Composer
         modelSelector={
           <ChatModelPill
-            disabled={privateEnded || isSending || historyActivationPending}
+            disabled={reviewing || privateEnded || isSending}
             privateMode={privateMode}
             onCrossProviderSwitch={switchToNewModelChat}
           />
         }
-        readOnly={privateEnded || historyActivationPending}
+        readOnly={reviewing || privateEnded}
         isFounder={props.isFounder}
         initialText={props.initialText}
         isSending={isSending}
@@ -603,31 +562,43 @@ function HistoryList(props: {
   }[];
   readonly selectedThreadId: string | null;
   readonly onSelect: (threadId: string) => void;
-  readonly activating: boolean;
+  readonly onResume: (threadId: string) => void;
+  readonly resuming: boolean;
 }) {
   const locale = useUserLocale();
-  if (props.threads.length === 0) {
-    return <div className="chatd-sess chatd-sess--empty">No past conversations yet.</div>;
-  }
+  if (props.threads.length === 0) return null;
   return (
     <div className="chatd-sess">
       <div className="chatd-sess__hd">History</div>
       {props.threads.map((thread) => (
-        <button
+        <div
           className={`chatd-sess__row${props.selectedThreadId === thread.id ? " is-selected" : ""}`}
-          disabled={props.activating}
           key={thread.id}
-          type="button"
-          onClick={() => props.onSelect(thread.id)}
         >
-          <span className="chatd-sess__ic">
-            <MessageSquareText size={14} aria-hidden="true" />
-          </span>
-          <span className="chatd-sess__main">
-            <span className="chatd-sess__title">{thread.title}</span>
-          </span>
-          <span className="chatd-sess__when">{formatShortDate(thread.updatedAt, locale)}</span>
-        </button>
+          <button
+            className="chatd-sess__row-main"
+            type="button"
+            onClick={() => props.onSelect(thread.id)}
+          >
+            <span className="chatd-sess__ic">
+              <MessageSquareText size={14} aria-hidden="true" />
+            </span>
+            <span className="chatd-sess__main">
+              <span className="chatd-sess__title">{thread.title}</span>
+            </span>
+            <span className="chatd-sess__when">{formatShortDate(thread.updatedAt, locale)}</span>
+          </button>
+          <button
+            aria-label={`Resume ${thread.title}`}
+            className="chatd-sess__resume"
+            disabled={props.resuming}
+            title="Resume this conversation"
+            type="button"
+            onClick={() => props.onResume(thread.id)}
+          >
+            <Play size={13} aria-hidden="true" />
+          </button>
+        </div>
       ))}
     </div>
   );
@@ -993,6 +964,14 @@ function EmptyState(props: {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ReviewEmptyState() {
+  return (
+    <div className="chatd-empty chatd-empty--review">
+      <div className="chatd-empty__title">No stored messages</div>
     </div>
   );
 }
