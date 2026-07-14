@@ -14,7 +14,12 @@ ALTER TABLE app.ai_terminal_password ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app.ai_terminal_password FORCE ROW LEVEL SECURITY;
 
 -- Admin-only for EVERY verb (read included: only an admin ever needs the hash, to verify a step-up).
+-- `TO jarvis_app_runtime` scopes the policy to the runtime role rather than PUBLIC (house style,
+-- matching 0013_ai_module.sql); belt-and-suspenders should any future migration grant another role
+-- access to this password-hash table (#1059, Hard Invariant: secrets never escape).
+DROP POLICY IF EXISTS ai_terminal_password_admin_all ON app.ai_terminal_password;
 CREATE POLICY ai_terminal_password_admin_all ON app.ai_terminal_password
   FOR ALL
+  TO jarvis_app_runtime
   USING (app.current_actor_is_admin())
   WITH CHECK (app.current_actor_is_admin());
