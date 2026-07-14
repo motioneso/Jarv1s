@@ -257,10 +257,11 @@ export function Composer(props: {
           aria-label="Message Jarvis"
           aria-controls={skillMenuOpen ? "chat-skill-listbox" : undefined}
           aria-expanded={skillMenuOpen}
+          aria-autocomplete={skillMenuOpen ? "list" : undefined}
           aria-activedescendant={
             skillMenuOpen && activeSkill ? `chat-skill-listbox-option-${activeSkill.id}` : undefined
           }
-          role="combobox"
+          aria-haspopup={skillMenuOpen ? "listbox" : undefined}
           disabled={props.readOnly || props.lockedModelUnavailable}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
