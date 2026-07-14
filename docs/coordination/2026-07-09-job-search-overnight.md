@@ -6501,6 +6501,15 @@ pane `w1:pNF` (resolve fresh at read time — pane numbers are not stable). Run 
 idle; no new work authorized. Holding the lock, answering Ben's questions, tracking Codex's
 job-search-nav fix (0.1.1 bump) to completion without duplicating it.
 
+### Dual-coordinator boundary note — 2026-07-14
+
+UX Coordinator (session `019f6186`, pane `w1:pNC`) sent a collision notice: #987 now active
+under Luna (session `019f61cb`, from merged PR #1044), owning People error export +
+AppShell→ChatControls→ChatDrawer→ActionRequestCard stable-ID focus files + Notes/People settings
+paths; explicitly excludes tests/uat/**, chat redesign, resolver/policy, approval-store. No
+overlap with this run (idle, only tracking Codex's PR #1056 in `modules/job-search`) —
+acknowledged back to UX Coordinator, no collision. Boundary intact per CLAUDE.md.
+
 ### Codex lane tracking — PR #1056 (job-search-nav fix, Codex-owned, w1:pNE)
 
 2026-07-14: PR #1056 "fix(modules): publish Job Search 0.1.1" (0.1.1 bump + publisher guard +
