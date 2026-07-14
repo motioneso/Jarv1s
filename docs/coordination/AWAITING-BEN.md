@@ -9,23 +9,19 @@ Lock: Coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
 
 ## Open
 
-- **#1040 / PR #1051** dev/UAT seed logs owner/admin creds — **SECURITY-tier merge sign-off.**
-  Raised 2026-07-13. Build DONE (Codex gpt-5.6-sol, `f6be3991`, rebased on origin/main@`8f9da394`);
-  **Opus adversarial security QA = GREEN, 0 blocking** (verdict on PR #1051). Fence = existing
-  `JARVIS_UAT_SEED_CONFIRM=1` opt-in token (sole setter `provisioner.ts:188`; `cli.ts:16`
-  fail-closes; prod default empty + seed svc `profiles:["ops"]` inert; log line `admin.ts:97` has
-  own token re-check). Only the public throwaway fixture email+password is logged — never a real
-  secret/hash. **This is epic #1000's LAST child — merging it closes #1000.** **CI now FULLY GREEN**
-  (VF 15m57s + both compose smokes + image build all pass; `mergeable=CLEAN`, head `f6be3991`).
-  **Council complete: Opus security QA GREEN + Fable cross-model QA GREEN (MERGE-READY: YES, 0
-  blocking; PR #1051 comment 4966065450)** — Fable independently re-proved all 4 fence claims with
-  file:line. One NON-blocking follow-up (file at merge): `admin.test.ts` fence tests run in no CI
-  lane (VF=unit+integration; run-uat.ts Playwright-only) → move the DB-free describe to `tests/unit`
-  so it doesn't rot. **Only thing left = your merge sign-off.** On your OK I merge MANUALLY
-  (`gh pr merge 1051 --squash --delete-branch`, never --auto), close #1040 + epic #1000, file the
-  test-placement follow-up.
+_(empty)_
 
 ## Cleared (log)
+
+- **#1040 / PR #1051** dev/UAT seed logs owner/admin creds — **CLEARED 2026-07-14.** Ben signed off
+  ("i sign off on 1040") + clarified the standing sign-off model: **Opus adversarial security QA →
+  Fable cross-model review, both GREEN = the sign-off** (per #982/#984 precedent) — coordinator
+  merges on council-green + digests Ben; no separate manual gate unless the council splits/flags.
+  MERGED squash `313c194c`; #1040 closed; worktree/lane reaped; monitor stopped. Test-placement
+  follow-up (move `admin.test.ts` DB-free fence describe to `tests/unit`) filed on #1034.
+  **Epic #1000 NOT auto-closed** — 4 children still open (#1030 multi-user seed tier [task], #1034
+  non-blocking QA follow-ups, #1042 install-noop bug [UX], #1047 harness spec-filter gap); left for
+  Ben's roadmap call on whether to close core-complete or hold.
 
 - **#984 / PR #1015** private-history — Raised 2026-07-13 (resume-vs-defer + merge sign-off).
   Ben ruled **resume** ("do those things yes please") and then **delegated the merge decision to
