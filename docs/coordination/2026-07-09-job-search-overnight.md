@@ -6068,3 +6068,22 @@ evidence path; UX keeps QA/merge. Not blocked on Ben (routing pre-agreed) — su
 
 **Merge counter:** `merges_since_relay` reset to 0 at #1048 (this checkpoint = the relay flush for that merge +
 the compaction boundary). Coordinator continues IN PLACE (Ben override — no successor spawn).
+
+---
+
+## Checkpoint 13h — #1040 lane SPAWNED (epic #1000 last child) (session 58a78927)
+
+- **main CI green** on `8f9da394` (watcher `bjfei45w3` → success) — safe base confirmed.
+- **#1040 lane live:** Codex **gpt-5.6-sol high** (model line verified), pane **w1:pMX**, tab
+  **w1:t23** (fresh "agents" tab — spawn landed in UX Coordinator's t1Q, moved out immediately per
+  tab discipline), session `019f5f0c-d7f7-7fc0-8632-dce9803ffffd`, branch `uat-seed-log-creds-1040`
+  off `origin/main` @ `8f9da394`.
+- **Handoff:** `docs/superpowers/handoffs/2026-07-13-uat-1040-seed-log-creds.md` (committed on-branch,
+  prettier'd). Insertion point `tests/uat/seed/admin.ts`. Spec = `2026-07-12-dev-uat-harness.md`.
+- **Tier: SECURITY** (credential handling + logging). Gets Opus adversarial QA (hunt: any prod-reachable
+  path / real-user-secret leak) + posted verdict + **Ben merge sign-off**. Even though Ben requested the
+  feature, the fence (dev/UAT-only guard, seed-fixtures-only, stdout-only) is the review target.
+- **Supervision:** agent plans first, escalates plan to label Coordinator for approval before coding;
+  liveness Monitor armed on pMX (emit on status change / death).
+- **UX UAT (#1049/#1050): HELD** by UX (their #1050 VF-red on 51dee040, builder reopened). No UAT lane
+  spawned; waiting on both frozen SHAs.
