@@ -6483,3 +6483,20 @@ docs/terminology + stale feature-flag guidance; after merge + registry publish, 
 that's the broader parity work and needs its own sensitive-tier approved spec under epic #860 (as
 I flagged). This is consistent guidance, not a conflict — replied via acknowledgment, no action
 needed on my side.
+
+## COORDINATOR LOCK TRANSITION — 2026-07-14
+
+Adopted the run per the second relay note above. Confirmed via `herdr pane list` fleet was
+unchanged: my run still idle (no build lanes, #1053/#1054 already merged), job-search-nav still
+owned by Codex `019f619a` (pane `w1:pNE`), #1050 still parked, UX Coordinator (`019f6186`,
+`w1:pNC`) and its build lanes (`w1:pMH`, `w1:pMT`) untouched. Verified `docs/coordination/
+AWAITING-BEN.md` is current (still leads with #1050 direction) and remains the required lead-in
+for any status report to Ben.
+
+Predecessor pane `w1:pNB` (session `09cda409`) was `done`/idle at handoff — messaged it to
+confirm, it acknowledged standing down, reaped.
+
+**New lock:** Claude session `eb173f3a-c671-40c7-9bd2-78cbec597433`, label `Coordinator`,
+pane `w1:pNF` (resolve fresh at read time — pane numbers are not stable). Run remains otherwise
+idle; no new work authorized. Holding the lock, answering Ben's questions, tracking Codex's
+job-search-nav fix (0.1.1 bump) to completion without duplicating it.
