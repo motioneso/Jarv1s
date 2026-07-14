@@ -1,4 +1,4 @@
-import { mkdtemp, rm, symlink } from "node:fs/promises";
+import { chmod, mkdtemp, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -210,6 +210,17 @@ body
       ignored: 1,
       candidates: 1
     });
+
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "refresh-unreadable" },
+      (ctx) => chmod(join(ctx.vaultRoot, "QA987Refresh/Canonical.md"), 0o000)
+    );
+    const unavailable = await app.inject({ method: "POST", url: "/api/people/notes/refresh" });
+    expect(unavailable.statusCode).toBe(400);
+    expect(JSON.parse(unavailable.body)).toEqual({
+      error: "People notes folder is unavailable"
+    });
+    expect(unavailable.body).not.toContain(vaultRoot);
     await app.close();
   });
 

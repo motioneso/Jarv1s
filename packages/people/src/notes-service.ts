@@ -270,9 +270,18 @@ export class PeopleNotesService {
     vaultCtx: VaultContext,
     folder: string
   ): Promise<{ notes: LoadedPeopleNote[]; discovered: number; ignored: number }> {
-    let allPaths: string[];
     try {
-      allPaths = await listVaultFilesRecursive(vaultCtx, folder);
+      const allPaths = await listVaultFilesRecursive(vaultCtx, folder);
+      const paths = allPaths.filter((path) => path.endsWith(".md"));
+      const notes: LoadedPeopleNote[] = [];
+      let ignored = 0;
+      for (const path of paths) {
+        const content = await readVaultFile(vaultCtx, path);
+        const parsed = parsePeopleNote(content);
+        if (parsed) notes.push({ path, content, parsed });
+        else ignored += 1;
+      }
+      return { notes, discovered: paths.length, ignored };
     } catch (error) {
       if (["ENOENT", "ENOTDIR", "EACCES"].includes((error as NodeJS.ErrnoException)?.code ?? "")) {
         throw new PeopleNotesFolderUnavailableError();
@@ -280,16 +289,6 @@ export class PeopleNotesService {
         throw error;
       }
     }
-    const paths = allPaths.filter((path) => path.endsWith(".md"));
-    const notes: LoadedPeopleNote[] = [];
-    let ignored = 0;
-    for (const path of paths) {
-      const content = await readVaultFile(vaultCtx, path);
-      const parsed = parsePeopleNote(content);
-      if (parsed) notes.push({ path, content, parsed });
-      else ignored += 1;
-    }
-    return { notes, discovered: paths.length, ignored };
   }
 
   private async findCanonicalNote(
