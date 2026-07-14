@@ -41,6 +41,13 @@ describe("ActionRequestCard email preview", () => {
     expect(html).not.toContain("action-request-preview__value");
   });
 
+  it("keeps exact stable ID on a requested focus target", () => {
+    const html = renderToString(
+      createElement(ActionRequestCard, { ...baseProps, focusRequested: true })
+    );
+    expect(html).toContain('data-action-request-id="ar_1"');
+  });
+
   it("renders the tool name as a distinct, humanized label, not just buried in summary", () => {
     // humanizeToolName strips the module prefix and splits camelCase: "email.draftReply" -> "Draft Reply".
     const html = renderToString(createElement(ActionRequestCard, baseProps));

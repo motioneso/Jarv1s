@@ -103,7 +103,8 @@ export function SettingsPeoplePane() {
   });
 
   const saveFolderMutation = useMutation({
-    mutationFn: () => putPeopleNotesSettings({ folder: folderDraft.trim() || null }),
+    mutationFn: (folder: string | null = folderDraft.trim() || null) =>
+      putPeopleNotesSettings({ folder }),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.people.notesSettings, data);
       toast(data.folder ? `People folder set to ${data.folder}.` : "People folder cleared.");
@@ -168,6 +169,7 @@ export function SettingsPeoplePane() {
         onChoose={(folder) => {
           setFolderDraft(folder);
           setChoosingFolder(false);
+          saveFolderMutation.mutate(folder);
         }}
       />
     );
@@ -196,15 +198,6 @@ export function SettingsPeoplePane() {
               >
                 Choose folder
               </button>
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--ghost"
-                disabled={saveFolderMutation.isPending}
-                onClick={() => saveFolderMutation.mutate()}
-                title="Save folder"
-              >
-                <Save size={15} aria-hidden="true" />
-              </button>
             </span>
           }
         />
@@ -212,6 +205,12 @@ export function SettingsPeoplePane() {
           <Note>
             Discovered {refreshResult.discovered}; projected {refreshResult.projected}; ignored{" "}
             {refreshResult.ignored}; candidates {refreshResult.candidates}.
+            {refreshResult.discovered === 0
+              ? " Choose a folder with People notes or add a person manually."
+              : null}
+            {refreshResult.ignored > 0
+              ? " Ignored files need valid People-note frontmatter."
+              : null}
             {refreshResult.candidates > 0 ? (
               <button
                 type="button"
@@ -303,7 +302,7 @@ export function SettingsPeoplePane() {
         </Group>
       </div>
 
-      <Group title={`People${people.length > 0 ? ` (${people.length})` : ""}`}>
+      <Group title="Add a person manually">
         <Row
           name="Add a person manually"
           desc="Creates a canonical note in the configured folder."
@@ -337,6 +336,9 @@ export function SettingsPeoplePane() {
             </span>
           }
         />
+      </Group>
+
+      <Group title={`People${people.length > 0 ? ` (${people.length})` : ""}`}>
         {people.length === 0 ? (
           <Row
             name="No people yet"

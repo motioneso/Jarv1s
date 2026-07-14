@@ -5,7 +5,12 @@ import { useState } from "react";
 import { getNotesSourceDirectories } from "../api/notes-client";
 import { getPeopleNotesDirectories } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";
+import { ApiError } from "../api/client";
 import { readError } from "./settings-types";
+
+export function shouldShowNotesRootRecovery(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 503;
+}
 
 export function VaultChooser(props: {
   readonly current: string;
@@ -32,7 +37,7 @@ export function VaultChooser(props: {
     queryFn: () =>
       mode === "people" ? getPeopleNotesDirectories(path) : getNotesSourceDirectories(path),
     retry: false,
-    enabled: path !== null
+    enabled: path !== null && !(mode === "people" && path === "People")
   });
 
   const roots = rootsQuery.data?.directories ?? [];
@@ -43,6 +48,8 @@ export function VaultChooser(props: {
   const directories =
     (path ? directoriesQuery.data?.directories : rootsQuery.data?.directories) ?? [];
   const error = rootsQuery.error ?? (path ? directoriesQuery.error : null);
+  const notesRootRecovery = mode === "notes" && path === null && shouldShowNotesRootRecovery(error);
+  const displayError = notesRootRecovery ? null : error;
   const loading = rootsQuery.isLoading || (path !== null && directoriesQuery.isLoading);
 
   const go = (nextPath: string | null) => {
@@ -108,19 +115,19 @@ export function VaultChooser(props: {
                 Loading folders…
               </div>
             ) : null}
-            {error ? (
+            {displayError ? (
               <div className="vlist__empty">
                 <FolderOpen size={16} aria-hidden="true" />
-                {readError(error)}
+                {readError(displayError)}
               </div>
             ) : null}
-            {!loading && !error && directories.length === 0 ? (
+            {!loading && !displayError && directories.length === 0 ? (
               <div className="vlist__empty">
                 <FolderOpen size={16} aria-hidden="true" />
                 This folder has no subfolders.
               </div>
             ) : null}
-            {!loading && !error
+            {!loading && !displayError
               ? directories.map((directory) => (
                   <button
                     key={directory.path}
@@ -136,7 +143,7 @@ export function VaultChooser(props: {
               : null}
           </div>
 
-          {mode === "notes" && !loading && !error && roots.length === 0 ? (
+          {mode === "notes" && !loading && (notesRootRecovery || roots.length === 0) ? (
             <div className="vlist__empty">
               No notes folders are available to Jarv1s. Ask an operator to mount
               /data/external-notes, set JARVIS_NOTES_ROOTS, and recreate the container.
@@ -172,7 +179,7 @@ export function VaultChooser(props: {
           <button
             type="button"
             className="jds-btn jds-btn--primary jds-btn--sm"
-            disabled={!path || loading || Boolean(error)}
+            disabled={!path || loading || Boolean(displayError)}
             onClick={() => (path ? props.onChoose(path) : undefined)}
           >
             <span className="jds-btn__icon">

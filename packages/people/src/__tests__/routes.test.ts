@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import Fastify from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
-import { readVaultFile, VaultContextRunner } from "@jarv1s/vault";
+import { makeVaultDir, readVaultFile, VaultContextRunner } from "@jarv1s/vault";
 import type { Kysely } from "kysely";
 import type { JarvisDatabase } from "@jarv1s/db";
 import { resetFoundationDatabase, ids } from "../../../../tests/integration/test-database.js";
@@ -47,6 +47,60 @@ function buildApp() {
 }
 
 describe("People notes settings routes", () => {
+  it("lists owner-relative directories and rejects traversal without vault details", async () => {
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "directory-setup" },
+      async (ctx) => {
+        await makeVaultDir(ctx, "QA987/Family");
+        await makeVaultDir(ctx, "QA987Private");
+      }
+    );
+    const app = buildApp();
+    await app.ready();
+
+    const root = await app.inject({ method: "GET", url: "/api/people/notes-directories" });
+    expect(root.statusCode).toBe(200);
+    expect(JSON.parse(root.body).directories).toEqual(
+      expect.arrayContaining([
+        { name: "QA987", path: "QA987" },
+        { name: "QA987Private", path: "QA987Private" }
+      ])
+    );
+
+    const invalid = await app.inject({
+      method: "GET",
+      url: "/api/people/notes-directories?path=People%2F..%2FPrivate"
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.body).not.toContain(vaultRoot);
+    expect(invalid.body).not.toContain(ids.userA);
+    expect(invalid.body).not.toContain("QA987Private");
+    await app.close();
+  });
+
+  it("serializes all four refresh counters", async () => {
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "refresh-setup" },
+      (ctx) => makeVaultDir(ctx, "QA987Refresh")
+    );
+    const app = buildApp();
+    await app.ready();
+    await app.inject({
+      method: "PUT",
+      url: "/api/people/notes-settings",
+      payload: { folder: "QA987Refresh" }
+    });
+    const refresh = await app.inject({ method: "POST", url: "/api/people/notes/refresh" });
+    expect(refresh.statusCode).toBe(200);
+    expect(JSON.parse(refresh.body)).toEqual({
+      discovered: 0,
+      projected: 0,
+      ignored: 0,
+      candidates: 0
+    });
+    await app.close();
+  });
+
   it("stores and reads the configured People folder", async () => {
     const app = buildApp();
     await app.ready();
