@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Plus, RefreshCw, Save, X } from "lucide-react";
 
@@ -25,6 +25,7 @@ import {
 } from "./settings-source-behaviors";
 import { readError } from "./settings-types";
 import { Badge, Group, Note, PaneHead, Row, Switch } from "./settings-ui";
+import { VaultChooser } from "./settings-vault-chooser";
 
 function candidateKindLabel(kind: MatchCandidateDto["candidateKind"]): string {
   switch (kind) {
@@ -52,6 +53,11 @@ export function SettingsPeoplePane() {
   const [createEmail, setCreateEmail] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [choosingFolder, setChoosingFolder] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<Awaited<
+    ReturnType<typeof refreshPeopleNotes>
+  > | null>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
 
   const candidatesQuery = useQuery({
     queryKey: queryKeys.people.matchCandidates,
@@ -108,6 +114,7 @@ export function SettingsPeoplePane() {
   const refreshMutation = useMutation({
     mutationFn: () => refreshPeopleNotes(),
     onSuccess: (data) => {
+      setRefreshResult(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.people.list });
       queryClient.invalidateQueries({ queryKey: queryKeys.people.matchCandidates });
       toast(`Projected ${data.projected}; ${data.candidates} review candidates.`);
@@ -152,6 +159,20 @@ export function SettingsPeoplePane() {
   const configuredFolder = notesSettingsQuery.data?.folder ?? null;
   const folderValue = folderDraft || configuredFolder || "";
 
+  if (choosingFolder) {
+    return (
+      <VaultChooser
+        mode="people"
+        current={folderValue}
+        onCancel={() => setChoosingFolder(false)}
+        onChoose={(folder) => {
+          setFolderDraft(folder);
+          setChoosingFolder(false);
+        }}
+      />
+    );
+  }
+
   return (
     <>
       <PaneHead
@@ -167,14 +188,14 @@ export function SettingsPeoplePane() {
           }
           control={
             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                className="jds-input"
-                value={folderValue}
-                placeholder="People"
-                aria-label="People folder"
-                onChange={(event) => setFolderDraft(event.target.value)}
-                style={{ width: 180 }}
-              />
+              <span>{folderValue || "No folder selected"}</span>
+              <button
+                type="button"
+                className="jds-btn jds-btn--sm jds-btn--ghost"
+                onClick={() => setChoosingFolder(true)}
+              >
+                Choose folder
+              </button>
               <button
                 type="button"
                 className="jds-btn jds-btn--sm jds-btn--ghost"
@@ -187,6 +208,21 @@ export function SettingsPeoplePane() {
             </span>
           }
         />
+        {refreshResult ? (
+          <Note>
+            Discovered {refreshResult.discovered}; projected {refreshResult.projected}; ignored{" "}
+            {refreshResult.ignored}; candidates {refreshResult.candidates}.
+            {refreshResult.candidates > 0 ? (
+              <button
+                type="button"
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                onClick={() => reviewRef.current?.focus()}
+              >
+                Review matches
+              </button>
+            ) : null}
+          </Note>
+        ) : null}
         <Row
           name="Refresh from notes"
           desc="Scan the configured folder and update projected People records."
@@ -222,52 +258,54 @@ export function SettingsPeoplePane() {
         ))}
       </Group>
 
-      <Group title={`Review matches${pending.length > 0 ? ` (${pending.length})` : ""}`}>
-        {pending.length === 0 ? (
-          <Row name="Nothing to review" desc="All match candidates are up to date." />
-        ) : (
-          pending.map((candidate) => (
-            <div key={candidate.id} style={{ borderBottom: "1px solid var(--border)" }}>
-              {DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
-                <Note>This action is irreversible — confirm in chat before accepting.</Note>
-              )}
-              <Row
-                name={candidate.suggestedDisplayName ?? "Unnamed"}
-                desc={[candidateKindLabel(candidate.candidateKind), candidate.reasonSummary]
-                  .filter(Boolean)
-                  .join(" — ")}
-                control={
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <Badge tone="neutral">{Math.round(candidate.confidence * 100)}%</Badge>
-                    {!DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
+      <div ref={reviewRef} tabIndex={-1}>
+        <Group title={`Review matches${pending.length > 0 ? ` (${pending.length})` : ""}`}>
+          {pending.length === 0 ? (
+            <Row name="Nothing to review" desc="All match candidates are up to date." />
+          ) : (
+            pending.map((candidate) => (
+              <div key={candidate.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                {DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
+                  <Note>This action is irreversible — confirm in chat before accepting.</Note>
+                )}
+                <Row
+                  name={candidate.suggestedDisplayName ?? "Unnamed"}
+                  desc={[candidateKindLabel(candidate.candidateKind), candidate.reasonSummary]
+                    .filter(Boolean)
+                    .join(" — ")}
+                  control={
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <Badge tone="neutral">{Math.round(candidate.confidence * 100)}%</Badge>
+                      {!DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
+                        <button
+                          type="button"
+                          className="jds-btn jds-btn--sm jds-btn--pine"
+                          disabled={acceptMutation.isPending}
+                          onClick={() => acceptMutation.mutate(candidate.id)}
+                        >
+                          Accept
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className="jds-btn jds-btn--sm jds-btn--pine"
-                        disabled={acceptMutation.isPending}
-                        onClick={() => acceptMutation.mutate(candidate.id)}
+                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        disabled={rejectMutation.isPending}
+                        onClick={() => rejectMutation.mutate(candidate.id)}
                       >
-                        Accept
+                        Reject
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="jds-btn jds-btn--sm jds-btn--ghost"
-                      disabled={rejectMutation.isPending}
-                      onClick={() => rejectMutation.mutate(candidate.id)}
-                    >
-                      Reject
-                    </button>
-                  </span>
-                }
-              />
-            </div>
-          ))
-        )}
-      </Group>
+                    </span>
+                  }
+                />
+              </div>
+            ))
+          )}
+        </Group>
+      </div>
 
       <Group title={`People${people.length > 0 ? ` (${people.length})` : ""}`}>
         <Row
-          name="Create person"
+          name="Add a person manually"
           desc="Creates a canonical note in the configured folder."
           control={
             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>

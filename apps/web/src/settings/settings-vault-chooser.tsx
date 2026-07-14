@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight, Folder, FolderCheck, FolderOpen, HardDrive } f
 import { useState } from "react";
 
 import { getNotesSourceDirectories } from "../api/notes-client";
+import { getPeopleNotesDirectories } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";
 import { readError } from "./settings-types";
 
@@ -13,19 +14,32 @@ export function VaultChooser(props: {
   readonly onChoose: (path: string) => void;
 }) {
   const [path, setPath] = useState<string | null>(props.current || null);
+  const mode = props.mode ?? "notes";
   const rootsQuery = useQuery({
-    queryKey: queryKeys.settings.notesSourceDirectories(null),
-    queryFn: () => getNotesSourceDirectories(null),
+    queryKey:
+      mode === "people"
+        ? queryKeys.people.notesDirectories(null)
+        : queryKeys.settings.notesSourceDirectories(null),
+    queryFn: () =>
+      mode === "people" ? getPeopleNotesDirectories(null) : getNotesSourceDirectories(null),
     retry: false
   });
   const directoriesQuery = useQuery({
-    queryKey: queryKeys.settings.notesSourceDirectories(path),
-    queryFn: () => getNotesSourceDirectories(path),
+    queryKey:
+      mode === "people"
+        ? queryKeys.people.notesDirectories(path)
+        : queryKeys.settings.notesSourceDirectories(path),
+    queryFn: () =>
+      mode === "people" ? getPeopleNotesDirectories(path) : getNotesSourceDirectories(path),
     retry: false,
     enabled: path !== null
   });
 
   const roots = rootsQuery.data?.directories ?? [];
+  const visibleRoots =
+    mode === "people" && !roots.some((root) => root.path === "People")
+      ? [{ name: "People", path: "People" }, ...roots]
+      : roots;
   const directories =
     (path ? directoriesQuery.data?.directories : rootsQuery.data?.directories) ?? [];
   const error = rootsQuery.error ?? (path ? directoriesQuery.error : null);
@@ -53,7 +67,7 @@ export function VaultChooser(props: {
 
       <div className="vbrowse">
         <div className="vbrowse__roots">
-          {roots.map((root) => (
+          {visibleRoots.map((root) => (
             <button
               key={root.path}
               type="button"
@@ -122,7 +136,7 @@ export function VaultChooser(props: {
               : null}
           </div>
 
-          {props.mode === "notes" && !loading && !error && roots.length === 0 ? (
+          {mode === "notes" && !loading && !error && roots.length === 0 ? (
             <div className="vlist__empty">
               No notes folders are available to Jarv1s. Ask an operator to mount
               /data/external-notes, set JARVIS_NOTES_ROOTS, and recreate the container.

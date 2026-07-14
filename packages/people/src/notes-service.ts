@@ -76,7 +76,7 @@ function hash(value: string): string {
 function normalizeFolder(folder: string | null): string | null {
   if (folder === null) return null;
   const trimmed = folder.trim().replace(/^\/+|\/+$/g, "");
-  if (!trimmed || trimmed.includes("..")) {
+  if (!trimmed || trimmed.split(/[\\/]/).includes("..") || trimmed.startsWith("/")) {
     throw new Error("People notes folder must be a relative folder");
   }
   return trimmed;
@@ -134,9 +134,10 @@ export class PeopleNotesService {
     ownerUserId: string
   ): Promise<PeopleNotesRefreshResult> {
     const { folder } = await this.getSettings(scopedDb, ownerUserId);
-    if (!folder) return { projected: 0, candidates: 0 };
+    if (!folder) return { discovered: 0, projected: 0, ignored: 0, candidates: 0 };
 
-    const notes = await this.loadPeopleNotes(vaultCtx, folder);
+    const loaded = await this.loadPeopleNotes(vaultCtx, folder);
+    const notes = loaded.notes;
     const byPersonId = new Map<string, LoadedPeopleNote[]>();
     let candidates = 0;
     for (const note of notes) {
@@ -176,7 +177,7 @@ export class PeopleNotesService {
       new Set(byPersonId.keys())
     );
 
-    return { projected, candidates };
+    return { discovered: loaded.discovered, projected, ignored: loaded.ignored, candidates };
   }
 
   async createPersonNote(
@@ -267,25 +268,27 @@ export class PeopleNotesService {
   private async loadPeopleNotes(
     vaultCtx: VaultContext,
     folder: string
-  ): Promise<LoadedPeopleNote[]> {
+  ): Promise<{ notes: LoadedPeopleNote[]; discovered: number; ignored: number }> {
     let allPaths: string[];
     try {
       allPaths = await listVaultFilesRecursive(vaultCtx, folder);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-        allPaths = [];
+      if (["ENOENT", "ENOTDIR", "EACCES"].includes((error as NodeJS.ErrnoException)?.code ?? "")) {
+        throw new PeopleNotesFolderUnavailableError();
       } else {
         throw error;
       }
     }
     const paths = allPaths.filter((path) => path.endsWith(".md"));
     const notes: LoadedPeopleNote[] = [];
+    let ignored = 0;
     for (const path of paths) {
       const content = await readVaultFile(vaultCtx, path);
       const parsed = parsePeopleNote(content);
       if (parsed) notes.push({ path, content, parsed });
+      else ignored += 1;
     }
-    return notes;
+    return { notes, discovered: paths.length, ignored };
   }
 
   private async findCanonicalNote(
