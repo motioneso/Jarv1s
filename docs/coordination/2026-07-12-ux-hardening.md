@@ -1807,5 +1807,9 @@ resume from this note before taking any merge-sensitive action.
 - Fresh GitHub CI run `29374741166` is fully GREEN. Fresh live UAT is GREEN with
   durable evidence at `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4974908358` and
   artifacts under `~/Jarv1s/.claude/worktrees/coord-983-ux/artifacts/webwright/pr-1058-live-v5-2425d382/`.
-  Fresh final independent sensitive QA is running as `/root/qa_1058_final` in a detached exact-head
-  checkout. No merge, issue-closure, or #995 release claim is made.
+  Fresh final independent sensitive QA returned RED with one blocker and two non-blocking findings;
+  MERGE-READY is NO (`https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4975051910`).
+  This is the second failed QA cycle since Ben reopened the lane, so STOP-THE-LINE is active again.
+  `UX 987 Fix Sol High` is frozen and issue #1060 records the escalation at
+  `https://github.com/motioneso/Jarv1s/issues/1060#issuecomment-4975058125`. No further fix/QA cycle,
+  merge, issue-closure, or #995 release without Ben direction.
