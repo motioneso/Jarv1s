@@ -10,10 +10,10 @@
 remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
 approval decisions—including security-tier sign-off—to Fable.
 **Shared-tree policy:** isolated worktrees; explicit-path staging only; never `git add -A`.
-**Agent runtime policy:** this UX coordinator may spawn only Codex build and QA agents, using
-`codex -s danger-full-access -a never`. This user directive overrides the `coordinate` skill's
-Claude/Sonnet spawn examples. Existing Claude builders must stop at their next safe checkpoint;
-the coordinator replaces them with Codex before another feature task begins.
+**Agent runtime policy:** this UX coordinator may spawn only Codex agents, using
+`codex -s danger-full-access -a never`. Planning/spec agents use `gpt-5.6-sol` at high reasoning;
+implementation agents use Terra (`gpt-5.4-mini`) at medium reasoning. QA remains independent and
+risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
 **merges_since_relay:** 0
@@ -1357,3 +1357,18 @@ resume from this note before taking any merge-sensitive action.
   then it reaps the outgoing Claude `UX Coordinator` pane (session
   `b637e03f-267e-493b-acb2-0808bd1a9f49`) — re-resolved fresh by label+session, not by any pane
   number written here.
+
+## Continuation note — 2026-07-13 UX acceleration wave
+
+- `UX Coordinator` Codex session `019f5dc2-8bd9-78b2-827f-67bd9a99e6c9` remains coordinator for
+  #983. The separate primary `Coordinator` retains its own run and merge authority.
+- Collision boundary synchronized with Primary: UX owns settings, memory, skills, chat, and
+  account/connector UI. Primary exclusively owns `tests/uat/**` and the #1000 UAT harness; UX must
+  route any UAT-harness need through Primary before editing. Primary has no active settings,
+  memory, or skills locks. Chat follow-ups #1037–#1039 are not active and require a fresh sync
+  before either coordinator lanes them.
+- Runtime split from Ben: Sol (`gpt-5.6-sol`) at high reasoning writes plans/specs; Terra
+  (`gpt-5.4-mini`) at medium reasoning implements approved plans. QA remains independent and
+  risk-tiered.
+- Acceleration order: prepare #987 immediately; plan #991/#992/#993/#994 in parallel; keep #995
+  behind #987, #1002 after affected UI settles, and #988 as the final live acceptance pass.
