@@ -1595,3 +1595,6 @@ resume from this note before taking any merge-sensitive action.
   standing security-tier merge approval once the new exact head is zero-behind and all required CI
   is green. The coordinator must still re-confirm session authority, exact head, current-main
   integration, and CI immediately before merge.
+- Latest scope instruction supersedes execution of that standing approval: PR #1045 is REPORT/HOLD
+  ONLY at green, zero-behind head `0e43eb974c8e61917233133a906ac831083fe3fd`. Do not merge from
+  readiness notifications; wait for a separate explicit merge command. No merge occurred.
