@@ -877,6 +877,14 @@ export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
   };
 }
 
+const peopleManifest: typeof peopleModuleManifest = {
+  ...peopleModuleManifest,
+  routes: [
+    ...(peopleModuleManifest.routes ?? []),
+    { method: "GET", path: "/api/people/notes-directories" }
+  ]
+};
+
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
@@ -1521,7 +1529,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       })
   },
   {
-    manifest: peopleModuleManifest,
+    manifest: peopleManifest,
     sqlMigrationDirectories: [peopleModuleSqlMigrationDirectory],
     queueDefinitions: [{ name: PERSON_INDEX_QUEUE }, { name: SYNC_PERSON_MEMORY_QUEUE }],
     registerRoutes: (server, deps) =>
