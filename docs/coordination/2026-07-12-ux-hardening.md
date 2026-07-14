@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 1
+**merges_since_relay:** 2
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -1598,3 +1598,23 @@ resume from this note before taking any merge-sensitive action.
 - Latest scope instruction supersedes execution of that standing approval: PR #1045 is REPORT/HOLD
   ONLY at green, zero-behind head `0e43eb974c8e61917233133a906ac831083fe3fd`. Do not merge from
   readiness notifications; wait for a separate explicit merge command. No merge occurred.
+
+## Continuation note — 2026-07-14 after PR #1045 security merge
+
+- `UX Coordinator` authority remains Codex session
+  `019f5fc7-4cac-7760-8e3a-9f5d766c5862` until its successor adopts the run. The user explicitly
+  directed merging every currently mergeable open PR, superseding the prior #1045 hold.
+- PR #1045 merged security-tier as squash `0b6aa71c88ed53b3abe29b8d4226701f0737ab77`
+  from exact head `0e43eb974c8e61917233133a906ac831083fe3fd` after all CI green and Ben's explicit
+  approval. Issues #993 and #995 correctly remain open in Backlog for their product builds. The
+  clean planning pane, worktree, and local branch were reaped.
+- The security merge fired the unconditional relay trigger. `merges_since_relay` is `2`. The
+  successor must update the authority block to its own immutable session id, reset the counter to
+  `0`, commit and push, confirm it is driving, then fresh-resolve and close only this spent UX
+  Coordinator session by exact label plus session id.
+- Remaining open PRs are not currently mergeable: PR #1050 is draft and parked with Ben on the
+  real authenticated Codex CLI proof boundary; idle owner `UX 991 Build Luna` session
+  `019f5ed2-b01a-7610-95d6-da3024b4b82f`. PR #1044 is draft/STOP-THE-LINE after two failed QA
+  cycles pending Ben's file-scope direction; idle owner `UX 987 Plan Sol` session
+  `019f5e9b-c003-7350-acba-258a601e308b`. PR #1008 is draft and must be assessed from GitHub source
+  of truth for whether it is superseded before any ready/merge action.
