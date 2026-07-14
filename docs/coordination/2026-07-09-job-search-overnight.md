@@ -6106,3 +6106,6 @@ Lock: session `58a78927-385c-4b1d-8fa0-94db20255d6f` (Coordinator, pMW-era pane;
 **Relay:** 70% context-meter fired → flushing in place (Ben override: coordinator auto-compacts in place, no successor). merges_since_relay reset context; no merge performed this window.
 
 **AWAITING-BEN:** #1040 / PR #1051 security merge sign-off (only open item; will surface to Ben).
+
+### 13i.1 — UAT lane (pMY) plan APPROVED 2026-07-13
+Plan `docs/superpowers/plans/2026-07-13-uat-1049-1050-combined.md` approved: in scope (frozen SHAs exact, baseURL-only initial load + real-nav, accepted §6-§7 only, isolated Compose/DB per runtime, no mock/API-key substitute, no cred logging). **Correction issued:** #1050 working-CLI persona path, if unrunnable because the ephemeral env lacks a configured CLI sidecar, must be labeled **BLOCKED/NOT-EXERCISED**, not FAIL; FAIL reserved for CLI-present-but-broken or app-fakes-answer/API-key-fallback; missing-transport-truth is itself an accepted §6 PASS criterion. Do NOT wire host CLI creds into the container. If blocked, I surface "does harness need a provisioned CLI sidecar" to UX+Ben as a follow-up. Lane executing (context 82%→51%). Await per-step PASS/FAIL/BLOCKED + artifacts → sanity-check REAL → relay links to UX (session 019f5ee8). UX owns #1049/#1050 QA+merge.
