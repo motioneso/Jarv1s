@@ -1768,7 +1768,9 @@ resume from this note before taking any merge-sensitive action.
   blockers and preserves the sensitive-lane invariants and coordinator-only boundaries.
 - Exact-label/session owner is now `UX 987 Fix Sol High`
   `019f6248-1c51-79d3-b50b-8a741573db1f`, running `gpt-5.6-sol` with high reasoning in the
-  existing isolated branch worktree. A short remediation plan is pending coordinator approval.
+  existing isolated branch worktree. The coordinator approved
+  `docs/superpowers/plans/2026-07-14-pr-1058-qa-remediation.md`: four scoped TDD commits covering
+  all five verified-current blockers, with no product fork. Implementation is released.
 - Stop-line issue #1060 remains open as the audit trail but is marked remediation-in-progress at
   `https://github.com/motioneso/Jarv1s/issues/1060#issuecomment-4973605100`. No merge or closure
   claim is made. The fixed head still requires fresh full CI, independent sensitive QA, and live
