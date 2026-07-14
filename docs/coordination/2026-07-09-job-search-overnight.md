@@ -5860,3 +5860,24 @@ refactor; test now clicks `.chatd-model__trigger`. No production remediation cha
   poll VF-green → manual merge. Then P4 #1027.
 - Deferred (no lane): #965 run-now dedupe; #39 owner-auth delete of quarantined #989 acct; #1018
   gateway realpath; #1034 non-blocking seed QA follow-ups.
+
+---
+
+## #984 CLOSED — PR #1036 MERGED 2026-07-13 — session 58a78927-385c-4b1d-8fa0-94db20255d6f
+
+**PR #1036 squash-merged to main** (merge commit `96d22ba0`). Fix-forward for #984 complete.
+- Opus adversarial delta re-QA = **GREEN, MERGE-READY: YES** (0 blocking; independently git-verified
+  production byte-identical to already-APPROVED #1015; adversarially confirmed the new
+  `.chatd-model__trigger` assertion STRENGTHENS coverage, not vacuous). Verdict posted:
+  PR #1036#issuecomment-4964554438. Delegated sign-off (Ben → Opus) satisfied.
+- VF green (run 29298056926, 18m34s) BEFORE merge; manual squash-merge (NOT --auto — lesson applied).
+- #984 issue CLOSED (completed). pK3 lane reaped: pane w1:pK3 closed, worktree
+  `ux-984-private-history` removed, branch `ux/984-private-history-fix-forward` deleted (was 00fcbd9b).
+- 3 non-blocking test-hardening follow-ups filed: **#1037** (RLS foreign-thread-resume block),
+  **#1038** (two-user privacy-endpoint isolation), **#1039** (forceReplay-vs-purge).
+- Post-merge main watch ARMED (monitor `bpkgh0t3k`) on run `29299016780` (head 96d22ba0) VF → terminal.
+  On red: revert immediately (security can't sit broken). Expected GREEN (its own e2e now fixed).
+- merges_since_relay: security merge → in-place flush (Ben override: no successor spawn).
+
+**Still live:** P3 #1026 — v3/pMG (session e1463ef2, Sonnet, healthy) on Task 5 of 5
+(job-search-install.uat.spec.ts) → will report PR. Then P4 #1027.
