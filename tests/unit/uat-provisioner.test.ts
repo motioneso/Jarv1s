@@ -3,6 +3,7 @@ import { createServer } from "node:net";
 import { describe, expect, it } from "vitest";
 import {
   bareSeedHook,
+  buildSeedHookInput,
   buildUatComposeArgs,
   createUatProvisionPlan,
   expectedUatVolumeNames,
@@ -152,5 +153,23 @@ describe("expectedUatVolumeNames", () => {
       "uat-abc_jarv1s-cli-socket",
       "uat-abc_jarv1s-modules"
     ]);
+  });
+});
+
+describe("buildSeedHookInput", () => {
+  it("forwards excludeChunks into the seed hook input (#1026: previously dropped by main())", () => {
+    expect(buildSeedHookInput("uat-abc", "admin+data", { excludeChunks: ["job-search"] })).toEqual({
+      projectName: "uat-abc",
+      level: "admin+data",
+      excludeChunks: ["job-search"]
+    });
+  });
+
+  it("omits excludeChunks when no opts are given", () => {
+    expect(buildSeedHookInput("uat-abc", "bare")).toEqual({
+      projectName: "uat-abc",
+      level: "bare",
+      excludeChunks: undefined
+    });
   });
 });
