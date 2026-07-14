@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import fastifyWebsocket from "@fastify/websocket";
 import Fastify from "fastify";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
@@ -274,6 +275,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     allowList: (request) => request.url === "/health" || request.url.startsWith("/health/ready"),
     keyGenerator: authPrincipalRateLimitKey
   });
+
+  // #1059 — terminal WS relay's `{ websocket: true }` route option needs this plugin
+  // registered before `server.after()` (routes are wired inside that callback).
+  server.register(fastifyWebsocket);
 
   // Test-only: extra routes + their synthetic (inactive) manifests, to verify the guard
   // 404s an inactive module's route on the REAL server. Undefined in production. The

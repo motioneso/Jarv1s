@@ -267,6 +267,33 @@ export const aiModuleManifest = {
       responseSchema: putVoiceEndpointResponseSchema,
       permissionId: "ai.manage"
     },
+    // #1059 — owner-gated terminal control plane (password/status/ticket + WS relay). All 4
+    // routes are admin-only diagnostic surfaces (same tier as voice-endpoint above), so
+    // "ai.manage" for all of them. No shared request/response schemas exist for these yet — the
+    // route bodies are small ad-hoc shapes validated inline in terminal-routes.ts, matching the
+    // brief/corrections' scope (a shared-package schema wasn't specified for this task).
+    {
+      method: "GET",
+      path: "/api/ai/terminal/status",
+      permissionId: "ai.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/ai/terminal/password",
+      permissionId: "ai.manage"
+    },
+    {
+      method: "POST",
+      path: "/api/ai/terminal/ticket",
+      permissionId: "ai.manage"
+    },
+    {
+      // WS upgrade — registered as a Fastify GET route by @fastify/websocket ({ websocket: true }),
+      // so it must be declared here as method "GET" for assertRouteCoverage to recognize it.
+      method: "GET",
+      path: "/api/ai/terminal",
+      permissionId: "ai.manage"
+    },
     {
       method: "GET",
       path: "/api/ai/chat-model-override",
