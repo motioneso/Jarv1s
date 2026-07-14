@@ -2,8 +2,13 @@ import { spawn } from "node:child_process";
 import { provisionForUat } from "./provisioner.js";
 
 async function main(): Promise<void> {
+  const specFilters = process.argv.slice(2);
+  // #1027/#1047/#1000: job-search-install needs the module absent, but that seed override must
+  // follow the selected spec instead of leaking into every future filtered UAT invocation.
+  const runsJobSearchInstall =
+    specFilters.length === 0 || specFilters.some((filter) => filter.includes("job-search-install"));
   const { baseURL, projectName, teardown } = await provisionForUat("admin+data", {
-    excludeChunks: ["job-search"]
+    excludeChunks: runsJobSearchInstall ? ["job-search"] : []
   });
 
   let exitCode: number;
@@ -18,7 +23,14 @@ async function main(): Promise<void> {
     exitCode = await new Promise<number>((resolvePromise) => {
       const child = spawn(
         "npx",
-        ["playwright", "test", "--config=tests/uat/playwright.uat.config.ts"],
+        [
+          "playwright",
+          "test",
+          "--config=tests/uat/playwright.uat.config.ts",
+          // #1027/#1047: coordinate resolves one matching spec; forwarding it is what makes the
+          // gate execute that spec instead of silently running an unrelated/default selection.
+          ...specFilters
+        ],
         {
           stdio: "inherit",
           env: {
