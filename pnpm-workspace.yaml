@@ -10,5 +10,6 @@ packages:
 onlyBuiltDependencies:
   - onnxruntime-node
   - sharp
+  - node-pty
 ignoredBuiltDependencies:
   - protobufjs
