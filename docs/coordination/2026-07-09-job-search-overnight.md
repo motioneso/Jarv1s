@@ -6202,3 +6202,13 @@ effort**, NOT AGY. Security-tier sign-off = Opus adversarial QA GREEN + cross-mo
 - UX Coordinator: session `019f5ee8-8a0a-7da2-a186-8170ea85e76a` — #983 work.
 DO NOT reap UX Coordinator; UX will NOT reap me. Preserve authority boundaries; do not merge each
 other's PRs or touch each other's worktrees/lanes. My merge authority = my lanes only.
+
+**#1049 RECAPTURE LANE (2026-07-14, UX-requested, coordinated through me):** UX authorized fresh
+capture on CORRECTED frozen head `110bba3b3654f0522a15a19458cc1493ba4ba4b1` (green CI run
+29312925736; old 63ccf923 freeze SUPERSEDED). Spawned Codex gpt-5.6-sol "UAT 1049 Recapture Sol"
+pane `w1:pN1` tab `w1:t24` (coord-agents; moved off UX's t1Q). Held worktree
+`.claude/worktrees/uat-1049-1050-combined` reused (prior pMZ lane 019f5f46 died). Handoff:
+`docs/superpowers/handoffs/2026-07-14-uat-1049-recapture.md`. Capture bar: stable UNOBSCURED
+desktop+narrow Skills+chat, mobile nav CLOSED, no overlap/black/translucent, assert controls
+visible+enabled, real-nav only. #1049 ONLY (#1050 stays blocked). On delivery: relay PR-comment
+link to UX Coordinator session `019f5ee8`. Task #47.
