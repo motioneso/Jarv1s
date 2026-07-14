@@ -6271,3 +6271,17 @@ send path, small window; proving test = two `POST /run` same (module,queue,user)
 
 **Live fleet:** Lane B w1:pN7 (#1030 security-bar, monitor bt52138u2) + Lane C w1:pN8 (#965
 sensitive, monitor bawqx5jts). merges_since_relay=1.
+
+---
+### Lane B (#1030) plan APPROVED — 2026-07-14
+Opus security adjudication (subagent, one-shot) returned **APPROVE** — all 6 checks green:
+owner2 data under owner2's OWN AccessContext (withDataContext actorUserId=owner2); real
+`SharesRepository.grant` under admin ctx satisfying `shares_insert WITH CHECK`; genuine two-way
+pure-RLS isolation proof (getById is owner-predicate-free → real RLS test); owner2-excludes-job-search
+sound (job-search = instance config, not per-owner); no BYPASSRLS/migration/raw-fs; deterministic
+(fixed owner2 id ...002 + UAT_SEED_BASE_TIMESTAMP) + idempotent (onConflict everywhere, reseed asserts
+2 users/12+12 tasks/1 share). Relayed approval + 2 non-blocking notes (seedSecondOwner in FIRST try
+block; owner2 no onboarding chunk = fine) to w1:pN7. Lane B status: **building**.
+
+Live fleet: Lane B w1:pN7 (#1030 security-bar, monitor bt52138u2, building) + Lane C w1:pN8
+(#965 sensitive, monitor bawqx5jts, building). Both Codex gpt-5.6-sol, tab w1:t26. merges_since_relay=1.

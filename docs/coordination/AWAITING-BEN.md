@@ -27,3 +27,39 @@ _(empty)_
   Ben ruled **resume** ("do those things yes please") and then **delegated the merge decision to
   Opus** (2026-07-13): Opus's adversarial security re-QA verdict IS the sign-off — auto-merge on
   Opus APPROVE, back to the lane on any blocker. No Ben gate for this PR.
+
+---
+## #1050 external live-proof BLOCKED — needs box-infra/credential decision (owner: Ben)
+**Filed:** 2026-07-14 by primary Coordinator (routed from UX Coordinator session 019f5fc7).
+**Status:** PR #1050 draft/unmerged. NO product edit or retry authorized.
+
+**What passed** (head `8a976ecd`, image `:live-1050-8a976ecd`): Assistant authored/guided mode +
+the corrected **Discard** assertion PASS (typed unsaved persona draft → exact `Discard` restored the
+saved server snapshot). The app/UI leg is proven.
+
+**What's blocked:** `POST /api/me/persona/preview` → HTTP **503 in 13.2 ms** (`req-x0`, fast-fail).
+Root cause is NOT product code: the persona-preview port (`packages/settings/src/persona-routes.ts:99`)
+routes to the per-user **CLI engine**, which inside the ephemeral prod-shaped UAT container has **no
+authenticated external-CLI (Codex) path**. Harness has ZERO CLI-cred wiring (no `auth.json`/proxy/
+sandbox plumbing in `tests/uat` or compose). A copied `auth.json` + provider row are insufficient
+because Codex CLI needs: (1) the CLI binary present, (2) real account-auth state — not just auth.json,
+(3) sandbox bypass (bwrap loopback `RTM_NEWADDR` fails in-container — see codex-sandbox-workaround),
+(4) network path to the model (host headroom proxy :8787 is Ben's box infra, not reachable/wired
+into the container).
+
+**Why this is a Ben gate (not autonomous):** improvising host-CLI account credentials into an
+ephemeral container is credential-handling (CLAUDE.md "Secrets never escape", security-tier) + box
+infra (headroom proxy) + a harness-design call. Outside my build-lane autonomy.
+
+**Decision needed — pick the plumbing model for external-CLI live-proof:**
+  A. **Wire real CLI auth into the UAT container** — mount/inject Codex account auth + reach the
+     host headroom proxy :8787 + sandbox-bypass the in-container CLI. Highest fidelity; credential-
+     handling risk; needs Ben to authorize how creds cross the boundary.
+  B. **Split the proof boundary** — container proves the app/UI leg (already PASS); the CLI-transport
+     leg is proven separately host-side (where Codex CLI is already authed) as a documented exit
+     criterion. Cheapest; accepts a seam.
+  C. **Stub the provider boundary in UAT** — a fake persona-preview port returning a canned reply so
+     the container proves wiring end-to-end without real external auth. Loses "real authenticated"
+     fidelity the #1050 exit criterion asked for.
+**Coordinator lean:** B (host-side CLI leg + container app leg) unless Ben wants full in-container
+fidelity — A is real box-infra + credential work, not an overnight build task.
