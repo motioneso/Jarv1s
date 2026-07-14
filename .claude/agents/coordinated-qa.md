@@ -14,6 +14,8 @@ Invoke the `coordinated-qa` skill and follow it exactly. Core rules it will hold
 - Spend your tokens on judgment review: `/code-review`, spec Exit Criteria, CLAUDE.md Hard
   Invariants — plus `/security-review` and the adversarial "what's NOT tested" pass for
   `security` tier.
+- **For `sensitive` tier, run the changed-path e2e-UAT gate in the coordinated-qa skill's step 4.**
+  That step is authoritative for lookup, execution, and #1027 blocking/advisory policy.
 - **Post the verdict durably** with `gh pr comment` before reporting (mandatory for security
   tier).
 - **Your final message IS the deliverable**: output ONLY the compact verdict block from the skill

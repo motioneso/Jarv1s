@@ -1,0 +1,7 @@
+# mode	path glob	UAT spec
+# #1027/#1000: runtime install/reconcile/nav rows are blocking per Ben's locked decision.
+# Future non-runtime UAT surfaces add one advisory row; resolver intentionally preserves mode.
+blocking	packages/module-registry/**	tests/uat/specs/job-search-install.uat.spec.ts
+blocking	scripts/module-reconcile.ts	tests/uat/specs/job-search-install.uat.spec.ts
+blocking	scripts/start-jarv1s.ts	tests/uat/specs/job-search-install.uat.spec.ts
+blocking	apps/web/src/settings/settings-module-registry-section.tsx	tests/uat/specs/job-search-install.uat.spec.ts
