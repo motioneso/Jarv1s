@@ -7,7 +7,8 @@
 **Goal:** Make host/runtime, diagnostics, log-level, email ownership, and profile hierarchy truthful
 without adding privileged web operations or an insecure email-change flow.
 
-**Grounded on:** `676e99cd` (preflight current with `origin/main` on 2026-07-13).
+**Grounded on:** rebased planning head `b1529307` (preflight current with
+`origin/main@e0553ed5` on 2026-07-14).
 
 ## Ownership and Exclusions
 
@@ -38,6 +39,10 @@ Focused test paths are:
 Do not touch `tests/uat/**`, `docs/coordination/**`,
 `apps/web/src/settings/settings-personal-data-panes.tsx`, or
 `apps/web/src/settings/settings-module-registry-section.tsx`.
+
+#993 and #995 both own `apps/web/src/styles/settings-panes.css`. Sequence those builds/merges; the
+second lane must rebase, re-read the merged stylesheet before editing, preserve the first lane's
+changes, and re-run the stylesheet file-size and design-token gates.
 
 ## Task 1: Unify Herdr readiness at the root cause
 

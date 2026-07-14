@@ -8,7 +8,8 @@
 **Goal:** Make connected-account failures actionable, expose shipped IMAP setup, keep Apple truthful,
 and prove grants without weakening owner/secret boundaries.
 
-**Grounded on:** `676e99cd` (preflight current with `origin/main` on 2026-07-13).
+**Grounded on:** rebased planning head `b1529307` (preflight current with
+`origin/main@e0553ed5` on 2026-07-14).
 
 ## Collision and Scope Checkpoint
 
@@ -16,6 +17,9 @@ and prove grants without weakening owner/secret boundaries.
 - [ ] Re-read the merged `apps/web/src/settings/settings-personal-data-panes.tsx` before editing it.
 - [ ] Confirm `packages/connectors/sql/0165_connector_capability_freshness.sql` is still unclaimed;
       if not, stop and notify the UX Coordinator.
+- [ ] Check whether #993 has landed: both lanes own `apps/web/src/styles/settings-panes.css`. Sequence
+      them; the second lane must rebase, re-read the merged stylesheet, preserve the first lane's
+      changes, and re-run the stylesheet file-size and design-token gates.
 - [ ] Confirm `git status --short` is understood and stage only task paths.
 - [ ] Do not touch `tests/uat/**`, `docs/coordination/**`, or
       `apps/web/src/settings/settings-module-registry-section.tsx`. If the registry file becomes

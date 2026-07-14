@@ -8,8 +8,8 @@
 
 **Security tier:** Security
 
-**Grounded on:** `676e99cd` after `pnpm audit:preflight` confirmed zero commits behind
-`origin/main` (`96d22ba0`)
+**Grounded on:** rebased planning head `b1529307` after `pnpm audit:preflight` confirmed zero commits
+behind `origin/main` (`e0553ed5`) on 2026-07-14
 
 ## Build-order Gate
 
