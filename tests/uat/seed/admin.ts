@@ -8,6 +8,23 @@ import { UAT_SEED_BASE_TIMESTAMP } from "./timestamps.js";
 export const UAT_ADMIN_EMAIL = "uat-admin@jarv1s.local";
 export const UAT_ADMIN_PASSWORD = "uat-admin-password-1025";
 
+export function logUatAdminCredentials(
+  credentials: { readonly email: string; readonly password: string },
+  writeStdout: (text: string) => void = (text) => {
+    process.stdout.write(text);
+  }
+): void {
+  // #1040 SECURITY HARD FENCE: the UAT stack is prod-shaped and intentionally runs with
+  // NODE_ENV=production, so environment mode cannot distinguish it. Reuse the exact seed-only
+  // confirmation token that composeSeedHook sets and cli.ts already requires; real production
+  // bootstrap never sets this token or calls this fixture-only module.
+  if (process.env.JARVIS_UAT_SEED_CONFIRM !== "1") return;
+
+  writeStdout(
+    `[uat-seed] owner/admin login: email=${credentials.email} password=${credentials.password}\n`
+  );
+}
+
 /**
  * #1025 spec §4.2: a genuinely loginable admin — real scrypt hash via
  * better-auth/crypto's hashPassword, real app.users + app.auth_accounts row
@@ -74,5 +91,7 @@ export async function seedSoloAdmin(
       .execute();
   });
 
-  return { userId, email: UAT_ADMIN_EMAIL, password: UAT_ADMIN_PASSWORD };
+  const credentials = { email: UAT_ADMIN_EMAIL, password: UAT_ADMIN_PASSWORD };
+  logUatAdminCredentials(credentials);
+  return { userId, ...credentials };
 }
