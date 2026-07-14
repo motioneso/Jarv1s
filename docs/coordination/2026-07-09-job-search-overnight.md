@@ -5773,3 +5773,9 @@ Head 2e991064: Verify-foundation PASS + regular compose smoke PASS, but **Prod c
 **#984 sign-off DELEGATED to Opus (Ben, 2026-07-13):** "Opus can make the decision for 984." → PR
 #1015 security re-QA is run by Opus; **Opus APPROVE = merge authority** (auto-merge on APPROVE, no
 Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item cleared to log.
+
+---
+### P3 #1026 pre-plan ruling (3 items, agent relayed at 70%)
+1. **APPROVE** — add exported provision-and-hold to `tests/uat/provisioner.ts` (e.g. `provisionForUat(level,opts)->{baseURL,teardown}`); refactor existing `main()` to call it so the CLI path still works. Legit P1 touch (Playwright must hold the instance).
+2. **APPROVE** — export `UAT_ADMIN_EMAIL`/`UAT_ADMIN_PASSWORD` from `tests/uat/seed/admin.ts`; spec needs them to log in via the real /login form. Minimal, legit.
+3. **AGENT IS RIGHT — my handoff erred.** #868 is chat-transcript-purge, NOT job-search install; the "fail-closed" framing was my embellishment, not in the spec. **Follow APPROVED SPEC §6 verbatim** = happy-path install-succeeds proof via REAL nav discovery (no goto). DROP the #868 citation. Do NOT build a failure-injection test the spec doesn't call for. Module-gating comments → cite real code (`apps/web/src/app.tsx` myModulesEnabled) + #1026/#1000. Presence/absence asserted = the seed's job-search toggle (absent before install → present in nav after). Then write plan doc → Coordinator approval → code.
