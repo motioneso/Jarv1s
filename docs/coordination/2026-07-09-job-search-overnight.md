@@ -5803,3 +5803,16 @@ Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item clear
   isolation; forceReplay-vs-purge), add to digest.
 - LESSON (saved to memory): for a security-tier merge whose sign-off is conditional on the FULL gate,
   never trust `--auto` — it only waits on *required* checks. Poll VF to green, then merge manually.
+
+### #984 / PR #1015 — VF RED (Playwright smoke), revert-armed
+- PR-head run 29296355763 FAILED at VF step "Run Playwright smoke tests":
+  `tests/e2e/chat-drawer.spec.ts:254 › selecting a History row both opens and activates it — no
+  separate resume step` → `expect(modelMenu).toBeVisible()` FAILS at :325 ("element(s) not found").
+- **This test is NEW in #1015** (absent in d56ba688^; #1015 added +297 lines to that spec). So it's
+  #1015's OWN new e2e test failing deterministically in the real CI runtime — NOT a pre-existing
+  flake. This is the exact class of bug #1000-UAT exists to catch.
+- Authoritative gate = main's own post-merge run **29296587544** (d56ba688), in_progress. Watch
+  b1njubw3q: GREEN→single-flake, proceed bookkeeping + quarantine-note; NON-SUCCESS→CONFIRMED, revert
+  #1015 (git revert d56ba688 → revert PR → merge on compose-smoke) + relay exact failure to pK3 UX
+  984 lane to fix forward, then re-merge.
+- #984 bookkeeping remains HELD.
