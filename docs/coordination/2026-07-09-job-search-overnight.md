@@ -5816,3 +5816,13 @@ Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item clear
   #1015 (git revert d56ba688 → revert PR → merge on compose-smoke) + relay exact failure to pK3 UX
   984 lane to fix forward, then re-merge.
 - #984 bookkeeping remains HELD.
+
+### #984 / PR #1015 — REVERTED (PR #1035), fix-forward dispatched
+- Main run 29296587544 CONFIRMED red (VF failed) → reverted d56ba688 via **revert PR #1035**
+  (branch revert-1015, worktree .claude/worktrees/revert-1015). Monitor b8m6zozeg merges #1035 on
+  compose-smoke green (revert-to-green = safe on required checks; fast unbreak).
+- Fix-forward relayed to **pK3 UX-984 lane** (Codex): re-apply #984 off green main + FIX the racy
+  headless-CI assertion in chat-drawer.spec.ts:254 (modelMenu.toBeVisible → await real visible
+  signal, reproduce with the local Playwright smoke, not unit tests), new PR 'Part of #984'.
+- **#984 stays OPEN.** Bookkeeping (close/reap) cancelled — nothing to close; lane pK3 continues.
+- On #1035 merge: verify main VF green, then this lane is back to "awaiting fix-forward PR".
