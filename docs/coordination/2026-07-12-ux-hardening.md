@@ -1757,3 +1757,19 @@ resume from this note before taking any merge-sensitive action.
   #1002 → #988. #995 must branch from post-#1058 `main`; #993 must wait for #995 because both touch
   shared Settings files. #1002 still needs approved spec/plan. #1050 remains parked with Ben and
   #1003 remains future scope, not a run-closure blocker. #995 is not released while #1058 is halted.
+
+## Continuation note — 2026-07-14 PR #1058 remediation reopened
+
+- Ben explicitly reopened the stopped PR #1058 lane and requested a Sol-high fixing agent. The
+  clean idle `UX 987 Build Luna` session `019f61cb-e119-7d41-ac45-390878fe72ff` was fresh-resolved
+  and closed before the replacement received the worktree.
+- Durable remediation handoff `docs/superpowers/handoffs/2026-07-14-pr-1058-qa-fixes.md` is pushed
+  on PR #1058 at head `a0a97b3e9672e2fccfbe9fb7fbba98d83d88370b`. It points to all five QA
+  blockers and preserves the sensitive-lane invariants and coordinator-only boundaries.
+- Exact-label/session owner is now `UX 987 Fix Sol High`
+  `019f6248-1c51-79d3-b50b-8a741573db1f`, running `gpt-5.6-sol` with high reasoning in the
+  existing isolated branch worktree. A short remediation plan is pending coordinator approval.
+- Stop-line issue #1060 remains open as the audit trail but is marked remediation-in-progress at
+  `https://github.com/motioneso/Jarv1s/issues/1060#issuecomment-4973605100`. No merge or closure
+  claim is made. The fixed head still requires fresh full CI, independent sensitive QA, and live
+  Webwright UAT before #995 can be released.
