@@ -1775,3 +1775,16 @@ resume from this note before taking any merge-sensitive action.
   `https://github.com/motioneso/Jarv1s/issues/1060#issuecomment-4973605100`. No merge or closure
   claim is made. The fixed head still requires fresh full CI, independent sensitive QA, and live
   Webwright UAT before #995 can be released.
+
+## Continuation note — 2026-07-14 PR #1058 remediation built
+
+- `UX 987 Fix Sol High` session `019f6248-1c51-79d3-b50b-8a741573db1f` completed the approved
+  four-commit remediation and pushed exact head `f28bc712a00590f467de4f036c1b4198d3e77477`.
+  Scope covers chooser state, recoverable People/vault failures, stale-folder recovery/hierarchy,
+  and desktop+narrow live-path coverage; the branch worktree is clean.
+- Agent evidence: 26 focused unit, 44 isolated integration, and 2 Playwright tests green;
+  `VF_EXIT=0` with 3,326 unit and 1,648 integration tests passed; 155 migrations current;
+  `AUDIT_EXIT=0`; pre-push format/lint/typecheck green; fresh `origin/main` rebase current.
+- GitHub CI run `29371316048` is running on the exact head. Independent sensitive QA must wait for
+  full CI green. Exact-head live UAT is running as `/root/uat_1058_live_v4`. No QA, UAT, merge,
+  issue-closure, or #995 release claim is made yet.
