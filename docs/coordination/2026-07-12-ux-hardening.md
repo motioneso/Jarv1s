@@ -1591,3 +1591,7 @@ resume from this note before taking any merge-sensitive action.
   pre-merge authority/current-main check found the branch had become two commits behind
   `origin/main` at `7d5b5e70f22e65cc795fc35efabfdcb5a4566612`. No merge occurred. The owning lane is rebasing;
   the changed head requires green integrated CI, fresh Opus QA, and renewed Ben sign-off.
+- Ben then explicitly directed that no additional QA is required after this rebase and granted
+  standing security-tier merge approval once the new exact head is zero-behind and all required CI
+  is green. The coordinator must still re-confirm session authority, exact head, current-main
+  integration, and CI immediately before merge.
