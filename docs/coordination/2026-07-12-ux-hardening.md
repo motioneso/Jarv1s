@@ -1528,3 +1528,10 @@ resume from this note before taking any merge-sensitive action.
 - PR #1045 rebased cleanly to `ca077a3393318188b2e4c599765cfadf452e2ef9` and is zero commits
   behind `main`; integrated CI is still running. The prior GREEN security verdict applies only to
   pre-rebase head `ead987d3f9ac23c3591e0fba2eae6b4ad0d53f71`, so a fresh Opus verdict is still required.
+- Current zero-behind integrated heads, all awaiting required CI: PR #1043 cycle-2 candidate
+  `7dec9072aafbaecd572d8b1e0fa8f9d969e51565`; PR #1044 cycle-2 candidate
+  `025217960e5c8921656b10e8a2168ff9afa268e0`; PR #1045 security re-QA candidate
+  `86e28ee633aa66d52e26fb1fcec1abcef7c85700`; PR #1050 Discard-fix candidate
+  `8a976ecd5621f5ed141832a801d32231eb181a6f`. #1050 still requires a fresh accepted live proof
+  before sensitive QA; #1043/#1044 require independent cycle-2 QA; #1045 requires fresh Opus QA
+  plus Ben's explicit sign-off.
