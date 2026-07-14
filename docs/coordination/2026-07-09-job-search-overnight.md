@@ -6219,3 +6219,10 @@ Codex gpt-5.6-sol, pane `w1:pN2` tab `w1:t25` (coord-agents; moved off UX's t21)
 tier → Sonnet QA + auto-merge on green. Awaiting plan escalation. Task #45.
 **#1049 recapture CLOSED:** PASS all 4 states on 110bba3b; relayed to UX (pMW/019f5ee8); PR comment
 4966637818; agent pN1 reaped; combined worktree HELD on disk pending UX reap ping. Task #47 done.
+
+**#1049 CLOSED + WORKTREE REAPED (2026-07-14):** PR #1049 merged `4129391d`, #994 closed, boards
+Done (UX-owned merge). UX gave explicit reap ping → removed held worktree
+`.claude/worktrees/uat-1049-1050-combined` + branch + stale /tmp grounds (jarv1s-uat-1049-63ccf923,
+qa-1049-ground). Durable UAT+QA evidence lives on the PR. Left /tmp/jarv1s-uat-1050-0b280f51 +
+pr1009-evidence (not mine; #1050 stays blocked under UX). Two-coordinator boundary reaffirmed — UX
+session 019f5ee8 NOT reaped.
