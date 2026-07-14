@@ -102,7 +102,7 @@ describe("uatComposeInterpolationEnv", () => {
 
 describe("bareSeedHook", () => {
   it("is a no-op that resolves without touching the database", async () => {
-    await expect(bareSeedHook({ projectName: "uat-test" })).resolves.toBeUndefined();
+    await expect(bareSeedHook({ projectName: "uat-test", level: "bare" })).resolves.toBeUndefined();
   });
 });
 
