@@ -6525,3 +6525,18 @@ just tracking to closure for the run digest.
 Codex at `2026-07-14T18:16:38Z`. Remaining per Codex's stated plan (Codex-owned, no coordinator
 action): wait for registry publication → JarvisProd Compose reconcile (no direct image deploy) →
 verify job-search nav appears. Will continue tracking to closure for the morning digest.
+
+**Prod checkpoint 2026-07-14 (final) — CLOSED:** merge `ab57e542`; modules-registry run
+`29357201317` green; live 0.1.1 artifact SHA/size match; nav confirmed correct in prod.
+
+Codex separately found (not in PR #1056's scope) a pre-existing bug in
+`scripts/module-reconcile.ts`: `JARVIS_MODULES_ENSURE` exact pins are skipped whenever the module
+is already on disk (`onDisk.has -> continue`), contradicting spec §7b — so the first prod
+reconcile attempt cleanly no-op'd and prod stayed on 0.1.0. Codex did **not** broaden #1056 to fix
+it; instead used a rollback-safe one-shot operator workaround (backup 0.1.0 to the container's
+ephemeral `/tmp` → run the exact-pin reconcile → verify 0.1.1 + nav → restart Jarvis → auto-restore
+0.1.0 on any verification failure). Outcome: successful, prod now on 0.1.1 with nav confirmed.
+
+**Filed for tracking:** issue **#1057** (`module-reconcile.ts` exact-pin skip defect, Part of
+#860) — needs its own spec/PR under epic #860 per Scope Guardrails; not actioned by this run.
+Job-search-nav bug (original run trigger) is now **RESOLVED end-to-end** — Codex's lane is done.
