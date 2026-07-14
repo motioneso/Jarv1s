@@ -12,6 +12,7 @@ export interface GrantShareInput {
   readonly ownerUserId: string;
   readonly granteeUserId: string;
   readonly level: ShareLevel;
+  readonly now?: Date;
 }
 
 export interface RevokeShareInput {
@@ -24,7 +25,7 @@ export class SharesRepository {
   async grant(scopedDb: DataContextDb, input: GrantShareInput): Promise<Share> {
     assertDataContextDb(scopedDb);
 
-    const now = new Date();
+    const now = input.now ?? new Date();
 
     return scopedDb.db
       .insertInto("app.shares")

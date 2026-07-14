@@ -3,7 +3,7 @@
 import { sql } from "kysely";
 import { describe, expect, it } from "vitest";
 import { createMigrationOwnerDb } from "./connections.js";
-import { seedSoloAdmin } from "./admin.js";
+import { seedSecondOwner, seedSoloAdmin } from "./admin.js";
 
 describe("seedSoloAdmin", () => {
   it("creates a loginable admin via the real credential-account shape", async () => {
@@ -34,6 +34,40 @@ describe("seedSoloAdmin", () => {
       });
       expect(account.account_id).toBe(userId); // real better-auth convention, not email
       expect(account.provider_id).toBe("credential");
+    } finally {
+      await db.destroy();
+    }
+  });
+
+  it("creates one loginable non-admin owner when re-seeded", async () => {
+    const db = createMigrationOwnerDb();
+    try {
+      const { userId, email, password } = await seedSecondOwner(db);
+      await seedSecondOwner(db);
+
+      expect(email).toBe("uat-owner2@jarv1s.local");
+      expect(password).toBe("uat-owner2-password-1030");
+
+      const user = await db
+        .selectFrom("app.users")
+        .select(["is_instance_admin", "is_bootstrap_owner", "status"])
+        .where("id", "=", userId)
+        .executeTakeFirstOrThrow();
+      expect(user.is_instance_admin).toBe(false);
+      expect(user.is_bootstrap_owner).toBe(false);
+      expect(user.status).toBe("active");
+
+      const accounts = await db.transaction().execute(async (trx) => {
+        await sql`SET LOCAL ROLE jarvis_auth_runtime`.execute(trx);
+        return trx
+          .selectFrom("app.auth_accounts")
+          .select(["account_id", "provider_id", "user_id"])
+          .where("user_id", "=", userId)
+          .execute();
+      });
+      expect(accounts).toEqual([
+        { account_id: userId, provider_id: "credential", user_id: userId }
+      ]);
     } finally {
       await db.destroy();
     }

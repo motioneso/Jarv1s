@@ -7,6 +7,20 @@ import { UAT_SEED_BASE_TIMESTAMP } from "./timestamps.js";
 
 export const UAT_ADMIN_EMAIL = "uat-admin@jarv1s.local";
 export const UAT_ADMIN_PASSWORD = "uat-admin-password-1025";
+export const UAT_SECOND_OWNER_EMAIL = "uat-owner2@jarv1s.local";
+export const UAT_SECOND_OWNER_PASSWORD = "uat-owner2-password-1030";
+
+const UAT_ADMIN_ID = "00000000-0000-4000-8000-000000000001";
+const UAT_SECOND_OWNER_ID = "00000000-0000-4000-8000-000000000002";
+
+interface SeedLoginableUserInput {
+  readonly userId: string;
+  readonly email: string;
+  readonly password: string;
+  readonly name: string;
+  readonly isInstanceAdmin: boolean;
+  readonly isBootstrapOwner: boolean;
+}
 
 export function logUatAdminCredentials(
   credentials: { readonly email: string; readonly password: string },
@@ -26,28 +40,28 @@ export function logUatAdminCredentials(
 }
 
 /**
- * #1025 spec §4.2: a genuinely loginable admin — real scrypt hash via
+ * #1025/#1030: genuinely loginable seed users — real scrypt hashes via
  * better-auth/crypto's hashPassword, real app.users + app.auth_accounts row
- * shapes, so Playwright (#1026) exercises the actual /login path rather than
+ * shapes, so UAT exercises the actual /login path rather than
  * a faked session. app.better_auth_sessions is deliberately NOT seeded here:
  * seeding a session would bypass the auth surface the epic exists to exercise.
  */
-export async function seedSoloAdmin(
-  migrationDb: Kysely<JarvisDatabase>
+async function seedLoginableUser(
+  migrationDb: Kysely<JarvisDatabase>,
+  input: SeedLoginableUserInput
 ): Promise<{ userId: string; email: string; password: string }> {
-  const userId = "00000000-0000-4000-8000-000000000001"; // #1025: fixed, not randomUUID() — deterministic across runs
-  const passwordHash = await hashPassword(UAT_ADMIN_PASSWORD);
+  const passwordHash = await hashPassword(input.password);
 
   await migrationDb
     .insertInto("app.users")
     .values({
-      id: userId,
-      email: UAT_ADMIN_EMAIL,
-      name: "UAT Admin",
+      id: input.userId,
+      email: input.email,
+      name: input.name,
       email_verified: true,
       image: null,
-      is_instance_admin: true,
-      is_bootstrap_owner: true,
+      is_instance_admin: input.isInstanceAdmin,
+      is_bootstrap_owner: input.isBootstrapOwner,
       status: "active",
       created_at: UAT_SEED_BASE_TIMESTAMP,
       updated_at: UAT_SEED_BASE_TIMESTAMP
@@ -70,9 +84,9 @@ export async function seedSoloAdmin(
       .insertInto("app.auth_accounts")
       .values({
         id: randomUUID(),
-        account_id: userId, // better-auth convention: the user's own id, NOT the email
+        account_id: input.userId, // better-auth convention: the user's own id, NOT the email
         provider_id: "credential",
-        user_id: userId,
+        user_id: input.userId,
         access_token: null,
         refresh_token: null,
         id_token: null,
@@ -91,7 +105,33 @@ export async function seedSoloAdmin(
       .execute();
   });
 
-  const credentials = { email: UAT_ADMIN_EMAIL, password: UAT_ADMIN_PASSWORD };
+  return { userId: input.userId, email: input.email, password: input.password };
+}
+
+export async function seedSoloAdmin(
+  migrationDb: Kysely<JarvisDatabase>
+): Promise<{ userId: string; email: string; password: string }> {
+  const credentials = await seedLoginableUser(migrationDb, {
+    userId: UAT_ADMIN_ID,
+    email: UAT_ADMIN_EMAIL,
+    password: UAT_ADMIN_PASSWORD,
+    name: "UAT Admin",
+    isInstanceAdmin: true,
+    isBootstrapOwner: true
+  });
   logUatAdminCredentials(credentials);
-  return { userId, ...credentials };
+  return credentials;
+}
+
+export function seedSecondOwner(
+  migrationDb: Kysely<JarvisDatabase>
+): Promise<{ userId: string; email: string; password: string }> {
+  return seedLoginableUser(migrationDb, {
+    userId: UAT_SECOND_OWNER_ID,
+    email: UAT_SECOND_OWNER_EMAIL,
+    password: UAT_SECOND_OWNER_PASSWORD,
+    name: "UAT Owner Two",
+    isInstanceAdmin: false,
+    isBootstrapOwner: false
+  });
 }
