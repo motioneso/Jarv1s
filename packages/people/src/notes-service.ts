@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 
 import type { DataContextDb } from "@jarv1s/db";
 import { PreferencesRepository } from "@jarv1s/structured-state";
@@ -75,11 +76,11 @@ function hash(value: string): string {
 
 function normalizeFolder(folder: string | null): string | null {
   if (folder === null) return null;
-  const trimmed = folder.trim().replace(/^\/+|\/+$/g, "");
-  if (!trimmed || trimmed.split(/[\\/]/).includes("..") || trimmed.startsWith("/")) {
+  const trimmed = folder.trim();
+  if (!trimmed || isAbsolute(trimmed) || trimmed.split(/[\\/]/).includes("..")) {
     throw new Error("People notes folder must be a relative folder");
   }
-  return trimmed;
+  return trimmed.replace(/\/+$/g, "");
 }
 
 function slugName(displayName: string): string {

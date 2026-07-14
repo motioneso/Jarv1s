@@ -23,6 +23,13 @@ export interface PeopleRouteDependencies {
   readonly peopleNotesService?: PeopleNotesService;
 }
 
+function isUnavailableVaultError(error: unknown): boolean {
+  return (
+    error instanceof VaultPathError ||
+    ["ENOENT", "ENOTDIR", "EACCES"].includes((error as NodeJS.ErrnoException)?.code ?? "")
+  );
+}
+
 export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDependencies): void {
   const repo = deps.repo ?? new PeopleRepository();
   const svc = deps.svc ?? new PersonContextService(repo);
@@ -185,10 +192,7 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
         );
         return { path: requested ? requested : null, directories };
       } catch (error) {
-        if (
-          error instanceof VaultPathError ||
-          (error as NodeJS.ErrnoException)?.code === "ENOENT"
-        ) {
+        if (isUnavailableVaultError(error)) {
           return reply.status(400).send({ error: "People notes folder is unavailable" });
         }
         throw error;
@@ -235,10 +239,7 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
             listVaultDirectories(vaultCtx, parent)
           );
         } catch (error) {
-          if (
-            error instanceof VaultPathError ||
-            (error as NodeJS.ErrnoException)?.code === "ENOENT"
-          ) {
+          if (isUnavailableVaultError(error)) {
             return reply.status(400).send({ error: "People notes folder is unavailable" });
           }
           throw error;

@@ -4,12 +4,16 @@ import { tmpdir } from "node:os";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
-import { readVaultFile, VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
+import { makeVaultDir, readVaultFile, VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
 import type { Kysely } from "kysely";
 import type { JarvisDatabase } from "@jarv1s/db";
 
 import { resetFoundationDatabase, ids } from "../../../../tests/integration/test-database.js";
-import { CanonicalNoteNotFoundError, PeopleNotesService } from "../notes-service.js";
+import {
+  CanonicalNoteNotFoundError,
+  PeopleNotesFolderUnavailableError,
+  PeopleNotesService
+} from "../notes-service.js";
 import { PeopleRepository } from "../repository.js";
 
 const connectionStrings = getJarvisDatabaseUrls();
@@ -43,6 +47,69 @@ async function withUserVault<T>(work: Parameters<VaultContextRunner["withVaultCo
 }
 
 describe("PeopleNotesService", () => {
+  it("reports mixed refresh counts and rejects unavailable or absolute folders", async () => {
+    const service = new PeopleNotesService();
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "settings-mixed" },
+      async (sdb) => {
+        await expect(service.putSettings(sdb, ids.userA, { folder: "/People" })).rejects.toThrow(
+          "relative folder"
+        );
+        await service.putSettings(sdb, ids.userA, { folder: "PeopleMixed" });
+      }
+    );
+
+    await withUserVault(async (vaultCtx) => {
+      await writeVaultFile(
+        vaultCtx,
+        "PeopleMixed/Canonical.md",
+        `---
+jarvisPersonId: 00000000-0000-4000-8000-000000000199
+displayName: Canonical Person
+aliases: []
+emails: []
+phones: []
+status: active
+---
+body
+`
+      );
+      await writeVaultFile(
+        vaultCtx,
+        "PeopleMixed/Missing-Id.md",
+        `---
+displayName: Missing Id
+aliases: []
+emails: []
+phones: []
+status: active
+---
+body
+`
+      );
+      await writeVaultFile(vaultCtx, "PeopleMixed/Invalid.md", "# Not People frontmatter");
+      await writeVaultFile(vaultCtx, "PeopleMixed/Outside-counts.txt", "ignored extension");
+
+      const result = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "refresh-mixed" },
+        (sdb) => service.refreshFromFolder(sdb, vaultCtx, ids.userA)
+      );
+      expect(result).toEqual({ discovered: 3, projected: 1, ignored: 1, candidates: 1 });
+
+      await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "settings-unavailable" },
+        (sdb) => service.putSettings(sdb, ids.userA, { folder: "PeopleUnavailable" })
+      );
+      await expect(
+        runner.withDataContext(
+          { actorUserId: ids.userA, requestId: "refresh-unavailable" },
+          (sdb) => service.refreshFromFolder(sdb, vaultCtx, ids.userA)
+        )
+      ).rejects.toBeInstanceOf(PeopleNotesFolderUnavailableError);
+    });
+  });
+
   it("projects one canonical note into one person", async () => {
     const service = new PeopleNotesService();
 
@@ -316,6 +383,7 @@ body
     );
 
     await withUserVault(async (vaultCtx) => {
+      await makeVaultDir(vaultCtx, "PeopleNoNote");
       await expect(
         runner.withDataContext({ actorUserId: ids.userA, requestId: "update-no-note" }, (sdb) =>
           service.updatePersonNote(sdb, vaultCtx, ids.userA, personId, { displayName: "X" })
