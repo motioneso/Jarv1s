@@ -118,10 +118,9 @@ children only; it is not a general filesystem browser.
 - [ ] **Step 1: Write failing containment and result-shape tests**
 
   In `tests/integration/vault.test.ts`, import `listVaultDirectories` and add focused tests that:
-
   - create `People`, `Archive`, a nested `People/Family`, and a regular file;
   - expect the root call to return sorted `[{ name: "Archive", path: "Archive" },
-    { name: "People", path: "People" }]` only;
+{ name: "People", path: "People" }]` only;
   - expect `listVaultDirectories(ctx, "People")` to return only
     `{ name: "Family", path: "People/Family" }`;
   - reject `../other-user`, an absolute path (including an absolute path that happens to point
@@ -138,7 +137,6 @@ children only; it is not a general filesystem browser.
 - [ ] **Step 3: Implement the smallest vault operation**
 
   In `packages/vault/src/vault-ops.ts`:
-
   - reject an absolute `relativeDir` before resolving it;
   - call `assertVaultContext`, `resolveVaultPath`, and the existing `assertNoSymlinkEscape` exactly
     as `listVaultFiles`/`listVaultFilesRecursive` do;
@@ -193,7 +191,6 @@ all other non-null folders must exist at save time.
 
   Extend the route harness so `buildApp(actorUserId = ids.userA)` can mount the same routes for two
   actors. Add `app.inject` tests that prove:
-
   - root discovery returns only sorted immediate, owner-relative child directories;
   - `?path=People` returns relative descendants and never contains the vault base path or actor ID;
   - user A cannot observe user B's private directory through root listing, traversal, an absolute
@@ -222,7 +219,6 @@ all other non-null folders must exist at save time.
 - [ ] **Step 4: Add route schemas and vault-scoped handlers**
 
   In `packages/people/src/routes.ts`:
-
   - define one reusable TypeBox directory-entry/response schema near `notesSettingsSchema`;
   - add `GET /api/people/notes-directories` with an optional string query parameter;
   - resolve `AccessContext`, require the existing `vaultRunner`, enter `withVaultContext`, and call
@@ -281,7 +277,6 @@ export interface PeopleNotesRefreshResult {
 - [ ] **Step 1: Write failing service outcome tests**
 
   Update existing assertions to compare all four counters, then add one mixed-folder test with:
-
   - one valid canonical Markdown note;
   - one parseable note missing `jarvisPersonId` (a candidate, not ignored);
   - one Markdown file with invalid/missing People frontmatter (ignored);
@@ -316,7 +311,6 @@ export interface PeopleNotesRefreshResult {
 
   In `PeopleNotesService`, change the private loader from `LoadedPeopleNote[]` to one result object
   containing `notes`, `discovered`, and `ignored`:
-
   - call `listVaultFilesRecursive` once;
   - filter Markdown paths once;
   - set `discovered` from that list;
@@ -367,7 +361,6 @@ export interface PeopleNotesRefreshResult {
 - [ ] **Step 1: Write failing client tests**
 
   Extend `tests/people-client.test.ts` to prove:
-
   - `getPeopleNotesDirectories(null)` calls `/api/people/notes-directories`;
   - a nested relative path is encoded in `?path=` and no absolute vault prefix is invented;
   - `refreshPeopleNotes()` preserves a mocked body containing all four counters.
@@ -387,7 +380,7 @@ export interface PeopleNotesRefreshResult {
   In `query-keys.ts`, add:
 
   ```ts
-  notesDirectories: (path: string | null) => ["people", "notes-directories", path] as const
+  notesDirectories: (path: string | null) => ["people", "notes-directories", path] as const;
   ```
 
   Keep these contracts local to the existing People client; do not add a new shared package file
@@ -430,9 +423,8 @@ hierarchy.
 
   Build the new test with the repository's existing `renderToString` + pre-seeded `QueryClient`
   pattern. Cover:
-
   - Notes mode renders only returned mapped roots/children and has no textbox, `Type a path on the
-    server`, `Go`, or arbitrary-path affordance;
+server`, `Go`, or arbitrary-path affordance;
   - an empty/503 Notes-root state renders the exact headline
     `No notes folders are available to Jarv1s.` plus `/data/external-notes`,
     `JARVIS_NOTES_ROOTS`, container recreation guidance, and a link to the Notes Mount docs;
@@ -450,7 +442,6 @@ hierarchy.
 - [ ] **Step 3: Convert `VaultChooser` to two explicit modes**
 
   In `settings-vault-chooser.tsx`:
-
   - delete `typed`, `submitTyped`, the server-path input, and its now-unused icon import;
   - select the query key/function and user copy directly from the two modes;
   - Notes mode continues to use `getNotesSourceDirectories` and absolute mapped paths returned by
@@ -515,7 +506,6 @@ hierarchy.
 
   Because this repo's unit harness uses server rendering rather than DOM event simulation, add one
   small pure helper in the pane for refresh guidance and test its branches directly. Prove:
-
   - zero discovered points to choosing a folder or manual creation;
   - ignored > 0 explains invalid/missing People-note frontmatter;
   - candidates > 0 enables a `Review matches` action;
@@ -533,7 +523,6 @@ hierarchy.
 - [ ] **Step 3: Replace folder draft entry with the People chooser**
 
   In `SettingsPeoplePane`:
-
   - replace `folderDraft` with a `choosingFolder` boolean;
   - make the save mutation accept the selected relative path and pass People mode to
     `VaultChooser`;
@@ -547,7 +536,6 @@ hierarchy.
   Add local `PeopleNotesRefreshResultDto | null` state. On successful refresh, store the result,
   invalidate People/candidates queries as today, and render all four labeled counts in a
   `role="status"` region. Use the tested helper for guidance:
-
   - `discovered === 0`: choose another folder or add a person manually;
   - `ignored > 0`: explain invalid/missing People-note frontmatter;
   - `candidates > 0`: render a real `Review matches` button.
@@ -596,7 +584,6 @@ hierarchy.
 
   Follow the existing `mock-*-api.ts` pattern. Define a small mutable state for only the endpoints
   this flow mounts and register handlers for:
-
   - Notes source GET/PUT, directory GET, last-sync GET, and sync POST;
   - People notes settings GET/PUT, directory GET, refresh POST, People/candidate GET, and manual
     person POST.
@@ -609,7 +596,6 @@ hierarchy.
 - [ ] **Step 2: Write the desktop happy-path test**
 
   At 1440x900:
-
   1. Open `/settings?section=sources`, browse a returned mapped Notes descendant, assert no
      server-path textbox exists, select it, and run Sync now.
   2. Open `/settings?section=memory`, activate the `People & context` segment, choose a returned
@@ -631,9 +617,11 @@ hierarchy.
   Finish with:
 
   ```ts
-  expect(await page.evaluate(
-    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
-  )).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    )
+  ).toBe(true);
   ```
 
 - [ ] **Step 5: Run the new spec and correct only demonstrated CSS failures**
