@@ -25,12 +25,21 @@ import {
   registerMockOnboardingRoutes,
   type MockOnboardingApiState
 } from "./mock-onboarding-api.js";
+import {
+  registerMockNotesPeopleRoutes,
+  type MockNotesPeopleApiState
+} from "./mock-notes-people-api.js";
 
 export { createMockBriefingDefinition, createMockBriefingRun } from "./mock-briefings-api.js";
 export { createMockConnectorAccount, createMockConnectorProviders } from "./mock-connectors-api.js";
 
 export interface MockApiState
-  extends MockBriefingsApiState, MockAiApiState, MockConnectorsApiState, MockOnboardingApiState {
+  extends
+    MockBriefingsApiState,
+    MockAiApiState,
+    MockConnectorsApiState,
+    MockOnboardingApiState,
+    MockNotesPeopleApiState {
   authenticated: boolean;
   /**
    * Whether the authenticated user is an instance admin. Defaults to true so
@@ -277,6 +286,7 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
   await registerMockBriefingsRoutes(page, state);
   await registerMockChatRoutes(page, state);
   await registerMockOnboardingRoutes(page, state);
+  await registerMockNotesPeopleRoutes(page, state);
   await page.route("**/api/admin/users", (route) => handleAdminUsersRoute(route, state));
   await page.route("**/api/admin/users/*/revoke-sessions", (route) =>
     handleAdminUserRevokeSessionsRoute(route, state)
