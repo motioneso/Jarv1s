@@ -5,6 +5,9 @@ import type { AccessContext } from "@jarv1s/db";
 import { sendModuleControl, sendModuleJob } from "@jarv1s/jobs";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 
+// #965: five seconds catches accidental double-clicks without blocking an intentional rerun.
+const MANUAL_RUN_SINGLETON_SECONDS = 5;
+
 export function registerExternalModuleJobRoutes(
   server: FastifyInstance,
   deps: {
@@ -72,7 +75,10 @@ export function registerExternalModuleJobRoutes(
               ? {}
               : { params: value.params as Readonly<Record<string, unknown>> })
           },
-          { singletonKey: `manual:${moduleId}:${queueName}:${access.actorUserId}` }
+          {
+            singletonKey: `manual:${moduleId}:${queueName}:${access.actorUserId}`,
+            singletonSeconds: MANUAL_RUN_SINGLETON_SECONDS
+          }
         );
         return reply.code(202).send({ jobId });
       } catch (error) {

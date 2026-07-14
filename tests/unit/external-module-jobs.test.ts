@@ -55,7 +55,8 @@ describe("external module run-now route", () => {
           manifestHash: module.manifestHash
         },
         {
-          singletonKey: "manual:fixture:fixture.sync:00000000-0000-4000-8000-000000000001"
+          singletonKey: "manual:fixture:fixture.sync:00000000-0000-4000-8000-000000000001",
+          singletonSeconds: 5
         }
       ]
     ]);

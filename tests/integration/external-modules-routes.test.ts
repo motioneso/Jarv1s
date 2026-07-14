@@ -158,6 +158,14 @@ describe("external-module admin routes (#917)", () => {
     });
     expect(run.statusCode).toBe(202);
     expect(run.json()).toEqual({ jobId: expect.any(String) });
+    const duplicateRun = await server.inject({
+      method: "POST",
+      url: "/api/modules/acme-widgets/queues/acme-widgets.manual/run",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { jobKind: "manual" }
+    });
+    expect(duplicateRun.statusCode).toBe(202);
+    expect(duplicateRun.json()).toEqual({ jobId: null });
     const payloadClient = new Client({ connectionString: connectionStrings.bootstrap });
     await payloadClient.connect();
     const payload = await payloadClient.query<{ data: Record<string, unknown> }>(
