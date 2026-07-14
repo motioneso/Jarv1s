@@ -20,7 +20,7 @@
  * module re-declares none of them.
  */
 
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { connect, type Socket } from "node:net";
 import { realpath } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
@@ -41,18 +41,17 @@ import type {
   RpcSubmitLoginTokenParams,
   RpcSubmitLoginTokenResult
 } from "./login-contract.js";
+// #1059 — the §3.6 client hello now lives in ./rpc-handshake.ts (shared with TerminalRpcClient);
+// this module delegates to it rather than owning the handshake body.
+import { performClientHello } from "./rpc-handshake.js";
 import {
   decodeFrame,
   encodeFrame,
-  HELLO_PROOF_TAG_CLIENT,
-  HELLO_PROOF_TAG_SERVER,
-  type FrameDecodeResult,
   type RpcCancelSubmitParams,
   type RpcCancelSubmitResult,
   type RpcErr,
   type RpcErrorCode,
   type RpcFrame,
-  type RpcHelloChallenge,
   type RpcInterruptResult,
   type RpcIsAliveResult,
   type RpcKillParams,
@@ -78,9 +77,6 @@ export const SOCKET_ALLOWED_DIR = "/run/jarv1s";
 /** Reconnect backoff bounds (§3.5): 250ms → 2s, jittered. */
 const RECONNECT_MIN_MS = 250;
 const RECONNECT_MAX_MS = 2_000;
-
-/** Width of the random hex nonces exchanged in the auth hello (§3.6) — 32 bytes. */
-const NONCE_BYTES = 32;
 
 /**
  * §3.4 per-call response deadline (ms). A cli-runner that ACCEPTS a request frame but never sends
@@ -538,18 +534,19 @@ export class RpcConnection {
 
     // §3.6: perform the mutual challenge-response hello BEFORE any RpcRequest. This both proves the
     // server holds the secret (so we never hand a token to an imposter peer) and proves we hold it.
-    // The handshake reader (`readSingleHandshakeFrame`) owns the `data` stream during the hello; the
-    // normal response router is attached ONLY after the handshake completes, so a handshake frame is
-    // never misrouted into `routeFrame` (which would treat the hello-challenge as a malformed response
-    // and drop the connection).
+    // The shared `performClientHello` (#1059, ./rpc-handshake.ts) owns the `data` stream during the
+    // hello; the normal response router is attached ONLY after the handshake completes, so a
+    // handshake frame is never misrouted into `routeFrame` (which would treat the hello-challenge as
+    // a malformed response and drop the connection).
     this.state = "handshaking";
     await this.performHello(socket);
 
     socket.on("data", (chunk: Buffer) => this.onData(chunk));
     this.state = "ready";
 
-    // Any bytes that arrived after the hello frame were stashed in recvBuf by the handshake reader;
-    // drain them now that the normal router is attached (§3.2 — a response may already be buffered).
+    // Any bytes that arrived after the hello frame were returned as `leftover` by performHello and
+    // stashed into recvBuf; drain them now that the normal router is attached (§3.2 — a response may
+    // already be buffered).
     if (this.recvBuf.length > 0) this.drainRecvBuf();
 
     // §3.5 / §5.3: run reconciliation on every (re)connect before serving new turns.
@@ -579,82 +576,17 @@ export class RpcConnection {
   }
 
   /**
-   * §3.6 mutual challenge-response. The secret is NEVER transmitted; both sides prove knowledge over
-   * exchanged nonces with domain-separated HMACs. The client:
-   *   1. sends `clientNonce`;
-   *   2. receives `serverProof` + `serverNonce`, and VERIFIES `serverProof` = HMAC(secret,"S"+clientNonce)
-   *      BEFORE sending anything else — a wrong/absent proof ⇒ abort + close (never reveal a token to
-   *      an imposter peer);
-   *   3. sends `clientProof` = HMAC(secret,"C"+serverNonce).
+   * §3.6 mutual challenge-response hello. Delegates to the shared `performClientHello` (#1059,
+   * ./rpc-handshake.ts — extracted so this connection and `TerminalRpcClient` run the IDENTICAL
+   * client-side hello instead of maintaining two copies of security-critical code). Any bytes that
+   * arrived on the wire immediately after the hello-challenge frame (a response may already be
+   * buffered directly behind it) are appended to `recvBuf` so `drainRecvBuf()` picks them up once
+   * the normal frame router attaches.
    */
   private async performHello(socket: Socket): Promise<void> {
-    if (!this.rpcSecret) {
-      socket.destroy();
-      throw new CliChatUnavailableError("JARVIS_CLI_RUNNER_RPC_SECRET is not set");
-    }
-    const clientNonce = randomBytes(NONCE_BYTES).toString("hex");
-    const expectedServerProof = hmacHex(this.rpcSecret, HELLO_PROOF_TAG_SERVER + clientNonce);
-
-    // Read the single hello-challenge frame off the raw stream (before normal frame routing starts).
-    const challengePromise = this.readSingleHandshakeFrame(socket);
     this.log.debug({ method: "hello" });
-    socket.write(encodeFrame({ t: "hello", clientNonce }));
-
-    const challenge = await challengePromise;
-    if (!isHelloChallenge(challenge)) {
-      socket.destroy();
-      throw new CliChatUnavailableError("cli-runner hello: missing or malformed challenge");
-    }
-    // VERIFY the server's proof BEFORE sending our proof — abort if wrong (§3.6).
-    if (!constantTimeHexEqual(challenge.serverProof, expectedServerProof)) {
-      socket.destroy();
-      throw new CliChatUnavailableError("cli-runner hello: server proof mismatch (imposter peer)");
-    }
-    const clientProof = hmacHex(this.rpcSecret, HELLO_PROOF_TAG_CLIENT + challenge.serverNonce);
-    socket.write(encodeFrame({ t: "hello-response", clientProof }));
-    // The server proceeds straight to request/response framing on success, or closes silently on a
-    // bad clientProof (surfaced as a socket close → reconnect, §3.6).
-  }
-
-  /**
-   * Read exactly one length-prefixed frame off the socket during the handshake, before the normal
-   * `data` handler takes over routing. Buffers fragmented reads (§3.2). Resolves with the parsed JSON
-   * frame, or rejects on a malformed/oversize frame or an early close.
-   */
-  private readSingleHandshakeFrame(socket: Socket): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      let buf: Buffer<ArrayBufferLike> = Buffer.alloc(0);
-      const onData = (chunk: Buffer<ArrayBufferLike>): void => {
-        buf = buf.length === 0 ? chunk : Buffer.concat([buf, chunk]);
-        const decoded: FrameDecodeResult = decodeFrame(buf);
-        if (decoded.kind === "incomplete") return;
-        cleanup();
-        if (decoded.kind === "oversize") {
-          reject(new CliChatUnavailableError("cli-runner hello: oversize frame"));
-          return;
-        }
-        // Stash any bytes that arrived after this frame so the normal reader sees them.
-        const rest = buf.subarray(decoded.consumed);
-        if (rest.length > 0) this.recvBuf = Buffer.concat([this.recvBuf, rest]);
-        try {
-          resolve(JSON.parse(decoded.body.toString("utf8")) as unknown);
-        } catch (err) {
-          reject(new CliChatUnavailableError("cli-runner hello: invalid JSON", { cause: err }));
-        }
-      };
-      const onClose = (): void => {
-        cleanup();
-        reject(new CliChatUnavailableError("cli-runner closed during hello"));
-      };
-      const cleanup = (): void => {
-        socket.off("data", onData);
-        socket.off("error", onClose);
-        socket.off("close", onClose);
-      };
-      socket.on("data", onData);
-      socket.on("error", onClose);
-      socket.on("close", onClose);
-    });
+    const { leftover } = await performClientHello(socket, this.rpcSecret);
+    if (leftover.length > 0) this.recvBuf = Buffer.concat([this.recvBuf, leftover]);
   }
 
   // ─── inbound framing + id-matching ───────────────────────────────────────────
@@ -862,29 +794,8 @@ export class ChatEngineRpcClient implements CliChatEngine {
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
-
-function hmacHex(secret: string, message: string): string {
-  return createHmac("sha256", secret).update(message, "utf8").digest("hex");
-}
-
-/** Constant-time compare of two hex strings of equal expected length (§3.6). */
-function constantTimeHexEqual(a: string, b: string): boolean {
-  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
-  const ba = Buffer.from(a, "hex");
-  const bb = Buffer.from(b, "hex");
-  if (ba.length !== bb.length || ba.length === 0) return false;
-  return timingSafeEqual(ba, bb);
-}
-
-function isHelloChallenge(frame: unknown): frame is RpcHelloChallenge {
-  return (
-    typeof frame === "object" &&
-    frame !== null &&
-    (frame as { t?: unknown }).t === "hello-challenge" &&
-    typeof (frame as RpcHelloChallenge).serverProof === "string" &&
-    typeof (frame as RpcHelloChallenge).serverNonce === "string"
-  );
-}
+// hmacHex/constantTimeHexEqual/isHelloChallenge moved into ./rpc-handshake.ts (#1059 extraction) —
+// they now live with performClientHello, their only caller.
 
 /** §3.5 backoff: 250ms → 2s, exponential with full jitter. */
 function backoffDelay(attempt: number, minMs: number, maxMs: number): number {
