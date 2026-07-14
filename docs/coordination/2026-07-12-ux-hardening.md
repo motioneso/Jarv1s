@@ -27,7 +27,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Ben approved #1020 rev2; serialized expanded #868/#1020 dependency lane is planning under session `019f5ce4-cce4-7a13-be05-cfc3834cc529`. #984 remains held until dependency landing, then fresh no-wait 3x UAT/security QA/Ben sign-off |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
-| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | PR #1058 fix candidate `d2405781`; zero behind, fresh CI/live desktop+narrow/independent sensitive QA pending |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | PR #1058 `d2405781`; CI green, fresh live desktop+narrow and independent sensitive QA running |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` completed 4/4 GREEN including image publish |
 | #991 | `2026-07-13-991-assistant-priorities-dogfood-hardening.md` | sensitive | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/991-assistant-priorities-build`, session `019f5ed2-b01a-7610-95d6-da3024b4b82f` |
@@ -1698,3 +1698,8 @@ resume from this note before taking any merge-sensitive action.
   typecheck/diff-check pass. GitHub confirms the branch remains zero behind with the same 17-file
   scope; fresh CI run `29358529658` is running. The old-head BLOCKED UAT remains valid evidence,
   while new-head CI, UAT, and independent sensitive QA must all run from scratch.
+- Old-head Webwright BLOCKED evidence is durable at
+  `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4972683927`. Fresh CI run
+  `29358529658` completed fully green at `d2405781`. Independent exact-head Webwright UAT task
+  `/root/uat_1058_live_v2` and independent sensitive QA task `/root/qa_1058_sensitive` are running;
+  merge remains prohibited until both post durable GREEN verdicts.
