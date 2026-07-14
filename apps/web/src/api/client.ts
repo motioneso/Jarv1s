@@ -121,6 +121,9 @@ import type {
   OnboardingCompleteResponse,
   RevokeAiProviderConfigResponse,
   RevokeConnectorAccountResponse,
+  GetTerminalStatusResponse,
+  SetTerminalPasswordResponse,
+  RequestTerminalTicketResponse,
   TestAiProviderConfigResponse,
   LookupAiCapabilityRouteResponse,
   TranscribeAudioResponse,
@@ -1300,4 +1303,41 @@ export async function getDataExportStatus(jobId: string): Promise<ExportJobStatu
 
 export function getDataExportDownloadUrl(jobId: string): string {
   return `/api/me/export/download/${jobId}`;
+}
+
+// #1059 owner-gated CLI-provider terminal — password/status/ticket client helpers for
+// packages/ai/src/terminal-routes.ts, plus the ws:// URL builder Task 9's settings modal
+// will call. Mirrors the testAiProvider / requestJson pattern used elsewhere in this file.
+export async function getTerminalStatus(): Promise<GetTerminalStatusResponse> {
+  return requestJson<GetTerminalStatusResponse>("/api/ai/terminal/status");
+}
+
+export async function setTerminalPassword(
+  password: string
+): Promise<SetTerminalPasswordResponse> {
+  return requestJson<SetTerminalPasswordResponse>("/api/ai/terminal/password", {
+    method: "POST",
+    body: { password }
+  });
+}
+
+export async function requestTerminalTicket(
+  password: string
+): Promise<RequestTerminalTicketResponse> {
+  return requestJson<RequestTerminalTicketResponse>("/api/ai/terminal/ticket", {
+    method: "POST",
+    body: { password }
+  });
+}
+
+/**
+ * Derives ws/wss from the page's own protocol (never hardcoded) so the terminal socket
+ * inherits the page's transport security: an https page must use wss (mixed-content
+ * blocking would otherwise silently kill a plain ws:// connection), while local http dev
+ * uses plain ws. The ticket travels in the query string because the WS upgrade request
+ * can't carry a custom Authorization header from the browser's native WebSocket client.
+ */
+export function terminalWsUrl(ticket: string): string {
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${window.location.host}/api/ai/terminal?ticket=${encodeURIComponent(ticket)}`;
 }

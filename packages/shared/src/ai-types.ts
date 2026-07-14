@@ -333,6 +333,32 @@ export interface TestAiProviderConfigResponse {
   readonly result: AiProviderTestResultDto;
 }
 
+/**
+ * #1059 owner-gated CLI-provider terminal — frontend-only DTOs for
+ * packages/ai/src/terminal-routes.ts. None of those three HTTP routes pass a Fastify
+ * response `schema`, so these are plain TS shapes (no fast-json-stringify field-strip
+ * risk); keep them in sync with the route bodies if a later task adds schemas.
+ */
+export interface GetTerminalStatusResponse {
+  readonly passwordSet: boolean;
+}
+
+export interface SetTerminalPasswordRequest {
+  readonly password: string;
+}
+
+export interface SetTerminalPasswordResponse {
+  readonly ok: true;
+}
+
+export interface RequestTerminalTicketRequest {
+  readonly password: string;
+}
+
+export interface RequestTerminalTicketResponse {
+  readonly ticket: string;
+}
+
 export interface DiscoverAiProviderModelsResponse {
   readonly models: readonly AiProviderDiscoveredModelDto[];
 }
