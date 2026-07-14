@@ -34,7 +34,8 @@ describe("personaSeedText", () => {
     expect(saved.personaText).toBe("Saved voice");
     expect(guided.personaText).toContain("Keep responses crisp");
     expect(personaDraftIsDirty(guided, saved)).toBe(true);
-    expect(discardPersonaDraft(saved)).toEqual(draft);
+    const expected = { ...guided, ...saved };
+    expect(discardPersonaDraft(saved, guided)).toEqual(expected);
   });
 
   it("extracts only text from the one-shot structured preview result", () => {

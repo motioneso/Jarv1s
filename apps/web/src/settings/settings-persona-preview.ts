@@ -96,7 +96,17 @@ export function applyGuidedPersonaText(draft: PersonaDraft, dials: PersonaDials)
 }
 
 export function discardPersonaDraft(saved: PersonaSnapshot, dials?: PersonaDials): PersonaDraft {
-  return createPersonaDraft(saved, dials);
+  return createPersonaDraft(
+    saved,
+    dials
+      ? {
+          tone: dials.tone,
+          directness: dials.directness,
+          humor: dials.humor,
+          recovery: dials.recovery
+        }
+      : undefined
+  );
 }
 
 export function personaDraftIsDirty(draft: PersonaSnapshot, saved: PersonaSnapshot): boolean {
