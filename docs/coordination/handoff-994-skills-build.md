@@ -6,7 +6,7 @@
 **Risk tier:** routine
 **Worktree:** `~/Jarv1s/.claude/worktrees/ux-994-skills-build`
 **Branch:** `ux/994-skills-build`
-**Builder:** Terra (`gpt-5.4-mini`) at medium reasoning
+**Builder:** Terra (`gpt-5.6-terra`) at medium reasoning
 **Coordinator and merge authority:** label `UX Coordinator`, session
 `019f5dc2-8bd9-78b2-827f-67bd9a99e6c9`
 **Build skill:** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
