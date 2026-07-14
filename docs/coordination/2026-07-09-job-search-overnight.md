@@ -5781,3 +5781,9 @@ Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item clear
 3. **AGENT IS RIGHT — my handoff erred.** #868 is chat-transcript-purge, NOT job-search install; the "fail-closed" framing was my embellishment, not in the spec. **Follow APPROVED SPEC §6 verbatim** = happy-path install-succeeds proof via REAL nav discovery (no goto). DROP the #868 citation. Do NOT build a failure-injection test the spec doesn't call for. Module-gating comments → cite real code (`apps/web/src/app.tsx` myModulesEnabled) + #1026/#1000. Presence/absence asserted = the seed's job-search toggle (absent before install → present in nav after). Then write plan doc → Coordinator approval → code.
 
 **P3 #1026 relay:** pME → successor `UAT Play 1026 v2` (pane w1:pMF, session dc9b9ae6, Sonnet, tab w1:t1W verified). Old pME reaped. 3-item nod delivered (items 1+2 additive exports it already started; item 3 = follow spec §6, drop #868). Awaiting its plan-doc pointer for Coordinator approval before code.
+
+---
+### #984 / PR #1015 — Opus security re-QA APPROVE (Ben-delegated authority)
+- **VERDICT GREEN**, 0 blocking. Invariants clean (DB-RLS owner-scoping on History/touchThread, secrets-never-escape — privacy endpoint returns only {incognito:boolean}, metadata-only payloads, #868 purge intact — recordTurn still skips persistence+jobs for incognito). Resume re-establishes correct actor. No cross-user/session leak path. Verdict posted to PR (gh pr comment).
+- 3 non-blocking test-coverage gaps (all guarded by pre-existing RLS/structure, no live vuln): RLS foreign-thread-resume block; two-user privacy-endpoint isolation; forceReplay-vs-purge. → file test-hardening follow-up on merge.
+- CI: compose + prod-compose PASS; "Verify foundation and app" pending (~19min). **Auto-merge enabled** (squash+delete) — merges on VF green per Opus authority. On merge: close #984, reap pK3 + ux-984 worktree, file follow-up, digest.
