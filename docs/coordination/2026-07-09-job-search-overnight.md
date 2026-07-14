@@ -6321,3 +6321,16 @@ Live fleet: Lane B w1:pN7 (#1030 security-bar, monitor bt52138u2, building) + La
 ### Digest for Ben (morning) — append merge SHAs after they land:
 - #1053 (#1030 multi-user UAT seed, security) — Opus+Fable GREEN, verdict on PR — MERGED `<sha>`
 - #1054 (#965 run-now dedupe, sensitive) — Sonnet GREEN — MERGED `<sha>`
+
+---
+## COORDINATOR RELAY ADOPTED — 2026-07-14
+
+New resident Coordinator adopted the run from relayed session `58a78927-385c-4b1d-8fa0-94db20255d6f`
+(pane `w1:pE6`, hit 70% context-meter mid-Phase-3). **New lock:** session
+`09cda409-186a-49a4-87dc-4471aeb2eca7` (pane resolves fresh by label+session; currently `w1:pNB`,
+tab `w1:t26`). Executing the two cleared merges from the RELAY CONTINUATION NOTE above in order:
+PR #1053 (security) then PR #1054 (sensitive). Dual-coordinator boundary preserved — UX Coordinator
+session `019f5fc7-4cac-7760-8e3a-9f5d766c5862` NOT reaped, NOT touched. Predecessor pane `w1:pE6`
+will be reaped only after both merges land and bookkeeping is confirmed.
+
+**Lock:** Coordinator session `09cda409-186a-49a4-87dc-4471aeb2eca7`.
