@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -27,7 +27,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Ben approved #1020 rev2; serialized expanded #868/#1020 dependency lane is planning under session `019f5ce4-cce4-7a13-be05-cfc3834cc529`. #984 remains held until dependency landing, then fresh no-wait 3x UAT/security QA/Ben sign-off |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
-| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | draft plan PR #1044 approved at `33de3a37`; CI pending, Luna blocked until docs land |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | spec/plan PR #1044 merged as squash `0b3d7a19`; Luna implementation waits for latest-main CI green |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` completed 4/4 GREEN including image publish |
 | #991 | `2026-07-13-991-assistant-priorities-dogfood-hardening.md` | sensitive | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/991-assistant-priorities-build`, session `019f5ed2-b01a-7610-95d6-da3024b4b82f` |
@@ -1644,3 +1644,10 @@ resume from this note before taking any merge-sensitive action.
   verify the public People error barrel export and exact AppShell -> ChatControls -> ChatDrawer ->
   matching ActionRequestCard stable-ID focus path, including the explicit no-chat-redesign and
   no-resolver-expansion boundary. Owner `UX 987 Plan Sol` is done pending that gate.
+- PR #1044 passed all required CI at exact head `fedf3d24a68b6732cd0f5baec51f6f54ab8054bd`.
+  Fresh independent sensitive QA was GREEN with no blockers and posted the durable verdict at
+  `https://github.com/motioneso/Jarv1s/pull/1044#issuecomment-4972201784`. After the authority and
+  zero-behind checks matched, the docs-only PR merged as squash
+  `0b3d7a1903eaac99602f077f0f529af2f10b12b1`. Issue #987 remains open for implementation;
+  `merges_since_relay` is `1`. Latest-main CI run `29354816172` is running, so Luna implementation
+  remains gated until it is green.
