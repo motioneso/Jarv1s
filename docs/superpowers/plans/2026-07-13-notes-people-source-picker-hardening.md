@@ -33,8 +33,9 @@ Playwright.
   payload invariants. Do not add raw filesystem access outside `@jarv1s/vault`.
 - Do not add a migration, table, dependency, job, shared-data model, provider/model choice, or
   cross-module table query.
-- Do not edit `tests/uat/**`, `docs/coordination/**`, chat approval files, `action-request-card.tsx`,
-  module install/run files, or settings shell/navigation files owned by #985/#986/#1000.
+- Do not edit `tests/uat/**`, `docs/coordination/**`, chat approval resolution/policy,
+  `action-request-card.tsx`, module install/run files, or settings shell/navigation files owned by
+  #985/#986/#1000. Reuse the existing owner-scoped live action request to open its chat review.
 - The refresh response schema, if present, must declare all four counters: `discovered`,
   `projected`, `ignored`, and `candidates`. Prove the serialized response with `app.inject`.
 - Requests, stored People folder values, and People directory responses are relative paths only.
@@ -60,6 +61,8 @@ Playwright.
 - Modify: `packages/people/src/notes-service.ts` — tighten relative-folder normalization and return
   one-pass scan counts.
 - Modify: `packages/people/src/types.ts` — expand `PeopleNotesRefreshResult` to four counters.
+- Modify: `packages/module-registry/src/index.ts` — keep an unavailable People folder from failing
+  the unrelated Notes after-sync worker.
 - Modify: `apps/web/src/api/people-client.ts` — add People directory contracts/client and expand the
   refresh result contract.
 - Modify: `apps/web/src/api/query-keys.ts` — add path-keyed People directory cache keys.
@@ -80,6 +83,7 @@ Playwright.
 - Modify: `packages/people/src/__tests__/routes.test.ts`
 - Modify: `tests/people-client.test.ts`
 - Modify: `tests/unit/settings-people-pane.test.tsx`
+- Modify: `tests/unit/module-registry-people-notes-source-behavior.test.ts`
 - Create: `tests/unit/settings-vault-chooser.test.tsx`
 - Create: `tests/e2e/mock-notes-people-api.ts`
 - Modify: `tests/e2e/mock-api.ts`
@@ -271,6 +275,8 @@ all other non-null folders must exist at save time.
 - Modify: `packages/people/src/notes-service.ts`
 - Modify: `packages/people/src/types.ts`
 - Modify: `packages/people/src/routes.ts`
+- Modify: `packages/module-registry/src/index.ts`
+- Modify: `tests/unit/module-registry-people-notes-source-behavior.test.ts`
 
 **Interface:**
 
@@ -297,6 +303,11 @@ export interface PeopleNotesRefreshResult {
   explicit UI already disables refresh in that state, and the background Notes after-sync hook
   relies on the no-preference case being a no-op.
 
+  In `tests/unit/module-registry-people-notes-source-behavior.test.ts`, add a regression test for
+  the automatic Notes after-sync caller: a refresh that rejects with
+  `PeopleNotesFolderUnavailableError` must resolve without failing Notes sync. A different error
+  must still reject so programming/database failures are not hidden.
+
 - [ ] **Step 2: Write the failing serialized route test**
 
   In `packages/people/src/__tests__/routes.test.ts`, configure a folder with the mixed files, POST
@@ -312,9 +323,11 @@ export interface PeopleNotesRefreshResult {
 
   ```bash
   pnpm --filter @jarv1s/people test
+  pnpm vitest run tests/unit/module-registry-people-notes-source-behavior.test.ts
   ```
 
-  Expected: FAIL on the old two-counter result and silent missing-folder behavior.
+  Expected: FAIL on the old two-counter result, silent missing-folder behavior, and the unhandled
+  stale-folder exception in the automatic Notes after-sync caller.
 
 - [ ] **Step 4: Make the scan return notes plus counts**
 
@@ -339,6 +352,13 @@ export interface PeopleNotesRefreshResult {
   `PeopleNotesFolderUnavailableError` and convert it to a safe recoverable HTTP error; do not hide
   unrelated database/programming failures.
 
+  In the module registry's Notes `afterSync` callback, catch only
+  `PeopleNotesFolderUnavailableError` around `refreshFromFolder` and return without People
+  projection. This automatic best-effort caller must not turn a stale optional People preference
+  into a failed Notes sync. Do not put the catch in `runNotesAfterSyncHook`: other hook failures
+  must still propagate, and the explicit People refresh route must still return its safe non-2xx
+  recovery response.
+
 - [ ] **Step 6: Run GREEN checks**
 
   Run:
@@ -346,6 +366,8 @@ export interface PeopleNotesRefreshResult {
   ```bash
   pnpm --filter @jarv1s/people test
   pnpm --filter @jarv1s/people typecheck
+  pnpm vitest run tests/unit/module-registry-people-notes-source-behavior.test.ts
+  pnpm --filter @jarv1s/module-registry typecheck
   ```
 
   Expected: PASS, including the exact `app.inject` four-counter body.
@@ -353,7 +375,7 @@ export interface PeopleNotesRefreshResult {
 - [ ] **Step 7: Commit explicit paths**
 
   ```bash
-  git add packages/people/src/__tests__/notes-service.test.ts packages/people/src/__tests__/routes.test.ts packages/people/src/notes-service.ts packages/people/src/types.ts packages/people/src/routes.ts
+  git add packages/people/src/__tests__/notes-service.test.ts packages/people/src/__tests__/routes.test.ts packages/people/src/notes-service.ts packages/people/src/types.ts packages/people/src/routes.ts packages/module-registry/src/index.ts tests/unit/module-registry-people-notes-source-behavior.test.ts
   git commit -m "feat(people): report truthful notes refresh outcomes"
   ```
 
@@ -439,8 +461,12 @@ server`, `Go`, or arbitrary-path affordance;
     `JARVIS_NOTES_ROOTS`, container recreation guidance, and a link to the Notes Mount docs;
   - People mode renders owner-relative returned directories plus a recommended `People` choice
     even when it was not returned because it does not exist yet;
-  - `SourcesPane` no longer renders `delete approval` and does render
-    `Deleting a note always asks you in chat before anything is removed.`
+  - `SourcesPane` never renders a static delete-approval count; with no concrete pending deletion it
+    renders `Deleting a note always asks you in chat before anything is removed.` and no review
+    link;
+  - with a concrete owner-scoped pending `notes.delete`, `SourcesPane` renders the item awaiting
+    deletion, explains that destructive deletion requires explicit approval, and renders
+    `Review deletion` linked to that request's existing chat action card.
 
 - [ ] **Step 2: Run RED**
 
@@ -473,8 +499,12 @@ server`, `Go`, or arbitrary-path affordance;
 - [ ] **Step 4: Update the Notes card honestly**
 
   In `SourcesPane`, pass Notes mode, remove the static lock/delete-approval chip (and an unused
-  `Lock` import only if no other use remains), and replace the policy note with the approved honest
-  sentence. Do not add an approvals endpoint, count, or link.
+  `Lock` import only if no other use remains). Reuse the existing owner-scoped live chat action
+  request state: when a concrete pending `notes.delete` exists, show its safe item summary, explain
+  why destructive deletion requires explicit approval, and make `Review deletion` open the chat
+  drawer and focus the matching existing action card. When none exists, render only the approved
+  honest sentence and no review link. Do not add a second resolver, query another module's table,
+  or fabricate a count.
 
 - [ ] **Step 5: Run GREEN checks**
 
@@ -595,7 +625,9 @@ server`, `Go`, or arbitrary-path affordance;
   this flow mounts and register handlers for:
   - Notes source GET/PUT, directory GET, last-sync GET, and sync POST;
   - People notes settings GET/PUT, directory GET, refresh POST, People/candidate GET, and manual
-    person POST.
+    person POST;
+  - one concrete owner-scoped pending `notes.delete` chat action with an item summary and matching
+    existing review card.
 
   The directory fixtures must preserve the two path domains: mapped Notes paths are container
   absolute paths; People paths are owner-relative. Support a zero-roots Notes fixture and a mixed
@@ -606,7 +638,9 @@ server`, `Go`, or arbitrary-path affordance;
 
   At 1440x900:
   1. Open `/settings?section=sources`, browse a returned mapped Notes descendant, assert no
-     server-path textbox exists, select it, and run Sync now.
+     server-path textbox exists, select it, and run Sync now. Assert the concrete pending deletion
+     names its item and explains approval, activate `Review deletion`, and assert the matching chat
+     action card opens and receives focus.
   2. Open `/settings?section=memory`, activate the `People & context` segment, choose a returned
      owner-relative folder, and refresh.
   3. Assert `discovered`, `projected`, `ignored`, and `candidates` values are all visible.
@@ -668,6 +702,7 @@ server`, `Go`, or arbitrary-path affordance;
     packages/people/src/__tests__/notes-service.test.ts \
     packages/people/src/__tests__/routes.test.ts \
     tests/people-client.test.ts \
+    tests/unit/module-registry-people-notes-source-behavior.test.ts \
     tests/unit/settings-people-pane.test.tsx \
     tests/unit/settings-vault-chooser.test.tsx
   pnpm playwright test tests/e2e/settings-notes-people.spec.ts --project=chromium
@@ -709,6 +744,7 @@ server`, `Go`, or arbitrary-path affordance;
   discovery.
 - No generalized filesystem adapter: a two-mode chooser covers the two approved domains.
 - No new shared API package contract: the People web client is the only consumer.
-- No approvals inbox/action resolver: the settings card has no real pending item to open.
+- No second approvals inbox/action resolver: settings links a concrete pending deletion to its
+  existing chat action card and otherwise shows no review link.
 - No People-note migration or move into the external Notes mount.
 - No speculative CSS: add it only when the narrow acceptance check proves it necessary.

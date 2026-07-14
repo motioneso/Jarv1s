@@ -1,6 +1,6 @@
 # Notes and People source-picker hardening (#987)
 
-**Status:** Draft for Fable approval
+**Status:** Approved on PR #1008
 **Date:** 2026-07-12
 **Mechanical risk tier:** sensitive (owner-scoped vault discovery and a People refresh response
 contract; no migration, auth, role, or RLS policy change)
@@ -66,12 +66,14 @@ This issue makes both selectable without merging those trust domains.
    into a distinct "Add a person manually" group after the synced list. Explain that it creates a
    canonical Markdown People note in the selected Jarv1s folder. Hide/disable the form until a
    folder is selected.
-8. **Remove the fake delete-approval state.** Delete the static chip. Keep one honest sentence:
-   "Deleting a note always asks you in chat before anything is removed." Real `notes.delete`
-   requests continue to render and resolve in their originating chat action card. #987 does not
-   duplicate #985's approval UI or use the AI action-list endpoint as a second resolver. A review
-   link must not appear unless a specific pending item can actually be opened; there is no such item
-   on this card today.
+8. **Replace the fake delete-approval state with a truthful review path.** Delete the static count;
+   never imply that an item is pending when none exists. When a concrete pending `notes.delete`
+   request exists for the current owner, the Notes card names the item awaiting deletion, explains
+   that destructive deletion requires explicit approval, and offers `Review deletion` that opens
+   and focuses that request's existing chat action card. The chat card remains the only resolver;
+   #987 reuses its owner-scoped live action data and does not add a second approval endpoint. With
+   no concrete pending deletion, show only the honest policy sentence: "Deleting a note always
+   asks you in chat before anything is removed."
 9. **Security boundaries do not move.** Database access remains `DataContextDb`-only, all People
    folder discovery/read/write remains `VaultContext`-only, preferences and People records remain
    owner-only under existing RLS, and no path, note content, credential, or secret enters a job
@@ -128,7 +130,8 @@ No database migration, new table, new dependency, new job, or cross-module table
 
 - Remove raw path entry and accept selections only from discovery responses.
 - Add honest no-root/unavailable states and deployment recovery copy.
-- Remove the static delete-approval chip and keep the chat-approval explanation.
+- Replace the static delete-approval chip with item details, the approval reason, and a review link
+  only for a concrete pending `notes.delete`; otherwise keep the chat-approval explanation.
 
 ### Slice 2 - owner-vault People picker (`sensitive`)
 
@@ -164,6 +167,7 @@ Expected product paths:
 - `~/Jarv1s/packages/people/src/routes.ts`
 - `~/Jarv1s/packages/people/src/notes-service.ts`
 - `~/Jarv1s/packages/people/src/types.ts`
+- `~/Jarv1s/packages/module-registry/src/index.ts`
 
 Expected test paths:
 
@@ -173,6 +177,7 @@ Expected test paths:
 - `~/Jarv1s/packages/people/src/__tests__/routes.test.ts`
 - `~/Jarv1s/tests/people-client.test.ts`
 - `~/Jarv1s/tests/unit/settings-people-pane.test.tsx`
+- `~/Jarv1s/tests/unit/module-registry-people-notes-source-behavior.test.ts`
 - `~/Jarv1s/tests/unit/settings-vault-chooser.test.tsx` (new)
 - `~/Jarv1s/tests/e2e/mock-notes-people-api.ts` (new)
 - `~/Jarv1s/tests/e2e/settings-notes-people.spec.ts` (new)
@@ -183,8 +188,9 @@ Collision rules:
   the Data sources body, People & context body, and their chooser. Product work may proceed in
   parallel, but rebase/serialize if #986 touches either pane file; write final Playwright navigation
   selectors against post-#986 structure.
-- #985 owns chat approval cards and approval behavior. #987 removes misleading settings copy only;
-  it does not edit `action-request-card.tsx`, chat routes, gateway policy, or chat styles.
+- #985 owns chat approval resolution and policy. #987 may consume the existing owner-scoped live
+  action request to open/focus its chat card, but it does not add a resolver or change
+  `action-request-card.tsx`, chat routes, gateway policy, or chat styles.
 - The other Coordinator's #965/#1000 lane owns module run/install behavior and install-UI UAT. #987
   does not touch Instance modules, `RunNowButton`, module jobs, or their selectors.
 
@@ -202,14 +208,17 @@ Focused automated checks must prove:
   unavailable folder is not reported as success.
 - The People pane offers folder selection, actionable refresh guidance, and a separately labeled
   manual-create flow.
-- The Notes card contains no fake pending-approval count/link; real delete approval remains in chat.
+- The Notes card never shows a fake pending count. Given a real pending `notes.delete`, it names the
+  item, explains why approval is required, and its review link opens/focuses the matching existing
+  chat action card; without one, no review link appears.
 - `pnpm verify:foundation` and the relevant Playwright project are green.
 
 Playwright acceptance in `settings-notes-people.spec.ts`:
 
 - **Desktop:** link a returned mapped Notes descendant, verify no server-path field exists, run Sync
-  now, choose a returned People folder, refresh, assert all four counts and focus the review section,
-  then add a manual person from the separate group.
+  now, exercise a concrete pending `notes.delete` item and its chat review link, choose a returned
+  People folder, refresh, assert all four counts and focus the review section, then add a manual
+  person from the separate group.
 - **Desktop no-root recovery:** mock zero Notes roots and assert the Docker/mount recovery block;
   arbitrary path entry is impossible.
 - **Narrow viewport:** repeat both pickers at the repository's supported narrow width; every folder,
