@@ -1737,3 +1737,22 @@ resume from this note before taking any merge-sensitive action.
   order from current GitHub source of truth and collision state. #1002 follows the settled UI, #988
   is the final acceptance pass, and #1003 is future scope rather than a closure blocker. PR #1050
   remains parked with Ben. The separate primary Coordinator boundary remains in force.
+
+## Continuation note — 2026-07-14 successor adoption checkpoint
+
+- `UX Coordinator` Codex session `019f6226-78b2-7c31-9a84-f01d3c85eb0c` adopted delegated-lane
+  authority in commit `772029cb`, pushed it, and reset `merges_since_relay` to `0`. It then
+  fresh-resolved and closed only spent `UX Coordinator Relay Old` session
+  `019f6186-4d43-7f22-9e6a-6a368a1d4c89`; the separate primary `Coordinator` was not touched.
+- Exact-label/session fleet adoption is complete: `UX 987 Build Luna`
+  `019f61cb-e119-7d41-ac45-390878fe72ff` remains the frozen owning lane for PR #1058, and
+  `UX 991 Build Luna` `019f5ed2-b01a-7610-95d6-da3024b4b82f` remains parked with PR #1050.
+- PR #1058 is still at exact head `9604babd2fb177d80c2ee44e88510da4b87d9c9a`. CI run
+  `29361825235` has green verify/compose jobs while its image-build tail is still running. Fresh
+  sensitive QA cycle 2 remains hard-gated on full CI green; a second QA RED is STOP-THE-LINE.
+  Exact-head Webwright UAT v3 was restarted as `/root/uat_1058_live_v3`; no UAT, QA, merge, or
+  issue-closure claim is made yet.
+- GitHub/spec collision source of truth resolves the serialized queue as #1058 → #995 → #993 →
+  #1002 → #988. #995 must branch from post-#1058 `main`; #993 must wait for #995 because both touch
+  shared Settings files. #1002 still needs approved spec/plan. #1050 remains parked with Ben and
+  #1003 remains future scope, not a run-closure blocker.
