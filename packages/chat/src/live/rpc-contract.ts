@@ -157,7 +157,12 @@ export type RpcMethod =
   | "beginLogin" // non-session (login presentation, login-contract §L.2 — ADDITIVE)
   | "pollLogin" // non-session (login presentation, login-contract §L.2 — ADDITIVE)
   | "submitLoginToken" // non-session (login presentation, login-contract §L.2 — ADDITIVE)
-  | "cancelLogin"; // non-session (login presentation, login-contract §L.2 — ADDITIVE)
+  | "cancelLogin" // non-session (login presentation, login-contract §L.2 — ADDITIVE)
+  // #1059 owner terminal — additive, never used by the chat runtime
+  | "openTerminal"
+  | "writeTerminal"
+  | "resizeTerminal"
+  | "killTerminal";
 
 export type RpcErrorCode =
   | "unavailable" // engine could not launch / multiplexer down / NOT_LAUNCHED → CliChatUnavailableError (retryable HTTP 503)
@@ -211,8 +216,19 @@ export interface RpcError {
   readonly message: string;
 }
 
-/** The three request/response envelope shapes (post-handshake) (§3.4). */
-export type RpcFrame = RpcRequest | RpcOk | RpcErr;
+// #1059 server-initiated output frame. First non-request/response member of RpcFrame.
+// Carries no `id` (unsolicited); routed by `channel` + `terminalId`, base64 to stay JSON-safe.
+export interface RpcPush {
+  readonly t: "push";
+  readonly bootId: string;
+  readonly channel: "terminalData" | "terminalExit";
+  readonly terminalId: string;
+  readonly dataB64?: string; // terminalData: raw PTY bytes, base64
+  readonly exitCode?: number; // terminalExit: process exit status
+}
+
+/** The request/response/push envelope shapes (post-handshake) (§3.4). */
+export type RpcFrame = RpcRequest | RpcOk | RpcErr | RpcPush; // #1059: was RpcRequest | RpcOk | RpcErr
 
 // ---------------------------------------------------------------------------------------------
 // §4 Method params / results
@@ -353,4 +369,31 @@ export interface RpcProbeProviderResult {
   /** EXISTING OnboardingProviderCheckResponse status set (onboarding-api.ts), reused verbatim. */
   readonly status: "ready" | "needs_login" | "not_installed" | "multiplexer_unavailable" | "error";
   readonly message?: string;
+}
+
+// #1059 terminal method params/results (interface-pair pattern, mirrors RpcSubmit*). Additive
+// only — no existing method's request/response shape changes.
+/** params for method "openTerminal": requested initial PTY size. */
+export interface RpcOpenTerminalParams {
+  readonly cols: number;
+  readonly rows: number;
+}
+/** result for method "openTerminal": the id later frames route on. */
+export interface RpcOpenTerminalResult {
+  readonly terminalId: string;
+}
+/** params for method "writeTerminal": raw input bytes, base64 to stay JSON-safe. */
+export interface RpcWriteTerminalParams {
+  readonly terminalId: string;
+  readonly dataB64: string;
+}
+/** params for method "resizeTerminal": PTY resize on client viewport change. */
+export interface RpcResizeTerminalParams {
+  readonly terminalId: string;
+  readonly cols: number;
+  readonly rows: number;
+}
+/** params for method "killTerminal": terminate the PTY + its process tree. */
+export interface RpcKillTerminalParams {
+  readonly terminalId: string;
 }
