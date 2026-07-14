@@ -5769,3 +5769,7 @@ Head 2e991064: Verify-foundation PASS + regular compose smoke PASS, but **Prod c
 - Non-blocking QA follow-ups filed as **#1034** (tasks.ts:37 dup, connections.ts:33 pool teardown, provisioner.ts:430 unreachable CLI flag).
 - **NEXT: spawn P3 #1026** — Playwright + `job-search-install.uat.spec.ts` off new main (ea0660c1, includes seed). Then P4 #1027 (wire into coordinate e2e-UAT gate).
 - Digest counter: sensitive merge → relay cadence. Coordinator compacting IN PLACE per standing directive.
+
+**#984 sign-off DELEGATED to Opus (Ben, 2026-07-13):** "Opus can make the decision for 984." → PR
+#1015 security re-QA is run by Opus; **Opus APPROVE = merge authority** (auto-merge on APPROVE, no
+Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item cleared to log.

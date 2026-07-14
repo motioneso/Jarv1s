@@ -9,10 +9,11 @@ Lock: Coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
 
 ## Open
 
-| # | Raised | Decision needed | Coordinator recommendation |
-|---|--------|-----------------|----------------------------|
-| **#984 / PR #1015** private-history | 2026-07-13 | Resume the lane now, or defer? It was held behind #868, which merged (`c27f92c1`). PR #1015 needs a **rebase onto new main + fresh security re-QA** before it can merge. | **Resume now** — rebase + re-QA while #868 context is fresh, then surface for your security sign-off like #1031. |
+_(none)_
 
 ## Cleared (log)
 
-_(none yet)_
+- **#984 / PR #1015** private-history — Raised 2026-07-13 (resume-vs-defer + merge sign-off).
+  Ben ruled **resume** ("do those things yes please") and then **delegated the merge decision to
+  Opus** (2026-07-13): Opus's adversarial security re-QA verdict IS the sign-off — auto-merge on
+  Opus APPROVE, back to the lane on any blocker. No Ben gate for this PR.
