@@ -1455,3 +1455,37 @@ resume from this note before taking any merge-sensitive action.
   QA label `QA 1049 Integrated Sol`, Codex session `019f5fbe-ddba-7d82-8003-bf939e9cc32e`, is
   working on `gpt-5.6-sol`. No merge has occurred yet.
 - `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
+
+## Continuation note — 2026-07-13 UX coordinator relay after PR #1049 merge
+
+- Current `UX Coordinator` authority is Codex session
+  `019f5ee8-8a0a-7da2-a186-8170ea85e76a`. The two-routine/sensitive-merge relay trigger fired
+  after #1046 and #1049, and this session must be reaped only after the successor confirms it is
+  driving. Resolve it from a fresh pane list by label plus session id; never trust a written pane
+  number. Never reap the separate primary `Coordinator` session
+  `58a78927-385c-4b1d-8fa0-94db20255d6f`.
+- PR #1049 / issue #994 merged routine as squash
+  `4129391d1499fcd95ed7de5431b7b8594643691e` from integrated head
+  `1a3bf80c57dbed2f8425b640e64277ea52eb9038`. Integrated CI run `29316363348` was green; fresh
+  unobscured desktop+narrow UAT is
+  `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966637818`; final integrated QA is
+  `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966969620`. Issue #994 is closed and
+  both project items moved to Done automatically. Builder and QA panes were reaped. The builder
+  worktree is still held because `webwright-proof-994/` is untracked; the primary coordinator was
+  told the combined-UAT worktree is safe to reap.
+- PR #1050 / issue #991 remains frozen at
+  `0b280f51943bbfeb514eb06a0b945e8fc6556935` with green CI. Live UAT remains `BLOCKED / NOT
+  EXERCISED`, zero feature failures:
+  `https://github.com/motioneso/Jarv1s/pull/1050#issuecomment-4966075807`. Do not launch sensitive
+  QA or merge until valid live Preview plus CLI proof exists. Builder `UX 991 Build Luna`, session
+  `019f5ed2-b01a-7610-95d6-da3024b4b82f`, is idle.
+- Re-adopt these live planning lanes by exact label plus `agent_session.value` from a fresh
+  `herdr pane list`: `UX 987 Plan Sol` = `019f5e9b-c003-7350-acba-258a601e308b`; `UX 992 Plan Sol`
+  = `019f5e9b-bf80-73f3-86c2-7bf40e0024f9`; `UX 993+995 Plan Sol` =
+  `019f5e9b-bfc9-7fb0-8096-c197e41324a9`. All are idle. Continue overnight UX work from GitHub
+  source-of-truth, prioritizing #1050's live-proof blocker and then the idle #987/#992/#993/#995
+  planning lanes.
+- The successor must extract and read only this final Continuation note at EOF, invoke
+  `coordinate`, update the delegated-lane-owner authority block to its own immutable session id,
+  commit and push, confirm it is driving, then resolve and close only the old UX session above by
+  label plus session id. For the successor, `merges_since_relay` resets to `0` on adoption.
