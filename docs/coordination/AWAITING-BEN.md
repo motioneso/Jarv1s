@@ -5,11 +5,22 @@ here the moment it arises (not buried in a digest), stays until he rules, and th
 **leads every status report with this list while it's non-empty.** Cleared items drop to the log
 at the bottom.
 
-Lock: Coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
+Lock: Coordinator session `09cda409-186a-49a4-87dc-4471aeb2eca7`.
 
 ## Open
 
-_(empty)_
+- **#1050 external live-proof BLOCKED** — see full item below. **2026-07-14 chat update:** Ben's
+  lean is **Option A** (wire real CLI auth into the UAT container), using **his own personal CLI
+  credentials** (he is the builder — no separate service/test account). Ben explicitly asked to
+  **keep this open and revisit in more detail when he has time** — no build authorized yet. Do NOT
+  spawn a build lane on this until Ben re-opens the conversation. Draft mechanism discussed
+  (unwritten, not yet spec'd): opt-in `UAT_CLI_LIVE=1` flag (never default), read-only bind-mount of
+  Ben's CLI auth state (nothing baked into the image, nothing surviving `down -v`), `extra_hosts`
+  network path to the host headroom proxy `:8787`, sandbox-bypass flag for the in-container CLI
+  call (per `codex-sandbox-workaround`), redact auth material from `run.log`. Still needs: a written
+  spec (CLAUDE.md "spec before build" gate — this is credential-handling infra) + a decision on
+  whether it's harness-level standing capability (any future CLI-dependent UAT run can opt in) vs.
+  scoped strictly to unblocking #1050.
 
 ## Cleared (log)
 
