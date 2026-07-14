@@ -5,6 +5,7 @@
  * a mocked node-pty wouldn't catch a broken native binding or a wrong pty.spawn signature.
  */
 import { describe, it, expect } from "vitest";
+import * as os from "node:os";
 import { TerminalSession } from "../../packages/cli-runner/src/terminal-session.js";
 
 describe("TerminalSession (#1059)", () => {
@@ -42,5 +43,45 @@ describe("TerminalSession (#1059)", () => {
     session.kill();
     expect(chunks.every((c) => Buffer.isBuffer(c))).toBe(true);
     expect(Buffer.concat(chunks).includes(0xff)).toBe(true);
+  });
+
+  it("does not leak server secrets into the shell env (#1059 sanitized env)", async () => {
+    // The cli-runner server's own env carries the RPC handshake secret + AES master
+    // keys + DB creds. A real PTY here spawns the OWNER's interactive shell — if the
+    // raw process.env were spread into it (pre-fix), `env`/printf would echo them
+    // straight back to the owner. Assert they never reach the shell's environment.
+    const prevConnectorSecret = process.env.JARVIS_CONNECTOR_SECRET_KEY;
+    const prevRpcSecret = process.env.JARVIS_CLI_RUNNER_RPC_SECRET;
+    process.env.JARVIS_CONNECTOR_SECRET_KEY = "SECRET_CONNECTOR_abc123";
+    process.env.JARVIS_CLI_RUNNER_RPC_SECRET = "SECRET_RPC_xyz789";
+
+    let session: TerminalSession | undefined;
+    try {
+      session = new TerminalSession({
+        id: "t-test-secrets",
+        cols: 80,
+        rows: 24,
+        homeBase: os.tmpdir(),
+        toolsBinDir: "/usr/bin"
+      });
+      const chunks: Buffer[] = [];
+      session.onData((c) => chunks.push(c));
+      session.write(Buffer.from("env; printf END_MARKER_1059\n"));
+      await new Promise((r) => setTimeout(r, 800));
+      session.kill();
+
+      const output = Buffer.concat(chunks).toString("utf8");
+      expect(output).not.toContain("SECRET_CONNECTOR_abc123");
+      expect(output).not.toContain("SECRET_RPC_xyz789");
+      // Positive controls: the shell actually ran `env` and produced output —
+      // otherwise the negative assertions above would pass vacuously.
+      expect(output).toContain("END_MARKER_1059");
+      expect(output).toContain("HOME=");
+    } finally {
+      if (prevConnectorSecret === undefined) delete process.env.JARVIS_CONNECTOR_SECRET_KEY;
+      else process.env.JARVIS_CONNECTOR_SECRET_KEY = prevConnectorSecret;
+      if (prevRpcSecret === undefined) delete process.env.JARVIS_CLI_RUNNER_RPC_SECRET;
+      else process.env.JARVIS_CLI_RUNNER_RPC_SECRET = prevRpcSecret;
+    }
   });
 });

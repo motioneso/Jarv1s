@@ -2,6 +2,7 @@
 // Deliberately NOT tmux: a genuine PTY emits the raw escape-sequence byte stream
 // xterm.js expects, sidestepping the pane-scraping that broke under claude 2.1.183.
 import * as pty from "node-pty";
+import { buildSanitizedCliEnv } from "./sanitized-env.js";
 
 export interface TerminalSessionOptions {
   readonly id: string;
@@ -23,7 +24,7 @@ export class TerminalSession {
       rows: opts.rows,
       cwd: opts.homeBase,
       env: {
-        ...process.env,
+        ...buildSanitizedCliEnv(process.env), // #1059: allowlist-only — NEVER leak the runner server's RPC secret / AES master keys / DB creds / vault roots into the owner shell (Hard Invariant: secrets never escape)
         HOME: opts.homeBase,
         TERM: "xterm-256color",
         PATH: `${opts.toolsBinDir}:${process.env.PATH ?? "/usr/bin"}`
