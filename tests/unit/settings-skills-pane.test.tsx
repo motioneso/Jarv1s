@@ -49,6 +49,7 @@ describe("SettingsSkillsPane", () => {
     client.setQueryData(queryKeys.chat.skills, { skills: [makeSkill()] });
     const html = renderWithQuery(createElement(SettingsSkillsPane), client);
     expect(html).toContain("Daily standup");
+    expect(html).toContain("/daily-standup");
     expect(html).toContain("Summarize yesterday and today");
   });
 
@@ -68,21 +69,22 @@ describe("SettingsSkillsPane", () => {
     expect(html).not.toContain('checked=""');
   });
 
-  it("renders the create-skill form fields", () => {
+  it("leads with the skill list and keeps authoring flows closed initially", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.chat.skills, { skills: [] });
     const html = renderWithQuery(createElement(SettingsSkillsPane), client);
-    expect(html).toContain("Skill name");
-    expect(html).toContain("Body");
+    expect(html).toContain("No skills yet");
+    expect(html).not.toContain("Skill name");
+    expect(html).not.toContain("Upload a skill file");
     expect(html).toContain("Create skill");
+    expect(html).toContain("Upload file");
   });
 
-  it("renders the upload-a-file control", () => {
+  it("does not expose obsolete Body language", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.chat.skills, { skills: [] });
     const html = renderWithQuery(createElement(SettingsSkillsPane), client);
-    expect(html).toContain("Upload a skill file");
-    expect(html).toContain('type="file"');
+    expect(html).not.toContain(">Body<");
   });
 
   it("renders duplicate skill names as separate rows", () => {

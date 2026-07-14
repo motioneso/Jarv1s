@@ -4,6 +4,7 @@ import {
   activeSlashQuery,
   composeTurnText,
   filterEnabledSkills,
+  moveSkillActiveIndex,
   resolveBoundSkill,
   resolveSkillByName,
   resolveTurnInvocation,
@@ -84,6 +85,17 @@ describe("filterEnabledSkills", () => {
     const skills = [skill({ id: "z", name: "zzz" }), skill({ id: "a", name: "aaa" })];
     const result = filterEnabledSkills(skills, "");
     expect(result.map((s) => s.id)).toEqual(["z", "a"]);
+  });
+});
+
+describe("moveSkillActiveIndex", () => {
+  it.each([
+    [0, 1, 3, 1],
+    [0, -1, 3, 2],
+    [2, 1, 3, 0],
+    [0, 1, 0, -1]
+  ])("moves %j by %j in %j items to %j", (index, delta, count, expected) => {
+    expect(moveSkillActiveIndex(index, delta, count)).toBe(expected);
   });
 });
 

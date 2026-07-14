@@ -8,8 +8,11 @@ import { ConnectProviderEmpty } from "./connect-provider-empty";
 import {
   activeSlashQuery,
   composeTurnText,
+  filterEnabledSkills,
+  moveSkillActiveIndex,
   resolveBoundSkill,
   resolveTurnInvocation,
+  skillCommandName,
   SkillAutocomplete
 } from "./skill-autocomplete";
 
@@ -56,6 +59,8 @@ export function Composer(props: {
   // Explicit autocomplete pick, tracked by record id (not name — duplicate names are allowed).
   // Bare-name text typed without a pick still resolves at send time; see resolveTurnInvocation.
   const [boundSkillId, setBoundSkillId] = useState<string | null>(null);
+  const [activeSkillIndex, setActiveSkillIndex] = useState(0);
+  const [dismissedSkillQuery, setDismissedSkillQuery] = useState<string | null>(null);
 
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -77,6 +82,14 @@ export function Composer(props: {
   });
   const skills = skillsQuery.data?.skills ?? [];
   const slashQuery = activeSlashQuery(text);
+  const skillMatches = slashQuery === null ? [] : filterEnabledSkills(skills, slashQuery);
+  const skillMenuOpen =
+    !props.readOnly && !boundSkillId && slashQuery !== null && dismissedSkillQuery !== slashQuery;
+  const activeSkill = skillMatches[activeSkillIndex];
+  useEffect(() => {
+    setActiveSkillIndex((index) => Math.min(index, Math.max(skillMatches.length - 1, 0)));
+    setDismissedSkillQuery(null);
+  }, [slashQuery, skillMatches.length]);
   const boundSkill = resolveBoundSkill(skills, boundSkillId);
   const invocation = resolveTurnInvocation(text, boundSkillId, skills);
   const composedText = composeTurnText(invocation.skill, invocation.remainder);
@@ -84,6 +97,8 @@ export function Composer(props: {
   const selectSkill = (skillId: string) => {
     setBoundSkillId(skillId);
     setText("");
+    setActiveSkillIndex(0);
+    setDismissedSkillQuery(null);
   };
 
   const clearBoundSkill = () => setBoundSkillId(null);
@@ -116,6 +131,25 @@ export function Composer(props: {
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (skillMenuOpen) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setActiveSkillIndex((index) =>
+          moveSkillActiveIndex(index, event.key === "ArrowDown" ? 1 : -1, skillMatches.length)
+        );
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey && activeSkill) {
+        event.preventDefault();
+        selectSkill(activeSkill.id);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDismissedSkillQuery(slashQuery);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       send();
@@ -196,7 +230,7 @@ export function Composer(props: {
       {micError ? <p className="form-error">{micError}</p> : null}
       {boundSkill ? (
         <div className="chatd-skillac__bound">
-          <span>/{boundSkill.name}</span>
+          <span>/{skillCommandName(boundSkill.name)}</span>
           <button
             aria-label="Clear selected skill"
             className="chatd-skillac__bound-x"
@@ -208,10 +242,12 @@ export function Composer(props: {
           </button>
         </div>
       ) : null}
-      {!props.readOnly && !boundSkill && slashQuery !== null ? (
+      {skillMenuOpen ? (
         <SkillAutocomplete
           query={slashQuery}
           skills={skills}
+          activeIndex={activeSkillIndex}
+          listboxId="chat-skill-listbox"
           onSelect={(skill) => selectSkill(skill.id)}
         />
       ) : null}
@@ -219,6 +255,12 @@ export function Composer(props: {
         <textarea
           ref={textareaRef}
           aria-label="Message Jarvis"
+          aria-controls={skillMenuOpen ? "chat-skill-listbox" : undefined}
+          aria-expanded={skillMenuOpen}
+          aria-activedescendant={
+            skillMenuOpen && activeSkill ? `chat-skill-listbox-option-${activeSkill.id}` : undefined
+          }
+          role="combobox"
           disabled={props.readOnly || props.lockedModelUnavailable}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}

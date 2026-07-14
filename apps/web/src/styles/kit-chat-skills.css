@@ -1,0 +1,85 @@
+.chatd-skillac {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  max-height: 224px;
+  overflow-y: auto;
+}
+.chatd-skillac__option {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.chatd-skillac__option:hover,
+.chatd-skillac__option.is-active,
+.chatd-skillac__option:focus-visible {
+  background: var(--surface-2);
+}
+.chatd-skillac__name,
+.chatd-skillac__desc,
+.chatd-skillac__bound > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatd-skillac__name {
+  color: var(--text);
+  font:
+    700 12px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+}
+.chatd-skillac__desc {
+  color: var(--text-subtle);
+  font: 12px var(--font-sans);
+}
+.chatd-skillac__bound {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 5px 8px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font:
+    12px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  max-width: 100%;
+}
+.chatd-skillac__bound-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  flex: none;
+}
+.chatd-skillac__bound-x:hover,
+.chatd-skillac__bound-x:focus-visible {
+  background: var(--surface-3);
+  color: var(--text);
+}

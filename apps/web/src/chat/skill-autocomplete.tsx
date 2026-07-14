@@ -18,6 +18,11 @@ export function skillCommandName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+export function moveSkillActiveIndex(index: number, delta: number, count: number): number {
+  if (count === 0) return -1;
+  return (index + delta + count) % count;
+}
+
 export function filterEnabledSkills(
   skills: readonly ChatSkillDto[],
   query: string
@@ -85,20 +90,23 @@ export function composeTurnText(skill: ChatSkillDto | undefined, remainder: stri
 export function SkillAutocomplete(props: {
   readonly skills: readonly ChatSkillDto[];
   readonly query: string;
+  readonly activeIndex: number;
+  readonly listboxId: string;
   readonly onSelect: (skill: ChatSkillDto) => void;
 }) {
   const matches = filterEnabledSkills(props.skills, props.query);
   if (matches.length === 0) return null;
 
   return (
-    <div className="chatd-skillac" role="listbox" aria-label="Skills">
-      {matches.map((skill) => (
+    <div id={props.listboxId} className="chatd-skillac" role="listbox" aria-label="Skills">
+      {matches.map((skill, index) => (
         <button
           key={skill.id}
+          id={`${props.listboxId}-option-${skill.id}`}
           type="button"
           role="option"
-          aria-selected={false}
-          className="chatd-skillac__option"
+          aria-selected={index === props.activeIndex}
+          className={`chatd-skillac__option${index === props.activeIndex ? " is-active" : ""}`}
           onClick={() => props.onSelect(skill)}
         >
           <span className="chatd-skillac__name">/{skillCommandName(skill.name)}</span>
