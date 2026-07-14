@@ -10,13 +10,17 @@ import {
   VaultChooser
 } from "../../apps/web/src/settings/settings-vault-chooser.js";
 
-function renderChooser(mode: "notes" | "people", current = "") {
+function renderChooser(
+  mode: "notes" | "people",
+  current = "",
+  roots: Array<{ readonly name: string; readonly path: string }> = []
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(
     mode === "people"
       ? queryKeys.people.notesDirectories(null)
       : queryKeys.settings.notesSourceDirectories(null),
-    { path: null, directories: [] }
+    { path: null, directories: roots }
   );
   return renderToString(
     createElement(
@@ -41,8 +45,16 @@ describe("VaultChooser trust boundaries", () => {
     expect(html).not.toContain("Loading folders");
   });
 
-  it("recognizes the real Notes-root 503 for deployment recovery", () => {
-    expect(shouldShowNotesRootRecovery(new ApiError(503, "Notes roots unavailable"))).toBe(true);
-    expect(shouldShowNotesRootRecovery(new ApiError(500, "unexpected"))).toBe(false);
+  it("discovers children for an existing returned People root", () => {
+    const html = renderChooser("people", "People", [{ name: "People", path: "People" }]);
+    expect(html).toContain("Loading folders");
+    expect(html).not.toContain("This folder has no subfolders");
+  });
+
+  it("limits Notes recovery to unavailable or truly empty roots", () => {
+    expect(shouldShowNotesRootRecovery(undefined, 0)).toBe(true);
+    expect(shouldShowNotesRootRecovery(undefined, 1)).toBe(false);
+    expect(shouldShowNotesRootRecovery(new ApiError(503, "Notes roots unavailable"), 0)).toBe(true);
+    expect(shouldShowNotesRootRecovery(new ApiError(500, "unexpected"), 0)).toBe(false);
   });
 });

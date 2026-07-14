@@ -8,8 +8,9 @@ import { queryKeys } from "../api/query-keys";
 import { ApiError } from "../api/client";
 import { readError } from "./settings-types";
 
-export function shouldShowNotesRootRecovery(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 503;
+export function shouldShowNotesRootRecovery(error: unknown, rootCount: number): boolean {
+  if (error instanceof ApiError) return error.status === 503;
+  return error == null && rootCount === 0;
 }
 
 export function VaultChooser(props: {
@@ -29,6 +30,9 @@ export function VaultChooser(props: {
       mode === "people" ? getPeopleNotesDirectories(null) : getNotesSourceDirectories(null),
     retry: false
   });
+  const roots = rootsQuery.data?.directories ?? [];
+  const syntheticPeopleRecommendation =
+    mode === "people" && path === "People" && !roots.some((root) => root.path === "People");
   const directoriesQuery = useQuery({
     queryKey:
       mode === "people"
@@ -37,10 +41,9 @@ export function VaultChooser(props: {
     queryFn: () =>
       mode === "people" ? getPeopleNotesDirectories(path) : getNotesSourceDirectories(path),
     retry: false,
-    enabled: path !== null && !(mode === "people" && path === "People")
+    enabled: path !== null && !syntheticPeopleRecommendation
   });
 
-  const roots = rootsQuery.data?.directories ?? [];
   const visibleRoots =
     mode === "people" && !roots.some((root) => root.path === "People")
       ? [{ name: "People", path: "People" }, ...roots]
@@ -48,7 +51,8 @@ export function VaultChooser(props: {
   const directories =
     (path ? directoriesQuery.data?.directories : rootsQuery.data?.directories) ?? [];
   const error = rootsQuery.error ?? (path ? directoriesQuery.error : null);
-  const notesRootRecovery = mode === "notes" && path === null && shouldShowNotesRootRecovery(error);
+  const notesRootRecovery =
+    mode === "notes" && path === null && shouldShowNotesRootRecovery(error, roots.length);
   const displayError = notesRootRecovery ? null : error;
   const loading = rootsQuery.isLoading || (path !== null && directoriesQuery.isLoading);
 
@@ -143,7 +147,7 @@ export function VaultChooser(props: {
               : null}
           </div>
 
-          {mode === "notes" && !loading && (notesRootRecovery || roots.length === 0) ? (
+          {mode === "notes" && !loading && notesRootRecovery ? (
             <div className="vlist__empty">
               No notes folders are available to Jarv1s. Ask an operator to mount
               /data/external-notes, set JARVIS_NOTES_ROOTS, and recreate the container.
