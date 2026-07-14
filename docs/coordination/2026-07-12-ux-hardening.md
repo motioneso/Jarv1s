@@ -1631,3 +1631,10 @@ resume from this note before taking any merge-sensitive action.
   no product edit, proof retry, QA, or merge was started. PR #1044 remains draft/STOP-THE-LINE at
   head `025217960e5c8921656b10e8a2168ff9afa268e0`; no scope edit, QA cycle, ready action, or merge was
   started pending Ben's direction.
+- Ben approved expanding PR #1044's exact-file scope to include the People public export/barrel and
+  the minimum AppShell, ChatControls, and chat action-card/state wiring needed to target and focus a
+  specific pending delete review. Durable direction:
+  `https://github.com/motioneso/Jarv1s/pull/1044#issuecomment-4971902149`. The STOP-THE-LINE scope
+  blocker is resolved and existing owner `UX 987 Plan Sol` session
+  `019f5e9b-c003-7350-acba-258a601e308b` is revising the docs-only draft for fresh independent QA;
+  product implementation and merge remain gated. PR #1050 remains parked with Ben.
