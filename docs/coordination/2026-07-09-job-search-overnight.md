@@ -5761,3 +5761,11 @@ Head 2e991064: Verify-foundation PASS + regular compose smoke PASS, but **Prod c
 - **#1032 (P2 #1025 seed, task #36, sensitive): CI RED #2** — "Prod compose deployment smoke" failed AGAIN on fix head `97b393c8` (compose-interp fix did NOT clear it). **STOP-THE-LINE** per waiver protocol (twice-failing). NOT merging. Diagnosing root cause next.
 
 **CORRECTION #1032:** the RED I flagged was a SUPERSEDED run (29293176188). Authoritative run 29294541629 on head 97b393c8 is GREEN (prod-compose-smoke PASS 1m43s, compose-smoke PASS, verify-foundation PASS; publish job pending=skips-on-PR). The compose-interp fix WORKED. NOT stop-the-line. Sensitive → auto-merge enabled (`--auto --squash --delete-branch`). On merge: close #1025, reap pMC lane + ux-seed worktree, spawn P3 #1026 (Playwright + job-search-install.uat.spec.ts). 3 non-blocking QA follow-ups to file (tasks.ts:37 re-seed dup, connections.ts:33 app-pool teardown, provisioner.ts:430 CLI excludeChunks unreachable).
+
+---
+### #1032 MERGED (sensitive digest)
+- **PR #1032 → `ea0660c1`** squash-merged (`Closes #1025`; #1025 auto-closed). P2 of #1000 dev-UAT harness = the tiered lived-in seed. Sensitive tier: QA GREEN + invariant walk (dual-connection RLS model, migration_owner NOBYPASSRLS, no runtime-role BYPASSRLS carve-out) + CI GREEN on 97b393c8 (prod-compose-smoke PASS after the interp fix).
+- Lane reaped: pMC (`UAT Seed 1025 v6`) pane closed, `uat-seed-1025` worktree removed.
+- Non-blocking QA follow-ups filed as **#1034** (tasks.ts:37 dup, connections.ts:33 pool teardown, provisioner.ts:430 unreachable CLI flag).
+- **NEXT: spawn P3 #1026** — Playwright + `job-search-install.uat.spec.ts` off new main (ea0660c1, includes seed). Then P4 #1027 (wire into coordinate e2e-UAT gate).
+- Digest counter: sensitive merge → relay cadence. Coordinator compacting IN PLACE per standing directive.
