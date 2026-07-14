@@ -1550,3 +1550,8 @@ resume from this note before taking any merge-sensitive action.
   `86e28ee633aa66d52e26fb1fcec1abcef7c85700`, posted at
   `https://github.com/motioneso/Jarv1s/pull/1045#issuecomment-4967455546`. It is docs-only and
   merge-ready, but security-tier policy still requires Ben's explicit sign-off before merge.
+- PR #1044 failed independent QA cycle 2 and is STOP-THE-LINE as a draft. Durable verdict:
+  `https://github.com/motioneso/Jarv1s/pull/1044#issuecomment-4967489184`. The plan omits the public
+  export for `PeopleNotesFolderUnavailableError`, and its delete-review matching-card focus flow is
+  not implementable within the exact-file list. The owning lane is frozen with no further edits or
+  product build until Ben gives scope direction.
