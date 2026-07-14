@@ -5835,3 +5835,28 @@ Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item clear
   assertion) → new PR 'Part of #984' → Opus re-QA + manual merge on VF green.
 - v3 (pMG, Sonnet) building #1026 UAT Playwright on approved plan.
 - No active watches; both lanes push their PR#. #984 stays OPEN.
+
+---
+
+## Checkpoint 2026-07-13 (70% relay, in-place) — session 58a78927-385c-4b1d-8fa0-94db20255d6f
+
+**#984 fix-forward = PR #1036** (branch `ux/984-private-history-fix-forward`, head `00fcbd9b`, based on
+revert `939e2159`). VERIFIED production-identical to the already-Opus-APPROVED #1015: `git diff
+d56ba688..00fcbd9b` = only `docs/coordination/handoff-984-private-history.md` (removed) +
+`tests/e2e/chat-drawer.spec.ts` (8 lines, selector fix). **Zero non-test/non-doc production files
+differ.** Root cause of the #1015 VF-red = stale `details.chatd-model` selector after a button-menu
+refactor; test now clicks `.chatd-model__trigger`. No production remediation change.
+
+- Status: **DRAFT**, mergeState UNSTABLE, VF **pending** on run `29298056926` (compose+prod smokes
+  already PASS — do NOT `--auto`, that jumps the gate; poll VF to green then manual merge).
+- Delegation IN FORCE: Ben delegated the #984 merge decision to **Opus** (Opus re-QA verdict = sign-off).
+- NEXT: (1) watch run `29298056926` VF → green. (2) On VF-green → Opus adversarial re-QA (scope =
+  DELTA: production byte-identical to prior APPROVE, so confirm the test-only change + re-affirm prior
+  verdict on this SHA; posts `gh pr comment`). (3) On Opus APPROVE → `gh pr ready 1036` → manual
+  `gh pr merge 1036 --squash --delete-branch` on VF-green (NOT --auto). (4) close #984, reap pK3 lane +
+  `ux-984-private-history` worktree, file 3 non-blocking test-hardening follow-ups from original Opus QA.
+- P3 #1026: v3 (pane w1:pMG, session e1463ef2, Sonnet) building on approved plan
+  `docs/superpowers/plans/2026-07-13-uat-1026-playwright.md` → will report PR#. On green: routine QA →
+  poll VF-green → manual merge. Then P4 #1027.
+- Deferred (no lane): #965 run-now dedupe; #39 owner-auth delete of quarantined #989 acct; #1018
+  gateway realpath; #1034 non-blocking seed QA follow-ups.
