@@ -6255,3 +6255,19 @@ isolation is the defining risk; issue itself asks for "focused security QA"). Sc
 data under each owner's OWN AccessContext (no RLS carve-out / no BYPASSRLS), ≥1 cross-owner share
 via real grant API, deterministic, idempotent. **Sign-off:** Opus adversarial QA GREEN + cross-model
 (Fable, else gpt-5.6-sol xhigh) GREEN = sign-off; no manual Ben gate (overnight autonomy).
+
+## LANE C RELEASED (parallel to B) — 2026-07-14
+**Lane C (#965 run-now dedupe, Option A)** spawned in parallel with Lane B — no collision (Lane C =
+job-send path `packages/jobs`+`apps/api`+`module-registry`; Lane B = `tests/uat/` seed; neither has
+a migration). Well-specified: issue #965 IS the Opus-adjudicated micro-design (Option A ONLY,
+Option B rejected), JS-06 spec sets the requirement → spec gate met. Worktree
+`.claude/worktrees/js-965-runnow-dedupe` branch `js-965-runnow-dedupe` off `e0553ed5`; handoff
+`docs/superpowers/handoffs/2026-07-14-js-965-runnow-dedupe.md` committed `e7e21a0d`. Agent
+**"JS 965 RunNow Dedupe Sol"** = Codex gpt-5.6-sol, pane **w1:pN8**, session **`019f5fde`**, tab
+w1:t26. Status working, awaiting PLAN escalation. **Tier: sensitive** → auto-merge + digest, no Ben
+gate. Fix = thread `singletonSeconds` (policy-independent index `job_i4`) through the manual-run
+send path, small window; proving test = two `POST /run` same (module,queue,user) → 2nd returns
+`jobId:null`. HOLD #1018 (2nd security lane would split QA focus).
+
+**Live fleet:** Lane B w1:pN7 (#1030 security-bar, monitor bt52138u2) + Lane C w1:pN8 (#965
+sensitive, monitor bawqx5jts). merges_since_relay=1.
