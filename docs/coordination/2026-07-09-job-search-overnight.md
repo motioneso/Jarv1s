@@ -6039,3 +6039,32 @@ evidence. GATE: **no UAT spec exists** for those flows on main (only job-search-
 #994/#991 spec sections defining these acceptance flows or add them first; (2) PRs must be QA-frozen
 (both UNSTABLE/in-QA now); (3) I delegate to a sol UAT lane, CLI dogfood is a separate non-browser
 evidence path; UX keeps QA/merge. Not blocked on Ben (routing pre-agreed) — surfaced in digest.
+
+---
+
+## Checkpoint 13g — UX UAT gates resolved; #1040 pending main-green (session 58a78927)
+
+**Time:** post-#1048 merge (main run for `8f9da39` still in_progress at checkpoint).
+
+**UX Coordinator combined-UAT request (#1049/#1050) — BOTH GATES RESOLVED, coordination accepted.**
+- **Gate 1 (spec-before-build): SATISFIED.** UX named approved pointers on origin/main —
+  #1049 = `docs/superpowers/specs/2026-07-13-994-skills-list-first-invocation.md` §6+§7 (L154-198);
+  #1050 = `docs/superpowers/specs/2026-07-13-991-assistant-priorities-dogfood-hardening.md` §6+§7 (L148-191).
+  Sol UAT lane authors the combined `tests/uat/**` spec STRICTLY from those steps — no freehand; real-nav rule stands.
+- **Gate 2 (no moving target): SATISFIED by exact-SHA CODE FREEZE.** UX correctly flagged QA-green-before-UAT
+  as a deadlock (live proof is an INPUT to their QA). Accepted sequencing: UX freezes per-PR SHA on CI-green →
+  I UAT the frozen SHA → UX launches independent QA on my evidence. I do NOT gate on their QA.
+- **Deliverable:** per-PR combined-spec UAT on frozen SHA, desktop+narrow screenshots, artifacts linked on both
+  PRs, report to UX. Caveat: #1050 CLI persona dogfood = separate transcript/log evidence (outside browser-Playwright).
+  UX retains QA/merge ownership.
+- **TRIGGER (pending):** UX sends BOTH frozen SHAs → I spawn the sol UAT lane immediately. Not blocked on Ben
+  (routing pre-agreed, delegated-authority commit 0a601c05).
+
+**#1040 (epic #1000 LAST child) — queued, gated on main-green.**
+- Background watcher `bjfei45w3` polls the post-merge main run for `8f9da39` to conclude; on green I spawn
+  the #1040 build lane (gpt-5.6-sol) off fresh origin/main. Closing #1040 closes epic #1000.
+- Scope: dev/UAT tiered seed LOGS generated owner/admin creds (Ben's dev-auth ask). Covered by approved #1000
+  harness spec seed tier; task issue #1040 open.
+
+**Merge counter:** `merges_since_relay` reset to 0 at #1048 (this checkpoint = the relay flush for that merge +
+the compaction boundary). Coordinator continues IN PLACE (Ben override — no successor spawn).
