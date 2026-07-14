@@ -5883,3 +5883,27 @@ refactor; test now clicks `.chatd-model__trigger`. No production remediation cha
 (job-search-install.uat.spec.ts) → will report PR. Then P4 #1027.
 
 > **main post-#1036 VF GREEN** (run 29299016780). #984 lane 100% complete, no revert. Only live lane: P3 #1026 (v3/pMG).
+
+---
+
+## Checkpoint 2026-07-13b (70% in-place) — session 58a78927-385c-4b1d-8fa0-94db20255d6f
+
+**NEW STANDING RULE (Ben 2026-07-13): build agents = Codex `gpt-5.6-sol`, NOT Sonnet.** "Any more
+build work please use gpt-5.6-sol agents." Spawn NEW build lanes as Codex
+(`codex -s danger-full-access -a never --model gpt-5.6-sol`), confirm the sol model line in the pane
+after spawn (respawn if it boots a default). Applies to NEW lanes only — do NOT respawn the in-flight
+Sonnet lane. Security QA still Opus; council still Fable/AGY. Saved to memory `spawn-defaults-opus`.
+
+**Live lane — P3 #1026** (task #36): pMG (pane w1:pMG, session e1463ef2, **Sonnet — finish, don't
+respawn**) in WRAP-UP: `verify:foundation` running (migrations clean, integration suite = longest
+stage). At 69% own ctx / near auto-compact — may self-relay (successor continues same branch
+`uat-play-1026`). Backstop watch `bv4mv0qfb` armed → fires on PR-opened (survives a self-relay) or
+pane-gone. On PR: routine QA → poll VF-green → manual merge. Then **P4 #1027** (wire coordinate
+e2e-UAT gate) — spawn as **gpt-5.6-sol**.
+
+**#984 DONE** — PR #1036 merged 96d22ba0, main VF green, closed, reaped. Follow-ups #1037/#1038/#1039.
+
+**Backlog (all future build lanes → gpt-5.6-sol):** #1040 (dev/UAT seed logs owner creds, Part of
+#1000, fold into UAT area, dev-only fenced), #965 (run-now dedupe, SENSITIVE), #1018 (realpath
+symlink hardening, security), #1034 (UAT-seed QA follow-ups), #1037/#1038/#1039 (test-hardening).
+None blocked on Ben. AWAITING-BEN empty.
