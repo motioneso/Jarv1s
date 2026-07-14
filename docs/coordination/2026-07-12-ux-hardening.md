@@ -1489,3 +1489,22 @@ resume from this note before taking any merge-sensitive action.
   `coordinate`, update the delegated-lane-owner authority block to its own immutable session id,
   commit and push, confirm it is driving, then resolve and close only the old UX session above by
   label plus session id. For the successor, `merges_since_relay` resets to `0` on adoption.
+
+## Continuation note — 2026-07-14 UX coordinator relay adopted
+
+- `UX Coordinator` authority is Codex session
+  `019f5fc7-4cac-7760-8e3a-9f5d766c5862`; adoption commit `30ea3c79` is pushed and
+  `merges_since_relay` is `0`. The spent UX Coordinator session
+  `019f5ee8-8a0a-7da2-a186-8170ea85e76a` was fresh-resolved by label plus session id and closed.
+  Primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` remains protected and was
+  explicitly told not to reap this session.
+- PR #1050 remains frozen at `0b280f51943bbfeb514eb06a0b945e8fc6556935` with all CI green and
+  no product failure claimed. `UX 991 Build Luna`, session
+  `019f5ed2-b01a-7610-95d6-da3024b4b82f`, is working on one corrected real-UI desktop+narrow run
+  with ordinary CLI transport, screenshots, and a separate CLI/persona transcript. Do not launch
+  sensitive QA or merge without the accepted live-proof PR comment.
+- Planning lanes were fresh-resolved and resumed from GitHub source of truth: `UX 987 Plan Sol`
+  session `019f5e9b-c003-7350-acba-258a601e308b` is finalizing green draft PR #1044; `UX 992 Plan
+  Sol` session `019f5e9b-bf80-73f3-86c2-7bf40e0024f9` is finalizing green draft PR #1043; `UX
+  993+995 Plan Sol` session `019f5e9b-bfc9-7fb0-8096-c197e41324a9` is finalizing green draft PR
+  #1045. All three remain docs-only until their planning PR lands.
