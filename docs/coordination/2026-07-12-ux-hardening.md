@@ -27,13 +27,13 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Ben approved #1020 rev2; serialized expanded #868/#1020 dependency lane is planning under session `019f5ce4-cce4-7a13-be05-cfc3834cc529`. #984 remains held until dependency landing, then fresh no-wait 3x UAT/security QA/Ben sign-off |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
-| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | draft plan PR #1044; review requested explicit `..` rejection/tests and Prettier-green docs; Sol fixing, Terra blocked |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | draft plan PR #1044 approved at `33de3a37`; CI pending, Terra blocked until docs land |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` completed 4/4 GREEN including image publish |
-| #991 | dedicated Assistant/Priorities delta spec required | sensitive | draft spec/plan PR #1046 with #994; content approved, Prettier fix pending; Terra blocked |
+| #991 | dedicated Assistant/Priorities delta spec required | sensitive | draft spec/plan PR #1046 with #994 approved at `2fd248d9`; CI pending, Terra blocked |
 | #992 | dedicated memory-presentation delta spec required | sensitive | draft spec/plan PR #1043 approved; CI pending, Terra blocked until docs land |
 | #993 | dedicated host/account/operator delta spec required | security | draft security spec/plan PR #1045 with #995; compose-recreation blocker returned to Sol; Terra blocked |
-| #994 | dedicated Skills UX spec required | routine | draft spec/plan PR #1046 with #991; content approved, Prettier fix pending; Terra blocked |
+| #994 | dedicated Skills UX spec required | routine | draft spec/plan PR #1046 with #991 approved at `2fd248d9`; CI pending, Terra blocked |
 | #995 | dedicated connected-accounts delta spec required | security | draft security spec/plan PR #1045; per-capability failure-truth blocker returned to Sol; build remains behind #987 |
 | #1002 | dedicated promise-inventory spec required | routine | needs spec; after affected UI settles |
 | #1003 | Apple protocol/auth design spike + approved feature spec required | security | future feature stream; not a #983 closure blocker |
@@ -1377,6 +1377,6 @@ resume from this note before taking any merge-sensitive action.
 - Issue #1042 remains a separate module-distribution lane under #860/#964, not #983. Reserve
   `apps/web/src/settings/settings-module-registry-section.tsx`; route its eventual #1000 live UAT
   coverage through the peer Coordinator.
-- Plan review state: #992 PR #1043 GREEN pending CI; #991/#994 PR #1046 content GREEN pending
-  Prettier; #987 PR #1044 RED pending traversal/test and Prettier fixes; #993/#995 PR #1045 RED
-  pending exact compose recreation and bounded per-capability failure truth. No Terra lane released.
+- Plan review state: #992 PR #1043 GREEN pending CI; #991/#994 PR #1046 GREEN at `2fd248d9`
+  pending CI; #987 PR #1044 GREEN at `33de3a37` pending CI; #993/#995 PR #1045 RED pending exact
+  compose recreation and bounded per-capability failure truth. No Terra lane released.
