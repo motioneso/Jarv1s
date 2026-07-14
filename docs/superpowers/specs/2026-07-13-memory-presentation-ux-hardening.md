@@ -1,6 +1,6 @@
 # Memory presentation UX hardening (#992)
 
-**Status:** Draft (awaiting UX Coordinator approval)
+**Status:** Approved
 
 **Date:** 2026-07-13
 
@@ -51,9 +51,14 @@ record means, why it appears, what an action changes, or why one collection is e
    unique constraint already collapse identical candidates. The prompt will avoid rephrased
    duplicates against the active-memory block. Do not add embeddings, fuzzy matching, a semantic
    dedupe service, or cleanup migration for this dogfood finding.
-4. **Lead with the human statement.** A row uses non-empty `summary` as its headline and falls back
-   to `title` only when needed. It never renders both when they repeat. Raw graph predicates remain
-   backend-only.
+4. **Lead with the human statement.** A candidate/fact `summary` is usable only when it is non-empty
+   and differs from `title` after trimming and case folding; equality identifies the dashboard
+   service's title fallback, which may contain a raw predicate. Entity rows may fall back to `title`
+   because their title is the user-facing entity name. Candidate and fact rows never fall back to
+   raw `title`: when `objectText` is empty, `title` may contain an internal predicate (including
+   candidate `objectName` and entity-object fact paths), so the safe fallback is the mapped
+   record-kind phrase such as “Relationship memory”, or “Memory” when no useful kind exists. Raw
+   graph predicates remain backend-only.
 5. **Translate or hide storage vocabulary.** Reuse and extend the existing
    `memory-provenance.ts` helper. Provenance becomes “You said this”, “You confirmed this”, “Jarvis
    inferred this”, or “Imported from a source”. Record kinds and lifecycle states receive concise
@@ -94,7 +99,10 @@ record means, why it appears, what an action changes, or why one collection is e
 
 ### Row
 
-- Headline: trimmed `item.summary`, else `item.title`, else “Memory”.
+- Headline: a candidate/fact may use trimmed `item.summary` only when it is non-empty and not equal
+  to trimmed/case-folded `item.title`; equality is treated as the unsafe graph-title fallback.
+  Entity rows may use trimmed `item.title`; candidate and fact rows instead use a human mapped
+  record-kind phrase or “Memory”. Never use a candidate or fact `title` as the fallback.
 - Do not show a second summary when it is equal to the headline after trimming/case folding.
 - Show at most the useful human labels: memory type, provenance, confidence wording, lifecycle
   state, and updated date. Hide a label when its only value is generic (`fact`, `active`).
@@ -167,6 +175,9 @@ walkthrough.
 - [ ] Exact duplicate candidates still collapse through the existing owner-scoped signature, and
       the prompt tells the model not to restate active memory.
 - [ ] Each row presents one human statement without predicate/title duplication.
+- [ ] A candidate backed only by `objectName` and a fact backed by an object entity remain
+      human-readable when `objectText` is empty; neither path can fall through to a raw predicate
+      title.
 - [ ] Raw item-kind, record-kind, provenance, status, and confidence enums are translated or hidden.
 - [ ] Review, Memories, and History each explain their contents and have distinct honest empty
       states.

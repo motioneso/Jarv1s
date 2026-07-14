@@ -122,6 +122,11 @@ pending, active, and history responses and assert:
 - tabs render as Review, Memories, History;
 - a fact with title `has_constraint: Keep replies short` and summary `Keep replies short` renders
   the statement once and never renders `has_constraint`, `fact`, or a raw status enum;
+- a candidate whose payload has `objectName` but empty `objectText` (therefore a graph-shaped
+  summary/title such as `self related_to Casey`) and no mapped record kind falls back to `Memory`,
+  never `related_to` or another raw predicate;
+- an entity-object fact with empty `objectText` and a predicate-only title falls back to
+  `Relationship memory`, never the raw predicate;
 - useful kind/provenance/confidence labels use sentence-case human copy;
 - Review, Memories, and History each render their distinct description/empty state;
 - imported provenance is supported;
@@ -156,7 +161,13 @@ Update `memory-provenance.ts` rather than creating a second helper module:
 
 In `settings-memory-dashboard.tsx`:
 
-- headline = trimmed summary, else title, else Memory;
+- candidate/fact summary is usable only when non-empty and different from title after trimming and
+  case folding; equality signals the service's graph-title fallback and must be rejected;
+- an entity row may use its title/name; candidate and fact rows with no usable summary must instead
+  use the mapped human record-kind phrase (for example, `Relationship memory`) or `Memory` when no
+  useful kind exists;
+- never use candidate/fact title as the final fallback: the current candidate `objectName` and
+  entity-object fact paths can put raw predicates there when `objectText` is empty;
 - omit duplicate title/summary and never expose the raw predicate;
 - hide generic item-kind badges;
 - map useful record kinds, statuses, provenance, and confidence tiers to human labels;
