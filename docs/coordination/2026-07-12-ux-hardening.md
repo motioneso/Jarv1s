@@ -27,7 +27,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Ben approved #1020 rev2; serialized expanded #868/#1020 dependency lane is planning under session `019f5ce4-cce4-7a13-be05-cfc3834cc529`. #984 remains held until dependency landing, then fresh no-wait 3x UAT/security QA/Ben sign-off |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
-| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | spec/plan PR #1044 merged as squash `0b3d7a19`; Luna implementation session `019f61cb-e119-7d41-ac45-390878fe72ff` building on `ux/987-notes-people-implementation` |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | product PR #1058 at `d0344d21`; zero behind, CI/live desktop+narrow/independent sensitive QA pending |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` completed 4/4 GREEN including image publish |
 | #991 | `2026-07-13-991-assistant-priorities-dogfood-hardening.md` | sensitive | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/991-assistant-priorities-build`, session `019f5ed2-b01a-7610-95d6-da3024b4b82f` |
@@ -1673,3 +1673,12 @@ resume from this note before taking any merge-sensitive action.
   plan-listed tests. Task 5 is committed at `6af36114`; its focused action-card test and web
   typecheck pass. The People package's workspace-wide `TS6059` rootDir failure is baseline and is
   not treated as feature evidence or a waiver. Tasks 1-4 and 6 are active under the expanded locks.
+- Builder session `019f61cb-e119-7d41-ac45-390878fe72ff` completed #987 and opened sensitive product
+  PR #1058 at exact head `d0344d21c78918f945a48c9373e108e286934ffb`, zero behind `main`
+  `ab57e542ef8bbf4380ac484e66d503ef9af1d73c`. GitHub confirms the diff is limited to the 17 approved
+  paths. Required CI run `29357630990` is running; builder verification is green except reported
+  unrelated integration baseline failures, which are not waived or accepted as PR evidence.
+  Primary `Coordinator` session `eb173f3a-c671-40c7-9bd2-78cbec597433` has the exact-head real
+  desktop+narrow UAT request for Notes, People, four refresh counters, and stable-ID delete-card
+  focus. Fresh independent sensitive QA waits for CI green. No merge or issue closure is allowed
+  before both durable gates pass.
