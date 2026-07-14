@@ -1432,7 +1432,9 @@ resume from this note before taking any merge-sensitive action.
 - PR #1050 is code-frozen at `0b280f51943bbfeb514eb06a0b945e8fc6556935`; CI run
   `29307615983` is fully green after rebasing onto `origin/main` `8f9da394` with no feature edits.
 - The primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f` has the combined #1000
-  UAT trigger for both frozen heads. Await PR-linked desktop+narrow evidence plus the separate #1050
-  CLI transcript/log, then launch independent routine QA for #1049 and sensitive invariant-walk QA
-  for #1050. Both verdicts must be durable PR comments. No QA or merge has occurred yet.
+  UAT trigger for both frozen heads. Combined UAT label `UAT 1049+1050 Combined`, Codex session
+  `019f5f2a-c957-7b61-9a26-47ec6abde474`, is working on `gpt-5.6-sol`. Await PR-linked
+  desktop+narrow evidence plus the separate #1050 CLI transcript/log, then launch independent
+  routine QA for #1049 and sensitive invariant-walk QA for #1050. Both verdicts must be durable PR
+  comments. No QA or merge has occurred yet.
 - `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
