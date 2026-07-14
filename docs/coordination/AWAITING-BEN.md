@@ -15,9 +15,10 @@ Lock: Coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
   `JARVIS_UAT_SEED_CONFIRM=1` opt-in token (sole setter `provisioner.ts:188`; `cli.ts:16`
   fail-closes; prod default empty + seed svc `profiles:["ops"]` inert; log line `admin.ts:97` has
   own token re-check). Only the public throwaway fixture email+password is logged — never a real
-  secret/hash. **This is epic #1000's LAST child — merging it closes #1000.** CI: 2/2 compose
-  smokes pass, VF polling (Monitor bb0l0bs1r). **Need: your merge sign-off.** On OK + VF-green I
-  merge MANUALLY (`gh pr merge 1051 --squash --delete-branch`, never --auto).
+  secret/hash. **This is epic #1000's LAST child — merging it closes #1000.** **CI now FULLY GREEN**
+  (VF 15m57s + both compose smokes + image build all pass; `mergeable=CLEAN`, head `f6be3991`).
+  Opus security QA GREEN. **Only thing left = your merge sign-off.** On your OK I merge MANUALLY
+  (`gh pr merge 1051 --squash --delete-branch`, never --auto), then close #1040 + epic #1000.
 
 ## Cleared (log)
 
