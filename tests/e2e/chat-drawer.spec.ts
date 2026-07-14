@@ -321,8 +321,7 @@ test("selecting a History row both opens and activates it — no separate resume
   await page.getByRole("button", { name: "Chat with Jarvis" }).click();
   const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
   const composer = drawer.getByLabel("Message Jarvis");
-  const modelMenu = drawer.locator("details.chatd-model");
-  await expect(modelMenu).toBeVisible();
+  const modelTrigger = drawer.locator(".chatd-model__trigger");
   await drawer.getByRole("button", { name: "Show chat history" }).click();
   await drawer.getByText("Old chat").click();
 
@@ -330,8 +329,9 @@ test("selecting a History row both opens and activates it — no separate resume
   await expect(drawer.locator(".chatd-sess")).toHaveCount(0);
   await expect(drawer.locator(".chatd-review")).toHaveCount(0);
   await expect(composer).toBeDisabled();
-  await modelMenu.locator("summary").click();
-  const modelChoice = modelMenu.locator(".chatd-model__menu button").first();
+  await modelTrigger.click();
+  const modelChoice = drawer.locator(".chatd-model__menu button").first();
+  await expect(modelChoice).toBeVisible();
   await expect(modelChoice).toBeDisabled();
 
   releaseResume?.();
