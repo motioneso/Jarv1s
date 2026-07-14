@@ -34,7 +34,9 @@ import {
   generateStructured,
   ModelDiscoveryService,
   registerAiMaintenanceWorkers,
-  registerAiRoutes
+  registerAiRoutes,
+  type TerminalRpcConnectOptions,
+  type TerminalRpcHandle
 } from "@jarv1s/ai";
 import {
   GraphMemoryRecallService,
@@ -305,6 +307,7 @@ declare module "fastify" {
 }
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
+export type { TerminalRpcConnectOptions, TerminalRpcHandle } from "@jarv1s/ai";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
 
@@ -365,6 +368,12 @@ export interface BuiltInRouteDependencies {
   readonly mcpServerUrl: string;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
+  /**
+   * #1059 TEST-ONLY override for the owner-terminal WS relay's cli-runner dial (tests inject a
+   * fake handle to exercise the connect-ok/open-fail cleanup path without a real cli-runner
+   * process); defaults to the real TerminalRpcClient.connect below when absent.
+   */
+  readonly connectTerminalRpc?: (options: TerminalRpcConnectOptions) => Promise<TerminalRpcHandle>;
   /**
    * #342 (§3.5 boot-time fork) — built by `registerBuiltInApiRoutes` only on the socket path
    * (JARVIS_CLI_RUNNER_SOCKET set) and forwarded to `registerChatRoutes`, where the chat runtime uses
@@ -1137,7 +1146,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         // #1059 — the actual @jarv1s/chat dependency for the owner-terminal WS relay lives HERE,
         // not in packages/ai (see the import comment above for why). TerminalRpcClient.connect
         // opens the Unix-domain-socket RPC connection to the cli-runner's terminal host.
-        connectTerminalRpc: (options) => TerminalRpcClient.connect(options)
+        // deps.connectTerminalRpc is the TEST-ONLY override (see BuiltInRouteDependencies) —
+        // absent in production, where the real TerminalRpcClient.connect is always used.
+        connectTerminalRpc:
+          deps.connectTerminalRpc ?? ((options) => TerminalRpcClient.connect(options))
       });
     },
     registerWorkers: (boss, deps) => registerAiMaintenanceWorkers(boss, deps.rootDb)

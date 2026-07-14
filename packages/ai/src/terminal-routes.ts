@@ -187,7 +187,12 @@ export function registerTerminalRoutes(
         return;
       }
 
-      let client: TerminalRpcHandle;
+      // #1059 — `client` starts undefined so the catch below can tell "connect() itself threw"
+      // (nothing to clean up) apart from "connect() succeeded but open() then threw" (the
+      // Unix-socket RPC connection to the cli-runner is live and must be closed here, or it's
+      // orphaned — the WS never reaches Step 4's `socket.on("close")` handler that would
+      // otherwise close it).
+      let client: TerminalRpcHandle | undefined;
       let terminalId: string;
       try {
         client = await dependencies.connectTerminalRpc({
@@ -196,6 +201,12 @@ export function registerTerminalRoutes(
         });
         terminalId = await client.open(80, 24);
       } catch {
+        try {
+          client?.close();
+        } catch {
+          // Best-effort: the RPC connection is already unusable if close() itself throws, and
+          // we're about to close the WS regardless — nothing else to do with this error.
+        }
         socket.close(1011, "terminal backend unavailable");
         return;
       }

@@ -8,7 +8,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import { AiRepository } from "@jarv1s/ai";
+import { AiRepository, type TerminalRpcConnectOptions, type TerminalRpcHandle } from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import {
   ConnectorsRepository,
@@ -90,6 +90,7 @@ export interface CreateApiServerOptions {
   readonly apiServerConfig?: ApiServerConfig;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
+  readonly connectTerminalRpc?: (options: TerminalRpcConnectOptions) => Promise<TerminalRpcHandle>;
   readonly personaPreview?: (input: {
     readonly actorUserId: string;
     readonly userName: string;
@@ -98,11 +99,10 @@ export interface CreateApiServerOptions {
   }) => Promise<string>;
   /**
    * TEST-ONLY. Synthetic guarded routes + their manifests, used to prove the real
-   * server's route-enablement guard 404s a route owned by an INACTIVE module. Never set
-   * in production. Mechanism: these manifests are added to the GUARD's manifest set (so
-   * the guard maps the synthetic route → synthetic module id) but NOT to the resolver's
-   * manifest set (createActiveModulesResolver only knows the built-ins). The resolver
-   * therefore never returns the synthetic module as active, so the guard's
+   * server's route-enablement guard 404s a route owned by an INACTIVE module. Never set in
+   * production. Mechanism: these manifests are added to the GUARD's manifest set (so the guard
+   * maps the synthetic route → synthetic module id) but NOT to the resolver's manifest set
+   * (createActiveModulesResolver only knows the built-ins), so the guard's
    * `active.some(m => m.id === syntheticId)` is false → 404. No deny-row seeding needed.
    */
   readonly __testExtraGuardedRoutes?: {
@@ -504,6 +504,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       dataContext,
       boss,
       chatEngineFactory: options.chatEngineFactory,
+      connectTerminalRpc: options.connectTerminalRpc,
       personaPreview: options.personaPreview,
       revokeUserSessions: authRuntime.revokeUserSessions,
       meSessions: authRuntime.meSessions,

@@ -6,6 +6,7 @@ import { WebSocket } from "ws";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import type { TerminalRpcHandle } from "@jarv1s/ai";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 // #1059 — owner-gated terminal control plane: password/status/ticket HTTP routes + a WS relay
@@ -140,7 +141,11 @@ describe("terminal routes (#1059)", () => {
   });
 
   it("WS upgrade with no ticket is refused with close code 1008", async () => {
-    const closeCode = await connectAndAwaitClose(`${baseWsUrl}/api/ai/terminal`, adminCookie, openSockets);
+    const closeCode = await connectAndAwaitClose(
+      `${baseWsUrl}/api/ai/terminal`,
+      adminCookie,
+      openSockets
+    );
     expect(closeCode).toBe(1008);
   });
 
@@ -215,14 +220,66 @@ describe("terminal routes (#1059)", () => {
     );
     expect(secondClose).toBe(1008); // replay of an already-consumed ticket is refused
   });
+
+  it("closes the cli-runner client when connect() succeeds but open() then fails (#1059 leak fix)", async () => {
+    // Fake handle whose connect() (i.e. dependencies.connectTerminalRpc resolving to this handle)
+    // succeeds but whose open() rejects — the specific connect-ok/open-fail path where the WS
+    // handler's backend-open catch previously left this handle's Unix-socket RPC connection
+    // orphaned (no `.close()` call) instead of tearing it down before closing the WS with 1011.
+    let closeCallCount = 0;
+    const fakeHandle: TerminalRpcHandle = {
+      open: () => Promise.reject(new Error("simulated pty spawn failure")),
+      write: () => {},
+      resize: () => {},
+      kill: () => {},
+      onData: () => {},
+      onExit: () => {},
+      close: () => {
+        closeCallCount += 1;
+      }
+    };
+
+    // A second, independent server instance (sharing the same appDb/admin as the outer suite)
+    // so this test's connectTerminalRpc override doesn't affect the other cases above, which
+    // deliberately rely on connectTerminalRpc being absent (asserting the graceful-degradation
+    // 1011 path with no cli-runner at all).
+    const leakServer = createApiServer({
+      appDb,
+      logger: false,
+      connectTerminalRpc: () => Promise.resolve(fakeHandle)
+    });
+    await leakServer.ready();
+    await leakServer.listen({ port: 0, host: "127.0.0.1" });
+    const leakAddress = leakServer.server.address() as AddressInfo;
+    const leakWsUrl = `ws://127.0.0.1:${leakAddress.port}`;
+
+    try {
+      const ticketRes = await leakServer.inject({
+        method: "POST",
+        url: "/api/ai/terminal/ticket",
+        headers: { cookie: adminCookie, "content-type": "application/json" },
+        payload: { password: "correct-terminal-pw-1059" }
+      });
+      expect(ticketRes.statusCode).toBe(200);
+      const { ticket } = ticketRes.json<{ ticket: string }>();
+
+      const closeCode = await connectAndAwaitClose(
+        `${leakWsUrl}/api/ai/terminal?ticket=${ticket}`,
+        adminCookie,
+        openSockets
+      );
+      // Still 1011 (connect succeeded, only open() failed) — proves the fix didn't change the
+      // client-observable close code, only the server-side cleanup.
+      expect(closeCode).toBe(1011);
+      expect(closeCallCount).toBe(1);
+    } finally {
+      await leakServer.close();
+    }
+  });
 });
 
 /** Opens a real `ws` client against the given URL and resolves with the socket's close code. */
-function connectAndAwaitClose(
-  url: string,
-  cookie: string,
-  registry: WebSocket[]
-): Promise<number> {
+function connectAndAwaitClose(url: string, cookie: string, registry: WebSocket[]): Promise<number> {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(url, { headers: { cookie } });
     registry.push(socket);
