@@ -44,24 +44,28 @@ export async function seedLevel(options: SeedOptions): Promise<void> {
 
   // admin+data and multi-user both include every non-excluded chunk.
   const runner = createAppRuntimeRunner();
-  const exclude = new Set(options.excludeChunks ?? []);
-  // #1026: not excludable — every admin+data/multi-user instance must land on
-  // AppShell, not the onboarding wizard, for any UI-driving spec to work at all.
-  await seedOnboardingChunk(runner, adminUserId);
-  // #1025: AI provider/model/binding must land before the news chunk, since
-  // news settings check for an active module.news binding — order matters here,
-  // it is not a parallelizable Promise.all.
-  await seedAiProviderChunk(runner, adminUserId);
-  for (const chunk of ADMIN_DATA_CHUNKS) {
-    if (exclude.has(chunk.key)) continue;
-    await chunk.run(runner, adminUserId);
-  }
+  try {
+    const exclude = new Set(options.excludeChunks ?? []);
+    // #1026: not excludable — every admin+data/multi-user instance must land on
+    // AppShell, not the onboarding wizard, for any UI-driving spec to work at all.
+    await seedOnboardingChunk(runner, adminUserId);
+    // #1025: AI provider/model/binding must land before the news chunk, since
+    // news settings check for an active module.news binding — order matters here,
+    // it is not a parallelizable Promise.all.
+    await seedAiProviderChunk(runner, adminUserId);
+    for (const chunk of ADMIN_DATA_CHUNKS) {
+      if (exclude.has(chunk.key)) continue;
+      await chunk.run(runner, adminUserId);
+    }
 
-  if (options.level === "multi-user") {
-    // #1025/#1000: multi-user (second user + cross-user share/RLS fixtures) is
-    // explicitly deferred to fast-follow issue #1030 per Coordinator ruling
-    // 2026-07-13 — this PR ships solo-admin + admin+data + the job-search
-    // toggle only. Flagged loudly (not a silent stub) so #1030 has a clear seam.
-    throw new Error("seedLevel: multi-user is deferred to #1030 — not implemented in this PR");
+    if (options.level === "multi-user") {
+      // #1025/#1000: multi-user (second user + cross-user share/RLS fixtures) is
+      // explicitly deferred to fast-follow issue #1030 per Coordinator ruling
+      // 2026-07-13 — this PR ships solo-admin + admin+data + the job-search
+      // toggle only. Flagged loudly (not a silent stub) so #1030 has a clear seam.
+      throw new Error("seedLevel: multi-user is deferred to #1030 — not implemented in this PR");
+    }
+  } finally {
+    await runner.destroy();
   }
 }
