@@ -163,6 +163,24 @@ describe("SharesRepository", () => {
   const resourceRepo = "30000000-0000-4000-8000-000000000020";
   const resourceUpgrade = "30000000-0000-4000-8000-000000000021";
   const resourceRevoke = "30000000-0000-4000-8000-000000000022";
+  const resourceDeterministic = "30000000-0000-4000-8000-000000000023";
+
+  it("uses an injected timestamp for deterministic fixtures", async () => {
+    const now = new Date("2026-01-15T12:00:00.000Z");
+    const share = await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
+      repository.grant(scopedDb, {
+        resourceType: "demo",
+        resourceId: resourceDeterministic,
+        ownerUserId: ids.userA,
+        granteeUserId: ids.userB,
+        level: "view",
+        now
+      })
+    );
+
+    expect(share.created_at).toEqual(now);
+    expect(share.updated_at).toEqual(now);
+  });
 
   it("grants a share the grantee can then access", async () => {
     await dataContext.withDataContext(ctx(ids.userA), (scopedDb) =>
