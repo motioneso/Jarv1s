@@ -424,29 +424,6 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     }
   });
 
-  it("GET /api/chat/privacy returns the authenticated actor's current thread privacy state", async () => {
-    const getPrivacyState = vi.fn().mockResolvedValue({ incognito: true });
-    const app = Fastify({ logger: false });
-    registerChatLiveRoutes(app, {
-      resolveAccessContext: async () => userAContext(),
-      runtime: {
-        resolveUserName: async () => "User A",
-        manager: { getPrivacyState }
-      } as never
-    });
-    await app.ready();
-
-    try {
-      const response = await app.inject({ method: "GET", url: "/api/chat/privacy" });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ incognito: true });
-      expect(getPrivacyState).toHaveBeenCalledWith(ids.userA);
-    } finally {
-      await app.close();
-    }
-  });
-
   it("POST /api/chat/evening-interview seeds hidden context then starts a prep turn", async () => {
     const calls: string[] = [];
     const app = Fastify({ logger: false });

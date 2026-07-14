@@ -16,7 +16,6 @@ import type {
   ListChatSkillsResponse,
   SetChatSkillEnabledRequest,
   UpdateChatSkillRequest,
-  GetChatPrivacyStateResponse,
   GetChatSettingsResponse,
   GetPersonaSettingsResponse,
   GetChatModelOverrideSettingsResponse,
@@ -856,10 +855,6 @@ export async function clearChat(options?: { incognito?: boolean }): Promise<void
 
 export async function endPrivateChat(): Promise<void> {
   await requestJson<unknown>("/api/chat/private/end", { method: "POST" });
-}
-
-export async function getChatPrivacyState(): Promise<GetChatPrivacyStateResponse> {
-  return requestJson<GetChatPrivacyStateResponse>("/api/chat/privacy");
 }
 
 export function beaconEndPrivateChat(): void {

@@ -15,7 +15,6 @@
  *   POST /api/chat/turn/cancel      → 200          stop the in-flight turn (#456)
  *   POST /api/chat/clear             → 204         reset history + new conversation
  *   POST /api/chat/private/end       → 204         end private session bookkeeping
- *   GET  /api/chat/privacy           → { incognito } server-truth privacy state for restore-on-mount
  *   POST /api/chat/switch            → 200         re-launch on the now-active provider
  *   GET  /api/chat/stream            → SSE         live transcript records for the actor
  *
@@ -29,11 +28,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { AccessContext } from "@jarv1s/db";
 import { sessionRateLimitKey } from "@jarv1s/module-sdk";
-import {
-  type GetChatPrivacyStateResponse,
-  getChatPrivacyStateRouteSchema,
-  parsePositiveIntEnv
-} from "@jarv1s/shared";
+import { parsePositiveIntEnv } from "@jarv1s/shared";
 
 import {
   ChatStreamLimitError,
@@ -173,22 +168,6 @@ export function registerChatLiveRoutes(
       try {
         await runtime.manager.endPrivateSession(access.actorUserId);
         return reply.code(204).send();
-      } catch (error) {
-        return handleLiveRouteError(error, reply);
-      }
-    }
-  );
-
-  server.get(
-    "/api/chat/privacy",
-    { schema: getChatPrivacyStateRouteSchema },
-    async (request, reply) => {
-      const access = await resolveOr401(dependencies, request, reply);
-      if (!access) return reply;
-
-      try {
-        const state = await runtime.manager.getPrivacyState(access.actorUserId);
-        return state satisfies GetChatPrivacyStateResponse;
       } catch (error) {
         return handleLiveRouteError(error, reply);
       }
