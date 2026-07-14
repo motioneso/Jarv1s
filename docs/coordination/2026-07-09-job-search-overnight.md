@@ -5881,3 +5881,5 @@ refactor; test now clicks `.chatd-model__trigger`. No production remediation cha
 
 **Still live:** P3 #1026 — v3/pMG (session e1463ef2, Sonnet, healthy) on Task 5 of 5
 (job-search-install.uat.spec.ts) → will report PR. Then P4 #1027.
+
+> **main post-#1036 VF GREEN** (run 29299016780). #984 lane 100% complete, no revert. Only live lane: P3 #1026 (v3/pMG).
