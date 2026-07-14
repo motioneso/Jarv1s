@@ -5931,3 +5931,31 @@ gpt-5.6-sol), then **#1040** dev-cred-log seed (gpt-5.6-sol).
 **Build-model rule:** new lanes = Codex `gpt-5.6-sol` (Ben 2026-07-13). Security QA = Opus.
 **AWAITING-BEN:** empty.
 Lock: session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
+
+---
+
+## #1026 MERGED + P4 #1027 spawned (2026-07-13d)
+
+**P3 #1026 → PR #1041 MERGED** squash `3af43aae` (routine; QA agent `a0798e98` GREEN/MERGE-READY,
+0 blocking — cleared the handoff-fenced provisioner/seed concern as legit call-site integration;
+real-nav PASS, genuine-not-vacuous PASS, all required CI green). #1026 auto-closed. Lane reaped
+(pane `w1:pMG` closed, worktree `uat-play-1026` removed, branch deleted). merges_since_relay=1.
+
+**Product bug from the live run → issue #1042 filed:** settings module-install in-app instruction
+(`docker compose pull && up -d`) silently no-ops with no new image tag → install never completes.
+Out of scope for #1026; UX Coordinator ruled it a **separate module-distribution lane (#860/#964)**,
+NOT #983, and reserved `settings-module-registry-section.tsx`. Its eventual fix routes its #1000
+UAT path through me. (Harness paid off on first flagship run — #999-class catch.)
+
+**P4 #1027 SPAWNED** (last serialized UAT phase — wire coordinate e2e-UAT gate). Lane: pane
+`w1:pMN`, tab `w1:t22` (fresh "agents" tab; was mis-landed in coordinator tab t15, MOVED), Codex
+**gpt-5.6-sol high** (confirmed), session `019f5eae`, worktree `uat-coordinate-1027` @ base
+`3af43aae`. Tier **sensitive** (edits coordinated-qa machinery + encodes gating policy). Handoff
+`docs/superpowers/handoffs/2026-07-13-uat-1027-coordinate-gate.md` (commit `daf4fde7`). **Plan-gate
+ON** — agent posts plan to me, waits for approval before coding. Ben's #1027 gate decision (locked):
+BLOCKING for runtime-path PRs, advisory elsewhere. Do-NOT-edit fence on settings-module-registry
+file (UX Coord reservation). Exit criterion: prove lookup fires on a #999-shaped diff.
+
+**NEXT:** approve P4 plan when it arrives → build → sensitive QA → manual merge → epic #1000 done
+(then #1040 dev-cred-seed as gpt-5.6-sol). main post-#1041 run `29303616295`.
+Lock: session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
