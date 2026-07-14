@@ -6212,3 +6212,10 @@ pane `w1:pN1` tab `w1:t24` (coord-agents; moved off UX's t1Q). Held worktree
 desktop+narrow Skills+chat, mobile nav CLOSED, no overlap/black/translucent, assert controls
 visible+enabled, real-nav only. #1049 ONLY (#1050 stays blocked). On delivery: relay PR-comment
 link to UX Coordinator session `019f5ee8`. Task #47.
+
+**LANE A SPAWNED (2026-07-14):** main CI green on `313c194c` → spawned "UAT Plumbing 1047+1034 Sol"
+Codex gpt-5.6-sol, pane `w1:pN2` tab `w1:t25` (coord-agents; moved off UX's t21), worktree
+`.claude/worktrees/uat-plumbing-1047-1034` @ 313c194c, branch `uat-plumbing-1047-1034`. Routine
+tier → Sonnet QA + auto-merge on green. Awaiting plan escalation. Task #45.
+**#1049 recapture CLOSED:** PASS all 4 states on 110bba3b; relayed to UX (pMW/019f5ee8); PR comment
+4966637818; agent pN1 reaped; combined worktree HELD on disk pending UX reap ping. Task #47 done.
