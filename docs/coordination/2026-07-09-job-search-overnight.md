@@ -6341,3 +6341,29 @@ Squash-merged `64817d3c`. Issue #1030 closed. Board auto-Done. Worktree
 (confirmed by label+session before close). merges_since_relay=1 (security merge — relay-worthy but
 continuing per predecessor's explicit relay-note instruction to finish both cleared merges before
 any further relay). Proceeding to PR #1054.
+
+## PR #1054 MERGED — 2026-07-14 (new coordinator, session 09cda409)
+VF/compose/prod-smoke all green pre-merge (confirmed via `gh pr checks 1054`, no `--auto`).
+Squash-merged `7d5b5e70`. Issue #965 auto-closed by merge reference. Board auto-Done. Worktree
+`.claude/worktrees/js-965-runnow-dedupe` removed + branch deleted. Lane C pane `w1:pN8` reaped
+(confirmed by label+session before close). merges_since_relay=2 total this segment (1053 security +
+1054 sensitive).
+
+### Epic #1000 status — CONFIRMED
+Epic #1000 already CLOSED core-complete (predecessor). Both overnight children now closed: #1030
+(PR #1053) + #965 (PR #1054). Remaining trackers per predecessor's plan: **#1042 = UX-owned** (do
+NOT build), **#1018 = HELD** (backlog, 2nd security lane would split QA focus — left for a future
+run). No further action needed on the epic itself.
+
+### Digest for Ben (morning) — FINAL:
+- #1053 (#1030 multi-user UAT seed, security) — Opus+Fable GREEN, verdict PR comment `4967938985` — **MERGED `64817d3c`**
+- #1054 (#965 run-now dedupe, sensitive) — Sonnet QA GREEN — **MERGED `7d5b5e70`**
+- Epic #1000 (Dev UAT harness) — CLOSED core-complete; both overnight children landed. Remaining: #1042 (UX-owned, not built), #1018 (held, backlog).
+- #1050 — still AWAITING-BEN (owner=Ben, external live-proof blocker). No autonomous action taken.
+- Fleet clear: Lane B + Lane C panes/worktrees reaped. No build agents live on my lanes.
+
+### RELAY TRIGGER FIRED — security merge (#1053)
+Per relay policy, relay is due after every security-tier merge. Predecessor's continuation note
+explicitly instructed finishing BOTH cleared merges (#1053 then #1054) before further action, which
+has been done. Now relaying per the fired trigger — no further merges will be attempted by this
+session. See next entry for successor handoff.
