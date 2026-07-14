@@ -57,7 +57,7 @@ Do not touch `tests/uat/**`, `docs/coordination/**`,
 - [ ] Commit only these paths with a release-note body: operators now see the same Herdr readiness
       that the runtime uses.
 
-## Task 2: Make production setup and restart instructions executable
+## Task 2: Make production setup and recreation instructions executable
 
 **Files:**
 
@@ -68,9 +68,12 @@ Do not touch `tests/uat/**`, `docs/coordination/**`,
 
 - [ ] Make `JARVIS_MULTIPLEXER` env-overridable with tmux as the default and pass through
       `JARVIS_HERDR_ROOT_TAB` with an empty default.
-- [ ] Correct Compose restart guidance from `docker compose restart api` to
-      `docker compose restart jarv1s`; leave unknown modes without a command.
-- [ ] Assert diagnostics returns only the corrected fixed command and no environment values.
+- [ ] Replace the bare restart hint with the exact shipped base-stack recreation command:
+      `docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local up -d jarv1s`.
+      `restart` is forbidden here because it does not reload changed container env; notes-enabled
+      deployments must retain `-f docker-compose.notes.yml` as an additional selector.
+- [ ] Give the install command the same `-p`/`-f`/`--env-file` selectors. Assert diagnostics returns
+      only these fixed commands and no environment values; leave unknown modes without a command.
 - [ ] Render Compose config once with defaults and once with Herdr/root-tab env values; assert the
       effective values rather than grepping YAML.
 - [ ] Run the two integration tests plus the Compose render checks.
@@ -87,7 +90,7 @@ Do not touch `tests/uat/**`, `docs/coordination/**`,
       over pass; fixed next actions are keyed by `database`, `pgboss`, and `multiplexer` ids.
 - [ ] Render the summary and next actions first; place runtime metadata in native `<details>`.
 - [ ] Replace the ambiguous Herdr rows with Installed, Ready, Active, Selected, and deployment-pinned
-      labels, plus exact Compose setup/restart copy.
+      labels, plus exact Compose setup/recreation copy.
 - [ ] Remove the dedicated Log level row. Do not add a replacement control.
 - [ ] Cover failure ordering, installed-not-ready, ready-not-active, env-pinned tmux, corrected command,
       disclosure behavior, and log-row absence.
@@ -141,7 +144,8 @@ Do not touch `tests/uat/**`, `docs/coordination/**`,
 - [ ] Confirm no new POST/PUT/PATCH/DELETE host route or shell execution was introduced.
 - [ ] Run focused tests, `pnpm check:design-tokens`, and `pnpm verify:foundation`.
 - [ ] From the deployed Compose UI, navigate normally to Settings → Advanced host setup, verify all
-      five mux states and diagnostic recovery, apply the fixed operator instructions, refresh, then
+      five mux states and diagnostic recovery, change the env file, run the exact selector-complete
+      `up -d jarv1s` recreation command, refresh, then
       navigate to Account & preferences and verify one correctly owned email. Record screenshots and
       commands outside `tests/uat/**`.
 

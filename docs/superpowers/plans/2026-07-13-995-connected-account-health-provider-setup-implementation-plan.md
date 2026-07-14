@@ -36,8 +36,9 @@ and prove grants without weakening owner/secret boundaries.
       metadata, and absence of encrypted/token/password fields.
 - [ ] Add `last_email_sync_success_at` and `last_calendar_sync_success_at`; grant only the existing
       owner/worker roles the minimum column access. Preserve RLS unchanged.
-- [ ] Extend `ConnectorSyncCounts` only with bounded aggregate `calendarFailures`; reject arbitrary
-      keys/strings at the serializer boundary.
+- [ ] Extend `ConnectorSyncCounts` with strict `emailOutcome`/`calendarOutcome`, bounded
+      `emailError`/`calendarError`, and aggregate `calendarFailures`; keep `emailFailures`. Reject
+      arbitrary keys/labels at the serializer boundary.
 - [ ] Select/serialize the two timestamps through the existing owner and admin safe account queries.
 - [ ] Run `JARVIS_PGDATABASE=jarv1s_995_health pnpm vitest run tests/integration/connectors.test.ts`.
 - [ ] Commit only these paths with a user-facing summary: account health now retains last successful
@@ -55,12 +56,17 @@ and prove grants without weakening owner/secret boundaries.
 
 - [ ] Add repository inputs that can advance email and calendar timestamps independently without
       clearing prior values.
-- [ ] Write failing cases for: both succeed, email-only failure, calendar-only failure, auth failure,
-      disabled/unscoped capability, IMAP success/failure, and truncated email.
+- [ ] Write failing cases for: both succeed, email-only failure, calendar-only failure, simultaneous
+      email-and-calendar section failure, auth failure, disabled/unscoped capability, IMAP
+      success/failure, and truncated email.
 - [ ] Google advances each granted capability only when that phase has no error; IMAP advances email
       only; truncation does not advance email.
-- [ ] Persist `calendarFailures` as an aggregate count and retain bounded `lastSyncError`; never persist
-      raw provider errors.
+- [ ] Persist `not-run | success | partial | failed` independently for each capability plus its
+      allowlisted reason. A section failure increments that capability's aggregate failure count even
+      when no item loop ran; auth failure marks both scoped/granted capabilities failed.
+- [ ] Prove a run where both sections fail persists both reasons and two nonzero capability counts;
+      `errors[0]`/`lastSyncError` may remain compatibility metadata but must not drive attribution.
+      Never persist raw provider errors.
 - [ ] Run the two focused integration files and secret-substring assertions.
 - [ ] Commit only these five paths.
 
@@ -113,8 +119,9 @@ and prove grants without weakening owner/secret boundaries.
 - Modify `apps/web/src/styles/settings-panes.css`
 - Modify `tests/unit/settings-connector-sync.test.tsx`
 
-- [ ] Expand the pure health view model to return affected capabilities, origin, freshness copy, and
-      exactly one action: retry, reconnect, wait/configure, or none.
+- [ ] Expand the pure health view model over the per-capability outcomes—not `lastSyncError`—to return
+      affected capabilities, origin, freshness copy, and exactly one action: retry, reconnect,
+      wait/configure, or none.
 - [ ] Map Google reconnect to `GoogleConnect`, IMAP reconnect to the extracted form, and Retry to the
       new generic route; refresh account state while a sync is in flight.
 - [ ] Replace the picker with active Google/Yahoo/Proton/Fastmail/iCloud Mail choices plus the

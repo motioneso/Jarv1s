@@ -82,15 +82,19 @@ JARVIS_HERDR_ROOT_TAB: "${JARVIS_HERDR_ROOT_TAB:-}"
 
 Settings shows fixed instructions for the detected Compose deployment:
 
-1. install the pinned/checksummed binary with
-   `docker compose exec jarv1s /app/scripts/install-herdr.sh`;
+1. from the production deployment directory, install the pinned/checksummed binary with
+   `docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local exec jarv1s /app/scripts/install-herdr.sh`;
 2. set `JARVIS_MULTIPLEXER=herdr` and `JARVIS_HERDR_ROOT_TAB=jarv1s` in the deployment env file;
-3. run `docker compose restart jarv1s`;
+3. recreate the app container so Compose reloads that env file:
+   `docker compose -p jarv1s-prod -f docker-compose.prod.yml --env-file ./env.production.local up -d jarv1s`;
 4. refresh diagnostics and confirm **Active: Herdr**.
 
-The current `docker compose restart api` diagnostic hint is incorrect because the production
-service is named `jarv1s`; it is corrected at the composition root. Unknown deployment modes get no
-guessed command.
+`docker compose restart` is not acceptable after an env-file change because restart does not
+recreate the container or reload its environment. The current `docker compose restart api` hint also
+targets a nonexistent production service and omits the shipped project, compose-file, and env-file
+selectors. The fixed copy uses `up -d jarv1s` with all three selectors. A notes-enabled deployment
+must additionally retain its shipped `-f docker-compose.notes.yml` override. Unknown deployment modes
+get no guessed command.
 
 ### 3. Diagnostics summary is derived in the browser
 
@@ -172,9 +176,10 @@ settings-module registry file.
   tokens/password hashes never appear.
 - Unit/UI: diagnostics summary prioritizes failure, recovery copy is fixed, technical detail is
   secondary, log-level row is absent, and email renders once with truthful ownership.
-- Compose: rendered config defaults to tmux and accepts an env-file Herdr/root-tab override.
+- Compose: rendered config defaults to tmux, accepts an env-file Herdr/root-tab override, and the
+  shown `-p`/`-f`/`--env-file ... up -d jarv1s` command recreates the app with those values.
 - Live path: navigate normally to Settings → Advanced host setup on the deployed Compose instance,
-  capture installed/ready/active/pinned states, run diagnostics, follow the shown restart command,
+  capture installed/ready/active/pinned states, run diagnostics, follow the shown recreation command,
   and confirm the refreshed active state. Then navigate to Account & preferences and confirm email
   appears once with the correct owner label. Do not deep-link or use `tests/uat/**`.
 

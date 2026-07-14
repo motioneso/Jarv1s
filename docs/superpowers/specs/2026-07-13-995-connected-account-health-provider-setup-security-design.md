@@ -74,8 +74,23 @@ capability error. IMAP updates email only. A truncated email run does not advanc
 because the cache may not be fully fresh. Disabled/unscoped capabilities do not advance or clear a
 timestamp. Failure never destroys the previous success time.
 
-Extend existing aggregate counts with `calendarFailures` where needed. Do not add raw error text or a
-per-item health table.
+Extend the existing safe `last_sync_counts` object with bounded per-capability fields:
+
+- `emailOutcome` and `calendarOutcome`: `not-run | success | partial | failed`;
+- `emailError`: `null | auth-error | email-error | email-message-error`;
+- `calendarError`: `null | auth-error | calendar-error | calendar-item-error`;
+- `emailFailures` and `calendarFailures`: non-negative aggregate counts. A section-level failure
+  records at least `1` even if its item loop never starts; item failures record the affected count.
+
+Every scoped and granted capability receives an outcome. Disabled or unscoped capabilities are
+`not-run`. Token acquisition failure marks both scoped and granted capabilities `failed` with the
+bounded `auth-error` reason. Truncation marks email `partial` and retains the existing `truncated`
+flag. A simultaneous email/calendar failure persists both outcomes, both reasons, and both nonzero
+failure counts; it must not discard the second result through `errors[0]`.
+
+`lastSyncError` may remain as a coarse compatibility label, but UI attribution, freshness, and next
+actions use the per-capability fields only. Strict DTO/schema validation rejects unknown outcome
+keys or labels. Do not add raw error text or a per-item health table.
 
 ### 2. Health presentation is a pure mapping over bounded metadata
 
@@ -163,6 +178,7 @@ and live use. Admin oversight remains safe-metadata-only.
 | Grant toggle lies while a sibling read path bypasses it | Existing required service plus focused tests across every traced consumer.                    |
 | Admin gains private connector access                    | No admin retry/reconnect/grant route; oversight remains aggregate safe metadata.              |
 | Freshness claims overstate partial sync                 | Capability timestamps advance independently only on complete capability success.              |
+| First error hides a second capability failure           | Persist bounded email and calendar outcomes/reasons independently; never infer from index 0.  |
 | Provider tile promises unsupported auth                 | Active tiles map to existing routes; planned tiles have no action and name their issue/scope. |
 
 ## Exact Owned Product Paths
@@ -191,7 +207,7 @@ editing another module's migration.
 
 - Migration/DTO: timestamps default null, owner/admin responses expose them, secrets remain absent.
 - Sync: email/calendar success advances independently; failure, disabled scope, and truncation retain
-  prior timestamps.
+  prior timestamps. A both-fail run preserves both bounded reasons and nonzero capability counts.
 - Retry: owner succeeds/dedupes truthfully; other-owner, revoked, unauthenticated, and unsupported
   accounts fail without enqueue.
 - UI: each bounded health case names capability, origin, freshness, and correct action; provider picker
