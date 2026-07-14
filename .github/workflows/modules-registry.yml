@@ -47,7 +47,7 @@ jobs:
           gh release view modules \
             || gh release create modules --title "Module registry" --latest=false \
                  --notes "Rolling module-distribution release. Assets are managed by the modules-registry workflow — do not edit by hand."
-      - name: Upload assets (clobber replaces index.json + republished versions)
+      - name: Upload assets (same-version changes are rejected before this step)
         run: gh release upload modules dist/registry/* --clobber
       - name: Prune assets no longer referenced by the index
         run: |

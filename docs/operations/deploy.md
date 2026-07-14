@@ -67,6 +67,34 @@ docker compose up -d
 
 The default image channel should be `ghcr.io/motioneso/jarv1s:stable`. Version tags remain useful for rollback and debugging, but users should not have to edit a tag for routine upgrades.
 
+## Downloaded Modules
+
+Jarvis has one module model with two delivery paths: **bundled modules** ship in the app image,
+while **downloaded modules** are installed separately from Settings → Instance modules. The
+runtime may call the latter `external` internally because they cross a package-loading and trust
+boundary; that is an implementation detail, not a second product concept.
+
+Downloading or updating a module stages its validated package on the persistent modules volume.
+Restart the Jarvis container to run module reconciliation and activate the staged version:
+
+```sh
+docker compose -p jarv1s-prod \
+  --env-file env.production.local \
+  -f docker-compose.prod.yml \
+  restart jarv1s
+```
+
+Include `-f docker-compose.notes.yml` when the deployment enables the notes mount.
+
+After readiness returns, confirm the module says **Installed** in Settings and that its declared
+navigation entry is visible. A downloaded module intentionally remains inactive when validation
+fails, its package hash changes outside the installer, an administrator disables it, or the user
+turns it off.
+
+Downloaded-module discovery is always available; there is no
+`JARVIS_ENABLE_EXTERNAL_MODULES` feature flag. `JARVIS_MODULES_DIR` is an advanced path override,
+not an enable switch.
+
 ## Production Compose
 
 The committed production artifact is `infra/docker-compose.prod.yml`. It keeps Postgres separate and runs API, web serving, worker, migrations, and provider CLIs inside the `jarv1s` container.
