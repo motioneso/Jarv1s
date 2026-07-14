@@ -5990,3 +5990,22 @@ Status: P4 `building`. Monitors `b64t627m9` (main-VF post-#1041) + `b0i79nkvu` (
 backstop) still armed. AWAITING-BEN empty. This is the final serialized UAT phase → merge = **epic #1000 DONE**.
 
 **2026-07-13d addendum — boundary expanded:** P4 handoff under-named the QA machinery. Spec §8.4 "coordinated-qa step 4" lives in `.claude/skills/coordinated-qa/SKILL.md` (not `coordinate/**`). APPROVED that file as the authoritative home of the tier-depth UAT-trigger logic; coordinate skill + agent prompt carry only a routing pointer (no triplication). Full boundary now: `tests/uat/**` + `.claude/skills/coordinate/**` + `.claude/skills/coordinated-qa/SKILL.md` + `.claude/agents/coordinated-qa.md`. Still excluded: settings file, docs/coordination, P1/P2.
+
+## Checkpoint 2026-07-13e — P4 #1027 PR #1048 in sensitive QA
+
+Agent reported DONE. **PR #1048** (branch `uat-coordinate-1027`, rebased on origin/main `52b9e29c`),
+9 files, all inside expanded boundary (resolver `resolve-uat-triggers.sh` + `uat-trigger-map.tsv`,
+`run-uat.ts` repair + 2 new tests, `coordinated-qa/SKILL.md` step-4, `coordinate/SKILL.md`,
+`coordinated-qa.md` agent, handoff doc). NO settings file, NO docs/coordination. Agent evidence:
+VF_EXIT=0, #999 lookup=blocking job-search spec, live UAT_EXIT=0 (1 passed); uatLevel deferred #1047.
+
+- **Sensitive QA:** coordinated-qa agent `ae2109562ecbbc7b0` (Sonnet, JARVIS_PGDATABASE=jarvis_qa_27) —
+  brief: independent #999-proof rerun, gate-not-inert, block-vs-advisory correctness (benign path test),
+  run-uat repair non-vacuous, invariant walk (settings file untouched / single-source-of-truth),
+  UAT real-nav rule. Verdict-only.
+- **VF gate:** background poller `bjx51rwxs` on CI run 29305231814 (VF + compose smokes) → conclusion.
+  Sensitive + VF-conditional → **manual merge on VF green, NOT --auto** (auto only waits on compose
+  smokes; see auto-merge-skips-nonrequired memory).
+- Authority check passed (Coordinator session 58a78927 matches lock).
+- Merge = QA GREEN **and** VF green → `gh pr merge 1048 --squash --delete-branch` → **EPIC #1000 DONE**
+  → close #1027, epic exit-criteria, board. Then #1040 fast-follow.
