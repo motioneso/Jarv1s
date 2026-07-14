@@ -1518,3 +1518,13 @@ resume from this note before taking any merge-sensitive action.
   rebasing its five-behind branch onto current `origin/main`; fresh integrated Opus QA is required
   afterward, followed by Ben's explicit security-tier merge sign-off. The non-blocking sequencing
   note is that #993 and #995 both plan changes to `apps/web/src/styles/settings-panes.css`.
+- PR #1050 live proof reached the real authenticated Assistant with ordinary CLI transport and
+  confirmed a product blocker at frozen head `0b280f51943bbfeb514eb06a0b945e8fc6556935`: after typing
+  a draft and clicking the exact Discard control, the textarea retained the draft instead of the
+  saved server snapshot. Evidence is
+  `https://github.com/motioneso/Jarv1s/pull/1050#issuecomment-4967161048`. The lane is stop-the-line
+  and reopened for the owning agent to diagnose the shared flow, add one focused regression check,
+  and push a root-cause fix before any fresh live proof, sensitive QA, or merge.
+- PR #1045 rebased cleanly to `ca077a3393318188b2e4c599765cfadf452e2ef9` and is zero commits
+  behind `main`; integrated CI is still running. The prior GREEN security verdict applies only to
+  pre-rebase head `ead987d3f9ac23c3591e0fba2eae6b4ad0d53f71`, so a fresh Opus verdict is still required.
