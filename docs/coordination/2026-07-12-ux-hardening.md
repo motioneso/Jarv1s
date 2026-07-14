@@ -1785,9 +1785,9 @@ resume from this note before taking any merge-sensitive action.
 - Agent evidence: 26 focused unit, 44 isolated integration, and 2 Playwright tests green;
   `VF_EXIT=0` with 3,326 unit and 1,648 integration tests passed; 155 migrations current;
   `AUDIT_EXIT=0`; pre-push format/lint/typecheck green; fresh `origin/main` rebase current.
-- GitHub CI run `29371316048` has green foundation/app and deployment-smoke jobs; its image-build
-  tail is still running. Independent sensitive QA must wait for full CI green. Exact-head live UAT
-  is GREEN with durable evidence at
+- GitHub CI run `29371316048` is fully GREEN. Fresh independent sensitive QA is running as
+  `/root/qa_1058_postremediation` in a detached exact-head checkout. Exact-head live UAT is GREEN
+  with durable evidence at
   `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4974495266` and artifacts under
   `~/Jarv1s/.claude/worktrees/coord-983-ux/outputs/pr-1058-uat-v4/final_runs/run_2/`. No QA, merge,
   issue-closure, or #995 release claim is made yet.
