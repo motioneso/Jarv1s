@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   provisionForUat: vi.fn(),
+  readFile: vi.fn(),
+  readdir: vi.fn(),
   spawn: vi.fn()
 }));
 
+vi.mock("node:fs/promises", () => ({ readFile: mocks.readFile, readdir: mocks.readdir }));
 vi.mock("./provisioner.js", () => ({ provisionForUat: mocks.provisionForUat }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn }));
 
@@ -14,6 +17,13 @@ describe("run-uat CLI (#1027/#1047)", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    mocks.readdir.mockResolvedValue(["future-advisory.uat.spec.ts"]);
+    mocks.readFile.mockResolvedValue(
+      `export const uatLevel = {
+        level: "solo-admin",
+        without: []
+      } as const;`
+    );
     mocks.provisionForUat.mockResolvedValue({
       baseURL: "http://127.0.0.1:4321",
       projectName: "uat-test",
@@ -32,26 +42,29 @@ describe("run-uat CLI (#1027/#1047)", () => {
     vi.restoreAllMocks();
   });
 
-  it("forwards a resolved spec filter to Playwright", async () => {
-    process.argv = ["node", "tests/uat/run-uat.ts", "job-search-install"];
+  it("derives provisioning from the selected spec and forwards only that spec", async () => {
+    process.argv = ["node", "tests/uat/run-uat.ts", "future-advisory"];
 
     await import("./run-uat.js");
 
+    expect(mocks.provisionForUat).toHaveBeenCalledWith("solo-admin", { excludeChunks: [] });
     const [command, args] = mocks.spawn.mock.calls[0] ?? [];
     expect(command).toBe("npx");
     expect(args).toEqual([
       "playwright",
       "test",
       "--config=tests/uat/playwright.uat.config.ts",
-      "job-search-install"
+      "tests/uat/specs/future-advisory.uat.spec.ts"
     ]);
   });
 
-  it("only excludes job-search for the install spec", async () => {
-    process.argv = ["node", "tests/uat/run-uat.ts", "future-advisory-spec"];
+  it("fails clearly when the selected spec has no valid uatLevel export", async () => {
+    mocks.readFile.mockResolvedValue('export const notUatLevel = { level: "bare" } as const;');
+    process.argv = ["node", "tests/uat/run-uat.ts", "future-advisory"];
 
-    await import("./run-uat.js");
-
-    expect(mocks.provisionForUat).toHaveBeenCalledWith("admin+data", { excludeChunks: [] });
+    await expect(import("./run-uat.js")).rejects.toThrow(
+      "tests/uat/specs/future-advisory.uat.spec.ts must export uatLevel per harness spec §5"
+    );
+    expect(mocks.provisionForUat).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { restartUatStack } from "../provisioner.js";
 import { UAT_ADMIN_EMAIL, UAT_ADMIN_PASSWORD } from "../seed/admin.js";
 
+export const uatLevel = { level: "admin+data", without: ["job-search"] } as const;
+
 // #1026/#1000/#999: happy-path proof that Job Search installs end-to-end against a real,
 // prod-shaped instance (no mocked API calls — playwright.uat.config.ts has no webServer/mocks).
 // Real nav only, no page.goto beyond the one unavoidable initial load: apps/web/src/app.tsx gates
