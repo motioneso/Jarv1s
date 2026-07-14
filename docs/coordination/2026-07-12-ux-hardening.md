@@ -11,7 +11,7 @@ delegated all approval decisions—including security-tier sign-off—to Fable.
 **Shared-tree policy:** isolated worktrees; explicit-path staging only; never `git add -A`.
 **Agent runtime policy:** this UX coordinator may spawn only Codex agents, using
 `codex -s danger-full-access -a never`. Planning/spec agents use `gpt-5.6-sol` at high reasoning;
-implementation agents use Terra (`gpt-5.6-terra`) at medium reasoning. QA remains independent and
+implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains independent and
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
@@ -27,13 +27,13 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #984 | `2026-07-12-private-chat-history-trust-hardening.md` | security | PR #1015 head `57c484ac`; Slices 1–3 preserved and timer workaround reverted. Ben approved #1020 rev2; serialized expanded #868/#1020 dependency lane is planning under session `019f5ce4-cce4-7a13-be05-cfc3834cc529`. #984 remains held until dependency landing, then fresh no-wait 3x UAT/security QA/Ben sign-off |
 | #985 | `2026-07-12-true-yolo-approval-popover-hardening.md` | security umbrella; routine UI slices | MERGED via PR #1012 as squash `031eb67e`; #985 closed and lane reaped. Non-blocking hardening remains tracked separately in #1018 |
 | #986 | `2026-07-12-settings-shell-navigation-ia-hardening.md` | sensitive | MERGED via PR #1010 to main at `7d852092`; #986 closed. Fresh QA pane/worktree and build pane reaped; build worktree retained because protected `.claude/context-meter.log` is dirty |
-| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | draft plan PR #1044 approved at `33de3a37`; CI pending, Terra blocked until docs land |
+| #987 | `2026-07-12-notes-people-source-picker-hardening.md` | sensitive | draft plan PR #1044 approved at `33de3a37`; CI pending, Luna blocked until docs land |
 | #989 | `2026-07-12-sports-settings-dogfood-hardening.md` | routine | MERGED via PR #1009 as squash `b0d57265`; #989 closed and build/UAT lane reaped |
 | #990 | `2026-07-12-news-settings-dogfood-hardening.md` | routine | MERGED via PR #1021 as squash `b205f1c7`; #990 closed and build/QA agents reaped. Post-merge main CI run `29275470092` completed 4/4 GREEN including image publish |
-| #991 | `2026-07-13-991-assistant-priorities-dogfood-hardening.md` | sensitive | spec/plan PR #1046 merged at `52b9e29c`; Terra building on `ux/991-assistant-priorities-build`, session `019f5ece-4dcd-7431-9b1e-989f858acf40` |
-| #992 | dedicated memory-presentation delta spec required | sensitive | draft spec/plan PR #1043 approved; CI pending, Terra blocked until docs land |
-| #993 | dedicated host/account/operator delta spec required | security | draft security spec/plan PR #1045 with #995; compose-recreation blocker returned to Sol; Terra blocked |
-| #994 | `2026-07-13-994-skills-list-first-invocation.md` | routine | spec/plan PR #1046 merged at `52b9e29c`; Terra building on `ux/994-skills-build`, session `019f5ece-4edd-7b21-803f-f9ec561e33f1` |
+| #991 | `2026-07-13-991-assistant-priorities-dogfood-hardening.md` | sensitive | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/991-assistant-priorities-build`, session `019f5ed2-b01a-7610-95d6-da3024b4b82f` |
+| #992 | dedicated memory-presentation delta spec required | sensitive | draft spec/plan PR #1043 approved; CI pending, Luna blocked until docs land |
+| #993 | dedicated host/account/operator delta spec required | security | draft security spec/plan PR #1045 with #995; compose-recreation blocker returned to Sol; Luna blocked |
+| #994 | `2026-07-13-994-skills-list-first-invocation.md` | routine | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/994-skills-build`, session `019f5ed2-b0ed-7cf0-ba53-f956f4185b81` |
 | #995 | dedicated connected-accounts delta spec required | security | draft security spec/plan PR #1045; per-capability failure-truth blocker returned to Sol; build remains behind #987 |
 | #1002 | dedicated promise-inventory spec required | routine | needs spec; after affected UI settles |
 | #1003 | Apple protocol/auth design spike + approved feature spec required | security | future feature stream; not a #983 closure blocker |
@@ -141,6 +141,8 @@ None.
 - Planner #991/#994, Codex session `019f5e9b-bf81-73e2-aac4-70d9c637e344`.
 - Aborted misconfigured #991 builder, Codex session `019f5ecc-9993-7850-9e88-d1aad518a22d`.
 - Aborted misconfigured #994 builder, Codex session `019f5ecc-9997-7a72-b8b1-7fdd76f23e54`.
+- Stopped #991 Terra builder, Codex session `019f5ece-4dcd-7431-9b1e-989f858acf40`.
+- Stopped #994 Terra builder, Codex session `019f5ece-4edd-7b21-803f-f9ec561e33f1`.
 
 ## Continuation note — 2026-07-12 UX Coordinator successor adoption
 
@@ -1369,21 +1371,21 @@ resume from this note before taking any merge-sensitive action.
   route any UAT-harness need through Primary before editing. Primary has no active settings,
   memory, or skills locks. Chat follow-ups #1037–#1039 are not active and require a fresh sync
   before either coordinator lanes them.
-- Runtime split from Ben: Sol (`gpt-5.6-sol`) at high reasoning writes plans/specs; Terra
-  (`gpt-5.6-terra`) at medium reasoning implements approved plans. QA remains independent and
+- Runtime split from Ben: Sol (`gpt-5.6-sol`) at high reasoning writes plans/specs; Luna
+  (`gpt-5.6-luna`) at medium reasoning implements approved plans. QA remains independent and
   risk-tiered.
 - Acceleration order: prepare #987 immediately; plan #991/#992/#993/#994 in parallel; keep #995
   behind #987, #1002 after affected UI settles, and #988 as the final live acceptance pass.
 - Active Sol/high planning sessions: #987 `019f5e9b-c003-7350-acba-258a601e308b`, #991/#994
   `019f5e9b-bf81-73e2-aac4-70d9c637e344`, #992 `019f5e9b-bf80-73f3-86c2-7bf40e0024f9`, and
-  #993/#995 `019f5e9b-bfc9-7fb0-8096-c197e41324a9`. No Terra builder is released yet.
+  #993/#995 `019f5e9b-bfc9-7fb0-8096-c197e41324a9`. No Luna builder is released yet.
 - Issue #1042 remains a separate module-distribution lane under #860/#964, not #983. Reserve
   `apps/web/src/settings/settings-module-registry-section.tsx`; route its eventual #1000 live UAT
   coverage through the peer Coordinator.
 - Plan review state: #992 PR #1043 GREEN pending CI; #987 PR #1044 GREEN at `33de3a37` pending CI;
   #993/#995 PR #1045 RED pending exact compose recreation and bounded per-capability failure truth.
-- PR #1046 merged docs-only at `52b9e29c`. Terra/medium builders released with disjoint locks:
-  #991 session `019f5ece-4dcd-7431-9b1e-989f858acf40`; #994 session
-  `019f5ece-4edd-7b21-803f-f9ec561e33f1`. The initial `gpt-5.4-mini` sessions were caught before
-  code, reaped, and replaced with verified `gpt-5.6-terra` medium sessions. Both feature PRs require
-  independent QA and live UI evidence; neither lane may edit `tests/uat/**`.
+- PR #1046 merged docs-only at `52b9e29c`. Luna/medium builders released with disjoint locks:
+  #991 session `019f5ed2-b01a-7610-95d6-da3024b4b82f`; #994 session
+  `019f5ed2-b0ed-7cf0-ba53-f956f4185b81`. Earlier wrong-model sessions were stopped; their partial
+  focused work was preserved for Luna to review and continue. Both feature PRs require independent
+  QA and live UI evidence; neither lane may edit `tests/uat/**`.
