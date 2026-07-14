@@ -6540,3 +6540,22 @@ ephemeral `/tmp` → run the exact-pin reconcile → verify 0.1.1 + nav → rest
 **Filed for tracking:** issue **#1057** (`module-reconcile.ts` exact-pin skip defect, Part of
 #860) — needs its own spec/PR under epic #860 per Scope Guardrails; not actioned by this run.
 Job-search-nav bug (original run trigger) is now **RESOLVED end-to-end** — Codex's lane is done.
+
+### FINAL CLOSURE — #1056 / job-search-nav — 2026-07-14
+
+Codex's own final wrap-up report (verified against GitHub, matches):
+- PR #1056 merged `ab57e542` (state=MERGED, confirmed via `gh pr view`); CI run `29355016050`
+  green; modules-registry run `29357201317` success.
+- Live artifact `job-search-0.1.1.tgz`, sha256 `e4a4b14b40ef668698a4d264562dbacf389bcb2e143489bb7f7522023a27e7d1`,
+  38289 bytes; nav correct.
+- Prod rollback-safe reconcile: `ensured=1 accepted=1 warnings=0`; restart healthy; startup
+  reconcile warnings=0, discovery `discovered=1/rejected=0`. DB: job-search enabled,
+  staged/purge/error fields clear; installed manifest 0.1.1 with nav.
+- Independent wrap-up gate: `VF_EXIT=0` (3317 unit + 1647 integration passed, 2 skipped each),
+  `AUDIT_EXIT=0`.
+- #1057 open in Backlog under #860 (confirmed via `gh issue view`, state=OPEN) for the exact-pin
+  skip defect. No direct image pull/deploy performed at any point.
+
+**Run status: this run's sole active thread (job-search-nav bug) is CLOSED.** Run
+2026-07-09-job-search-overnight is now fully idle — no build lanes, no open Codex work under this
+coordinator's tracking. #1050 remains parked per Ben (unchanged). Awaiting Ben's next direction.
