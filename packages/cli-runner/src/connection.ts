@@ -25,20 +25,27 @@ import {
   type RpcHandshakeFrame,
   type RpcInstallProviderParams,
   type RpcKillParams,
+  type RpcKillTerminalParams,
   type RpcLaunchParams,
   type RpcOk,
+  type RpcOpenTerminalParams,
   type RpcPollLoginParams,
   type RpcProbeProviderParams,
   type RpcProviderKind,
   type RpcReadNewParams,
   type RpcRequest,
-  type RpcSubmitLoginTokenParams
+  type RpcResizeTerminalParams,
+  type RpcSubmitLoginTokenParams,
+  type RpcWriteTerminalParams
 } from "@jarv1s/chat/live";
 
 import { BadSubmitAttemptError, NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
 import { InstallBadRequestError } from "./install-service.js";
 import { LoginBadRequestError } from "./login-service.js";
 import { isHandshakeFrame, stepHelloServer, type HelloServerState } from "./hello.js";
+// #1059 — owner terminal dispatch: TerminalHost owns the single active PTY; TerminalSink
+// is the shape the host calls back through to push async PTY output over THIS connection.
+import { TerminalHost, type TerminalSink } from "./terminal-host.js";
 
 /** A duplex byte sink/source — `net.Socket` satisfies this; tests inject a fake. */
 export interface ByteChannel {
@@ -52,6 +59,13 @@ export interface ConnectionDeps {
   readonly host: CliChatEngineHost;
   readonly bootId: string;
   readonly secret: string | undefined;
+  /**
+   * #1059 — owns the single active owner-terminal PTY for this cli-runner process. One
+   * TerminalHost is shared across ALL connections (constructed once in main.ts/server.ts),
+   * matching the "at most one live terminal" security model: a second connection opening a
+   * terminal evicts whichever session was open before, regardless of which socket owns it.
+   */
+  readonly terminalHost: TerminalHost;
   /** Optional debug logger; receives ONLY { method, id, sessionKey, bytes } (§6.4). */
   readonly log?: (line: {
     method?: string;
@@ -70,9 +84,35 @@ export function serveConnection(channel: ByteChannel, deps: ConnectionDeps): voi
   let closed = false;
   const hello: HelloServerState = { phase: "await-hello", serverNonce: "" };
 
+  // #1059 — per-connection push sink: PTY output/exit arrive on TerminalHost's own async
+  // callbacks (node-pty read events), NOT inside a request/response turn, so they must be
+  // written to THIS connection's channel directly via safeWrite rather than returned from
+  // `invoke`. base64 keeps raw (possibly non-UTF-8) PTY bytes JSON-safe on the wire (§3.2).
+  const pushSink: TerminalSink = {
+    data: (terminalId, bytes) =>
+      safeWrite(channel, {
+        t: "push",
+        bootId: deps.bootId,
+        channel: "terminalData",
+        terminalId,
+        dataB64: bytes.toString("base64")
+      }),
+    exit: (terminalId, exitCode) =>
+      safeWrite(channel, {
+        t: "push",
+        bootId: deps.bootId,
+        channel: "terminalExit",
+        terminalId,
+        exitCode
+      })
+  };
+
   const close = (): void => {
     if (closed) return;
     closed = true;
+    // #1059 — a dropped/closed socket must never leave an orphan PTY running: kill it
+    // BEFORE the `closed` guard would make this a no-op on a second close() call.
+    deps.terminalHost.killAll();
     try {
       channel.end();
     } catch {
@@ -131,7 +171,7 @@ export function serveConnection(channel: ByteChannel, deps: ConnectionDeps): voi
       }
 
       // Authenticated: every subsequent frame must be a request (§3.4).
-      void dispatchFrame(parsed, frameBytes, deps, channel, close);
+      void dispatchFrame(parsed, frameBytes, deps, channel, close, pushSink);
     }
   });
 }
@@ -141,7 +181,8 @@ async function dispatchFrame(
   frameBytes: number,
   deps: ConnectionDeps,
   channel: ByteChannel,
-  close: () => void
+  close: () => void,
+  pushSink: TerminalSink
 ): Promise<void> {
   if (!isRequest(parsed)) {
     // Unknown `t` discriminant / not a request post-handshake ⇒ malformed frame (§3.7).
@@ -159,7 +200,7 @@ async function dispatchFrame(
   });
 
   try {
-    const result = await invoke(req, deps.host);
+    const result = await invoke(req, deps.host, deps.terminalHost, pushSink);
     const ok: RpcOk = { t: "ok", id: req.id, bootId: deps.bootId, result };
     // §3.2/§4.4: an OK result (e.g. a pathological multi-MiB readNew) that would exceed
     // MAX_FRAME_BYTES must NOT throw into the close path — encodeFrame throws and the
@@ -187,7 +228,12 @@ function frameExceedsCap(frame: RpcFrame): boolean {
   return Buffer.byteLength(JSON.stringify(frame), "utf8") > MAX_FRAME_BYTES;
 }
 
-async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown> {
+async function invoke(
+  req: RpcRequest,
+  host: CliChatEngineHost,
+  terminalHost: TerminalHost,
+  pushSink: TerminalSink
+): Promise<unknown> {
   switch (req.method) {
     case "launch": {
       const key = requireSessionKey(req);
@@ -323,6 +369,37 @@ async function invoke(req: RpcRequest, host: CliChatEngineHost): Promise<unknown
         throw new BadRequestError("missing loginId");
       }
       return host.cancelLogin(p.provider, p.loginId);
+    }
+    // #1059 owner terminal — non-session verbs (no sessionKey, mirrors listLiveSessions):
+    // the terminal is a single instance-wide resource, not per-chat-session.
+    case "openTerminal": {
+      const p = req.params as RpcOpenTerminalParams;
+      // Validated here (not inside TerminalHost) so a bad request maps to bad_request
+      // WITHOUT ever reaching TerminalHost.open — same pattern as every other params
+      // guard in this switch (§3.7: semantically-invalid params ⇒ err, not a close).
+      if (!Number.isInteger(p.cols) || !Number.isInteger(p.rows) || p.cols <= 0 || p.rows <= 0) {
+        throw new BadRequestError("openTerminal cols/rows must be positive integers");
+      }
+      return terminalHost.open(p, pushSink);
+    }
+    case "writeTerminal": {
+      const p = req.params as RpcWriteTerminalParams;
+      if (typeof p.terminalId !== "string" || typeof p.dataB64 !== "string") {
+        throw new BadRequestError("writeTerminal requires terminalId + dataB64");
+      }
+      terminalHost.write(p);
+      return { ok: true };
+    }
+    case "resizeTerminal": {
+      // No params validation (task-4 spec): a stale/malformed terminalId is a no-op inside
+      // TerminalHost (forId() returns null), so there is nothing unsafe to guard here.
+      terminalHost.resize(req.params as RpcResizeTerminalParams);
+      return { ok: true };
+    }
+    case "killTerminal": {
+      // No params validation (task-4 spec) — kill is idempotent for an absent/unknown id.
+      terminalHost.kill(req.params as RpcKillTerminalParams);
+      return { ok: true };
     }
     default:
       throw new BadRequestError("unknown method");

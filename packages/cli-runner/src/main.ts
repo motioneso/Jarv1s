@@ -24,6 +24,7 @@ import { readProviderCredentialEnv } from "./provider-token-store.js";
 import { LoginService } from "./login-service.js";
 import { createSanitizedTmuxIo } from "./runner-io.js";
 import { CliRunnerServer } from "./server.js";
+import { TerminalHost } from "./terminal-host.js";
 
 export interface CliRunnerConfig {
   readonly socketPath: string;
@@ -146,11 +147,21 @@ export function createCliRunner(
     multiplexerUsable: () => tmuxAvailable()
   });
 
+  // #1059 — one TerminalHost per process (NOT per connection): the owner-terminal security
+  // model is "at most one live PTY for the whole cli-runner", so it lives at server-construction
+  // scope and is threaded into every accepted connection (see ConnectionDeps in connection.ts).
+  // toolsBinDir mirrors the installer's own `${toolsPrefix}/bin` convention (install-service.ts).
+  const terminalHost = new TerminalHost({
+    homeBase: config.homeBase,
+    toolsBinDir: `${config.toolsPrefix}/bin`
+  });
+
   return new CliRunnerServer({
     host,
     socketPath: config.socketPath,
     socketDir: dirname(config.socketPath),
     secret: config.rpcSecret,
+    terminalHost,
     log
   });
 }

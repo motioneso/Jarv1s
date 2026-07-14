@@ -23,6 +23,7 @@ import {
   type ByteChannel,
   type ConnectionDeps
 } from "../../packages/cli-runner/src/connection.js";
+import { TerminalHost } from "../../packages/cli-runner/src/terminal-host.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import {
   AGY_IDENTITY_FILENAME,
@@ -688,7 +689,15 @@ describe("§3.2/§4.4 oversize readNew", () => {
     });
 
     const channel = new FakeChannel();
-    const deps: ConnectionDeps = { host, bootId: OVERSIZE_BOOT, secret: RPC_SECRET };
+    // #1059 — ConnectionDeps now requires terminalHost; this suite never exercises the
+    // terminal RPC path (see cli-runner-terminal-rpc.test.ts for that), so a plain
+    // never-opened instance satisfies the type without adding behavior to these tests.
+    const deps: ConnectionDeps = {
+      host,
+      bootId: OVERSIZE_BOOT,
+      secret: RPC_SECRET,
+      terminalHost: new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" })
+    };
     serveConnection(channel, deps);
     authenticate(channel);
 
@@ -723,6 +732,7 @@ describe("§3.2/§4.4 oversize readNew", () => {
       host,
       bootId: OVERSIZE_BOOT,
       secret: RPC_SECRET,
+      terminalHost: new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" }),
       log: (line) => logged.push(line)
     };
     serveConnection(channel, deps);

@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TmuxIo } from "../../packages/ai/src/adapters/tmux-bridge.js";
 import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
 import { serveConnection, type ByteChannel } from "../../packages/cli-runner/src/connection.js";
+import { TerminalHost } from "../../packages/cli-runner/src/terminal-host.js";
 import {
   RpcConnection,
   ChatEngineRpcClient
@@ -103,7 +104,10 @@ describe("#744 purgeTranscripts over the real RPC path", () => {
       serveConnection(socket as unknown as ByteChannel, {
         host,
         bootId: BOOT_ID,
-        secret: RPC_SECRET
+        secret: RPC_SECRET,
+        // #1059 — ConnectionDeps now requires terminalHost; this suite never touches the
+        // terminal RPC path, so a plain never-opened instance satisfies the type.
+        terminalHost: new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" })
       });
     });
     await new Promise<void>((resolve, reject) => {
@@ -155,7 +159,10 @@ describe("#744 purgeTranscripts over the real RPC path", () => {
       serveConnection(socket as unknown as ByteChannel, {
         host,
         bootId: BOOT_ID,
-        secret: RPC_SECRET
+        secret: RPC_SECRET,
+        // #1059 — ConnectionDeps now requires terminalHost; this suite never touches the
+        // terminal RPC path, so a plain never-opened instance satisfies the type.
+        terminalHost: new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" })
       });
     });
     await new Promise<void>((resolve, reject) => {

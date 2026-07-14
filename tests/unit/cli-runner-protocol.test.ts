@@ -27,6 +27,7 @@ import {
   type ConnectionDeps
 } from "../../packages/cli-runner/src/connection.js";
 import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+import { TerminalHost } from "../../packages/cli-runner/src/terminal-host.js";
 import { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
 
 const SECRET = "test-rpc-secret";
@@ -182,7 +183,15 @@ function authenticate(channel: FakeChannel): void {
 
 describe("serveConnection (§3.4/§3.7)", () => {
   function deps(host = fakeHost()): ConnectionDeps {
-    return { host, bootId: BOOT, secret: SECRET };
+    // #1059 — ConnectionDeps now requires terminalHost; this suite is scoped to the
+    // pre-existing chat protocol methods, so a plain never-opened instance satisfies
+    // the type without adding terminal-RPC behavior to these tests.
+    return {
+      host,
+      bootId: BOOT,
+      secret: SECRET,
+      terminalHost: new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" })
+    };
   }
 
   it("listLiveSessions round-trips after a successful handshake", async () => {

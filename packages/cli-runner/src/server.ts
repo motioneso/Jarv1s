@@ -16,9 +16,12 @@ import { randomUUID } from "node:crypto";
 
 import { serveConnection, type ByteChannel } from "./connection.js";
 import type { CliChatEngineHost } from "./engine-host.js";
+import type { TerminalHost } from "./terminal-host.js";
 
 export interface CliRunnerServerDeps {
   readonly host: CliChatEngineHost;
+  /** #1059 — the single owner-terminal PTY manager, shared across every accepted connection. */
+  readonly terminalHost: TerminalHost;
   /** Absolute socket path (`JARVIS_CLI_RUNNER_SOCKET`, §3.1). */
   readonly socketPath: string;
   /** The directory the socket MUST resolve under (`/run/jarv1s` default, §3.1). */
@@ -119,7 +122,8 @@ export class CliRunnerServer {
     serveConnection(channel, {
       host: this.deps.host,
       bootId: this.bootId,
-      secret: this.deps.secret
+      secret: this.deps.secret,
+      terminalHost: this.deps.terminalHost
     });
   }
 
