@@ -6500,3 +6500,14 @@ confirm, it acknowledged standing down, reaped.
 pane `w1:pNF` (resolve fresh at read time — pane numbers are not stable). Run remains otherwise
 idle; no new work authorized. Holding the lock, answering Ben's questions, tracking Codex's
 job-search-nav fix (0.1.1 bump) to completion without duplicating it.
+
+### Codex lane tracking — PR #1056 (job-search-nav fix, Codex-owned, w1:pNE)
+
+2026-07-14: PR #1056 "fix(modules): publish Job Search 0.1.1" (0.1.1 bump + publisher guard +
+docs) is open, `MERGEABLE`. CI run `29355016050` in progress at last check. Codex's stated plan
+(tracking only, not directing): merge after green → wait for registry publication → use the
+supported JarvisProd Compose reconcile path (no direct image deployment) → verify nav appears.
+Broader downloaded-module manifest-resolver parity explicitly deferred to its own sensitive-tier
+spec under epic #860 — consistent with prior guidance, no coordinator action needed. This is
+Codex's own lane end-to-end (build, merge, deploy-verify) — I am not spawning QA or merging it;
+just tracking to closure for the run digest.
