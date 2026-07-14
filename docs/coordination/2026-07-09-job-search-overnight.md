@@ -6191,3 +6191,8 @@ idle) — #1049 recapture waits on UX's corrected-head CI-green + explicit UX go
 superseded. #1050 blocked. Reap only on UX's explicit ping.
 
 **Lock:** Coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f` (unchanged; in-place compact).
+
+**SIGN-OFF UPDATE (Ben, 2026-07-14):** "even if fable fails, have gpt-5.6-sol xhigh review" →
+cross-model review fallback chain is now **Fable → (if Fable fails) Codex `gpt-5.6-sol` at xhigh
+effort**, NOT AGY. Security-tier sign-off = Opus adversarial QA GREEN + cross-model review GREEN
+(Fable, else gpt-5.6-sol xhigh). Never skip the cross-model lens on a Fable failure.
