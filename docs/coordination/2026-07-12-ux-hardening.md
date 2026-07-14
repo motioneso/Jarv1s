@@ -1719,3 +1719,21 @@ resume from this note before taking any merge-sensitive action.
   accepted nor waived. GitHub confirms zero behind `main` and 21 approved/plan-listed product/test
   paths. Fresh CI run `29361825235` and exact-head Webwright UAT task `/root/uat_1058_live_v3` are
   running. Sensitive QA cycle 2 starts only after CI green; another RED is STOP-THE-LINE.
+
+## Continuation note — 2026-07-14 compacted coordinator relay
+
+- The compaction tripwire fired for current `UX Coordinator` Codex session
+  `019f6186-4d43-7f22-9e6a-6a368a1d4c89`; it merged nothing after the trigger. Its successor must
+  adopt the delegated-lane-owner authority block using its own immutable `agent_session.value`,
+  reset `merges_since_relay` to `0`, commit and push, confirm it is driving, then fresh-resolve and
+  close only this spent session by exact `UX Coordinator Relay Old` label plus session id. Never
+  trust a written pane number and never reap or interfere with the separate primary `Coordinator`.
+- PR #1058 remains the immediate gate at exact head
+  `9604babd2fb177d80c2ee44e88510da4b87d9c9a`. CI run `29361825235` and exact-head Webwright UAT v3
+  task `/root/uat_1058_live_v3` were running at handoff. Fresh sensitive QA cycle 2 must start only
+  after full CI green and must post a durable PR verdict. A second QA RED is STOP-THE-LINE. No
+  UAT, QA, integration, merge, or issue-closure claim has been made on this head.
+- After #1058, #995 is newly unblocked and #993 also has an approved plan; coordinate their exact
+  order from current GitHub source of truth and collision state. #1002 follows the settled UI, #988
+  is the final acceptance pass, and #1003 is future scope rather than a closure blocker. PR #1050
+  remains parked with Ben. The separate primary Coordinator boundary remains in force.
