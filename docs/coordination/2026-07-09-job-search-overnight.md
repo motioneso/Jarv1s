@@ -6122,3 +6122,18 @@ VF PASSED (15m57s — poller bb0l0bs1r timed out only because VF ran long, not a
 
 ### 13i.5 — #1040/PR#1051 council COMPLETE 2026-07-13
 Fable cross-model QA (agent fable-qa-1051) = **GREEN, MERGE-READY: YES, 0 blocking** (no usage death). Posted PR #1051 comment `4966065450`. Re-proved all 4 fence claims file:line: cli.ts:16 throws w/o token; sole `=1` setter provisioner.ts:188; prod compose token empty (docker-compose.prod.yml:101, `environment:` overrides env_file) + seed svc profiles:["ops"] inert; admin.ts:21 re-checks at log site. Only hardcoded public fixture email+password reach sink; scrypt hash DB-only. 1 NON-blocking: admin.test.ts fence tests run in NO CI lane (VF=unit+integration only; run-uat.ts Playwright-only) → follow-up: move DB-free describe to tests/unit (file at merge, ref #1040/PR#1051). Council = Opus GREEN + Fable GREEN + CI green. **HELD for Ben security sign-off only.**
+
+## Checkpoint 13j — 2026-07-13 (combined UAT closeout + #1040 hold)
+
+**Combined #1000 live-UAT (PRs #1049/#1050) — COMPLETE, evidence relayed to UX.**
+- Sanity-checked REAL on disk: #1049 → 4 PNGs + run.log (237 lines, clean teardown) + 2 failed-attempt dirs in `artifacts/uat/1049-63ccf923/`; PR comment 4966075818 (motioneso, 2112 chars). #1050 → run.log (344 lines) + cli-persona-dogfood.log (10 lines) + 2 failed-driver dirs in `artifacts/uat/1050-0b280f51/`; PR comment 4966075807 (motioneso, 2500 chars).
+- **#1049 = PASS** at frozen `63ccf923`; prior 2 failures = evidence-driver hidden Switch-input, NOT nav/feature.
+- **#1050 = BLOCKED / NOT EXERCISED, zero feature FAILs** at frozen `0b280f51`; invalid-tier driver 400 then strict-locator ambiguity on the one approved retry; hard cap obeyed.
+- Relayed to UX Coordinator (session `019f5ee8`, pMW). **UX confirmed HOLD:** keep worktree `.claude/worktrees/uat-1049-1050-combined` + pMZ pane INTACT — independent #1049 QA session `019f5f54-d396-7812-9dfb-5e14646a6200` may inspect the PNGs/run.log. **Reap ONLY on UX's explicit ping.** #1050 stays blocked (no QA/merge from me). UX retains #1049/#1050 QA+merge ownership.
+- pMZ (`UAT 1049+1050 Relay Sol`, session `019f5f46`) = done/idle, PRESERVED (do not reap).
+
+**#1040 / PR #1051 — still HELD for Ben's security merge sign-off.** Council complete (Opus GREEN + Fable GREEN + CI fully green). This is epic #1000's last child. See AWAITING-BEN.md.
+
+**Ben interaction this window:** asked for a 48h marketing-style summary (delivered, non-technical, grouped by feature). Not a merge sign-off.
+
+**Continuation note:** Coordinator compacting IN PLACE (Ben override — no successor spawn). Live holds: (1) #1040/PR#1051 → Ben merge OK; (2) UAT worktree → UX reap ping. No open build lanes. Backlog (gpt-5.6-sol, none Ben-blocked): #965, #1018, #1047.
