@@ -96,7 +96,7 @@ export async function sendModuleJob(
   module: { readonly id: string; readonly manifestHash: string },
   queue: ExternalModuleQueueDeclaration,
   command: { readonly jobKind: string; readonly params?: Readonly<Record<string, unknown>> },
-  options?: Pick<SendOptions, "singletonKey">
+  options?: Pick<SendOptions, "singletonKey" | "singletonSeconds">
 ): Promise<string | null> {
   const payload: ExternalModuleJobPayload = {
     actorUserId: access.actorUserId,
