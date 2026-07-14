@@ -5959,3 +5959,32 @@ file (UX Coord reservation). Exit criterion: prove lookup fires on a #999-shaped
 **NEXT:** approve P4 plan when it arrives → build → sensitive QA → manual merge → epic #1000 done
 (then #1040 dev-cred-seed as gpt-5.6-sol). main post-#1041 run `29303616295`.
 Lock: session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
+
+## Checkpoint 2026-07-13d — P4 #1027 fork resolved (fold-in ruling)
+
+Build agent `UAT Coordinate 1027` (pane `w1:pMN`, session `019f5eae`, tab `w1:t22`,
+Codex `gpt-5.6-sol high`) surfaced a **stale-P3-premise fork** instead of a plan:
+- `tests/uat/specs/job-search-install.uat.spec.ts` has **no `uatLevel` §5 export**.
+- `run-uat.ts` **ignores the forwarded spec filter** + **hardcodes admin+data seed and a
+  job-search exclusion** → `pnpm test:uat -- <spec>` can't run a single resolved spec.
+
+**Ruling (Coordinator, no Ben/Opus — exit criterion decides it):** FOLD the minimal repair
+into #1027; Phase4-only was rejected because #1027's locked exit criterion requires the
+#999-diff proof to *actually run* the resolved spec (resolver-that-can't-execute = the exact
+review-green/runtime-broken failure #1000 kills).
+- REQUIRED: `run-uat.ts` honors the spec filter + drops/parameterizes the job-search
+  exclusion; keep the admin+data seed default (already serves job-search).
+- OPTIONAL (defer to follow-up bug #1047 unless trivial): §5 `uatLevel` export + per-spec
+  seed-tier selection — resolver keys on path→spec, not on the export, so not required for
+  the exit criterion.
+- Boundaries unchanged: surgical (`tests/uat/**`, `.claude/skills/coordinate/**`,
+  `.claude/agents/coordinated-qa.md`); NO P1/P2 re-architecture; do NOT touch
+  `settings-module-registry-section.tsx`; STOP-and-ask if the repair reaches P1/P2.
+- Fork message == its plan (matched spec §7/§8.4) → ruling doubles as plan approval; told it
+  to code now, no separate plan gate.
+
+**Filed bug #1047** (P3 harness gap; Part of #1000) for audit trail of the bigger-than-handoff
+diff. PR to reference: #1026 origin + #1047 + Closes #1027 + Part of #1000.
+
+Status: P4 `building`. Monitors `b64t627m9` (main-VF post-#1041) + `b0i79nkvu` (P4 PR/pMN
+backstop) still armed. AWAITING-BEN empty. This is the final serialized UAT phase → merge = **epic #1000 DONE**.
