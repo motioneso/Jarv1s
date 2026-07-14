@@ -1618,3 +1618,16 @@ resume from this note before taking any merge-sensitive action.
   cycles pending Ben's file-scope direction; idle owner `UX 987 Plan Sol` session
   `019f5e9b-c003-7350-acba-258a601e308b`. PR #1008 is draft and must be assessed from GitHub source
   of truth for whether it is superseded before any ready/merge action.
+- Successor `UX Coordinator` is driving as Codex session
+  `019f6186-4d43-7f22-9e6a-6a368a1d4c89` from full relay checkpoint `4246a39a`; authority adoption
+  commit `df8810ed` is pushed and `merges_since_relay` is `0`. The spent `UX Coordinator Relay Old`
+  session `019f5fc7-4cac-7760-8e3a-9f5d766c5862` was fresh-resolved by exact label plus session and
+  closed. The separate primary `Coordinator` remains protected.
+- GitHub source of truth confirms PR #1008 is fully superseded: the #986/#989/#990 spec blobs are
+  byte-identical on `main`, and its older #987 spec is replaced by draft PR #1044. PR #1008 was
+  closed unmerged with durable explanation
+  `https://github.com/motioneso/Jarv1s/pull/1008#issuecomment-4971755847`.
+- PR #1050 remains draft and parked with Ben at head `8a976ecd5621f5ed141832a801d32231eb181a6f`;
+  no product edit, proof retry, QA, or merge was started. PR #1044 remains draft/STOP-THE-LINE at
+  head `025217960e5c8921656b10e8a2168ff9afa268e0`; no scope edit, QA cycle, ready action, or merge was
+  started pending Ben's direction.
