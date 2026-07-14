@@ -6,7 +6,7 @@
 **Risk tier:** sensitive
 **Worktree:** `~/Jarv1s/.claude/worktrees/ux-991-assistant-priorities-build`
 **Branch:** `ux/991-assistant-priorities-build`
-**Builder:** Terra (`gpt-5.6-terra`) at medium reasoning
+**Builder:** Luna (`gpt-5.6-luna`) at medium reasoning
 **Coordinator and merge authority:** label `UX Coordinator`, session
 `019f5dc2-8bd9-78b2-827f-67bd9a99e6c9`
 **Build skill:** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
@@ -16,6 +16,9 @@
 Sol already wrote the plan and the coordinator approved it. Verify the plan's premises against this
 branch, then execute it directly with TDD; do not rewrite the plan or wait for another plan gate.
 Escalate any stale premise or genuine fork before code.
+
+The stopped predecessor left focused uncommitted changes. Review and test that diff before
+continuing; preserve valid work and report anything that conflicts with the approved plan.
 
 ## Collision boundary
 
