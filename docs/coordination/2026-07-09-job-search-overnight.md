@@ -6234,3 +6234,24 @@ boundary unchanged: I do NOT reap UX; UX closes only spent `019f5ee8` and does N
 Coordinator `58a78927-385c-4b1d-8fa0-94db20255d6f`. Resolve UX by label at send time (session id
 churns on their relays). No effect on my lanes: Lane A PR #1052 mid-QA (agent a6307b5c) + CI-waiter
 bo0202w70; Lane B #1030 releases on that merge.
+
+## LANE A MERGED + LANE B RELEASED — 2026-07-14
+**Lane A (#1047+#1034) MERGED** ✓ squash `e0553ed5` (routine). QA agent a6307b5c GREEN (0 blocking,
+invariants ok, #1040 fence byte-for-byte preserved, verdict PR#1052 issuecomment-4967162570); CI
+green (VF pass 19m5s + both compose smokes pass; image-publish non-required). Session-id 58a78927
+authoritative. Issues #1047+#1034 closed w/ merge ref; boards auto-Done (#1047 verified Done);
+pane w1:pN2 reaped; worktree uat-plumbing-1047-1034 removed; branch deleted. **merges_since_relay
+=1** (routine — relay at 2; no relay yet). origin/main now `e0553ed5`.
+
+**Lane B (#1030 multi-user seed tier) SPAWNED** — serialized behind A (both touch tests/uat/ +
+provisioner.ts). Worktree `.claude/worktrees/uat-1030-multiuser` branch `uat-1030-multiuser` off
+origin/main `e0553ed5`; handoff `docs/superpowers/handoffs/2026-07-14-uat-1030-multiuser.md`
+committed `35f2642c` (prettier'd). Build agent **"UAT 1030 Multiuser Sol"** = Codex gpt-5.6-sol,
+pane **w1:pN7**, session **`019f5fda-a6f9-79b3-a0f5-e42b472bbafb`**, tab w1:t26 (moved to
+coord-agents). Status: working, awaiting PLAN escalation to my label.
+**Tier call:** issue self-labels `sensitive` but I QA at the **security bar** (cross-user RLS
+isolation is the defining risk; issue itself asks for "focused security QA"). Scope: replace the
+`throw` at `tests/uat/seed/levels.ts:61-66` with real multi-user seeding — ≥2 owners, per-owner
+data under each owner's OWN AccessContext (no RLS carve-out / no BYPASSRLS), ≥1 cross-owner share
+via real grant API, deterministic, idempotent. **Sign-off:** Opus adversarial QA GREEN + cross-model
+(Fable, else gpt-5.6-sol xhigh) GREEN = sign-off; no manual Ben gate (overnight autonomy).
