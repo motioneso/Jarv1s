@@ -1,0 +1,93 @@
+// #1059 — owns AT MOST ONE live owner terminal. Opening a new one evicts the prior
+// (single active session, per the security model). Idle timeout hard-kills the PTY.
+import { randomUUID } from "node:crypto";
+import { TerminalSession, type TerminalSessionOptions } from "./terminal-session.js";
+import type {
+  RpcOpenTerminalParams,
+  RpcOpenTerminalResult,
+  RpcWriteTerminalParams,
+  RpcResizeTerminalParams,
+  RpcKillTerminalParams
+} from "@jarv1s/chat/live";
+
+export interface TerminalSink {
+  data(terminalId: string, bytes: Buffer): void;
+  exit(terminalId: string, code: number): void;
+}
+export interface TerminalHostDeps {
+  readonly homeBase: string;
+  readonly toolsBinDir: string;
+  readonly idleMs?: number;
+  readonly makeSession?: (o: TerminalSessionOptions) => TerminalSession;
+}
+
+const DEFAULT_IDLE_MS = 10 * 60 * 1000; // 10 min, spec
+
+export class TerminalHost {
+  private session: TerminalSession | null = null;
+  private idleTimer: NodeJS.Timeout | null = null;
+
+  constructor(private readonly deps: TerminalHostDeps) {}
+
+  open(params: RpcOpenTerminalParams, sink: TerminalSink): RpcOpenTerminalResult {
+    this.killAll(); // evict any prior — single active session
+    const id = randomUUID();
+    const make = this.deps.makeSession ?? ((o) => new TerminalSession(o));
+    const session = make({
+      id,
+      cols: params.cols,
+      rows: params.rows,
+      homeBase: this.deps.homeBase,
+      toolsBinDir: this.deps.toolsBinDir
+    });
+    session.onData((bytes) => {
+      this.touch();
+      sink.data(id, bytes);
+    });
+    session.onExit((code) => {
+      sink.exit(id, code);
+      this.clear(id);
+    });
+    this.session = session;
+    this.armIdle();
+    return { terminalId: id };
+  }
+
+  write(params: RpcWriteTerminalParams): void {
+    this.forId(params.terminalId)?.write(Buffer.from(params.dataB64, "base64"));
+    this.touch();
+  }
+  resize(params: RpcResizeTerminalParams): void {
+    this.forId(params.terminalId)?.resize(params.cols, params.rows);
+  }
+  kill(params: RpcKillTerminalParams): void {
+    this.clear(params.terminalId);
+  }
+  killAll(): void {
+    if (this.session) this.clear(this.session.id);
+  }
+
+  private forId(id: string): TerminalSession | null {
+    return this.session && this.session.id === id ? this.session : null;
+  }
+  private clear(id: string): void {
+    if (this.session && this.session.id === id) {
+      this.session.kill();
+      this.session = null;
+      if (this.idleTimer) {
+        clearTimeout(this.idleTimer);
+        this.idleTimer = null;
+      }
+    }
+  }
+  private armIdle(): void {
+    const ms = this.deps.idleMs ?? DEFAULT_IDLE_MS;
+    this.idleTimer = setTimeout(() => this.killAll(), ms);
+  }
+  private touch(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.armIdle();
+    }
+  }
+}
