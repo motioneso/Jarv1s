@@ -17,8 +17,13 @@ Lock: Coordinator session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
   own token re-check). Only the public throwaway fixture email+password is logged — never a real
   secret/hash. **This is epic #1000's LAST child — merging it closes #1000.** **CI now FULLY GREEN**
   (VF 15m57s + both compose smokes + image build all pass; `mergeable=CLEAN`, head `f6be3991`).
-  Opus security QA GREEN. **Only thing left = your merge sign-off.** On your OK I merge MANUALLY
-  (`gh pr merge 1051 --squash --delete-branch`, never --auto), then close #1040 + epic #1000.
+  **Council complete: Opus security QA GREEN + Fable cross-model QA GREEN (MERGE-READY: YES, 0
+  blocking; PR #1051 comment 4966065450)** — Fable independently re-proved all 4 fence claims with
+  file:line. One NON-blocking follow-up (file at merge): `admin.test.ts` fence tests run in no CI
+  lane (VF=unit+integration; run-uat.ts Playwright-only) → move the DB-free describe to `tests/unit`
+  so it doesn't rot. **Only thing left = your merge sign-off.** On your OK I merge MANUALLY
+  (`gh pr merge 1051 --squash --delete-branch`, never --auto), close #1040 + epic #1000, file the
+  test-placement follow-up.
 
 ## Cleared (log)
 
