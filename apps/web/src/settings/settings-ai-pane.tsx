@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CornerDownRight, PencilLine, GitCommitHorizontal } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getChatModelOverrideSettings,
@@ -14,24 +14,23 @@ import {
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import {
+  applyGuidedPersonaText,
+  createPersonaDraft,
+  discardPersonaDraft,
+  personaDraftIsDirty,
   personaSeedText,
   personaSample,
   type DirectnessDial,
   type HumorDial,
+  type PersonaDraft,
+  type PersonaSnapshot,
   type RecoveryDial,
   type ToneDial
 } from "./settings-persona-preview";
 import { type PaneProps } from "./settings-types";
 import { Choice, Field, Group, Note, PaneHead, Row, Select, Switch } from "./settings-ui";
 
-interface PersonaState {
-  assistantName: string;
-  personaText: string;
-  tone: ToneDial;
-  directness: DirectnessDial;
-  humor: HumorDial;
-  recovery: RecoveryDial;
-}
+type PersonaState = PersonaDraft;
 
 const DEFAULT_DESCRIPTION =
   "Be direct and a little dry: skip the pep talks. Hold me to commitments I've actually made, but ease off when I've had a rough day. Lead with what matters and keep it short.";
@@ -43,19 +42,20 @@ const DEFAULT_PERSONA_DIALS = {
 } satisfies Pick<PersonaState, "tone" | "directness" | "humor" | "recovery">;
 
 function initialPersona(): PersonaState {
-  return {
-    assistantName: "Jarvis",
-    personaText: DEFAULT_DESCRIPTION,
-    ...DEFAULT_PERSONA_DIALS
-  };
+  return createPersonaDraft(
+    { assistantName: "Jarvis", personaText: DEFAULT_DESCRIPTION },
+    DEFAULT_PERSONA_DIALS
+  );
 }
 
 function Persona({ who }: { readonly who: string }) {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
   const [p, setP] = useState<PersonaState>(initialPersona);
-  const [saved, setSaved] = useState<PersonaState>(p);
+  const [saved, setSaved] = useState<PersonaSnapshot>(p);
+  const [mode, setMode] = useState<"authored" | "guided">("authored");
   const [rev, setRev] = useState(0);
+  const receivedInitialSnapshot = useRef(false);
   const set = <K extends keyof PersonaState>(k: K, v: PersonaState[K]) =>
     setP((s) => ({ ...s, [k]: v }));
   const personaQuery = useQuery({
@@ -65,17 +65,14 @@ function Persona({ who }: { readonly who: string }) {
   });
   useEffect(() => {
     if (!personaQuery.data) return;
-    const next: PersonaState = {
-      assistantName: personaQuery.data.persona.assistantName,
-      personaText: personaQuery.data.persona.personaText,
-      ...DEFAULT_PERSONA_DIALS
-    };
+    if (receivedInitialSnapshot.current) return;
+    const next = createPersonaDraft(personaQuery.data.persona, DEFAULT_PERSONA_DIALS);
     setP(next);
-    setSaved(next);
+    setSaved(personaQuery.data.persona);
+    receivedInitialSnapshot.current = true;
     setRev((r) => r + 1);
   }, [personaQuery.data]);
-  const dirty =
-    p.assistantName !== saved.assistantName || p.personaText.trim() !== saved.personaText.trim();
+  const dirty = personaDraftIsDirty(p, saved);
   const sample = useMemo(() => personaSample(p, who), [p, who]);
   const seedText = useMemo(() => personaSeedText(p), [p]);
 
@@ -97,7 +94,7 @@ function Persona({ who }: { readonly who: string }) {
         recovery: p.recovery
       };
       setP(next);
-      setSaved(next);
+      setSaved(result.persona);
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings.persona });
       toast("Persona saved. Your next briefing and replies will use this voice.", {
         icon: <GitCommitHorizontal size={17} />
@@ -122,10 +119,17 @@ function Persona({ who }: { readonly who: string }) {
   });
 
   const discard = () => {
-    setP(saved);
+    setP(discardPersonaDraft(saved, p));
     setRev((r) => r + 1);
   };
-  const applySeed = () => set("personaText", seedText);
+  const applySeed = () => {
+    if (
+      p.personaText.trim() !== saved.personaText.trim() &&
+      !window.confirm("Replace your edited persona text with the guided draft?")
+    )
+      return;
+    setP((draft) => applyGuidedPersonaText(draft, draft));
+  };
   const previewReply = previewMutation.data?.reply;
 
   return (
@@ -144,56 +148,85 @@ function Persona({ who }: { readonly who: string }) {
           aria-label="Assistant name"
         />
       </Field>
-      <Field
-        label="In your own words"
-        hint="How should Jarvis interact with you? Its style, what to lean into, what to avoid."
-      >
-        <textarea
-          className="jds-textarea"
-          rows={3}
-          value={p.personaText}
-          onChange={(e) => set("personaText", e.target.value)}
-          aria-label="Persona"
-          placeholder="e.g. Be direct and a little dry. Skip the pep talks. Push me on commitments, but ease off on a rough day."
-        />
+      <Field label="How to set your persona" hint="Switching methods keeps your current draft.">
+        <span className="psona-save__acts">
+          <button
+            type="button"
+            aria-pressed={mode === "authored"}
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={() => setMode("authored")}
+          >
+            Write it yourself
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "guided"}
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={() => setMode("guided")}
+          >
+            Use guided dials
+          </button>
+        </span>
       </Field>
-      <Choice
-        key={`tone${rev}`}
-        label="Tone"
-        value={p.tone}
-        options={["Warm", "Neutral", "Crisp"]}
-        onChange={(v) => set("tone", v as ToneDial)}
-      />
-      <Choice
-        key={`dir${rev}`}
-        label="Directness"
-        value={p.directness}
-        options={["Gentle", "Balanced", "Direct"]}
-        onChange={(v) => set("directness", v as DirectnessDial)}
-      />
-      <Choice
-        key={`hum${rev}`}
-        label="Humor"
-        value={p.humor}
-        options={["None", "Dry", "Playful"]}
-        onChange={(v) => set("humor", v as HumorDial)}
-      />
-      <Choice
-        key={`rec${rev}`}
-        label="Recovery & accountability"
-        hint="How Jarvis responds when you fall behind. Never shaming: that's a promise of the product."
-        value={p.recovery}
-        options={["Encouraging", "Matter-of-fact", "Firm"]}
-        onChange={(v) => set("recovery", v as RecoveryDial)}
-      />
-      <Field
-        label="Apply dials"
-        hint="Overwrites the text above with a description built from these dials."
-      >
-        <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={applySeed}>
-          Use dials for text
-        </button>
-      </Field>
+      {mode === "authored" ? (
+        <Field
+          label="In your own words"
+          hint="How should Jarvis interact with you? Its style, what to lean into, what to avoid."
+        >
+          <textarea
+            className="jds-textarea"
+            rows={3}
+            value={p.personaText}
+            onChange={(e) => set("personaText", e.target.value)}
+            aria-label="Persona"
+            placeholder="e.g. Be direct and a little dry. Skip the pep talks. Push me on commitments, but ease off on a rough day."
+          />
+        </Field>
+      ) : (
+        <>
+          <Choice
+            key={`tone${rev}`}
+            label="Tone"
+            value={p.tone}
+            options={["Warm", "Neutral", "Crisp"]}
+            onChange={(v) => set("tone", v as ToneDial)}
+          />
+          <Choice
+            key={`dir${rev}`}
+            label="Directness"
+            value={p.directness}
+            options={["Gentle", "Balanced", "Direct"]}
+            onChange={(v) => set("directness", v as DirectnessDial)}
+          />
+          <Choice
+            key={`hum${rev}`}
+            label="Humor"
+            value={p.humor}
+            options={["None", "Dry", "Playful"]}
+            onChange={(v) => set("humor", v as HumorDial)}
+          />
+          <Choice
+            key={`rec${rev}`}
+            label="Recovery & accountability"
+            hint="How Jarvis responds when you fall behind. Never shaming: that's a promise of the product."
+            value={p.recovery}
+            options={["Encouraging", "Matter-of-fact", "Firm"]}
+            onChange={(v) => set("recovery", v as RecoveryDial)}
+          />
+          <Field
+            label="Apply dials"
+            hint="Overwrites the text above with a description built from these dials."
+          >
+            <button
+              type="button"
+              className="jds-btn jds-btn--quiet jds-btn--sm"
+              onClick={applySeed}
+            >
+              Use dials for text
+            </button>
+          </Field>
+        </>
+      )}
 
       <div className="ppv">
         <div className="ppv__hd">
@@ -201,7 +234,7 @@ function Persona({ who }: { readonly who: string }) {
           How {p.assistantName || "Jarvis"} would sound
         </div>
         <div className="ppv__bubble ppv__bubble--main">
-          <div className="ppv__cap">{previewReply ? "Voice preview" : "Morning briefing"}</div>
+          <div className="ppv__cap">{previewReply ? "Response preview" : "Morning briefing"}</div>
           <p className="ppv__say">{previewReply ?? sample.greeting}</p>
         </div>
         {previewReply ? null : (
@@ -232,7 +265,7 @@ function Persona({ who }: { readonly who: string }) {
             onClick={() => previewMutation.mutate()}
             disabled={previewMutation.isPending || personaQuery.isLoading}
           >
-            {previewMutation.isPending ? "Previewing" : "Preview voice"}
+            {previewMutation.isPending ? "Previewing" : "Preview response"}
           </button>
           {dirty ? (
             <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={discard}>
@@ -309,7 +342,9 @@ function ChatModel() {
                 }
                 aria-label="Chat model"
               >
-                <option value="default">Instance default · {defaultModel.providerModelId}</option>
+                <option value="default">
+                  Automatic (admin default) · {defaultModel.providerModelId}
+                </option>
                 {selectableOverrideModels.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.providerDisplayName} · {m.providerModelId}
@@ -320,7 +355,7 @@ function ChatModel() {
           ) : (
             <Row
               name="Powering your chat"
-              desc={`${defaultModel.providerDisplayName} · ${defaultModel.providerModelId} — locked to the instance default by your admin.`}
+              desc={`${defaultModel.providerDisplayName} · ${defaultModel.providerModelId} — Managed by admin.`}
             />
           )}
           <Note>
@@ -376,14 +411,14 @@ function YoloMode() {
   return (
     <Group
       title="YOLO mode"
-      desc="Auto-approve every chat action without asking — including deletes."
+      desc="Your personal approval preference for interactive chat. The instance owner controls whether it can take effect."
     >
       <Row
         name="Auto-approve actions"
         desc={
           state.instanceEnabled
-            ? "Applies only to interactive chat. Background work still uses its own policy."
-            : "The instance master switch is off. Your preference is saved but inert."
+            ? "Effective state: enabled for interactive chat. Background work still uses its own policy."
+            : "Effective state: inactive because the instance owner has disabled YOLO. Your preference remains saved."
         }
         control={
           <Switch

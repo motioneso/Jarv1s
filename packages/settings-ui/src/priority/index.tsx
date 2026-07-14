@@ -1,28 +1,42 @@
-/**
- * Priority settings pane.
- *
- * User-editable priority model: mode, anchors, muted sources.
- */
+/** Priority settings: one local draft, saved through the existing priority DTO. */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import type { PriorityModelPreferenceV1, PriorityAnchor } from "@jarv1s/priority";
+import { useEffect, useState } from "react";
+import type { PriorityModelPreferenceV1, PriorityAnchor, PrioritySource } from "@jarv1s/priority";
 import { Badge, Field, Group, Note, PaneHead, Row, Select, Switch } from "../index.js";
 
-const VALID_KINDS = ["project", "person", "domain", "goal", "obligation"] as const;
-const VALID_SOURCES = ["tasks", "calendar", "email", "notes", "memory", "wellness"] as const;
-/**
- * Sources no active consumer feeds into priority ranking. Muting them is stored
- * but has no effect yet.
- */
-const UNWIRED_SOURCES: ReadonlySet<string> = new Set(["memory", "wellness"]);
+const VISIBLE_SOURCES = ["tasks", "calendar", "email", "notes"] as const;
 const VALID_WEIGHTS = [-2, -1, 0, 1, 2] as const;
+const WEIGHT_LABELS = ["Much lower", "Lower", "Neutral", "Higher", "Much higher"] as const;
+
+export function priorityWeightLabel(weight: PriorityAnchor["weight"]): string {
+  return WEIGHT_LABELS[weight + 2] ?? "Neutral";
+}
 
 function titleCase(value: string): string {
   return value
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function sameDraft(a: PriorityModelPreferenceV1, b: PriorityModelPreferenceV1): boolean {
+  const normalize = (model: PriorityModelPreferenceV1) => ({ ...model, updatedAt: "" });
+  return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+}
+
+export function priorityDraftValidation(model: PriorityModelPreferenceV1): string | null {
+  return model.anchors.some((anchor) => !anchor.label.trim())
+    ? "Give each priority a label before saving."
+    : null;
+}
+
+export function prioritySourceIncluded(
+  model: PriorityModelPreferenceV1,
+  source: PrioritySource
+): boolean {
+  return !model.mutedSources.includes(source);
 }
 
 interface PrioritySettingsProps {
@@ -40,6 +54,16 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
       return res.json();
     }
   });
+  const [draft, setDraft] = useState<PriorityModelPreferenceV1 | null>(model ?? null);
+  const [saved, setSaved] = useState<PriorityModelPreferenceV1 | null>(model ?? null);
+  const [validation, setValidation] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (model && !saved) {
+      setDraft(model);
+      setSaved(model);
+    }
+  }, [model, saved]);
 
   const mutation = useMutation({
     mutationFn: async (updated: PriorityModelPreferenceV1) => {
@@ -54,13 +78,14 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
       }
       return res.json() as Promise<PriorityModelPreferenceV1>;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setDraft(result);
+      setSaved(result);
+      setValidation(null);
       queryClient.invalidateQueries({ queryKey: ["priority-model"] });
       onSuccess?.();
     },
-    onError: (err) => {
-      onError?.(err instanceof Error ? err.message : "Unknown error");
-    }
+    onError: (err) => onError?.(err instanceof Error ? err.message : "Unknown error")
   });
 
   if (isLoading) {
@@ -73,8 +98,7 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
       </>
     );
   }
-
-  if (!model) {
+  if (!draft || !saved) {
     return (
       <>
         <PaneHead title="Priorities" desc="Teach Jarvis what deserves attention first." />
@@ -85,76 +109,68 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
     );
   }
 
-  const addAnchor = () => {
-    const newAnchor: PriorityAnchor = {
-      id: crypto.randomUUID(),
-      kind: "project",
-      label: "",
-      aliases: [],
-      weight: 1,
-      enabled: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    mutation.mutate({
-      ...model,
-      anchors: [...model.anchors, newAnchor],
-      updatedAt: new Date().toISOString()
-    });
+  const updateDraft = (updates: Partial<PriorityModelPreferenceV1>) =>
+    setDraft((current) => (current ? { ...current, ...updates } : current));
+  const updateAnchor = (index: number, updates: Partial<PriorityAnchor>) =>
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            anchors: current.anchors.map((anchor, i) =>
+              i === index ? { ...anchor, ...updates } : anchor
+            )
+          }
+        : current
+    );
+  const addAnchor = () =>
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            anchors: [
+              ...current.anchors,
+              {
+                id: crypto.randomUUID(),
+                kind: "project",
+                label: "",
+                aliases: [],
+                weight: 1,
+                enabled: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }
+            ]
+          }
+        : current
+    );
+  const save = () => {
+    const error = priorityDraftValidation(draft);
+    if (error) {
+      setValidation(error);
+      return;
+    }
+    mutation.mutate({ ...draft, updatedAt: new Date().toISOString() });
   };
-
-  const updateAnchor = (index: number, updates: Partial<PriorityAnchor>) => {
-    const updated = [...model.anchors];
-    updated[index] = { ...updated[index]!, ...updates, updatedAt: new Date().toISOString() };
-    mutation.mutate({
-      ...model,
-      anchors: updated,
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  const removeAnchor = (index: number) => {
-    mutation.mutate({
-      ...model,
-      anchors: model.anchors.filter((_, i) => i !== index),
-      updatedAt: new Date().toISOString()
-    });
-  };
-
-  const toggleMutedSource = (source: (typeof VALID_SOURCES)[number]) => {
-    const updated = model.mutedSources.includes(source)
-      ? model.mutedSources.filter((s) => s !== source)
-      : [...model.mutedSources, source];
-    mutation.mutate({
-      ...model,
-      mutedSources: updated,
-      updatedAt: new Date().toISOString()
-    });
-  };
+  const dirty = !sameDraft(draft, saved);
 
   return (
     <>
       <PaneHead
         title="Priorities"
-        desc="Tune the model Jarvis uses to rank projects, people, domains, goals, and obligations."
+        desc="Tell Jarvis what matters right now so it can rank work and signals usefully."
       />
-
       <Group
         title="Priority mode"
-        desc="Choose the default weighting style Jarvis uses before anchors and muted sources are applied."
+        desc="Choose the general way Jarvis weighs deadlines and energy."
       >
         <Field label="Mode">
           <Select
-            value={model.mode}
+            value={draft.mode}
             aria-label="Priority mode"
             disabled={mutation.isPending}
-            onChange={(event) => {
-              mutation.mutate({
-                ...model,
-                mode: event.currentTarget.value as PriorityModelPreferenceV1["mode"],
-                updatedAt: new Date().toISOString()
-              });
-            }}
+            onChange={(event) =>
+              updateDraft({ mode: event.currentTarget.value as PriorityModelPreferenceV1["mode"] })
+            }
           >
             <option value="balanced">Balanced</option>
             <option value="deadline_first">Deadline first</option>
@@ -162,10 +178,9 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
           </Select>
         </Field>
       </Group>
-
       <Group
-        title="Anchors"
-        desc="Entities and patterns that should consistently move work up or down."
+        title="What matters right now"
+        desc="Priorities Jarvis should consistently move up or down."
         action={
           <button
             type="button"
@@ -173,58 +188,36 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
             className="jds-btn jds-btn--secondary jds-btn--sm"
             disabled={mutation.isPending}
           >
-            <span className="jds-btn__icon">
-              <Plus size={16} aria-hidden="true" />
-            </span>
-            Add anchor
+            <Plus size={16} aria-hidden="true" /> Add priority
           </button>
         }
       >
-        {model.anchors.length === 0 ? (
-          <Row
-            name="No anchors"
-            desc="Add one when a project, person, domain, goal, or obligation needs a standing bias."
-          />
+        {draft.anchors.length === 0 ? (
+          <Row name="No priorities" desc="Add one when something deserves a standing bias." />
         ) : (
-          model.anchors.map((anchor, index) => (
+          draft.anchors.map((anchor, index) => (
             <div key={anchor.id} className="set-row">
               <div className="set-row__main">
                 <div className="set-row__name">
-                  {anchor.label || "Untitled anchor"}{" "}
+                  {anchor.label || "Untitled priority"}{" "}
                   <Badge tone={anchor.enabled ? "pine" : "steel"}>
-                    {anchor.enabled ? "Enabled" : "Muted"}
+                    {anchor.enabled ? "Included" : "Muted"}
                   </Badge>
                 </div>
                 <div className="set-row__desc">
-                  Configure how this anchor influences priority scoring.
+                  Set the importance Jarvis should give this priority.
                 </div>
                 <div className="fld">
                   <div className="fld__row">
                     <Switch
-                      ariaLabel={`Enable ${anchor.label || "anchor"}`}
+                      ariaLabel={`Enable ${anchor.label || "priority"}`}
                       checked={anchor.enabled}
                       disabled={mutation.isPending}
                       onChange={(enabled) => updateAnchor(index, { enabled })}
                     />
                     <Select
-                      value={anchor.kind}
-                      aria-label="Anchor kind"
-                      disabled={mutation.isPending}
-                      onChange={(event) =>
-                        updateAnchor(index, {
-                          kind: event.currentTarget.value as PriorityAnchor["kind"]
-                        })
-                      }
-                    >
-                      {VALID_KINDS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {titleCase(kind)}
-                        </option>
-                      ))}
-                    </Select>
-                    <Select
                       value={anchor.weight}
-                      aria-label="Anchor weight"
+                      aria-label="Importance"
                       disabled={mutation.isPending}
                       onChange={(event) =>
                         updateAnchor(index, {
@@ -234,24 +227,25 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
                     >
                       {VALID_WEIGHTS.map((weight) => (
                         <option key={weight} value={weight}>
-                          {weight > 0 ? `+${weight}` : weight}
+                          {priorityWeightLabel(weight)}
                         </option>
                       ))}
                     </Select>
                   </div>
                 </div>
-                <Field label="Label">
+                <Field label="What matters right now">
                   <input
+                    autoFocus={anchor.label === ""}
                     className="jds-input"
                     type="text"
-                    placeholder="Label"
+                    placeholder="e.g. Finish the launch plan"
                     value={anchor.label}
                     disabled={mutation.isPending}
                     onChange={(event) => updateAnchor(index, { label: event.currentTarget.value })}
                     maxLength={120}
                   />
                 </Field>
-                <Field label="Aliases">
+                <Field label="Also match">
                   <input
                     className="jds-input"
                     type="text"
@@ -272,9 +266,15 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
               <div className="set-row__control">
                 <button
                   type="button"
-                  onClick={() => removeAnchor(index)}
+                  onClick={() =>
+                    setDraft((current) =>
+                      current
+                        ? { ...current, anchors: current.anchors.filter((_, i) => i !== index) }
+                        : current
+                    )
+                  }
                   className="jds-iconbtn jds-iconbtn--sm"
-                  aria-label="Remove anchor"
+                  aria-label="Remove priority"
                   disabled={mutation.isPending}
                 >
                   <Trash2 size={16} aria-hidden="true" />
@@ -284,34 +284,62 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
           ))
         )}
       </Group>
-
       <Group
-        title="Muted sources"
-        desc="Sources excluded from priority ranking until turned back on."
+        title="Sources Jarvis may prioritize"
+        desc="These choices affect ranking only; they do not change source access or data visibility."
       >
-        {VALID_SOURCES.map((source) => (
+        {VISIBLE_SOURCES.map((source) => (
           <Row
             key={source}
             name={titleCase(source)}
             desc={
-              UNWIRED_SOURCES.has(source)
-                ? "Nothing feeds this source into ranking yet, so muting has no effect."
-                : "Exclude this source from priority ranking."
+              prioritySourceIncluded(draft, source)
+                ? "Included in priority ranking."
+                : "Excluded from priority ranking."
             }
             control={
               <Switch
-                ariaLabel={`Mute ${source}`}
-                checked={model.mutedSources.includes(source)}
+                ariaLabel={`Include ${source} in priority ranking`}
+                checked={prioritySourceIncluded(draft, source)}
                 disabled={mutation.isPending}
-                onChange={() => toggleMutedSource(source)}
+                onChange={(included) =>
+                  updateDraft({
+                    mutedSources: included
+                      ? draft.mutedSources.filter((item) => item !== source)
+                      : [...draft.mutedSources, source]
+                  })
+                }
               />
             }
           />
         ))}
       </Group>
-
+      {validation ? <Note>{validation}</Note> : null}
       {mutation.isPending ? <Note>Saving priority settings...</Note> : null}
       {mutation.error ? <Note>{mutation.error.message}</Note> : null}
+      {dirty ? (
+        <div className="psona-save__acts">
+          <button
+            type="button"
+            className="jds-btn jds-btn--primary jds-btn--sm"
+            onClick={save}
+            disabled={mutation.isPending}
+          >
+            Save priorities
+          </button>
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={() => {
+              setDraft(saved);
+              setValidation(null);
+            }}
+            disabled={mutation.isPending}
+          >
+            Discard
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }

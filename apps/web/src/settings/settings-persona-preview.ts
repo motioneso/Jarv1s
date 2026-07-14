@@ -15,6 +15,13 @@ export interface PersonaDials {
   readonly recovery: RecoveryDial;
 }
 
+export interface PersonaSnapshot {
+  readonly assistantName: string;
+  readonly personaText: string;
+}
+
+export interface PersonaDraft extends PersonaSnapshot, PersonaDials {}
+
 export interface PersonaPreview {
   readonly greeting: string;
   readonly recovery: string;
@@ -70,4 +77,31 @@ export function personaSeedText(p: PersonaDials): string {
   };
 
   return `${tone[p.tone]}; ${directness[p.directness]}; ${humor[p.humor]}; ${recovery[p.recovery]}.`;
+}
+
+export function createPersonaDraft(
+  saved: PersonaSnapshot,
+  dials: PersonaDials = {
+    tone: "Warm",
+    directness: "Balanced",
+    humor: "Dry",
+    recovery: "Encouraging"
+  }
+): PersonaDraft {
+  return { ...saved, ...dials };
+}
+
+export function applyGuidedPersonaText(draft: PersonaDraft, dials: PersonaDials): PersonaDraft {
+  return { ...draft, ...dials, personaText: personaSeedText(dials) };
+}
+
+export function discardPersonaDraft(saved: PersonaSnapshot, dials?: PersonaDials): PersonaDraft {
+  return createPersonaDraft(saved, dials);
+}
+
+export function personaDraftIsDirty(draft: PersonaSnapshot, saved: PersonaSnapshot): boolean {
+  return (
+    draft.assistantName !== saved.assistantName ||
+    draft.personaText.trim() !== saved.personaText.trim()
+  );
 }

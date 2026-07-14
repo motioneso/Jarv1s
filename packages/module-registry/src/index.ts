@@ -429,6 +429,7 @@ export interface BuiltInRouteDependencies {
   /** Host diagnostics runtime-facts provider (#255), built by the API composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
+  readonly createCliStructuredAdapter?: ReturnType<typeof createCliStructuredAdapterFactory>;
   /**
    * Bounded, live onboarding probes (Phase 2). Built inside registerBuiltInApiRoutes (sync,
    * no boot-time probing) and forwarded to the settings module so it keeps no @jarv1s/ai /
@@ -932,7 +933,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
         moduleDistribution: deps.moduleDistribution,
         reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
-        personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
+        personaPreview:
+          deps.personaPreview ??
+          createDefaultPersonaPreview(deps.dataContext, {
+            createCliStructuredAdapter: deps.createCliStructuredAdapter
+          }),
         preferencesRepository: new PreferencesRepository(),
         notificationUnreadPort: new NotificationsRepository(),
         boss: deps.boss,
@@ -1932,6 +1937,7 @@ export function registerBuiltInApiRoutes(
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
     chatEngineFactory,
+    createCliStructuredAdapter: createCliStructuredAdapterFactory(chatEngineFactory),
     // #342 (§3.5 boot-time fork): on the socket path hand the chat runtime an `engineSelection` so it
     // selects the RPC client itself (fail-fast on a missing §6.6 secret), wires the §5.3 reconciliation
     // hook, and starts the §5.5 idle reaper. The {method,id,sessionKey,bytes}-only debug logger (§6.4)
