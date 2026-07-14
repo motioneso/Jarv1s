@@ -5907,3 +5907,27 @@ e2e-UAT gate) — spawn as **gpt-5.6-sol**.
 #1000, fold into UAT area, dev-only fenced), #965 (run-now dedupe, SENSITIVE), #1018 (realpath
 symlink hardening, security), #1034 (UAT-seed QA follow-ups), #1037/#1038/#1039 (test-hardening).
 None blocked on Ben. AWAITING-BEN empty.
+
+---
+
+## Checkpoint 2026-07-13c (70% in-place, no successor per Ben override)
+
+**Cross-fleet boundary sync SENT** to UX Coordinator (session `019f5dc2`, pane `w1:pMD`, Codex
+gpt-5.6-sol, its meter 63% left — healthy). Division of labor agreed:
+- **Me (Coordinator):** merge authority for **#1000/UAT epic + job-search/news/module** lanes. I
+  OWN `tests/uat/**`. Locks declared: acceptance/UAT (active), chat (backlog only, #984 reaped),
+  accounts (dev-seed only). NO locks on settings/memory/skills.
+- **UX Coordinator:** #983 UX surfaces (settings/chat/accounts/memory/skills UI). Order: #987 →
+  parallel #991/#992/#993/#994 → #995 after #987 → #1002 after UI settles → #988 final.
+- Mutual rule: ping before touching the other's domain (they before `tests/uat/**` or chat; me
+  before laning a chat item). Explicit `git add <paths>` only.
+
+**Live lane:** P3 #1026 → **PR #1041 OPEN** (`uat-play-1026`, pane `w1:pMG` "UAT Play 1026 v3" —
+self-relayed twice, still `working`/finishing). NEXT ACTION: routine QA on #1041 → poll VF green
+→ **manual** merge (VF not required; never `--auto`). Then serialized **P4 #1027** (spawn as
+gpt-5.6-sol), then **#1040** dev-cred-log seed (gpt-5.6-sol).
+
+**main CI:** GREEN (post-#984 fix-forward `96d22ba0`).
+**Build-model rule:** new lanes = Codex `gpt-5.6-sol` (Ben 2026-07-13). Security QA = Opus.
+**AWAITING-BEN:** empty.
+Lock: session `58a78927-385c-4b1d-8fa0-94db20255d6f`.
