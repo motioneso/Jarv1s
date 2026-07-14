@@ -62,7 +62,28 @@ git fetch origin main && git diff --stat origin/main...HEAD
 **4. Tier-specific depth.**
 - `routine`: steps 1–3 are enough.
 - `sensitive`: add an explicit invariant walk-through (DataContextDb/VaultContext, metadata-only
-  payloads, module isolation) naming each as ok/at-risk.
+  payloads, module isolation) naming each as ok/at-risk. Then run the changed-path e2e-UAT gate:
+  1. Resolve the PR's paths through the data-driven lookup (future UAT coverage adds a row to the
+     map, not another conditional):
+     ```bash
+     gh pr diff <PR> --name-only | .claude/skills/coordinate/resolve-uat-triggers.sh
+     ```
+     Each unique output row is `<blocking|advisory><TAB><spec>`. No output means no UAT spec
+     currently covers this diff, so record `not-triggered` and continue.
+  2. Run every resolved spec exactly through the live Phase-3 harness and capture its real exit:
+     ```bash
+     if pnpm test:uat -- "$spec"; then
+       uat_exit=0
+     else
+       uat_exit=$?
+     fi
+     ```
+     This is intentionally separate from the mechanical CI gate: #1027/#1000 exists because CI's
+     mocked/isolated checks did not exercise the live install path that failed in #999.
+  3. Apply Ben's locked #1027 policy from the lookup mode. `blocking` is a runtime-path gate:
+     failure makes this verdict RED and is **never waived** — fix it, then UAT again. `advisory`
+     failure is a non-blocking finding surfaced to the coordinator. Record mode, spec, and exit
+     code in the verdict either way.
 - `security`: run **`/security-review`** AND an **adversarial "what's NOT tested" pass** — you are
   spawned on a stronger model (Opus) precisely because same-lens review missed CRITICALs. Don't ask "does
   the gate pass"; ask **"which trust boundary is unproven, what attack path has no test, what does
@@ -86,6 +107,7 @@ gh pr comment <PR> --body "QA verdict (<tier>): <paste the block below>"
 ```
 QA <slug> (<tier>) — VERDICT: GREEN | RED
 gate: CI <green|red> (gh pr checks)[ — reproduced locally: VF_EXIT=<n> AUDIT_EXIT=<n> only if CI red]
+e2e-uat: <not-triggered | mode spec EXIT=n[, ...]>
 review: <N blocking, M non-blocking>
   - BLOCKING: <file:line — one line each, or "none">
   - non-blocking: <one line each, or "none">
@@ -102,6 +124,8 @@ start new work, don't merge, don't touch the board — verdict only.
 
 - **Re-running `pnpm verify:foundation` when CI is already green** — that's the wasted-budget
   anti-pattern. Trust `gh pr checks`; reproduce locally only when CI is red.
+- Skipping a sensitive-tier spec emitted by the UAT lookup, or treating a `blocking` #1027 runtime
+  failure as waivable.
 - Returning "green" from a piped exit code, or (when you did reproduce) from a partial run.
 - **Skipping the `gh pr comment`** — the PR verdict is mandatory (durable evidence; hard gate for
   security tier). Post it before you message the coordinator.

@@ -60,7 +60,7 @@ runs cheap and spends up only where same-lens review demonstrably misses things.
 | Phase-0 collision/dependency map | **Opus** (one-shot subagent) | reasoning-heavy, done once |
 | Design-fork adjudication | **Opus** (one-shot subagent) | wrong call has data-loss/security cost |
 | Security-tier QA (adversarial pass) | **Opus** | same-lens Sonnet missed CRITICALs in a real run — THE place to spend up. (For a true cross-model lens, use Codex via `codex-review` when available.) |
-| Gate execution (lint/typecheck/test) | **CI — don't re-run** | QA trusts `gh pr checks`; tokens go to review |
+| Gate execution (lint/typecheck/test) | **CI — don't re-run** | QA trusts `gh pr checks`; matched e2e-UAT remains a separate sensitive-tier runtime gate |
 
 **⚠️ Herdr spawns default to Opus.** Every `herdr agent start … -- claude …` MUST pass
 `--model sonnet`, and after spawning you read the pane to confirm it says "Sonnet" — respawn if it
@@ -87,7 +87,7 @@ how hard the PR is verified and whether Ben must sign the merge.
 | Tier | Content triggers (any one matches) | What it gets |
 | ---- | ---------------------------------- | ------------ |
 | `routine` | none of the below — pure UI, docs, isolated non-shared module | standard QA (CI gate + `/code-review` + exit-criteria); **auto-merge after green** |
-| `sensitive` | shared-table migration, cross-module contract change, export/deletion paths, job-payload shape changes | standard QA **plus** explicit invariant check (DataContextDb/VaultContext, metadata-only payloads, module isolation); per-merge digest to Ben |
+| `sensitive` | shared-table migration, cross-module contract change, export/deletion paths, job-payload shape changes, module distribution/install/reconcile, sync/import, runtime nav, CLI runner | standard QA **plus** explicit invariant check (DataContextDb/VaultContext, metadata-only payloads, module isolation) **plus matched e2e-UAT**; per-merge digest to Ben |
 | `security` | auth · sessions · tokens · RLS · secrets · credential handling · rate-limit · network-exposed surface · policy-touching schema migrations | **Opus adversarial QA** (hunts *what's NOT tested / unproven trust boundaries*); **mandatory `gh pr comment` verdict**; **Ben's explicit merge sign-off** |
 
 Tiering is mechanical: if a trigger appears in the spec or diff, it IS that tier — no "probably
@@ -218,7 +218,8 @@ When an agent reports **done** (PR open + its own green evidence — which you d
    JARVIS_PGDATABASE=jarvis_qa_<n>
    PR: <PR number> | Branch: <branch> | Spec: <spec-path> | Tier: <routine|sensitive|security>
 
-   Invoke the coordinated-qa skill. Return ONLY the compact verdict as your final message.
+   Invoke the coordinated-qa skill; its step 4 is authoritative for sensitive-tier e2e-UAT.
+   Return ONLY the compact verdict as your final message.
    """
    )
    ```
@@ -227,8 +228,8 @@ When an agent reports **done** (PR open + its own green evidence — which you d
    pane read, and note the fallback in the manifest.
 
    By tier: `routine`/`sensitive` = Sonnet QA (`/code-review` + exit-criteria, + invariant walk
-   for sensitive). `security` = Opus adversarial QA — must `gh pr comment` its verdict before you
-   act. Consume the compact verdict only — never the body.
+   and coordinated-qa step-4 e2e-UAT gate for sensitive). `security` = Opus adversarial QA — must
+   `gh pr comment` its verdict before you act. Consume the compact verdict only — never the body.
 
 2. **CI waiver protocol (red checks are stop-the-line).** A PR with any red required check does
    NOT merge. Waivable **only** if: (a) proven failing on `origin/main` at the same SHA, (b)
