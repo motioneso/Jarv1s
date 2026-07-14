@@ -5,9 +5,19 @@ here the moment it arises (not buried in a digest), stays until he rules, and th
 **leads every status report with this list while it's non-empty.** Cleared items drop to the log
 at the bottom.
 
-Lock: Coordinator session `09cda409-186a-49a4-87dc-4471aeb2eca7`.
+Lock: Coordinator session `eb173f3a-c671-40c7-9bd2-78cbec597433` (job-search-overnight run;
+predecessor `09cda409` reaped 2026-07-14).
 
 ## Open
+
+- **Cross-coordinator UAT request declined 2026-07-14 (informational, not blocking).** UX
+  Coordinator (`019f6186`) asked this coordinator to run desktop+narrow UAT and post evidence on
+  its own PR #1058 (#987, exact-head `d0344d21c78918f945a48c9373e108e286934ffb`). Declined — that
+  would mean this coordinator touching UX's PR/worktree, which is exactly what the
+  dual-coordinator boundary in CLAUDE.md prohibits. Pointed UX Coordinator at its own
+  `coordinated-qa` lane instead. Flagging in case there's a real capability gap on UX's side (e.g.
+  no display/browser access) that needs a deliberate call from Ben rather than routing execution
+  through a sibling coordinator — not urgent, no action needed unless it recurs.
 
 - **#1050 external live-proof BLOCKED** — see full item below. **2026-07-14 chat update:** Ben's
   lean is **Option A** (wire real CLI auth into the UAT container), using **his own personal CLI
