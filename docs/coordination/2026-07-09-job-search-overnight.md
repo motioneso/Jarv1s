@@ -5988,3 +5988,5 @@ diff. PR to reference: #1026 origin + #1047 + Closes #1027 + Part of #1000.
 
 Status: P4 `building`. Monitors `b64t627m9` (main-VF post-#1041) + `b0i79nkvu` (P4 PR/pMN
 backstop) still armed. AWAITING-BEN empty. This is the final serialized UAT phase → merge = **epic #1000 DONE**.
+
+**2026-07-13d addendum — boundary expanded:** P4 handoff under-named the QA machinery. Spec §8.4 "coordinated-qa step 4" lives in `.claude/skills/coordinated-qa/SKILL.md` (not `coordinate/**`). APPROVED that file as the authoritative home of the tier-depth UAT-trigger logic; coordinate skill + agent prompt carry only a routing pointer (no triplication). Full boundary now: `tests/uat/**` + `.claude/skills/coordinate/**` + `.claude/skills/coordinated-qa/SKILL.md` + `.claude/agents/coordinated-qa.md`. Still excluded: settings file, docs/coordination, P1/P2.
