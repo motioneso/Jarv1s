@@ -1793,3 +1793,17 @@ resume from this note before taking any merge-sensitive action.
   `UX 987 Fix Sol High` has been reopened for the root-cause redaction fix and smallest regression
   test. The next head must rerun CI, QA, and UAT. No merge, issue-closure, or #995 release claim is
   made.
+
+## Continuation note — 2026-07-14 PR #1058 QA leak fixed
+
+- `UX 987 Fix Sol High` fixed the remaining vault-path log leak in scoped commit `2425d382` and
+  pushed exact head `2425d382b6c7c664aa119cfc7fb35f22bfbc9d4d`. The shared People load catch now
+  contains directory listing and per-file reads, maps unavailable filesystem errors to the safe
+  domain error before API logging, and has a regression proving the fixed safe 400 contains no
+  vault path.
+- Agent evidence: focused People service/routes 17/17 green; scoped format/lint and root typecheck
+  green; `VF_EXIT=0` with 3,326 unit and 1,648 integration tests passed; 155 migrations current;
+  `AUDIT_EXIT=0`; pre-push trio green; fresh `origin/main` rebase current; branch worktree clean.
+- Fresh GitHub CI run `29374741166` is running on the new exact head. Fresh live UAT is running as
+  `/root/uat_1058_live_v5`. Independent sensitive QA must wait for full CI green. Prior CI/UAT/QA
+  evidence is stale for merge purposes. No merge, issue-closure, or #995 release claim is made.
