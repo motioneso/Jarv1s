@@ -1748,10 +1748,12 @@ resume from this note before taking any merge-sensitive action.
   `019f61cb-e119-7d41-ac45-390878fe72ff` remains the frozen owning lane for PR #1058, and
   `UX 991 Build Luna` `019f5ed2-b01a-7610-95d6-da3024b4b82f` remains parked with PR #1050.
 - PR #1058 is still at exact head `9604babd2fb177d80c2ee44e88510da4b87d9c9a`. Full CI run
-  `29361825235` is green. Fresh sensitive QA cycle 2 is running as `/root/qa_1058_cycle2`; a second
-  QA RED is STOP-THE-LINE. Exact-head Webwright UAT v3 is running as `/root/uat_1058_live_v3`.
-  No UAT, QA, merge, or issue-closure claim is made yet.
+  `29361825235` is green, but fresh sensitive QA cycle 2 returned RED with five blockers and unmet
+  exit criteria (durable verdict `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4973456840`).
+  This is the second QA RED, so STOP-THE-LINE issue #1060 is open and `UX 987 Build Luna` is frozen
+  pending Ben's direction. Exact-head Webwright UAT v3 was interrupted because any evidence on this
+  blocked head would be obsolete after fixes. No UAT, merge, or issue-closure claim is made.
 - GitHub/spec collision source of truth resolves the serialized queue as #1058 → #995 → #993 →
   #1002 → #988. #995 must branch from post-#1058 `main`; #993 must wait for #995 because both touch
   shared Settings files. #1002 still needs approved spec/plan. #1050 remains parked with Ben and
-  #1003 remains future scope, not a run-closure blocker.
+  #1003 remains future scope, not a run-closure blocker. #995 is not released while #1058 is halted.
