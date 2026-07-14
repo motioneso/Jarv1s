@@ -1555,3 +1555,11 @@ resume from this note before taking any merge-sensitive action.
   export for `PeopleNotesFolderUnavailableError`, and its delete-review matching-card focus flow is
   not implementable within the exact-file list. The owning lane is frozen with no further edits or
   product build until Ben gives scope direction.
+- PR #1050 fresh live proof at exact head `8a976ecd5621f5ed141832a801d32231eb181a6f` is
+  STOP-THE-LINE: authenticated desktop Assistant authored/guided flow and corrected Discard passed,
+  but real persona preview through the configured OpenAI-compatible/Codex CLI transport returned
+  HTTP 503 on `POST /api/me/persona/preview` (`req-x0`). Evidence:
+  `https://github.com/motioneso/Jarv1s/pull/1050#issuecomment-4967617265`. No retry, narrow,
+  Priorities, or full acceptance claim is allowed. The owning lane is diagnosing the route,
+  transport binding, all callers, and error mapping to classify a product defect versus an exact
+  external prerequisite before any further proof.
