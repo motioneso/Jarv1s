@@ -6285,3 +6285,39 @@ block; owner2 no onboarding chunk = fine) to w1:pN7. Lane B status: **building**
 
 Live fleet: Lane B w1:pN7 (#1030 security-bar, monitor bt52138u2, building) + Lane C w1:pN8
 (#965 sensitive, monitor bawqx5jts, building). Both Codex gpt-5.6-sol, tab w1:t26. merges_since_relay=1.
+
+---
+
+## RELAY CONTINUATION NOTE — 2026-07-14 (70% meter trigger, session 58a78927)
+
+**Relay reason:** context-meter 70% warning (first) fired mid-Phase-3. No deferral rule → flushed + handed off. **Merge nothing before relay.** Successor executes the two merges below, both fully cleared.
+
+### merges_since_relay = 1 (reset to 0 after relay)
+
+### IMMEDIATE successor work — TWO PRs cleared to merge, in this order:
+
+**1. PR #1053 (#1030 multi-user UAT seed) — SECURITY tier — MERGE FIRST, fully signed off:**
+- Council GREEN both lenses: Opus QA verdict **posted durably** → PR #1053 comment `4967938985` (VERDICT GREEN, MERGE-READY: YES, 0 blocking / 1 non-blocking benign clock-injection note); Fable APPROVE (independent trace).
+- Scope-clean: authoritative `gh pr diff 1053 --name-only` = 8 in-scope files (Fable's "ride-along docs" was a false alarm — it read rebase ancestry, not squash diff).
+- CI: VF + compose smoke + prod compose smoke ALL SUCCESS. MERGEABLE (UNSTABLE = non-required "Build and publish images" still running, not a blocker).
+- Sign-off satisfied per Ben's model (Opus security QA GREEN + cross-model Fable GREEN = the sign-off). **MERGE:** `gh pr merge 1053 --squash --delete-branch`
+- Bookkeeping: close #1030; check epic #1000 exit criteria; board → Done. Reap Lane B pane (resolve fresh by label) + `git worktree remove .claude/worktrees/uat-1030-multiuser`.
+- **This is a security merge → after it lands, merges_since_relay logic already spent (we relayed FOR it). Continue to #1054.**
+
+**2. PR #1054 (#965 run-now dedupe) — SENSITIVE tier — MERGE SECOND:**
+- Sonnet QA GREEN (0 blocking; Option A confirmed — singletonSeconds via job_i4, no migration, actor-scoped singletonKey preserved). Scope-clean.
+- CI at last check: compose + prod smokes green; **VF may still be resolving — CONFIRM VF green before merge** (`gh pr checks 1054`). Do NOT `--auto` (VF not a required check). Poll VF → then manual merge.
+- **MERGE (after VF green):** `gh pr merge 1054 --squash --delete-branch`
+- Bookkeeping: close #965; board → Done. Reap Lane C pane + `git worktree remove .claude/worktrees/js-965-runnow-dedupe`. Increments merges_since_relay to 1.
+
+### After both merge — epic #1000 status:
+- Lane B (#1030) + Lane C (#965) close out the overnight #1000 children. Check #1000 exit criteria; **#1042 = UX-owned (do NOT build)**, **#1018 = HELD**. If #1000 fully satisfied, note for Ben's morning digest; else report remaining.
+
+### Parked / do-not-touch:
+- **#1050** — AWAITING-BEN (owner=Ben); external live-proof blocker, options A/B/C parked. No autonomous action.
+- **#1055** — filed (idempotency probe owner-scoping follow-up). No action.
+- **UX Coordinator** — session `019f5fc7-4cac-7760-8e3a-9f5d766c5862` (pane resolves fresh, was w1:pN5). **Do NOT reap.** UX does not reap primary coordinator. Dual-coordinator boundary in force (Ben).
+
+### Digest for Ben (morning) — append merge SHAs after they land:
+- #1053 (#1030 multi-user UAT seed, security) — Opus+Fable GREEN, verdict on PR — MERGED `<sha>`
+- #1054 (#965 run-now dedupe, sensitive) — Sonnet GREEN — MERGED `<sha>`
