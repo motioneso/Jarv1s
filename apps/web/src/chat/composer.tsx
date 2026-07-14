@@ -84,12 +84,21 @@ export function Composer(props: {
   const slashQuery = activeSlashQuery(text);
   const skillMatches = slashQuery === null ? [] : filterEnabledSkills(skills, slashQuery);
   const skillMenuOpen =
-    !props.readOnly && !boundSkillId && slashQuery !== null && dismissedSkillQuery !== slashQuery;
+    !props.readOnly &&
+    !boundSkillId &&
+    slashQuery !== null &&
+    skillMatches.length > 0 &&
+    dismissedSkillQuery !== slashQuery;
   const activeSkill = skillMatches[activeSkillIndex];
   useEffect(() => {
-    setActiveSkillIndex((index) => Math.min(index, Math.max(skillMatches.length - 1, 0)));
+    setActiveSkillIndex((index) =>
+      Math.min(Math.max(index, 0), Math.max(skillMatches.length - 1, 0))
+    );
+  }, [skillMatches.length]);
+  useEffect(() => {
+    setActiveSkillIndex(0);
     setDismissedSkillQuery(null);
-  }, [slashQuery, skillMatches.length]);
+  }, [slashQuery]);
   const boundSkill = resolveBoundSkill(skills, boundSkillId);
   const invocation = resolveTurnInvocation(text, boundSkillId, skills);
   const composedText = composeTurnText(invocation.skill, invocation.remainder);

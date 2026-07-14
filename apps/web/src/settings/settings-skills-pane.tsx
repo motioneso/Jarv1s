@@ -198,7 +198,7 @@ export function SettingsSkillsPane() {
 
       {flow === "create" || flow === "edit" ? (
         <Group title={flow === "edit" ? "Edit skill" : "Create skill"}>
-          <Field label="Name">
+          <Field label="Name *">
             <input
               className="jds-input"
               value={name}
