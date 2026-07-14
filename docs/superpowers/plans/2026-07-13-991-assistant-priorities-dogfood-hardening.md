@@ -19,12 +19,12 @@ existing model, approval-policy, priority API, scorer, RLS, and consumer boundar
 
 ## Ownership and Collision Locks
 
-| Area | Owned files for this issue | Must not absorb |
-| --- | --- | --- |
-| Assistant UX | `apps/web/src/settings/settings-ai-pane.tsx`, `settings-persona-preview.ts` | #874 audio Voice/STT, #869 model API changes, #985 approval policy |
-| Preview service | `packages/module-registry/src/built-in-module-helpers.ts`, `index.ts` | New model router, new CLI runtime, durable preview chat |
-| Priorities UX | `packages/settings-ui/src/priority/index.tsx` | Priority schema/scorer/route/RLS changes or new sources |
-| Verification | Focused unit/integration/E2E files outside UAT | Any edit under `tests/uat/**` |
+| Area            | Owned files for this issue                                                  | Must not absorb                                                    |
+| --------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Assistant UX    | `apps/web/src/settings/settings-ai-pane.tsx`, `settings-persona-preview.ts` | #874 audio Voice/STT, #869 model API changes, #985 approval policy |
+| Preview service | `packages/module-registry/src/built-in-module-helpers.ts`, `index.ts`       | New model router, new CLI runtime, durable preview chat            |
+| Priorities UX   | `packages/settings-ui/src/priority/index.tsx`                               | Priority schema/scorer/route/RLS changes or new sources            |
+| Verification    | Focused unit/integration/E2E files outside UAT                              | Any edit under `tests/uat/**`                                      |
 
 `docs/coordination/**` is also out of bounds. If a task requires a locked file or contract, pause
 and return the collision to the Coordinator.

@@ -82,13 +82,13 @@ state and ownership clear. It must not implement, broaden, or bypass approval po
 Keep `priority.model.v1`, its scorer, routes, RLS, and downstream consumers unchanged. Present the
 same values in task-oriented language:
 
-| Stored concept | UI language/behavior |
-| --- | --- |
-| anchors | **What matters right now** |
-| anchor aliases | **Also match** |
-| anchor kind | Hidden while only the default is meaningful; preserve stored/default value |
-| numeric weight | Ordered labels: **Much lower**, **Lower**, **Neutral**, **Higher**, **Much higher** |
-| muted/excluded sources | **Sources Jarvis may prioritize**; checked means included |
+| Stored concept         | UI language/behavior                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| anchors                | **What matters right now**                                                          |
+| anchor aliases         | **Also match**                                                                      |
+| anchor kind            | Hidden while only the default is meaningful; preserve stored/default value          |
+| numeric weight         | Ordered labels: **Much lower**, **Lower**, **Neutral**, **Higher**, **Much higher** |
+| muted/excluded sources | **Sources Jarvis may prioritize**; checked means included                           |
 
 The pane owns one local draft with explicit **Save** and **Discard** actions. Field changes and Add
 do not PATCH immediately. **Add priority** creates a local row, focuses its required label, and the

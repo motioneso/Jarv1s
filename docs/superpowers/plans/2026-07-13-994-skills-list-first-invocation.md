@@ -18,13 +18,13 @@ the missing tokenized chat CSS, and validate required text at the existing route
 
 ## Ownership and Collision Locks
 
-| Area | Owned files for this issue | Must not absorb |
-| --- | --- | --- |
-| Settings UX | `apps/web/src/settings/settings-skills-pane.tsx` | New form framework, modal system, marketplace |
-| Invocation | `apps/web/src/chat/skill-autocomplete.tsx`, `composer.tsx` | New command grammar, persistent context, multi-skill runtime |
-| Styling | `apps/web/src/styles/kit-chat.css` | General chat redesign |
-| Validation | `packages/chat/src/skills/routes.ts`; `frontmatter.ts` only if needed | DTO/endpoint/file-format/schema changes |
-| Verification | Focused unit/integration/E2E files outside UAT | Any edit under `tests/uat/**` |
+| Area         | Owned files for this issue                                            | Must not absorb                                              |
+| ------------ | --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Settings UX  | `apps/web/src/settings/settings-skills-pane.tsx`                      | New form framework, modal system, marketplace                |
+| Invocation   | `apps/web/src/chat/skill-autocomplete.tsx`, `composer.tsx`            | New command grammar, persistent context, multi-skill runtime |
+| Styling      | `apps/web/src/styles/kit-chat.css`                                    | General chat redesign                                        |
+| Validation   | `packages/chat/src/skills/routes.ts`; `frontmatter.ts` only if needed | DTO/endpoint/file-format/schema changes                      |
+| Verification | Focused unit/integration/E2E files outside UAT                        | Any edit under `tests/uat/**`                                |
 
 No migration, repository contract, module manifest, shared DTO, API client, or query-key change is
 expected. `docs/coordination/**` is out of bounds. Stop and return to the Coordinator if a locked
