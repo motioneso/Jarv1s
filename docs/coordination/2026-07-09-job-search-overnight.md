@@ -6087,3 +6087,22 @@ the compaction boundary). Coordinator continues IN PLACE (Ben override — no su
   liveness Monitor armed on pMX (emit on status change / death).
 - **UX UAT (#1049/#1050): HELD** by UX (their #1050 VF-red on 51dee040, builder reopened). No UAT lane
   spawned; waiting on both frozen SHAs.
+
+## Checkpoint 13i — 2026-07-13 (#1040 QA GREEN + combined UAT lane live)
+
+Lock: session `58a78927-385c-4b1d-8fa0-94db20255d6f` (Coordinator, pMW-era pane; resolve fresh by label+session).
+
+**#1040 (PR #1051) — dev/UAT seed logs owner/admin creds — epic #1000 LAST child.**
+- Build DONE (Codex gpt-5.6-sol, branch `uat-seed-log-creds-1040`, commit `f6be3991`, rebased on origin/main@`8f9da394`). VF_EXIT=0, AUDIT_EXIT=0. Fence tests 2/2; full suite 3303 unit + 1643 integration passed.
+- **Opus adversarial security QA = GREEN, 0 blocking** (verdict posted to PR #1051). Fence re-based on `JARVIS_UAT_SEED_CONFIRM=1` opt-in token (NOT NODE_ENV — UAT intentionally runs NODE_ENV=production). Grounded: sole `=1` setter = `provisioner.ts:188` composeSeedHook; `cli.ts:16` fail-closes; prod default empty (`docker-compose.prod.yml:101`) + seed svc `profiles:["ops"]` inert; new log line `admin.ts:97` has own independent token re-check. ZERO new prod reachability. Only public fixture email+password logged; scrypt hash never reaches sink.
+- **Tier: SECURITY → HELD for Ben's explicit merge sign-off.** CI poller armed on run **29309279471** (Monitor b40vueh9m). Merge path when both true (Ben OK + CI green): MANUAL `gh pr merge 1051 --squash --delete-branch` (never --auto; VF not required-check). On merge → close #1040 → verify epic #1000 exit criteria → **close epic #1000** → board Done → reap pMX + remove worktree `.claude/worktrees/uat-seed-log-creds-1040` → stop Monitor bzv53us66 → save memory.
+- Lane pane: pMX (tab w1:t23 agents), idle. Monitor bzv53us66 still watching it.
+
+**Combined #1000 UAT (PRs #1049 + #1050) — UX-Coordinator-owned evidence lane.**
+- UX (session `019f5ee8-8a0a-7da2-a186-8170ea85e76a`, pane pMW) declared exact-SHA CODE FREEZE and TRIGGERED. Frozen: #1049 = `63ccf923f09efa4a015be386d06e045deabf452f` (green run 29308090668); #1050 = `0b280f51943bbfeb514eb06a0b945e8fc6556935` (green run 29307615983).
+- Lane SPAWNED: "UAT 1049+1050 Combined", pane **pMY**, tab **w1:t23** (agents), session `019f5f2a-c95`, model **gpt-5.6-sol high** — CONFIRMED, working. Worktree `.claude/worktrees/uat-1049-1050-combined` off origin/main@8f9da394 (has full #1000 harness). Handoff `docs/superpowers/handoffs/2026-07-13-uat-1049-1050-combined.md`.
+- My role = supervise + sanity-check evidence is REAL before relaying artifact links to UX. **UX retains QA/merge ownership of #1049/#1050** — I do NOT QA or merge those.
+
+**Relay:** 70% context-meter fired → flushing in place (Ben override: coordinator auto-compacts in place, no successor). merges_since_relay reset context; no merge performed this window.
+
+**AWAITING-BEN:** #1040 / PR #1051 security merge sign-off (only open item; will surface to Ben).
