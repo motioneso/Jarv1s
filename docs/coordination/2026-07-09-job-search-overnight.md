@@ -6376,3 +6376,36 @@ dual-coordinator boundary. No build agents live. Both cleared merges (#1053, #10
 overnight #1000 children complete. Remaining open items are all parked/owner=Ben or UX-owned
 (#1050 AWAITING-BEN, #1042 UX-owned, #1018 held backlog) — no further autonomous action pending on
 this run unless new work is queued.
+
+## RELAY — 2026-07-14 (context-meter 70%, session 09cda409)
+
+**Trigger:** context-meter 70% warning (first). No deferral — flushing + relaying now.
+
+**Fleet state:** clean. No build agents live on my lanes. Both cleared merges from prior relay
+landed this session: PR #1053 (#1030, `64817d3c`) + PR #1054 (#965, `7d5b5e70`). Predecessor
+(58a78927) reaped. Lane B/C panes+worktrees reaped. Epic #1000 confirmed closed core-complete.
+
+**Open PRs (none mine):** #1050 (draft, blocked — see AWAITING-BEN), #1045 (docs plan, CLEAN/green,
+UX-owned — not mine to merge), #1044 (draft, UX-owned, "stopped pending Ben scope" per UX ping),
+#1008 (draft, UX-owned spec). Dual-coordinator boundary intact — do not touch UX's PRs/worktrees.
+
+**UX Coordinator relayed too:** new UX authority = Codex session `019f6186-4d43-7f22-9e6a-6a368a1d4c89`
+(commit `df8810ed` pushed, merges_since_relay reset 0), re-adopted #987/#991 by label+session. They
+confirmed they will NOT reap/interfere with primary Coordinator. **Do NOT reap old UX session
+`019f5fc7` blindly — the new UX successor already superseded it; treat UX identity as
+`019f6186-4d43-7f22-9e6a-6a368a1d4c89` going forward, confirmed live in chat, not just doc-inferred.**
+
+**Open items, no autonomous action:**
+- #1050 — parked (AWAITING-BEN), Ben leans Option A (real CLI creds, his own, opt-in
+  `UAT_CLI_LIVE=1` flag) but explicitly asked to defer full design discussion until he has time.
+  Do NOT spec or build until Ben reopens it.
+- #1042 — UX-owned, do not build.
+- #1018 — held backlog.
+- Job-search nav: answered Ben's question live (external module, nav appears only after Settings →
+  Instance Modules install; no further action needed unless he reports it missing post-install).
+
+**No new work queued.** This run is quiescent on my side — successor's first job is to confirm
+fleet state matches this note (`herdr pane list`), NOT to invent new work.
+
+**Lock (pending):** relaying to a new Coordinator session now; new lock line will follow in the
+successor's first commit.
