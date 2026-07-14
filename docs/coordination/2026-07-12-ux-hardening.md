@@ -1392,3 +1392,31 @@ resume from this note before taking any merge-sensitive action.
 - #994 PR #1049 opened at `caa2263d`. Focused gates are green, but the duplicate local full gate
   was stopped after shared integration contention. GitHub CI is the isolated mechanical gate;
   independent QA waits for CI plus a PR-linked live desktop+narrow Skills/invocation artifact.
+
+## Continuation note — 2026-07-13 UX coordinator compaction relay
+
+- `UX Coordinator` authority is still Codex session
+  `019f5dc2-8bd9-78b2-827f-67bd9a99e6c9`; a fresh `herdr pane list` confirmed the separate
+  primary `Coordinator` session `58a78927-385c-4b1d-8fa0-94db20255d6f`. Resolve both by
+  label + `agent_session.value`; never trust a recorded pane number.
+- PR #1050 (#991) is code-complete at `51dee040`, rebased and pushed. Builder evidence:
+  `verify:foundation` exit 0 (396 unit files, 3306 passed, 2 skipped; 155 migrations current),
+  `audit:release-hardening` exit 0, and focused priority/persona/CLI tests green. It is sensitive
+  tier and remains code-complete, unproven: desktop+narrow screenshots and live selected-model
+  persona Preview/CLI dogfood proof are still required on the PR before independent QA + merge.
+- PR #1049 (#994) remains code-complete, unproven at `caa2263d`: focused evidence is green, while
+  isolated GitHub CI and real desktop+narrow Settings→Skills list/edit/autocomplete/slash-invocation
+  proof must be confirmed before routine QA + merge.
+- Live build sessions from the fresh pane list: #991 Luna
+  `019f5ed2-b01a-7610-95d6-da3024b4b82f` is done; #994 Luna
+  `019f5ed2-b0ed-7cf0-ba53-f956f4185b81` is working. Planning sessions #987/#992/#993+#995 are
+  idle; do not infer their authority or pane number from this note.
+- Immediate successor action: adopt this run under a new `UX Coordinator` session id and update
+  the delegated-lane-owner authority block; then message the primary `Coordinator` for one combined
+  #1000 live run covering PRs #1049 and #1050, with PR-linked desktop+narrow screenshots plus the
+  exact Skills and selected-model persona Preview/CLI paths above. Check GitHub CI; if CI and live
+  proof are green, launch independent routine QA for #1049 and sensitive QA with invariant walk for
+  #1050. Both QA verdicts must be durable PR comments. Reconfirm authority before every merge.
+- PR #1046 is the only merge since the last relay (`merges_since_relay: 1`). No merge occurred in
+  this compaction-triggered session. The successor may merge only after all gates above; the next
+  routine/sensitive merge reaches the two-merge relay threshold and requires immediate relay.
