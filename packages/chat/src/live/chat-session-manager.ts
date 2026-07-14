@@ -236,6 +236,8 @@ export class ChatSessionManager {
   private readonly privateDetachTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** In-flight ensureSession promises, keyed by user, to serialize launches. */
   private readonly launching = new Map<string, Promise<UserSession>>();
+  /** Actors whose next relaunch must replay bounded prior context after an explicit resume. */
+  private readonly pendingForcedReplay = new Set<string>();
   /**
    * Users with a turn currently in flight. submitTurn rejects a concurrent turn
    * for the same user (turn-at-a-time, spec §6.5) so two turns can't interleave
@@ -252,20 +254,9 @@ export class ChatSessionManager {
   private readonly pollMs: number;
   /** #456 — idle/heartbeat watchdog window; 0 disables (tests only). */
   private readonly idleWatchdogMs: number;
-  /**
-   * #342 (§4.1.2) — true when the ENGINE (RPC server) owns the replay submit+drain, so the
-   * manager must NOT submit/drain the replay itself. Resolved once from deps (default false =
-   * in-process path). See {@link ChatSessionManagerDeps.serverOwnsDrain} for why this replaces
-   * the old `offset === 0` sentinel (which double-submitted the replay on a 0-offset RPC result).
-   */
+  /** #342: RPC engines own replay submit/drain; in-process engines do it here. */
   private readonly serverOwnsDrain: boolean;
-  /**
-   * #342 (§5.4) — the single async mutex SHARED by reconciliation and reapIdle. Both mutate
-   * `sessions` + revoke tokens, so they MUST be mutually exclusive. Implemented as a promise
-   * chain: each critical section awaits the previous one's settlement before running. (A
-   * `submitTurn` does not take this mutex — it is serialized per-user by `turnsInFlight`; the
-   * mutex only orders the two session-map-mutating maintenance paths against each other.)
-   */
+  /** #342: serializes reconciliation and idle reaping, which both mutate sessions/tokens. */
   private maintenanceMutex: Promise<void> = Promise.resolve();
 
   constructor(private readonly deps: ChatSessionManagerDeps) {
@@ -291,7 +282,8 @@ export class ChatSessionManager {
     const inFlight = this.launching.get(actorUserId);
     if (inFlight) return inFlight;
 
-    const launch = this.launchSession(actorUserId, userName, opts);
+    const forceReplay = opts?.forceReplay ?? this.pendingForcedReplay.delete(actorUserId);
+    const launch = this.launchSession(actorUserId, userName, { forceReplay });
     this.launching.set(actorUserId, launch);
     try {
       return await launch;
@@ -682,6 +674,11 @@ export class ChatSessionManager {
     await this.cleanupPrivateSession(actorUserId, currentThread.id, this.sessions.get(actorUserId));
   }
 
+  async getPrivacyState(actorUserId: string): Promise<{ readonly incognito: boolean }> {
+    const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
+    return { incognito: currentThread?.incognito ?? false };
+  }
+
   /**
    * Resume a past thread: stop any in-flight turn, kill the current engine (so the
    * next submitTurn replays the resumed thread's messages), then touch the target
@@ -710,6 +707,7 @@ export class ChatSessionManager {
       this.sessions.delete(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);
     }
+    this.pendingForcedReplay.add(actorUserId);
   }
 
   /**
