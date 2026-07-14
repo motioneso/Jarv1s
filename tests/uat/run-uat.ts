@@ -6,7 +6,7 @@ async function main(): Promise<void> {
     excludeChunks: ["job-search"]
   });
 
-  let exitCode = 1;
+  let exitCode: number;
   const onSignal = () => {
     void teardown().finally(() => process.exit(1));
   };
