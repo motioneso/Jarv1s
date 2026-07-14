@@ -1678,7 +1678,9 @@ resume from this note before taking any merge-sensitive action.
   `ab57e542ef8bbf4380ac484e66d503ef9af1d73c`. GitHub confirms the diff is limited to the 17 approved
   paths. Required CI run `29357630990` is running; builder verification is green except reported
   unrelated integration baseline failures, which are not waived or accepted as PR evidence.
-  Primary `Coordinator` session `eb173f3a-c671-40c7-9bd2-78cbec597433` has the exact-head real
-  desktop+narrow UAT request for Notes, People, four refresh counters, and stable-ID delete-card
-  focus. Fresh independent sensitive QA waits for CI green. No merge or issue closure is allowed
-  before both durable gates pass.
+  Primary `Coordinator` session `eb173f3a-c671-40c7-9bd2-78cbec597433` correctly declined the UAT
+  request because touching this lane's PR/worktree would violate the dual-coordinator boundary.
+  This UX lane launched its own independent Webwright UAT task `/root/uat_1058_live` in detached
+  exact-head worktree `~/Jarv1s/.claude/worktrees/uat-1058-notes-people` for Notes, People, four
+  refresh counters, and stable-ID delete-card focus. Fresh independent sensitive QA waits for CI
+  green. No merge or issue closure is allowed before both durable gates pass.
