@@ -6137,3 +6137,10 @@ Fable cross-model QA (agent fable-qa-1051) = **GREEN, MERGE-READY: YES, 0 blocki
 **Ben interaction this window:** asked for a 48h marketing-style summary (delivered, non-technical, grouped by feature). Not a merge sign-off.
 
 **Continuation note:** Coordinator compacting IN PLACE (Ben override — no successor spawn). Live holds: (1) #1040/PR#1051 → Ben merge OK; (2) UAT worktree → UX reap ping. No open build lanes. Backlog (gpt-5.6-sol, none Ben-blocked): #965, #1018, #1047.
+
+## Checkpoint 13k — 2026-07-13 (#1049 QA RED, recapture pending)
+
+- UX relayed **independent #1049 QA = RED** (comment 4966124185): builder reopened for **composer state + visible required marker**; UX owns removal of a **leaked docs/coordination handoff** on the #1049 branch (coordinator-only file hygiene). #1049 frozen SHA `63ccf923` is now SUPERSEDED.
+- **My standing task:** after the corrected #1049 head is CI-green, re-task the UAT lane for a **fresh stable unobscured desktop+narrow capture** against the NEW head. **DO NOT rerun yet** — wait for UX's explicit go. Worktree `.claude/worktrees/uat-1049-1050-combined` + pMZ lane remain HELD.
+- #1050 unchanged: blocked, no QA.
+- #1040/PR#1051 unchanged: held for Ben sign-off.
