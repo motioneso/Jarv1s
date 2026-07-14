@@ -1804,6 +1804,8 @@ resume from this note before taking any merge-sensitive action.
 - Agent evidence: focused People service/routes 17/17 green; scoped format/lint and root typecheck
   green; `VF_EXIT=0` with 3,326 unit and 1,648 integration tests passed; 155 migrations current;
   `AUDIT_EXIT=0`; pre-push trio green; fresh `origin/main` rebase current; branch worktree clean.
-- Fresh GitHub CI run `29374741166` is running on the new exact head. Fresh live UAT is running as
-  `/root/uat_1058_live_v5`. Independent sensitive QA must wait for full CI green. Prior CI/UAT/QA
-  evidence is stale for merge purposes. No merge, issue-closure, or #995 release claim is made.
+- Fresh GitHub CI run `29374741166` is running on the new exact head. Fresh live UAT is GREEN with
+  durable evidence at `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4974908358` and
+  artifacts under `~/Jarv1s/.claude/worktrees/coord-983-ux/artifacts/webwright/pr-1058-live-v5-2425d382/`.
+  Independent sensitive QA must wait for full CI green. No merge, issue-closure, or #995 release
+  claim is made.
