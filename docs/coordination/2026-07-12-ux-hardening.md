@@ -1448,6 +1448,9 @@ resume from this note before taking any merge-sensitive action.
   `110bba3b3654f0522a15a19458cc1493ba4ba4b1`; CI run `29312925736` is fully green. The primary
   coordinator's fresh stable, unobscured desktop+narrow UAT passed with durable comment
   `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966637818`. Independent routine
-  re-QA label `QA 1049 Recheck Sol`, Codex session
-  `019f5f9d-4b93-7183-b5af-e8d4f3475ad0`, is working on `gpt-5.6-sol`. No merge has occurred yet.
+  re-QA session `019f5f9d-4b93-7183-b5af-e8d4f3475ad0` returned GREEN and was reaped; durable
+  verdict `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966683562`. The branch rebased
+  cleanly onto `origin/main` `313c194c` with no feature edits; integrated head
+  `1a3bf80c57dbed2f8425b640e64277ea52eb9038` has CI pending. Require green integrated CI and fresh
+  integrated QA before merge. No merge has occurred yet.
 - `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
