@@ -5787,3 +5787,19 @@ Ben pause). Any blocker → back to UX 984 lane. AWAITING-BEN.md #984 item clear
 - **VERDICT GREEN**, 0 blocking. Invariants clean (DB-RLS owner-scoping on History/touchThread, secrets-never-escape — privacy endpoint returns only {incognito:boolean}, metadata-only payloads, #868 purge intact — recordTurn still skips persistence+jobs for incognito). Resume re-establishes correct actor. No cross-user/session leak path. Verdict posted to PR (gh pr comment).
 - 3 non-blocking test-coverage gaps (all guarded by pre-existing RLS/structure, no live vuln): RLS foreign-thread-resume block; two-user privacy-endpoint isolation; forceReplay-vs-purge. → file test-hardening follow-up on merge.
 - CI: compose + prod-compose PASS; "Verify foundation and app" pending (~19min). **Auto-merge enabled** (squash+delete) — merges on VF green per Opus authority. On merge: close #984, reap pK3 + ux-984 worktree, file follow-up, digest.
+
+---
+### #984 / PR #1015 — MERGED d56ba688 (INCIDENT: --auto merged before VF)
+- Opus security re-QA APPROVE (0 blocking) = sign-off (Ben delegated the #984 merge to Opus).
+- Marked PR ready (was draft) + `gh pr merge --auto`. **Auto-merge fired the moment the compose
+  smokes went green — BEFORE "Verify foundation and app" finished** (VF was still `in_progress` at
+  mergedAt 2026-07-14T00:41:04Z). Root cause: **VF is NOT a required branch-protection check**, so
+  `--auto` never waited on it. Opus's condition was "hold until VF green" — this jumped the gate.
+- Mitigation: NOT undoable, but gating on outcome. VF run `29296355763` (head 76ef0e94) watched to
+  completion (monitor bh7fozz44): **GREEN → proceed bookkeeping; RED → revert #1015 immediately**
+  (security-tier, can't sit broken on main) + relay to UX 984 lane pK3.
+- **HELD until VF resolves:** close #984, reap pK3 lane + `ux-984-private-history` worktree, file the
+  3 non-blocking test-hardening follow-ups (RLS foreign-thread-resume block; two-user privacy-endpoint
+  isolation; forceReplay-vs-purge), add to digest.
+- LESSON (saved to memory): for a security-tier merge whose sign-off is conditional on the FULL gate,
+  never trust `--auto` — it only waits on *required* checks. Poll VF to green, then merge manually.
