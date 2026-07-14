@@ -6334,3 +6334,10 @@ session `019f5fc7-4cac-7760-8e3a-9f5d766c5862` NOT reaped, NOT touched. Predeces
 will be reaped only after both merges land and bookkeeping is confirmed.
 
 **Lock:** Coordinator session `09cda409-186a-49a4-87dc-4471aeb2eca7`.
+
+## PR #1053 MERGED — 2026-07-14 (new coordinator, session 09cda409)
+Squash-merged `64817d3c`. Issue #1030 closed. Board auto-Done. Worktree
+`.claude/worktrees/uat-1030-multiuser` removed + branch deleted. Lane B pane `w1:pN7` reaped
+(confirmed by label+session before close). merges_since_relay=1 (security merge — relay-worthy but
+continuing per predecessor's explicit relay-note instruction to finish both cleared merges before
+any further relay). Proceeding to PR #1054.
