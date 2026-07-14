@@ -30,10 +30,10 @@ export function createMigrationOwnerDb(): Kysely<JarvisDatabase> {
  * every seeded row is written exactly the way a real request would write it —
  * no RLS carve-out, no bypass.
  */
-export function createAppRuntimeRunner(): DataContextRunner {
+export function createAppRuntimeRunner(): DataContextRunner & { destroy(): Promise<void> } {
   const { app } = getJarvisDatabaseUrls();
   const rootDb = new Kysely<JarvisDatabase>({
     dialect: new PostgresDialect({ pool: new Pool({ connectionString: app }) })
   });
-  return new DataContextRunner(rootDb);
+  return Object.assign(new DataContextRunner(rootDb), { destroy: () => rootDb.destroy() });
 }

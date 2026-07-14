@@ -1,17 +1,71 @@
 import { spawn } from "node:child_process";
+import { readFile, readdir } from "node:fs/promises";
+import { basename, join, matchesGlob } from "node:path";
 import { provisionForUat } from "./provisioner.js";
+import type { UatSeedChunk, UatSeedLevel } from "./seed/types.js";
 
-async function main(): Promise<void> {
-  const specFilters = process.argv.slice(2);
-  // #1027/#1047/#1000: job-search-install needs the module absent, but that seed override must
-  // follow the selected spec instead of leaking into every future filtered UAT invocation.
-  const runsJobSearchInstall =
-    specFilters.length === 0 || specFilters.some((filter) => filter.includes("job-search-install"));
-  const { baseURL, projectName, teardown } = await provisionForUat("admin+data", {
-    excludeChunks: runsJobSearchInstall ? ["job-search"] : []
+const SPEC_DIR = "tests/uat/specs";
+const LEVELS = new Set<UatSeedLevel>(["bare", "solo-admin", "admin+data", "multi-user"]);
+const CHUNKS = new Set<UatSeedChunk>([
+  "news",
+  "sports",
+  "tasks",
+  "calendar",
+  "notes",
+  "job-search"
+]);
+
+async function resolveSpecPaths(filters: readonly string[]): Promise<string[]> {
+  const available = (await readdir(SPEC_DIR))
+    .filter((file) => file.endsWith(".uat.spec.ts"))
+    .map((file) => join(SPEC_DIR, file));
+  if (filters.length === 0) return available;
+
+  const selected = available.filter((path) =>
+    filters.some(
+      (filter) =>
+        path === filter ||
+        matchesGlob(path, filter) ||
+        matchesGlob(basename(path), filter) ||
+        basename(path).includes(filter)
+    )
+  );
+  if (selected.length === 0) {
+    throw new Error(`no UAT spec matched: ${filters.join(", ")}`);
+  }
+  return selected;
+}
+
+async function readUatLevel(
+  specPath: string
+): Promise<{ level: UatSeedLevel; without: readonly UatSeedChunk[] }> {
+  const source = await readFile(specPath, "utf8");
+  const match = source.match(
+    /export\s+const\s+uatLevel\s*=\s*\{\s*level:\s*["']([^"']+)["']\s*,\s*without:\s*\[([^\]]*)\]\s*\}\s+as const/
+  );
+  const level = match?.[1];
+  const withoutSource = match?.[2];
+  if (!level || withoutSource === undefined) {
+    throw new Error(`${specPath} must export uatLevel per harness spec §5`);
+  }
+
+  const without = [...withoutSource.matchAll(/["']([^"']+)["']/g)].map((item) => item[1] as string);
+  if (!LEVELS.has(level as UatSeedLevel)) {
+    throw new Error(`${specPath} has invalid uatLevel.level: ${level}`);
+  }
+  const invalidChunk = without.find((chunk) => !CHUNKS.has(chunk as UatSeedChunk));
+  if (invalidChunk) {
+    throw new Error(`${specPath} has invalid uatLevel.without chunk: ${invalidChunk}`);
+  }
+  return { level: level as UatSeedLevel, without: without as UatSeedChunk[] };
+}
+
+async function runSpec(specPath: string): Promise<number> {
+  const uatLevel = await readUatLevel(specPath);
+  const { baseURL, projectName, teardown } = await provisionForUat(uatLevel.level, {
+    excludeChunks: uatLevel.without
   });
 
-  let exitCode: number;
   const onSignal = () => {
     void teardown().finally(() => process.exit(1));
   };
@@ -19,18 +73,11 @@ async function main(): Promise<void> {
   process.on("SIGTERM", onSignal);
 
   try {
-    console.log(`[uat] running Playwright against ${baseURL} (project ${projectName})`);
-    exitCode = await new Promise<number>((resolvePromise) => {
+    console.log(`[uat] running ${specPath} against ${baseURL} (project ${projectName})`);
+    return await new Promise<number>((resolvePromise) => {
       const child = spawn(
         "npx",
-        [
-          "playwright",
-          "test",
-          "--config=tests/uat/playwright.uat.config.ts",
-          // #1027/#1047: coordinate resolves one matching spec; forwarding it is what makes the
-          // gate execute that spec instead of silently running an unrelated/default selection.
-          ...specFilters
-        ],
+        ["playwright", "test", "--config=tests/uat/playwright.uat.config.ts", specPath],
         {
           stdio: "inherit",
           env: {
@@ -47,8 +94,14 @@ async function main(): Promise<void> {
     process.off("SIGTERM", onSignal);
     await teardown();
   }
+}
 
-  process.exit(exitCode);
+async function main(): Promise<void> {
+  const specPaths = await resolveSpecPaths(process.argv.slice(2));
+  for (const specPath of specPaths) {
+    const exitCode = await runSpec(specPath);
+    if (exitCode !== 0) process.exit(exitCode);
+  }
 }
 
 await main();

@@ -38,7 +38,9 @@ export async function seedTasksChunk(
         title: task.title,
         status: task.status,
         dueAt: task.dueAt,
-        priority: task.priority ?? null
+        priority: task.priority ?? null,
+        source: "uat-seed",
+        externalKey: task.title
       });
     }
   });
