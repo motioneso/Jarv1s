@@ -1665,3 +1665,11 @@ resume from this note before taking any merge-sensitive action.
   explicitly approved to immutable builder session `019f61cb-e119-7d41-ac45-390878fe72ff`; Task 5
   is active with no `docs/coordination/**`, `tests/uat/**`, chat policy/routes/styles, approval store,
   or broader redesign scope.
+- GitHub confirms Primary's PR #1056 changes only eight disjoint registry-publishing/docs paths and
+  does not touch `packages/module-registry/src/index.ts` or any requested #987 path. The builder's
+  plan-listed expansion is approved for `packages/vault/src/{vault-ops,index}.ts`,
+  `packages/people/src/{routes,notes-service,types}.ts`, `packages/module-registry/src/index.ts`,
+  `apps/web/src/api/{people-client,query-keys}.ts`, `settings-people-pane.tsx`, and only their
+  plan-listed tests. Task 5 is committed at `6af36114`; its focused action-card test and web
+  typecheck pass. The People package's workspace-wide `TS6059` rootDir failure is baseline and is
+  not treated as feature evidence or a waiver. Tasks 1-4 and 6 are active under the expanded locks.
