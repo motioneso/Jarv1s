@@ -1,6 +1,7 @@
 # Notes and People source-picker hardening (#987)
 
 **Status:** Approved on PR #1008
+**Scope expansion:** Approved by Ben on PR #1044 after independent QA cycle 2
 **Date:** 2026-07-12
 **Mechanical risk tier:** sensitive (owner-scoped vault discovery and a People refresh response
 contract; no migration, auth, role, or RLS policy change)
@@ -70,10 +71,14 @@ This issue makes both selectable without merging those trust domains.
    never imply that an item is pending when none exists. When a concrete pending `notes.delete`
    request exists for the current owner, the Notes card names the item awaiting deletion, explains
    that destructive deletion requires explicit approval, and offers `Review deletion` that opens
-   and focuses that request's existing chat action card. The chat card remains the only resolver;
-   #987 reuses its owner-scoped live action data and does not add a second approval endpoint. With
-   no concrete pending deletion, show only the honest policy sentence: "Deleting a note always
-   asks you in chat before anything is removed."
+   and focuses that request's existing chat action card. Carry the existing stable
+   `actionRequestId` through `ChatControls` into `AppShell`, then through `ChatDrawer` to the
+   matching `ActionRequestCard`; clear the one-shot focus target after focus succeeds. `AppShell`
+   derives the displayed pending delete from its existing owner-scoped live transcript and excludes
+   requests with a matching action result. The chat card remains the only resolver; #987 does not
+   add a second approval endpoint or approval store. With no concrete pending deletion, show only
+   the honest policy sentence: "Deleting a note always asks you in chat before anything is
+   removed."
 9. **Security boundaries do not move.** Database access remains `DataContextDb`-only, all People
    folder discovery/read/write remains `VaultContext`-only, preferences and People records remain
    owner-only under existing RLS, and no path, note content, credential, or secret enters a job
@@ -131,7 +136,9 @@ No database migration, new table, new dependency, new job, or cross-module table
 - Remove raw path entry and accept selections only from discovery responses.
 - Add honest no-root/unavailable states and deployment recovery copy.
 - Replace the static delete-approval chip with item details, the approval reason, and a review link
-  only for a concrete pending `notes.delete`; otherwise keep the chat-approval explanation.
+  only for a concrete pending `notes.delete`; otherwise keep the chat-approval explanation. Thread
+  its stable action-request ID through the existing shell/chat controls and focus only the matching
+  existing card.
 
 ### Slice 2 - owner-vault People picker (`sensitive`)
 
@@ -158,6 +165,10 @@ Expected product paths:
 - `~/Jarv1s/apps/web/src/settings/settings-vault-chooser.tsx`
 - `~/Jarv1s/apps/web/src/settings/settings-personal-data-panes.tsx`
 - `~/Jarv1s/apps/web/src/settings/settings-people-pane.tsx`
+- `~/Jarv1s/apps/web/src/shell/app-shell.tsx`
+- `~/Jarv1s/apps/web/src/shell/chat-controls-context.ts`
+- `~/Jarv1s/apps/web/src/chat/chat-drawer.tsx`
+- `~/Jarv1s/apps/web/src/chat/action-request-card.tsx`
 - `~/Jarv1s/apps/web/src/api/people-client.ts`
 - `~/Jarv1s/apps/web/src/api/query-keys.ts`
 - `~/Jarv1s/apps/web/src/styles/settings-panes-3.css` only if existing responsive rules are
@@ -167,6 +178,7 @@ Expected product paths:
 - `~/Jarv1s/packages/people/src/routes.ts`
 - `~/Jarv1s/packages/people/src/notes-service.ts`
 - `~/Jarv1s/packages/people/src/types.ts`
+- `~/Jarv1s/packages/people/src/index.ts`
 - `~/Jarv1s/packages/module-registry/src/index.ts`
 
 Expected test paths:
@@ -179,6 +191,7 @@ Expected test paths:
 - `~/Jarv1s/tests/unit/settings-people-pane.test.tsx`
 - `~/Jarv1s/tests/unit/module-registry-people-notes-source-behavior.test.ts`
 - `~/Jarv1s/tests/unit/settings-vault-chooser.test.tsx` (new)
+- `~/Jarv1s/tests/unit/action-request-card-preview.test.tsx`
 - `~/Jarv1s/tests/e2e/mock-notes-people-api.ts` (new)
 - `~/Jarv1s/tests/e2e/settings-notes-people.spec.ts` (new)
 
@@ -188,9 +201,12 @@ Collision rules:
   the Data sources body, People & context body, and their chooser. Product work may proceed in
   parallel, but rebase/serialize if #986 touches either pane file; write final Playwright navigation
   selectors against post-#986 structure.
-- #985 owns chat approval resolution and policy. #987 may consume the existing owner-scoped live
-  action request to open/focus its chat card, but it does not add a resolver or change
-  `action-request-card.tsx`, chat routes, gateway policy, or chat styles.
+- #985 owns chat approval resolution and policy. Ben's PR #1044 scope decision allows #987 to
+  modify only `AppShell`, `ChatControls`, `ChatDrawer`, and `ActionRequestCard` to expose the
+  existing owner-scoped pending `notes.delete`, carry its stable `actionRequestId`, open chat, and
+  focus that matching card. #987 does not change resolution behavior, chat routes, gateway policy,
+  chat styles, transcript ownership, or add an approval store/inbox. Serialize if #985 touches one
+  of those four UI files.
 - The other Coordinator's #965/#1000 lane owns module run/install behavior and install-UI UAT. #987
   does not touch Instance modules, `RunNowButton`, module jobs, or their selectors.
 
@@ -210,7 +226,8 @@ Focused automated checks must prove:
   manual-create flow.
 - The Notes card never shows a fake pending count. Given a real pending `notes.delete`, it names the
   item, explains why approval is required, and its review link opens/focuses the matching existing
-  chat action card; without one, no review link appears.
+  chat action card by stable `actionRequestId`; a different action card does not receive focus,
+  and without a pending request no review link appears.
 - `pnpm verify:foundation` and the relevant Playwright project are green.
 
 Playwright acceptance in `settings-notes-people.spec.ts`:
@@ -238,6 +255,7 @@ note.
 - Changing People note format, projection identity rules, match acceptance, or note-first
   create/edit/archive behavior.
 - A new global approvals inbox or a second action resolver.
+- A chat redesign, new chat state model, changed action-resolution behavior, or new approval store.
 - Any migration, RLS policy change, shared-data model, secret, or background job.
 
 ## Approval questions
