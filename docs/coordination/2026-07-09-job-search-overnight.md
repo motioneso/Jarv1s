@@ -6468,3 +6468,18 @@ just hold the lock and answer Ben's questions until new work arrives.
 
 Lock (pending): relaying to a new Coordinator session now; new lock line follows in successor's
 first commit.
+
+### Correction/addendum from Codex (w1:pNE, 2026-07-14, received during this relay flush)
+Codex's own investigation refined the root cause further and found the sharper *immediate*
+blocker (distinct from, and layered under, the manifest-resolver gap above): prod's `:edge` core
+is healthy incl. #1019, DB row shows job-search **enabled**, but `/data/modules/job-search` on
+disk is a **stale cached artifact with `navigation: null`**. GitHub's modules registry now serves
+a **different, fixed artifact WITH nav under the same `0.1.0` version string** — so prod has no
+signal to re-fetch (version-pinned cache, no version bump = no update path). Codex will NOT
+direct-deploy. **Plan:** isolated PR bumps job-search package+manifest to `0.1.1` + fixes stale
+docs/terminology + stale feature-flag guidance; after merge + registry publish, exercise the
+**normal** in-app Update/download + restart/reconcile flow and verify nav appears. Explicitly
+**out of scope for that PR**: the unified built-in/external manifest-resolver fix — Codex agrees
+that's the broader parity work and needs its own sensitive-tier approved spec under epic #860 (as
+I flagged). This is consistent guidance, not a conflict — replied via acknowledgment, no action
+needed on my side.
