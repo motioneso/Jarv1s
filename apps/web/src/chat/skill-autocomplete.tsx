@@ -14,13 +14,21 @@ export function activeSlashQuery(text: string): string | null {
   return match ? (match[1] ?? "") : null;
 }
 
+export function skillCommandName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
 export function filterEnabledSkills(
   skills: readonly ChatSkillDto[],
   query: string
 ): readonly ChatSkillDto[] {
-  const needle = query.trim().toLowerCase();
+  const needle = skillCommandName(query);
   return skills.filter(
-    (s) => s.enabled && (needle === "" || s.name.toLowerCase().includes(needle))
+    (s) =>
+      s.enabled &&
+      (needle === "" ||
+        skillCommandName(s.name).includes(needle) ||
+        s.name.toLowerCase().includes(query.trim().toLowerCase()))
   );
 }
 
@@ -30,8 +38,8 @@ export function resolveSkillByName(
   skills: readonly ChatSkillDto[],
   name: string
 ): ChatSkillDto | undefined {
-  const needle = name.trim().toLowerCase();
-  return needle ? skills.find((s) => s.enabled && s.name.toLowerCase() === needle) : undefined;
+  const needle = skillCommandName(name);
+  return needle ? skills.find((s) => s.enabled && skillCommandName(s.name) === needle) : undefined;
 }
 
 export function resolveBoundSkill(
@@ -93,7 +101,7 @@ export function SkillAutocomplete(props: {
           className="chatd-skillac__option"
           onClick={() => props.onSelect(skill)}
         >
-          <span className="chatd-skillac__name">/{skill.name}</span>
+          <span className="chatd-skillac__name">/{skillCommandName(skill.name)}</span>
           {skill.description ? (
             <span className="chatd-skillac__desc">{skill.description}</span>
           ) : null}
