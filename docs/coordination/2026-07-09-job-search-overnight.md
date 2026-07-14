@@ -6017,3 +6017,25 @@ repair real + 2 tests non-vacuous; settings file untouched + single-source-of-tr
 Durable verdict: PR #1048 comment 4965367792. **Only remaining gate = VF green (poller bjx51rwxs);**
 compose smokes already pass. On VF success → `gh pr merge 1048 --squash --delete-branch` (manual, sensitive)
 → EPIC #1000 DONE. No re-QA needed.
+
+## Checkpoint 2026-07-13f — P4 #1048 MERGED · #1000 harness COMPLETE (P1-P4)
+
+**PR #1048 MERGED** squash `8f9da394` (sensitive; QA GREEN 0/0 + VF green manual merge, not --auto).
+**#1027 CLOSED.** P4 pane pMN reaped, worktree removed.
+
+**Epic #1000: all 4 UAT-harness phases landed** — P1 #1024, P2 #1025, P3 #1026, P4 #1027. The
+coordinate QA flow now runs the live #1000 UAT harness as a **blocking gate on runtime-path PRs**
+(install/sync/export-import/nav/CLI-runner), advisory elsewhere; data-driven resolver
+`.claude/skills/coordinate/resolve-uat-triggers.sh` + `uat-trigger-map.tsv`, wired at
+`coordinated-qa/SKILL.md` step 4. Proven against the #999 diff.
+
+**Epic #1000 stays OPEN for its last child #1040** (dev/UAT seed logs generated owner creds — Ben
+dev-auth ask). Deferred follow-up: #1047 (§5 uatLevel export). Spawn #1040 as a gpt-5.6-sol lane.
+
+**Cross-fleet request logged:** UX Coordinator successor (session 019f5ee8, pane w1:pMW) asked me to
+run a combined #1000 live UAT for PRs #1049 (#994 skills) + #1050 (#991 assistant/persona) + link
+evidence. GATE: **no UAT spec exists** for those flows on main (only job-search-install.uat.spec.ts)
+→ authoring = build work needing approved spec (Ben HARD RULE). Replying with: (1) point me to the
+#994/#991 spec sections defining these acceptance flows or add them first; (2) PRs must be QA-frozen
+(both UNSTABLE/in-QA now); (3) I delegate to a sol UAT lane, CLI dogfood is a separate non-browser
+evidence path; UX keeps QA/merge. Not blocked on Ben (routing pre-agreed) — surfaced in digest.
