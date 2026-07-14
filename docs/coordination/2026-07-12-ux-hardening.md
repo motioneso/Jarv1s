@@ -1446,8 +1446,8 @@ resume from this note before taking any merge-sensitive action.
   composer-state and visible-required-marker blockers at `f2760d1f`; the coordinator removed the
   leaked `docs/coordination/handoff-994-skills-build.md`. PR #1049 head is now
   `110bba3b3654f0522a15a19458cc1493ba4ba4b1`; CI run `29312925736` is fully green. The primary
-  coordinator spawned `UAT 1049 Recapture Sol`, Codex session
-  `019f5f8a-6487-79f1-b0a5-e24e17919912`, on `gpt-5.6-sol` for fresh stable, unobscured
-  desktop+narrow UAT. Independent re-QA follows only after durable PASS evidence. No merge has
-  occurred yet.
+  coordinator's fresh stable, unobscured desktop+narrow UAT passed with durable comment
+  `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966637818`. Independent routine
+  re-QA label `QA 1049 Recheck Sol`, Codex session
+  `019f5f9d-4b93-7183-b5af-e8d4f3475ad0`, is working on `gpt-5.6-sol`. No merge has occurred yet.
 - `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
