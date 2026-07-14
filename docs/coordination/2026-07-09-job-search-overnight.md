@@ -6409,3 +6409,62 @@ fleet state matches this note (`herdr pane list`), NOT to invent new work.
 
 **Lock (pending):** relaying to a new Coordinator session now; new lock line will follow in the
 successor's first commit.
+
+## RELAY — 2026-07-14 (context-meter 70%, session 09cda409, second relay)
+
+**Note:** an earlier relay attempt this session was aborted mid-spawn on Ben's instruction
+("you just compacted you don't need to relay, I'm reaping the other one") — that 70% reading was
+a stale post-compaction artifact; Ben reaped the half-spawned successor pane himself and I
+continued as session `09cda409`. **This relay is real** — genuine accumulated context since then.
+
+### Work done since the last relay note (still session 09cda409)
+- Confirmed prod (`jarv1s-prod-jarv1s-1`) healthy on `:edge` digest `sha256:12d6b6330755...`,
+  serving 200s, includes today's #1053/#1054 merges (Ben confirmed he pulled it himself).
+- **Job-search nav investigation (conversational, no code changes by me):** traced why an
+  *installed* external module (job-search) never gets a nav entry. Root cause: `/api/me/modules`
+  (`packages/settings/src/routes-modules.ts:250`, feeds `app-shell.tsx` nav) is wired at
+  `apps/api/src/server.ts:485` to `listModuleManifests: getBuiltInModuleManifests` — a **static,
+  built-in-only** list (`packages/module-registry/src/index.ts:1673`). External modules go
+  through a separate path (`discoverExternalModules` / `createExternalActiveModulesResolver`)
+  that was never merged into this or several other call sites: `data-export.ts`,
+  `data-export-routes.ts`, `data-export-jobs.ts`, `notification-preferences-routes.ts`,
+  `briefings/src/routes.ts`, host-diagnostics module count. **Data-export/deletion not including
+  installed external-module data is the sharper problem** (privacy invariant), not just the nav
+  cosmetic. Also confirmed via `tests/uat/specs/job-search-install.uat.spec.ts` why UAT didn't
+  catch it: the test only asserts the Settings-panel "Installed" + enabled-checkbox state — it
+  never leaves Settings to check the main nav renders a link. Real gap in that UAT spec's
+  assertions, not a harness-architecture problem.
+- Ben's ask: external modules should be **fully equivalent to built-in once installed** — the
+  *only* difference should be the download/install step. Agreed this is right; scoped it as
+  "unify manifest resolution" under **epic #860** (pluggable modules), sensitive-tier (touches
+  data export/deletion).
+- **Ownership handoff, NOT mine to build:** Codex session `019f619a-c53c-76b1-a392-c9dea5a4cb02`
+  (pane `w1:pNE`, cwd `/home/ben/Jarv1s`, shared workspace w1) announced it is handling this exact
+  work per Ben's direct request — will use an isolated worktree off `origin/main`, will not touch
+  this coordinator's worktree, asked about conflicts/prod procedure. I replied (via
+  `herdr pane run w1:pNE`) confirming: no conflicting work on my side (I never spawned a build
+  lane or wrote a spec for this — safe for Codex to own), flagged (a) CLAUDE.md "spec before
+  build" gate — sensitive-tier given data-export/deletion surface, file under epic #860, (b) the
+  sanctioned prod-deploy procedure (merge to main → CI auto-publishes `:edge` → operator
+  `docker compose pull && up -d` from `/home/ben/JarvisProd` — never deploy mid-work), (c) prod's
+  current healthy digest so it doesn't get redeployed unnecessarily.
+- **Do NOT duplicate this work.** If a successor is asked about "job-search nav" again, the
+  answer is: root-caused, owned by Codex session `019f619a` (pane `w1:pNE` or wherever it lands
+  next — resolve fresh), not a task for this run's lane.
+
+### Fleet state at relay time
+- My run (`2026-07-09-job-search-overnight`) is otherwise idle — no build agents on my lanes, no
+  PRs of mine pending merge. Both this run's cleared merges (#1053, #1054) landed earlier today.
+- UX Coordinator: Codex session `019f6186-4d43-7f22-9e6a-6a368a1d4c89`, pane `w1:pNC`, label
+  "UX Coordinator" — separate run, do not touch.
+- Other panes visible are UX-owned build/plan lanes (`w1:pMH`, `w1:pMT`) — not mine.
+- #1050 remains parked per Ben's explicit "keep open, discuss later" instruction — still no build
+  authorized.
+
+### Successor's first job
+Confirm fleet state matches this note (bounded `herdr pane list`), do NOT invent new work, do NOT
+re-investigate job-search nav (already answered + owned by Codex `019f619a`). This run is idle;
+just hold the lock and answer Ben's questions until new work arrives.
+
+Lock (pending): relaying to a new Coordinator session now; new lock line follows in successor's
+first commit.
