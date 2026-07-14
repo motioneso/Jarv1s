@@ -39,11 +39,13 @@ test for the `excludeChunks` forwarding fix only).
 ### Task 1: `provisioner.ts` — `provisionForUat`, `restartUatStack`, `excludeChunks` fix
 
 **Files:**
+
 - Modify: `tests/uat/provisioner.ts:371-465` (replaces the `main()` function and the trailing
   `import.meta.url` guard; inserts three new exports before the new `main()`)
 - Test: `tests/unit/uat-provisioner.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `buildSeedHookInput(projectName: string, level: UatSeedLevel, opts?: {excludeChunks?: readonly string[]}): {projectName: string; level: UatSeedLevel; excludeChunks?: readonly string[]}`
   - `restartUatStack(projectName: string, baseURL: string): Promise<void>`
@@ -224,9 +226,11 @@ git commit -m "feat(uat): extract provisionForUat, fix excludeChunks forwarding 
 ### Task 2: `admin.ts` — export the seeded admin credentials
 
 **Files:**
+
 - Modify: `tests/uat/seed/admin.ts:8-9`
 
 **Interfaces:**
+
 - Produces: `UAT_ADMIN_EMAIL: string`, `UAT_ADMIN_PASSWORD: string` (both exported; values
   unchanged — `"uat-admin@jarv1s.local"` / `"uat-admin-password-1025"`).
 - Consumes: none new.
@@ -263,9 +267,11 @@ git commit -m "feat(uat): export seeded admin credentials for Playwright login (
 ### Task 3: `tests/uat/playwright.uat.config.ts`
 
 **Files:**
+
 - Create: `tests/uat/playwright.uat.config.ts`
 
 **Interfaces:**
+
 - Consumes: `process.env.JARVIS_UAT_BASE_URL` (set by `run-uat.ts`, Task 4).
 - Produces: a Playwright config selecting `tests/uat/specs/*.uat.spec.ts`, no `webServer`, no
   mocks, `baseURL` resolved from the env var at config-load time.
@@ -323,10 +329,12 @@ git commit -m "feat(uat): add runtime-baseURL Playwright config for real UAT spe
 ### Task 4: `tests/uat/run-uat.ts` wrapper + `package.json` script
 
 **Files:**
+
 - Create: `tests/uat/run-uat.ts`
 - Modify: `package.json` (scripts section, alongside the existing `"uat:provision:smoke"` entry)
 
 **Interfaces:**
+
 - Consumes: `provisionForUat` and its exact return shape from Task 1
   (`{baseURL, projectName, teardown}`).
 - Produces: `pnpm test:uat` — provisions `admin+data` level with Job Search excluded, runs
@@ -408,9 +416,11 @@ git commit -m "feat(uat): add run-uat.ts wrapper and pnpm test:uat script (#1026
 ### Task 5: `tests/uat/specs/job-search-install.uat.spec.ts`
 
 **Files:**
+
 - Create: `tests/uat/specs/job-search-install.uat.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `restartUatStack` (Task 1), `UAT_ADMIN_EMAIL`/`UAT_ADMIN_PASSWORD` (Task 2),
   `process.env.JARVIS_UAT_PROJECT_NAME`/`JARVIS_UAT_BASE_URL` (set by Task 4's `run-uat.ts`).
 - Produces: the one UAT acceptance spec for #1026/#999.
