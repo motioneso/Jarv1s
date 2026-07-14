@@ -123,9 +123,9 @@ children only; it is not a general filesystem browser.
 { name: "People", path: "People" }]` only;
   - expect `listVaultDirectories(ctx, "People")` to return only
     `{ name: "Family", path: "People/Family" }`;
-  - reject `../other-user`, an absolute path (including an absolute path that happens to point
-    inside the current vault), and a requested directory reached through a symlink escaping the
-    vault;
+  - reject `../other-user`, the in-vault traversal `People/../Archive`, an absolute path (including
+    an absolute path that happens to point inside the current vault), and a requested directory
+    reached through a symlink escaping the vault;
   - prove a context for user A never returns a directory created in user B's vault.
 
 - [ ] **Step 2: Run the focused test and confirm RED**
@@ -137,7 +137,9 @@ children only; it is not a general filesystem browser.
 - [ ] **Step 3: Implement the smallest vault operation**
 
   In `packages/vault/src/vault-ops.ts`:
-  - reject an absolute `relativeDir` before resolving it;
+  - before normalization or `resolveVaultPath`, reject an absolute `relativeDir` and any raw path
+    segment exactly equal to `..`; this must reject in-vault traversal such as
+    `People/../Archive`, which resolution alone would normalize to an allowed path;
   - call `assertVaultContext`, `resolveVaultPath`, and the existing `assertNoSymlinkEscape` exactly
     as `listVaultFiles`/`listVaultFilesRecursive` do;
   - call `readdir(fullPath, { withFileTypes: true })` once;
@@ -193,12 +195,16 @@ all other non-null folders must exist at save time.
   actors. Add `app.inject` tests that prove:
   - root discovery returns only sorted immediate, owner-relative child directories;
   - `?path=People` returns relative descendants and never contains the vault base path or actor ID;
+  - `GET /api/people/notes-directories?path=People/../Archive` returns the same safe 400 response as
+    other invalid paths;
   - user A cannot observe user B's private directory through root listing, traversal, an absolute
     user-B path, or a symlink from A's vault;
   - invalid path requests receive a safe 400 response whose body contains no attempted absolute
     path, vault root, actor UUID, or private directory name;
   - PUT accepts `People` even when it does not exist yet, accepts an existing nested directory,
     accepts `.` and `null`, and rejects an absolute/traversal/nonexistent non-default folder;
+  - PUT with `{ folder: "People/../Archive" }` returns the same safe 400 response, without an
+    attempted path, vault root, actor UUID, or private directory name in the body;
   - a previously stored folder can still be returned by GET after it is removed, while a new PUT
     of that stale value is rejected. This preserves visibility so the UI can replace or clear it.
 
@@ -211,16 +217,19 @@ all other non-null folders must exist at save time.
 - [ ] **Step 3: Tighten stored-folder normalization**
 
   In `packages/people/src/notes-service.ts`, keep `normalizeFolder` small but stop converting an
-  absolute path into a relative one by stripping leading slashes. Normalize the trimmed path with
-  the Node path standard library, allow `.`, and reject empty, absolute, or traversal results.
-  This is defense in depth; vault ownership/existence validation remains in the route because it
-  requires a `VaultContext`.
+  absolute path into a relative one by stripping leading slashes. Before normalization, reject any
+  raw path segment exactly equal to `..`, including `People/../Archive`; then normalize the trimmed
+  path with the Node path standard library, allow `.`, and reject empty, absolute, or traversal
+  results. This is defense in depth; vault ownership/existence validation remains in the route
+  because it requires a `VaultContext`.
 
 - [ ] **Step 4: Add route schemas and vault-scoped handlers**
 
   In `packages/people/src/routes.ts`:
   - define one reusable TypeBox directory-entry/response schema near `notesSettingsSchema`;
   - add `GET /api/people/notes-directories` with an optional string query parameter;
+  - reject any raw GET query path or PUT folder containing a segment exactly equal to `..` before
+    normalization, before allowing `People`/`.`, and before checking directory discoverability;
   - resolve `AccessContext`, require the existing `vaultRunner`, enter `withVaultContext`, and call
     `listVaultDirectories(vaultCtx, requestedPath || ".")`;
   - return `path: null` for the root request and the requested relative path otherwise;
