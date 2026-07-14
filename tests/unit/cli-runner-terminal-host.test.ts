@@ -56,4 +56,54 @@ describe("TerminalHost (#1059)", () => {
     made._emit("out");
     expect(sink.data).toHaveBeenCalledWith(terminalId, Buffer.from("out"));
   });
+
+  it("write with a non-matching terminalId does not extend the idle timer", () => {
+    vi.useFakeTimers();
+    try {
+      let made: any;
+      const host = new TerminalHost({
+        homeBase: "/tmp",
+        toolsBinDir: "/usr/bin",
+        idleMs: 1000,
+        makeSession: (o) => {
+          made = fakeSession(o.id);
+          return made as any;
+        }
+      });
+      const sink = { data: vi.fn(), exit: vi.fn() };
+      host.open({ cols: 80, rows: 24 }, sink);
+      // #1059: bogus terminalId — forId() no-ops the write, and must also skip touch()
+      host.write({ terminalId: "bogus-id-not-the-session", dataB64: Buffer.from("x").toString("base64") });
+      vi.advanceTimersByTime(1001);
+      expect(made.kill).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("trailing output from an evicted session does not rearm the successor's idle timer", () => {
+    vi.useFakeTimers();
+    try {
+      const made: any[] = [];
+      const host = new TerminalHost({
+        homeBase: "/tmp",
+        toolsBinDir: "/usr/bin",
+        idleMs: 1000,
+        makeSession: (o) => {
+          const s = fakeSession(o.id);
+          made.push(s);
+          return s as any;
+        }
+      });
+      const sink = { data: vi.fn(), exit: vi.fn() };
+      host.open({ cols: 80, rows: 24 }, sink); // made[0] — evicted by the next open()
+      host.open({ cols: 80, rows: 24 }, sink); // made[1] — the live session
+      // #1059: straggler async output from the killed session must not rearm made[1]'s timer
+      made[0]._emit("straggler");
+      vi.advanceTimersByTime(1001);
+      expect(made[1].kill).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

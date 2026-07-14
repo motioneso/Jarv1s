@@ -41,7 +41,12 @@ export class TerminalHost {
       toolsBinDir: this.deps.toolsBinDir
     });
     session.onData((bytes) => {
-      this.touch();
+      // #1059: this closure outlives eviction — a killed session's PTY read-buffer
+      // can still deliver trailing bytes async. Only the LIVE session's output may
+      // rearm the idle timer, or a dead session's straggler data would keep its
+      // successor's timeout alive forever. Bytes still forward unconditionally —
+      // they belong to this terminalId regardless of liveness.
+      if (this.session?.id === id) this.touch();
       sink.data(id, bytes);
     });
     session.onExit((code) => {
@@ -54,7 +59,13 @@ export class TerminalHost {
   }
 
   write(params: RpcWriteTerminalParams): void {
-    this.forId(params.terminalId)?.write(Buffer.from(params.dataB64, "base64"));
+    // #1059: forId() already no-ops the write for a stale/unknown terminalId, but
+    // touch() must not run unconditionally — otherwise an RPC referencing a dead
+    // terminalId would still extend the CURRENT live session's idle timer, defeating
+    // the idle-timeout security control.
+    const session = this.forId(params.terminalId);
+    if (!session) return;
+    session.write(Buffer.from(params.dataB64, "base64"));
     this.touch();
   }
   resize(params: RpcResizeTerminalParams): void {
