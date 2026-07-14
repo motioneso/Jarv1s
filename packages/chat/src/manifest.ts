@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
+  getChatPrivacyStateResponseSchema,
   listChatThreadMessagesResponseSchema,
   listChatThreadsResponseSchema,
   listMemoryCorrectionsResponseSchema
@@ -111,6 +112,12 @@ export const chatModuleManifest = {
     { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
     { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/private/end", permissionId: "chat.message" },
+    {
+      method: "GET",
+      path: "/api/chat/privacy",
+      responseSchema: getChatPrivacyStateResponseSchema,
+      permissionId: "chat.view"
+    },
     { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/threads/:id/resume", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/settings", permissionId: "chat.view" },
