@@ -1508,3 +1508,13 @@ resume from this note before taking any merge-sensitive action.
   Sol` session `019f5e9b-bf80-73f3-86c2-7bf40e0024f9` is finalizing green draft PR #1043; `UX
   993+995 Plan Sol` session `019f5e9b-bfc9-7fb0-8096-c197e41324a9` is finalizing green draft PR
   #1045. All three remain docs-only until their planning PR lands.
+- Independent QA cycle 1 is RED for PR #1044: the plan must contain the stale-People-folder error
+  at the Notes after-sync caller and preserve the acceptance-required delete review link. `UX 987
+  Plan Sol` is correcting docs only. Independent QA cycle 1 is RED for PR #1043: the empty
+  `objectText` fallback can expose raw predicates and the approval status is stale. `UX 992 Plan
+  Sol` is correcting docs only. Two failed cycles on either lane is stop-the-line.
+- Initial Opus security QA for PR #1045 is GREEN and posted at
+  `https://github.com/motioneso/Jarv1s/pull/1045#issuecomment-4967102733`. The owning lane is
+  rebasing its five-behind branch onto current `origin/main`; fresh integrated Opus QA is required
+  afterward, followed by Ben's explicit security-tier merge sign-off. The non-blocking sequencing
+  note is that #993 and #995 both plan changes to `apps/web/src/styles/settings-panes.css`.
