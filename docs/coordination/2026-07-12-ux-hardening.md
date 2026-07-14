@@ -1587,3 +1587,7 @@ resume from this note before taking any merge-sensitive action.
   `https://github.com/motioneso/Jarv1s/pull/1045#issuecomment-4967811903`. The disposable QA pane and
   worktree were reaped. PR #1045 must remain unmerged until Ben explicitly approves this
   security-tier merge.
+- Ben explicitly approved PR #1045 at `8a65743903eeb4c56d2c1360aad9c6963bc1087b`, but the mandatory
+  pre-merge authority/current-main check found the branch had become two commits behind
+  `origin/main` at `7d5b5e70f22e65cc795fc35efabfdcb5a4566612`. No merge occurred. The owning lane is rebasing;
+  the changed head requires green integrated CI, fresh Opus QA, and renewed Ben sign-off.
