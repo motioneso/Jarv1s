@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12
 **Merge-authority lock (#983):** label `UX Coordinator`, Codex session
-`019f6186-4d43-7f22-9e6a-6a368a1d4c89`.
+`019f6226-78b2-7c31-9a84-f01d3c85eb0c`.
 **Peer coordinator boundary:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`, owns its separate #1000/UAT and other recorded lanes.
 **Merge policy:** the locked `UX Coordinator` owns specs, builders, QA, and merges for #983.
@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 1
+**merges_since_relay:** 0
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
