@@ -1445,6 +1445,7 @@ resume from this note before taking any merge-sensitive action.
   Builder `UX 994 Build Luna`, session `019f5ed2-b0ed-7cf0-ba53-f956f4185b81`, fixed the
   composer-state and visible-required-marker blockers at `f2760d1f`; the coordinator removed the
   leaked `docs/coordination/handoff-994-skills-build.md`. PR #1049 head is now
-  `110bba3b3654f0522a15a19458cc1493ba4ba4b1`; require green CI, fresh stable narrow UAT, and
-  independent re-QA. No merge has occurred yet.
+  `110bba3b3654f0522a15a19458cc1493ba4ba4b1`; CI run `29312925736` is fully green. The primary
+  coordinator is authorized to run fresh stable, unobscured desktop+narrow UAT; independent re-QA
+  follows only after durable PASS evidence. No merge has occurred yet.
 - `merges_since_relay` remains `1`; the next routine/sensitive merge requires immediate relay.
