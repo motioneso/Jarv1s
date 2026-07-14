@@ -6009,3 +6009,11 @@ VF_EXIT=0, #999 lookup=blocking job-search spec, live UAT_EXIT=0 (1 passed); uat
 - Authority check passed (Coordinator session 58a78927 matches lock).
 - Merge = QA GREEN **and** VF green → `gh pr merge 1048 --squash --delete-branch` → **EPIC #1000 DONE**
   → close #1027, epic exit-criteria, board. Then #1040 fast-follow.
+
+**2026-07-13e — QA GREEN.** Sensitive QA (agent ae21..., Sonnet) verdict **GREEN**, 0 blocking /
+0 non-blocking, all 6 checks PASS: #999-proof independently reran → job-search spec BLOCKING; gate
+not-inert (call site coordinated-qa/SKILL.md:69); block/advisory correct (README.md→empty); run-uat
+repair real + 2 tests non-vacuous; settings file untouched + single-source-of-truth; UAT real-nav clean.
+Durable verdict: PR #1048 comment 4965367792. **Only remaining gate = VF green (poller bjx51rwxs);**
+compose smokes already pass. On VF success → `gh pr merge 1048 --squash --delete-branch` (manual, sensitive)
+→ EPIC #1000 DONE. No re-QA needed.
