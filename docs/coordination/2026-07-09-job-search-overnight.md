@@ -6196,3 +6196,9 @@ superseded. #1050 blocked. Reap only on UX's explicit ping.
 cross-model review fallback chain is now **Fable → (if Fable fails) Codex `gpt-5.6-sol` at xhigh
 effort**, NOT AGY. Security-tier sign-off = Opus adversarial QA GREEN + cross-model review GREEN
 (Fable, else gpt-5.6-sol xhigh). Never skip the cross-model lens on a Fable failure.
+
+**DUAL-COORDINATOR (Ben overnight, 2026-07-14):** BOTH coordinators stay live —
+- Primary Coordinator (me): session `58a78927-385c-4b1d-8fa0-94db20255d6f` — my lanes (#1000 children A/B, backlog).
+- UX Coordinator: session `019f5ee8-8a0a-7da2-a186-8170ea85e76a` — #983 work.
+DO NOT reap UX Coordinator; UX will NOT reap me. Preserve authority boundaries; do not merge each
+other's PRs or touch each other's worktrees/lanes. My merge authority = my lanes only.
