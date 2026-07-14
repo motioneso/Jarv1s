@@ -1435,7 +1435,7 @@ resume from this note before taking any merge-sensitive action.
   UAT trigger for both frozen heads. The spent combined-UAT session
   `019f5f2a-c957-7b61-9a26-47ec6abde474` was reaped after #1049 passed and it committed durable
   handoff `2d324f09`. Successor label `UAT 1049+1050 Relay Sol`, Codex session
-  `019f5f46-b0cf-7b73-997e-ea00262651ce`, is working on `gpt-5.6-sol` in the same worktree/tab.
+  `019f5f46-b0cf-7b73-997e-ea00262651ce`, completed on `gpt-5.6-sol` and was reaped.
   #1049 UAT passed with durable PR comment
   `https://github.com/motioneso/Jarv1s/pull/1049#issuecomment-4966075818`. #1050 is `BLOCKED / NOT
   EXERCISED` after the evidence-driver cap, with durable PR comment
