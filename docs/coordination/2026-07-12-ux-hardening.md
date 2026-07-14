@@ -1,14 +1,13 @@
 # Coordination Run — 2026-07-12 UX hardening
 
 **Date:** 2026-07-12
-**Merge-authority lock:** label `Coordinator`, Claude session
-`58a78927-385c-4b1d-8fa0-94db20255d6f`.
-**Delegated lane owner:** label `UX Coordinator`, Codex session
-`019f5dc2-8bd9-78b2-827f-67bd9a99e6c9` (successor 8, adopted 2026-07-13, worktree
-`coord-983-ux`).
-**Merge policy:** the UX lane supervises specs, builders, and QA; the single locked `Coordinator`
-remains final merge authority. For the 2026-07-12 overnight run, Ben explicitly delegated all
-approval decisions—including security-tier sign-off—to Fable.
+**Merge-authority lock (#983):** label `UX Coordinator`, Codex session
+`019f5dc2-8bd9-78b2-827f-67bd9a99e6c9`.
+**Peer coordinator boundary:** label `Coordinator`, Claude session
+`58a78927-385c-4b1d-8fa0-94db20255d6f`, owns its separate #1000/UAT and other recorded lanes.
+**Merge policy:** the locked `UX Coordinator` owns specs, builders, QA, and merges for #983.
+The peer `Coordinator` owns its separate lanes. For the 2026-07-12 overnight run, Ben explicitly
+delegated all approval decisions—including security-tier sign-off—to Fable.
 **Shared-tree policy:** isolated worktrees; explicit-path staging only; never `git add -A`.
 **Agent runtime policy:** this UX coordinator may spawn only Codex agents, using
 `codex -s danger-full-access -a never`. Planning/spec agents use `gpt-5.6-sol` at high reasoning;
