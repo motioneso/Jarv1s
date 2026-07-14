@@ -5,8 +5,8 @@ import { sql, type Kysely } from "kysely";
 import type { JarvisDatabase } from "@jarv1s/db";
 import { UAT_SEED_BASE_TIMESTAMP } from "./timestamps.js";
 
-const UAT_ADMIN_EMAIL = "uat-admin@jarv1s.local";
-const UAT_ADMIN_PASSWORD = "uat-admin-password-1025";
+export const UAT_ADMIN_EMAIL = "uat-admin@jarv1s.local";
+export const UAT_ADMIN_PASSWORD = "uat-admin-password-1025";
 
 /**
  * #1025 spec §4.2: a genuinely loginable admin — real scrypt hash via

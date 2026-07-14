@@ -1,5 +1,6 @@
 import { createAppRuntimeRunner, createMigrationOwnerDb } from "./connections.js";
 import { seedSoloAdmin } from "./admin.js";
+import { seedOnboardingChunk } from "./chunks/onboarding.js";
 import { seedAiProviderChunk } from "./chunks/ai.js";
 import { seedNewsChunk } from "./chunks/news.js";
 import { seedSportsChunk } from "./chunks/sports.js";
@@ -44,6 +45,9 @@ export async function seedLevel(options: SeedOptions): Promise<void> {
   // admin+data and multi-user both include every non-excluded chunk.
   const runner = createAppRuntimeRunner();
   const exclude = new Set(options.excludeChunks ?? []);
+  // #1026: not excludable — every admin+data/multi-user instance must land on
+  // AppShell, not the onboarding wizard, for any UI-driving spec to work at all.
+  await seedOnboardingChunk(runner, adminUserId);
   // #1025: AI provider/model/binding must land before the news chunk, since
   // news settings check for an active module.news binding — order matters here,
   // it is not a parallelizable Promise.all.

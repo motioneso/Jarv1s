@@ -4,7 +4,20 @@ node_modules
 .git
 .gitignore
 .github
-tests
+# #1026: tests/uat/seed/** is deliberately NOT excluded below — the `seed` compose
+# service (infra/docker-compose.prod.yml, #1032) runs tests/uat/seed/cli.ts *inside*
+# this image, and its imports are self-contained under tests/uat/seed/ (verified: no
+# reach into tests/e2e, tests/unit, etc). Everything else under tests/ stays excluded.
+tests/*.test.ts
+tests/e2e
+tests/fixtures
+tests/integration
+tests/scripts
+tests/setup-env.ts
+tests/slow
+tests/unit
+tests/uat/*.ts
+tests/uat/specs
 spikes
 external-modules
 docs

@@ -5,6 +5,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
 
 export interface UatRunId {
   readonly projectName: string;
@@ -93,6 +94,13 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
     [
       "NODE_ENV=production",
       `JARVIS_WEB_PORT=${input.webPort}`,
+      // #1026: Playwright drives this instance at http://127.0.0.1:<webPort> (see baseURL
+      // below), which is a DIFFERENT origin than better-auth's "http://localhost:<port>"
+      // default (readTrustedOrigins, packages/auth/src/index.ts) — 127.0.0.1 and localhost
+      // are distinct origins for its exact-string check, so login was rejected with
+      // "Invalid origin" until this was added. Reuses the same deriveTrustedOrigins helper
+      // scripts/setup-prod.ts uses for real deploys (#379) rather than hand-rolling the list.
+      `JARVIS_AUTH_TRUSTED_ORIGINS=${deriveTrustedOrigins({ webPort: String(input.webPort), publicOrigin: "127.0.0.1" })}`,
       `JARVIS_DOCKER_SUBNET=${UAT_DOCKER_SUBNET}`,
       `POSTGRES_PASSWORD=${UAT_POSTGRES_PASSWORD}`,
       "JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s",
@@ -368,7 +376,36 @@ async function waitForReady(url: string, timeoutMs = 120_000): Promise<void> {
   throw new Error(`Timed out waiting for ${url}: ${String(lastError ?? "health check failed")}`);
 }
 
-async function main(): Promise<void> {
+export function buildSeedHookInput(
+  projectName: string,
+  level: UatSeedLevel,
+  opts?: { excludeChunks?: readonly string[] }
+): { projectName: string; level: UatSeedLevel; excludeChunks?: readonly string[] } {
+  return { projectName, level, excludeChunks: opts?.excludeChunks };
+}
+
+export async function restartUatStack(projectName: string, baseURL: string): Promise<void> {
+  // #1026/#999: found live — `docker compose up -d jarv1s` is a documented Compose no-op when the
+  // service's computed config (image digest/env/volumes) is unchanged, which it always is here: a
+  // module "Download" only writes into the jarv1s-modules volume + a DB row
+  // (packages/module-registry/src/distribution/pipeline.ts's downloadAndStageModule), never the
+  // image or compose config `up -d` diffs against. scripts/module-reconcile.ts only runs as a
+  // boot-time one-shot (scripts/start-jarv1s.ts), so a no-op `up -d` means it never reruns and the
+  // module never leaves "Downloaded — restart to apply". `docker compose restart` kills+restarts
+  // the SAME container (unlike `up -d`, it is not gated on a config diff), which reruns
+  // start-jarv1s.ts's CMD from scratch — including migrate + module-reconcile — every time. This is
+  // a harness fix only: settings-module-registry-section.tsx's operator-facing copy still tells
+  // real operators to run `docker compose pull && docker compose up -d`, which hits this exact
+  // no-op when no new image tag was pulled — that product-level UX gap is out of scope for #1026
+  // and must be flagged as its own issue, not silently routed around here.
+  await runCommand("docker", buildUatComposeArgs(projectName, ["restart", "jarv1s"]));
+  await waitForReady(`${baseURL}/health/ready`);
+}
+
+export async function provisionForUat(
+  level: UatSeedLevel,
+  opts?: { excludeChunks?: readonly string[] }
+): Promise<{ baseURL: string; projectName: string; teardown: () => Promise<void> }> {
   const overallStart = Date.now();
   // #1024/#1000: bounded by the reserved range itself (100 candidates) — never an unbounded
   // retry. Each failed-on-bind attempt removes its port from the pool; exhausting the pool means
@@ -380,7 +417,6 @@ async function main(): Promise<void> {
   let imageBuilt = false; // build once; a port-bind retry shouldn't rebuild the image
 
   while (remainingCandidates.length > 0) {
-    const startedAt = Date.now();
     const { projectName } = generateUatRunId();
     const webPort = await findAvailablePort(remainingCandidates);
     const envFile = writeUatEnvFile({ webPort });
@@ -391,19 +427,10 @@ async function main(): Promise<void> {
     // interpolate the stale (or default/prod) port. See uatComposeInterpolationEnv's doc comment.
     Object.assign(process.env, uatComposeInterpolationEnv({ webPort }));
 
-    // #1024/#1000: teardown MUST run even if provisioning throws partway through (crashed migrate,
-    // failed health poll, lost port-bind race, etc.) — this is the "trap/finally" the spec's §3.5
-    // calls for, translated to Node's try/finally plus SIGINT/SIGTERM handlers so an operator
-    // Ctrl-C doesn't skip it.
-    const teardown = () =>
+    const teardownCompose = () =>
       runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch((error) => {
         console.error(`teardown failed for ${projectName}:`, error);
       });
-    const onSignal = () => {
-      void teardown().finally(() => process.exit(1));
-    };
-    process.on("SIGINT", onSignal);
-    process.on("SIGTERM", onSignal);
 
     try {
       console.log(`[uat] provisioning ${projectName} on port ${webPort}`);
@@ -421,18 +448,32 @@ async function main(): Promise<void> {
       const plan = createUatProvisionPlan({ projectName, seedHook: bareSeedHook });
       for (const step of plan.slice(0, -1)) {
         // #1024/#1000: the plan's LAST entry is always `down -v` (Task 4) — deliberately excluded
-        // from this loop and run once, from `finally`, below. Running it here too would double-run
-        // teardown on the success path.
+        // from this loop and run once, in the catch/return paths below. Running it here too would
+        // double-run teardown on the success path.
         console.log(`[uat] ${step.description}`);
         await runCommand(step.command, step.args);
       }
-      const level = (process.env.JARVIS_UAT_SEED_LEVEL ?? "bare") as UatSeedLevel;
-      await composeSeedHook({ projectName, level }); // #1024/#1000 seam, filled by #1025
-      const readyUrl = `http://127.0.0.1:${webPort}/health/ready`;
-      await waitForReady(readyUrl);
-      console.log(`[uat] reachable at ${readyUrl} after ${Date.now() - startedAt}ms`);
-      return;
+      await composeSeedHook(buildSeedHookInput(projectName, level, opts));
+      const baseURL = `http://127.0.0.1:${webPort}`;
+      await waitForReady(`${baseURL}/health/ready`);
+      console.log(`[uat] reachable at ${baseURL} after ${Date.now() - overallStart}ms`);
+      return {
+        baseURL,
+        projectName,
+        // #1026: deferred, not auto-run — a caller running Playwright against this stack needs it
+        // alive between provision and its own explicit teardown() call, so this can no longer live
+        // in a `finally` here. SIGINT/SIGTERM handling moves to the caller (tests/uat/run-uat.ts),
+        // which is the one that knows when a long-running Playwright child should be interrupted.
+        teardown: async () => {
+          await teardownCompose();
+          await assertNoLeakedResources(projectName);
+          envFile.cleanup();
+        }
+      };
     } catch (error) {
+      await teardownCompose();
+      await assertNoLeakedResources(projectName);
+      envFile.cleanup();
       if (error instanceof PortBindConflictError) {
         // #1024/#1000: Coordinator condition 1 — findAvailablePort (Task 2) only proved this port
         // free at probe time; docker just told us another process won the bind race. Retry with
@@ -444,13 +485,6 @@ async function main(): Promise<void> {
         continue;
       }
       throw error;
-    } finally {
-      process.off("SIGINT", onSignal);
-      process.off("SIGTERM", onSignal);
-      await teardown();
-      await assertNoLeakedResources(projectName);
-      envFile.cleanup();
-      console.log(`[uat] provision+teardown wall-clock: ${Date.now() - overallStart}ms`);
     }
   }
   throw new Error(
@@ -458,6 +492,14 @@ async function main(): Promise<void> {
       UAT_PORT_RANGE_START + UAT_PORT_RANGE_SIZE - 1
     }) without a successful bind`
   );
+}
+
+async function main(): Promise<void> {
+  const overallStart = Date.now();
+  const level = (process.env.JARVIS_UAT_SEED_LEVEL ?? "bare") as UatSeedLevel;
+  const { teardown } = await provisionForUat(level);
+  await teardown();
+  console.log(`[uat] provision+teardown wall-clock: ${Date.now() - overallStart}ms`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
