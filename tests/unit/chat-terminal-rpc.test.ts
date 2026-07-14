@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { encodeFrame, decodeFrame, type RpcPush } from "./rpc-contract.js";
+// #1059 terminal RPC wire-format. Lives in tests/unit (the only unit location
+// wired into `pnpm test:unit` / verify:foundation); package-src *.test.ts run in
+// no CI gate here. Import package internals via relative path, matching the
+// existing cli-runner-protocol / chat-rpc-client unit tests.
+import {
+  encodeFrame,
+  decodeFrame,
+  type RpcPush
+} from "../../packages/chat/src/live/rpc-contract.js";
 
 describe("terminal push frame (#1059)", () => {
   it("round-trips a terminalData push frame", () => {
