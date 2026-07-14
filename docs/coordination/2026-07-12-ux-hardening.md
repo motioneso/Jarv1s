@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -1541,3 +1541,12 @@ resume from this note before taking any merge-sensitive action.
   The focused regression failed before the fix and now passes; format, lint, typecheck, foundation,
   and both Compose smokes are green. The owning lane is running one fresh desktop+narrow real-UI
   proof with ordinary CLI transport at this exact head; frozen `0b280f5` must never be retried.
+- PR #1043 / issue #992 merged routine as squash
+  `aa3c25b9183ee033c6c6205ab21d739ac9baf1e0` after cycle-2 integrated QA GREEN at
+  `7dec9072aafbaecd572d8b1e0fa8f9d969e51565`. Issue #992 is closed, its project item is Done, and
+  the clean `UX 992 Plan Sol` pane/worktree/branch were reaped. `merges_since_relay` is now `1`;
+  the next routine/sensitive merge fires the mandatory relay.
+- PR #1045 final integrated Opus security QA is GREEN at
+  `86e28ee633aa66d52e26fb1fcec1abcef7c85700`, posted at
+  `https://github.com/motioneso/Jarv1s/pull/1045#issuecomment-4967455546`. It is docs-only and
+  merge-ready, but security-tier policy still requires Ben's explicit sign-off before merge.
