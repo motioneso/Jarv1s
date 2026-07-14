@@ -33,7 +33,7 @@ and its native sub-issues are the product source of truth; this file tracks only
 | #991 | `2026-07-13-991-assistant-priorities-dogfood-hardening.md` | sensitive | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/991-assistant-priorities-build`, session `019f5ed2-b01a-7610-95d6-da3024b4b82f` |
 | #992 | dedicated memory-presentation delta spec required | sensitive | draft spec/plan PR #1043 approved; CI pending, Luna blocked until docs land |
 | #993 | dedicated host/account/operator delta spec required | security | draft security spec/plan PR #1045 with #995; compose-recreation blocker returned to Sol; Luna blocked |
-| #994 | `2026-07-13-994-skills-list-first-invocation.md` | routine | spec/plan PR #1046 merged at `52b9e29c`; Luna building on `ux/994-skills-build`, session `019f5ed2-b0ed-7cf0-ba53-f956f4185b81` |
+| #994 | `2026-07-13-994-skills-list-first-invocation.md` | routine | PR #1049 at `caa2263d`; code-complete, unproven until isolated CI and live desktop+narrow UI artifact are green; Luna session `019f5ed2-b0ed-7cf0-ba53-f956f4185b81` |
 | #995 | dedicated connected-accounts delta spec required | security | draft security spec/plan PR #1045; per-capability failure-truth blocker returned to Sol; build remains behind #987 |
 | #1002 | dedicated promise-inventory spec required | routine | needs spec; after affected UI settles |
 | #1003 | Apple protocol/auth design spike + approved feature spec required | security | future feature stream; not a #983 closure blocker |
@@ -1389,3 +1389,6 @@ resume from this note before taking any merge-sensitive action.
   `019f5ed2-b0ed-7cf0-ba53-f956f4185b81`. Earlier wrong-model sessions were stopped; their partial
   focused work was preserved for Luna to review and continue. Both feature PRs require independent
   QA and live UI evidence; neither lane may edit `tests/uat/**`.
+- #994 PR #1049 opened at `caa2263d`. Focused gates are green, but the duplicate local full gate
+  was stopped after shared integration contention. GitHub CI is the isolated mechanical gate;
+  independent QA waits for CI plus a PR-linked live desktop+narrow Skills/invocation artifact.
