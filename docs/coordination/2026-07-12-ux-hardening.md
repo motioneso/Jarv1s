@@ -1535,3 +1535,9 @@ resume from this note before taking any merge-sensitive action.
   `8a976ecd5621f5ed141832a801d32231eb181a6f`. #1050 still requires a fresh accepted live proof
   before sensitive QA; #1043/#1044 require independent cycle-2 QA; #1045 requires fresh Opus QA
   plus Ben's explicit sign-off.
+- PR #1050 root cause at `8a976ecd5621f5ed141832a801d32231eb181a6f`: `discardPersonaDraft`
+  passed the full runtime draft into `createPersonaDraft` after the saved snapshot, so unsaved
+  `personaText` overwrote saved server text. The minimum fix copies only the four persona dials.
+  The focused regression failed before the fix and now passes; format, lint, typecheck, foundation,
+  and both Compose smokes are green. The owning lane is running one fresh desktop+narrow real-UI
+  proof with ordinary CLI transport at this exact head; frozen `0b280f5` must never be retried.
