@@ -1563,3 +1563,11 @@ resume from this note before taking any merge-sensitive action.
   Priorities, or full acceptance claim is allowed. The owning lane is diagnosing the route,
   transport binding, all callers, and error mapping to classify a product defect versus an exact
   external prerequisite before any further proof.
+- PR #1050 diagnosis found no product defect and made no feature edit. The route reaches the CLI
+  structured adapter and `ChatEngineRpcClient`; unavailable RPC or CLI launch failure intentionally
+  maps to sanitized HTTP 503. `req-x0` therefore proves transport execution failed, not auth/session
+  or provider-model DB absence. The exact external prerequisite is a successful in-container
+  cli-runner socket hello, Codex CLI launch/account authentication, selected-model execution, and
+  provider probe/preview. A connected provider row, curated models, or copied host `auth.json` is
+  not execution proof. Luna is frozen idle; the protected primary Coordinator was sent the blocker
+  for environment/credential-plumbing ownership. PR #1050 remains draft and unmerged.
