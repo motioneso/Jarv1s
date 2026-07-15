@@ -13,7 +13,11 @@
  *
  * The Claude launch flags below are SECURITY-CRITICAL and were empirically
  * verified in the Phase 1 spike (docs/superpowers/spikes/2026-06-08-cli-capability-matrix.md):
- *   --permission-mode default       — NOT bypass (overrides host's global bypass default)
+ *   --permission-mode bypassPermissions — skip claude 2.1.x's interactive folder-trust wizard,
+ *                                     which --permission-mode default gates on and the #342
+ *                                     .claude.json seeding no longer suppresses (#1067). Native-tool
+ *                                     safety comes from --tools "" / the PreToolUse allowlist hook,
+ *                                     NOT this flag (see buildClaudeCommand + claude-permission-hook).
  *   --tools ""                      — empty allowlist disables ALL native tools (F1: a
  *                                     denylist was bypassed via the Monitor tool)
  *   --append-system-prompt-file P   — inject persona (survives /clear; append, not replace)
@@ -752,7 +756,16 @@ export class CliChatEngineImpl implements CliChatEngine {
       this.credentialFile && existsSync(this.credentialFile)
         ? `CLAUDE_CODE_OAUTH_TOKEN="$(cat ${shellQuote(this.credentialFile)})" claude`
         : "claude";
-    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, claudeCmd, "--permission-mode default"];
+    // #1067: bypassPermissions skips claude 2.1.x's interactive folder-trust wizard, which
+    // --permission-mode default gates on and the #342 .claude.json seeding no longer suppresses;
+    // the engine can't answer it, so the REPL blocks → launch() throws → runner "unavailable" → 503.
+    // Safe: native tools stay disabled by --tools "" (non-MCP) / the PreToolUse allowlist hook fires
+    // regardless of mode (MCP). Deliberately reverses redundant spike-F2 defense-in-depth — see header.
+    const parts = [
+      `cd ${shellQuote(opts.neutralDir)} &&`,
+      claudeCmd,
+      "--permission-mode bypassPermissions"
+    ];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
