@@ -59,3 +59,16 @@ export function createHerdrInstallPort(
     }
   };
 }
+
+/**
+ * #993 — resolves the herdrInstall dependency for server.ts wiring: the TEST-ONLY
+ * options.installHerdr override when present, else the real fixed-script executor.
+ * Factored out (matching the module-distribution precedent) to keep server.ts under
+ * the 1000-line file-size cap.
+ */
+export function resolveHerdrInstall(
+  server: Pick<FastifyInstance, "log">,
+  options: { readonly installHerdr?: HerdrInstallDependencies["install"] }
+): HerdrInstallDependencies {
+  return options.installHerdr ? { install: options.installHerdr } : createHerdrInstallPort(server);
+}
