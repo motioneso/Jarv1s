@@ -2189,3 +2189,13 @@ resume from this note before taking any merge-sensitive action.
   branch/worktree `ux/993-host-truth`. Next action remains plan-pointer review and approval; do not
   infer implementation approval from the relay.
 - `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-15 #993 host plan approved
+
+- R2 hit compaction before producing a plan and was closed with no implementation edits. R3 exact
+  Sonnet session `4c58610e-fcc7-405f-ab28-81e999f43b44` owns the unchanged build lane.
+- R3's pointer-generation turn stalled after grounding. The coordinator ended that turn and approved
+  the exact Opus-mapped TDD order already locked in the handoff: shared Root predicate → contracts →
+  guarded installer/audit → health summary → UI/live UAT. This is implementation approval for Host
+  Slice 1 only; every security ban and QA/sign-off gate remains active.
+- `merges_since_relay` remains `0`.
