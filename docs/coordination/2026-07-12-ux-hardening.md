@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -2299,3 +2299,29 @@ resume from this note before taking any merge-sensitive action.
   R5 relay/rebase. When a rebased PR head is pushed: prove it contains current `origin/main`, await
   fresh CI green, run fresh live UAT, obtain a fresh posted Opus adversarial QA verdict, re-confirm
   delegated authority, then merge #1065. A security merge immediately triggers another relay.
+
+## Continuation note — 2026-07-15 delegated UX relay after #993 security merge
+
+- Current delegated authority is exact label `UX Coordinator`, immutable Codex session
+  `019f66ae-47c6-7c92-a70f-ec41c21336e8`; `merges_since_relay` is `1`. The mandatory security-merge
+  relay trigger fired. The separate primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` was never touched.
+- PR #1065 merged security-tier as squash `514e9b78b15a3740244e1da30923659988e0aae3`
+  from exact head `9976ab6bf7f427d1dd1f6f19a8335a04820a556f`. Fresh CI run `29434389251`
+  had all four jobs green. Fresh live UAT is PR comment `issuecomment-4983556472`; fresh Opus
+  adversarial QA is GREEN / MERGE-READY YES with zero findings at PR comment
+  `issuecomment-4983598111`. Ben's explicit security-tier sign-off was already recorded.
+- Issue #993 is closed and its project item is Done. Epic #983 is now 10/13 complete; open work is
+  #991 (`needs-spec`, major), #988 (manual acceptance, cosmetic), and #1002 (`needs-spec`, minor).
+- Exact build sessions R5, R6, and R7 were reaped after confirmed successors/completion. The remote
+  branch `ux/993-host-truth` was deleted. Keep the local worktree
+  `~/Jarv1s/.claude/worktrees/ux-993-host-truth`: its local branch is ahead only with relay/proof
+  bookkeeping and `.claude/context-meter.log` is modified, so do not remove it blindly.
+- Successor must adopt delegated authority by replacing only the delegated-lane-owner session with
+  its own immutable Codex session id, reset `merges_since_relay` to `0`, commit and push, confirm it
+  is driving, then fresh-resolve and close only old exact label `UX Coordinator` plus session
+  `019f66ae-47c6-7c92-a70f-ec41c21336e8`; rename itself `UX Coordinator` afterward. Preserve
+  coordinator-worktree changes `.claude/context-meter.log`, `artifacts/`, and
+  `webwright-proof-987-v3/`.
+- Mid-doing: report the post-merge all-UX rollup (10 closed / 3 open) and continue the remaining
+  #983 queue from GitHub source of truth. No active build lane remains from #993.
