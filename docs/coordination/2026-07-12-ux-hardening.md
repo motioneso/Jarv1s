@@ -2044,3 +2044,16 @@ resume from this note before taking any merge-sensitive action.
   driving on Sonnet 5 with bypass permissions. Spent exact R2 session
   `2e31b1b1-5b82-44c5-bb5e-6e5bcaaae4e3` was fresh-resolved and closed. Primary `Coordinator` remains
   untouched. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 automated gates green; R4 driving UAT
+
+- R3 fixed Playwright strict-mode and stale copy expectations, confirmed fresh-main rebase no-op,
+  ran the scoped e2e specs green (`4/4`), completed `verify:foundation` green, and found no secret
+  egress. Real-dev-instance UAT was not completed before R3's 70% relay trigger.
+- Exact successor `UX 995 Build R4`, immutable Claude session
+  `6b88263f-bad6-4b3b-8460-6b2620309485`, is confirmed driving on Sonnet 5 in the same worktree and
+  branch. Remaining: real-dev UAT for picker, IMAP/reconnect, and narrow viewport; then push/open PR
+  and report exact HEAD. Afterward: exact-head CI, live-path evidence, Opus adversarial security QA,
+  and Ben's explicit merge sign-off.
+- Spent exact R3 session `208f2ffc-cdeb-4900-896d-2ddf4150035f` was fresh-resolved by label plus
+  session id and closed. Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
