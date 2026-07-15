@@ -2393,5 +2393,6 @@ resume from this note before taking any merge-sensitive action.
   shared preview helper, preserve CLI/API transport and no-thread semantics, and add the focused
   preview/priority UI contracts QA required. No implementation fork remains; fresh CI/UAT follows
   the new head.
-- #1002 exact-head CI foundation is green. The one permitted retry of the diagnosed Compose
-  startup-timing flake is active as attempt 2 of run `29440980203`; a second failure stops the lane.
+- #1002 exact-head CI run `29440980203` attempt 2 is fully green; the one permitted retry of the
+  diagnosed Compose startup-timing flake passed. Final independent routine docs QA is active on
+  head `16c0e9db4b9e71f1601858036f92265a198eedf4`.
