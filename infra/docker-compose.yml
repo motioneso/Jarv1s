@@ -21,6 +21,13 @@ x-workspace-volumes: &workspace-volumes
   - /workspace/packages/shared/node_modules
   - /workspace/packages/tasks/node_modules
 
+# #1059: these four service containers run a raw `node:24-bookworm-slim` image and
+# `pnpm install --frozen-lockfile` directly against the mounted workspace. node-pty
+# (a packages/cli-runner workspace dep) ships no linux prebuild, so pnpm compiles it
+# from source via node-gyp — which needs python3/make/g++. The slim image lacks them,
+# so each install must apt-install the toolchain first (these containers are ephemeral
+# CI/dev smokes, discarded after the run — no cleanup needed). The Dockerfile images
+# (root + apps/web) already carry this toolchain; these raw-image services didn't.
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -69,7 +76,7 @@ services:
       JARVIS_APP_DATABASE_URL: postgres://jarvis_app_runtime:app_password@postgres:5432/jarv1s
       JARVIS_AUTH_DATABASE_URL: postgres://jarvis_auth_runtime:auth_password@postgres:5432/jarv1s
       JARVIS_WORKER_DATABASE_URL: postgres://jarvis_worker_runtime:worker_password@postgres:5432/jarv1s
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm db:migrate"
+    command: sh -c "corepack enable && apt-get update && apt-get install -y --no-install-recommends python3 make g++ && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm db:migrate"
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,7 +93,7 @@ services:
       HOST: 0.0.0.0
       JARVIS_APP_DATABASE_URL: postgres://jarvis_app_runtime:app_password@postgres:5432/jarv1s
       JARVIS_AUTH_DATABASE_URL: postgres://jarvis_auth_runtime:auth_password@postgres:5432/jarv1s
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm start:api"
+    command: sh -c "corepack enable && apt-get update && apt-get install -y --no-install-recommends python3 make g++ && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm start:api"
     restart: unless-stopped
     healthcheck:
       test:
@@ -115,7 +122,7 @@ services:
     environment:
       CI: "true"
       JARVIS_API_PROXY_TARGET: http://api:3000
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm dev:web"
+    command: sh -c "corepack enable && apt-get update && apt-get install -y --no-install-recommends python3 make g++ && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm dev:web"
     restart: unless-stopped
     ports:
       - "${JARVIS_WEB_PORT:-5173}:5173"
@@ -132,7 +139,7 @@ services:
     environment:
       CI: "true"
       JARVIS_WORKER_DATABASE_URL: postgres://jarvis_worker_runtime:worker_password@postgres:5432/jarv1s
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm start:worker"
+    command: sh -c "corepack enable && apt-get update && apt-get install -y --no-install-recommends python3 make g++ && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store && pnpm start:worker"
     restart: unless-stopped
     depends_on:
       migrate:
