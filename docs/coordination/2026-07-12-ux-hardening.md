@@ -2413,3 +2413,10 @@ resume from this note before taking any merge-sensitive action.
   `da66a101a46e8d9349b7277ec5778eb3ecf57b29`; no `docs/coordination/` file remains and fresh CI
   run `29443722846` is fully green. Fresh sensitive QA and exact local-image authenticated UAT are
   active on this head; merge remains blocked until both durable verdicts are green.
+- #991 independent sensitive QA cycle 2 is RED / MERGE-READY NO at PR comment
+  `issuecomment-4984705427`: YOLO copy reports enabled when the user preference is off, required
+  interactive Priority UI contract tests remain absent, and head-specific live desktop+narrow
+  proof is not posted. The exact local image `live-1050-da66a101` was built, but UAT never started
+  and no evidence was claimed. Two failed QA cycles exhaust the lane failure budget; `UX 991
+  Repair R2` is closed, the worktree is clean at head `da66a101`, and the lane is stopped pending
+  Ben's direction. #1002 G2 and #988 remain hard-gated behind #1050.
