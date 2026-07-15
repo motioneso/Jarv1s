@@ -21,6 +21,7 @@ import {
   RpcConnection,
   selectEngineFactory
 } from "../../packages/chat/src/live/runtime.js";
+import { createStructuredChatEngineFactory } from "../../packages/module-registry/src/index.js";
 import { ClaudePrintChatEngine } from "../../packages/chat/src/live/claude-print-chat-engine.js";
 import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
 import type { Multiplexer, MuxHandle } from "@jarv1s/ai";
@@ -72,6 +73,21 @@ describe("selectEngineFactory — boot-time fork (§3.5)", () => {
     } finally {
       connection?.close();
     }
+  });
+
+  it("uses the adopted RPC connection for structured preview engines", () => {
+    const connection = {} as RpcConnection;
+    const factory = createStructuredChatEngineFactory({
+      socketConfigured: true,
+      getRpcConnection: () => connection,
+      fallback: () => {
+        throw new Error("host fallback must not run on socket path");
+      }
+    });
+
+    const engine = factory("anthropic", "persona-preview", { executionMode: "non_interactive" });
+    expect(engine).toBeInstanceOf(ChatEngineRpcClient);
+    expect(engine.provider).toBe("anthropic");
   });
 
   it("falls back to the in-process engine when the socket env is absent", () => {

@@ -79,6 +79,7 @@ import {
 } from "@jarv1s/calendar";
 import {
   CHAT_QUEUE_DEFINITIONS,
+  ChatEngineRpcClient,
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
@@ -483,6 +484,21 @@ export interface BuiltInWorkerDependencies {
    * no `console.*` lands in production worker logs (observability spec #413).
    */
   readonly logger?: FastifyBaseLogger;
+}
+
+export function createStructuredChatEngineFactory(options: {
+  readonly socketConfigured: boolean;
+  readonly getRpcConnection: () => RpcConnection | undefined;
+  readonly fallback: ChatEngineFactory;
+}): ChatEngineFactory {
+  return (provider, sessionKey, engineOptions) => {
+    if (!options.socketConfigured) return options.fallback(provider, sessionKey, engineOptions);
+    const connection = options.getRpcConnection();
+    if (!connection) {
+      throw new CliChatUnavailableError("cli-runner RPC connection is not ready");
+    }
+    return new ChatEngineRpcClient(provider, sessionKey, connection, engineOptions?.executionMode);
+  };
 }
 
 export interface BuiltInModuleRegistration {
@@ -1876,6 +1892,12 @@ export function registerBuiltInApiRoutes(
   // used (the probes only dereference it at call time, which is strictly post-boot).
   const cliPresent = makeCliPresentProbe(getRpcConnection);
 
+  const structuredChatEngineFactory = createStructuredChatEngineFactory({
+    socketConfigured,
+    getRpcConnection,
+    fallback: chatEngineFactory
+  });
+
   // The factory is resolved asynchronously in onReady (a settings read) on the in-process path, but
   // routes register synchronously. Bridge with a late-bound wrapper: it is only ever invoked when a
   // chat session launches, which is strictly after onReady. Tests/embedders that pass an explicit
@@ -1937,7 +1959,7 @@ export function registerBuiltInApiRoutes(
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
     chatEngineFactory,
-    createCliStructuredAdapter: createCliStructuredAdapterFactory(chatEngineFactory),
+    createCliStructuredAdapter: createCliStructuredAdapterFactory(structuredChatEngineFactory),
     // #342 (§3.5 boot-time fork): on the socket path hand the chat runtime an `engineSelection` so it
     // selects the RPC client itself (fail-fast on a missing §6.6 secret), wires the §5.3 reconciliation
     // hook, and starts the §5.5 idle reaper. The {method,id,sessionKey,bytes}-only debug logger (§6.4)
