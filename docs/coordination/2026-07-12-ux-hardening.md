@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -2396,3 +2396,8 @@ resume from this note before taking any merge-sensitive action.
 - #1002 exact-head CI run `29440980203` attempt 2 is fully green; the one permitted retry of the
   diagnosed Compose startup-timing flake passed. Final independent routine docs QA is active on
   head `16c0e9db4b9e71f1601858036f92265a198eedf4`.
+- #1002 docs-only PR #1066 merged routine-tier as squash
+  `e9c6d165626d7f3fd1cb7448a9faffe710dc4f9e` after GREEN independent QA at PR comment
+  `issuecomment-4984279796`. Issue #1002 remains open, its stale `needs-spec` label is removed, and
+  its project item is `In progress`; no implementation has merged. `merges_since_relay` is now
+  `1`.
