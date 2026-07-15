@@ -1892,3 +1892,16 @@ resume from this note before taking any merge-sensitive action.
   compose smoke jobs are green and foundation/app verification is running. The build lane is frozen.
   Require full CI including image tail, then fresh live UAT and fresh independent sensitive QA.
   Previous-head evidence is stale. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-14 PR #1058 full CI green; fresh final gates running
+
+- Exact-head CI run `29384838614` is fully GREEN at
+  `77aafb8e375fc8d6e8904d7fb43c84e28bf90336`: both compose smoke jobs, foundation/app verification,
+  and image build/publish all completed successfully.
+- Fresh parallel gates are running against this exact head. `uat_1058_live_v7` owns a new live
+  Webwright real-UI pass with unique screenshots/action log and durable PR evidence.
+  `qa_1058_directory_final` owns a fresh independent sensitive review from a detached exact-head
+  checkout with a durable compact PR verdict. Neither may reuse prior-head evidence or edit feature
+  code. The build owner remains frozen.
+- Do not merge until both gates return GREEN and the exact PR head is re-confirmed unchanged.
+  `merges_since_relay` remains `0`.
