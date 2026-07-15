@@ -2268,3 +2268,6 @@ resume from this note before taking any merge-sensitive action.
   installer child/concurrency edge and the missing install confirmation naming the script.
 - All technical gates are green. #1065 remains paused for Ben's explicit security-tier merge
   sign-off; no merge is authorized until he gives it.
+- Ben gave explicit security-tier merge sign-off. Before merge, `origin/main` advanced to
+  `e88a4148`; exact R5 is rebasing PR #1065 and will push a new head. CI, live UAT, and integrated
+  Opus QA must be fresh on that rebased head; no merge is authorized until all three refresh green.
