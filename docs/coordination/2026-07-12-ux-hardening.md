@@ -2030,3 +2030,17 @@ resume from this note before taking any merge-sensitive action.
   at low effort with bypass permissions. It resumes at Task 2 under the approved plan corrections.
   No duplicate session shares the worktree; primary `Coordinator` remains untouched.
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 Tasks 2–5 committed; R3 driving
+
+- `UX 995 Build R2` completed Tasks 2–5 and committed `27ad50bb`: settings `ImapConnect`, corrected
+  provider picker (Google, Email/IMAP, tracked GitHub #1061 `Coming soon`), actionable health copy,
+  provider-specific reconnect routing, Playwright IMAP specs, and connector mock routes. Repository
+  test convention remains root `tests/unit/*.test.tsx` SSR/pure assertions plus Playwright; zero deps.
+- Remaining: Task 6 feature-grants regression, execute focused e2e/full `verify:foundation` and audit,
+  fresh-main rebase, push/PR, and coordinated wrap-up. No current-head verification is claimed yet.
+- At the 70% relay trigger, R2 spawned exact successor `UX 995 Build R3`, immutable Claude session
+  `208f2ffc-cdeb-4900-896d-2ddf4150035f`, in the same worktree/shared agents tab. R3 is confirmed
+  driving on Sonnet 5 with bypass permissions. Spent exact R2 session
+  `2e31b1b1-5b82-44c5-bb5e-6e5bcaaae4e3` was fresh-resolved and closed. Primary `Coordinator` remains
+  untouched. `merges_since_relay` remains `1`.
