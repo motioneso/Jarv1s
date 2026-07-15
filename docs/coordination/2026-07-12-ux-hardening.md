@@ -1973,3 +1973,16 @@ resume from this note before taking any merge-sensitive action.
 - Security tier remains locked: reuse existing IMAP/credential machinery, no secrets or backend/schema
   expansion; final Opus adversarial QA and Ben's explicit merge sign-off are mandatory.
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 no-progress agent replaced before compaction
+
+- Initial `UX 995 Build` session `93f9bd82-dcac-4cfc-bbe0-2a1532c40fb5` consumed its context to the
+  relay threshold without producing a plan or product-code change. At 1% before auto-compaction it
+  was interrupted, the worktree was verified unchanged except the ignored context-meter log, and the
+  exact session was fresh-resolved and reaped.
+- Spawned replacement exact label `UX 995 Build Relay`, immutable Claude session
+  `7b99f727-179c-4e5c-8243-73209b4e17cc`, in the same isolated worktree/shared agents tab. It is
+  confirmed Sonnet 5 with bypass permissions and fresh context. Its immediate task is the minimal TDD
+  plan pointer; product code remains forbidden before coordinator approval.
+- No duplicate agent shares the worktree. The separate primary `Coordinator` remains untouched.
+  `merges_since_relay` remains `1`.
