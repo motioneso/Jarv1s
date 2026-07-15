@@ -22,6 +22,7 @@ import {
   getChatMultiplexerSettings,
   getHostDiagnostics,
   getRegistrationSettings,
+  installHerdr,
   listAdminConnectorAccounts,
   listAdminUsers,
   promoteUser,
@@ -57,6 +58,7 @@ import {
   Switch,
   type BadgeTone
 } from "./settings-ui";
+import { healthSummary, orderChecksBySeverity } from "./host-health-summary";
 import type {
   ChatMultiplexerChoice,
   HostDiagnosticStatus,
@@ -629,6 +631,13 @@ export function HostPane() {
     onSuccess: (data) => queryClient.setQueryData(queryKeys.settings.chatMultiplexer, data),
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
+  const installMutation = useMutation({
+    mutationFn: () => installHerdr(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.chatMultiplexer });
+    },
+    onError: (error) => toast(readError(error), { tone: "drift" })
+  });
   const runDiagnostics = () => {
     setRanDiagnostics(true);
     void diagQuery.refetch();
@@ -705,14 +714,23 @@ export function HostPane() {
     );
   }
 
-  function installGuidanceNote() {
+  function installHerdrRow() {
     if (!mux || mux.herdrInstalled) return null;
     return (
-      <Note icon={<Terminal size={13} aria-hidden="true" />}>
-        Herdr is not installed on this host. An operator can install it from the deployment
-        directory with <code>{"docker compose exec jarv1s scripts/install-herdr.sh"}</code>, then
-        refresh this page.
-      </Note>
+      <Row
+        name="Herdr"
+        desc="Not installed on this host."
+        control={
+          <button
+            type="button"
+            className="jds-btn jds-btn--secondary jds-btn--sm"
+            onClick={() => installMutation.mutate()}
+            disabled={installMutation.isPending}
+          >
+            {installMutation.isPending ? "Installing…" : "Install Herdr"}
+          </button>
+        }
+      />
     );
   }
 
@@ -758,10 +776,10 @@ export function HostPane() {
           }
         />
         {attachHintNote()}
-        {installGuidanceNote()}
+        {installHerdrRow()}
       </Group>
       <Group
-        title="Diagnostics"
+        title="Check system health"
         desc="A safe, read-only health check of this host. No secrets, env values, or paths."
         action={
           <button
@@ -773,19 +791,27 @@ export function HostPane() {
             <span className="jds-btn__icon">
               <Stethoscope size={15} />
             </span>
-            {diagQuery.isFetching ? "Running…" : "Run diagnostics"}
+            {diagQuery.isFetching ? "Checking…" : "Check system health"}
           </button>
         }
       >
         {!ranDiagnostics ? (
-          <Row name="Not run yet" desc="Run diagnostics to check this host." />
+          <Row name="Not run yet" desc="Check system health to check this host." />
         ) : diagQuery.isError ? (
-          <Row name="Couldn't run diagnostics" desc={readError(diagQuery.error)} />
+          <Row name="Couldn't check system health" desc={readError(diagQuery.error)} />
         ) : !diag ? (
-          <Row name="Running diagnostics…" />
+          <Row name="Checking system health…" />
         ) : (
           <>
-            {diag.checks.map((check) => (
+            <Row
+              name="Status"
+              control={
+                <Badge tone={healthSummary(diag.checks).tone}>
+                  {healthSummary(diag.checks).label}
+                </Badge>
+              }
+            />
+            {orderChecksBySeverity(diag.checks).map((check) => (
               <Row
                 key={check.id}
                 name={check.label}
@@ -797,41 +823,39 @@ export function HostPane() {
                 }
               />
             ))}
-            <Row name="Uptime" control={formatUptime(diag.uptimeSeconds)} />
-            <Row name="Environment" control={diag.environment} />
-            <Row
-              name="Version"
-              control={
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {diag.version ?? "—"}
-                  {diag.latestAvailableVersion &&
-                    compareJarvisVersions(diag.latestAvailableVersion, diag.version ?? "") > 0 && (
-                      <Badge tone="pine">Update Available ({diag.latestAvailableVersion})</Badge>
-                    )}
-                </div>
-              }
-            />
-            {diag.releaseNotes ? (
+            <details className="set-technical-details">
+              <summary>Technical details</summary>
+              <Row name="Uptime" control={formatUptime(diag.uptimeSeconds)} />
+              <Row name="Environment" control={diag.environment} />
               <Row
-                name="Release notes"
-                desc={
-                  <div className="set-release-notes">
-                    <MarkdownMessage text={diag.releaseNotes} />
+                name="Version"
+                control={
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {diag.version ?? "—"}
+                    {diag.latestAvailableVersion &&
+                      compareJarvisVersions(diag.latestAvailableVersion, diag.version ?? "") >
+                        0 && (
+                        <Badge tone="pine">Update Available ({diag.latestAvailableVersion})</Badge>
+                      )}
                   </div>
                 }
               />
-            ) : null}
-            <Row name="Commit" control={diag.commit ?? "—"} />
-            <Row name="Bind address" control={`${diag.host}:${diag.port}`} />
+              {diag.releaseNotes ? (
+                <Row
+                  name="Release notes"
+                  desc={
+                    <div className="set-release-notes">
+                      <MarkdownMessage text={diag.releaseNotes} />
+                    </div>
+                  }
+                />
+              ) : null}
+              <Row name="Commit" control={diag.commit ?? "—"} />
+              <Row name="Bind address" control={`${diag.host}:${diag.port}`} />
+              <Row name="Log level" control={<Badge tone="neutral">{diag.logLevel}</Badge>} />
+            </details>
           </>
         )}
-      </Group>
-      <Group title="Logging">
-        <Row
-          name="Log level"
-          desc="Set with the LOG_LEVEL environment variable. Changing it takes effect after a restart."
-          control={<Badge tone="neutral">{diag?.logLevel ?? "Run diagnostics to view"}</Badge>}
-        />
       </Group>
     </>
   );
