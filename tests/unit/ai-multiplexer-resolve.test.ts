@@ -75,6 +75,15 @@ describe("decideMultiplexer", () => {
   it("auto fails when neither is usable", () => {
     expect(decideMultiplexer({ env: {}, configured: "auto", isInstalled: none }).ok).toBe(false);
   });
+  it("honors JARVIS_HERDR_ROOT_TAB alone as a resolvable root workspace (#993)", () => {
+    expect(
+      decideMultiplexer({
+        env: { JARVIS_HERDR_ROOT_TAB: "jarvis-root" },
+        configured: "herdr",
+        isInstalled: only("herdr")
+      })
+    ).toEqual({ ok: true, kind: "herdr", source: "configured" });
+  });
 });
 
 describe("resolveMultiplexer", () => {

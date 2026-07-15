@@ -15,6 +15,7 @@ import {
   createBinaryProbe,
   createRealTmuxIo,
   decideMultiplexer,
+  isRootWorkspaceConfigured,
   resolveMultiplexer,
   type MultiplexerKind,
   type MultiplexerSource,
@@ -60,12 +61,13 @@ async function boundedProbe(p: Promise<boolean>, ms = 1500): Promise<boolean> {
  *
  * Per-kind availability is therefore direct:
  *   tmux  ⇔ tmux binary present
- *   herdr ⇔ herdr binary present AND a root pane is resolvable
- *           (JARVIS_HERDR_ROOT_PANE or HERDR_PANE_ID — the same condition
- *           decideMultiplexer applies in multiplexer-resolve.ts). The only host
- * I/O is the synchronous PATH `has(bin)` inside createBinaryProbe, still wrapped
- * so the contract is uniformly bounded. Re-reads PATH each call, so a binary
- * installed after boot is reflected on the next status fetch (no restart needed).
+ *   herdr ⇔ herdr binary present AND a Root workspace is resolvable — via the ONE
+ *           shared `isRootWorkspaceConfigured` predicate (@jarv1s/ai/root-workspace)
+ *           that `decideMultiplexer` also applies in multiplexer-resolve.ts, so the
+ *           two can never disagree (#993). The only host I/O is the synchronous PATH
+ * `has(bin)` inside createBinaryProbe, still wrapped so the contract is uniformly
+ * bounded. Re-reads PATH each call, so a binary installed after boot is reflected on
+ * the next status fetch (no restart needed).
  */
 export function makeMultiplexerUsableProbe(
   env: NodeJS.ProcessEnv = process.env
@@ -75,10 +77,7 @@ export function makeMultiplexerUsableProbe(
       Promise.resolve().then(() => {
         const probe = createBinaryProbe(env);
         if (kind === "tmux") return probe.has("tmux");
-        const herdrRootAvailable = Boolean(
-          env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim()
-        );
-        return probe.has("herdr") && herdrRootAvailable;
+        return probe.has("herdr") && isRootWorkspaceConfigured(env);
       })
     );
 }
