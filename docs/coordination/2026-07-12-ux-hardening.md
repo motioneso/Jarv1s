@@ -2263,3 +2263,8 @@ resume from this note before taking any merge-sensitive action.
 - Mandatory Opus adversarial QA is running in exact session
   `afb93a18-1230-494c-9c30-c495cb32983b`. Ben's explicit sign-off remains pending; no merge is
   authorized.
+- Opus adversarial QA is GREEN / MERGE-READY YES with 0 blocking and 2 non-blocking findings; the
+  durable verdict is PR comment `issuecomment-4979799861`. Non-blocking follow-ups are the timed-out
+  installer child/concurrency edge and the missing install confirmation naming the script.
+- All technical gates are green. #1065 remains paused for Ben's explicit security-tier merge
+  sign-off; no merge is authorized until he gives it.
