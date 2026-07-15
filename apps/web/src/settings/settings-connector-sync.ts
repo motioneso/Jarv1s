@@ -50,15 +50,15 @@ export function getConnectorAccountHealth(
   }
 
   if (account.lastSyncStatus === "failed") {
+    const isAuthFailure = account.lastSyncError === "auth-error";
     return {
       indicator: "error",
       badgeTone: "amber",
-      label: "Needs attention",
-      alert:
-        account.lastSyncError === "auth-error"
-          ? "Last sync failed because Google access needs to be refreshed."
-          : syncAlert("Last sync failed", account.lastSyncError, account.lastSyncCounts),
-      canReconnect: account.providerType === "google"
+      label: "Sign-in expired",
+      alert: isAuthFailure
+        ? `Last sync failed because ${account.providerType === "google" ? "Google" : "email"} access needs to be reconnected. Reconnect to resume syncing.`
+        : syncAlert("Last sync failed", account.lastSyncError, account.lastSyncCounts),
+      canReconnect: isAuthFailure || account.providerType === "google"
     };
   }
 
@@ -66,21 +66,23 @@ export function getConnectorAccountHealth(
     return {
       indicator: "error",
       badgeTone: "amber",
-      label: "Needs attention",
-      alert: "Connection needs attention.",
-      canReconnect: account.providerType === "google"
+      label: "Connection error",
+      alert:
+        account.providerType === "google"
+          ? "Google reported a connection error. Reconnect to restore syncing."
+          : "This email account reported a connection error. Reconnect to restore syncing.",
+      canReconnect: true
     };
   }
 
   if (account.lastSyncStatus === "partial") {
+    const capped = account.lastSyncCounts?.truncated && !account.lastSyncError;
     return {
       indicator: "error",
       badgeTone: "amber",
-      label: "Partial",
+      label: capped ? "Message cap reached" : "Partial sync",
       alert: syncAlert(
-        account.lastSyncCounts?.truncated && !account.lastSyncError
-          ? "Last sync reached its message cap"
-          : "Last sync completed with errors",
+        capped ? "Last sync reached its message cap" : "Last sync completed with errors",
         account.lastSyncError,
         account.lastSyncCounts
       ),
@@ -93,7 +95,7 @@ export function getConnectorAccountHealth(
       indicator: "idle",
       badgeTone: "neutral",
       label: "Awaiting first sync",
-      alert: null,
+      alert: "First sync hasn't run yet — new data will appear once it completes.",
       canReconnect: false
     };
   }
@@ -101,7 +103,7 @@ export function getConnectorAccountHealth(
   return {
     indicator: "ready",
     badgeTone: "pine",
-    label: "Healthy",
+    label: "Synced",
     alert: null,
     canReconnect: false
   };

@@ -51,6 +51,7 @@ import { queryKeys } from "../api/query-keys";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
 import { getConnectorAccountHealth, isConnectorSyncInFlight } from "./settings-connector-sync";
 import { GoogleConnect } from "./settings-google-connect";
+import { ImapConnect } from "./settings-imap-connect";
 import {
   BriefingSettings,
   ChatSettingsView,
@@ -229,40 +230,32 @@ function hasCalendarScope(scopes: readonly string[]): boolean {
   return scopes.some((scope) => scope.includes("calendar"));
 }
 
-const CONNECT_SERVICES: readonly { name: string; go?: boolean }[] = [
-  { name: "Google", go: true },
-  { name: "GitHub" },
-  { name: "Apple" },
-  { name: "Other (OAuth)" }
-];
-
-function ServicePicker(props: { readonly onGoogle: () => void }) {
-  const { toast } = useFeedback();
+function ServicePicker(props: { readonly onGoogle: () => void; readonly onImap: () => void }) {
   return (
     <div className="provpick" style={{ marginTop: 14 }}>
       <div className="provpick__hd">Connect an account</div>
       <div className="provpick__grid">
-        {CONNECT_SERVICES.map((s) => (
-          <button
-            key={s.name}
-            type="button"
-            className="provpick__item"
-            onClick={() =>
-              s.go
-                ? props.onGoogle()
-                : toast(`${s.name} uses the same OAuth flow — coming soon`, {
-                    icon: <Plus size={17} />
-                  })
-            }
-          >
-            <span className="provpick__dot" />
-            {s.name}
-          </button>
-        ))}
+        <button type="button" className="provpick__item" onClick={props.onGoogle}>
+          <span className="provpick__dot" />
+          Google
+        </button>
+        <button type="button" className="provpick__item" onClick={props.onImap}>
+          <span className="provpick__dot" />
+          Email (IMAP)
+        </button>
+        <button
+          type="button"
+          className="provpick__item"
+          disabled
+          aria-label="GitHub — coming soon, tracked in issue #1061"
+        >
+          <span className="provpick__dot" />
+          GitHub <span className="provpick__on">Coming soon · #1061</span>
+        </button>
       </div>
       <div className="provpick__foot">
-        Google connects through a developer OAuth app you create and own. The others connect the
-        same way.
+        Google and email (IMAP) connect through your own credentials — nothing passes through anyone
+        else's servers.
       </div>
     </div>
   );
@@ -271,7 +264,7 @@ function ServicePicker(props: { readonly onGoogle: () => void }) {
 function ConnectedPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
-  const [flow, setFlow] = useState<null | "picker" | "google">(null);
+  const [flow, setFlow] = useState<null | "picker" | "google" | "imap">(null);
   const accountsQuery = useQuery({
     queryKey: queryKeys.connectors.accounts,
     queryFn: listConnectorAccounts,
@@ -302,6 +295,10 @@ function ConnectedPane() {
 
   if (flow === "google") {
     return <GoogleConnect onBack={() => setFlow(null)} />;
+  }
+
+  if (flow === "imap") {
+    return <ImapConnect onBack={() => setFlow(null)} />;
   }
 
   return (
@@ -335,7 +332,7 @@ function ConnectedPane() {
             <AccountRow
               key={account.id}
               account={account}
-              onReconnect={() => setFlow("google")}
+              onReconnect={() => setFlow(account.providerType === "google" ? "google" : "imap")}
               onRevoke={() =>
                 confirm({
                   title: `Revoke ${account.providerDisplayName} access?`,
@@ -349,7 +346,9 @@ function ConnectedPane() {
             />
           ))
         )}
-        {flow === "picker" ? <ServicePicker onGoogle={() => setFlow("google")} /> : null}
+        {flow === "picker" ? (
+          <ServicePicker onGoogle={() => setFlow("google")} onImap={() => setFlow("imap")} />
+        ) : null}
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
         These are your accounts and their trust state — not backend provider definitions. What each

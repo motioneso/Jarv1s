@@ -37,6 +37,12 @@ export async function registerMockConnectorRoutes(
   await page.route("**/api/connectors/google/complete", (route) =>
     handleGoogleCompleteRoute(route, state)
   );
+  await page.route("**/api/connectors/imap/test-connection", (route) =>
+    fulfillJson(route, 200, { result: "ok" })
+  );
+  await page.route("**/api/connectors/imap/connect", (route) =>
+    handleImapConnectRoute(route, state)
+  );
 }
 
 async function handleConnectorAccountsRoute(
@@ -149,6 +155,20 @@ async function handleGoogleCompleteRoute(
   });
   state.connectorAccounts = [...state.connectorAccounts, googleAccount];
   return fulfillJson(route, 201, { account: googleAccount });
+}
+
+async function handleImapConnectRoute(
+  route: Route,
+  state: MockConnectorsApiState
+): Promise<void> {
+  const imapAccount = createMockConnectorAccount("imap-account-1", {
+    providerId: "imap-fastmail",
+    providerType: "imap" as ConnectorProviderType,
+    providerDisplayName: "Fastmail",
+    status: "active"
+  });
+  state.connectorAccounts = [...state.connectorAccounts, imapAccount];
+  return fulfillJson(route, 201, { account: imapAccount });
 }
 
 export function createMockConnectorProviders(): ConnectorProviderDto[] {
