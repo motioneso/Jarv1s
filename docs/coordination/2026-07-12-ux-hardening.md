@@ -2401,3 +2401,8 @@ resume from this note before taking any merge-sensitive action.
   `issuecomment-4984279796`. Issue #1002 remains open, its stale `needs-spec` label is removed, and
   its project item is `In progress`; no implementation has merged. `merges_since_relay` is now
   `1`.
+- #1002 G1 coordinator inventory is complete at issue comment `issuecomment-4984328581`: created
+  #1069 (safe instance export) and #1070 (backup status/PITR), reopened and updated #743 (Web Push),
+  verified #1061 unchanged, and linked all four as native #1002 sub-issues. `UX 1002 Plan R1` was
+  reaped; its worktree and local/remote branch are removed. Approved plan hard-gates all
+  implementation spawns until #1050 resolves; G2 is first afterward.
