@@ -2098,3 +2098,14 @@ resume from this note before taking any merge-sensitive action.
 - Merge remains blocked on exact-head CI green, durable live-path evidence, the Opus adversarial QA
   comment/verdict, and Ben's explicit security-tier sign-off. Primary `Coordinator` remains
   untouched. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-15 #1063 UAT evidence moved exact HEAD
+
+- R6 committed eight UAT screenshots plus README under
+  `docs/superpowers/handoffs/2026-07-15-995-uat-evidence/` and posted durable PR evidence at
+  <https://github.com/motioneso/Jarv1s/pull/1063#issuecomment-4977365172>.
+- This evidence-only commit moved local/origin/GitHub exact HEAD to
+  `f0a9872fd0f852aa33a68feada79aa3d77b317dc`; all old-head CI/QA claims are stale. A fresh three-job
+  CI run is active. Opus QA was redirected to fetch and anchor its verdict to the new exact head.
+- Merge remains blocked on new-head CI green, new-head Opus QA, and Ben's explicit sign-off.
+  Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
