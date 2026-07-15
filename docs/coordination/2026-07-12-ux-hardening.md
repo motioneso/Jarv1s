@@ -2325,3 +2325,23 @@ resume from this note before taking any merge-sensitive action.
   `webwright-proof-987-v3/`.
 - Mid-doing: report the post-merge all-UX rollup (10 closed / 3 open) and continue the remaining
   #983 queue from GitHub source of truth. No active build lane remains from #993.
+
+## Continuation note — 2026-07-15 delegated UX takeover and #991 recovery
+
+- Delegated authority moved to exact label `UX Coordinator`, immutable Codex session
+  `019f66e1-aefb-7df2-b339-c4168d3266c1`, in pushed commit `c7cd7811`; `merges_since_relay` reset
+  to `0`. The exact predecessor `UX Coordinator` session
+  `019f66ae-47c6-7c92-a70f-ec41c21336e8` was fresh-resolved and closed. Primary `Coordinator`
+  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched.
+- GitHub source of truth confirms epic #983 is 10/13 complete. Open: #991 (`needs-spec`, major,
+  but approved spec/plan and draft PR #1050 already exist), #988 (manual acceptance, cosmetic),
+  and #1002 (`needs-spec`, minor).
+- Recovered #991 in existing isolated worktree
+  `~/Jarv1s/.claude/worktrees/ux-991-assistant-priorities-build`, branch
+  `ux/991-assistant-priorities-build`. Exact build label `UX 991 Repair R1`, immutable Codex
+  session `019f66e5-e89e-71d2-b6d6-7366bcd7aba7`, Luna/medium. It is root-causing the live-path
+  blocker from PR #1050: authenticated `POST /api/me/persona/preview` returned HTTP 503 at head
+  `8a976ecd5621f5ed141832a801d32231eb181a6f`.
+- Latest `main` CI run `29437600439` is still in progress. Do not spawn the new #1002 planning
+  worktree until `main` is verified green. #988 remains the closing manual walkthrough after the
+  implementation queue lands.
