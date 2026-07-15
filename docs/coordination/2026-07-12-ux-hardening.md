@@ -1929,3 +1929,16 @@ resume from this note before taking any merge-sensitive action.
 - `merges_since_relay` is now `1`. This sensitive merge does not yet fire the two-merge relay
   threshold. Next queue item is #995, but release it only after GitHub source-of-truth/spec checks
   and the post-merge `main` CI run is fully green. Remaining order: #995, #993, #1002, #988.
+
+## Continuation note — 2026-07-14 #995 blocked on approved brief/spec and main CI
+
+- GitHub source of truth confirms #995 is OPEN/Backlog and labeled `needs-spec`. No matching approved
+  spec or plan exists under `docs/superpowers/specs/` or `docs/superpowers/plans/`, so the coordinate
+  stop rule forbids spawning its build lane. Its issue body already contains detailed findings and
+  acceptance criteria, but these do not replace Ben's approved feature brief/spec.
+- The rigid `brief` workflow has started and must ask its six questions one at a time, beginning with
+  the core problem. After Ben confirms the synthesized brief, write/approve the durable spec and
+  remove the `needs-spec` gate before spawning #995.
+- Post-merge `main` CI run `29386816789` is in progress at merge commit
+  `2c841e5444dbc15c97e466f10eafaa9dba7072ba`; it must be fully green including image tail before
+  release. No #995 build agent has spawned. `merges_since_relay` remains `1`.
