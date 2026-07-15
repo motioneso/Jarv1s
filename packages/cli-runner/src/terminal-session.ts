@@ -13,7 +13,11 @@
 // real module is only require()'d inside the constructor when a PTY is actually spawned
 // (cli-runner itself still runs as tsx source, unbundled, so this works there too).
 import { createRequire } from "node:module";
-import type { IPty } from "node-pty";
+// Type-only namespace import: erased at compile time (zero runtime footprint), so it
+// never emits a `import "node-pty"` in the bundles. Using `typeof NodePty` for the
+// require() cast below avoids an inline `import()` type annotation, which eslint's
+// @typescript-eslint/consistent-type-imports rule forbids.
+import type * as NodePty from "node-pty";
 import { buildSanitizedCliEnv } from "./sanitized-env.js";
 
 const require = createRequire(import.meta.url);
@@ -28,12 +32,12 @@ export interface TerminalSessionOptions {
 
 export class TerminalSession {
   readonly id: string;
-  private readonly term: IPty;
+  private readonly term: NodePty.IPty;
 
   constructor(opts: TerminalSessionOptions) {
     this.id = opts.id;
     // #1059: lazy require, not a top-level import — see the comment above the imports.
-    const pty = require("node-pty") as typeof import("node-pty");
+    const pty = require("node-pty") as typeof NodePty;
     this.term = pty.spawn("/bin/bash", ["-l"], {
       name: "xterm-256color",
       cols: opts.cols,
