@@ -234,7 +234,11 @@ function ProviderCard(props: {
             <span className="jds-btn__icon">
               {provider.authMethod === "cli" ? <Terminal size={14} /> : <Activity size={14} />}
             </span>
-            {provider.authMethod === "cli" ? "Terminal" : testMutation.isPending ? "Testing" : "Test"}
+            {provider.authMethod === "cli"
+              ? "Terminal"
+              : testMutation.isPending
+                ? "Testing"
+                : "Test"}
           </button>
           <button
             type="button"

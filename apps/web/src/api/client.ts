@@ -1312,9 +1312,7 @@ export async function getTerminalStatus(): Promise<GetTerminalStatusResponse> {
   return requestJson<GetTerminalStatusResponse>("/api/ai/terminal/status");
 }
 
-export async function setTerminalPassword(
-  password: string
-): Promise<SetTerminalPasswordResponse> {
+export async function setTerminalPassword(password: string): Promise<SetTerminalPasswordResponse> {
   return requestJson<SetTerminalPasswordResponse>("/api/ai/terminal/password", {
     method: "POST",
     body: { password }

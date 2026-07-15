@@ -12,6 +12,16 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.6.2 --activate
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY . .
+# #1059: node-pty (packages/cli-runner) is a workspace dependency with no linux
+# prebuild, so `pnpm install` compiles it from source via node-gyp — which needs
+# python3/make/g++. bookworm-slim lacks them, so the web build's install fails on
+# node-pty exactly like the root image did (fixed in ../../Dockerfile). This build
+# stage is discarded (runtime is FROM nginx below), so the toolchain never reaches
+# the shipped image — no purge needed. The web bundle itself doesn't use node-pty;
+# the compile is an unavoidable side-effect of installing the full workspace.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 RUN pnpm install --frozen-lockfile
 RUN pnpm build:web
 

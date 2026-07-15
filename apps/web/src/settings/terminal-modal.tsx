@@ -105,7 +105,8 @@ export function TerminalModal(props: {
       setConfirmPassword("");
       setOverride(nextTerminalModalPhase(phase, { type: "password-set" }));
     },
-    onError: (error) => toast(readError(error), { tone: "drift", icon: <TriangleAlert size={17} /> })
+    onError: (error) =>
+      toast(readError(error), { tone: "drift", icon: <TriangleAlert size={17} /> })
   });
 
   const ticketMutation = useMutation({
@@ -116,9 +117,7 @@ export function TerminalModal(props: {
     },
     onError: (error) => {
       const message =
-        error instanceof ApiError && error.status === 401
-          ? "Incorrect password"
-          : readError(error);
+        error instanceof ApiError && error.status === 401 ? "Incorrect password" : readError(error);
       toast(message, { tone: "drift", icon: <TriangleAlert size={17} /> });
     }
   });

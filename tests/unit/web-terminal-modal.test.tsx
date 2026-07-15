@@ -12,8 +12,11 @@ import type { AiProviderConfigDto } from "@jarv1s/shared";
 // mount + live WebSocket byte-bridge never runs under renderToString (no effects, no
 // real DOM, no WebSocket) — that path is exercised only by real dev UAT (Task 10),
 // mirroring Task 7's identical deferral for the server-side cli-runner byte bridge.
-import { buildResizeMessage, nextTerminalModalPhase, TerminalModal } from
-  "../../apps/web/src/settings/terminal-modal.js";
+import {
+  buildResizeMessage,
+  nextTerminalModalPhase,
+  TerminalModal
+} from "../../apps/web/src/settings/terminal-modal.js";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
 
@@ -43,7 +46,11 @@ function renderModal(passwordSet: boolean): string {
     createElement(
       QueryClientProvider,
       { client },
-      createElement(FeedbackProvider, null, createElement(TerminalModal, { provider: provider(), onClose: () => {} }))
+      createElement(
+        FeedbackProvider,
+        null,
+        createElement(TerminalModal, { provider: provider(), onClose: () => {} })
+      )
     )
   );
 }
