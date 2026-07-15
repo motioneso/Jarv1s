@@ -2350,6 +2350,9 @@ resume from this note before taking any merge-sensitive action.
   persona preview used an unresolved host fallback whose error became HTTP 503. The two-file fix
   routes socket preview through the adopted RPC connection and adds one transport-selection
   regression assertion. A late full-gate result invalidated the agent's initial green report:
-  TypeScript found `chatEngineFactory` used before assignment. Head `2277005d` is not releasable;
-  the lane is fixing it and must push a new head before fresh CI or live proof. GitHub's stale
-  `needs-spec` label was removed from #991 because spec/plan PR #1046 is already merged.
+  TypeScript found `chatEngineFactory` used before assignment. Obsolete head `2277005d` and failed
+  CI run `29438363551` are not releasable. Corrected exact head
+  `11bdd2efea7885a35e81625107bab5957651e0c9` moves preview-factory creation below chat-factory
+  initialization; the full local foundation gate is green (3,318 unit and 1,646 integration tests
+  passed). Fresh CI run `29439577353` is in progress; fresh exact-head UAT remains required.
+  GitHub's stale `needs-spec` label was removed from #991 because spec/plan PR #1046 is merged.
