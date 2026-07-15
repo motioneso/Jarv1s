@@ -2243,3 +2243,6 @@ resume from this note before taking any merge-sensitive action.
   further implementation.
 - #993 Host Slice 1 remains security-tier: live UAT, a posted Opus adversarial QA verdict, and Ben's
   explicit merge sign-off remain mandatory.
+- `UX 993 Host Build R4` relayed to confirmed Sonnet successor `UX 993 Host Build R5`, immutable
+  session `4cab9e73-55a0-447e-a12f-c5bf8ffd9722`; exact R4 was closed. R5 is driving the pending
+  plan-pointer handoff before any implementation beyond Task 1.
