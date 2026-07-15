@@ -2109,3 +2109,18 @@ resume from this note before taking any merge-sensitive action.
   CI run is active. Opus QA was redirected to fetch and anchor its verdict to the new exact head.
 - Merge remains blocked on new-head CI green, new-head Opus QA, and Ben's explicit sign-off.
   Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-15 #1063 fully green; awaiting Ben sign-off
+
+- Exact local/origin/GitHub HEAD remains `f0a9872fd0f852aa33a68feada79aa3d77b317dc`.
+  Exact-head CI is fully green: foundation/app `17m11s`, compose smoke `2m04s`, prod compose smoke
+  `1m59s`, and image tail `12m57s`.
+- Opus adversarial QA posted GREEN / zero blockers / merge-ready at
+  <https://github.com/motioneso/Jarv1s/pull/1063#issuecomment-4977474081>. Three non-blockers:
+  Google-specific cached-data copy can appear for IMAP partial sync; settings/onboarding IMAP copy
+  mapping is duplicated; reconnect asks non-Google users to re-pick the provider. QA also recommends
+  a frontend assertion for bounded `auth_failed` copy; live UAT covers it.
+- The spent exact Opus QA session `96aafea7-1690-4cdb-8dc3-5d8f24390d48` was fresh-resolved and
+  closed; its detached worktree was removed. R6 remains available for remediation. Merge is blocked
+  only on Ben's explicit security-tier sign-off. Primary `Coordinator` remains untouched.
+  `merges_since_relay` remains `1`.
