@@ -2246,3 +2246,6 @@ resume from this note before taking any merge-sensitive action.
 - `UX 993 Host Build R4` relayed to confirmed Sonnet successor `UX 993 Host Build R5`, immutable
   session `4cab9e73-55a0-447e-a12f-c5bf8ffd9722`; exact R4 was closed. R5 is driving the pending
   plan-pointer handoff before any implementation beyond Task 1.
+- The 8-task TDD plan at `docs/superpowers/plans/2026-07-15-993-host-truth.md` is approved for Tasks
+  2-9. The three-state install result (`installed|failed|timeout`) is accepted; installer output is
+  not parsed and no speculative already-installed state is added. R5 is implementing sequentially.
