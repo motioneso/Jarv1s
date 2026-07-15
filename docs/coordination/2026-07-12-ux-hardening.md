@@ -2368,5 +2368,8 @@ resume from this note before taking any merge-sensitive action.
   in head `98c9a442`; `UX 1002 Plan R1` is fixing only the spec/plan before re-review.
 - #1002 PR #1066 re-review is GREEN / APPROVED at exact head
   `16c0e9db4b9e71f1601858036f92265a198eedf4`, with no blockers. Durable approval is PR comment
-  `issuecomment-4984058639`. The PR now contains only the spec and plan; exact-head CI and
-  independent docs QA remain before merge. No #1002 implementation lane has spawned.
+  `issuecomment-4984058639`. The PR now contains only the spec and plan. Exact-head CI run
+  `29440980203` has one failed `Compose deployment smoke`; Prod smoke is green and foundation is
+  still running. The lane is stop-the-line while its owner diagnoses the raw failure; one proven
+  transient may be rerun once, while a second failure requires an issue/escalation. Independent
+  docs QA also remains before merge. No #1002 implementation lane has spawned.
