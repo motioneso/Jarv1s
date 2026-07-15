@@ -2382,3 +2382,10 @@ resume from this note before taking any merge-sensitive action.
   `manifest unknown`. No stale image or evidence was used. The owner is building the exact clean
   head locally with tag `ghcr.io/motioneso/jarv1s:live-1050-11bdd2ef`, verifying SHA/digest, and
   will run isolated Compose with pull disabled.
+- Independent sensitive QA for #1050 is RED / MERGE-READY NO at PR comment
+  `issuecomment-4984186831`: preview bypasses the per-user effective chat-model override, required
+  transport/UI contract tests and live+narrow proof are missing, and the spent coordination
+  handoff remains in the PR. UAT/image work stopped; old `UX 991 Repair R1` is closed with no live
+  build process. Fresh exact label `UX 991 Repair R2`, immutable Codex session
+  `019f671e-1efe-7220-9638-8c761370f975`, Luna/medium, is preparing a repair plan. Coordinator will
+  remove the handoff artifact after the code/test repair.
