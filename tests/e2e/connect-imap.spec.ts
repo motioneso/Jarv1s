@@ -41,7 +41,7 @@ test("connects an email account via the settings IMAP flow", async ({ page }) =>
   await page.getByRole("button", { name: "Email (IMAP)" }).click();
 
   await page.getByRole("button", { name: /Fastmail/ }).click();
-  await expect(page.getByText("Connect Fastmail")).toBeVisible();
+  await expect(page.locator(".gflow__title", { hasText: "Connect Fastmail" })).toBeVisible();
 
   await page.getByLabel("Email address").fill("me@fastmail.com");
   await page.getByLabel("App password").fill("app-password-123");
