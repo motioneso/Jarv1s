@@ -2389,3 +2389,9 @@ resume from this note before taking any merge-sensitive action.
   build process. Fresh exact label `UX 991 Repair R2`, immutable Codex session
   `019f671e-1efe-7220-9638-8c761370f975`, Luna/medium, is preparing a repair plan. Coordinator will
   remove the handoff artifact after the code/test repair.
+- #991 R2 repair plan is approved: use canonical effective per-user chat-model selection in the
+  shared preview helper, preserve CLI/API transport and no-thread semantics, and add the focused
+  preview/priority UI contracts QA required. No implementation fork remains; fresh CI/UAT follows
+  the new head.
+- #1002 exact-head CI foundation is green. The one permitted retry of the diagnosed Compose
+  startup-timing flake is active as attempt 2 of run `29440980203`; a second failure stops the lane.
