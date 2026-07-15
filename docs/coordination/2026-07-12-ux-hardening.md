@@ -2411,4 +2411,5 @@ resume from this note before taking any merge-sensitive action.
   1,646 integration tests passed, 155 migrations current). The coordinator removed the spent
   handoff without product changes. Final PR #1050 head is
   `da66a101a46e8d9349b7277ec5778eb3ecf57b29`; no `docs/coordination/` file remains and fresh CI
-  run `29443722846` is in progress. Fresh sensitive QA and live proof must target this head.
+  run `29443722846` is fully green. Fresh sensitive QA and exact local-image authenticated UAT are
+  active on this head; merge remains blocked until both durable verdicts are green.
