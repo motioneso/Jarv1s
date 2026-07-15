@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 
 import type { DataContextDb } from "@jarv1s/db";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import {
   listVaultFilesRecursive,
   readVaultFile,
+  VaultPathError,
   vaultFileExists,
   writeVaultFile,
   type VaultContext
@@ -27,6 +29,25 @@ export class CanonicalNoteNotFoundError extends Error {
     super(`Canonical People note not found for person ${personId}`);
     this.name = "CanonicalNoteNotFoundError";
   }
+}
+
+export class PeopleNotesFolderUnavailableError extends Error {
+  constructor() {
+    super("People notes folder is unavailable");
+    this.name = "PeopleNotesFolderUnavailableError";
+  }
+}
+
+function translateVaultOperationError(error: unknown): never {
+  const fsError = error as NodeJS.ErrnoException;
+  if (
+    error instanceof VaultPathError ||
+    (typeof fsError?.code === "string" &&
+      (typeof fsError.path === "string" || typeof fsError.syscall === "string"))
+  ) {
+    throw new PeopleNotesFolderUnavailableError();
+  }
+  throw error;
 }
 
 export interface PeopleNotesServiceDeps {
@@ -68,11 +89,11 @@ function hash(value: string): string {
 
 function normalizeFolder(folder: string | null): string | null {
   if (folder === null) return null;
-  const trimmed = folder.trim().replace(/^\/+|\/+$/g, "");
-  if (!trimmed || trimmed.includes("..")) {
+  const trimmed = folder.trim();
+  if (!trimmed || isAbsolute(trimmed) || trimmed.split(/[\\/]/).includes("..")) {
     throw new Error("People notes folder must be a relative folder");
   }
-  return trimmed;
+  return trimmed.replace(/\/+$/g, "");
 }
 
 function slugName(displayName: string): string {
@@ -127,9 +148,10 @@ export class PeopleNotesService {
     ownerUserId: string
   ): Promise<PeopleNotesRefreshResult> {
     const { folder } = await this.getSettings(scopedDb, ownerUserId);
-    if (!folder) return { projected: 0, candidates: 0 };
+    if (!folder) return { discovered: 0, projected: 0, ignored: 0, candidates: 0 };
 
-    const notes = await this.loadPeopleNotes(vaultCtx, folder);
+    const loaded = await this.loadPeopleNotes(vaultCtx, folder);
+    const notes = loaded.notes;
     const byPersonId = new Map<string, LoadedPeopleNote[]>();
     let candidates = 0;
     for (const note of notes) {
@@ -169,7 +191,7 @@ export class PeopleNotesService {
       new Set(byPersonId.keys())
     );
 
-    return { projected, candidates };
+    return { discovered: loaded.discovered, projected, ignored: loaded.ignored, candidates };
   }
 
   async createPersonNote(
@@ -260,25 +282,28 @@ export class PeopleNotesService {
   private async loadPeopleNotes(
     vaultCtx: VaultContext,
     folder: string
-  ): Promise<LoadedPeopleNote[]> {
+  ): Promise<{ notes: LoadedPeopleNote[]; discovered: number; ignored: number }> {
     let allPaths: string[];
     try {
       allPaths = await listVaultFilesRecursive(vaultCtx, folder);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-        allPaths = [];
-      } else {
-        throw error;
-      }
+      translateVaultOperationError(error);
     }
     const paths = allPaths.filter((path) => path.endsWith(".md"));
     const notes: LoadedPeopleNote[] = [];
+    let ignored = 0;
     for (const path of paths) {
-      const content = await readVaultFile(vaultCtx, path);
+      let content: string;
+      try {
+        content = await readVaultFile(vaultCtx, path);
+      } catch (error) {
+        translateVaultOperationError(error);
+      }
       const parsed = parsePeopleNote(content);
       if (parsed) notes.push({ path, content, parsed });
+      else ignored += 1;
     }
-    return notes;
+    return { notes, discovered: paths.length, ignored };
   }
 
   private async findCanonicalNote(
@@ -289,7 +314,7 @@ export class PeopleNotesService {
   ): Promise<LoadedPeopleNote> {
     const { folder } = await this.getSettings(scopedDb, ownerUserId);
     if (!folder) throw new Error("People notes folder is not configured");
-    const matches = (await this.loadPeopleNotes(vaultCtx, folder)).filter(
+    const matches = (await this.loadPeopleNotes(vaultCtx, folder)).notes.filter(
       (note) => note.parsed.frontmatter.jarvisPersonId === personId
     );
     if (matches.length !== 1) throw new CanonicalNoteNotFoundError(personId);

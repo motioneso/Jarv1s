@@ -1,11 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import Fastify from "fastify";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
-import { readVaultFile, VaultContextRunner } from "@jarv1s/vault";
+import { makeVaultDir, readVaultFile, VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
 import type { Kysely } from "kysely";
 import type { JarvisDatabase } from "@jarv1s/db";
 import { resetFoundationDatabase, ids } from "../../../../tests/integration/test-database.js";
@@ -33,20 +33,214 @@ afterAll(async () => {
   if (vaultRoot) await rm(vaultRoot, { recursive: true, force: true });
 });
 
-function buildApp() {
+beforeEach(async () => {
+  await resetFoundationDatabase();
+});
+
+function buildApp(actorUserId = ids.userA, actorVaultRunner: VaultContextRunner = vaultRunner) {
   const app = Fastify();
   registerPeopleRoutes(app, {
-    resolveAccessContext: async () => ({ actorUserId: ids.userA, requestId: "test" }),
+    resolveAccessContext: async () => ({ actorUserId, requestId: "test" }),
     dataContext: runner,
     repo: new PeopleRepository(),
     svc: new PersonContextService(new PeopleRepository()),
-    vaultRunner,
+    vaultRunner: actorVaultRunner,
     peopleNotesService: new PeopleNotesService()
   });
   return app;
 }
 
 describe("People notes settings routes", () => {
+  it("keeps directory discovery owner-scoped across symlinks", async () => {
+    let userBRoot = "";
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userB, requestId: "directory-user-b" },
+      async (ctx) => {
+        userBRoot = ctx.vaultRoot;
+        await makeVaultDir(ctx, "OnlyUserB");
+      }
+    );
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "directory-user-a" },
+      (ctx) => symlink(userBRoot, join(ctx.vaultRoot, "EscapeToUserB"), "dir")
+    );
+
+    const app = buildApp(ids.userA);
+    await app.ready();
+    const root = await app.inject({ method: "GET", url: "/api/people/notes-directories" });
+    expect(root.body).not.toContain("OnlyUserB");
+
+    const escaped = await app.inject({
+      method: "GET",
+      url: "/api/people/notes-directories?path=EscapeToUserB"
+    });
+    expect(escaped.statusCode).toBe(400);
+    expect(JSON.parse(escaped.body)).toEqual({ error: "People notes folder is unavailable" });
+    expect(escaped.body).not.toContain(userBRoot);
+    expect(escaped.body).not.toContain(ids.userB);
+    expect(escaped.body).not.toContain("OnlyUserB");
+    await app.close();
+  });
+
+  it("maps GET and PUT filesystem failures to one safe response", async () => {
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "not-directory-setup" },
+      (ctx) => writeVaultFile(ctx, "QA987NotDirectory", "plain file")
+    );
+    const app = buildApp();
+    await app.ready();
+
+    for (const response of [
+      await app.inject({
+        method: "GET",
+        url: "/api/people/notes-directories?path=QA987NotDirectory"
+      }),
+      await app.inject({
+        method: "PUT",
+        url: "/api/people/notes-settings",
+        payload: { folder: "QA987NotDirectory/Child" }
+      })
+    ]) {
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body)).toEqual({ error: "People notes folder is unavailable" });
+      expect(response.body).not.toContain(vaultRoot);
+    }
+    await app.close();
+
+    const loopRunner = {
+      withVaultContext: async () => {
+        throw Object.assign(new Error("ELOOP: /private/vault/loop"), {
+          code: "ELOOP",
+          path: "/private/vault/loop",
+          syscall: "scandir"
+        });
+      }
+    } as unknown as VaultContextRunner;
+    const loopApp = buildApp(ids.userA, loopRunner);
+    await loopApp.ready();
+    for (const response of [
+      await loopApp.inject({ method: "GET", url: "/api/people/notes-directories" }),
+      await loopApp.inject({
+        method: "PUT",
+        url: "/api/people/notes-settings",
+        payload: { folder: "Loop/Child" }
+      })
+    ]) {
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body)).toEqual({ error: "People notes folder is unavailable" });
+      expect(response.body).not.toContain("/private/vault/loop");
+    }
+    await loopApp.close();
+  });
+
+  it("lists owner-relative directories and rejects traversal without vault details", async () => {
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "directory-setup" },
+      async (ctx) => {
+        await makeVaultDir(ctx, "QA987/Family");
+        await makeVaultDir(ctx, "QA987Private");
+      }
+    );
+    const app = buildApp();
+    await app.ready();
+
+    const root = await app.inject({ method: "GET", url: "/api/people/notes-directories" });
+    expect(root.statusCode).toBe(200);
+    expect(JSON.parse(root.body).directories).toEqual(
+      expect.arrayContaining([
+        { name: "QA987", path: "QA987" },
+        { name: "QA987Private", path: "QA987Private" }
+      ])
+    );
+
+    const invalid = await app.inject({
+      method: "GET",
+      url: "/api/people/notes-directories?path=People%2F..%2FPrivate"
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.body).not.toContain(vaultRoot);
+    expect(invalid.body).not.toContain(ids.userA);
+    expect(invalid.body).not.toContain("QA987Private");
+    await app.close();
+  });
+
+  it("serializes exact mixed refresh counters", async () => {
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "refresh-setup" },
+      async (ctx) => {
+        await writeVaultFile(
+          ctx,
+          "QA987Refresh/Canonical.md",
+          `---
+jarvisPersonId: 00000000-0000-4000-8000-000000000198
+displayName: Route Canonical
+aliases: []
+emails: []
+phones: []
+status: active
+---
+body
+`
+        );
+        await writeVaultFile(
+          ctx,
+          "QA987Refresh/Missing-Id.md",
+          `---
+displayName: Route Missing Id
+aliases: []
+emails: []
+phones: []
+status: active
+---
+body
+`
+        );
+        await writeVaultFile(ctx, "QA987Refresh/Invalid.md", "# Invalid");
+        await writeVaultFile(ctx, "QA987Refresh/Outside-counts.txt", "ignored extension");
+      }
+    );
+    const app = buildApp();
+    await app.ready();
+    await app.inject({
+      method: "PUT",
+      url: "/api/people/notes-settings",
+      payload: { folder: "QA987Refresh" }
+    });
+    const refresh = await app.inject({ method: "POST", url: "/api/people/notes/refresh" });
+    expect(refresh.statusCode).toBe(200);
+    expect(JSON.parse(refresh.body)).toEqual({
+      discovered: 3,
+      projected: 1,
+      ignored: 1,
+      candidates: 1
+    });
+
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "refresh-unreadable" },
+      (ctx) => chmod(join(ctx.vaultRoot, "QA987Refresh/Canonical.md"), 0o000)
+    );
+    const unavailable = await app.inject({ method: "POST", url: "/api/people/notes/refresh" });
+    expect(unavailable.statusCode).toBe(400);
+    expect(JSON.parse(unavailable.body)).toEqual({
+      error: "People notes folder is unavailable"
+    });
+    expect(unavailable.body).not.toContain(vaultRoot);
+
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "refresh-loop" },
+      async (ctx) => {
+        await chmod(join(ctx.vaultRoot, "QA987Refresh/Canonical.md"), 0o600);
+        await rm(join(ctx.vaultRoot, "QA987Refresh"), { recursive: true });
+        await symlink("QA987Refresh", join(ctx.vaultRoot, "QA987Refresh"), "dir");
+      }
+    );
+    const loop = await app.inject({ method: "POST", url: "/api/people/notes/refresh" });
+    expect(loop.statusCode).toBe(400);
+    expect(JSON.parse(loop.body)).toEqual({ error: "People notes folder is unavailable" });
+    expect(loop.body).not.toContain(vaultRoot);
+    await app.close();
+  });
+
   it("stores and reads the configured People folder", async () => {
     const app = buildApp();
     await app.ready();
@@ -69,6 +263,10 @@ describe("People notes settings routes", () => {
 
 describe("People note write routes", () => {
   it("creates, edits, and archives through the canonical note", async () => {
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "write-route-setup" },
+      (ctx) => makeVaultDir(ctx, "PeopleRoute")
+    );
     const app = buildApp();
     await app.ready();
 
@@ -113,6 +311,10 @@ describe("People note write routes", () => {
   });
 
   it("falls back to DB-only update/archive when person has no canonical note", async () => {
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "no-note-route-setup" },
+      (ctx) => makeVaultDir(ctx, "PeopleNoNoteRoute")
+    );
     const app = buildApp();
     await app.ready();
 

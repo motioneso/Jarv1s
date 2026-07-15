@@ -652,6 +652,12 @@
   flex: none;
 }
 @media (max-width: 620px) {
+  .set-row__control {
+    max-width: 100%;
+  }
+  .set-row__control > span {
+    flex-wrap: wrap;
+  }
   .vbrowse {
     grid-template-columns: 1fr;
   }

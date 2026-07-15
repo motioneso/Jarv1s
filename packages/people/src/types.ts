@@ -174,6 +174,8 @@ export interface PeopleNotesSettings {
 }
 
 export interface PeopleNotesRefreshResult {
+  readonly discovered: number;
   readonly projected: number;
+  readonly ignored: number;
   readonly candidates: number;
 }

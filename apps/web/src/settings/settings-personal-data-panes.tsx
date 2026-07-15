@@ -77,6 +77,7 @@ import {
   Switch
 } from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
+import { useChatControls } from "../shell/chat-controls-context";
 import { type ConnectorAccountDto, type PutNotesSourceRequest } from "@jarv1s/shared";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
@@ -369,6 +370,7 @@ function formatLastSync(at: string | null, lastError?: string): string {
 function SourcesPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const { pendingNotesDelete, openActionRequest } = useChatControls();
 
   // Notes source (#449): real API calls replace the prior NotWired stub.
   const notesSourceQuery = useQuery({
@@ -454,6 +456,7 @@ function SourcesPane() {
     return (
       <VaultChooser
         current={linkedPath ?? ""}
+        mode="notes"
         onCancel={() => setChoosing(false)}
         onChoose={choose}
       />
@@ -487,13 +490,7 @@ function SourcesPane() {
           <div className="vault__main">
             {linkedPath ? (
               <>
-                <div className="vault__path">
-                  {linkedPath}
-                  <span className="vault__ro">
-                    <Lock size={11} aria-hidden="true" />
-                    delete approval
-                  </span>
-                </div>
+                <div className="vault__path">{linkedPath}</div>
                 <div className="vault__meta">
                   {lastSync
                     ? lastSync.lastError
@@ -550,7 +547,24 @@ function SourcesPane() {
         </div>
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
-        Jarvis can create and edit Markdown notes in this folder. Deleting notes requires approval.
+        Jarvis can create and edit Markdown notes in this folder.{" "}
+        {pendingNotesDelete ? (
+          <>
+            <strong>{pendingNotesDelete.summary}</strong> is awaiting explicit approval before
+            deletion.{" "}
+            {openActionRequest ? (
+              <button
+                type="button"
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                onClick={() => openActionRequest(pendingNotesDelete.actionRequestId)}
+              >
+                Review deletion
+              </button>
+            ) : null}
+          </>
+        ) : (
+          "Deleting a note always asks you in chat before anything is removed."
+        )}
       </Note>
     </>
   );

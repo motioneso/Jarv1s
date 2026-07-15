@@ -9,6 +9,7 @@ import {
   VaultContextRunner,
   VaultPathError,
   deleteVaultFile,
+  listVaultDirectories,
   listVaultFiles,
   makeVaultDir,
   readVaultFile,
@@ -110,6 +111,23 @@ afterAll(async () => {
 });
 
 describe("vault file operations", () => {
+  it("lists only owner-relative immediate directories and rejects traversal", async () => {
+    await opsRunner.withVaultContext({ actorUserId: randomUUID() }, async (ctx) => {
+      await makeVaultDir(ctx, "People/Family");
+      await makeVaultDir(ctx, "Archive");
+      await writeVaultFile(ctx, "not-a-directory.md", "file");
+      await expect(listVaultDirectories(ctx)).resolves.toEqual([
+        { name: "Archive", path: "Archive" },
+        { name: "People", path: "People" }
+      ]);
+      await expect(listVaultDirectories(ctx, "People")).resolves.toEqual([
+        { name: "Family", path: "People/Family" }
+      ]);
+      await expect(listVaultDirectories(ctx, "People/../Archive")).rejects.toThrow(VaultPathError);
+      await expect(listVaultDirectories(ctx, ctx.vaultRoot)).rejects.toThrow(VaultPathError);
+    });
+  });
+
   it("writeVaultFile + readVaultFile round-trips content", async () => {
     await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
       await writeVaultFile(ctx, "notes/hello.md", "# Hello");

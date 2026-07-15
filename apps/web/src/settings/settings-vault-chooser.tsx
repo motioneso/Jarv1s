@@ -1,49 +1,64 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  ChevronRight,
-  Folder,
-  FolderCheck,
-  FolderOpen,
-  HardDrive,
-  Terminal
-} from "lucide-react";
+import { ArrowLeft, ChevronRight, Folder, FolderCheck, FolderOpen, HardDrive } from "lucide-react";
 import { useState } from "react";
 
 import { getNotesSourceDirectories } from "../api/notes-client";
+import { getPeopleNotesDirectories } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";
+import { ApiError } from "../api/client";
 import { readError } from "./settings-types";
+
+export function shouldShowNotesRootRecovery(error: unknown, rootCount: number): boolean {
+  if (error instanceof ApiError) return error.status === 503;
+  return error == null && rootCount === 0;
+}
 
 export function VaultChooser(props: {
   readonly current: string;
+  readonly mode?: "notes" | "people";
   readonly onCancel: () => void;
   readonly onChoose: (path: string) => void;
 }) {
   const [path, setPath] = useState<string | null>(props.current || null);
-  const [typed, setTyped] = useState(props.current);
+  const mode = props.mode ?? "notes";
   const rootsQuery = useQuery({
-    queryKey: queryKeys.settings.notesSourceDirectories(null),
-    queryFn: () => getNotesSourceDirectories(null),
+    queryKey:
+      mode === "people"
+        ? queryKeys.people.notesDirectories(null)
+        : queryKeys.settings.notesSourceDirectories(null),
+    queryFn: () =>
+      mode === "people" ? getPeopleNotesDirectories(null) : getNotesSourceDirectories(null),
     retry: false
   });
+  const roots = rootsQuery.data?.directories ?? [];
+  const syntheticPeopleRecommendation =
+    mode === "people" && path === "People" && !roots.some((root) => root.path === "People");
   const directoriesQuery = useQuery({
-    queryKey: queryKeys.settings.notesSourceDirectories(path),
-    queryFn: () => getNotesSourceDirectories(path),
+    queryKey:
+      mode === "people"
+        ? queryKeys.people.notesDirectories(path)
+        : queryKeys.settings.notesSourceDirectories(path),
+    queryFn: () =>
+      mode === "people" ? getPeopleNotesDirectories(path) : getNotesSourceDirectories(path),
     retry: false,
-    enabled: path !== null
+    enabled: path !== null && !syntheticPeopleRecommendation
   });
 
-  const roots = rootsQuery.data?.directories ?? [];
+  const visibleRoots =
+    mode === "people" && !roots.some((root) => root.path === "People")
+      ? [{ name: "People", path: "People" }, ...roots]
+      : roots;
   const directories =
     (path ? directoriesQuery.data?.directories : rootsQuery.data?.directories) ?? [];
   const error = rootsQuery.error ?? (path ? directoriesQuery.error : null);
+  const notesRootRecovery =
+    mode === "notes" && path === null && shouldShowNotesRootRecovery(error, roots.length);
+  const displayError = notesRootRecovery ? null : error;
   const loading = rootsQuery.isLoading || (path !== null && directoriesQuery.isLoading);
 
   const go = (nextPath: string | null) => {
     setPath(nextPath);
-    setTyped(nextPath ?? "");
   };
-  const submitTyped = () => go(typed.trim().replace(/\/$/, "") || null);
 
   return (
     <div className="gflow">
@@ -63,7 +78,7 @@ export function VaultChooser(props: {
 
       <div className="vbrowse">
         <div className="vbrowse__roots">
-          {roots.map((root) => (
+          {visibleRoots.map((root) => (
             <button
               key={root.path}
               type="button"
@@ -104,19 +119,19 @@ export function VaultChooser(props: {
                 Loading folders…
               </div>
             ) : null}
-            {error ? (
+            {displayError ? (
               <div className="vlist__empty">
                 <FolderOpen size={16} aria-hidden="true" />
-                {readError(error)}
+                {readError(displayError)}
               </div>
             ) : null}
-            {!loading && !error && directories.length === 0 ? (
+            {!loading && !displayError && directories.length === 0 ? (
               <div className="vlist__empty">
                 <FolderOpen size={16} aria-hidden="true" />
                 This folder has no subfolders.
               </div>
             ) : null}
-            {!loading && !error
+            {!loading && !displayError
               ? directories.map((directory) => (
                   <button
                     key={directory.path}
@@ -132,34 +147,19 @@ export function VaultChooser(props: {
               : null}
           </div>
 
-          <div className="vtyped">
-            <span className="vtyped__lbl">Or type a path on the server</span>
-            <div className="vtyped__row">
-              <span className="ic">
-                <Terminal size={14} aria-hidden="true" />
-              </span>
-              <input
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                spellCheck={false}
-                aria-label="Type a path on the server"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    submitTyped();
-                  }
-                }}
-                placeholder="/data/external-notes"
-              />
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
-                onClick={submitTyped}
+          {mode === "notes" && !loading && notesRootRecovery ? (
+            <div className="vlist__empty">
+              No notes folders are available to Jarv1s. Ask an operator to mount
+              /data/external-notes, set JARVIS_NOTES_ROOTS, and recreate the container.
+              <a
+                href="/docs/operations/deploy.md#notes-mount"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                Go
-              </button>
+                Notes mount recovery
+              </a>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
 
@@ -183,7 +183,7 @@ export function VaultChooser(props: {
           <button
             type="button"
             className="jds-btn jds-btn--primary jds-btn--sm"
-            disabled={!path || loading || Boolean(error)}
+            disabled={!path || loading || Boolean(displayError)}
             onClick={() => (path ? props.onChoose(path) : undefined)}
           >
             <span className="jds-btn__icon">

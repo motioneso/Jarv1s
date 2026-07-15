@@ -11,9 +11,11 @@ export {
   deleteUserVaultDir,
   deleteVaultFile,
   listVaultFiles,
+  listVaultDirectories,
   listVaultFilesRecursive,
   makeVaultDir,
   readVaultFile,
   vaultFileExists,
   writeVaultFile
 } from "./vault-ops.js";
+export type { VaultDirectoryEntry } from "./vault-ops.js";

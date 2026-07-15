@@ -124,6 +124,7 @@ export const queryKeys = {
   people: {
     list: ["people", "list"] as const,
     notesSettings: ["people", "notes-settings"] as const,
+    notesDirectories: (path: string | null) => ["people", "notes-directories", path] as const,
     matchCandidates: ["people", "match-candidates"] as const
   }
 };

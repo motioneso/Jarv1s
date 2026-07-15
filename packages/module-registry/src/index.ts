@@ -14,6 +14,7 @@ import {
   peopleModuleManifest,
   peopleModuleSqlMigrationDirectory,
   PeopleNotesService,
+  PeopleNotesFolderUnavailableError,
   registerPeopleRoutes,
   registerPersonIndexWorker,
   registerSyncPersonMemoryWorker,
@@ -876,6 +877,14 @@ export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
   };
 }
 
+const peopleManifest: typeof peopleModuleManifest = {
+  ...peopleModuleManifest,
+  routes: [
+    ...(peopleModuleManifest.routes ?? []),
+    { method: "GET", path: "/api/people/notes-directories" }
+  ]
+};
+
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
@@ -1455,7 +1464,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               if (!(await isPeopleNotesSuggestUpdatesEnabled(scopedDb))) {
                 return { projected: 0, candidates: 0 };
               }
-              return peopleNotes.refreshFromFolder(scopedDb, vaultCtx, actorUserId);
+              try {
+                return await peopleNotes.refreshFromFolder(scopedDb, vaultCtx, actorUserId);
+              } catch (error) {
+                if (error instanceof PeopleNotesFolderUnavailableError) {
+                  return { discovered: 0, projected: 0, ignored: 0, candidates: 0 };
+                }
+                throw error;
+              }
             })
           );
         }
@@ -1513,7 +1529,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       })
   },
   {
-    manifest: peopleModuleManifest,
+    manifest: peopleManifest,
     sqlMigrationDirectories: [peopleModuleSqlMigrationDirectory],
     queueDefinitions: [{ name: PERSON_INDEX_QUEUE }, { name: SYNC_PERSON_MEMORY_QUEUE }],
     registerRoutes: (server, deps) =>

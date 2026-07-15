@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import type { MatchCandidateDto } from "../../apps/web/src/api/people-client.js";
-import { SettingsPeoplePane } from "../../apps/web/src/settings/settings-people-pane.js";
+import {
+  getPeopleRefreshGuidance,
+  SettingsPeoplePane
+} from "../../apps/web/src/settings/settings-people-pane.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
 
 function renderWithQuery(node: React.ReactNode, client: QueryClient): string {
@@ -14,7 +17,42 @@ function renderWithQuery(node: React.ReactNode, client: QueryClient): string {
   );
 }
 
+function renderPane(folder: string | null): string {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(queryKeys.people.notesSettings, { folder });
+  client.setQueryData(queryKeys.people.list, { people: [] });
+  client.setQueryData(queryKeys.people.matchCandidates, { candidates: [] });
+  client.setQueryData(queryKeys.settings.sourceBehaviors, { sources: [] });
+  return renderWithQuery(createElement(SettingsPeoplePane), client);
+}
+
 describe("SettingsPeoplePane", () => {
+  it("returns actionable zero-discovered and ignored-file guidance", () => {
+    expect(
+      getPeopleRefreshGuidance({ discovered: 0, projected: 0, ignored: 2, candidates: 0 })
+    ).toEqual([
+      "Choose another folder or add a person manually.",
+      "Ignored files need valid People-note frontmatter."
+    ]);
+    expect(
+      getPeopleRefreshGuidance({ discovered: 2, projected: 2, ignored: 0, candidates: 0 })
+    ).toEqual([]);
+  });
+
+  it("disables manual fields without a folder and lists synchronized People first", () => {
+    const html = renderPane(null);
+    expect(html).toMatch(/aria-label="Person name"[^>]*disabled=""/);
+    expect(html).toMatch(/aria-label="Person email"[^>]*disabled=""/);
+    expect(html.indexOf("No people yet")).toBeLessThan(html.indexOf("Add a person manually"));
+  });
+
+  it("enables manual fields and exposes clear recovery with a configured folder", () => {
+    const html = renderPane("People");
+    expect(html).not.toMatch(/aria-label="Person name"[^>]*disabled=""/);
+    expect(html).not.toMatch(/aria-label="Person email"[^>]*disabled=""/);
+    expect(html).toContain("Clear folder");
+  });
+
   it("renders People & context heading", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const html = renderWithQuery(createElement(SettingsPeoplePane), client);

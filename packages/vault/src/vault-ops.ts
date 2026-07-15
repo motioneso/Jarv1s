@@ -1,5 +1,5 @@
 import { chmod, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import type { VaultContext } from "./vault-context.js";
 import { assertVaultContext } from "./vault-context.js";
@@ -67,6 +67,31 @@ export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Pr
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   const entries = await readdir(fullPath, { withFileTypes: true });
   return entries.filter((e) => e.isFile()).map((e) => e.name);
+}
+
+export interface VaultDirectoryEntry {
+  readonly name: string;
+  readonly path: string;
+}
+
+export async function listVaultDirectories(
+  ctx: VaultContext,
+  relativeDir: string = "."
+): Promise<VaultDirectoryEntry[]> {
+  assertVaultContext(ctx);
+  if (isAbsolute(relativeDir) || relativeDir.split(/[\\/]/).includes("..")) {
+    throw new VaultPathError(relativeDir);
+  }
+  const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
+  const entries = await readdir(fullPath, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      name: entry.name,
+      path: relative(ctx.vaultRoot, join(fullPath, entry.name)) || "."
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function deleteVaultFile(ctx: VaultContext, relativePath: string): Promise<void> {

@@ -38,7 +38,11 @@ export type {
 
 export { PersonContextService, RequiresExplicitActionError } from "./service.js";
 
-export { PeopleNotesService, PEOPLE_NOTES_FOLDER_PREFERENCE_KEY } from "./notes-service.js";
+export {
+  PeopleNotesService,
+  PEOPLE_NOTES_FOLDER_PREFERENCE_KEY,
+  PeopleNotesFolderUnavailableError
+} from "./notes-service.js";
 export type {
   CreatePersonNoteInput,
   UpdatePersonNoteInput,

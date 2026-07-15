@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   archivePerson,
   createPerson,
+  getPeopleNotesDirectories,
   getPeopleNotesSettings,
   putPeopleNotesSettings,
   refreshPeopleNotes,
@@ -56,5 +57,23 @@ describe("people-client note methods", () => {
       "/api/people/p1/archive"
     ]);
     expect(calls.map((call) => call.init?.method)).toEqual(["POST", "POST", "PATCH", "POST"]);
+  });
+
+  it("keeps People directory paths relative and preserves all refresh counters", async () => {
+    const calls = mockFetch({
+      path: "People",
+      directories: [{ name: "Family", path: "People/Family" }],
+      discovered: 3,
+      projected: 1,
+      ignored: 1,
+      candidates: 1
+    });
+
+    await getPeopleNotesDirectories("People");
+    const refresh = await refreshPeopleNotes();
+
+    expect(calls[0]?.path).toBe("/api/people/notes-directories?path=People");
+    expect(calls[0]?.path).not.toContain("/data/vaults");
+    expect(refresh).toMatchObject({ discovered: 3, projected: 1, ignored: 1, candidates: 1 });
   });
 });

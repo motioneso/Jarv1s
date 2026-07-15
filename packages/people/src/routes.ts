@@ -2,10 +2,14 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { PgBoss } from "pg-boss";
 import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import type { VaultContextRunner } from "@jarv1s/vault";
+import { listVaultDirectories, VaultPathError, type VaultContextRunner } from "@jarv1s/vault";
 import { PeopleRepository } from "./repository.js";
 import { PersonContextService } from "./service.js";
-import { CanonicalNoteNotFoundError, PeopleNotesService } from "./notes-service.js";
+import {
+  CanonicalNoteNotFoundError,
+  PeopleNotesFolderUnavailableError,
+  PeopleNotesService
+} from "./notes-service.js";
 import { enqueuePersonIndexBatch } from "./jobs.js";
 import type { PersonSourceKind } from "./types.js";
 
@@ -17,6 +21,16 @@ export interface PeopleRouteDependencies {
   readonly svc?: PersonContextService;
   readonly vaultRunner?: VaultContextRunner;
   readonly peopleNotesService?: PeopleNotesService;
+}
+
+function isUnavailableVaultError(error: unknown): boolean {
+  const fsError = error as NodeJS.ErrnoException;
+  return (
+    error instanceof VaultPathError ||
+    ["ENOENT", "ENOTDIR", "EACCES"].includes(fsError?.code ?? "") ||
+    (typeof fsError?.code === "string" &&
+      (typeof fsError.path === "string" || typeof fsError.syscall === "string"))
+  );
 }
 
 export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDependencies): void {
@@ -109,7 +123,7 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
   );
 
   // POST /api/people/index/refresh
-  const refreshSchema = Type.Object({
+  const indexRefreshSchema = Type.Object({
     sourceRefs: Type.Array(
       Type.Object({
         source: Type.String(),
@@ -122,7 +136,7 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
   });
   app.post(
     "/api/people/index/refresh",
-    { schema: { body: refreshSchema } },
+    { schema: { body: indexRefreshSchema } },
     async (request, reply) => {
       const ac = await deps.resolveAccessContext(request);
       const { sourceRefs } = request.body as {
@@ -154,6 +168,40 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
   const notesSettingsSchema = Type.Object({
     folder: Type.Union([Type.String(), Type.Null()])
   });
+  const directoryEntrySchema = Type.Object({ name: Type.String(), path: Type.String() });
+  const directoriesSchema = Type.Object({
+    path: Type.Union([Type.String(), Type.Null()]),
+    directories: Type.Array(directoryEntrySchema)
+  });
+  const peopleRefreshSchema = Type.Object({
+    discovered: Type.Number(),
+    projected: Type.Number(),
+    ignored: Type.Number(),
+    candidates: Type.Number()
+  });
+  const safeErrorSchema = Type.Object({ error: Type.String() });
+
+  app.get(
+    "/api/people/notes-directories",
+    { schema: { response: { 200: directoriesSchema, 400: safeErrorSchema } } },
+    async (request, reply) => {
+      const ac = await deps.resolveAccessContext(request);
+      if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
+      const requested = ((request.query as { path?: string }).path ?? "").trim();
+      try {
+        const path = requested || ".";
+        const directories = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+          listVaultDirectories(vaultCtx, path)
+        );
+        return { path: requested ? requested : null, directories };
+      } catch (error) {
+        if (isUnavailableVaultError(error)) {
+          return reply.status(400).send({ error: "People notes folder is unavailable" });
+        }
+        throw error;
+      }
+    }
+  );
 
   app.get(
     "/api/people/notes-settings",
@@ -168,25 +216,67 @@ export function registerPeopleRoutes(app: FastifyInstance, deps: PeopleRouteDepe
 
   app.put(
     "/api/people/notes-settings",
-    { schema: { body: notesSettingsSchema, response: { 200: notesSettingsSchema } } },
-    async (request) => {
+    {
+      schema: {
+        body: notesSettingsSchema,
+        response: { 200: notesSettingsSchema, 400: safeErrorSchema }
+      }
+    },
+    async (request, reply) => {
       const ac = await deps.resolveAccessContext(request);
       const body = request.body as { folder: string | null };
+      if (
+        body.folder &&
+        (body.folder.startsWith("/") || body.folder.split(/[\\/]/).includes(".."))
+      ) {
+        return reply.status(400).send({ error: "People notes folder is unavailable" });
+      }
+      if (body.folder && body.folder !== "." && body.folder !== "People") {
+        if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
+        const normalized = body.folder.replace(/^\/+|\/+$/g, "");
+        const slash = normalized.lastIndexOf("/");
+        const parent = slash < 0 ? "." : normalized.slice(0, slash);
+        let directories: Awaited<ReturnType<typeof listVaultDirectories>>;
+        try {
+          directories = await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+            listVaultDirectories(vaultCtx, parent)
+          );
+        } catch (error) {
+          if (isUnavailableVaultError(error)) {
+            return reply.status(400).send({ error: "People notes folder is unavailable" });
+          }
+          throw error;
+        }
+        if (!directories.some((directory) => directory.path === normalized)) {
+          return reply.status(400).send({ error: "People notes folder is unavailable" });
+        }
+      }
       return deps.dataContext.withDataContext(ac, (sdb) =>
         notesService.putSettings(sdb, ac.actorUserId, body)
       );
     }
   );
 
-  app.post("/api/people/notes/refresh", async (request) => {
-    const ac = await deps.resolveAccessContext(request);
-    if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
-    return deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
-      deps.dataContext.withDataContext(ac, (sdb) =>
-        notesService.refreshFromFolder(sdb, vaultCtx, ac.actorUserId)
-      )
-    );
-  });
+  app.post(
+    "/api/people/notes/refresh",
+    { schema: { response: { 200: peopleRefreshSchema, 400: safeErrorSchema } } },
+    async (request, reply) => {
+      const ac = await deps.resolveAccessContext(request);
+      if (!deps.vaultRunner) throw new Error("Vault runner is not configured");
+      try {
+        return await deps.vaultRunner.withVaultContext(ac, (vaultCtx) =>
+          deps.dataContext.withDataContext(ac, (sdb) =>
+            notesService.refreshFromFolder(sdb, vaultCtx, ac.actorUserId)
+          )
+        );
+      } catch (error) {
+        if (error instanceof PeopleNotesFolderUnavailableError) {
+          return reply.status(400).send({ error: "People notes folder is unavailable" });
+        }
+        throw error;
+      }
+    }
+  );
 
   const createSchema = Type.Object({
     displayName: Type.String(),

@@ -21,6 +21,23 @@ export interface PeopleNotesSettingsDto {
   readonly folder: string | null;
 }
 
+export interface PeopleNotesDirectoryDto {
+  readonly name: string;
+  readonly path: string;
+}
+
+export interface PeopleNotesDirectoriesResponse {
+  readonly path: string | null;
+  readonly directories: PeopleNotesDirectoryDto[];
+}
+
+export interface PeopleNotesRefreshResponse {
+  readonly discovered: number;
+  readonly projected: number;
+  readonly ignored: number;
+  readonly candidates: number;
+}
+
 export interface PeopleNoteWriteResponse {
   readonly person: PersonDto;
   readonly notePath: string;
@@ -67,6 +84,13 @@ export async function getPeopleNotesSettings(): Promise<PeopleNotesSettingsDto> 
   return requestJson<PeopleNotesSettingsDto>("/api/people/notes-settings");
 }
 
+export async function getPeopleNotesDirectories(
+  path: string | null
+): Promise<PeopleNotesDirectoriesResponse> {
+  const query = path ? `?${new URLSearchParams({ path }).toString()}` : "";
+  return requestJson<PeopleNotesDirectoriesResponse>(`/api/people/notes-directories${query}`);
+}
+
 export async function putPeopleNotesSettings(
   body: PeopleNotesSettingsDto
 ): Promise<PeopleNotesSettingsDto> {
@@ -76,8 +100,8 @@ export async function putPeopleNotesSettings(
   });
 }
 
-export async function refreshPeopleNotes(): Promise<{ projected: number; candidates: number }> {
-  return requestJson<{ projected: number; candidates: number }>("/api/people/notes/refresh", {
+export async function refreshPeopleNotes(): Promise<PeopleNotesRefreshResponse> {
+  return requestJson<PeopleNotesRefreshResponse>("/api/people/notes/refresh", {
     method: "POST"
   });
 }

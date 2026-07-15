@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Plus, RefreshCw, Save, X } from "lucide-react";
 
@@ -13,7 +13,8 @@ import {
   refreshPeopleNotes,
   rejectCandidate,
   updatePerson,
-  type MatchCandidateDto
+  type MatchCandidateDto,
+  type PeopleNotesRefreshResponse
 } from "../api/people-client";
 import { listSourceBehaviors, putSourceBehavior } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -25,6 +26,7 @@ import {
 } from "./settings-source-behaviors";
 import { readError } from "./settings-types";
 import { Badge, Group, Note, PaneHead, Row, Switch } from "./settings-ui";
+import { VaultChooser } from "./settings-vault-chooser";
 
 function candidateKindLabel(kind: MatchCandidateDto["candidateKind"]): string {
   switch (kind) {
@@ -44,14 +46,25 @@ const DESTRUCTIVE_KINDS: ReadonlySet<MatchCandidateDto["candidateKind"]> = new S
   "split_identity"
 ]);
 
+export function getPeopleRefreshGuidance(result: PeopleNotesRefreshResponse): string[] {
+  const guidance: string[] = [];
+  if (result.discovered === 0) guidance.push("Choose another folder or add a person manually.");
+  if (result.ignored > 0) guidance.push("Ignored files need valid People-note frontmatter.");
+  return guidance;
+}
+
 export function SettingsPeoplePane() {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
-  const [folderDraft, setFolderDraft] = useState("");
   const [createName, setCreateName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [choosingFolder, setChoosingFolder] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<Awaited<
+    ReturnType<typeof refreshPeopleNotes>
+  > | null>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
 
   const candidatesQuery = useQuery({
     queryKey: queryKeys.people.matchCandidates,
@@ -97,7 +110,8 @@ export function SettingsPeoplePane() {
   });
 
   const saveFolderMutation = useMutation({
-    mutationFn: () => putPeopleNotesSettings({ folder: folderDraft.trim() || null }),
+    mutationFn: (folder: string | null) => putPeopleNotesSettings({ folder }),
+    onMutate: () => setRefreshResult(null),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.people.notesSettings, data);
       toast(data.folder ? `People folder set to ${data.folder}.` : "People folder cleared.");
@@ -107,7 +121,9 @@ export function SettingsPeoplePane() {
 
   const refreshMutation = useMutation({
     mutationFn: () => refreshPeopleNotes(),
+    onMutate: () => setRefreshResult(null),
     onSuccess: (data) => {
+      setRefreshResult(data);
       queryClient.invalidateQueries({ queryKey: queryKeys.people.list });
       queryClient.invalidateQueries({ queryKey: queryKeys.people.matchCandidates });
       toast(`Projected ${data.projected}; ${data.candidates} review candidates.`);
@@ -150,7 +166,22 @@ export function SettingsPeoplePane() {
   const pending = candidates.filter((c) => c.status === "pending");
   const people = peopleQuery.data?.people ?? [];
   const configuredFolder = notesSettingsQuery.data?.folder ?? null;
-  const folderValue = folderDraft || configuredFolder || "";
+  const folderValue = configuredFolder ?? "";
+
+  if (choosingFolder) {
+    return (
+      <VaultChooser
+        mode="people"
+        current={folderValue}
+        onCancel={() => setChoosingFolder(false)}
+        onChoose={(folder) => {
+          refreshMutation.reset();
+          setChoosingFolder(false);
+          saveFolderMutation.mutate(folder);
+        }}
+      />
+    );
+  }
 
   return (
     <>
@@ -167,26 +198,71 @@ export function SettingsPeoplePane() {
           }
           control={
             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                className="jds-input"
-                value={folderValue}
-                placeholder="People"
-                aria-label="People folder"
-                onChange={(event) => setFolderDraft(event.target.value)}
-                style={{ width: 180 }}
-              />
+              <span>{folderValue || "No folder selected"}</span>
               <button
                 type="button"
                 className="jds-btn jds-btn--sm jds-btn--ghost"
-                disabled={saveFolderMutation.isPending}
-                onClick={() => saveFolderMutation.mutate()}
-                title="Save folder"
+                onClick={() => setChoosingFolder(true)}
               >
-                <Save size={15} aria-hidden="true" />
+                Choose folder
               </button>
+              {configuredFolder ? (
+                <button
+                  type="button"
+                  className="jds-btn jds-btn--sm jds-btn--quiet"
+                  disabled={saveFolderMutation.isPending}
+                  onClick={() => {
+                    refreshMutation.reset();
+                    saveFolderMutation.mutate(null);
+                  }}
+                >
+                  Clear folder
+                </button>
+              ) : null}
             </span>
           }
         />
+        {refreshResult ? (
+          <div role="status">
+            <Note>
+              Discovered {refreshResult.discovered}; projected {refreshResult.projected}; ignored{" "}
+              {refreshResult.ignored}; candidates {refreshResult.candidates}.{" "}
+              {getPeopleRefreshGuidance(refreshResult).join(" ")}
+              {refreshResult.candidates > 0 ? (
+                <button
+                  type="button"
+                  className="jds-btn jds-btn--quiet jds-btn--sm"
+                  onClick={() => reviewRef.current?.focus()}
+                >
+                  Review matches
+                </button>
+              ) : null}
+            </Note>
+          </div>
+        ) : null}
+        {refreshMutation.error ? (
+          <Note>
+            This People folder is unavailable. Choose another folder or clear it.{" "}
+            <button
+              type="button"
+              className="jds-btn jds-btn--quiet jds-btn--sm"
+              onClick={() => setChoosingFolder(true)}
+            >
+              Choose another folder
+            </button>
+            <button
+              type="button"
+              className="jds-btn jds-btn--quiet jds-btn--sm"
+              disabled={saveFolderMutation.isPending}
+              onClick={() => {
+                refreshMutation.reset();
+                saveFolderMutation.mutate(null);
+              }}
+            >
+              Clear folder
+            </button>
+          </Note>
+        ) : null}
         <Row
           name="Refresh from notes"
           desc="Scan the configured folder and update projected People records."
@@ -222,83 +298,52 @@ export function SettingsPeoplePane() {
         ))}
       </Group>
 
-      <Group title={`Review matches${pending.length > 0 ? ` (${pending.length})` : ""}`}>
-        {pending.length === 0 ? (
-          <Row name="Nothing to review" desc="All match candidates are up to date." />
-        ) : (
-          pending.map((candidate) => (
-            <div key={candidate.id} style={{ borderBottom: "1px solid var(--border)" }}>
-              {DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
-                <Note>This action is irreversible — confirm in chat before accepting.</Note>
-              )}
-              <Row
-                name={candidate.suggestedDisplayName ?? "Unnamed"}
-                desc={[candidateKindLabel(candidate.candidateKind), candidate.reasonSummary]
-                  .filter(Boolean)
-                  .join(" — ")}
-                control={
-                  <span style={{ display: "flex", gap: 8 }}>
-                    <Badge tone="neutral">{Math.round(candidate.confidence * 100)}%</Badge>
-                    {!DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
+      <div ref={reviewRef} tabIndex={-1}>
+        <Group title={`Review matches${pending.length > 0 ? ` (${pending.length})` : ""}`}>
+          {pending.length === 0 ? (
+            <Row name="Nothing to review" desc="All match candidates are up to date." />
+          ) : (
+            pending.map((candidate) => (
+              <div key={candidate.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                {DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
+                  <Note>This action is irreversible — confirm in chat before accepting.</Note>
+                )}
+                <Row
+                  name={candidate.suggestedDisplayName ?? "Unnamed"}
+                  desc={[candidateKindLabel(candidate.candidateKind), candidate.reasonSummary]
+                    .filter(Boolean)
+                    .join(" — ")}
+                  control={
+                    <span style={{ display: "flex", gap: 8 }}>
+                      <Badge tone="neutral">{Math.round(candidate.confidence * 100)}%</Badge>
+                      {!DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
+                        <button
+                          type="button"
+                          className="jds-btn jds-btn--sm jds-btn--pine"
+                          disabled={acceptMutation.isPending}
+                          onClick={() => acceptMutation.mutate(candidate.id)}
+                        >
+                          Accept
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className="jds-btn jds-btn--sm jds-btn--pine"
-                        disabled={acceptMutation.isPending}
-                        onClick={() => acceptMutation.mutate(candidate.id)}
+                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        disabled={rejectMutation.isPending}
+                        onClick={() => rejectMutation.mutate(candidate.id)}
                       >
-                        Accept
+                        Reject
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="jds-btn jds-btn--sm jds-btn--ghost"
-                      disabled={rejectMutation.isPending}
-                      onClick={() => rejectMutation.mutate(candidate.id)}
-                    >
-                      Reject
-                    </button>
-                  </span>
-                }
-              />
-            </div>
-          ))
-        )}
-      </Group>
+                    </span>
+                  }
+                />
+              </div>
+            ))
+          )}
+        </Group>
+      </div>
 
       <Group title={`People${people.length > 0 ? ` (${people.length})` : ""}`}>
-        <Row
-          name="Create person"
-          desc="Creates a canonical note in the configured folder."
-          control={
-            <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                className="jds-input"
-                value={createName}
-                placeholder="Name"
-                aria-label="Person name"
-                onChange={(event) => setCreateName(event.target.value)}
-                style={{ width: 160 }}
-              />
-              <input
-                className="jds-input"
-                value={createEmail}
-                placeholder="Email"
-                aria-label="Person email"
-                onChange={(event) => setCreateEmail(event.target.value)}
-                style={{ width: 180 }}
-              />
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--pine"
-                disabled={createMutation.isPending || !configuredFolder || !createName.trim()}
-                onClick={() => createMutation.mutate()}
-                title="Create person"
-              >
-                <Plus size={15} aria-hidden="true" />
-              </button>
-            </span>
-          }
-        />
         {people.length === 0 ? (
           <Row
             name="No people yet"
@@ -378,6 +423,44 @@ export function SettingsPeoplePane() {
             />
           ))
         )}
+      </Group>
+
+      <Group title="Add a person manually">
+        <Row
+          name="Add a person manually"
+          desc="Creates a canonical Markdown People note in the selected Jarv1s folder."
+          control={
+            <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                className="jds-input"
+                value={createName}
+                placeholder="Name"
+                aria-label="Person name"
+                disabled={!configuredFolder}
+                onChange={(event) => setCreateName(event.target.value)}
+                style={{ width: 160 }}
+              />
+              <input
+                className="jds-input"
+                value={createEmail}
+                placeholder="Email"
+                aria-label="Person email"
+                disabled={!configuredFolder}
+                onChange={(event) => setCreateEmail(event.target.value)}
+                style={{ width: 180 }}
+              />
+              <button
+                type="button"
+                className="jds-btn jds-btn--sm jds-btn--pine"
+                disabled={createMutation.isPending || !configuredFolder || !createName.trim()}
+                onClick={() => createMutation.mutate()}
+                title="Create person"
+              >
+                <Plus size={15} aria-hidden="true" />
+              </button>
+            </span>
+          }
+        />
       </Group>
     </>
   );

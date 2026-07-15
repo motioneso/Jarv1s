@@ -61,16 +61,6 @@ import {
 import "../styles/kit-chat.css";
 import "../styles/kit-chat-skills.css";
 
-/**
- * Live chat drawer, styled to the Jarvis Design System (`chatd-*`). A global slide-out
- * panel mounted in the app shell. Sends user turns to POST /api/chat/turn; the SSE stream
- * (use-chat-stream, lifted to the shell) is the single source of truth for rendered
- * records. Send also appends the POST reply as a fallback for browsers/environments where the
- * EventSource stream is unavailable.
- *
- * Non-modal by design: no full-screen scrim, so the rest of the app (including nav) stays
- * interactive and the chat keeps following the user across pages.
- */
 export function ChatDrawer(props: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -84,6 +74,8 @@ export function ChatDrawer(props: {
    * Seeds the input on mount only; it is NEVER auto-sent — the user reviews and presses send.
    */
   readonly initialText?: string;
+  readonly focusActionRequestId?: string | null;
+  readonly onActionRequestFocused?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
@@ -140,13 +132,11 @@ export function ChatDrawer(props: {
     }
   });
 
-  // Lifted send state — shared by both the Composer and EmptyState seed buttons (#400).
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [needsProvider, setNeedsProvider] = useState(false);
   const [drainAfterStopText, setDrainAfterStopText] = useState<string | null>(null);
 
-  // Optimistic user record — shown immediately on send until the SSE stream confirms (#399).
   const [pendingUserText, setPendingUserText] = useState<string | null>(null);
   const [fallbackRecords, setFallbackRecords] = useState<readonly TranscriptRecord[]>([]);
 
@@ -169,7 +159,6 @@ export function ChatDrawer(props: {
     }
   }, [props.records, pendingUserText]);
 
-  // If SSE is connected, remove any POST-response fallback once the stream delivers the same reply.
   useEffect(() => {
     setFallbackRecords((current) =>
       current.filter(
@@ -318,9 +307,7 @@ export function ChatDrawer(props: {
 
   // #633: switching what's displayed (new chat, opening a history row, toggling the history
   // list, or the drawer itself (re)opening — #638) always re-pins to the bottom of the
-  // newly-shown content. Scrolls directly here (rather than relying solely on the effect below)
-  // because the drawer renders null while closed — bodyRef only attaches once `open` flips back
-  // to true, and the stickToBottom state set above wouldn't be visible to the other effect until
+  // newly-shown content.
   // a subsequent render.
   useEffect(() => {
     setStickToBottom(true);
@@ -498,7 +485,11 @@ export function ChatDrawer(props: {
             </div>
           ) : null}
           {showHistory ? null : effectiveRecords.length > 0 ? (
-            <Thread records={effectiveRecords} />
+            <Thread
+              records={effectiveRecords}
+              focusActionRequestId={props.focusActionRequestId}
+              onActionRequestFocused={props.onActionRequestFocused}
+            />
           ) : onboardingStatusQuery.isSuccess && !chatAvailable ? (
             <ConnectProviderEmpty isFounder={props.isFounder} />
           ) : (
@@ -634,17 +625,23 @@ function HistoryList(props: {
   );
 }
 
-/** The live conversation. Consecutive behind-the-scenes records (thinking/tool/status and
- *  resolved action results) collapse into one peek; replies and pending action requests
- *  stay front-and-centre. */
-function Thread(props: { readonly records: readonly TranscriptRecord[] }) {
+function Thread(props: {
+  readonly records: readonly TranscriptRecord[];
+  readonly focusActionRequestId?: string | null;
+  readonly onActionRequestFocused?: () => void;
+}) {
   return (
     <div className="chatd-thread" aria-live="polite">
       {groupRecords(props.records).map((item, index) =>
         item.type === "activity" ? (
           <ActivityPeek key={index} records={item.records} />
         ) : (
-          <RecordRow key={index} record={item.record} />
+          <RecordRow
+            key={index}
+            record={item.record}
+            focusActionRequestId={props.focusActionRequestId}
+            onActionRequestFocused={props.onActionRequestFocused}
+          />
         )
       )}
     </div>
@@ -662,8 +659,6 @@ type RenderItem =
   | { readonly type: "record"; readonly record: TranscriptRecord }
   | { readonly type: "activity"; readonly records: readonly TranscriptRecord[] };
 
-/** Coalesce runs of behind-the-scenes records into a single collapsible group. A pending
- *  action_request (interactive) flushes the run so it always renders visibly. */
 function groupRecords(records: readonly TranscriptRecord[]): RenderItem[] {
   const items: RenderItem[] = [];
   let buffer: TranscriptRecord[] = [];
@@ -726,7 +721,11 @@ export function activityVerb(record: TranscriptRecord): string {
   return `${record.kind} ·`;
 }
 
-function RecordRow(props: { readonly record: TranscriptRecord }) {
+function RecordRow(props: {
+  readonly record: TranscriptRecord;
+  readonly focusActionRequestId?: string | null;
+  readonly onActionRequestFocused?: () => void;
+}) {
   const { kind, text } = props.record;
 
   if (kind === "action_request" && props.record.actionRequestId) {
@@ -736,6 +735,8 @@ function RecordRow(props: { readonly record: TranscriptRecord }) {
         summary={props.record.summary ?? text}
         toolName={props.record.toolName ?? kind}
         preview={props.record.preview}
+        focusRequested={props.record.actionRequestId === props.focusActionRequestId}
+        onFocusComplete={props.onActionRequestFocused}
       />
     );
   }
