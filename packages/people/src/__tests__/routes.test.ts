@@ -107,26 +107,30 @@ describe("People notes settings routes", () => {
     }
     await app.close();
 
-    const deniedRunner = {
+    const loopRunner = {
       withVaultContext: async () => {
-        throw Object.assign(new Error("/private/vault/denied"), { code: "EACCES" });
+        throw Object.assign(new Error("ELOOP: /private/vault/loop"), {
+          code: "ELOOP",
+          path: "/private/vault/loop",
+          syscall: "scandir"
+        });
       }
     } as unknown as VaultContextRunner;
-    const deniedApp = buildApp(ids.userA, deniedRunner);
-    await deniedApp.ready();
+    const loopApp = buildApp(ids.userA, loopRunner);
+    await loopApp.ready();
     for (const response of [
-      await deniedApp.inject({ method: "GET", url: "/api/people/notes-directories" }),
-      await deniedApp.inject({
+      await loopApp.inject({ method: "GET", url: "/api/people/notes-directories" }),
+      await loopApp.inject({
         method: "PUT",
         url: "/api/people/notes-settings",
-        payload: { folder: "Denied/Child" }
+        payload: { folder: "Loop/Child" }
       })
     ]) {
       expect(response.statusCode).toBe(400);
       expect(JSON.parse(response.body)).toEqual({ error: "People notes folder is unavailable" });
-      expect(response.body).not.toContain("/private/vault/denied");
+      expect(response.body).not.toContain("/private/vault/loop");
     }
-    await deniedApp.close();
+    await loopApp.close();
   });
 
   it("lists owner-relative directories and rejects traversal without vault details", async () => {

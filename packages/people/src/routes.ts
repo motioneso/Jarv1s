@@ -24,9 +24,12 @@ export interface PeopleRouteDependencies {
 }
 
 function isUnavailableVaultError(error: unknown): boolean {
+  const fsError = error as NodeJS.ErrnoException;
   return (
     error instanceof VaultPathError ||
-    ["ENOENT", "ENOTDIR", "EACCES"].includes((error as NodeJS.ErrnoException)?.code ?? "")
+    ["ENOENT", "ENOTDIR", "EACCES"].includes(fsError?.code ?? "") ||
+    (typeof fsError?.code === "string" &&
+      (typeof fsError.path === "string" || typeof fsError.syscall === "string"))
   );
 }
 
