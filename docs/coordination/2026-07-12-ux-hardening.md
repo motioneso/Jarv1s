@@ -1831,3 +1831,20 @@ resume from this note before taking any merge-sensitive action.
   in progress. After the agent pushes a new exact head, require full CI including the image-build
   tail, fresh exact-head live Webwright UAT with durable PR evidence, and fresh independent
   sensitive QA. Do not merge until all three gates are green. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-14 PR #1058 ELOOP blocker remediation delivered
+
+- `UX 987 Fix Sol High` delivered root-cause remediation at exact local/origin/GitHub head
+  `adeeff6267f467ed8605d16a549e2e533a6a0ba2`. The People list/read boundary now translates
+  `VaultPathError` and path-bearing Node filesystem errors, including `ELOOP`, to the fixed safe
+  unavailable-folder error while parser, database, and programming work remains outside the
+  translation catches.
+- Regression evidence covers a valid saved People folder replaced by a self-looping symlink:
+  the route now returns the fixed safe 400 without exposing the vault path. Focused People
+  service/routes tests are 17/17 green. `VF_EXIT=0` with 3,326 unit and 1,648 integration tests
+  passed, 155 migrations current; `AUDIT_EXIT=0`; pre-push format/lint/typecheck green; fresh
+  `origin/main` rebase current.
+- The exact-head GitHub CI run is `29382151403` and is in progress. The build lane is frozen at
+  this head. Previous CI, UAT, and sensitive-QA evidence is stale and must not be reused. Require
+  full CI including image-build tail, fresh exact-head live Webwright UAT with durable PR evidence,
+  and fresh independent sensitive QA before merge. `merges_since_relay` remains `0`.
