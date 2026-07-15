@@ -2425,3 +2425,35 @@ resume from this note before taking any merge-sensitive action.
   existing isolated worktree. Local handoff commit `61c1a50b` is intentionally unpushed to avoid a
   handoff-only CI run; the coordinator will remove it before final review. R3 must plan before
   editing and is limited to truthful YOLO copy plus focused interactive Priority UI contracts.
+
+## Continuation note — 2026-07-15 authorized #1050 cycle 3 and coordinator relay
+
+- Current delegated authority is exact label `UX Coordinator`, immutable Codex session
+  `019f66e1-aefb-7df2-b339-c4168d3266c1`; `merges_since_relay` is `1`. The context-meter relay
+  trigger fired. Primary `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains
+  untouched.
+- #1050 remains draft/open and unmerged. Final pre-cycle-3 PR head is
+  `da66a101a46e8d9349b7277ec5778eb3ecf57b29`; CI run `29443722846` is fully green, but sensitive
+  QA cycle 2 is RED at `issuecomment-4984705427` for false YOLO effective-state copy, missing real
+  interactive Priority UI contracts, and absent exact-head live proof. Ben explicitly authorized
+  one third repair cycle.
+- Active exact build label `UX 991 Repair R3`, immutable Codex session
+  `019f6777-ff1f-7f31-b480-3d1350f649b1`, Luna/medium, owns isolated worktree
+  `~/Jarv1s/.claude/worktrees/ux-991-assistant-priorities-build`, branch
+  `ux/991-assistant-priorities-build`. Its plan is approved: fix shared YOLO effective copy via
+  `instanceEnabled && self.enabled`; add real mounted Priority interactions for zero pre-save
+  PATCH, one valid Save, Discard restore, blank-label blocking, and hidden/unknown source
+  round-trip. It is implementing now.
+- Branch includes local unpushed coordinator handoff commit `61c1a50b`; do not push it alone. After
+  R3 pushes code, the coordinator must remove `docs/coordination/handoff-991-qa-cycle-3.md` before
+  final CI/QA/UAT. Then require fresh exact-head CI, independent sensitive QA, and authenticated
+  desktop+narrow live proof before merge.
+- #1002 docs/plan PR #1066 already merged as `e9c6d165626d7f3fd1cb7448a9faffe710dc4f9e`.
+  G1 tracker inventory is complete at `issuecomment-4984328581`; approved plan hard-gates G2 until
+  #1050 merges. #988 remains the closing manual acceptance pass. Epic #983 remains 10 closed / 3
+  open (#991, #988, #1002).
+- Successor must adopt delegated authority by replacing only the delegated UX lock session with
+  its own immutable Codex session id, reset `merges_since_relay` to `0`, commit and push, confirm
+  driving, then fresh-resolve and close only old exact label `UX Coordinator` plus session
+  `019f66e1-aefb-7df2-b339-c4168d3266c1`; rename itself `UX Coordinator` afterward. Preserve
+  `.claude/context-meter.log`, `artifacts/`, and `webwright-proof-987-v3/`.
