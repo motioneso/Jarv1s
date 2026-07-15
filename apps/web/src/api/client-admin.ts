@@ -3,6 +3,7 @@ import type {
   ChatMultiplexerChoice,
   ChatMultiplexerSettingsDto,
   GetAiAdminUserPinResponse,
+  HerdrInstallResultDto,
   HostDiagnosticsDto,
   ListAdminAuditEventsResponse,
   ListAdminConnectorAccountsResponse,
@@ -128,4 +129,8 @@ export async function setChatMultiplexerSettings(
 
 export async function getHostDiagnostics(): Promise<HostDiagnosticsDto> {
   return requestJson<HostDiagnosticsDto>("/api/admin/host/diagnostics");
+}
+
+export async function installHerdr(): Promise<HerdrInstallResultDto> {
+  return requestJson<HerdrInstallResultDto>("/api/admin/host/install", { method: "POST" });
 }

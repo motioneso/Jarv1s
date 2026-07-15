@@ -60,6 +60,9 @@ import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { createModuleAiBridge } from "./external-module-ai-bridge.js";
 import { createModuleDistributionPort } from "./module-distribution-port.js";
+import { resolveHerdrInstall } from "./herdr-install-port.js";
+import { mapEnvMode, resolveDeployMode, restartCommandFor } from "./host-diagnostics-env.js";
+import type { HerdrInstallDependencies } from "@jarv1s/settings";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
@@ -111,6 +114,8 @@ export interface CreateApiServerOptions {
   };
   /** TEST-ONLY. Injected fetch for weather HTTP calls. */
   readonly fetchFn?: typeof fetch;
+  /** TEST-ONLY. Overrides the real Herdr install executor (avoids real network/exec in tests). */
+  readonly installHerdr?: HerdrInstallDependencies["install"];
 }
 
 export interface ApiServerConfig {
@@ -464,6 +469,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     // #964/#9.5: factored to module-distribution-port.ts to restore the file-size cap.
     const moduleDistribution = createModuleDistributionPort(server, apiServerConfig, options);
 
+    // #993/#9.5: factored to herdr-install-port.ts (resolveHerdrInstall) to restore the
+    // file-size cap; options.installHerdr lets tests inject a fake install().
+    const herdrInstall = resolveHerdrInstall(server, options);
+
     // #917: externalModuleSnapshot is computed above (before registerPlatformRoutes),
     // because the /api/modules provider closes over it. registerBuiltInApiRoutes reuses
     // the same const for the settings module's external-module deps below.
@@ -515,6 +524,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleApiClient,
       connectorsRepository,
       hostDiagnostics,
+      herdrInstall,
       externalModules: {
         // #996/#860: always-on since the JARVIS_ENABLE_EXTERNAL_MODULES flag removal —
         // packages/settings routes-module-registry.ts / routes-modules.ts gate on this
@@ -788,43 +798,6 @@ function registerBetterAuthRoutes(
     },
     handler: (request, reply) => handleBetterAuthRequest(request, reply, authRuntime)
   });
-}
-
-function mapEnvMode(nodeEnv: string | undefined): HostDiagnosticsInfo["environment"] {
-  switch (nodeEnv) {
-    case "production":
-      return "production";
-    case "development":
-      return "development";
-    case "test":
-      return "test";
-    default:
-      return "unknown";
-  }
-}
-
-function resolveDeployMode(raw: string | undefined): HostDiagnosticsInfo["deployMode"] {
-  switch (raw) {
-    case "compose":
-    case "systemd":
-    case "dev":
-      return raw;
-    default:
-      return "unknown";
-  }
-}
-
-function restartCommandFor(mode: HostDiagnosticsInfo["deployMode"]): string | null {
-  switch (mode) {
-    case "compose":
-      return "docker compose restart api";
-    case "systemd":
-      return "systemctl restart jarvis-api";
-    case "dev":
-      return "restart the dev process (Ctrl-C, then re-run)";
-    default:
-      return null;
-  }
 }
 
 function registerPlatformRoutes(

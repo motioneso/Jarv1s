@@ -75,6 +75,14 @@ describe("makeMultiplexerUsableProbe (#343 — per-kind availability, not env-ov
     expect(await usable("herdr")).toBe(true);
   });
 
+  it("herdr IS usable when installed AND JARVIS_HERDR_ROOT_TAB is set (#993 — shared predicate)", async () => {
+    const usable = makeMultiplexerUsableProbe({
+      PATH: await pathWith("herdr"),
+      JARVIS_HERDR_ROOT_TAB: "jarvis-root"
+    });
+    expect(await usable("herdr")).toBe(true);
+  });
+
   it("neither usable when nothing is installed", async () => {
     const usable = makeMultiplexerUsableProbe({
       PATH: await pathWith(),

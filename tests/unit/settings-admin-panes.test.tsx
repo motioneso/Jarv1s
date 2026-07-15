@@ -53,7 +53,7 @@ describe("settings admin panes", () => {
     expect(html).not.toContain("Auth provider configuration");
   });
 
-  it("shows herdr availability as a status badge, with no install action", () => {
+  it("shows herdr availability as a status badge, with an install action when not installed", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.chatMultiplexer, {
       multiplexer: "auto",
@@ -68,7 +68,7 @@ describe("settings admin panes", () => {
 
     expect(html).toContain("tmux available");
     expect(html).toContain("herdr available");
-    expect(html).not.toContain("Install Herdr");
+    expect(html).toContain("Install Herdr");
   });
 
   it("has no deployment mode, restart-command copy rows, or restart action", () => {
@@ -90,7 +90,7 @@ describe("settings admin panes", () => {
     expect(html).not.toContain("Restart API");
   });
 
-  it("shows install guidance with the install script path when herdr is not installed", () => {
+  it("shows the Install Herdr row when herdr is not installed", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.chatMultiplexer, {
       multiplexer: "auto",
@@ -103,11 +103,11 @@ describe("settings admin panes", () => {
 
     const html = renderWithQuery(createElement(HostPane), client);
 
-    expect(html).toContain("scripts/install-herdr.sh");
-    expect(html).not.toContain("Install Herdr");
+    expect(html).toContain("Install Herdr");
+    expect(html).toContain("Not installed on this host.");
   });
 
-  it("does not show install guidance once herdr is installed", () => {
+  it("does not show the Install Herdr row once herdr is installed", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.chatMultiplexer, {
       multiplexer: "auto",
@@ -120,7 +120,7 @@ describe("settings admin panes", () => {
 
     const html = renderWithQuery(createElement(HostPane), client);
 
-    expect(html).not.toContain("scripts/install-herdr.sh");
+    expect(html).not.toContain("Install Herdr");
   });
 
   it("renders herdr attach guidance when herdr is the active mux", () => {

@@ -48,6 +48,8 @@ import { registerDataExportRoutes } from "./data-export-routes.js";
 import { registerDataExportAsyncRoutes } from "./data-export-async-routes.js";
 import type { HostDiagnosticsProvider } from "./host-diagnostics.js";
 import { registerHostDiagnosticsRoutes } from "./host-diagnostics-routes.js";
+import type { HerdrInstallDependencies } from "./host-install-routes.js";
+import { registerHerdrInstallRoutes } from "./host-install-routes.js";
 import { registerLocaleRoutes } from "./locale-routes.js";
 import { registerQuietHoursRoutes } from "./quiet-hours-routes.js";
 import { registerWeatherLocationRoutes } from "./weather-location-routes.js";
@@ -244,6 +246,8 @@ export interface SettingsRoutesDependencies {
   readonly onboardingLogin?: OnboardingLoginDependencies;
   /** Host diagnostics runtime-facts provider (#255); injected by the composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
+  /** Fixed-script Herdr install executor port (#993); injected by the composition root. */
+  readonly herdrInstall?: HerdrInstallDependencies;
   /** pg-boss instance for enqueueing export.build jobs (#431). */
   readonly boss?: PgBoss;
   /**
@@ -830,6 +834,17 @@ export function registerSettingsRoutes(
     getChatMultiplexerStatus: dependencies.getChatMultiplexerStatus,
     hostDiagnostics: dependencies.hostDiagnostics,
     assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
+    handleRouteError
+  });
+
+  registerHerdrInstallRoutes(server, {
+    dataContext: dependencies.dataContext,
+    resolveAccessContext: dependencies.resolveAccessContext,
+    repository,
+    getChatMultiplexerStatus: dependencies.getChatMultiplexerStatus,
+    herdrInstall: dependencies.herdrInstall,
+    assertAdminUser: (scopedDb, userId) => assertAdminUser(repository, scopedDb, userId),
+    requireRequestId,
     handleRouteError
   });
 

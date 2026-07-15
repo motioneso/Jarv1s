@@ -187,7 +187,8 @@ import {
   type OnboardingInstallDependencies,
   type OnboardingLoginDependencies,
   type ExternalModulesDependencies,
-  type ModuleDistributionDependencies
+  type ModuleDistributionDependencies,
+  type HerdrInstallDependencies
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -460,6 +461,8 @@ export interface BuiltInRouteDependencies {
    */
   readonly externalModules?: ExternalModulesDependencies;
   readonly moduleDistribution?: ModuleDistributionDependencies;
+  /** Fixed-script Herdr install executor port (#993), built by the API composition root. */
+  readonly herdrInstall?: HerdrInstallDependencies;
   readonly reconcileExternalModuleJobs?: (
     change:
       | { readonly kind: "module"; readonly moduleId: string }
@@ -922,6 +925,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         bootstrapConnectionString: deps.bootstrapConnectionString,
         getChatMultiplexerStatus: deps.getChatMultiplexerStatus,
         hostDiagnostics: deps.hostDiagnostics,
+        herdrInstall: deps.herdrInstall,
         onboardingProbes: deps.onboardingProbes,
         onboardingInstall: deps.onboardingInstall,
         onboardingLogin: deps.onboardingLogin,

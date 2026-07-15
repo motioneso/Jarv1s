@@ -14,6 +14,7 @@ import type { TmuxIo } from "./tmux-bridge.js";
 import type { Multiplexer } from "./multiplexer.js";
 import { TmuxMultiplexer } from "./tmux-multiplexer.js";
 import { HerdrMultiplexer } from "./herdr-multiplexer.js";
+import { isRootWorkspaceConfigured } from "./root-workspace.js";
 
 export type MultiplexerKind = "tmux" | "herdr";
 export type MultiplexerSource = "env" | "configured" | "auto";
@@ -31,14 +32,13 @@ export type MultiplexerDecision =
 export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerDecision {
   const { env, configured, isInstalled } = input;
 
-  // herdr is only USABLE if its binary is present AND a root pane can be resolved
-  // (explicit JARVIS_HERDR_ROOT_PANE, or the server's own HERDR_PANE_ID). Without
-  // a root pane, picking herdr would boot a backend that only fails at launch — so
-  // it must not count as available for `auto`/`configured` resolution (Codex R2 #1).
-  const herdrRootAvailable = Boolean(
-    env.JARVIS_HERDR_ROOT_PANE?.trim() || env.HERDR_PANE_ID?.trim()
-  );
-  const herdrUsable = isInstalled("herdr") && herdrRootAvailable;
+  // herdr is only USABLE if its binary is present AND a Root workspace can be resolved
+  // (JARVIS_HERDR_ROOT_TAB, JARVIS_HERDR_ROOT_PANE, or the server's own HERDR_PANE_ID —
+  // isRootWorkspaceConfigured is the ONE shared predicate so this can never disagree with
+  // makeMultiplexerUsableProbe or HerdrMultiplexer.resolveRoot, #993). Without a Root
+  // workspace, picking herdr would boot a backend that only fails at launch — so it must
+  // not count as available for `auto`/`configured` resolution (Codex R2 #1).
+  const herdrUsable = isInstalled("herdr") && isRootWorkspaceConfigured(env);
   const tmuxUsable = isInstalled("tmux");
 
   // 1. Env override wins, BYPASSES the probe (deploy escape hatch). The operator owns
