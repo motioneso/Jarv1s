@@ -3,8 +3,10 @@ set -euo pipefail
 
 # Installs the Herdr terminal-multiplexer binary into the persistent CLI-tools volume so it
 # survives container replacement (see infra/docker-compose.prod.yml: JARVIS_CLI_TOOLS_PREFIX is
-# bind-mounted to the jarv1s-cli-tools named volume). Deliberately host-operator-run only — no
-# Jarv1s API route may call this (spec 2026-07-08-herdr-install-and-attach-hint.md non-goal).
+# bind-mounted to the jarv1s-cli-tools named volume). Runnable by a host operator directly, and by
+# the fixed, argument-free executor behind POST /api/admin/host/install (spec
+# 2026-07-15-993-host-truth.md) — that route invokes this exact script via execFile with no
+# request-derived args, never a shell string. Mechanics below are unchanged either way.
 #
 # Per-arch release artifacts and their SHA-256 checksums are pinned here rather than resolved at
 # install time, so a compromised or yanked upstream release can't silently swap the binary.
