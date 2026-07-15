@@ -221,6 +221,19 @@ body
       error: "People notes folder is unavailable"
     });
     expect(unavailable.body).not.toContain(vaultRoot);
+
+    await vaultRunner.withVaultContext(
+      { actorUserId: ids.userA, requestId: "refresh-loop" },
+      async (ctx) => {
+        await chmod(join(ctx.vaultRoot, "QA987Refresh/Canonical.md"), 0o600);
+        await rm(join(ctx.vaultRoot, "QA987Refresh"), { recursive: true });
+        await symlink("QA987Refresh", join(ctx.vaultRoot, "QA987Refresh"), "dir");
+      }
+    );
+    const loop = await app.inject({ method: "POST", url: "/api/people/notes/refresh" });
+    expect(loop.statusCode).toBe(400);
+    expect(JSON.parse(loop.body)).toEqual({ error: "People notes folder is unavailable" });
+    expect(loop.body).not.toContain(vaultRoot);
     await app.close();
   });
 

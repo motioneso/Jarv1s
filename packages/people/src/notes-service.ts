@@ -6,6 +6,7 @@ import { PreferencesRepository } from "@jarv1s/structured-state";
 import {
   listVaultFilesRecursive,
   readVaultFile,
+  VaultPathError,
   vaultFileExists,
   writeVaultFile,
   type VaultContext
@@ -35,6 +36,18 @@ export class PeopleNotesFolderUnavailableError extends Error {
     super("People notes folder is unavailable");
     this.name = "PeopleNotesFolderUnavailableError";
   }
+}
+
+function translateVaultOperationError(error: unknown): never {
+  const fsError = error as NodeJS.ErrnoException;
+  if (
+    error instanceof VaultPathError ||
+    (typeof fsError?.code === "string" &&
+      (typeof fsError.path === "string" || typeof fsError.syscall === "string"))
+  ) {
+    throw new PeopleNotesFolderUnavailableError();
+  }
+  throw error;
 }
 
 export interface PeopleNotesServiceDeps {
@@ -270,25 +283,27 @@ export class PeopleNotesService {
     vaultCtx: VaultContext,
     folder: string
   ): Promise<{ notes: LoadedPeopleNote[]; discovered: number; ignored: number }> {
+    let allPaths: string[];
     try {
-      const allPaths = await listVaultFilesRecursive(vaultCtx, folder);
-      const paths = allPaths.filter((path) => path.endsWith(".md"));
-      const notes: LoadedPeopleNote[] = [];
-      let ignored = 0;
-      for (const path of paths) {
-        const content = await readVaultFile(vaultCtx, path);
-        const parsed = parsePeopleNote(content);
-        if (parsed) notes.push({ path, content, parsed });
-        else ignored += 1;
-      }
-      return { notes, discovered: paths.length, ignored };
+      allPaths = await listVaultFilesRecursive(vaultCtx, folder);
     } catch (error) {
-      if (["ENOENT", "ENOTDIR", "EACCES"].includes((error as NodeJS.ErrnoException)?.code ?? "")) {
-        throw new PeopleNotesFolderUnavailableError();
-      } else {
-        throw error;
-      }
+      translateVaultOperationError(error);
     }
+    const paths = allPaths.filter((path) => path.endsWith(".md"));
+    const notes: LoadedPeopleNote[] = [];
+    let ignored = 0;
+    for (const path of paths) {
+      let content: string;
+      try {
+        content = await readVaultFile(vaultCtx, path);
+      } catch (error) {
+        translateVaultOperationError(error);
+      }
+      const parsed = parsePeopleNote(content);
+      if (parsed) notes.push({ path, content, parsed });
+      else ignored += 1;
+    }
+    return { notes, discovered: paths.length, ignored };
   }
 
   private async findCanonicalNote(
