@@ -1986,3 +1986,17 @@ resume from this note before taking any merge-sensitive action.
   plan pointer; product code remains forbidden before coordinator approval.
 - No duplicate agent shares the worktree. The separate primary `Coordinator` remains untouched.
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 GitHub drift fixed; #995 low-effort agent active
+
+- GitHub audit confirmed #987 and #1060 Closed/Done, #995 Open/In progress, and #993/#1002/#988
+  Open/Backlog. Corrected parent epic #983 from Backlog to In progress and removed the stale
+  `needs-spec` label from shipped #987. #995 already had `needs-spec` removed after brief approval.
+- Replacement `UX 995 Build Relay` session `7b99f727-179c-4e5c-8243-73209b4e17cc` repeated the
+  predecessor's no-action context burn. It was interrupted at 11% before compaction, the branch was
+  again verified unchanged except the ignored context-meter log, and the exact session was reaped.
+- Spawned exact label `UX 995 Build Low`, immutable Claude session
+  `6796dfa2-32c4-4a5d-b2fc-71e257c25e6d`, using the same required Sonnet 5 model with `--effort low`,
+  bypass permissions, shared agents tab, and isolated worktree. Its immediate task remains a minimal
+  plan pointer; no product code before coordinator approval. The primary `Coordinator` is untouched.
+  `merges_since_relay` remains `1`.
